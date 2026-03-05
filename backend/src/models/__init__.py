@@ -8,6 +8,9 @@ from .tickets import Ticket, TicketStatus
 from .senha_controls import SenhaControl
 from .audit_logs import AuditLog, AuditAction
 from .tenant_config import TenantConfig
+from .subscriptions import Subscription, PlanType, SubscriptionStatus
+from .billing import Invoice, InvoiceStatus
+from .feature_flags import FeatureFlag
 
 __all__ = [
     "Base",
@@ -24,4 +27,10 @@ __all__ = [
     "AuditLog",
     "AuditAction",
     "TenantConfig",
+    "Subscription",
+    "PlanType",
+    "SubscriptionStatus",
+    "Invoice",
+    "InvoiceStatus",
+    "FeatureFlag",
 ]

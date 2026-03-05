@@ -13,6 +13,7 @@ from .core.database import engine, Base
 from .middleware import jwt_middleware, tenant_context_middleware, audit_logging_middleware
 from .api import auth_router
 from .api.v1.admin import admin_router
+from .api.v1.platform import platform_router
 from .models import (
     Tenant,
     User,
@@ -24,6 +25,12 @@ from .models import (
     SenhaControl,
     AuditLog,
     AuditAction,
+    Subscription,
+    PlanType,
+    SubscriptionStatus,
+    Invoice,
+    InvoiceStatus,
+    FeatureFlag,
 )
 
 
@@ -165,8 +172,11 @@ def create_app() -> FastAPI:
     # Auth routes
     app.include_router(auth_router)
     
-    # Admin routes
+    # Admin routes (tenant-scoped)
     app.include_router(admin_router)
+    
+    # Platform routes (SUPER_ADMIN only)
+    app.include_router(platform_router)
     
     logger.info("FastAPI app created successfully")
     return app

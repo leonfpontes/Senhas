@@ -1,0 +1,22 @@
+"""Platform API routes package."""
+from fastapi import APIRouter
+
+from .tenants import router as tenants_router
+from .tenants_search import router as search_router
+from .users_global import router as users_router
+from .subscriptions import router as subscriptions_router
+from .consolidated_audit import router as audit_router
+from .billing import router as billing_router
+from .feature_flags import router as feature_flags_router
+
+# Combine all platform routers
+platform_router = APIRouter()
+platform_router.include_router(tenants_router)
+platform_router.include_router(search_router)
+platform_router.include_router(users_router)
+platform_router.include_router(subscriptions_router)
+platform_router.include_router(audit_router)
+platform_router.include_router(billing_router)
+platform_router.include_router(feature_flags_router)
+
+__all__ = ["platform_router"]

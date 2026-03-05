@@ -35,6 +35,9 @@ class Tenant(SoftDeleteModel):
     senha_controls = relationship("SenhaControl", back_populates="tenant", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="tenant")
     config = relationship("TenantConfig", back_populates="tenant", cascade="all, delete-orphan", uselist=False)
+    subscription = relationship("Subscription", back_populates="tenant", cascade="all, delete-orphan", uselist=False)
+    invoices = relationship("Invoice", back_populates="tenant", cascade="all, delete-orphan")
+    feature_flags = relationship("FeatureFlag", back_populates="tenant", cascade="all, delete-orphan")
     
     def __repr__(self) -> str:
         return f"<Tenant(id={self.id}, name='{self.name}', slug='{self.slug}')>"
