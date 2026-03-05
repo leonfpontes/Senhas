@@ -8,6 +8,8 @@ Thumbs.db
 .vscode/
 .idea/
 *.iml
+.github
+.specify
 
 # Environment
 .env

@@ -1,0 +1,23 @@
+/**
+ * Global CSS Stylesheet
+ */
+
+:root {
+  --primary-color: #6b4fa1;
+  --secondary-color: #ffb81c;
+  --text-color: #212121;
+  --background-color: #fafafa;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+* {
+  box-sizing: border-box;
+}

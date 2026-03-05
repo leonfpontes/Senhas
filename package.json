@@ -1,0 +1,23 @@
+{
+  "name": "senhas",
+  "version": "0.1.0",
+  "description": "Sistema Multi-Tenant de Gestão de Senhas para Terreiros de Umbanda",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "packages/*"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm install --workspace=frontend --workspace=packages/shared-types --workspace=packages/shared-ui",
+    "build": "npm run build --workspace=packages/shared-types && npm run build --workspace=packages/shared-ui && npm run build --workspace=frontend",
+    "dev": "docker-compose up",
+    "dev:stop": "docker-compose down",
+    "lint": "npm run lint --workspace=frontend && npm run type-check --workspace=packages/shared-types && npm run type-check --workspace=packages/shared-ui",
+    "format": "npm run format --workspace=frontend && prettier --write .",
+    "test": "npm run test --workspace=frontend"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "prettier": "^3.1.1"
+  }
+}

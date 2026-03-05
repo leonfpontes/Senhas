@@ -1,0 +1,245 @@
+"""
+T032: ConsulenteRepository - Consulente (person) data management
+Handles lookup, upsert, and normalization of email/phone for deduplication
+"""
+
+from typing import Optional
+from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+import re
+
+from backend.src.models.consulentes import Consulente
+from backend.src.repositories.base import BaseRepository
+
+
+class ConsulenteRepository(BaseRepository[Consulente]):
+    """Multi-tenant repository for consulente management
+    
+    Normalizes email and phone for consistent lookup.
+    Supports upsert pattern for idempotent ticket emission.
+    """
+
+    @staticmethod
+    def normalize_email(email: str) -> str:
+        """Normalize email for storage and lookup
+        
+        - Lowercase
+        - Strip whitespace
+        - Validate basic RFC format
+        
+        Args:
+            email: Raw email address
+            
+        Returns:
+            Normalized email
+            
+        Raises:
+            ValueError: If email is invalid
+        """
+        normalized = email.lower().strip()
+
+        # Basic RFC 5322 validation
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        if not re.match(email_pattern, normalized):
+            raise ValueError(f"Invalid email format: {email}")
+
+        return normalized
+
+    @staticmethod
+    def normalize_phone(phone: Optional[str]) -> Optional[str]:
+        """Normalize phone for storage and lookup
+        
+        - Remove all non-digit characters except leading +
+        - Validate E.164 format
+        
+        Args:
+            phone: Raw phone number
+            
+        Returns:
+            Normalized phone or None if not provided
+            
+        Raises:
+            ValueError: If phone is invalid format
+        """
+        if not phone:
+            return None
+
+        # Keep + prefix and digits only
+        normalized = re.sub(r"[^\d+]", "", phone.strip())
+
+        # Basic E.164 validation (+ followed by 7-15 digits)
+        if not re.match(r"^\+?[1-9]\d{6,14}$", normalized):
+            raise ValueError(f"Invalid phone format: {phone}")
+
+        # Ensure + prefix
+        if not normalized.startswith("+"):
+            normalized = f"+{normalized}"
+
+        return normalized
+
+    async def get_by_email(
+        self,
+        session: AsyncSession,
+        tenant_id: int,
+        email: str,
+    ) -> Optional[Consulente]:
+        """Lookup consulente by normalized email
+        
+        Args:
+            session: Async DB session
+            tenant_id: Tenant ID
+            email: Email address (will be normalized)
+            
+        Returns:
+            Consulente or None
+            
+        Raises:
+            ValueError: If email is invalid format
+        """
+        normalized_email = self.normalize_email(email)
+
+        query = select(Consulente).where(
+            and_(
+                Consulente.tenant_id == tenant_id,
+                Consulente.email_normalized == normalized_email,
+            )
+        )
+        result = await session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_by_id_with_audit(
+        self,
+        session: AsyncSession,
+        tenant_id: int,
+        consulente_id: int,
+    ) -> Optional[Consulente]:
+        """Fetch consulente with full context
+        
+        Args:
+            session: Async DB session
+            tenant_id: Tenant ID
+            consulente_id: Consulente ID
+            
+        Returns:
+            Consulente with relations or None
+        """
+        query = (
+            select(Consulente)
+            .where(
+                and_(
+                    Consulente.tenant_id == tenant_id,
+                    Consulente.id == consulente_id,
+                )
+            )
+            .options(selectinload(Consulente.tenant))
+        )
+        result = await session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def create_consulente(
+        self,
+        session: AsyncSession,
+        tenant_id: int,
+        name: str,
+        email: str,
+        phone: Optional[str] = None,
+    ) -> Consulente:
+        """Create a new consulente
+        
+        Args:
+            session: Async DB session
+            tenant_id: Tenant ID
+            name: Consulente name
+            email: Email address (will be normalized)
+            phone: Phone number (optional, will be normalized)
+            
+        Returns:
+            Created Consulente
+            
+        Raises:
+            ValueError: If email/phone invalid format
+        """
+        email_normalized = self.normalize_email(email)
+        phone_normalized = self.normalize_phone(phone)
+
+        consulente = Consulente(
+            tenant_id=tenant_id,
+            name=name,
+            email=email,
+            email_normalized=email_normalized,
+            phone=phone,
+            phone_normalized=phone_normalized,
+        )
+        session.add(consulente)
+        await session.flush()
+        return consulente
+
+    async def upsert_consulente(
+        self,
+        session: AsyncSession,
+        tenant_id: int,
+        name: str,
+        email: str,
+        phone: Optional[str] = None,
+    ) -> tuple[Consulente, bool]:
+        """Upsert consulente (get existing by email or create new)
+        
+        Supports idempotent ticket emission - same email returns same consulente.
+        
+        Args:
+            session: Async DB session
+            tenant_id: Tenant ID
+            name: Consulente name (used only on creation)
+            email: Email address
+            phone: Phone number (optional)
+            
+        Returns:
+            Tuple of (Consulente, is_new) where is_new indicates if created
+            
+        Raises:
+            ValueError: If email/phone invalid format
+        """
+        existing = await self.get_by_email(session, tenant_id, email)
+
+        if existing:
+            # Update phone if provided and different
+            if phone:
+                phone_normalized = self.normalize_phone(phone)
+                if phone_normalized and existing.phone_normalized != phone_normalized:
+                    existing.phone = phone
+                    existing.phone_normalized = phone_normalized
+                    await session.flush()
+            return (existing, False)
+
+        # Create new
+        consulente = await self.create_consulente(session, tenant_id, name, email, phone)
+        return (consulente, True)
+
+    async def list_by_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: int,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Consulente]:
+        """List all consulentes for a tenant
+        
+        Args:
+            session: Async DB session
+            tenant_id: Tenant ID
+            limit: Max results
+            offset: Pagination offset
+            
+        Returns:
+            List of Consulentes
+        """
+        query = (
+            select(Consulente)
+            .where(Consulente.tenant_id == tenant_id)
+            .order_by(Consulente.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await session.execute(query)
+        return result.scalars().all()
