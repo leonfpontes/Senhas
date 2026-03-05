@@ -6,11 +6,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml* ./
+COPY backend/pyproject.toml ./
 
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -e ".[dev]" 2>/dev/null || \
     pip install --no-cache-dir -e .
+
+COPY backend/ ./
 
 EXPOSE 8000
 

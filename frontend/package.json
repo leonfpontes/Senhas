@@ -26,8 +26,8 @@
     "@mui/lab": "^5.0.0-alpha.47",
     "axios": "^1.6.2",
     "zustand": "^4.4.1",
-    "shared-types": "workspace:*",
-    "shared-ui": "workspace:*"
+    "shared-types": "file:../packages/shared-types",
+    "shared-ui": "file:../packages/shared-ui"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",

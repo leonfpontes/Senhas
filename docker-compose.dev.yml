@@ -1,0 +1,81 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: senhas_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: senhas_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - senhas_network
+    restart: unless-stopped
+
+  # FastAPI Backend
+  backend:
+    image: python:3.11-slim
+    container_name: senhas_backend
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/senhas_db
+      PYTHONUNBUFFERED: 1
+      LOG_LEVEL: info
+      SECRET_KEY: dev-secret-key-change-in-production
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - senhas_network
+    entrypoint: /bin/bash
+    command: -c "pip install -q --upgrade pip setuptools wheel && pip install -q -e . && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    restart: unless-stopped
+
+  # Next.js Frontend with Custom Build
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.dev
+    container_name: senhas_frontend
+    working_dir: /app/frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: 1
+      NEXT_DISABLE_SWC: 1
+      SWCMINIFY: false
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./frontend:/app/frontend
+      - ./packages:/app/packages
+      - /app/frontend/node_modules
+      - /app/frontend/.next
+    networks:
+      - senhas_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  senhas_network:
+    driver: bridge

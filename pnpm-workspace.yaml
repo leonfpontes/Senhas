@@ -1,0 +1,8 @@
+# pnpm workspace configuration
+# Defines workspace packages for multi-tenant Senhas project
+
+packages:
+  # Frontend Next.js application
+  - 'frontend'
+  # Shared packages (types, UI components)
+  - 'packages/*'
