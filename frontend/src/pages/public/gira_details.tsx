@@ -1,7 +1,7 @@
-"""
-T041: Gira Details Page - Display next gira info and countdown
-Shows event details, availability, and countdown to emit window
-"""
+/**
+ * T041: Gira Details Page - Display next gira info and countdown
+ * Shows event details, availability, and countdown to emit window
+ */
 
 'use client';
 

@@ -9,14 +9,13 @@
 
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import { useTenant } from '@/providers/ThemeProvider';
+import { useTenant, TenantThemeConfig } from '@/providers/ThemeProvider';
 import PublicLayout from './public_layout';
 import GiraDetails from './gira_details';
 import EmitForm from './emit_form';
 import { apiClient } from '@/services/api_client';
-import { TenantThemeConfig } from 'shared-ui/theme/theme_provider';
 import styles from './public_page.module.css';
 
 
@@ -44,8 +43,8 @@ interface TenantInfo {
 
 
 export default function PublicPage() {
-  const params = useParams();
-  const tenantSlug = params?.tenant as string;
+  const router = useRouter();
+  const tenantSlug = router.query.tenant as string;
 
   const [giraData, setGiraData] = useState<GiraData | null>(null);
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);

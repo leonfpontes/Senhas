@@ -1,7 +1,7 @@
-"""
-T040: Public Layout Component - No authentication required wrapper
-Simple, clean layout for public ticket emission interface
-"""
+/**
+ * T040: Public Layout Component - No authentication required wrapper
+ * Simple, clean layout for public ticket emission interface
+ */
 
 'use client';
 

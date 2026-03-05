@@ -22,12 +22,16 @@ export default function Home() {
           Sistema Multi-Tenant de Gestão de Senhas para Terreiros de Umbanda
         </Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button variant="contained" color="primary" size="large">
-            Admin
-          </Button>
-          <Button variant="outlined" color="primary" size="large">
-            Plataforma
-          </Button>
+          <Link href="/admin/dashboard" passHref legacyBehavior>
+            <Button variant="contained" color="primary" size="large" component="a">
+              Admin
+            </Button>
+          </Link>
+          <Link href="/platform" passHref legacyBehavior>
+            <Button variant="outlined" color="primary" size="large" component="a">
+              Plataforma
+            </Button>
+          </Link>
         </Box>
       </Box>
     </Container>

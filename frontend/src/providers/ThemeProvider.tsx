@@ -7,12 +7,22 @@
 'use client';
 
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
-import { ThemeProvider as SharedThemeProvider } from 'shared-ui/theme/theme_provider';
-import { TenantThemeConfig } from 'shared-ui/theme/theme_provider';
+import { ThemeProvider as MuiThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 
 /**
- * Tenant Context
+ * Tenant branding configuration
  */
+export interface TenantThemeConfig {
+  tenantId: string;
+  tenantName: string;
+  colors?: {
+    primary?: string;
+    secondary?: string;
+  };
+  logoUrl?: string;
+}
+
 interface TenantContextType {
   tenantId?: string;
   tenantName?: string;
@@ -49,6 +59,18 @@ export interface TenantAwareThemeProviderProps {
  */
 export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
   ({ children, tenantConfig }) => {
+    const theme = useMemo(
+      () =>
+        createTheme({
+          palette: {
+            mode: 'light',
+            primary: { main: tenantConfig?.colors?.primary || '#6366f1' },
+            secondary: { main: tenantConfig?.colors?.secondary || '#ec4899' },
+          },
+        }),
+      [tenantConfig]
+    );
+
     const tenantContextValue = useMemo<TenantContextType>(
       () => ({
         tenantId: tenantConfig?.tenantId,
@@ -61,9 +83,10 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
 
     return (
       <TenantContext.Provider value={tenantContextValue}>
-        <SharedThemeProvider config={tenantConfig}>
+        <MuiThemeProvider theme={theme}>
+          <CssBaseline />
           {children}
-        </SharedThemeProvider>
+        </MuiThemeProvider>
       </TenantContext.Provider>
     );
   };

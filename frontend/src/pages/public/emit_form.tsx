@@ -1,8 +1,8 @@
-"""
-T042: Emit Ticket Form - Input form for public ticket emission
-Validates name, email, phone before submission
-Handles loading state, errors, and success
-"""
+/**
+ * T042: Emit Ticket Form - Input form for public ticket emission
+ * Validates name, email, phone before submission
+ * Handles loading state, errors, and success
+ */
 
 'use client';
 

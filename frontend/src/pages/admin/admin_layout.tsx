@@ -28,7 +28,7 @@ import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
   Event as EventIcon,
-  Confirmation as TicketIcon,
+  ConfirmationNumber as TicketIcon,
   People as PeopleIcon,
   Settings as SettingsIcon,
   Assessment as AnalyticsIcon,
@@ -38,7 +38,7 @@ import {
   ChevronLeft as ChevronLeftIcon,
 } from '@mui/icons-material';
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/router';
 import { useTenant } from '@/providers/ThemeProvider';
 
 const DRAWER_WIDTH = 280;
@@ -57,7 +57,7 @@ export default function AdminLayout({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = router.pathname;
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { tenantName, logoUrl } = useTenant();

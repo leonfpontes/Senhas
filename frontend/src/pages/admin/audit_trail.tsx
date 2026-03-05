@@ -86,7 +86,7 @@ export default function AdminAuditTrail() {
       link.setAttribute('download', `audit-logs-${new Date().toISOString()}.csv`);
       document.body.appendChild(link);
       link.click();
-      link.parentChild?.removeChild(link);
+      link.parentNode?.removeChild(link);
     } catch (error) {
       console.error('Error exporting logs:', error);
     }

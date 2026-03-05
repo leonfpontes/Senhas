@@ -26,11 +26,9 @@ import {
   Alert,
   Grid,
   Chip,
-  TabContext,
-  TabList,
-  TabPanel,
   Tab,
 } from "@mui/material";
+import { TabContext, TabList, TabPanel } from "@mui/lab";
 import {
   Download as DownloadIcon,
   Refresh as RefreshIcon,
@@ -259,7 +257,7 @@ const ConsolidatedAuditPage: React.FC = () => {
           {/* By Action Tab */}
           <TabPanel value="2">
             {loading ? (
-              <Box sx({ display: "flex", justifyContent: "center", py: 3 }}>
+              <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
                 <CircularProgress />
               </Box>
             ) : summary ? (
