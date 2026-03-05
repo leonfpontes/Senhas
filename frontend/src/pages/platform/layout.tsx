@@ -42,7 +42,6 @@ import {
 } from "@mui/icons-material";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useSelector, useDispatch } from "react-redux";
 
 const DRAWER_WIDTH = 280;
 
@@ -56,10 +55,6 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-
-  // Redux state
-  const dispatch = useDispatch();
-  // const user = useSelector((state) => state.auth.user);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
