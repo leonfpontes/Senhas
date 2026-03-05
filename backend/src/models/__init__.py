@@ -7,6 +7,7 @@ from .consulentes import Consulente
 from .tickets import Ticket, TicketStatus
 from .senha_controls import SenhaControl
 from .audit_logs import AuditLog, AuditAction
+from .tenant_config import TenantConfig
 
 __all__ = [
     "Base",
@@ -22,4 +23,5 @@ __all__ = [
     "SenhaControl",
     "AuditLog",
     "AuditAction",
+    "TenantConfig",
 ]

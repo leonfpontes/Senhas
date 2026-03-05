@@ -1,20 +1,22 @@
 /**
- * T045: Dynamic Public Route
+ * T091: Dynamic Public Route with Tenant Branding
  * Pages route: /pages/public/[tenant].tsx
- * Maps /:tenant to public ticket emission interface
+ * Maps /:tenant to public ticket emission interface with tenant-specific branding
  * 
  * URL: /public/espiritismo-sp
- * Shows: Gira details + Emit form
+ * Shows: Gira details + Emit form with tenant colors
  */
 
 'use client';
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useTenant } from '@/providers/ThemeProvider';
 import PublicLayout from './public_layout';
 import GiraDetails from './gira_details';
 import EmitForm from './emit_form';
 import { apiClient } from '@/services/api_client';
+import { TenantThemeConfig } from 'shared-ui/theme/theme_provider';
 import styles from './public_page.module.css';
 
 
@@ -32,10 +34,12 @@ interface GiraData {
 
 
 interface TenantInfo {
+  id: string;
   slug: string;
   name: string;
   logo_url?: string;
-  brand_color?: string;
+  primary_color?: string;
+  secondary_color?: string;
 }
 
 
@@ -47,6 +51,17 @@ export default function PublicPage() {
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Build tenant theme config
+  const themeConfig: TenantThemeConfig | undefined = tenantInfo ? {
+    tenantId: tenantInfo.id || tenantSlug,
+    tenantName: tenantInfo.name,
+    logoUrl: tenantInfo.logo_url,
+    colors: {
+      primary: tenantInfo.primary_color || '#2E7D32',
+      secondary: tenantInfo.secondary_color || '#1565C0',
+    },
+  } : undefined;
 
   useEffect(() => {
     if (!tenantSlug) return;
@@ -64,10 +79,12 @@ export default function PublicPage() {
 
         // Extract tenant info from response or use defaults
         setTenantInfo({
+          id: `tenant-${tenantSlug}`,
           slug: tenantSlug,
           name: 'Centro Espírita',
           logo_url: undefined,
-          brand_color: '#2E7D32',
+          primary_color: '#2E7D32',
+          secondary_color: '#1565C0',
         });
 
       } catch (err: any) {
@@ -97,11 +114,15 @@ export default function PublicPage() {
   }
 
   if (error || !giraData || !tenantInfo) {
+    const defaultColors = {
+      primary_color: '#2E7D32',
+      secondary_color: '#1565C0',
+    };
     return (
       <PublicLayout 
         tenantName={tenantInfo?.name || 'Centro Espírita'}
         tenantLogoUrl={tenantInfo?.logo_url}
-        tenantColor={tenantInfo?.brand_color}
+        tenantColor={tenantInfo?.primary_color || defaultColors.primary_color}
       >
         <div className={styles.errorcontainer}>
           <div className={styles.errorcontent}>
@@ -110,7 +131,7 @@ export default function PublicPage() {
             <button
               onClick={() => window.location.reload()}
               className={styles.retrybutton}
-              style={{ backgroundColor: tenantInfo?.brand_color || '#2E7D32' }}
+              style={{ backgroundColor: tenantInfo?.primary_color || defaultColors.primary_color }}
             >
               Tentar Novamente
             </button>
@@ -124,7 +145,7 @@ export default function PublicPage() {
     <PublicLayout
       tenantName={tenantInfo.name}
       tenantLogoUrl={tenantInfo.logo_url}
-      tenantColor={tenantInfo.brand_color}
+      tenantColor={tenantInfo.primary_color}
     >
       <div className={styles.container}>
         {/* Two-column layout: Gira details left, form right */}
@@ -132,7 +153,7 @@ export default function PublicPage() {
           <div className={styles.giradetalspan}>
             <GiraDetails
               giraData={giraData}
-              tenantColor={tenantInfo.brand_color}
+              tenantColor={tenantInfo.primary_color}
             />
           </div>
 
@@ -141,7 +162,7 @@ export default function PublicPage() {
               tenantSlug={tenantSlug}
               girReleaseStart={giraData.release_start_at}
               giraReleaseEnd={giraData.release_end_at}
-              tenantColor={tenantInfo.brand_color}
+              tenantColor={tenantInfo.primary_color}
               onSuccess={(ticketNumber, email) => {
                 console.log('Ticket emitted:', ticketNumber, email);
                 // Could scroll to success section or refresh data here

@@ -10,8 +10,9 @@ import logging
 from .core.config import settings
 from .core.errors import APIException
 from .core.database import engine, Base
-from .middleware import jwt_middleware, tenant_context_middleware
+from .middleware import jwt_middleware, tenant_context_middleware, audit_logging_middleware
 from .api import auth_router
+from .api.v1.admin import admin_router
 from .models import (
     Tenant,
     User,
@@ -90,6 +91,9 @@ def create_app() -> FastAPI:
     # JWT Validation Middleware
     app.middleware("http")(jwt_middleware)
     
+    # Audit Logging Middleware (for admin endpoints)
+    app.middleware("http")(audit_logging_middleware)
+    
     # ============================================
     # EXCEPTION HANDLERS
     # ============================================
@@ -160,6 +164,9 @@ def create_app() -> FastAPI:
     
     # Auth routes
     app.include_router(auth_router)
+    
+    # Admin routes
+    app.include_router(admin_router)
     
     logger.info("FastAPI app created successfully")
     return app

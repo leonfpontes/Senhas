@@ -1,5 +1,5 @@
 """Ticket model - senha (password/ticket emitted) - CORE (T015)."""
-from sqlalchemy import Column, String, ForeignKey, Integer, Index, Text, Enum as SQLEnum
+from sqlalchemy import Column, String, ForeignKey, Integer, Index, Text, DateTime, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
