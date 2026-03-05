@@ -1,0 +1,102 @@
+# Project-wide ignores
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.iml
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+*.log*
+
+# Dependencies
+node_modules/
+venv/
+.venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Build outputs
+dist/
+build/
+out/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Frontend (Next.js)
+frontend/.next/
+frontend/out/
+frontend/dist/
+frontend/coverage/
+frontend/.env.local
+frontend/.env.*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.turbo/
+frontend/.cache/
+
+# Backend (FastAPI)
+backend/__pycache__/
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+backend/dist/
+backend/build/
+backend/*.egg-info/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/alembic/versions/__pycache__/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+local.db
+
+# IDE
+.vscode/settings.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CI/CD
+.github/workflows/secrets.yml
+
+# Docker (if running locally)
+.dockerignore
+docker-compose.override.yml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+.cache/
+
+# Specs/Planning (backup only, keep tracked)
+specs/**/draft/
+specs/**/archive/

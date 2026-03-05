@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Version control
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Development
+node_modules/
+venv/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# Build/dist
+dist/
+build/
+*.egg-info/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+docs/
+README.md
+CONTRIBUTING.md
+
+# Spec/Planning
+specs/
