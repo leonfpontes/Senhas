@@ -1,10 +1,11 @@
-# T123: API Documentation - OpenAPI/Swagger
+# API Reference
 
-## Senhas Multi-Tenant API - Complete Reference
+## Senhas Multi-Tenant API
 
 **Base URL**: `https://api.senhas.com/api/v1`  
 **Version**: 1.0.0  
-**Last Updated**: 2026-03-05
+**Last Updated**: 2026-03-06  
+**OpenAPI/Swagger**: Disponível em `/docs` (desenvolvimento)
 
 ---
 
