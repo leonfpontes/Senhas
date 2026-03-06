@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from datetime import datetime
 
-from backend.src.core.database import get_db
-from backend.src.models.giras import Gira
-from backend.src.models.tenants import Tenant
-from backend.src.models.senha_controls import SenhaControl
+from src.core.database import get_db
+from src.models.giras import Gira
+from src.models.tenants import Tenant
+from src.models.senha_controls import SenhaControl
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 

@@ -18,18 +18,17 @@ import logging
 import hashlib
 import uuid
 
-from backend.src.core.database import get_db
-from backend.src.core.errors import APIException
-from backend.src.models.tenants import Tenant
-from backend.src.models.giras import Gira
-from backend.src.models.password import PasswordValidator
-from backend.src.repositories.consulente_repo import ConsulenteRepository
-from backend.src.repositories.senha_control_repo import SenhaControlRepository
-from backend.src.repositories.ticket_repo import TicketRepository
-from backend.src.services.email.base import EmailMessage
-from backend.src.services.email.brevo_provider import BrevoEmailService
-from backend.src.services.email.resend_fallback import ResendEmailService
-from backend.src.services.email.templates.ticket_emission import (
+from src.core.database import get_db
+from src.core.errors import APIException
+from src.models.tenants import Tenant
+from src.models.giras import Gira
+from src.repositories.consulente_repo import ConsulenteRepository
+from src.repositories.senha_control_repo import SenhaControlRepository
+from src.repositories.ticket_repo import TicketRepository
+from src.services.email.base import EmailMessage
+from src.services.email.brevo_provider import BrevoEmailService
+from src.services.email.resend_fallback import ResendEmailService
+from src.services.email.templates.ticket_emission import (
     generate_ticket_emission_html,
     generate_plain_text_fallback,
 )

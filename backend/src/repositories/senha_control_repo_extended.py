@@ -9,13 +9,13 @@ from .senha_control_repo import SenhaControlRepository as BaseSenhaControlReposi
 
 
 class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
-    \"\"\"Extended SenhaControl repository with bulk operations.
+    """Extended SenhaControl repository with bulk operations.
     
     Provides:
     - Bulk reset of counters
     - Bulk ticket status updates
     - Batch operations
-    \"\"\"
+    """
     
     async def bulk_mark_used(
         self,
@@ -23,7 +23,7 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
         tenant_id: UUID,
         dry_run: bool = False,
     ) -> Dict[str, Any]:
-        \"\"\"Bulk mark tickets as used/completed.
+        """Bulk mark tickets as used/completed.
         
         Args:
             ticket_ids: List of ticket IDs
@@ -32,11 +32,11 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
             
         Returns:
             Dict with modified count, failed count, errors
-        \"\"\"
+        """
         results = {
-            \"modified\": 0,
-            \"failed\": 0,
-            \"errors\": [],
+            "modified": 0,
+            "failed": 0,
+            "errors": [],
         }
         
         if not ticket_ids:
@@ -54,8 +54,8 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
         tickets = result.scalars().all()
         
         if len(tickets) != len(ticket_ids):
-            results[\"failed\"] += len(ticket_ids) - len(tickets)
-            results[\"errors\"].append(\"Some tickets not found or belong to different tenant\")
+            results["failed"] += len(ticket_ids) - len(tickets)
+            results["errors"].append("Some tickets not found or belong to different tenant")
         
         # Update tickets
         for ticket in tickets:
@@ -65,10 +65,10 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
                     from datetime import datetime
                     ticket.finalizado_em = datetime.utcnow()
                     self.db.add(ticket)
-                    results[\"modified\"] += 1
+                    results["modified"] += 1
             except Exception as e:
-                results[\"failed\"] += 1
-                results[\"errors\"].append(f\"Error marking ticket {ticket.id}: {str(e)}\")
+                results["failed"] += 1
+                results["errors"].append(f"Error marking ticket {ticket.id}: {str(e)}")
         
         if not dry_run:
             await self.db.flush()
@@ -81,7 +81,7 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
         tenant_id: UUID,
         dry_run: bool = False,
     ) -> Dict[str, Any]:
-        \"\"\"Bulk cancel tickets.
+        """Bulk cancel tickets.
         
         Args:
             ticket_ids: List of ticket IDs
@@ -90,11 +90,11 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
             
         Returns:
             Dict with modified count, failed count, errors
-        \"\"\"
+        """
         results = {
-            \"modified\": 0,
-            \"failed\": 0,
-            \"errors\": [],
+            "modified": 0,
+            "failed": 0,
+            "errors": [],
         }
         
         if not ticket_ids:
@@ -112,8 +112,8 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
         tickets = result.scalars().all()
         
         if len(tickets) != len(ticket_ids):
-            results[\"failed\"] += len(ticket_ids) - len(ticket_ids)
-            results[\"errors\"].append(\"Some tickets not found or belong to different tenant\")
+            results["failed"] += len(ticket_ids) - len(ticket_ids)
+            results["errors"].append("Some tickets not found or belong to different tenant")
         
         # Update tickets
         for ticket in tickets:
@@ -121,10 +121,10 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
                 if ticket.status in [TicketStatus.EMITTED, TicketStatus.CALLED]:
                     ticket.status = TicketStatus.CANCELLED
                     self.db.add(ticket)
-                    results[\"modified\"] += 1
+                    results["modified"] += 1
             except Exception as e:
-                results[\"failed\"] += 1
-                results[\"errors\"].append(f\"Error cancelling ticket {ticket.id}: {str(e)}\")
+                results["failed"] += 1
+                results["errors"].append(f"Error cancelling ticket {ticket.id}: {str(e)}")
         
         if not dry_run:
             await self.db.flush()
@@ -136,7 +136,7 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
         gira_id: UUID,
         tenant_id: UUID,
     ) -> bool:
-        \"\"\"Reset ticket counter for a gira.
+        """Reset ticket counter for a gira.
         
         Args:
             gira_id: Gira ID
@@ -144,7 +144,7 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
             
         Returns:
             True if reset, False if not found
-        \"\"\"
+        """
         senha_control = await self.get_by_gira(gira_id, tenant_id)
         if not senha_control:
             return False
@@ -159,7 +159,7 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
         gira_id: UUID,
         tenant_id: UUID,
     ) -> Dict[str, Any]:
-        \"\"\"Get bulk operation stats for a gira.
+        """Get bulk operation stats for a gira.
         
         Args:
             gira_id: Gira ID
@@ -167,16 +167,16 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
             
         Returns:
             Dict with counters and statistics
-        \"\"\"
+        """
         # Get senha control
         senha_control = await self.get_by_gira(gira_id, tenant_id)
         
         if not senha_control:
             return {
-                \"total_capacity\": 0,
-                \"current_number\": 0,
-                \"remaining\": 0,
-                \"usage_percent\": 0,
+                "total_capacity": 0,
+                "current_number": 0,
+                "remaining": 0,
+                "usage_percent": 0,
             }
         
         # Get ticket counts
@@ -197,11 +197,11 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
             usage_percent = (total_emitted / senha_control.max_numero) * 100
         
         return {
-            \"total_capacity\": senha_control.max_numero,
-            \"current_number\": senha_control.current_numero,
-            \"total_emitted\": total_emitted,
-            \"remaining\": max(0, senha_control.max_numero - total_emitted),
-            \"usage_percent\": round(usage_percent, 2),
+            "total_capacity": senha_control.max_numero,
+            "current_number": senha_control.current_numero,
+            "total_emitted": total_emitted,
+            "remaining": max(0, senha_control.max_numero - total_emitted),
+            "usage_percent": round(usage_percent, 2),
         }
 
 

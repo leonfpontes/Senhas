@@ -6,10 +6,10 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 
-from ....core.database import get_db
-from ....api.dependencies import get_current_user
-from ....models import User, UserRole
-from ....repositories.feature_flags_repo import FeatureFlagsRepository
+from src.core.database import get_db
+from src.api.dependencies import get_current_user
+from src.models import User, UserRole
+from src.repositories.feature_flags_repo import FeatureFlagsRepository
 
 router = APIRouter(prefix="/api/v1/platform/feature-flags", tags=["platform-features"])
 

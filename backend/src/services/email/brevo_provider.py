@@ -6,8 +6,8 @@ Implements EmailService interface using Brevo (formerly Sendinblue) API v3
 import httpx
 import logging
 from typing import Optional
-from backend.src.services.email.base import EmailService, EmailMessage
-from backend.src.core.config import settings
+from src.services.email.base import EmailService, EmailMessage
+from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 

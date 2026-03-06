@@ -4,10 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 import uuid
 
-from ...core.database import get_db
-from ...core.errors import ValidationError, UnauthorizedError, NotFoundError
-from ...models import User
-from ...security import (
+from src.core.database import get_db
+from src.core.errors import ValidationError, UnauthorizedError, NotFoundError
+from src.models import User
+from src.security import (
     hash_password,
     verify_password,
     validate_password_policy,
@@ -16,7 +16,7 @@ from ...security import (
     decode_token,
     AccessToken,
 )
-from ...core.logging import log_security_event
+from src.core.logging import log_security_event
 from sqlalchemy import select
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])

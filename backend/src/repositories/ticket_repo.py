@@ -9,8 +9,8 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.src.models.tickets import Ticket
-from backend.src.repositories.base import BaseRepository
+from src.models.tickets import Ticket
+from src.repositories.base import BaseRepository
 
 
 class TicketRepository(BaseRepository[Ticket]):
@@ -166,7 +166,7 @@ class TicketRepository(BaseRepository[Ticket]):
         Returns:
             List of Tickets
         """
-        from backend.src.models.consulentes import Consulente
+        from src.models.consulentes import Consulente
 
         query = (
             select(Ticket)

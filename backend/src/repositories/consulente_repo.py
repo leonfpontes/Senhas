@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 import re
 
-from backend.src.models.consulentes import Consulente
-from backend.src.repositories.base import BaseRepository
+from src.models.consulentes import Consulente
+from src.repositories.base import BaseRepository
 
 
 class ConsulenteRepository(BaseRepository[Consulente]):

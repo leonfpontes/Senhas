@@ -9,7 +9,7 @@ from ..repositories.audit_log_repo import AuditLogRepository
 
 
 class AuditService:
-    \"\"\"Service for logging admin actions.
+    """Service for logging admin actions.
     
     Every admin action is logged for compliance:
     - Action type (CREATE, UPDATE, DELETE, etc.)
@@ -17,7 +17,7 @@ class AuditService:
     - Actor (user_id)
     - Metadata (before/after states)
     - Timestamp
-    \"\"\"
+    """
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -31,7 +31,7 @@ class AuditService:
         resource_id: UUID,
         details: Optional[Dict[str, Any]] = None,
     ) -> AuditLog:
-        \"\"\"Log resource creation.
+        """Log resource creation.
         
         Args:
             tenant_id: Tenant ID
@@ -42,7 +42,7 @@ class AuditService:
             
         Returns:
             Created AuditLog
-        \"\"\"
+        """
         return await self.repo.create(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -61,7 +61,7 @@ class AuditService:
         previous_state: Optional[Dict[str, Any]] = None,
         new_state: Optional[Dict[str, Any]] = None,
     ) -> AuditLog:
-        \"\"\"Log resource update.
+        """Log resource update.
         
         Args:
             tenant_id: Tenant ID
@@ -73,7 +73,7 @@ class AuditService:
             
         Returns:
             Created AuditLog
-        \"\"\"
+        """
         return await self.repo.create(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -81,8 +81,8 @@ class AuditService:
             resource_type=resource_type,
             resource_id=resource_id,
             details={
-                \"previous_state\": previous_state or {},
-                \"new_state\": new_state or {},
+                "previous_state": previous_state or {},
+                "new_state": new_state or {},
             },
         )
     
@@ -94,7 +94,7 @@ class AuditService:
         resource_id: UUID,
         previous_state: Optional[Dict[str, Any]] = None,
     ) -> AuditLog:
-        \"\"\"Log resource deletion.
+        """Log resource deletion.
         
         Args:
             tenant_id: Tenant ID
@@ -105,7 +105,7 @@ class AuditService:
             
         Returns:
             Created AuditLog
-        \"\"\"
+        """
         return await self.repo.create(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -113,7 +113,7 @@ class AuditService:
             resource_type=resource_type,
             resource_id=resource_id,
             details={
-                \"previous_state\": previous_state or {},
+                "previous_state": previous_state or {},
             },
         )
     
@@ -126,7 +126,7 @@ class AuditService:
         count: int,
         resource_ids: Optional[list] = None,
     ) -> AuditLog:
-        \"\"\"Log bulk operations.
+        """Log bulk operations.
         
         Args:
             tenant_id: Tenant ID
@@ -138,16 +138,16 @@ class AuditService:
             
         Returns:
             Created AuditLog
-        \"\"\"
+        """
         return await self.repo.create(
             tenant_id=tenant_id,
             user_id=user_id,
             action=AuditAction.UPDATE,  # Treat as update
             resource_type=resource_type,
             details={
-                \"operation_type\": operation_type,
-                \"count\": count,
-                \"resource_ids\": resource_ids or [],
+                "operation_type": operation_type,
+                "count": count,
+                "resource_ids": resource_ids or [],
             },
         )
     
@@ -158,7 +158,7 @@ class AuditService:
         success: bool,
         ip_address: Optional[str] = None,
     ) -> AuditLog:
-        \"\"\"Log user login attempt.
+        """Log user login attempt.
         
         Args:
             tenant_id: Tenant ID (None for platform admin)
@@ -168,17 +168,17 @@ class AuditService:
             
         Returns:
             Created AuditLog
-        \"\"\"
+        """
         return await self.repo.create(
             tenant_id=tenant_id,
             user_id=user_id,
             action=AuditAction.LOGIN,
-            resource_type=\"User\",
+            resource_type="User",
             resource_id=user_id,
             details={
-                \"success\": success,
-                \"ip_address\": ip_address,
-                \"timestamp\": datetime.utcnow().isoformat(),
+                "success": success,
+                "ip_address": ip_address,
+                "timestamp": datetime.utcnow().isoformat(),
             },
         )
     
@@ -190,7 +190,7 @@ class AuditService:
         previous_values: Optional[Dict[str, Any]] = None,
         new_values: Optional[Dict[str, Any]] = None,
     ) -> AuditLog:
-        \"\"\"Log configuration changes.
+        """Log configuration changes.
         
         Args:
             tenant_id: Tenant ID
@@ -201,15 +201,15 @@ class AuditService:
             
         Returns:
             Created AuditLog
-        \"\"\"
+        """
         return await self.repo.create(
             tenant_id=tenant_id,
             user_id=user_id,
             action=AuditAction.UPDATE,
-            resource_type=\"TenantConfig\",
+            resource_type="TenantConfig",
             details={
-                \"config_type\": config_type,
-                \"previous_values\": previous_values or {},
-                \"new_values\": new_values or {},
+                "config_type": config_type,
+                "previous_values": previous_values or {},
+                "new_values": new_values or {},
             },
         )

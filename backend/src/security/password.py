@@ -1,12 +1,11 @@
 """Password security utilities with bcrypt (T021)."""
 import re
-from passlib.context import CryptContext
+import bcrypt
 from ..core.config import settings
 from ..core.errors import ValidationError
 
 
-# Bcrypt password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+BCRYPT_ROUNDS = 12
 
 
 def hash_password(password: str) -> str:
@@ -18,7 +17,9 @@ def hash_password(password: str) -> str:
     Returns:
         Hashed password
     """
-    return pwd_context.hash(password)
+    password_bytes = password.encode("utf-8")
+    salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
+    return bcrypt.hashpw(password_bytes, salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -31,7 +32,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8"),
+    )
 
 
 def validate_password_policy(password: str) -> None:
@@ -69,7 +73,7 @@ def validate_password_policy(password: str) -> None:
         errors.append("Requer número")
     
     # Special character
-    if settings.PASSWORD_REQUIRE_SYMBOL and not re.search(r"[!@#$%^&*()_+=\-\[\]{};':\"\\|,.<>\/?]", password):
+    if settings.PASSWORD_REQUIRE_SYMBOL and not re.search(r'[!@#$%^&*()\-_=+\[\]{};:\'",.<>?/\\|]', password):
         errors.append("Requer símbolo especial")
     
     if errors:

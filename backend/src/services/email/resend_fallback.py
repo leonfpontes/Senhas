@@ -5,8 +5,8 @@ Implements EmailService interface using Resend API for failover scenarios
 
 import httpx
 import logging
-from backend.src.services.email.base import EmailService, EmailMessage
-from backend.src.core.config import settings
+from src.services.email.base import EmailService, EmailMessage
+from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 

@@ -5,12 +5,12 @@ from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
 
-from ....core.database import get_db
-from ....api.dependencies import get_current_user
-from ....models import User, UserRole, PlanType, SubscriptionStatus
-from ....services.subscription_service import SubscriptionService
-from ....repositories.subscription_repo import SubscriptionRepository
-from ....core.errors import NotFoundError
+from src.core.database import get_db
+from src.api.dependencies import get_current_user
+from src.models import User, UserRole, PlanType, SubscriptionStatus
+from src.services.subscription_service import SubscriptionService
+from src.repositories.subscription_repo import SubscriptionRepository
+from src.core.errors import NotFoundError
 
 router = APIRouter(prefix="/api/v1/platform/subscriptions", tags=["platform-subscriptions"])
 

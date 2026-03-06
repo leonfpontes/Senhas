@@ -1,1 +1,99 @@
-\"\"\"T064: Admin Analytics - GET /api/v1/admin/analytics (emissões/dia, taxa sucesso, etc)\"\"\"\nfrom fastapi import APIRouter, Depends, Query, status\nfrom sqlalchemy.ext.asyncio import AsyncSession\nfrom pydantic import BaseModel\nfrom typing import List, Optional, Dict, Any\nfrom uuid import UUID\n\nfrom ...core.database import get_db\nfrom ...models import User\nfrom ...repositories.ticket_analytics_repo import TicketAnalyticsRepository\nfrom ...api.dependencies import get_current_user\nfrom ...core.errors import InsufficientPermissionsError\n\nrouter = APIRouter(prefix=\"/api/v1/admin\", tags=[\"admin-analytics\"])\n\n\nclass AnalyticsDayData(BaseModel):\n    \"\"\"Daily analytics data.\"\"\"\n    date: str\n    total: int\n    completed: int\n\n\nclass AnalyticsResponse(BaseModel):\n    \"\"\"Analytics response.\"\"\"\n    total_emitted: int\n    total_used: int\n    total_cancelled: int\n    usage_rate: float\n    emitted_today: int\n    used_today: int\n    daily_distribution: List[AnalyticsDayData]\n    peak_hours: List[Dict[str, Any]]\n\n\n@router.get(\"/analytics\", response_model=AnalyticsResponse)\nasync def get_analytics(\n    period: str = Query(\"week\", enum=[\"day\", \"week\", \"month\", \"all\"]),\n    gira_id: Optional[UUID] = Query(None),\n    current_user: User = Depends(get_current_user),\n    db: AsyncSession = Depends(get_db),\n) -> AnalyticsResponse:\n    \"\"\"Get analytics dashboard data.\n    \n    Requires admin role.\n    \n    Query parameters:\n    - period: day, week, month, or all\n    - gira_id: Optional gira filter\n    \"\"\"\n    if not current_user.is_admin:\n        raise InsufficientPermissionsError(\"Admin required\")\n    \n    repo = TicketAnalyticsRepository(db)\n    \n    # Determine lookback days\n    days_map = {\n        \"day\": 1,\n        \"week\": 7,\n        \"month\": 30,\n        \"all\": 365,\n    }\n    days = days_map.get(period, 7)\n    \n    # Get statistics\n    total_stats = await repo.get_total_stats(\n        tenant_id=current_user.tenant_id,\n        gira_id=gira_id,\n    )\n    \n    today_stats = await repo.get_today_stats(\n        tenant_id=current_user.tenant_id,\n        gira_id=gira_id,\n    )\n    \n    daily_distribution = await repo.get_daily_distribution(\n        tenant_id=current_user.tenant_id,\n        days=days,\n        gira_id=gira_id,\n    )\n    \n    peak_hours = await repo.get_peak_hours(\n        tenant_id=current_user.tenant_id,\n        gira_id=gira_id,\n        days=days,\n    )\n    \n    return AnalyticsResponse(\n        total_emitted=total_stats[\"total_emitted\"],\n        total_used=total_stats[\"total_used\"],\n        total_cancelled=total_stats[\"total_cancelled\"],\n        usage_rate=total_stats[\"usage_rate\"],\n        emitted_today=today_stats[\"emitted_today\"],\n        used_today=today_stats[\"used_today\"],\n        daily_distribution=[\n            AnalyticsDayData(**d) for d in daily_distribution\n        ],\n        peak_hours=peak_hours,\n    )\n
+"""T064: Admin Analytics - GET /api/v1/admin/analytics (emissões/dia, taxa sucesso, etc)"""
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
+from uuid import UUID
+
+from src.core.database import get_db
+from src.models import User
+from src.repositories.ticket_analytics_repo import TicketAnalyticsRepository
+from src.api.dependencies import get_current_user
+from src.core.errors import InsufficientPermissionsError
+
+router = APIRouter(prefix="/api/v1/admin", tags=["admin-analytics"])
+
+
+class AnalyticsDayData(BaseModel):
+    """Daily analytics data."""
+    date: str
+    total: int
+    completed: int
+
+
+class AnalyticsResponse(BaseModel):
+    """Analytics response."""
+    total_emitted: int
+    total_used: int
+    total_cancelled: int
+    usage_rate: float
+    emitted_today: int
+    used_today: int
+    daily_distribution: List[AnalyticsDayData]
+    peak_hours: List[Dict[str, Any]]
+
+
+@router.get("/analytics", response_model=AnalyticsResponse)
+async def get_analytics(
+    period: str = Query("week", enum=["day", "week", "month", "all"]),
+    gira_id: Optional[UUID] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AnalyticsResponse:
+    """Get analytics dashboard data.
+    
+    Requires admin role.
+    
+    Query parameters:
+    - period: day, week, month, or all
+    - gira_id: Optional gira filter
+    """
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+    
+    repo = TicketAnalyticsRepository(db)
+    
+    # Determine lookback days
+    days_map = {
+        "day": 1,
+        "week": 7,
+        "month": 30,
+        "all": 365,
+    }
+    days = days_map.get(period, 7)
+    
+    # Get statistics
+    total_stats = await repo.get_total_stats(
+        tenant_id=current_user.tenant_id,
+        gira_id=gira_id,
+    )
+    
+    today_stats = await repo.get_today_stats(
+        tenant_id=current_user.tenant_id,
+        gira_id=gira_id,
+    )
+    
+    daily_distribution = await repo.get_daily_distribution(
+        tenant_id=current_user.tenant_id,
+        days=days,
+        gira_id=gira_id,
+    )
+    
+    peak_hours = await repo.get_peak_hours(
+        tenant_id=current_user.tenant_id,
+        gira_id=gira_id,
+        days=days,
+    )
+    
+    return AnalyticsResponse(
+        total_emitted=total_stats["total_emitted"],
+        total_used=total_stats["total_used"],
+        total_cancelled=total_stats["total_cancelled"],
+        usage_rate=total_stats["usage_rate"],
+        emitted_today=today_stats["emitted_today"],
+        used_today=today_stats["used_today"],
+        daily_distribution=[
+            AnalyticsDayData(**d) for d in daily_distribution
+        ],
+        peak_hours=peak_hours,
+    )

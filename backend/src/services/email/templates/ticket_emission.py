@@ -132,7 +132,7 @@ def generate_ticket_emission_html(
         <!-- Footer -->
         <div style="background-color: #f0f0f0; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #e0e0e0;">
             <p style="margin: 5px 0;">Este é um email automático. Por favor, não responda diretamente.</p>
-            <p style="margin: 5px 0;">Enviado em: <span style="font-family: monospace;">{timestamp}</span></p>
+            <p style="margin: 5px 0;">Enviado em: <span style="font-family: monospace;">{{timestamp}}</span></p>
         </div>
     </div>
 

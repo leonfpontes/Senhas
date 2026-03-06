@@ -112,3 +112,15 @@ class TicketEmissionLimitError(APIException):
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             error_code="TICKET_LIMIT_EXCEEDED",
         )
+
+
+class InvalidInputError(APIException):
+    """Raised when input is invalid."""
+    
+    def __init__(self, message: str, details: Optional[dict] = None):
+        super().__init__(
+            message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            error_code="INVALID_INPUT",
+            details=details,
+        )

@@ -8,9 +8,9 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.src.models.senha_controls import SenhaControl
-from backend.src.models.tenants import Tenant
-from backend.src.repositories.base import BaseRepository
+from src.models.senha_controls import SenhaControl
+from src.models.tenants import Tenant
+from src.repositories.base import BaseRepository
 
 
 class SenhaControlRepository(BaseRepository[SenhaControl]):

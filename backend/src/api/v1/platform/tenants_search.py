@@ -4,10 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from pydantic import BaseModel
 
-from ....core.database import get_db
-from ....api.dependencies import get_current_user
-from ....models import User, UserRole, PlanType
-from ....repositories.tenant_repo import TenantRepository
+from src.core.database import get_db
+from src.api.dependencies import get_current_user
+from src.models import User, UserRole, PlanType
+from src.repositories.tenant_repo import TenantRepository
 
 router = APIRouter(prefix="/api/v1/platform/tenants/search", tags=["platform-search"])
 

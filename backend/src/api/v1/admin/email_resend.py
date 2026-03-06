@@ -1,1 +1,131 @@
-\"\"\"T061: Admin Email Resend - POST /api/v1/admin/tickets/{id}/resend-email\"\"\"\nfrom fastapi import APIRouter, Depends, Path, HTTPException, BackgroundTasks, status\nfrom sqlalchemy.ext.asyncio import AsyncSession\nfrom sqlalchemy import select, and_\nfrom pydantic import BaseModel\nfrom typing import Optional\nfrom uuid import UUID\nimport logging\n\nfrom ...core.database import get_db\nfrom ...models import User, Ticket, Consulente\nfrom ...services.email.brevo_provider import BrevoEmailService\nfrom ...services.email.resend_fallback import ResendEmailService\nfrom ...services.email.templates.ticket_emission import generate_ticket_emission_html\nfrom ...api.dependencies import get_current_user\nfrom ...core.errors import InsufficientPermissionsError, NotFoundError\n\nrouter = APIRouter(prefix=\"/api/v1/admin\", tags=[\"admin-email\"])\nlogger = logging.getLogger(__name__)\n\n\nclass ResendEmailResponse(BaseModel):\n    \"\"\"Email resend response.\"\"\"\n    success: bool\n    message: str\n    email_sent_to: Optional[str] = None\n\n\nasync def send_resend_email(\n    ticket_id: UUID,\n    consulente_email: str,\n    ticket_numero: int,\n):\n    \"\"\"Background task to resend email.\"\"\"\n    try:\n        # Try Brevo first\n        brevo_service = BrevoEmailService()\n        html_content = generate_ticket_emission_html(\n            ticket_numero=ticket_numero,\n            tenant_name=\"Seu Terreiro\",\n            tenant_logo_url=None,\n        )\n        \n        await brevo_service.send(\n            to_email=consulente_email,\n            subject=\"Seu Ticket foi Reenviado\",\n            html_content=html_content,\n        )\n        \n        logger.info(f\"Resent ticket {ticket_id} email to {consulente_email}\")\n    except Exception as e:\n        logger.warning(f\"Brevo failed for ticket {ticket_id}, trying Resend fallback: {e}\")\n        \n        try:\n            resend_service = ResendEmailService()\n            html_content = generate_ticket_emission_html(\n                ticket_numero=ticket_numero,\n                tenant_name=\"Seu Terreiro\",\n                tenant_logo_url=None,\n            )\n            \n            await resend_service.send(\n                to_email=consulente_email,\n                subject=\"Seu Ticket foi Reenviado\",\n                html_content=html_content,\n            )\n            \n            logger.info(f\"Resend fallback succeeded for ticket {ticket_id}\")\n        except Exception as e2:\n            logger.error(f\"Both email services failed for ticket {ticket_id}: {e2}\")\n\n\n@router.post(\"/tickets/{ticket_id}/resend-email\", response_model=ResendEmailResponse)\nasync def resend_ticket_email(\n    ticket_id: UUID = Path(...),\n    background_tasks: BackgroundTasks = None,\n    current_user: User = Depends(get_current_user),\n    db: AsyncSession = Depends(get_db),\n) -> ResendEmailResponse:\n    \"\"\"Resend ticket confirmation email.\n    \n    Requires admin role.\n    \"\"\"\n    if not current_user.is_admin:\n        raise InsufficientPermissionsError(\"Admin required\")\n    \n    # Get ticket\n    stmt = select(Ticket).where(\n        and_(\n            Ticket.id == ticket_id,\n            Ticket.tenant_id == current_user.tenant_id,\n        )\n    )\n    \n    result = await db.execute(stmt)\n    ticket = result.scalar_one_or_none()\n    \n    if not ticket:\n        raise NotFoundError(\"Ticket não encontrado\")\n    \n    # Get consulente\n    stmt_consulente = select(Consulente).where(\n        and_(\n            Consulente.id == ticket.consulente_id,\n            Consulente.tenant_id == current_user.tenant_id,\n        )\n    )\n    \n    result_consulente = await db.execute(stmt_consulente)\n    consulente = result_consulente.scalar_one_or_none()\n    \n    if not consulente or not consulente.email:\n        raise HTTPException(\n            status_code=status.HTTP_400_BAD_REQUEST,\n            detail=\"Consulente sem email\",\n        )\n    \n    # Queue background task\n    if background_tasks:\n        background_tasks.add_task(\n            send_resend_email,\n            ticket_id=ticket_id,\n            consulente_email=consulente.email,\n            ticket_numero=ticket.numero,\n        )\n    \n    return ResendEmailResponse(\n        success=True,\n        message=\"Email será reenviado em breve\",\n        email_sent_to=consulente.email,\n    )\n
+"""T061: Admin Email Resend - POST /api/v1/admin/tickets/{id}/resend-email"""
+from fastapi import APIRouter, Depends, Path, HTTPException, BackgroundTasks, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_
+from pydantic import BaseModel
+from typing import Optional
+from uuid import UUID
+import logging
+
+from src.core.database import get_db
+from src.models import User, Ticket, Consulente
+from src.services.email.brevo_provider import BrevoEmailService
+from src.services.email.resend_fallback import ResendEmailService
+from src.services.email.templates.ticket_emission import generate_ticket_emission_html
+from src.api.dependencies import get_current_user
+from src.core.errors import InsufficientPermissionsError, NotFoundError
+
+router = APIRouter(prefix="/api/v1/admin", tags=["admin-email"])
+logger = logging.getLogger(__name__)
+
+
+class ResendEmailResponse(BaseModel):
+    """Email resend response."""
+    success: bool
+    message: str
+    email_sent_to: Optional[str] = None
+
+
+async def send_resend_email(
+    ticket_id: UUID,
+    consulente_email: str,
+    ticket_numero: int,
+):
+    """Background task to resend email."""
+    try:
+        # Try Brevo first
+        brevo_service = BrevoEmailService()
+        html_content = generate_ticket_emission_html(
+            ticket_numero=ticket_numero,
+            tenant_name="Seu Terreiro",
+            tenant_logo_url=None,
+        )
+        
+        await brevo_service.send(
+            to_email=consulente_email,
+            subject="Seu Ticket foi Reenviado",
+            html_content=html_content,
+        )
+        
+        logger.info(f"Resent ticket {ticket_id} email to {consulente_email}")
+    except Exception as e:
+        logger.warning(f"Brevo failed for ticket {ticket_id}, trying Resend fallback: {e}")
+        
+        try:
+            resend_service = ResendEmailService()
+            html_content = generate_ticket_emission_html(
+                ticket_numero=ticket_numero,
+                tenant_name="Seu Terreiro",
+                tenant_logo_url=None,
+            )
+            
+            await resend_service.send(
+                to_email=consulente_email,
+                subject="Seu Ticket foi Reenviado",
+                html_content=html_content,
+            )
+            
+            logger.info(f"Resend fallback succeeded for ticket {ticket_id}")
+        except Exception as e2:
+            logger.error(f"Both email services failed for ticket {ticket_id}: {e2}")
+
+
+@router.post("/tickets/{ticket_id}/resend-email", response_model=ResendEmailResponse)
+async def resend_ticket_email(
+    ticket_id: UUID = Path(...),
+    background_tasks: BackgroundTasks = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ResendEmailResponse:
+    """Resend ticket confirmation email.
+    
+    Requires admin role.
+    """
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+    
+    # Get ticket
+    stmt = select(Ticket).where(
+        and_(
+            Ticket.id == ticket_id,
+            Ticket.tenant_id == current_user.tenant_id,
+        )
+    )
+    
+    result = await db.execute(stmt)
+    ticket = result.scalar_one_or_none()
+    
+    if not ticket:
+        raise NotFoundError("Ticket não encontrado")
+    
+    # Get consulente
+    stmt_consulente = select(Consulente).where(
+        and_(
+            Consulente.id == ticket.consulente_id,
+            Consulente.tenant_id == current_user.tenant_id,
+        )
+    )
+    
+    result_consulente = await db.execute(stmt_consulente)
+    consulente = result_consulente.scalar_one_or_none()
+    
+    if not consulente or not consulente.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Consulente sem email",
+        )
+    
+    # Queue background task
+    if background_tasks:
+        background_tasks.add_task(
+            send_resend_email,
+            ticket_id=ticket_id,
+            consulente_email=consulente.email,
+            ticket_numero=ticket.numero,
+        )
+    
+    return ResendEmailResponse(
+        success=True,
+        message="Email será reenviado em breve",
+        email_sent_to=consulente.email,
+    )

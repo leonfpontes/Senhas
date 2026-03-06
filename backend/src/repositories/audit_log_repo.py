@@ -8,11 +8,11 @@ from ..models import AuditLog, AuditAction
 
 
 class AuditLogRepository:
-    \"\"\"Repository for AuditLog queries (IMMUTABLE - no updates/deletes).
+    """Repository for AuditLog queries (IMMUTABLE - no updates/deletes).
     
     Audit logs are write-once, read-many for compliance.
     Provides querying and filtering capabilities.
-    \"\"\"
+    """
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -27,7 +27,7 @@ class AuditLogRepository:
         resource_id: Optional[UUID] = None,
         details: Optional[dict] = None,
     ) -> AuditLog:
-        \"\"\"Create audit log entry (IMMUTABLE).
+        """Create audit log entry (IMMUTABLE).
         
         Args:
             tenant_id: Tenant ID (None for platform-level events)
@@ -39,7 +39,7 @@ class AuditLogRepository:
             
         Returns:
             Created AuditLog
-        \"\"\"
+        """
         log = AuditLog(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -59,7 +59,7 @@ class AuditLogRepository:
         resource_type: str,
         resource_id: UUID,
     ) -> List[AuditLog]:
-        \"\"\"Get all audit logs for a specific resource.
+        """Get all audit logs for a specific resource.
         
         Args:
             tenant_id: Tenant ID
@@ -68,7 +68,7 @@ class AuditLogRepository:
             
         Returns:
             List of AuditLog objects (chronological)
-        \"\"\"
+        """
         stmt = select(AuditLog).where(
             and_(
                 AuditLog.tenant_id == tenant_id,
@@ -86,7 +86,7 @@ class AuditLogRepository:
         skip: int = 0,
         limit: int = 100,
     ) -> List[AuditLog]:
-        \"\"\"List audit logs for a tenant (paginated).
+        """List audit logs for a tenant (paginated).
         
         Args:
             tenant_id: Tenant ID
@@ -95,7 +95,7 @@ class AuditLogRepository:
             
         Returns:
             List of AuditLog objects (reverse chronological)
-        \"\"\"
+        """
         stmt = select(AuditLog).where(
             AuditLog.tenant_id == tenant_id
         ).order_by(desc(AuditLog.created_at)).offset(skip).limit(limit)
@@ -110,7 +110,7 @@ class AuditLogRepository:
         skip: int = 0,
         limit: int = 100,
     ) -> List[AuditLog]:
-        \"\"\"List audit logs by action type.
+        """List audit logs by action type.
         
         Args:
             tenant_id: Tenant ID
@@ -120,7 +120,7 @@ class AuditLogRepository:
             
         Returns:
             List of AuditLog objects
-        \"\"\"
+        """
         stmt = select(AuditLog).where(
             and_(
                 AuditLog.tenant_id == tenant_id,
@@ -138,7 +138,7 @@ class AuditLogRepository:
         skip: int = 0,
         limit: int = 100,
     ) -> List[AuditLog]:
-        \"\"\"List audit logs for a specific user.
+        """List audit logs for a specific user.
         
         Args:
             tenant_id: Tenant ID
@@ -148,7 +148,7 @@ class AuditLogRepository:
             
         Returns:
             List of AuditLog objects
-        \"\"\"
+        """
         stmt = select(AuditLog).where(
             and_(
                 AuditLog.tenant_id == tenant_id,
@@ -166,7 +166,7 @@ class AuditLogRepository:
         skip: int = 0,
         limit: int = 100,
     ) -> List[AuditLog]:
-        \"\"\"List audit logs for a resource type.
+        """List audit logs for a resource type.
         
         Args:
             tenant_id: Tenant ID
@@ -176,7 +176,7 @@ class AuditLogRepository:
             
         Returns:
             List of AuditLog objects
-        \"\"\"
+        """
         stmt = select(AuditLog).where(
             and_(
                 AuditLog.tenant_id == tenant_id,

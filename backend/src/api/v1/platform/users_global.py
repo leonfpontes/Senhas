@@ -5,12 +5,12 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from uuid import UUID
 
-from ....core.database import get_db
-from ....api.dependencies import get_current_user
-from ....models import User, UserRole
-from ....repositories.platform_user_repo import PlatformUserRepository
-from ....security.password import hash_password
-from ....core.errors import InvalidInputError
+from src.core.database import get_db
+from src.api.dependencies import get_current_user
+from src.models import User, UserRole
+from src.repositories.platform_user_repo import PlatformUserRepository
+from src.security.password import hash_password
+from src.core.errors import InvalidInputError
 
 router = APIRouter(prefix="/api/v1/platform/users", tags=["platform-users"])
 

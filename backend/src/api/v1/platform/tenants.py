@@ -5,12 +5,12 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from uuid import UUID
 
-from ....core.database import get_db
-from ....core.errors import NotFoundError, InvalidInputError
-from ....api.dependencies import get_current_user
-from ....models import User, UserRole, PlanType
-from ....services.tenant_service import TenantService
-from ....repositories.tenant_repo import TenantRepository
+from src.core.database import get_db
+from src.core.errors import NotFoundError, InvalidInputError
+from src.api.dependencies import get_current_user
+from src.models import User, UserRole, PlanType
+from src.services.tenant_service import TenantService
+from src.repositories.tenant_repo import TenantRepository
 
 router = APIRouter(prefix="/api/v1/platform/tenants", tags=["platform-tenants"])
 

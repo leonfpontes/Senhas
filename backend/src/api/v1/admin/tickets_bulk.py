@@ -1,1 +1,104 @@
-\"\"\"T060: Admin Bulk Operations - POST/DELETE bulk mark-used, cancel\"\"\"\nfrom fastapi import APIRouter, Depends, status, Path, HTTPException\nfrom sqlalchemy.ext.asyncio import AsyncSession\nfrom pydantic import BaseModel\nfrom typing import List\nfrom uuid import UUID\nimport logging\n\nfrom ...core.database import get_db\nfrom ...models import User, Ticket, TicketStatus\nfrom ...repositories.senha_control_repo_extended import SenhaControlRepositoryExtended\nfrom ...services.audit_service import AuditService\nfrom ...api.dependencies import get_current_user\nfrom ...core.errors import InsufficientPermissionsError\n\nrouter = APIRouter(prefix=\"/api/v1/admin\", tags=[\"admin-bulk\"])\nlogger = logging.getLogger(__name__)\n\n\nclass BulkOperationRequest(BaseModel):\n    \"\"\"Bulk operation request.\"\"\"\n    ticket_ids: List[UUID]\n    dry_run: bool = False\n\n\nclass BulkOperationResponse(BaseModel):\n    \"\"\"Bulk operation response.\"\"\"\n    modified: int\n    failed: int\n    errors: List[str]\n\n\n@router.post(\"/giras/{gira_id}/tickets/bulk-mark-used\", response_model=BulkOperationResponse)\nasync def bulk_mark_used(\n    gira_id: UUID = Path(...),\n    request: BulkOperationRequest = None,\n    current_user: User = Depends(get_current_user),\n    db: AsyncSession = Depends(get_db),\n) -> BulkOperationResponse:\n    \"\"\"Mark multiple tickets as used/completed.\n    \n    Requires admin role.\n    \"\"\"\n    if not current_user.is_admin:\n        raise InsufficientPermissionsError(\"Admin required\")\n    \n    repo = SenhaControlRepositoryExtended(db)\n    result = await repo.bulk_mark_used(\n        ticket_ids=request.ticket_ids,\n        tenant_id=current_user.tenant_id,\n        dry_run=request.dry_run,\n    )\n    \n    if not request.dry_run:\n        # Log audit\n        audit_service = AuditService(db)\n        await audit_service.log_bulk_operation(\n            tenant_id=current_user.tenant_id,\n            user_id=current_user.id,\n            operation_type=\"bulk_mark_used\",\n            resource_type=\"Ticket\",\n            count=result[\"modified\"],\n            resource_ids=request.ticket_ids,\n        )\n        await db.commit()\n    \n    return BulkOperationResponse(**result)\n\n\n@router.post(\"/giras/{gira_id}/tickets/bulk-cancel\", response_model=BulkOperationResponse)\nasync def bulk_cancel(\n    gira_id: UUID = Path(...),\n    request: BulkOperationRequest = None,\n    current_user: User = Depends(get_current_user),\n    db: AsyncSession = Depends(get_db),\n) -> BulkOperationResponse:\n    \"\"\"Cancel multiple tickets.\n    \n    Requires admin role.\n    \"\"\"\n    if not current_user.is_admin:\n        raise InsufficientPermissionsError(\"Admin required\")\n    \n    repo = SenhaControlRepositoryExtended(db)\n    result = await repo.bulk_cancel(\n        ticket_ids=request.ticket_ids,\n        tenant_id=current_user.tenant_id,\n        dry_run=request.dry_run,\n    )\n    \n    if not request.dry_run:\n        # Log audit\n        audit_service = AuditService(db)\n        await audit_service.log_bulk_operation(\n            tenant_id=current_user.tenant_id,\n            user_id=current_user.id,\n            operation_type=\"bulk_cancel\",\n            resource_type=\"Ticket\",\n            count=result[\"modified\"],\n            resource_ids=request.ticket_ids,\n        )\n        await db.commit()\n    \n    return BulkOperationResponse(**result)\n
+"""T060: Admin Bulk Operations - POST/DELETE bulk mark-used, cancel"""
+from fastapi import APIRouter, Depends, status, Path, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
+from typing import List
+from uuid import UUID
+import logging
+
+from src.core.database import get_db
+from src.models import User, Ticket, TicketStatus
+from src.repositories.senha_control_repo_extended import SenhaControlRepositoryExtended
+from src.services.audit_service import AuditService
+from src.api.dependencies import get_current_user
+from src.core.errors import InsufficientPermissionsError
+
+router = APIRouter(prefix="/api/v1/admin", tags=["admin-bulk"])
+logger = logging.getLogger(__name__)
+
+
+class BulkOperationRequest(BaseModel):
+    """Bulk operation request."""
+    ticket_ids: List[UUID]
+    dry_run: bool = False
+
+
+class BulkOperationResponse(BaseModel):
+    """Bulk operation response."""
+    modified: int
+    failed: int
+    errors: List[str]
+
+
+@router.post("/giras/{gira_id}/tickets/bulk-mark-used", response_model=BulkOperationResponse)
+async def bulk_mark_used(
+    gira_id: UUID = Path(...),
+    request: BulkOperationRequest = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BulkOperationResponse:
+    """Mark multiple tickets as used/completed.
+    
+    Requires admin role.
+    """
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+    
+    repo = SenhaControlRepositoryExtended(db)
+    result = await repo.bulk_mark_used(
+        ticket_ids=request.ticket_ids,
+        tenant_id=current_user.tenant_id,
+        dry_run=request.dry_run,
+    )
+    
+    if not request.dry_run:
+        # Log audit
+        audit_service = AuditService(db)
+        await audit_service.log_bulk_operation(
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.id,
+            operation_type="bulk_mark_used",
+            resource_type="Ticket",
+            count=result["modified"],
+            resource_ids=request.ticket_ids,
+        )
+        await db.commit()
+    
+    return BulkOperationResponse(**result)
+
+
+@router.post("/giras/{gira_id}/tickets/bulk-cancel", response_model=BulkOperationResponse)
+async def bulk_cancel(
+    gira_id: UUID = Path(...),
+    request: BulkOperationRequest = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BulkOperationResponse:
+    """Cancel multiple tickets.
+    
+    Requires admin role.
+    """
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+    
+    repo = SenhaControlRepositoryExtended(db)
+    result = await repo.bulk_cancel(
+        ticket_ids=request.ticket_ids,
+        tenant_id=current_user.tenant_id,
+        dry_run=request.dry_run,
+    )
+    
+    if not request.dry_run:
+        # Log audit
+        audit_service = AuditService(db)
+        await audit_service.log_bulk_operation(
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.id,
+            operation_type="bulk_cancel",
+            resource_type="Ticket",
+            count=result["modified"],
+            resource_ids=request.ticket_ids,
+        )
+        await db.commit()
+    
+    return BulkOperationResponse(**result)

@@ -97,4 +97,4 @@ minversion = "7.0"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 asyncio_mode = "auto"
-addopts = "--cov=app --cov-report=html --cov-report=term-missing"
+addopts = "--cov=src --cov-report=html --cov-report=term-missing"

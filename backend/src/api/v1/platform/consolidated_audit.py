@@ -6,10 +6,10 @@ from typing import Dict, List, Any
 from uuid import UUID
 from datetime import datetime
 
-from ....core.database import get_db
-from ....api.dependencies import get_current_user
-from ....models import User, UserRole
-from ....services.consolidated_audit_service import ConsolidatedAuditService
+from src.core.database import get_db
+from src.api.dependencies import get_current_user
+from src.models import User, UserRole
+from src.services.consolidated_audit_service import ConsolidatedAuditService
 
 router = APIRouter(prefix="/api/v1/platform/audit-logs", tags=["platform-audit"])
 

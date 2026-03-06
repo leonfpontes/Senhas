@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 async def audit_logging_middleware(request: Request, call_next: Callable):
-    \"\"\"Middleware that automatically logs admin CRUD operations.
+    """Middleware that automatically logs admin CRUD operations.
     
     Monitors:
     - POST /api/v1/admin/* (CREATE)
@@ -31,34 +31,34 @@ async def audit_logging_middleware(request: Request, call_next: Callable):
         
     Returns:
         Response from next middleware/endpoint
-    \"\"\"
+    """
     
     # Only audit admin endpoints
-    if not request.url.path.startswith(\"/api/v1/admin\"):
+    if not request.url.path.startswith("/api/v1/admin"):
         return await call_next(request)
     
     # Extract audit context from request
-    user_id = getattr(request.state, \"user_id\", None)
-    tenant_id = getattr(request.state, \"tenant_id\", None)
+    user_id = getattr(request.state, "user_id", None)
+    tenant_id = getattr(request.state, "tenant_id", None)
     
     if not user_id or not tenant_id:
-        raise UnauthorizedError(\"User not authenticated for admin operation\")
+        raise UnauthorizedError("User not authenticated for admin operation")
     
     # Determine action type from HTTP method
     action_map = {
-        \"POST\": \"CREATE\",
-        \"PUT\": \"UPDATE\",
-        \"PATCH\": \"UPDATE\",
-        \"DELETE\": \"DELETE\",
-        \"GET\": \"READ\",
+        "POST": "CREATE",
+        "PUT": "UPDATE",
+        "PATCH": "UPDATE",
+        "DELETE": "DELETE",
+        "GET": "READ",
     }
     
-    action = action_map.get(request.method, \"READ\")
+    action = action_map.get(request.method, "READ")
     
     # Extract resource type from path
     # e.g., /api/v1/admin/giras/xxx -> giras
-    path_parts = request.url.path.split(\"/\")
-    resource_type = path_parts[4] if len(path_parts) > 4 else \"Unknown\"
+    path_parts = request.url.path.split("/")
+    resource_type = path_parts[4] if len(path_parts) > 4 else "Unknown"
     
     try:
         # Call the endpoint
@@ -70,40 +70,40 @@ async def audit_logging_middleware(request: Request, call_next: Callable):
                 audit_service = AuditService(db)
                 
                 try:
-                    if action == \"CREATE\":
+                    if action == "CREATE":
                         await audit_service.log_create(
                             tenant_id=tenant_id,
                             user_id=user_id,
                             resource_type=resource_type,
                             resource_id=None,  # Will be in response
                             details={
-                                \"path\": request.url.path,
-                                \"ip_address\": request.client.host if request.client else None,
-                                \"user_agent\": request.headers.get(\"user-agent\"),
+                                "path": request.url.path,
+                                "ip_address": request.client.host if request.client else None,
+                                "user_agent": request.headers.get("user-agent"),
                             },
                         )
-                    elif action in [\"UPDATE\", \"DELETE\"]:
+                    elif action in ["UPDATE", "DELETE"]:
                         await audit_service.log_update(
                             tenant_id=tenant_id,
                             user_id=user_id,
                             resource_type=resource_type,
                             resource_id=None,
                             new_state={
-                                \"path\": request.url.path,
-                                \"method\": request.method,
+                                "path": request.url.path,
+                                "method": request.method,
                             },
                         )
                     
                     await db.commit()
                 except Exception as e:
-                    logger.error(f\"Error logging audit trail: {str(e)}\")
+                    logger.error(f"Error logging audit trail: {str(e)}")
                     await db.rollback()
         
         return response
         
     except Exception as e:
         # Log failed operation
-        logger.error(f\"Admin operation failed: {request.method} {request.url.path} - {str(e)}\")
+        logger.error(f"Admin operation failed: {request.method} {request.url.path} - {str(e)}")
         
         try:
             async with AsyncSessionLocal() as db:
@@ -116,15 +116,15 @@ async def audit_logging_middleware(request: Request, call_next: Callable):
                     resource_type=resource_type,
                     resource_id=None,
                     details={
-                        \"path\": request.url.path,
-                        \"error\": str(e),
-                        \"status\": \"failed\",
-                        \"ip_address\": request.client.host if request.client else None,
+                        "path": request.url.path,
+                        "error": str(e),
+                        "status": "failed",
+                        "ip_address": request.client.host if request.client else None,
                     },
                 )
                 
                 await db.commit()
         except Exception as audit_error:
-            logger.error(f\"Error logging failed audit trail: {str(audit_error)}\")
+            logger.error(f"Error logging failed audit trail: {str(audit_error)}")
         
         raise
