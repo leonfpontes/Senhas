@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     
     # App
     APP_NAME: str = "Senhas API"
-    APP_VERSION: str = "0.1.0"
+    APP_VERSION: str = "1.1.0"
     DEBUG: bool = False
     
     # Password policy

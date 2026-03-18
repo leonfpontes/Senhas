@@ -2,10 +2,12 @@
 from typing import Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select
 
 from ..models import TenantConfig
-from ..models.base import Base
+
+
+UNSET = object()
 
 
 class TenantConfigRepository:
@@ -20,6 +22,7 @@ class TenantConfigRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.model = TenantConfig
+        self._UNSET = UNSET
     
     async def get_by_tenant(self, tenant_id: UUID) -> Optional[TenantConfig]:
         """Get config for a tenant (creates default if not exists).
@@ -50,9 +53,9 @@ class TenantConfigRepository:
     async def update_branding(
         self,
         tenant_id: UUID,
-        logo_url: Optional[str] = None,
-        primary_color: Optional[str] = None,
-        secondary_color: Optional[str] = None,
+        logo_url: Optional[str] | object = UNSET,
+        primary_color: Optional[str] | object = UNSET,
+        secondary_color: Optional[str] | object = UNSET,
     ) -> TenantConfig:
         """Update tenant branding.
         
@@ -66,12 +69,14 @@ class TenantConfigRepository:
             Updated TenantConfig
         """
         config = await self.get_by_tenant(tenant_id)
+        if config is None:
+            raise RuntimeError("Tenant config not available")
         
-        if logo_url is not None:
+        if logo_url is not self._UNSET:
             config.logo_url = logo_url
-        if primary_color is not None:
+        if primary_color is not self._UNSET:
             config.primary_color = primary_color
-        if secondary_color is not None:
+        if secondary_color is not self._UNSET:
             config.secondary_color = secondary_color
         
         self.db.add(config)
@@ -82,8 +87,8 @@ class TenantConfigRepository:
     async def update_email_settings(
         self,
         tenant_id: UUID,
-        reply_to_email: Optional[str] = None,
-        email_signature: Optional[str] = None,
+        reply_to_email: Optional[str] | object = UNSET,
+        email_signature: Optional[str] | object = UNSET,
     ) -> TenantConfig:
         """Update email settings.
         
@@ -96,10 +101,12 @@ class TenantConfigRepository:
             Updated TenantConfig
         """
         config = await self.get_by_tenant(tenant_id)
+        if config is None:
+            raise RuntimeError("Tenant config not available")
         
-        if reply_to_email is not None:
+        if reply_to_email is not self._UNSET:
             config.reply_to_email = reply_to_email
-        if email_signature is not None:
+        if email_signature is not self._UNSET:
             config.email_signature = email_signature
         
         self.db.add(config)
@@ -124,6 +131,8 @@ class TenantConfigRepository:
             Updated TenantConfig
         """
         config = await self.get_by_tenant(tenant_id)
+        if config is None:
+            raise RuntimeError("Tenant config not available")
         
         if feature_flag in [
             "enable_bulk_operations",
@@ -153,6 +162,8 @@ class TenantConfigRepository:
             Updated TenantConfig
         """
         config = await self.get_by_tenant(tenant_id)
+        if config is None:
+            raise RuntimeError("Tenant config not available")
         config.custom_settings = settings or {}
         
         self.db.add(config)

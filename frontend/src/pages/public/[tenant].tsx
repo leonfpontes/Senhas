@@ -11,7 +11,6 @@
 
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import { useTenant, TenantThemeConfig } from '@/providers/ThemeProvider';
 import PublicLayout from './public_layout';
 import GiraDetails from './gira_details';
 import EmitForm from './emit_form';
@@ -51,17 +50,6 @@ export default function PublicPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Build tenant theme config
-  const themeConfig: TenantThemeConfig | undefined = tenantInfo ? {
-    tenantId: tenantInfo.id || tenantSlug,
-    tenantName: tenantInfo.name,
-    logoUrl: tenantInfo.logo_url,
-    colors: {
-      primary: tenantInfo.primary_color || '#2E7D32',
-      secondary: tenantInfo.secondary_color || '#1565C0',
-    },
-  } : undefined;
-
   useEffect(() => {
     if (!tenantSlug) return;
 
@@ -78,12 +66,12 @@ export default function PublicPage() {
 
         // Extract tenant info from response or use defaults
         setTenantInfo({
-          id: `tenant-${tenantSlug}`,
-          slug: tenantSlug,
-          name: 'Centro Espírita',
-          logo_url: undefined,
-          primary_color: '#2E7D32',
-          secondary_color: '#1565C0',
+          id: giraResponse.data.tenant_slug,
+          slug: giraResponse.data.tenant_slug,
+          name: giraResponse.data.tenant_name,
+          logo_url: giraResponse.data.logo_url || undefined,
+          primary_color: giraResponse.data.primary_color || '#2E7D32',
+          secondary_color: giraResponse.data.secondary_color || '#1565C0',
         });
 
       } catch (err: any) {
@@ -122,6 +110,7 @@ export default function PublicPage() {
         tenantName={tenantInfo?.name || 'Centro Espírita'}
         tenantLogoUrl={tenantInfo?.logo_url}
         tenantColor={tenantInfo?.primary_color || defaultColors.primary_color}
+        tenantSecondaryColor={tenantInfo?.secondary_color || defaultColors.secondary_color}
       >
         <div className={styles.errorcontainer}>
           <div className={styles.errorcontent}>
@@ -145,6 +134,7 @@ export default function PublicPage() {
       tenantName={tenantInfo.name}
       tenantLogoUrl={tenantInfo.logo_url}
       tenantColor={tenantInfo.primary_color}
+      tenantSecondaryColor={tenantInfo.secondary_color}
     >
       <div className={styles.container}>
         {/* Two-column layout: Gira details left, form right */}

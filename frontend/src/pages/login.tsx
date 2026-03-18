@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import { useRouter } from 'next/router';
 import { apiClient } from '../services/api_client';
+import { dispatchTenantBrandingUpdated } from '../providers/ThemeProvider';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,6 +42,7 @@ export default function LoginPage() {
       // Store token
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('user', JSON.stringify(user));
+      dispatchTenantBrandingUpdated();
 
       // Redirect based on role
       if (user.role === 'super_admin') {

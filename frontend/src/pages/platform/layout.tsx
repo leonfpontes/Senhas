@@ -158,7 +158,7 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
       {/* Footer Info */}
       <Box sx={{ p: 2, fontSize: "0.75rem", color: "text.secondary" }}>
         <Typography variant="caption" display="block">
-          Senhas v1.0
+          Senhas v1.1
         </Typography>
         <Typography variant="caption" display="block">
           Platform Edition

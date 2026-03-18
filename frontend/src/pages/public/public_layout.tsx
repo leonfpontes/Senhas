@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useMemo, useState } from 'react';
 import styles from './public_layout.module.css';
 
 
@@ -13,6 +13,7 @@ interface PublicLayoutProps {
   tenantName: string;
   tenantLogoUrl?: string;
   tenantColor?: string;
+  tenantSecondaryColor?: string;
   children: ReactNode;
 }
 
@@ -21,6 +22,7 @@ export default function PublicLayout({
   tenantName,
   tenantLogoUrl,
   tenantColor = '#2E7D32',
+  tenantSecondaryColor = '#1565C0',
   children,
 }: PublicLayoutProps) {
   /**
@@ -34,17 +36,27 @@ export default function PublicLayout({
    * - No auth UI elements
    */
 
+  const [logoFailed, setLogoFailed] = useState(false);
+  const tenantInitial = useMemo(() => tenantName.charAt(0).toUpperCase(), [tenantName]);
+  const brandGradient = useMemo(
+    () => `linear-gradient(135deg, ${tenantColor} 0%, ${tenantSecondaryColor} 100%)`,
+    [tenantColor, tenantSecondaryColor]
+  );
+
   return (
     <div className={styles.container}>
       {/* Header with Tenant Branding */}
-      <header className={styles.header} style={{ backgroundColor: `${tenantColor}19` }}>
+      <header className={styles.header} style={{ background: brandGradient }}>
         <div className={styles.headerContent}>
-          {tenantLogoUrl && (
-            <img 
-              src={tenantLogoUrl} 
+          {tenantLogoUrl && !logoFailed ? (
+            <img
+              src={tenantLogoUrl}
               alt={tenantName}
               className={styles.logo}
+              onError={() => setLogoFailed(true)}
             />
+          ) : (
+            <div className={styles.logofallback}>{tenantInitial}</div>
           )}
           <h1 className={styles.title}>{tenantName}</h1>
         </div>
@@ -57,7 +69,7 @@ export default function PublicLayout({
       </main>
 
       {/* Footer */}
-      <footer className={styles.footer}>
+      <footer className={styles.footer} style={{ background: brandGradient }}>
         <div className={styles.footerContent}>
           <p className={styles.footerText}>
             © 2026 {tenantName} - Administração de Senhas Espíritas

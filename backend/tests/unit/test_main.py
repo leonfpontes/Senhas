@@ -11,7 +11,7 @@ class TestCreateApp:
     @patch("src.main.settings")
     def test_returns_fastapi_instance(self, mock_settings, mock_engine):
         mock_settings.APP_NAME = "Senhas"
-        mock_settings.APP_VERSION = "1.0.0"
+        mock_settings.APP_VERSION = "1.1.0"
         mock_settings.CORS_ORIGINS = ["http://localhost:3000"]
         mock_settings.DATABASE_URL = "sqlite+aiosqlite://"
 
@@ -24,7 +24,7 @@ class TestCreateApp:
     @patch("src.main.settings")
     def test_app_has_health_route(self, mock_settings, mock_engine):
         mock_settings.APP_NAME = "Senhas"
-        mock_settings.APP_VERSION = "1.0.0"
+        mock_settings.APP_VERSION = "1.1.0"
         mock_settings.CORS_ORIGINS = ["http://localhost:3000"]
         mock_settings.DATABASE_URL = "sqlite+aiosqlite://"
 
@@ -37,7 +37,7 @@ class TestCreateApp:
     @patch("src.main.settings")
     def test_app_has_api_root(self, mock_settings, mock_engine):
         mock_settings.APP_NAME = "Senhas"
-        mock_settings.APP_VERSION = "1.0.0"
+        mock_settings.APP_VERSION = "1.1.0"
         mock_settings.CORS_ORIGINS = ["http://localhost:3000"]
         mock_settings.DATABASE_URL = "sqlite+aiosqlite://"
 

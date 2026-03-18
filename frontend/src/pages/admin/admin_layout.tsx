@@ -61,11 +61,15 @@ export default function AdminLayout({
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [impersonateUser, setImpersonateUser] = useState<{ email?: string; username?: string } | null>(null);
   const [impersonateTenant, setImpersonateTenant] = useState<{ name?: string } | null>(null);
+  const [logoFailed, setLogoFailed] = useState(false);
   const router = useRouter();
   const pathname = router.pathname;
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { tenantName, logoUrl } = useTenant();
+  const { tenantName, logoUrl, config } = useTenant();
+  const brandPrimary = config?.colors?.primary || theme.palette.primary.main;
+  const brandSecondary = config?.colors?.secondary || theme.palette.secondary.main;
+  const brandFont = config?.colors?.font || '#FFFFFF';
 
   useEffect(() => {
     if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('impersonating')) {
@@ -78,6 +82,10 @@ export default function AdminLayout({
       } catch {}
     }
   }, []);
+
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [logoUrl]);
 
   const handleEndImpersonation = () => {
     sessionStorage.removeItem('access_token');
@@ -163,15 +171,17 @@ export default function AdminLayout({
     >
       <Box sx={{ p: 3, pb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-          {logoUrl && (
+          {logoUrl && !logoFailed && (
             <Box
               component="img"
               src={logoUrl}
               alt="Tenant Logo"
+              onError={() => setLogoFailed(true)}
               sx={{
                 width: 32,
                 height: 32,
                 borderRadius: 1,
+                objectFit: 'cover',
               }}
             />
           )}
@@ -220,11 +230,24 @@ export default function AdminLayout({
               <ListItemButton
                 selected={pathname === item.href}
                 sx={{
+                  borderRadius: 2,
+                  mx: 1,
+                  '& .MuiListItemIcon-root': {
+                    color: 'text.secondary',
+                  },
                   '&.Mui-selected': {
-                    backgroundColor: 'primary.light',
+                    background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                    color: brandFont,
                     '& .MuiListItemIcon-root': {
-                      color: 'primary.main',
+                      color: brandFont,
                     },
+                    '& .MuiListItemText-primary': {
+                      color: brandFont,
+                    },
+                  },
+                  '&.Mui-selected:hover': {
+                    background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                    filter: 'brightness(0.97)',
                   },
                 }}
               >
@@ -250,7 +273,7 @@ export default function AdminLayout({
         }}
       >
         <Typography variant="caption" display="block" color="text.secondary">
-          Senhas v1.0
+          Senhas v1.1
         </Typography>
         <Typography variant="caption" display="block" color="text.secondary">
           Admin Edition
@@ -270,6 +293,8 @@ export default function AdminLayout({
         position="fixed"
         variant="elevation"
         sx={{
+          background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+          color: brandFont,
           width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
           ml: { sm: `${DRAWER_WIDTH}px` },
           zIndex: (theme) => theme.zIndex.drawer + 1,

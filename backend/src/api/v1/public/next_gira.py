@@ -7,7 +7,8 @@ GET /api/v1/public/gira/{gira_id} - Fetch specific gira by ID (for direct links)
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
@@ -37,6 +38,9 @@ class GiraPublicResponse(BaseModel):
     is_sponsor: bool = False
     tenant_slug: str
     tenant_name: str
+    logo_url: Optional[str] = None
+    primary_color: Optional[str] = None
+    secondary_color: Optional[str] = None
 
 
 def _build_gira_response(gira: Gira, tenant: Tenant, current_tickets: int, is_sponsor: bool = False) -> dict:
@@ -74,6 +78,9 @@ def _build_gira_response(gira: Gira, tenant: Tenant, current_tickets: int, is_sp
         "is_sponsor": is_sponsor,
         "tenant_slug": tenant.slug,
         "tenant_name": tenant.name,
+        "logo_url": tenant.config.logo_url if tenant.config else None,
+        "primary_color": tenant.config.primary_color if tenant.config else None,
+        "secondary_color": tenant.config.secondary_color if tenant.config else None,
     }
 
 
@@ -103,7 +110,7 @@ async def get_next_gira(
     that hasn't expired yet.
     """
     try:
-        tenant_query = select(Tenant).where(
+        tenant_query = select(Tenant).options(selectinload(Tenant.config)).where(
             Tenant.slug == tenant_slug.lower().strip()
         )
         tenant_result = await session.execute(tenant_query)
@@ -186,7 +193,7 @@ async def get_gira_by_id(
             raise HTTPException(status_code=404, detail="Gira not found")
 
         # Load tenant
-        tenant_query = select(Tenant).where(Tenant.id == gira.tenant_id)
+        tenant_query = select(Tenant).options(selectinload(Tenant.config)).where(Tenant.id == gira.tenant_id)
         tenant_result = await session.execute(tenant_query)
         tenant = tenant_result.scalar_one_or_none()
 

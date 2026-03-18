@@ -49,6 +49,9 @@ interface GiraPublicData {
   is_exhausted: boolean;
   tenant_slug: string;
   tenant_name: string;
+  logo_url?: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
 }
 
 function CountdownBlock({ seconds }: { seconds: number }) {
@@ -184,11 +187,29 @@ export default function PublicGiraPage() {
   }
 
   const capacityPct = gira.max_tickets ? Math.min(100, (gira.current_tickets / gira.max_tickets) * 100) : 0;
+  const brandPrimary = gira.primary_color || '#2E7D32';
+  const brandSecondary = gira.secondary_color || '#1565C0';
 
   return (
     <Container maxWidth="sm" sx={{ py: 4 }}>
       {/* Header */}
-      <Paper elevation={0} sx={{ p: 3, mb: 3, textAlign: 'center', borderRadius: 3, ...(isSponsor ? { background: 'linear-gradient(135deg, #daa520 0%, #f5c842 50%, #b8860b 100%)', color: '#3e2723' } : { bgcolor: 'primary.main', color: 'primary.contrastText' }) }}>
+      <Paper elevation={0} sx={{ p: 3, mb: 3, textAlign: 'center', borderRadius: 3, ...(isSponsor ? { background: 'linear-gradient(135deg, #daa520 0%, #f5c842 50%, #b8860b 100%)', color: '#3e2723' } : { background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`, color: '#fff' }) }}>
+        {gira.logo_url && !isSponsor && (
+          <Box
+            component="img"
+            src={gira.logo_url}
+            alt={gira.tenant_name}
+            sx={{
+              width: 72,
+              height: 72,
+              objectFit: 'cover',
+              borderRadius: 2.5,
+              mb: 2,
+              border: '1px solid rgba(255,255,255,0.28)',
+              backgroundColor: 'rgba(255,255,255,0.18)',
+            }}
+          />
+        )}
         <Typography variant="overline" sx={isSponsor ? { color: '#4e342e' } : {}}>{gira.tenant_name}</Typography>
         <Typography variant="h4" fontWeight={700} sx={{ mt: 0.5, ...(isSponsor && { color: '#3e2723' }) }}>{gira.nome}</Typography>
         {isSponsor && (

@@ -445,7 +445,7 @@ echo -e "${YELLOW}Step 10: Environment Setup${NC}"
 # Create .env file for Docker Compose
 sudo tee "$APP_HOME/.env" > /dev/null <<EOF
 # Application
-APP_VERSION=1.0.0
+APP_VERSION=1.1.0
 ENVIRONMENT=production
 DEBUG=false
 

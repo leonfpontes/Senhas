@@ -1,9 +1,12 @@
 """T062: Admin Config - GET/PUT /api/v1/admin/tenant/config (branding, settings)"""
+import logging
+import re
+from typing import Optional, Dict, Any
+from urllib.parse import urlparse
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
-import logging
+from pydantic import BaseModel, field_validator
 
 from src.core.database import get_db
 from src.models import User, TenantConfig
@@ -14,6 +17,7 @@ from src.core.errors import InsufficientPermissionsError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-config"])
 logger = logging.getLogger(__name__)
+HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 class TenantConfigResponse(BaseModel):
@@ -47,6 +51,34 @@ class TenantConfigUpdate(BaseModel):
     enable_walk_in: Optional[bool] = None
     custom_settings: Optional[Dict[str, Any]] = None
     sponsor_priority_mode: Optional[str] = None
+
+    @field_validator("primary_color", "secondary_color")
+    @classmethod
+    def validate_hex_color(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+
+        normalized = value.strip()
+        if not HEX_COLOR_RE.match(normalized):
+            raise ValueError("Cor deve estar no formato hexadecimal #RRGGBB")
+
+        return normalized.upper()
+
+    @field_validator("logo_url", mode="before")
+    @classmethod
+    def validate_logo_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        if normalized == "":
+            return None
+
+        parsed = urlparse(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("URL do logo deve ser uma URL http(s) válida")
+
+        return normalized
 
 
 @router.get("/tenant/config", response_model=TenantConfigResponse)
@@ -104,33 +136,27 @@ async def update_tenant_config(
         )
     
     repo = TenantConfigRepository(db)
+    provided_fields = config_update.model_fields_set
     
     # Get current config
     current_config = await repo.get_by_tenant(current_user.tenant_id)
     previous_state = TenantConfigResponse.from_orm(current_config).dict()
     
     # Update branding if provided
-    if any([
-        config_update.logo_url is not None,
-        config_update.primary_color is not None,
-        config_update.secondary_color is not None,
-    ]):
+    if {"logo_url", "primary_color", "secondary_color"} & provided_fields:
         await repo.update_branding(
             tenant_id=current_user.tenant_id,
-            logo_url=config_update.logo_url,
-            primary_color=config_update.primary_color,
-            secondary_color=config_update.secondary_color,
+            logo_url=config_update.logo_url if "logo_url" in provided_fields else repo._UNSET,
+            primary_color=config_update.primary_color if "primary_color" in provided_fields else repo._UNSET,
+            secondary_color=config_update.secondary_color if "secondary_color" in provided_fields else repo._UNSET,
         )
     
     # Update email if provided
-    if any([
-        config_update.reply_to_email is not None,
-        config_update.email_signature is not None,
-    ]):
+    if {"reply_to_email", "email_signature"} & provided_fields:
         await repo.update_email_settings(
             tenant_id=current_user.tenant_id,
-            reply_to_email=config_update.reply_to_email,
-            email_signature=config_update.email_signature,
+            reply_to_email=config_update.reply_to_email if "reply_to_email" in provided_fields else repo._UNSET,
+            email_signature=config_update.email_signature if "email_signature" in provided_fields else repo._UNSET,
         )
     
     # Update feature flags
