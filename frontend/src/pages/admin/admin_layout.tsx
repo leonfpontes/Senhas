@@ -1,0 +1,434 @@
+/**
+ * T092: Admin Layout - Enhanced with Tenant Branding
+ * Main layout wrapper for all admin pages with Material-UI v6 design system
+ * Includes: AppBar with tenant awareness, Drawer navigation, responsive design
+ */
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import {
+  AppBar,
+  Box,
+  Button,
+  CssBaseline,
+  Drawer,
+  IconButton,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Toolbar,
+  Typography,
+  Menu,
+  MenuItem,
+  useTheme,
+  useMediaQuery,
+  Container,
+  Divider,
+} from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import EventIcon from '@mui/icons-material/Event';
+import TicketIcon from '@mui/icons-material/ConfirmationNumber';
+import PeopleIcon from '@mui/icons-material/People';
+import SettingsIcon from '@mui/icons-material/Settings';
+import AnalyticsIcon from '@mui/icons-material/Assessment';
+import HistoryIcon from '@mui/icons-material/History';
+import LogoutIcon from '@mui/icons-material/Logout';
+import AccountIcon from '@mui/icons-material/AccountCircle';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
+import { useRouter } from 'next/router';
+import Link from 'next/link';
+import { useTenant } from '@/providers/ThemeProvider';
+
+const DRAWER_WIDTH = 280;
+
+interface AdminLayoutProps {
+  children: React.ReactNode;
+  title?: string;
+  maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | false;
+}
+
+export default function AdminLayout({ 
+  children, 
+  title,
+  maxWidth = 'lg',
+}: AdminLayoutProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [impersonateUser, setImpersonateUser] = useState<{ email?: string; username?: string } | null>(null);
+  const [impersonateTenant, setImpersonateTenant] = useState<{ name?: string } | null>(null);
+  const router = useRouter();
+  const pathname = router.pathname;
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { tenantName, logoUrl } = useTenant();
+
+  useEffect(() => {
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('impersonating')) {
+      setIsImpersonating(true);
+      try {
+        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+        const tenant = JSON.parse(sessionStorage.getItem('impersonate_tenant') || '{}');
+        setImpersonateUser(user);
+        setImpersonateTenant(tenant);
+      } catch {}
+    }
+  }, []);
+
+  const handleEndImpersonation = () => {
+    sessionStorage.removeItem('access_token');
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('impersonating');
+    sessionStorage.removeItem('impersonate_tenant');
+    window.close();
+  };
+
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
+
+  const handleDrawerClose = () => {
+    setMobileOpen(false);
+  };
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    handleMenuClose();
+    router.push('/login');
+  };
+
+  const navigationItems = [
+    {
+      text: 'Dashboard',
+      icon: <DashboardIcon />,
+      href: '/admin/dashboard',
+    },
+    {
+      text: 'Giras',
+      icon: <EventIcon />,
+      href: '/admin/giras',
+    },
+    {
+      text: 'Tickets',
+      icon: <TicketIcon />,
+      href: '/admin/tickets',
+    },
+    {
+      text: 'Porta',
+      icon: <MeetingRoomIcon />,
+      href: '/admin/porta',
+    },
+    {
+      text: 'Usuários',
+      icon: <PeopleIcon />,
+      href: '/admin/users',
+    },
+    {
+      text: 'Analytics',
+      icon: <AnalyticsIcon />,
+      href: '/admin/analytics',
+    },
+    {
+      text: 'Auditoria',
+      icon: <HistoryIcon />,
+      href: '/admin/audit-trail',
+    },
+    {
+      text: 'Configurações',
+      icon: <SettingsIcon />,
+      href: '/admin/config',
+    },
+  ];
+
+  const drawer = (
+    <Box
+      sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: 'background.paper',
+      }}
+    >
+      <Box sx={{ p: 3, pb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          {logoUrl && (
+            <Box
+              component="img"
+              src={logoUrl}
+              alt="Tenant Logo"
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: 1,
+              }}
+            />
+          )}
+          <Box>
+            <Typography
+              variant="h6"
+              noWrap
+              sx={{
+                fontWeight: 700,
+                color: 'primary.main',
+                fontSize: '1rem',
+              }}
+            >
+              Senhas Admin
+            </Typography>
+            {tenantName && (
+              <Typography
+                variant="caption"
+                sx={{
+                  display: 'block',
+                  color: 'text.secondary',
+                }}
+              >
+                {tenantName}
+              </Typography>
+            )}
+          </Box>
+          {isMobile && (
+            <IconButton
+              onClick={handleDrawerClose}
+              size="small"
+            >
+              <ChevronLeftIcon />
+            </IconButton>
+          )}
+        </Box>
+      </Box>
+
+      <Divider />
+
+      {/* Navigation Items */}
+      <List sx={{ flex: 1, py: 2 }}>
+        {navigationItems.map((item) => (
+          <ListItem key={item.href} disablePadding>
+            <Link href={item.href} passHref legacyBehavior>
+              <ListItemButton
+                selected={pathname === item.href}
+                sx={{
+                  '&.Mui-selected': {
+                    backgroundColor: 'primary.light',
+                    '& .MuiListItemIcon-root': {
+                      color: 'primary.main',
+                    },
+                  },
+                }}
+              >
+                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemText
+                  primary={item.text}
+                  primaryTypographyProps={{
+                    variant: 'body2',
+                    fontWeight: pathname === item.href ? 600 : 500,
+                  }}
+                />
+              </ListItemButton>
+            </Link>
+          </ListItem>
+        ))}
+      </List>
+
+      <Divider />
+
+      <Box
+        sx={{
+          p: 2,
+        }}
+      >
+        <Typography variant="caption" display="block" color="text.secondary">
+          Senhas v1.0
+        </Typography>
+        <Typography variant="caption" display="block" color="text.secondary">
+          Admin Edition
+        </Typography>
+      </Box>
+    </Box>
+  );
+
+  const TOOLBAR_HEIGHT = 64;
+
+  return (
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+      <CssBaseline />
+
+      {/* AppBar — contains impersonation banner inside */}
+      <AppBar
+        position="fixed"
+        variant="elevation"
+        sx={{
+          width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
+          ml: { sm: `${DRAWER_WIDTH}px` },
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+        }}
+      >
+        {isImpersonating && (
+          <Box
+            sx={{
+              bgcolor: 'warning.main',
+              color: 'warning.contrastText',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+              py: 0.5,
+              px: 2,
+            }}
+          >
+            <Typography variant="body2" fontWeight={600}>
+              Visualizando como: {impersonateUser?.email || impersonateUser?.username || '...'} — Terreiro: {impersonateTenant?.name || '...'}
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              color="inherit"
+              onClick={handleEndImpersonation}
+              sx={{ borderColor: 'inherit', fontWeight: 600 }}
+            >
+              Encerrar
+            </Button>
+          </Box>
+        )}
+        <Toolbar sx={{ gap: 2 }}>
+          <IconButton
+            color="inherit"
+            aria-label="open drawer"
+            edge="start"
+            onClick={handleDrawerToggle}
+            sx={{ 
+              mr: 2, 
+              display: { sm: 'none' },
+            }}
+          >
+            <MenuIcon />
+          </IconButton>
+          
+          <Typography 
+            variant="h6" 
+            noWrap 
+            sx={{ 
+              flexGrow: 1,
+              fontWeight: 700,
+            }}
+          >
+            {title || 'Admin Dashboard'}
+          </Typography>
+
+          <IconButton
+            onClick={handleMenuOpen}
+            size="small"
+            aria-label="user menu"
+            aria-controls="user-menu"
+            aria-haspopup="true"
+          >
+            <AccountIcon />
+          </IconButton>
+
+          <Menu
+            id="user-menu"
+            anchorEl={anchorEl}
+            open={Boolean(anchorEl)}
+            onClose={handleMenuClose}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'right',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'right',
+            }}
+          >
+            <MenuItem onClick={handleLogout}>
+              <LogoutIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
+              Logout
+            </MenuItem>
+          </Menu>
+        </Toolbar>
+      </AppBar>
+
+      {/* Navigation Drawer */}
+      <Box
+        component="nav"
+        sx={{ 
+          width: { sm: DRAWER_WIDTH }, 
+          flexShrink: { sm: 0 },
+        }}
+      >
+        {/* Mobile Drawer (Temporary) */}
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={handleDrawerClose}
+          ModalProps={{ keepMounted: true }}
+          sx={{
+            display: { xs: 'block', sm: 'none' },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: DRAWER_WIDTH,
+            },
+          }}
+        >
+          {drawer}
+        </Drawer>
+
+        {/* Desktop Drawer (Persistent) */}
+        <Drawer
+          variant="permanent"
+          sx={{
+            display: { xs: 'none', sm: 'block' },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: DRAWER_WIDTH,
+              borderRight: '1px solid #e0e0e0',
+            },
+          }}
+          open
+        >
+          <Box sx={{ mt: `${TOOLBAR_HEIGHT}px`, height: `calc(100% - ${TOOLBAR_HEIGHT}px)` }}>
+            {drawer}
+          </Box>
+        </Drawer>
+      </Box>
+
+      {/* Main Content — spacer via Toolbar to push below AppBar */}
+      <Box
+        component="main"
+        sx={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'auto',
+        }}
+      >
+        {/* Spacer: matches AppBar height (toolbar + optional banner) */}
+        <Toolbar />
+        {isImpersonating && <Box sx={{ height: 36 }} />}
+        <Container
+          maxWidth={maxWidth}
+          sx={{
+            py: 3,
+            px: {
+              xs: 2,
+              sm: 3,
+            },
+          }}
+        >
+          {children}
+        </Container>
+      </Box>
+    </Box>
+  );
+}

@@ -1,0 +1,38 @@
+# Development Dockerfile para Next.js com forças Babel (sem SWC)
+FROM node:20-slim
+
+WORKDIR /app/frontend
+
+# Instalar dependencies
+RUN apt-get update -qq && apt-get install -y -qq jq python3-minimal > /dev/null
+
+# Copiar arquivo de configuração antes de instalar dependências
+COPY frontend/package.json .
+COPY frontend/tsconfig.json .
+COPY frontend/.eslintrc.json . 2>/dev/null || true
+
+# Converter workspace:* para file:*
+RUN jq '.dependencies["shared-types"] = "file:../packages/shared-types" | .dependencies["shared-ui"] = "file:../packages/shared-ui"' package.json > package.json.tmp && mv package.json.tmp package.json
+
+# Instalar com Babel, sem cache
+RUN npm install --legacy-peer-deps --no-cache --no-save --loglevel=error 2>&1 | grep -v "^npm info"
+
+# Copiar todo código
+COPY frontend/src ./src
+COPY frontend/public ./public
+COPY frontend/next.config.js .
+COPY pnpm-workspace.yaml ../
+
+# Ambiente para desabilitar TOTALMENTE SWC
+ENV NEXT_DISABLE_SWC=1 \
+    SWCMINIFY=false \
+    NODE_ENV=development \
+    NEXT_TELEMETRY_DISABLED=1
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+# Iniciar Next.js
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
