@@ -1,184 +1,287 @@
-# AGENTS.md - Project Status & Coordination
+# AGENTS.md - Guia Operacional para Agentes de IA
 
-**Last Updated**: 2026-03-06  
-**Project**: Senhas - Multi-Tenant SaaS Password Management  
-**Repository**: `leonfpontes/Senhas`  
-**Branch**: `001-multi-tenant-senhas`  
-**Status**: **v1.0 - COMPLETE & PRODUCTION READY** ✅
+Last Updated: 2026-03-18
+Project: Senhas - Multi-Tenant SaaS Password Management
+Repository: leonfpontes/Senhas
+Default Branch: master
+Working Branch (atual): 001-multi-tenant-senhas
 
----
-
-## Executive Summary
-
-Sistema SaaS multi-tenant para emissão e gestão de senhas (tickets) para Terreiros de Umbanda. Todas as 7 fases de desenvolvimento concluídas com sucesso.
-
-| Fase | Descrição | Tarefas | Arquivos | Status |
-|------|-----------|---------|----------|--------|
-| 1 | Setup & Infraestrutura | 10 | 36 | ✅ |
-| 2 | Backend Foundation | 19 | 30 | ✅ |
-| 3 | API Pública de Emissão | 20 | 35 | ✅ |
-| 4 | Admin Dashboard & Analytics | 30 | 32 | ✅ |
-| 5 | UI/UX & Branding | 15 | 15 | ✅ |
-| 6 | Super Admin Platform | 20 | 18 | ✅ |
-| 7 | Testes, QA & Deploy | 15 | 15 | ✅ |
-| **Total** | | **149** | **200+** | ✅ |
-
-**Cobertura de Testes**: 579 testes, **95% cobertura** backend (3264/3440 statements)
+Este arquivo define como agentes de IA devem entender o sistema e como agir ao implementar mudanças com seguranca, qualidade e consistencia arquitetural.
 
 ---
 
-## Arquitetura
+## 1) Objetivo do Produto
 
-### Tech Stack
-| Camada | Tecnologia |
-|--------|-----------|
-| **Backend** | FastAPI 0.104+, Python 3.11+, SQLAlchemy 2.0+ (async), Pydantic v2 |
-| **Frontend** | Next.js 14+, TypeScript 5.x, Material-UI v5, Recharts |
-| **Database** | PostgreSQL 15+, Alembic migrations |
-| **Auth** | JWT (24h access + 30d refresh, HTTP-only cookie), bcrypt |
-| **E-mail** | Brevo (primário) + Resend (fallback) |
-| **Infra** | Docker Compose, Nginx, Let's Encrypt SSL |
-| **CI/CD** | GitHub Actions |
-| **Monitoring** | Prometheus + Grafana |
+Senhas e um SaaS multi-tenant para emissao e gestao de tickets (senhas) para atendimento em giras.
 
-### Estrutura do Monorepo
-
-```
-/
-├── backend/                    # FastAPI 0.104+
-│   ├── src/
-│   │   ├── models/            # 12 SQLAlchemy ORM models
-│   │   ├── repositories/     # 15 repositórios (BaseRepository pattern)
-│   │   ├── api/v1/
-│   │   │   ├── public/       # 3 endpoints (next-gira, emit-ticket, resend)
-│   │   │   ├── admin/        # 13 endpoints (CRUD, analytics, audit)
-│   │   │   ├── platform/     # 7 endpoints (tenants, billing, flags)
-│   │   │   └── auth/         # Auth (login, refresh, logout)
-│   │   ├── services/         # Email, audit, subscription, tenant
-│   │   ├── security/         # JWT, password hashing
-│   │   ├── middleware/       # Tenant context, JWT, audit logging
-│   │   └── core/             # Config, database, errors, logging
-│   ├── alembic/              # 3 database migrations
-│   ├── tests/                # 579 testes (95% cobertura)
-│   └── pyproject.toml
-│
-├── frontend/                  # Next.js 14+
-│   ├── src/
-│   │   ├── pages/            # Public, Admin, Platform
-│   │   ├── components/       # Componentes reutilizáveis
-│   │   ├── services/         # API client (Axios)
-│   │   └── hooks/            # Custom hooks
-│   ├── __tests__/            # Jest + React Testing Library
-│   └── package.json
-│
-├── packages/
-│   ├── shared-types/         # TypeScript API contracts
-│   └── shared-ui/            # Material-UI theme + components
-│
-├── devops/                   # VPS setup automation
-├── e2e/                      # Cypress E2E tests
-├── load_tests/               # Locust performance tests
-├── security/                 # Audit + penetration scenarios
-├── docs/                     # Documentação completa
-├── .github/workflows/        # CI/CD pipeline
-├── docker-compose.yml        # Dev orchestration
-└── docker-compose.prod.yml   # Production orchestration
-```
+Principais modulos:
+- API publica de emissao e reenvio de senha.
+- Painel admin do tenant (giras, porta, tickets, analytics, config, auditoria).
+- Painel platform (super admin) para gestao de tenants, usuarios globais, billing e feature flags.
 
 ---
 
-## Funcionalidades por Fase
+## 2) Mapa Rapido do Monorepo
 
-### Fase 1: Foundation
-- Docker Compose (PostgreSQL + Backend + Frontend)
-- Database schema (7+ tabelas, 100+ constraints)
-- Git hooks (pre-commit lint/format)
-- Monorepo workspace setup
-
-### Fase 2: Backend Core
-- 12 ORM models (Tenant, User, Gira, Ticket, Consulente, SenhaControl, AuditLog, TenantConfig, Subscription, Invoice, FeatureFlag)
-- JWT auth (24h access, 30d refresh)
-- RBAC (3 roles: SUPER_ADMIN, ADMIN, OPERATOR)
-- BaseRepository pattern (multi-tenant auto-filtering)
-- FastAPI app factory com middleware stack
-
-### Fase 3: API Pública (Core MVP)
-- Emissão atômica de tickets (SELECT FOR UPDATE)
-- Dual email providers (Brevo + Resend)
-- 3 endpoints públicos (next-gira, emit-ticket, resend-email)
-- Frontend: Páginas públicas + countdown timer
-
-### Fase 4: Admin Dashboard
-- 13 endpoints admin (CRUD, analytics, bulk ops, exports)
-- Audit logging (trail imutável)
-- Analytics (SUM, COUNT, AVG)
-- Admin pages (dashboard, giras, tickets, config, audit, analytics)
-
-### Fase 5: Design System
-- Material-UI theme system
-- Tenant branding override (cores customizáveis)
-- Design responsivo (mobile-first, 4 breakpoints)
-- WCAG AA accessibility
-
-### Fase 6: Super Admin Platform
-- Gestão multi-tenant (criar, suspender, deletar)
-- Gestão global de usuários SUPER_ADMIN
-- Assinaturas (4 tiers: basic/pro/premium/enterprise)
-- Auditoria consolidada cross-tenant
-- Billing & invoicing
-- Feature flags por tenant
-- 7 endpoints platform + 5 páginas admin
-
-### Fase 7: QA & Deployment
-- 579 testes unitários (95% cobertura)
-- E2E tests (Cypress)
-- Load tests (Locust, p95 < 500ms)
-- Security audit (OWASP checklist)
-- CI/CD pipeline (GitHub Actions)
-- VPS deployment (Ubuntu 22.04 LTS, Nginx, SSL)
+- backend/: FastAPI + SQLAlchemy async + Alembic + testes Pytest.
+- frontend/: Next.js + TypeScript + Material UI + Jest/RTL.
+- packages/shared-types: contratos tipados compartilhados.
+- packages/shared-ui: componentes e tema compartilhado.
+- docs/: arquitetura, API, auth, multi-tenancy, deploy e testes.
+- e2e/: cenarios E2E.
+- load_tests/: testes de carga.
+- security/: scripts/checklist de seguranca.
 
 ---
 
-## Multi-Tenant Isolation (3 camadas)
+## 3) Arquitetura e Regras Nao Negociaveis
 
-1. **JWT Payload**: `{"sub": "user_id", "tenant_id": "uuid"}`
-2. **Middleware**: Extract `tenant_id` → `request.state.tenant_id`
-3. **Repository**: Todas as queries: `WHERE tenant_id = :tenant_id`
-4. **Resultado**: Zero risco de vazamento de dados entre tenants
+### 3.1 Multi-tenancy (obrigatorio)
 
----
+Toda operacao sensivel deve respeitar isolamento por tenant em 3 camadas:
+1. JWT carrega tenant_id no payload.
+2. Middleware coloca tenant_id em request.state.
+3. Repository filtra por tenant_id em query.
 
-## Métricas de Performance
+Regra critica:
+- Nenhuma leitura/escrita de entidade de tenant sem filtro explicito de tenant_id.
+- Evite bypass de repository para logica de negocio, exceto quando realmente necessario e com filtro de tenant preservado.
 
-| Métrica | Valor |
-|---------|-------|
-| p50 latency | < 100ms |
-| p95 latency | < 500ms |
-| p99 latency | < 1000ms |
-| Throughput | 100+ req/sec |
-| Ticket emission | 50+ tickets/sec |
-| Concurrent users | 100 sem degradação |
-| API error rate | < 0.1% |
-| Email delivery | > 99.5% |
+### 3.2 Auth e autorizacao
 
----
+- Roles principais: SUPER_ADMIN, ADMIN, OPERATOR.
+- Endpoints admin so para escopo do tenant atual.
+- Endpoints platform so para super admin (escopo global).
 
-## Documentação
+### 3.3 Integridade de emissao de senha
 
-| Documento | Caminho |
-|-----------|---------|
-| Arquitetura | `docs/architecture.md` |
-| API Reference | `docs/api.md` |
-| Database Schema | `docs/database.md` |
-| Autenticação & RBAC | `docs/authentication.md` |
-| Multi-Tenancy | `docs/multi-tenancy.md` |
-| E-mail System | `docs/email.md` |
-| Testes | `docs/testing.md` |
-| Deploy | `docs/deployment.md` |
-| Release Notes | `RELEASE.md` |
+- Emissao deve permanecer atomica/confiavel sob concorrencia.
+- Em contadores de senha, use padroes com lock transacional (ex.: SELECT FOR UPDATE) ja adotados no projeto.
 
 ---
 
-## Status: PRODUCTION READY 🚀
+## 4) Convencoes de Implementacao
 
-Todo o MVP v1.0 completo. Todas as fases implementadas, testadas e documentadas.
+### 4.1 Backend
+
+- Stack alvo: Python 3.11+, FastAPI, SQLAlchemy 2 async, Pydantic v2.
+- Fluxo padrao:
+	- Modelo ORM em backend/src/models.
+	- Regra de acesso em backend/src/repositories.
+	- Endpoint em backend/src/api/v1/{public|admin|platform|auth}.
+	- Migracao Alembic em backend/alembic/versions.
+	- Testes em backend/tests.
+- Nao quebrar contratos de resposta sem atualizar frontend, shared-types e docs.
+- Erros HTTP devem ser claros, consistentes e com status code adequado.
+
+### 4.2 Frontend
+
+- Stack alvo: Next.js + TypeScript + MUI.
+- Preferir componentes reutilizaveis e hooks existentes.
+- Evitar duplicacao de chamadas API; centralizar em services/client.
+- Garantir estado de loading, erro e sucesso em telas administrativas.
+- Responsividade obrigatoria (desktop e mobile).
+
+### 4.3 Banco e migracoes
+
+- Toda mudanca de schema exige migracao Alembic.
+- Migracoes devem ser reversiveis (downgrade coerente sempre que possivel).
+- Nomes de colunas/indices/constraints devem ser claros e estaveis.
+
+---
+
+## 5) Politica de Seguranca (OBRIGATORIA)
+
+### 5.1 Proibido commitar segredos
+
+Nunca subir no repositorio:
+- Senhas reais.
+- JWTs reais.
+- API keys reais (Brevo, Resend, etc.).
+- Connection strings reais com credenciais.
+- Arquivos .env com valores reais.
+
+Permitido:
+- Placeholders explicitos (ex.: your_api_key_here).
+- Dados de teste claramente nao produtivos.
+
+### 5.2 Redacao segura em codigo/docs
+
+- Ao documentar, use exemplos anonimizados/placeholders.
+- Nunca logar credenciais, tokens ou payloads sensiveis completos.
+- Se detectar segredo no historico da branch em trabalho, interrompa fluxo de push/PR e sanitize antes.
+
+---
+
+## 6) Qualidade, Testes e Validacao
+
+Antes de concluir implementacao, executar validacoes proporcionais ao impacto:
+
+Backend:
+- Testes unitarios/integracao afetados.
+- Verificacao de imports, tipagem e lint (quando configurado).
+
+Frontend:
+- Testes de componentes/paginas afetadas.
+- Build/typecheck quando mudancas forem amplas.
+
+Fluxo minimo recomendado por mudanca:
+1. Implementar.
+2. Rodar testes alvo.
+3. Revisar diff para regressao e segredos.
+4. Atualizar docs quando contrato/comportamento mudar.
+
+---
+
+## 7) Boas Praticas de Desenvolvimento para Agentes
+
+- Fazer mudancas pequenas e focadas por commit sempre que possivel.
+- Preservar padroes existentes do repositorio.
+- Evitar refactors amplos sem necessidade funcional clara.
+- Manter compatibilidade retroativa quando viavel.
+- Explicar no PR o que mudou, risco e como validar.
+- Se encontrar alteracoes inesperadas nao relacionadas durante a tarefa, pausar e alinhar com o usuario.
+
+---
+
+## 8) Checklist de Implementacao (Use Sempre)
+
+Antes de abrir PR, confirme:
+- [ ] Isolamento multi-tenant preservado.
+- [ ] Nao ha segredo hardcoded nos arquivos alterados.
+- [ ] Migracao criada/aplicavel para mudanca de schema.
+- [ ] Testes relevantes executados e passando.
+- [ ] Docs atualizadas (API, comportamento ou operacao).
+- [ ] Frontend funciona em desktop/mobile para a funcionalidade alterada.
+- [ ] Logs/erros sem vazamento de dados sensiveis.
+
+---
+
+## 9) Convencoes de PR e Commit
+
+### Commit
+
+- Mensagens claras no estilo conventional commits (ex.: feat:, fix:, refactor:, docs:, test:, chore:).
+
+### PR
+
+Incluir obrigatoriamente:
+- Contexto do problema.
+- Escopo da solucao.
+- Arquivos/areas impactadas.
+- Evidencias de teste.
+- Riscos e mitigacoes.
+- Passo a passo rapido para validacao manual.
+
+---
+
+## 10) Referencias de Documentacao do Projeto
+
+- docs/architecture.md
+- docs/api.md
+- docs/database.md
+- docs/authentication.md
+- docs/multi-tenancy.md
+- docs/email.md
+- docs/testing.md
+- docs/deployment.md
+- RELEASE.md
+
+---
+
+## 11) Diretriz Final
+
+Ao agir como agente de IA neste repositorio:
+- Priorize seguranca e isolamento de tenant acima de velocidade.
+- Nao suba segredos em nenhuma hipotese.
+- Entregue mudancas testaveis, rastreaveis e bem documentadas.
+
+---
+
+## 12) Fluxo Operacional Padrao (SOP para Agentes)
+
+Use este fluxo em toda implementacao, do inicio ao PR:
+
+1. Entender o pedido e mapear impacto:
+- Quais modulos serao tocados (backend, frontend, docs, migracoes)?
+- Ha mudanca de contrato de API ou schema?
+
+2. Levantar contexto minimo necessario:
+- Ler arquivos diretamente relacionados.
+- Identificar padroes existentes para manter consistencia.
+
+3. Implementar em fatias pequenas:
+- Aplicar mudancas objetivas e evitar refactor amplo sem necessidade.
+- Preservar estilo e convencoes do repositorio.
+
+4. Validar funcionalmente:
+- Executar testes afetados (unitarios/integracao/componentes).
+- Se mudanca ampla, rodar validacao adicional (build/typecheck/lint quando aplicavel).
+
+5. Revisar seguranca e multi-tenancy:
+- Conferir filtros de tenant_id em todas operacoes sensiveis.
+- Verificar ausencia de segredos em codigo, docs e scripts.
+
+6. Revisar diff final:
+- Confirmar que nao ha alteracoes acidentais fora do escopo.
+- Garantir mensagens de erro e logs sem dados sensiveis.
+
+7. Preparar PR com contexto claro:
+- Problema, solucao, impacto, testes, riscos, mitigacoes e passos de validacao.
+
+### 12.1 Gate obrigatorio antes de push/PR
+
+Antes de qualquer push:
+- Confirmar que nao existem valores reais de senha, token, API key ou credenciais.
+- Se houver qualquer suspeita de segredo no historico da branch, parar e sanitizar antes.
+
+---
+
+## 13) Template de PR para Agentes
+
+Use este modelo ao abrir PR:
+
+Titulo sugerido:
+- tipo(escopo): resumo curto
+
+Descricao:
+
+### Contexto
+- Problema de negocio/tecnico:
+- Impacto atual:
+
+### Solucao aplicada
+- O que foi alterado:
+- Decisoes tecnicas principais:
+- Alternativas consideradas (se houver):
+
+### Arquivos/areas impactadas
+- Backend:
+- Frontend:
+- Banco/migracoes:
+- Documentacao:
+
+### Seguranca e multi-tenant
+- Como tenant isolation foi preservado:
+- Confirmacao de ausencia de segredos no diff/historico da branch:
+
+### Evidencias de teste
+- Testes executados:
+- Resultado:
+- Evidencias (logs/prints/saidas relevantes):
+
+### Riscos e mitigacoes
+- Riscos conhecidos:
+- Mitigacoes aplicadas:
+
+### Validacao manual rapida
+1. Passo 1
+2. Passo 2
+3. Resultado esperado
+
+### Checklist final
+- [ ] Isolamento multi-tenant validado
+- [ ] Sem segredos no repositorio
+- [ ] Migracoes criadas (quando necessario)
+- [ ] Testes relevantes passando
+- [ ] Docs atualizadas (quando necessario)
