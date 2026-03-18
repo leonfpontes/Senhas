@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, and_
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import hashlib
 import uuid
@@ -49,6 +49,7 @@ class EmitTicketRequest(BaseModel):
     name: str
     email: EmailStr
     phone: str | None = None
+    preferencial: bool = False
 
     class Config:
         json_schema_extra = {
@@ -82,6 +83,7 @@ async def emit_ticket(
     request: EmitTicketRequest,
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db),
+    tipo: str = "comum",
 ):
     """Emit a new ticket for public consultee
 
@@ -141,6 +143,8 @@ async def emit_ticket(
     """
 
     try:
+        is_sponsor = tipo == "patrocinador"
+
         # === STEP 1: Validate Tenant ===
         tenant_query = select(Tenant).where(
             Tenant.slug == tenant_slug.lower().strip()
@@ -155,33 +159,56 @@ async def emit_ticket(
             )
 
         # === STEP 2: Validate Gira Active and Has Capacity ===
-        now = datetime.utcnow()
-        gira_query = (
-            select(Gira)
-            .where(
-                and_(
-                    Gira.tenant_id == tenant.id,
-                    Gira.release_start_at <= now,  # Has started
-                    Gira.release_end_at >= now,  # Not ended
-                    Gira.status == "ACTIVE",
+        now = datetime.now(timezone.utc)
+
+        if is_sponsor:
+            # Sponsor: use sponsor emission window
+            gira_query = (
+                select(Gira)
+                .where(
+                    and_(
+                        Gira.tenant_id == tenant.id,
+                        Gira.is_active == True,
+                        Gira.sponsor_release_start_at <= now,
+                        Gira.sponsor_release_end_at >= now,
+                        Gira.sponsor_max_tickets.isnot(None),
+                    )
                 )
+                .order_by(Gira.sponsor_release_start_at.asc())
+                .limit(1)
             )
-            .order_by(Gira.release_start_at.asc())
-            .limit(1)
-        )
+        else:
+            # Regular: use normal emission window
+            gira_query = (
+                select(Gira)
+                .where(
+                    and_(
+                        Gira.tenant_id == tenant.id,
+                        Gira.is_active == True,
+                        Gira.release_start_at <= now,  # Has started
+                        Gira.release_end_at >= now,  # Not ended
+                    )
+                )
+                .order_by(Gira.release_start_at.asc())
+                .limit(1)
+            )
         gira_result = await session.execute(gira_query)
         gira = gira_result.scalar_one_or_none()
 
         if not gira:
+            msg = "No active gira available for sponsor ticket emission" if is_sponsor else "No active gira available for ticket emission"
             raise HTTPException(
                 status_code=404,
-                detail="No active gira available for ticket emission",
+                detail=msg,
             )
 
-        # === STEP 3: Initialize Repositores ===
-        consulente_repo = ConsulenteRepository()
-        senha_control_repo = SenhaControlRepository()
-        ticket_repo = TicketRepository()
+        # === STEP 3: Initialize Repositories ===
+        from src.models.consulentes import Consulente
+        from src.models.senha_controls import SenhaControl
+        from src.models.tickets import Ticket
+        consulente_repo = ConsulenteRepository(session, Consulente)
+        senha_control_repo = SenhaControlRepository(session, SenhaControl)
+        ticket_repo = TicketRepository(session, Ticket)
 
         # === STEP 4: Lookup or Create Consulente ===
         try:
@@ -201,12 +228,14 @@ async def emit_ticket(
             tenant_id=tenant.id,
             gira_id=gira.id,
             consulente_id=consulente.id,
+            is_sponsor=is_sponsor,
         )
 
         if has_duplicate:
+            msg = "This email already has a sponsor ticket for this gira" if is_sponsor else "This email already has a ticket for this gira"
             raise HTTPException(
                 status_code=409,
-                detail="This email already has a ticket for this gira",
+                detail=msg,
             )
 
         # === STEP 6: Get or Create SenhaControl (for atomic counting) ===
@@ -215,14 +244,16 @@ async def emit_ticket(
             tenant_id=tenant.id,
             gira_id=gira.id,
             initial_number=0,
+            is_sponsor=is_sponsor,
         )
 
-        # === STEP 7: Atomi cally Increment Counter ===
+        # === STEP 7: Atomically Increment Counter ===
         try:
             ticket_number_int = await senha_control_repo.increment_atomic(
                 session=session,
                 tenant_id=tenant.id,
                 gira_id=gira.id,
+                is_sponsor=is_sponsor,
             )
         except ValueError:
             raise HTTPException(
@@ -231,22 +262,30 @@ async def emit_ticket(
             )
 
         # Check capacity
-        if ticket_number_int > gira.max_tickets:
+        max_cap = gira.sponsor_max_tickets if is_sponsor else gira.max_tickets
+        if ticket_number_int > max_cap:
             await session.rollback()
             raise HTTPException(
                 status_code=429,
-                detail="All tickets for this gira have been emitted",
+                detail="All sponsor tickets for this gira have been emitted" if is_sponsor else "All tickets for this gira have been emitted",
             )
 
         # === STEP 8: Create Ticket Record ===
-        ticket_number_formatted = f"{ticket_number_int:04d}"
+        ticket_number_formatted = f"P{ticket_number_int:03d}" if is_sponsor else f"{ticket_number_int:04d}"
+        observacoes = None
+        if request.preferencial and not is_sponsor:
+            observacoes = '{"preferencial": true}'
+        if is_sponsor:
+            observacoes = '{"patrocinador": true}'
         ticket = await ticket_repo.create_ticket(
             session=session,
             tenant_id=tenant.id,
             gira_id=gira.id,
             consulente_id=consulente.id,
-            ticket_number=ticket_number_formatted,
+            numero=ticket_number_int,
             status="EMITTED",
+            observacoes=observacoes,
+            is_sponsor=is_sponsor,
         )
 
         # Commit transaction
@@ -263,19 +302,21 @@ async def emit_ticket(
         )
         qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={rescue_link}"
 
+        gira_date_str = gira.data_inicio.strftime("%d/%m/%Y às %H:%M") if gira.data_inicio else ""
+
         background_tasks.add_task(
             _send_ticket_email,
             ticket_number=ticket_number_formatted,
-            consulente_name=consulente.name,
+            consulente_name=consulente.nome,
             consulente_email=consulente.email,
-            gira_name=gira.name,
-            gira_date=gira.release_start_at.strftime("%d/%m/%Y às %H:%M"),
-            gira_location=gira.location,
+            gira_name=gira.nome,
+            gira_date=gira_date_str,
+            gira_location=gira.local or "",
             rescue_link=rescue_link,
             qr_code_url=qr_code_url,
             tenant_name=tenant.name,
-            tenant_logo_url=tenant.logo_url,
-            tenant_color=tenant.brand_color,
+            tenant_logo_url="",
+            tenant_color="#2E7D32",
         )
 
         # === STEP 10: Return Response ===

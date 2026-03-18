@@ -2,14 +2,16 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
+import json
 import logging
 
 from src.core.database import get_db
-from src.models import User, Ticket, TicketStatus
+from src.models import User, Ticket, TicketStatus, Consulente
 from src.api.dependencies import get_current_user
 from src.core.errors import (
     InsufficientPermissionsError,
@@ -25,8 +27,13 @@ class TicketResponse(BaseModel):
     id: UUID
     numero: int
     status: str
-    email: Optional[str] = None
-    name: Optional[str] = None
+    consulente_nome: Optional[str] = None
+    consulente_email: Optional[str] = None
+    consulente_telefone: Optional[str] = None
+    preferencial: bool = False
+    is_sponsor: bool = False
+    is_walk_in: bool = False
+    observacoes: Optional[str] = None
     chamado_em: Optional[datetime] = None
     finalizado_em: Optional[datetime] = None
     created_at: datetime
@@ -78,16 +85,48 @@ async def list_gira_tickets(
     count_result = await db.execute(count_stmt)
     total = len(count_result.scalars().all())
     
-    # Fetch paginated results
-    stmt = select(Ticket).where(where_clause).offset(skip).limit(limit).order_by(Ticket.numero)
+    # Fetch paginated results with consulente data
+    stmt = (
+        select(Ticket)
+        .options(selectinload(Ticket.consulente))
+        .where(where_clause)
+        .offset(skip)
+        .limit(limit)
+        .order_by(Ticket.numero)
+    )
     result = await db.execute(stmt)
     tickets = result.scalars().all()
+    
+    items = []
+    for t in tickets:
+        preferencial = False
+        if t.observacoes:
+            try:
+                obs = json.loads(t.observacoes)
+                preferencial = obs.get("preferencial", False)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        items.append(TicketResponse(
+            id=t.id,
+            numero=t.numero,
+            status=t.status.value if hasattr(t.status, 'value') else t.status,
+            consulente_nome=t.consulente.nome if t.consulente else None,
+            consulente_email=t.consulente.email if t.consulente else None,
+            consulente_telefone=t.consulente.telefone if t.consulente else None,
+            preferencial=preferencial,
+            is_sponsor=t.is_sponsor,
+            is_walk_in=t.is_walk_in,
+            observacoes=t.observacoes if t.observacoes and not preferencial else None,
+            chamado_em=t.chamado_em,
+            finalizado_em=t.finalizado_em,
+            created_at=t.created_at,
+        ))
     
     return TicketListResponse(
         total=total,
         skip=skip,
         limit=limit,
-        items=[TicketResponse.from_orm(t) for t in tickets],
+        items=items,
     )
 
 
@@ -117,4 +156,29 @@ async def get_ticket(
     if not ticket:
         raise NotFoundError("Ticket não encontrado")
     
-    return TicketResponse.from_orm(ticket)
+    # Load consulente
+    await db.refresh(ticket, ["consulente"])
+    
+    preferencial = False
+    if ticket.observacoes:
+        try:
+            obs = json.loads(ticket.observacoes)
+            preferencial = obs.get("preferencial", False)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    
+    return TicketResponse(
+        id=ticket.id,
+        numero=ticket.numero,
+        status=ticket.status.value if hasattr(ticket.status, 'value') else ticket.status,
+        consulente_nome=ticket.consulente.nome if ticket.consulente else None,
+        consulente_email=ticket.consulente.email if ticket.consulente else None,
+        consulente_telefone=ticket.consulente.telefone if ticket.consulente else None,
+        preferencial=preferencial,
+        is_sponsor=ticket.is_sponsor,
+        is_walk_in=ticket.is_walk_in,
+        observacoes=ticket.observacoes if ticket.observacoes and not preferencial else None,
+        chamado_em=ticket.chamado_em,
+        finalizado_em=ticket.finalizado_em,
+        created_at=ticket.created_at,
+    )

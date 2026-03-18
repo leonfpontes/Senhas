@@ -1,5 +1,6 @@
 """Platform API - Tenant management endpoints (T104)."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
@@ -236,3 +237,50 @@ async def list_tenants(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao listar tenants: {str(e)}",
         )
+
+
+class TenantUserResponse(BaseModel):
+    """User response for tenant detail."""
+    id: str
+    email: str
+    username: str
+    role: str
+    is_active: bool
+    created_at: str
+
+
+@router.get("/{tenant_id}/users", response_model=List[TenantUserResponse])
+async def list_tenant_users(
+    tenant_id: UUID,
+    current_user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> List[TenantUserResponse]:
+    """List all users for a specific tenant."""
+    # Verify tenant exists
+    repo = TenantRepository(db)
+    tenant = await repo.get_by_id(tenant_id, None)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant não encontrado",
+        )
+
+    result = await db.execute(
+        select(User).where(
+            User.tenant_id == tenant_id,
+            User.deleted_at.is_(None),
+        )
+    )
+    users = result.scalars().all()
+
+    return [
+        TenantUserResponse(
+            id=str(u.id),
+            email=u.email,
+            username=u.username,
+            role=u.role.value if hasattr(u.role, 'value') else str(u.role),
+            is_active=u.is_active,
+            created_at=u.created_at.isoformat(),
+        )
+        for u in users
+    ]

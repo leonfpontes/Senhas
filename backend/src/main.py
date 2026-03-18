@@ -9,11 +9,13 @@ import logging
 
 from .core.config import settings
 from .core.errors import APIException
-from .core.database import engine, Base
+from .core.database import engine
+from .models.base import Base
 from .middleware import jwt_middleware, tenant_context_middleware, audit_logging_middleware
 from .api import auth_router
 from .api.v1.admin import admin_router
 from .api.v1.platform import platform_router
+from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router
 from .models import (
     Tenant,
     User,
@@ -77,13 +79,26 @@ def create_app() -> FastAPI:
     # MIDDLEWARE STACK
     # ============================================
     
+    # ---- Middleware order: last added = outermost (runs first) ----
+    # Desired request flow: CORS → TrustedHost → tenant → jwt → audit → handler
+    # So we add innermost first, outermost last.
+
+    # Audit Logging Middleware (innermost - needs user_id/tenant_id from jwt)
+    app.middleware("http")(audit_logging_middleware)
+    
+    # JWT Validation Middleware
+    app.middleware("http")(jwt_middleware)
+    
+    # Tenant Context Middleware
+    app.middleware("http")(tenant_context_middleware)
+    
     # Trusted Host Middleware
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=["localhost", "127.0.0.1", "*.localhost"],
     )
     
-    # CORS Middleware
+    # CORS Middleware (outermost - ensures CORS headers on ALL responses)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
@@ -91,15 +106,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
-    # Tenant Context Middleware
-    app.middleware("http")(tenant_context_middleware)
-    
-    # JWT Validation Middleware
-    app.middleware("http")(jwt_middleware)
-    
-    # Audit Logging Middleware (for admin endpoints)
-    app.middleware("http")(audit_logging_middleware)
     
     # ============================================
     # EXCEPTION HANDLERS
@@ -177,6 +183,11 @@ def create_app() -> FastAPI:
     
     # Platform routes (SUPER_ADMIN only)
     app.include_router(platform_router)
+    
+    # Public routes (no auth required)
+    app.include_router(next_gira_router)
+    app.include_router(emit_ticket_router)
+    app.include_router(resend_email_router)
     
     logger.info("FastAPI app created successfully")
     return app

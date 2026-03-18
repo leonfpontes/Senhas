@@ -40,6 +40,10 @@ class TenantConfig(TimestampedModel):
     enable_bulk_operations: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     enable_analytics: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     enable_webhooks: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    enable_walk_in: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    
+    # Sponsor ordering
+    sponsor_priority_mode: Mapped[str] = mapped_column(String(20), default="first", server_default="first", nullable=False)
     
     # Custom metadata
     custom_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)

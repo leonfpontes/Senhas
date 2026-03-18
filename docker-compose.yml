@@ -31,7 +31,7 @@ services:
       dockerfile: backend/Dockerfile
     container_name: senhas_backend
     environment:
-      DATABASE_URL: postgresql://${DATABASE_USER:-senhas_user}:${DATABASE_PASSWORD:-senhas_secure_password}@postgres:5432/${DATABASE_NAME:-senhas_db}
+      DATABASE_URL: postgresql+asyncpg://${DATABASE_USER:-senhas_user}:${DATABASE_PASSWORD:-senhas_secure_password}@postgres:5432/${DATABASE_NAME:-senhas_db}
       PYTHONUNBUFFERED: 1
       LOG_LEVEL: ${LOG_LEVEL:-info}
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
@@ -56,14 +56,15 @@ services:
     container_name: senhas_frontend
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
     volumes:
-      - ./frontend:/app
-      - /app/.next
-      - /app/node_modules
+      - ./frontend:/app/frontend
+      - /app/frontend/node_modules
     networks:
       - senhas_network
     command: npm run dev

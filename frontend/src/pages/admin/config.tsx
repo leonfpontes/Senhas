@@ -17,6 +17,10 @@ import {
   Card,
   CardContent,
   Alert,
+  Radio,
+  RadioGroup,
+  FormControl,
+  FormLabel,
 } from '@mui/material';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
@@ -30,6 +34,8 @@ interface TenantConfig {
   enable_bulk_operations: boolean;
   enable_analytics: boolean;
   enable_webhooks: boolean;
+  enable_walk_in: boolean;
+  sponsor_priority_mode?: string;
 }
 
 export default function AdminConfig() {
@@ -245,7 +251,47 @@ export default function AdminConfig() {
                   }
                   label="Ativar Webhooks"
                 />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={config.enable_walk_in}
+                      onChange={(e) => handleChange('enable_walk_in', e.target.checked)}
+                    />
+                  }
+                  label="Ativar Walk-in na Porta"
+                />
               </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Sponsor Priority */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Ordem de Atendimento de Patrocinadores
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Define como patrocinadores são posicionados na fila de atendimento (Visão da Porta).
+              </Typography>
+              <FormControl component="fieldset">
+                <RadioGroup
+                  value={config.sponsor_priority_mode || 'first'}
+                  onChange={(e) => handleChange('sponsor_priority_mode', e.target.value)}
+                >
+                  <FormControlLabel
+                    value="first"
+                    control={<Radio />}
+                    label="Patrocinadores primeiro — atendidos antes dos preferenciais e comuns"
+                  />
+                  <FormControlLabel
+                    value="interleave"
+                    control={<Radio />}
+                    label="Intercalar — patrocinadores são intercalados com os demais na fila"
+                  />
+                </RadioGroup>
+              </FormControl>
             </CardContent>
           </Card>
         </Grid>

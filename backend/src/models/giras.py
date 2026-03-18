@@ -1,5 +1,5 @@
 """Gira model - spiritual event (T013)."""
-from sqlalchemy import Column, String, ForeignKey, Boolean, DateTime, Index, Text
+from sqlalchemy import Column, String, ForeignKey, Boolean, DateTime, Index, Text, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
@@ -31,9 +31,20 @@ class Gira(SoftDeleteModel):
     local: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     
+    # Senha emission control fields
+    max_tickets: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    release_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    release_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    # Sponsor senha emission control
+    sponsor_max_tickets: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sponsor_release_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sponsor_release_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    
     # Relationships
     tenant = relationship("Tenant", back_populates="giras")
     tickets = relationship("Ticket", back_populates="gira", cascade="all, delete-orphan")
+    senha_controls = relationship("SenhaControl", back_populates="gira", cascade="all, delete-orphan")
     
     def __repr__(self) -> str:
         return f"<Gira(id={self.id}, nome='{self.nome}', tenant_id={self.tenant_id})>"

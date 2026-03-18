@@ -1,14 +1,16 @@
 """T058: Admin Giras CRUD - GET/POST/PUT/DELETE /api/v1/admin/giras/{id}"""
 from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import logging
 
 from src.core.database import get_db
 from src.models import User, UserRole, Gira
+from src.models.senha_controls import SenhaControl
 from src.repositories.gira_repo import GiraRepository
 from src.services.audit_service import AuditService
 from src.api.dependencies import get_current_user
@@ -62,11 +64,43 @@ class GiraResponse(BaseModel):
     data_fim: Optional[datetime]
     local: Optional[str]
     is_active: bool
+    max_tickets: Optional[int] = None
+    release_start_at: Optional[datetime] = None
+    release_end_at: Optional[datetime] = None
+    sponsor_max_tickets: Optional[int] = None
+    sponsor_release_start_at: Optional[datetime] = None
+    sponsor_release_end_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class SenhaConfigRequest(BaseModel):
+    """Senha configuration for a gira."""
+    max_tickets: int
+    release_start_at: datetime
+    release_end_at: datetime
+    # Sponsor config (optional)
+    sponsor_max_tickets: Optional[int] = None
+    sponsor_release_start_at: Optional[datetime] = None
+    sponsor_release_end_at: Optional[datetime] = None
+
+
+class SenhaConfigResponse(BaseModel):
+    """Senha config + stats response."""
+    max_tickets: int
+    release_start_at: datetime
+    release_end_at: datetime
+    current_count: int = 0
+    public_link: str = ""
+    # Sponsor config
+    sponsor_max_tickets: Optional[int] = None
+    sponsor_release_start_at: Optional[datetime] = None
+    sponsor_release_end_at: Optional[datetime] = None
+    sponsor_current_count: int = 0
+    sponsor_public_link: str = ""
 
 
 @router.post("", response_model=GiraResponse, status_code=status.HTTP_201_CREATED)
@@ -108,19 +142,41 @@ async def create_gira(
 async def list_giras(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    is_active: Optional[bool] = Query(None, description="Filter by active/inactive"),
+    date_from: Optional[str] = Query(None, description="Filter giras from this date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Filter giras up to this date (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> List[GiraResponse]:
-    """List giras for tenant.
+    """List giras for tenant with optional filters.
     
     Requires admin role.
     """
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Admin required")
     
-    repo = GiraRepository(db)
-    giras = await repo.list(current_user.tenant_id, skip=skip, limit=limit)
-    
+    stmt = select(Gira).where(
+        and_(
+            Gira.tenant_id == current_user.tenant_id,
+            Gira.deleted_at.is_(None),
+        )
+    )
+
+    if is_active is not None:
+        stmt = stmt.where(Gira.is_active == is_active)
+
+    if date_from:
+        stmt = stmt.where(Gira.data_inicio >= datetime.fromisoformat(date_from))
+
+    if date_to:
+        # Include the full day
+        stmt = stmt.where(Gira.data_inicio < datetime.fromisoformat(date_to) + timedelta(days=1))
+
+    stmt = stmt.order_by(Gira.data_inicio.desc()).offset(skip).limit(limit)
+
+    result = await db.execute(stmt)
+    giras = result.scalars().all()
+
     return [GiraResponse.from_orm(g) for g in giras]
 
 
@@ -179,8 +235,8 @@ async def update_gira(
         user_id=current_user.id,
         resource_type="Gira",
         resource_id=gira_id,
-        previous_state=GiraResponse.from_orm(existing_gira).dict(),
-        new_state=GiraResponse.from_orm(updated_gira).dict(),
+        previous_state=GiraResponse.from_orm(existing_gira).model_dump(mode='json'),
+        new_state=GiraResponse.from_orm(updated_gira).model_dump(mode='json'),
     )
     
     await db.commit()
@@ -216,3 +272,235 @@ async def delete_gira(
     )
     
     await db.commit()
+
+
+# ========== SENHA CONFIGURATION ENDPOINTS ==========
+
+
+async def _get_senha_count(db: AsyncSession, tenant_id: UUID, gira_id: UUID, is_sponsor: bool = False) -> int:
+    """Get current ticket count for a gira."""
+    query = select(SenhaControl).where(
+        and_(SenhaControl.tenant_id == tenant_id, SenhaControl.gira_id == gira_id, SenhaControl.is_sponsor == is_sponsor)
+    )
+    result = await db.execute(query)
+    sc = result.scalar_one_or_none()
+    return sc.total_emitido if sc else 0
+
+
+@router.get("/{gira_id}/senhas", response_model=SenhaConfigResponse)
+async def get_senha_config(
+    gira_id: UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SenhaConfigResponse:
+    """Get senha configuration and stats for a gira."""
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+
+    repo = GiraRepository(db)
+    gira = await repo.get_by_id(gira_id, current_user.tenant_id)
+    if not gira:
+        raise NotFoundError("Gira não encontrada")
+
+    current_count = await _get_senha_count(db, current_user.tenant_id, gira_id)
+    sponsor_count = await _get_senha_count(db, current_user.tenant_id, gira_id, is_sponsor=True)
+
+    return SenhaConfigResponse(
+        max_tickets=gira.max_tickets or 0,
+        release_start_at=gira.release_start_at or gira.data_inicio,
+        release_end_at=gira.release_end_at or gira.data_inicio,
+        current_count=current_count,
+        public_link=f"/public/gira/{gira_id}",
+        sponsor_max_tickets=gira.sponsor_max_tickets,
+        sponsor_release_start_at=gira.sponsor_release_start_at,
+        sponsor_release_end_at=gira.sponsor_release_end_at,
+        sponsor_current_count=sponsor_count,
+        sponsor_public_link=f"/public/gira/{gira_id}?tipo=patrocinador" if gira.sponsor_max_tickets else "",
+    )
+
+
+@router.put("/{gira_id}/senhas", response_model=SenhaConfigResponse)
+async def update_senha_config(
+    config: SenhaConfigRequest,
+    gira_id: UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SenhaConfigResponse:
+    """Configure senha settings for a gira (max tickets, release window)."""
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+
+    if config.max_tickets < 1:
+        raise HTTPException(status_code=400, detail="max_tickets deve ser >= 1")
+    if config.release_end_at <= config.release_start_at:
+        raise HTTPException(status_code=400, detail="release_end_at deve ser posterior a release_start_at")
+
+    repo = GiraRepository(db)
+    gira = await repo.get_by_id(gira_id, current_user.tenant_id)
+    if not gira:
+        raise NotFoundError("Gira não encontrada")
+
+    await repo.update(
+        gira_id,
+        current_user.tenant_id,
+        max_tickets=config.max_tickets,
+        release_start_at=config.release_start_at,
+        release_end_at=config.release_end_at,
+        sponsor_max_tickets=config.sponsor_max_tickets,
+        sponsor_release_start_at=config.sponsor_release_start_at,
+        sponsor_release_end_at=config.sponsor_release_end_at,
+    )
+
+    # Ensure SenhaControl exists for regular tickets
+    sc_query = select(SenhaControl).where(
+        and_(SenhaControl.tenant_id == current_user.tenant_id, SenhaControl.gira_id == gira_id, SenhaControl.is_sponsor == False)
+    )
+    sc_result = await db.execute(sc_query)
+    if not sc_result.scalar_one_or_none():
+        db.add(SenhaControl(
+            tenant_id=current_user.tenant_id,
+            gira_id=gira_id,
+            is_sponsor=False,
+            proximo_numero=0,
+            total_emitido=0,
+        ))
+        await db.flush()
+
+    # Ensure SenhaControl exists for sponsor tickets if configured
+    if config.sponsor_max_tickets and config.sponsor_max_tickets > 0:
+        sp_query = select(SenhaControl).where(
+            and_(SenhaControl.tenant_id == current_user.tenant_id, SenhaControl.gira_id == gira_id, SenhaControl.is_sponsor == True)
+        )
+        sp_result = await db.execute(sp_query)
+        if not sp_result.scalar_one_or_none():
+            db.add(SenhaControl(
+                tenant_id=current_user.tenant_id,
+                gira_id=gira_id,
+                is_sponsor=True,
+                proximo_numero=0,
+                total_emitido=0,
+            ))
+            await db.flush()
+
+    audit_service = AuditService(db)
+    await audit_service.log_update(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        resource_type="GiraSenhaConfig",
+        resource_id=gira_id,
+        previous_state={},
+        new_state=config.model_dump(mode='json'),
+    )
+    await db.commit()
+
+    current_count = await _get_senha_count(db, current_user.tenant_id, gira_id)
+    sponsor_count = await _get_senha_count(db, current_user.tenant_id, gira_id, is_sponsor=True)
+    return SenhaConfigResponse(
+        max_tickets=config.max_tickets,
+        release_start_at=config.release_start_at,
+        release_end_at=config.release_end_at,
+        current_count=current_count,
+        public_link=f"/public/gira/{gira_id}",
+        sponsor_max_tickets=config.sponsor_max_tickets,
+        sponsor_release_start_at=config.sponsor_release_start_at,
+        sponsor_release_end_at=config.sponsor_release_end_at,
+        sponsor_current_count=sponsor_count,
+        sponsor_public_link=f"/public/gira/{gira_id}?tipo=patrocinador" if config.sponsor_max_tickets else "",
+    )
+
+
+@router.post("/{gira_id}/release-now", response_model=SenhaConfigResponse)
+async def release_now(
+    gira_id: UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SenhaConfigResponse:
+    """Immediately release senhas for a gira (set release_start_at to now)."""
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+
+    repo = GiraRepository(db)
+    gira = await repo.get_by_id(gira_id, current_user.tenant_id)
+    if not gira:
+        raise NotFoundError("Gira não encontrada")
+
+    if not gira.max_tickets:
+        raise HTTPException(status_code=400, detail="Configure a quantidade de senhas primeiro")
+
+    now = datetime.now(timezone.utc)
+    end = gira.release_end_at if gira.release_end_at and gira.release_end_at > now else None
+    if not end:
+        end = now + timedelta(hours=24)
+
+    await repo.update(
+        gira_id,
+        current_user.tenant_id,
+        release_start_at=now,
+        release_end_at=end,
+    )
+
+    # Ensure SenhaControl exists
+    sc_query = select(SenhaControl).where(
+        and_(SenhaControl.tenant_id == current_user.tenant_id, SenhaControl.gira_id == gira_id, SenhaControl.is_sponsor == False)
+    )
+    sc_result = await db.execute(sc_query)
+    if not sc_result.scalar_one_or_none():
+        db.add(SenhaControl(
+            tenant_id=current_user.tenant_id,
+            gira_id=gira_id,
+            is_sponsor=False,
+            proximo_numero=0,
+            total_emitido=0,
+        ))
+        await db.flush()
+
+    # Also release sponsor senhas if configured
+    if gira.sponsor_max_tickets:
+        sp_end = gira.sponsor_release_end_at if gira.sponsor_release_end_at and gira.sponsor_release_end_at > now else None
+        if not sp_end:
+            sp_end = now + timedelta(hours=24)
+        await repo.update(
+            gira_id,
+            current_user.tenant_id,
+            sponsor_release_start_at=now,
+            sponsor_release_end_at=sp_end,
+        )
+        sp_query = select(SenhaControl).where(
+            and_(SenhaControl.tenant_id == current_user.tenant_id, SenhaControl.gira_id == gira_id, SenhaControl.is_sponsor == True)
+        )
+        sp_result = await db.execute(sp_query)
+        if not sp_result.scalar_one_or_none():
+            db.add(SenhaControl(
+                tenant_id=current_user.tenant_id,
+                gira_id=gira_id,
+                is_sponsor=True,
+                proximo_numero=0,
+                total_emitido=0,
+            ))
+            await db.flush()
+
+    audit_service = AuditService(db)
+    await audit_service.log_update(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        resource_type="GiraSenhaConfig",
+        resource_id=gira_id,
+        previous_state={},
+        new_state={"action": "release_now"},
+    )
+    await db.commit()
+
+    current_count = await _get_senha_count(db, current_user.tenant_id, gira_id)
+    sponsor_count = await _get_senha_count(db, current_user.tenant_id, gira_id, is_sponsor=True)
+    return SenhaConfigResponse(
+        max_tickets=gira.max_tickets,
+        release_start_at=now,
+        release_end_at=end,
+        current_count=current_count,
+        public_link=f"/public/gira/{gira_id}",
+        sponsor_max_tickets=gira.sponsor_max_tickets,
+        sponsor_release_start_at=gira.sponsor_release_start_at,
+        sponsor_release_end_at=gira.sponsor_release_end_at,
+        sponsor_current_count=sponsor_count,
+        sponsor_public_link=f"/public/gira/{gira_id}?tipo=patrocinador" if gira.sponsor_max_tickets else "",
+    )

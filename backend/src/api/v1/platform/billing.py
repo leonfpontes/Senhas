@@ -6,9 +6,11 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 
+from sqlalchemy import select, and_
+
 from src.core.database import get_db
 from src.api.dependencies import get_current_user
-from src.models import User, UserRole
+from src.models import User, UserRole, Invoice
 from src.repositories.billing_repo import BillingRepository
 
 router = APIRouter(prefix="/api/v1/platform/billing", tags=["platform-billing"])
@@ -107,10 +109,13 @@ async def get_invoice(
     repo = BillingRepository(db)
     
     try:
-        # Get from base repo which includes get_by_id
-        invoice = await repo.db.get(db, invoice_id)
+        stmt = select(Invoice).where(
+            and_(Invoice.id == invoice_id, Invoice.tenant_id == tenant_id)
+        )
+        result = await db.execute(stmt)
+        invoice = result.scalar_one_or_none()
         
-        if not invoice or invoice.tenant_id != tenant_id:
+        if not invoice:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Invoice não encontrada",

@@ -1,24 +1,17 @@
 /**
  * Platform Tenants Management Page (T112)
- * 
+ *
  * CRUD operations for tenants:
  * - List all tenants
- * - Create new tenant
- * - Edit existing tenant
- * - Suspend/activate tenant
- * - Delete tenant
+ * - Create new tenant (CrudDrawer)
+ * - Edit existing tenant (CrudDrawer)
+ * - Delete tenant (confirm dialog)
  */
 
 import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
-  Card,
-  CardContent,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   IconButton,
   Table,
   TableBody,
@@ -37,13 +30,16 @@ import {
   Alert,
   Pagination,
 } from "@mui/material";
-import {
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-  Add as AddIcon,
-  Refresh as RefreshIcon,
-} from "@mui/icons-material";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import AddIcon from "@mui/icons-material/Add";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import PeopleIcon from "@mui/icons-material/People";
+import BusinessIcon from "@mui/icons-material/Business";
+import { useRouter } from "next/router";
+import { apiClient } from "../../services/api_client";
 import PlatformLayout from "./layout";
+import CrudDrawer from "../../components/CrudDrawer";
 
 interface Tenant {
   id: string;
@@ -55,33 +51,43 @@ interface Tenant {
   updated_at: string;
 }
 
-interface CreateTenantData {
+interface CreateFormData {
   slug: string;
   name: string;
   email_admin: string;
-  plan: "basic" | "pro" | "premium" | "enterprise";
-  is_trial: boolean;
+  plan: string;
 }
 
+interface EditFormData {
+  name: string;
+  description: string;
+  is_active: boolean;
+}
+
+const EMPTY_CREATE: CreateFormData = { slug: "", name: "", email_admin: "", plan: "basic" };
+const EMPTY_EDIT: EditFormData = { name: "", description: "", is_active: true };
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const TenantsPage: React.FC = () => {
+  const router = useRouter();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [openCreateDialog, setOpenCreateDialog] = useState(false);
-  const [openEditDialog, setOpenEditDialog] = useState(false);
-  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const [createFormData, setCreateFormData] = useState<CreateTenantData>({
-    slug: "",
-    name: "",
-    email_admin: "",
-    plan: "basic",
-    is_trial: false,
-  });
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
+  const [editingTenantId, setEditingTenantId] = useState<string | null>(null);
+  const [createData, setCreateData] = useState<CreateFormData>(EMPTY_CREATE);
+  const [editData, setEditData] = useState<EditFormData>(EMPTY_EDIT);
+  const [originalCreate, setOriginalCreate] = useState<CreateFormData>(EMPTY_CREATE);
+  const [originalEdit, setOriginalEdit] = useState<EditFormData>(EMPTY_EDIT);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState(false);
 
-  // Load tenants
   useEffect(() => {
     fetchTenants();
   }, [page]);
@@ -90,87 +96,107 @@ const TenantsPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await apiClient.get(
         `/api/v1/platform/tenants?skip=${(page - 1) * 100}&limit=100`
       );
-      if (!response.ok) throw new Error("Failed to fetch tenants");
-      const data = await response.json();
+      const data = response.data;
       setTenants(data);
-      // Calculate pages (simplified)
       setTotalPages(Math.ceil(data.length / 100));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+    } catch (err: any) {
+      setError(err?.message || "Unknown error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateTenant = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/v1/platform/tenants", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createFormData),
-      });
-      if (!response.ok) throw new Error("Failed to create tenant");
-      
-      setOpenCreateDialog(false);
-      setCreateFormData({
-        slug: "",
-        name: "",
-        email_admin: "",
-        plan: "basic",
-        is_trial: false,
-      });
-      fetchTenants();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
+  // --- Drawer helpers ---
+  const openCreate = () => {
+    setCreateData(EMPTY_CREATE);
+    setOriginalCreate(EMPTY_CREATE);
+    setTouched({});
+    setDrawerMode("create");
+    setEditingTenantId(null);
+    setDrawerOpen(true);
   };
 
-  const handleUpdateTenant = async () => {
-    if (!editingTenant) return;
-    setLoading(true);
+  const openEdit = (tenant: Tenant) => {
+    const data: EditFormData = {
+      name: tenant.name,
+      description: tenant.description || "",
+      is_active: tenant.is_active,
+    };
+    setEditData(data);
+    setOriginalEdit(data);
+    setTouched({});
+    setDrawerMode("edit");
+    setEditingTenantId(tenant.id);
+    setDrawerOpen(true);
+  };
+
+  // isDirty
+  const isDirty =
+    drawerMode === "create"
+      ? createData.slug !== originalCreate.slug ||
+        createData.name !== originalCreate.name ||
+        createData.email_admin !== originalCreate.email_admin ||
+        createData.plan !== originalCreate.plan
+      : editData.name !== originalEdit.name ||
+        editData.description !== originalEdit.description ||
+        editData.is_active !== originalEdit.is_active;
+
+  // Validation (create)
+  const slugError = touched.slug && !createData.slug.trim() ? "Slug obrigatório" : "";
+  const createNameError = touched.name && !createData.name.trim() ? "Nome obrigatório" : "";
+  const emailError =
+    touched.email_admin && !EMAIL_RE.test(createData.email_admin) ? "Email inválido" : "";
+
+  const createValid =
+    createData.slug.trim().length > 0 &&
+    createData.name.trim().length > 0 &&
+    EMAIL_RE.test(createData.email_admin);
+
+  // Validation (edit)
+  const editNameError = touched.name && !editData.name.trim() ? "Nome obrigatório" : "";
+  const editValid = editData.name.trim().length > 0;
+
+  const isValid = drawerMode === "create" ? createValid : editValid;
+
+  // --- CRUD ---
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
     try {
-      const response = await fetch(
-        `/api/v1/platform/tenants/${editingTenant.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: editingTenant.name,
-            description: editingTenant.description,
-            is_active: editingTenant.is_active,
-          }),
-        }
-      );
-      if (!response.ok) throw new Error("Failed to update tenant");
-      
-      setOpenEditDialog(false);
-      setEditingTenant(null);
+      if (drawerMode === "create") {
+        await apiClient.post("/api/v1/platform/tenants", createData);
+        setSuccess("Tenant criado com sucesso!");
+      } else {
+        await apiClient.put(`/api/v1/platform/tenants/${editingTenantId}`, {
+          name: editData.name,
+          description: editData.description || null,
+          is_active: editData.is_active,
+        });
+        setSuccess("Tenant atualizado com sucesso!");
+      }
+      setDrawerOpen(false);
+      setTimeout(() => setSuccess(null), 3000);
       fetchTenants();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || "Erro ao salvar tenant");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   const handleDeleteTenant = async (tenantId: string) => {
-    if (!window.confirm("Are you sure you want to delete this tenant?")) return;
-    
+    if (!window.confirm("Tem certeza que deseja excluir este tenant?")) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/v1/platform/tenants/${tenantId}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error("Failed to delete tenant");
+      await apiClient.delete(`/api/v1/platform/tenants/${tenantId}`);
+      setSuccess("Tenant excluído com sucesso!");
+      setTimeout(() => setSuccess(null), 3000);
       fetchTenants();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+    } catch (err: any) {
+      setError(err?.message || "Unknown error");
     } finally {
       setLoading(false);
     }
@@ -200,7 +226,7 @@ const TenantsPage: React.FC = () => {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => setOpenCreateDialog(true)}
+              onClick={openCreate}
               disabled={loading}
             >
               New Tenant
@@ -208,7 +234,8 @@ const TenantsPage: React.FC = () => {
           </Box>
         </Box>
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
         {/* Tenants Table */}
         <TableContainer component={Paper}>
@@ -256,10 +283,15 @@ const TenantsPage: React.FC = () => {
                     <TableCell align="right">
                       <IconButton
                         size="small"
-                        onClick={() => {
-                          setEditingTenant(tenant);
-                          setOpenEditDialog(true);
-                        }}
+                        color="info"
+                        title="Ver Usuários"
+                        onClick={() => router.push(`/platform/tenants/${tenant.id}`)}
+                      >
+                        <PeopleIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => openEdit(tenant)}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -289,51 +321,63 @@ const TenantsPage: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Create Tenant Dialog */}
-      <Dialog open={openCreateDialog} onClose={() => setOpenCreateDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create New Tenant</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {/* Create / Edit Tenant Drawer */}
+      <CrudDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title={drawerMode === "create" ? "Novo Tenant" : "Editar Tenant"}
+        subtitle={
+          drawerMode === "create"
+            ? "Preencha os dados para criar um novo tenant."
+            : "Atualize as informações do tenant."
+        }
+        icon={<BusinessIcon />}
+        onSave={handleSave}
+        saveLabel={drawerMode === "create" ? "Criar" : "Salvar"}
+        saving={saving}
+        saveDisabled={!isValid}
+        isDirty={isDirty}
+      >
+        {drawerMode === "create" ? (
+          <>
             <TextField
               label="Slug"
-              value={createFormData.slug}
-              onChange={(e) =>
-                setCreateFormData({ ...createFormData, slug: e.target.value })
-              }
+              value={createData.slug}
+              onChange={(e) => setCreateData({ ...createData, slug: e.target.value })}
+              onBlur={() => setTouched((p) => ({ ...p, slug: true }))}
               fullWidth
+              required
               placeholder="company-name"
+              error={!!slugError}
+              helperText={slugError || "Identificador único (ex: casa-pai-benedito)"}
             />
             <TextField
-              label="Name"
-              value={createFormData.name}
-              onChange={(e) =>
-                setCreateFormData({ ...createFormData, name: e.target.value })
-              }
+              label="Nome"
+              value={createData.name}
+              onChange={(e) => setCreateData({ ...createData, name: e.target.value })}
+              onBlur={() => setTouched((p) => ({ ...p, name: true }))}
               fullWidth
+              required
+              error={!!createNameError}
+              helperText={createNameError}
             />
             <TextField
-              label="Admin Email"
+              label="Email do Admin"
               type="email"
-              value={createFormData.email_admin}
-              onChange={(e) =>
-                setCreateFormData({
-                  ...createFormData,
-                  email_admin: e.target.value,
-                })
-              }
+              value={createData.email_admin}
+              onChange={(e) => setCreateData({ ...createData, email_admin: e.target.value })}
+              onBlur={() => setTouched((p) => ({ ...p, email_admin: true }))}
               fullWidth
+              required
+              error={!!emailError}
+              helperText={emailError}
             />
             <FormControl fullWidth>
-              <InputLabel>Plan</InputLabel>
+              <InputLabel>Plano</InputLabel>
               <Select
-                value={createFormData.plan}
-                label="Plan"
-                onChange={(e) =>
-                  setCreateFormData({
-                    ...createFormData,
-                    plan: e.target.value as any,
-                  })
-                }
+                value={createData.plan}
+                label="Plano"
+                onChange={(e) => setCreateData({ ...createData, plan: e.target.value })}
               >
                 <MenuItem value="basic">Basic</MenuItem>
                 <MenuItem value="pro">Pro</MenuItem>
@@ -341,76 +385,43 @@ const TenantsPage: React.FC = () => {
                 <MenuItem value="enterprise">Enterprise</MenuItem>
               </Select>
             </FormControl>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenCreateDialog(false)}>Cancel</Button>
-          <Button
-            onClick={handleCreateTenant}
-            variant="contained"
-            disabled={!createFormData.slug || !createFormData.name}
-          >
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Tenant Dialog */}
-      <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Tenant</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          {editingTenant && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <TextField
-                label="Name"
-                value={editingTenant.name}
+          </>
+        ) : (
+          <>
+            <TextField
+              label="Nome"
+              value={editData.name}
+              onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+              onBlur={() => setTouched((p) => ({ ...p, name: true }))}
+              fullWidth
+              required
+              error={!!editNameError}
+              helperText={editNameError}
+            />
+            <TextField
+              label="Descrição"
+              value={editData.description}
+              onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+              fullWidth
+              multiline
+              rows={3}
+            />
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={editData.is_active ? "active" : "inactive"}
+                label="Status"
                 onChange={(e) =>
-                  setEditingTenant({
-                    ...editingTenant,
-                    name: e.target.value,
-                  })
+                  setEditData({ ...editData, is_active: e.target.value === "active" })
                 }
-                fullWidth
-              />
-              <TextField
-                label="Description"
-                value={editingTenant.description || ""}
-                onChange={(e) =>
-                  setEditingTenant({
-                    ...editingTenant,
-                    description: e.target.value || null,
-                  })
-                }
-                fullWidth
-                multiline
-                rows={3}
-              />
-              <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={editingTenant.is_active}
-                  label="Status"
-                  onChange={(e) =>
-                    setEditingTenant({
-                      ...editingTenant,
-                      is_active: e.target.value as any,
-                    })
-                  }
-                >
-                  <MenuItem value={true}>Active</MenuItem>
-                  <MenuItem value={false}>Inactive</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenEditDialog(false)}>Cancel</Button>
-          <Button onClick={handleUpdateTenant} variant="contained">
-            Update
-          </Button>
-        </DialogActions>
-      </Dialog>
+              >
+                <MenuItem value="active">Ativo</MenuItem>
+                <MenuItem value="inactive">Inativo</MenuItem>
+              </Select>
+            </FormControl>
+          </>
+        )}
+      </CrudDrawer>
     </PlatformLayout>
   );
 };

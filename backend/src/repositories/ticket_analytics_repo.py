@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, desc
+from sqlalchemy import select, func, and_, or_, desc, Integer, case
 from sqlalchemy.sql import text
 
 from ..models import Ticket, TicketStatus, Gira
@@ -21,20 +21,39 @@ class TicketAnalyticsRepository:
     
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    def _build_conditions(
+        self,
+        tenant_id: Optional[UUID] = None,
+        gira_id: Optional[UUID] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+    ):
+        conditions = []
+        if tenant_id is not None:
+            conditions.append(Ticket.tenant_id == tenant_id)
+        if gira_id:
+            conditions.append(Ticket.gira_id == gira_id)
+        if date_from:
+            conditions.append(Ticket.created_at >= date_from)
+        if date_to:
+            conditions.append(Ticket.created_at <= date_to)
+        return conditions
     
-    async def get_total_stats(self, tenant_id: UUID, gira_id: Optional[UUID] = None) -> Dict:
+    async def get_total_stats(self, tenant_id: Optional[UUID] = None, gira_id: Optional[UUID] = None, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None) -> Dict:
         """Get overall ticket statistics.
         
         Args:
-            tenant_id: Tenant ID
+            tenant_id: Tenant ID (None for cross-tenant/SUPER_ADMIN)
             gira_id: Optional gira filter
+            date_from: Optional start date filter
+            date_to: Optional end date filter
             
         Returns:
             Dict with total_emitted, total_used, usage_rate, etc.
         """
-        where_clause = Ticket.tenant_id == tenant_id
-        if gira_id:
-            where_clause = and_(where_clause, Ticket.gira_id == gira_id)
+        conditions = self._build_conditions(tenant_id, gira_id, date_from, date_to)
+        where_clause = and_(*conditions) if conditions else True
         
         # Count total emitted
         stmt_emitted = select(func.count(Ticket.id)).where(where_clause)
@@ -60,40 +79,67 @@ class TicketAnalyticsRepository:
             "total_cancelled": total_emitted - total_used,
             "usage_rate": round(usage_rate, 2),
         }
+
+    async def get_category_breakdown(
+        self,
+        tenant_id: Optional[UUID] = None,
+        gira_id: Optional[UUID] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+    ) -> Dict:
+        """Get total emitted split by category."""
+        where_clause = and_(*self._build_conditions(tenant_id, gira_id, date_from, date_to))
+        stmt = select(
+            func.count(Ticket.id).filter(and_(Ticket.is_sponsor.is_(False), Ticket.is_walk_in.is_(False))).label("common"),
+            func.count(Ticket.id).filter(Ticket.is_sponsor.is_(True)).label("sponsor"),
+            func.count(Ticket.id).filter(Ticket.is_walk_in.is_(True)).label("walk_in"),
+        ).where(where_clause)
+        result = await self.db.execute(stmt)
+        row = result.one()
+        return {
+            "common": row.common or 0,
+            "sponsor": row.sponsor or 0,
+            "walk_in": row.walk_in or 0,
+        }
     
     async def get_daily_distribution(
         self,
-        tenant_id: UUID,
+        tenant_id: Optional[UUID] = None,
         days: int = 30,
         gira_id: Optional[UUID] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
     ) -> List[Dict]:
-        """Get ticket distribution by day (last N days).
+        """Get ticket distribution by day.
         
         Args:
-            tenant_id: Tenant ID
-            days: Number of days to look back
+            tenant_id: Tenant ID (None for cross-tenant/SUPER_ADMIN)
+            days: Number of days to look back (fallback if date_from not set)
             gira_id: Optional gira filter
+            date_from: Optional start date filter
+            date_to: Optional end date filter
             
         Returns:
             List of dicts with date, count, status_breakdown
         """
-        from datetime import datetime
+        from datetime import datetime as dt_module
         
-        start_date = datetime.utcnow() - timedelta(days=days)
+        if date_from is None:
+            start_date = dt_module.utcnow() - timedelta(days=days)
+        else:
+            start_date = date_from
         
-        where_clause = and_(
-            Ticket.tenant_id == tenant_id,
-            Ticket.created_at >= start_date,
-        )
-        
-        if gira_id:
-            where_clause = and_(where_clause, Ticket.gira_id == gira_id)
+        conditions = self._build_conditions(tenant_id, gira_id, start_date, date_to)
+        where_clause = and_(*conditions)
         
         # Query daily breakdown
         stmt = select(
             func.date(Ticket.created_at).label("date"),
             func.count(Ticket.id).label("total"),
-            func.sum(func.cast(Ticket.status == TicketStatus.COMPLETED, func.Integer)).label("completed"),
+            func.sum(case((Ticket.status == TicketStatus.COMPLETED, 1), else_=0)).label("completed"),
+            func.sum(case((and_(Ticket.is_sponsor.is_(False), Ticket.is_walk_in.is_(False)), 1), else_=0)).label("common"),
+            func.sum(case((Ticket.is_sponsor.is_(True), 1), else_=0)).label("sponsor"),
+            func.sum(case((Ticket.is_walk_in.is_(True), 1), else_=0)).label("walk_in"),
         ).where(where_clause).group_by(func.date(Ticket.created_at)).order_by("date")
         
         result = await self.db.execute(stmt)
@@ -104,15 +150,18 @@ class TicketAnalyticsRepository:
                 "date": row[0].isoformat() if row[0] else None,
                 "total": row[1] or 0,
                 "completed": row[2] or 0,
+                "common": row[3] or 0,
+                "sponsor": row[4] or 0,
+                "walk_in": row[5] or 0,
             }
             for row in rows
         ]
     
-    async def get_today_stats(self, tenant_id: UUID, gira_id: Optional[UUID] = None) -> Dict:
+    async def get_today_stats(self, tenant_id: Optional[UUID] = None, gira_id: Optional[UUID] = None) -> Dict:
         """Get today's ticket statistics.
         
         Args:
-            tenant_id: Tenant ID
+            tenant_id: Tenant ID (None for cross-tenant/SUPER_ADMIN)
             gira_id: Optional gira filter
             
         Returns:
@@ -123,14 +172,15 @@ class TicketAnalyticsRepository:
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = today_start + timedelta(days=1)
         
-        where_clause = and_(
-            Ticket.tenant_id == tenant_id,
+        conditions = [
             Ticket.created_at >= today_start,
             Ticket.created_at < today_end,
-        )
-        
+        ]
+        if tenant_id is not None:
+            conditions.append(Ticket.tenant_id == tenant_id)
         if gira_id:
-            where_clause = and_(where_clause, Ticket.gira_id == gira_id)
+            conditions.append(Ticket.gira_id == gira_id)
+        where_clause = and_(*conditions)
         
         # Count emitted today
         stmt_emitted = select(func.count(Ticket.id)).where(where_clause)
@@ -209,29 +259,31 @@ class TicketAnalyticsRepository:
     
     async def get_peak_hours(
         self,
-        tenant_id: UUID,
+        tenant_id: Optional[UUID] = None,
         gira_id: Optional[UUID] = None,
         days: int = 7,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
     ) -> List[Dict]:
         """Get peak emission hours/days.
         
         Args:
-            tenant_id: Tenant ID
+            tenant_id: Tenant ID (None for cross-tenant/SUPER_ADMIN)
             gira_id: Optional gira filter
-            days: Number of days to analyze
+            days: Number of days to analyze (fallback if date_from not set)
+            date_from: Optional start date filter
+            date_to: Optional end date filter
             
         Returns:
             List of hour/count tuples sorted by count desc
         """
-        start_date = datetime.utcnow() - timedelta(days=days)
+        if date_from is None:
+            start_date = datetime.utcnow() - timedelta(days=days)
+        else:
+            start_date = date_from
         
-        where_clause = and_(
-            Ticket.tenant_id == tenant_id,
-            Ticket.created_at >= start_date,
-        )
-        
-        if gira_id:
-            where_clause = and_(where_clause, Ticket.gira_id == gira_id)
+        conditions = self._build_conditions(tenant_id, gira_id, start_date, date_to)
+        where_clause = and_(*conditions)
         
         # Group by hour
         stmt = select(

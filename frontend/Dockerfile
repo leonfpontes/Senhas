@@ -1,26 +1,14 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Update npm to version that supports workspaces
-RUN npm install -g npm@latest
-
-# Copy root package files and frontend with all dependencies structure
+# Copy root package files, workspace packages, and frontend
 COPY package*.json ./
 COPY packages ./packages
 COPY frontend ./frontend
 
-# Install all dependencies using npm workspaces from root
-RUN npm install --force --legacy-peer-deps 2>/dev/null || npm install --force
-
-FROM node:20-alpine
-
-RUN npm install -g npm@latest
-
-WORKDIR /app
-
-# Copy everything from builder
-COPY --from=builder /app ./
+# Single install from root (workspaces resolves frontend deps)
+RUN npm install --legacy-peer-deps
 
 WORKDIR /app/frontend
 

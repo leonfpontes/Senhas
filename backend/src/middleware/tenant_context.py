@@ -9,49 +9,40 @@ from ..core.errors import MultiTenantViolationError
 async def tenant_context_middleware(request: Request, call_next: Callable) -> any:
     """Extract and validate tenant context from request.
     
-    Extracts tenant_id from:
-    1. JWT token (request.state.tenant_id) - primary source
-    2. Query parameter ?tenant_id=... - for public endpoints
-    3. Request body tenant_id - not used (use JWT)
-    
-    This middleware ensures all requests are scoped to a tenant,
-    preventing data leakage between organizations.
-    
-    Args:
-        request: FastAPI request object
-        call_next: Next middleware/endpoint
-        
-    Returns:
-        Response from next middleware/endpoint
+    For public and auth routes: passes through (tenant resolved by JWT or endpoint).
+    For query-param tenant_id: validates and attaches to request.state.
+    For JWT-authenticated routes: JWT middleware (runs after this) sets tenant_id.
     """
-    # Public paths that don't require tenant context
-    public_paths = ["/health", "/docs", "/openapi.json"]
-    if request.url.path in public_paths:
+    # Skip WebSocket connections (they handle auth in the endpoint)
+    if request.scope.get("type") == "websocket":
         return await call_next(request)
     
-    # Get tenant_id from JWT token (already decoded by jwt_middleware)
-    tenant_id = getattr(request.state, "tenant_id", None)
+    # Paths that never need tenant context
+    skip_paths = ["/health", "/docs", "/openapi.json", "/redoc"]
+    if request.url.path in skip_paths:
+        return await call_next(request)
     
-    # For public endpoints, allow tenant_id from query parameter
-    if not tenant_id and request.url.path.startswith("/api/v1/public"):
-        tenant_id_param = request.query_params.get("tenant_id")
-        if tenant_id_param:
-            try:
-                tenant_id = uuid.UUID(tenant_id_param)
-            except (ValueError, TypeError):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="tenant_id inválido",
-                )
-        else:
+    # Public API endpoints resolve tenant themselves (via tenant_slug or gira lookup)
+    if request.url.path.startswith("/api/v1/public"):
+        return await call_next(request)
+    
+    # Auth routes don't need tenant context (JWT middleware will extract from token)
+    if request.url.path.startswith("/api/v1/auth"):
+        return await call_next(request)
+    
+    # Try to extract tenant_id from query params (used by some admin/platform endpoints)
+    tenant_id_str = request.query_params.get("tenant_id")
+    if tenant_id_str:
+        try:
+            request.state.tenant_id = uuid.UUID(tenant_id_str)
+        except (ValueError, AttributeError):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="tenant_id requerido para endpoints públicos",
+                detail="Formato de tenant_id inválido",
             )
     
-    # Attach tenant_id to request.state
-    request.state.tenant_id = tenant_id
-    
+    # For all other routes, pass through — JWT middleware (next in chain)
+    # will set request.state.tenant_id from the token payload
     response = await call_next(request)
     return response
 

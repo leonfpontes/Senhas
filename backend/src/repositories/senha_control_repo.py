@@ -4,6 +4,7 @@ Handles multi-tenant SenhaControl with optimistic locking (no race conditions)
 """
 
 from typing import Optional
+from uuid import UUID
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -22,9 +23,10 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
     async def get_or_create_for_gira(
         self,
         session: AsyncSession,
-        tenant_id: int,
-        gira_id: int,
+        tenant_id: UUID,
+        gira_id: UUID,
         initial_number: int = 0,
+        is_sponsor: bool = False,
     ) -> SenhaControl:
         """Get existing SenhaControl or create new one atomically
         
@@ -33,6 +35,7 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
             tenant_id: Tenant ID for multi-tenant isolation
             gira_id: Gira ID to control
             initial_number: Starting number for counter
+            is_sponsor: Whether this is for sponsor tickets
             
         Returns:
             SenhaControl instance (new or existing)
@@ -41,6 +44,7 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
             and_(
                 SenhaControl.tenant_id == tenant_id,
                 SenhaControl.gira_id == gira_id,
+                SenhaControl.is_sponsor == is_sponsor,
             )
         )
         result = await session.execute(query)
@@ -50,7 +54,8 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
             senha_control = SenhaControl(
                 tenant_id=tenant_id,
                 gira_id=gira_id,
-                current_number=initial_number,
+                is_sponsor=is_sponsor,
+                proximo_numero=initial_number,
             )
             session.add(senha_control)
             await session.flush()
@@ -60,8 +65,9 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
     async def increment_atomic(
         self,
         session: AsyncSession,
-        tenant_id: int,
-        gira_id: int,
+        tenant_id: UUID,
+        gira_id: UUID,
+        is_sponsor: bool = False,
     ) -> int:
         """Atomically increment counter and return new number
         
@@ -72,6 +78,7 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
             session: Async DB session (must be in transaction)
             tenant_id: Tenant ID
             gira_id: Gira ID
+            is_sponsor: Whether this is for sponsor tickets
             
         Returns:
             Next ticket number (e.g., 42)
@@ -86,6 +93,7 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
                 and_(
                     SenhaControl.tenant_id == tenant_id,
                     SenhaControl.gira_id == gira_id,
+                    SenhaControl.is_sponsor == is_sponsor,
                 )
             )
             .with_for_update()
@@ -99,8 +107,9 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
             )
 
         # Increment counter
-        next_number = senha_control.current_number + 1
-        senha_control.current_number = next_number
+        next_number = senha_control.proximo_numero + 1
+        senha_control.proximo_numero = next_number
+        senha_control.total_emitido = next_number
 
         await session.flush()
         return next_number
@@ -108,8 +117,9 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
     async def get_by_gira(
         self,
         session: AsyncSession,
-        tenant_id: int,
-        gira_id: int,
+        tenant_id: UUID,
+        gira_id: UUID,
+        is_sponsor: bool = False,
     ) -> Optional[SenhaControl]:
         """Fetch SenhaControl for a gira
         
@@ -117,6 +127,7 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
             session: Async DB session
             tenant_id: Tenant ID
             gira_id: Gira ID
+            is_sponsor: Whether to get sponsor control
             
         Returns:
             SenhaControl or None
@@ -125,6 +136,7 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
             and_(
                 SenhaControl.tenant_id == tenant_id,
                 SenhaControl.gira_id == gira_id,
+                SenhaControl.is_sponsor == is_sponsor,
             )
         )
         result = await session.execute(query)
@@ -133,8 +145,9 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
     async def get_current_count(
         self,
         session: AsyncSession,
-        tenant_id: int,
-        gira_id: int,
+        tenant_id: UUID,
+        gira_id: UUID,
+        is_sponsor: bool = False,
     ) -> int:
         """Get current ticket count for gira
         
@@ -142,9 +155,10 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
             session: Async DB session
             tenant_id: Tenant ID
             gira_id: Gira ID
+            is_sponsor: Whether to get sponsor count
             
         Returns:
             Current number emitted
         """
-        senha_control = await self.get_by_gira(session, tenant_id, gira_id)
-        return senha_control.current_number if senha_control else 0
+        senha_control = await self.get_by_gira(session, tenant_id, gira_id, is_sponsor)
+        return senha_control.total_emitido if senha_control else 0

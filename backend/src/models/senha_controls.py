@@ -1,5 +1,5 @@
 """SenhaControl model - atomic ticket emission control (T016)."""
-from sqlalchemy import Column, ForeignKey, Integer, Index, UniqueConstraint, BigInteger
+from sqlalchemy import Column, ForeignKey, Integer, Index, UniqueConstraint, BigInteger, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
@@ -21,7 +21,7 @@ class SenhaControl(SoftDeleteModel):
     
     __tablename__ = "senha_controls"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "gira_id", name="uq_senha_control_tenant_gira"),
+        UniqueConstraint("tenant_id", "gira_id", "is_sponsor", name="uq_senha_control_tenant_gira_sponsor"),
         Index("ix_senha_controls_tenant_id", "tenant_id"),
         Index("ix_senha_controls_gira_id", "gira_id"),
     )
@@ -29,6 +29,9 @@ class SenhaControl(SoftDeleteModel):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     gira_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("giras.id", ondelete="CASCADE"), nullable=False)
+    
+    # Sponsor flag: True for sponsor ticket counters
+    is_sponsor: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     
     # Atomic counter: last issued ticket number for this gira
     proximo_numero: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

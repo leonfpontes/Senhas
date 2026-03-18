@@ -21,6 +21,14 @@ class TenantRepository(BaseRepository[Tenant]):
     def __init__(self, db: AsyncSession):
         super().__init__(db, Tenant)
     
+    async def get_by_id(self, tenant_id: UUID, _tenant_id=None, include_deleted: bool = False) -> Optional[Tenant]:
+        """Get tenant by ID (no tenant_id filter since Tenant has no tenant_id column)."""
+        stmt = select(Tenant).where(Tenant.id == tenant_id)
+        if not include_deleted:
+            stmt = stmt.where(Tenant.deleted_at.is_(None))
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+    
     async def get_by_slug(self, slug: str) -> Optional[Tenant]:
         """Get tenant by slug.
         

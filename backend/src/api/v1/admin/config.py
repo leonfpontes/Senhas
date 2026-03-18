@@ -26,7 +26,9 @@ class TenantConfigResponse(BaseModel):
     enable_bulk_operations: bool
     enable_analytics: bool
     enable_webhooks: bool
+    enable_walk_in: bool
     custom_settings: Optional[Dict[str, Any]]
+    sponsor_priority_mode: str = "first"
 
     class Config:
         from_attributes = True
@@ -42,7 +44,9 @@ class TenantConfigUpdate(BaseModel):
     enable_bulk_operations: Optional[bool] = None
     enable_analytics: Optional[bool] = None
     enable_webhooks: Optional[bool] = None
+    enable_walk_in: Optional[bool] = None
     custom_settings: Optional[Dict[str, Any]] = None
+    sponsor_priority_mode: Optional[str] = None
 
 
 @router.get("/tenant/config", response_model=TenantConfigResponse)
@@ -56,6 +60,22 @@ async def get_tenant_config(
     """
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Admin required")
+    
+    # SUPER_ADMIN has no tenant — return platform defaults
+    if current_user.tenant_id is None:
+        return TenantConfigResponse(
+            logo_url=None,
+            primary_color="#6366f1",
+            secondary_color="#ec4899",
+            reply_to_email=None,
+            email_signature=None,
+            enable_bulk_operations=True,
+            enable_analytics=True,
+            enable_webhooks=False,
+            enable_walk_in=False,
+            custom_settings=None,
+            sponsor_priority_mode="first",
+        )
     
     repo = TenantConfigRepository(db)
     config = await repo.get_by_tenant(current_user.tenant_id)
@@ -75,6 +95,13 @@ async def update_tenant_config(
     """
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Admin required")
+    
+    # SUPER_ADMIN has no tenant — config not editable
+    if current_user.tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Super Admin não possui configuração de tenant",
+        )
     
     repo = TenantConfigRepository(db)
     
@@ -127,6 +154,13 @@ async def update_tenant_config(
             feature_flag="enable_webhooks",
             enabled=config_update.enable_webhooks,
         )
+
+    if config_update.enable_walk_in is not None:
+        await repo.toggle_feature(
+            tenant_id=current_user.tenant_id,
+            feature_flag="enable_walk_in",
+            enabled=config_update.enable_walk_in,
+        )
     
     # Update custom settings
     if config_update.custom_settings is not None:
@@ -134,6 +168,22 @@ async def update_tenant_config(
             tenant_id=current_user.tenant_id,
             settings=config_update.custom_settings,
         )
+    
+    # Update sponsor priority mode
+    if config_update.sponsor_priority_mode is not None:
+        if config_update.sponsor_priority_mode not in ("first", "interleave"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="sponsor_priority_mode deve ser 'first' ou 'interleave'",
+            )
+        current_config = await repo.get_by_tenant(current_user.tenant_id)
+        if current_config is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Configuração do tenant não encontrada",
+            )
+        current_config.sponsor_priority_mode = config_update.sponsor_priority_mode
+        await db.flush()
     
     # Get updated config
     updated_config = await repo.get_by_tenant(current_user.tenant_id)

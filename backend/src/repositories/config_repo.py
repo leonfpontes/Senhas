@@ -129,6 +129,7 @@ class TenantConfigRepository:
             "enable_bulk_operations",
             "enable_analytics",
             "enable_webhooks",
+            "enable_walk_in",
         ]:
             setattr(config, feature_flag, enabled)
         

@@ -5,15 +5,17 @@
  */
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AppBar,
   Box,
+  Button,
   CssBaseline,
   Drawer,
   IconButton,
   List,
   ListItem,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
   Toolbar,
@@ -23,22 +25,22 @@ import {
   useTheme,
   useMediaQuery,
   Container,
+  Divider,
 } from '@mui/material';
-import {
-  Menu as MenuIcon,
-  Dashboard as DashboardIcon,
-  Event as EventIcon,
-  ConfirmationNumber as TicketIcon,
-  People as PeopleIcon,
-  Settings as SettingsIcon,
-  Assessment as AnalyticsIcon,
-  History as HistoryIcon,
-  Logout as LogoutIcon,
-  AccountCircle as AccountIcon,
-  ChevronLeft as ChevronLeftIcon,
-} from '@mui/icons-material';
-import Link from 'next/link';
+import MenuIcon from '@mui/icons-material/Menu';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import EventIcon from '@mui/icons-material/Event';
+import TicketIcon from '@mui/icons-material/ConfirmationNumber';
+import PeopleIcon from '@mui/icons-material/People';
+import SettingsIcon from '@mui/icons-material/Settings';
+import AnalyticsIcon from '@mui/icons-material/Assessment';
+import HistoryIcon from '@mui/icons-material/History';
+import LogoutIcon from '@mui/icons-material/Logout';
+import AccountIcon from '@mui/icons-material/AccountCircle';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { useTenant } from '@/providers/ThemeProvider';
 
 const DRAWER_WIDTH = 280;
@@ -56,11 +58,34 @@ export default function AdminLayout({
 }: AdminLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [impersonateUser, setImpersonateUser] = useState<{ email?: string; username?: string } | null>(null);
+  const [impersonateTenant, setImpersonateTenant] = useState<{ name?: string } | null>(null);
   const router = useRouter();
   const pathname = router.pathname;
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { tenantName, logoUrl } = useTenant();
+
+  useEffect(() => {
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('impersonating')) {
+      setIsImpersonating(true);
+      try {
+        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+        const tenant = JSON.parse(sessionStorage.getItem('impersonate_tenant') || '{}');
+        setImpersonateUser(user);
+        setImpersonateTenant(tenant);
+      } catch {}
+    }
+  }, []);
+
+  const handleEndImpersonation = () => {
+    sessionStorage.removeItem('access_token');
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('impersonating');
+    sessionStorage.removeItem('impersonate_tenant');
+    window.close();
+  };
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -101,6 +126,11 @@ export default function AdminLayout({
       href: '/admin/tickets',
     },
     {
+      text: 'Porta',
+      icon: <MeetingRoomIcon />,
+      href: '/admin/porta',
+    },
+    {
       text: 'Usuários',
       icon: <PeopleIcon />,
       href: '/admin/users',
@@ -131,16 +161,8 @@ export default function AdminLayout({
         backgroundColor: 'background.paper',
       }}
     >
-      {/* Drawer Header */}
-      <Toolbar
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: '1px solid #e0e0e0',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ p: 3, pb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
           {logoUrl && (
             <Box
               component="img"
@@ -159,10 +181,11 @@ export default function AdminLayout({
               noWrap
               sx={{
                 fontWeight: 700,
-                fontSize: '0.95rem',
+                color: 'primary.main',
+                fontSize: '1rem',
               }}
             >
-              Senhas
+              Senhas Admin
             </Typography>
             {tenantName && (
               <Typography
@@ -176,78 +199,73 @@ export default function AdminLayout({
               </Typography>
             )}
           </Box>
+          {isMobile && (
+            <IconButton
+              onClick={handleDrawerClose}
+              size="small"
+            >
+              <ChevronLeftIcon />
+            </IconButton>
+          )}
         </Box>
-        {isMobile && (
-          <IconButton
-            onClick={handleDrawerClose}
-            size="small"
-          >
-            <ChevronLeftIcon />
-          </IconButton>
-        )}
-      </Toolbar>
+      </Box>
+
+      <Divider />
 
       {/* Navigation Items */}
-      <List
-        component="nav"
-        sx={{
-          flex: 1,
-          overflow: 'auto',
-          p: 1,
-        }}
-      >
+      <List sx={{ flex: 1, py: 2 }}>
         {navigationItems.map((item) => (
-          <Link 
-            key={item.href} 
-            href={item.href} 
-            style={{ textDecoration: 'none' }}
-          >
-            <ListItem
-              disablePadding
-              sx={{
-                display: 'block',
-                mb: 0.5,
-              }}
-            >
-              <ListItemIcon
+          <ListItem key={item.href} disablePadding>
+            <Link href={item.href} passHref legacyBehavior>
+              <ListItemButton
+                selected={pathname === item.href}
                 sx={{
-                  minWidth: 40,
-                  color: pathname === item.href ? 'primary.main' : 'inherit',
+                  '&.Mui-selected': {
+                    backgroundColor: 'primary.light',
+                    '& .MuiListItemIcon-root': {
+                      color: 'primary.main',
+                    },
+                  },
                 }}
               >
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText
-                primary={item.text}
-                primaryTypographyProps={{
-                  fontWeight: pathname === item.href ? 600 : 500,
-                  color: pathname === item.href ? 'primary.main' : 'inherit',
-                }}
-              />
-            </ListItem>
-          </Link>
+                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemText
+                  primary={item.text}
+                  primaryTypographyProps={{
+                    variant: 'body2',
+                    fontWeight: pathname === item.href ? 600 : 500,
+                  }}
+                />
+              </ListItemButton>
+            </Link>
+          </ListItem>
         ))}
       </List>
 
-      {/* Footer Divider */}
+      <Divider />
+
       <Box
         sx={{
-          borderTop: '1px solid #e0e0e0',
-          p: 1.5,
+          p: 2,
         }}
       >
-        <Typography variant="caption" color="textSecondary">
-          v0.5 - Admin Dashboard
+        <Typography variant="caption" display="block" color="text.secondary">
+          Senhas v1.0
+        </Typography>
+        <Typography variant="caption" display="block" color="text.secondary">
+          Admin Edition
         </Typography>
       </Box>
     </Box>
   );
 
+  const TOOLBAR_HEIGHT = 64;
+
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <CssBaseline />
-      
-      {/* AppBar */}
+
+      {/* AppBar — contains impersonation banner inside */}
       <AppBar
         position="fixed"
         variant="elevation"
@@ -257,6 +275,33 @@ export default function AdminLayout({
           zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
+        {isImpersonating && (
+          <Box
+            sx={{
+              bgcolor: 'warning.main',
+              color: 'warning.contrastText',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+              py: 0.5,
+              px: 2,
+            }}
+          >
+            <Typography variant="body2" fontWeight={600}>
+              Visualizando como: {impersonateUser?.email || impersonateUser?.username || '...'} — Terreiro: {impersonateTenant?.name || '...'}
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              color="inherit"
+              onClick={handleEndImpersonation}
+              sx={{ borderColor: 'inherit', fontWeight: 600 }}
+            >
+              Encerrar
+            </Button>
+          </Box>
+        )}
         <Toolbar sx={{ gap: 2 }}>
           <IconButton
             color="inherit"
@@ -352,21 +397,25 @@ export default function AdminLayout({
           }}
           open
         >
-          {drawer}
+          <Box sx={{ mt: `${TOOLBAR_HEIGHT}px`, height: `calc(100% - ${TOOLBAR_HEIGHT}px)` }}>
+            {drawer}
+          </Box>
         </Drawer>
       </Box>
 
-      {/* Main Content */}
+      {/* Main Content — spacer via Toolbar to push below AppBar */}
       <Box
         component="main"
         sx={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          mt: { xs: 8, sm: 8 },
           overflow: 'auto',
         }}
       >
+        {/* Spacer: matches AppBar height (toolbar + optional banner) */}
+        <Toolbar />
+        {isImpersonating && <Box sx={{ height: 36 }} />}
         <Container
           maxWidth={maxWidth}
           sx={{

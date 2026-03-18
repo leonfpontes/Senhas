@@ -19,12 +19,10 @@ import {
   Alert,
   LinearProgress,
 } from "@mui/material";
-import {
-  Business as BusinessIcon,
-  People as PeopleIcon,
-  Description as DescriptionIcon,
-  ReceiptLong as BillingIcon,
-} from "@mui/icons-material";
+import BusinessIcon from "@mui/icons-material/Business";
+import PeopleIcon from "@mui/icons-material/People";
+import DescriptionIcon from "@mui/icons-material/Description";
+import BillingIcon from "@mui/icons-material/ReceiptLong";
 import Link from "next/link";
 import PlatformLayout from "./layout";
 

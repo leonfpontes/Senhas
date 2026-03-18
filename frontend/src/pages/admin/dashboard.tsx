@@ -15,12 +15,10 @@ import {
   Button,
   CircularProgress,
 } from '@mui/material';
-import {
-  TrendingUp as TrendingUpIcon,
-  Check as CheckIcon,
-  Send as SendIcon,
-  People as PeopleIcon,
-} from '@mui/icons-material';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import CheckIcon from '@mui/icons-material/Check';
+import SendIcon from '@mui/icons-material/Send';
+import PeopleIcon from '@mui/icons-material/People';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 

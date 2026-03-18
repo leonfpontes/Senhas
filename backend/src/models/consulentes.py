@@ -26,6 +26,8 @@ class Consulente(SoftDeleteModel):
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     telefone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    email_normalized: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone_normalized: Mapped[str | None] = mapped_column(String(20), nullable=True)
     cpf: Mapped[str | None] = mapped_column(String(11), nullable=True)  # Without masking for uniqueness
     endereco: Mapped[str | None] = mapped_column(Text, nullable=True)
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)

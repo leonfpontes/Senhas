@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from uuid import UUID
+from datetime import datetime
 import logging
 
 from src.core.database import get_db
@@ -16,6 +17,7 @@ from src.core.errors import (
     InsufficientPermissionsError,
     NotFoundError,
 )
+from sqlalchemy import select
 
 router = APIRouter(prefix="/api/v1/admin/users", tags=["admin-users"])
 logger = logging.getLogger(__name__)
@@ -45,7 +47,7 @@ class UserResponse(BaseModel):
     username: str
     role: str
     is_active: bool
-    created_at: str
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -108,7 +110,15 @@ async def list_users(
     
     repo = UserRepository(db)
     
-    if role_filter:
+    # SUPER_ADMIN (no tenant) sees all users
+    if current_user.tenant_id is None:
+        stmt = select(User).where(User.deleted_at.is_(None))
+        if role_filter:
+            stmt = stmt.where(User.role == role_filter)
+        stmt = stmt.order_by(User.email).offset(skip).limit(limit)
+        result = await db.execute(stmt)
+        users = result.scalars().all()
+    elif role_filter:
         users = await repo.get_by_role(
             current_user.tenant_id,
             role_filter,

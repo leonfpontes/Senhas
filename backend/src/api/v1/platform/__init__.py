@@ -8,6 +8,7 @@ from .subscriptions import router as subscriptions_router
 from .consolidated_audit import router as audit_router
 from .billing import router as billing_router
 from .feature_flags import router as feature_flags_router
+from .impersonate import router as impersonate_router
 
 # Combine all platform routers
 platform_router = APIRouter()
@@ -18,5 +19,6 @@ platform_router.include_router(subscriptions_router)
 platform_router.include_router(audit_router)
 platform_router.include_router(billing_router)
 platform_router.include_router(feature_flags_router)
+platform_router.include_router(impersonate_router)
 
 __all__ = ["platform_router"]

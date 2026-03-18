@@ -2,11 +2,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
-import uuid
 
 from src.core.database import get_db
 from src.core.errors import ValidationError, UnauthorizedError, NotFoundError
 from src.models import User
+from src.api.dependencies import get_current_user
 from src.security import (
     hash_password,
     verify_password,
@@ -27,7 +27,6 @@ class LoginRequest(BaseModel):
     
     email: EmailStr
     password: str
-    tenant_id: str  # UUID
 
 
 class LoginResponse(BaseModel):
@@ -48,7 +47,7 @@ async def login(
     """POST /api/v1/auth/login - Authenticate user and return tokens.
     
     Args:
-        request: Login credentials and tenant_id
+        request: Login credentials (email + password)
         response: HTTP response (for setting cookies)
         db: Database session
         
@@ -59,14 +58,9 @@ async def login(
         UnauthorizedError: If credentials invalid
         NotFoundError: If user not found
     """
-    try:
-        tenant_id = uuid.UUID(request.tenant_id)
-    except (ValueError, TypeError):
-        raise ValidationError("tenant_id inválido")
-    
-    # Find user by email in tenant
+    # Email is globally unique — find user by email alone
     stmt = select(User).where(
-        (User.email == request.email) & (User.tenant_id == tenant_id)
+        (User.email == request.email) & (User.deleted_at.is_(None))
     )
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
@@ -114,6 +108,7 @@ async def login(
             "email": user.email,
             "username": user.username,
             "role": user.role.value,
+            "tenant_id": str(user.tenant_id) if user.tenant_id else None,
         },
     )
 
@@ -185,3 +180,19 @@ async def logout(response: Response):
     log_security_event("logout", success=True)
     
     return {"message": "Logout realizado com sucesso"}
+
+
+@router.get("/me")
+async def get_me(
+    current_user: User = Depends(get_current_user),
+):
+    """GET /api/v1/auth/me - Return current authenticated user info."""
+    return {
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "username": current_user.username,
+        "role": current_user.role.value,
+        "tenant_id": str(current_user.tenant_id) if current_user.tenant_id else None,
+        "is_active": current_user.is_active,
+        "created_at": current_user.created_at.isoformat(),
+    }

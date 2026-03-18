@@ -13,10 +13,11 @@ class TokenPayload(BaseModel):
     """JWT token payload structure."""
     
     sub: str  # subject: user_id
-    tenant_id: str  # tenant_id
+    tenant_id: Optional[str] = None  # tenant_id (None for SUPER_ADMIN)
     role: str  # user role
     exp: datetime  # expiration
     iat: datetime  # issued at
+    impersonated_by: Optional[str] = None  # SUPER_ADMIN user_id when impersonating
 
 
 class AccessToken(BaseModel):
@@ -40,6 +41,7 @@ def create_access_token(
     tenant_id: uuid.UUID,
     role: str,
     expires_delta: Optional[timedelta] = None,
+    impersonated_by: Optional[uuid.UUID] = None,
 ) -> str:
     """Create JWT access token.
     
@@ -48,6 +50,7 @@ def create_access_token(
         tenant_id: Tenant ID
         role: User role
         expires_delta: Custom expiration delta (default 24 hours)
+        impersonated_by: SUPER_ADMIN user_id when impersonating
         
     Returns:
         Encoded JWT token
@@ -60,11 +63,14 @@ def create_access_token(
     
     payload = {
         "sub": str(user_id),
-        "tenant_id": str(tenant_id),
+        "tenant_id": str(tenant_id) if tenant_id is not None else None,
         "role": role,
         "exp": exp,
         "iat": now,
     }
+    
+    if impersonated_by is not None:
+        payload["impersonated_by"] = str(impersonated_by)
     
     encoded = jwt.encode(
         payload,
@@ -100,7 +106,7 @@ def create_refresh_token(
     
     payload = {
         "sub": str(user_id),
-        "tenant_id": str(tenant_id),
+        "tenant_id": str(tenant_id) if tenant_id is not None else None,
         "role": role,
         "exp": exp,
         "iat": now,
@@ -137,10 +143,10 @@ def decode_token(token: str) -> TokenPayload:
         
         # Validate required fields
         user_id = payload.get("sub")
-        tenant_id = payload.get("tenant_id")
+        tenant_id = payload.get("tenant_id")  # None for SUPER_ADMIN
         role = payload.get("role")
         
-        if not all([user_id, tenant_id, role]):
+        if not user_id or not role:
             raise InvalidTokenError("Token inválido: campos obrigatórios faltando")
         
         return TokenPayload(
@@ -149,6 +155,7 @@ def decode_token(token: str) -> TokenPayload:
             role=role,
             exp=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
             iat=datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
+            impersonated_by=payload.get("impersonated_by"),
         )
         
     except JWTError as e:

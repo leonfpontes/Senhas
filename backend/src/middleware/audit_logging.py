@@ -33,6 +33,10 @@ async def audit_logging_middleware(request: Request, call_next: Callable):
         Response from next middleware/endpoint
     """
     
+    # Skip WebSocket connections
+    if request.scope.get("type") == "websocket":
+        return await call_next(request)
+    
     # Only audit admin endpoints
     if not request.url.path.startswith("/api/v1/admin"):
         return await call_next(request)
@@ -41,8 +45,13 @@ async def audit_logging_middleware(request: Request, call_next: Callable):
     user_id = getattr(request.state, "user_id", None)
     tenant_id = getattr(request.state, "tenant_id", None)
     
+    # Check if this is an impersonated session
+    token_data = getattr(request.state, "token", None)
+    impersonated_by = getattr(token_data, "impersonated_by", None) if token_data else None
+    
     if not user_id or not tenant_id:
-        raise UnauthorizedError("User not authenticated for admin operation")
+        # Skip audit logging - let the endpoint handle auth
+        return await call_next(request)
     
     # Determine action type from HTTP method
     action_map = {
@@ -70,6 +79,7 @@ async def audit_logging_middleware(request: Request, call_next: Callable):
                 audit_service = AuditService(db)
                 
                 try:
+                    _imp = {"impersonated_by": impersonated_by} if impersonated_by else {}
                     if action == "CREATE":
                         await audit_service.log_create(
                             tenant_id=tenant_id,
@@ -80,6 +90,7 @@ async def audit_logging_middleware(request: Request, call_next: Callable):
                                 "path": request.url.path,
                                 "ip_address": request.client.host if request.client else None,
                                 "user_agent": request.headers.get("user-agent"),
+                                **_imp,
                             },
                         )
                     elif action in ["UPDATE", "DELETE"]:
@@ -91,6 +102,7 @@ async def audit_logging_middleware(request: Request, call_next: Callable):
                             new_state={
                                 "path": request.url.path,
                                 "method": request.method,
+                                **_imp,
                             },
                         )
                     
@@ -120,6 +132,7 @@ async def audit_logging_middleware(request: Request, call_next: Callable):
                         "error": str(e),
                         "status": "failed",
                         "ip_address": request.client.host if request.client else None,
+                        **({"impersonated_by": impersonated_by} if impersonated_by else {}),
                     },
                 )
                 

@@ -29,10 +29,9 @@ import {
   Tab,
 } from "@mui/material";
 import { TabContext, TabList, TabPanel } from "@mui/lab";
-import {
-  Download as DownloadIcon,
-  Refresh as RefreshIcon,
-} from "@mui/icons-material";
+import DownloadIcon from "@mui/icons-material/Download";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import { apiClient } from "../../services/api_client";
 import PlatformLayout from "./layout";
 
 interface AuditLog {
@@ -73,15 +72,12 @@ const ConsolidatedAuditPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await apiClient.get(
         `/api/v1/platform/audit-logs?start_date=${startDate}&end_date=${endDate}`
       );
-      if (!response.ok) throw new Error("Failed to fetch audit data");
-      
-      const data = await response.json();
-      setSummary(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setSummary(response.data);
+    } catch (err: any) {
+      setError(err?.message || "Unknown error");
     } finally {
       setLoading(false);
     }
@@ -90,13 +86,10 @@ const ConsolidatedAuditPage: React.FC = () => {
   const handleExport = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `/api/v1/platform/audit-logs/export?start_date=${startDate}&end_date=${endDate}&format_type=json`,
-        { method: "POST" }
+      const response = await apiClient.post(
+        `/api/v1/platform/audit-logs/export?start_date=${startDate}&end_date=${endDate}&format_type=json`
       );
-      if (!response.ok) throw new Error("Failed to export");
-      
-      const data = await response.json();
+      const data = response.data;
       const blob = new Blob([JSON.stringify(data, null, 2)], {
         type: "application/json",
       });
@@ -107,8 +100,8 @@ const ConsolidatedAuditPage: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+    } catch (err: any) {
+      setError(err?.message || "Unknown error");
     } finally {
       setLoading(false);
     }

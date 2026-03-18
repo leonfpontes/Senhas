@@ -279,13 +279,11 @@ class ConsolidatedAuditService:
         """
         return {
             "id": str(log.id),
-            "tenant_id": str(log.tenant_id),
+            "tenant_id": str(log.tenant_id) if log.tenant_id else None,
             "user_id": str(log.user_id) if log.user_id else None,
             "action": log.action.value,
             "resource_type": log.resource_type,
             "resource_id": str(log.resource_id) if log.resource_id else None,
-            "changes": log.changes,
-            "ip_address": log.ip_address,
-            "user_agent": log.user_agent,
+            "details": log.details,
             "created_at": log.created_at.isoformat(),
         }

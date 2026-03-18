@@ -1,5 +1,6 @@
 """JWT validation middleware (T020)."""
 from fastapi import Request, HTTPException, status
+from fastapi.responses import JSONResponse
 from typing import Callable, Optional
 import uuid
 
@@ -23,6 +24,10 @@ async def jwt_middleware(request: Request, call_next: Callable) -> any:
     Returns:
         Response from next middleware/endpoint
     """
+    # Skip WebSocket connections (they handle auth in the endpoint)
+    if request.scope.get("type") == "websocket":
+        return await call_next(request)
+    
     # Skip JWT validation for public paths
     public_paths = ["/health", "/docs", "/openapi.json", "/api/v1/auth/login"]
     if request.url.path in public_paths or request.url.path.startswith("/api/v1/public"):
@@ -31,39 +36,48 @@ async def jwt_middleware(request: Request, call_next: Callable) -> any:
     # Extract token from Authorization header
     auth_header = request.headers.get("Authorization")
     if not auth_header:
-        raise UnauthorizedError("Token não fornecido")
+        # No token — pass through, let endpoint handle auth via dependencies
+        return await call_next(request)
     
     # Parse bearer token
     parts = auth_header.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise UnauthorizedError("Formato de Authorization inválido")
+        return JSONResponse(
+            status_code=401,
+            content={"error_code": "UNAUTHORIZED", "message": "Formato de Authorization inválido"},
+        )
     
     token = parts[1]
     
     # Decode and validate token
     try:
         token_data = decode_token(token)
-        
-        # Attach to request.state for use in endpoints
-        request.state.user_id = uuid.UUID(token_data.sub)
-        request.state.tenant_id = uuid.UUID(token_data.tenant_id)
-        request.state.role = token_data.role
-        request.state.token = token_data
-        
-        response = await call_next(request)
-        return response
-        
     except InvalidTokenError as e:
         log_security_event(
             event_type="invalid_token",
             success=False,
             details={"error": str(e)},
         )
-        raise UnauthorizedError(str(e))
+        return JSONResponse(
+            status_code=401,
+            content={"error_code": "UNAUTHORIZED", "message": str(e)},
+        )
     except Exception as e:
         log_security_event(
             event_type="token_error",
             success=False,
             details={"error": str(e)},
         )
-        raise UnauthorizedError("Erro ao validar token")
+        return JSONResponse(
+            status_code=401,
+            content={"error_code": "UNAUTHORIZED", "message": "Erro ao validar token"},
+        )
+    
+    # Attach decoded token data to request.state
+    request.state.user_id = uuid.UUID(token_data.sub)
+    request.state.tenant_id = uuid.UUID(token_data.tenant_id) if token_data.tenant_id else None
+    request.state.role = token_data.role
+    request.state.token = token_data
+    
+    response = await call_next(request)
+    return response

@@ -22,11 +22,11 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 target_metadata = None
 
-# Database URL from environment
+# Database URL from environment — convert async driver to sync for Alembic
 database_url = os.getenv(
     "DATABASE_URL",
     "postgresql://user:password@localhost:5432/senhas_dev"
-)
+).replace("postgresql+asyncpg://", "postgresql+psycopg2://").replace("postgresql+aiopg://", "postgresql+psycopg2://")
 
 
 def run_migrations_offline() -> None:

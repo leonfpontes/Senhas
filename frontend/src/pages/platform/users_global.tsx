@@ -1,24 +1,17 @@
 /**
  * Global Users Management Page (T113)
- * 
+ *
  * SUPER_ADMIN user management:
  * - List all platform admins
- * - Create new SUPER_ADMIN
- * - Edit existing admin
- * - Deactivate admin
- * - Delete admin
+ * - Create new SUPER_ADMIN (CrudDrawer)
+ * - Edit existing admin (CrudDrawer)
+ * - Delete admin (confirm)
  */
 
 import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
-  Card,
-  CardContent,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   IconButton,
   Table,
   TableBody,
@@ -33,13 +26,14 @@ import {
   Alert,
   Pagination,
 } from "@mui/material";
-import {
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-  Add as AddIcon,
-  Refresh as RefreshIcon,
-} from "@mui/icons-material";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import AddIcon from "@mui/icons-material/Add";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import { apiClient } from "../../services/api_client";
 import PlatformLayout from "./layout";
+import CrudDrawer from "../../components/CrudDrawer";
 
 interface PlatformUser {
   id: string;
@@ -50,29 +44,32 @@ interface PlatformUser {
   created_at: string;
 }
 
-interface CreateUserData {
+interface FormData {
   email: string;
   username: string;
   password: string;
 }
 
+const EMPTY_FORM: FormData = { email: "", username: "", password: "" };
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const GlobalUsersPage: React.FC = () => {
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [openCreateDialog, setOpenCreateDialog] = useState(false);
-  const [openEditDialog, setOpenEditDialog] = useState(false);
-  const [editingUser, setEditingUser] = useState<PlatformUser | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const [createFormData, setCreateFormData] = useState<CreateUserData>({
-    email: "",
-    username: "",
-    password: "",
-  });
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
+  const [editUserId, setEditUserId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
+  const [originalData, setOriginalData] = useState<FormData>(EMPTY_FORM);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState(false);
 
-  // Load users
   useEffect(() => {
     fetchUsers();
   }, [page]);
@@ -81,80 +78,96 @@ const GlobalUsersPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await apiClient.get(
         `/api/v1/platform/users?skip=${(page - 1) * 100}&limit=100`
       );
-      if (!response.ok) throw new Error("Failed to fetch users");
-      const data = await response.json();
+      const data = response.data;
       setUsers(data);
       setTotalPages(Math.ceil(data.length / 100));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+    } catch (err: any) {
+      setError(err?.message || "Unknown error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateUser = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/v1/platform/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createFormData),
-      });
-      if (!response.ok) throw new Error("Failed to create user");
-      
-      setOpenCreateDialog(false);
-      setCreateFormData({
-        email: "",
-        username: "",
-        password: "",
-      });
-      fetchUsers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
+  // --- Drawer helpers ---
+  const openCreate = () => {
+    setFormData(EMPTY_FORM);
+    setOriginalData(EMPTY_FORM);
+    setTouched({});
+    setDrawerMode("create");
+    setEditUserId(null);
+    setDrawerOpen(true);
   };
 
-  const handleUpdateUser = async () => {
-    if (!editingUser) return;
-    setLoading(true);
+  const openEdit = (user: PlatformUser) => {
+    const data: FormData = { email: user.email, username: user.username, password: "" };
+    setFormData(data);
+    setOriginalData(data);
+    setTouched({});
+    setDrawerMode("edit");
+    setEditUserId(user.id);
+    setDrawerOpen(true);
+  };
+
+  const handleChange = (field: keyof FormData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const isDirty =
+    formData.email !== originalData.email ||
+    formData.username !== originalData.username ||
+    formData.password !== originalData.password;
+
+  // Validation
+  const emailError = touched.email && !EMAIL_RE.test(formData.email) ? "Email inválido" : "";
+  const usernameError = touched.username && !formData.username.trim() ? "Username obrigatório" : "";
+  const passwordError =
+    drawerMode === "create" && touched.password && formData.password.length < 6
+      ? "Senha deve ter pelo menos 6 caracteres"
+      : "";
+
+  const isValid =
+    EMAIL_RE.test(formData.email) &&
+    formData.username.trim().length > 0 &&
+    (drawerMode === "edit" || formData.password.length >= 6);
+
+  // --- CRUD ---
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
     try {
-      const response = await fetch(`/api/v1/platform/users/${editingUser.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: editingUser.username,
-          is_active: editingUser.is_active,
-        }),
-      });
-      if (!response.ok) throw new Error("Failed to update user");
-      
-      setOpenEditDialog(false);
-      setEditingUser(null);
+      if (drawerMode === "create") {
+        await apiClient.post("/api/v1/platform/users", formData);
+        setSuccess("Super Admin criado com sucesso!");
+      } else {
+        await apiClient.put(`/api/v1/platform/users/${editUserId}`, {
+          username: formData.username,
+          is_active: true,
+        });
+        setSuccess("Usuário atualizado com sucesso!");
+      }
+      setDrawerOpen(false);
+      setTimeout(() => setSuccess(null), 3000);
       fetchUsers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || "Erro ao salvar usuário");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
-    
+    if (!window.confirm("Tem certeza que deseja excluir este usuário?")) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/v1/platform/users/${userId}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error("Failed to delete user");
+      await apiClient.delete(`/api/v1/platform/users/${userId}`);
+      setSuccess("Usuário excluído com sucesso!");
+      setTimeout(() => setSuccess(null), 3000);
       fetchUsers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+    } catch (err: any) {
+      setError(err?.message || "Unknown error");
     } finally {
       setLoading(false);
     }
@@ -184,7 +197,7 @@ const GlobalUsersPage: React.FC = () => {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => setOpenCreateDialog(true)}
+              onClick={openCreate}
               disabled={loading}
             >
               New Admin
@@ -192,7 +205,8 @@ const GlobalUsersPage: React.FC = () => {
           </Box>
         </Box>
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
         {/* Users Table */}
         <TableContainer component={Paper}>
@@ -247,10 +261,7 @@ const GlobalUsersPage: React.FC = () => {
                     <TableCell align="right">
                       <IconButton
                         size="small"
-                        onClick={() => {
-                          setEditingUser(user);
-                          setOpenEditDialog(true);
-                        }}
+                        onClick={() => openEdit(user)}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -280,90 +291,59 @@ const GlobalUsersPage: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Create User Dialog */}
-      <Dialog open={openCreateDialog} onClose={() => setOpenCreateDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create New Super Admin</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <TextField
-              label="Email"
-              type="email"
-              value={createFormData.email}
-              onChange={(e) =>
-                setCreateFormData({ ...createFormData, email: e.target.value })
-              }
-              fullWidth
-            />
-            <TextField
-              label="Username"
-              value={createFormData.username}
-              onChange={(e) =>
-                setCreateFormData({
-                  ...createFormData,
-                  username: e.target.value,
-                })
-              }
-              fullWidth
-            />
-            <TextField
-              label="Password"
-              type="password"
-              value={createFormData.password}
-              onChange={(e) =>
-                setCreateFormData({
-                  ...createFormData,
-                  password: e.target.value,
-                })
-              }
-              fullWidth
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenCreateDialog(false)}>Cancel</Button>
-          <Button
-            onClick={handleCreateUser}
-            variant="contained"
-            disabled={!createFormData.email || !createFormData.password}
-          >
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit User Dialog */}
-      <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit User</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          {editingUser && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <TextField
-                label="Email"
-                value={editingUser.email}
-                disabled
-                fullWidth
-              />
-              <TextField
-                label="Username"
-                value={editingUser.username}
-                onChange={(e) =>
-                  setEditingUser({
-                    ...editingUser,
-                    username: e.target.value,
-                  })
-                }
-                fullWidth
-              />
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenEditDialog(false)}>Cancel</Button>
-          <Button onClick={handleUpdateUser} variant="contained">
-            Update
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Create / Edit Super Admin Drawer */}
+      <CrudDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title={drawerMode === "create" ? "Novo Super Admin" : "Editar Usuário"}
+        subtitle={
+          drawerMode === "create"
+            ? "Crie um novo administrador da plataforma."
+            : "Atualize as informações do administrador."
+        }
+        icon={<AdminPanelSettingsIcon />}
+        onSave={handleSave}
+        saveLabel={drawerMode === "create" ? "Criar" : "Salvar"}
+        saving={saving}
+        saveDisabled={!isValid}
+        isDirty={isDirty}
+      >
+        <TextField
+          label="Email"
+          type="email"
+          value={formData.email}
+          onChange={(e) => handleChange("email", e.target.value)}
+          onBlur={() => setTouched((p) => ({ ...p, email: true }))}
+          fullWidth
+          required
+          disabled={drawerMode === "edit"}
+          error={!!emailError}
+          helperText={emailError}
+        />
+        <TextField
+          label="Username"
+          value={formData.username}
+          onChange={(e) => handleChange("username", e.target.value)}
+          onBlur={() => setTouched((p) => ({ ...p, username: true }))}
+          fullWidth
+          required
+          error={!!usernameError}
+          helperText={usernameError}
+        />
+        {drawerMode === "create" && (
+          <TextField
+            label="Senha"
+            type="password"
+            value={formData.password}
+            onChange={(e) => handleChange("password", e.target.value)}
+            onBlur={() => setTouched((p) => ({ ...p, password: true }))}
+            fullWidth
+            required
+            error={!!passwordError}
+            helperText={passwordError}
+          />
+        )}
+      </CrudDrawer>
     </PlatformLayout>
   );
 };

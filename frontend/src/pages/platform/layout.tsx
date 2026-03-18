@@ -29,19 +29,18 @@ import {
   Menu,
   MenuItem,
 } from "@mui/material";
-import {
-  Menu as MenuIcon,
-  Close as CloseIcon,
-  Dashboard as DashboardIcon,
-  Business as BusinessIcon,
-  People as PeopleIcon,
-  Description as DescriptionIcon,
-  ReceiptLong as BillingIcon,
-  Settings as SettingsIcon,
-  Logout as LogoutIcon,
-} from "@mui/icons-material";
+import MenuIcon from "@mui/icons-material/Menu";
+import CloseIcon from "@mui/icons-material/Close";
+import DashboardIcon from "@mui/icons-material/Dashboard";
+import BusinessIcon from "@mui/icons-material/Business";
+import PeopleIcon from "@mui/icons-material/People";
+import DescriptionIcon from "@mui/icons-material/Description";
+import BillingIcon from "@mui/icons-material/ReceiptLong";
+import SettingsIcon from "@mui/icons-material/Settings";
+import LogoutIcon from "@mui/icons-material/Logout";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { apiClient } from "../../services/api_client";
 
 const DRAWER_WIDTH = 280;
 
@@ -66,17 +65,14 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
 
   const handleLogout = async () => {
     try {
-      // Call logout API
-      await fetch("/api/v1/auth/logout", { method: "POST" });
-      
-      // Clear auth state
-      // dispatch(clearAuth());
-      
-      // Redirect to login
-      router.push("/login");
+      await apiClient.post("/api/v1/auth/logout");
     } catch (error) {
       console.error("Logout failed:", error);
     }
+    // Clear auth state
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    router.push("/login");
     handleMenuClose();
   };
 

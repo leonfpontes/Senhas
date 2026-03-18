@@ -18,10 +18,9 @@
   "dependencies": {
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
-    "@mui/icons-material": "^5.14.13",
+    "@mui/icons-material": "^5.18.0",
     "@mui/lab": "^5.0.0-alpha.47",
     "@mui/material": "^5.14.13",
-    "@next/swc-win32-x64-msvc": "^14.2.33",
     "axios": "^1.6.2",
     "next": "^14.2.33",
     "react": "^18.2.0",

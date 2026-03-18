@@ -78,6 +78,12 @@ class ConsulenteRepository(BaseRepository[Consulente]):
 
         return normalized
 
+    @staticmethod
+    def normalize_optional_email(email: Optional[str]) -> Optional[str]:
+        if not email:
+            return None
+        return ConsulenteRepository.normalize_email(email)
+
     async def get_by_email(
         self,
         session: AsyncSession,
@@ -165,13 +171,54 @@ class ConsulenteRepository(BaseRepository[Consulente]):
 
         consulente = Consulente(
             tenant_id=tenant_id,
-            name=name,
+            nome=name,
             email=email,
             email_normalized=email_normalized,
-            phone=phone,
+            telefone=phone,
             phone_normalized=phone_normalized,
         )
         session.add(consulente)
+        await session.flush()
+        return consulente
+
+    async def create_walk_in_consulente(
+        self,
+        session: AsyncSession,
+        tenant_id: int,
+        name: str,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
+    ) -> Consulente:
+        """Create a consulente for a walk-in flow where email is optional."""
+        email_normalized = self.normalize_optional_email(email)
+        phone_normalized = self.normalize_phone(phone)
+
+        consulente = Consulente(
+            tenant_id=tenant_id,
+            nome=name,
+            email=email,
+            email_normalized=email_normalized,
+            telefone=phone,
+            phone_normalized=phone_normalized,
+        )
+        session.add(consulente)
+        await session.flush()
+        return consulente
+
+    async def update_basic_info(
+        self,
+        session: AsyncSession,
+        consulente: Consulente,
+        name: str,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
+    ) -> Consulente:
+        """Update basic walk-in information with optional email/phone normalization."""
+        consulente.nome = name
+        consulente.email = email or None
+        consulente.email_normalized = self.normalize_optional_email(email)
+        consulente.telefone = phone or None
+        consulente.phone_normalized = self.normalize_phone(phone)
         await session.flush()
         return consulente
 
@@ -207,7 +254,7 @@ class ConsulenteRepository(BaseRepository[Consulente]):
             if phone:
                 phone_normalized = self.normalize_phone(phone)
                 if phone_normalized and existing.phone_normalized != phone_normalized:
-                    existing.phone = phone
+                    existing.telefone = phone
                     existing.phone_normalized = phone_normalized
                     await session.flush()
             return (existing, False)

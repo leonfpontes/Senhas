@@ -18,7 +18,7 @@ class APIClient {
   private instance: AxiosInstance;
   private baseURL: string;
 
-  constructor(baseURL: string = process.env.REACT_APP_API_URL || 'http://localhost:8000') {
+  constructor(baseURL: string = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000') {
     this.baseURL = baseURL;
 
     this.instance = axios.create({
@@ -38,8 +38,10 @@ class APIClient {
     // Request interceptor for logging
     this.instance.interceptors.request.use(
       (config) => {
-        // Add auth token if available
-        const token = localStorage.getItem('access_token');
+        // Add auth token if available (sessionStorage has priority for impersonation)
+        const token =
+          (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
+          localStorage.getItem('access_token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -146,10 +148,24 @@ class APIClient {
     const errorMessage = data?.detail || data?.message || 'An error occurred';
 
     if (status === 401) {
-      // Unauthorized - clear token and redirect to login
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      window.location.href = '/login';
+      // Only clear token and redirect if:
+      // 1. Not already on the login page (avoid redirect loop)
+      // 2. The failed request actually carried a token (stale requests without tokens shouldn't clear a newly stored token)
+      const hadToken = error.config?.headers?.Authorization;
+      const isImpersonating = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('impersonating');
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login' && hadToken) {
+        if (isImpersonating) {
+          // Impersonation session expired — clear sessionStorage only
+          sessionStorage.removeItem('access_token');
+          sessionStorage.removeItem('user');
+          sessionStorage.removeItem('impersonating');
+          sessionStorage.removeItem('impersonate_tenant');
+        } else {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          window.location.href = '/login';
+        }
+      }
     } else if (status === 403) {
       // Forbidden
       console.warn('[API] Access forbidden');

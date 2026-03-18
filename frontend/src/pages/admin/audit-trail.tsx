@@ -22,10 +22,8 @@ import {
   FormControl,
   InputLabel,
 } from '@mui/material';
-import {
-  GetApp as DownloadIcon,
-  Info as InfoIcon,
-} from '@mui/icons-material';
+import DownloadIcon from '@mui/icons-material/GetApp';
+import InfoIcon from '@mui/icons-material/Info';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 
