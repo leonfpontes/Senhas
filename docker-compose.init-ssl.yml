@@ -24,5 +24,6 @@ services:
   nginx:
     volumes:
       - ./nginx/conf.d/senhas-init.conf:/etc/nginx/conf.d/senhas.conf:ro
+      - /dev/null:/etc/nginx/conf.d/default.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost/nginx-health || exit 1"]

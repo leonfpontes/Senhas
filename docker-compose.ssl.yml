@@ -9,4 +9,5 @@ services:
   nginx:
     volumes:
       - ./nginx/conf.d/senhas.conf:/etc/nginx/conf.d/senhas.conf:ro
+      - /dev/null:/etc/nginx/conf.d/default.conf:ro
       - ./certs:/etc/nginx/certs:ro
