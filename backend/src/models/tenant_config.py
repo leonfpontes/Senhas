@@ -34,6 +34,9 @@ class TenantConfig(TimestampedModel):
     primary_color: Mapped[str] = mapped_column(String(7), default="#000000", nullable=False)  # Hex color
     secondary_color: Mapped[str] = mapped_column(String(7), default="#FFFFFF", nullable=False)
     
+    # Address
+    endereco: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    
     # Email settings
     reply_to_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email_signature: Mapped[str | None] = mapped_column(String(1000), nullable=True)

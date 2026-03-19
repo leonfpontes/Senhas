@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     # Frontend URL for building public links
     FRONTEND_URL: str = "http://localhost:3000"
     
+    # Email — Resend (primary)
+    RESEND_API_KEY: str = ""
+    RESEND_FROM_EMAIL: str = "noreply@girahub.com.br"
+    
+    # Email — Brevo (fallback)
+    BREVO_API_KEY: str = ""
+    BREVO_FROM_EMAIL: str = "noreply@girahub.com.br"
+    BREVO_FROM_NAME: str = "GiraHub"
+    
     # Password policy
     PASSWORD_MIN_LENGTH: int = 12
     PASSWORD_REQUIRE_UPPERCASE: bool = True

@@ -35,6 +35,7 @@ class TenantConfigResponse(BaseModel):
     logo_url: Optional[str]
     primary_color: str
     secondary_color: str
+    endereco: Optional[str] = None
     reply_to_email: Optional[str]
     email_signature: Optional[str]
     enable_bulk_operations: bool
@@ -52,6 +53,7 @@ class TenantConfigUpdate(BaseModel):
     """Tenant config update request."""
     primary_color: Optional[str] = None
     secondary_color: Optional[str] = None
+    endereco: Optional[str] = None
     reply_to_email: Optional[str] = None
     email_signature: Optional[str] = None
     enable_bulk_operations: Optional[bool] = None
@@ -93,6 +95,7 @@ async def get_tenant_config(
             logo_url=None,
             primary_color="#6366f1",
             secondary_color="#ec4899",
+            endereco=None,
             reply_to_email=None,
             email_signature=None,
             enable_bulk_operations=True,
@@ -154,6 +157,12 @@ async def update_tenant_config(
             reply_to_email=config_update.reply_to_email if "reply_to_email" in provided_fields else repo._UNSET,
             email_signature=config_update.email_signature if "email_signature" in provided_fields else repo._UNSET,
         )
+    
+    # Update endereco if provided
+    if "endereco" in provided_fields:
+        current_config = await repo.get_by_tenant(current_user.tenant_id)
+        current_config.endereco = config_update.endereco
+        await db.flush()
     
     # Update feature flags
     if config_update.enable_bulk_operations is not None:

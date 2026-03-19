@@ -48,6 +48,7 @@ interface TenantConfig {
   custom_settings?: Record<string, unknown> | null;
   reply_to_email?: string | null;
   email_signature?: string | null;
+  endereco?: string | null;
   enable_bulk_operations: boolean;
   enable_analytics: boolean;
   enable_webhooks: boolean;
@@ -334,6 +335,7 @@ export default function AdminConfig() {
         enable_webhooks: config.enable_webhooks,
         enable_walk_in: config.enable_walk_in,
         sponsor_priority_mode: config.sponsor_priority_mode || 'first',
+        endereco: config.endereco || '',
       });
 
       setConfig(response.data);
@@ -701,6 +703,23 @@ export default function AdminConfig() {
                       </Paper>
                     </Grid>
                   </Grid>
+
+                  <Divider />
+
+                  <Box>
+                    <FieldLabel label="Endereço do terreiro" help="Endereço completo do terreiro. Será usado nos e-mails de confirmação de senha e no botão Como chegar (Google Maps)." />
+                    <TextField
+                      value={config.endereco || ''}
+                      onChange={(e) => handleChange('endereco', e.target.value)}
+                      placeholder="Rua Exemplo, 123 - Bairro - Cidade/UF"
+                      fullWidth
+                      multiline
+                      rows={2}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      Será exibido nos e-mails de confirmação e usado no botão &quot;Como chegar&quot; via Google Maps.
+                    </Typography>
+                  </Box>
                 </Stack>
               </CardContent>
             </Card>

@@ -66,7 +66,7 @@ interface SenhaConfig {
   sponsor_public_link?: string;
 }
 
-const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '', local: '' };
+const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '' };
 const EMPTY_SENHA_FORM = {
   max_tickets: '', release_start_at: '', release_end_at: '',
   sponsor_max_tickets: '', sponsor_release_start_at: '', sponsor_release_end_at: '',
@@ -137,7 +137,6 @@ export default function AdminGiras() {
       nome: gira.nome,
       descricao: gira.descricao || '',
       data_inicio: gira.data_inicio ? gira.data_inicio.slice(0, 16) : '',
-      local: gira.local || '',
     });
     setTouched({});
     setDrawerMode('edit');
@@ -161,8 +160,7 @@ export default function AdminGiras() {
       ? Object.values(formData).some((v) => v !== '')
       : currentGira != null &&
         (formData.nome !== currentGira.nome ||
-          formData.descricao !== (currentGira.descricao || '') ||
-          formData.local !== (currentGira.local || ''));
+          formData.descricao !== (currentGira.descricao || ''));
 
   const nomeError = touched.nome && !formData.nome.trim() ? 'Nome é obrigatório' : '';
   const dataError = touched.data_inicio && !formData.data_inicio ? 'Data de início é obrigatória' : '';
@@ -365,7 +363,6 @@ export default function AdminGiras() {
               <TableRow>
                 <TableCell>Nome</TableCell>
                 <TableCell>Data Início</TableCell>
-                <TableCell>Local</TableCell>
                 <TableCell>Senhas</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
@@ -378,7 +375,6 @@ export default function AdminGiras() {
                   <TableCell>
                     {new Date(gira.data_inicio).toLocaleDateString('pt-BR')}
                   </TableCell>
-                  <TableCell>{gira.local || '-'}</TableCell>
                   <TableCell>{getSenhaChip(gira)}</TableCell>
                   <TableCell>
                     <Box
@@ -465,12 +461,6 @@ export default function AdminGiras() {
           InputLabelProps={{ shrink: true }}
           error={!!dataError}
           helperText={dataError}
-        />
-        <TextField
-          label="Local"
-          value={formData.local}
-          onChange={(e) => handleChange('local', e.target.value)}
-          fullWidth
         />
       </CrudDrawer>
 

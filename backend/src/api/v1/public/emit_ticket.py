@@ -23,6 +23,7 @@ from src.core.database import get_db
 from src.core.errors import APIException
 from src.models.tenants import Tenant
 from src.models.giras import Gira
+from src.models.tenant_config import TenantConfig
 from src.repositories.consulente_repo import ConsulenteRepository
 from src.repositories.senha_control_repo import SenhaControlRepository
 from src.models.tickets import TicketStatus
@@ -306,6 +307,22 @@ async def emit_ticket(
 
         gira_date_str = gira.data_inicio.strftime("%d/%m/%Y às %H:%M") if gira.data_inicio else ""
 
+        # Fetch tenant config for address + colors
+        tc_query = select(TenantConfig).where(TenantConfig.tenant_id == tenant.id)
+        tc_result = await session.execute(tc_query)
+        tenant_config = tc_result.scalar_one_or_none()
+
+        tenant_address = (tenant_config.endereco or "") if tenant_config else ""
+        primary_color = (tenant_config.primary_color or "#2E7D32") if tenant_config else "#2E7D32"
+        secondary_color = (tenant_config.secondary_color or primary_color) if tenant_config else primary_color
+
+        # Build logo URL
+        tenant_logo_url = ""
+        if tenant_config and tenant_config.logo_data:
+            tenant_logo_url = f"{settings.FRONTEND_URL.rstrip('/')}/api/v1/public/tenant/{tenant.id}/logo"
+        elif tenant_config and tenant_config.logo_url:
+            tenant_logo_url = tenant_config.logo_url
+
         background_tasks.add_task(
             _send_ticket_email,
             ticket_number=ticket_number_formatted,
@@ -317,8 +334,12 @@ async def emit_ticket(
             rescue_link=rescue_link,
             qr_code_url=qr_code_url,
             tenant_name=tenant.name,
-            tenant_logo_url="",
-            tenant_color="#2E7D32",
+            tenant_logo_url=tenant_logo_url,
+            tenant_color=primary_color,
+            is_sponsor=is_sponsor,
+            tenant_address=tenant_address,
+            primary_color=primary_color,
+            secondary_color=secondary_color,
         )
 
         # === STEP 10: Return Response ===
@@ -352,22 +373,12 @@ async def _send_ticket_email(
     tenant_name: str,
     tenant_logo_url: str,
     tenant_color: str,
+    is_sponsor: bool = False,
+    tenant_address: str = "",
+    primary_color: str = "",
+    secondary_color: str = "",
 ):
-    """Background task to send ticket emission email
-
-    Args:
-        ticket_number: Formatted ticket number
-        consulente_name: Recipient name
-        consulente_email: Recipient email
-        gira_name: Event name
-        gira_date: Event date formatted
-        gira_location: Event location
-        rescue_link: Full redemption URL
-        qr_code_url: QR code image URL
-        tenant_name: Organization name
-        tenant_logo_url: Logo URL
-        tenant_color: Brand color hex
-    """
+    """Background task to send ticket emission email (Resend primary, Brevo fallback)."""
     try:
         # Generate email content
         html_body = generate_ticket_emission_html(
@@ -381,6 +392,10 @@ async def _send_ticket_email(
             tenant_name=tenant_name,
             tenant_logo_url=tenant_logo_url,
             tenant_color=tenant_color,
+            is_sponsor=is_sponsor,
+            tenant_address=tenant_address,
+            primary_color=primary_color,
+            secondary_color=secondary_color,
         )
 
         text_body = generate_plain_text_fallback(
@@ -390,36 +405,40 @@ async def _send_ticket_email(
             gira_date=gira_date,
             gira_location=gira_location,
             rescue_link=rescue_link,
+            is_sponsor=is_sponsor,
+            tenant_address=tenant_address,
+            tenant_name=tenant_name,
         )
 
+        subject_prefix = "✦ Patrocinador — " if is_sponsor else ""
         message = EmailMessage(
             to_email=consulente_email,
-            subject=f"Sua Senha #{ticket_number} - {tenant_name}",
+            subject=f"{subject_prefix}Sua Senha #{ticket_number} - {tenant_name}",
             html_body=html_body,
             text_body=text_body,
         )
 
-        # Try Brevo first
-        try:
-            brevo_service = BrevoEmailService()
-            if await brevo_service.is_healthy():
-                success = await brevo_service.send_async(message)
-                if success:
-                    logger.info(f"Email sent via Brevo to {consulente_email}")
-                    return
-        except Exception as e:
-            logger.warning(f"Brevo email failed, trying Resend fallback: {e}")
-
-        # Fallback to Resend
+        # Try Resend first (primary)
         try:
             resend_service = ResendEmailService()
             if await resend_service.is_healthy():
                 success = await resend_service.send_async(message)
                 if success:
-                    logger.info(f"Email sent via Resend fallback to {consulente_email}")
+                    logger.info(f"Email sent via Resend to {consulente_email}")
                     return
         except Exception as e:
-            logger.error(f"Resend fallback also failed: {e}")
+            logger.warning(f"Resend email failed, trying Brevo fallback: {e}")
+
+        # Fallback to Brevo
+        try:
+            brevo_service = BrevoEmailService()
+            if await brevo_service.is_healthy():
+                success = await brevo_service.send_async(message)
+                if success:
+                    logger.info(f"Email sent via Brevo fallback to {consulente_email}")
+                    return
+        except Exception as e:
+            logger.error(f"Brevo fallback also failed: {e}")
 
         logger.error(
             f"All email services failed for ticket {ticket_number} "
