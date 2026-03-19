@@ -9,10 +9,13 @@ This migration creates tables for Phase 6 (Super Admin Platform):
 - Invoice (billing)
 - FeatureFlag (per-tenant features)
 - Updates User table (makes tenant_id nullable for SUPER_ADMIN)
+
+NOTE: Uses raw SQL (CREATE TABLE IF NOT EXISTS) to bypass SQLAlchemy's
+automatic CREATE TYPE behaviour which ignores create_type=False in some versions.
 """
 
 from alembic import op
-import sqlalchemy as sa
+from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 
 # Revision identifiers used by Alembic.
@@ -23,107 +26,137 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Create platform tables."""
-    
-    # Create enum types for new tables (idempotent)
-    op.execute("DO $$ BEGIN CREATE TYPE plan_type AS ENUM ('basic', 'pro', 'premium', 'enterprise'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
-    op.execute("DO $$ BEGIN CREATE TYPE subscription_status AS ENUM ('active', 'suspended', 'cancelled', 'expired'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
-    op.execute("DO $$ BEGIN CREATE TYPE invoice_status AS ENUM ('draft', 'sent', 'paid', 'overdue', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
-    
-    # ========== SUBSCRIPTIONS TABLE ==========
-    op.create_table(
-        'subscriptions',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False, server_default=sa.text("gen_random_uuid()")),
-        sa.Column('tenant_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, unique=True),
-        sa.Column('plan', sa.Enum('basic', 'pro', 'premium', 'enterprise', name='plan_type', create_type=False), nullable=False, server_default='basic'),
-        sa.Column('status', sa.Enum('active', 'suspended', 'cancelled', 'expired', name='subscription_status', create_type=False), nullable=False, server_default='active'),
-        sa.Column('max_users', sa.Integer(), nullable=False, server_default='10'),
-        sa.Column('max_giras_per_month', sa.Integer(), nullable=False, server_default='100'),
-        sa.Column('current_users', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('monthly_price', sa.Float(), nullable=False, server_default='0.0'),
-        sa.Column('currency', sa.String(3), nullable=False, server_default='USD'),
-        sa.Column('is_trial', sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column('trial_ends_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('billing_cycle_start', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('billing_cycle_end', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('auto_renew', sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    )
-    op.create_index('ix_subscriptions_tenant_id', 'subscriptions', ['tenant_id'])
-    op.create_index('ix_subscriptions_plan', 'subscriptions', ['plan'])
-    op.create_index('ix_subscriptions_status', 'subscriptions', ['status'])
-    
-    # ========== INVOICES TABLE ==========
-    op.create_table(
-        'invoices',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False, server_default=sa.text("gen_random_uuid()")),
-        sa.Column('tenant_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('invoice_number', sa.String(50), nullable=False, unique=True),
-        sa.Column('period_start', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('period_end', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('subtotal', sa.Float(), nullable=False),
-        sa.Column('tax_amount', sa.Float(), nullable=False, server_default='0.0'),
-        sa.Column('discount_amount', sa.Float(), nullable=False, server_default='0.0'),
-        sa.Column('total_amount', sa.Float(), nullable=False),
-        sa.Column('status', sa.Enum('draft', 'sent', 'paid', 'overdue', 'cancelled', name='invoice_status', create_type=False), nullable=False, server_default='draft'),
-        sa.Column('paid_amount', sa.Float(), nullable=False, server_default='0.0'),
-        sa.Column('payment_method', sa.String(50), nullable=True),
-        sa.Column('payment_reference', sa.String(255), nullable=True),
-        sa.Column('due_date', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('paid_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    )
-    op.create_index('ix_invoices_tenant_id', 'invoices', ['tenant_id'])
-    op.create_index('ix_invoices_status', 'invoices', ['status'])
-    op.create_index('ix_invoices_period_start', 'invoices', ['period_start'])
-    
-    # ========== FEATURE_FLAGS TABLE ==========
-    op.create_table(
-        'feature_flags',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False, server_default=sa.text("gen_random_uuid()")),
-        sa.Column('tenant_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('feature', sa.String(100), nullable=False),
-        sa.Column('enabled', sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('description', sa.String(500), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    )
-    op.create_index('ix_feature_flags_tenant_id', 'feature_flags', ['tenant_id'])
-    op.create_index('ix_feature_flags_feature', 'feature_flags', ['feature'])
-    
-    # ========== UPDATE USERS TABLE ==========
+    """Create platform tables via raw SQL + idempotent ALTER TABLE."""
+
+    # ── Enum types (idempotent) ──────────────────────────────────────────
+    op.execute("""
+        DO $$ BEGIN CREATE TYPE plan_type AS ENUM ('basic','pro','premium','enterprise');
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$
+    """)
+    op.execute("""
+        DO $$ BEGIN CREATE TYPE subscription_status AS ENUM ('active','suspended','cancelled','expired');
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$
+    """)
+    op.execute("""
+        DO $$ BEGIN CREATE TYPE invoice_status AS ENUM ('draft','sent','paid','overdue','cancelled');
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$
+    """)
+
+    # ── SUBSCRIPTIONS ────────────────────────────────────────────────────
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id           UUID NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+            plan                plan_type NOT NULL DEFAULT 'basic',
+            status              subscription_status NOT NULL DEFAULT 'active',
+            max_users           INTEGER NOT NULL DEFAULT 10,
+            max_giras_per_month INTEGER NOT NULL DEFAULT 100,
+            current_users       INTEGER NOT NULL DEFAULT 0,
+            monthly_price       DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+            currency            VARCHAR(3) NOT NULL DEFAULT 'USD',
+            is_trial            BOOLEAN NOT NULL DEFAULT FALSE,
+            trial_ends_at       TIMESTAMPTZ,
+            billing_cycle_start TIMESTAMPTZ NOT NULL DEFAULT now(),
+            billing_cycle_end   TIMESTAMPTZ,
+            auto_renew          BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+            deleted_at          TIMESTAMPTZ
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_subscriptions_tenant_id ON subscriptions (tenant_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_subscriptions_plan      ON subscriptions (plan)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_subscriptions_status    ON subscriptions (status)")
+
+    # ── INVOICES ─────────────────────────────────────────────────────────
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS invoices (
+            id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id         UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            invoice_number    VARCHAR(50) NOT NULL UNIQUE,
+            period_start      TIMESTAMPTZ NOT NULL,
+            period_end        TIMESTAMPTZ NOT NULL,
+            subtotal          DOUBLE PRECISION NOT NULL,
+            tax_amount        DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+            discount_amount   DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+            total_amount      DOUBLE PRECISION NOT NULL,
+            status            invoice_status NOT NULL DEFAULT 'draft',
+            paid_amount       DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+            payment_method    VARCHAR(50),
+            payment_reference VARCHAR(255),
+            due_date          TIMESTAMPTZ NOT NULL,
+            paid_at           TIMESTAMPTZ,
+            created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+            deleted_at        TIMESTAMPTZ
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_invoices_tenant_id    ON invoices (tenant_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_invoices_status       ON invoices (status)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_invoices_period_start ON invoices (period_start)")
+
+    # ── FEATURE_FLAGS ────────────────────────────────────────────────────
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS feature_flags (
+            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            feature     VARCHAR(100) NOT NULL,
+            enabled     BOOLEAN NOT NULL DEFAULT FALSE,
+            expires_at  TIMESTAMPTZ,
+            description VARCHAR(500),
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+            deleted_at  TIMESTAMPTZ
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_feature_flags_tenant_id ON feature_flags (tenant_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_feature_flags_feature   ON feature_flags (feature)")
+
+    # ── UPDATE USERS TABLE (idempotent) ──────────────────────────────────
+    bind = op.get_bind()
+    insp = inspect(bind)
+
     # Make tenant_id nullable for SUPER_ADMIN users
-    op.alter_column('users', 'tenant_id', existing_type=postgresql.UUID(as_uuid=True), nullable=True)
-    
-    # Make email globally unique (for SUPER_ADMIN)
-    op.drop_constraint('uq_users_tenant_email', 'users', type_='unique')
-    op.create_unique_constraint('uq_users_email', 'users', ['email'])
-    
-    # Drop old username constraint and create new one (username global or per-tenant)
-    op.drop_constraint('uq_users_tenant_username', 'users', type_='unique')
+    user_cols = {c["name"]: c for c in insp.get_columns("users")}
+    if user_cols.get("tenant_id", {}).get("nullable") is False:
+        op.alter_column('users', 'tenant_id',
+                        existing_type=postgresql.UUID(as_uuid=True),
+                        nullable=True)
+
+    # Make email globally unique (drop old compound, add simple)
+    user_constraints = {uc["name"] for uc in insp.get_unique_constraints("users")}
+    if "uq_users_tenant_email" in user_constraints:
+        op.drop_constraint('uq_users_tenant_email', 'users', type_='unique')
+    if "uq_users_email" not in user_constraints:
+        op.create_unique_constraint('uq_users_email', 'users', ['email'])
+
+    # Drop old username compound constraint
+    if "uq_users_tenant_username" in user_constraints:
+        op.drop_constraint('uq_users_tenant_username', 'users', type_='unique')
 
 
 def downgrade() -> None:
     """Downgrade platform tables."""
-    
-    # Drop tables in reverse order
-    op.drop_table('feature_flags')
-    op.drop_table('invoices')
-    op.drop_table('subscriptions')
-    
-    # Drop enums
+    op.execute("DROP TABLE IF EXISTS feature_flags CASCADE")
+    op.execute("DROP TABLE IF EXISTS invoices CASCADE")
+    op.execute("DROP TABLE IF EXISTS subscriptions CASCADE")
+
     op.execute("DROP TYPE IF EXISTS invoice_status")
     op.execute("DROP TYPE IF EXISTS subscription_status")
     op.execute("DROP TYPE IF EXISTS plan_type")
-    
+
     # Revert users table changes
-    op.drop_constraint('uq_users_email', 'users', type_='unique')
-    op.create_unique_constraint('uq_users_tenant_email', 'users', ['tenant_id', 'email'])
-    op.create_unique_constraint('uq_users_tenant_username', 'users', ['tenant_id', 'username'])
-    op.alter_column('users', 'tenant_id', existing_type=postgresql.UUID(as_uuid=True), nullable=False)
+    bind = op.get_bind()
+    insp = inspect(bind)
+    user_constraints = {uc["name"] for uc in insp.get_unique_constraints("users")}
+
+    if "uq_users_email" in user_constraints:
+        op.drop_constraint('uq_users_email', 'users', type_='unique')
+    if "uq_users_tenant_email" not in user_constraints:
+        op.create_unique_constraint('uq_users_tenant_email', 'users', ['tenant_id', 'email'])
+    if "uq_users_tenant_username" not in user_constraints:
+        op.create_unique_constraint('uq_users_tenant_username', 'users', ['tenant_id', 'username'])
+
+    op.alter_column('users', 'tenant_id',
+                    existing_type=postgresql.UUID(as_uuid=True),
+                    nullable=False)
