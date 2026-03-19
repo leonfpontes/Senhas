@@ -1,9 +1,12 @@
 """Main FastAPI application factory (T026)."""
+from pathlib import Path
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
 
@@ -177,6 +180,11 @@ def create_app() -> FastAPI:
     
     # Auth routes
     app.include_router(auth_router)
+
+    # Static uploads (profile photos and future tenant assets)
+    uploads_dir = Path("uploads")
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(uploads_dir), check_dir=False), name="uploads")
     
     # Admin routes (tenant-scoped)
     app.include_router(admin_router)
