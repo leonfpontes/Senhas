@@ -25,19 +25,8 @@ export default function PublicLayout({
   tenantSecondaryColor = '#1565C0',
   children,
 }: PublicLayoutProps) {
-  /**
-   * Public layout - no navbar, no authentication required
-   * 
-   * Features:
-   * - Minimal, clean design
-   * - Tenant branding (logo, color)
-   * - Mobile-first responsive
-   * - Footer with support links
-   * - No auth UI elements
-   */
-
   const [logoFailed, setLogoFailed] = useState(false);
-  const tenantInitial = useMemo(() => tenantName.charAt(0).toUpperCase(), [tenantName]);
+  const tenantInitial = useMemo(() => (tenantName || 'S').charAt(0).toUpperCase(), [tenantName]);
   const brandGradient = useMemo(
     () => `linear-gradient(135deg, ${tenantColor} 0%, ${tenantSecondaryColor} 100%)`,
     [tenantColor, tenantSecondaryColor]

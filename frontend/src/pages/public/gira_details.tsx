@@ -33,16 +33,7 @@ export default function GiraDetails({
   giraData,
   tenantColor = '#2E7D32',
 }: GiraDetailsProps) {
-  /**
-   * Display gira details with countdown timer
-   * 
-   * Features:
-   * - Gira name, date, location
-   * - Ticket availability bar
-   * - Countdown to emission window
-   * - Status indicator (upcoming, active, closed)
-   * - Progress bar animation
-   */
+  if (!giraData) return null;
 
   const {
     timeRemaining,

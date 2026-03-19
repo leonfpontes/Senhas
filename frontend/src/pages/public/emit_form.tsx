@@ -35,17 +35,7 @@ export default function EmitForm({
   tenantColor = '#2E7D32',
   onSuccess,
 }: EmitFormProps) {
-  /**
-   * Public ticket emission form
-   * 
-   * Features:
-   * - Name, email, phone inputs
-   * - Real-time validation
-   * - Disableed until emission window opens
-   * - Loading spinner during submission
-   * - Error messages
-   * - Success confirmation with ticket number
-   */
+  if (!tenantSlug) return null;
 
   const [formData, setFormData] = useState<FormData>({
     name: '',
