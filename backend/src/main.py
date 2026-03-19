@@ -1,4 +1,5 @@
 """Main FastAPI application factory (T026)."""
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request, status
@@ -96,9 +97,14 @@ def create_app() -> FastAPI:
     app.middleware("http")(tenant_context_middleware)
     
     # Trusted Host Middleware
+    # In production behind nginx, allow the domain + internal Docker hostnames
+    allowed_hosts = ["localhost", "127.0.0.1", "*.localhost"]
+    domain = os.environ.get("DOMAIN", "")
+    if domain:
+        allowed_hosts.extend([domain, f"*.{domain}"])
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "*.localhost"],
+        allowed_hosts=allowed_hosts,
     )
     
     # CORS Middleware (outermost - ensures CORS headers on ALL responses)

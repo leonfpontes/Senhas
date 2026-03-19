@@ -101,6 +101,9 @@ services:
       # CORS
       CORS_ORIGINS: ${CORS_ORIGINS:-https://girahub.com.br}
       
+      # Domain (for TrustedHostMiddleware)
+      DOMAIN: ${DOMAIN:-girahub.com.br}
+      
       # Email Services
       BREVO_API_KEY: ${BREVO_API_KEY}
       BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL}

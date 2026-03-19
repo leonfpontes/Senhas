@@ -11,8 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY backend/pyproject.toml ./
 
+# Extract dependencies from pyproject.toml and install them
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir .
+    python -c "import tomllib, pathlib; \
+    deps = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['dependencies']; \
+    pathlib.Path('requirements.txt').write_text('\n'.join(deps))" && \
+    pip install --no-cache-dir -r requirements.txt
 
 # ============================================
 # Stage 2 — Production runtime

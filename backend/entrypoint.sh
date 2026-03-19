@@ -2,6 +2,9 @@
 set -e
 
 echo "=== Senhas Backend Starting ==="
+echo "Python: $(python --version)"
+echo "Working dir: $(pwd)"
+echo "DB_HOST: ${DB_HOST:-postgres}"
 
 # Wait for PostgreSQL to be ready
 echo "Waiting for database..."
@@ -14,7 +17,7 @@ echo "Database is ready."
 # Run Alembic migrations
 echo "Running database migrations..."
 cd /app
-alembic upgrade head
+alembic upgrade head || { echo "ERROR: Alembic migrations failed!"; exit 1; }
 echo "Migrations complete."
 
 # Execute the CMD (uvicorn)
