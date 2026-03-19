@@ -27,10 +27,10 @@ depends_on = None
 
 def upgrade() -> None:
     """Create model tables."""
-    # Create enum types
-    op.execute("CREATE TYPE user_role AS ENUM ('super_admin', 'admin', 'operator')")
-    op.execute("CREATE TYPE ticket_status AS ENUM ('emitted', 'called', 'completed', 'cancelled', 'no_show')")
-    op.execute("CREATE TYPE audit_action AS ENUM ('create', 'read', 'update', 'delete', 'login', 'logout', 'token_refresh')")
+    # Create enum types (idempotent)
+    op.execute("DO $$ BEGIN CREATE TYPE user_role AS ENUM ('super_admin', 'admin', 'operator'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE ticket_status AS ENUM ('emitted', 'called', 'completed', 'cancelled', 'no_show'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE audit_action AS ENUM ('create', 'read', 'update', 'delete', 'login', 'logout', 'token_refresh'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
     
     # ========== TENANTS TABLE ==========
     op.create_table(
@@ -55,7 +55,7 @@ def upgrade() -> None:
         sa.Column('email', sa.String(255), nullable=False),
         sa.Column('username', sa.String(255), nullable=False),
         sa.Column('password_hash', sa.String(255), nullable=False),
-        sa.Column('role', sa.Enum('super_admin', 'admin', 'operator', name='user_role'), nullable=False, server_default='operator'),
+        sa.Column('role', sa.Enum('super_admin', 'admin', 'operator', name='user_role', create_type=False), nullable=False, server_default='operator'),
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
@@ -114,7 +114,7 @@ def upgrade() -> None:
         sa.Column('consulente_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('consulentes.id', ondelete='CASCADE'), nullable=False),
         sa.Column('emitido_por_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('users.id'), nullable=False),
         sa.Column('numero', sa.Integer(), nullable=False),
-        sa.Column('status', sa.Enum('emitted', 'called', 'completed', 'cancelled', 'no_show', name='ticket_status'), nullable=False, server_default='emitted'),
+        sa.Column('status', sa.Enum('emitted', 'called', 'completed', 'cancelled', 'no_show', name='ticket_status', create_type=False), nullable=False, server_default='emitted'),
         sa.Column('chamado_em', sa.DateTime(timezone=True), nullable=True),
         sa.Column('finalizado_em', sa.DateTime(timezone=True), nullable=True),
         sa.Column('observacoes', sa.Text(), nullable=True),
@@ -152,7 +152,7 @@ def upgrade() -> None:
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False, server_default=sa.text("gen_random_uuid()")),
         sa.Column('tenant_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=True),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('users.id', ondelete='SET NULL'), nullable=True),
-        sa.Column('action', sa.Enum('create', 'read', 'update', 'delete', 'login', 'logout', 'token_refresh', name='audit_action'), nullable=False),
+        sa.Column('action', sa.Enum('create', 'read', 'update', 'delete', 'login', 'logout', 'token_refresh', name='audit_action', create_type=False), nullable=False),
         sa.Column('resource_type', sa.String(100), nullable=False),
         sa.Column('resource_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('details', postgresql.JSON(), nullable=True),

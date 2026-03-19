@@ -25,18 +25,18 @@ depends_on = None
 def upgrade() -> None:
     """Create platform tables."""
     
-    # Create enum types for new tables
-    op.execute("CREATE TYPE plan_type AS ENUM ('basic', 'pro', 'premium', 'enterprise')")
-    op.execute("CREATE TYPE subscription_status AS ENUM ('active', 'suspended', 'cancelled', 'expired')")
-    op.execute("CREATE TYPE invoice_status AS ENUM ('draft', 'sent', 'paid', 'overdue', 'cancelled')")
+    # Create enum types for new tables (idempotent)
+    op.execute("DO $$ BEGIN CREATE TYPE plan_type AS ENUM ('basic', 'pro', 'premium', 'enterprise'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE subscription_status AS ENUM ('active', 'suspended', 'cancelled', 'expired'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE invoice_status AS ENUM ('draft', 'sent', 'paid', 'overdue', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
     
     # ========== SUBSCRIPTIONS TABLE ==========
     op.create_table(
         'subscriptions',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False, server_default=sa.text("gen_random_uuid()")),
         sa.Column('tenant_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, unique=True),
-        sa.Column('plan', sa.Enum('basic', 'pro', 'premium', 'enterprise', name='plan_type'), nullable=False, server_default='basic'),
-        sa.Column('status', sa.Enum('active', 'suspended', 'cancelled', 'expired', name='subscription_status'), nullable=False, server_default='active'),
+        sa.Column('plan', sa.Enum('basic', 'pro', 'premium', 'enterprise', name='plan_type', create_type=False), nullable=False, server_default='basic'),
+        sa.Column('status', sa.Enum('active', 'suspended', 'cancelled', 'expired', name='subscription_status', create_type=False), nullable=False, server_default='active'),
         sa.Column('max_users', sa.Integer(), nullable=False, server_default='10'),
         sa.Column('max_giras_per_month', sa.Integer(), nullable=False, server_default='100'),
         sa.Column('current_users', sa.Integer(), nullable=False, server_default='0'),
@@ -67,7 +67,7 @@ def upgrade() -> None:
         sa.Column('tax_amount', sa.Float(), nullable=False, server_default='0.0'),
         sa.Column('discount_amount', sa.Float(), nullable=False, server_default='0.0'),
         sa.Column('total_amount', sa.Float(), nullable=False),
-        sa.Column('status', sa.Enum('draft', 'sent', 'paid', 'overdue', 'cancelled', name='invoice_status'), nullable=False, server_default='draft'),
+        sa.Column('status', sa.Enum('draft', 'sent', 'paid', 'overdue', 'cancelled', name='invoice_status', create_type=False), nullable=False, server_default='draft'),
         sa.Column('paid_amount', sa.Float(), nullable=False, server_default='0.0'),
         sa.Column('payment_method', sa.String(50), nullable=True),
         sa.Column('payment_reference', sa.String(255), nullable=True),

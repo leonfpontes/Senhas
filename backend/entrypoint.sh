@@ -17,14 +17,8 @@ echo "Database is ready."
 # Run Alembic migrations
 echo "Running database migrations..."
 cd /app
-if alembic upgrade head 2>&1; then
-  echo "Migrations complete."
-else
-  echo "Migration upgrade failed. Stamping schema to head and retrying..."
-  alembic stamp head 2>&1 || true
-  alembic upgrade head 2>&1 || { echo "ERROR: Migrations still failing after stamp!"; exit 1; }
-  echo "Migrations complete (after stamp)."
-fi
+alembic upgrade head 2>&1 || { echo "ERROR: Migration failed!"; exit 1; }
+echo "Migrations complete."
 
 # Execute the CMD (uvicorn)
 echo "Starting application..."
