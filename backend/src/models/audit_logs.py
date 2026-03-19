@@ -52,7 +52,10 @@ class AuditLog(TimestampedModel):
         nullable=True,  # NULL for unauthenticated events
     )
     
-    action: Mapped[AuditAction] = mapped_column(SQLEnum(AuditAction), nullable=False)
+    action: Mapped[AuditAction] = mapped_column(
+        SQLEnum(AuditAction, values_callable=lambda e: [x.value for x in e]),
+        nullable=False,
+    )
     resource_type: Mapped[str] = mapped_column(String(100), nullable=False)  # User, Ticket, Gira, etc
     resource_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     details: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Extra context
