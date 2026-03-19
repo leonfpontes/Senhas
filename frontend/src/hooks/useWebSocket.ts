@@ -22,11 +22,16 @@ export function useWebSocket({
 }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shouldReconnectRef = useRef(true);
   const [connected, setConnected] = useState(false);
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
 
   const connect = useCallback(() => {
+    if (!url) {
+      setConnected(false);
+      return;
+    }
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     try {
@@ -49,7 +54,7 @@ export function useWebSocket({
       ws.onclose = () => {
         setConnected(false);
         console.debug('[WS] Disconnected');
-        if (reconnect) {
+        if (reconnect && shouldReconnectRef.current) {
           reconnectTimer.current = setTimeout(connect, reconnectInterval);
         }
       };
@@ -62,17 +67,20 @@ export function useWebSocket({
       wsRef.current = ws;
     } catch (err) {
       console.warn('[WS] Connection failed:', err);
-      if (reconnect) {
+      if (reconnect && shouldReconnectRef.current) {
         reconnectTimer.current = setTimeout(connect, reconnectInterval);
       }
     }
   }, [url, reconnect, reconnectInterval]);
 
   useEffect(() => {
+    shouldReconnectRef.current = true;
     connect();
     return () => {
+      shouldReconnectRef.current = false;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
+      wsRef.current = null;
     };
   }, [connect]);
 

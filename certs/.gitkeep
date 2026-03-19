@@ -1,0 +1,2 @@
+# Certificados SSL — NÃO commitar arquivos .pem aqui
+# Coloque fullchain.pem e privkey.pem obtidos pelo Certbot

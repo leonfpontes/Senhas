@@ -76,7 +76,10 @@ services:
   # FastAPI Backend
   # ============================================
   backend:
-    image: ${REGISTRY}/senhas-backend:${APP_VERSION:-latest}
+    image: ${REGISTRY:-senhas}/senhas-backend:${APP_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: senhas-backend
     restart: always
     depends_on:
@@ -150,7 +153,10 @@ services:
   # Next.js Frontend
   # ============================================
   frontend:
-    image: ${REGISTRY}/senhas-frontend:${APP_VERSION:-latest}
+    image: ${REGISTRY:-senhas}/senhas-frontend:${APP_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: senhas-frontend
     restart: always
     depends_on:
