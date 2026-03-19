@@ -27,7 +27,7 @@ services:
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     # ports NOT exposed to host — only accessible from internal network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-senhas_prod}"]
       interval: 10s
       timeout: 5s
       retries: 5
