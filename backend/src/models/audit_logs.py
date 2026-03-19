@@ -1,12 +1,12 @@
 """AuditLog model - immutable audit trail (T017)."""
-from sqlalchemy import Column, ForeignKey, String, Index, Text, Enum as SQLEnum, event
+from sqlalchemy import Column, ForeignKey, String, Index, Text, DateTime, Enum as SQLEnum, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from datetime import datetime
 import uuid
 import enum
 
-from .base import TimestampedModel
+from .base import Base
 
 
 class AuditAction(str, enum.Enum):
@@ -21,11 +21,13 @@ class AuditAction(str, enum.Enum):
     TOKEN_REFRESH = "token_refresh"
 
 
-class AuditLog(TimestampedModel):
+class AuditLog(Base):
     """AuditLog model - immutable audit trail for compliance.
     
     All significant events are logged here for LGPD compliance.
     Never update or soft-delete audit logs - only hard delete per retention policy.
+    Inherits from Base (not TimestampedModel) because audit logs are immutable:
+    they have no updated_at or deleted_at — only created_at.
     
     MULTI-TENANT: Most audit logs are tenant-specific, but platform-level
     actions (logins to super admin) may have tenant_id=NULL.
@@ -60,6 +62,11 @@ class AuditLog(TimestampedModel):
     resource_type: Mapped[str] = mapped_column(String(100), nullable=False)  # User, Ticket, Gira, etc
     resource_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     details: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Extra context
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.utcnow(),
+        nullable=False,
+    )
     
     # Relationships (no cascade - logs are immutable)
     tenant = relationship("Tenant", back_populates="audit_logs", foreign_keys=[tenant_id])
