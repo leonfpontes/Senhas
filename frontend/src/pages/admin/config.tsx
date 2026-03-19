@@ -3,7 +3,7 @@
  */
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -28,6 +28,8 @@ import {
 } from '@mui/material';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import BrandingWatermarkRoundedIcon from '@mui/icons-material/BrandingWatermarkRounded';
+import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
+import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
@@ -62,7 +64,7 @@ const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
 const HELP_TEXT = {
   logo_url:
-    'Cole a URL completa do logo do seu terreiro. O logo aparece no painel administrativo e nas páginas públicas do tenant.',
+    'Faça upload do logo do seu terreiro. Formatos aceitos: JPG, PNG ou WEBP. Tamanho máximo: 2 MB. Dimensão recomendada: 200×200 px.',
   primary_color:
     'Cor principal usada em botões, destaques e elementos de ação do tenant. Use um tom que combine com a identidade visual da casa.',
   secondary_color:
@@ -244,25 +246,14 @@ const getFontColor = (config: TenantConfig | null): string => {
   return typeof raw === 'string' ? raw : '#FFFFFF';
 };
 
-const isValidLogoUrl = (value?: string | null) => {
-  if (!value) {
-    return true;
-  }
-
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
-};
-
 export default function AdminConfig() {
   const [config, setConfig] = useState<TenantConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
   const [logoPreviewFailed, setLogoPreviewFailed] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     void loadConfig();
@@ -288,16 +279,12 @@ export default function AdminConfig() {
 
   const validationErrors = useMemo(() => {
     if (!config) {
-      return { logo_url: '', primary_color: '', secondary_color: '', font_color: '' };
+      return { primary_color: '', secondary_color: '', font_color: '' };
     }
 
     const fontColor = getFontColor(config);
 
     return {
-      logo_url:
-        config.logo_url && !isValidLogoUrl(config.logo_url)
-          ? 'Informe uma URL válida iniciando com http:// ou https://'
-          : '',
       primary_color: isValidHexColor(config.primary_color)
         ? ''
         : 'Escolha uma cor válida no formato hexadecimal.',
@@ -311,7 +298,6 @@ export default function AdminConfig() {
   }, [config]);
 
   const hasValidationErrors = Boolean(
-    validationErrors.logo_url ||
     validationErrors.primary_color ||
     validationErrors.secondary_color ||
     validationErrors.font_color
@@ -335,7 +321,6 @@ export default function AdminConfig() {
     try {
       setSaving(true);
       const response = await apiClient.put<TenantConfig>('/api/v1/admin/tenant/config', {
-        logo_url: config.logo_url?.trim() || null,
         primary_color: config.primary_color.trim().toUpperCase(),
         secondary_color: config.secondary_color.trim().toUpperCase(),
         custom_settings: {
@@ -366,6 +351,56 @@ export default function AdminConfig() {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setFeedback({ severity: 'error', text: 'Formato inválido. Use JPG, PNG ou WEBP.' });
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setFeedback({ severity: 'error', text: 'A imagem deve ter no máximo 2 MB.' });
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await apiClient.post<TenantConfig>('/api/v1/admin/tenant/logo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setConfig(response.data);
+      setLogoPreviewFailed(false);
+      dispatchTenantBrandingUpdated();
+      setFeedback({ severity: 'success', text: 'Logo atualizado com sucesso.' });
+    } catch (err: any) {
+      setFeedback({ severity: 'error', text: err?.message || 'Erro ao enviar logo.' });
+    } finally {
+      setUploadingLogo(false);
+      if (event.target) event.target.value = '';
+    }
+  };
+
+  const handleLogoDelete = async () => {
+    setUploadingLogo(true);
+    try {
+      const response = await apiClient.delete<TenantConfig>('/api/v1/admin/tenant/logo');
+      setConfig(response.data);
+      setLogoPreviewFailed(false);
+      dispatchTenantBrandingUpdated();
+      setFeedback({ severity: 'success', text: 'Logo removido.' });
+    } catch (err: any) {
+      setFeedback({ severity: 'error', text: err?.message || 'Erro ao remover logo.' });
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -513,18 +548,80 @@ export default function AdminConfig() {
                   <Divider />
 
                   <Box>
-                    <FieldLabel label="URL da logo" help={HELP_TEXT.logo_url} />
-                    <TextField
-                      fullWidth
-                      value={config.logo_url || ''}
-                      onChange={(event) => {
-                        setLogoPreviewFailed(false);
-                        handleChange('logo_url', event.target.value);
-                      }}
-                      placeholder="https://meu-terreiro.com/logo.png"
-                      error={Boolean(validationErrors.logo_url)}
-                      helperText={validationErrors.logo_url || 'Use uma imagem pública, estável e com boa resolução. SVG, PNG e JPG funcionam bem.'}
+                    <FieldLabel label="Logo do terreiro" help={HELP_TEXT.logo_url} />
+
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleLogoUpload}
+                      style={{ display: 'none' }}
                     />
+
+                    {previewLogo && !logoPreviewFailed ? (
+                      <Stack spacing={1.5} alignItems="center">
+                        <Box
+                          component="img"
+                          src={previewLogo}
+                          alt="Logo do terreiro"
+                          onError={() => setLogoPreviewFailed(true)}
+                          sx={{
+                            maxWidth: 200,
+                            maxHeight: 200,
+                            objectFit: 'contain',
+                            objectPosition: 'center',
+                            borderRadius: 2,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                          }}
+                        />
+                        <Stack direction="row" spacing={1}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<CloudUploadRoundedIcon />}
+                            onClick={() => logoInputRef.current?.click()}
+                            disabled={uploadingLogo}
+                          >
+                            {uploadingLogo ? 'Enviando…' : 'Trocar logo'}
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            startIcon={<DeleteRoundedIcon />}
+                            onClick={handleLogoDelete}
+                            disabled={uploadingLogo}
+                          >
+                            Remover
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    ) : (
+                      <Box
+                        onClick={() => logoInputRef.current?.click()}
+                        sx={{
+                          border: '2px dashed',
+                          borderColor: 'divider',
+                          borderRadius: 3,
+                          p: 4,
+                          textAlign: 'center',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.2s',
+                          '&:hover': { borderColor: 'primary.main' },
+                        }}
+                      >
+                        <CloudUploadRoundedIcon sx={{ fontSize: 40, color: 'text.secondary', mb: 1 }} />
+                        <Typography variant="body2" color="text.secondary">
+                          {uploadingLogo
+                            ? 'Enviando…'
+                            : 'Clique ou arraste para enviar o logo do terreiro'}
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled">
+                          JPG, PNG ou WEBP · Máx 2 MB · Recomendado: 200×200 px
+                        </Typography>
+                      </Box>
+                    )}
                   </Box>
 
                   <Grid container spacing={2}>

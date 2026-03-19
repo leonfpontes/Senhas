@@ -53,15 +53,13 @@ class TenantConfigRepository:
     async def update_branding(
         self,
         tenant_id: UUID,
-        logo_url: Optional[str] | object = UNSET,
         primary_color: Optional[str] | object = UNSET,
         secondary_color: Optional[str] | object = UNSET,
     ) -> TenantConfig:
-        """Update tenant branding.
+        """Update tenant branding (colors only; logo managed via dedicated upload).
         
         Args:
             tenant_id: Tenant ID
-            logo_url: Logo URL
             primary_color: Primary hex color
             secondary_color: Secondary hex color
             
@@ -72,8 +70,6 @@ class TenantConfigRepository:
         if config is None:
             raise RuntimeError("Tenant config not available")
         
-        if logo_url is not self._UNSET:
-            config.logo_url = logo_url
         if primary_color is not self._UNSET:
             config.primary_color = primary_color
         if secondary_color is not self._UNSET:

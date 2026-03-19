@@ -1,9 +1,7 @@
 """Authenticated user profile endpoints."""
 from __future__ import annotations
 
-import os
 import uuid
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request, UploadFile, File
@@ -70,7 +68,13 @@ MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024
 ALLOWED_PROFILE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
-def _build_photo_url(request: Request, stored_value: Optional[str]) -> Optional[str]:
+def _build_photo_url(request: Request, user: User) -> Optional[str]:
+    """Build photo URL — use public DB endpoint if binary exists, else legacy stored_value."""
+    if user.profile_photo_data:
+        base = str(request.base_url).rstrip("/")
+        return f"{base}/api/v1/public/user/{user.id}/photo"
+
+    stored_value = user.profile_photo_url
     if not stored_value:
         return None
 
@@ -94,7 +98,7 @@ def _serialize_user_profile(request: Request, user: User) -> dict:
         "created_at": user.created_at.isoformat(),
         "full_name": user.full_name,
         "phone": user.phone,
-        "profile_photo_url": _build_photo_url(request, user.profile_photo_url),
+        "profile_photo_url": _build_photo_url(request, user),
     }
 
 
@@ -159,7 +163,7 @@ async def upload_profile_photo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload current user profile photo and update profile URL."""
+    """Upload current user profile photo (stored as binary in database)."""
     if file.content_type not in ALLOWED_PROFILE_CONTENT_TYPES:
         raise ValidationError("Formato de imagem inválido. Use JPG, PNG ou WEBP")
 
@@ -170,26 +174,9 @@ async def upload_profile_photo(
     if len(contents) > MAX_PROFILE_IMAGE_BYTES:
         raise ValidationError("Imagem excede o limite de 5MB")
 
-    extension = Path(file.filename or "photo").suffix.lower()
-    if extension not in {".jpg", ".jpeg", ".png", ".webp"}:
-        guessed = {
-            "image/jpeg": ".jpg",
-            "image/png": ".png",
-            "image/webp": ".webp",
-        }
-        extension = guessed[file.content_type]
-
-    tenant_segment = str(current_user.tenant_id) if current_user.tenant_id else "platform"
-    relative_dir = Path("uploads") / "profiles" / tenant_segment
-    os.makedirs(relative_dir, exist_ok=True)
-
-    file_name = f"{current_user.id}{extension}"
-    target_path = relative_dir / file_name
-    with open(target_path, "wb") as out_file:
-        out_file.write(contents)
-
-    stored_url = f"/{relative_dir.as_posix()}/{file_name}".replace("//", "/")
-    current_user.profile_photo_url = stored_url
+    current_user.profile_photo_data = contents
+    current_user.profile_photo_content_type = file.content_type
+    current_user.profile_photo_url = None  # clear legacy path
 
     db.add(current_user)
     await db.commit()
@@ -197,5 +184,5 @@ async def upload_profile_photo(
 
     return {
         "message": "Foto de perfil atualizada com sucesso",
-        "profile_photo_url": _build_photo_url(request, current_user.profile_photo_url),
+        "profile_photo_url": _build_photo_url(request, current_user),
     }

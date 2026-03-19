@@ -1,5 +1,5 @@
 """User model - auth and RBAC (T012)."""
-from sqlalchemy import Column, String, ForeignKey, Boolean, Index, UniqueConstraint, Enum as SQLEnum
+from sqlalchemy import Column, String, ForeignKey, Boolean, Index, LargeBinary, UniqueConstraint, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
@@ -45,6 +45,8 @@ class User(SoftDeleteModel):
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     profile_photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    profile_photo_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    profile_photo_content_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
         SQLEnum(UserRole, name="user_role", create_constraint=False,

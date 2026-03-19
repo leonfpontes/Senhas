@@ -2,9 +2,8 @@
 import logging
 import re
 from typing import Optional, Dict, Any
-from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, field_validator
 
@@ -13,11 +12,22 @@ from src.models import User, TenantConfig
 from src.repositories.config_repo import TenantConfigRepository
 from src.services.audit_service import AuditService
 from src.api.dependencies import get_current_user
-from src.core.errors import InsufficientPermissionsError
+from src.core.errors import InsufficientPermissionsError, ValidationError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-config"])
 logger = logging.getLogger(__name__)
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+MAX_LOGO_BYTES = 2 * 1024 * 1024   # 2 MB
+ALLOWED_LOGO_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+
+def _build_logo_url(request: Request, config: TenantConfig) -> Optional[str]:
+    """Build public logo URL if binary data exists, else fall back to legacy logo_url."""
+    if config.logo_data:
+        base = str(request.base_url).rstrip("/")
+        return f"{base}/api/v1/public/tenant/{config.tenant_id}/logo"
+    return config.logo_url
 
 
 class TenantConfigResponse(BaseModel):
@@ -40,7 +50,6 @@ class TenantConfigResponse(BaseModel):
 
 class TenantConfigUpdate(BaseModel):
     """Tenant config update request."""
-    logo_url: Optional[str] = None
     primary_color: Optional[str] = None
     secondary_color: Optional[str] = None
     reply_to_email: Optional[str] = None
@@ -64,25 +73,10 @@ class TenantConfigUpdate(BaseModel):
 
         return normalized.upper()
 
-    @field_validator("logo_url", mode="before")
-    @classmethod
-    def validate_logo_url(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return None
-
-        normalized = value.strip()
-        if normalized == "":
-            return None
-
-        parsed = urlparse(normalized)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("URL do logo deve ser uma URL http(s) válida")
-
-        return normalized
-
 
 @router.get("/tenant/config", response_model=TenantConfigResponse)
 async def get_tenant_config(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TenantConfigResponse:
@@ -112,12 +106,15 @@ async def get_tenant_config(
     repo = TenantConfigRepository(db)
     config = await repo.get_by_tenant(current_user.tenant_id)
     
-    return TenantConfigResponse.from_orm(config)
+    resp = TenantConfigResponse.from_orm(config)
+    resp.logo_url = _build_logo_url(request, config)
+    return resp
 
 
 @router.put("/tenant/config", response_model=TenantConfigResponse)
 async def update_tenant_config(
     config_update: TenantConfigUpdate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TenantConfigResponse:
@@ -143,10 +140,9 @@ async def update_tenant_config(
     previous_state = TenantConfigResponse.from_orm(current_config).dict()
     
     # Update branding if provided
-    if {"logo_url", "primary_color", "secondary_color"} & provided_fields:
+    if {"primary_color", "secondary_color"} & provided_fields:
         await repo.update_branding(
             tenant_id=current_user.tenant_id,
-            logo_url=config_update.logo_url if "logo_url" in provided_fields else repo._UNSET,
             primary_color=config_update.primary_color if "primary_color" in provided_fields else repo._UNSET,
             secondary_color=config_update.secondary_color if "secondary_color" in provided_fields else repo._UNSET,
         )
@@ -227,4 +223,84 @@ async def update_tenant_config(
     
     await db.commit()
     
-    return TenantConfigResponse.from_orm(updated_config)
+    resp = TenantConfigResponse.from_orm(updated_config)
+    resp.logo_url = _build_logo_url(request, updated_config)
+    return resp
+
+
+@router.post("/tenant/logo", response_model=TenantConfigResponse)
+async def upload_tenant_logo(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TenantConfigResponse:
+    """Upload tenant logo (stored as binary in database).
+    
+    Accepts JPG, PNG or WEBP up to 2 MB. Requires admin role.
+    """
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+
+    if current_user.tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Super Admin não possui configuração de tenant",
+        )
+
+    if file.content_type not in ALLOWED_LOGO_CONTENT_TYPES:
+        raise ValidationError("Formato inválido. Use JPG, PNG ou WEBP")
+
+    contents = await file.read()
+    if len(contents) == 0:
+        raise ValidationError("Arquivo de imagem vazio")
+
+    if len(contents) > MAX_LOGO_BYTES:
+        raise ValidationError("Imagem excede o limite de 2 MB")
+
+    repo = TenantConfigRepository(db)
+    config = await repo.get_by_tenant(current_user.tenant_id)
+
+    config.logo_data = contents
+    config.logo_content_type = file.content_type
+    config.logo_url = None  # clear legacy URL
+
+    db.add(config)
+    await db.commit()
+    await db.refresh(config)
+
+    resp = TenantConfigResponse.from_orm(config)
+    resp.logo_url = _build_logo_url(request, config)
+    return resp
+
+
+@router.delete("/tenant/logo", response_model=TenantConfigResponse)
+async def delete_tenant_logo(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TenantConfigResponse:
+    """Remove tenant logo. Requires admin role."""
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+
+    if current_user.tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Super Admin não possui configuração de tenant",
+        )
+
+    repo = TenantConfigRepository(db)
+    config = await repo.get_by_tenant(current_user.tenant_id)
+
+    config.logo_data = None
+    config.logo_content_type = None
+    config.logo_url = None
+
+    db.add(config)
+    await db.commit()
+    await db.refresh(config)
+
+    resp = TenantConfigResponse.from_orm(config)
+    resp.logo_url = _build_logo_url(request, config)
+    return resp
