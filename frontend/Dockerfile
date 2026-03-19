@@ -19,6 +19,12 @@ RUN npm run build --workspace=packages/shared-types 2>/dev/null || true && \
 
 WORKDIR /app/frontend
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# In production behind nginx, use empty baseURL so API calls are relative
+# (browser sends to same origin → nginx proxies /api/ to backend)
+ARG NEXT_PUBLIC_API_BASE_URL=""
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+
 RUN npm run build
 
 # ============================================

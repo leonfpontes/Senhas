@@ -15,6 +15,11 @@
 # ============================================================
 
 services:
+  # Override backend to use HTTP origins during init phase (no SSL yet)
+  backend:
+    environment:
+      CORS_ORIGINS: "http://girahub.com.br,http://www.girahub.com.br"
+
   nginx:
     volumes:
       - ./nginx/conf.d/senhas-init.conf:/etc/nginx/conf.d/senhas.conf:ro
