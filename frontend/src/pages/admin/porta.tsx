@@ -216,7 +216,7 @@ export default function PortaPage() {
     '';
 
   const wsUrl = selectedGiraId && token
-    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:8000/api/v1/admin/giras/${selectedGiraId}/door/ws?token=${token}`
+    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/admin/giras/${selectedGiraId}/door/ws?token=${token}`
     : '';
 
   const { connected } = useWebSocket({

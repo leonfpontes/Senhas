@@ -303,7 +303,6 @@ async def emit_ticket(
         rescue_link = (
             f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{ticket.id}"
         )
-        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={rescue_link}"
 
         gira_date_str = gira.data_inicio.strftime("%d/%m/%Y às %H:%M") if gira.data_inicio else ""
 
@@ -328,11 +327,11 @@ async def emit_ticket(
             ticket_number=ticket_number_formatted,
             consulente_name=consulente.nome,
             consulente_email=consulente.email,
+            consulente_phone=consulente.telefone or "",
             gira_name=gira.nome,
             gira_date=gira_date_str,
             gira_location=gira.local or "",
             rescue_link=rescue_link,
-            qr_code_url=qr_code_url,
             tenant_name=tenant.name,
             tenant_logo_url=tenant_logo_url,
             tenant_color=primary_color,
@@ -365,11 +364,11 @@ async def _send_ticket_email(
     ticket_number: str,
     consulente_name: str,
     consulente_email: str,
+    consulente_phone: str,
     gira_name: str,
     gira_date: str,
     gira_location: str,
     rescue_link: str,
-    qr_code_url: str,
     tenant_name: str,
     tenant_logo_url: str,
     tenant_color: str,
@@ -388,7 +387,6 @@ async def _send_ticket_email(
             gira_date=gira_date,
             gira_location=gira_location,
             rescue_link=rescue_link,
-            qr_code_url=qr_code_url,
             tenant_name=tenant_name,
             tenant_logo_url=tenant_logo_url,
             tenant_color=tenant_color,
@@ -396,6 +394,8 @@ async def _send_ticket_email(
             tenant_address=tenant_address,
             primary_color=primary_color,
             secondary_color=secondary_color,
+            consulente_email=consulente_email,
+            consulente_phone=consulente_phone,
         )
 
         text_body = generate_plain_text_fallback(
@@ -408,6 +408,8 @@ async def _send_ticket_email(
             is_sponsor=is_sponsor,
             tenant_address=tenant_address,
             tenant_name=tenant_name,
+            consulente_email=consulente_email,
+            consulente_phone=consulente_phone,
         )
 
         subject_prefix = "✦ Patrocinador — " if is_sponsor else ""

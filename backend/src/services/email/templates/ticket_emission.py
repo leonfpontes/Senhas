@@ -6,6 +6,7 @@ All CSS is inline for maximum Gmail/Outlook compatibility.
 
 from datetime import datetime, timezone
 from urllib.parse import quote
+from html import escape
 
 
 def _maps_url(address: str) -> str:
@@ -17,6 +18,11 @@ def _timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
 
 
+def _esc(value: str) -> str:
+    """Escape HTML entities in user-provided text."""
+    return escape(value) if value else ""
+
+
 # ---------------------------------------------------------------------------
 # Sponsor template  –  gold (#C9A84C) / black palette
 # ---------------------------------------------------------------------------
@@ -24,12 +30,13 @@ def _timestamp() -> str:
 def _sponsor_html(
     ticket_number: str,
     consulente_name: str,
+    consulente_email: str,
+    consulente_phone: str,
     gira_name: str,
     gira_date: str,
     tenant_name: str,
     tenant_address: str,
     rescue_link: str,
-    qr_code_url: str,
     tenant_logo_url: str,
 ) -> str:
     gold = "#C9A84C"
@@ -38,37 +45,54 @@ def _sponsor_html(
     dark_bg = "#0D0D0D"
     maps_link = _maps_url(tenant_address) if tenant_address else ""
     ts = _timestamp()
+    c_name = _esc(consulente_name)
+    c_email = _esc(consulente_email)
+    c_phone = _esc(consulente_phone)
+    g_name = _esc(gira_name)
+    t_name = _esc(tenant_name)
+    t_address = _esc(tenant_address)
 
     logo_block = (
-        f'<img src="{tenant_logo_url}" alt="{tenant_name}" '
-        f'style="max-width:120px;height:auto;margin-bottom:12px;">'
+        f'<img src="{tenant_logo_url}" alt="{t_name}" '
+        f'style="max-width:160px;height:auto;margin-bottom:16px;border-radius:50%;border:3px solid {gold};">'
         if tenant_logo_url else ""
     )
 
     address_block = ""
     if tenant_address:
         address_block = f"""
-            <p style="margin:10px 0;font-size:15px;">
-                <strong style="color:{gold};">Endereço:</strong> {tenant_address}
-            </p>
-            <div style="text-align:center;margin:12px 0 0 0;">
+            <tr>
+              <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;vertical-align:top;white-space:nowrap;">Endereço</td>
+              <td style="padding:6px 12px;font-size:14px;color:#ccc;">{t_address}</td>
+            </tr>
+            <tr>
+              <td colspan="2" style="padding:10px 12px;text-align:center;">
                 <a href="{maps_link}" target="_blank"
                    style="display:inline-block;background-color:{gold};color:{black};
                           text-decoration:none;padding:10px 28px;border-radius:6px;
                           font-weight:bold;font-size:14px;letter-spacing:0.5px;">
                     📍 COMO CHEGAR
                 </a>
-            </div>"""
+              </td>
+            </tr>"""
+
+    phone_row = ""
+    if consulente_phone:
+        phone_row = f"""
+            <tr>
+              <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Telefone</td>
+              <td style="padding:6px 12px;font-size:14px;color:#ccc;">{c_phone}</td>
+            </tr>"""
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Senha Patrocinador - {ticket_number}</title></head>
+<title>Senha Patrocinador - {_esc(ticket_number)}</title></head>
 <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#111;line-height:1.6;color:#e0e0e0;">
 <div style="width:100%;max-width:600px;margin:0 auto;background-color:{black};border:2px solid {gold};border-radius:8px;overflow:hidden;">
 
-  <!-- Header -->
-  <div style="background:linear-gradient(135deg,{dark_bg} 0%,{black} 100%);padding:36px 20px;text-align:center;border-bottom:3px solid {gold};">
+  <!-- Header with Logo -->
+  <div style="background:linear-gradient(135deg,{dark_bg} 0%,{black} 100%);padding:40px 20px;text-align:center;border-bottom:3px solid {gold};">
     {logo_block}
     <h1 style="margin:0;color:{gold};font-size:24px;font-weight:800;letter-spacing:3px;text-transform:uppercase;">
       ✦ PATROCINADOR ✦
@@ -81,7 +105,7 @@ def _sponsor_html(
   <!-- Body -->
   <div style="padding:36px 24px;">
     <p style="margin:0 0 20px 0;font-size:16px;color:#ccc;">
-      Olá <strong style="color:#fff;">{consulente_name}</strong>,
+      Olá <strong style="color:#fff;">{c_name}</strong>,
     </p>
 
     <p style="margin:0 0 24px 0;font-size:15px;color:#bbb;">
@@ -92,25 +116,37 @@ def _sponsor_html(
     <!-- Ticket Number -->
     <div style="background:linear-gradient(135deg,{gold} 0%,#B8963F 100%);padding:28px 20px;border-radius:8px;text-align:center;margin:20px 0;">
       <p style="margin:0 0 8px 0;font-size:12px;color:rgba(0,0,0,0.6);text-transform:uppercase;letter-spacing:3px;font-weight:700;">Sua Senha</p>
-      <p style="margin:0;font-size:52px;font-weight:900;color:{black};letter-spacing:8px;">{ticket_number}</p>
+      <p style="margin:0;font-size:52px;font-weight:900;color:{black};letter-spacing:8px;">{_esc(ticket_number)}</p>
+    </div>
+
+    <!-- Consulente Info -->
+    <div style="background-color:rgba(201,168,76,0.06);border-left:4px solid #B8963F;padding:16px;margin:24px 0;border-radius:4px;">
+      <h3 style="margin:0 0 10px 0;color:{gold_light};font-size:15px;font-weight:700;">Seus Dados</h3>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Nome</td>
+          <td style="padding:6px 12px;font-size:14px;color:#ccc;">{c_name}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Email</td>
+          <td style="padding:6px 12px;font-size:14px;color:#ccc;">{c_email}</td>
+        </tr>{phone_row}
+      </table>
     </div>
 
     <!-- Event Details -->
-    <div style="background-color:rgba(201,168,76,0.08);border-left:4px solid {gold};padding:20px;margin:24px 0;border-radius:4px;">
-      <h3 style="margin:0 0 14px 0;color:{gold};font-size:17px;font-weight:700;">Detalhes da Gira</h3>
-      <p style="margin:10px 0;font-size:15px;">
-        <strong style="color:{gold};">Gira:</strong> {gira_name}
-      </p>
-      <p style="margin:10px 0;font-size:15px;">
-        <strong style="color:{gold};">Data:</strong> {gira_date}
-      </p>
-      {address_block}
-    </div>
-
-    <!-- QR Code -->
-    <div style="text-align:center;margin:28px 0;">
-      <p style="margin:0 0 12px 0;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:2px;">Apresente na entrada</p>
-      <img src="{qr_code_url}" alt="QR Code" style="width:180px;height:180px;border-radius:8px;border:2px solid {gold};">
+    <div style="background-color:rgba(201,168,76,0.08);border-left:4px solid {gold};padding:16px;margin:24px 0;border-radius:4px;">
+      <h3 style="margin:0 0 10px 0;color:{gold};font-size:17px;font-weight:700;">Detalhes da Gira</h3>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Gira</td>
+          <td style="padding:6px 12px;font-size:14px;color:#ccc;">{g_name}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Data</td>
+          <td style="padding:6px 12px;font-size:14px;color:#ccc;">{_esc(gira_date)}</td>
+        </tr>{address_block}
+      </table>
     </div>
 
     <!-- Rescue Button -->
@@ -122,24 +158,15 @@ def _sponsor_html(
       </a>
     </div>
 
-    <!-- Instructions -->
-    <div style="background-color:rgba(201,168,76,0.06);border-left:4px solid #B8963F;padding:18px;margin:20px 0;border-radius:4px;">
-      <h4 style="margin:0 0 10px 0;color:{gold_light};font-size:15px;">Como Usar Sua Senha</h4>
-      <ol style="margin:0;padding-left:20px;font-size:14px;color:#bbb;">
-        <li style="margin-bottom:6px;">Clique no botão acima ou abra o link no navegador</li>
-        <li style="margin-bottom:6px;">Apresente a senha (número {ticket_number}) na entrada</li>
-        <li>O atendente fará a leitura do QR Code</li>
-      </ol>
-    </div>
-
     <!-- Notes -->
     <div style="border-top:1px solid #333;padding-top:18px;margin-top:20px;font-size:13px;color:#777;line-height:1.8;">
       <p style="margin:0 0 6px 0;">⏰ <strong>Validade:</strong> Apenas para a data do evento acima.</p>
+      <p style="margin:0 0 6px 0;">📋 <strong>Na entrada:</strong> Informe o número {_esc(ticket_number)} ao atendente.</p>
       <p style="margin:0;">🔐 <strong>Privacidade:</strong> Não compartilhe este email com terceiros.</p>
     </div>
 
     <p style="margin:24px 0 0 0;text-align:center;font-size:12px;color:#666;border-top:1px solid #333;padding-top:16px;">
-      {tenant_name} &copy; {datetime.now().year}
+      {t_name} &copy; {datetime.now().year}
     </p>
   </div>
 
@@ -159,12 +186,13 @@ def _sponsor_html(
 def _regular_html(
     ticket_number: str,
     consulente_name: str,
+    consulente_email: str,
+    consulente_phone: str,
     gira_name: str,
     gira_date: str,
     tenant_name: str,
     tenant_address: str,
     rescue_link: str,
-    qr_code_url: str,
     tenant_logo_url: str,
     primary_color: str,
     secondary_color: str,
@@ -173,37 +201,54 @@ def _regular_html(
     sc = secondary_color or "#1B5E20"
     maps_link = _maps_url(tenant_address) if tenant_address else ""
     ts = _timestamp()
+    c_name = _esc(consulente_name)
+    c_email = _esc(consulente_email)
+    c_phone = _esc(consulente_phone)
+    g_name = _esc(gira_name)
+    t_name = _esc(tenant_name)
+    t_address = _esc(tenant_address)
 
     logo_block = (
-        f'<img src="{tenant_logo_url}" alt="{tenant_name}" '
-        f'style="max-width:120px;height:auto;margin-bottom:12px;">'
+        f'<img src="{tenant_logo_url}" alt="{t_name}" '
+        f'style="max-width:160px;height:auto;margin-bottom:16px;border-radius:50%;border:3px solid rgba(255,255,255,0.3);">'
         if tenant_logo_url else ""
     )
 
     address_block = ""
     if tenant_address:
         address_block = f"""
-            <p style="margin:10px 0;font-size:15px;">
-                <strong style="color:#333;">Endereço:</strong> {tenant_address}
-            </p>
-            <div style="text-align:center;margin:12px 0 0 0;">
+            <tr>
+              <td style="padding:6px 12px;font-size:14px;color:#555;font-weight:700;vertical-align:top;white-space:nowrap;">Endereço</td>
+              <td style="padding:6px 12px;font-size:14px;color:#333;">{t_address}</td>
+            </tr>
+            <tr>
+              <td colspan="2" style="padding:10px 12px;text-align:center;">
                 <a href="{maps_link}" target="_blank"
                    style="display:inline-block;background-color:{pc};color:#ffffff;
                           text-decoration:none;padding:10px 28px;border-radius:6px;
                           font-weight:bold;font-size:14px;letter-spacing:0.5px;">
                     📍 COMO CHEGAR
                 </a>
-            </div>"""
+              </td>
+            </tr>"""
+
+    phone_row = ""
+    if consulente_phone:
+        phone_row = f"""
+            <tr>
+              <td style="padding:6px 12px;font-size:14px;color:#555;font-weight:700;white-space:nowrap;">Telefone</td>
+              <td style="padding:6px 12px;font-size:14px;color:#333;">{c_phone}</td>
+            </tr>"""
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Sua Senha - {ticket_number}</title></head>
+<title>Sua Senha - {_esc(ticket_number)}</title></head>
 <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;line-height:1.6;color:#333;">
 <div style="width:100%;max-width:600px;margin:0 auto;background-color:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:8px;overflow:hidden;">
 
-  <!-- Header -->
-  <div style="background:linear-gradient(135deg,{pc} 0%,{sc} 100%);padding:36px 20px;text-align:center;border-bottom:4px solid {pc};">
+  <!-- Header with Logo -->
+  <div style="background:linear-gradient(135deg,{pc} 0%,{sc} 100%);padding:40px 20px;text-align:center;border-bottom:4px solid {pc};">
     {logo_block}
     <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:800;letter-spacing:1px;">SENHA EMITIDA</h1>
   </div>
@@ -211,31 +256,43 @@ def _regular_html(
   <!-- Body -->
   <div style="padding:36px 24px;">
     <p style="margin:0 0 20px 0;font-size:16px;color:#555;">
-      Olá <strong>{consulente_name}</strong>,
+      Olá <strong>{c_name}</strong>,
     </p>
 
     <!-- Ticket Number -->
     <div style="background:linear-gradient(135deg,{pc} 0%,{sc} 100%);padding:28px 20px;border-radius:8px;text-align:center;margin:20px 0;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
       <p style="margin:0 0 8px 0;font-size:12px;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:3px;font-weight:700;">Sua Senha</p>
-      <p style="margin:0;font-size:52px;font-weight:900;color:#ffffff;letter-spacing:8px;">{ticket_number}</p>
+      <p style="margin:0;font-size:52px;font-weight:900;color:#ffffff;letter-spacing:8px;">{_esc(ticket_number)}</p>
+    </div>
+
+    <!-- Consulente Info -->
+    <div style="background-color:#fffbf0;border-left:4px solid #ff9800;padding:16px;margin:24px 0;border-radius:4px;">
+      <h3 style="margin:0 0 10px 0;color:#e65100;font-size:15px;font-weight:700;">Seus Dados</h3>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="padding:6px 12px;font-size:14px;color:#555;font-weight:700;white-space:nowrap;">Nome</td>
+          <td style="padding:6px 12px;font-size:14px;color:#333;">{c_name}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 12px;font-size:14px;color:#555;font-weight:700;white-space:nowrap;">Email</td>
+          <td style="padding:6px 12px;font-size:14px;color:#333;">{c_email}</td>
+        </tr>{phone_row}
+      </table>
     </div>
 
     <!-- Event Details -->
-    <div style="background-color:#f9f9f9;border-left:4px solid {pc};padding:20px;margin:24px 0;border-radius:4px;">
-      <h3 style="margin:0 0 14px 0;color:{pc};font-size:17px;font-weight:700;">Detalhes da Gira</h3>
-      <p style="margin:10px 0;font-size:15px;">
-        <strong style="color:#333;">Gira:</strong> {gira_name}
-      </p>
-      <p style="margin:10px 0;font-size:15px;">
-        <strong style="color:#333;">Data:</strong> {gira_date}
-      </p>
-      {address_block}
-    </div>
-
-    <!-- QR Code -->
-    <div style="text-align:center;margin:28px 0;">
-      <p style="margin:0 0 12px 0;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:2px;">Apresente na entrada</p>
-      <img src="{qr_code_url}" alt="QR Code" style="width:180px;height:180px;border-radius:8px;border:2px solid {pc};">
+    <div style="background-color:#f9f9f9;border-left:4px solid {pc};padding:16px;margin:24px 0;border-radius:4px;">
+      <h3 style="margin:0 0 10px 0;color:{pc};font-size:17px;font-weight:700;">Detalhes da Gira</h3>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="padding:6px 12px;font-size:14px;color:#555;font-weight:700;white-space:nowrap;">Gira</td>
+          <td style="padding:6px 12px;font-size:14px;color:#333;">{g_name}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 12px;font-size:14px;color:#555;font-weight:700;white-space:nowrap;">Data</td>
+          <td style="padding:6px 12px;font-size:14px;color:#333;">{_esc(gira_date)}</td>
+        </tr>{address_block}
+      </table>
     </div>
 
     <!-- Rescue Button -->
@@ -248,24 +305,15 @@ def _regular_html(
       </a>
     </div>
 
-    <!-- Instructions -->
-    <div style="background-color:#fffbf0;border-left:4px solid #ff9800;padding:18px;margin:20px 0;border-radius:4px;">
-      <h4 style="margin:0 0 10px 0;color:#ff9800;font-size:15px;">Como Usar Sua Senha</h4>
-      <ol style="margin:0;padding-left:20px;font-size:14px;color:#555;">
-        <li style="margin-bottom:6px;">Clique no botão acima ou abra o link no navegador</li>
-        <li style="margin-bottom:6px;">Apresente a senha (número {ticket_number}) na entrada</li>
-        <li>O atendente fará a leitura do QR Code</li>
-      </ol>
-    </div>
-
     <!-- Notes -->
     <div style="border-top:2px solid #e0e0e0;padding-top:18px;margin-top:20px;font-size:13px;color:#888;line-height:1.8;">
       <p style="margin:0 0 6px 0;">⏰ <strong>Validade:</strong> Apenas para a data do evento acima.</p>
+      <p style="margin:0 0 6px 0;">📋 <strong>Na entrada:</strong> Informe o número {_esc(ticket_number)} ao atendente.</p>
       <p style="margin:0;">🔐 <strong>Privacidade:</strong> Não compartilhe este email com terceiros.</p>
     </div>
 
     <p style="margin:24px 0 0 0;text-align:center;font-size:12px;color:#999;border-top:1px solid #e0e0e0;padding-top:16px;">
-      {tenant_name} &copy; {datetime.now().year}
+      {t_name} &copy; {datetime.now().year}
     </p>
   </div>
 
@@ -289,7 +337,6 @@ def generate_ticket_emission_html(
     gira_date: str,
     gira_location: str,          # legacy — kept for backward compat
     rescue_link: str,
-    qr_code_url: str,
     tenant_name: str,
     tenant_logo_url: str,
     tenant_color: str = "#2E7D32",
@@ -298,6 +345,8 @@ def generate_ticket_emission_html(
     tenant_address: str = "",
     primary_color: str = "",
     secondary_color: str = "",
+    consulente_email: str = "",
+    consulente_phone: str = "",
 ) -> str:
     """Generate responsive HTML email for ticket emission.
 
@@ -309,24 +358,26 @@ def generate_ticket_emission_html(
         return _sponsor_html(
             ticket_number=ticket_number,
             consulente_name=consulente_name,
+            consulente_email=consulente_email,
+            consulente_phone=consulente_phone,
             gira_name=gira_name,
             gira_date=gira_date,
             tenant_name=tenant_name,
             tenant_address=address,
             rescue_link=rescue_link,
-            qr_code_url=qr_code_url,
             tenant_logo_url=tenant_logo_url,
         )
 
     return _regular_html(
         ticket_number=ticket_number,
         consulente_name=consulente_name,
+        consulente_email=consulente_email,
+        consulente_phone=consulente_phone,
         gira_name=gira_name,
         gira_date=gira_date,
         tenant_name=tenant_name,
         tenant_address=address,
         rescue_link=rescue_link,
-        qr_code_url=qr_code_url,
         tenant_logo_url=tenant_logo_url,
         primary_color=primary_color or tenant_color,
         secondary_color=secondary_color or tenant_color,
@@ -344,6 +395,8 @@ def generate_plain_text_fallback(
     is_sponsor: bool = False,
     tenant_address: str = "",
     tenant_name: str = "",
+    consulente_email: str = "",
+    consulente_phone: str = "",
 ) -> str:
     """Generate plain text fallback for email clients that don't support HTML."""
     address = tenant_address or gira_location or ""
@@ -354,6 +407,7 @@ def generate_plain_text_fallback(
     maps_line = (
         f"\nComo chegar: {_maps_url(address)}\n" if address else ""
     )
+    phone_line = f"\n- Telefone: {consulente_phone}" if consulente_phone else ""
 
     return f"""SENHA EMITIDA{' — PATROCINADOR' if is_sponsor else ''}
 
@@ -363,6 +417,10 @@ Sua senha foi emitida com sucesso!
 {sponsor_note}
 NÚMERO DA SENHA: {ticket_number}
 
+Seus Dados:
+- Nome: {consulente_name}
+- Email: {consulente_email}{phone_line}
+
 Detalhes da Gira:
 - Gira: {gira_name}
 - Data: {gira_date}
@@ -371,9 +429,7 @@ Detalhes da Gira:
 Para resgatar sua senha, acesse:
 {rescue_link}
 
-1. Clique no link acima ou copie e cole no navegador
-2. Apresente o número {ticket_number} na entrada
-3. O atendente fará a leitura do QR Code
+Na entrada, informe o número {ticket_number} ao atendente.
 
 Validade: Esta senha é válida apenas para a data do evento acima.
 
