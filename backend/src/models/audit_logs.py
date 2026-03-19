@@ -53,7 +53,8 @@ class AuditLog(TimestampedModel):
     )
     
     action: Mapped[AuditAction] = mapped_column(
-        SQLEnum(AuditAction, values_callable=lambda e: [x.value for x in e]),
+        SQLEnum(AuditAction, name="audit_action", create_constraint=False,
+                values_callable=lambda e: [x.value for x in e]),
         nullable=False,
     )
     resource_type: Mapped[str] = mapped_column(String(100), nullable=False)  # User, Ticket, Gira, etc
