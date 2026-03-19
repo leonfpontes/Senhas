@@ -93,6 +93,7 @@ export default function AdminGiras() {
   const [senhaTarget, setSenhaTarget] = useState<Gira | null>(null);
   const [senhaForm, setSenhaForm] = useState<typeof EMPTY_SENHA_FORM>(EMPTY_SENHA_FORM);
   const [senhaConfig, setSenhaConfig] = useState<SenhaConfig | null>(null);
+  const [senhaInitial, setSenhaInitial] = useState<typeof EMPTY_SENHA_FORM>(EMPTY_SENHA_FORM);
   const [senhaSaving, setSenhaSaving] = useState(false);
   const [senhaLoading, setSenhaLoading] = useState(false);
   const [senhaTouched, setSenhaTouched] = useState<Record<string, boolean>>({});
@@ -208,6 +209,7 @@ export default function AdminGiras() {
   const openSenhaDrawer = async (gira: Gira) => {
     setSenhaTarget(gira);
     setSenhaForm(EMPTY_SENHA_FORM);
+    setSenhaInitial(EMPTY_SENHA_FORM);
     setSenhaTouched({});
     setSenhaConfig(null);
     setSenhaDrawerOpen(true);
@@ -216,14 +218,16 @@ export default function AdminGiras() {
       const response = await apiClient.get(`/api/v1/admin/giras/${gira.id}/senhas`);
       const config: SenhaConfig = response.data;
       setSenhaConfig(config);
-      setSenhaForm({
+      const loaded = {
         max_tickets: config.max_tickets ? String(config.max_tickets) : '',
         release_start_at: config.release_start_at ? config.release_start_at.slice(0, 16) : '',
         release_end_at: config.release_end_at ? config.release_end_at.slice(0, 16) : '',
         sponsor_max_tickets: config.sponsor_max_tickets ? String(config.sponsor_max_tickets) : '',
         sponsor_release_start_at: config.sponsor_release_start_at ? config.sponsor_release_start_at.slice(0, 16) : '',
         sponsor_release_end_at: config.sponsor_release_end_at ? config.sponsor_release_end_at.slice(0, 16) : '',
-      });
+      };
+      setSenhaForm(loaded);
+      setSenhaInitial(loaded);
     } catch {
       // No config yet — form stays empty
     } finally {
@@ -253,7 +257,7 @@ export default function AdminGiras() {
   const senhaSaveDisabled = !senhaForm.max_tickets || Number(senhaForm.max_tickets) < 1
     || !senhaForm.release_start_at || !senhaForm.release_end_at;
 
-  const senhaDirty = senhaForm.max_tickets !== '' || senhaForm.release_start_at !== '' || senhaForm.release_end_at !== '';
+  const senhaDirty = JSON.stringify(senhaForm) !== JSON.stringify(senhaInitial);
 
   const handleSenhaSave = async () => {
     setSenhaTouched({ max_tickets: true, release_start_at: true, release_end_at: true });
