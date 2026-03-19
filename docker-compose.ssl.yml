@@ -1,0 +1,11 @@
+# ============================================================
+# SSL overlay — adds certificate volume mounts to nginx.
+#
+# Usage (after obtaining Let's Encrypt certs):
+#   docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d
+# ============================================================
+
+services:
+  nginx:
+    volumes:
+      - ./certs:/etc/nginx/certs:ro

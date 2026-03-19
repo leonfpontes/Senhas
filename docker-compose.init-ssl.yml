@@ -6,19 +6,19 @@
 #   docker compose -f docker-compose.prod.yml -f docker-compose.init-ssl.yml up -d
 #
 # After obtaining certs:
-#   certbot certonly --standalone -d YOUR_DOMAIN -d api.YOUR_DOMAIN
-#   cp /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem ./certs/
-#   cp /etc/letsencrypt/live/YOUR_DOMAIN/privkey.pem   ./certs/
+#   certbot certonly --standalone -d girahub.com.br -d www.girahub.com.br
+#   cp /etc/letsencrypt/live/girahub.com.br/fullchain.pem ./certs/
+#   cp /etc/letsencrypt/live/girahub.com.br/privkey.pem   ./certs/
 #
-# Then switch to full production:
-#   docker compose -f docker-compose.prod.yml up -d
+# Then switch to full SSL:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d
 # ============================================================
 
 services:
   nginx:
+    ports:
+      - "80:80"
     volumes:
       - ./nginx/conf.d/senhas-init.conf:/etc/nginx/conf.d/senhas.conf:ro
-      - /dev/null:/etc/nginx/certs/fullchain.pem:ro
-      - /dev/null:/etc/nginx/certs/privkey.pem:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost/nginx-health || exit 1"]
