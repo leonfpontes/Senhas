@@ -1,5 +1,5 @@
 # ============================================================
-# SSL overlay — adds certificate volume mounts to nginx.
+# SSL overlay — adds SSL config and certificate volumes to nginx.
 #
 # Usage (after obtaining Let's Encrypt certs):
 #   docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d
@@ -8,4 +8,5 @@
 services:
   nginx:
     volumes:
+      - ./nginx/conf.d/senhas.conf:/etc/nginx/conf.d/senhas.conf:ro
       - ./certs:/etc/nginx/certs:ro

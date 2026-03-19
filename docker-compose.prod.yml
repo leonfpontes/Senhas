@@ -199,7 +199,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # conf.d is provided by the overlay (init-ssl or ssl)
       - nginx_cache:/var/cache/nginx
       - ./nginx/logs:/var/log/nginx
     environment:

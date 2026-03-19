@@ -16,8 +16,6 @@
 
 services:
   nginx:
-    ports:
-      - "80:80"
     volumes:
       - ./nginx/conf.d/senhas-init.conf:/etc/nginx/conf.d/senhas.conf:ro
     healthcheck:

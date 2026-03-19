@@ -38,9 +38,9 @@ RUN mkdir -p /var/log/senhas && \
     adduser --system --uid 1001 --ingroup appuser appuser && \
     chown -R appuser:appuser /var/log/senhas /app
 
-# Copy entrypoint
+# Copy entrypoint (ensure LF line endings for Linux)
 COPY backend/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 USER appuser
 
