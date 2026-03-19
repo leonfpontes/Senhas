@@ -103,6 +103,10 @@ def create_app() -> FastAPI:
     domain = os.environ.get("DOMAIN", "")
     if domain:
         allowed_hosts.extend([domain, f"*.{domain}"])
+    # Allow direct IP access for initial testing
+    server_ip = os.environ.get("SERVER_IP", "")
+    if server_ip:
+        allowed_hosts.append(server_ip)
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=allowed_hosts,
