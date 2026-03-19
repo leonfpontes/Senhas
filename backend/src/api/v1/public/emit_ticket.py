@@ -24,6 +24,7 @@ from src.models.tenants import Tenant
 from src.models.giras import Gira
 from src.repositories.consulente_repo import ConsulenteRepository
 from src.repositories.senha_control_repo import SenhaControlRepository
+from src.models.tickets import TicketStatus
 from src.repositories.ticket_repo import TicketRepository
 from src.services.email.base import EmailMessage
 from src.services.email.brevo_provider import BrevoEmailService
@@ -283,7 +284,7 @@ async def emit_ticket(
             gira_id=gira.id,
             consulente_id=consulente.id,
             numero=ticket_number_int,
-            status="EMITTED",
+            status=TicketStatus.EMITTED,
             observacoes=observacoes,
             is_sponsor=is_sponsor,
         )

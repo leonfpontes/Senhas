@@ -10,7 +10,7 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.models.tickets import Ticket
+from src.models.tickets import Ticket, TicketStatus
 from src.repositories.base import BaseRepository
 
 
@@ -28,7 +28,7 @@ class TicketRepository(BaseRepository[Ticket]):
         gira_id: UUID,
         consulente_id: UUID,
         numero: int,
-        status: str = "EMITTED",
+        status: TicketStatus = TicketStatus.EMITTED,
         observacoes: str | None = None,
         is_sponsor: bool = False,
         is_walk_in: bool = False,
@@ -208,7 +208,7 @@ class TicketRepository(BaseRepository[Ticket]):
                 Ticket.gira_id == gira_id,
                 Ticket.consulente_id == consulente_id,
                 Ticket.is_sponsor == is_sponsor,
-                Ticket.status != "CANCELLED",
+                Ticket.status != TicketStatus.CANCELLED,
             )
         )
         result = await session.execute(query)
@@ -219,7 +219,7 @@ class TicketRepository(BaseRepository[Ticket]):
         session: AsyncSession,
         tenant_id: int,
         ticket_id: int,
-        new_status: str,
+        new_status: TicketStatus,
     ) -> Optional[Ticket]:
         """Update ticket status
         

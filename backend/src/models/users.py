@@ -28,8 +28,7 @@ class User(SoftDeleteModel):
     
     __tablename__ = "users"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
-        UniqueConstraint("tenant_id", "username", name="uq_users_tenant_username"),
+        UniqueConstraint("email", name="uq_users_email"),
         Index("ix_users_tenant_id", "tenant_id"),
         Index("ix_users_is_active", "is_active"),
         Index("ix_users_email", "email"),
