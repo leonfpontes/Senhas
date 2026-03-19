@@ -94,6 +94,7 @@ def _sponsor_html(
   <!-- Header with Logo -->
   <div style="background:linear-gradient(135deg,{dark_bg} 0%,{black} 100%);padding:40px 20px;text-align:center;border-bottom:3px solid {gold};">
     {logo_block}
+    <p style="margin:0 0 10px 0;color:#ffffff;font-size:18px;font-weight:700;">{t_name}</p>
     <h1 style="margin:0;color:{gold};font-size:24px;font-weight:800;letter-spacing:3px;text-transform:uppercase;">
       ✦ PATROCINADOR ✦
     </h1>
@@ -147,15 +148,6 @@ def _sponsor_html(
           <td style="padding:6px 12px;font-size:14px;color:#ccc;">{_esc(gira_date)}</td>
         </tr>{address_block}
       </table>
-    </div>
-
-    <!-- Rescue Button -->
-    <div style="text-align:center;margin:28px 0;">
-      <a href="{rescue_link}" target="_blank"
-         style="display:inline-block;background-color:{gold};color:{black};text-decoration:none;
-                padding:14px 44px;border-radius:6px;font-weight:800;font-size:15px;letter-spacing:1px;">
-        RESGATAR SENHA
-      </a>
     </div>
 
     <!-- Notes -->
@@ -250,6 +242,7 @@ def _regular_html(
   <!-- Header with Logo -->
   <div style="background:linear-gradient(135deg,{pc} 0%,{sc} 100%);padding:40px 20px;text-align:center;border-bottom:4px solid {pc};">
     {logo_block}
+    <p style="margin:0 0 10px 0;color:rgba(255,255,255,0.9);font-size:18px;font-weight:700;">{t_name}</p>
     <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:800;letter-spacing:1px;">SENHA EMITIDA</h1>
   </div>
 
@@ -293,16 +286,6 @@ def _regular_html(
           <td style="padding:6px 12px;font-size:14px;color:#333;">{_esc(gira_date)}</td>
         </tr>{address_block}
       </table>
-    </div>
-
-    <!-- Rescue Button -->
-    <div style="text-align:center;margin:28px 0;">
-      <a href="{rescue_link}" target="_blank"
-         style="display:inline-block;background-color:{pc};color:#ffffff;text-decoration:none;
-                padding:14px 44px;border-radius:6px;font-weight:800;font-size:15px;letter-spacing:1px;
-                box-shadow:0 4px 6px rgba(0,0,0,0.15);">
-        RESGATAR SENHA
-      </a>
     </div>
 
     <!-- Notes -->
