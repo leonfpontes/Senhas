@@ -195,4 +195,7 @@ async def get_me(
         "tenant_id": str(current_user.tenant_id) if current_user.tenant_id else None,
         "is_active": current_user.is_active,
         "created_at": current_user.created_at.isoformat(),
+        "full_name": current_user.full_name,
+        "phone": current_user.phone,
+        "profile_photo_url": current_user.profile_photo_url,
     }

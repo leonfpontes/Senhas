@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   AppBar,
+  Avatar,
   Box,
   Button,
   CssBaseline,
@@ -42,6 +43,7 @@ import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useTenant } from '@/providers/ThemeProvider';
+import { apiClient } from '@/services/api_client';
 
 const DRAWER_WIDTH = 280;
 
@@ -51,6 +53,14 @@ interface AdminLayoutProps {
   maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | false;
 }
 
+interface CurrentUserProfile {
+  id: string;
+  email: string;
+  username: string;
+  full_name?: string | null;
+  profile_photo_url?: string | null;
+}
+
 export default function AdminLayout({ 
   children, 
   title,
@@ -58,6 +68,8 @@ export default function AdminLayout({
 }: AdminLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUserProfile | null>(null);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [impersonateUser, setImpersonateUser] = useState<{ email?: string; username?: string } | null>(null);
   const [impersonateTenant, setImpersonateTenant] = useState<{ name?: string } | null>(null);
@@ -87,6 +99,35 @@ export default function AdminLayout({
     setLogoFailed(false);
   }, [logoUrl]);
 
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const stored = localStorage.getItem('user');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setCurrentUser(parsed);
+        }
+
+        const response = await apiClient.get('/api/v1/auth/profile');
+        const profile = response.data;
+        setCurrentUser(profile);
+        setAvatarFailed(false);
+
+        localStorage.setItem(
+          'user',
+          JSON.stringify({
+            ...(stored ? JSON.parse(stored) : {}),
+            ...profile,
+          }),
+        );
+      } catch {
+        // Keep fallback from localStorage when profile endpoint fails.
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
+
   const handleEndImpersonation = () => {
     sessionStorage.removeItem('access_token');
     sessionStorage.removeItem('user');
@@ -112,10 +153,21 @@ export default function AdminLayout({
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
     handleMenuClose();
     router.push('/login');
   };
+
+  const handleGoToProfile = () => {
+    handleMenuClose();
+    router.push('/admin/profile');
+  };
+
+  const avatarText = (currentUser?.full_name || currentUser?.username || currentUser?.email || 'A')
+    .charAt(0)
+    .toUpperCase();
 
   const navigationItems = [
     {
@@ -358,8 +410,26 @@ export default function AdminLayout({
             aria-label="user menu"
             aria-controls="user-menu"
             aria-haspopup="true"
+            sx={{ ml: 1 }}
           >
-            <AccountIcon />
+            <Avatar
+              src={
+                currentUser?.profile_photo_url && !avatarFailed
+                  ? currentUser.profile_photo_url
+                  : undefined
+              }
+              onError={() => setAvatarFailed(true)}
+              sx={{
+                width: 34,
+                height: 34,
+                fontSize: '0.875rem',
+                bgcolor: 'rgba(255,255,255,0.22)',
+                color: brandFont,
+                border: '1px solid rgba(255,255,255,0.45)',
+              }}
+            >
+              {avatarText}
+            </Avatar>
           </IconButton>
 
           <Menu
@@ -376,6 +446,11 @@ export default function AdminLayout({
               horizontal: 'right',
             }}
           >
+            <MenuItem onClick={handleGoToProfile}>
+              <AccountIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
+              Perfil
+            </MenuItem>
+            <Divider />
             <MenuItem onClick={handleLogout}>
               <LogoutIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
               Logout
