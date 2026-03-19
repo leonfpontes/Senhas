@@ -18,7 +18,8 @@ import logging
 import hashlib
 import uuid
 
-from src.core.config import settings\nfrom src.core.database import get_db
+from src.core.config import settings
+from src.core.database import get_db
 from src.core.errors import APIException
 from src.models.tenants import Tenant
 from src.models.giras import Gira
