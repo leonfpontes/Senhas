@@ -1,9 +1,7 @@
 """Application Configuration"""
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
 from typing import Optional
 from datetime import timedelta
-import json
 
 
 class Settings(BaseSettings):
@@ -18,22 +16,13 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     ALGORITHM: str = "HS256"
     
-    # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    # CORS — stored as comma-separated string to avoid pydantic-settings JSON parse
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v):
-        """Accept both JSON array and comma-separated string."""
-        if isinstance(v, str):
-            try:
-                parsed = json.loads(v)
-                if isinstance(parsed, list):
-                    return parsed
-            except (json.JSONDecodeError, TypeError):
-                pass
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parse CORS_ORIGINS string into a list."""
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
     
     # App
     APP_NAME: str = "Senhas API"
