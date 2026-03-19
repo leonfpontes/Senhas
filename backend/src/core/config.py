@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.1.0"
     DEBUG: bool = False
     
+    # Frontend URL for building public links
+    FRONTEND_URL: str = "http://localhost:3000"
+    
     # Password policy
     PASSWORD_MIN_LENGTH: int = 12
     PASSWORD_REQUIRE_UPPERCASE: bool = True

@@ -311,9 +311,24 @@ export default function AdminGiras() {
     }
   };
 
-  const copyPublicLink = (link: string) => {
-    navigator.clipboard.writeText(link);
-    setSnackbar({ open: true, message: 'Link copiado!', severity: 'success' });
+  const copyPublicLink = async (link: string) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = link;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setSnackbar({ open: true, message: 'Link copiado!', severity: 'success' });
+    } catch {
+      setSnackbar({ open: true, message: 'Não foi possível copiar o link', severity: 'error' });
+    }
   };
 
   const getSenhaChip = (gira: Gira) => {

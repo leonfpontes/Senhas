@@ -8,11 +8,14 @@ from uuid import UUID
 from datetime import datetime, timezone, timedelta
 import logging
 
+from src.core.config import settings
 from src.core.database import get_db
 from src.models import User, UserRole, Gira
 from src.models.senha_controls import SenhaControl
 from src.repositories.gira_repo import GiraRepository
 from src.services.audit_service import AuditService
+
+_BASE = settings.FRONTEND_URL.rstrip("/")
 from src.api.dependencies import get_current_user
 from src.core.errors import (
     UnauthorizedError,
@@ -310,12 +313,12 @@ async def get_senha_config(
         release_start_at=gira.release_start_at or gira.data_inicio,
         release_end_at=gira.release_end_at or gira.data_inicio,
         current_count=current_count,
-        public_link=f"/public/gira/{gira_id}",
+        public_link=f"{_BASE}/public/gira/{gira_id}",
         sponsor_max_tickets=gira.sponsor_max_tickets,
         sponsor_release_start_at=gira.sponsor_release_start_at,
         sponsor_release_end_at=gira.sponsor_release_end_at,
         sponsor_current_count=sponsor_count,
-        sponsor_public_link=f"/public/gira/{gira_id}?tipo=patrocinador" if gira.sponsor_max_tickets else "",
+        sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=patrocinador" if gira.sponsor_max_tickets else "",
     )
 
 
@@ -400,12 +403,12 @@ async def update_senha_config(
         release_start_at=config.release_start_at,
         release_end_at=config.release_end_at,
         current_count=current_count,
-        public_link=f"/public/gira/{gira_id}",
+        public_link=f"{_BASE}/public/gira/{gira_id}",
         sponsor_max_tickets=config.sponsor_max_tickets,
         sponsor_release_start_at=config.sponsor_release_start_at,
         sponsor_release_end_at=config.sponsor_release_end_at,
         sponsor_current_count=sponsor_count,
-        sponsor_public_link=f"/public/gira/{gira_id}?tipo=patrocinador" if config.sponsor_max_tickets else "",
+        sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=patrocinador" if config.sponsor_max_tickets else "",
     )
 
 
@@ -497,10 +500,10 @@ async def release_now(
         release_start_at=now,
         release_end_at=end,
         current_count=current_count,
-        public_link=f"/public/gira/{gira_id}",
+        public_link=f"{_BASE}/public/gira/{gira_id}",
         sponsor_max_tickets=gira.sponsor_max_tickets,
         sponsor_release_start_at=gira.sponsor_release_start_at,
         sponsor_release_end_at=gira.sponsor_release_end_at,
         sponsor_current_count=sponsor_count,
-        sponsor_public_link=f"/public/gira/{gira_id}?tipo=patrocinador" if gira.sponsor_max_tickets else "",
+        sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=patrocinador" if gira.sponsor_max_tickets else "",
     )

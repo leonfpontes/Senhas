@@ -18,7 +18,7 @@ import logging
 import hashlib
 import uuid
 
-from src.core.database import get_db
+from src.core.config import settings\nfrom src.core.database import get_db
 from src.core.errors import APIException
 from src.models.tenants import Tenant
 from src.models.giras import Gira
@@ -299,7 +299,7 @@ async def emit_ticket(
 
         # === STEP 9: Send Email in Background ===
         rescue_link = (
-            f"https://app.example.com/public/{tenant.slug}/ticket/{ticket.id}"
+            f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{ticket.id}"
         )
         qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={rescue_link}"
 

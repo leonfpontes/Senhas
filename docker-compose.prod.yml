@@ -106,6 +106,9 @@ services:
       # Domain (for TrustedHostMiddleware)
       DOMAIN: ${DOMAIN:-girahub.com.br}
       
+      # Frontend URL for building public links
+      FRONTEND_URL: ${FRONTEND_URL:-http://girahub.com.br}
+      
       # Email Services
       BREVO_API_KEY: ${BREVO_API_KEY}
       BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL}
