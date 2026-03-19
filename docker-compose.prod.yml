@@ -104,7 +104,7 @@ services:
       JWT_EXPIRATION: 86400
       
       # CORS
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://example.com}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://girahub.com.br}
       
       # Email Services
       BREVO_API_KEY: ${BREVO_API_KEY}
@@ -159,7 +159,7 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: ${API_URL:-https://api.example.com}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://girahub.com.br/api}
       NEXT_PUBLIC_APP_NAME: Senhas
       NEXT_PUBLIC_APP_VERSION: ${APP_VERSION:-1.1.0}
       NODE_ENV: production
