@@ -26,10 +26,10 @@ depends_on = None
 
 def upgrade() -> None:
     """Create initial schema tables."""
-    # Create enum types
-    op.execute("CREATE TYPE user_role AS ENUM ('admin', 'member')")
-    op.execute("CREATE TYPE password_status AS ENUM ('active', 'archived', 'deleted')")
-    op.execute("CREATE TYPE audit_action AS ENUM ('create', 'read', 'update', 'delete')")
+    # Create enum types (idempotent for re-runs against existing DBs)
+    op.execute("DO $$ BEGIN CREATE TYPE user_role AS ENUM ('admin', 'member'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE password_status AS ENUM ('active', 'archived', 'deleted'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE audit_action AS ENUM ('create', 'read', 'update', 'delete'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
     
     # Tenants table
     op.create_table(

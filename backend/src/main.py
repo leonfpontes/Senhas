@@ -52,12 +52,13 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting Senhas API...")
     
-    # Create tables if needed
-    async with engine.begin() as conn:
-        # Note: In production, use Alembic migrations
-        await conn.run_sync(Base.metadata.create_all)
+    # In production, Alembic handles schema via entrypoint.sh.
+    # create_all is only used in local development when running without Alembic.
+    if settings.DEBUG:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
     
-    logger.info(f"Database initialized: {settings.DATABASE_URL}")
+    logger.info("Senhas API started successfully")
     
     yield
     
