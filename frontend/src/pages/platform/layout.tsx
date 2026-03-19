@@ -31,6 +31,7 @@ import {
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
+import Head from "next/head";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import BusinessIcon from "@mui/icons-material/Business";
 import PeopleIcon from "@mui/icons-material/People";
@@ -168,6 +169,10 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
   );
 
   return (
+    <>
+    <Head>
+      <title>Senhas Platform Admin</title>
+    </Head>
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       {/* AppBar */}
       <AppBar
@@ -289,6 +294,7 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
         </Box>
       </Box>
     </Box>
+    </>
   );
 };
 

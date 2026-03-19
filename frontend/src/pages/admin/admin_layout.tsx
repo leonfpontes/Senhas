@@ -40,6 +40,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import AccountIcon from '@mui/icons-material/AccountCircle';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useTenant } from '@/providers/ThemeProvider';
@@ -337,6 +338,10 @@ export default function AdminLayout({
   const TOOLBAR_HEIGHT = 64;
 
   return (
+    <>
+    <Head>
+      <title>{title ? `${title} | Senhas Admin` : 'Senhas Admin'}</title>
+    </Head>
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <CssBaseline />
 
@@ -530,5 +535,6 @@ export default function AdminLayout({
         </Container>
       </Box>
     </Box>
+    </>
   );
 }

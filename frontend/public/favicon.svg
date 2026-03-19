@@ -1,37 +1,56 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#6366f1"/>
+      <stop offset="0%" style="stop-color:#4f46e5"/>
+      <stop offset="50%" style="stop-color:#6366f1"/>
       <stop offset="100%" style="stop-color:#818cf8"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#ec4899"/>
-      <stop offset="100%" style="stop-color:#f472b6"/>
+    <linearGradient id="ticket" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#f1f0ff"/>
     </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="2" stdDeviation="8" flood-color="#000" flood-opacity="0.15"/>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#fbbf24"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#312e81" flood-opacity="0.3"/>
     </filter>
+    <clipPath id="notchClip">
+      <rect width="300" height="240" rx="20"/>
+      <rect x="-22" y="98" width="44" height="44" rx="22"/>
+      <rect x="278" y="98" width="44" height="44" rx="22"/>
+    </clipPath>
   </defs>
   <!-- Background rounded square -->
-  <rect width="512" height="512" rx="96" ry="96" fill="url(#bg)"/>
-  <!-- Ticket shape -->
-  <g transform="translate(256,256)" filter="url(#shadow)">
-    <!-- Main ticket body -->
-    <rect x="-150" y="-120" width="300" height="240" rx="24" fill="white" opacity="0.95"/>
-    <!-- Ticket notches (left and right) -->
-    <circle cx="-150" cy="0" r="22" fill="url(#bg)"/>
-    <circle cx="150" cy="0" r="22" fill="url(#bg)"/>
-    <!-- Dashed separator line -->
-    <line x1="-120" y1="0" x2="-30" y2="0" stroke="#c7d2fe" stroke-width="3" stroke-dasharray="8,6"/>
-    <line x1="30" y1="0" x2="120" y2="0" stroke="#c7d2fe" stroke-width="3" stroke-dasharray="8,6"/>
-    <!-- Stylized "S" letter -->
-    <text x="0" y="22" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="140" fill="url(#bg)">S</text>
-    <!-- Small star/sparkle accent -->
-    <g transform="translate(90,-70)">
-      <path d="M0,-18 L5,-5 18,0 5,5 0,18 -5,5 -18,0 -5,-5Z" fill="url(#accent)" opacity="0.9"/>
+  <rect width="512" height="512" rx="108" ry="108" fill="url(#bg)"/>
+  <!-- Subtle inner glow -->
+  <rect width="512" height="512" rx="108" ry="108" fill="none" stroke="#818cf8" stroke-width="2" opacity="0.4"/>
+  <!-- Ticket group -->
+  <g transform="translate(256,250)" filter="url(#shadow)">
+    <!-- Ticket body -->
+    <rect x="-140" y="-110" width="280" height="220" rx="20" fill="url(#ticket)"/>
+    <!-- Left notch -->
+    <circle cx="-140" cy="0" r="20" fill="#4f46e5"/>
+    <!-- Right notch -->
+    <circle cx="140" cy="0" r="20" fill="#4f46e5"/>
+    <!-- Perforated line -->
+    <line x1="-110" y1="0" x2="-24" y2="0" stroke="#c7d2fe" stroke-width="2.5" stroke-dasharray="6,5" stroke-linecap="round"/>
+    <line x1="24" y1="0" x2="110" y2="0" stroke="#c7d2fe" stroke-width="2.5" stroke-dasharray="6,5" stroke-linecap="round"/>
+    <!-- Bold "S" -->
+    <text x="0" y="18" text-anchor="middle" font-family="'Segoe UI',Roboto,Arial,sans-serif" font-weight="800" font-size="130" fill="#4f46e5" letter-spacing="-4">S</text>
+    <!-- Ticket number bars -->
+    <rect x="-80" y="38" width="64" height="7" rx="3.5" fill="#ddd6fe" opacity="0.8"/>
+    <rect x="-80" y="52" width="44" height="7" rx="3.5" fill="#ddd6fe" opacity="0.6"/>
+    <!-- Top decorative bar -->
+    <rect x="-80" y="-80" width="100" height="7" rx="3.5" fill="#ddd6fe" opacity="0.5"/>
+    <rect x="30" y="-80" width="50" height="7" rx="3.5" fill="#ddd6fe" opacity="0.35"/>
+    <!-- Shine accent (top-right corner sparkle) -->
+    <g transform="translate(95,-65)">
+      <path d="M0,-14 L4,-4 14,0 4,4 0,14 -4,4 -14,0 -4,-4Z" fill="url(#accent)"/>
     </g>
-    <!-- Number lines (bottom section) -->
-    <rect x="-100" y="40" width="80" height="8" rx="4" fill="#e0e7ff"/>
-    <rect x="-100" y="58" width="55" height="8" rx="4" fill="#e0e7ff"/>
+    <g transform="translate(75,-45) scale(0.5)">
+      <path d="M0,-14 L4,-4 14,0 4,4 0,14 -4,4 -14,0 -4,-4Z" fill="url(#accent)" opacity="0.6"/>
+    </g>
   </g>
 </svg>
