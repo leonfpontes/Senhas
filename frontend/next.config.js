@@ -2,6 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  output: 'standalone',
   transpilePackages: ['shared-types', 'shared-ui'],
   // Generate unique build ID per build for cache busting
   generateBuildId: async () => {

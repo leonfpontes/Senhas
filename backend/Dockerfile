@@ -1,19 +1,50 @@
-FROM python:3.11-slim
+# ============================================
+# Stage 1 — Install dependencies
+# ============================================
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-client \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/pyproject.toml ./
 
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -e ".[dev]" 2>/dev/null || \
-    pip install --no-cache-dir -e .
+    pip install --no-cache-dir .
 
+# ============================================
+# Stage 2 — Production runtime
+# ============================================
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
 COPY backend/ ./
+
+# Create log directory
+RUN mkdir -p /var/log/senhas && \
+    addgroup --system --gid 1001 appuser && \
+    adduser --system --uid 1001 --ingroup appuser appuser && \
+    chown -R appuser:appuser /var/log/senhas /app
+
+# Copy entrypoint
+COPY backend/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
