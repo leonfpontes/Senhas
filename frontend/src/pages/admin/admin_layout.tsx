@@ -213,6 +213,8 @@ export default function AdminLayout({
     },
   ];
 
+  const TOOLBAR_HEIGHT = 64;
+
   const drawer = (
     <Box
       sx={{
@@ -224,7 +226,10 @@ export default function AdminLayout({
     >
       <Box
         sx={{
-          p: 2.5,
+          p: 2,
+          minHeight: TOOLBAR_HEIGHT,
+          display: 'flex',
+          alignItems: 'center',
           background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
           position: 'relative',
         }}
@@ -369,8 +374,6 @@ export default function AdminLayout({
     </Box>
   );
 
-  const TOOLBAR_HEIGHT = 64;
-
   return (
     <>
     <Head>
@@ -388,7 +391,6 @@ export default function AdminLayout({
           color: brandFont,
           width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
           ml: { sm: `${DRAWER_WIDTH}px` },
-          zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
         {isImpersonating && (
@@ -536,9 +538,7 @@ export default function AdminLayout({
           }}
           open
         >
-          <Box sx={{ mt: `${TOOLBAR_HEIGHT}px`, height: `calc(100% - ${TOOLBAR_HEIGHT}px)` }}>
-            {drawer}
-          </Box>
+          {drawer}
         </Drawer>
       </Box>
 
