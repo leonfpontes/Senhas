@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -17,6 +17,7 @@ from src.core.errors import (
     InsufficientPermissionsError,
     NotFoundError,
 )
+from src.services.audit_service import AuditService
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-tickets"])
 logger = logging.getLogger(__name__)
@@ -36,10 +37,20 @@ class TicketResponse(BaseModel):
     observacoes: Optional[str] = None
     chamado_em: Optional[datetime] = None
     finalizado_em: Optional[datetime] = None
+    medium_nome: Optional[str] = None
+    cambone_nome: Optional[str] = None
+    atendimento_descricao: Optional[str] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class UpdateAttendInfoRequest(BaseModel):
+    """Request body for editing attendance info."""
+    medium_nome: Optional[str] = Field(None, max_length=255)
+    cambone_nome: Optional[str] = Field(None, max_length=255)
+    atendimento_descricao: Optional[str] = None
 
 
 class TicketListResponse(BaseModel):
@@ -119,6 +130,9 @@ async def list_gira_tickets(
             observacoes=t.observacoes if t.observacoes and not preferencial else None,
             chamado_em=t.chamado_em,
             finalizado_em=t.finalizado_em,
+            medium_nome=t.medium_nome,
+            cambone_nome=t.cambone_nome,
+            atendimento_descricao=t.atendimento_descricao,
             created_at=t.created_at,
         ))
     
@@ -180,5 +194,82 @@ async def get_ticket(
         observacoes=ticket.observacoes if ticket.observacoes and not preferencial else None,
         chamado_em=ticket.chamado_em,
         finalizado_em=ticket.finalizado_em,
+        medium_nome=ticket.medium_nome,
+        cambone_nome=ticket.cambone_nome,
+        atendimento_descricao=ticket.atendimento_descricao,
+        created_at=ticket.created_at,
+    )
+
+
+@router.patch("/tickets/{ticket_id}/attend-info", response_model=TicketResponse)
+async def update_attend_info(
+    body: UpdateAttendInfoRequest,
+    ticket_id: UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TicketResponse:
+    """Edit attendance info (medium, cambone, description) on a ticket.
+
+    Requires admin role. Enforces multi-tenant isolation.
+    """
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+
+    stmt = select(Ticket).where(
+        and_(
+            Ticket.id == ticket_id,
+            Ticket.tenant_id == current_user.tenant_id,
+        )
+    )
+    result = await db.execute(stmt)
+    ticket = result.scalar_one_or_none()
+
+    if not ticket:
+        raise NotFoundError("Ticket não encontrado")
+
+    ticket.medium_nome = body.medium_nome
+    ticket.cambone_nome = body.cambone_nome
+    ticket.atendimento_descricao = body.atendimento_descricao
+
+    audit = AuditService(db)
+    await audit.log_update(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        resource_type="Ticket",
+        resource_id=ticket.id,
+        new_state={
+            "medium_nome": body.medium_nome,
+            "cambone_nome": body.cambone_nome,
+            "atendimento_descricao": body.atendimento_descricao,
+        },
+    )
+
+    await db.commit()
+    await db.refresh(ticket, ["consulente"])
+
+    preferencial = False
+    if ticket.observacoes:
+        try:
+            obs = json.loads(ticket.observacoes)
+            preferencial = obs.get("preferencial", False)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return TicketResponse(
+        id=ticket.id,
+        numero=ticket.numero,
+        status=ticket.status.value if hasattr(ticket.status, 'value') else ticket.status,
+        consulente_nome=ticket.consulente.nome if ticket.consulente else None,
+        consulente_email=ticket.consulente.email if ticket.consulente else None,
+        consulente_telefone=ticket.consulente.telefone if ticket.consulente else None,
+        preferencial=preferencial,
+        is_sponsor=ticket.is_sponsor,
+        is_walk_in=ticket.is_walk_in,
+        observacoes=ticket.observacoes if ticket.observacoes and not preferencial else None,
+        chamado_em=ticket.chamado_em,
+        finalizado_em=ticket.finalizado_em,
+        medium_nome=ticket.medium_nome,
+        cambone_nome=ticket.cambone_nome,
+        atendimento_descricao=ticket.atendimento_descricao,
         created_at=ticket.created_at,
     )

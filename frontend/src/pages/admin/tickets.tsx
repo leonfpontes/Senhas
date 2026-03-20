@@ -24,13 +24,20 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  IconButton,
+  Tooltip,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/GetApp';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import StarIcon from '@mui/icons-material/Star';
+import EditIcon from '@mui/icons-material/Edit';
+import MedicalServicesIcon from '@mui/icons-material/MedicalServices';
 import AdminLayout from './admin_layout';
 import BulkActionsBar from '../../components/admin/BulkActionsBar';
+import CrudDrawer from '../../components/CrudDrawer';
 import { apiClient } from '../../services/api_client';
 
 interface Ticket {
@@ -45,6 +52,9 @@ interface Ticket {
   observacoes?: string;
   chamado_em?: string;
   finalizado_em?: string;
+  medium_nome?: string;
+  cambone_nome?: string;
+  atendimento_descricao?: string;
   created_at: string;
 }
 
@@ -64,6 +74,16 @@ export default function AdminTickets() {
   const [giraFilter, setGiraFilter] = useState<GiraFilter>('all');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
+
+  // Drawer state for attend info editing
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editTicketId, setEditTicketId] = useState<string | null>(null);
+  const [editTicketNumero, setEditTicketNumero] = useState<number>(0);
+  const [formData, setFormData] = useState({ medium_nome: '', cambone_nome: '', atendimento_descricao: '' });
+  const [originalData, setOriginalData] = useState({ medium_nome: '', cambone_nome: '', atendimento_descricao: '' });
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
 
   const loadGiras = async () => {
     try {
@@ -161,6 +181,43 @@ export default function AdminTickets() {
     };
     return labels[status] || status;
   };
+
+  const openAttendEdit = (ticket: Ticket) => {
+    const data = {
+      medium_nome: ticket.medium_nome || '',
+      cambone_nome: ticket.cambone_nome || '',
+      atendimento_descricao: ticket.atendimento_descricao || '',
+    };
+    setFormData(data);
+    setOriginalData(data);
+    setEditTicketId(ticket.id);
+    setEditTicketNumero(ticket.numero);
+    setDrawerOpen(true);
+  };
+
+  const handleSaveAttendInfo = async () => {
+    if (!editTicketId) return;
+    setSaving(true);
+    try {
+      await apiClient.patch(`/api/v1/admin/tickets/${editTicketId}/attend-info`, {
+        medium_nome: formData.medium_nome.trim() || null,
+        cambone_nome: formData.cambone_nome.trim() || null,
+        atendimento_descricao: formData.atendimento_descricao.trim() || null,
+      });
+      setDrawerOpen(false);
+      setSuccess('Informações de atendimento salvas com sucesso!');
+      loadTickets();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Erro ao salvar informações de atendimento');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isDirty =
+    formData.medium_nome !== originalData.medium_nome ||
+    formData.cambone_nome !== originalData.cambone_nome ||
+    formData.atendimento_descricao !== originalData.atendimento_descricao;
 
   return (
     <AdminLayout title="Tickets">
@@ -299,6 +356,7 @@ export default function AdminTickets() {
                   <TableCell>Tag</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Data Emissão</TableCell>
+                  <TableCell align="center">Ações</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -334,11 +392,18 @@ export default function AdminTickets() {
                       <TableCell>
                         {new Date(ticket.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                       </TableCell>
+                      <TableCell align="center">
+                        <Tooltip title="Editar atendimento">
+                          <IconButton size="small" onClick={() => openAttendEdit(ticket)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} align="center">
+                    <TableCell colSpan={9} align="center">
                       Nenhum ticket encontrado
                     </TableCell>
                   </TableRow>
@@ -358,6 +423,48 @@ export default function AdminTickets() {
           </>
         )}
       </TableContainer>
+
+      <CrudDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title={`Atendimento — Senha #${String(editTicketNumero).padStart(4, '0')}`}
+        subtitle="Edite as informações de médium, cambone e observações do atendimento."
+        icon={<MedicalServicesIcon />}
+        onSave={handleSaveAttendInfo}
+        saveLabel="Salvar"
+        saving={saving}
+        isDirty={isDirty}
+      >
+        <TextField
+          label="Médium"
+          value={formData.medium_nome}
+          onChange={(e) => setFormData((p) => ({ ...p, medium_nome: e.target.value }))}
+          fullWidth
+          sx={{ mb: 2 }}
+        />
+        <TextField
+          label="Cambone"
+          value={formData.cambone_nome}
+          onChange={(e) => setFormData((p) => ({ ...p, cambone_nome: e.target.value }))}
+          fullWidth
+          sx={{ mb: 2 }}
+        />
+        <TextField
+          label="Observações do Atendimento"
+          value={formData.atendimento_descricao}
+          onChange={(e) => setFormData((p) => ({ ...p, atendimento_descricao: e.target.value }))}
+          fullWidth
+          multiline
+          minRows={3}
+        />
+      </CrudDrawer>
+
+      <Snackbar open={!!success} autoHideDuration={4000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>
+      </Snackbar>
+      <Snackbar open={!!error} autoHideDuration={4000} onClose={() => setError('')} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
+      </Snackbar>
     </AdminLayout>
   );
 }

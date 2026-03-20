@@ -6,15 +6,15 @@ services:
     image: postgres:15-alpine
     container_name: senhas_postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: senhas_db
+      POSTGRES_USER: ${DB_USER:-senhas_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-senhas_db}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-senhas_user}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,7 +28,7 @@ services:
     container_name: senhas_backend
     working_dir: /app
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/senhas_db
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-senhas_user}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-senhas_db}
       PYTHONUNBUFFERED: 1
       LOG_LEVEL: info
       SECRET_KEY: dev-secret-key-change-in-production
