@@ -242,6 +242,15 @@ Incluir obrigatoriamente:
 - VPS: 76.13.231.19 (Hostinger), projeto em /opt/senhas.
 - Dominio: girahub.com.br com SSL (Let's Encrypt).
 - nginx: proxy reverso, terminacao SSL, WebSocket proxy para /door/ws.
+- **Deploy sem downtime (obrigatorio)**:
+  ```bash
+  cd /opt/senhas && git pull origin master
+  # 1) Build com containers antigos ainda rodando:
+  docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml build backend frontend
+  # 2) Restart rapido (downtime ~5s):
+  docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d backend frontend
+  ```
+  NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
 
 ---
 
