@@ -94,6 +94,7 @@ class SubscriptionService:
         
         # Check if really downgrading
         plan_hierarchy = {
+            PlanType.FREE: 0,
             PlanType.BASIC: 1,
             PlanType.PRO: 2,
             PlanType.PREMIUM: 3,

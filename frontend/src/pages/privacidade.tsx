@@ -140,7 +140,7 @@ A data da última atualização será sempre indicada no topo desta página.`,
     body: `Para questões relacionadas a esta política ou ao tratamento de seus dados pessoais:
 
 • **E-mail:** leonfpontes@gmail.com
-• **Telefone:** (16) 99109-1234
+• **WhatsApp:** (16) 99109-1234
 
 Responderemos sua solicitação em até 15 dias úteis, conforme previsto pela LGPD.`,
   },

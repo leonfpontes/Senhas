@@ -43,6 +43,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import Diversity3Icon from '@mui/icons-material/Diversity3';
+import CardMembershipIcon from '@mui/icons-material/CardMembership';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import Head from 'next/head';
@@ -194,6 +195,7 @@ export default function AdminLayout({
     { text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' },
     { text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' },
     { text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' },
+    { text: 'Plano', icon: <CardMembershipIcon />, href: '/admin/plano' },
     { text: 'Configurações', icon: <SettingsIcon />, href: '/admin/config' },
   ];
 

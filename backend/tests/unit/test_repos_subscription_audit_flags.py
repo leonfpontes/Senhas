@@ -112,28 +112,37 @@ class TestSubscriptionRepository:
         result = await r.upgrade_plan(uuid4(), PlanType.PREMIUM)
         assert result is None
 
+    def test_get_plan_config_free(self):
+        from src.repositories.subscription_repo import SubscriptionRepository
+        from src.models import PlanType
+        r = SubscriptionRepository(_mock_db())
+        config = r._get_plan_config(PlanType.FREE)
+        assert config["max_users"] == 1
+        assert config["max_giras_per_month"] == 2
+        assert config["price"] == 0.0
+
     def test_get_plan_config_basic(self):
         from src.repositories.subscription_repo import SubscriptionRepository
         from src.models import PlanType
         r = SubscriptionRepository(_mock_db())
         config = r._get_plan_config(PlanType.BASIC)
-        assert config["max_users"] == 10
-        assert config["price"] == 0.0
+        assert config["max_users"] == 5
+        assert config["price"] == 49.0
 
     def test_get_plan_config_pro(self):
         from src.repositories.subscription_repo import SubscriptionRepository
         from src.models import PlanType
         r = SubscriptionRepository(_mock_db())
         config = r._get_plan_config(PlanType.PRO)
-        assert config["max_users"] == 50
-        assert config["price"] == 99.0
+        assert config["max_users"] == 20
+        assert config["price"] == 79.0
 
     def test_get_plan_config_premium(self):
         from src.repositories.subscription_repo import SubscriptionRepository
         from src.models import PlanType
         r = SubscriptionRepository(_mock_db())
         config = r._get_plan_config(PlanType.PREMIUM)
-        assert config["max_users"] == 500
+        assert config["max_users"] == 99999
 
     def test_get_plan_config_enterprise(self):
         from src.repositories.subscription_repo import SubscriptionRepository
@@ -146,9 +155,9 @@ class TestSubscriptionRepository:
         from src.repositories.subscription_repo import SubscriptionRepository
         from src.models import PlanType
         r = SubscriptionRepository(_mock_db())
-        # Unknown falls back to BASIC
+        # Unknown falls back to FREE
         config = r._get_plan_config("unknown")
-        assert config["max_users"] == 10
+        assert config["max_users"] == 1
 
 
 # ═══════════════════════════════════════════════════════════

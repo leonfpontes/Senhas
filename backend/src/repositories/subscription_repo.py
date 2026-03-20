@@ -161,20 +161,25 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             Plan config dict with limits and pricing
         """
         configs = {
-            PlanType.BASIC: {
-                "max_users": 10,
-                "max_giras_per_month": 100,
+            PlanType.FREE: {
+                "max_users": 1,
+                "max_giras_per_month": 2,
                 "price": 0.0,
             },
+            PlanType.BASIC: {
+                "max_users": 5,
+                "max_giras_per_month": 10,
+                "price": 49.0,
+            },
             PlanType.PRO: {
-                "max_users": 50,
-                "max_giras_per_month": 1000,
-                "price": 99.0,
+                "max_users": 20,
+                "max_giras_per_month": 50,
+                "price": 79.0,
             },
             PlanType.PREMIUM: {
-                "max_users": 500,
-                "max_giras_per_month": 10000,
-                "price": 499.0,
+                "max_users": 99999,  # Effectively unlimited
+                "max_giras_per_month": 999999,
+                "price": 99.0,
             },
             PlanType.ENTERPRISE: {
                 "max_users": 99999,  # Effectively unlimited
@@ -182,4 +187,4 @@ class SubscriptionRepository(BaseRepository[Subscription]):
                 "price": 0.0,  # Custom pricing
             },
         }
-        return configs.get(plan, configs[PlanType.BASIC])
+        return configs.get(plan, configs[PlanType.FREE])

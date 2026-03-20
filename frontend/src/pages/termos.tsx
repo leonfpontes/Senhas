@@ -156,7 +156,7 @@ Fica eleito o foro da Comarca de Ribeirão Preto, Estado de São Paulo, como com
     body: `Para questões relacionadas a estes Termos de Uso:
 
 • **E-mail:** leonfpontes@gmail.com
-• **Telefone:** (16) 99109-1234
+• **WhatsApp:** (16) 99109-1234
 
 Estamos à disposição para esclarecer dúvidas e receber sugestões para melhoria de nossos termos e serviços.`,
   },

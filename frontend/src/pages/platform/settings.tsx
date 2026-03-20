@@ -324,7 +324,7 @@ const SettingsPage: React.FC = () => {
                     </Box>
 
                     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                      {["basic", "pro", "premium", "enterprise"]
+                      {["free", "basic", "pro", "premium", "enterprise"]
                         .filter((p) => p !== subscription.plan)
                         .map((plan) => (
                           <Button

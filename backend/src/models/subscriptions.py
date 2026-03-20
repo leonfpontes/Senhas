@@ -12,9 +12,10 @@ from .base import TimestampedModel
 class PlanType(str, enum.Enum):
     """Subscription plan types."""
     
-    BASIC = "basic"          # 10 users, 100 giras/month, $0/month
-    PRO = "pro"              # 50 users, 1000 giras/month, $99/month
-    PREMIUM = "premium"      # 500 users, 10000 giras/month, $499/month
+    FREE = "free"              # 1 user, 2 giras/month, R$0/month
+    BASIC = "basic"            # 5 users, 10 giras/month, R$49/month
+    PRO = "pro"                # 20 users, 50 giras/month, R$79/month
+    PREMIUM = "premium"        # Unlimited, R$99/month
     ENTERPRISE = "enterprise"  # Unlimited, custom SLA, custom pricing
 
 
