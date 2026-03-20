@@ -50,6 +50,9 @@ class TenantConfig(TimestampedModel):
     # Sponsor ordering
     sponsor_priority_mode: Mapped[str] = mapped_column(String(20), default="first", server_default="first", nullable=False)
     
+    # Associado validation on emit
+    validate_associado_on_emit: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    
     # Custom metadata
     custom_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     

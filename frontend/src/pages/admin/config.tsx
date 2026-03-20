@@ -53,6 +53,7 @@ interface TenantConfig {
   enable_analytics: boolean;
   enable_webhooks: boolean;
   enable_walk_in: boolean;
+  validate_associado_on_emit: boolean;
   sponsor_priority_mode?: string;
 }
 
@@ -81,7 +82,9 @@ const HELP_TEXT = {
   enable_walk_in:
     'Permite emitir senhas presenciais diretamente pela visão da porta, usando o fluxo de Walk-in configurado para a gira.',
   sponsor_priority_mode:
-    'Define como tickets de patrocinadores entram na ordem de chamada na visão da porta: antes de todos ou intercalados com os demais.',
+    'Define como tickets de associados entram na ordem de chamada na visão da porta: antes de todos ou intercalados com os demais.',
+  validate_associado_on_emit:
+    'Quando ativado, a emissão de senha de associado exige que o e-mail esteja cadastrado na lista de associados.',
 } as const;
 
 const FEATURE_ITEMS = [
@@ -108,6 +111,12 @@ const FEATURE_ITEMS = [
     title: 'Walk-in na porta',
     description: 'Permite criar atendimentos presenciais diretamente na fila da porta.',
     tooltip: HELP_TEXT.enable_walk_in,
+  },
+  {
+    field: 'validate_associado_on_emit' as const,
+    title: 'Validar e-mail de associado na emissão',
+    description: 'Bloqueia emissão de senha de associado se o e-mail não estiver cadastrado.',
+    tooltip: HELP_TEXT.validate_associado_on_emit,
   },
 ];
 
@@ -175,13 +184,13 @@ function ColorField({
 const PRIORITY_OPTIONS = [
   {
     value: 'first',
-    title: 'Patrocinadores primeiro',
-    description: 'Patrocinadores são chamados antes dos preferenciais e comuns.',
+    title: 'Associados primeiro',
+    description: 'Associados são chamados antes dos preferenciais e comuns.',
   },
   {
     value: 'interleave',
     title: 'Intercalar na fila',
-    description: 'Patrocinadores entram alternados com os demais atendimentos.',
+    description: 'Associados entram alternados com os demais atendimentos.',
   },
 ];
 
@@ -334,6 +343,7 @@ export default function AdminConfig() {
         enable_analytics: config.enable_analytics,
         enable_webhooks: config.enable_webhooks,
         enable_walk_in: config.enable_walk_in,
+        validate_associado_on_emit: config.validate_associado_on_emit,
         sponsor_priority_mode: config.sponsor_priority_mode || 'first',
         endereco: config.endereco || '',
       });
@@ -764,7 +774,7 @@ export default function AdminConfig() {
                       3. Regras da porta
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Define a prioridade de patrocinadores na fila de atendimento da visão da porta.
+                      Define a prioridade de associados na fila de atendimento da visão da porta.
                     </Typography>
                   </Paper>
 
@@ -822,12 +832,12 @@ export default function AdminConfig() {
                       </Typography>
                     </Stack>
                     <Typography variant="body2" color="text.secondary">
-                      Escolha a política de posicionamento dos patrocinadores na fila. Esta definição afeta exclusivamente a visão da porta.
+                      Escolha a política de posicionamento dos associados na fila. Esta definição afeta exclusivamente a visão da porta.
                     </Typography>
                   </Box>
 
                   <FormControl component="fieldset">
-                    <FieldLabel label="Prioridade dos patrocinadores" help={HELP_TEXT.sponsor_priority_mode} />
+                    <FieldLabel label="Prioridade dos associados" help={HELP_TEXT.sponsor_priority_mode} />
                     <RadioGroup
                       value={config.sponsor_priority_mode || 'first'}
                       onChange={(event) => handleChange('sponsor_priority_mode', event.target.value)}

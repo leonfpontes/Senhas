@@ -11,6 +11,7 @@ import {
   Avatar,
   Box,
   Button,
+  Collapse,
   CssBaseline,
   Drawer,
   IconButton,
@@ -40,6 +41,10 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import AccountIcon from '@mui/icons-material/AccountCircle';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import Diversity3Icon from '@mui/icons-material/Diversity3';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -170,47 +175,26 @@ export default function AdminLayout({
     .charAt(0)
     .toUpperCase();
 
-  const navigationItems = [
-    {
-      text: 'Dashboard',
-      icon: <DashboardIcon />,
-      href: '/admin/dashboard',
-    },
-    {
-      text: 'Giras',
-      icon: <EventIcon />,
-      href: '/admin/giras',
-    },
-    {
-      text: 'Tickets',
-      icon: <TicketIcon />,
-      href: '/admin/tickets',
-    },
-    {
-      text: 'Porta',
-      icon: <MeetingRoomIcon />,
-      href: '/admin/porta',
-    },
-    {
-      text: 'Usuários',
-      icon: <PeopleIcon />,
-      href: '/admin/users',
-    },
-    {
-      text: 'Analytics',
-      icon: <AnalyticsIcon />,
-      href: '/admin/analytics',
-    },
-    {
-      text: 'Auditoria',
-      icon: <HistoryIcon />,
-      href: '/admin/audit-trail',
-    },
-    {
-      text: 'Configurações',
-      icon: <SettingsIcon />,
-      href: '/admin/config',
-    },
+  const cadastrosItems = [
+    { text: 'Giras', icon: <EventIcon />, href: '/admin/giras' },
+    { text: 'Usuários', icon: <PeopleIcon />, href: '/admin/users' },
+    { text: 'Associados', icon: <Diversity3Icon />, href: '/admin/associados' },
+  ];
+
+  const cadastrosHrefs = cadastrosItems.map((i) => i.href);
+  const isCadastrosActive = cadastrosHrefs.includes(pathname);
+  const [cadastrosOpen, setCadastrosOpen] = useState(isCadastrosActive);
+
+  const topItems = [
+    { text: 'Dashboard', icon: <DashboardIcon />, href: '/admin/dashboard' },
+    { text: 'Tickets', icon: <TicketIcon />, href: '/admin/tickets' },
+  ];
+
+  const bottomItems = [
+    { text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' },
+    { text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' },
+    { text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' },
+    { text: 'Configurações', icon: <SettingsIcon />, href: '/admin/config' },
   ];
 
   const TOOLBAR_HEIGHT = 64;
@@ -316,7 +300,7 @@ export default function AdminLayout({
 
       {/* Navigation Items */}
       <List sx={{ flex: 1, py: 2 }}>
-        {navigationItems.map((item) => (
+        {topItems.map((item) => (
           <ListItem key={item.href} disablePadding>
             <Link href={item.href} passHref legacyBehavior>
               <ListItemButton
@@ -324,18 +308,12 @@ export default function AdminLayout({
                 sx={{
                   borderRadius: 2,
                   mx: 1,
-                  '& .MuiListItemIcon-root': {
-                    color: 'text.secondary',
-                  },
+                  '& .MuiListItemIcon-root': { color: 'text.secondary' },
                   '&.Mui-selected': {
                     background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
                     color: brandFont,
-                    '& .MuiListItemIcon-root': {
-                      color: brandFont,
-                    },
-                    '& .MuiListItemText-primary': {
-                      color: brandFont,
-                    },
+                    '& .MuiListItemIcon-root': { color: brandFont },
+                    '& .MuiListItemText-primary': { color: brandFont },
                   },
                   '&.Mui-selected:hover': {
                     background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
@@ -344,13 +322,89 @@ export default function AdminLayout({
                 }}
               >
                 <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText
-                  primary={item.text}
-                  primaryTypographyProps={{
-                    variant: 'body2',
-                    fontWeight: pathname === item.href ? 600 : 500,
-                  }}
-                />
+                <ListItemText primary={item.text} primaryTypographyProps={{ variant: 'body2', fontWeight: pathname === item.href ? 600 : 500 }} />
+              </ListItemButton>
+            </Link>
+          </ListItem>
+        ))}
+
+        {/* Cadastros group */}
+        <ListItem disablePadding>
+          <ListItemButton
+            onClick={() => setCadastrosOpen(!cadastrosOpen)}
+            sx={{
+              borderRadius: 2,
+              mx: 1,
+              '& .MuiListItemIcon-root': { color: 'text.secondary' },
+              ...(isCadastrosActive && !cadastrosOpen && {
+                background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                color: brandFont,
+                '& .MuiListItemIcon-root': { color: brandFont },
+                '& .MuiListItemText-primary': { color: brandFont },
+              }),
+            }}
+          >
+            <ListItemIcon><FolderOpenIcon /></ListItemIcon>
+            <ListItemText primary="Cadastros" primaryTypographyProps={{ variant: 'body2', fontWeight: isCadastrosActive ? 600 : 500 }} />
+            {cadastrosOpen ? <ExpandLess /> : <ExpandMore />}
+          </ListItemButton>
+        </ListItem>
+        <Collapse in={cadastrosOpen} timeout="auto" unmountOnExit>
+          <List component="div" disablePadding>
+            {cadastrosItems.map((item) => (
+              <ListItem key={item.href} disablePadding>
+                <Link href={item.href} passHref legacyBehavior>
+                  <ListItemButton
+                    selected={pathname === item.href}
+                    sx={{
+                      borderRadius: 2,
+                      mx: 1,
+                      pl: 4,
+                      '& .MuiListItemIcon-root': { color: 'text.secondary', minWidth: 36 },
+                      '&.Mui-selected': {
+                        background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                        color: brandFont,
+                        '& .MuiListItemIcon-root': { color: brandFont },
+                        '& .MuiListItemText-primary': { color: brandFont },
+                      },
+                      '&.Mui-selected:hover': {
+                        background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                        filter: 'brightness(0.97)',
+                      },
+                    }}
+                  >
+                    <ListItemIcon>{item.icon}</ListItemIcon>
+                    <ListItemText primary={item.text} primaryTypographyProps={{ variant: 'body2', fontWeight: pathname === item.href ? 600 : 500 }} />
+                  </ListItemButton>
+                </Link>
+              </ListItem>
+            ))}
+          </List>
+        </Collapse>
+
+        {bottomItems.map((item) => (
+          <ListItem key={item.href} disablePadding>
+            <Link href={item.href} passHref legacyBehavior>
+              <ListItemButton
+                selected={pathname === item.href}
+                sx={{
+                  borderRadius: 2,
+                  mx: 1,
+                  '& .MuiListItemIcon-root': { color: 'text.secondary' },
+                  '&.Mui-selected': {
+                    background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                    color: brandFont,
+                    '& .MuiListItemIcon-root': { color: brandFont },
+                    '& .MuiListItemText-primary': { color: brandFont },
+                  },
+                  '&.Mui-selected:hover': {
+                    background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                    filter: 'brightness(0.97)',
+                  },
+                }}
+              >
+                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.text} primaryTypographyProps={{ variant: 'body2', fontWeight: pathname === item.href ? 600 : 500 }} />
               </ListItemButton>
             </Link>
           </ListItem>

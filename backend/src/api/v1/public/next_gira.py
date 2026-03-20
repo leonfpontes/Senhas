@@ -119,7 +119,7 @@ async def get_next_gira(
         if not tenant:
             raise HTTPException(status_code=404, detail=f"Tenant '{tenant_slug}' not found")
 
-        is_sponsor = tipo == "patrocinador"
+        is_sponsor = tipo in ("patrocinador", "associado")
         now = datetime.now(timezone.utc)
 
         if is_sponsor:
@@ -200,7 +200,7 @@ async def get_gira_by_id(
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
 
-        is_sponsor = tipo == "patrocinador"
+        is_sponsor = tipo in ("patrocinador", "associado")
         current_tickets = await _get_ticket_count(session, tenant.id, gira.id, is_sponsor)
         return _build_gira_response(gira, tenant, current_tickets, is_sponsor)
 

@@ -146,7 +146,7 @@ async def emit_ticket(
     """
 
     try:
-        is_sponsor = tipo == "patrocinador"
+        is_sponsor = tipo in ("patrocinador", "associado")
 
         # === STEP 1: Validate Tenant ===
         tenant_query = select(Tenant).where(
@@ -204,6 +204,20 @@ async def emit_ticket(
                 status_code=404,
                 detail=msg,
             )
+
+        # === STEP 2b: Validate Associado Email (if enabled) ===
+        if is_sponsor:
+            tc_check = select(TenantConfig).where(TenantConfig.tenant_id == tenant.id)
+            tc_check_result = await session.execute(tc_check)
+            tc = tc_check_result.scalar_one_or_none()
+            if tc and tc.validate_associado_on_emit:
+                from src.repositories.associado_repo import AssociadoRepository
+                assoc_repo = AssociadoRepository(session)
+                if not await assoc_repo.email_exists(tenant.id, request.email):
+                    raise HTTPException(
+                        status_code=422,
+                        detail="E-mail de associado não encontrado. Revise as informações digitadas e tente novamente.",
+                    )
 
         # === STEP 3: Initialize Repositories ===
         from src.models.consulentes import Consulente
@@ -412,7 +426,7 @@ async def _send_ticket_email(
             consulente_phone=consulente_phone,
         )
 
-        subject_prefix = "✦ Patrocinador — " if is_sponsor else ""
+        subject_prefix = "✦ Associado — " if is_sponsor else ""
         message = EmailMessage(
             to_email=consulente_email,
             subject=f"{subject_prefix}Sua Senha #{ticket_number} - {tenant_name}",

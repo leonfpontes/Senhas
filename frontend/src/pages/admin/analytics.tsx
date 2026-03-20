@@ -151,7 +151,7 @@ export default function AdminAnalytics() {
   const categoryData = analytics
     ? [
         { name: 'Comum', value: analytics.category_breakdown.common, color: '#8b5cf6' },
-        { name: 'Patrocinador', value: analytics.category_breakdown.sponsor, color: '#daa520' },
+        { name: 'Associado', value: analytics.category_breakdown.sponsor, color: '#daa520' },
         { name: 'Walk-in', value: analytics.category_breakdown.walk_in, color: '#0ea5e9' },
       ]
     : [];
@@ -271,7 +271,7 @@ export default function AdminAnalytics() {
                   <Tooltip />
                   <Legend />
                   <Bar dataKey="common" stackId="tickets" fill="#8b5cf6" name="Comum" />
-                  <Bar dataKey="sponsor" stackId="tickets" fill="#daa520" name="Patrocinador" />
+                  <Bar dataKey="sponsor" stackId="tickets" fill="#daa520" name="Associado" />
                   <Bar dataKey="walk_in" stackId="tickets" fill="#0ea5e9" name="Walk-in" />
                 </BarChart>
               </ResponsiveContainer>

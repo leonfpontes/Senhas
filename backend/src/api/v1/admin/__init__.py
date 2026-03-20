@@ -14,6 +14,7 @@ from .validate_bulk import router as validate_router
 from .health import router as health_router
 from .door_control import router as door_control_router
 from .door_ws import router as door_ws_router
+from .associados import router as associados_router
 
 # Combine all admin routers
 admin_router = APIRouter()
@@ -30,5 +31,6 @@ admin_router.include_router(validate_router)
 admin_router.include_router(health_router)
 admin_router.include_router(door_control_router)
 admin_router.include_router(door_ws_router)
+admin_router.include_router(associados_router)
 
 __all__ = ["admin_router"]

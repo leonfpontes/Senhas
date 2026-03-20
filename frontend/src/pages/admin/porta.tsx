@@ -463,7 +463,7 @@ export default function PortaPage() {
                       {nextInLine.numero_formatado || `#${nextInLine.numero}`}
                     </Typography>
                     {nextInLine.is_sponsor && (
-                      <Chip icon={<StarIcon />} label="Patrocinador" size="small" sx={{ bgcolor: '#fef9e7', color: '#b8860b', '& .MuiChip-icon': { color: '#daa520' } }} />
+                      <Chip icon={<StarIcon />} label="Associado" size="small" sx={{ bgcolor: '#fef9e7', color: '#b8860b', '& .MuiChip-icon': { color: '#daa520' } }} />
                     )}
                     {nextInLine.is_walk_in && (
                       <Chip label="Walk-in" size="small" sx={{ bgcolor: '#e0f2fe', color: '#0369a1' }} />
@@ -887,7 +887,7 @@ function QueueCard({
                 {item.numero_formatado || `#${item.numero}`}
               </Typography>
               {item.is_sponsor && (
-                <Chip icon={<StarIcon />} label="Patrocinador" size="small" sx={{ bgcolor: '#fef9e7', color: '#b8860b', '& .MuiChip-icon': { color: '#daa520' } }} />
+                <Chip icon={<StarIcon />} label="Associado" size="small" sx={{ bgcolor: '#fef9e7', color: '#b8860b', '& .MuiChip-icon': { color: '#daa520' } }} />
               )}
               {item.is_walk_in && (
                 <Chip label="Walk-in" size="small" sx={{ bgcolor: '#e0f2fe', color: '#0369a1' }} />

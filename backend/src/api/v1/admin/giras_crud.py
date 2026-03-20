@@ -318,7 +318,7 @@ async def get_senha_config(
         sponsor_release_start_at=gira.sponsor_release_start_at,
         sponsor_release_end_at=gira.sponsor_release_end_at,
         sponsor_current_count=sponsor_count,
-        sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=patrocinador" if gira.sponsor_max_tickets else "",
+        sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=associado" if gira.sponsor_max_tickets else "",
     )
 
 
@@ -408,7 +408,7 @@ async def update_senha_config(
         sponsor_release_start_at=config.sponsor_release_start_at,
         sponsor_release_end_at=config.sponsor_release_end_at,
         sponsor_current_count=sponsor_count,
-        sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=patrocinador" if config.sponsor_max_tickets else "",
+        sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=associado" if config.sponsor_max_tickets else "",
     )
 
 
@@ -505,5 +505,5 @@ async def release_now(
         sponsor_release_start_at=gira.sponsor_release_start_at,
         sponsor_release_end_at=gira.sponsor_release_end_at,
         sponsor_current_count=sponsor_count,
-        sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=patrocinador" if gira.sponsor_max_tickets else "",
+        sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=associado" if gira.sponsor_max_tickets else "",
     )

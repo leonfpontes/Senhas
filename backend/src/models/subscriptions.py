@@ -54,13 +54,13 @@ class Subscription(TimestampedModel):
     )
     plan: Mapped[PlanType] = mapped_column(
         SQLEnum(PlanType, name="plan_type", create_constraint=False,
-                values_callable=lambda e: [x.value for x in e]),
+                values_callable=lambda e: [x.name for x in e]),
         default=PlanType.BASIC,
         nullable=False,
     )
     status: Mapped[SubscriptionStatus] = mapped_column(
         SQLEnum(SubscriptionStatus, name="subscription_status", create_constraint=False,
-                values_callable=lambda e: [x.value for x in e]),
+                values_callable=lambda e: [x.name for x in e]),
         default=SubscriptionStatus.ACTIVE,
         nullable=False,
     )

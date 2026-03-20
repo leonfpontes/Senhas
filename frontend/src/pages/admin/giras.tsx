@@ -36,6 +36,7 @@ import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import StarIcon from '@mui/icons-material/Star';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
@@ -347,9 +348,17 @@ export default function AdminGiras() {
   return (
     <AdminLayout title="Gerenciar Giras">
       <Box sx={{ mb: 3 }}>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-          Nova Gira
-        </Button>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h5" fontWeight={700}>Gestão de Giras</Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadGiras} disabled={loading}>
+              Atualizar
+            </Button>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+              Nova Gira
+            </Button>
+          </Box>
+        </Box>
       </Box>
 
       <TableContainer component={Paper}>
@@ -572,23 +581,23 @@ export default function AdminGiras() {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <StarIcon sx={{ color: '#daa520' }} />
                 <Typography variant="subtitle1" fontWeight="bold" color="#b8860b">
-                  Senhas de Patrocinadores
+                  Senhas de Associados
                 </Typography>
               </Box>
 
               <TextField
-                label="Quantidade de Senhas (Patrocinador)"
+                label="Quantidade de Senhas (Associado)"
                 type="number"
                 value={senhaForm.sponsor_max_tickets}
                 onChange={(e) => handleSenhaChange('sponsor_max_tickets', e.target.value)}
                 fullWidth
                 inputProps={{ min: 0 }}
-                helperText="Deixe 0 ou vazio para desabilitar senhas de patrocinador"
+                helperText="Deixe 0 ou vazio para desabilitar senhas de associado"
               />
               {senhaForm.sponsor_max_tickets && Number(senhaForm.sponsor_max_tickets) > 0 && (
                 <>
                   <TextField
-                    label="Início da Liberação (Patrocinador)"
+                    label="Início da Liberação (Associado)"
                     type="datetime-local"
                     value={senhaForm.sponsor_release_start_at}
                     onChange={(e) => handleSenhaChange('sponsor_release_start_at', e.target.value)}
@@ -597,7 +606,7 @@ export default function AdminGiras() {
                     helperText="Se vazio, usa o mesmo horário das senhas comuns"
                   />
                   <TextField
-                    label="Fim da Liberação (Patrocinador)"
+                    label="Fim da Liberação (Associado)"
                     type="datetime-local"
                     value={senhaForm.sponsor_release_end_at}
                     onChange={(e) => handleSenhaChange('sponsor_release_end_at', e.target.value)}
@@ -610,7 +619,7 @@ export default function AdminGiras() {
                   {senhaConfig && senhaConfig.sponsor_max_tickets && senhaConfig.sponsor_max_tickets > 0 && (
                     <Box sx={{ mt: 1 }}>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                        Senhas patrocinador emitidas: {senhaConfig.sponsor_current_count || 0} / {senhaConfig.sponsor_max_tickets}
+                        Senhas associado emitidas: {senhaConfig.sponsor_current_count || 0} / {senhaConfig.sponsor_max_tickets}
                       </Typography>
                       <LinearProgress
                         variant="determinate"
@@ -624,7 +633,7 @@ export default function AdminGiras() {
                   {/* Sponsor public link */}
                   {senhaConfig?.sponsor_public_link && (
                     <Box sx={{ mt: 1, p: 2, backgroundColor: '#fef9e7', borderRadius: 1 }}>
-                      <Typography variant="caption" color="text.secondary">Link Patrocinador</Typography>
+                      <Typography variant="caption" color="text.secondary">Link Associado</Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                         <Typography
                           variant="body2"

@@ -317,7 +317,7 @@ export default function AdminTickets() {
                       <TableCell>{ticket.consulente_telefone || '-'}</TableCell>
                       <TableCell>
                         {ticket.is_sponsor ? (
-                          <Chip icon={<StarIcon />} label="Patrocinador" size="small" sx={{ bgcolor: '#fef9e7', color: '#b8860b', '& .MuiChip-icon': { color: '#daa520' } }} />
+                          <Chip icon={<StarIcon />} label="Associado" size="small" sx={{ bgcolor: '#fef9e7', color: '#b8860b', '& .MuiChip-icon': { color: '#daa520' } }} />
                         ) : ticket.preferencial ? (
                           <Chip icon={<StarIcon />} label="Preferencial" color="warning" size="small" variant="outlined" />
                         ) : (

@@ -44,6 +44,7 @@ class TenantConfigResponse(BaseModel):
     enable_walk_in: bool
     custom_settings: Optional[Dict[str, Any]]
     sponsor_priority_mode: str = "first"
+    validate_associado_on_emit: bool = False
 
     class Config:
         from_attributes = True
@@ -62,6 +63,7 @@ class TenantConfigUpdate(BaseModel):
     enable_walk_in: Optional[bool] = None
     custom_settings: Optional[Dict[str, Any]] = None
     sponsor_priority_mode: Optional[str] = None
+    validate_associado_on_emit: Optional[bool] = None
 
     @field_validator("primary_color", "secondary_color")
     @classmethod
@@ -104,6 +106,7 @@ async def get_tenant_config(
             enable_walk_in=False,
             custom_settings=None,
             sponsor_priority_mode="first",
+            validate_associado_on_emit=False,
         )
     
     repo = TenantConfigRepository(db)
@@ -214,6 +217,12 @@ async def update_tenant_config(
                 detail="Configuração do tenant não encontrada",
             )
         current_config.sponsor_priority_mode = config_update.sponsor_priority_mode
+        await db.flush()
+    
+    # Update validate_associado_on_emit
+    if config_update.validate_associado_on_emit is not None:
+        current_config = await repo.get_by_tenant(current_user.tenant_id)
+        current_config.validate_associado_on_emit = config_update.validate_associado_on_emit
         await db.flush()
     
     # Get updated config

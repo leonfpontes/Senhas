@@ -93,7 +93,7 @@ export default function PublicGiraPage() {
   const router = useRouter();
   const giraId = router.query.id as string;
   const tipo = (router.query.tipo as string) || 'comum';
-  const isSponsor = tipo === 'patrocinador';
+  const isSponsor = tipo === 'associado' || tipo === 'patrocinador';
 
   const [gira, setGira] = useState<GiraPublicData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -215,7 +215,7 @@ export default function PublicGiraPage() {
         {isSponsor && (
           <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, mt: 1, px: 2, py: 0.5, borderRadius: 2, bgcolor: 'rgba(62,39,35,0.15)' }}>
             <StarIcon sx={{ fontSize: 18, color: '#3e2723' }} />
-            <Typography variant="body2" fontWeight={600} sx={{ color: '#3e2723' }}>Senha Patrocinador</Typography>
+            <Typography variant="body2" fontWeight={600} sx={{ color: '#3e2723' }}>Senha Associado</Typography>
           </Box>
         )}
         {gira.descricao && (
@@ -292,7 +292,7 @@ export default function PublicGiraPage() {
           )}
 
           <Typography variant="h6" gutterBottom>
-            {isSponsor ? 'Emitir Senha Patrocinador' : 'Emitir Senha'}
+            {isSponsor ? 'Emitir Senha Associado' : 'Emitir Senha'}
           </Typography>
 
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

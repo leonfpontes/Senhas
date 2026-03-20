@@ -40,9 +40,10 @@ def _sponsor_html(
     tenant_logo_url: str,
 ) -> str:
     gold = "#C9A84C"
-    gold_light = "#E8D48B"
+    gold_light = "#B8963F"
     black = "#1A1A1A"
-    dark_bg = "#0D0D0D"
+    white_bg = "#FFFFFF"
+    light_bg = "#FEFCF5"
     maps_link = _maps_url(tenant_address) if tenant_address else ""
     ts = _timestamp()
     c_name = _esc(consulente_name)
@@ -63,7 +64,7 @@ def _sponsor_html(
         address_block = f"""
             <tr>
               <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;vertical-align:top;white-space:nowrap;">Endereço</td>
-              <td style="padding:6px 12px;font-size:14px;color:#ccc;">{t_address}</td>
+              <td style="padding:6px 12px;font-size:14px;color:#333;">{t_address}</td>
             </tr>
             <tr>
               <td colspan="2" style="padding:10px 12px;text-align:center;">
@@ -81,37 +82,37 @@ def _sponsor_html(
         phone_row = f"""
             <tr>
               <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Telefone</td>
-              <td style="padding:6px 12px;font-size:14px;color:#ccc;">{c_phone}</td>
+              <td style="padding:6px 12px;font-size:14px;color:#333;">{c_phone}</td>
             </tr>"""
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Senha Patrocinador - {_esc(ticket_number)}</title></head>
-<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#111;line-height:1.6;color:#e0e0e0;">
-<div style="width:100%;max-width:600px;margin:0 auto;background-color:{black};border:2px solid {gold};border-radius:8px;overflow:hidden;">
+<title>Senha Associado - {_esc(ticket_number)}</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;line-height:1.6;color:#333;">
+<div style="width:100%;max-width:600px;margin:0 auto;background-color:{white_bg};border:2px solid {gold};border-radius:8px;overflow:hidden;">
 
   <!-- Header with Logo -->
-  <div style="background:linear-gradient(135deg,{dark_bg} 0%,{black} 100%);padding:40px 20px;text-align:center;border-bottom:3px solid {gold};">
+  <div style="background:linear-gradient(135deg,{gold} 0%,#E8D48B 100%);padding:40px 20px;text-align:center;border-bottom:3px solid {gold_light};">
     {logo_block}
-    <p style="margin:0 0 10px 0;color:#ffffff;font-size:18px;font-weight:700;">{t_name}</p>
-    <h1 style="margin:0;color:{gold};font-size:24px;font-weight:800;letter-spacing:3px;text-transform:uppercase;">
-      ✦ PATROCINADOR ✦
+    <p style="margin:0 0 10px 0;color:{black};font-size:18px;font-weight:700;">{t_name}</p>
+    <h1 style="margin:0;color:{black};font-size:24px;font-weight:800;letter-spacing:3px;text-transform:uppercase;">
+      ✦ ASSOCIADO ✦
     </h1>
-    <p style="margin:6px 0 0 0;color:{gold_light};font-size:13px;letter-spacing:1px;">
-      Agradecemos imensamente o seu apoio e patrocínio
+    <p style="margin:6px 0 0 0;color:#333;font-size:13px;letter-spacing:1px;">
+      Agradecemos imensamente o seu apoio e contribuição
     </p>
   </div>
 
   <!-- Body -->
   <div style="padding:36px 24px;">
-    <p style="margin:0 0 20px 0;font-size:16px;color:#ccc;">
-      Olá <strong style="color:#fff;">{c_name}</strong>,
+    <p style="margin:0 0 20px 0;font-size:16px;color:#333;">
+      Olá <strong style="color:{black};">{c_name}</strong>,
     </p>
 
-    <p style="margin:0 0 24px 0;font-size:15px;color:#bbb;">
-      Sua contribuição fortalece o trabalho espiritual e ajuda a manter as portas abertas
-      para todos que buscam acolhimento. O terreiro agradece de coração.
+    <p style="margin:0 0 24px 0;font-size:15px;color:#555;">
+      Como associado, sua contribuição fortalece o trabalho espiritual e ajuda a manter
+      as portas abertas para todos que buscam acolhimento. O terreiro agradece de coração.
     </p>
 
     <!-- Ticket Number -->
@@ -121,49 +122,49 @@ def _sponsor_html(
     </div>
 
     <!-- Consulente Info -->
-    <div style="background-color:rgba(201,168,76,0.06);border-left:4px solid #B8963F;padding:16px;margin:24px 0;border-radius:4px;">
+    <div style="background-color:{light_bg};border-left:4px solid {gold};padding:16px;margin:24px 0;border-radius:4px;">
       <h3 style="margin:0 0 10px 0;color:{gold_light};font-size:15px;font-weight:700;">Seus Dados</h3>
       <table style="width:100%;border-collapse:collapse;">
         <tr>
           <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Nome</td>
-          <td style="padding:6px 12px;font-size:14px;color:#ccc;">{c_name}</td>
+          <td style="padding:6px 12px;font-size:14px;color:#333;">{c_name}</td>
         </tr>
         <tr>
           <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Email</td>
-          <td style="padding:6px 12px;font-size:14px;color:#ccc;">{c_email}</td>
+          <td style="padding:6px 12px;font-size:14px;color:#333;">{c_email}</td>
         </tr>{phone_row}
       </table>
     </div>
 
     <!-- Event Details -->
-    <div style="background-color:rgba(201,168,76,0.08);border-left:4px solid {gold};padding:16px;margin:24px 0;border-radius:4px;">
+    <div style="background-color:{light_bg};border-left:4px solid {gold};padding:16px;margin:24px 0;border-radius:4px;">
       <h3 style="margin:0 0 10px 0;color:{gold};font-size:17px;font-weight:700;">Detalhes da Gira</h3>
       <table style="width:100%;border-collapse:collapse;">
         <tr>
           <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Gira</td>
-          <td style="padding:6px 12px;font-size:14px;color:#ccc;">{g_name}</td>
+          <td style="padding:6px 12px;font-size:14px;color:#333;">{g_name}</td>
         </tr>
         <tr>
           <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Data</td>
-          <td style="padding:6px 12px;font-size:14px;color:#ccc;">{_esc(gira_date)}</td>
+          <td style="padding:6px 12px;font-size:14px;color:#333;">{_esc(gira_date)}</td>
         </tr>{address_block}
       </table>
     </div>
 
     <!-- Notes -->
-    <div style="border-top:1px solid #333;padding-top:18px;margin-top:20px;font-size:13px;color:#777;line-height:1.8;">
+    <div style="border-top:1px solid #e0e0e0;padding-top:18px;margin-top:20px;font-size:13px;color:#777;line-height:1.8;">
       <p style="margin:0 0 6px 0;">⏰ <strong>Validade:</strong> Apenas para a data do evento acima.</p>
       <p style="margin:0 0 6px 0;">📋 <strong>Na entrada:</strong> Informe o número {_esc(ticket_number)} ao atendente.</p>
       <p style="margin:0;">🔐 <strong>Privacidade:</strong> Não compartilhe este email com terceiros.</p>
     </div>
 
-    <p style="margin:24px 0 0 0;text-align:center;font-size:12px;color:#666;border-top:1px solid #333;padding-top:16px;">
+    <p style="margin:24px 0 0 0;text-align:center;font-size:12px;color:#999;border-top:1px solid #e0e0e0;padding-top:16px;">
       {t_name} &copy; {datetime.now().year}
     </p>
   </div>
 
   <!-- Footer -->
-  <div style="background-color:{dark_bg};padding:16px;text-align:center;font-size:11px;color:#555;border-top:1px solid #333;">
+  <div style="background-color:{light_bg};padding:16px;text-align:center;font-size:11px;color:#999;border-top:1px solid #e0e0e0;">
     <p style="margin:4px 0;">Email automático &middot; Enviado em {ts}</p>
   </div>
 </div>
@@ -384,7 +385,7 @@ def generate_plain_text_fallback(
     """Generate plain text fallback for email clients that don't support HTML."""
     address = tenant_address or gira_location or ""
     sponsor_note = (
-        "\nAgradecemos imensamente o seu apoio e patrocínio ao trabalho espiritual.\n"
+        "\nAgradecemos imensamente o seu apoio e contribuição ao trabalho espiritual.\n"
         if is_sponsor else ""
     )
     maps_line = (
@@ -392,7 +393,7 @@ def generate_plain_text_fallback(
     )
     phone_line = f"\n- Telefone: {consulente_phone}" if consulente_phone else ""
 
-    return f"""SENHA EMITIDA{' — PATROCINADOR' if is_sponsor else ''}
+    return f"""SENHA EMITIDA{' — ASSOCIADO' if is_sponsor else ''}
 
 Olá {consulente_name},
 

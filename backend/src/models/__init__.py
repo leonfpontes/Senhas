@@ -11,6 +11,7 @@ from .tenant_config import TenantConfig
 from .subscriptions import Subscription, PlanType, SubscriptionStatus
 from .billing import Invoice, InvoiceStatus
 from .feature_flags import FeatureFlag
+from .associados import Associado
 
 __all__ = [
     "Base",
