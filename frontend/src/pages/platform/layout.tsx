@@ -13,6 +13,8 @@ import React, { useState } from "react";
 import {
   Box,
   AppBar,
+  CssBaseline,
+  Container,
   Drawer,
   Toolbar,
   Typography,
@@ -30,7 +32,7 @@ import {
   MenuItem,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
-import CloseIcon from "@mui/icons-material/Close";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import Head from "next/head";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import BusinessIcon from "@mui/icons-material/Business";
@@ -39,11 +41,18 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import BillingIcon from "@mui/icons-material/ReceiptLong";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
+import AccountIcon from "@mui/icons-material/AccountCircle";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { apiClient } from "../../services/api_client";
 
 const DRAWER_WIDTH = 280;
+const TOOLBAR_HEIGHT = 64;
+
+// Platform brand colors (fixed — no tenant context)
+const BRAND_PRIMARY = "#1a237e";
+const BRAND_SECONDARY = "#4a148c";
+const BRAND_FONT = "#FFFFFF";
 
 interface PlatformLayoutProps {
   children: React.ReactNode;
@@ -70,7 +79,6 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
     } catch (error) {
       console.error("Logout failed:", error);
     }
-    // Clear auth state
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
     router.push("/login");
@@ -110,16 +118,80 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
     },
   ];
 
-  const drawerContent = (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* Logo / Branding */}
-      <Box sx={{ p: 3, pb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: "primary.main" }}>
-          Senhas Platform
-        </Typography>
-        <Typography variant="caption" sx={{ color: "text.secondary" }}>
-          Super Admin Dashboard
-        </Typography>
+  const drawer = (
+    <Box
+      sx={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        backgroundColor: "background.paper",
+      }}
+    >
+      {/* Header — gradient matching admin layout */}
+      <Box
+        sx={{
+          p: 2,
+          minHeight: TOOLBAR_HEIGHT,
+          display: "flex",
+          alignItems: "center",
+          background: `linear-gradient(135deg, ${BRAND_PRIMARY} 0%, ${BRAND_SECONDARY} 100%)`,
+          position: "relative",
+        }}
+      >
+        {isMobile && (
+          <IconButton
+            onClick={() => setMobileOpen(false)}
+            size="small"
+            sx={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              color: BRAND_FONT,
+              opacity: 0.8,
+              "&:hover": { opacity: 1, bgcolor: "rgba(255,255,255,0.15)" },
+            }}
+          >
+            <ChevronLeftIcon />
+          </IconButton>
+        )}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Avatar
+            sx={{
+              width: 52,
+              height: 52,
+              bgcolor: "rgba(255,255,255,0.2)",
+              color: BRAND_FONT,
+              fontWeight: 700,
+              fontSize: "1.25rem",
+              border: "2px solid rgba(255,255,255,0.5)",
+            }}
+          >
+            SA
+          </Avatar>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                fontWeight: 700,
+                color: BRAND_FONT,
+                lineHeight: 1.3,
+              }}
+            >
+              Senhas Platform
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: BRAND_FONT,
+                opacity: 0.75,
+                fontWeight: 500,
+                letterSpacing: 0.5,
+              }}
+            >
+              Super Admin
+            </Typography>
+          </Box>
+        </Box>
       </Box>
 
       <Divider />
@@ -132,11 +204,24 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
               <ListItemButton
                 selected={router.pathname === item.href}
                 sx={{
+                  borderRadius: 2,
+                  mx: 1,
+                  "& .MuiListItemIcon-root": {
+                    color: "text.secondary",
+                  },
                   "&.Mui-selected": {
-                    backgroundColor: "primary.light",
+                    background: `linear-gradient(90deg, ${BRAND_PRIMARY} 0%, ${BRAND_SECONDARY} 100%)`,
+                    color: BRAND_FONT,
                     "& .MuiListItemIcon-root": {
-                      color: "primary.main",
+                      color: BRAND_FONT,
                     },
+                    "& .MuiListItemText-primary": {
+                      color: BRAND_FONT,
+                    },
+                  },
+                  "&.Mui-selected:hover": {
+                    background: `linear-gradient(90deg, ${BRAND_PRIMARY} 0%, ${BRAND_SECONDARY} 100%)`,
+                    filter: "brightness(0.97)",
                   },
                 }}
               >
@@ -145,7 +230,7 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
                   primary={item.label}
                   primaryTypographyProps={{
                     variant: "body2",
-                    fontWeight: 500,
+                    fontWeight: router.pathname === item.href ? 600 : 500,
                   }}
                 />
               </ListItemButton>
@@ -156,12 +241,12 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
 
       <Divider />
 
-      {/* Footer Info */}
-      <Box sx={{ p: 2, fontSize: "0.75rem", color: "text.secondary" }}>
-        <Typography variant="caption" display="block">
+      {/* Footer */}
+      <Box sx={{ p: 2 }}>
+        <Typography variant="caption" display="block" color="text.secondary">
           Senhas v1.1
         </Typography>
-        <Typography variant="caption" display="block">
+        <Typography variant="caption" display="block" color="text.secondary">
           Platform Edition
         </Typography>
       </Box>
@@ -174,17 +259,20 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
       <title>Senhas Platform Admin</title>
     </Head>
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+      <CssBaseline />
+
       {/* AppBar */}
       <AppBar
         position="fixed"
+        variant="elevation"
         sx={{
-          zIndex: theme.zIndex.drawer + 1,
+          background: `linear-gradient(90deg, ${BRAND_PRIMARY} 0%, ${BRAND_SECONDARY} 100%)`,
+          color: BRAND_FONT,
           width: { xs: "100%", md: `calc(100% - ${DRAWER_WIDTH}px)` },
           ml: { md: `${DRAWER_WIDTH}px` },
         }}
       >
         <Toolbar>
-          {/* Mobile Menu Icon */}
           {isMobile && (
             <IconButton
               color="inherit"
@@ -196,22 +284,24 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
             </IconButton>
           )}
 
-          {/* Title */}
           <Typography variant="h6" sx={{ flex: 1, fontWeight: 700 }}>
-            Senhas - Platform Administration
+            Platform Administration
           </Typography>
 
-          {/* User Menu */}
           <IconButton
             onClick={handleMenuOpen}
-            sx={{ ml: 2 }}
+            size="small"
+            aria-label="user menu"
+            sx={{ ml: 1 }}
           >
             <Avatar
               sx={{
-                width: 32,
-                height: 32,
-                bgcolor: "secondary.main",
-                cursor: "pointer",
+                width: 34,
+                height: 34,
+                fontSize: "0.875rem",
+                bgcolor: "rgba(255,255,255,0.22)",
+                color: BRAND_FONT,
+                border: "1px solid rgba(255,255,255,0.45)",
               }}
             >
               SA
@@ -222,61 +312,63 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
             onClose={handleMenuClose}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+            transformOrigin={{ vertical: "top", horizontal: "right" }}
           >
-            <MenuItem onClick={() => router.push("/platform/profile")}>
+            <MenuItem onClick={() => { router.push("/platform/profile"); handleMenuClose(); }}>
+              <AccountIcon sx={{ mr: 1, fontSize: "1.2rem" }} />
               Profile
             </MenuItem>
             <Divider />
             <MenuItem onClick={handleLogout}>
-              <LogoutIcon sx={{ mr: 1 }} />
+              <LogoutIcon sx={{ mr: 1, fontSize: "1.2rem" }} />
               Logout
             </MenuItem>
           </Menu>
         </Toolbar>
       </AppBar>
 
-      {/* Desktop Drawer */}
-      {!isMobile && (
-        <Drawer
-          variant="permanent"
-          sx={{
-            width: DRAWER_WIDTH,
-            flexShrink: 0,
-            "& .MuiDrawer-paper": {
-              width: DRAWER_WIDTH,
-              boxSizing: "border-box",
-              mt: 0,
-            },
-          }}
-        >
-          <Box sx={{ mt: "64px" }}>{drawerContent}</Box>
-        </Drawer>
-      )}
-
-      {/* Mobile Drawer */}
-      {isMobile && (
+      {/* Navigation Drawer */}
+      <Box
+        component="nav"
+        sx={{
+          width: { md: DRAWER_WIDTH },
+          flexShrink: { md: 0 },
+        }}
+      >
+        {/* Mobile Drawer */}
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={() => setMobileOpen(false)}
+          ModalProps={{ keepMounted: true }}
           sx={{
+            display: { xs: "block", md: "none" },
             "& .MuiDrawer-paper": {
-              width: DRAWER_WIDTH,
               boxSizing: "border-box",
+              width: DRAWER_WIDTH,
             },
           }}
         >
-          <Box sx={{ mt: 2 }}>
-            <IconButton
-              onClick={() => setMobileOpen(false)}
-              sx={{ ml: "auto", display: "block" }}
-            >
-              <CloseIcon />
-            </IconButton>
-          </Box>
-          {drawerContent}
+          {drawer}
         </Drawer>
-      )}
+
+        {/* Desktop Drawer */}
+        <Drawer
+          variant="permanent"
+          sx={{
+            display: { xs: "none", md: "block" },
+            "& .MuiDrawer-paper": {
+              boxSizing: "border-box",
+              width: DRAWER_WIDTH,
+              borderRight: "1px solid #e0e0e0",
+            },
+          }}
+          open
+        >
+          {drawer}
+        </Drawer>
+      </Box>
 
       {/* Main Content */}
       <Box
@@ -285,13 +377,19 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          mt: "64px",
           overflow: "auto",
         }}
       >
-        <Box sx={{ p: 3 }}>
+        <Toolbar />
+        <Container
+          maxWidth="lg"
+          sx={{
+            py: 3,
+            px: { xs: 2, sm: 3 },
+          }}
+        >
           {children}
-        </Box>
+        </Container>
       </Box>
     </Box>
     </>
