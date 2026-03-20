@@ -222,54 +222,88 @@ export default function AdminLayout({
         backgroundColor: 'background.paper',
       }}
     >
-      <Box sx={{ p: 3, pb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-          {logoUrl && !logoFailed && (
+      <Box
+        sx={{
+          p: 2.5,
+          background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+          position: 'relative',
+        }}
+      >
+        {isMobile && (
+          <IconButton
+            onClick={handleDrawerClose}
+            size="small"
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              color: brandFont,
+              opacity: 0.8,
+              '&:hover': { opacity: 1, bgcolor: 'rgba(255,255,255,0.15)' },
+            }}
+          >
+            <ChevronLeftIcon />
+          </IconButton>
+        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {logoUrl && !logoFailed ? (
             <Box
               component="img"
               src={logoUrl}
               alt="Tenant Logo"
               onError={() => setLogoFailed(true)}
               sx={{
-                width: 32,
-                height: 32,
-                borderRadius: 1,
+                width: 52,
+                height: 52,
+                borderRadius: '50%',
                 objectFit: 'cover',
+                border: `2px solid rgba(255,255,255,0.5)`,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                flexShrink: 0,
               }}
             />
+          ) : (
+            <Avatar
+              sx={{
+                width: 52,
+                height: 52,
+                bgcolor: 'rgba(255,255,255,0.2)',
+                color: brandFont,
+                fontWeight: 700,
+                fontSize: '1.25rem',
+                border: '2px solid rgba(255,255,255,0.5)',
+              }}
+            >
+              {(tenantName || 'T').charAt(0).toUpperCase()}
+            </Avatar>
           )}
-          <Box>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography
-              variant="h6"
-              noWrap
+              variant="subtitle1"
               sx={{
                 fontWeight: 700,
-                color: 'primary.main',
-                fontSize: '1rem',
+                color: brandFont,
+                lineHeight: 1.3,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {tenantName || 'Meu Terreiro'}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: brandFont,
+                opacity: 0.75,
+                fontWeight: 500,
+                letterSpacing: 0.5,
               }}
             >
               Senhas Admin
             </Typography>
-            {tenantName && (
-              <Typography
-                variant="caption"
-                sx={{
-                  display: 'block',
-                  color: 'text.secondary',
-                }}
-              >
-                {tenantName}
-              </Typography>
-            )}
           </Box>
-          {isMobile && (
-            <IconButton
-              onClick={handleDrawerClose}
-              size="small"
-            >
-              <ChevronLeftIcon />
-            </IconButton>
-          )}
         </Box>
       </Box>
 
