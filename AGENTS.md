@@ -1,10 +1,11 @@
 # AGENTS.md - Guia Operacional para Agentes de IA
 
-Last Updated: 2026-03-18
+Last Updated: 2026-03-19
 Project: Senhas - Multi-Tenant SaaS Password Management
 Repository: leonfpontes/Senhas
 Default Branch: master
 Working Branch (atual): 001-multi-tenant-senhas
+VPS: 76.13.231.19 (Hostinger) — projeto clonado em /opt/senhas
 
 Este arquivo define como agentes de IA devem entender o sistema e como agir ao implementar mudanças com seguranca, qualidade e consistencia arquitetural.
 
@@ -189,7 +190,62 @@ Incluir obrigatoriamente:
 
 ---
 
-## 11) Diretriz Final
+## 11) Estado Atual do Sistema (Funcionalidades Implementadas)
+
+### 11.1 Email Transacional
+- **Provider primario**: Resend (API key via RESEND_API_KEY, from via RESEND_FROM_EMAIL).
+- **Fallback**: Brevo (BREVO_API_KEY, BREVO_SENDER_EMAIL, BREVO_SENDER_NAME).
+- **Templates HTML profissionais**:
+  - Template regular: cores do tenant (primary/secondary), logo grande circular com borda, info do consulente (nome, email, telefone), botao "Como chegar" via Google Maps, numero da senha em destaque.
+  - Template patrocinador: paleta ouro/preto, mensagem de gratidao especial.
+- **Seguranca**: HTML escaping em todos os campos de texto do usuario.
+- Sem QR code. Sem botao de resgate. Nome do tenant no cabecalho do email.
+
+### 11.2 Configuracao do Tenant (Admin)
+- **Campos de branding**: nome, slug, logo (upload de imagem como BYTEA), cores (primary, secondary, font).
+- **Endereco**: campo `endereco` em tenant_configs (migracao 011) — usado nos emails para o botao "Como chegar".
+- **Feature flags**: habilitacao de walk-in, patrocinadores, etc.
+
+### 11.3 Giras
+- Campo "Local" removido do formulario de criacao/edicao e da tabela — endereco agora vem da config do tenant.
+
+### 11.4 Porta (Visao da Porta)
+- Gestao em tempo real da fila de atendimento com WebSocket.
+- WebSocket URL usa `window.location.host` (sem porta hardcoded).
+- nginx tem location regex para proxy WebSocket: `location ~ ^/api/v1/admin/giras/.+/door/ws$` com upgrade headers.
+- Hook `useWebSocket` com reconexao automatica.
+- Modais: AttendModal, WalkInModal.
+
+### 11.5 Layout Admin (Sidebar)
+- Header redesenhado: fundo gradiente com cores do tenant, logo circular 52px (ou avatar fallback com inicial), nome do terreiro como texto principal (ate 2 linhas), "Senhas Admin" como label secundario.
+- Navegacao: Dashboard, Giras, Tickets, Porta, Usuarios, Analytics, Auditoria, Configuracoes.
+- Item selecionado com gradiente do tenant.
+- Footer: "Senhas v1.1 — Admin Edition".
+- Responsivo: drawer temporario no mobile, permanente no desktop.
+- Suporte a impersonacao (banner amarelo no topo).
+
+### 11.6 Perfil do Usuario
+- Upload de foto como BYTEA (armazenado no banco).
+- Avatar exibido no AppBar e no sidebar.
+
+### 11.7 Homepage Publica
+- Favicon personalizado.
+- Meta tags com Head do Next.js.
+
+### 11.8 Cadeia de Migracoes Alembic
+- 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009a + 009b → 010 (merge) → 011 (tenant endereco).
+- Migracoes 009a e 009b foram merge na 010.
+- Ultima migracao: 011_tenant_endereco.
+
+### 11.9 Infraestrutura e Deploy
+- Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).
+- VPS: 76.13.231.19 (Hostinger), projeto em /opt/senhas.
+- Dominio: girahub.com.br com SSL (Let's Encrypt).
+- nginx: proxy reverso, terminacao SSL, WebSocket proxy para /door/ws.
+
+---
+
+## 12) Diretriz Final
 
 Ao agir como agente de IA neste repositorio:
 - Priorize seguranca e isolamento de tenant acima de velocidade.
@@ -198,7 +254,7 @@ Ao agir como agente de IA neste repositorio:
 
 ---
 
-## 12) Fluxo Operacional Padrao (SOP para Agentes)
+## 13) Fluxo Operacional Padrao (SOP para Agentes)
 
 Use este fluxo em toda implementacao, do inicio ao PR:
 
@@ -229,7 +285,7 @@ Use este fluxo em toda implementacao, do inicio ao PR:
 7. Preparar PR com contexto claro:
 - Problema, solucao, impacto, testes, riscos, mitigacoes e passos de validacao.
 
-### 12.1 Gate obrigatorio antes de push/PR
+### 13.1 Gate obrigatorio antes de push/PR
 
 Antes de qualquer push:
 - Confirmar que nao existem valores reais de senha, token, API key ou credenciais.
@@ -237,7 +293,7 @@ Antes de qualquer push:
 
 ---
 
-## 13) Template de PR para Agentes
+## 14) Template de PR para Agentes
 
 Use este modelo ao abrir PR:
 
