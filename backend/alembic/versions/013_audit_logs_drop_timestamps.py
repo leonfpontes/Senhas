@@ -10,6 +10,7 @@ Create Date: 2026-03-20 15:00:00.000000
 """
 
 from alembic import op
+from sqlalchemy import inspect
 import sqlalchemy as sa
 
 
@@ -20,8 +21,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.drop_column("audit_logs", "updated_at")
-    op.drop_column("audit_logs", "deleted_at")
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    columns = [c["name"] for c in inspector.get_columns("audit_logs")]
+    if "updated_at" in columns:
+        op.drop_column("audit_logs", "updated_at")
+    if "deleted_at" in columns:
+        op.drop_column("audit_logs", "deleted_at")
 
 
 def downgrade() -> None:
