@@ -12,3 +12,4 @@ yarn-error.log*
 .env.*.local
 .coverage
 coverage/
+*.tsbuildinfo
