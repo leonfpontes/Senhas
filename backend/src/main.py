@@ -19,7 +19,7 @@ from .middleware import jwt_middleware, tenant_context_middleware, audit_logging
 from .api import auth_router
 from .api.v1.admin import admin_router
 from .api.v1.platform import platform_router
-from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router
+from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router
 from .models import (
     Tenant,
     User,
@@ -208,6 +208,7 @@ def create_app() -> FastAPI:
     app.include_router(emit_ticket_router)
     app.include_router(resend_email_router)
     app.include_router(images_router)
+    app.include_router(onboarding_router)
     
     logger.info("FastAPI app created successfully")
     return app
