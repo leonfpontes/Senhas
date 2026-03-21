@@ -31,8 +31,8 @@ class TenantConfig(TimestampedModel):
     logo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     logo_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     logo_content_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    primary_color: Mapped[str] = mapped_column(String(7), default="#000000", nullable=False)  # Hex color
-    secondary_color: Mapped[str] = mapped_column(String(7), default="#FFFFFF", nullable=False)
+    primary_color: Mapped[str] = mapped_column(String(7), default="#4f46e5", nullable=False)  # Hex color
+    secondary_color: Mapped[str] = mapped_column(String(7), default="#818cf8", nullable=False)
     
     # Address
     endereco: Mapped[str | None] = mapped_column(String(500), nullable=True)
