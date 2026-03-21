@@ -172,6 +172,7 @@ function AdminAnalyticsContent() {
       {!subLoading && !can('analytics_basico') ? (
         <UpgradePrompt feature="Analytics" minPlan="Basic" />
       ) : (
+      <>
       <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
           label="Data Início"
@@ -403,6 +404,7 @@ function AdminAnalyticsContent() {
           </Grid>
         </Grid>
       ) : null}
+      </>
       )}
     </>
   );

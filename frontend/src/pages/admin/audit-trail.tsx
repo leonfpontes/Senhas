@@ -106,6 +106,7 @@ function AdminAuditTrailContent() {
       {!subLoading && !can('auditoria') ? (
         <UpgradePrompt feature="Auditoria" minPlan="Pro" />
       ) : (
+      <>
       <Box sx={{ mb: 3 }}>
         <FormControl sx={{ minWidth: 150, mr: 2 }}>
           <InputLabel>Ação</InputLabel>
@@ -229,6 +230,7 @@ function AdminAuditTrailContent() {
           </>
         )}
       </TableContainer>
+      </>
       )}
     </>
   );
