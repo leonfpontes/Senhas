@@ -14,8 +14,10 @@ import {
   Alert,
   CircularProgress,
   Container,
+  Divider,
 } from '@mui/material';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { apiClient } from '../services/api_client';
 import { dispatchTenantBrandingUpdated } from '../providers/ThemeProvider';
 
@@ -123,6 +125,22 @@ export default function LoginPage() {
                 </Button>
               </Box>
             </form>
+
+            <Divider sx={{ my: 2 }} />
+
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Ainda não tem conta?
+              </Typography>
+              <Button
+                component={Link}
+                href="/cadastro"
+                variant="outlined"
+                fullWidth
+              >
+                Cadastre-se grátis
+              </Button>
+            </Box>
           </CardContent>
         </Card>
       </Container>

@@ -9,11 +9,12 @@
  * - Responsive design
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   AppBar,
   CssBaseline,
+  CircularProgress,
   Container,
   Drawer,
   Toolbar,
@@ -64,6 +65,30 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [authorized, setAuthorized] = useState(false);
+
+  // Guard: only super_admin may view platform pages
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("user");
+      const user = raw ? JSON.parse(raw) : null;
+      if (!user || user.role !== "super_admin") {
+        router.replace(user ? "/admin/dashboard" : "/login");
+        return;
+      }
+      setAuthorized(true);
+    } catch {
+      router.replace("/login");
+    }
+  }, [router]);
+
+  if (!authorized) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);

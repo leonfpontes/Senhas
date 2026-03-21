@@ -100,7 +100,7 @@ const PLANS = [
       '1 usuário',
       '2 giras por mês',
       'Porta (fila em tempo real)',
-      'Link público personalizável',
+      'Link público para retirar senhas',
     ],
   },
   {
@@ -111,8 +111,8 @@ const PLANS = [
       'Tudo do Free +',
       '5 usuários',
       '10 giras por mês',
-      'Email transacional',
-      'Analytics básico',
+      'Envio de senhas por e-mail',
+      'Relatório Analítico básico',
       'Tema personalizado',
     ],
   },
@@ -124,8 +124,8 @@ const PLANS = [
       'Tudo do Basic +',
       '20 usuários',
       '50 giras por mês',
-      'Associados',
-      'Analytics avançado',
+      'Gestão de Associados',
+      'Relatório Analítico avançado',
       'Export CSV',
       'Operações em lote',
       'Auditoria completa',
@@ -711,8 +711,8 @@ export default function HomePage() {
                     <Button
                       variant={plan.highlight ? 'contained' : 'outlined'}
                       fullWidth
-                      href="#contato"
-                      onClick={(e: React.MouseEvent) => smoothScroll(e, '#contato')}
+                      href={plan.price === 0 ? '/cadastro' : '#contato'}
+                      onClick={plan.price === 0 ? undefined : (e: React.MouseEvent) => smoothScroll(e, '#contato')}
                       sx={{
                         mt: 3,
                         py: 1.2,
