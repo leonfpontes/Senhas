@@ -233,9 +233,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009a + 009b → 010 (merge) → 011 (tenant endereco).
+- 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009a + 009b → 010 (merge) → 011 (tenant endereco) → ... → 015 → 016 (remove enterprise).
 - Migracoes 009a e 009b foram merge na 010.
-- Ultima migracao: 011_tenant_endereco.
+- Ultima migracao: 016_remove_enterprise_plan.
 
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).

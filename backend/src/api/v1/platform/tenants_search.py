@@ -33,7 +33,7 @@ async def require_super_admin(user: User = Depends(get_current_user)) -> User:
 @router.get("", response_model=dict)
 async def search_tenants(
     q: Optional[str] = Query(None, min_length=1, description="Search query (name or slug)"),
-    plan: Optional[str] = Query(None, description="Filter by plan: basic, pro, premium, enterprise"),
+    plan: Optional[str] = Query(None, description="Filter by plan: free, basic, pro, premium"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),

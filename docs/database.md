@@ -219,7 +219,7 @@ Plano de assinatura do tenant.
 |--------|------|------------|
 | `id` | UUID | PK |
 | `tenant_id` | UUID | FK(tenant.id) |
-| `plan_type` | ENUM | `BASIC`, `PRO`, `PREMIUM`, `ENTERPRISE` |
+| `plan_type` | ENUM | `FREE`, `BASIC`, `PRO`, `PREMIUM` |
 | `status` | ENUM | `ACTIVE`, `SUSPENDED`, `CANCELLED`, `TRIAL` |
 | `started_at` | TIMESTAMP(tz) | NOT NULL |
 | `expires_at` | TIMESTAMP(tz) | NULL |
@@ -318,10 +318,10 @@ class GiraStatus(str, Enum):
     CANCELLED = "CANCELLED"
 
 class PlanType(str, Enum):
+    FREE = "FREE"
     BASIC = "BASIC"
     PRO = "PRO"
     PREMIUM = "PREMIUM"
-    ENTERPRISE = "ENTERPRISE"
 
 class SubscriptionStatus(str, Enum):
     ACTIVE = "ACTIVE"

@@ -33,6 +33,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import AdminLayout from './admin_layout';
+import { useSubscription } from '../../hooks/useSubscription';
+import UpgradePrompt from '../../components/UpgradePrompt';
 import { apiClient } from '../../services/api_client';
 
 interface Gira {
@@ -86,7 +88,16 @@ function formatDate(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export default function AdminAnalytics() {
+export default function AdminAnalyticsPage() {
+  return (
+    <AdminLayout title="Analytics Detalhado">
+      <AdminAnalyticsContent />
+    </AdminLayout>
+  );
+}
+
+function AdminAnalyticsContent() {
+  const { can, loading: subLoading } = useSubscription();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [giras, setGiras] = useState<Gira[]>([]);
@@ -157,7 +168,10 @@ export default function AdminAnalytics() {
     : [];
 
   return (
-    <AdminLayout title="Analytics Detalhado">
+    <>
+      {!subLoading && !can('analytics_basico') ? (
+        <UpgradePrompt feature="Analytics" minPlan="Basic" />
+      ) : (
       <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
           label="Data Início"
@@ -389,6 +403,7 @@ export default function AdminAnalytics() {
           </Grid>
         </Grid>
       ) : null}
-    </AdminLayout>
+      )}
+    </>
   );
 }

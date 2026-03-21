@@ -3,7 +3,7 @@
  */
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import {
@@ -32,10 +32,11 @@ import BusinessIcon from '@mui/icons-material/Business';
 import EmailIcon from '@mui/icons-material/Email';
 import SecurityIcon from '@mui/icons-material/Security';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import PhoneIcon from '@mui/icons-material/Phone';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import MenuIcon from '@mui/icons-material/Menu';
+import StarIcon from '@mui/icons-material/Star';
 
 // ─── Design tokens ───────────────────────────────────────────────
 const T = {
@@ -59,6 +60,7 @@ const T = {
 // ─── Nav links ───────────────────────────────────────────────────
 const NAV = [
   { label: 'Funcionalidades', href: '#funcionalidades' },
+  { label: 'Planos', href: '#planos' },
   { label: 'Como Funciona', href: '#como-funciona' },
   { label: 'Contato', href: '#contato' },
 ];
@@ -87,11 +89,77 @@ const STATS = [
   { value: '24/7', label: 'Monitoramento' },
 ];
 
+// ─── Pricing plans ───────────────────────────────────────────────
+const PLANS = [
+  {
+    name: 'Free',
+    price: 0,
+    highlight: false,
+    features: [
+      'Emissão de senhas online',
+      '1 usuário',
+      '2 giras por mês',
+      'Porta (fila em tempo real)',
+      'Link público personalizável',
+    ],
+  },
+  {
+    name: 'Basic',
+    price: 49,
+    highlight: false,
+    features: [
+      'Tudo do Free +',
+      '5 usuários',
+      '10 giras por mês',
+      'Email transacional',
+      'Analytics básico',
+      'Tema personalizado',
+    ],
+  },
+  {
+    name: 'Pro',
+    price: 79,
+    highlight: true,
+    features: [
+      'Tudo do Basic +',
+      '20 usuários',
+      '50 giras por mês',
+      'Associados',
+      'Analytics avançado',
+      'Export CSV',
+      'Operações em lote',
+      'Auditoria completa',
+    ],
+  },
+  {
+    name: 'Premium',
+    price: 99,
+    highlight: false,
+    features: [
+      'Tudo do Pro +',
+      'Usuários ilimitados',
+      'Giras ilimitadas',
+      'Webhooks',
+      'API access',
+      'Suporte prioritário',
+    ],
+  },
+];
+
 // ═════════════════════════════════════════════════════════════════
 export default function HomePage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const smoothScroll = useCallback((e: React.MouseEvent, href: string) => {
+    e.preventDefault();
+    const id = href.replace('#', '');
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   // ─── Header ──────────────────────────────────────────────────
   const header = (
@@ -132,7 +200,7 @@ export default function HomePage() {
                         key={n.href}
                         component="a"
                         href={n.href}
-                        onClick={() => setDrawerOpen(false)}
+                        onClick={(e: React.MouseEvent) => { setDrawerOpen(false); smoothScroll(e, n.href); }}
                         sx={{ cursor: 'pointer' }}
                       >
                         <ListItemText primary={n.label} />
@@ -157,6 +225,7 @@ export default function HomePage() {
                   key={n.href}
                   component="a"
                   href={n.href}
+                  onClick={(e: React.MouseEvent) => smoothScroll(e, n.href)}
                   sx={{
                     color: 'rgba(255,255,255,0.8)',
                     textDecoration: 'none',
@@ -345,6 +414,7 @@ export default function HomePage() {
                   variant="contained"
                   size="large"
                   href="#contato"
+                  onClick={(e: React.MouseEvent) => smoothScroll(e, '#contato')}
                   endIcon={<ArrowForwardIcon />}
                   sx={{
                     bgcolor: T.accent,
@@ -365,6 +435,7 @@ export default function HomePage() {
                   variant="outlined"
                   size="large"
                   href="#funcionalidades"
+                  onClick={(e: React.MouseEvent) => smoothScroll(e, '#funcionalidades')}
                   sx={{
                     borderColor: 'rgba(255,255,255,0.3)',
                     color: '#fff',
@@ -434,7 +505,7 @@ export default function HomePage() {
       </Box>
 
       {/* ── Features ── */}
-      <Box id="funcionalidades" sx={{ py: { xs: 8, md: 12 }, bgcolor: T.gray }}>
+      <Box id="funcionalidades" sx={{ py: { xs: 8, md: 12 }, bgcolor: T.gray, scrollMarginTop: '80px' }}>
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 8 }}>
             <Typography
@@ -503,7 +574,7 @@ export default function HomePage() {
       </Box>
 
       {/* ── How It Works ── */}
-      <Box id="como-funciona" sx={{ py: { xs: 8, md: 12 }, bgcolor: '#fff' }}>
+      <Box id="como-funciona" sx={{ py: { xs: 8, md: 12 }, bgcolor: '#fff', scrollMarginTop: '80px' }}>
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 8 }}>
             <Typography sx={{ color: T.primary, fontWeight: 600, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
@@ -549,6 +620,119 @@ export default function HomePage() {
         </Container>
       </Box>
 
+      {/* ── Planos / Pricing ── */}
+      <Box id="planos" sx={{ py: { xs: 8, md: 12 }, bgcolor: T.gray, scrollMarginTop: '80px' }}>
+        <Container maxWidth="lg">
+          <Box sx={{ textAlign: 'center', mb: 6 }}>
+            <Typography sx={{ color: T.primary, fontWeight: 600, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
+              Planos
+            </Typography>
+            <Typography variant="h3" sx={{ fontWeight: 800, color: T.dark, mb: 2, fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
+              Escolha o plano ideal para seu terreiro
+            </Typography>
+            <Typography sx={{ color: T.body, maxWidth: 560, mx: 'auto' }}>
+              Comece gratuitamente e escale conforme sua necessidade. Todos os planos incluem emissão online de senhas.
+            </Typography>
+          </Box>
+
+          <Grid container spacing={3} justifyContent="center">
+            {PLANS.map((plan) => (
+              <Grid item xs={12} sm={6} md={3} key={plan.name}>
+                <Card
+                  elevation={0}
+                  sx={{
+                    position: 'relative',
+                    borderRadius: T.cardRadius,
+                    border: plan.highlight ? `2px solid ${T.primary}` : '1px solid rgba(0,0,0,0.06)',
+                    boxShadow: plan.highlight ? T.cardHover : T.cardShadow,
+                    transform: plan.highlight ? { md: 'scale(1.04)' } : 'none',
+                    transition: 'all 0.3s',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    '&:hover': { boxShadow: T.cardHover, transform: 'translateY(-4px)' },
+                  }}
+                >
+                  {plan.highlight && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: -1,
+                        left: '50%',
+                        transform: 'translateX(-50%) translateY(-50%)',
+                        bgcolor: T.primary,
+                        color: '#fff',
+                        px: 2,
+                        py: 0.5,
+                        borderRadius: 5,
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <StarIcon sx={{ fontSize: 14 }} />
+                      Mais Popular
+                    </Box>
+                  )}
+                  <CardContent sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <Typography fontWeight={700} sx={{ mb: 1, color: T.dark, fontSize: '1.1rem' }}>
+                      {plan.name}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 3 }}>
+                      {plan.price === 0 ? (
+                        <Typography sx={{ fontWeight: 800, fontSize: '2rem', color: T.dark }}>
+                          Grátis
+                        </Typography>
+                      ) : (
+                        <>
+                          <Typography sx={{ fontWeight: 800, fontSize: '2rem', color: T.dark }}>
+                            R${plan.price}
+                          </Typography>
+                          <Typography sx={{ color: T.muted, ml: 0.5, fontSize: '0.9rem' }}>
+                            /mês
+                          </Typography>
+                        </>
+                      )}
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      {plan.features.map((feat) => (
+                        <Box key={feat} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1.2 }}>
+                          <CheckCircleIcon sx={{ color: plan.highlight ? T.primary : T.muted, fontSize: 18, mt: '2px', flexShrink: 0 }} />
+                          <Typography sx={{ fontSize: '0.85rem', color: T.body }}>
+                            {feat}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                    <Button
+                      variant={plan.highlight ? 'contained' : 'outlined'}
+                      fullWidth
+                      href="#contato"
+                      onClick={(e: React.MouseEvent) => smoothScroll(e, '#contato')}
+                      sx={{
+                        mt: 3,
+                        py: 1.2,
+                        fontWeight: 700,
+                        textTransform: 'none',
+                        borderRadius: 2,
+                        ...(plan.highlight
+                          ? { bgcolor: T.primary, '&:hover': { bgcolor: T.primaryLight } }
+                          : { borderColor: T.primary, color: T.primary }),
+                      }}
+                    >
+                      {plan.price === 0 ? 'Começar Grátis' : 'Fale Conosco'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
       {/* ── Trust / About ── */}
       <Box sx={{ py: { xs: 8, md: 12 }, background: T.heroGradient, position: 'relative', overflow: 'hidden' }}>
         <Box sx={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: 'rgba(245,158,11,0.06)', top: -200, left: -200, filter: 'blur(80px)' }} />
@@ -584,7 +768,7 @@ export default function HomePage() {
       </Box>
 
       {/* ── Contact ── */}
-      <Box id="contato" sx={{ py: { xs: 8, md: 12 }, bgcolor: T.gray }}>
+      <Box id="contato" sx={{ py: { xs: 8, md: 12 }, bgcolor: T.gray, scrollMarginTop: '80px' }}>
         <Container maxWidth="sm">
           <Box sx={{ textAlign: 'center', mb: 6 }}>
             <Typography sx={{ color: T.primary, fontWeight: 600, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
@@ -594,7 +778,7 @@ export default function HomePage() {
               Fale conosco
             </Typography>
             <Typography sx={{ color: T.body }}>
-              Tem interesse ou dúvidas? Entre em contato por e-mail ou telefone.
+              Tem interesse ou dúvidas? Entre em contato por e-mail ou WhatsApp.
             </Typography>
           </Box>
 
@@ -617,11 +801,13 @@ export default function HomePage() {
             <Grid item xs={12} sm={6}>
               <Card elevation={0} sx={{ borderRadius: T.cardRadius, boxShadow: T.cardShadow, textAlign: 'center', border: '1px solid rgba(0,0,0,0.04)' }}>
                 <CardContent sx={{ p: 4 }}>
-                  <PhoneIcon sx={{ color: T.primary, fontSize: 40, mb: 2 }} />
-                  <Typography fontWeight={600} sx={{ mb: 1, color: T.dark }}>Telefone</Typography>
+                  <WhatsAppIcon sx={{ color: '#25D366', fontSize: 40, mb: 2 }} />
+                  <Typography fontWeight={600} sx={{ mb: 1, color: T.dark }}>WhatsApp</Typography>
                   <Typography
                     component="a"
-                    href="tel:+5516991091234"
+                    href="https://wa.me/5516991091234"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     sx={{ color: T.primary, textDecoration: 'none', fontSize: '0.95rem', '&:hover': { textDecoration: 'underline' } }}
                   >
                     (16) 99109-1234
@@ -646,6 +832,7 @@ export default function HomePage() {
             variant="contained"
             size="large"
             href="#contato"
+            onClick={(e: React.MouseEvent) => smoothScroll(e, '#contato')}
             endIcon={<ArrowForwardIcon />}
             sx={{
               bgcolor: T.accent,

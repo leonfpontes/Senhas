@@ -43,13 +43,16 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import Diversity3Icon from '@mui/icons-material/Diversity3';
+import CardMembershipIcon from '@mui/icons-material/CardMembership';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useTenant } from '@/providers/ThemeProvider';
 import { apiClient } from '@/services/api_client';
+import { SubscriptionProvider, useSubscription, PlanFeatures } from '@/hooks/useSubscription';
 
 const DRAWER_WIDTH = 280;
 
@@ -67,7 +70,15 @@ interface CurrentUserProfile {
   profile_photo_url?: string | null;
 }
 
-export default function AdminLayout({ 
+export default function AdminLayout(props: AdminLayoutProps) {
+  return (
+    <SubscriptionProvider>
+      <AdminLayoutInner {...props} />
+    </SubscriptionProvider>
+  );
+}
+
+function AdminLayoutInner({ 
   children, 
   title,
   maxWidth = 'lg',
@@ -175,10 +186,12 @@ export default function AdminLayout({
     .charAt(0)
     .toUpperCase();
 
+  const { can } = useSubscription();
+
   const cadastrosItems = [
     { text: 'Giras', icon: <EventIcon />, href: '/admin/giras' },
     { text: 'Usuários', icon: <PeopleIcon />, href: '/admin/users' },
-    { text: 'Associados', icon: <Diversity3Icon />, href: '/admin/associados' },
+    ...(can('associados') ? [{ text: 'Associados', icon: <Diversity3Icon />, href: '/admin/associados' }] : []),
   ];
 
   const cadastrosHrefs = cadastrosItems.map((i) => i.href);
@@ -192,8 +205,9 @@ export default function AdminLayout({
 
   const bottomItems = [
     { text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' },
-    { text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' },
-    { text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' },
+    ...(can('analytics_basico') ? [{ text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' }] : []),
+    ...(can('auditoria') ? [{ text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' }] : []),
+    { text: 'Plano', icon: <CardMembershipIcon />, href: '/admin/plano' },
     { text: 'Configurações', icon: <SettingsIcon />, href: '/admin/config' },
   ];
 

@@ -94,10 +94,10 @@ class SubscriptionService:
         
         # Check if really downgrading
         plan_hierarchy = {
+            PlanType.FREE: 0,
             PlanType.BASIC: 1,
             PlanType.PRO: 2,
             PlanType.PREMIUM: 3,
-            PlanType.ENTERPRISE: 4,
         }
         
         if plan_hierarchy.get(new_plan, 0) >= plan_hierarchy.get(current.plan, 0):
@@ -258,7 +258,7 @@ class SubscriptionService:
             subscription: Updated subscription
         """
         now = datetime.now(timezone.utc)
-        invoice_number = f"INV-{tenant_id}-{now.timestamp()}"
+        invoice_number = f"INV-{tenant_id.hex}-{int(now.timestamp())}"
         
         # Prorated amount (simplified)
         prorate_factor = 0.5  # Example: 50% of month remaining

@@ -40,6 +40,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
+import { useSubscription } from '../../hooks/useSubscription';
 
 interface Gira {
   id: string;
@@ -73,10 +74,56 @@ const EMPTY_SENHA_FORM = {
   sponsor_max_tickets: '', sponsor_release_start_at: '', sponsor_release_end_at: '',
 };
 
-export default function AdminGiras() {
+function GiraUsageBar({ used, max }: { used: number; max: number }) {
+  const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0;
+  const atLimit = used >= max;
+  return (
+    <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: atLimit ? 'warning.main' : 'divider' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
+        <Typography variant="body2" fontWeight={600} color="text.secondary">
+          Giras criadas este mês
+        </Typography>
+        <Typography variant="body2" fontWeight={700} color={atLimit ? 'warning.main' : 'text.primary'}>
+          {used} / {max}
+        </Typography>
+      </Box>
+      <LinearProgress
+        variant="determinate"
+        value={pct}
+        sx={{
+          height: 8,
+          borderRadius: 4,
+          bgcolor: 'grey.200',
+          '& .MuiLinearProgress-bar': {
+            borderRadius: 4,
+            bgcolor: atLimit ? 'warning.main' : pct >= 80 ? 'warning.light' : 'primary.main',
+          },
+        }}
+      />
+      {atLimit && (
+        <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
+          Limite mensal atingido. <a href="/admin/plano" style={{ fontWeight: 600, color: 'inherit' }}>Faça upgrade</a> para criar mais giras.
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+export default function AdminGirasPage() {
+  return (
+    <AdminLayout title="Gerenciar Giras">
+      <AdminGirasContent />
+    </AdminLayout>
+  );
+}
+
+function AdminGirasContent() {
+  const { subscription, canCreateGira: canCreateGiraFn, refresh: refreshSubscription } = useSubscription();
   const [giras, setGiras] = useState<Gira[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const canCreateGira = canCreateGiraFn();
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -179,6 +226,7 @@ export default function AdminGiras() {
       }
       closeDrawer();
       loadGiras();
+      refreshSubscription();
     } catch (error) {
       console.error('Error saving gira:', error);
     } finally {
@@ -199,6 +247,7 @@ export default function AdminGiras() {
       setDeleteOpen(false);
       setDeleteTarget(null);
       loadGiras();
+      refreshSubscription();
     } catch (error) {
       console.error('Error deleting gira:', error);
     }
@@ -346,7 +395,7 @@ export default function AdminGiras() {
   };
 
   return (
-    <AdminLayout title="Gerenciar Giras">
+    <>
       <Box sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h5" fontWeight={700}>Gestão de Giras</Typography>
@@ -354,11 +403,20 @@ export default function AdminGiras() {
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadGiras} disabled={loading}>
               Atualizar
             </Button>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-              Nova Gira
-            </Button>
+            <Tooltip title={!canCreateGira ? `Limite de ${subscription?.max_giras_per_month ?? 0} gira(s)/mês atingido. Faça upgrade do plano.` : ''}>
+              <span>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira}>
+                  Nova Gira
+                </Button>
+              </span>
+            </Tooltip>
           </Box>
         </Box>
+
+        {/* Gira usage progress bar — only for plans with finite limits */}
+        {subscription && subscription.max_giras_per_month < 99999 && (
+          <GiraUsageBar used={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
+        )}
       </Box>
 
       <TableContainer component={Paper}>
@@ -700,6 +758,6 @@ export default function AdminGiras() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </AdminLayout>
+    </>
   );
 }

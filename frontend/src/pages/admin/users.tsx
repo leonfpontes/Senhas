@@ -28,6 +28,7 @@ import {
   Switch,
   FormControlLabel,
   Typography,
+  Tooltip,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -37,6 +38,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
+import { useSubscription } from '../../hooks/useSubscription';
 
 interface UserItem {
   id: string;
@@ -66,6 +68,15 @@ const EMPTY_FORM: FormData = {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function AdminUsersPage() {
+  return (
+    <AdminLayout title="Usuários">
+      <AdminUsersContent />
+    </AdminLayout>
+  );
+}
+
+function AdminUsersContent() {
+  const { subscription, canCreateUser: canCreateUserCheck } = useSubscription();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +84,8 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [roleFilter, setRoleFilter] = useState<string>('');
+
+  const canCreateUser = canCreateUserCheck(users.length);
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -211,7 +224,7 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <AdminLayout title="Usuários">
+    <>
       <Box sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h5" fontWeight={700}>Gestão de Usuários</Typography>
@@ -231,9 +244,13 @@ export default function AdminUsersPage() {
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchUsers} disabled={loading}>
               Atualizar
             </Button>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={loading}>
-              Novo Usuário
-            </Button>
+            <Tooltip title={!canCreateUser ? `Limite de ${subscription?.max_users ?? 0} usuário(s) atingido. Faça upgrade do plano.` : ''}>
+              <span>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={loading || !canCreateUser}>
+                  Novo Usuário
+                </Button>
+              </span>
+            </Tooltip>
           </Box>
         </Box>
 
@@ -376,6 +393,6 @@ export default function AdminUsersPage() {
           />
         )}
       </CrudDrawer>
-    </AdminLayout>
+    </>
   );
 }

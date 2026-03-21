@@ -39,6 +39,7 @@ import AdminLayout from './admin_layout';
 import BulkActionsBar from '../../components/admin/BulkActionsBar';
 import CrudDrawer from '../../components/CrudDrawer';
 import { apiClient } from '../../services/api_client';
+import { useSubscription } from '../../hooks/useSubscription';
 
 interface Ticket {
   id: string;
@@ -60,7 +61,17 @@ interface Ticket {
 
 type GiraFilter = 'all' | 'active' | 'inactive';
 
-export default function AdminTickets() {
+export default function AdminTicketsPage() {
+  return (
+    <AdminLayout title="Tickets">
+      <AdminTicketsContent />
+    </AdminLayout>
+  );
+}
+
+function AdminTicketsContent() {
+  const { can } = useSubscription();
+  const hasBulk = can('bulk_operations');
   const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -220,7 +231,7 @@ export default function AdminTickets() {
     formData.atendimento_descricao !== originalData.atendimento_descricao;
 
   return (
-    <AdminLayout title="Tickets">
+    <>
       <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
         <FormControl size="small" sx={{ minWidth: 130 }}>
           <InputLabel>Giras</InputLabel>
@@ -324,7 +335,7 @@ export default function AdminTickets() {
         )}
       </Box>
 
-      {selectedTickets.size > 0 && (
+      {hasBulk && selectedTickets.size > 0 && (
         <BulkActionsBar
           selectedCount={selectedTickets.size}
           ticketIds={Array.from(selectedTickets)}
@@ -343,12 +354,14 @@ export default function AdminTickets() {
             <Table>
               <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
                 <TableRow>
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      checked={selectedTickets.size === tickets.length && tickets.length > 0}
-                      onChange={handleSelectAll}
-                    />
-                  </TableCell>
+                  {hasBulk && (
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={selectedTickets.size === tickets.length && tickets.length > 0}
+                        onChange={handleSelectAll}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>Número</TableCell>
                   <TableCell>Nome</TableCell>
                   <TableCell>Email</TableCell>
@@ -363,12 +376,14 @@ export default function AdminTickets() {
                 {tickets.length > 0 ? (
                   tickets.map((ticket) => (
                     <TableRow key={ticket.id}>
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          checked={selectedTickets.has(ticket.id)}
-                          onChange={() => handleSelectTicket(ticket.id)}
-                        />
-                      </TableCell>
+                      {hasBulk && (
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            checked={selectedTickets.has(ticket.id)}
+                            onChange={() => handleSelectTicket(ticket.id)}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell sx={{ fontWeight: 600 }}>#{String(ticket.numero).padStart(4, '0')}</TableCell>
                       <TableCell>{ticket.consulente_nome || '-'}</TableCell>
                       <TableCell>{ticket.consulente_email || '-'}</TableCell>
@@ -465,6 +480,6 @@ export default function AdminTickets() {
       <Snackbar open={!!error} autoHideDuration={4000} onClose={() => setError('')} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
       </Snackbar>
-    </AdminLayout>
+    </>
   );
 }

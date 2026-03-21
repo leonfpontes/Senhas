@@ -25,6 +25,8 @@ import {
 import DownloadIcon from '@mui/icons-material/GetApp';
 import InfoIcon from '@mui/icons-material/Info';
 import AdminLayout from './admin_layout';
+import { useSubscription } from '../../hooks/useSubscription';
+import UpgradePrompt from '../../components/UpgradePrompt';
 import { apiClient } from '../../services/api_client';
 
 interface AuditLog {
@@ -37,7 +39,16 @@ interface AuditLog {
   created_at: string;
 }
 
-export default function AdminAuditTrail() {
+export default function AdminAuditTrailPage() {
+  return (
+    <AdminLayout title="Auditoria">
+      <AdminAuditTrailContent />
+    </AdminLayout>
+  );
+}
+
+function AdminAuditTrailContent() {
+  const { can, loading: subLoading } = useSubscription();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -91,7 +102,10 @@ export default function AdminAuditTrail() {
   };
 
   return (
-    <AdminLayout title="Auditoria">
+    <>
+      {!subLoading && !can('auditoria') ? (
+        <UpgradePrompt feature="Auditoria" minPlan="Pro" />
+      ) : (
       <Box sx={{ mb: 3 }}>
         <FormControl sx={{ minWidth: 150, mr: 2 }}>
           <InputLabel>Ação</InputLabel>
@@ -215,6 +229,7 @@ export default function AdminAuditTrail() {
           </>
         )}
       </TableContainer>
-    </AdminLayout>
+      )}
+    </>
   );
 }

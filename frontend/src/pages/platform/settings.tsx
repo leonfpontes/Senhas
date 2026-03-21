@@ -71,12 +71,12 @@ interface FeatureFlag {
 
 const planColor = (plan: string) => {
   switch (plan) {
-    case "enterprise":
-      return "error";
     case "premium":
-      return "warning";
+      return "error";
     case "pro":
       return "primary";
+    case "basic":
+      return "info";
     default:
       return "default";
   }
@@ -324,7 +324,7 @@ const SettingsPage: React.FC = () => {
                     </Box>
 
                     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                      {["basic", "pro", "premium", "enterprise"]
+                      {["free", "basic", "pro", "premium"]
                         .filter((p) => p !== subscription.plan)
                         .map((plan) => (
                           <Button

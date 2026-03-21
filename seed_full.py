@@ -99,7 +99,6 @@ PLAN_CONFIG = {
     "BASIC":      {"price": 49.90,  "max_users": 3,  "max_giras": 10},
     "PRO":        {"price": 99.90,  "max_users": 10, "max_giras": 30},
     "PREMIUM":    {"price": 199.90, "max_users": 25, "max_giras": 100},
-    "ENTERPRISE": {"price": 399.90, "max_users": 100,"max_giras": 999},
 }
 
 
@@ -194,7 +193,7 @@ def main():
             print(f"  [+] {len(user_ids)} users (1 admin + 2 operadores)")
 
             # ── 4. Subscription ────────────────────────────────────
-            plans = ["BASIC", "PRO", "PREMIUM", "PRO", "ENTERPRISE"]
+            plans = ["BASIC", "PRO", "PREMIUM", "PRO", "PREMIUM"]
             plan = plans[i]
             cfg = PLAN_CONFIG[plan]
             sub_id = uid()
@@ -430,7 +429,7 @@ def main():
         print(f"  Tenants:        {len(TENANTS)}")
         print(f"  Users/tenant:   3 (1 admin + 2 operadores)")
         print(f"  Total users:    {len(TENANTS) * 3} + 1 superadmin")
-        print(f"  Planos:         BASIC, PRO, PREMIUM, PRO, ENTERPRISE")
+        print(f"  Planos:         BASIC, PRO, PREMIUM, PRO, PREMIUM")
         print(f"")
         print(f"  Credenciais de teste:")
         print(f"    Super Admin:  superadmin@senhas.app / superadmin123")
