@@ -74,8 +74,43 @@ const EMPTY_SENHA_FORM = {
   sponsor_max_tickets: '', sponsor_release_start_at: '', sponsor_release_end_at: '',
 };
 
+function GiraUsageBar({ used, max }: { used: number; max: number }) {
+  const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0;
+  const atLimit = used >= max;
+  return (
+    <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: atLimit ? 'warning.main' : 'divider' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
+        <Typography variant="body2" fontWeight={600} color="text.secondary">
+          Giras criadas este mês
+        </Typography>
+        <Typography variant="body2" fontWeight={700} color={atLimit ? 'warning.main' : 'text.primary'}>
+          {used} / {max}
+        </Typography>
+      </Box>
+      <LinearProgress
+        variant="determinate"
+        value={pct}
+        sx={{
+          height: 8,
+          borderRadius: 4,
+          bgcolor: 'grey.200',
+          '& .MuiLinearProgress-bar': {
+            borderRadius: 4,
+            bgcolor: atLimit ? 'warning.main' : pct >= 80 ? 'warning.light' : 'primary.main',
+          },
+        }}
+      />
+      {atLimit && (
+        <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
+          Limite mensal atingido. <a href="/admin/plano" style={{ fontWeight: 600, color: 'inherit' }}>Faça upgrade</a> para criar mais giras.
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
 export default function AdminGiras() {
-  const { subscription, canCreateGira: canCreateGiraFn } = useSubscription();
+  const { subscription, canCreateGira: canCreateGiraFn, refresh: refreshSubscription } = useSubscription();
   const [giras, setGiras] = useState<Gira[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -183,6 +218,7 @@ export default function AdminGiras() {
       }
       closeDrawer();
       loadGiras();
+      refreshSubscription();
     } catch (error) {
       console.error('Error saving gira:', error);
     } finally {
@@ -203,6 +239,7 @@ export default function AdminGiras() {
       setDeleteOpen(false);
       setDeleteTarget(null);
       loadGiras();
+      refreshSubscription();
     } catch (error) {
       console.error('Error deleting gira:', error);
     }
@@ -369,42 +406,9 @@ export default function AdminGiras() {
         </Box>
 
         {/* Gira usage progress bar — only for plans with finite limits */}
-        {subscription && subscription.max_giras_per_month < 99999 && (() => {
-          const used = subscription.current_giras_this_month;
-          const max = subscription.max_giras_per_month;
-          const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0;
-          const atLimit = used >= max;
-          return (
-            <Box sx={{ mb: 2, p: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: atLimit ? 'warning.main' : 'divider' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
-                <Typography variant="body2" fontWeight={600} color="text.secondary">
-                  Giras criadas este mês
-                </Typography>
-                <Typography variant="body2" fontWeight={700} color={atLimit ? 'warning.main' : 'text.primary'}>
-                  {used} / {max}
-                </Typography>
-              </Box>
-              <LinearProgress
-                variant="determinate"
-                value={pct}
-                sx={{
-                  height: 8,
-                  borderRadius: 4,
-                  bgcolor: 'grey.200',
-                  '& .MuiLinearProgress-bar': {
-                    borderRadius: 4,
-                    bgcolor: atLimit ? 'warning.main' : pct >= 80 ? 'warning.light' : 'primary.main',
-                  },
-                }}
-              />
-              {atLimit && (
-                <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
-                  Limite mensal atingido. <a href="/admin/plano" style={{ fontWeight: 600, color: 'inherit' }}>Faça upgrade</a> para criar mais giras.
-                </Typography>
-              )}
-            </Box>
-          );
-        })()}
+        {subscription && subscription.max_giras_per_month < 99999 && (
+          <GiraUsageBar used={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
+        )}
       </Box>
 
       <TableContainer component={Paper}>
