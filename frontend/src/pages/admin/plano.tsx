@@ -50,7 +50,6 @@ const PLAN_DISPLAY: Record<string, { label: string; color: string }> = {
   basic: { label: 'Basic', color: '#3b82f6' },
   pro: { label: 'Pro', color: '#8b5cf6' },
   premium: { label: 'Premium', color: '#f59e0b' },
-  enterprise: { label: 'Enterprise', color: '#10b981' },
 };
 
 interface PlanFeature {
@@ -67,9 +66,9 @@ const FEATURES: PlanFeature[] = [
   { label: 'Link público personalizável', free: true, basic: true, pro: true, premium: true },
   { label: 'Usuários', free: '1', basic: '5', pro: '20', premium: 'Ilimitado' },
   { label: 'Giras por mês', free: '2', basic: '10', pro: '50', premium: 'Ilimitado' },
-  { label: 'Email transacional', free: false, basic: true, pro: true, premium: true },
-  { label: 'Tema personalizado', free: false, basic: true, pro: true, premium: true },
-  { label: 'Analytics básico', free: false, basic: true, pro: true, premium: true },
+  { label: 'Email transacional', free: false, basic: false, pro: true, premium: true },
+  { label: 'Tema personalizado', free: false, basic: false, pro: true, premium: true },
+  { label: 'Analytics básico', free: false, basic: false, pro: true, premium: true },
   { label: 'Associados', free: false, basic: false, pro: true, premium: true },
   { label: 'Analytics avançado', free: false, basic: false, pro: true, premium: true },
   { label: 'Export CSV', free: false, basic: false, pro: true, premium: true },

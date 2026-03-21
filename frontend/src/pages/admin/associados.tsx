@@ -47,7 +47,15 @@ interface Associado {
 
 const EMPTY_FORM = { nome: '', email: '', telefone: '' };
 
-export default function AdminAssociados() {
+export default function AdminAssociadosPage() {
+  return (
+    <AdminLayout title="Associados">
+      <AdminAssociadosContent />
+    </AdminLayout>
+  );
+}
+
+function AdminAssociadosContent() {
   const { can, loading: subLoading } = useSubscription();
   const [associados, setAssociados] = useState<Associado[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,7 +200,7 @@ export default function AdminAssociados() {
   };
 
   return (
-    <AdminLayout title="Associados">
+    <>
       {!subLoading && !can('associados') ? (
         <UpgradePrompt feature="Associados" minPlan="Pro" />
       ) : (
@@ -336,6 +344,6 @@ export default function AdminAssociados() {
       </Snackbar>
       </>
       )}
-    </AdminLayout>
+    </>
   );
 }

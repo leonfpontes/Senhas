@@ -39,7 +39,15 @@ interface AuditLog {
   created_at: string;
 }
 
-export default function AdminAuditTrail() {
+export default function AdminAuditTrailPage() {
+  return (
+    <AdminLayout title="Auditoria">
+      <AdminAuditTrailContent />
+    </AdminLayout>
+  );
+}
+
+function AdminAuditTrailContent() {
   const { can, loading: subLoading } = useSubscription();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,7 +102,7 @@ export default function AdminAuditTrail() {
   };
 
   return (
-    <AdminLayout title="Auditoria">
+    <>
       {!subLoading && !can('auditoria') ? (
         <UpgradePrompt feature="Auditoria" minPlan="Pro" />
       ) : (
@@ -222,6 +230,6 @@ export default function AdminAuditTrail() {
         )}
       </TableContainer>
       )}
-    </AdminLayout>
+    </>
   );
 }

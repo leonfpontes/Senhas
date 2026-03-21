@@ -68,6 +68,14 @@ const EMPTY_FORM: FormData = {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function AdminUsersPage() {
+  return (
+    <AdminLayout title="Usuários">
+      <AdminUsersContent />
+    </AdminLayout>
+  );
+}
+
+function AdminUsersContent() {
   const { subscription, canCreateUser: canCreateUserCheck } = useSubscription();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -216,7 +224,7 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <AdminLayout title="Usuários">
+    <>
       <Box sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h5" fontWeight={700}>Gestão de Usuários</Typography>
@@ -385,6 +393,6 @@ export default function AdminUsersPage() {
           />
         )}
       </CrudDrawer>
-    </AdminLayout>
+    </>
   );
 }

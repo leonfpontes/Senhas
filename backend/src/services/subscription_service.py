@@ -98,7 +98,6 @@ class SubscriptionService:
             PlanType.BASIC: 1,
             PlanType.PRO: 2,
             PlanType.PREMIUM: 3,
-            PlanType.ENTERPRISE: 4,
         }
         
         if plan_hierarchy.get(new_plan, 0) >= plan_hierarchy.get(current.plan, 0):

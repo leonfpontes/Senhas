@@ -262,7 +262,15 @@ const getFontColor = (config: TenantConfig | null): string => {
   return typeof raw === 'string' ? raw : '#FFFFFF';
 };
 
-export default function AdminConfig() {
+export default function AdminConfigPage() {
+  return (
+    <AdminLayout title="Configurações" maxWidth="xl">
+      <AdminConfigContent />
+    </AdminLayout>
+  );
+}
+
+function AdminConfigContent() {
   const { can } = useSubscription();
   const [config, setConfig] = useState<TenantConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -425,25 +433,20 @@ export default function AdminConfig() {
 
   if (loading) {
     return (
-      <AdminLayout title="Configurações" maxWidth="xl">
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
-          <CircularProgress />
-        </Box>
-      </AdminLayout>
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
+        <CircularProgress />
+      </Box>
     );
   }
 
   if (!config) {
     return (
-      <AdminLayout title="Configurações" maxWidth="xl">
-        <Alert severity="error">Erro ao carregar configurações do tenant.</Alert>
-      </AdminLayout>
+      <Alert severity="error">Erro ao carregar configurações do tenant.</Alert>
     );
   }
 
   return (
-    <AdminLayout title="Configurações" maxWidth="xl">
-      <Stack spacing={3}>
+    <Stack spacing={3}>
         {feedback && (
           <Alert severity={feedback.severity} onClose={() => setFeedback(null)}>
             {feedback.text}
@@ -823,6 +826,7 @@ export default function AdminConfig() {
                       if (item.field === 'enable_webhooks' && !can('webhooks')) return false;
                       if (item.field === 'enable_bulk_operations' && !can('bulk_operations')) return false;
                       if (item.field === 'enable_analytics' && !can('analytics_basico')) return false;
+                      if (item.field === 'validate_associado_on_emit' && !can('associados')) return false;
                       return true;
                     }).map((item) => (
                       <Grid item xs={12} md={6} key={item.field}>
@@ -841,7 +845,7 @@ export default function AdminConfig() {
             </Card>
           </Grid>
 
-          <Grid item xs={12}>
+          {can('associados') && <Grid item xs={12}>
             <Card sx={{ borderRadius: 4 }}>
               <CardContent sx={{ p: { xs: 3, md: 3.5 } }}>
                 <Stack spacing={3}>
@@ -903,7 +907,7 @@ export default function AdminConfig() {
                 </Stack>
               </CardContent>
             </Card>
-          </Grid>
+          </Grid>}
         </Grid>
 
         <Paper
@@ -942,6 +946,5 @@ export default function AdminConfig() {
           </Stack>
         </Paper>
       </Stack>
-    </AdminLayout>
   );
 }

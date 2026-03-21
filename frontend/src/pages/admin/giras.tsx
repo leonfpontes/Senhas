@@ -109,7 +109,15 @@ function GiraUsageBar({ used, max }: { used: number; max: number }) {
   );
 }
 
-export default function AdminGiras() {
+export default function AdminGirasPage() {
+  return (
+    <AdminLayout title="Gerenciar Giras">
+      <AdminGirasContent />
+    </AdminLayout>
+  );
+}
+
+function AdminGirasContent() {
   const { subscription, canCreateGira: canCreateGiraFn, refresh: refreshSubscription } = useSubscription();
   const [giras, setGiras] = useState<Gira[]>([]);
   const [loading, setLoading] = useState(true);
@@ -387,7 +395,7 @@ export default function AdminGiras() {
   };
 
   return (
-    <AdminLayout title="Gerenciar Giras">
+    <>
       <Box sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h5" fontWeight={700}>Gestão de Giras</Typography>
@@ -750,6 +758,6 @@ export default function AdminGiras() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </AdminLayout>
+    </>
   );
 }

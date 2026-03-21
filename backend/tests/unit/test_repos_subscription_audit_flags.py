@@ -144,13 +144,6 @@ class TestSubscriptionRepository:
         config = r._get_plan_config(PlanType.PREMIUM)
         assert config["max_users"] == 99999
 
-    def test_get_plan_config_enterprise(self):
-        from src.repositories.subscription_repo import SubscriptionRepository
-        from src.models import PlanType
-        r = SubscriptionRepository(_mock_db())
-        config = r._get_plan_config(PlanType.ENTERPRISE)
-        assert config["max_users"] == 99999
-
     def test_get_plan_config_unknown(self):
         from src.repositories.subscription_repo import SubscriptionRepository
         from src.models import PlanType

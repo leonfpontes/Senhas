@@ -88,7 +88,15 @@ function formatDate(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export default function AdminAnalytics() {
+export default function AdminAnalyticsPage() {
+  return (
+    <AdminLayout title="Analytics Detalhado">
+      <AdminAnalyticsContent />
+    </AdminLayout>
+  );
+}
+
+function AdminAnalyticsContent() {
   const { can, loading: subLoading } = useSubscription();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,7 +168,7 @@ export default function AdminAnalytics() {
     : [];
 
   return (
-    <AdminLayout title="Analytics Detalhado">
+    <>
       {!subLoading && !can('analytics_basico') ? (
         <UpgradePrompt feature="Analytics" minPlan="Basic" />
       ) : (
@@ -396,6 +404,6 @@ export default function AdminAnalytics() {
         </Grid>
       ) : null}
       )}
-    </AdminLayout>
+    </>
   );
 }

@@ -66,7 +66,6 @@ const PLAN_LABELS: Record<string, string> = {
   basic: 'Basic',
   pro: 'Pro',
   premium: 'Premium',
-  enterprise: 'Enterprise',
 };
 
 const SubscriptionContext = createContext<SubscriptionContextValue>({

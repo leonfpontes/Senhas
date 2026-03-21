@@ -382,7 +382,6 @@ const TenantsPage: React.FC = () => {
                 <MenuItem value="basic">Basic</MenuItem>
                 <MenuItem value="pro">Pro</MenuItem>
                 <MenuItem value="premium">Premium</MenuItem>
-                <MenuItem value="enterprise">Enterprise</MenuItem>
               </Select>
             </FormControl>
           </>

@@ -61,7 +61,15 @@ interface Ticket {
 
 type GiraFilter = 'all' | 'active' | 'inactive';
 
-export default function AdminTickets() {
+export default function AdminTicketsPage() {
+  return (
+    <AdminLayout title="Tickets">
+      <AdminTicketsContent />
+    </AdminLayout>
+  );
+}
+
+function AdminTicketsContent() {
   const { can } = useSubscription();
   const hasBulk = can('bulk_operations');
   const router = useRouter();
@@ -223,7 +231,7 @@ export default function AdminTickets() {
     formData.atendimento_descricao !== originalData.atendimento_descricao;
 
   return (
-    <AdminLayout title="Tickets">
+    <>
       <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
         <FormControl size="small" sx={{ minWidth: 130 }}>
           <InputLabel>Giras</InputLabel>
@@ -472,6 +480,6 @@ export default function AdminTickets() {
       <Snackbar open={!!error} autoHideDuration={4000} onClose={() => setError('')} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
       </Snackbar>
-    </AdminLayout>
+    </>
   );
 }

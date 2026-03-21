@@ -24,7 +24,6 @@ _PLAN_TIER = {
     PlanType.BASIC: 1,
     PlanType.PRO: 2,
     PlanType.PREMIUM: 3,
-    PlanType.ENTERPRISE: 4,
 }
 
 
@@ -61,9 +60,9 @@ def _get_plan_features(plan: PlanType) -> PlanFeatures:
     """Derive feature flags from plan tier."""
     tier = _PLAN_TIER.get(plan, 0)
     return PlanFeatures(
-        email_transacional=tier >= 1,
-        tema_personalizado=tier >= 1,
-        analytics_basico=tier >= 1,
+        email_transacional=tier >= 2,
+        tema_personalizado=tier >= 2,
+        analytics_basico=tier >= 2,
         analytics_avancado=tier >= 2,
         associados=tier >= 2,
         export_csv=tier >= 2,

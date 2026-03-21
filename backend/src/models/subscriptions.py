@@ -16,7 +16,6 @@ class PlanType(str, enum.Enum):
     BASIC = "basic"            # 5 users, 10 giras/month, R$49/month
     PRO = "pro"                # 20 users, 50 giras/month, R$79/month
     PREMIUM = "premium"        # Unlimited, R$99/month
-    ENTERPRISE = "enterprise"  # Unlimited, custom SLA, custom pricing
 
 
 class SubscriptionStatus(str, enum.Enum):
@@ -32,7 +31,7 @@ class Subscription(TimestampedModel):
     """Tenant subscription model.
     
     Tracks:
-    - Current plan (basic, pro, premium, enterprise)
+    - Current plan (free, basic, pro, premium)
     - Billing info (price, cycle)
     - Usage limits
     - Trial status

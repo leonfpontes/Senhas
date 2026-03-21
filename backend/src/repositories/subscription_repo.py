@@ -181,10 +181,5 @@ class SubscriptionRepository(BaseRepository[Subscription]):
                 "max_giras_per_month": 999999,
                 "price": 99.0,
             },
-            PlanType.ENTERPRISE: {
-                "max_users": 99999,  # Effectively unlimited
-                "max_giras_per_month": 999999,
-                "price": 0.0,  # Custom pricing
-            },
         }
         return configs.get(plan, configs[PlanType.FREE])
