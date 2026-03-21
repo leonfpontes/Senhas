@@ -210,6 +210,13 @@ export default function HomePage() {
                     ))}
                     <Divider sx={{ my: 1 }} />
                     <ListItem>
+                      <Link href="/cadastro" passHref legacyBehavior>
+                        <Button variant="outlined" fullWidth sx={{ borderColor: T.accent, color: T.accent, fontWeight: 600, '&:hover': { bgcolor: 'rgba(245,158,11,0.08)' } }}>
+                          Cadastre-se
+                        </Button>
+                      </Link>
+                    </ListItem>
+                    <ListItem>
                       <Link href="/login" passHref legacyBehavior>
                         <Button variant="contained" fullWidth sx={{ bgcolor: T.accent, color: '#000', fontWeight: 600, '&:hover': { bgcolor: T.accentHover } }}>
                           Entrar
@@ -240,6 +247,22 @@ export default function HomePage() {
                   {n.label}
                 </Typography>
               ))}
+              <Link href="/cadastro" passHref legacyBehavior>
+                <Button
+                  variant="outlined"
+                  sx={{
+                    borderColor: 'rgba(255,255,255,0.5)',
+                    color: '#fff',
+                    fontWeight: 600,
+                    px: 3,
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.08)' },
+                  }}
+                >
+                  Cadastre-se
+                </Button>
+              </Link>
               <Link href="/login" passHref legacyBehavior>
                 <Button
                   variant="contained"
