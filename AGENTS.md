@@ -192,7 +192,7 @@ Incluir obrigatoriamente:
 
 ## 11) Estado Atual do Sistema (Funcionalidades Implementadas)
 
-### 11.1 Email Transacional
+### 11.1 Envio de senhas por e-mail
 - **Provider primario**: Resend (API key via RESEND_API_KEY, from via RESEND_FROM_EMAIL).
 - **Fallback**: Brevo (BREVO_API_KEY, BREVO_SENDER_EMAIL, BREVO_SENDER_NAME).
 - **Templates HTML profissionais**:
