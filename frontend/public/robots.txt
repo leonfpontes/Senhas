@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /platform/
+Disallow: /api/
+
+Sitemap: https://girahub.com.br/sitemap.xml

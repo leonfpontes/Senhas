@@ -1,5 +1,5 @@
 /**
- * Girahub Landing Page — Professional SaaS homepage
+ * GiraHub Landing Page — Professional SaaS homepage
  */
 'use client';
 
@@ -165,6 +165,8 @@ export default function HomePage() {
   const header = (
     <AppBar
       position="fixed"
+      component="nav"
+      aria-label="Navegação principal"
       elevation={0}
       sx={{
         background: T.headerBg,
@@ -178,7 +180,7 @@ export default function HomePage() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 'auto' }}>
             <ConfirmationNumberIcon sx={{ color: T.accent, fontSize: 32 }} />
             <Typography variant="h6" sx={{ color: '#fff', fontWeight: 700, letterSpacing: '-0.02em' }}>
-              Girahub
+              GiraHub
             </Typography>
           </Box>
 
@@ -191,7 +193,7 @@ export default function HomePage() {
                 <Box sx={{ width: 260, pt: 2 }}>
                   <Box sx={{ px: 2, pb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <ConfirmationNumberIcon sx={{ color: T.accent }} />
-                    <Typography fontWeight={700}>Girahub</Typography>
+                    <Typography fontWeight={700}>GiraHub</Typography>
                   </Box>
                   <Divider />
                   <List>
@@ -270,7 +272,7 @@ export default function HomePage() {
           <Grid item xs={12} md={4}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
               <ConfirmationNumberIcon sx={{ color: T.accent }} />
-              <Typography variant="h6" fontWeight={700}>Girahub</Typography>
+              <Typography variant="h6" fontWeight={700}>GiraHub</Typography>
             </Box>
             <Typography sx={{ color: T.muted, fontSize: '0.9rem', lineHeight: 1.7 }}>
               Plataforma moderna para gestão de senhas e giras em terreiros de Umbanda.
@@ -323,7 +325,7 @@ export default function HomePage() {
         </Grid>
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)', my: 4 }} />
         <Typography sx={{ color: T.muted, fontSize: '0.8rem', textAlign: 'center' }}>
-          © {new Date().getFullYear()} Girahub. Todos os direitos reservados.
+          © {new Date().getFullYear()} GiraHub. Todos os direitos reservados.
         </Typography>
       </Container>
     </Box>
@@ -333,8 +335,57 @@ export default function HomePage() {
   return (
     <>
       <Head>
-        <title>Girahub — Gestão de Senhas e Giras para Terreiros</title>
-        <meta name="description" content="Plataforma moderna para emissão e gestão de senhas em terreiros de Umbanda. Multi-terreiro, LGPD, 100% online." />
+        <title>GiraHub — Gestão de Senhas e Giras para Terreiros de Umbanda</title>
+        <meta name="description" content="Plataforma moderna para emissão e gestão de senhas em terreiros de Umbanda. Multi-terreiro, LGPD, 100% online. Comece grátis." />
+        {/* Canonical */}
+        <link rel="canonical" href="https://girahub.com.br/" />
+        {/* Open Graph */}
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://girahub.com.br/" />
+        <meta property="og:title" content="GiraHub — Gestão de Senhas e Giras para Terreiros" />
+        <meta property="og:description" content="Plataforma moderna para emissão e gestão de senhas em terreiros de Umbanda. Multi-terreiro, LGPD, 100% online." />
+        <meta property="og:locale" content="pt_BR" />
+        <meta property="og:site_name" content="GiraHub" />
+        {/* Twitter Card */}
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="GiraHub — Gestão de Senhas e Giras para Terreiros" />
+        <meta name="twitter:description" content="Plataforma moderna para emissão e gestão de senhas em terreiros de Umbanda. Multi-terreiro, LGPD, 100% online." />
+        {/* JSON-LD Structured Data */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@graph': [
+                {
+                  '@type': 'Organization',
+                  name: 'GiraHub',
+                  url: 'https://girahub.com.br',
+                  description: 'Plataforma moderna para gestão de senhas e giras em terreiros de Umbanda.',
+                  contactPoint: {
+                    '@type': 'ContactPoint',
+                    email: 'leonfpontes@gmail.com',
+                    contactType: 'customer support',
+                    availableLanguage: 'Portuguese',
+                  },
+                },
+                {
+                  '@type': 'SoftwareApplication',
+                  name: 'GiraHub',
+                  applicationCategory: 'BusinessApplication',
+                  operatingSystem: 'Web',
+                  description: 'Emissão e gestão de senhas para terreiros de Umbanda. Multi-terreiro, LGPD, 100% online.',
+                  offers: {
+                    '@type': 'Offer',
+                    price: '0',
+                    priceCurrency: 'BRL',
+                    description: 'Plano Free — emissão de senhas, 1 usuário, 2 giras por mês',
+                  },
+                },
+              ],
+            }),
+          }}
+        />
       </Head>
 
       {header}
@@ -520,7 +571,7 @@ export default function HomePage() {
             >
               Funcionalidades
             </Typography>
-            <Typography variant="h3" sx={{ fontWeight: 800, color: T.dark, mb: 2, fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
+            <Typography variant="h2" sx={{ fontWeight: 800, color: T.dark, mb: 2, fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
               Tudo que seu terreiro precisa
             </Typography>
             <Typography sx={{ color: T.body, maxWidth: 600, mx: 'auto', fontSize: '1.05rem' }}>
@@ -559,7 +610,7 @@ export default function HomePage() {
                     >
                       {f.icon}
                     </Box>
-                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, color: T.dark, fontSize: '1.1rem' }}>
+                    <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, color: T.dark, fontSize: '1.1rem' }}>
                       {f.title}
                     </Typography>
                     <Typography sx={{ color: T.body, lineHeight: 1.7, fontSize: '0.93rem' }}>
@@ -580,7 +631,7 @@ export default function HomePage() {
             <Typography sx={{ color: T.primary, fontWeight: 600, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
               Como Funciona
             </Typography>
-            <Typography variant="h3" sx={{ fontWeight: 800, color: T.dark, mb: 2, fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
+            <Typography variant="h2" sx={{ fontWeight: 800, color: T.dark, mb: 2, fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
               Simples como deve ser
             </Typography>
           </Box>
@@ -605,7 +656,7 @@ export default function HomePage() {
                     >
                       <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '1.3rem' }}>{s.num}</Typography>
                     </Box>
-                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, color: T.dark }}>{s.title}</Typography>
+                    <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, color: T.dark, fontSize: '1rem' }}>{s.title}</Typography>
                     <Typography sx={{ color: T.body, lineHeight: 1.7 }}>{s.desc}</Typography>
                   </Box>
                 </Grid>
@@ -627,7 +678,7 @@ export default function HomePage() {
             <Typography sx={{ color: T.primary, fontWeight: 600, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
               Planos
             </Typography>
-            <Typography variant="h3" sx={{ fontWeight: 800, color: T.dark, mb: 2, fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
+            <Typography variant="h2" sx={{ fontWeight: 800, color: T.dark, mb: 2, fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
               Escolha o plano ideal para seu terreiro
             </Typography>
             <Typography sx={{ color: T.body, maxWidth: 560, mx: 'auto' }}>
@@ -740,12 +791,12 @@ export default function HomePage() {
         <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
           <Grid container spacing={6} alignItems="center">
             <Grid item xs={12} md={7}>
-              <Typography variant="h3" sx={{ color: '#fff', fontWeight: 800, mb: 3, fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
+              <Typography variant="h2" sx={{ color: '#fff', fontWeight: 800, mb: 3, fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
                 Construído para a{' '}
                 <Box component="span" sx={{ color: T.accent }}>comunidade espiritual</Box>
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.75)', fontSize: '1.1rem', lineHeight: 1.8, mb: 4, maxWidth: 520 }}>
-                O Girahub nasceu da necessidade real de terreiros que buscavam modernizar sua organização
+                O GiraHub nasceu da necessidade real de terreiros que buscavam modernizar sua organização
                 sem perder a essência espiritual. Nossa plataforma respeita a tradição enquanto traz a
                 eficiência da tecnologia.
               </Typography>
@@ -775,7 +826,7 @@ export default function HomePage() {
             <Typography sx={{ color: T.primary, fontWeight: 600, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
               Contato
             </Typography>
-            <Typography variant="h3" sx={{ fontWeight: 800, color: T.dark, mb: 2, fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
+            <Typography variant="h2" sx={{ fontWeight: 800, color: T.dark, mb: 2, fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
               Fale conosco
             </Typography>
             <Typography sx={{ color: T.body }}>
@@ -823,7 +874,7 @@ export default function HomePage() {
       {/* ── CTA ── */}
       <Box sx={{ py: { xs: 8, md: 10 }, bgcolor: T.deep, textAlign: 'center' }}>
         <Container maxWidth="sm">
-          <Typography variant="h4" sx={{ color: '#fff', fontWeight: 800, mb: 2, fontSize: { xs: '1.6rem', md: '2rem' } }}>
+          <Typography variant="h2" sx={{ color: '#fff', fontWeight: 800, mb: 2, fontSize: { xs: '1.6rem', md: '2rem' } }}>
             Pronto para modernizar seu terreiro?
           </Typography>
           <Typography sx={{ color: 'rgba(255,255,255,0.7)', mb: 4 }}>
