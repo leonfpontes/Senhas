@@ -75,12 +75,12 @@ const EMPTY_SENHA_FORM = {
 };
 
 export default function AdminGiras() {
-  const { subscription, canCreateGira: canCreateGiraCheck } = useSubscription();
+  const { subscription, canCreateGira: canCreateGiraFn } = useSubscription();
   const [giras, setGiras] = useState<Gira[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const canCreateGira = canCreateGiraCheck(giras.length);
+  const canCreateGira = canCreateGiraFn();
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -367,6 +367,44 @@ export default function AdminGiras() {
             </Tooltip>
           </Box>
         </Box>
+
+        {/* Gira usage progress bar — only for plans with finite limits */}
+        {subscription && subscription.max_giras_per_month < 99999 && (() => {
+          const used = subscription.current_giras_this_month;
+          const max = subscription.max_giras_per_month;
+          const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0;
+          const atLimit = used >= max;
+          return (
+            <Box sx={{ mb: 2, p: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: atLimit ? 'warning.main' : 'divider' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
+                <Typography variant="body2" fontWeight={600} color="text.secondary">
+                  Giras criadas este mês
+                </Typography>
+                <Typography variant="body2" fontWeight={700} color={atLimit ? 'warning.main' : 'text.primary'}>
+                  {used} / {max}
+                </Typography>
+              </Box>
+              <LinearProgress
+                variant="determinate"
+                value={pct}
+                sx={{
+                  height: 8,
+                  borderRadius: 4,
+                  bgcolor: 'grey.200',
+                  '& .MuiLinearProgress-bar': {
+                    borderRadius: 4,
+                    bgcolor: atLimit ? 'warning.main' : pct >= 80 ? 'warning.light' : 'primary.main',
+                  },
+                }}
+              />
+              {atLimit && (
+                <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
+                  Limite mensal atingido. <a href="/admin/plano" style={{ fontWeight: 600, color: 'inherit' }}>Faça upgrade</a> para criar mais giras.
+                </Typography>
+              )}
+            </Box>
+          );
+        })()}
       </Box>
 
       <TableContainer component={Paper}>

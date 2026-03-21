@@ -24,6 +24,7 @@ export interface SubscriptionInfo {
   max_users: number;
   max_giras_per_month: number;
   current_users: number;
+  current_giras_this_month: number;
   monthly_price: number;
   is_trial: boolean;
   trial_ends_at: string | null;
@@ -38,7 +39,8 @@ interface SubscriptionContextValue {
   can: (feature: keyof PlanFeatures) => boolean;
   /** Check if adding one more would exceed the limit */
   canCreateUser: (currentCount: number) => boolean;
-  canCreateGira: (currentCount: number) => boolean;
+  /** Check if the monthly gira limit allows creating another gira */
+  canCreateGira: () => boolean;
   /** Re-fetch subscription data */
   refresh: () => void;
   /** Friendly plan display name */
@@ -113,9 +115,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   );
 
   const canCreateGira = useCallback(
-    (currentCount: number) => {
+    () => {
       if (!subscription) return false;
-      return currentCount < subscription.max_giras_per_month;
+      return subscription.current_giras_this_month < subscription.max_giras_per_month;
     },
     [subscription],
   );

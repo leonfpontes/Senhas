@@ -1,13 +1,16 @@
 """Admin endpoint — current tenant subscription info (read-only)."""
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.models import User
+from src.models.giras import Gira
 from src.models.subscriptions import PlanType
 from src.api.dependencies import get_current_user
 from src.repositories.subscription_repo import SubscriptionRepository
@@ -46,6 +49,7 @@ class SubscriptionInfoResponse(BaseModel):
     max_users: int
     max_giras_per_month: int
     current_users: int
+    current_giras_this_month: int
     monthly_price: float
     is_trial: bool
     trial_ends_at: Optional[str] = None
@@ -83,6 +87,19 @@ async def get_tenant_subscription(
     repo = SubscriptionRepository(db)
     sub = await repo.get_by_tenant(tenant_id)
 
+    # Count giras created this calendar month (excluding soft-deleted)
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    giras_stmt = select(func.count()).select_from(Gira).where(
+        and_(
+            Gira.tenant_id == tenant_id,
+            Gira.created_at >= month_start,
+            Gira.deleted_at.is_(None),
+        )
+    )
+    giras_result = await db.execute(giras_stmt)
+    current_giras_this_month = giras_result.scalar() or 0
+
     if not sub:
         return SubscriptionInfoResponse(
             plan="free",
@@ -90,6 +107,7 @@ async def get_tenant_subscription(
             max_users=1,
             max_giras_per_month=2,
             current_users=0,
+            current_giras_this_month=current_giras_this_month,
             monthly_price=0.0,
             is_trial=False,
             auto_renew=False,
@@ -102,6 +120,7 @@ async def get_tenant_subscription(
         max_users=sub.max_users,
         max_giras_per_month=sub.max_giras_per_month,
         current_users=sub.current_users,
+        current_giras_this_month=current_giras_this_month,
         monthly_price=sub.monthly_price,
         is_trial=sub.is_trial,
         trial_ends_at=sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
