@@ -40,6 +40,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
+import { useSubscription } from '../../hooks/useSubscription';
 
 interface Gira {
   id: string;
@@ -74,9 +75,12 @@ const EMPTY_SENHA_FORM = {
 };
 
 export default function AdminGiras() {
+  const { subscription, canCreateGira: canCreateGiraCheck } = useSubscription();
   const [giras, setGiras] = useState<Gira[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const canCreateGira = canCreateGiraCheck(giras.length);
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -354,9 +358,13 @@ export default function AdminGiras() {
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadGiras} disabled={loading}>
               Atualizar
             </Button>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-              Nova Gira
-            </Button>
+            <Tooltip title={!canCreateGira ? `Limite de ${subscription?.max_giras_per_month ?? 0} gira(s)/mês atingido. Faça upgrade do plano.` : ''}>
+              <span>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira}>
+                  Nova Gira
+                </Button>
+              </span>
+            </Tooltip>
           </Box>
         </Box>
       </Box>

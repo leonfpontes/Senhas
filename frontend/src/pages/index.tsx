@@ -3,7 +3,7 @@
  */
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import {
@@ -152,6 +152,15 @@ export default function HomePage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  const smoothScroll = useCallback((e: React.MouseEvent, href: string) => {
+    e.preventDefault();
+    const id = href.replace('#', '');
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
   // ─── Header ──────────────────────────────────────────────────
   const header = (
     <AppBar
@@ -191,7 +200,7 @@ export default function HomePage() {
                         key={n.href}
                         component="a"
                         href={n.href}
-                        onClick={() => setDrawerOpen(false)}
+                        onClick={(e: React.MouseEvent) => { setDrawerOpen(false); smoothScroll(e, n.href); }}
                         sx={{ cursor: 'pointer' }}
                       >
                         <ListItemText primary={n.label} />
@@ -216,6 +225,7 @@ export default function HomePage() {
                   key={n.href}
                   component="a"
                   href={n.href}
+                  onClick={(e: React.MouseEvent) => smoothScroll(e, n.href)}
                   sx={{
                     color: 'rgba(255,255,255,0.8)',
                     textDecoration: 'none',
@@ -404,6 +414,7 @@ export default function HomePage() {
                   variant="contained"
                   size="large"
                   href="#contato"
+                  onClick={(e: React.MouseEvent) => smoothScroll(e, '#contato')}
                   endIcon={<ArrowForwardIcon />}
                   sx={{
                     bgcolor: T.accent,
@@ -424,6 +435,7 @@ export default function HomePage() {
                   variant="outlined"
                   size="large"
                   href="#funcionalidades"
+                  onClick={(e: React.MouseEvent) => smoothScroll(e, '#funcionalidades')}
                   sx={{
                     borderColor: 'rgba(255,255,255,0.3)',
                     color: '#fff',
@@ -493,7 +505,7 @@ export default function HomePage() {
       </Box>
 
       {/* ── Features ── */}
-      <Box id="funcionalidades" sx={{ py: { xs: 8, md: 12 }, bgcolor: T.gray }}>
+      <Box id="funcionalidades" sx={{ py: { xs: 8, md: 12 }, bgcolor: T.gray, scrollMarginTop: '80px' }}>
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 8 }}>
             <Typography
@@ -562,7 +574,7 @@ export default function HomePage() {
       </Box>
 
       {/* ── How It Works ── */}
-      <Box id="como-funciona" sx={{ py: { xs: 8, md: 12 }, bgcolor: '#fff' }}>
+      <Box id="como-funciona" sx={{ py: { xs: 8, md: 12 }, bgcolor: '#fff', scrollMarginTop: '80px' }}>
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 8 }}>
             <Typography sx={{ color: T.primary, fontWeight: 600, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
@@ -609,7 +621,7 @@ export default function HomePage() {
       </Box>
 
       {/* ── Planos / Pricing ── */}
-      <Box id="planos" sx={{ py: { xs: 8, md: 12 }, bgcolor: T.gray }}>
+      <Box id="planos" sx={{ py: { xs: 8, md: 12 }, bgcolor: T.gray, scrollMarginTop: '80px' }}>
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 6 }}>
             <Typography sx={{ color: T.primary, fontWeight: 600, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
@@ -699,6 +711,7 @@ export default function HomePage() {
                       variant={plan.highlight ? 'contained' : 'outlined'}
                       fullWidth
                       href="#contato"
+                      onClick={(e: React.MouseEvent) => smoothScroll(e, '#contato')}
                       sx={{
                         mt: 3,
                         py: 1.2,
@@ -755,7 +768,7 @@ export default function HomePage() {
       </Box>
 
       {/* ── Contact ── */}
-      <Box id="contato" sx={{ py: { xs: 8, md: 12 }, bgcolor: T.gray }}>
+      <Box id="contato" sx={{ py: { xs: 8, md: 12 }, bgcolor: T.gray, scrollMarginTop: '80px' }}>
         <Container maxWidth="sm">
           <Box sx={{ textAlign: 'center', mb: 6 }}>
             <Typography sx={{ color: T.primary, fontWeight: 600, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.08em', mb: 1 }}>
@@ -819,6 +832,7 @@ export default function HomePage() {
             variant="contained"
             size="large"
             href="#contato"
+            onClick={(e: React.MouseEvent) => smoothScroll(e, '#contato')}
             endIcon={<ArrowForwardIcon />}
             sx={{
               bgcolor: T.accent,

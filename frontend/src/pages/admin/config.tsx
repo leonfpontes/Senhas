@@ -40,6 +40,8 @@ import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import { dispatchTenantBrandingUpdated } from '../../providers/ThemeProvider';
+import { useSubscription } from '../../hooks/useSubscription';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 
 interface TenantConfig {
   logo_url?: string | null;
@@ -127,6 +129,7 @@ function ColorField({
   onChange,
   error,
   helperText,
+  disabled,
 }: {
   label: string;
   help: string;
@@ -134,9 +137,10 @@ function ColorField({
   onChange: (value: string) => void;
   error: boolean;
   helperText: string;
+  disabled?: boolean;
 }) {
   return (
-    <Box>
+    <Box sx={disabled ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
       <FieldLabel label={label} help={help} />
       <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1.25 }}>
         <Box
@@ -154,10 +158,11 @@ function ColorField({
             type="color"
             value={HEX_COLOR_RE.test(value) ? value : '#000000'}
             onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange(event.target.value.toUpperCase())}
+            disabled={disabled}
             sx={{
               width: 54,
               height: 54,
-              cursor: 'pointer',
+              cursor: disabled ? 'default' : 'pointer',
               border: 0,
               background: 'transparent',
               p: 0,
@@ -172,6 +177,7 @@ function ColorField({
           inputProps={{ maxLength: 7 }}
           fullWidth
           error={error}
+          disabled={disabled}
         />
       </Stack>
       <Typography variant="caption" color={error ? 'error.main' : 'text.secondary'}>
@@ -257,6 +263,7 @@ const getFontColor = (config: TenantConfig | null): string => {
 };
 
 export default function AdminConfig() {
+  const { can } = useSubscription();
   const [config, setConfig] = useState<TenantConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -648,6 +655,7 @@ export default function AdminConfig() {
                           validationErrors.primary_color ||
                           'Usada em botões, destaques e ações principais.'
                         }
+                        disabled={!can('tema_personalizado')}
                       />
                     </Grid>
                     <Grid item xs={12} md={6}>
@@ -661,6 +669,7 @@ export default function AdminConfig() {
                           validationErrors.secondary_color ||
                           'Usada em composições de apoio e contraste visual.'
                         }
+                        disabled={!can('tema_personalizado')}
                       />
                     </Grid>
                     <Grid item xs={12} md={6}>
@@ -681,9 +690,16 @@ export default function AdminConfig() {
                           validationErrors.font_color ||
                           'Aplicada no texto do Header e nos itens selecionados do menu lateral.'
                         }
+                        disabled={!can('tema_personalizado')}
                       />
                     </Grid>
                   </Grid>
+
+                  {!can('tema_personalizado') && (
+                    <Alert severity="info" icon={<LockOutlinedIcon fontSize="small" />} sx={{ borderRadius: 2 }}>
+                      Personalização de cores disponível a partir do plano Basic. <a href="/admin/plano" style={{ fontWeight: 600 }}>Ver planos</a>
+                    </Alert>
+                  )}
 
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={6}>
@@ -803,7 +819,12 @@ export default function AdminConfig() {
                   </Box>
 
                   <Grid container spacing={2}>
-                    {FEATURE_ITEMS.map((item) => (
+                    {FEATURE_ITEMS.filter((item) => {
+                      if (item.field === 'enable_webhooks' && !can('webhooks')) return false;
+                      if (item.field === 'enable_bulk_operations' && !can('bulk_operations')) return false;
+                      if (item.field === 'enable_analytics' && !can('analytics_basico')) return false;
+                      return true;
+                    }).map((item) => (
                       <Grid item xs={12} md={6} key={item.field}>
                         <FeatureToggleCard
                           title={item.title}

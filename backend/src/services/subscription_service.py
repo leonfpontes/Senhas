@@ -259,7 +259,7 @@ class SubscriptionService:
             subscription: Updated subscription
         """
         now = datetime.now(timezone.utc)
-        invoice_number = f"INV-{tenant_id}-{now.timestamp()}"
+        invoice_number = f"INV-{tenant_id.hex}-{int(now.timestamp())}"
         
         # Prorated amount (simplified)
         prorate_factor = 0.5  # Example: 50% of month remaining

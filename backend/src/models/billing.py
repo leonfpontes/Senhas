@@ -45,7 +45,7 @@ class Invoice(TimestampedModel):
     )
     
     # Invoice number
-    invoice_number: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    invoice_number: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     
     # Billing period
     period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

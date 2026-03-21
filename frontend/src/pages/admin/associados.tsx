@@ -32,6 +32,8 @@ import AddIcon from '@mui/icons-material/Add';
 import Diversity3Icon from '@mui/icons-material/Diversity3';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AdminLayout from './admin_layout';
+import { useSubscription } from '../../hooks/useSubscription';
+import UpgradePrompt from '../../components/UpgradePrompt';
 import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
 
@@ -46,6 +48,7 @@ interface Associado {
 const EMPTY_FORM = { nome: '', email: '', telefone: '' };
 
 export default function AdminAssociados() {
+  const { can, loading: subLoading } = useSubscription();
   const [associados, setAssociados] = useState<Associado[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -190,6 +193,10 @@ export default function AdminAssociados() {
 
   return (
     <AdminLayout title="Associados">
+      {!subLoading && !can('associados') ? (
+        <UpgradePrompt feature="Associados" minPlan="Pro" />
+      ) : (
+      <>
       <Box sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h5" fontWeight={700}>Gestão de Associados</Typography>
@@ -327,6 +334,8 @@ export default function AdminAssociados() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+      </>
+      )}
     </AdminLayout>
   );
 }
