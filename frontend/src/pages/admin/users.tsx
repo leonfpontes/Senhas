@@ -226,10 +226,10 @@ function AdminUsersContent() {
   return (
     <>
       <Box sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 0 } }}>
           <Typography variant="h5" fontWeight={700}>Gestão de Usuários</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <FormControl size="small" sx={{ minWidth: 140 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
+            <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 140 } }}>
               <InputLabel>Filtrar Role</InputLabel>
               <Select
                 value={roleFilter}
@@ -257,15 +257,15 @@ function AdminUsersContent() {
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-        <TableContainer component={Paper}>
-          <Table>
+        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+          <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: 'primary.light' }}>
                 <TableCell>Email</TableCell>
-                <TableCell>Nome de Usuário</TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Nome de Usuário</TableCell>
                 <TableCell>Role</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Criado em</TableCell>
+                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Criado em</TableCell>
                 <TableCell align="right">Ações</TableCell>
               </TableRow>
             </TableHead>
@@ -282,7 +282,7 @@ function AdminUsersContent() {
                 users.map((user) => (
                   <TableRow key={user.id} hover>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.username}</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{user.username}</TableCell>
                     <TableCell>
                       <Chip
                         label={user.role === 'admin' ? 'Admin' : 'Operador'}
@@ -299,7 +299,7 @@ function AdminUsersContent() {
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>{new Date(user.created_at).toLocaleDateString('pt-BR')}</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{new Date(user.created_at).toLocaleDateString('pt-BR')}</TableCell>
                     <TableCell align="right">
                       <IconButton size="small" onClick={() => openEdit(user)}>
                         <EditIcon fontSize="small" />

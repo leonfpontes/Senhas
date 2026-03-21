@@ -218,7 +218,7 @@ const BillingPage: React.FC = () => {
               flexWrap: "wrap",
             }}
           >
-            <FormControl sx={{ minWidth: 250 }} size="small">
+            <FormControl sx={{ minWidth: { xs: '100%', sm: 250 } }} size="small">
               <InputLabel>Select Tenant</InputLabel>
               <Select
                 value={selectedTenant}
@@ -265,17 +265,17 @@ const BillingPage: React.FC = () => {
           ) : invoices.length === 0 ? (
             <Alert severity="info">No invoices found for this tenant.</Alert>
           ) : (
-            <TableContainer component={Paper} variant="outlined">
+            <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
               <Table size="small">
                 <TableHead>
                   <TableRow>
                     <TableCell>Invoice #</TableCell>
                     <TableCell>Period</TableCell>
                     <TableCell align="right">Total</TableCell>
-                    <TableCell align="right">Paid</TableCell>
+                    <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>Paid</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Due Date</TableCell>
-                    <TableCell>Paid At</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Paid At</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -289,7 +289,7 @@ const BillingPage: React.FC = () => {
                       <TableCell align="right">
                         {formatCurrency(inv.total_amount)}
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                         {formatCurrency(inv.paid_amount)}
                       </TableCell>
                       <TableCell>
@@ -300,7 +300,7 @@ const BillingPage: React.FC = () => {
                         />
                       </TableCell>
                       <TableCell>{formatDate(inv.due_date)}</TableCell>
-                      <TableCell>
+                      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                         {inv.paid_at ? formatDate(inv.paid_at) : "—"}
                       </TableCell>
                     </TableRow>

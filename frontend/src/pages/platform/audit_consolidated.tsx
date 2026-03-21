@@ -185,7 +185,7 @@ const ConsolidatedAuditPage: React.FC = () => {
                   <Card>
                     <CardContent>
                       <Box sx={{ textAlign: "center" }}>
-                        <Box sx={{ fontSize: "2rem", fontWeight: 700, color: "primary.main" }}>
+                        <Box sx={{ fontSize: { xs: '1.5rem', sm: '2rem' }, fontWeight: 700, color: "primary.main" }}>
                           {summary.total}
                         </Box>
                         <Box sx={{ fontSize: "0.875rem", color: "text.secondary" }}>
@@ -199,7 +199,7 @@ const ConsolidatedAuditPage: React.FC = () => {
                   <Card>
                     <CardContent>
                       <Box sx={{ textAlign: "center" }}>
-                        <Box sx={{ fontSize: "2rem", fontWeight: 700, color: "primary.main" }}>
+                        <Box sx={{ fontSize: { xs: '1.5rem', sm: '2rem' }, fontWeight: 700, color: "primary.main" }}>
                           {Object.keys(summary.by_tenant).length}
                         </Box>
                         <Box sx={{ fontSize: "0.875rem", color: "text.secondary" }}>
@@ -222,7 +222,7 @@ const ConsolidatedAuditPage: React.FC = () => {
                 <CircularProgress />
               </Box>
             ) : summary ? (
-              <TableContainer component={Paper}>
+              <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
                 <Table>
                   <TableHead>
                     <TableRow sx={{ bgcolor: "primary.light" }}>

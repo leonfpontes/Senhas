@@ -92,7 +92,7 @@ export default function AdminDashboard() {
             <Typography color="textSecondary" gutterBottom>
               {kpi.label}
             </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 'bold', color: kpi.color }}>
+            <Typography variant="h4" sx={{ fontWeight: 'bold', color: kpi.color, fontSize: { xs: '1.5rem', sm: '2.125rem' } }}>
               {typeof kpi.value === 'number' ? kpi.value.toFixed(kpi.label.includes('Taxa') ? 1 : 0) : 0}
               {kpi.label.includes('Taxa') ? '%' : ''}
             </Typography>
@@ -104,8 +104,8 @@ export default function AdminDashboard() {
           </Box>
           <Box
             sx={{
-              width: 60,
-              height: 60,
+              width: { xs: 44, sm: 60 },
+              height: { xs: 44, sm: 60 },
               borderRadius: '50%',
               backgroundColor: `${kpi.color}20`,
               display: 'flex',
@@ -123,7 +123,7 @@ export default function AdminDashboard() {
 
   return (
     <AdminLayout title="Dashboard">
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
         {/* KPIs */}
         {kpis.map((kpi, index) => (
           <Grid item xs={12} sm={6} md={3} key={index}>
@@ -199,7 +199,7 @@ export default function AdminDashboard() {
             <Typography variant="h6" gutterBottom>
               Ações Rápidas
             </Typography>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
               <Button variant="contained" href="/admin/giras">
                 Gerenciar Giras
               </Button>

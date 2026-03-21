@@ -471,10 +471,10 @@ function AdminConfigContent() {
                   <Chip icon={<VisibilityRoundedIcon />} label="Painel + público" sx={{ bgcolor: 'rgba(255,255,255,0.12)', color: previewFontColor }} />
                 </Stack>
                 <Box>
-                  <Typography variant="h4" fontWeight={800} sx={{ mb: 1 }}>
+                  <Typography variant="h4" fontWeight={800} sx={{ mb: 1, fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' } }}>
                     Organize o branding e as regras do seu tenant em um só lugar
                   </Typography>
-                    <Typography variant="body1" sx={{ opacity: 0.92, maxWidth: 720, color: previewFontColor }}>
+                    <Typography variant="body1" sx={{ opacity: 0.92, maxWidth: { xs: '100%', md: 720 }, color: previewFontColor }}>
                     Esta tela foi separada por contexto de uso para ficar fácil entender o impacto de cada configuração. Branding altera a identidade visual do painel e da emissão pública. Funcionalidades controlam módulos do tenant. Regras de atendimento organizam a fila da porta.
                   </Typography>
                 </Box>

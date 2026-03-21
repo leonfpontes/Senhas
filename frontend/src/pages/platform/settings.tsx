@@ -219,7 +219,7 @@ const SettingsPage: React.FC = () => {
       {/* Tenant Selector */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <FormControl sx={{ minWidth: 300 }} size="small">
+          <FormControl sx={{ minWidth: { xs: '100%', sm: 300 } }} size="small">
             <InputLabel>Select Tenant</InputLabel>
             <Select
               value={selectedTenant}
@@ -377,7 +377,7 @@ const SettingsPage: React.FC = () => {
                     No feature flags for this tenant.
                   </Alert>
                 ) : (
-                  <TableContainer component={Paper} variant="outlined">
+                  <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
                     <Table size="small">
                       <TableHead>
                         <TableRow>

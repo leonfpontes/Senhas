@@ -120,8 +120,10 @@ export default function BulkActionsBar({
       <Box
         sx={{
           display: 'flex',
-          alignItems: 'center',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'center' },
           justifyContent: 'space-between',
+          gap: 1,
           p: 2,
           backgroundColor: '#e3f2fd',
           borderRadius: 1,
@@ -134,7 +136,7 @@ export default function BulkActionsBar({
           <Typography>{selectedCount} selecionado(s)</Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button
             variant="contained"
             color="success"

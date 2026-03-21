@@ -397,15 +397,15 @@ function AdminGirasContent() {
   return (
     <>
       <Box sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 0 } }}>
           <Typography variant="h5" fontWeight={700}>Gestão de Giras</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadGiras} disabled={loading}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadGiras} disabled={loading} size="small">
               Atualizar
             </Button>
             <Tooltip title={!canCreateGira ? `Limite de ${subscription?.max_giras_per_month ?? 0} gira(s)/mês atingido. Faça upgrade do plano.` : ''}>
               <span>
-                <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira}>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira} size="small">
                   Nova Gira
                 </Button>
               </span>
@@ -419,17 +419,17 @@ function AdminGirasContent() {
         )}
       </Box>
 
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />
           </Box>
         ) : (
-          <Table>
+          <Table size="small">
             <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
               <TableRow>
                 <TableCell>Nome</TableCell>
-                <TableCell>Data Início</TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Data Início</TableCell>
                 <TableCell>Senhas</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
@@ -439,7 +439,7 @@ function AdminGirasContent() {
               {giras.map((gira) => (
                 <TableRow key={gira.id}>
                   <TableCell>{gira.nome}</TableCell>
-                  <TableCell>
+                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                     {new Date(gira.data_inicio).toLocaleDateString('pt-BR')}
                   </TableCell>
                   <TableCell>{getSenhaChip(gira)}</TableCell>

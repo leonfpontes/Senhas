@@ -208,12 +208,14 @@ const TenantsPage: React.FC = () => {
         <Box
           sx={{
             display: "flex",
+            flexDirection: { xs: 'column', sm: 'row' },
             justifyContent: "space-between",
-            alignItems: "center",
+            alignItems: { xs: 'stretch', sm: 'center' },
+            gap: 1,
             mb: 3,
           }}
         >
-          <h1>Tenant Management</h1>
+          <h1 style={{ margin: 0 }}>Tenant Management</h1>
           <Box sx={{ display: "flex", gap: 1 }}>
             <Button
               variant="outlined"
@@ -238,14 +240,14 @@ const TenantsPage: React.FC = () => {
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
         {/* Tenants Table */}
-        <TableContainer component={Paper}>
-          <Table>
+        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+          <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: "primary.light" }}>
                 <TableCell>Slug</TableCell>
                 <TableCell>Name</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Created</TableCell>
+                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Created</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -277,7 +279,7 @@ const TenantsPage: React.FC = () => {
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                       {new Date(tenant.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell align="right">

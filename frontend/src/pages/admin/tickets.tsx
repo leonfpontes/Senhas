@@ -232,8 +232,8 @@ function AdminTicketsContent() {
 
   return (
     <>
-      <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-        <FormControl size="small" sx={{ minWidth: 130 }}>
+      <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 130 } }}>
           <InputLabel>Giras</InputLabel>
           <Select
             value={giraFilter}
@@ -261,7 +261,7 @@ function AdminTicketsContent() {
             setPage(0);
           }}
           InputLabelProps={{ shrink: true }}
-          sx={{ width: 160 }}
+          sx={{ minWidth: { xs: '100%', sm: 160 } }}
         />
 
         <TextField
@@ -275,10 +275,10 @@ function AdminTicketsContent() {
             setPage(0);
           }}
           InputLabelProps={{ shrink: true }}
-          sx={{ width: 160 }}
+          sx={{ minWidth: { xs: '100%', sm: 160 } }}
         />
 
-        <FormControl size="small" sx={{ minWidth: 220 }}>
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
           <InputLabel>Selecione uma Gira</InputLabel>
           <Select
             value={giraId}
@@ -301,7 +301,7 @@ function AdminTicketsContent() {
           </Select>
         </FormControl>
 
-        <FormControl size="small" sx={{ minWidth: 150 }}>
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }}>
           <InputLabel>Status</InputLabel>
           <Select
             value={statusFilter}
@@ -344,14 +344,14 @@ function AdminTicketsContent() {
         />
       )}
 
-      <TableContainer component={Paper} sx={{ mt: 2 }}>
+      <TableContainer component={Paper} sx={{ mt: 2, overflowX: 'auto' }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />
           </Box>
         ) : (
           <>
-            <Table>
+            <Table size="small">
               <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
                 <TableRow>
                   {hasBulk && (
@@ -364,11 +364,11 @@ function AdminTicketsContent() {
                   )}
                   <TableCell>Número</TableCell>
                   <TableCell>Nome</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Telefone</TableCell>
-                  <TableCell>Tag</TableCell>
+                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Email</TableCell>
+                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Telefone</TableCell>
+                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Tag</TableCell>
                   <TableCell>Status</TableCell>
-                  <TableCell>Data Emissão</TableCell>
+                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Data Emissão</TableCell>
                   <TableCell align="center">Ações</TableCell>
                 </TableRow>
               </TableHead>
@@ -386,9 +386,9 @@ function AdminTicketsContent() {
                       )}
                       <TableCell sx={{ fontWeight: 600 }}>#{String(ticket.numero).padStart(4, '0')}</TableCell>
                       <TableCell>{ticket.consulente_nome || '-'}</TableCell>
-                      <TableCell>{ticket.consulente_email || '-'}</TableCell>
-                      <TableCell>{ticket.consulente_telefone || '-'}</TableCell>
-                      <TableCell>
+                      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{ticket.consulente_email || '-'}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{ticket.consulente_telefone || '-'}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                         {ticket.is_sponsor ? (
                           <Chip icon={<StarIcon />} label="Associado" size="small" sx={{ bgcolor: '#fef9e7', color: '#b8860b', '& .MuiChip-icon': { color: '#daa520' } }} />
                         ) : ticket.preferencial ? (
@@ -404,7 +404,7 @@ function AdminTicketsContent() {
                           size="small"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                         {new Date(ticket.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                       </TableCell>
                       <TableCell align="center">

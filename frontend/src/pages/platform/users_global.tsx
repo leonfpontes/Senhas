@@ -179,12 +179,14 @@ const GlobalUsersPage: React.FC = () => {
         <Box
           sx={{
             display: "flex",
+            flexDirection: { xs: 'column', sm: 'row' },
             justifyContent: "space-between",
-            alignItems: "center",
+            alignItems: { xs: 'stretch', sm: 'center' },
+            gap: 1,
             mb: 3,
           }}
         >
-          <h1>Global Users (SUPER_ADMIN)</h1>
+          <h1 style={{ margin: 0 }}>Global Users (SUPER_ADMIN)</h1>
           <Box sx={{ display: "flex", gap: 1 }}>
             <Button
               variant="outlined"
@@ -209,15 +211,15 @@ const GlobalUsersPage: React.FC = () => {
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
         {/* Users Table */}
-        <TableContainer component={Paper}>
-          <Table>
+        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+          <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: "primary.light" }}>
                 <TableCell>Email</TableCell>
-                <TableCell>Username</TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Username</TableCell>
                 <TableCell>Role</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Created</TableCell>
+                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Created</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -238,7 +240,7 @@ const GlobalUsersPage: React.FC = () => {
                 users.map((user) => (
                   <TableRow key={user.id} hover>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.username}</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{user.username}</TableCell>
                     <TableCell>
                       <Chip
                         label={user.role.toUpperCase()}
@@ -255,7 +257,7 @@ const GlobalUsersPage: React.FC = () => {
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                       {new Date(user.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell align="right">

@@ -336,8 +336,8 @@ function AdminAuditTrailContent() {
         <UpgradePrompt feature="Auditoria" minPlan="Pro" />
       ) : (
       <>
-      <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-        <FormControl sx={{ minWidth: 150 }} size="small">
+      <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
+        <FormControl sx={{ minWidth: { xs: '100%', sm: 150 } }} size="small">
           <InputLabel>Ação</InputLabel>
           <Select
             value={actionFilter}
@@ -352,7 +352,7 @@ function AdminAuditTrailContent() {
           </Select>
         </FormControl>
 
-        <FormControl sx={{ minWidth: 180 }} size="small">
+        <FormControl sx={{ minWidth: { xs: '100%', sm: 180 } }} size="small">
           <InputLabel>Tipo de Recurso</InputLabel>
           <Select
             value={resourceTypeFilter}

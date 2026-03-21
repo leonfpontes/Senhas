@@ -15,7 +15,7 @@ import React, {
   useState,
   ReactNode,
 } from 'react';
-import { ThemeProvider as MuiThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider as MuiThemeProvider, createTheme, responsiveFontSizes } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
 import { apiClient } from '@/services/api_client';
@@ -197,16 +197,18 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
 
     const theme = useMemo(
       () =>
-        createTheme({
-          palette: {
-            mode: 'light',
-            primary: { main: tenantConfig?.colors?.primary || DEFAULT_PRIMARY },
-            secondary: { main: tenantConfig?.colors?.secondary || DEFAULT_SECONDARY },
-          },
-          shape: {
-            borderRadius: 16,
-          },
-        }),
+        responsiveFontSizes(
+          createTheme({
+            palette: {
+              mode: 'light',
+              primary: { main: tenantConfig?.colors?.primary || DEFAULT_PRIMARY },
+              secondary: { main: tenantConfig?.colors?.secondary || DEFAULT_SECONDARY },
+            },
+            shape: {
+              borderRadius: 16,
+            },
+          })
+        ),
       [tenantConfig]
     );
 

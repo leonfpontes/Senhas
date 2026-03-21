@@ -203,11 +203,11 @@ export default function AdminPlano() {
           <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
             Comparação de Planos
           </Typography>
-          <TableContainer component={Paper} variant="outlined" sx={{ mb: 4, borderRadius: 2 }}>
+          <TableContainer component={Paper} variant="outlined" sx={{ mb: 4, borderRadius: 2, overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 700, width: '30%' }}>Funcionalidade</TableCell>
+                  <TableCell sx={{ fontWeight: 700, minWidth: 160 }}>Funcionalidade</TableCell>
                   {PLAN_KEYS.map((key) => (
                     <TableCell
                       key={key}

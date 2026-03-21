@@ -206,9 +206,9 @@ function AdminAssociadosContent() {
       ) : (
       <>
       <Box sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 0 } }}>
           <Typography variant="h5" fontWeight={700}>Gestão de Associados</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadAssociados} disabled={loading}>
               Atualizar
             </Button>
@@ -219,7 +219,7 @@ function AdminAssociadosContent() {
         </Box>
       </Box>
 
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />
@@ -231,11 +231,11 @@ function AdminAssociadosContent() {
             </Typography>
           </Box>
         ) : (
-          <Table>
+          <Table size="small">
             <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
               <TableRow>
                 <TableCell>Nome</TableCell>
-                <TableCell>E-mail</TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>E-mail</TableCell>
                 <TableCell>Telefone</TableCell>
                 <TableCell align="right">Ações</TableCell>
               </TableRow>
@@ -244,7 +244,7 @@ function AdminAssociadosContent() {
               {associados.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>{item.nome}</TableCell>
-                  <TableCell>{item.email}</TableCell>
+                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{item.email}</TableCell>
                   <TableCell>{item.telefone || '—'}</TableCell>
                   <TableCell align="right">
                     <Tooltip title="Editar">

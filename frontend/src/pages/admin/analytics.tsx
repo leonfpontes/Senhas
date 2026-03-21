@@ -173,7 +173,7 @@ function AdminAnalyticsContent() {
         <UpgradePrompt feature="Analytics" minPlan="Basic" />
       ) : (
       <>
-      <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+      <Box sx={{ mb: 3, display: 'flex', gap: { xs: 1.5, sm: 2 }, flexWrap: 'wrap', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
         <TextField
           label="Data Início"
           type="date"
@@ -181,6 +181,8 @@ function AdminAnalyticsContent() {
           onChange={(e) => setDateFrom(e.target.value)}
           InputLabelProps={{ shrink: true }}
           size="small"
+          fullWidth
+          sx={{ maxWidth: { sm: 180 } }}
         />
         <TextField
           label="Data Fim"
@@ -189,8 +191,10 @@ function AdminAnalyticsContent() {
           onChange={(e) => setDateTo(e.target.value)}
           InputLabelProps={{ shrink: true }}
           size="small"
+          fullWidth
+          sx={{ maxWidth: { sm: 180 } }}
         />
-        <FormControl sx={{ minWidth: 200 }} size="small">
+        <FormControl sx={{ minWidth: { xs: '100%', sm: 200 } }} size="small">
           <InputLabel>Gira</InputLabel>
           <Select
             value={giraId}
