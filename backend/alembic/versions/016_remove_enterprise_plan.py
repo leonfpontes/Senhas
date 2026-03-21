@@ -18,28 +18,30 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Current DB enum values: {BASIC, PRO, PREMIUM, ENTERPRISE, free, FREE}
-    # Target: {FREE, BASIC, PRO, PREMIUM}
+    # Target enum: {FREE, BASIC, PRO, PREMIUM}
+    # Production may have {BASIC, PRO, PREMIUM, ENTERPRISE, FREE} (no lowercase 'free')
+    # Dev may have {BASIC, PRO, PREMIUM, ENTERPRISE, free, FREE} (mixed case)
+    # Strategy: convert column to TEXT first, normalise, then recreate enum.
 
-    # 1) Move ENTERPRISE subscriptions to PREMIUM
+    # 1) Drop old enum, convert column to plain TEXT
+    op.execute(
+        "ALTER TABLE subscriptions "
+        "ALTER COLUMN plan TYPE TEXT USING plan::text"
+    )
+    op.execute("DROP TYPE plan_type")
+
+    # 2) Normalise all values as TEXT (no enum validation issues)
+    op.execute("UPDATE subscriptions SET plan = UPPER(plan)")
     op.execute(
         "UPDATE subscriptions SET plan = 'PREMIUM' WHERE plan = 'ENTERPRISE'"
     )
 
-    # 2) Normalise any lowercase 'free' to 'FREE'
-    op.execute(
-        "UPDATE subscriptions SET plan = 'FREE' WHERE plan = 'free'"
-    )
-
-    # 3) Recreate enum without ENTERPRISE and without the duplicate lowercase 'free'
-    op.execute("ALTER TYPE plan_type RENAME TO plan_type_old")
+    # 3) Create clean enum and cast back
     op.execute("CREATE TYPE plan_type AS ENUM ('FREE', 'BASIC', 'PRO', 'PREMIUM')")
     op.execute(
         "ALTER TABLE subscriptions "
-        "ALTER COLUMN plan TYPE plan_type "
-        "USING plan::text::plan_type"
+        "ALTER COLUMN plan TYPE plan_type USING plan::plan_type"
     )
-    op.execute("DROP TYPE plan_type_old")
 
 
 def downgrade() -> None:
