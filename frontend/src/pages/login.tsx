@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import Head from 'next/head';
 import { apiClient } from '../services/api_client';
 import { dispatchTenantBrandingUpdated } from '../providers/ThemeProvider';
 
@@ -64,26 +65,31 @@ export default function LoginPage() {
   };
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        bgcolor: 'background.default',
-      }}
-    >
-      <Container maxWidth="xs">
-        <Card elevation={4}>
-          <CardContent sx={{ p: 4 }}>
-            <Box sx={{ textAlign: 'center', mb: 3 }}>
-              <Typography variant="h4" fontWeight={700} color="primary.main">
-                Senhas
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Sistema de Gestão de Senhas
-              </Typography>
-            </Box>
+    <>
+      <Head>
+        <title>Login — GiraHub</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: 'background.default',
+        }}
+      >
+        <Container maxWidth="xs">
+          <Card elevation={4}>
+            <CardContent sx={{ p: 4 }}>
+              <Box sx={{ textAlign: 'center', mb: 3 }}>
+                <Typography variant="h4" fontWeight={700} color="primary.main">
+                  GiraHub
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Acesse sua conta
+                </Typography>
+              </Box>
 
             <form onSubmit={handleSubmit}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -145,5 +151,6 @@ export default function LoginPage() {
         </Card>
       </Container>
     </Box>
+    </>
   );
 }

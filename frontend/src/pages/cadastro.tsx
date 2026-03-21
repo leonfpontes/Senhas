@@ -144,7 +144,14 @@ export default function CadastroPage() {
     <>
       <Head>
         <title>Cadastro — GiraHub</title>
-        <meta name="description" content="Crie sua conta gratuita no GiraHub" />
+        <meta name="description" content="Crie sua conta gratuita no GiraHub e comece a gerenciar senhas e giras do seu terreiro." />
+        <link rel="canonical" href="https://girahub.com.br/cadastro" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://girahub.com.br/cadastro" />
+        <meta property="og:title" content="Cadastro Grátis — GiraHub" />
+        <meta property="og:description" content="Crie sua conta gratuita no GiraHub e comece a gerenciar senhas e giras do seu terreiro." />
+        <meta property="og:locale" content="pt_BR" />
+        <meta property="og:site_name" content="GiraHub" />
       </Head>
 
       <Box
