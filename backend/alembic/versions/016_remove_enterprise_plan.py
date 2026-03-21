@@ -23,24 +23,31 @@ def upgrade() -> None:
     # Dev may have {BASIC, PRO, PREMIUM, ENTERPRISE, free, FREE} (mixed case)
     # Strategy: convert column to TEXT first, normalise, then recreate enum.
 
-    # 1) Drop old enum, convert column to plain TEXT
+    # 1) Remove default (it references the enum type and blocks DROP TYPE)
+    op.execute("ALTER TABLE subscriptions ALTER COLUMN plan DROP DEFAULT")
+
+    # 2) Convert column to plain TEXT so we can drop the old enum
     op.execute(
         "ALTER TABLE subscriptions "
         "ALTER COLUMN plan TYPE TEXT USING plan::text"
     )
     op.execute("DROP TYPE plan_type")
 
-    # 2) Normalise all values as TEXT (no enum validation issues)
+    # 3) Normalise all values as TEXT (no enum validation issues)
     op.execute("UPDATE subscriptions SET plan = UPPER(plan)")
     op.execute(
         "UPDATE subscriptions SET plan = 'PREMIUM' WHERE plan = 'ENTERPRISE'"
     )
 
-    # 3) Create clean enum and cast back
+    # 4) Create clean enum, cast back, restore default
     op.execute("CREATE TYPE plan_type AS ENUM ('FREE', 'BASIC', 'PRO', 'PREMIUM')")
     op.execute(
         "ALTER TABLE subscriptions "
         "ALTER COLUMN plan TYPE plan_type USING plan::plan_type"
+    )
+    op.execute(
+        "ALTER TABLE subscriptions "
+        "ALTER COLUMN plan SET DEFAULT 'FREE'"
     )
 
 
