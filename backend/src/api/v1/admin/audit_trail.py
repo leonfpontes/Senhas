@@ -1,8 +1,9 @@
 """T063: Admin Audit Trail - GET /api/v1/admin/audit-logs (immutable logs)"""
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Set
 from uuid import UUID
 from datetime import datetime
 
@@ -20,9 +21,10 @@ class AuditLogResponse(BaseModel):
     id: UUID
     action: str
     resource_type: str
-    resource_id: Optional[UUID]
-    user_id: Optional[UUID]
-    details: Optional[dict]
+    resource_id: Optional[UUID] = None
+    user_id: Optional[UUID] = None
+    user_name: Optional[str] = None
+    details: Optional[dict] = None
     created_at: datetime
 
     class Config:
@@ -62,46 +64,102 @@ async def list_audit_logs(
         raise InsufficientPermissionsError("Admin required")
     
     repo = AuditLogRepository(db)
-    
-    # Get appropriate filtered list based on query params
+
+    # Parse action filter
+    action_enum = None
     if action_filter:
         try:
-            action = AuditAction(action_filter)
-            logs = await repo.list_by_action(
-                tenant_id=current_user.tenant_id,
-                action=action,
-                skip=skip,
-                limit=limit,
-            )
+            action_enum = AuditAction(action_filter)
         except ValueError:
-            logs = []
-    elif resource_type_filter:
-        logs = await repo.list_by_resource_type(
-            tenant_id=current_user.tenant_id,
-            resource_type=resource_type_filter,
-            skip=skip,
-            limit=limit,
+            return AuditLogListResponse(total=0, skip=skip, limit=limit, items=[])
+
+    # Single unified query with all filters + eager-loaded User
+    logs = await repo.list_filtered(
+        tenant_id=current_user.tenant_id,
+        skip=skip,
+        limit=limit,
+        action=action_enum,
+        resource_type=resource_type_filter,
+        user_id=user_id_filter,
+    )
+    total = await repo.count_filtered(
+        tenant_id=current_user.tenant_id,
+        action=action_enum,
+        resource_type=resource_type_filter,
+        user_id=user_id_filter,
+    )
+
+    def _user_name(log: AuditLog) -> Optional[str]:
+        if log.user:
+            return log.user.full_name or log.user.email
+        return None
+
+    # Collect impersonated_by UUIDs from details to resolve names
+    impersonator_ids: Set[str] = set()
+    for log in logs:
+        if log.details:
+            _collect_impersonator_ids(log.details, impersonator_ids)
+    impersonator_names = await _resolve_user_names(db, impersonator_ids)
+
+    def _enrich_details(details: Optional[dict]) -> Optional[dict]:
+        if not details:
+            return details
+        enriched = dict(details)
+        _replace_impersonator_ids(enriched, impersonator_names)
+        return enriched
+
+    items = [
+        AuditLogResponse(
+            id=log.id,
+            action=log.action.value if hasattr(log.action, 'value') else log.action,
+            resource_type=log.resource_type,
+            resource_id=log.resource_id,
+            user_id=log.user_id,
+            user_name=_user_name(log),
+            details=_enrich_details(log.details),
+            created_at=log.created_at,
         )
-    elif user_id_filter:
-        logs = await repo.list_by_user(
-            tenant_id=current_user.tenant_id,
-            user_id=user_id_filter,
-            skip=skip,
-            limit=limit,
-        )
-    else:
-        logs = await repo.list_by_tenant(
-            tenant_id=current_user.tenant_id,
-            skip=skip,
-            limit=limit,
-        )
-    
-    # For total, would need a count query - simplified for now
-    total = skip + len(logs)  # Approximate
-    
+        for log in logs
+    ]
+
     return AuditLogListResponse(
         total=total,
         skip=skip,
         limit=limit,
-        items=[AuditLogResponse.from_orm(log) for log in logs],
+        items=items,
     )
+
+
+def _collect_impersonator_ids(details: dict, ids: Set[str]) -> None:
+    """Recursively collect impersonated_by UUIDs from details."""
+    for key, val in details.items():
+        if key == "impersonated_by" and isinstance(val, str) and len(val) >= 32:
+            ids.add(val)
+        elif isinstance(val, dict):
+            _collect_impersonator_ids(val, ids)
+
+
+def _replace_impersonator_ids(details: dict, names: dict) -> None:
+    """Recursively replace impersonated_by UUIDs with user names."""
+    for key in list(details.keys()):
+        val = details[key]
+        if key == "impersonated_by" and isinstance(val, str) and val in names:
+            details[key] = names[val]
+        elif isinstance(val, dict):
+            _replace_impersonator_ids(val, names)
+
+
+async def _resolve_user_names(db: AsyncSession, user_ids: Set[str]) -> dict:
+    """Batch resolve user UUIDs to display names."""
+    if not user_ids:
+        return {}
+    try:
+        uuids = [UUID(uid) for uid in user_ids]
+        stmt = select(User.id, User.full_name, User.email).where(User.id.in_(uuids))
+        result = await db.execute(stmt)
+        return {
+            str(row.id): (row.full_name or row.email)
+            for row in result.all()
+        }
+    except Exception:
+        return {}

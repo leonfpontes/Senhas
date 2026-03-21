@@ -637,11 +637,12 @@ export default function HomePage() {
 
           <Grid container spacing={3} justifyContent="center">
             {PLANS.map((plan) => (
-              <Grid item xs={12} sm={6} md={3} key={plan.name}>
+              <Grid item xs={12} sm={6} md={3} key={plan.name} sx={{ pt: plan.highlight ? 2 : 0 }}>
                 <Card
                   elevation={0}
                   sx={{
                     position: 'relative',
+                    overflow: 'visible',
                     borderRadius: T.cardRadius,
                     border: plan.highlight ? `2px solid ${T.primary}` : '1px solid rgba(0,0,0,0.06)',
                     boxShadow: plan.highlight ? T.cardHover : T.cardShadow,

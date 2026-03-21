@@ -2,7 +2,8 @@
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, desc
+from sqlalchemy import select, and_, or_, desc, func
+from sqlalchemy.orm import selectinload
 
 from ..models import AuditLog, AuditAction
 
@@ -80,29 +81,64 @@ class AuditLogRepository:
         result = await self.db.execute(stmt)
         return result.scalars().all()
     
+    async def list_filtered(
+        self,
+        tenant_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+        action: Optional[AuditAction] = None,
+        resource_type: Optional[str] = None,
+        user_id: Optional[UUID] = None,
+    ) -> List[AuditLog]:
+        """List audit logs with optional filters, eager-loading User."""
+        conditions = [AuditLog.tenant_id == tenant_id]
+        if action:
+            conditions.append(AuditLog.action == action)
+        if resource_type:
+            conditions.append(AuditLog.resource_type == resource_type)
+        if user_id:
+            conditions.append(AuditLog.user_id == user_id)
+
+        stmt = (
+            select(AuditLog)
+            .options(selectinload(AuditLog.user))
+            .where(and_(*conditions))
+            .order_by(desc(AuditLog.created_at))
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
+
+    async def count_filtered(
+        self,
+        tenant_id: UUID,
+        action: Optional[AuditAction] = None,
+        resource_type: Optional[str] = None,
+        user_id: Optional[UUID] = None,
+    ) -> int:
+        """Count audit logs with optional filters."""
+        conditions = [AuditLog.tenant_id == tenant_id]
+        if action:
+            conditions.append(AuditLog.action == action)
+        if resource_type:
+            conditions.append(AuditLog.resource_type == resource_type)
+        if user_id:
+            conditions.append(AuditLog.user_id == user_id)
+
+        stmt = select(func.count(AuditLog.id)).where(and_(*conditions))
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
+
     async def list_by_tenant(
         self,
         tenant_id: UUID,
         skip: int = 0,
         limit: int = 100,
     ) -> List[AuditLog]:
-        """List audit logs for a tenant (paginated).
-        
-        Args:
-            tenant_id: Tenant ID
-            skip: Pagination offset
-            limit: Pagination limit
-            
-        Returns:
-            List of AuditLog objects (reverse chronological)
-        """
-        stmt = select(AuditLog).where(
-            AuditLog.tenant_id == tenant_id
-        ).order_by(desc(AuditLog.created_at)).offset(skip).limit(limit)
-        
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
-    
+        """List audit logs for a tenant (paginated)."""
+        return await self.list_filtered(tenant_id, skip, limit)
+
     async def list_by_action(
         self,
         tenant_id: UUID,
@@ -110,27 +146,9 @@ class AuditLogRepository:
         skip: int = 0,
         limit: int = 100,
     ) -> List[AuditLog]:
-        """List audit logs by action type.
-        
-        Args:
-            tenant_id: Tenant ID
-            action: AuditAction type
-            skip: Pagination offset
-            limit: Pagination limit
-            
-        Returns:
-            List of AuditLog objects
-        """
-        stmt = select(AuditLog).where(
-            and_(
-                AuditLog.tenant_id == tenant_id,
-                AuditLog.action == action,
-            )
-        ).order_by(desc(AuditLog.created_at)).offset(skip).limit(limit)
-        
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
-    
+        """List audit logs by action type."""
+        return await self.list_filtered(tenant_id, skip, limit, action=action)
+
     async def list_by_user(
         self,
         tenant_id: UUID,
@@ -138,27 +156,9 @@ class AuditLogRepository:
         skip: int = 0,
         limit: int = 100,
     ) -> List[AuditLog]:
-        """List audit logs for a specific user.
-        
-        Args:
-            tenant_id: Tenant ID
-            user_id: User ID
-            skip: Pagination offset
-            limit: Pagination limit
-            
-        Returns:
-            List of AuditLog objects
-        """
-        stmt = select(AuditLog).where(
-            and_(
-                AuditLog.tenant_id == tenant_id,
-                AuditLog.user_id == user_id,
-            )
-        ).order_by(desc(AuditLog.created_at)).offset(skip).limit(limit)
-        
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
-    
+        """List audit logs for a specific user."""
+        return await self.list_filtered(tenant_id, skip, limit, user_id=user_id)
+
     async def list_by_resource_type(
         self,
         tenant_id: UUID,
@@ -166,23 +166,5 @@ class AuditLogRepository:
         skip: int = 0,
         limit: int = 100,
     ) -> List[AuditLog]:
-        """List audit logs for a resource type.
-        
-        Args:
-            tenant_id: Tenant ID
-            resource_type: Resource type
-            skip: Pagination offset
-            limit: Pagination limit
-            
-        Returns:
-            List of AuditLog objects
-        """
-        stmt = select(AuditLog).where(
-            and_(
-                AuditLog.tenant_id == tenant_id,
-                AuditLog.resource_type == resource_type,
-            )
-        ).order_by(desc(AuditLog.created_at)).offset(skip).limit(limit)
-        
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
+        """List audit logs for a resource type."""
+        return await self.list_filtered(tenant_id, skip, limit, resource_type=resource_type)
