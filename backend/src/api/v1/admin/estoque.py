@@ -83,6 +83,16 @@ class GrupoUpdate(BaseModel):
     nome: Optional[str] = None
     descricao: Optional[str] = None
 
+    @field_validator("nome")
+    @classmethod
+    def validate_nome(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Nome não pode ser vazio")
+        return stripped
+
 
 class GrupoResponse(BaseModel):
     id: UUID
@@ -143,6 +153,16 @@ class ItemUpdate(BaseModel):
     observacoes: Optional[str] = None
     foto_base64: Optional[str] = None
     foto_content_type: Optional[str] = None
+
+    @field_validator("nome")
+    @classmethod
+    def validate_nome(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Nome não pode ser vazio")
+        return stripped
 
     @field_validator("unidade_medida")
     @classmethod
