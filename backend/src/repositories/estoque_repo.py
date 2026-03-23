@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -140,7 +140,7 @@ class EstoqueItemRepository(BaseRepository[EstoqueItem]):
             select(
                 EstoqueMovimentacao.item_id,
                 func.sum(
-                    func.case(
+                    case(
                         (EstoqueMovimentacao.tipo == EstoqueMovimentacaoTipo.ENTRADA, EstoqueMovimentacao.quantidade),
                         else_=-EstoqueMovimentacao.quantidade,
                     )
@@ -307,7 +307,7 @@ class EstoqueMovimentacaoRepository:
             select(
                 EstoqueMovimentacao.item_id,
                 func.sum(
-                    func.case(
+                    case(
                         (EstoqueMovimentacao.tipo == EstoqueMovimentacaoTipo.ENTRADA, EstoqueMovimentacao.quantidade),
                         else_=-EstoqueMovimentacao.quantidade,
                     )
