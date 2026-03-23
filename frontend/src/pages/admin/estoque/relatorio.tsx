@@ -3,7 +3,7 @@
  */
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -76,8 +76,11 @@ function AdminEstoqueRelatorioContent() {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [filterGrupo, setFilterGrupo] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false, message: '', severity: 'success',
@@ -88,7 +91,13 @@ function AdminEstoqueRelatorioContent() {
     loadPosicao();
   }, []);
 
-  useEffect(() => { loadPosicao(); }, [filterGrupo, filterSearch]);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(filterSearch), 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [filterSearch]);
+
+  useEffect(() => { loadPosicao(); }, [filterGrupo, debouncedSearch]);
 
   const loadGrupos = async () => {
     try {
@@ -102,6 +111,7 @@ function AdminEstoqueRelatorioContent() {
       setLoading(true);
       const params: Record<string, string> = {};
       if (filterGrupo) params.grupo_id = filterGrupo;
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       const res = await apiClient.get('/api/v1/admin/estoque/relatorio/posicao', { params });
       setPosicao(res.data);
     } catch {

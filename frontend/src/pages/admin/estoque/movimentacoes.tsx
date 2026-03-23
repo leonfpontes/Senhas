@@ -3,7 +3,7 @@
  */
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -95,6 +95,9 @@ function AdminEstoqueMovimentacoesContent() {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
@@ -111,7 +114,13 @@ function AdminEstoqueMovimentacoesContent() {
     loadItems();
   }, []);
 
-  useEffect(() => { loadMovimentacoes(); }, [filterItem, filterTipo, filterDateFrom, filterDateTo, filterSearch]);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(filterSearch), 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [filterSearch]);
+
+  useEffect(() => { loadMovimentacoes(); }, [filterItem, filterTipo, filterDateFrom, filterDateTo, debouncedSearch]);
 
   const loadItems = async () => {
     try {
@@ -128,7 +137,7 @@ function AdminEstoqueMovimentacoesContent() {
       if (filterTipo) params.tipo = filterTipo;
       if (filterDateFrom) params.date_from = new Date(filterDateFrom + 'T00:00:00').toISOString();
       if (filterDateTo) params.date_to = new Date(filterDateTo + 'T23:59:59').toISOString();
-      if (filterSearch.trim()) params.search = filterSearch.trim();
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       const res = await apiClient.get('/api/v1/admin/estoque/movimentacoes', { params });
       setMovimentacoes(res.data);
     } catch {
