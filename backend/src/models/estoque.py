@@ -116,7 +116,8 @@ class EstoqueMovimentacao(TimestampedModel):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     tipo: Mapped[EstoqueMovimentacaoTipo] = mapped_column(
-        Enum(EstoqueMovimentacaoTipo, name="estoque_movimentacao_tipo"), nullable=False
+        Enum(EstoqueMovimentacaoTipo, name="estoque_movimentacao_tipo", values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
     )
     quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
     motivo: Mapped[str | None] = mapped_column(Text, nullable=True)
