@@ -15,8 +15,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 1. Cria enum do tipo de movimentação
-    op.execute("CREATE TYPE estoque_movimentacao_tipo AS ENUM ('entrada', 'saida')")
+    # 1. Cria enum do tipo de movimentação (IF NOT EXISTS para idempotência)
+    op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'estoque_movimentacao_tipo') THEN CREATE TYPE estoque_movimentacao_tipo AS ENUM ('entrada', 'saida'); END IF; END $$")
 
     # 2. Tabela de grupos de material
     op.create_table(
