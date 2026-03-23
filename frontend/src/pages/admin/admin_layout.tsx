@@ -26,6 +26,7 @@ import {
   MenuItem,
   useTheme,
   useMediaQuery,
+  Chip,
   Container,
   Divider,
 } from '@mui/material';
@@ -201,7 +202,7 @@ function AdminLayoutInner({
     .charAt(0)
     .toUpperCase();
 
-  const { can } = useSubscription();
+  const { can, planLabel, subscription } = useSubscription();
 
   const cadastrosItems = [
     { text: 'Giras', icon: <EventIcon />, href: '/admin/giras' },
@@ -523,13 +524,37 @@ function AdminLayoutInner({
       <Box
         sx={{
           p: 2,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 0.5,
         }}
       >
-        <Typography variant="caption" display="block" color="text.secondary">
+        <Chip
+          label={planLabel}
+          size="small"
+          onClick={() => router.push('/admin/plano')}
+          sx={{
+            fontWeight: 700,
+            fontSize: '0.7rem',
+            letterSpacing: 0.5,
+            color: '#fff',
+            cursor: 'pointer',
+            backgroundColor:
+              subscription?.plan === 'premium'
+                ? '#f59e0b'
+                : subscription?.plan === 'pro'
+                ? '#8b5cf6'
+                : subscription?.plan === 'basic'
+                ? '#3b82f6'
+                : '#94a3b8',
+            '&:hover': {
+              opacity: 0.85,
+            },
+          }}
+        />
+        <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
           Senhas v1.1
-        </Typography>
-        <Typography variant="caption" display="block" color="text.secondary">
-          Admin Edition
         </Typography>
       </Box>
     </Box>
