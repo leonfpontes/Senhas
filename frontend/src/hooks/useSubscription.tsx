@@ -87,8 +87,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       const res = await apiClient.get<SubscriptionInfo>('/api/v1/admin/subscription');
       setSubscription(res.data);
     } catch {
-      // If endpoint fails, assume free plan
-      setSubscription(null);
+      // On transient errors (e.g. 503), preserve the last known subscription so
+      // features that belong to the tenant's plan remain accessible.
+      // Only the initial load (subscription still null) will leave it as null.
     } finally {
       setLoading(false);
     }
