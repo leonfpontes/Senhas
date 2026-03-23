@@ -27,6 +27,19 @@ _PLAN_TIER = {
 }
 
 
+async def _count_active_users(db: AsyncSession, tenant_id) -> int:
+    """Count active, non-deleted users for a tenant."""
+    stmt = select(func.count()).select_from(User).where(
+        and_(
+            User.tenant_id == tenant_id,
+            User.is_active.is_(True),
+            User.deleted_at.is_(None),
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar() or 0
+
+
 class PlanFeatures(BaseModel):
     """Which features are available for current plan."""
     email_transacional: bool = False
@@ -101,13 +114,16 @@ async def get_tenant_subscription(
     giras_result = await db.execute(giras_stmt)
     current_giras_this_month = giras_result.scalar() or 0
 
+    # Count active users dynamically
+    active_users = await _count_active_users(db, tenant_id)
+
     if not sub:
         return SubscriptionInfoResponse(
             plan="free",
             status="active",
             max_users=1,
             max_giras_per_month=2,
-            current_users=0,
+            current_users=active_users,
             current_giras_this_month=current_giras_this_month,
             monthly_price=0.0,
             is_trial=False,
@@ -120,7 +136,7 @@ async def get_tenant_subscription(
         status=sub.status.value,
         max_users=sub.max_users,
         max_giras_per_month=sub.max_giras_per_month,
-        current_users=sub.current_users,
+        current_users=active_users,
         current_giras_this_month=current_giras_this_month,
         monthly_price=sub.monthly_price,
         is_trial=sub.is_trial,

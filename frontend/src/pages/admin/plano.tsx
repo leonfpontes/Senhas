@@ -39,6 +39,7 @@ interface SubscriptionInfo {
   max_users: number;
   max_giras_per_month: number;
   current_users: number;
+  current_giras_this_month: number;
   monthly_price: number;
   is_trial: boolean;
   trial_ends_at: string | null;
@@ -181,7 +182,7 @@ export default function AdminPlano() {
                 <Grid item xs={6} sm={3}>
                   <Typography variant="caption" color="text.secondary">Giras / mês</Typography>
                   <Typography fontWeight={600}>
-                    {(subscription?.max_giras_per_month || 0) >= 999999 ? 'Ilimitado' : subscription?.max_giras_per_month}
+                    {subscription?.current_giras_this_month || 0} / {(subscription?.max_giras_per_month || 0) >= 999999 ? '∞' : subscription?.max_giras_per_month}
                   </Typography>
                 </Grid>
                 <Grid item xs={6} sm={3}>
