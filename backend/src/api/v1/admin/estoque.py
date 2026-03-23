@@ -581,6 +581,7 @@ async def list_movimentacoes(
     tipo: Optional[EstoqueMovimentacaoTipo] = Query(None),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
+    search: Optional[str] = Query(None, max_length=255),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     current_user: User = Depends(get_current_user),
@@ -594,6 +595,7 @@ async def list_movimentacoes(
         tipo=tipo,
         date_from=date_from,
         date_to=date_to,
+        search=search.strip() if search else None,
         skip=skip,
         limit=limit,
     )
@@ -666,13 +668,16 @@ async def create_movimentacao(
 @router.get("/relatorio/posicao", response_model=List[RelatorioItemResponse])
 async def relatorio_posicao(
     grupo_id: Optional[UUID] = Query(None),
+    search: Optional[str] = Query(None, max_length=255),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     await _require_estoque_plan(current_user, db)
     mov_repo = EstoqueMovimentacaoRepository(db)
     posicao = await mov_repo.get_posicao_estoque(
-        tenant_id=current_user.tenant_id, grupo_id=grupo_id
+        tenant_id=current_user.tenant_id,
+        grupo_id=grupo_id,
+        search=search.strip() if search else None,
     )
     result = []
     for row in posicao:

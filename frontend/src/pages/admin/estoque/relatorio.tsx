@@ -26,6 +26,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -35,6 +36,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import SearchIcon from '@mui/icons-material/Search';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '../../../hooks/useSubscription';
 import UpgradePrompt from '../../../components/UpgradePrompt';
@@ -73,6 +75,7 @@ function AdminEstoqueRelatorioContent() {
   const [posicao, setPosicao] = useState<RelatorioItem[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [filterGrupo, setFilterGrupo] = useState('');
+  const [filterSearch, setFilterSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
@@ -85,7 +88,7 @@ function AdminEstoqueRelatorioContent() {
     loadPosicao();
   }, []);
 
-  useEffect(() => { loadPosicao(); }, [filterGrupo]);
+  useEffect(() => { loadPosicao(); }, [filterGrupo, filterSearch]);
 
   const loadGrupos = async () => {
     try {
@@ -151,6 +154,14 @@ function AdminEstoqueRelatorioContent() {
           <Typography variant="h5" fontWeight={700}>Relatório de Estoque</Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          <TextField
+            size="small"
+            placeholder="Buscar por nome..."
+            value={filterSearch}
+            onChange={(e) => setFilterSearch(e.target.value)}
+            InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 0.5, color: 'text.disabled' }} /> }}
+            sx={{ minWidth: 200 }}
+          />
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel>Filtrar por grupo</InputLabel>
             <Select value={filterGrupo} label="Filtrar por grupo" onChange={(e) => setFilterGrupo(e.target.value)}>

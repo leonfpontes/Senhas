@@ -260,6 +260,7 @@ class EstoqueMovimentacaoRepository:
         tipo: Optional[EstoqueMovimentacaoTipo] = None,
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
+        search: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[EstoqueMovimentacao]:
@@ -276,6 +277,9 @@ class EstoqueMovimentacaoRepository:
             stmt = stmt.where(EstoqueMovimentacao.data_movimentacao >= date_from)
         if date_to:
             stmt = stmt.where(EstoqueMovimentacao.data_movimentacao <= date_to)
+        if search:
+            stmt = stmt.join(EstoqueItem, EstoqueMovimentacao.item_id == EstoqueItem.id)
+            stmt = stmt.where(EstoqueItem.nome.ilike(f"%{search}%"))
         stmt = stmt.order_by(EstoqueMovimentacao.data_movimentacao.desc()).offset(skip).limit(limit)
         result = await self.db.execute(stmt)
         return result.scalars().all()
@@ -284,6 +288,7 @@ class EstoqueMovimentacaoRepository:
         self,
         tenant_id: UUID,
         grupo_id: Optional[UUID] = None,
+        search: Optional[str] = None,
     ) -> List[dict]:
         """Calcula saldo atual por item. Retorna lista de dicts com item + saldo."""
         # Busca todos os itens ativos do tenant
@@ -299,6 +304,8 @@ class EstoqueMovimentacaoRepository:
         )
         if grupo_id:
             stmt_itens = stmt_itens.where(EstoqueItem.grupo_id == grupo_id)
+        if search:
+            stmt_itens = stmt_itens.where(EstoqueItem.nome.ilike(f"%{search}%"))
         stmt_itens = stmt_itens.order_by(EstoqueItem.nome)
         itens = (await self.db.execute(stmt_itens)).scalars().all()
 

@@ -37,6 +37,7 @@ import AddIcon from '@mui/icons-material/Add';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import SearchIcon from '@mui/icons-material/Search';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '../../../hooks/useSubscription';
 import UpgradePrompt from '../../../components/UpgradePrompt';
@@ -91,6 +92,9 @@ function AdminEstoqueMovimentacoesContent() {
   const [saving, setSaving] = useState(false);
   const [filterItem, setFilterItem] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterSearch, setFilterSearch] = useState('');
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
@@ -107,7 +111,7 @@ function AdminEstoqueMovimentacoesContent() {
     loadItems();
   }, []);
 
-  useEffect(() => { loadMovimentacoes(); }, [filterItem, filterTipo]);
+  useEffect(() => { loadMovimentacoes(); }, [filterItem, filterTipo, filterDateFrom, filterDateTo, filterSearch]);
 
   const loadItems = async () => {
     try {
@@ -122,6 +126,9 @@ function AdminEstoqueMovimentacoesContent() {
       const params: Record<string, string> = {};
       if (filterItem) params.item_id = filterItem;
       if (filterTipo) params.tipo = filterTipo;
+      if (filterDateFrom) params.date_from = new Date(filterDateFrom + 'T00:00:00').toISOString();
+      if (filterDateTo) params.date_to = new Date(filterDateTo + 'T23:59:59').toISOString();
+      if (filterSearch.trim()) params.search = filterSearch.trim();
       const res = await apiClient.get('/api/v1/admin/estoque/movimentacoes', { params });
       setMovimentacoes(res.data);
     } catch {
@@ -187,6 +194,14 @@ function AdminEstoqueMovimentacoesContent() {
           <Chip label={`${movimentacoes.length}`} size="small" variant="outlined" />
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <TextField
+            size="small"
+            placeholder="Buscar por nome do item..."
+            value={filterSearch}
+            onChange={(e) => setFilterSearch(e.target.value)}
+            InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 0.5, color: 'text.disabled' }} /> }}
+            sx={{ minWidth: 200 }}
+          />
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel>Item</InputLabel>
             <Select value={filterItem} label="Item" onChange={(e) => setFilterItem(e.target.value)}>
@@ -202,6 +217,24 @@ function AdminEstoqueMovimentacoesContent() {
               <MenuItem value="saida">Saída</MenuItem>
             </Select>
           </FormControl>
+          <TextField
+            size="small"
+            type="date"
+            label="De"
+            value={filterDateFrom}
+            onChange={(e) => setFilterDateFrom(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: 150 }}
+          />
+          <TextField
+            size="small"
+            type="date"
+            label="Até"
+            value={filterDateTo}
+            onChange={(e) => setFilterDateTo(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: 150 }}
+          />
           <Tooltip title="Atualizar"><IconButton onClick={loadMovimentacoes}><RefreshIcon /></IconButton></Tooltip>
           <Button variant="contained" startIcon={<AddIcon />} onClick={async () => { await loadItems(); setFormData({ ...EMPTY_FORM, data_movimentacao: toLocalDatetimeInput(new Date()) }); setSaldoWarning(null); setTouched({}); setDialogOpen(true); }}>
             Registrar
