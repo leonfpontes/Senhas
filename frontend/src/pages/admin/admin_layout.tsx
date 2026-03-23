@@ -130,13 +130,24 @@ function AdminLayoutInner({
         setCurrentUser(profile);
         setAvatarFailed(false);
 
-        localStorage.setItem(
-          'user',
-          JSON.stringify({
-            ...(stored ? JSON.parse(stored) : {}),
-            ...profile,
-          }),
-        );
+        // Guard: never write to localStorage during an impersonation session.
+        // The api_client prioritises sessionStorage tokens, so the profile
+        // response belongs to the tenant user — not the superadmin. Writing it
+        // back to localStorage would corrupt the superadmin's session, causing
+        // /platform routes to become inaccessible after the impersonation tab
+        // is closed (sessionStorage is destroyed with the tab).
+        const isImpersonatingSession =
+          typeof sessionStorage !== 'undefined' && !!sessionStorage.getItem('impersonating');
+
+        if (!isImpersonatingSession) {
+          localStorage.setItem(
+            'user',
+            JSON.stringify({
+              ...(stored ? JSON.parse(stored) : {}),
+              ...profile,
+            }),
+          );
+        }
       } catch {
         // Keep fallback from localStorage when profile endpoint fails.
       }

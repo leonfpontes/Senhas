@@ -15,8 +15,22 @@ const customJestConfig = {
   testEnvironment: 'jest-environment-jsdom',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    // pnpm workspaces: @mui/icons-material is in frontend/node_modules/@mui/,
+    // but @mui/material is only at the root. Icon files internally import
+    // @mui/material/useTheme via the package.json exports map — a subpath Jest
+    // can't resolve across workspace boundaries. Mocking all icon subpath imports
+    // with a lightweight SVG stub is the standard approach for MUI testing.
+    '^@mui/icons-material/(.*)$': '<rootDir>/__mocks__/mui-icon-mock.js',
+    // next.config.js `modularizeImports` converts named imports like
+    // `import { useTheme } from '@mui/material'` into subpath imports like
+    // `import useTheme from '@mui/material/useTheme'`. Most subpaths have their
+    // own directory in the package (Button/, AppBar/, useMediaQuery/, etc.),
+    // but @mui/material v5.18 does not include a useTheme/ directory.
+    // Map it to the CJS entry in the node/ build so Jest can load it.
+    '^@mui/material/useTheme$': '<rootDir>/../node_modules/@mui/material/node/styles/useTheme',
   },
   testMatch: ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
+  moduleDirectories: ['node_modules', '<rootDir>/../node_modules'],
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async

@@ -150,6 +150,11 @@ describe('Admin Config', () => {
 });
 
 describe('Admin Layout', () => {
+  afterEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
   it('renders children', () => {
     const AdminLayout = require('@/pages/admin/admin_layout').default;
     renderWithTheme(
@@ -158,5 +163,65 @@ describe('Admin Layout', () => {
       </AdminLayout>
     );
     expect(screen.getByTestId('child-content')).toBeInTheDocument();
+  });
+
+  it('does NOT overwrite localStorage.user when impersonating', async () => {
+    const { apiClient } = require('@/services/api_client');
+
+    // Superadmin stored in localStorage (the real session)
+    const superAdminUser = { role: 'super_admin', email: 'super@test.com', id: 'sa-1' };
+    localStorage.setItem('user', JSON.stringify(superAdminUser));
+
+    // Impersonation flag is set (as done by /admin/impersonate landing page)
+    sessionStorage.setItem('impersonating', 'true');
+
+    // Profile API returns the tenant user's data (via the impersonation token)
+    apiClient.get.mockResolvedValue({
+      data: { role: 'admin', email: 'tenant@test.com', id: 'tu-1' },
+    });
+
+    const AdminLayout = require('@/pages/admin/admin_layout').default;
+    renderWithTheme(
+      <AdminLayout>
+        <div>Content</div>
+      </AdminLayout>
+    );
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/api/v1/auth/profile'));
+
+    // localStorage must still contain the superadmin — not the tenant user
+    const stored = JSON.parse(localStorage.getItem('user') || '{}');
+    expect(stored.role).toBe('super_admin');
+    expect(stored.email).toBe('super@test.com');
+  });
+
+  it('updates localStorage.user when NOT impersonating', async () => {
+    const { apiClient } = require('@/services/api_client');
+
+    // Superadmin stored in localStorage with stale email
+    const superAdminUser = { role: 'super_admin', email: 'old@test.com', id: 'sa-1' };
+    localStorage.setItem('user', JSON.stringify(superAdminUser));
+
+    // No impersonation flag
+    sessionStorage.removeItem('impersonating');
+
+    // Profile API returns updated superadmin data
+    apiClient.get.mockResolvedValue({
+      data: { role: 'super_admin', email: 'updated@test.com', id: 'sa-1' },
+    });
+
+    const AdminLayout = require('@/pages/admin/admin_layout').default;
+    renderWithTheme(
+      <AdminLayout>
+        <div>Content</div>
+      </AdminLayout>
+    );
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/api/v1/auth/profile'));
+
+    // localStorage must reflect the updated profile
+    const stored = JSON.parse(localStorage.getItem('user') || '{}');
+    expect(stored.email).toBe('updated@test.com');
+    expect(stored.role).toBe('super_admin');
   });
 });
