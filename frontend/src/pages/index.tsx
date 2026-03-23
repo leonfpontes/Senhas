@@ -129,6 +129,7 @@ const PLANS = [
       'Export CSV',
       'Operações em lote',
       'Auditoria completa',
+      'Controle de Estoque',
     ],
   },
   {

@@ -46,6 +46,10 @@ import Diversity3Icon from '@mui/icons-material/Diversity3';
 import CardMembershipIcon from '@mui/icons-material/CardMembership';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
+import Inventory2Icon from '@mui/icons-material/Inventory2';
+import CategoryIcon from '@mui/icons-material/Category';
+import SwapVertIcon from '@mui/icons-material/SwapVert';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -208,6 +212,16 @@ function AdminLayoutInner({
   const cadastrosHrefs = cadastrosItems.map((i) => i.href);
   const isCadastrosActive = cadastrosHrefs.includes(pathname);
   const [cadastrosOpen, setCadastrosOpen] = useState(isCadastrosActive);
+
+  const estoqueItems = can('estoque_controle') ? [
+    { text: 'Grupos de Material', icon: <CategoryIcon />, href: '/admin/estoque/grupos' },
+    { text: 'Itens', icon: <Inventory2Icon />, href: '/admin/estoque/itens' },
+    { text: 'Movimentações', icon: <SwapVertIcon />, href: '/admin/estoque/movimentacoes' },
+    { text: 'Relatório', icon: <BarChartIcon />, href: '/admin/estoque/relatorio' },
+  ] : [];
+  const estoqueHrefs = estoqueItems.map((i) => i.href);
+  const isEstoqueActive = estoqueHrefs.includes(pathname);
+  const [estoqueOpen, setEstoqueOpen] = useState(isEstoqueActive);
 
   const topItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, href: '/admin/dashboard' },
@@ -406,6 +420,64 @@ function AdminLayoutInner({
             ))}
           </List>
         </Collapse>
+
+        {/* Estoque group — visible only for Pro+ plans */}
+        {can('estoque_controle') && (
+          <>
+            <ListItem disablePadding>
+              <ListItemButton
+                onClick={() => setEstoqueOpen(!estoqueOpen)}
+                sx={{
+                  borderRadius: 2,
+                  mx: 1,
+                  '& .MuiListItemIcon-root': { color: 'text.secondary' },
+                  ...(isEstoqueActive && !estoqueOpen && {
+                    background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                    color: brandFont,
+                    '& .MuiListItemIcon-root': { color: brandFont },
+                    '& .MuiListItemText-primary': { color: brandFont },
+                  }),
+                }}
+              >
+                <ListItemIcon><Inventory2Icon /></ListItemIcon>
+                <ListItemText primary="Estoque" primaryTypographyProps={{ variant: 'body2', fontWeight: isEstoqueActive ? 600 : 500 }} />
+                {estoqueOpen ? <ExpandLess /> : <ExpandMore />}
+              </ListItemButton>
+            </ListItem>
+            <Collapse in={estoqueOpen} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                {estoqueItems.map((item) => (
+                  <ListItem key={item.href} disablePadding>
+                    <Link href={item.href} passHref legacyBehavior>
+                      <ListItemButton
+                        selected={pathname === item.href}
+                        sx={{
+                          borderRadius: 2,
+                          mx: 1,
+                          pl: 4,
+                          '& .MuiListItemIcon-root': { color: 'text.secondary', minWidth: 36 },
+                          '&.Mui-selected': {
+                            background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                            color: brandFont,
+                            '& .MuiListItemIcon-root': { color: brandFont },
+                            '& .MuiListItemText-primary': { color: brandFont },
+                          },
+                          '&.Mui-selected:hover': {
+                            background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                            filter: 'brightness(0.97)',
+                          },
+                        }}
+                      >
+                        <ListItemIcon>{item.icon}</ListItemIcon>
+                        <ListItemText primary={item.text} primaryTypographyProps={{ variant: 'body2', fontWeight: pathname === item.href ? 600 : 500 }} />
+                      </ListItemButton>
+                    </Link>
+                  </ListItem>
+                ))}
+              </List>
+            </Collapse>
+          </>
+        )}
 
         {bottomItems.map((item) => (
           <ListItem key={item.href} disablePadding>

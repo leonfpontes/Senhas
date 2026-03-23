@@ -52,7 +52,10 @@ class TenantConfig(TimestampedModel):
     
     # Associado validation on emit
     validate_associado_on_emit: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
-    
+
+    # Estoque: log de movimentações no audit_log
+    enable_estoque_log: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+
     # Custom metadata
     custom_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     

@@ -45,6 +45,7 @@ class TenantConfigResponse(BaseModel):
     custom_settings: Optional[Dict[str, Any]]
     sponsor_priority_mode: str = "first"
     validate_associado_on_emit: bool = False
+    enable_estoque_log: bool = True
 
     class Config:
         from_attributes = True
@@ -64,6 +65,7 @@ class TenantConfigUpdate(BaseModel):
     custom_settings: Optional[Dict[str, Any]] = None
     sponsor_priority_mode: Optional[str] = None
     validate_associado_on_emit: Optional[bool] = None
+    enable_estoque_log: Optional[bool] = None
 
     @field_validator("primary_color", "secondary_color")
     @classmethod
@@ -107,6 +109,7 @@ async def get_tenant_config(
             custom_settings=None,
             sponsor_priority_mode="first",
             validate_associado_on_emit=False,
+            enable_estoque_log=True,
         )
     
     repo = TenantConfigRepository(db)
@@ -224,7 +227,15 @@ async def update_tenant_config(
         current_config = await repo.get_by_tenant(current_user.tenant_id)
         current_config.validate_associado_on_emit = config_update.validate_associado_on_emit
         await db.flush()
-    
+
+    # Update enable_estoque_log
+    if config_update.enable_estoque_log is not None:
+        await repo.toggle_feature(
+            tenant_id=current_user.tenant_id,
+            feature_flag="enable_estoque_log",
+            enabled=config_update.enable_estoque_log,
+        )
+
     # Get updated config
     updated_config = await repo.get_by_tenant(current_user.tenant_id)
     new_state = TenantConfigResponse.from_orm(updated_config).dict()
