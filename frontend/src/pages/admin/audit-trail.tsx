@@ -55,6 +55,9 @@ const RESOURCE_LABELS: Record<string, string> = {
   giras: 'Giras',
   Subscription: 'Assinatura',
   subscription: 'Assinatura',
+  EstoqueGrupo: 'Grupo de Material',
+  EstoqueItem: 'Item de Estoque',
+  EstoqueMovimentacao: 'Movimentação de Estoque',
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -95,6 +98,7 @@ const FIELD_LABELS: Record<string, string> = {
   enable_walk_in: 'Walk-in habilitado',
   enable_sponsors: 'Patrocinadores habilitados',
   validate_associado_on_emit: 'Validar associado na emissão',
+  enable_estoque_log: 'Log de estoque ativado',
   walk_in_limit: 'Limite walk-in',
   slug: 'Slug',
   role: 'Papel',
@@ -364,6 +368,9 @@ function AdminAuditTrailContent() {
             <MenuItem value="Ticket">Ticket</MenuItem>
             <MenuItem value="Gira">Gira</MenuItem>
             <MenuItem value="TenantConfig">Configuração</MenuItem>
+            <MenuItem value="EstoqueGrupo">Grupo de Material</MenuItem>
+            <MenuItem value="EstoqueItem">Item de Estoque</MenuItem>
+            <MenuItem value="EstoqueMovimentacao">Movimentação de Estoque</MenuItem>
           </Select>
         </FormControl>
 

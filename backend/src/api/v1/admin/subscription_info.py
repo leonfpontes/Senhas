@@ -37,6 +37,7 @@ class PlanFeatures(BaseModel):
     export_csv: bool = False
     bulk_operations: bool = False
     auditoria: bool = False
+    estoque_controle: bool = False
     webhooks: bool = False
     api_access: bool = False
     suporte_prioritario: bool = False
@@ -68,6 +69,7 @@ def _get_plan_features(plan: PlanType) -> PlanFeatures:
         export_csv=tier >= 2,
         bulk_operations=tier >= 2,
         auditoria=tier >= 2,
+        estoque_controle=tier >= 2,
         webhooks=tier >= 3,
         api_access=tier >= 3,
         suporte_prioritario=tier >= 3,

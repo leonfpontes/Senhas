@@ -16,6 +16,7 @@ from .door_control import router as door_control_router
 from .door_ws import router as door_ws_router
 from .associados import router as associados_router
 from .subscription_info import router as subscription_info_router
+from .estoque import router as estoque_router
 
 # Combine all admin routers
 admin_router = APIRouter()
@@ -34,5 +35,6 @@ admin_router.include_router(door_control_router)
 admin_router.include_router(door_ws_router)
 admin_router.include_router(associados_router)
 admin_router.include_router(subscription_info_router)
+admin_router.include_router(estoque_router)
 
 __all__ = ["admin_router"]

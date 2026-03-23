@@ -12,6 +12,7 @@ from .subscriptions import Subscription, PlanType, SubscriptionStatus
 from .billing import Invoice, InvoiceStatus
 from .feature_flags import FeatureFlag
 from .associados import Associado
+from .estoque import EstoqueGrupo, EstoqueItem, EstoqueMovimentacao, EstoqueMovimentacaoTipo
 
 __all__ = [
     "Base",
@@ -34,4 +35,8 @@ __all__ = [
     "Invoice",
     "InvoiceStatus",
     "FeatureFlag",
+    "EstoqueGrupo",
+    "EstoqueItem",
+    "EstoqueMovimentacao",
+    "EstoqueMovimentacaoTipo",
 ]

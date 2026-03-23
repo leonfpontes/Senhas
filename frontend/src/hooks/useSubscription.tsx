@@ -16,6 +16,7 @@ export interface PlanFeatures {
   webhooks: boolean;
   api_access: boolean;
   suporte_prioritario: boolean;
+  estoque_controle: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -59,6 +60,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   webhooks: false,
   api_access: false,
   suporte_prioritario: false,
+  estoque_controle: false,
 };
 
 const PLAN_LABELS: Record<string, string> = {

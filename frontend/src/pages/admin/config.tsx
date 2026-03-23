@@ -87,6 +87,8 @@ const HELP_TEXT = {
     'Define como tickets de associados entram na ordem de chamada na visão da porta: antes de todos ou intercalados com os demais.',
   validate_associado_on_emit:
     'Quando ativado, a emissão de senha de associado exige que o e-mail esteja cadastrado na lista de associados.',
+  enable_estoque_log:
+    'Quando ativado, cada movimentação de estoque gera um registro de auditoria. Desative para reduzir o volume de logs.',
 } as const;
 
 const FEATURE_ITEMS = [
@@ -119,6 +121,12 @@ const FEATURE_ITEMS = [
     title: 'Validar e-mail de associado na emissão',
     description: 'Bloqueia emissão de senha de associado se o e-mail não estiver cadastrado.',
     tooltip: HELP_TEXT.validate_associado_on_emit,
+  },
+  {
+    field: 'enable_estoque_log' as const,
+    title: 'Registrar log de movimentações de estoque',
+    description: 'Gera registro de auditoria a cada entrada ou saída de estoque.',
+    tooltip: HELP_TEXT.enable_estoque_log,
   },
 ];
 
@@ -359,6 +367,7 @@ function AdminConfigContent() {
         enable_webhooks: config.enable_webhooks,
         enable_walk_in: config.enable_walk_in,
         validate_associado_on_emit: config.validate_associado_on_emit,
+        enable_estoque_log: config.enable_estoque_log,
         sponsor_priority_mode: config.sponsor_priority_mode || 'first',
         endereco: config.endereco || '',
       });
@@ -827,6 +836,7 @@ function AdminConfigContent() {
                       if (item.field === 'enable_bulk_operations' && !can('bulk_operations')) return false;
                       if (item.field === 'enable_analytics' && !can('analytics_basico')) return false;
                       if (item.field === 'validate_associado_on_emit' && !can('associados')) return false;
+                      if (item.field === 'enable_estoque_log' && !can('estoque_controle')) return false;
                       return true;
                     }).map((item) => (
                       <Grid item xs={12} md={6} key={item.field}>

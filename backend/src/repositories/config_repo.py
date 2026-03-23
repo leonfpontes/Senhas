@@ -135,6 +135,7 @@ class TenantConfigRepository:
             "enable_analytics",
             "enable_webhooks",
             "enable_walk_in",
+            "enable_estoque_log",
         ]:
             setattr(config, feature_flag, enabled)
         
