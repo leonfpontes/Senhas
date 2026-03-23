@@ -46,6 +46,25 @@ import CrudDrawer from '../../../components/CrudDrawer';
 const UNIDADES = ['UN', 'KG', 'G', 'L', 'ML', 'M', 'CM', 'CX', 'PCT', 'RO'] as const;
 type Unidade = typeof UNIDADES[number];
 
+/** Small helper to render images that require Authorization header. */
+function AuthImage({ src, sx }: { src: string; sx?: object }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const urlRef = useRef<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    apiClient.get(src, { responseType: 'blob' }).then((res) => {
+      if (!cancelled) {
+        const url = URL.createObjectURL(res.data);
+        urlRef.current = url;
+        setBlobUrl(url);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; if (urlRef.current) URL.revokeObjectURL(urlRef.current); };
+  }, [src]);
+  if (!blobUrl) return null;
+  return <Box component="img" src={blobUrl} sx={sx} />;
+}
+
 interface Grupo { id: string; nome: string; }
 
 interface Item {
@@ -82,9 +101,9 @@ const EMPTY_FORM: FormData = {
 };
 
 function SaldoChip({ saldo, minimo, unidade }: { saldo: number; minimo: number; unidade: string }) {
-  const isNeg = saldo <= 0;
-  const isLow = !isNeg && saldo < minimo;
-  const color = isNeg ? 'error' : isLow ? 'warning' : 'success';
+  const isCrit = saldo < 0 || (minimo > 0 && saldo === 0);
+  const isLow = !isCrit && minimo > 0 && saldo < minimo;
+  const color = isCrit ? 'error' : isLow ? 'warning' : 'success';
   const label = `${saldo} ${unidade}`;
   return <Chip label={label} color={color} size="small" variant="outlined" />;
 }
@@ -121,7 +140,6 @@ function AdminEstoqueItensContent() {
 
   useEffect(() => {
     loadGrupos();
-    loadItems();
   }, []);
 
   useEffect(() => { loadItems(); }, [filterGrupo]);
@@ -156,7 +174,7 @@ function AdminEstoqueItensContent() {
     setDrawerOpen(true);
   };
 
-  const openEdit = (item: Item) => {
+  const openEdit = async (item: Item) => {
     setCurrentItem(item);
     setFormData({
       nome: item.nome,
@@ -169,7 +187,17 @@ function AdminEstoqueItensContent() {
       foto_base64: null,
       foto_content_type: null,
     });
-    setFotoPreview(item.tem_foto ? `/api/v1/admin/estoque/itens/${item.id}/foto` : null);
+    if (item.tem_foto) {
+      try {
+        const res = await apiClient.get(`/api/v1/admin/estoque/itens/${item.id}/foto`, { responseType: 'blob' });
+        const url = URL.createObjectURL(res.data);
+        setFotoPreview(url);
+      } catch {
+        setFotoPreview(null);
+      }
+    } else {
+      setFotoPreview(null);
+    }
     setTouched({});
     setDrawerMode('edit');
     setDrawerOpen(true);
@@ -296,8 +324,7 @@ function AdminEstoqueItensContent() {
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       {item.tem_foto && (
-                        <Box
-                          component="img"
+                        <AuthImage
                           src={`/api/v1/admin/estoque/itens/${item.id}/foto`}
                           sx={{ width: 32, height: 32, borderRadius: 1, objectFit: 'cover' }}
                         />
@@ -327,9 +354,14 @@ function AdminEstoqueItensContent() {
       <CrudDrawer
         open={drawerOpen}
         title={drawerMode === 'create' ? 'Novo Item' : 'Editar Item'}
-        onClose={() => { setDrawerOpen(false); setCurrentItem(null); }}
+        onClose={() => {
+          if (fotoPreview && fotoPreview.startsWith('blob:')) URL.revokeObjectURL(fotoPreview);
+          setDrawerOpen(false);
+          setCurrentItem(null);
+          setFotoPreview(null);
+        }}
         onSave={handleSave}
-        loading={saving}
+        saving={saving}
       >
         <TextField
           label="Nome do item *"

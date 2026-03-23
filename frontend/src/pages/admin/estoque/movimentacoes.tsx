@@ -47,7 +47,7 @@ interface Movimentacao {
   id: string;
   item_id: string;
   item_nome: string | null;
-  tipo: 'ENTRADA' | 'SAIDA';
+  tipo: 'entrada' | 'saida';
   quantidade: number;
   motivo: string | null;
   data_movimentacao: string;
@@ -57,7 +57,7 @@ interface Movimentacao {
 
 interface FormData {
   item_id: string;
-  tipo: 'ENTRADA' | 'SAIDA';
+  tipo: 'entrada' | 'saida';
   quantidade: string;
   data_movimentacao: string;
   motivo: string;
@@ -70,8 +70,8 @@ const toLocalDatetimeInput = (date: Date) => {
 };
 
 const EMPTY_FORM: FormData = {
-  item_id: '', tipo: 'ENTRADA', quantidade: '',
-  data_movimentacao: toLocalDatetimeInput(new Date()),
+  item_id: '', tipo: 'entrada', quantidade: '',
+  data_movimentacao: '',
   motivo: '', requisitante: '',
 };
 
@@ -105,7 +105,6 @@ function AdminEstoqueMovimentacoesContent() {
 
   useEffect(() => {
     loadItems();
-    loadMovimentacoes();
   }, []);
 
   useEffect(() => { loadMovimentacoes(); }, [filterItem, filterTipo]);
@@ -137,8 +136,8 @@ function AdminEstoqueMovimentacoesContent() {
     checkNegativeWarning(itemId, formData.tipo, formData.quantidade);
   };
 
-  const checkNegativeWarning = (itemId: string, tipo: 'ENTRADA' | 'SAIDA', qtdStr: string) => {
-    if (tipo !== 'SAIDA' || !itemId) { setSaldoWarning(null); return; }
+  const checkNegativeWarning = (itemId: string, tipo: 'entrada' | 'saida', qtdStr: string) => {
+    if (tipo !== 'saida' || !itemId) { setSaldoWarning(null); return; }
     const item = items.find((i) => i.id === itemId);
     if (!item) { setSaldoWarning(null); return; }
     const qtd = parseInt(qtdStr, 10);
@@ -199,12 +198,12 @@ function AdminEstoqueMovimentacoesContent() {
             <InputLabel>Tipo</InputLabel>
             <Select value={filterTipo} label="Tipo" onChange={(e) => setFilterTipo(e.target.value)}>
               <MenuItem value="">Todos</MenuItem>
-              <MenuItem value="ENTRADA">Entrada</MenuItem>
-              <MenuItem value="SAIDA">Saída</MenuItem>
+              <MenuItem value="entrada">Entrada</MenuItem>
+              <MenuItem value="saida">Saída</MenuItem>
             </Select>
           </FormControl>
           <Tooltip title="Atualizar"><IconButton onClick={loadMovimentacoes}><RefreshIcon /></IconButton></Tooltip>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setFormData(EMPTY_FORM); setSaldoWarning(null); setTouched({}); setDialogOpen(true); }}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={async () => { await loadItems(); setFormData({ ...EMPTY_FORM, data_movimentacao: toLocalDatetimeInput(new Date()) }); setSaldoWarning(null); setTouched({}); setDialogOpen(true); }}>
             Registrar
           </Button>
         </Box>
@@ -239,8 +238,8 @@ function AdminEstoqueMovimentacoesContent() {
                   <TableCell>{m.item_nome || m.item_id}</TableCell>
                   <TableCell>
                     <Chip
-                      label={m.tipo === 'ENTRADA' ? 'Entrada' : 'Saída'}
-                      color={m.tipo === 'ENTRADA' ? 'success' : 'error'}
+                      label={m.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                      color={m.tipo === 'entrada' ? 'success' : 'error'}
                       size="small"
                     />
                   </TableCell>
@@ -269,10 +268,10 @@ function AdminEstoqueMovimentacoesContent() {
                 setFormData((prev) => ({ ...prev, tipo: val }));
                 checkNegativeWarning(formData.item_id, val, formData.quantidade);
               }}
-              color={formData.tipo === 'ENTRADA' ? 'success' : 'error'}
+              color={formData.tipo === 'entrada' ? 'success' : 'error'}
             >
-              <ToggleButton value="ENTRADA" sx={{ px: 4 }}>Entrada</ToggleButton>
-              <ToggleButton value="SAIDA" sx={{ px: 4 }}>Saída</ToggleButton>
+              <ToggleButton value="entrada" sx={{ px: 4 }}>Entrada</ToggleButton>
+              <ToggleButton value="saida" sx={{ px: 4 }}>Saída</ToggleButton>
             </ToggleButtonGroup>
           </Box>
 
@@ -338,7 +337,7 @@ function AdminEstoqueMovimentacoesContent() {
           <Button onClick={() => setDialogOpen(false)}>Cancelar</Button>
           <Button
             variant="contained"
-            color={formData.tipo === 'ENTRADA' ? 'success' : 'error'}
+            color={formData.tipo === 'entrada' ? 'success' : 'error'}
             onClick={handleSave}
             disabled={saving}
             startIcon={saving ? <CircularProgress size={16} /> : undefined}

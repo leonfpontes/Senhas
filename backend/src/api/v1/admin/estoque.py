@@ -12,12 +12,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, field_validator
+from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import get_current_user
 from src.core.database import get_db
 from src.models import User
-from src.models.estoque import EstoqueMovimentacaoTipo
+from src.models.estoque import EstoqueMovimentacao, EstoqueMovimentacaoTipo
 from src.models.subscriptions import PlanType
 from src.repositories.config_repo import TenantConfigRepository
 from src.repositories.estoque_repo import (
@@ -46,7 +48,10 @@ UNIDADES_MEDIDA = {"UN", "KG", "G", "L", "ML", "M", "CM", "CX", "PCT", "RO"}
 async def _require_estoque_plan(user: User, db: AsyncSession) -> None:
     """Verifica que o tenant possui plano Pro ou superior."""
     if user.tenant_id is None:
-        return  # super_admin pode acessar
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Superadmin deve impersonar um tenant para operar o estoque.",
+        )
     sub_repo = SubscriptionRepository(db)
     sub = await sub_repo.get_by_tenant(user.tenant_id)
     tier = _PLAN_TIER.get(sub.plan if sub else PlanType.FREE, 0)
@@ -64,6 +69,14 @@ async def _require_estoque_plan(user: User, db: AsyncSession) -> None:
 class GrupoCreate(BaseModel):
     nome: str
     descricao: Optional[str] = None
+
+    @field_validator("nome")
+    @classmethod
+    def validate_nome(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Nome não pode ser vazio")
+        return stripped
 
 
 class GrupoUpdate(BaseModel):
@@ -95,6 +108,14 @@ class ItemCreate(BaseModel):
     # Foto enviada como base64 (data URI ou raw base64)
     foto_base64: Optional[str] = None
     foto_content_type: Optional[str] = None
+
+    @field_validator("nome")
+    @classmethod
+    def validate_nome(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Nome não pode ser vazio")
+        return stripped
 
     @field_validator("unidade_medida")
     @classmethod
@@ -222,6 +243,10 @@ def _decode_foto(foto_base64: Optional[str], content_type: Optional[str]) -> tup
                 content_type = header.split(";")[0].split(":")[1]
         except ValueError:
             raise HTTPException(status_code=400, detail="Formato de data URI inválido")
+    else:
+        # raw base64 — content_type obrigatório
+        if not content_type:
+            raise HTTPException(status_code=422, detail="foto_content_type é obrigatório para base64 puro")
     if content_type and content_type not in ALLOWED_FOTO_TYPES:
         raise HTTPException(status_code=400, detail="Tipo de foto inválido. Use JPG, PNG ou WEBP")
     try:
@@ -264,9 +289,11 @@ def _mov_to_response(mov) -> MovimentacaoResponse:
 
 
 def _saldo_status(saldo: int, minimo: int) -> str:
-    if saldo <= 0:
+    if saldo < 0:
         return "critico"
-    if saldo < minimo:
+    if minimo > 0 and saldo == 0:
+        return "critico"
+    if minimo > 0 and saldo < minimo:
         return "atencao"
     return "ok"
 
@@ -283,7 +310,7 @@ async def list_grupos(
     await _require_estoque_plan(current_user, db)
     repo = EstoqueGrupoRepository(db)
     grupos = await repo.list_all(current_user.tenant_id)
-    return [GrupoResponse.from_orm(g) for g in grupos]
+    return [GrupoResponse.model_validate(g) for g in grupos]
 
 
 @router.post("/grupos", response_model=GrupoResponse, status_code=201)
@@ -306,7 +333,8 @@ async def create_grupo(
         details={"nome": grupo.nome},
     )
     await db.commit()
-    return GrupoResponse.from_orm(grupo)
+    await db.refresh(grupo)
+    return GrupoResponse.model_validate(grupo)
 
 
 @router.get("/grupos/{grupo_id}", response_model=GrupoResponse)
@@ -320,7 +348,7 @@ async def get_grupo(
     grupo = await repo.get_by_id(grupo_id, current_user.tenant_id)
     if not grupo:
         raise HTTPException(status_code=404, detail="Grupo não encontrado")
-    return GrupoResponse.from_orm(grupo)
+    return GrupoResponse.model_validate(grupo)
 
 
 @router.put("/grupos/{grupo_id}", response_model=GrupoResponse)
@@ -349,7 +377,8 @@ async def update_grupo(
         new_state={"nome": grupo.nome},
     )
     await db.commit()
-    return GrupoResponse.from_orm(grupo)
+    await db.refresh(grupo)
+    return GrupoResponse.model_validate(grupo)
 
 
 @router.delete("/grupos/{grupo_id}", status_code=204)
@@ -360,6 +389,13 @@ async def delete_grupo(
 ):
     await _require_estoque_plan(current_user, db)
     repo = EstoqueGrupoRepository(db)
+    item_repo = EstoqueItemRepository(db)
+    count = await item_repo.count_by_grupo(grupo_id, current_user.tenant_id)
+    if count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Grupo possui {count} iten(s). Mova ou exclua os itens antes de remover o grupo.",
+        )
     deleted = await repo.delete_grupo(grupo_id, current_user.tenant_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Grupo não encontrado")
@@ -390,11 +426,9 @@ async def list_itens(
     items = await item_repo.list_all(
         tenant_id=current_user.tenant_id, grupo_id=grupo_id, skip=skip, limit=limit
     )
-    result = []
-    for item in items:
-        saldo = await item_repo.get_saldo(item.id, current_user.tenant_id)
-        result.append(_item_to_response(item, saldo))
-    return result
+    item_ids = [item.id for item in items]
+    saldos = await item_repo.get_saldos_bulk(item_ids, current_user.tenant_id) if item_ids else {}
+    return [_item_to_response(item, saldos.get(item.id, 0)) for item in items]
 
 
 @router.post("/itens", response_model=ItemWithSaldoResponse, status_code=201)
@@ -596,9 +630,6 @@ async def create_movimentacao(
     await db.commit()
 
     # Recarrega com relacionamentos
-    from sqlalchemy.orm import selectinload
-    from sqlalchemy import select as sa_select
-    from src.models.estoque import EstoqueMovimentacao
     stmt = (
         sa_select(EstoqueMovimentacao)
         .options(selectinload(EstoqueMovimentacao.item))
@@ -643,6 +674,14 @@ async def relatorio_posicao(
     return result
 
 
+def _safe_csv(value: object) -> str:
+    """Sanitize string values for CSV export to prevent formula injection in spreadsheets."""
+    s = str(value) if value is not None else ""
+    if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + s
+    return s
+
+
 @router.get("/relatorio/posicao/csv")
 async def relatorio_posicao_csv(
     grupo_id: Optional[UUID] = Query(None),
@@ -664,8 +703,8 @@ async def relatorio_posicao_csv(
         saldo = row["saldo"]
         ultima = row["ultima_movimentacao"]
         writer.writerow([
-            item.nome,
-            item.grupo.nome if item.grupo else "",
+            _safe_csv(item.nome),
+            _safe_csv(item.grupo.nome) if item.grupo else "",
             item.unidade_medida,
             saldo,
             item.estoque_minimo,

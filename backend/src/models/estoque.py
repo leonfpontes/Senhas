@@ -1,6 +1,7 @@
 """Estoque models — inventory management for terreiros (Plano Pro+)."""
 import enum
 import uuid
+from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
@@ -109,7 +110,7 @@ class EstoqueMovimentacao(TimestampedModel):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     item_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("estoque_itens.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("estoque_itens.id", ondelete="RESTRICT"), nullable=False
     )
     usuario_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -119,7 +120,7 @@ class EstoqueMovimentacao(TimestampedModel):
     )
     quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
     motivo: Mapped[str | None] = mapped_column(Text, nullable=True)
-    data_movimentacao: Mapped[str] = mapped_column(
+    data_movimentacao: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
     requisitante: Mapped[str | None] = mapped_column(String(255), nullable=True)

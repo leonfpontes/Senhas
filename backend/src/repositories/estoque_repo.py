@@ -132,6 +132,43 @@ class EstoqueItemRepository(BaseRepository[EstoqueItem]):
         saidas = (await self.db.execute(stmt_saida)).scalar() or 0
         return int(entradas) - int(saidas)
 
+    async def get_saldos_bulk(self, item_ids: list[UUID], tenant_id: UUID) -> dict[UUID, int]:
+        """Calcula saldo de múltiplos itens em uma única query agregada."""
+        if not item_ids:
+            return {}
+        stmt = (
+            select(
+                EstoqueMovimentacao.item_id,
+                func.sum(
+                    func.case(
+                        (EstoqueMovimentacao.tipo == EstoqueMovimentacaoTipo.ENTRADA, EstoqueMovimentacao.quantidade),
+                        else_=-EstoqueMovimentacao.quantidade,
+                    )
+                ).label("saldo"),
+            )
+            .where(
+                and_(
+                    EstoqueMovimentacao.tenant_id == tenant_id,
+                    EstoqueMovimentacao.item_id.in_(item_ids),
+                )
+            )
+            .group_by(EstoqueMovimentacao.item_id)
+        )
+        rows = (await self.db.execute(stmt)).all()
+        return {row.item_id: int(row.saldo or 0) for row in rows}
+
+    async def count_by_grupo(self, grupo_id: UUID, tenant_id: UUID) -> int:
+        """Conta itens ativos pertencentes a um grupo."""
+        stmt = select(func.count(EstoqueItem.id)).where(
+            and_(
+                EstoqueItem.grupo_id == grupo_id,
+                EstoqueItem.tenant_id == tenant_id,
+                EstoqueItem.deleted_at.is_(None),
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
+
     async def create_item(
         self,
         tenant_id: UUID,
