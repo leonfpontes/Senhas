@@ -223,6 +223,16 @@ function AdminLayoutInner({
   const isEstoqueActive = estoqueHrefs.includes(pathname);
   const [estoqueOpen, setEstoqueOpen] = useState(isEstoqueActive);
 
+  // Keep accordion groups open when navigating to a child route or when
+  // subscription data finishes loading (can() may initially return false).
+  useEffect(() => {
+    if (isCadastrosActive) setCadastrosOpen(true);
+  }, [isCadastrosActive]);
+
+  useEffect(() => {
+    if (isEstoqueActive) setEstoqueOpen(true);
+  }, [isEstoqueActive]);
+
   const topItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, href: '/admin/dashboard' },
     { text: 'Tickets', icon: <TicketIcon />, href: '/admin/tickets' },
