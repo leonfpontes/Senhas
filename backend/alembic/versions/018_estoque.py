@@ -61,7 +61,7 @@ def upgrade() -> None:
         sa.Column("usuario_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column(
             "tipo",
-            sa.Enum("entrada", "saida", name="estoque_movimentacao_tipo", create_type=False),
+            postgresql.ENUM("entrada", "saida", name="estoque_movimentacao_tipo", create_type=False),
             nullable=False,
         ),
         sa.Column("quantidade", sa.Integer, nullable=False),
