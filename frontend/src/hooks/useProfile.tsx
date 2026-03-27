@@ -39,18 +39,12 @@ const hasAuthToken = (): boolean => {
 };
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
-  const [profile, setProfile] = useState<UserProfile | null>(() => {
-    // Initialise from localStorage so the sidebar avatar renders immediately
-    // without waiting for the network round-trip.
-    if (typeof window === 'undefined') return null;
-    try {
-      const stored =
-        sessionStorage.getItem('user') || localStorage.getItem('user');
-      return stored ? (JSON.parse(stored) as UserProfile) : null;
-    } catch {
-      return null;
-    }
-  });
+  // Always start with null — the lazy initializer that read localStorage was
+  // causing a React hydration mismatch: SSR renders with null (window undefined)
+  // but the client hydration re-ran the initializer and got a stored user,
+  // making the Avatar text differ ("A" vs "E").
+  // localStorage is loaded safely in the useEffect below (client-only).
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async () => {
@@ -84,8 +78,16 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Preload from storage client-side so the avatar renders immediately while
+    // the API call is still in-flight. This runs only after hydration (no SSR).
+    try {
+      const stored = sessionStorage.getItem('user') || localStorage.getItem('user');
+      if (stored) setProfile(JSON.parse(stored) as UserProfile);
+    } catch {}
     fetchProfile();
-  }, [fetchProfile]);
+    // fetchProfile is stable (useCallback with []), safe to omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <ProfileContext.Provider value={{ profile, loading, refresh: fetchProfile }}>
