@@ -123,6 +123,12 @@ class APIClient {
    * @throws Formatted error
    */
   private handleError(error: AxiosError): Promise<never> {
+    // Requests aborted via AbortController (axios >= 0.22 sets code 'ERR_CANCELED').
+    // Re-throw as-is so callers can detect and silently ignore them.
+    if (axios.isCancel(error) || (error as any).code === 'ERR_CANCELED') {
+      return Promise.reject(error);
+    }
+
     const response = error.response;
 
     if (!response) {

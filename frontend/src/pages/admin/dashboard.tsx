@@ -254,9 +254,11 @@ export default function AdminDashboard() {
           </Typography>
         </Box>
         <Tooltip title="Atualizar dados">
-          <IconButton onClick={() => loadDashboard()} disabled={loading} size="small">
-            <RefreshIcon />
-          </IconButton>
+          <span>
+            <IconButton onClick={() => loadDashboard()} disabled={loading} size="small">
+              <RefreshIcon />
+            </IconButton>
+          </span>
         </Tooltip>
       </Box>
 
