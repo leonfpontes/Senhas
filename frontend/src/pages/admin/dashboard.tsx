@@ -166,16 +166,19 @@ export default function AdminDashboard() {
   const primaryColor = tenantConfig?.primary_color || '#1976d2';
 
   useEffect(() => {
-    loadDashboard();
+    const controller = new AbortController();
+    loadDashboard(controller.signal);
+    return () => controller.abort();
   }, []);
 
-  const loadDashboard = async () => {
+  const loadDashboard = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiClient.get('/api/v1/admin/dashboard-summary');
+      const response = await apiClient.get('/api/v1/admin/dashboard-summary', { signal });
       setData(response.data);
     } catch (err: any) {
+      if (err.name === 'CanceledError' || err.name === 'AbortError') return;
       console.error('Error loading dashboard:', err);
       setError('Não foi possível carregar os dados do dashboard.');
     } finally {
@@ -251,14 +254,14 @@ export default function AdminDashboard() {
           </Typography>
         </Box>
         <Tooltip title="Atualizar dados">
-          <IconButton onClick={loadDashboard} disabled={loading} size="small">
+          <IconButton onClick={() => loadDashboard()} disabled={loading} size="small">
             <RefreshIcon />
           </IconButton>
         </Tooltip>
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} action={<Button size="small" onClick={loadDashboard}>Tentar novamente</Button>}>
+        <Alert severity="error" sx={{ mb: 2 }} action={<Button size="small" onClick={() => loadDashboard()}>Tentar novamente</Button>}>
           {error}
         </Alert>
       )}

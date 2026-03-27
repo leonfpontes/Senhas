@@ -155,15 +155,18 @@ function AdminGirasContent() {
   });
 
   useEffect(() => {
-    loadGiras();
+    const controller = new AbortController();
+    loadGiras(controller.signal);
+    return () => controller.abort();
   }, []);
 
-  const loadGiras = async () => {
+  const loadGiras = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/api/v1/admin/giras');
+      const response = await apiClient.get('/api/v1/admin/giras', { signal });
       setGiras(response.data.items || response.data);
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'CanceledError' || error.name === 'AbortError') return;
       console.error('Error loading giras:', error);
     } finally {
       setLoading(false);

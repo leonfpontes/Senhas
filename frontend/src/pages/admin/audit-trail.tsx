@@ -291,7 +291,9 @@ function AdminAuditTrailContent() {
   const [resourceTypeFilter, setResourceTypeFilter] = useState<string>('');
 
   useEffect(() => {
-    loadAuditLogs();
+    const controller = new AbortController();
+    loadAuditLogs(controller.signal);
+    return () => controller.abort();
   }, [page, actionFilter, resourceTypeFilter]);
 
   const buildQueryString = (overrideLimit?: number, overrideSkip?: number) => {
@@ -303,13 +305,14 @@ function AdminAuditTrailContent() {
     return params.toString();
   };
 
-  const loadAuditLogs = async () => {
+  const loadAuditLogs = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
-      const response = await apiClient.get(`/api/v1/admin/audit-logs?${buildQueryString()}`);
+      const response = await apiClient.get(`/api/v1/admin/audit-logs?${buildQueryString()}`, { signal });
       setLogs(response.data.items);
       setTotal(response.data.total);
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'CanceledError' || error.name === 'AbortError') return;
       console.error('Error loading audit logs:', error);
     } finally {
       setLoading(false);
