@@ -56,8 +56,8 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useTenant } from '@/providers/ThemeProvider';
-import { apiClient } from '@/services/api_client';
-import { SubscriptionProvider, useSubscription, PlanFeatures } from '@/hooks/useSubscription';
+import { useSubscription, PlanFeatures } from '@/hooks/useSubscription';
+import { useProfile } from '@/hooks/useProfile';
 
 const DRAWER_WIDTH = 280;
 
@@ -67,20 +67,8 @@ interface AdminLayoutProps {
   maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | false;
 }
 
-interface CurrentUserProfile {
-  id: string;
-  email: string;
-  username: string;
-  full_name?: string | null;
-  profile_photo_url?: string | null;
-}
-
 export default function AdminLayout(props: AdminLayoutProps) {
-  return (
-    <SubscriptionProvider>
-      <AdminLayoutInner {...props} />
-    </SubscriptionProvider>
-  );
+  return <AdminLayoutInner {...props} />;
 }
 
 function AdminLayoutInner({ 
@@ -90,7 +78,6 @@ function AdminLayoutInner({
 }: AdminLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [currentUser, setCurrentUser] = useState<CurrentUserProfile | null>(null);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [impersonateUser, setImpersonateUser] = useState<{ email?: string; username?: string } | null>(null);
@@ -98,6 +85,8 @@ function AdminLayoutInner({
   const [logoFailed, setLogoFailed] = useState(false);
   const router = useRouter();
   const pathname = router.pathname;
+  // Profile comes from the persistent ProfileProvider in _app.tsx (no per-navigation fetch).
+  const { profile: currentUser } = useProfile();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { tenantName, logoUrl, config } = useTenant();
@@ -120,46 +109,6 @@ function AdminLayoutInner({
   useEffect(() => {
     setLogoFailed(false);
   }, [logoUrl]);
-
-  useEffect(() => {
-    const loadCurrentUser = async () => {
-      try {
-        const stored = localStorage.getItem('user');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setCurrentUser(parsed);
-        }
-
-        const response = await apiClient.get('/api/v1/auth/profile');
-        const profile = response.data;
-        setCurrentUser(profile);
-        setAvatarFailed(false);
-
-        // Guard: never write to localStorage during an impersonation session.
-        // The api_client prioritises sessionStorage tokens, so the profile
-        // response belongs to the tenant user — not the superadmin. Writing it
-        // back to localStorage would corrupt the superadmin's session, causing
-        // /platform routes to become inaccessible after the impersonation tab
-        // is closed (sessionStorage is destroyed with the tab).
-        const isImpersonatingSession =
-          typeof sessionStorage !== 'undefined' && !!sessionStorage.getItem('impersonating');
-
-        if (!isImpersonatingSession) {
-          localStorage.setItem(
-            'user',
-            JSON.stringify({
-              ...(stored ? JSON.parse(stored) : {}),
-              ...profile,
-            }),
-          );
-        }
-      } catch {
-        // Keep fallback from localStorage when profile endpoint fails.
-      }
-    };
-
-    loadCurrentUser();
-  }, []);
 
   const handleEndImpersonation = () => {
     sessionStorage.removeItem('access_token');

@@ -118,40 +118,48 @@ function AdminAnalyticsContent() {
 
   // Reload giras when date range changes
   useEffect(() => {
-    if (ready) loadGiras();
+    if (!ready) return;
+    const controller = new AbortController();
+    loadGiras(controller.signal);
+    return () => controller.abort();
   }, [dateFrom, dateTo, ready]);
 
   useEffect(() => {
-    if (ready) loadAnalytics();
+    if (!ready) return;
+    const controller = new AbortController();
+    loadAnalytics(controller.signal);
+    return () => controller.abort();
   }, [dateFrom, dateTo, giraId, ready]);
 
-  const loadGiras = async () => {
+  const loadGiras = async (signal?: AbortSignal) => {
     try {
       const params = new URLSearchParams({ limit: '100' });
       if (dateFrom) params.append('date_from', dateFrom);
       if (dateTo) params.append('date_to', dateTo);
-      const response = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`);
+      const response = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`, { signal });
       const list: Gira[] = response.data;
       setGiras(list);
       // Reset selection if the current gira is no longer in the filtered list
       if (giraId && !list.some((g) => g.id === giraId)) {
         setGiraId('');
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'CanceledError' || error.name === 'AbortError') return;
       console.error('Error loading giras:', error);
     }
   };
 
-  const loadAnalytics = async () => {
+  const loadAnalytics = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (dateFrom) params.append('date_from', dateFrom);
       if (dateTo) params.append('date_to', dateTo);
       if (giraId) params.append('gira_id', giraId);
-      const response = await apiClient.get(`/api/v1/admin/analytics?${params.toString()}`);
+      const response = await apiClient.get(`/api/v1/admin/analytics?${params.toString()}`, { signal });
       setAnalytics(response.data);
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'CanceledError' || error.name === 'AbortError') return;
       console.error('Error loading analytics:', error);
     } finally {
       setLoading(false);

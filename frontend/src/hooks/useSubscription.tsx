@@ -80,11 +80,24 @@ const SubscriptionContext = createContext<SubscriptionContextValue>({
   planLabel: 'Free',
 });
 
+const hasAuthToken = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return (
+    Boolean(sessionStorage.getItem('access_token')) ||
+    Boolean(localStorage.getItem('access_token'))
+  );
+};
+
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchSubscription = useCallback(async () => {
+    // Skip the fetch on public pages (no token) to avoid unnecessary 401s.
+    if (!hasAuthToken()) {
+      setLoading(false);
+      return;
+    }
     try {
       const res = await apiClient.get<SubscriptionInfo>('/api/v1/admin/subscription');
       setSubscription(res.data);
