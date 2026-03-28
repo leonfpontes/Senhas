@@ -34,6 +34,7 @@ import AddIcon from '@mui/icons-material/Add';
 import EventIcon from '@mui/icons-material/Event';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import StarIcon from '@mui/icons-material/Star';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -352,14 +353,16 @@ function AdminGirasContent() {
     try {
       const response = await apiClient.post(`/api/v1/admin/giras/${senhaTarget.id}/release-now`);
       setSenhaConfig(response.data);
-      setSenhaForm({
+      const released = {
         max_tickets: response.data.max_tickets ? String(response.data.max_tickets) : '',
         release_start_at: response.data.release_start_at ? response.data.release_start_at.slice(0, 16) : '',
         release_end_at: response.data.release_end_at ? response.data.release_end_at.slice(0, 16) : '',
         sponsor_max_tickets: response.data.sponsor_max_tickets ? String(response.data.sponsor_max_tickets) : '',
         sponsor_release_start_at: response.data.sponsor_release_start_at ? response.data.sponsor_release_start_at.slice(0, 16) : '',
         sponsor_release_end_at: response.data.sponsor_release_end_at ? response.data.sponsor_release_end_at.slice(0, 16) : '',
-      });
+      };
+      setSenhaForm(released);
+      setSenhaInitial(released);
       setSnackbar({ open: true, message: 'Senhas liberadas agora!', severity: 'success' });
       loadGiras();
     } catch (error: any) {
@@ -624,6 +627,11 @@ function AdminGirasContent() {
                       <ContentCopyIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  <Tooltip title="Abrir link">
+                    <IconButton size="small" component="a" href={senhaConfig.public_link} target="_blank" rel="noopener noreferrer">
+                      <OpenInNewIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
               </Box>
             )}
@@ -697,8 +705,11 @@ function AdminGirasContent() {
 
                   {/* Sponsor public link */}
                   {senhaConfig?.sponsor_public_link && (
-                    <Box sx={{ mt: 1, p: 2, backgroundColor: '#fef9e7', borderRadius: 1 }}>
-                      <Typography variant="caption" color="text.secondary">Link Associado</Typography>
+                    <Box sx={{ mt: 1, p: 2, backgroundColor: '#fef9e7', borderRadius: 1, border: '1px solid #f9e79f' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                        <StarIcon sx={{ fontSize: 14, color: '#b8860b' }} />
+                        <Typography variant="caption" sx={{ color: '#7d6608', fontWeight: 600 }}>Link Associado</Typography>
+                      </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                         <Typography
                           variant="body2"
@@ -709,6 +720,11 @@ function AdminGirasContent() {
                         <Tooltip title="Copiar link">
                           <IconButton size="small" onClick={() => copyPublicLink(senhaConfig.sponsor_public_link || '')}>
                             <ContentCopyIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Abrir link">
+                          <IconButton size="small" component="a" href={senhaConfig.sponsor_public_link} target="_blank" rel="noopener noreferrer">
+                            <OpenInNewIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </Box>

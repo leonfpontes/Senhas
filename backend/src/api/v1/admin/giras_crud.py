@@ -435,7 +435,7 @@ async def release_now(
     if not end:
         end = now + timedelta(hours=24)
 
-    await repo.update(
+    updated_gira = await repo.update(
         gira_id,
         current_user.tenant_id,
         release_start_at=now,
@@ -457,15 +457,19 @@ async def release_now(
         ))
         await db.flush()
 
+    sp_now: Optional[datetime] = None
+    sp_end: Optional[datetime] = None
+
     # Also release sponsor senhas if configured
     if gira.sponsor_max_tickets:
+        sp_now = now
         sp_end = gira.sponsor_release_end_at if gira.sponsor_release_end_at and gira.sponsor_release_end_at > now else None
         if not sp_end:
             sp_end = now + timedelta(hours=24)
-        await repo.update(
+        updated_gira = await repo.update(
             gira_id,
             current_user.tenant_id,
-            sponsor_release_start_at=now,
+            sponsor_release_start_at=sp_now,
             sponsor_release_end_at=sp_end,
         )
         sp_query = select(SenhaControl).where(
@@ -496,14 +500,14 @@ async def release_now(
     current_count = await _get_senha_count(db, current_user.tenant_id, gira_id)
     sponsor_count = await _get_senha_count(db, current_user.tenant_id, gira_id, is_sponsor=True)
     return SenhaConfigResponse(
-        max_tickets=gira.max_tickets,
+        max_tickets=updated_gira.max_tickets,
         release_start_at=now,
         release_end_at=end,
         current_count=current_count,
         public_link=f"{_BASE}/public/gira/{gira_id}",
-        sponsor_max_tickets=gira.sponsor_max_tickets,
-        sponsor_release_start_at=gira.sponsor_release_start_at,
-        sponsor_release_end_at=gira.sponsor_release_end_at,
+        sponsor_max_tickets=updated_gira.sponsor_max_tickets,
+        sponsor_release_start_at=sp_now,
+        sponsor_release_end_at=sp_end,
         sponsor_current_count=sponsor_count,
-        sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=associado" if gira.sponsor_max_tickets else "",
+        sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=associado" if updated_gira.sponsor_max_tickets else "",
     )
