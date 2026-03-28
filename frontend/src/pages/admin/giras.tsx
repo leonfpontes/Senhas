@@ -331,6 +331,10 @@ function AdminGirasContent() {
       }
       const response = await apiClient.put(`/api/v1/admin/giras/${senhaTarget.id}/senhas`, payload);
       setSenhaConfig(response.data);
+      // Sync senhaInitial with current form so senhaDirty resets to false
+      // after saving. Without this, the "Descartar alterações?" dialog would
+      // appear even though the form was just successfully saved.
+      setSenhaInitial({ ...senhaForm });
       setSnackbar({ open: true, message: 'Configuração de senhas salva!', severity: 'success' });
       loadGiras();
     } catch (error: any) {
