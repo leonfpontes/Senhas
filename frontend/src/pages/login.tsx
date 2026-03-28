@@ -16,14 +16,12 @@ import {
   Container,
   Divider,
 } from '@mui/material';
-import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
 import { apiClient } from '../services/api_client';
 import { dispatchTenantBrandingUpdated } from '../providers/ThemeProvider';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,11 +45,15 @@ export default function LoginPage() {
       localStorage.setItem('user', JSON.stringify(user));
       dispatchTenantBrandingUpdated();
 
-      // Redirect based on role
+      // Full page reload on redirect so that _app.tsx providers (ProfileProvider,
+      // SubscriptionProvider) remount with the token already in localStorage.
+      // router.push() would be a client-side navigation that leaves the providers
+      // mounted from before login (when hasAuthToken()=false), causing them to
+      // skip the initial fetch and show stale "Free" / null state until F5.
       if (user.role === 'super_admin') {
-        router.push('/platform');
+        window.location.href = '/platform';
       } else {
-        router.push('/admin/dashboard');
+        window.location.href = '/admin/dashboard';
       }
     } catch (err: any) {
       const message =
