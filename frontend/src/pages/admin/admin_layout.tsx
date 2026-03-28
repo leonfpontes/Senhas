@@ -29,6 +29,7 @@ import {
   Chip,
   Container,
   Divider,
+  Skeleton,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -151,7 +152,7 @@ function AdminLayoutInner({
     .charAt(0)
     .toUpperCase();
 
-  const { can, planLabel, subscription } = useSubscription();
+  const { can, planLabel, subscription, loading: subscriptionLoading } = useSubscription();
 
   const cadastrosItems = [
     { text: 'Giras', icon: <EventIcon />, href: '/admin/giras' },
@@ -479,29 +480,33 @@ function AdminLayoutInner({
           gap: 0.5,
         }}
       >
-        <Chip
-          label={planLabel}
-          size="small"
-          onClick={() => router.push('/admin/plano')}
-          sx={{
-            fontWeight: 700,
-            fontSize: '0.7rem',
-            letterSpacing: 0.5,
-            color: '#fff',
-            cursor: 'pointer',
-            backgroundColor:
-              subscription?.plan === 'premium'
-                ? '#f59e0b'
-                : subscription?.plan === 'pro'
-                ? '#8b5cf6'
-                : subscription?.plan === 'basic'
-                ? '#3b82f6'
-                : '#94a3b8',
-            '&:hover': {
-              opacity: 0.85,
-            },
-          }}
-        />
+        {subscriptionLoading ? (
+          <Skeleton variant="rounded" width={56} height={24} sx={{ borderRadius: 4 }} />
+        ) : (
+          <Chip
+            label={planLabel}
+            size="small"
+            onClick={() => router.push('/admin/plano')}
+            sx={{
+              fontWeight: 700,
+              fontSize: '0.7rem',
+              letterSpacing: 0.5,
+              color: '#fff',
+              cursor: 'pointer',
+              backgroundColor:
+                subscription?.plan === 'premium'
+                  ? '#f59e0b'
+                  : subscription?.plan === 'pro'
+                  ? '#8b5cf6'
+                  : subscription?.plan === 'basic'
+                  ? '#3b82f6'
+                  : '#94a3b8',
+              '&:hover': {
+                opacity: 0.85,
+              },
+            }}
+          />
+        )}
         <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
           Senhas v1.1
         </Typography>
