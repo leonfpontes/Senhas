@@ -159,11 +159,18 @@ export default function AdminDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [greeting, setGreeting] = useState('');
+  const [todayLabel, setTodayLabel] = useState('');
   const { can } = useSubscription();
   const { tenantConfig } = useTenant();
   const router = useRouter();
 
   const primaryColor = tenantConfig?.primary_color || '#1976d2';
+
+  useEffect(() => {
+    setGreeting(getGreeting());
+    setTodayLabel(formatDateLong(new Date()));
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -247,10 +254,10 @@ export default function AdminDashboard() {
       <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            {getGreeting()}! 👋
+            {greeting ? `${greeting}! 👋` : ''}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-            {formatDateLong(new Date())}
+            {todayLabel}
           </Typography>
         </Box>
         <Tooltip title="Atualizar dados">
