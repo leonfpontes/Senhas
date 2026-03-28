@@ -29,7 +29,15 @@ class TicketAnalyticsRepository:
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
     ):
-        conditions = []
+        conditions = [
+            # Exclude soft-deleted tickets
+            Ticket.deleted_at.is_(None),
+            # Exclude tickets whose gira was soft-deleted
+            select(Gira.id)
+            .where(and_(Gira.id == Ticket.gira_id, Gira.deleted_at.is_(None)))
+            .correlate(Ticket)
+            .exists(),
+        ]
         if tenant_id is not None:
             conditions.append(Ticket.tenant_id == tenant_id)
         if gira_id:
@@ -175,6 +183,12 @@ class TicketAnalyticsRepository:
         conditions = [
             Ticket.created_at >= today_start,
             Ticket.created_at < today_end,
+            # Exclude soft-deleted tickets and tickets from deleted giras
+            Ticket.deleted_at.is_(None),
+            select(Gira.id)
+            .where(and_(Gira.id == Ticket.gira_id, Gira.deleted_at.is_(None)))
+            .correlate(Ticket)
+            .exists(),
         ]
         if tenant_id is not None:
             conditions.append(Ticket.tenant_id == tenant_id)
