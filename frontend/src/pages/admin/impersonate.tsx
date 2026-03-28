@@ -39,8 +39,12 @@ export default function ImpersonateLandingPage() {
       sessionStorage.setItem("impersonate_tenant", JSON.stringify(tenantInfo));
       sessionStorage.setItem("impersonating", "true");
 
-      // Redirect to admin dashboard
-      router.replace("/admin/dashboard");
+      // Full page reload so that _app.tsx providers (ProfileProvider,
+      // SubscriptionProvider) remount with the impersonation token already in
+      // sessionStorage. router.replace() is client-side navigation — the
+      // providers stay mounted from the platform page (with super admin's token)
+      // and never re-fetch, showing stale "Free" data until F5.
+      window.location.replace("/admin/dashboard");
     } catch {
       setError("Erro ao processar dados de impersonação");
     }
