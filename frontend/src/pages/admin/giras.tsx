@@ -37,6 +37,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import StarIcon from '@mui/icons-material/Star';
+import LockIcon from '@mui/icons-material/Lock';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
@@ -119,7 +120,7 @@ export default function AdminGirasPage() {
 }
 
 function AdminGirasContent() {
-  const { subscription, canCreateGira: canCreateGiraFn, refresh: refreshSubscription } = useSubscription();
+  const { subscription, can, loading: subLoading, canCreateGira: canCreateGiraFn, refresh: refreshSubscription } = useSubscription();
   const [giras, setGiras] = useState<Gira[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -658,6 +659,28 @@ function AdminGirasContent() {
                 </Typography>
               </Box>
 
+              {!subLoading && !can('associados') ? (
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, p: 2, borderRadius: 2, bgcolor: '#f5f5f5', border: '1px solid #e0e0e0' }}>
+                  <LockIcon sx={{ fontSize: 20, color: 'text.disabled', mt: 0.2, flexShrink: 0 }} />
+                  <Box>
+                    <Typography variant="body2" fontWeight={600} color="text.secondary">
+                      Disponível a partir do plano Pro
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.25 }}>
+                      Faça upgrade para configurar senhas de associados.
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{ mt: 1, textTransform: 'none' }}
+                      onClick={() => { window.location.href = '/admin/plano'; }}
+                    >
+                      Ver Planos
+                    </Button>
+                  </Box>
+                </Box>
+              ) : (
+              <>
               <TextField
                 label="Quantidade de Senhas (Associado)"
                 type="number"
@@ -731,6 +754,8 @@ function AdminGirasContent() {
                     </Box>
                   )}
                 </>
+              )}
+              </>
               )}
             </Box>
           </>
