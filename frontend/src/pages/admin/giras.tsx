@@ -76,6 +76,16 @@ const EMPTY_SENHA_FORM = {
   sponsor_max_tickets: '', sponsor_release_start_at: '', sponsor_release_end_at: '',
 };
 
+// Convert a UTC ISO string from the API (e.g. "2026-03-31T15:00:00+00:00") to
+// the browser's local time in YYYY-MM-DDTHH:mm format for datetime-local inputs.
+// This is the inverse of `new Date(localStr).toISOString()` used when sending.
+const isoToLocalDatetimeInput = (isoStr: string | null | undefined): string => {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 function GiraUsageBar({ used, max }: { used: number; max: number }) {
   const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0;
   const atLimit = used >= max;
@@ -273,11 +283,11 @@ function AdminGirasContent() {
       setSenhaConfig(config);
       const loaded = {
         max_tickets: config.max_tickets ? String(config.max_tickets) : '',
-        release_start_at: config.release_start_at ? config.release_start_at.slice(0, 16) : '',
-        release_end_at: config.release_end_at ? config.release_end_at.slice(0, 16) : '',
+        release_start_at: isoToLocalDatetimeInput(config.release_start_at),
+        release_end_at: isoToLocalDatetimeInput(config.release_end_at),
         sponsor_max_tickets: config.sponsor_max_tickets ? String(config.sponsor_max_tickets) : '',
-        sponsor_release_start_at: config.sponsor_release_start_at ? config.sponsor_release_start_at.slice(0, 16) : '',
-        sponsor_release_end_at: config.sponsor_release_end_at ? config.sponsor_release_end_at.slice(0, 16) : '',
+        sponsor_release_start_at: isoToLocalDatetimeInput(config.sponsor_release_start_at),
+        sponsor_release_end_at: isoToLocalDatetimeInput(config.sponsor_release_end_at),
       };
       setSenhaForm(loaded);
       setSenhaInitial(loaded);
@@ -356,11 +366,11 @@ function AdminGirasContent() {
       setSenhaConfig(response.data);
       const released = {
         max_tickets: response.data.max_tickets ? String(response.data.max_tickets) : '',
-        release_start_at: response.data.release_start_at ? response.data.release_start_at.slice(0, 16) : '',
-        release_end_at: response.data.release_end_at ? response.data.release_end_at.slice(0, 16) : '',
+        release_start_at: isoToLocalDatetimeInput(response.data.release_start_at),
+        release_end_at: isoToLocalDatetimeInput(response.data.release_end_at),
         sponsor_max_tickets: response.data.sponsor_max_tickets ? String(response.data.sponsor_max_tickets) : '',
-        sponsor_release_start_at: response.data.sponsor_release_start_at ? response.data.sponsor_release_start_at.slice(0, 16) : '',
-        sponsor_release_end_at: response.data.sponsor_release_end_at ? response.data.sponsor_release_end_at.slice(0, 16) : '',
+        sponsor_release_start_at: isoToLocalDatetimeInput(response.data.sponsor_release_start_at),
+        sponsor_release_end_at: isoToLocalDatetimeInput(response.data.sponsor_release_end_at),
       };
       setSenhaForm(released);
       setSenhaInitial(released);
