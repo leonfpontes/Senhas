@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, and_
 from datetime import datetime, timezone
+import json
 import logging
 import hashlib
 import uuid
@@ -289,11 +290,12 @@ async def emit_ticket(
 
         # === STEP 8: Create Ticket Record ===
         ticket_number_formatted = f"P{ticket_number_int:03d}" if is_sponsor else f"{ticket_number_int:04d}"
-        observacoes = None
-        if request.preferencial and not is_sponsor:
-            observacoes = '{"preferencial": true}'
+        obs_payload: dict = {}
         if is_sponsor:
-            observacoes = '{"patrocinador": true}'
+            obs_payload["patrocinador"] = True
+        if request.preferencial:
+            obs_payload["preferencial"] = True
+        observacoes = json.dumps(obs_payload) if obs_payload else None
         ticket = await ticket_repo.create_ticket(
             session=session,
             tenant_id=tenant.id,

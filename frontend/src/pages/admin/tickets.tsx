@@ -389,13 +389,17 @@ function AdminTicketsContent() {
                       <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{ticket.consulente_email || '-'}</TableCell>
                       <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{ticket.consulente_telefone || '-'}</TableCell>
                       <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                        {ticket.is_sponsor ? (
-                          <Chip icon={<StarIcon />} label="Associado" size="small" sx={{ bgcolor: '#fef9e7', color: '#b8860b', '& .MuiChip-icon': { color: '#daa520' } }} />
-                        ) : ticket.preferencial ? (
-                          <Chip icon={<StarIcon />} label="Preferencial" color="warning" size="small" variant="outlined" />
-                        ) : (
-                          <Chip label="Comum" size="small" variant="outlined" />
-                        )}
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                          {ticket.is_sponsor && (
+                            <Chip icon={<StarIcon />} label="Associado" size="small" sx={{ bgcolor: '#fef9e7', color: '#b8860b', '& .MuiChip-icon': { color: '#daa520' } }} />
+                          )}
+                          {ticket.preferencial && (
+                            <Chip icon={<StarIcon />} label="Preferencial" color="warning" size="small" variant="outlined" />
+                          )}
+                          {!ticket.is_sponsor && !ticket.preferencial && (
+                            <Chip label="Comum" size="small" variant="outlined" />
+                          )}
+                        </Box>
                       </TableCell>
                       <TableCell>
                         <Chip

@@ -244,25 +244,32 @@ async def get_door_queue(
     tenant_config = await _get_tenant_config(db, current_user.tenant_id)
     sponsor_mode = tenant_config.sponsor_priority_mode if tenant_config else "first"
 
-    sponsors = [i for i in items if i.is_sponsor]
-    pref = [i for i in items if i.preferencial and not i.is_sponsor]
-    regular = [i for i in items if not i.preferencial and not i.is_sponsor]
+    assoc_pref = [i for i in items if i.is_sponsor and i.preferencial]
+    pref = [i for i in items if not i.is_sponsor and i.preferencial]
+    assoc_reg = [i for i in items if i.is_sponsor and not i.preferencial]
+    regular = [i for i in items if not i.is_sponsor and not i.preferencial]
+
+    def _interleave(a: list, b: list) -> list:
+        """Round-robin merge two lists: a0, b0, a1, b1, ..."""
+        result = []
+        ai, bi = 0, 0
+        while ai < len(a) or bi < len(b):
+            if ai < len(a):
+                result.append(a[ai])
+                ai += 1
+            if bi < len(b):
+                result.append(b[bi])
+                bi += 1
+        return result
 
     if sponsor_mode == "interleave":
-        # Interleave: merge sponsors among others round-robin style
-        non_sponsor = pref + regular
-        sorted_items = []
-        si, ni = 0, 0
-        while si < len(sponsors) or ni < len(non_sponsor):
-            if si < len(sponsors):
-                sorted_items.append(sponsors[si])
-                si += 1
-            if ni < len(non_sponsor):
-                sorted_items.append(non_sponsor[ni])
-                ni += 1
+        # Phase 1: assoc_pref ↔ pref (preferencial bucket first)
+        # Phase 2: assoc_reg ↔ regular
+        # Result: [phase1 complete] + [phase2 complete]
+        sorted_items = _interleave(assoc_pref, pref) + _interleave(assoc_reg, regular)
     else:
-        # Default 'first': sponsors → preferenciais → regulares
-        sorted_items = sponsors + pref + regular
+        # Default 'first': assoc_pref → pref → assoc_reg → regular
+        sorted_items = assoc_pref + pref + assoc_reg + regular
 
     return DoorQueueResponse(items=sorted_items, total=len(sorted_items))
 

@@ -153,7 +153,7 @@ export default function PublicGiraPage() {
         name: nome,
         email,
         phone: telefone,
-        preferencial: isSponsor ? false : preferencial,
+        preferencial: preferencial,
       });
       setSuccess(true);
       setTicketNumber(res.data.numero ?? res.data.ticket_number ?? null);
@@ -318,12 +318,10 @@ export default function PublicGiraPage() {
               fullWidth
               placeholder="(11) 99999-9999"
             />
-            {!isSponsor && (
-              <FormControlLabel
-                control={<Checkbox checked={preferencial} onChange={(e) => setPreferencial(e.target.checked)} />}
-                label="Atendimento preferencial (idoso, gestante, PcD)"
-              />
-            )}
+            <FormControlLabel
+              control={<Checkbox checked={preferencial} onChange={(e) => setPreferencial(e.target.checked)} />}
+              label="Atendimento preferencial (idoso, gestante, PcD)"
+            />
             <Button
               type="submit"
               variant="contained"
