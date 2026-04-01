@@ -9,6 +9,8 @@ import {
   Box,
   Button,
   Chip,
+  Menu,
+  MenuItem as MuiMenuItem,
   Table,
   TableBody,
   TableCell,
@@ -27,6 +29,8 @@ import {
   Snackbar,
   Tooltip,
   Typography,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -38,6 +42,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import StarIcon from '@mui/icons-material/Star';
 import LockIcon from '@mui/icons-material/Lock';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
@@ -131,9 +136,13 @@ export default function AdminGirasPage() {
 
 function AdminGirasContent() {
   const { subscription, can, loading: subLoading, canCreateGira: canCreateGiraFn, refresh: refreshSubscription } = useSubscription();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [giras, setGiras] = useState<Gira[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [menuGira, setMenuGira] = useState<Gira | null>(null);
 
   const canCreateGira = canCreateGiraFn();
 
@@ -480,21 +489,49 @@ function AdminGirasContent() {
                     </Box>
                   </TableCell>
                   <TableCell align="right">
-                    <Tooltip title="Configurar Senhas">
-                      <IconButton size="small" onClick={() => openSenhaDrawer(gira)}>
-                        <ConfirmationNumberIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Editar">
-                      <IconButton size="small" onClick={() => openEdit(gira)}>
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Deletar">
-                      <IconButton size="small" onClick={() => handleDeleteClick(gira)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
+                    {isMobile ? (
+                      <>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => { setMenuAnchor(e.currentTarget); setMenuGira(gira); }}
+                        >
+                          <MoreVertIcon />
+                        </IconButton>
+                        <Menu
+                          anchorEl={menuAnchor}
+                          open={Boolean(menuAnchor) && menuGira?.id === gira.id}
+                          onClose={() => { setMenuAnchor(null); setMenuGira(null); }}
+                        >
+                          <MuiMenuItem onClick={() => { openSenhaDrawer(gira); setMenuAnchor(null); setMenuGira(null); }}>
+                            <ConfirmationNumberIcon fontSize="small" sx={{ mr: 1 }} /> Configurar Senhas
+                          </MuiMenuItem>
+                          <MuiMenuItem onClick={() => { openEdit(gira); setMenuAnchor(null); setMenuGira(null); }}>
+                            <EditIcon fontSize="small" sx={{ mr: 1 }} /> Editar
+                          </MuiMenuItem>
+                          <MuiMenuItem onClick={() => { handleDeleteClick(gira); setMenuAnchor(null); setMenuGira(null); }} sx={{ color: 'error.main' }}>
+                            <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Deletar
+                          </MuiMenuItem>
+                        </Menu>
+                      </>
+                    ) : (
+                      <>
+                        <Tooltip title="Configurar Senhas">
+                          <IconButton size="small" onClick={() => openSenhaDrawer(gira)}>
+                            <ConfirmationNumberIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Editar">
+                          <IconButton size="small" onClick={() => openEdit(gira)}>
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Deletar">
+                          <IconButton size="small" onClick={() => handleDeleteClick(gira)}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

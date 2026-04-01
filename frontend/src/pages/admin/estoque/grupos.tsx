@@ -175,12 +175,12 @@ function AdminEstoqueGruposContent() {
           <Typography color="text.secondary">Nenhum grupo cadastrado. Crie o primeiro!</Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper}>
+        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
           <Table>
             <TableHead>
               <TableRow>
                 <TableCell><strong>Nome</strong></TableCell>
-                <TableCell><strong>Descrição</strong></TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Descrição</strong></TableCell>
                 <TableCell align="right"><strong>Ações</strong></TableCell>
               </TableRow>
             </TableHead>
@@ -188,7 +188,7 @@ function AdminEstoqueGruposContent() {
               {grupos.map((g) => (
                 <TableRow key={g.id} hover>
                   <TableCell>{g.nome}</TableCell>
-                  <TableCell sx={{ color: 'text.secondary' }}>{g.descricao || '—'}</TableCell>
+                  <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{g.descricao || '—'}</TableCell>
                   <TableCell align="right">
                     <Tooltip title="Editar"><IconButton size="small" onClick={() => openEdit(g)}><EditIcon fontSize="small" /></IconButton></Tooltip>
                     <Tooltip title="Excluir"><IconButton size="small" color="error" onClick={() => { setDeleteTarget(g); setDeleteOpen(true); }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>

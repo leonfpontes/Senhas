@@ -224,17 +224,17 @@ function AdminEstoqueRelatorioContent() {
           <Typography color="text.secondary">Nenhum item cadastrado para exibir relatório.</Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper}>
+        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
               <TableRow>
                 <TableCell><strong>Item</strong></TableCell>
-                <TableCell><strong>Grupo</strong></TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Grupo</strong></TableCell>
                 <TableCell><strong>Saldo</strong></TableCell>
-                <TableCell><strong>Mínimo</strong></TableCell>
-                <TableCell><strong>Unidade</strong></TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Mínimo</strong></TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Unidade</strong></TableCell>
                 <TableCell><strong>Status</strong></TableCell>
-                <TableCell><strong>Última Mov.</strong></TableCell>
+                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Última Mov.</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -248,7 +248,7 @@ function AdminEstoqueRelatorioContent() {
                   return (
                     <TableRow key={row.item_id} hover sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
                       <TableCell fontWeight={500}>{row.item_nome}</TableCell>
-                      <TableCell sx={{ color: 'text.secondary' }}>{row.grupo_nome || '—'}</TableCell>
+                      <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{row.grupo_nome || '—'}</TableCell>
                       <TableCell>
                         <Typography
                           variant="body2"
@@ -258,8 +258,8 @@ function AdminEstoqueRelatorioContent() {
                           {row.saldo}
                         </Typography>
                       </TableCell>
-                      <TableCell sx={{ color: 'text.secondary' }}>{row.estoque_minimo}</TableCell>
-                      <TableCell sx={{ color: 'text.secondary' }}>{row.unidade_medida}</TableCell>
+                      <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{row.estoque_minimo}</TableCell>
+                      <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{row.unidade_medida}</TableCell>
                       <TableCell>
                         <Chip
                           label={st.label}
@@ -268,7 +268,7 @@ function AdminEstoqueRelatorioContent() {
                           icon={st.icon as React.ReactElement}
                         />
                       </TableCell>
-                      <TableCell sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                      <TableCell sx={{ color: 'text.secondary', whiteSpace: 'nowrap', display: { xs: 'none', md: 'table-cell' } }}>
                         {row.ultima_movimentacao
                           ? new Date(row.ultima_movimentacao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
                           : '—'}

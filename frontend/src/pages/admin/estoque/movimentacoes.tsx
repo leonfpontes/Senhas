@@ -259,7 +259,7 @@ function AdminEstoqueMovimentacoesContent() {
           <Typography color="text.secondary">Nenhuma movimentação registrada.</Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper}>
+        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -267,8 +267,8 @@ function AdminEstoqueMovimentacoesContent() {
                 <TableCell><strong>Item</strong></TableCell>
                 <TableCell><strong>Tipo</strong></TableCell>
                 <TableCell><strong>Qtd</strong></TableCell>
-                <TableCell><strong>Requisitante</strong></TableCell>
-                <TableCell><strong>Motivo</strong></TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Requisitante</strong></TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Motivo</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -286,8 +286,8 @@ function AdminEstoqueMovimentacoesContent() {
                     />
                   </TableCell>
                   <TableCell>{m.quantidade}</TableCell>
-                  <TableCell sx={{ color: 'text.secondary' }}>{m.requisitante || '—'}</TableCell>
-                  <TableCell sx={{ color: 'text.secondary', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{m.requisitante || '—'}</TableCell>
+                  <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' }, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <Tooltip title={m.motivo || ''}><span>{m.motivo || '—'}</span></Tooltip>
                   </TableCell>
                 </TableRow>

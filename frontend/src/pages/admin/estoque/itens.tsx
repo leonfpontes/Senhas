@@ -306,15 +306,15 @@ function AdminEstoqueItensContent() {
           <Typography color="text.secondary">Nenhum item cadastrado.</Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper}>
+        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
           <Table>
             <TableHead>
               <TableRow>
                 <TableCell><strong>Nome</strong></TableCell>
-                <TableCell><strong>Grupo</strong></TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Grupo</strong></TableCell>
                 <TableCell><strong>Saldo</strong></TableCell>
-                <TableCell><strong>Mínimo</strong></TableCell>
-                <TableCell><strong>Custo Unit.</strong></TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Mínimo</strong></TableCell>
+                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Custo Unit.</strong></TableCell>
                 <TableCell align="right"><strong>Ações</strong></TableCell>
               </TableRow>
             </TableHead>
@@ -335,10 +335,10 @@ function AdminEstoqueItensContent() {
                       </Box>
                     </Box>
                   </TableCell>
-                  <TableCell sx={{ color: 'text.secondary' }}>{item.grupo_nome || '—'}</TableCell>
+                  <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{item.grupo_nome || '—'}</TableCell>
                   <TableCell><SaldoChip saldo={item.saldo} minimo={item.estoque_minimo} unidade={item.unidade_medida} /></TableCell>
-                  <TableCell sx={{ color: 'text.secondary' }}>{item.estoque_minimo} {item.unidade_medida}</TableCell>
-                  <TableCell sx={{ color: 'text.secondary' }}>{item.custo_unitario != null ? `R$ ${item.custo_unitario.toFixed(2)}` : '—'}</TableCell>
+                  <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{item.estoque_minimo} {item.unidade_medida}</TableCell>
+                  <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', md: 'table-cell' } }}>{item.custo_unitario != null ? `R$ ${item.custo_unitario.toFixed(2)}` : '—'}</TableCell>
                   <TableCell align="right">
                     <Tooltip title="Editar"><IconButton size="small" onClick={() => openEdit(item)}><EditIcon fontSize="small" /></IconButton></Tooltip>
                     <Tooltip title="Excluir"><IconButton size="small" color="error" onClick={() => { setDeleteTarget(item); setDeleteOpen(true); }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>

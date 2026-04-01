@@ -7,7 +7,9 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   Box,
+  Badge,
   Button,
+  Collapse,
   Table,
   TableBody,
   TableCell,
@@ -28,6 +30,8 @@ import {
   Tooltip,
   Alert,
   Snackbar,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/GetApp';
 import CheckIcon from '@mui/icons-material/Check';
@@ -35,6 +39,9 @@ import CloseIcon from '@mui/icons-material/Close';
 import StarIcon from '@mui/icons-material/Star';
 import EditIcon from '@mui/icons-material/Edit';
 import MedicalServicesIcon from '@mui/icons-material/MedicalServices';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import AdminLayout from './admin_layout';
 import BulkActionsBar from '../../components/admin/BulkActionsBar';
 import CrudDrawer from '../../components/CrudDrawer';
@@ -73,6 +80,8 @@ function AdminTicketsContent() {
   const { can } = useSubscription();
   const hasBulk = can('bulk_operations');
   const router = useRouter();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -85,6 +94,7 @@ function AdminTicketsContent() {
   const [giraFilter, setGiraFilter] = useState<GiraFilter>('all');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   // Drawer state for attend info editing
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -230,54 +240,12 @@ function AdminTicketsContent() {
     formData.cambone_nome !== originalData.cambone_nome ||
     formData.atendimento_descricao !== originalData.atendimento_descricao;
 
+  const activeFilterCount = [dateFrom, dateTo, statusFilter, giraFilter !== 'all' ? 'giraFilter' : ''].filter(Boolean).length;
+
   return (
     <>
-      <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
-        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 130 } }}>
-          <InputLabel>Giras</InputLabel>
-          <Select
-            value={giraFilter}
-            onChange={(e) => {
-              setGiraFilter(e.target.value as GiraFilter);
-              setGiraId('');
-              setPage(0);
-            }}
-            label="Giras"
-          >
-            <MenuItem value="all">Todas</MenuItem>
-            <MenuItem value="active">Ativas</MenuItem>
-            <MenuItem value="inactive">Inativas</MenuItem>
-          </Select>
-        </FormControl>
-
-        <TextField
-          size="small"
-          label="Data de"
-          type="date"
-          value={dateFrom}
-          onChange={(e) => {
-            setDateFrom(e.target.value);
-            setGiraId('');
-            setPage(0);
-          }}
-          InputLabelProps={{ shrink: true }}
-          sx={{ minWidth: { xs: '100%', sm: 160 } }}
-        />
-
-        <TextField
-          size="small"
-          label="Data até"
-          type="date"
-          value={dateTo}
-          onChange={(e) => {
-            setDateTo(e.target.value);
-            setGiraId('');
-            setPage(0);
-          }}
-          InputLabelProps={{ shrink: true }}
-          sx={{ minWidth: { xs: '100%', sm: 160 } }}
-        />
-
+      {/* ── Seletor de Gira — sempre visível ── */}
+      <Box sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
         <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
           <InputLabel>Selecione uma Gira</InputLabel>
           <Select
@@ -301,39 +269,148 @@ function AdminTicketsContent() {
           </Select>
         </FormControl>
 
-        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }}>
-          <InputLabel>Status</InputLabel>
-          <Select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(0);
-            }}
-            label="Status"
-          >
-            <MenuItem value="">Todos</MenuItem>
-            <MenuItem value="emitted">Emitidos</MenuItem>
-            <MenuItem value="called">Chamados</MenuItem>
-            <MenuItem value="completed">Concluídos</MenuItem>
-            <MenuItem value="cancelled">Cancelados</MenuItem>
-          </Select>
-        </FormControl>
+        {/* Botão toggle de filtros — apenas mobile */}
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<FilterListIcon />}
+          endIcon={filtersExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          onClick={() => setFiltersExpanded((p) => !p)}
+          sx={{ display: { xs: 'flex', sm: 'none' }, width: '100%', justifyContent: 'space-between' }}
+        >
+          <Badge badgeContent={activeFilterCount} color="primary" sx={{ flexGrow: 1, textAlign: 'left' }}>
+            Filtros avançados
+          </Badge>
+        </Button>
 
-        {(dateFrom || dateTo || giraFilter !== 'all') && (
-          <Button
+        {/* Filtros avançados — colapsam no mobile, sempre visíveis no desktop */}
+        <Box
+          sx={{
+            display: { xs: 'none', sm: 'flex' },
+            flexWrap: 'wrap',
+            gap: 2,
+            alignItems: 'center',
+            flexGrow: 1,
+          }}
+        >
+          <FormControl size="small" sx={{ minWidth: 130 }}>
+            <InputLabel>Tipo de Gira</InputLabel>
+            <Select
+              value={giraFilter}
+              onChange={(e) => {
+                setGiraFilter(e.target.value as GiraFilter);
+                setGiraId('');
+                setPage(0);
+              }}
+              label="Tipo de Gira"
+            >
+              <MenuItem value="all">Todas</MenuItem>
+              <MenuItem value="active">Ativas</MenuItem>
+              <MenuItem value="inactive">Inativas</MenuItem>
+            </Select>
+          </FormControl>
+
+          <TextField
             size="small"
-            onClick={() => {
-              setGiraFilter('all');
-              setDateFrom('');
-              setDateTo('');
-              setGiraId('');
-              setPage(0);
-            }}
-          >
-            Limpar filtros
-          </Button>
-        )}
+            label="Data de"
+            type="date"
+            value={dateFrom}
+            onChange={(e) => { setDateFrom(e.target.value); setGiraId(''); setPage(0); }}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 160 }}
+          />
+
+          <TextField
+            size="small"
+            label="Data até"
+            type="date"
+            value={dateTo}
+            onChange={(e) => { setDateTo(e.target.value); setGiraId(''); setPage(0); }}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 160 }}
+          />
+
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+              label="Status"
+            >
+              <MenuItem value="">Todos</MenuItem>
+              <MenuItem value="emitted">Emitidos</MenuItem>
+              <MenuItem value="called">Chamados</MenuItem>
+              <MenuItem value="completed">Concluídos</MenuItem>
+              <MenuItem value="cancelled">Cancelados</MenuItem>
+            </Select>
+          </FormControl>
+
+          {(dateFrom || dateTo || giraFilter !== 'all' || statusFilter) && (
+            <Button size="small" onClick={() => { setGiraFilter('all'); setDateFrom(''); setDateTo(''); setStatusFilter(''); setGiraId(''); setPage(0); }}>
+              Limpar filtros
+            </Button>
+          )}
+        </Box>
       </Box>
+
+      {/* Painel colapsável de filtros — apenas mobile */}
+      <Collapse in={filtersExpanded} sx={{ display: { xs: 'block', sm: 'none' }, mb: filtersExpanded ? 1.5 : 0 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pb: 1 }}>
+          <FormControl size="small" fullWidth>
+            <InputLabel>Tipo de Gira</InputLabel>
+            <Select
+              value={giraFilter}
+              onChange={(e) => { setGiraFilter(e.target.value as GiraFilter); setGiraId(''); setPage(0); }}
+              label="Tipo de Gira"
+            >
+              <MenuItem value="all">Todas</MenuItem>
+              <MenuItem value="active">Ativas</MenuItem>
+              <MenuItem value="inactive">Inativas</MenuItem>
+            </Select>
+          </FormControl>
+
+          <TextField
+            size="small"
+            label="Data de"
+            type="date"
+            value={dateFrom}
+            onChange={(e) => { setDateFrom(e.target.value); setGiraId(''); setPage(0); }}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+
+          <TextField
+            size="small"
+            label="Data até"
+            type="date"
+            value={dateTo}
+            onChange={(e) => { setDateTo(e.target.value); setGiraId(''); setPage(0); }}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+
+          <FormControl size="small" fullWidth>
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+              label="Status"
+            >
+              <MenuItem value="">Todos</MenuItem>
+              <MenuItem value="emitted">Emitidos</MenuItem>
+              <MenuItem value="called">Chamados</MenuItem>
+              <MenuItem value="completed">Concluídos</MenuItem>
+              <MenuItem value="cancelled">Cancelados</MenuItem>
+            </Select>
+          </FormControl>
+
+          {(dateFrom || dateTo || giraFilter !== 'all' || statusFilter) && (
+            <Button size="small" variant="text" onClick={() => { setGiraFilter('all'); setDateFrom(''); setDateTo(''); setStatusFilter(''); setGiraId(''); setPage(0); }}>
+              Limpar filtros
+            </Button>
+          )}
+        </Box>
+      </Collapse>
 
       {hasBulk && selectedTickets.size > 0 && (
         <BulkActionsBar

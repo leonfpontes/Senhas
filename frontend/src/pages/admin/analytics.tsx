@@ -224,7 +224,7 @@ function AdminAnalyticsContent() {
           <CircularProgress />
         </Box>
       ) : analytics ? (
-        <Grid container spacing={3}>
+        <Grid container spacing={{ xs: 2, md: 3 }}>
           {/* Summary Stats */}
           <Grid item xs={12}>
             <Grid container spacing={2}>

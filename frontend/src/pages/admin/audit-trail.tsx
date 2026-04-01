@@ -7,6 +7,11 @@ import React, { useEffect, useState } from 'react';
 import {
   Box,
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
   Table,
   TableBody,
   TableCell,
@@ -20,10 +25,14 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Tooltip,
   Typography,
   Chip,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/GetApp';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import AdminLayout from './admin_layout';
 import { useSubscription } from '../../hooks/useSubscription';
 import UpgradePrompt from '../../components/UpgradePrompt';
@@ -282,6 +291,8 @@ export default function AdminAuditTrailPage() {
 
 function AdminAuditTrailContent() {
   const { can, loading: subLoading } = useSubscription();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -289,6 +300,7 @@ function AdminAuditTrailContent() {
   const [total, setTotal] = useState(0);
   const [actionFilter, setActionFilter] = useState<string>('');
   const [resourceTypeFilter, setResourceTypeFilter] = useState<string>('');
+  const [detailLog, setDetailLog] = useState<AuditLog | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -401,7 +413,8 @@ function AdminAuditTrailContent() {
                   <TableCell sx={{ fontWeight: 700 }}>Usuário</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Ação</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Recurso</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Detalhes</TableCell>
+                  <TableCell sx={{ fontWeight: 700, display: { xs: 'none', md: 'table-cell' } }}>Detalhes</TableCell>
+                  <TableCell sx={{ fontWeight: 700, display: { xs: 'table-cell', md: 'none' }, width: 40 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -445,8 +458,15 @@ function AdminAuditTrailContent() {
                             {RESOURCE_LABELS[log.resource_type] || log.resource_type}
                           </Typography>
                         </TableCell>
-                        <TableCell sx={{ py: 1.5, maxWidth: 450 }}>
+                        <TableCell sx={{ py: 1.5, maxWidth: 450, display: { xs: 'none', md: 'table-cell' } }}>
                           <FormatDetails action={log.action} details={log.details} />
+                        </TableCell>
+                        <TableCell sx={{ py: 1.5, display: { xs: 'table-cell', md: 'none' }, width: 40 }}>
+                          <Tooltip title="Ver detalhes">
+                            <IconButton size="small" onClick={() => setDetailLog(log)}>
+                              <InfoOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     );
@@ -477,6 +497,23 @@ function AdminAuditTrailContent() {
       </TableContainer>
       </>
       )}
+
+      {/* Detail Dialog — mobile */}
+      <Dialog
+        open={Boolean(detailLog)}
+        onClose={() => setDetailLog(null)}
+        fullWidth
+        maxWidth="sm"
+        fullScreen={isMobile}
+      >
+        <DialogTitle>Detalhes do Evento</DialogTitle>
+        <DialogContent dividers>
+          {detailLog && <FormatDetails action={detailLog.action} details={detailLog.details} />}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailLog(null)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }
