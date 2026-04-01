@@ -5,8 +5,18 @@ Implements EmailService interface using Resend API for failover scenarios
 
 import httpx
 import logging
+from dataclasses import dataclass, field
+from typing import Optional
 from src.services.email.base import EmailService, EmailMessage
 from src.core.config import settings
+
+
+@dataclass
+class SendResult:
+    """Result of a Resend send attempt."""
+    success: bool
+    email_id: Optional[str] = None
+    rate_limited: bool = False
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +122,87 @@ class ResendEmailService(EmailService):
         except Exception as e:
             logger.error(f"Resend send exception: {e}")
             return False
+
+    async def send_and_get_id(self, message: EmailMessage) -> SendResult:
+        """Send email via Resend and return a structured result.
+
+        Does NOT call is_healthy() first — avoids the extra API call
+        that doubles rate-limit consumption.
+
+        Returns:
+            SendResult with success, email_id, or rate_limited flag.
+        """
+        try:
+            payload = {
+                "from": self.from_email,
+                "to": message.to_email,
+                "subject": message.subject,
+                "html": message.html_body,
+                "text": message.text_body or "See HTML version",
+            }
+            if message.reply_to:
+                payload["reply_to"] = message.reply_to
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/emails",
+                    json=payload,
+                    headers=self._get_headers(),
+                    timeout=self.timeout,
+                )
+
+            if response.status_code == 429:
+                logger.warning(
+                    f"Resend rate limited (429) for {message.to_email}. "
+                    "Will fall back to Brevo."
+                )
+                return SendResult(success=False, rate_limited=True)
+
+            if not (200 <= response.status_code < 300):
+                logger.error(
+                    f"Resend send failed: {response.status_code} - {response.text}"
+                )
+                return SendResult(success=False)
+
+            email_id: Optional[str] = response.json().get("id")
+            logger.info(
+                f"Email sent via Resend to {message.to_email} (ID: {email_id})"
+            )
+            return SendResult(success=True, email_id=email_id)
+
+        except Exception as e:
+            logger.error(f"Resend send_and_get_id exception: {e}")
+            return SendResult(success=False)
+
+    async def get_email_status(self, email_id: str) -> Optional[dict]:
+        """Fetch email details from Resend GET /emails/{id}.
+
+        Returns dict with id, to, subject, html, last_event, created_at,
+        or None if not found / error.
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/emails/{email_id}",
+                    headers=self._get_headers(),
+                    timeout=self.timeout,
+                )
+
+            if response.status_code == 404:
+                logger.warning(f"Resend email not found: {email_id}")
+                return None
+
+            if not (200 <= response.status_code < 300):
+                logger.error(
+                    f"Resend get_email_status failed: {response.status_code}"
+                )
+                return None
+
+            return response.json()
+
+        except Exception as e:
+            logger.error(f"Resend get_email_status exception: {e}")
+            return None
 
     async def send_batch(self, messages: list[EmailMessage]) -> dict[str, bool]:
         """Send multiple emails efficiently

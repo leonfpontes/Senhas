@@ -41,6 +41,9 @@ class TicketResponse(BaseModel):
     cambone_nome: Optional[str] = None
     atendimento_descricao: Optional[str] = None
     created_at: datetime
+    resend_email_id: Optional[str] = None
+    email_sent_at: Optional[datetime] = None
+    email_provider: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -134,6 +137,9 @@ async def list_gira_tickets(
             cambone_nome=t.cambone_nome,
             atendimento_descricao=t.atendimento_descricao,
             created_at=t.created_at,
+            resend_email_id=t.resend_email_id,
+            email_sent_at=t.email_sent_at,
+            email_provider=t.email_provider,
         ))
     
     return TicketListResponse(
@@ -198,6 +204,9 @@ async def get_ticket(
         cambone_nome=ticket.cambone_nome,
         atendimento_descricao=ticket.atendimento_descricao,
         created_at=ticket.created_at,
+        resend_email_id=ticket.resend_email_id,
+        email_sent_at=ticket.email_sent_at,
+        email_provider=ticket.email_provider,
     )
 
 

@@ -9,7 +9,7 @@ This is the heart of the product. Handles atomic ticket emission with:
 - Comprehensive error handling
 """
 
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, and_
@@ -30,8 +30,7 @@ from src.repositories.senha_control_repo import SenhaControlRepository
 from src.models.tickets import TicketStatus
 from src.repositories.ticket_repo import TicketRepository
 from src.services.email.base import EmailMessage
-from src.services.email.brevo_provider import BrevoEmailService
-from src.services.email.resend_fallback import ResendEmailService
+from src.services.email.email_queue import email_queue, EmailQueueItem
 from src.services.email.templates.ticket_emission import (
     generate_ticket_emission_html,
     generate_plain_text_fallback,
@@ -85,7 +84,6 @@ class EmitTicketResponse(BaseModel):
 async def emit_ticket(
     tenant_slug: str,
     request: EmitTicketRequest,
-    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db),
     tipo: str = "comum",
 ):
@@ -338,12 +336,10 @@ async def emit_ticket(
         elif tenant_config and tenant_config.logo_url:
             tenant_logo_url = tenant_config.logo_url
 
-        background_tasks.add_task(
-            _send_ticket_email,
+        subject_prefix = "✦ Associado — " if is_sponsor else ""
+        html_body = generate_ticket_emission_html(
             ticket_number=ticket_number_formatted,
             consulente_name=consulente.nome,
-            consulente_email=consulente.email,
-            consulente_phone=consulente.telefone or "",
             gira_name=gira.nome,
             gira_date=gira_date_str,
             gira_location=gira.local or "",
@@ -355,7 +351,29 @@ async def emit_ticket(
             tenant_address=tenant_address,
             primary_color=primary_color,
             secondary_color=secondary_color,
+            consulente_email=consulente.email,
+            consulente_phone=consulente.telefone or "",
         )
+        text_body = generate_plain_text_fallback(
+            ticket_number=ticket_number_formatted,
+            consulente_name=consulente.nome,
+            gira_name=gira.nome,
+            gira_date=gira_date_str,
+            gira_location=gira.local or "",
+            rescue_link=rescue_link,
+            is_sponsor=is_sponsor,
+            tenant_address=tenant_address,
+            tenant_name=tenant.name,
+            consulente_email=consulente.email,
+            consulente_phone=consulente.telefone or "",
+        )
+        message = EmailMessage(
+            to_email=consulente.email,
+            subject=f"{subject_prefix}Sua Senha #{ticket_number_formatted} - {tenant.name}",
+            html_body=html_body,
+            text_body=text_body,
+        )
+        email_queue.enqueue(EmailQueueItem(message=message, ticket_id=str(ticket.id)))
 
         # === STEP 10: Return Response ===
         return EmitTicketResponse(
@@ -374,94 +392,3 @@ async def emit_ticket(
             status_code=500,
             detail="Internal server error during ticket emission",
         )
-
-
-async def _send_ticket_email(
-    ticket_number: str,
-    consulente_name: str,
-    consulente_email: str,
-    consulente_phone: str,
-    gira_name: str,
-    gira_date: str,
-    gira_location: str,
-    rescue_link: str,
-    tenant_name: str,
-    tenant_logo_url: str,
-    tenant_color: str,
-    is_sponsor: bool = False,
-    tenant_address: str = "",
-    primary_color: str = "",
-    secondary_color: str = "",
-):
-    """Background task to send ticket emission email (Resend primary, Brevo fallback)."""
-    try:
-        # Generate email content
-        html_body = generate_ticket_emission_html(
-            ticket_number=ticket_number,
-            consulente_name=consulente_name,
-            gira_name=gira_name,
-            gira_date=gira_date,
-            gira_location=gira_location,
-            rescue_link=rescue_link,
-            tenant_name=tenant_name,
-            tenant_logo_url=tenant_logo_url,
-            tenant_color=tenant_color,
-            is_sponsor=is_sponsor,
-            tenant_address=tenant_address,
-            primary_color=primary_color,
-            secondary_color=secondary_color,
-            consulente_email=consulente_email,
-            consulente_phone=consulente_phone,
-        )
-
-        text_body = generate_plain_text_fallback(
-            ticket_number=ticket_number,
-            consulente_name=consulente_name,
-            gira_name=gira_name,
-            gira_date=gira_date,
-            gira_location=gira_location,
-            rescue_link=rescue_link,
-            is_sponsor=is_sponsor,
-            tenant_address=tenant_address,
-            tenant_name=tenant_name,
-            consulente_email=consulente_email,
-            consulente_phone=consulente_phone,
-        )
-
-        subject_prefix = "✦ Associado — " if is_sponsor else ""
-        message = EmailMessage(
-            to_email=consulente_email,
-            subject=f"{subject_prefix}Sua Senha #{ticket_number} - {tenant_name}",
-            html_body=html_body,
-            text_body=text_body,
-        )
-
-        # Try Resend first (primary)
-        try:
-            resend_service = ResendEmailService()
-            if await resend_service.is_healthy():
-                success = await resend_service.send_async(message)
-                if success:
-                    logger.info(f"Email sent via Resend to {consulente_email}")
-                    return
-        except Exception as e:
-            logger.warning(f"Resend email failed, trying Brevo fallback: {e}")
-
-        # Fallback to Brevo
-        try:
-            brevo_service = BrevoEmailService()
-            if await brevo_service.is_healthy():
-                success = await brevo_service.send_async(message)
-                if success:
-                    logger.info(f"Email sent via Brevo fallback to {consulente_email}")
-                    return
-        except Exception as e:
-            logger.error(f"Brevo fallback also failed: {e}")
-
-        logger.error(
-            f"All email services failed for ticket {ticket_number} "
-            f"to {consulente_email}"
-        )
-
-    except Exception as e:
-        logger.error(f"Error in _send_ticket_email: {e}", exc_info=True)

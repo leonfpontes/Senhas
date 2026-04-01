@@ -38,15 +38,16 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import StarIcon from '@mui/icons-material/Star';
 import EditIcon from '@mui/icons-material/Edit';
+import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import MedicalServicesIcon from '@mui/icons-material/MedicalServices';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import FilterListIcon from '@mui/icons-material/FilterList';
-import AdminLayout from './admin_layout';
-import BulkActionsBar from '../../components/admin/BulkActionsBar';
-import CrudDrawer from '../../components/CrudDrawer';
-import { apiClient } from '../../services/api_client';
-import { useSubscription } from '../../hooks/useSubscription';
+import AdminLayout from '../admin_layout';
+import BulkActionsBar from '../../../components/admin/BulkActionsBar';
+import CrudDrawer from '../../../components/CrudDrawer';
+import { apiClient } from '../../../services/api_client';
+import { useSubscription } from '../../../hooks/useSubscription';
 
 interface Ticket {
   id: string;
@@ -64,6 +65,9 @@ interface Ticket {
   cambone_nome?: string;
   atendimento_descricao?: string;
   created_at: string;
+  resend_email_id?: string;
+  email_sent_at?: string;
+  email_provider?: string;
 }
 
 type GiraFilter = 'all' | 'active' | 'inactive';
@@ -494,6 +498,25 @@ function AdminTicketsContent() {
                             <EditIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        {ticket.consulente_email && (
+                          <Tooltip title={ticket.email_sent_at ? 'Ver rastreio de e-mail' : 'E-mail não enviado'}>
+                            <IconButton
+                              size="small"
+                              onClick={() => router.push(`/admin/tickets/${ticket.id}/email`)}
+                            >
+                              <EmailOutlinedIcon
+                                fontSize="small"
+                                color={
+                                  ticket.email_provider === 'failed'
+                                    ? 'error'
+                                    : ticket.email_sent_at
+                                    ? 'primary'
+                                    : 'disabled'
+                                }
+                              />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

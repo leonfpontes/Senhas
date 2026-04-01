@@ -67,6 +67,11 @@ class Ticket(SoftDeleteModel):
     cambone_nome: Mapped[str | None] = mapped_column(String(255), nullable=True)
     atendimento_descricao: Mapped[str | None] = mapped_column(Text, nullable=True)
     
+    # Email tracking
+    resend_email_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
     # Relationships
     tenant = relationship("Tenant", back_populates="tickets")
     gira = relationship("Gira", back_populates="tickets")
