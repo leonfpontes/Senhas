@@ -432,7 +432,7 @@ function AdminTicketsContent() {
           </Box>
         ) : (
           <>
-            <Table size="small">
+            <Table size="small" sx={{ minWidth: 650 }}>
               <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
                 <TableRow>
                   {hasBulk && (
@@ -450,7 +450,7 @@ function AdminTicketsContent() {
                   <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Tag</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Data Emissão</TableCell>
-                  <TableCell align="center">Ações</TableCell>
+                  <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>Ações</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -492,13 +492,13 @@ function AdminTicketsContent() {
                       <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                         {new Date(ticket.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                       </TableCell>
-                      <TableCell align="center">
+                      <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
                         <Tooltip title="Editar atendimento">
                           <IconButton size="small" onClick={() => openAttendEdit(ticket)}>
                             <EditIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        {ticket.consulente_email && (
+                        {ticket.consulente_email && can('email_transacional') && (
                           <Tooltip title={ticket.email_sent_at ? 'Ver rastreio de e-mail' : 'E-mail não enviado'}>
                             <IconButton
                               size="small"

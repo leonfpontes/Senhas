@@ -13,7 +13,9 @@ from datetime import datetime
 import logging
 
 from src.core.database import get_db
-from src.models import User, Ticket, Consulente
+from src.models import User, Ticket, Consulente, PlanType, Gira, Tenant, TenantConfig
+from src.core.config import settings
+from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.email.base import EmailMessage
 from src.services.email.email_queue import email_queue, EmailQueueItem
 from src.services.email.resend_fallback import ResendEmailService
@@ -26,6 +28,25 @@ from src.core.errors import InsufficientPermissionsError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-email"])
 logger = logging.getLogger(__name__)
+
+_PLAN_TIER = {
+    PlanType.FREE: 0,
+    PlanType.BASIC: 1,
+    PlanType.PRO: 2,
+    PlanType.PREMIUM: 3,
+}
+
+
+async def _require_email_transacional(user: User, db: AsyncSession) -> None:
+    """Verifica que o tenant possui plano Pro ou superior (email_transacional)."""
+    sub_repo = SubscriptionRepository(db)
+    sub = await sub_repo.get_by_tenant(user.tenant_id)
+    tier = _PLAN_TIER.get(sub.plan if sub else PlanType.FREE, 0)
+    if tier < 2:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Rastreio de e-mail disponível apenas nos planos Pro e Premium.",
+        )
 
 
 class ResendEmailResponse(BaseModel):
@@ -66,6 +87,7 @@ async def get_ticket_email_status(
     """
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Admin required")
+    await _require_email_transacional(current_user, db)
 
     stmt = select(Ticket).where(
         and_(
@@ -133,6 +155,7 @@ async def resend_ticket_email(
     """
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Admin required")
+    await _require_email_transacional(current_user, db)
 
     stmt = select(Ticket).where(
         and_(
@@ -160,36 +183,78 @@ async def resend_ticket_email(
             detail="Consulente sem email cadastrado",
         )
 
+    # Fetch Gira
+    stmt_gira = select(Gira).where(
+        and_(Gira.id == ticket.gira_id, Gira.tenant_id == current_user.tenant_id)
+    )
+    result_gira = await db.execute(stmt_gira)
+    gira = result_gira.scalar_one_or_none()
+
+    # Fetch Tenant
+    stmt_tenant = select(Tenant).where(Tenant.id == current_user.tenant_id)
+    result_tenant = await db.execute(stmt_tenant)
+    tenant = result_tenant.scalar_one_or_none()
+
+    # Fetch TenantConfig
+    stmt_tc = select(TenantConfig).where(TenantConfig.tenant_id == current_user.tenant_id)
+    result_tc = await db.execute(stmt_tc)
+    tenant_config = result_tc.scalar_one_or_none()
+
+    gira_name = gira.nome if gira else ""
+    gira_date_str = (
+        gira.data_inicio.strftime("%d/%m/%Y às %H:%M") if gira and gira.data_inicio else ""
+    )
+    gira_location = (gira.local or "") if gira else ""
+    tenant_name = tenant.name if tenant else ""
+    tenant_address = (tenant_config.endereco or "") if tenant_config else ""
+    primary_color = (tenant_config.primary_color or "#2E7D32") if tenant_config else "#2E7D32"
+    secondary_color = (
+        (tenant_config.secondary_color or primary_color) if tenant_config else primary_color
+    )
+    tenant_logo_url = ""
+    if tenant_config and tenant_config.logo_data:
+        tenant_logo_url = (
+            f"{settings.FRONTEND_URL.rstrip('/')}/api/v1/public/tenant/{current_user.tenant_id}/logo"
+        )
+    elif tenant_config and tenant_config.logo_url:
+        tenant_logo_url = tenant_config.logo_url
+
+    rescue_link = (
+        f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{ticket.id}"
+        if tenant
+        else ""
+    )
+
     ticket_numero_str = str(ticket.numero).zfill(4)
     html_body = generate_ticket_emission_html(
         ticket_number=ticket_numero_str,
         consulente_name=consulente.nome,
-        gira_name="",
-        gira_date="",
-        gira_location="",
-        rescue_link="",
-        tenant_name="",
-        tenant_logo_url="",
-        tenant_color="#2E7D32",
+        gira_name=gira_name,
+        gira_date=gira_date_str,
+        gira_location=gira_location,
+        rescue_link=rescue_link,
+        tenant_name=tenant_name,
+        tenant_logo_url=tenant_logo_url,
+        tenant_color=primary_color,
         is_sponsor=ticket.is_sponsor,
-        tenant_address="",
-        primary_color="#2E7D32",
-        secondary_color="#2E7D32",
+        tenant_address=tenant_address,
+        primary_color=primary_color,
+        secondary_color=secondary_color,
         consulente_email=consulente.email,
-        consulente_phone="",
+        consulente_phone=consulente.telefone or "",
     )
     text_body = generate_plain_text_fallback(
         ticket_number=ticket_numero_str,
         consulente_name=consulente.nome,
-        gira_name="",
-        gira_date="",
-        gira_location="",
-        rescue_link="",
+        gira_name=gira_name,
+        gira_date=gira_date_str,
+        gira_location=gira_location,
+        rescue_link=rescue_link,
         is_sponsor=ticket.is_sponsor,
-        tenant_address="",
-        tenant_name="",
+        tenant_address=tenant_address,
+        tenant_name=tenant_name,
         consulente_email=consulente.email,
-        consulente_phone="",
+        consulente_phone=consulente.telefone or "",
     )
     subject_prefix = "✦ Associado — " if ticket.is_sponsor else ""
     message = EmailMessage(
