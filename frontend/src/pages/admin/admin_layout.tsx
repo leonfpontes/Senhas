@@ -89,7 +89,7 @@ function AdminLayoutInner({
   // Profile comes from the persistent ProfileProvider in _app.tsx (no per-navigation fetch).
   const { profile: currentUser } = useProfile();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { tenantName, logoUrl, config } = useTenant();
   const brandPrimary = config?.colors?.primary || theme.palette.primary.main;
   const brandSecondary = config?.colors?.secondary || theme.palette.secondary.main;
@@ -529,8 +529,8 @@ function AdminLayoutInner({
         sx={{
           background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
           color: brandFont,
-          width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
-          ml: { sm: `${DRAWER_WIDTH}px` },
+          width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
+          ml: { md: `${DRAWER_WIDTH}px` },
         }}
       >
         {isImpersonating && (
@@ -568,7 +568,7 @@ function AdminLayoutInner({
             onClick={handleDrawerToggle}
             sx={{ 
               mr: 2, 
-              display: { sm: 'none' },
+              display: { md: 'none' },
             }}
           >
             <MenuIcon />
@@ -644,8 +644,8 @@ function AdminLayoutInner({
       <Box
         component="nav"
         sx={{ 
-          width: { sm: DRAWER_WIDTH }, 
-          flexShrink: { sm: 0 },
+          width: { md: DRAWER_WIDTH }, 
+          flexShrink: { md: 0 },
         }}
       >
         {/* Mobile Drawer (Temporary) */}
@@ -655,7 +655,7 @@ function AdminLayoutInner({
           onClose={handleDrawerClose}
           ModalProps={{ keepMounted: true }}
           sx={{
-            display: { xs: 'block', sm: 'none' },
+            display: { xs: 'block', md: 'none' },
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: DRAWER_WIDTH,
@@ -669,7 +669,7 @@ function AdminLayoutInner({
         <Drawer
           variant="permanent"
           sx={{
-            display: { xs: 'none', sm: 'block' },
+            display: { xs: 'none', md: 'block' },
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: DRAWER_WIDTH,
