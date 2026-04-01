@@ -136,7 +136,7 @@ export default function TenantDetailPage() {
 
   return (
     <PlatformLayout>
-      <Box p={3}>
+      <Box sx={{ p: { xs: 1, sm: 3 } }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}
@@ -171,15 +171,15 @@ export default function TenantDetailPage() {
             <Typography variant="h6" gutterBottom>
               Usuários ({users.length})
             </Typography>
-            <TableContainer component={Paper} variant="outlined">
+            <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
               <Table>
                 <TableHead>
                   <TableRow>
                     <TableCell>Email</TableCell>
-                    <TableCell>Username</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Username</TableCell>
                     <TableCell>Role</TableCell>
                     <TableCell>Status</TableCell>
-                    <TableCell>Criado em</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Criado em</TableCell>
                     <TableCell align="right">Ações</TableCell>
                   </TableRow>
                 </TableHead>
@@ -194,7 +194,7 @@ export default function TenantDetailPage() {
                     users.map((user) => (
                       <TableRow key={user.id}>
                         <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.username}</TableCell>
+                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{user.username}</TableCell>
                         <TableCell>
                           <Chip
                             label={user.role}
@@ -210,7 +210,7 @@ export default function TenantDetailPage() {
                             variant="outlined"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                           {new Date(user.created_at).toLocaleDateString("pt-BR")}
                         </TableCell>
                         <TableCell align="right">

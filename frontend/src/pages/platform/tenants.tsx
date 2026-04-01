@@ -13,6 +13,8 @@ import {
   Box,
   Button,
   IconButton,
+  Menu,
+  MenuItem,
   Table,
   TableBody,
   TableCell,
@@ -22,13 +24,15 @@ import {
   Paper,
   TextField,
   Select,
-  MenuItem,
   FormControl,
   InputLabel,
   Chip,
   CircularProgress,
   Alert,
   Pagination,
+  Tooltip,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
@@ -36,6 +40,7 @@ import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import PeopleIcon from "@mui/icons-material/People";
 import BusinessIcon from "@mui/icons-material/Business";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { useRouter } from "next/router";
 import { apiClient } from "../../services/api_client";
 import PlatformLayout from "./layout";
@@ -70,12 +75,16 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const TenantsPage: React.FC = () => {
   const router = useRouter();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [menuTenant, setMenuTenant] = useState<Tenant | null>(null);
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -283,27 +292,63 @@ const TenantsPage: React.FC = () => {
                       {new Date(tenant.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell align="right">
-                      <IconButton
-                        size="small"
-                        color="info"
-                        title="Ver Usuários"
-                        onClick={() => router.push(`/platform/tenants/${tenant.id}`)}
-                      >
-                        <PeopleIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => openEdit(tenant)}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleDeleteTenant(tenant.id)}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+                      {isMobile ? (
+                        <>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => { setMenuAnchor(e.currentTarget); setMenuTenant(tenant); }}
+                          >
+                            <MoreVertIcon fontSize="small" />
+                          </IconButton>
+                          <Menu
+                            anchorEl={menuAnchor}
+                            open={Boolean(menuAnchor) && menuTenant?.id === tenant.id}
+                            onClose={() => { setMenuAnchor(null); setMenuTenant(null); }}
+                          >
+                            <MenuItem onClick={() => { router.push(`/platform/tenants/${tenant.id}`); setMenuAnchor(null); setMenuTenant(null); }}>
+                              <PeopleIcon fontSize="small" sx={{ mr: 1 }} /> Ver Usuários
+                            </MenuItem>
+                            <MenuItem onClick={() => { openEdit(tenant); setMenuAnchor(null); setMenuTenant(null); }}>
+                              <EditIcon fontSize="small" sx={{ mr: 1 }} /> Editar
+                            </MenuItem>
+                            <MenuItem
+                              onClick={() => { handleDeleteTenant(tenant.id); setMenuAnchor(null); setMenuTenant(null); }}
+                              sx={{ color: 'error.main' }}
+                            >
+                              <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Deletar
+                            </MenuItem>
+                          </Menu>
+                        </>
+                      ) : (
+                        <>
+                          <Tooltip title="Ver Usuários">
+                            <IconButton
+                              size="small"
+                              color="info"
+                              onClick={() => router.push(`/platform/tenants/${tenant.id}`)}
+                            >
+                              <PeopleIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Editar">
+                            <IconButton
+                              size="small"
+                              onClick={() => openEdit(tenant)}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Deletar">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteTenant(tenant.id)}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))

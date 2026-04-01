@@ -167,7 +167,7 @@ const ConsolidatedAuditPage: React.FC = () => {
 
         {/* Tabs */}
         <TabContext value={tab}>
-          <TabList onChange={(e, v) => setTab(v)}>
+          <TabList onChange={(e, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
             <Tab label="Summary" value="0" />
             <Tab label="By Tenant" value="1" />
             <Tab label="By Action" value="2" />

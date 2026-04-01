@@ -270,7 +270,7 @@ const BillingPage: React.FC = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell>Invoice #</TableCell>
-                    <TableCell>Period</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Period</TableCell>
                     <TableCell align="right">Total</TableCell>
                     <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>Paid</TableCell>
                     <TableCell>Status</TableCell>
@@ -282,7 +282,7 @@ const BillingPage: React.FC = () => {
                   {invoices.map((inv) => (
                     <TableRow key={inv.id}>
                       <TableCell>{inv.invoice_number}</TableCell>
-                      <TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                         {formatDate(inv.period_start)} –{" "}
                         {formatDate(inv.period_end)}
                       </TableCell>

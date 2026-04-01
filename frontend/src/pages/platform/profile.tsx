@@ -161,6 +161,7 @@ const ProfilePage: React.FC = () => {
               label="Senha Atual"
               type="password"
               size="small"
+              fullWidth
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
             />
@@ -168,6 +169,7 @@ const ProfilePage: React.FC = () => {
               label="Nova Senha"
               type="password"
               size="small"
+              fullWidth
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
@@ -175,6 +177,7 @@ const ProfilePage: React.FC = () => {
               label="Confirmar Nova Senha"
               type="password"
               size="small"
+              fullWidth
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
