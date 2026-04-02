@@ -64,6 +64,7 @@ interface UpcomingGira {
   data_inicio: string;
   max_tickets: number | null;
   current_count: number;
+  sponsor_count: number;
   is_open: boolean;
 }
 
@@ -373,6 +374,7 @@ export default function AdminDashboard() {
                 <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   {data.upcoming_giras.map((g) => {
                     const progress = g.max_tickets ? Math.min((g.current_count / g.max_tickets) * 100, 100) : 0;
+                    const sponsorProgress = g.max_tickets ? Math.min((g.sponsor_count / g.max_tickets) * 100, 100) : 0;
                     return (
                       <Box
                         key={g.id}
@@ -401,20 +403,54 @@ export default function AdminDashboard() {
                           {g.max_tickets ? ` · ${g.current_count}/${g.max_tickets} tickets` : ''}
                         </Typography>
                         {g.max_tickets && (
-                          <LinearProgress
-                            variant="determinate"
-                            value={progress}
-                            sx={{
-                              mt: 0.5,
-                              height: 6,
-                              borderRadius: 3,
-                              backgroundColor: `${primaryColor}15`,
-                              '& .MuiLinearProgress-bar': {
-                                borderRadius: 3,
-                                backgroundColor: progress >= 90 ? '#ef4444' : primaryColor,
-                              },
-                            }}
-                          />
+                          <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="caption" color="text.secondary" sx={{ width: 68, flexShrink: 0 }}>
+                                Comuns
+                              </Typography>
+                              <LinearProgress
+                                variant="determinate"
+                                value={progress}
+                                sx={{
+                                  flex: 1,
+                                  height: 6,
+                                  borderRadius: 3,
+                                  backgroundColor: `${primaryColor}15`,
+                                  '& .MuiLinearProgress-bar': {
+                                    borderRadius: 3,
+                                    backgroundColor: progress >= 90 ? '#ef4444' : primaryColor,
+                                  },
+                                }}
+                              />
+                              <Typography variant="caption" color="text.secondary" sx={{ width: 28, textAlign: 'right', flexShrink: 0 }}>
+                                {g.current_count}
+                              </Typography>
+                            </Box>
+                            {g.sponsor_count > 0 && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ width: 68, flexShrink: 0 }}>
+                                  Associados
+                                </Typography>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={sponsorProgress}
+                                  sx={{
+                                    flex: 1,
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: '#f59e0b20',
+                                    '& .MuiLinearProgress-bar': {
+                                      borderRadius: 3,
+                                      backgroundColor: '#f59e0b',
+                                    },
+                                  }}
+                                />
+                                <Typography variant="caption" color="text.secondary" sx={{ width: 28, textAlign: 'right', flexShrink: 0 }}>
+                                  {g.sponsor_count}
+                                </Typography>
+                              </Box>
+                            )}
+                          </Box>
                         )}
                       </Box>
                     );

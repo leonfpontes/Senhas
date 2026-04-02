@@ -44,6 +44,7 @@ class UpcomingGiraItem(BaseModel):
     data_inicio: str
     max_tickets: Optional[int] = None
     current_count: int = 0
+    sponsor_count: int = 0
     is_open: bool = False
 
 
@@ -117,20 +118,25 @@ async def _get_upcoming_giras(
     if not giras:
         return []
 
-    # Fetch current ticket counts for each gira (regular, non-sponsor)
+    # Fetch current ticket counts: regular (non-sponsor) and sponsor
     gira_ids = [g.id for g in giras]
     stmt = (
-        select(SenhaControl.gira_id, SenhaControl.total_emitido)
+        select(SenhaControl.gira_id, SenhaControl.total_emitido, SenhaControl.is_sponsor)
         .where(
             and_(
                 SenhaControl.tenant_id == tenant_id,
                 SenhaControl.gira_id.in_(gira_ids),
-                SenhaControl.is_sponsor.is_(False),
             )
         )
     )
     rows = (await db.execute(stmt)).all()
-    count_map: Dict[UUID, int] = {row.gira_id: row.total_emitido for row in rows}
+    count_map: Dict[UUID, int] = {}
+    sponsor_map: Dict[UUID, int] = {}
+    for row in rows:
+        if row.is_sponsor:
+            sponsor_map[row.gira_id] = sponsor_map.get(row.gira_id, 0) + row.total_emitido
+        else:
+            count_map[row.gira_id] = count_map.get(row.gira_id, 0) + row.total_emitido
 
     now = datetime.now(timezone.utc)
     result = []
@@ -145,6 +151,7 @@ async def _get_upcoming_giras(
                 data_inicio=g.data_inicio.isoformat(),
                 max_tickets=g.max_tickets,
                 current_count=count_map.get(g.id, 0),
+                sponsor_count=sponsor_map.get(g.id, 0),
                 is_open=is_open,
             )
         )
