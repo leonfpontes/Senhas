@@ -158,7 +158,7 @@ function AdminEstoqueRelatorioContent() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+      <Box data-tour="estoque-rel-header" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <BarChartIcon color="primary" />
           <Typography variant="h5" fontWeight={700}>Relatório de Estoque</Typography>
@@ -183,6 +183,7 @@ function AdminEstoqueRelatorioContent() {
           <Tooltip title={can('export_csv') ? 'Exportar CSV' : 'Exportar CSV — disponível no plano Premium'}>
             <span>
               <Button
+                data-tour="estoque-rel-export"
                 variant="outlined"
                 startIcon={exporting ? <CircularProgress size={16} /> : <DownloadIcon />}
                 onClick={handleExportCsv}
@@ -197,7 +198,7 @@ function AdminEstoqueRelatorioContent() {
 
       {/* Summary cards */}
       {!loading && posicao.length > 0 && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid data-tour="estoque-rel-kpis" container spacing={2} sx={{ mb: 3 }}>
           {[
             { label: 'Total de itens', value: posicao.length, color: 'primary.main' },
             { label: 'Em nível OK', value: totalOk, color: 'success.main' },
@@ -224,7 +225,7 @@ function AdminEstoqueRelatorioContent() {
           <Typography color="text.secondary">Nenhum item cadastrado para exibir relatório.</Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+        <TableContainer data-tour="estoque-rel-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
               <TableRow>

@@ -196,13 +196,13 @@ function AdminEstoqueMovimentacoesContent() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+      <Box data-tour="estoque-mov-header" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <SwapVertIcon color="primary" />
           <Typography variant="h5" fontWeight={700}>Movimentações</Typography>
           <Chip label={`${movimentacoes.length}`} size="small" variant="outlined" />
         </Box>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Box data-tour="estoque-mov-filtros" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
           <TextField
             size="small"
             placeholder="Buscar por nome do item..."
@@ -245,7 +245,7 @@ function AdminEstoqueMovimentacoesContent() {
             sx={{ width: 150 }}
           />
           <Tooltip title="Atualizar"><IconButton onClick={loadMovimentacoes}><RefreshIcon /></IconButton></Tooltip>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={async () => { await loadItems(); setFormData({ ...EMPTY_FORM, data_movimentacao: toLocalDatetimeInput(new Date()) }); setSaldoWarning(null); setTouched({}); setDialogOpen(true); }}>
+          <Button data-tour="estoque-mov-nova" variant="contained" startIcon={<AddIcon />} onClick={async () => { await loadItems(); setFormData({ ...EMPTY_FORM, data_movimentacao: toLocalDatetimeInput(new Date()) }); setSaldoWarning(null); setTouched({}); setDialogOpen(true); }}>
             Registrar
           </Button>
         </Box>
@@ -259,7 +259,7 @@ function AdminEstoqueMovimentacoesContent() {
           <Typography color="text.secondary">Nenhuma movimentação registrada.</Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+        <TableContainer data-tour="estoque-mov-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
               <TableRow>

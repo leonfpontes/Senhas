@@ -285,7 +285,7 @@ export default function AdminProfilePage() {
 
           <Grid container spacing={2.5}>
             <Grid item xs={12} md={5}>
-              <Card>
+              <Card data-tour="profile-foto">
                 <CardContent>
                   <Typography variant="h6" fontWeight={700} gutterBottom>
                     Foto de Perfil
@@ -325,7 +325,7 @@ export default function AdminProfilePage() {
             </Grid>
 
             <Grid item xs={12} md={7}>
-              <Card>
+              <Card data-tour="profile-dados">
                 <CardContent>
                   <Typography variant="h6" fontWeight={700} gutterBottom>
                     Dados Pessoais
@@ -377,7 +377,7 @@ export default function AdminProfilePage() {
             </Grid>
           </Grid>
 
-          <Card sx={{ mt: 2.5 }}>
+          <Card data-tour="profile-senha" sx={{ mt: 2.5 }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <LockIcon fontSize="small" />

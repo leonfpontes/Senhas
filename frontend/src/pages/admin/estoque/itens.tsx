@@ -279,22 +279,21 @@ function AdminEstoqueItensContent() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+      <Box data-tour="estoque-itens-header" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Inventory2Icon color="primary" />
           <Typography variant="h5" fontWeight={700}>Itens de Estoque</Typography>
           <Chip label={`${items.length}`} size="small" variant="outlined" />
         </Box>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel>Filtrar por grupo</InputLabel>
+          <FormControl data-tour="estoque-itens-filtro" size="small" sx={{ minWidth: 180 }}>
             <Select value={filterGrupo} label="Filtrar por grupo" onChange={(e) => setFilterGrupo(e.target.value)}>
               <MenuItem value="">Todos</MenuItem>
               {grupos.map((g) => <MenuItem key={g.id} value={g.id}>{g.nome}</MenuItem>)}
             </Select>
           </FormControl>
           <Tooltip title="Atualizar"><IconButton onClick={loadItems}><RefreshIcon /></IconButton></Tooltip>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Novo Item</Button>
+          <Button data-tour="estoque-itens-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Novo Item</Button>
         </Box>
       </Box>
 
@@ -306,7 +305,7 @@ function AdminEstoqueItensContent() {
           <Typography color="text.secondary">Nenhum item cadastrado.</Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+        <TableContainer data-tour="estoque-itens-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
           <Table>
             <TableHead>
               <TableRow>

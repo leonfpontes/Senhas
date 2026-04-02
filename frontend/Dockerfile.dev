@@ -9,7 +9,7 @@ RUN apt-get update -qq && apt-get install -y -qq jq python3-minimal > /dev/null
 # Copiar arquivo de configuração antes de instalar dependências
 COPY frontend/package.json .
 COPY frontend/tsconfig.json .
-COPY frontend/.eslintrc.json . 2>/dev/null || true
+COPY frontend/.eslintrc.json .
 
 # Converter workspace:* para file:*
 RUN jq '.dependencies["shared-types"] = "file:../packages/shared-types" | .dependencies["shared-ui"] = "file:../packages/shared-ui"' package.json > package.json.tmp && mv package.json.tmp package.json

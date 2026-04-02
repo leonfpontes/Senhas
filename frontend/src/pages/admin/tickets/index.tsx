@@ -249,8 +249,8 @@ function AdminTicketsContent() {
   return (
     <>
       {/* ── Seletor de Gira — sempre visível ── */}
-      <Box sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
-        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
+      <Box data-tour="tickets-header" sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
+        <FormControl data-tour="tickets-gira-select" size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
           <InputLabel>Selecione uma Gira</InputLabel>
           <Select
             value={giraId}
@@ -289,6 +289,7 @@ function AdminTicketsContent() {
 
         {/* Filtros avançados — colapsam no mobile, sempre visíveis no desktop */}
         <Box
+          data-tour="tickets-filtros"
           sx={{
             display: { xs: 'none', sm: 'flex' },
             flexWrap: 'wrap',
@@ -425,7 +426,7 @@ function AdminTicketsContent() {
         />
       )}
 
-      <TableContainer component={Paper} sx={{ mt: 2, overflowX: 'auto' }}>
+      <TableContainer data-tour="tickets-tabela" component={Paper} sx={{ mt: 2, overflowX: 'auto' }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />

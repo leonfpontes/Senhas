@@ -175,7 +175,7 @@ const GlobalUsersPage: React.FC = () => {
 
   return (
     <PlatformLayout>
-      <Box sx={{ mb: 3 }}>
+      <Box data-tour="global-users-header" sx={{ mb: 3 }}>
         <Box
           sx={{
             display: "flex",
@@ -197,6 +197,7 @@ const GlobalUsersPage: React.FC = () => {
               Refresh
             </Button>
             <Button
+              data-tour="global-users-novo"
               variant="contained"
               startIcon={<AddIcon />}
               onClick={openCreate}
@@ -211,7 +212,7 @@ const GlobalUsersPage: React.FC = () => {
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
         {/* Users Table */}
-        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+        <TableContainer data-tour="global-users-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: "primary.light" }}>

@@ -155,7 +155,7 @@ function AdminEstoqueGruposContent() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+      <Box data-tour="estoque-grupos-header" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CategoryIcon color="primary" />
           <Typography variant="h5" fontWeight={700}>Grupos de Material</Typography>
@@ -163,7 +163,7 @@ function AdminEstoqueGruposContent() {
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Tooltip title="Atualizar"><IconButton onClick={loadGrupos}><RefreshIcon /></IconButton></Tooltip>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Novo Grupo</Button>
+          <Button data-tour="estoque-grupos-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Novo Grupo</Button>
         </Box>
       </Box>
 
@@ -175,7 +175,7 @@ function AdminEstoqueGruposContent() {
           <Typography color="text.secondary">Nenhum grupo cadastrado. Crie o primeiro!</Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+        <TableContainer data-tour="estoque-grupos-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
           <Table>
             <TableHead>
               <TableRow>

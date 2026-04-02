@@ -31,9 +31,11 @@ import {
   Avatar,
   Menu,
   MenuItem,
+  Tooltip,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import Head from "next/head";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import BusinessIcon from "@mui/icons-material/Business";
@@ -45,7 +47,9 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import AccountIcon from "@mui/icons-material/AccountCircle";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useTour } from "@reactour/tour";
 import { apiClient } from "../../services/api_client";
+import { getPlatformTourSteps } from "../../tours/platformTourSteps";
 
 const DRAWER_WIDTH = 280;
 const TOOLBAR_HEIGHT = 64;
@@ -57,6 +61,37 @@ const BRAND_FONT = "#FFFFFF";
 
 interface PlatformLayoutProps {
   children: React.ReactNode;
+}
+
+/**
+ * Botão de ajuda (?) que dispara o tour guiado da tela atual do painel Platform.
+ */
+function PlatformTourHelpButton() {
+  const router = useRouter();
+  const { setSteps, setIsOpen, setCurrentStep } = useTour();
+  const steps = getPlatformTourSteps(router.pathname);
+
+  if (steps.length === 0) return null;
+
+  const handleOpenTour = () => {
+    setSteps?.(steps);
+    setCurrentStep(0);
+    setIsOpen(true);
+  };
+
+  return (
+    <Tooltip title="Guia desta tela">
+      <IconButton
+        color="inherit"
+        aria-label="abrir guia da tela"
+        onClick={handleOpenTour}
+        size="small"
+        sx={{ opacity: 0.85, '&:hover': { opacity: 1 } }}
+      >
+        <HelpOutlineIcon />
+      </IconButton>
+    </Tooltip>
+  );
 }
 
 export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
@@ -312,6 +347,8 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
           <Typography variant="h6" sx={{ flex: 1, fontWeight: 700 }}>
             Platform Administration
           </Typography>
+
+          <PlatformTourHelpButton />
 
           <IconButton
             onClick={handleMenuOpen}

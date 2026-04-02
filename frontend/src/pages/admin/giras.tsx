@@ -426,7 +426,7 @@ function AdminGirasContent() {
 
   return (
     <>
-      <Box sx={{ mb: 3 }}>
+      <Box data-tour="giras-header" sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 0 } }}>
           <Typography variant="h5" fontWeight={700}>Gestão de Giras</Typography>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -435,7 +435,7 @@ function AdminGirasContent() {
             </Button>
             <Tooltip title={!canCreateGira ? `Limite de ${subscription?.max_giras_per_month ?? 0} gira(s)/mês atingido. Faça upgrade do plano.` : ''}>
               <span>
-                <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira} size="small">
+                <Button data-tour="giras-nova" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira} size="small">
                   Nova Gira
                 </Button>
               </span>
@@ -445,11 +445,13 @@ function AdminGirasContent() {
 
         {/* Gira usage progress bar — only for plans with finite limits */}
         {subscription && subscription.max_giras_per_month < 99999 && (
-          <GiraUsageBar used={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
+          <Box data-tour="giras-usage">
+            <GiraUsageBar used={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
+          </Box>
         )}
       </Box>
 
-      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+      <TableContainer data-tour="giras-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />
@@ -492,6 +494,7 @@ function AdminGirasContent() {
                     {isMobile ? (
                       <>
                         <IconButton
+                          data-tour="giras-acoes"
                           size="small"
                           onClick={(e) => { setMenuAnchor(e.currentTarget); setMenuGira(gira); }}
                         >

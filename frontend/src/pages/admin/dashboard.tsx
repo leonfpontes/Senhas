@@ -251,7 +251,7 @@ export default function AdminDashboard() {
 
   return (
     <AdminLayout title="Dashboard">
-      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+      <Box data-tour="dashboard-header" sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
             {greeting ? `${greeting}! 👋` : ''}
@@ -275,7 +275,7 @@ export default function AdminDashboard() {
         </Alert>
       )}
 
-      <Grid container spacing={{ xs: 2, md: 3 }}>
+      <Grid data-tour="dashboard-kpis" container spacing={{ xs: 2, md: 3 }}>
         {/* ── KPI Cards ── */}
         {kpis.map((kpi, idx) => (
           <Grid item xs={6} sm={6} md={3} key={idx}>
@@ -331,7 +331,7 @@ export default function AdminDashboard() {
         ))}
 
         {/* ── Próximas Giras ── */}
-        <Grid item xs={12} md={6}>
+        <Grid data-tour="dashboard-giras" item xs={12} md={6}>
           {loading ? (
             <Skeleton variant="rounded" height={260} />
           ) : (
@@ -408,7 +408,7 @@ export default function AdminDashboard() {
         </Grid>
 
         {/* ── Tickets Últimos 7 Dias (Recharts) ── */}
-        <Grid item xs={12} md={6}>
+        <Grid data-tour="dashboard-chart" item xs={12} md={6}>
           {loading ? (
             <Skeleton variant="rounded" height={260} />
           ) : (
@@ -551,7 +551,7 @@ export default function AdminDashboard() {
         )}
 
         {/* ── Horários de Pico ── */}
-        <Grid item xs={12} md={can('estoque_controle') ? 6 : 12}>
+        <Grid data-tour="dashboard-peak-hours" item xs={12} md={can('estoque_controle') ? 6 : 12}>
           {loading ? (
             <Skeleton variant="rounded" height={260} />
           ) : (
@@ -603,7 +603,7 @@ export default function AdminDashboard() {
         </Grid>
 
         {/* ── Ações Rápidas ── */}
-        <Grid item xs={12}>
+        <Grid data-tour="dashboard-quick-actions" item xs={12}>
           {loading ? (
             <Skeleton variant="rounded" height={80} />
           ) : (
