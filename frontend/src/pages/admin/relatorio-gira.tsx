@@ -541,7 +541,7 @@ function RelatorioGiraContent() {
                             {ticket.cambone_nome || '-'}
                           </TableCell>
                           <TableCell sx={{ maxWidth: 240, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                            {ticket.atendimento_descricao || ticket.observacoes || '-'}
+                            {ticket.atendimento_descricao || '-'}
                           </TableCell>
                         </TableRow>
                       );

@@ -177,6 +177,15 @@ function AdminLayoutInner({
   const isEstoqueActive = estoqueHrefs.includes(pathname);
   const [estoqueOpen, setEstoqueOpen] = useState(isEstoqueActive);
 
+  const relatoriosItems = [
+    ...(can('analytics_basico') ? [{ text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' }] : []),
+    ...(can('relatorio_gira') ? [{ text: 'Relatório de Gira', icon: <SummarizeIcon />, href: '/admin/relatorio-gira' }] : []),
+    ...(can('auditoria') ? [{ text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' }] : []),
+  ];
+  const relatoriosHrefs = relatoriosItems.map((i) => i.href);
+  const isRelatoriosActive = relatoriosHrefs.includes(pathname);
+  const [relatoriosOpen, setRelatoriosOpen] = useState(isRelatoriosActive);
+
   // Keep accordion groups open when navigating to a child route or when
   // subscription data finishes loading (can() may initially return false).
   useEffect(() => {
@@ -187,6 +196,10 @@ function AdminLayoutInner({
     if (isEstoqueActive) setEstoqueOpen(true);
   }, [isEstoqueActive]);
 
+  useEffect(() => {
+    if (isRelatoriosActive) setRelatoriosOpen(true);
+  }, [isRelatoriosActive]);
+
   const topItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, href: '/admin/dashboard' },
     { text: 'Tickets', icon: <TicketIcon />, href: '/admin/tickets' },
@@ -194,9 +207,6 @@ function AdminLayoutInner({
 
   const bottomItems = [
     { text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' },
-    ...(can('analytics_basico') ? [{ text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' }] : []),
-    ...(can('relatorio_gira') ? [{ text: 'Relatório de Gira', icon: <SummarizeIcon />, href: '/admin/relatorio-gira' }] : []),
-    ...(can('auditoria') ? [{ text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' }] : []),
     { text: 'Plano', icon: <CardMembershipIcon />, href: '/admin/plano' },
     { text: 'Configurações', icon: <SettingsIcon />, href: '/admin/config' },
   ];
@@ -412,6 +422,64 @@ function AdminLayoutInner({
             <Collapse in={estoqueOpen} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 {estoqueItems.map((item) => (
+                  <ListItem key={item.href} disablePadding>
+                    <Link href={item.href} passHref legacyBehavior>
+                      <ListItemButton
+                        selected={pathname === item.href}
+                        sx={{
+                          borderRadius: 2,
+                          mx: 1,
+                          pl: 4,
+                          '& .MuiListItemIcon-root': { color: 'text.secondary', minWidth: 36 },
+                          '&.Mui-selected': {
+                            background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                            color: brandFont,
+                            '& .MuiListItemIcon-root': { color: brandFont },
+                            '& .MuiListItemText-primary': { color: brandFont },
+                          },
+                          '&.Mui-selected:hover': {
+                            background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                            filter: 'brightness(0.97)',
+                          },
+                        }}
+                      >
+                        <ListItemIcon>{item.icon}</ListItemIcon>
+                        <ListItemText primary={item.text} primaryTypographyProps={{ variant: 'body2', fontWeight: pathname === item.href ? 600 : 500 }} />
+                      </ListItemButton>
+                    </Link>
+                  </ListItem>
+                ))}
+              </List>
+            </Collapse>
+          </>
+        )}
+
+        {/* Relatórios group — visible when at least one report feature is available */}
+        {relatoriosItems.length > 0 && (
+          <>
+            <ListItem disablePadding>
+              <ListItemButton
+                onClick={() => setRelatoriosOpen(!relatoriosOpen)}
+                sx={{
+                  borderRadius: 2,
+                  mx: 1,
+                  '& .MuiListItemIcon-root': { color: 'text.secondary' },
+                  ...(isRelatoriosActive && !relatoriosOpen && {
+                    background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                    color: brandFont,
+                    '& .MuiListItemIcon-root': { color: brandFont },
+                    '& .MuiListItemText-primary': { color: brandFont },
+                  }),
+                }}
+              >
+                <ListItemIcon><BarChartIcon /></ListItemIcon>
+                <ListItemText primary="Relatórios" primaryTypographyProps={{ variant: 'body2', fontWeight: isRelatoriosActive ? 600 : 500 }} />
+                {relatoriosOpen ? <ExpandLess /> : <ExpandMore />}
+              </ListItemButton>
+            </ListItem>
+            <Collapse in={relatoriosOpen} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                {relatoriosItems.map((item) => (
                   <ListItem key={item.href} disablePadding>
                     <Link href={item.href} passHref legacyBehavior>
                       <ListItemButton
