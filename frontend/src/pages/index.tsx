@@ -67,11 +67,11 @@ const NAV = [
 
 // ─── Features data ───────────────────────────────────────────────
 const FEATURES = [
-  { icon: <ConfirmationNumberIcon />, title: 'Emissão Online', desc: 'Consulentes emitem senhas pelo celular com link público. Sem papel, sem filas.' },
-  { icon: <EventIcon />, title: 'Gestão de Giras', desc: 'Crie giras com datas, horários e controle de vagas. Organize o calendário do terreiro.' },
-  { icon: <DashboardIcon />, title: 'Painel Administrativo', desc: 'Dashboard completo com analytics em tempo real, histórico e relatórios.' },
-  { icon: <BusinessIcon />, title: 'Multi-Terreiro', desc: 'Cada terreiro tem seu espaço isolado. Dados nunca se misturam entre organizações.' },
-  { icon: <EmailIcon />, title: 'Notificações por E-mail', desc: 'Confirmações automáticas para consulentes via e-mail. Profissional e confiável.' },
+  { icon: <ConfirmationNumberIcon />, title: 'Emissão Online', desc: 'Consulentes emitem senhas pelo celular com link público. Sem papel, sem filas na porta.' },
+  { icon: <EventIcon />, title: 'Gestão de Giras', desc: 'Crie giras com datas, horários e controle de vagas. Calendário organizado do terreiro.' },
+  { icon: <DashboardIcon />, title: 'Painel Administrativo', desc: 'Dashboard completo com analytics em tempo real, histórico e relatórios exportáveis.' },
+  { icon: <BusinessIcon />, title: 'Médiuns e Cambones', desc: 'Cadastro completo da corrente com dados de contato, endereço via CEP e foto de perfil.' },
+  { icon: <EmailIcon />, title: 'Notificações por E-mail', desc: 'Envio automático de senha para o consulente com layout personalizado do terreiro.' },
   { icon: <SecurityIcon />, title: 'Segurança LGPD', desc: 'Dados criptografados, trilha de auditoria completa e conformidade com a LGPD.' },
 ];
 
@@ -111,9 +111,11 @@ const PLANS = [
       'Tudo do Free +',
       '5 usuários',
       '10 giras por mês',
+      'Até 15 médiuns/cambones',
       'Envio de senhas por e-mail',
-      'Relatório Analítico básico',
-      'Tema personalizado',
+      'Tema personalizado (cores + logo)',
+      'Senhas para patrocinadores',
+      'Walk-in (presencial)',
     ],
   },
   {
@@ -124,12 +126,12 @@ const PLANS = [
       'Tudo do Basic +',
       '20 usuários',
       '50 giras por mês',
+      'Até 30 médiuns/cambones',
       'Gestão de Associados',
+      'Controle de Estoque',
       'Relatório Analítico avançado',
       'Export CSV',
-      'Operações em lote',
       'Auditoria completa',
-      'Controle de Estoque',
     ],
   },
   {
@@ -140,8 +142,8 @@ const PLANS = [
       'Tudo do Pro +',
       'Usuários ilimitados',
       'Giras ilimitadas',
+      'Médiuns/cambones ilimitados',
       'Webhooks',
-      'API access',
       'Suporte prioritário',
     ],
   },
