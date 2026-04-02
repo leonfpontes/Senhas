@@ -82,7 +82,7 @@ export default function AdminTicketsPage() {
 
 function AdminTicketsContent() {
   const { can } = useSubscription();
-  const hasBulk = can('bulk_operations');
+  const hasBulk = true;
   const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));

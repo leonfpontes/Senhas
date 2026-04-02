@@ -51,7 +51,6 @@ interface TenantConfig {
   reply_to_email?: string | null;
   email_signature?: string | null;
   endereco?: string | null;
-  enable_bulk_operations: boolean;
   enable_analytics: boolean;
   enable_webhooks: boolean;
   enable_walk_in: boolean;
@@ -75,8 +74,6 @@ const HELP_TEXT = {
     'Cor de apoio usada para compor gradientes, destaques secundários e contrastes visuais da interface pública.',
   font_color:
     'Cor do texto aplicada no Header e nos itens selecionados do menu lateral, junto ao branding do tenant.',
-  enable_bulk_operations:
-    'Libera ações em lote para tickets e rotinas administrativas que precisam operar em muitos registros de uma vez.',
   enable_analytics:
     'Mostra a área de analytics do tenant com indicadores, gráficos e acompanhamento operacional das giras.',
   enable_webhooks:
@@ -92,12 +89,6 @@ const HELP_TEXT = {
 } as const;
 
 const FEATURE_ITEMS = [
-  {
-    field: 'enable_bulk_operations' as const,
-    title: 'Operações em lote',
-    description: 'Ativa ações administrativas que processam muitos tickets de uma vez.',
-    tooltip: HELP_TEXT.enable_bulk_operations,
-  },
   {
     field: 'enable_analytics' as const,
     title: 'Analytics',
@@ -362,7 +353,6 @@ function AdminConfigContent() {
             : {}),
           font_color: previewFontColor.trim().toUpperCase(),
         },
-        enable_bulk_operations: config.enable_bulk_operations,
         enable_analytics: config.enable_analytics,
         enable_webhooks: config.enable_webhooks,
         enable_walk_in: config.enable_walk_in,
@@ -834,7 +824,6 @@ function AdminConfigContent() {
                   <Grid container spacing={2}>
                     {FEATURE_ITEMS.filter((item) => {
                       if (item.field === 'enable_webhooks' && !can('webhooks')) return false;
-                      if (item.field === 'enable_bulk_operations' && !can('bulk_operations')) return false;
                       if (item.field === 'enable_analytics' && !can('analytics_basico')) return false;
                       if (item.field === 'validate_associado_on_emit' && !can('associados')) return false;
                       if (item.field === 'enable_estoque_log' && !can('estoque_controle')) return false;

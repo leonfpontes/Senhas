@@ -61,7 +61,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   analytics_avancado: false,
   associados: false,
   export_csv: false,
-  bulk_operations: false,
+  bulk_operations: true,
   auditoria: false,
   webhooks: false,
   api_access: false,

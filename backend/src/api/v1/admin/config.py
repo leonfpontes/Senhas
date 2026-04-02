@@ -171,13 +171,7 @@ async def update_tenant_config(
         await db.flush()
     
     # Update feature flags
-    if config_update.enable_bulk_operations is not None:
-        await repo.toggle_feature(
-            tenant_id=current_user.tenant_id,
-            feature_flag="enable_bulk_operations",
-            enabled=config_update.enable_bulk_operations,
-        )
-    
+    # enable_bulk_operations is always-on; ignore any incoming value
     if config_update.enable_analytics is not None:
         await repo.toggle_feature(
             tenant_id=current_user.tenant_id,

@@ -60,7 +60,7 @@ class TestPlanFeatures:
         assert f.analytics_avancado is False
         assert f.associados is False
         assert f.export_csv is False
-        assert f.bulk_operations is False
+        assert f.bulk_operations is True
         assert f.auditoria is False
         assert f.webhooks is False
         assert f.api_access is False

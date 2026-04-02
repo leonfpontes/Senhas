@@ -267,7 +267,7 @@ class TestAdminConfig:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["enable_bulk_operations"] == False
+        assert data["enable_bulk_operations"] == True
         assert data["enable_analytics"] == True
 
     def test_config_unauthorized(self, client: TestClient, operator_token: str):
