@@ -53,6 +53,7 @@ import Inventory2Icon from '@mui/icons-material/Inventory2';
 import CategoryIcon from '@mui/icons-material/Category';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import SummarizeIcon from '@mui/icons-material/Summarize';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -194,6 +195,7 @@ function AdminLayoutInner({
   const bottomItems = [
     { text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' },
     ...(can('analytics_basico') ? [{ text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' }] : []),
+    ...(can('relatorio_gira') ? [{ text: 'Relatório de Gira', icon: <SummarizeIcon />, href: '/admin/relatorio-gira' }] : []),
     ...(can('auditoria') ? [{ text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' }] : []),
     { text: 'Plano', icon: <CardMembershipIcon />, href: '/admin/plano' },
     { text: 'Configurações', icon: <SettingsIcon />, href: '/admin/config' },
@@ -510,7 +512,7 @@ function AdminLayoutInner({
           />
         )}
         <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-          Senhas v2.0
+          Senhas v2.1
         </Typography>
       </Box>
     </Box>

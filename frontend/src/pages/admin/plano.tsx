@@ -74,6 +74,7 @@ const FEATURES: PlanFeature[] = [
   { label: 'Relatório Analítico básico', free: false, basic: false, pro: true, premium: true },
   { label: 'Gestão de Associados', free: false, basic: false, pro: true, premium: true },
   { label: 'Médiuns (limite)', free: false, basic: '15', pro: '30', premium: 'Ilimitado' },
+  { label: 'Relatório de Gira', free: false, basic: true, pro: true, premium: true },
   { label: 'Relatório Analítico avançado', free: false, basic: false, pro: true, premium: true },
   { label: 'Export CSV', free: false, basic: false, pro: true, premium: true },
   { label: 'Operações em lote', free: false, basic: false, pro: true, premium: true },

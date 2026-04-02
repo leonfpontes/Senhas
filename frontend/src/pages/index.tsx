@@ -116,6 +116,7 @@ const PLANS = [
       'Tema personalizado (cores + logo)',
       'Senhas para patrocinadores',
       'Walk-in (presencial)',
+      'Relatório de Gira',
     ],
   },
   {

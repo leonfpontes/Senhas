@@ -18,6 +18,7 @@ export interface PlanFeatures {
   suporte_prioritario: boolean;
   estoque_controle: boolean;
   mediuns: boolean;
+  relatorio_gira: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -67,6 +68,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   suporte_prioritario: false,
   estoque_controle: false,
   mediuns: false,
+  relatorio_gira: false,
 };
 
 const PLAN_LABELS: Record<string, string> = {
