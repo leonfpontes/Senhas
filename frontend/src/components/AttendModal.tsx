@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import {
+  Autocomplete,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -13,6 +14,12 @@ import {
   Box,
   Typography,
 } from '@mui/material';
+
+interface MediumOption {
+  id: string;
+  nome: string;
+  is_atendimento: boolean;
+}
 
 interface AttendModalProps {
   open: boolean;
@@ -29,6 +36,10 @@ interface AttendModalProps {
   };
   /** True when editing an already completed ticket */
   editMode?: boolean;
+  /** Médium de atendimento options (is_atendimento=true) */
+  mediumOptions?: MediumOption[];
+  /** All active options (médiuns + cambones) */
+  camboneOptions?: MediumOption[];
 }
 
 export default function AttendModal({
@@ -40,6 +51,8 @@ export default function AttendModal({
   loading = false,
   initialValues,
   editMode = false,
+  mediumOptions = [],
+  camboneOptions = [],
 }: AttendModalProps) {
   const [mediumNome, setMediumNome] = useState('');
   const [camboneNome, setCamboneNome] = useState('');
@@ -78,22 +91,36 @@ export default function AttendModal({
             Senha <strong>#{ticketNumero}</strong> — {consulenteNome}
           </Typography>
         </Box>
-        <TextField
-          autoFocus
-          label="Nome do Médium *"
-          fullWidth
-          value={mediumNome}
-          onChange={(e) => setMediumNome(e.target.value)}
-          sx={{ mb: 2 }}
+        <Autocomplete
+          freeSolo
+          options={mediumOptions.map((m) => m.nome)}
+          inputValue={mediumNome}
+          onInputChange={(_, v) => setMediumNome(v)}
           disabled={loading}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              autoFocus
+              label="Nome do Médium *"
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+          )}
         />
-        <TextField
-          label="Nome do Cambone"
-          fullWidth
-          value={camboneNome}
-          onChange={(e) => setCamboneNome(e.target.value)}
-          sx={{ mb: 2 }}
+        <Autocomplete
+          freeSolo
+          options={camboneOptions.map((m) => m.nome)}
+          inputValue={camboneNome}
+          onInputChange={(_, v) => setCamboneNome(v)}
           disabled={loading}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Nome do Cambone"
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+          )}
         />
         <TextField
           label="Descrição / Observações"

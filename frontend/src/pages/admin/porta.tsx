@@ -47,6 +47,12 @@ import { useWebSocket } from '../../hooks/useWebSocket';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
+interface MediumOption {
+  id: string;
+  nome: string;
+  is_atendimento: boolean;
+}
+
 interface Gira {
   id: string;
   nome: string;
@@ -124,6 +130,10 @@ export default function PortaPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [config, setConfig] = useState<TenantConfig | null>(null);
 
+  // Medium/cambone autocomplete options (fetched once on mount)
+  const [mediumOptions, setMediumOptions] = useState<MediumOption[]>([]);
+  const [camboneOptions, setCamboneOptions] = useState<MediumOption[]>([]);
+
   // Attend modal
   const [attendTarget, setAttendTarget] = useState<QueueItem | null>(null);
 
@@ -165,6 +175,19 @@ export default function PortaPage() {
     }
   };
 
+  const loadMediunOptions = async () => {
+    try {
+      const [mRes, cRes] = await Promise.all([
+        apiClient.get<MediumOption[]>('/api/v1/admin/mediuns/options?only_atendimento=true'),
+        apiClient.get<MediumOption[]>('/api/v1/admin/mediuns/options'),
+      ]);
+      setMediumOptions(Array.isArray(mRes.data) ? mRes.data : []);
+      setCamboneOptions(Array.isArray(cRes.data) ? cRes.data : []);
+    } catch {
+      // silent — optional feature
+    }
+  };
+
   const loadStats = useCallback(async () => {
     if (!selectedGiraId) return;
     try {
@@ -200,6 +223,7 @@ export default function PortaPage() {
   useEffect(() => {
     loadGiras();
     loadConfig();
+    loadMediunOptions();
   }, []);
 
   useEffect(() => {
@@ -594,6 +618,8 @@ export default function PortaPage() {
         onConfirm={handleAttendConfirm}
         onClose={() => setAttendTarget(null)}
         loading={actionLoading === attendTarget?.id}
+        mediumOptions={mediumOptions}
+        camboneOptions={camboneOptions}
       />
 
       {/* Edit Attendance Modal */}
@@ -605,6 +631,8 @@ export default function PortaPage() {
         onClose={() => setEditTarget(null)}
         loading={actionLoading === editTarget?.id}
         editMode
+        mediumOptions={mediumOptions}
+        camboneOptions={camboneOptions}
         initialValues={{
           medium_nome: editTarget?.medium_nome || '',
           cambone_nome: editTarget?.cambone_nome || '',

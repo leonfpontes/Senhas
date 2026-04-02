@@ -17,6 +17,7 @@ export interface PlanFeatures {
   api_access: boolean;
   suporte_prioritario: boolean;
   estoque_controle: boolean;
+  mediuns: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -24,8 +25,10 @@ export interface SubscriptionInfo {
   status: string;
   max_users: number;
   max_giras_per_month: number;
+  max_mediuns: number;
   current_users: number;
   current_giras_this_month: number;
+  current_mediuns: number;
   monthly_price: number;
   is_trial: boolean;
   trial_ends_at: string | null;
@@ -42,6 +45,8 @@ interface SubscriptionContextValue {
   canCreateUser: (currentCount: number) => boolean;
   /** Check if the monthly gira limit allows creating another gira */
   canCreateGira: () => boolean;
+  /** Check if the médium limit allows creating another médium */
+  canCreateMedium: (currentCount: number) => boolean;
   /** Re-fetch subscription data */
   refresh: () => void;
   /** Friendly plan display name */
@@ -61,6 +66,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   api_access: false,
   suporte_prioritario: false,
   estoque_controle: false,
+  mediuns: false,
 };
 
 const PLAN_LABELS: Record<string, string> = {
@@ -76,6 +82,7 @@ const SubscriptionContext = createContext<SubscriptionContextValue>({
   can: () => false,
   canCreateUser: () => false,
   canCreateGira: () => false,
+  canCreateMedium: () => false,
   refresh: () => {},
   planLabel: 'Free',
 });
@@ -137,11 +144,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     [subscription],
   );
 
+  const canCreateMedium = useCallback(
+    (currentCount: number) => {
+      if (!subscription) return false;
+      return currentCount < subscription.max_mediuns;
+    },
+    [subscription],
+  );
+
   const planLabel = PLAN_LABELS[subscription?.plan ?? 'free'] ?? 'Free';
 
   return (
     <SubscriptionContext.Provider
-      value={{ subscription, loading, can, canCreateUser, canCreateGira, refresh: fetchSubscription, planLabel }}
+      value={{ subscription, loading, can, canCreateUser, canCreateGira, canCreateMedium, refresh: fetchSubscription, planLabel }}
     >
       {children}
     </SubscriptionContext.Provider>

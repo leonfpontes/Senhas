@@ -68,6 +68,7 @@ class Subscription(TimestampedModel):
     # Usage limits
     max_users: Mapped[int] = mapped_column(Integer, nullable=False)  # Based on plan
     max_giras_per_month: Mapped[int] = mapped_column(Integer, nullable=False)  # Based on plan
+    max_mediuns: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")  # Based on plan
     current_users: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     
     # Billing

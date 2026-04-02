@@ -13,6 +13,7 @@ from .billing import Invoice, InvoiceStatus
 from .feature_flags import FeatureFlag
 from .associados import Associado
 from .estoque import EstoqueGrupo, EstoqueItem, EstoqueMovimentacao, EstoqueMovimentacaoTipo
+from .mediuns import Medium
 
 __all__ = [
     "Base",
@@ -39,4 +40,5 @@ __all__ = [
     "EstoqueItem",
     "EstoqueMovimentacao",
     "EstoqueMovimentacaoTipo",
+    "Medium",
 ]

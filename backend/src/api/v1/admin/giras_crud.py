@@ -1,7 +1,7 @@
 """T058: Admin Giras CRUD - GET/POST/PUT/DELETE /api/v1/admin/giras/{id}"""
 from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, func, and_
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
@@ -13,6 +13,7 @@ from src.core.database import get_db
 from src.models import User, UserRole, Gira
 from src.models.senha_controls import SenhaControl
 from src.repositories.gira_repo import GiraRepository
+from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
 
 _BASE = settings.FRONTEND_URL.rstrip("/")
@@ -119,7 +120,28 @@ async def create_gira(
     # Check permissions
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Admin required")
-    
+
+    # Check monthly gira limit
+    sub_repo = SubscriptionRepository(db)
+    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
+    if sub is not None:
+        now = datetime.now(timezone.utc)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        count_stmt = select(func.count()).select_from(Gira).where(
+            and_(
+                Gira.tenant_id == current_user.tenant_id,
+                Gira.created_at >= month_start,
+                Gira.deleted_at.is_(None),
+            )
+        )
+        result = await db.execute(count_stmt)
+        current_month_count = result.scalar() or 0
+        if current_month_count >= sub.max_giras_per_month:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Limite mensal de giras atingido ({sub.max_giras_per_month}). Faça upgrade do plano.",
+            )
+
     # Create gira
     repo = GiraRepository(db)
     created_gira = await repo.create(

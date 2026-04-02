@@ -34,6 +34,7 @@ import {
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import EventIcon from '@mui/icons-material/Event';
+import SelfImprovementIcon from '@mui/icons-material/SelfImprovement';
 import TicketIcon from '@mui/icons-material/ConfirmationNumber';
 import PeopleIcon from '@mui/icons-material/People';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -156,6 +157,7 @@ function AdminLayoutInner({
 
   const cadastrosItems = [
     { text: 'Giras', icon: <EventIcon />, href: '/admin/giras' },
+    ...(can('mediuns') ? [{ text: 'Médiuns', icon: <SelfImprovementIcon />, href: '/admin/mediuns' }] : []),
     { text: 'Usuários', icon: <PeopleIcon />, href: '/admin/users' },
     ...(can('associados') ? [{ text: 'Associados', icon: <Diversity3Icon />, href: '/admin/associados' }] : []),
   ];
@@ -508,7 +510,7 @@ function AdminLayoutInner({
           />
         )}
         <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-          Senhas v1.1
+          Senhas v2.0
         </Typography>
       </Box>
     </Box>

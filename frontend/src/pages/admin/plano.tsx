@@ -38,8 +38,10 @@ interface SubscriptionInfo {
   status: string;
   max_users: number;
   max_giras_per_month: number;
+  max_mediuns: number;
   current_users: number;
   current_giras_this_month: number;
+  current_mediuns: number;
   monthly_price: number;
   is_trial: boolean;
   trial_ends_at: string | null;
@@ -71,6 +73,7 @@ const FEATURES: PlanFeature[] = [
   { label: 'Tema personalizado', free: false, basic: false, pro: true, premium: true },
   { label: 'Relatório Analítico básico', free: false, basic: false, pro: true, premium: true },
   { label: 'Gestão de Associados', free: false, basic: false, pro: true, premium: true },
+  { label: 'Médiuns (limite)', free: false, basic: '15', pro: '30', premium: 'Ilimitado' },
   { label: 'Relatório Analítico avançado', free: false, basic: false, pro: true, premium: true },
   { label: 'Export CSV', free: false, basic: false, pro: true, premium: true },
   { label: 'Operações em lote', free: false, basic: false, pro: true, premium: true },
@@ -183,6 +186,12 @@ export default function AdminPlano() {
                   <Typography variant="caption" color="text.secondary">Giras / mês</Typography>
                   <Typography fontWeight={600}>
                     {subscription?.current_giras_this_month || 0} / {(subscription?.max_giras_per_month || 0) >= 999999 ? '∞' : subscription?.max_giras_per_month}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">Médiuns</Typography>
+                  <Typography fontWeight={600}>
+                    {subscription?.current_mediuns || 0} / {(subscription?.max_mediuns || 0) >= 999999 ? '∞' : (subscription?.max_mediuns || 0) === 0 ? 'N/A' : subscription?.max_mediuns}
                   </Typography>
                 </Grid>
                 <Grid item xs={6} sm={3}>

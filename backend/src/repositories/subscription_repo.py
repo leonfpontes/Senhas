@@ -108,6 +108,7 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             status=SubscriptionStatus.ACTIVE,
             max_users=plan_config["max_users"],
             max_giras_per_month=plan_config["max_giras_per_month"],
+            max_mediuns=plan_config["max_mediuns"],
             monthly_price=plan_config["price"],
             is_trial=is_trial,
             trial_ends_at=trial_ends_at,
@@ -145,6 +146,7 @@ class SubscriptionRepository(BaseRepository[Subscription]):
         subscription.plan = new_plan
         subscription.max_users = plan_config["max_users"]
         subscription.max_giras_per_month = plan_config["max_giras_per_month"]
+        subscription.max_mediuns = plan_config["max_mediuns"]
         subscription.monthly_price = plan_config["price"]
         
         await self.db.flush()
@@ -164,21 +166,25 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             PlanType.FREE: {
                 "max_users": 1,
                 "max_giras_per_month": 2,
+                "max_mediuns": 0,
                 "price": 0.0,
             },
             PlanType.BASIC: {
                 "max_users": 5,
                 "max_giras_per_month": 10,
+                "max_mediuns": 15,
                 "price": 49.0,
             },
             PlanType.PRO: {
                 "max_users": 20,
                 "max_giras_per_month": 50,
+                "max_mediuns": 30,
                 "price": 79.0,
             },
             PlanType.PREMIUM: {
                 "max_users": 99999,  # Effectively unlimited
                 "max_giras_per_month": 999999,
+                "max_mediuns": 9999999,
                 "price": 99.0,
             },
         }
