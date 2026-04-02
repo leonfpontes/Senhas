@@ -580,7 +580,7 @@ function AdminLayoutInner({
           />
         )}
         <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-          Senhas v2.1
+          Senhas v2.2
         </Typography>
       </Box>
     </Box>

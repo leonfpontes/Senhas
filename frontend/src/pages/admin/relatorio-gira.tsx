@@ -212,23 +212,42 @@ function RelatorioGiraContent() {
     [filteredTickets, page],
   );
 
-  // ─── Exportar CSV ─────────────────────────────────────────────────
-  const handleExportCSV = async () => {
-    if (!giraId) return;
-    try {
-      let url = `/api/v1/admin/giras/${giraId}/tickets/export?format=csv`;
-      if (statusFilter) url += `&status_filter=${statusFilter}`;
-      const res = await apiClient.get(url, { responseType: 'blob' });
-      const blob = new Blob(['\uFEFF', res.data], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      const giraName = giras.find((g) => g.id === giraId)?.nome ?? 'relatorio';
-      link.download = `relatorio-${giraName.replace(/\s+/g, '-').toLowerCase()}.csv`;
-      link.click();
-      URL.revokeObjectURL(link.href);
-    } catch (err) {
-      console.error('Erro ao exportar CSV:', err);
-    }
+  // ─── Exportar CSV (client-side, a partir dos dados já carregados) ──
+  const handleExportCSV = () => {
+    if (!giraId || filteredTickets.length === 0) return;
+
+    const escape = (v: string | undefined | null) => {
+      if (v == null) return '';
+      const s = String(v);
+      // Envolve em aspas se contiver vírgula, aspas ou quebra de linha
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+
+    const header = ['Senha', 'Nome', 'Tag', 'Status', 'Médium', 'Cambone', 'Observações'];
+    const rows = filteredTickets.map((t) => [
+      `#${String(t.numero).padStart(4, '0')}`,
+      t.consulente_nome ?? '',
+      getTag(t).label,
+      t.status,
+      t.medium_nome ?? '',
+      t.cambone_nome ?? '',
+      t.atendimento_descricao ?? '',
+    ]);
+
+    const csv = [header, ...rows]
+      .map((row) => row.map(escape).join(','))
+      .join('\r\n');
+
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    const giraName = giras.find((g) => g.id === giraId)?.nome ?? 'relatorio';
+    link.download = `relatorio-${giraName.replace(/\s+/g, '-').toLowerCase()}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
   };
 
   const handleClearGiraFilters = () => {
