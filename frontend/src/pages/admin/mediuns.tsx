@@ -189,6 +189,10 @@ function MediunsContent() {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Birthday data: Map of medium id -> dias_ate_aniversario
+  const [birthdayMap, setBirthdayMap] = useState<Map<string, number>>(new Map());
+  const [filterAniversariantes, setFilterAniversariantes] = useState(false);
+
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
@@ -241,6 +245,21 @@ function MediunsContent() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Fetch birthday data — separate, non-blocking
+  useEffect(() => {
+    if (subLoading || !can('mediuns')) return;
+    apiClient
+      .get<{ id: string; dias_ate_aniversario: number }[]>(
+        '/api/v1/admin/mediuns/aniversariantes?dias=7'
+      )
+      .then((res) => {
+        const entries = Array.isArray(res.data) ? res.data : [];
+        setBirthdayMap(new Map(entries.map((e) => [e.id, e.dias_ate_aniversario])));
+      })
+      .catch(() => { /* non-critical */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subLoading]);
 
   // ── CEP lookup ──────────────────────────────────────────────────────
 
@@ -485,6 +504,17 @@ function MediunsContent() {
           onChange={(e) => setSearch(e.target.value)}
           sx={{ width: { xs: '100%', sm: 320 } }}
         />
+        {birthdayMap.size > 0 && (
+          <Chip
+            icon={<span style={{ fontSize: 14 }}>🎂</span>}
+            label={`${birthdayMap.size} aniversariante${birthdayMap.size > 1 ? 's' : ''}`}
+            size="small"
+            color={filterAniversariantes ? 'error' : 'default'}
+            variant={filterAniversariantes ? 'filled' : 'outlined'}
+            onClick={() => setFilterAniversariantes((prev) => !prev)}
+            sx={{ fontWeight: 600, cursor: 'pointer' }}
+          />
+        )}
       </Box>
 
       {/* Médium quota progress bar — only shown when plan has a finite limit */}
@@ -518,7 +548,15 @@ function MediunsContent() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {mediuns.map((m) => (
+              {mediuns
+                .filter((m) => !filterAniversariantes || birthdayMap.has(m.id))
+                .map((m) => {
+                const diasAte = birthdayMap.get(m.id);
+                const birthdayLabel =
+                  diasAte === 0 ? '🎂 Hoje' :
+                  diasAte === 1 ? '🎂 Amanhã' :
+                  diasAte !== undefined ? `🎂 Em ${diasAte}d` : null;
+                return (
                 <TableRow
                   key={m.id}
                   hover
@@ -526,9 +564,20 @@ function MediunsContent() {
                   onClick={() => openEdit(m)}
                 >
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500}>
-                      {m.nome}
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                      <Typography variant="body2" fontWeight={500}>
+                        {m.nome}
+                      </Typography>
+                      {birthdayLabel && (
+                        <Chip
+                          label={birthdayLabel}
+                          size="small"
+                          color={diasAte === 0 ? 'error' : 'default'}
+                          variant="outlined"
+                          sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }}
+                        />
+                      )}
+                    </Box>
                     {m.email && (
                       <Typography variant="caption" color="text.secondary">
                         {m.email}
@@ -563,7 +612,8 @@ function MediunsContent() {
                     </Tooltip>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}

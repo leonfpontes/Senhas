@@ -88,7 +88,38 @@ class MediumResponse(BaseModel):
         from_attributes = True
 
 
+class BirthdayMediumResponse(BaseModel):
+    id: UUID
+    nome: str
+    telefone: Optional[str] = None
+    data_nascimento: Optional[date] = None
+    dias_ate_aniversario: int
+
+    class Config:
+        from_attributes = True
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────
+
+
+@router.get("/aniversariantes", response_model=List[BirthdayMediumResponse])
+async def list_aniversariantes(
+    dias: int = Query(7, ge=0, le=365, description="Janela de dias (0 = somente hoje)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[BirthdayMediumResponse]:
+    """List médiuns whose birthday falls within the next *dias* days."""
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+    sub_repo = SubscriptionRepository(db)
+    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
+    if sub is not None and sub.max_mediuns == 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Funcionalidade de médiuns não disponível no plano atual.",
+        )
+    repo = MediumRepository(db)
+    return await repo.list_aniversariantes(current_user.tenant_id, dias=dias)
 
 
 @router.get("/options", response_model=List[MediumResponse])

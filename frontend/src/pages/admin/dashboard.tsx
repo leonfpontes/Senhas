@@ -38,6 +38,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckIcon from '@mui/icons-material/Check';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import CakeIcon from '@mui/icons-material/Cake';
 import {
   BarChart,
   Bar,
@@ -113,6 +114,14 @@ interface PlanBadge {
   status: string;
 }
 
+interface AniversarianteItem {
+  id: string;
+  nome: string;
+  telefone: string | null;
+  data_nascimento: string | null;
+  dias_ate_aniversario: number;
+}
+
 interface DashboardData {
   upcoming_giras: UpcomingGira[];
   ticket_stats: TicketStats;
@@ -161,11 +170,12 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [greeting, setGreeting] = useState('');
   const [todayLabel, setTodayLabel] = useState('');
+  const [aniversariantes, setAniversariantes] = useState<AniversarianteItem[]>([]);
   const { can } = useSubscription();
-  const { tenantConfig } = useTenant();
+  const { config: tenantConfig } = useTenant();
   const router = useRouter();
 
-  const primaryColor = tenantConfig?.primary_color || '#1976d2';
+  const primaryColor = tenantConfig?.colors?.primary || '#1976d2';
 
   useEffect(() => {
     setGreeting(getGreeting());
@@ -176,6 +186,20 @@ export default function AdminDashboard() {
     const controller = new AbortController();
     loadDashboard(controller.signal);
     return () => controller.abort();
+  }, []);
+
+  // Birthday digest — independent fetch, non-blocking
+  useEffect(() => {
+    if (!can('mediuns')) return;
+    const controller = new AbortController();
+    apiClient
+      .get<AniversarianteItem[]>('/api/v1/admin/mediuns/aniversariantes?dias=7', {
+        signal: controller.signal,
+      })
+      .then((res) => setAniversariantes(Array.isArray(res.data) ? res.data : []))
+      .catch(() => { /* non-critical */ });
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadDashboard = async (signal?: AbortSignal) => {
@@ -601,6 +625,53 @@ export default function AdminDashboard() {
             </Paper>
           )}
         </Grid>
+
+        {/* ── Aniversariantes (feature-gated: mediuns) ── */}
+        {can('mediuns') && aniversariantes.length > 0 && (
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  🎂 Aniversariantes da Semana
+                </Typography>
+                <Button size="small" endIcon={<ArrowForwardIcon />} onClick={() => router.push('/admin/mediuns')}>
+                  Ver médiuns
+                </Button>
+              </Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {aniversariantes.slice(0, 7).map((m) => (
+                  <Box
+                    key={m.id}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      p: 1,
+                      borderRadius: 1.5,
+                      border: '1px solid',
+                      borderColor: m.dias_ate_aniversario === 0 ? 'error.light' : 'divider',
+                      backgroundColor: m.dias_ate_aniversario === 0 ? 'error.50' : 'background.default',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CakeIcon sx={{ fontSize: 18, color: m.dias_ate_aniversario === 0 ? 'error.main' : 'text.secondary' }} />
+                      <Typography variant="body2" sx={{ fontWeight: m.dias_ate_aniversario === 0 ? 700 : 500 }}>
+                        {m.nome}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={m.dias_ate_aniversario === 0 ? 'Hoje!' : m.dias_ate_aniversario === 1 ? 'Amanhã' : `Em ${m.dias_ate_aniversario}d`}
+                      size="small"
+                      color={m.dias_ate_aniversario === 0 ? 'error' : 'default'}
+                      variant={m.dias_ate_aniversario === 0 ? 'filled' : 'outlined'}
+                      sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600 }}
+                    />
+                  </Box>
+                ))}
+              </Box>
+            </Paper>
+          </Grid>
+        )}
 
         {/* ── Ações Rápidas ── */}
         <Grid data-tour="dashboard-quick-actions" item xs={12}>

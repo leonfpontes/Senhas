@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import {
   AppBar,
   Avatar,
+  Badge,
   Box,
   Button,
   Collapse,
@@ -64,6 +65,7 @@ import { useTour } from '@reactour/tour';
 import { useTenant } from '@/providers/ThemeProvider';
 import { useSubscription, PlanFeatures } from '@/hooks/useSubscription';
 import { useProfile } from '@/hooks/useProfile';
+import { useBirthday } from '@/providers/BirthdayProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
 
 const DRAWER_WIDTH = 280;
@@ -191,6 +193,7 @@ function AdminLayoutInner({
     .toUpperCase();
 
   const { can, planLabel, subscription, loading: subscriptionLoading } = useSubscription();
+  const { birthdayCount } = useBirthday();
 
   const cadastrosItems = [
     { text: 'Giras', icon: <EventIcon />, href: '/admin/giras' },
@@ -423,7 +426,15 @@ function AdminLayoutInner({
                       },
                     }}
                   >
-                    <ListItemIcon>{item.icon}</ListItemIcon>
+                    <ListItemIcon>
+                      {item.href === '/admin/mediuns' && birthdayCount > 0 ? (
+                        <Badge badgeContent={birthdayCount} color="error" max={9}>
+                          {item.icon}
+                        </Badge>
+                      ) : (
+                        item.icon
+                      )}
+                    </ListItemIcon>
                     <ListItemText primary={item.text} primaryTypographyProps={{ variant: 'body2', fontWeight: pathname === item.href ? 600 : 500 }} />
                   </ListItemButton>
                 </Link>

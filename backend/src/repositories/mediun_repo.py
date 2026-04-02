@@ -1,13 +1,16 @@
 """MediumRepository - CRUD for mediuns/cambones."""
-from datetime import datetime
-from typing import List, Optional
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.mediuns import Medium
 from src.repositories.base import BaseRepository
+
+_TZ_BRT = ZoneInfo("America/Sao_Paulo")
 
 
 class MediumRepository(BaseRepository[Medium]):
@@ -63,6 +66,57 @@ class MediumRepository(BaseRepository[Medium]):
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def list_aniversariantes(
+        self,
+        tenant_id: UUID,
+        dias: int = 7,
+    ) -> List[Dict[str, Any]]:
+        """List mediuns whose birthday falls within the next *dias* days (inclusive today).
+
+        Days-until calculation uses America/Sao_Paulo timezone so server-side
+        results are consistent regardless of the deploying region.
+        Feb-29 birthdays are treated as Mar-01 in non-leap years.
+        """
+        today: date = datetime.now(_TZ_BRT).date()
+
+        stmt = select(Medium).where(
+            and_(
+                Medium.tenant_id == tenant_id,
+                Medium.deleted_at.is_(None),
+                Medium.is_active == True,  # noqa: E712
+                Medium.data_nascimento.is_not(None),
+            )
+        )
+        result = await self.db.execute(stmt)
+        mediuns = list(result.scalars().all())
+
+        out: List[Dict[str, Any]] = []
+        for m in mediuns:
+            dn: date = m.data_nascimento  # type: ignore[assignment]
+            try:
+                bday = dn.replace(year=today.year)
+            except ValueError:
+                # Feb 29 in a non-leap year
+                bday = date(today.year, 3, 1)
+            if bday < today:
+                try:
+                    bday = dn.replace(year=today.year + 1)
+                except ValueError:
+                    bday = date(today.year + 1, 3, 1)
+            days_until = (bday - today).days
+            if 0 <= days_until <= dias:
+                out.append(
+                    {
+                        "id": m.id,
+                        "nome": m.nome,
+                        "telefone": m.telefone,
+                        "data_nascimento": m.data_nascimento,
+                        "dias_ate_aniversario": days_until,
+                    }
+                )
+        out.sort(key=lambda x: x["dias_ate_aniversario"])
+        return out
 
     async def create(
         self,

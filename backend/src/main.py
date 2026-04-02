@@ -50,6 +50,7 @@ async def lifespan(app: FastAPI):
     Handles startup and shutdown events.
     """
     from .services.email.email_queue import email_queue
+    from .services.birthday_scheduler import birthday_scheduler
 
     # Startup
     logger.info("Starting Senhas API...")
@@ -61,12 +62,14 @@ async def lifespan(app: FastAPI):
             await conn.run_sync(Base.metadata.create_all)
 
     email_queue.start()
+    birthday_scheduler.start()
     logger.info("Senhas API started successfully")
     
     yield
     
     # Shutdown
     logger.info("Shutting down Senhas API...")
+    await birthday_scheduler.stop()
     await email_queue.stop()
     await engine.dispose()
 
