@@ -40,7 +40,6 @@ class TenantConfigResponse(BaseModel):
     email_signature: Optional[str]
     enable_bulk_operations: bool
     enable_analytics: bool
-    enable_webhooks: bool
     enable_walk_in: bool
     custom_settings: Optional[Dict[str, Any]]
     sponsor_priority_mode: str = "first"
@@ -60,7 +59,6 @@ class TenantConfigUpdate(BaseModel):
     email_signature: Optional[str] = None
     enable_bulk_operations: Optional[bool] = None
     enable_analytics: Optional[bool] = None
-    enable_webhooks: Optional[bool] = None
     enable_walk_in: Optional[bool] = None
     custom_settings: Optional[Dict[str, Any]] = None
     sponsor_priority_mode: Optional[str] = None
@@ -104,7 +102,6 @@ async def get_tenant_config(
             email_signature=None,
             enable_bulk_operations=True,
             enable_analytics=True,
-            enable_webhooks=False,
             enable_walk_in=False,
             custom_settings=None,
             sponsor_priority_mode="first",
@@ -179,13 +176,6 @@ async def update_tenant_config(
             enabled=config_update.enable_analytics,
         )
     
-    if config_update.enable_webhooks is not None:
-        await repo.toggle_feature(
-            tenant_id=current_user.tenant_id,
-            feature_flag="enable_webhooks",
-            enabled=config_update.enable_webhooks,
-        )
-
     if config_update.enable_walk_in is not None:
         await repo.toggle_feature(
             tenant_id=current_user.tenant_id,

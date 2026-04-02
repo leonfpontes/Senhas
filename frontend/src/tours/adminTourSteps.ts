@@ -301,7 +301,7 @@ export const adminTourSteps: TourStepMap = {
     {
       selector: '[data-tour="config-flags"]',
       content:
-        'Ative ou desative funcionalidades do sistema, como entrada presencial (walk-in), operações em lote e webhooks.',
+        'Ative ou desative funcionalidades do sistema, como entrada presencial (walk-in) e operações em lote.',
     },
     {
       selector: '[data-tour="config-patrocinador"]',

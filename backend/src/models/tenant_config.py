@@ -44,7 +44,6 @@ class TenantConfig(TimestampedModel):
     # Features
     enable_bulk_operations: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     enable_analytics: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    enable_webhooks: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     enable_walk_in: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     
     # Sponsor ordering

@@ -52,7 +52,6 @@ interface TenantConfig {
   email_signature?: string | null;
   endereco?: string | null;
   enable_analytics: boolean;
-  enable_webhooks: boolean;
   enable_walk_in: boolean;
   validate_associado_on_emit: boolean;
   sponsor_priority_mode?: string;
@@ -76,8 +75,6 @@ const HELP_TEXT = {
     'Cor do texto aplicada no Header e nos itens selecionados do menu lateral, junto ao branding do tenant.',
   enable_analytics:
     'Mostra a área de analytics do tenant com indicadores, gráficos e acompanhamento operacional das giras.',
-  enable_webhooks:
-    'Reserva o tenant para integrações automáticas por webhook. Mantenha desligado enquanto essa integração não estiver configurada.',
   enable_walk_in:
     'Permite emitir senhas presenciais diretamente pela visão da porta, usando o fluxo de Walk-in configurado para a gira.',
   sponsor_priority_mode:
@@ -94,12 +91,6 @@ const FEATURE_ITEMS = [
     title: 'Analytics',
     description: 'Exibe a área de indicadores, gráficos e totais do tenant.',
     tooltip: HELP_TEXT.enable_analytics,
-  },
-  {
-    field: 'enable_webhooks' as const,
-    title: 'Webhooks',
-    description: 'Prepara o tenant para integrações automáticas externas quando estiverem disponíveis.',
-    tooltip: HELP_TEXT.enable_webhooks,
   },
   {
     field: 'enable_walk_in' as const,
@@ -354,7 +345,6 @@ function AdminConfigContent() {
           font_color: previewFontColor.trim().toUpperCase(),
         },
         enable_analytics: config.enable_analytics,
-        enable_webhooks: config.enable_webhooks,
         enable_walk_in: config.enable_walk_in,
         validate_associado_on_emit: config.validate_associado_on_emit,
         enable_estoque_log: config.enable_estoque_log,
@@ -823,7 +813,6 @@ function AdminConfigContent() {
 
                   <Grid container spacing={2}>
                     {FEATURE_ITEMS.filter((item) => {
-                      if (item.field === 'enable_webhooks' && !can('webhooks')) return false;
                       if (item.field === 'enable_analytics' && !can('analytics_basico')) return false;
                       if (item.field === 'validate_associado_on_emit' && !can('associados')) return false;
                       if (item.field === 'enable_estoque_log' && !can('estoque_controle')) return false;

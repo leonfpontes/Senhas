@@ -187,7 +187,6 @@ class TestGetTenantConfig:
         config.email_signature = None
         config.enable_bulk_operations = True
         config.enable_analytics = True
-        config.enable_webhooks = False
         config.custom_settings = None
         repo_inst.get_by_tenant.return_value = config
         MockRepo.return_value = repo_inst
@@ -211,7 +210,6 @@ class TestUpdateTenantConfig:
         config.email_signature = None
         config.enable_bulk_operations = True
         config.enable_analytics = True
-        config.enable_webhooks = False
         config.custom_settings = None
         repo_inst.get_by_tenant.return_value = config
         repo_inst.update_branding.return_value = config

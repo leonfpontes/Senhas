@@ -139,7 +139,6 @@ describe('Admin Config', () => {
         secondary_color: '#ec4899',
         enable_bulk_operations: true,
         enable_analytics: true,
-        enable_webhooks: false,
       },
     });
 

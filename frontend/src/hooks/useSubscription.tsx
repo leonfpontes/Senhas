@@ -13,7 +13,6 @@ export interface PlanFeatures {
   export_csv: boolean;
   bulk_operations: boolean;
   auditoria: boolean;
-  webhooks: boolean;
   api_access: boolean;
   suporte_prioritario: boolean;
   estoque_controle: boolean;
@@ -63,7 +62,6 @@ const DEFAULT_FEATURES: PlanFeatures = {
   export_csv: false,
   bulk_operations: true,
   auditoria: false,
-  webhooks: false,
   api_access: false,
   suporte_prioritario: false,
   estoque_controle: false,

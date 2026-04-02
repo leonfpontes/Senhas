@@ -133,7 +133,6 @@ class TenantConfigRepository:
         if feature_flag in [
             "enable_bulk_operations",
             "enable_analytics",
-            "enable_webhooks",
             "enable_walk_in",
             "enable_estoque_log",
         ]:

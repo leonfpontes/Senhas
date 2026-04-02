@@ -159,13 +159,13 @@ def main():
             config_id = uid()
             cur.execute("""
                 INSERT INTO tenant_configs (id, tenant_id, primary_color, secondary_color, logo_url,
-                    reply_to_email, email_signature, enable_bulk_operations, enable_analytics, enable_webhooks,
+                    reply_to_email, email_signature, enable_bulk_operations, enable_analytics,
                     created_at, updated_at)
-                VALUES (%s, %s, %s, %s, NULL, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, NULL, %s, %s, %s, %s, %s, %s)
             """, (config_id, tenant_id, pc, sc,
                   f"contato@{t_data['slug']}.com.br",
                   f"Axé! Que a paz esteja com você.\n— {t_data['name']}",
-                  True, True, i == 4,  # só o último tem webhooks
+                  True, True,
                   tenant_created, tenant_created))
             print(f"  [+] Config criada")
 

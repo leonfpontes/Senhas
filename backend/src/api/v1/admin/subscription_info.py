@@ -54,7 +54,6 @@ class PlanFeatures(BaseModel):
     estoque_controle: bool = False
     mediuns: bool = False
     relatorio_gira: bool = False
-    webhooks: bool = False
     api_access: bool = False
     suporte_prioritario: bool = False
 
@@ -90,7 +89,6 @@ def _get_plan_features(plan: PlanType) -> PlanFeatures:
         estoque_controle=tier >= 2,
         mediuns=tier >= 1,
         relatorio_gira=tier >= 1,
-        webhooks=tier >= 3,
         api_access=tier >= 3,
         suporte_prioritario=tier >= 3,
     )

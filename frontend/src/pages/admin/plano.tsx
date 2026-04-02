@@ -80,7 +80,6 @@ const FEATURES: PlanFeature[] = [
   { label: 'Operações em lote', free: false, basic: false, pro: true, premium: true },
   { label: 'Auditoria completa', free: false, basic: false, pro: true, premium: true },
   { label: 'Controle de Estoque', free: false, basic: false, pro: true, premium: true },
-  { label: 'Webhooks', free: false, basic: false, pro: false, premium: true },
   { label: 'API access', free: false, basic: false, pro: false, premium: true },
   { label: 'Suporte prioritário', free: false, basic: false, pro: false, premium: true },
 ];

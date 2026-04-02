@@ -144,7 +144,6 @@ const PLANS = [
       'Usuários ilimitados',
       'Giras ilimitadas',
       'Médiuns/cambones ilimitados',
-      'Webhooks',
       'Suporte prioritário',
     ],
   },

@@ -261,7 +261,6 @@ class TestAdminConfig:
             json={
                 "enable_bulk_operations": False,
                 "enable_analytics": True,
-                "enable_webhooks": False,
             },
             headers={"Authorization": f"Bearer {admin_token}"},
         )

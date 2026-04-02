@@ -289,13 +289,6 @@ class TestTenantConfigRepository:
         await r.toggle_feature(uuid4(), "enable_analytics", False)
         assert config.enable_analytics is False
 
-    async def test_toggle_feature_webhooks(self, repo):
-        r, db = repo
-        config = MagicMock()
-        r.get_by_tenant = AsyncMock(return_value=config)
-        await r.toggle_feature(uuid4(), "enable_webhooks", True)
-        assert config.enable_webhooks is True
-
     async def test_toggle_feature_invalid_flag(self, repo):
         r, db = repo
         config = MagicMock()

@@ -47,7 +47,6 @@ class TestPlanFeatures:
         assert f.export_csv is False
         assert f.bulk_operations is False
         assert f.auditoria is False
-        assert f.webhooks is False
         assert f.api_access is False
         assert f.suporte_prioritario is False
 
@@ -62,12 +61,11 @@ class TestPlanFeatures:
         assert f.export_csv is False
         assert f.bulk_operations is True
         assert f.auditoria is False
-        assert f.webhooks is False
         assert f.api_access is False
         assert f.suporte_prioritario is False
 
     def test_pro_plan_has_mid_tier_features(self):
-        """Pro unlocks most features except webhooks/api/suporte."""
+        """Pro unlocks most features except api/suporte."""
         f = self._get_features(PlanType.PRO)
         # Should be enabled
         assert f.email_transacional is True
@@ -79,7 +77,6 @@ class TestPlanFeatures:
         assert f.bulk_operations is True
         assert f.auditoria is True
         # Should still be disabled
-        assert f.webhooks is False
         assert f.api_access is False
         assert f.suporte_prioritario is False
 
@@ -94,7 +91,6 @@ class TestPlanFeatures:
         assert f.export_csv is True
         assert f.bulk_operations is True
         assert f.auditoria is True
-        assert f.webhooks is True
         assert f.api_access is True
         assert f.suporte_prioritario is True
 
