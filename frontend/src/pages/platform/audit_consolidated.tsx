@@ -110,13 +110,13 @@ const ConsolidatedAuditPage: React.FC = () => {
   return (
     <PlatformLayout>
       <Box sx={{ mb: 3 }}>
-        <Box sx={{ mb: 3 }}>
+        <Box data-tour="audit-cons-header" sx={{ mb: 3 }}>
           <h1>Consolidated Audit Logs</h1>
           <p>View and analyze audit logs across all tenants</p>
         </Box>
 
         {/* Date Range Filter */}
-        <Card sx={{ mb: 3 }}>
+        <Card data-tour="audit-cons-filtros" sx={{ mb: 3 }}>
           <CardContent>
             <Grid container spacing={2} alignItems="center">
               <Grid item xs={12} sm={4}>
@@ -166,7 +166,7 @@ const ConsolidatedAuditPage: React.FC = () => {
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
         {/* Tabs */}
-        <TabContext value={tab}>
+        <TabContext data-tour="audit-cons-tabs" value={tab}>
           <TabList onChange={(e, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
             <Tab label="Summary" value="0" />
             <Tab label="By Tenant" value="1" />

@@ -427,7 +427,7 @@ function MediunsContent() {
 
   return (
     <>
-      <Box sx={{ mb: 3 }}>
+      <Box data-tour="mediuns-header" sx={{ mb: 3 }}>
         <Box
           sx={{
             display: 'flex',
@@ -464,6 +464,7 @@ function MediunsContent() {
             >
               <span>
                 <Button
+                  data-tour="mediuns-novo"
                   variant="contained"
                   startIcon={<AddIcon />}
                   onClick={openCreate}
@@ -477,6 +478,7 @@ function MediunsContent() {
         </Box>
 
         <TextField
+          data-tour="mediuns-busca"
           size="small"
           placeholder="Buscar por nome..."
           value={search}
@@ -487,12 +489,12 @@ function MediunsContent() {
 
       {/* Médium quota progress bar — only shown when plan has a finite limit */}
       {subscription && (subscription.max_mediuns ?? 0) > 0 && (subscription.max_mediuns ?? 0) < 999999 && (
-        <Box sx={{ mb: 2 }}>
+        <Box data-tour="mediuns-usage" sx={{ mb: 2 }}>
           <MediunsUsageBar used={subscription.current_mediuns ?? 0} max={subscription.max_mediuns} />
         </Box>
       )}
 
-      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+      <TableContainer data-tour="mediuns-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />

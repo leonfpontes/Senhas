@@ -30,6 +30,7 @@ import {
   Container,
   Divider,
   Skeleton,
+  Tooltip,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -55,12 +56,15 @@ import SwapVertIcon from '@mui/icons-material/SwapVert';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { useTour } from '@reactour/tour';
 import { useTenant } from '@/providers/ThemeProvider';
 import { useSubscription, PlanFeatures } from '@/hooks/useSubscription';
 import { useProfile } from '@/hooks/useProfile';
+import { getAdminTourSteps } from '@/tours/adminTourSteps';
 
 const DRAWER_WIDTH = 280;
 
@@ -68,6 +72,38 @@ interface AdminLayoutProps {
   children: React.ReactNode;
   title?: string;
   maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | false;
+}
+
+/**
+ * Botão de ajuda (?) que dispara o tour guiado da tela atual.
+ * Renderizado apenas quando existem steps definidos para a rota.
+ */
+function TourHelpButton() {
+  const router = useRouter();
+  const { setSteps, setIsOpen, setCurrentStep } = useTour();
+  const steps = getAdminTourSteps(router.pathname);
+
+  if (steps.length === 0) return null;
+
+  const handleOpenTour = () => {
+    setSteps?.(steps);
+    setCurrentStep(0);
+    setIsOpen(true);
+  };
+
+  return (
+    <Tooltip title="Guia desta tela">
+      <IconButton
+        color="inherit"
+        aria-label="abrir guia da tela"
+        onClick={handleOpenTour}
+        size="small"
+        sx={{ opacity: 0.85, '&:hover': { opacity: 1 } }}
+      >
+        <HelpOutlineIcon />
+      </IconButton>
+    </Tooltip>
+  );
 }
 
 export default function AdminLayout(props: AdminLayoutProps) {
@@ -656,6 +692,8 @@ function AdminLayoutInner({
           >
             {title || 'Admin Dashboard'}
           </Typography>
+
+          <TourHelpButton />
 
           <IconButton
             onClick={handleMenuOpen}

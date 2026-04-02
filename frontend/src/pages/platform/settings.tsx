@@ -211,13 +211,13 @@ const SettingsPage: React.FC = () => {
 
   return (
     <PlatformLayout>
-      <Box sx={{ mb: 3 }}>
+      <Box data-tour="settings-header" sx={{ mb: 3 }}>
         <h1>Settings</h1>
         <p>Manage subscriptions and feature flags per tenant</p>
       </Box>
 
       {/* Tenant Selector */}
-      <Card sx={{ mb: 3 }}>
+      <Card data-tour="settings-tenant-select" sx={{ mb: 3 }}>
         <CardContent>
           <FormControl sx={{ minWidth: { xs: '100%', sm: 300 } }} size="small">
             <InputLabel>Select Tenant</InputLabel>
@@ -257,7 +257,7 @@ const SettingsPage: React.FC = () => {
       ) : (
         <Grid container spacing={3}>
           {/* Subscription Card */}
-          <Grid item xs={12} md={6}>
+          <Grid data-tour="settings-subscription" item xs={12} md={6}>
             <Card sx={{ height: "100%" }}>
               <CardContent>
                 <Box
@@ -348,7 +348,7 @@ const SettingsPage: React.FC = () => {
           </Grid>
 
           {/* Feature Flags Card */}
-          <Grid item xs={12} md={6}>
+          <Grid data-tour="settings-flags" item xs={12} md={6}>
             <Card sx={{ height: "100%" }}>
               <CardContent>
                 <Box
@@ -363,6 +363,7 @@ const SettingsPage: React.FC = () => {
                     Feature Flags
                   </Box>
                   <Button
+                    data-tour="settings-add-flag"
                     size="small"
                     variant="contained"
                     startIcon={<AddIcon />}

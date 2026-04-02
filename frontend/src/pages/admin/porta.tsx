@@ -375,8 +375,8 @@ export default function PortaPage() {
     <AdminLayout title="Visão da Porta" maxWidth="md">
       <Box sx={{ pb: 4 }}>
         {/* Header: Gira selector + connection status */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-          <FormControl size="small" sx={{ minWidth: 250 }}>
+        <Box data-tour="porta-header" sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+          <FormControl data-tour="porta-gira-select" size="small" sx={{ minWidth: 250 }}>
             <InputLabel>Gira</InputLabel>
             <Select
               value={selectedGiraId}
@@ -392,7 +392,7 @@ export default function PortaPage() {
           </FormControl>
 
           <Tooltip title={connected ? 'Tempo real ativo' : 'Sem conexão em tempo real'}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box data-tour="porta-ws-status" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <FiberManualRecordIcon
                 sx={{ fontSize: 12, color: connected ? 'success.main' : 'error.main' }}
               />
@@ -406,6 +406,7 @@ export default function PortaPage() {
         {/* Big Numbers */}
         {stats && (
           <Box
+            data-tour="porta-stats"
             sx={{
               display: 'grid',
               gridTemplateColumns: {
@@ -427,6 +428,7 @@ export default function PortaPage() {
 
         {/* Search */}
         <TextField
+          data-tour="porta-busca"
           placeholder="Buscar por nome..."
           size="small"
           fullWidth
@@ -444,6 +446,7 @@ export default function PortaPage() {
 
         {selectedGiraId && config?.enable_walk_in && (
           <Button
+            data-tour="porta-walkin"
             variant="contained"
             fullWidth
             size="small"
@@ -555,7 +558,7 @@ export default function PortaPage() {
             )}
 
             {/* Waiting Queue */}
-            <Box sx={{ mb: 3 }}>
+            <Box data-tour="porta-fila" sx={{ mb: 3 }}>
               <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
                 Fila de Espera ({waitingQueue.length})
               </Typography>

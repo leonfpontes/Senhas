@@ -463,6 +463,7 @@ function AdminConfigContent() {
         )}
 
         <Paper
+          data-tour="config-branding"
           elevation={0}
           sx={{
             p: { xs: 3, md: 4 },
@@ -744,7 +745,7 @@ function AdminConfigContent() {
 
                   <Divider />
 
-                  <Box>
+                  <Box data-tour="config-endereco">
                     <FieldLabel label="Endereço do terreiro" help="Endereço completo do terreiro. Será usado nos e-mails de confirmação de senha e no botão Como chegar (Google Maps)." />
                     <TextField
                       value={config.endereco || ''}
@@ -815,7 +816,7 @@ function AdminConfigContent() {
           </Grid>
 
           <Grid item xs={12}>
-            <Card sx={{ borderRadius: 4 }}>
+            <Card data-tour="config-flags" sx={{ borderRadius: 4 }}>
               <CardContent sx={{ p: { xs: 3, md: 3.5 } }}>
                 <Stack spacing={3}>
                   <Box>
@@ -856,7 +857,7 @@ function AdminConfigContent() {
           </Grid>
 
           {can('associados') && <Grid item xs={12}>
-            <Card sx={{ borderRadius: 4 }}>
+            <Card data-tour="config-patrocinador" sx={{ borderRadius: 4 }}>
               <CardContent sx={{ p: { xs: 3, md: 3.5 } }}>
                 <Stack spacing={3}>
                   <Box>

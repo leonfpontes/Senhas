@@ -98,15 +98,14 @@ const PlatformDashboard: React.FC = () => {
   return (
     <PlatformLayout>
       <Box>
-        <Box sx={{ mb: 4 }}>
-          <h1>Platform Dashboard</h1>
+        <Box data-tour="platform-header" sx={{ mb: 4 }}>
           <p>Manage all tenants, users, and billing from here</p>
         </Box>
 
         {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
         {/* Statistics */}
-        <Grid container spacing={2} sx={{ mb: 4 }}>
+        <Grid data-tour="platform-stats" container spacing={2} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
               title="Total Tenants"
@@ -142,7 +141,7 @@ const PlatformDashboard: React.FC = () => {
         </Grid>
 
         {/* Quick Links */}
-        <Box sx={{ mb: 4 }}>
+        <Box data-tour="platform-quick-links" sx={{ mb: 4 }}>
           <h2>Quick Links</h2>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6} md={3}>

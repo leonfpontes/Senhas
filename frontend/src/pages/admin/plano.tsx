@@ -152,7 +152,7 @@ export default function AdminPlano() {
       ) : (
         <>
           {/* ── Current Plan Card ── */}
-          <Card elevation={0} sx={{ mb: 4, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+          <Card data-tour="plano-atual" elevation={0} sx={{ mb: 4, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
             <CardContent sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                 <CardMembershipIcon sx={{ color: planInfo.color, fontSize: 32 }} />
@@ -215,7 +215,7 @@ export default function AdminPlano() {
           <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
             Comparação de Planos
           </Typography>
-          <TableContainer component={Paper} variant="outlined" sx={{ mb: 4, borderRadius: 2, overflowX: 'auto' }}>
+          <TableContainer data-tour="plano-comparativo" component={Paper} variant="outlined" sx={{ mb: 4, borderRadius: 2, overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -265,7 +265,7 @@ export default function AdminPlano() {
           </TableContainer>
 
           {/* ── Contact / Upgrade Request ── */}
-          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+          <Card data-tour="plano-upgrade" elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
             <CardContent sx={{ p: 3, textAlign: 'center' }}>
               <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
                 Deseja mudar de plano?

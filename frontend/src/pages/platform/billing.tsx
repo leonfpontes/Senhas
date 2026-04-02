@@ -147,14 +147,14 @@ const BillingPage: React.FC = () => {
 
   return (
     <PlatformLayout>
-      <Box sx={{ mb: 3 }}>
+      <Box data-tour="billing-header" sx={{ mb: 3 }}>
         <h1>Billing</h1>
         <p>Platform billing statistics and invoice management</p>
       </Box>
 
       {/* Stats Cards */}
       {stats && (
-        <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid data-tour="billing-stats" container spacing={3} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6} md={3}>
             <Card>
               <CardContent>
@@ -218,7 +218,7 @@ const BillingPage: React.FC = () => {
               flexWrap: "wrap",
             }}
           >
-            <FormControl sx={{ minWidth: { xs: '100%', sm: 250 } }} size="small">
+            <FormControl data-tour="billing-tenant-select" sx={{ minWidth: { xs: '100%', sm: 250 } }} size="small">
               <InputLabel>Select Tenant</InputLabel>
               <Select
                 value={selectedTenant}
@@ -265,7 +265,7 @@ const BillingPage: React.FC = () => {
           ) : invoices.length === 0 ? (
             <Alert severity="info">No invoices found for this tenant.</Alert>
           ) : (
-            <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
+            <TableContainer data-tour="billing-tabela" component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
               <Table size="small">
                 <TableHead>
                   <TableRow>

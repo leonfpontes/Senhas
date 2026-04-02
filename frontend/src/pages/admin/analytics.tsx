@@ -181,7 +181,7 @@ function AdminAnalyticsContent() {
         <UpgradePrompt feature="Analytics" minPlan="Basic" />
       ) : (
       <>
-      <Box sx={{ mb: 3, display: 'flex', gap: { xs: 1.5, sm: 2 }, flexWrap: 'wrap', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
+      <Box data-tour="analytics-filtros" sx={{ mb: 3, display: 'flex', gap: { xs: 1.5, sm: 2 }, flexWrap: 'wrap', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
         <TextField
           label="Data Início"
           type="date"
@@ -226,7 +226,7 @@ function AdminAnalyticsContent() {
       ) : analytics ? (
         <Grid container spacing={{ xs: 2, md: 3 }}>
           {/* Summary Stats */}
-          <Grid item xs={12}>
+          <Grid data-tour="analytics-kpis" item xs={12}>
             <Grid container spacing={2}>
               <Grid item xs={6} sm={3}>
                 <Paper sx={{ p: 2, textAlign: 'center' }}>
@@ -282,7 +282,7 @@ function AdminAnalyticsContent() {
           </Grid>
 
           {/* Daily Distribution Chart */}
-          <Grid item xs={12} md={6}>
+          <Grid data-tour="analytics-chart-line" item xs={12} md={6}>
             <Paper sx={{ p: 2 }}>
               <Typography variant="h6" gutterBottom>
                 Distribuição Diária
@@ -306,7 +306,7 @@ function AdminAnalyticsContent() {
           </Grid>
 
           {/* Peak Hours Chart */}
-          <Grid item xs={12} md={6}>
+          <Grid data-tour="analytics-peak" item xs={12} md={6}>
             <Paper sx={{ p: 2 }}>
               <Typography variant="h6" gutterBottom>
                 Horários de Pico
@@ -333,7 +333,7 @@ function AdminAnalyticsContent() {
           </Grid>
 
           {/* Status Distribution */}
-          <Grid item xs={12} md={6}>
+          <Grid data-tour="analytics-chart-pie" item xs={12} md={6}>
             <Paper sx={{ p: 2 }}>
               <Typography variant="h6" gutterBottom>
                 Distribuição por Categoria

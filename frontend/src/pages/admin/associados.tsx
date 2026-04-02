@@ -205,21 +205,21 @@ function AdminAssociadosContent() {
         <UpgradePrompt feature="Associados" minPlan="Pro" />
       ) : (
       <>
-      <Box sx={{ mb: 3 }}>
+      <Box data-tour="associados-header" sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 0 } }}>
           <Typography variant="h5" fontWeight={700}>Gestão de Associados</Typography>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadAssociados} disabled={loading}>
               Atualizar
             </Button>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+            <Button data-tour="associados-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
               Novo Associado
             </Button>
           </Box>
         </Box>
       </Box>
 
-      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+      <TableContainer data-tour="associados-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />

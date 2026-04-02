@@ -225,11 +225,11 @@ function AdminUsersContent() {
 
   return (
     <>
-      <Box sx={{ mb: 3 }}>
+      <Box data-tour="users-header" sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 0 } }}>
           <Typography variant="h5" fontWeight={700}>Gestão de Usuários</Typography>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
-            <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 140 } }}>
+            <FormControl data-tour="users-filtro" size="small" sx={{ minWidth: { xs: '100%', sm: 140 } }}>
               <InputLabel>Filtrar Role</InputLabel>
               <Select
                 value={roleFilter}
@@ -246,7 +246,7 @@ function AdminUsersContent() {
             </Button>
             <Tooltip title={!canCreateUser ? `Limite de ${subscription?.max_users ?? 0} usuário(s) atingido. Faça upgrade do plano.` : ''}>
               <span>
-                <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={loading || !canCreateUser}>
+                <Button data-tour="users-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={loading || !canCreateUser}>
                   Novo Usuário
                 </Button>
               </span>
@@ -257,7 +257,7 @@ function AdminUsersContent() {
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+        <TableContainer data-tour="users-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: 'primary.light' }}>

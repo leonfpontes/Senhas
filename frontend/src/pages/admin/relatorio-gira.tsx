@@ -294,7 +294,7 @@ function RelatorioGiraContent() {
   return (
     <>
       {/* ── Seletor de Gira + filtros de gira ── */}
-      <Box sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
+      <Box data-tour="relatorio-header" sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
         <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 240 } }}>
           <InputLabel>Selecione uma Gira</InputLabel>
           <Select
@@ -371,7 +371,7 @@ function RelatorioGiraContent() {
           )}
 
           {giraId && (
-            <Box sx={{ ml: 'auto' }}>
+            <Box data-tour="relatorio-export" sx={{ ml: 'auto' }}>
               <Button size="small" variant="outlined" startIcon={<DownloadIcon />} onClick={handleExportCSV}>
                 Exportar CSV
               </Button>
@@ -428,7 +428,7 @@ function RelatorioGiraContent() {
 
       {/* ── Filtros de busca nos tickets (client-side) ── */}
       {giraId && !loading && (
-        <Box sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'flex-start' }}>
+        <Box data-tour="relatorio-filtros" sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'flex-start' }}>
           <TextField
             size="small"
             label="Buscar por nome ou observações"
@@ -518,7 +518,7 @@ function RelatorioGiraContent() {
 
       {/* Tabela */}
       {giraId && (
-        <TableContainer component={Paper} sx={{ mt: 1, overflowX: 'auto' }}>
+        <TableContainer data-tour="relatorio-tabela" component={Paper} sx={{ mt: 1, overflowX: 'auto' }}>
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
               <CircularProgress />

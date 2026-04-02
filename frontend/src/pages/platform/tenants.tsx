@@ -213,7 +213,7 @@ const TenantsPage: React.FC = () => {
 
   return (
     <PlatformLayout>
-      <Box sx={{ mb: 3 }}>
+      <Box data-tour="tenants-header" sx={{ mb: 3 }}>
         <Box
           sx={{
             display: "flex",
@@ -235,6 +235,7 @@ const TenantsPage: React.FC = () => {
               Refresh
             </Button>
             <Button
+              data-tour="tenants-novo"
               variant="contained"
               startIcon={<AddIcon />}
               onClick={openCreate}
@@ -249,7 +250,7 @@ const TenantsPage: React.FC = () => {
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
         {/* Tenants Table */}
-        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+        <TableContainer data-tour="tenants-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: "primary.light" }}>

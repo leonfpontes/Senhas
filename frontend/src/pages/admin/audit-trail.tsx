@@ -355,7 +355,10 @@ function AdminAuditTrailContent() {
         <UpgradePrompt feature="Auditoria" minPlan="Pro" />
       ) : (
       <>
-      <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
+      <Box data-tour="audit-header" sx={{ mb: 2 }}>
+        <Typography variant="h5" fontWeight={700}>Auditoria</Typography>
+      </Box>
+      <Box data-tour="audit-filtros" sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
         <FormControl sx={{ minWidth: { xs: '100%', sm: 150 } }} size="small">
           <InputLabel>Ação</InputLabel>
           <Select
@@ -390,6 +393,7 @@ function AdminAuditTrailContent() {
         </FormControl>
 
         <Button
+          data-tour="audit-export"
           variant="outlined"
           size="small"
           startIcon={<DownloadIcon />}
@@ -399,7 +403,7 @@ function AdminAuditTrailContent() {
         </Button>
       </Box>
 
-      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+      <TableContainer data-tour="audit-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />
