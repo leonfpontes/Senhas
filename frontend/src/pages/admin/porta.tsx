@@ -39,11 +39,12 @@ import EditIcon from '@mui/icons-material/Edit';
 import StarIcon from '@mui/icons-material/Star';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import AddIcon from '@mui/icons-material/Add';
+
+const POLLING_INTERVAL_MS = 8000;
 import AdminLayout from './admin_layout';
 import AttendModal from '../../components/AttendModal';
 import WalkInModal from '../../components/WalkInModal';
 import { apiClient } from '../../services/api_client';
-import { useWebSocket } from '../../hooks/useWebSocket';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -206,7 +207,8 @@ export default function PortaPage() {
       if (search.trim()) params.search = search.trim();
       const res = await apiClient.get(`/api/v1/admin/giras/${selectedGiraId}/door/queue`, { params });
       setQueue(res.data.items || []);
-    } catch {
+    } catch (err) {
+      console.error('[Porta] Erro ao carregar fila:', err);
       showSnackbar('Erro ao carregar fila', 'error');
     } finally {
       setLoading(false);
@@ -232,26 +234,13 @@ export default function PortaPage() {
     }
   }, [selectedGiraId, refreshAll]);
 
-  // ── WebSocket ─────────────────────────────────────────────────────
+  // ── Polling ────────────────────────────────────────────────────────
 
-  const token =
-    (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
-    (typeof localStorage !== 'undefined' && localStorage.getItem('access_token')) ||
-    '';
-
-  const wsUrl = selectedGiraId && token
-    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/admin/giras/${selectedGiraId}/door/ws?token=${token}`
-    : '';
-
-  const { connected } = useWebSocket({
-    url: wsUrl,
-    onMessage: (event) => {
-      if (event === 'queue_updated' || event === 'stats_updated') {
-        refreshAll();
-      }
-    },
-    reconnect: !!wsUrl,
-  });
+  useEffect(() => {
+    if (!selectedGiraId) return;
+    const timer = setInterval(refreshAll, POLLING_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [selectedGiraId, refreshAll]);
 
   // ── Actions ───────────────────────────────────────────────────────
 
@@ -391,13 +380,13 @@ export default function PortaPage() {
             </Select>
           </FormControl>
 
-          <Tooltip title={connected ? 'Tempo real ativo' : 'Sem conexão em tempo real'}>
+          <Tooltip title="Atualização automática a cada 8 segundos">
             <Box data-tour="porta-ws-status" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <FiberManualRecordIcon
-                sx={{ fontSize: 12, color: connected ? 'success.main' : 'error.main' }}
+                sx={{ fontSize: 12, color: 'info.main' }}
               />
               <Typography variant="caption" color="text.secondary">
-                {connected ? 'Live' : 'Offline'}
+                Auto
               </Typography>
             </Box>
           </Tooltip>

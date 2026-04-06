@@ -17,7 +17,6 @@ from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.repositories.consulente_repo import ConsulenteRepository
 from src.repositories.senha_control_repo import SenhaControlRepository
 from src.repositories.ticket_repo import TicketRepository
-from .door_ws import broadcast_to_gira
 
 router = APIRouter(prefix="/api/v1/admin", tags=["door-control"])
 logger = logging.getLogger(__name__)
@@ -353,8 +352,6 @@ async def create_walk_in_ticket(
     await db.commit()
     await db.refresh(ticket, ["consulente"])
 
-    await broadcast_to_gira(str(gira_id), "queue_updated")
-    await broadcast_to_gira(str(gira_id), "stats_updated")
     return _ticket_to_queue_item(ticket)
 
 
@@ -404,8 +401,6 @@ async def update_walk_in_ticket(
     await db.commit()
     await db.refresh(ticket, ["consulente"])
 
-    await broadcast_to_gira(str(ticket.gira_id), "queue_updated")
-    await broadcast_to_gira(str(ticket.gira_id), "stats_updated")
     return _ticket_to_queue_item(ticket)
 
 
@@ -428,7 +423,6 @@ async def checkin_ticket(
     await db.commit()
     await db.refresh(ticket, ["consulente"])
 
-    await broadcast_to_gira(str(ticket.gira_id), "queue_updated")
     return _ticket_to_queue_item(ticket)
 
 
@@ -451,7 +445,6 @@ async def undo_checkin(
     await db.commit()
     await db.refresh(ticket, ["consulente"])
 
-    await broadcast_to_gira(str(ticket.gira_id), "queue_updated")
     return _ticket_to_queue_item(ticket)
 
 
@@ -483,7 +476,6 @@ async def attend_ticket(
     await db.commit()
     await db.refresh(ticket, ["consulente"])
 
-    await broadcast_to_gira(str(ticket.gira_id), "queue_updated")
     return _ticket_to_queue_item(ticket)
 
 
@@ -510,7 +502,6 @@ async def edit_attend_info(
     await db.commit()
     await db.refresh(ticket, ["consulente"])
 
-    await broadcast_to_gira(str(ticket.gira_id), "queue_updated")
     return _ticket_to_queue_item(ticket)
 
 
@@ -534,7 +525,6 @@ async def complete_ticket(
     await db.commit()
     await db.refresh(ticket, ["consulente"])
 
-    await broadcast_to_gira(str(ticket.gira_id), "queue_updated")
     return _ticket_to_queue_item(ticket)
 
 
@@ -558,7 +548,6 @@ async def no_show_ticket(
     await db.commit()
     await db.refresh(ticket, ["consulente"])
 
-    await broadcast_to_gira(str(ticket.gira_id), "queue_updated")
     return _ticket_to_queue_item(ticket)
 
 
@@ -594,5 +583,4 @@ async def undo_ticket_action(
     await db.commit()
     await db.refresh(ticket, ["consulente"])
 
-    await broadcast_to_gira(str(ticket.gira_id), "queue_updated")
     return _ticket_to_queue_item(ticket)

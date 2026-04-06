@@ -67,6 +67,7 @@ import { useSubscription, PlanFeatures } from '@/hooks/useSubscription';
 import { useProfile } from '@/hooks/useProfile';
 import { useBirthday } from '@/providers/BirthdayProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
+import { endImpersonation } from '../../services/api_client';
 
 const DRAWER_WIDTH = 280;
 
@@ -152,11 +153,7 @@ function AdminLayoutInner({
   }, [logoUrl]);
 
   const handleEndImpersonation = () => {
-    sessionStorage.removeItem('access_token');
-    sessionStorage.removeItem('user');
-    sessionStorage.removeItem('impersonating');
-    sessionStorage.removeItem('impersonate_tenant');
-    window.close();
+    endImpersonation();
   };
 
   const handleDrawerToggle = () => {

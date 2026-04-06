@@ -161,11 +161,7 @@ class APIClient {
       const isImpersonating = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('impersonating');
       if (typeof window !== 'undefined' && window.location.pathname !== '/login' && hadToken) {
         if (isImpersonating) {
-          // Impersonation session expired — clear sessionStorage only
-          sessionStorage.removeItem('access_token');
-          sessionStorage.removeItem('user');
-          sessionStorage.removeItem('impersonating');
-          sessionStorage.removeItem('impersonate_tenant');
+          endImpersonation();
         } else {
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
@@ -218,3 +214,26 @@ class APIClient {
 export const apiClient = new APIClient();
 
 export type { APIError };
+
+/**
+ * Ends an active impersonation session.
+ * Clears sessionStorage, tries to close the tab, and falls back to /login.
+ * Exported so that other modules (admin_layout) can reuse the same logic.
+ */
+export function endImpersonation(): void {
+  if (typeof sessionStorage === 'undefined') return;
+  sessionStorage.removeItem('access_token');
+  sessionStorage.removeItem('user');
+  sessionStorage.removeItem('impersonating');
+  sessionStorage.removeItem('impersonate_tenant');
+  if (typeof window !== 'undefined') {
+    window.close();
+    // Fallback: if the tab was not opened by script, window.close() is a no-op.
+    // Redirect to login after a short delay.
+    setTimeout(() => {
+      if (!window.closed) {
+        window.location.href = '/login';
+      }
+    }, 300);
+  }
+}
