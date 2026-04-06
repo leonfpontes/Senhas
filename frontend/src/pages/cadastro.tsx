@@ -12,6 +12,7 @@ import {
   Card,
   CardContent,
   Checkbox,
+  Chip,
   CircularProgress,
   Container,
   FormControlLabel,
@@ -27,6 +28,7 @@ import {
   Typography,
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -64,6 +66,11 @@ const strengthLabel = ['Fraca', 'Razoável', 'Boa', 'Forte'];
 
 export default function CadastroPage() {
   const router = useRouter();
+  const planParam = (router.query.plan as string | undefined) || '';
+  const wantedPlan = ['basic', 'pro', 'premium'].includes(planParam.toLowerCase()) ? planParam.toLowerCase() : '';
+
+  const PLAN_LABEL: Record<string, string> = { basic: 'Basic — R$49/mês', pro: 'Pro — R$79/mês', premium: 'Premium — R$99/mês' };
+  const PLAN_COLOR: Record<string, string> = { basic: '#3b82f6', pro: '#8b5cf6', premium: '#f59e0b' };
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +135,20 @@ export default function CadastroPage() {
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('user', JSON.stringify(user));
       dispatchTenantBrandingUpdated();
+
+      // If a paid plan was requested, initiate Stripe Checkout immediately
+      if (wantedPlan) {
+        try {
+          const checkoutRes = await apiClient.post('/api/v1/admin/billing/checkout', { plan: wantedPlan });
+          window.location.href = checkoutRes.data.checkout_url;
+          return;
+        } catch {
+          // Checkout failed — go to billing page so user can try again
+          router.push('/admin/billing?status=checkout_error');
+          return;
+        }
+      }
+
       router.push('/admin/dashboard');
     } catch (err: any) {
       const detail =
@@ -173,9 +194,41 @@ export default function CadastroPage() {
                   GiraHub
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Crie sua conta gratuita
+                  {wantedPlan ? 'Crie sua conta e assine' : 'Crie sua conta gratuita'}
                 </Typography>
               </Box>
+
+              {/* Plan banner */}
+              {wantedPlan && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    bgcolor: `${PLAN_COLOR[wantedPlan]}12`,
+                    border: `1px solid ${PLAN_COLOR[wantedPlan]}40`,
+                    borderRadius: 2,
+                    px: 2,
+                    py: 1.2,
+                    mb: 3,
+                  }}
+                >
+                  <CreditCardIcon sx={{ color: PLAN_COLOR[wantedPlan], fontSize: 20 }} />
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" fontWeight={700} sx={{ color: PLAN_COLOR[wantedPlan] }}>
+                      Plano selecionado: {PLAN_LABEL[wantedPlan]}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Após o cadastro você será redirecionado para o pagamento seguro via Stripe.
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={wantedPlan.charAt(0).toUpperCase() + wantedPlan.slice(1)}
+                    size="small"
+                    sx={{ bgcolor: PLAN_COLOR[wantedPlan], color: '#fff', fontWeight: 700 }}
+                  />
+                </Box>
+              )}
 
               {/* Stepper */}
               <Stepper activeStep={step} alternativeLabel sx={{ mb: 3 }}>
@@ -379,7 +432,12 @@ export default function CadastroPage() {
                         disabled={!step2Valid || loading}
                         sx={{ flex: 2 }}
                       >
-                        {loading ? <CircularProgress size={24} color="inherit" /> : 'Criar minha conta'}
+                        {loading
+                          ? <CircularProgress size={24} color="inherit" />
+                          : wantedPlan
+                            ? `Criar conta e assinar ${wantedPlan.charAt(0).toUpperCase() + wantedPlan.slice(1)}`
+                            : 'Criar minha conta'
+                        }
                       </Button>
                     </Box>
                   </Box>

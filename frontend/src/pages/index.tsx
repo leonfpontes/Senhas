@@ -788,8 +788,7 @@ export default function HomePage() {
                     <Button
                       variant={plan.highlight ? 'contained' : 'outlined'}
                       fullWidth
-                      href={plan.price === 0 ? '/cadastro' : '#contato'}
-                      onClick={plan.price === 0 ? undefined : (e: React.MouseEvent) => smoothScroll(e, '#contato')}
+                      href={plan.price === 0 ? '/cadastro' : `/cadastro?plan=${plan.name.toLowerCase()}`}
                       sx={{
                         mt: 3,
                         py: 1.2,
@@ -801,7 +800,7 @@ export default function HomePage() {
                           : { borderColor: T.primary, color: T.primary }),
                       }}
                     >
-                      {plan.price === 0 ? 'Começar Grátis' : 'Fale Conosco'}
+                      {plan.price === 0 ? 'Começar Grátis' : `Assinar ${plan.name}`}
                     </Button>
                   </CardContent>
                 </Card>

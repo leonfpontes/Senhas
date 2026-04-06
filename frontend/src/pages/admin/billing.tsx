@@ -142,6 +142,8 @@ export default function AdminBilling() {
       setTimeout(() => fetchBilling(), 3000);
     } else if (status === 'cancelled') {
       setError('Checkout cancelado. Nenhuma cobrança foi realizada.');
+    } else if (status === 'checkout_error') {
+      setError('Não foi possível iniciar o checkout automaticamente. Escolha seu plano abaixo para tentar novamente.');
     }
     // Clean up query params
     if (status) router.replace('/admin/billing', undefined, { shallow: true });
