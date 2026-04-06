@@ -49,6 +49,7 @@ import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import Diversity3Icon from '@mui/icons-material/Diversity3';
 import CardMembershipIcon from '@mui/icons-material/CardMembership';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
@@ -244,6 +245,7 @@ function AdminLayoutInner({
   const bottomItems = [
     { text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' },
     { text: 'Plano', icon: <CardMembershipIcon />, href: '/admin/plano' },
+    { text: 'Assinatura', icon: <CreditCardIcon />, href: '/admin/billing' },
     { text: 'Configurações', icon: <SettingsIcon />, href: '/admin/config' },
   ];
 

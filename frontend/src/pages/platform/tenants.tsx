@@ -41,10 +41,16 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import PeopleIcon from "@mui/icons-material/People";
 import BusinessIcon from "@mui/icons-material/Business";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import StarIcon from "@mui/icons-material/Star";
 import { useRouter } from "next/router";
 import { apiClient } from "../../services/api_client";
 import PlatformLayout from "./layout";
 import CrudDrawer from "../../components/CrudDrawer";
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContentText from '@mui/material/DialogContentText';
 
 interface Tenant {
   id: string;
@@ -85,6 +91,11 @@ const TenantsPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuTenant, setMenuTenant] = useState<Tenant | null>(null);
+
+  // Bonus dialog state
+  const [bonusDialogTenant, setBonusDialogTenant] = useState<Tenant | null>(null);
+  const [bonusPlan, setBonusPlan] = useState<string>('pro');
+  const [bonusLoading, setBonusLoading] = useState(false);
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -211,6 +222,24 @@ const TenantsPage: React.FC = () => {
     }
   };
 
+  const handleSetBonus = async () => {
+    if (!bonusDialogTenant) return;
+    setBonusLoading(true);
+    try {
+      await apiClient.patch(
+        `/api/v1/platform/subscriptions/${bonusDialogTenant.id}/bonus`,
+        { is_bonus: true, plan: bonusPlan },
+      );
+      setSuccess(`Acesso bonificado concedido ao tenant "${bonusDialogTenant.name}" no plano ${bonusPlan}.`);
+      setBonusDialogTenant(null);
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Erro ao bonificar tenant');
+    } finally {
+      setBonusLoading(false);
+    }
+  };
+
   return (
     <PlatformLayout>
       <Box data-tour="tenants-header" sx={{ mb: 3 }}>
@@ -322,6 +351,15 @@ const TenantsPage: React.FC = () => {
                         </>
                       ) : (
                         <>
+                          <Tooltip title="Bonificar">
+                              <IconButton
+                                size="small"
+                                sx={{ color: '#f59e0b' }}
+                                onClick={() => { setBonusDialogTenant(tenant); setBonusPlan('pro'); }}
+                              >
+                                <StarIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                           <Tooltip title="Ver Usuários">
                             <IconButton
                               size="small"
@@ -368,6 +406,40 @@ const TenantsPage: React.FC = () => {
           />
         </Box>
       </Box>
+
+      {/* Bonus dialog */}
+      <Dialog open={Boolean(bonusDialogTenant)} onClose={() => setBonusDialogTenant(null)} maxWidth="xs" fullWidth>
+        <DialogTitle fontWeight={700}>Bonificar Tenant</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Concede acesso gratuito ao tenant <strong>{bonusDialogTenant?.name}</strong>. Qualquer assinatura Stripe ativa será cancelada imediatamente.
+          </DialogContentText>
+          <FormControl fullWidth size="small">
+            <InputLabel>Plano bonificado</InputLabel>
+            <Select
+              value={bonusPlan}
+              label="Plano bonificado"
+              onChange={(e) => setBonusPlan(e.target.value)}
+            >
+              <MenuItem value="basic">Basic</MenuItem>
+              <MenuItem value="pro">Pro</MenuItem>
+              <MenuItem value="premium">Premium</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBonusDialogTenant(null)} disabled={bonusLoading}>Cancelar</Button>
+          <Button
+            variant="contained"
+            sx={{ bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' } }}
+            onClick={handleSetBonus}
+            disabled={bonusLoading}
+            startIcon={<StarIcon />}
+          >
+            {bonusLoading ? 'Salvando...' : 'Confirmar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Create / Edit Tenant Drawer */}
       <CrudDrawer

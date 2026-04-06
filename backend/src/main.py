@@ -20,6 +20,7 @@ from .api import auth_router
 from .api.v1.admin import admin_router
 from .api.v1.platform import platform_router
 from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router
+from .api.v1.webhooks import router as webhooks_router
 from .models import (
     Tenant,
     User,
@@ -216,6 +217,9 @@ def create_app() -> FastAPI:
     app.include_router(resend_email_router)
     app.include_router(images_router)
     app.include_router(onboarding_router)
+
+    # Stripe webhooks (no JWT required — validated by Stripe signature)
+    app.include_router(webhooks_router)
     
     logger.info("FastAPI app created successfully")
     return app

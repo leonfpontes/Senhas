@@ -71,9 +71,17 @@ class Subscription(TimestampedModel):
     max_mediuns: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")  # Based on plan
     current_users: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     
+    # Stripe
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    stripe_price_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_bonus: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Billing
     monthly_price: Mapped[float] = mapped_column(Float, nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), default="USD", nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="BRL", nullable=False)
     
     # Trial
     is_trial: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     
     # Frontend URL for building public links
     FRONTEND_URL: str = "http://localhost:3000"
+
+    # Stripe
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PRICE_BASIC: str = ""
+    STRIPE_PRICE_PRO: str = ""
+    STRIPE_PRICE_PREMIUM: str = ""
     
     # Email — Resend (primary)
     RESEND_API_KEY: str = ""
