@@ -10,6 +10,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 jest.mock('next/router', () => ({
   useRouter: () => ({
     push: jest.fn(),
+    replace: jest.fn(),
     pathname: '/platform',
     query: {},
     asPath: '/platform',
@@ -50,10 +51,15 @@ describe('Platform Dashboard', () => {
     const { apiClient } = require('@/services/api_client');
     apiClient.get.mockResolvedValue({
       data: {
-        total_tenants: 5,
-        active_tenants: 4,
-        total_users: 50,
-        total_revenue: 1000,
+        tenants: { total: 5, active: 4, inactive: 1, trial: 1, new_30d: 2 },
+        user_count: 50,
+        tickets: { total: 200, last_30d: 80, last_7d: 20 },
+        mrr: 490.0,
+        plans_distribution: [{ plan: 'basic', count: 3 }, { plan: 'pro', count: 1 }],
+        daily_tickets: [],
+        tenant_growth: [],
+        top_tenants: [],
+        generated_at: new Date().toISOString(),
       },
     });
 
