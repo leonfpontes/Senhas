@@ -10,6 +10,7 @@ from src.core.database import get_db
 from src.core.errors import NotFoundError, InvalidInputError
 from src.api.dependencies import get_current_user
 from src.models import User, UserRole, PlanType
+from src.models.subscriptions import Subscription
 from src.services.tenant_service import TenantService
 from src.repositories.tenant_repo import TenantRepository
 
@@ -42,6 +43,9 @@ class TenantResponse(BaseModel):
     is_active: bool
     created_at: str
     updated_at: str
+    plan: Optional[str] = None
+    subscription_status: Optional[str] = None
+    is_bonus: Optional[bool] = None
 
 
 async def require_super_admin(user: User = Depends(get_current_user)) -> User:
@@ -220,6 +224,16 @@ async def list_tenants(
             limit=limit,
         )
         
+        # Batch-load subscriptions to avoid N+1 queries
+        tenant_ids = [t.id for t in tenants]
+        if tenant_ids:
+            subs_result = await db.execute(
+                select(Subscription).where(Subscription.tenant_id.in_(tenant_ids))
+            )
+            subs_map = {s.tenant_id: s for s in subs_result.scalars().all()}
+        else:
+            subs_map = {}
+
         return [
             TenantResponse(
                 id=str(t.id),
@@ -229,6 +243,9 @@ async def list_tenants(
                 is_active=t.is_active,
                 created_at=t.created_at.isoformat(),
                 updated_at=t.updated_at.isoformat(),
+                plan=subs_map[t.id].plan.value.lower() if t.id in subs_map else None,
+                subscription_status=subs_map[t.id].status.value.lower() if t.id in subs_map else None,
+                is_bonus=subs_map[t.id].is_bonus if t.id in subs_map else None,
             )
             for t in tenants
         ]

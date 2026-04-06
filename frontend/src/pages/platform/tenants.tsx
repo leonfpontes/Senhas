@@ -42,15 +42,11 @@ import PeopleIcon from "@mui/icons-material/People";
 import BusinessIcon from "@mui/icons-material/Business";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import StarIcon from "@mui/icons-material/Star";
+import CreditScoreIcon from "@mui/icons-material/CreditScore";
 import { useRouter } from "next/router";
 import { apiClient } from "../../services/api_client";
 import PlatformLayout from "./layout";
 import CrudDrawer from "../../components/CrudDrawer";
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContentText from '@mui/material/DialogContentText';
 
 interface Tenant {
   id: string;
@@ -60,7 +56,28 @@ interface Tenant {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  plan: string | null;
+  subscription_status: string | null;
+  is_bonus: boolean | null;
 }
+
+interface SubscriptionDetail {
+  plan: string;
+  status: string;
+  max_users: number;
+  max_giras_per_month: number;
+  current_users: number;
+  monthly_price: number;
+  is_trial: boolean;
+  is_bonus?: boolean;
+}
+
+const PLAN_COLOR: Record<string, 'default' | 'info' | 'primary' | 'warning' | 'error' | 'success'> = {
+  free: 'default',
+  basic: 'info',
+  pro: 'primary',
+  premium: 'warning',
+};
 
 interface CreateFormData {
   slug: string;
@@ -92,10 +109,14 @@ const TenantsPage: React.FC = () => {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuTenant, setMenuTenant] = useState<Tenant | null>(null);
 
-  // Bonus dialog state
-  const [bonusDialogTenant, setBonusDialogTenant] = useState<Tenant | null>(null);
-  const [bonusPlan, setBonusPlan] = useState<string>('pro');
-  const [bonusLoading, setBonusLoading] = useState(false);
+  // Subscription drawer state
+  const [subDrawerTenant, setSubDrawerTenant] = useState<Tenant | null>(null);
+  const [subDrawerOpen, setSubDrawerOpen] = useState(false);
+  const [subDetail, setSubDetail] = useState<SubscriptionDetail | null>(null);
+  const [subDetailLoading, setSubDetailLoading] = useState(false);
+  const [subIsBonus, setSubIsBonus] = useState(false);
+  const [subPlan, setSubPlan] = useState('pro');
+  const [subSaving, setSubSaving] = useState(false);
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -222,23 +243,66 @@ const TenantsPage: React.FC = () => {
     }
   };
 
-  const handleSetBonus = async () => {
-    if (!bonusDialogTenant) return;
-    setBonusLoading(true);
+  const openSubDrawer = async (tenant: Tenant) => {
+    setSubDrawerTenant(tenant);
+    setSubIsBonus(tenant.is_bonus ?? false);
+    setSubPlan(tenant.plan ?? 'basic');
+    setSubDetail(null);
+    setSubDrawerOpen(true);
+    setSubDetailLoading(true);
     try {
-      await apiClient.patch(
-        `/api/v1/platform/subscriptions/${bonusDialogTenant.id}/bonus`,
-        { is_bonus: true, plan: bonusPlan },
-      );
-      setSuccess(`Acesso bonificado concedido ao tenant "${bonusDialogTenant.name}" no plano ${bonusPlan}.`);
-      setBonusDialogTenant(null);
-      setTimeout(() => setSuccess(null), 4000);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Erro ao bonificar tenant');
+      const res = await apiClient.get(`/api/v1/platform/subscriptions/${tenant.id}`);
+      setSubDetail(res.data);
+    } catch {
+      // non-critical: drawer shows partial info
     } finally {
-      setBonusLoading(false);
+      setSubDetailLoading(false);
     }
   };
+
+  const handleSaveSubscription = async () => {
+    if (!subDrawerTenant) return;
+    setSubSaving(true);
+    setError(null);
+    try {
+      const originalIsBonus = subDrawerTenant.is_bonus ?? false;
+      const originalPlan = subDrawerTenant.plan ?? 'basic';
+
+      if (subIsBonus) {
+        // Grant/update bonus
+        await apiClient.patch(
+          `/api/v1/platform/subscriptions/${subDrawerTenant.id}/bonus`,
+          { is_bonus: true, plan: subPlan },
+        );
+      } else if (originalIsBonus && !subIsBonus) {
+        // Remove bonus
+        await apiClient.patch(
+          `/api/v1/platform/subscriptions/${subDrawerTenant.id}/bonus`,
+          { is_bonus: false },
+        );
+      } else if (subPlan !== originalPlan) {
+        // Plan change without bonus
+        await apiClient.put(
+          `/api/v1/platform/subscriptions/${subDrawerTenant.id}/upgrade`,
+          { plan: subPlan },
+        );
+      }
+
+      setSuccess(`Assinatura de "${subDrawerTenant.name}" atualizada.`);
+      setSubDrawerOpen(false);
+      setSubDrawerTenant(null);
+      setTimeout(() => setSuccess(null), 4000);
+      fetchTenants();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Erro ao salvar assinatura');
+    } finally {
+      setSubSaving(false);
+    }
+  };
+
+  const subIsDirty =
+    subIsBonus !== (subDrawerTenant?.is_bonus ?? false) ||
+    subPlan !== (subDrawerTenant?.plan ?? 'basic');
 
   return (
     <PlatformLayout>
@@ -286,6 +350,7 @@ const TenantsPage: React.FC = () => {
                 <TableCell>Slug</TableCell>
                 <TableCell>Name</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Plano</TableCell>
                 <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Created</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -293,13 +358,13 @@ const TenantsPage: React.FC = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">
+                  <TableCell colSpan={6} align="center">
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
               ) : tenants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">
+                  <TableCell colSpan={6} align="center">
                     No tenants found
                   </TableCell>
                 </TableRow>
@@ -318,6 +383,22 @@ const TenantsPage: React.FC = () => {
                         size="small"
                       />
                     </TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                      {tenant.plan ? (
+                        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                          <Chip
+                            label={tenant.plan.toUpperCase()}
+                            color={PLAN_COLOR[tenant.plan] ?? 'default'}
+                            size="small"
+                          />
+                          {tenant.is_bonus && (
+                            <Tooltip title="Bonificado">
+                              <StarIcon sx={{ fontSize: 15, color: '#f59e0b' }} />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      ) : '—'}
+                    </TableCell>
                     <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                       {new Date(tenant.created_at).toLocaleDateString()}
                     </TableCell>
@@ -335,6 +416,9 @@ const TenantsPage: React.FC = () => {
                             open={Boolean(menuAnchor) && menuTenant?.id === tenant.id}
                             onClose={() => { setMenuAnchor(null); setMenuTenant(null); }}
                           >
+                            <MenuItem onClick={() => { openSubDrawer(tenant); setMenuAnchor(null); setMenuTenant(null); }}>
+                              <CreditScoreIcon fontSize="small" sx={{ mr: 1 }} /> Assinatura
+                            </MenuItem>
                             <MenuItem onClick={() => { router.push(`/platform/tenants/${tenant.id}`); setMenuAnchor(null); setMenuTenant(null); }}>
                               <PeopleIcon fontSize="small" sx={{ mr: 1 }} /> Ver Usuários
                             </MenuItem>
@@ -351,15 +435,15 @@ const TenantsPage: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          <Tooltip title="Bonificar">
-                              <IconButton
-                                size="small"
-                                sx={{ color: '#f59e0b' }}
-                                onClick={() => { setBonusDialogTenant(tenant); setBonusPlan('pro'); }}
-                              >
-                                <StarIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                          <Tooltip title="Assinatura">
+                            <IconButton
+                              size="small"
+                              sx={{ color: tenant.is_bonus ? '#f59e0b' : 'action.active' }}
+                              onClick={() => openSubDrawer(tenant)}
+                            >
+                              <StarIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                           <Tooltip title="Ver Usuários">
                             <IconButton
                               size="small"
@@ -407,39 +491,97 @@ const TenantsPage: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Bonus dialog */}
-      <Dialog open={Boolean(bonusDialogTenant)} onClose={() => setBonusDialogTenant(null)} maxWidth="xs" fullWidth>
-        <DialogTitle fontWeight={700}>Bonificar Tenant</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            Concede acesso gratuito ao tenant <strong>{bonusDialogTenant?.name}</strong>. Qualquer assinatura Stripe ativa será cancelada imediatamente.
-          </DialogContentText>
-          <FormControl fullWidth size="small">
-            <InputLabel>Plano bonificado</InputLabel>
-            <Select
-              value={bonusPlan}
-              label="Plano bonificado"
-              onChange={(e) => setBonusPlan(e.target.value)}
-            >
-              <MenuItem value="basic">Basic</MenuItem>
-              <MenuItem value="pro">Pro</MenuItem>
-              <MenuItem value="premium">Premium</MenuItem>
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setBonusDialogTenant(null)} disabled={bonusLoading}>Cancelar</Button>
-          <Button
-            variant="contained"
-            sx={{ bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' } }}
-            onClick={handleSetBonus}
-            disabled={bonusLoading}
-            startIcon={<StarIcon />}
+      {/* Subscription Drawer */}
+      <CrudDrawer
+        open={subDrawerOpen}
+        onClose={() => { setSubDrawerOpen(false); setSubDrawerTenant(null); }}
+        title="Assinatura"
+        subtitle={subDrawerTenant?.name ?? ''}
+        icon={<CreditScoreIcon />}
+        onSave={handleSaveSubscription}
+        saveLabel="Salvar"
+        saving={subSaving}
+        saveDisabled={!subIsDirty}
+        isDirty={subIsDirty}
+      >
+        {/* Current subscription info */}
+        {subDetailLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : subDetail ? (
+          <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
+              <Chip
+                label={subDetail.plan.toUpperCase()}
+                color={PLAN_COLOR[subDetail.plan] ?? 'default'}
+                size="small"
+              />
+              <Chip
+                label={subDetail.status}
+                color={subDetail.status === 'active' ? 'success' : 'default'}
+                size="small"
+                variant="outlined"
+              />
+              {subDetail.is_bonus && (
+                <Chip label="Bonificado" size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e' }} icon={<StarIcon sx={{ fontSize: 14, color: '#f59e0b !important' }} />} />
+              )}
+            </Box>
+            <Box sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
+              Usuários: {subDetail.current_users} / {subDetail.max_users === -1 ? '∞' : subDetail.max_users}
+              {' · '}
+              Giras/mês: {subDetail.max_giras_per_month === -1 ? '∞' : subDetail.max_giras_per_month}
+              {subDetail.monthly_price > 0 && ` · R$ ${subDetail.monthly_price.toFixed(2)}/mês`}
+            </Box>
+          </Box>
+        ) : null}
+
+        {/* Access type */}
+        <FormControl fullWidth>
+          <InputLabel>Tipo de acesso</InputLabel>
+          <Select
+            value={subIsBonus ? 'bonus' : 'normal'}
+            label="Tipo de acesso"
+            onChange={(e) => {
+              const bonus = e.target.value === 'bonus';
+              setSubIsBonus(bonus);
+              if (bonus && (!subPlan || subPlan === 'free')) setSubPlan('pro');
+            }}
           >
-            {bonusLoading ? 'Salvando...' : 'Confirmar'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <MenuItem value="normal">Normal (pago via Stripe)</MenuItem>
+            <MenuItem value="bonus">Bonificado (gratuito)</MenuItem>
+          </Select>
+        </FormControl>
+
+        {/* Plan selector */}
+        <FormControl fullWidth>
+          <InputLabel>Plano</InputLabel>
+          <Select
+            value={subPlan}
+            label="Plano"
+            onChange={(e) => setSubPlan(e.target.value)}
+            disabled={!subIsBonus && subDrawerTenant?.is_bonus === false}
+          >
+            {subIsBonus ? (
+              [<MenuItem key="basic" value="basic">Basic — até 5 usuários</MenuItem>,
+               <MenuItem key="pro" value="pro">Pro — até 20 usuários</MenuItem>,
+               <MenuItem key="premium" value="premium">Premium — ilimitado</MenuItem>]
+            ) : (
+              [<MenuItem key="free" value="free">Free</MenuItem>,
+               <MenuItem key="basic" value="basic">Basic</MenuItem>,
+               <MenuItem key="pro" value="pro">Pro</MenuItem>,
+               <MenuItem key="premium" value="premium">Premium</MenuItem>]
+            )}
+          </Select>
+        </FormControl>
+
+        {/* Warning when removing bonus */}
+        {!subIsBonus && (subDrawerTenant?.is_bonus ?? false) && (
+          <Alert severity="warning">
+            Ao remover o bônus, o tenant voltará ao plano Free até realizar uma nova assinatura via Stripe.
+          </Alert>
+        )}
+      </CrudDrawer>
 
       {/* Create / Edit Tenant Drawer */}
       <CrudDrawer
