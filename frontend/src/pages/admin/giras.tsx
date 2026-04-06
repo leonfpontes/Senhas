@@ -92,8 +92,9 @@ const isoToLocalDatetimeInput = (isoStr: string | null | undefined): string => {
 };
 
 function GiraUsageBar({ used, max }: { used: number; max: number }) {
-  const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0;
-  const atLimit = used >= max;
+  const isUnlimited = max < 0;
+  const pct = !isUnlimited && max > 0 ? Math.min((used / max) * 100, 100) : 0;
+  const atLimit = !isUnlimited && used >= max;
   return (
     <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: atLimit ? 'warning.main' : 'divider' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
@@ -433,7 +434,7 @@ function AdminGirasContent() {
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadGiras} disabled={loading} size="small">
               Atualizar
             </Button>
-            <Tooltip title={!canCreateGira ? `Limite de ${subscription?.max_giras_per_month ?? 0} gira(s)/mês atingido. Faça upgrade do plano.` : ''}>
+            <Tooltip title={!canCreateGira ? (subscription?.max_giras_per_month != null && subscription.max_giras_per_month >= 0 ? `Limite de ${subscription.max_giras_per_month} gira(s)/mês atingido. Faça upgrade do plano.` : 'Sem assinatura ativa. Faça upgrade do plano.') : ''}>
               <span>
                 <Button data-tour="giras-nova" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira} size="small">
                   Nova Gira
@@ -444,7 +445,7 @@ function AdminGirasContent() {
         </Box>
 
         {/* Gira usage progress bar — only for plans with finite limits */}
-        {subscription && subscription.max_giras_per_month < 99999 && (
+        {subscription && subscription.max_giras_per_month >= 0 && (
           <Box data-tour="giras-usage">
             <GiraUsageBar used={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
           </Box>

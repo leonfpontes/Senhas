@@ -131,6 +131,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const canCreateUser = useCallback(
     (currentCount: number) => {
       if (!subscription) return false;
+      if (subscription.max_users < 0) return true;
       return currentCount < subscription.max_users;
     },
     [subscription],
@@ -139,6 +140,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const canCreateGira = useCallback(
     () => {
       if (!subscription) return false;
+      if (subscription.max_giras_per_month < 0) return true;
       return subscription.current_giras_this_month < subscription.max_giras_per_month;
     },
     [subscription],
@@ -147,6 +149,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const canCreateMedium = useCallback(
     (currentCount: number) => {
       if (!subscription) return false;
+      if (subscription.max_mediuns < 0) return true;
       return currentCount < subscription.max_mediuns;
     },
     [subscription],
