@@ -11,7 +11,7 @@ from src.models import User, UserRole, PlanType, SubscriptionStatus
 from src.services.subscription_service import SubscriptionService
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.repositories.audit_log_repo import AuditLogRepository
-from src.models.audit_log import AuditAction
+from src.models.audit_logs import AuditAction
 from src.core.errors import NotFoundError
 
 router = APIRouter(prefix="/api/v1/platform/subscriptions", tags=["platform-subscriptions"])

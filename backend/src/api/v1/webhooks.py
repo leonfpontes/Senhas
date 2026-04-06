@@ -9,7 +9,7 @@ from fastapi import Depends
 from src.models import Subscription, PlanType, SubscriptionStatus
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.repositories.audit_log_repo import AuditLogRepository
-from src.models.audit_log import AuditAction
+from src.models.audit_logs import AuditAction
 from src.services import stripe_service
 
 logger = logging.getLogger("senhas")

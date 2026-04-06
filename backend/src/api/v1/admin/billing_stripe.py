@@ -11,7 +11,7 @@ from src.api.dependencies import get_current_user
 from src.models import User, UserRole, Subscription, PlanType, Tenant
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.repositories.audit_log_repo import AuditLogRepository
-from src.models.audit_log import AuditAction
+from src.models.audit_logs import AuditAction
 from src.services import stripe_service
 from src.core.errors import NotFoundError
 

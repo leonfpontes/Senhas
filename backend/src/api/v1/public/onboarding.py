@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
@@ -139,6 +140,19 @@ async def _unique_slug(slug: str, tenant_repo: TenantRepository) -> str:
     return slug
 
 
+async def _unique_username(base: str, db: AsyncSession) -> str:
+    """Ensure username is unique by appending a numeric suffix if needed."""
+    username = base
+    counter = 1
+    while True:
+        stmt = select(User).where(User.username == username, User.deleted_at.is_(None))
+        result = await db.execute(stmt)
+        if not result.scalar_one_or_none():
+            return username
+        username = f"{base}{counter}"
+        counter += 1
+
+
 async def _send_welcome_email(email: str, name: str, tenant_name: str) -> None:
     """Best-effort welcome email (Resend primary, Brevo fallback)."""
     html = generate_welcome_html(
@@ -189,43 +203,62 @@ async def onboarding(
     tenant_repo = TenantRepository(db)
     slug = await _unique_slug(_slugify(body.terreiro_nome), tenant_repo)
 
-    # 3. Create tenant
-    tenant = await tenant_repo.create(
-        name=body.terreiro_nome.strip(),
-        slug=slug,
-        description=f"Terreiro {body.terreiro_nome.strip()}",
-        is_active=True,
-    )
+    try:
+        # 3. Create tenant
+        tenant = await tenant_repo.create(
+            name=body.terreiro_nome.strip(),
+            slug=slug,
+            description=f"Terreiro {body.terreiro_nome.strip()}",
+            is_active=True,
+        )
 
-    # 4. Create tenant config
-    config = TenantConfig(
-        tenant_id=tenant.id,
-        endereco=body.endereco.strip() if body.endereco else None,
-        custom_settings={"como_conheceu": body.como_conheceu} if body.como_conheceu else None,
-    )
-    db.add(config)
+        # 4. Create tenant config
+        config = TenantConfig(
+            tenant_id=tenant.id,
+            endereco=body.endereco.strip() if body.endereco else None,
+            custom_settings={"como_conheceu": body.como_conheceu} if body.como_conheceu else None,
+        )
+        db.add(config)
 
-    # 5. Create subscription (FREE)
-    sub_repo = SubscriptionRepository(db)
-    await sub_repo.create_for_tenant(tenant_id=tenant.id, plan=PlanType.FREE)
+        # 5. Create subscription (FREE)
+        sub_repo = SubscriptionRepository(db)
+        await sub_repo.create_for_tenant(tenant_id=tenant.id, plan=PlanType.FREE)
 
-    # 6. Create admin user
-    user = User(
-        tenant_id=tenant.id,
-        email=body.email,
-        username=body.email.split("@")[0],
-        full_name=body.responsavel_nome.strip(),
-        phone=body.whatsapp,
-        password_hash=hash_password(body.password),
-        role=UserRole.ADMIN,
-        is_active=True,
-    )
-    db.add(user)
-    await db.flush()
-    await db.refresh(user)
+        # 6. Create admin user
+        base_username = body.email.split("@")[0]
+        username = await _unique_username(base_username, db)
+        user = User(
+            tenant_id=tenant.id,
+            email=body.email,
+            username=username,
+            full_name=body.responsavel_nome.strip(),
+            phone=body.whatsapp,
+            password_hash=hash_password(body.password),
+            role=UserRole.ADMIN,
+            is_active=True,
+        )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
 
-    # 7. Commit transaction
-    await db.commit()
+        # 7. Commit transaction
+        await db.commit()
+
+    except IntegrityError as exc:
+        await db.rollback()
+        logger.warning("Onboarding IntegrityError for email=%s: %s", body.email, exc)
+        # Re-check email conflict (most likely cause)
+        stmt2 = select(User).where(User.email == body.email, User.deleted_at.is_(None))
+        result2 = await db.execute(stmt2)
+        if result2.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Este email já está cadastrado",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Já existe uma conta com esse nome de terreiro. Tente um nome diferente.",
+        )
 
     # 8. Generate tokens
     access_token = create_access_token(user.id, tenant.id, user.role.value)
