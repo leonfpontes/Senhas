@@ -14,6 +14,7 @@ from .feature_flags import FeatureFlag
 from .associados import Associado
 from .estoque import EstoqueGrupo, EstoqueItem, EstoqueMovimentacao, EstoqueMovimentacaoTipo
 from .mediuns import Medium
+from .mensalidades import MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
 
 __all__ = [
     "Base",
@@ -41,4 +42,7 @@ __all__ = [
     "EstoqueMovimentacao",
     "EstoqueMovimentacaoTipo",
     "Medium",
+    "MensalidadeConfig",
+    "MensalidadePagamento",
+    "MensalidadeStatus",
 ]

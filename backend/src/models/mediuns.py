@@ -38,6 +38,9 @@ class Medium(SoftDeleteModel):
         Boolean, default=False, nullable=False
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    mensalidade_isento: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
 
     # Dados de contato / ficha pessoal
     telefone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
