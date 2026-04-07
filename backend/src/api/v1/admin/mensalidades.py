@@ -167,7 +167,7 @@ async def update_config(
         user_id=current_user.id,
         resource_type="mensalidade_config",
         resource_id=config.id,
-        details={"valor_mensal": body.valor_mensal, "dia_vencimento": body.dia_vencimento},
+        new_state={"valor_mensal": body.valor_mensal, "dia_vencimento": body.dia_vencimento},
     )
     return ConfigResponse(
         tenant_id=config.tenant_id,
@@ -317,7 +317,7 @@ async def registrar_pagamento(
         user_id=current_user.id,
         resource_type="mensalidade",
         resource_id=pag.id,
-        details={"mediun_id": str(mediun_id), "mes": mes, "status": parsed_status.value},
+        new_state={"mediun_id": str(mediun_id), "mes": mes, "status": parsed_status.value},
     )
     return {"id": str(pag.id), "status": pag.status.value}
 
