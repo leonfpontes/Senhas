@@ -144,6 +144,7 @@ const PLANS = [
       'Usuários ilimitados',
       'Giras ilimitadas',
       'Médiuns/cambones ilimitados',
+      'Controle de Mensalidade de Médiuns',
       'Suporte prioritário',
     ],
   },

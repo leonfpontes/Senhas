@@ -82,6 +82,7 @@ const FEATURES: PlanFeature[] = [
   { label: 'Controle de Estoque', free: false, basic: false, pro: true, premium: true },
   { label: 'API access', free: false, basic: false, pro: false, premium: true },
   { label: 'Suporte prioritário', free: false, basic: false, pro: false, premium: true },
+  { label: 'Controle de Mensalidade', free: false, basic: false, pro: false, premium: true },
 ];
 
 const PLAN_KEYS = ['free', 'basic', 'pro', 'premium'] as const;
