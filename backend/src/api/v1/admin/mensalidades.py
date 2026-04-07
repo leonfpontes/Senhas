@@ -169,6 +169,7 @@ async def update_config(
         resource_id=config.id,
         new_state={"valor_mensal": body.valor_mensal, "dia_vencimento": body.dia_vencimento},
     )
+    await db.commit()
     return ConfigResponse(
         tenant_id=config.tenant_id,
         valor_mensal=float(config.valor_mensal),
@@ -319,6 +320,7 @@ async def registrar_pagamento(
         resource_id=pag.id,
         new_state={"mediun_id": str(mediun_id), "mes": mes, "status": parsed_status.value},
     )
+    await db.commit()
     return {"id": str(pag.id), "status": pag.status.value}
 
 
@@ -368,6 +370,7 @@ async def delete_comprovante(
         resource_type="mensalidade_comprovante",
         resource_id=pagamento_id,
     )
+    await db.commit()
 
 
 @router.get("/resumo", response_model=ResumoResponse)

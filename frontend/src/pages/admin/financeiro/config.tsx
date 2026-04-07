@@ -23,6 +23,7 @@ import {
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SaveIcon from '@mui/icons-material/Save';
+import { NumericFormat } from 'react-number-format';
 import AdminLayout from '../admin_layout';
 import UpgradePrompt from '../../../components/UpgradePrompt';
 import { apiClient } from '../../../services/api_client';
@@ -39,14 +40,7 @@ export default function FinanceiroConfigPage() {
     open: false, msg: '', severity: 'success',
   });
 
-  if (!can('mensalidade_mediun')) {
-    return (
-      <AdminLayout title="Config. Mensalidade">
-        <UpgradePrompt feature="Controle de Mensalidade" minPlan="Premium" />
-      </AdminLayout>
-    );
-  }
-
+  // Hooks must run unconditionally — gate checked after
   useEffect(() => {
     apiClient.get('/api/v1/admin/financeiro/config')
       .then((res) => {
@@ -57,7 +51,17 @@ export default function FinanceiroConfigPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Gate (after all hooks)
+  if (!can('mensalidade_mediun')) {
+    return (
+      <AdminLayout title="Config. Mensalidade">
+        <UpgradePrompt feature="Controle de Mensalidade" minPlan="Premium" />
+      </AdminLayout>
+    );
+  }
 
   const handleSave = async () => {
     const valor = parseFloat(valorMensal);
@@ -96,14 +100,19 @@ export default function FinanceiroConfigPage() {
         ) : (
           <Card variant="outlined">
             <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <TextField
+              <NumericFormat
+                customInput={TextField}
                 label="Valor Mensal (R$)"
-                type="number"
                 size="small"
-                value={valorMensal}
-                onChange={(e) => setValorMensal(e.target.value)}
-                inputProps={{ min: 0, step: 0.01 }}
                 fullWidth
+                value={valorMensal}
+                onValueChange={(values) => setValorMensal(values.value)}
+                thousandSeparator="."
+                decimalSeparator=","
+                decimalScale={2}
+                fixedDecimalScale
+                prefix="R$ "
+                allowNegative={false}
               />
 
               <FormControl size="small" fullWidth>
