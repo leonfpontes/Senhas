@@ -270,6 +270,29 @@ class MensalidadeRepository:
 
         count_pagantes = count_ativos - count_isentos
 
+        # Count isentos for the current month: permanent flag + monthly ISENTO records
+        current_mes = today.replace(day=1)
+        perm_isento_ids = select(Medium.id.label("mid")).where(
+            and_(
+                Medium.tenant_id == tenant_id,
+                Medium.deleted_at.is_(None),
+                Medium.is_active.is_(True),
+                Medium.mensalidade_isento.is_(True),
+            )
+        )
+        monthly_isento_ids = select(MensalidadePagamento.mediun_id.label("mid")).where(
+            and_(
+                MensalidadePagamento.tenant_id == tenant_id,
+                MensalidadePagamento.mes_referencia == current_mes,
+                MensalidadePagamento.status == MensalidadeStatus.ISENTO,
+            )
+        )
+        combined_isento = perm_isento_ids.union(monthly_isento_ids).subquery()
+        count_isentos_mes_result = await self.db.execute(
+            select(func.count()).select_from(combined_isento)
+        )
+        count_isentos_mes: int = count_isentos_mes_result.scalar() or 0
+
         # Build historical months
         historico = []
         for i in range(n_historico - 1, -1, -1):
@@ -303,7 +326,9 @@ class MensalidadeRepository:
                             and_(
                                 MensalidadePagamento.tenant_id == tenant_id,
                                 MensalidadePagamento.mes_referencia == mes_date,
-                                MensalidadePagamento.status == MensalidadeStatus.PAGO,
+                                MensalidadePagamento.status.in_(
+                                    [MensalidadeStatus.PAGO, MensalidadeStatus.ISENTO]
+                                ),
                             )
                         )
                     ),
@@ -339,7 +364,7 @@ class MensalidadeRepository:
             "config": {
                 "valor_mensal": float(valor_mensal),
                 "count_ativos": count_ativos,
-                "count_isentos": count_isentos,
+                "count_isentos": count_isentos_mes,
                 "count_pagantes": count_pagantes,
             },
         }

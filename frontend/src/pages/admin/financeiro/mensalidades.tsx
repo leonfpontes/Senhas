@@ -288,7 +288,7 @@ export default function MensalidadesPage() {
     return matchStatus && matchSearch;
   });
 
-  const totalEsperado = items.filter((i) => !i.mensalidade_isento).length * (config?.valor_mensal ?? 0);
+  const totalEsperado = items.filter((i) => !i.mensalidade_isento && i.status !== 'ISENTO').length * (config?.valor_mensal ?? 0);
   const totalArrecadado = items.filter((i) => i.status === 'PAGO').reduce((s, i) => s + (i.valor_pago ?? 0), 0);
   const inadimplentes = items.filter((i) => !i.mensalidade_isento && i.status !== 'PAGO' && i.status !== 'ISENTO').length;
 
@@ -444,7 +444,7 @@ export default function MensalidadesPage() {
                             ? (() => { const d = item.data_pagamento.slice(0, 10); return `${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`; })()
                             : '—'}
                         </TableCell>
-                        <TableCell align="right">{fmtBRL(item.valor_pago)}</TableCell>
+                        <TableCell align="right">{item.status === 'PAGO' ? fmtBRL(item.valor_pago) : '—'}</TableCell>
                         <TableCell>
                           {item.comprovante_filename ? (
                             <Tooltip title={item.comprovante_filename}>
