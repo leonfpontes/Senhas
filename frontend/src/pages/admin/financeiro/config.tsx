@@ -13,11 +13,13 @@ import {
   CardContent,
   CircularProgress,
   FormControl,
+  FormControlLabel,
   InputLabel,
   MenuItem,
   Select,
   SelectChangeEvent,
   Snackbar,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material';
@@ -36,6 +38,7 @@ export default function FinanceiroConfigPage() {
   const [saving, setSaving] = useState(false);
   const [valorMensal, setValorMensal] = useState<string>('');
   const [diaVencimento, setDiaVencimento] = useState<string>('10');
+  const [emailRelatorioAtivo, setEmailRelatorioAtivo] = useState<boolean>(false);
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({
     open: false, msg: '', severity: 'success',
   });
@@ -47,6 +50,7 @@ export default function FinanceiroConfigPage() {
         if (res.data) {
           setValorMensal(String(res.data.valor_mensal ?? ''));
           setDiaVencimento(String(res.data.dia_vencimento ?? '10'));
+          setEmailRelatorioAtivo(Boolean(res.data.email_relatorio_ativo));
         }
       })
       .catch(() => {})
@@ -74,6 +78,7 @@ export default function FinanceiroConfigPage() {
       await apiClient.put('/api/v1/admin/financeiro/config', {
         valor_mensal: valor,
         dia_vencimento: parseInt(diaVencimento),
+        email_relatorio_ativo: emailRelatorioAtivo,
       });
       setSnack({ open: true, msg: 'Configuração salva com sucesso.', severity: 'success' });
     } catch (err: any) {
@@ -129,6 +134,24 @@ export default function FinanceiroConfigPage() {
                   ))}
                 </Select>
               </FormControl>
+
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={emailRelatorioAtivo}
+                    onChange={(e) => setEmailRelatorioAtivo(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body2" fontWeight={600}>Enviar relatório por e-mail</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Quando ativo, o botão "Enviar Relatório" dispara e-mail para todos os admins do tenant.
+                    </Typography>
+                  </Box>
+                }
+              />
 
               <Button
                 variant="contained"

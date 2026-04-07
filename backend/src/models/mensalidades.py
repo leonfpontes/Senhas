@@ -51,6 +51,7 @@ class MensalidadeConfig(TimestampedModel):
     )
     dia_vencimento: Mapped[int] = mapped_column(nullable=False, default=10)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    email_relatorio_ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     tenant = relationship("Tenant", backref="mensalidade_config")
 

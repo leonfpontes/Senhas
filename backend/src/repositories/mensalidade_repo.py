@@ -39,12 +39,14 @@ class MensalidadeRepository:
         tenant_id: UUID,
         valor_mensal: Decimal,
         dia_vencimento: int,
+        email_relatorio_ativo: bool = False,
     ) -> MensalidadeConfig:
         """Create or update the tenant's mensalidade config."""
         existing = await self.get_config(tenant_id)
         if existing:
             existing.valor_mensal = valor_mensal
             existing.dia_vencimento = dia_vencimento
+            existing.email_relatorio_ativo = email_relatorio_ativo
             existing.updated_at = datetime.now(timezone.utc)
             await self.db.flush()
             await self.db.refresh(existing)
@@ -55,6 +57,7 @@ class MensalidadeRepository:
             tenant_id=tenant_id,
             valor_mensal=valor_mensal,
             dia_vencimento=dia_vencimento,
+            email_relatorio_ativo=email_relatorio_ativo,
         )
         self.db.add(config)
         await self.db.flush()

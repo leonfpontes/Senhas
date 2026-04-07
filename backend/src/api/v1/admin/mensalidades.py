@@ -94,6 +94,7 @@ class ConfigResponse(BaseModel):
     valor_mensal: float
     dia_vencimento: int
     ativo: bool
+    email_relatorio_ativo: bool = False
 
     class Config:
         from_attributes = True
@@ -102,6 +103,7 @@ class ConfigResponse(BaseModel):
 class ConfigUpdate(BaseModel):
     valor_mensal: float = Field(..., ge=0)
     dia_vencimento: int = Field(..., ge=1, le=28)
+    email_relatorio_ativo: bool = False
 
 
 class MensalidadeItemResponse(BaseModel):
@@ -141,6 +143,7 @@ async def get_config(
         valor_mensal=float(config.valor_mensal),
         dia_vencimento=config.dia_vencimento,
         ativo=config.ativo,
+        email_relatorio_ativo=config.email_relatorio_ativo,
     )
 
 
@@ -161,13 +164,18 @@ async def update_config(
         tenant_id=current_user.tenant_id,
         valor_mensal=Decimal(str(body.valor_mensal)),
         dia_vencimento=body.dia_vencimento,
+        email_relatorio_ativo=body.email_relatorio_ativo,
     )
     await audit.log_update(
         tenant_id=current_user.tenant_id,
         user_id=current_user.id,
         resource_type="mensalidade_config",
         resource_id=config.id,
-        new_state={"valor_mensal": body.valor_mensal, "dia_vencimento": body.dia_vencimento},
+        new_state={
+            "valor_mensal": body.valor_mensal,
+            "dia_vencimento": body.dia_vencimento,
+            "email_relatorio_ativo": body.email_relatorio_ativo,
+        },
     )
     await db.commit()
     return ConfigResponse(
@@ -175,6 +183,7 @@ async def update_config(
         valor_mensal=float(config.valor_mensal),
         dia_vencimento=config.dia_vencimento,
         ativo=config.ativo,
+        email_relatorio_ativo=config.email_relatorio_ativo,
     )
 
 
@@ -397,6 +406,15 @@ async def enviar_relatorio(
     mes_date = _parse_mes(mes)
 
     repo = MensalidadeRepository(db)
+
+    # Guard: only send if admin explicitly enabled the email feature
+    cfg = await repo.get_config(current_user.tenant_id)
+    if not cfg or not cfg.email_relatorio_ativo:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Envio de relatório por e-mail está desativado. Ative em Financeiro → Configuração.",
+        )
+
     rows = await repo.list_mes(current_user.tenant_id, mes_date)
 
     inadimplentes = [
