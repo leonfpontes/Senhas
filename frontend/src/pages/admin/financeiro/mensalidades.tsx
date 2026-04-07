@@ -156,15 +156,6 @@ export default function MensalidadesPage() {
   const [drawerFile, setDrawerFile] = useState<File | null>(null);
   const [drawerSaving, setDrawerSaving] = useState(false);
 
-  // ── Gate ──────────────────────────────────────────────────────────────
-  if (!can('mensalidade_mediun')) {
-    return (
-      <AdminLayout title="Mensalidades">
-        <UpgradePrompt feature="Controle de Mensalidade" minPlan="Premium" />
-      </AdminLayout>
-    );
-  }
-
   // ── Fetchers ──────────────────────────────────────────────────────────
 
   const fetchConfig = useCallback(async () => {
@@ -204,15 +195,26 @@ export default function MensalidadesPage() {
   useEffect(() => { fetchItems(); }, [fetchItems]);
   useEffect(() => { if (tab === 1) fetchResumo(); }, [tab, fetchResumo]);
 
+  // ── Gate (after all hooks) ────────────────────────────────────────────
+  if (!can('mensalidade_mediun')) {
+    return (
+      <AdminLayout title="Mensalidades">
+        <UpgradePrompt feature="Controle de Mensalidade" minPlan="Premium" />
+      </AdminLayout>
+    );
+  }
+
   // ── Month navigation ──────────────────────────────────────────────────
 
   const handlePrevMes = () => {
-    const d = new Date(mes + '-01');
+    const [y, m] = mes.split('-').map(Number);
+    const d = new Date(y, m - 1, 1); // local time — avoids UTC timezone offset
     setMes(toYYYYMM(addMonths(d, -1)));
   };
 
   const handleNextMes = () => {
-    const d = new Date(mes + '-01');
+    const [y, m] = mes.split('-').map(Number);
+    const d = new Date(y, m - 1, 1); // local time — avoids UTC timezone offset
     setMes(toYYYYMM(addMonths(d, 1)));
   };
 
@@ -246,7 +248,7 @@ export default function MensalidadesPage() {
       );
       setSnack({ open: true, msg: 'Mensalidade registrada com sucesso.', severity: 'success' });
       setDrawerOpen(false);
-      fetchItems();
+      await fetchItems();
     } catch (err: any) {
       const detail = err?.response?.data?.detail || 'Erro ao salvar.';
       setSnack({ open: true, msg: detail, severity: 'error' });
