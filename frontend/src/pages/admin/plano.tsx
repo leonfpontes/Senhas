@@ -180,19 +180,19 @@ export default function AdminPlano() {
                 <Grid item xs={6} sm={3}>
                   <Typography variant="caption" color="text.secondary">Usuários</Typography>
                   <Typography fontWeight={600}>
-                    {subscription?.current_users || 0} / {(subscription?.max_users || 0) >= 99999 ? '∞' : subscription?.max_users}
+                    {subscription?.current_users || 0} / {(subscription?.max_users ?? 0) < 0 || (subscription?.max_users ?? 0) >= 99999 ? 'Ilimitado' : subscription?.max_users}
                   </Typography>
                 </Grid>
                 <Grid item xs={6} sm={3}>
                   <Typography variant="caption" color="text.secondary">Giras / mês</Typography>
                   <Typography fontWeight={600}>
-                    {subscription?.current_giras_this_month || 0} / {(subscription?.max_giras_per_month || 0) >= 999999 ? '∞' : subscription?.max_giras_per_month}
+                    {subscription?.current_giras_this_month || 0} / {(subscription?.max_giras_per_month ?? 0) < 0 || (subscription?.max_giras_per_month ?? 0) >= 999999 ? 'Ilimitado' : subscription?.max_giras_per_month}
                   </Typography>
                 </Grid>
                 <Grid item xs={6} sm={3}>
                   <Typography variant="caption" color="text.secondary">Médiuns</Typography>
                   <Typography fontWeight={600}>
-                    {subscription?.current_mediuns || 0} / {(subscription?.max_mediuns || 0) >= 999999 ? '∞' : (subscription?.max_mediuns || 0) === 0 ? 'N/A' : subscription?.max_mediuns}
+                    {subscription?.current_mediuns || 0} / {(subscription?.max_mediuns ?? 0) < 0 || (subscription?.max_mediuns ?? 0) >= 999999 ? 'Ilimitado' : (subscription?.max_mediuns ?? 0) === 0 ? 'N/A' : subscription?.max_mediuns}
                   </Typography>
                 </Grid>
                 <Grid item xs={6} sm={3}>
