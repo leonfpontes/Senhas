@@ -59,6 +59,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import AdminLayout from '../admin_layout';
 import CrudDrawer from '../../../components/CrudDrawer';
 import UpgradePrompt from '../../../components/UpgradePrompt';
+import { NumericFormat } from 'react-number-format';
 import { apiClient } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
 
@@ -439,7 +440,9 @@ export default function MensalidadesPage() {
                           {config ? `${String(config.dia_vencimento).padStart(2, '0')}/${mes.replace('-', '/')}` : '—'}
                         </TableCell>
                         <TableCell>
-                          {item.data_pagamento ? item.data_pagamento.slice(0, 10) : '—'}
+                          {item.data_pagamento
+                            ? (() => { const d = item.data_pagamento.slice(0, 10); return `${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`; })()
+                            : '—'}
                         </TableCell>
                         <TableCell align="right">{fmtBRL(item.valor_pago)}</TableCell>
                         <TableCell>
@@ -576,13 +579,19 @@ export default function MensalidadesPage() {
                 InputLabelProps={{ shrink: true }}
                 fullWidth
               />
-              <TextField
+              <NumericFormat
+                customInput={TextField}
                 size="small"
                 label="Valor pago (R$)"
-                type="number"
-                value={drawerValorPago}
-                onChange={(e) => setDrawerValorPago(e.target.value)}
                 fullWidth
+                value={drawerValorPago}
+                onValueChange={(values) => setDrawerValorPago(values.value)}
+                thousandSeparator="."
+                decimalSeparator=","
+                decimalScale={2}
+                fixedDecimalScale
+                prefix="R$ "
+                allowNegative={false}
               />
               <Box>
                 <Typography variant="caption" color="text.secondary">Comprovante (JPG, PNG, WebP, PDF — max 5MB)</Typography>
