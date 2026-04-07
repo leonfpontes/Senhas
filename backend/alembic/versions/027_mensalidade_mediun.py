@@ -6,7 +6,7 @@ Create Date: 2026-04-07
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, BYTEA
+from sqlalchemy.dialects.postgresql import UUID, BYTEA, ENUM as PG_ENUM
 
 revision = "027_mensalidade_mediun"
 down_revision = "026_stripe_billing"
@@ -26,11 +26,9 @@ def upgrade() -> None:
         ),
     )
 
-    # 2. Create ENUM type
-    mensalidade_status = sa.Enum(
-        "PENDENTE", "PAGO", "ISENTO", name="mensalidade_status"
-    )
-    mensalidade_status.create(op.get_bind())
+    # 2. Create ENUM type (drop first in case of partial previous attempt)
+    op.execute("DROP TYPE IF EXISTS mensalidade_status")
+    op.execute("CREATE TYPE mensalidade_status AS ENUM ('PENDENTE', 'PAGO', 'ISENTO')")
 
     # 3. Create mensalidade_configs (1:1 per tenant)
     op.create_table(
@@ -85,7 +83,7 @@ def upgrade() -> None:
         sa.Column("mes_referencia", sa.Date(), nullable=False),
         sa.Column(
             "status",
-            sa.Enum("PENDENTE", "PAGO", "ISENTO", name="mensalidade_status", create_type=False),
+            PG_ENUM("PENDENTE", "PAGO", "ISENTO", name="mensalidade_status", create_type=False),
             nullable=False,
             server_default="PENDENTE",
         ),
