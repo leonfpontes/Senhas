@@ -95,6 +95,30 @@ class TestPlanFeatures:
         assert f.suporte_prioritario is True
 
 
+class TestPlanFeaturesMensalidade:
+    """Verify mensalidade_mediun feature flag is ONLY available on Premium."""
+
+    def _get_features(self, plan: PlanType):
+        from src.api.v1.admin.subscription_info import _get_plan_features
+        return _get_plan_features(plan)
+
+    def test_free_nao_tem_mensalidade_mediun(self):
+        f = self._get_features(PlanType.FREE)
+        assert f.mensalidade_mediun is False
+
+    def test_basic_nao_tem_mensalidade_mediun(self):
+        f = self._get_features(PlanType.BASIC)
+        assert f.mensalidade_mediun is False
+
+    def test_pro_nao_tem_mensalidade_mediun(self):
+        f = self._get_features(PlanType.PRO)
+        assert f.mensalidade_mediun is False
+
+    def test_premium_tem_mensalidade_mediun(self):
+        f = self._get_features(PlanType.PREMIUM)
+        assert f.mensalidade_mediun is True
+
+
 class TestPlanConfig:
     """Verify _get_plan_config returns correct limits and prices."""
 
