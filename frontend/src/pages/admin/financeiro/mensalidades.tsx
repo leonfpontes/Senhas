@@ -1,0 +1,641 @@
+/**
+ * Admin Financeiro — Controle de Mensalidade de Médiuns (Premium)
+ *
+ * Tabs: Médiuns (tabela com status do mês) | Gráfico (histórico + projeção)
+ */
+'use client';
+
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  FormControl,
+  Grid,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  SelectChangeEvent,
+  Snackbar,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tabs,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import AddIcon from '@mui/icons-material/Add';
+import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import DownloadIcon from '@mui/icons-material/Download';
+import EditIcon from '@mui/icons-material/Edit';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import AdminLayout from '../admin_layout';
+import CrudDrawer from '../../../components/CrudDrawer';
+import UpgradePrompt from '../../../components/UpgradePrompt';
+import { NumericFormat } from 'react-number-format';
+import { apiClient } from '../../../services/api_client';
+import { useSubscription } from '../../../hooks/useSubscription';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface MensalidadeItem {
+  mediun_id: string;
+  mediun_nome: string;
+  mensalidade_isento: boolean;
+  pagamento_id: string | null;
+  status: 'PAGO' | 'PENDENTE' | 'ISENTO' | null;
+  data_pagamento: string | null;
+  valor_vigente: number | null;
+  valor_pago: number | null;
+  comprovante_filename: string | null;
+  observacao: string | null;
+}
+
+interface Config {
+  valor_mensal: number;
+  dia_vencimento: number;
+  ativo: boolean;
+}
+
+interface ResumoHistorico {
+  mes: string;
+  esperado: number;
+  arrecadado: number;
+  inadimplentes: number;
+}
+
+interface ResumoProjecao {
+  mes: string;
+  projetado: number;
+}
+
+interface Resumo {
+  historico: ResumoHistorico[];
+  projecao: ResumoProjecao[];
+  config: { valor_mensal: number; count_ativos: number; count_isentos: number; count_pagantes: number };
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtBRL(value: number | null | undefined): string {
+  if (value == null) return '—';
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function addMonths(base: Date, n: number): Date {
+  const d = new Date(base);
+  d.setMonth(d.getMonth() + n);
+  return d;
+}
+
+function toYYYYMM(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function mesLabel(yyyymm: string): string {
+  const [y, m] = yyyymm.split('-');
+  const names = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  return `${names[parseInt(m) - 1]}/${y.slice(2)}`;
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export default function MensalidadesPage() {
+  const { can, subscription } = useSubscription();
+
+  const today = new Date();
+  const [mes, setMes] = useState<string>(toYYYYMM(today));
+  const [tab, setTab] = useState(0);
+
+  const [items, setItems] = useState<MensalidadeItem[]>([]);
+  const [config, setConfig] = useState<Config | null>(null);
+  const [resumo, setResumo] = useState<Resumo | null>(null);
+
+  const [loading, setLoading] = useState(false);
+  const [loadingResumo, setLoadingResumo] = useState(false);
+  const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({
+    open: false, msg: '', severity: 'success',
+  });
+
+  const [filterStatus, setFilterStatus] = useState<'TODOS' | 'PENDENTE' | 'PAGO' | 'ISENTO'>('TODOS');
+  const [search, setSearch] = useState('');
+
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerItem, setDrawerItem] = useState<MensalidadeItem | null>(null);
+  const [drawerStatus, setDrawerStatus] = useState<'PAGO' | 'PENDENTE' | 'ISENTO'>('PENDENTE');
+  const [drawerValorPago, setDrawerValorPago] = useState<string>('');
+  const [drawerDataPag, setDrawerDataPag] = useState<string>('');
+  const [drawerObs, setDrawerObs] = useState<string>('');
+  const [drawerFile, setDrawerFile] = useState<File | null>(null);
+  const [drawerSaving, setDrawerSaving] = useState(false);
+
+  // ── Fetchers ──────────────────────────────────────────────────────────
+
+  const fetchConfig = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/api/v1/admin/financeiro/config');
+      setConfig(res.data);
+    } catch {
+      setConfig(null);
+    }
+  }, []);
+
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiClient.get(`/api/v1/admin/financeiro/mensalidades?mes=${mes}`);
+      setItems(res.data);
+    } catch {
+      setSnack({ open: true, msg: 'Erro ao carregar mensalidades.', severity: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [mes]);
+
+  const fetchResumo = useCallback(async () => {
+    setLoadingResumo(true);
+    try {
+      const res = await apiClient.get('/api/v1/admin/financeiro/resumo');
+      setResumo(res.data);
+    } catch {
+      // non-critical
+    } finally {
+      setLoadingResumo(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchConfig(); }, [fetchConfig]);
+  useEffect(() => { fetchItems(); }, [fetchItems]);
+  useEffect(() => { if (tab === 1) fetchResumo(); }, [tab, fetchResumo]);
+
+  // ── Gate (after all hooks) ────────────────────────────────────────────
+  if (!can('mensalidade_mediun')) {
+    return (
+      <AdminLayout title="Mensalidades">
+        <UpgradePrompt feature="Controle de Mensalidade" minPlan="Premium" />
+      </AdminLayout>
+    );
+  }
+
+  // ── Month navigation ──────────────────────────────────────────────────
+
+  const handlePrevMes = () => {
+    const [y, m] = mes.split('-').map(Number);
+    const d = new Date(y, m - 1, 1); // local time — avoids UTC timezone offset
+    setMes(toYYYYMM(addMonths(d, -1)));
+  };
+
+  const handleNextMes = () => {
+    const [y, m] = mes.split('-').map(Number);
+    const d = new Date(y, m - 1, 1); // local time — avoids UTC timezone offset
+    setMes(toYYYYMM(addMonths(d, 1)));
+  };
+
+  // ── Drawer handlers ───────────────────────────────────────────────────
+
+  const openDrawer = (item: MensalidadeItem) => {
+    setDrawerItem(item);
+    setDrawerStatus((item.status as 'PAGO' | 'PENDENTE' | 'ISENTO') || 'PENDENTE');
+    setDrawerValorPago(item.valor_pago != null ? String(item.valor_pago) : config ? String(config.valor_mensal) : '');
+    setDrawerDataPag(item.data_pagamento ? item.data_pagamento.slice(0, 10) : '');
+    setDrawerObs(item.observacao || '');
+    setDrawerFile(null);
+    setDrawerOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!drawerItem) return;
+    setDrawerSaving(true);
+    try {
+      const form = new FormData();
+      form.append('status', drawerStatus);
+      if (drawerValorPago) form.append('valor_pago', drawerValorPago);
+      if (drawerDataPag) form.append('data_pagamento', drawerDataPag);
+      if (drawerObs) form.append('observacao', drawerObs);
+      if (drawerFile) form.append('comprovante', drawerFile);
+
+      await apiClient.post(
+        `/api/v1/admin/financeiro/mensalidades/${drawerItem.mediun_id}/${mes}`,
+        form,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      setSnack({ open: true, msg: 'Mensalidade registrada com sucesso.', severity: 'success' });
+      setDrawerOpen(false);
+      await fetchItems();
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || 'Erro ao salvar.';
+      setSnack({ open: true, msg: detail, severity: 'error' });
+    } finally {
+      setDrawerSaving(false);
+    }
+  };
+
+  const handleDownloadComprovante = async (item: MensalidadeItem) => {
+    try {
+      const res = await apiClient.get(
+        `/api/v1/admin/financeiro/mensalidades/${item.mediun_id}/${mes}/comprovante`,
+        { responseType: 'blob' },
+      );
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.comprovante_filename || 'comprovante';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setSnack({ open: true, msg: 'Comprovante não encontrado.', severity: 'error' });
+    }
+  };
+
+  // ── Derived values ────────────────────────────────────────────────────
+
+  const mesDate = new Date(mes + '-01');
+  const diaVenc = config?.dia_vencimento ?? 10;
+  const vencimento = new Date(mesDate.getFullYear(), mesDate.getMonth(), diaVenc);
+  const hoje = new Date();
+
+  const filtered = items.filter((i) => {
+    const matchStatus = filterStatus === 'TODOS' || i.status === filterStatus;
+    const matchSearch = i.mediun_nome.toLowerCase().includes(search.toLowerCase());
+    return matchStatus && matchSearch;
+  });
+
+  const totalEsperado = items.filter((i) => !i.mensalidade_isento && i.status !== 'ISENTO').length * (config?.valor_mensal ?? 0);
+  const totalArrecadado = items.filter((i) => i.status === 'PAGO').reduce((s, i) => s + (i.valor_pago ?? 0), 0);
+  const inadimplentes = items.filter((i) => !i.mensalidade_isento && i.status !== 'PAGO' && i.status !== 'ISENTO').length;
+
+  const statusChip = (item: MensalidadeItem) => {
+    const s = item.status;
+    if (s === 'PAGO') return <Chip label="Pago" color="success" size="small" />;
+    if (s === 'ISENTO') return <Chip label="Isento" size="small" />;
+    if (!s || s === 'PENDENTE') {
+      if (hoje > vencimento) return <Chip label="Inadimplente" color="error" size="small" />;
+      return <Chip label="Pendente" color="warning" size="small" />;
+    }
+    return <Chip label={s} size="small" />;
+  };
+
+  // ── Chart data ─────────────────────────────────────────────────────────
+
+  const chartData = resumo
+    ? [
+        ...resumo.historico.map((h) => ({
+          mes: mesLabel(h.mes),
+          Esperado: h.esperado,
+          Arrecadado: h.arrecadado,
+          projecao: false,
+        })),
+        ...resumo.projecao.map((p) => ({
+          mes: mesLabel(p.mes),
+          Projetado: p.projetado,
+          projecao: true,
+        })),
+      ]
+    : [];
+
+  // ── Primary brand color from subscription context ──────────────────────
+  const primaryColor = '#7C3AED';
+
+  return (
+    <AdminLayout title="Mensalidades">
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h5" fontWeight={700} gutterBottom>
+          <AccountBalanceWalletIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+          Controle de Mensalidades
+        </Typography>
+
+        {/* Month navigator */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <IconButton onClick={handlePrevMes} size="small"><ArrowBackIosNewIcon fontSize="small" /></IconButton>
+          <Typography variant="h6" sx={{ minWidth: 100, textAlign: 'center' }}>
+            {mesLabel(mes)}
+          </Typography>
+          <IconButton onClick={handleNextMes} size="small"><ArrowForwardIosIcon fontSize="small" /></IconButton>
+          <IconButton onClick={fetchItems} size="small" title="Atualizar"><RefreshIcon fontSize="small" /></IconButton>
+        </Box>
+
+        {/* KPI Cards */}
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          {[
+            { label: 'Esperado', value: fmtBRL(totalEsperado), color: 'text.primary' },
+            { label: 'Arrecadado', value: fmtBRL(totalArrecadado), color: 'success.main' },
+            { label: 'Inadimplentes', value: String(inadimplentes), color: inadimplentes > 0 ? 'error.main' : 'success.main' },
+            { label: 'Em aberto', value: fmtBRL(Math.max(0, totalEsperado - totalArrecadado)), color: 'warning.main' },
+          ].map(({ label, value, color }) => (
+            <Grid item xs={6} md={3} key={label}>
+              <Card variant="outlined">
+                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Typography variant="caption" color="text.secondary" textTransform="uppercase">{label}</Typography>
+                  <Typography variant="h6" fontWeight={700} color={color}>{value}</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+
+        {!config && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Configure o valor mensal em{' '}
+            <a href="/admin/financeiro/config">Financeiro → Configuração</a> para ativar o controle.
+          </Alert>
+        )}
+
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
+          <Tab label="Médiuns" />
+          <Tab label="Gráfico" />
+        </Tabs>
+
+        {/* TAB: Médiuns */}
+        {tab === 0 && (
+          <>
+            <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+              <TextField
+                size="small"
+                placeholder="Buscar nome..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                sx={{ minWidth: 200 }}
+              />
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={filterStatus}
+                  label="Status"
+                  onChange={(e: SelectChangeEvent) => setFilterStatus(e.target.value as typeof filterStatus)}
+                >
+                  <MenuItem value="TODOS">Todos</MenuItem>
+                  <MenuItem value="PENDENTE">Pendente / Inadimplente</MenuItem>
+                  <MenuItem value="PAGO">Pagos</MenuItem>
+                  <MenuItem value="ISENTO">Isentos</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                <CircularProgress />
+              </Box>
+            ) : filtered.length === 0 ? (
+              <Paper sx={{ p: 4, textAlign: 'center' }}>
+                <CheckCircleIcon sx={{ fontSize: 48, color: 'success.light', mb: 1 }} />
+                <Typography color="text.secondary">
+                  {items.length === 0
+                    ? 'Nenhum médium ativo cadastrado.'
+                    : 'Nenhum resultado para os filtros selecionados.'}
+                </Typography>
+              </Paper>
+            ) : (
+              <TableContainer component={Paper}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Nome</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Vencimento</TableCell>
+                      <TableCell>Data Pag.</TableCell>
+                      <TableCell align="right">Valor Pago</TableCell>
+                      <TableCell>Comprovante</TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filtered.map((item) => (
+                      <TableRow key={item.mediun_id} hover>
+                        <TableCell>
+                          {item.mediun_nome}
+                          {item.mensalidade_isento && (
+                            <Chip label="isento perm." size="small" sx={{ ml: 1, fontSize: 11 }} />
+                          )}
+                        </TableCell>
+                        <TableCell>{statusChip(item)}</TableCell>
+                        <TableCell>
+                          {config ? `${String(config.dia_vencimento).padStart(2, '0')}/${mes.replace('-', '/')}` : '—'}
+                        </TableCell>
+                        <TableCell>
+                          {item.data_pagamento
+                            ? (() => { const d = item.data_pagamento.slice(0, 10); return `${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`; })()
+                            : '—'}
+                        </TableCell>
+                        <TableCell align="right">{item.status === 'PAGO' ? fmtBRL(item.valor_pago) : '—'}</TableCell>
+                        <TableCell>
+                          {item.comprovante_filename ? (
+                            <Tooltip title={item.comprovante_filename}>
+                              <IconButton size="small" onClick={() => handleDownloadComprovante(item)}>
+                                <DownloadIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          ) : (
+                            <AttachFileIcon fontSize="small" sx={{ color: 'text.disabled' }} />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Tooltip title="Registrar / Editar">
+                            <IconButton size="small" onClick={() => openDrawer(item)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </>
+        )}
+
+        {/* TAB: Gráfico */}
+        {tab === 1 && (
+          <Box>
+            {loadingResumo ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                <CircularProgress />
+              </Box>
+            ) : !resumo ? (
+              <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+                Nenhum dado disponível.
+              </Typography>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
+                    <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                    <RechartsTooltip formatter={(v: number) => fmtBRL(v)} />
+                    <Legend />
+                    <Bar dataKey="Esperado" fill="#bdbdbd" />
+                    <Bar dataKey="Arrecadado" fill={primaryColor} />
+                    <Bar dataKey="Projetado" fill="#c5cae9" />
+                  </BarChart>
+                </ResponsiveContainer>
+
+                <Grid container spacing={2} sx={{ mt: 2 }}>
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="caption" color="text.secondary">Médiums ativos</Typography>
+                        <Typography variant="h6" fontWeight={700}>{resumo.config.count_ativos}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="caption" color="text.secondary">Isentos</Typography>
+                        <Typography variant="h6" fontWeight={700}>{resumo.config.count_isentos}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="caption" color="text.secondary">Projeção mensal</Typography>
+                        <Typography variant="h6" fontWeight={700}>{fmtBRL(resumo.projecao[0]?.projetado ?? 0)}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  * Projeção baseada no valor mensal atual × número de médiuns pagantes ativos.
+                </Typography>
+              </>
+            )}
+          </Box>
+        )}
+      </Box>
+
+      {/* Registration Drawer */}
+      <CrudDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title={drawerItem ? `Mensalidade — ${drawerItem.mediun_nome}` : 'Registrar Mensalidade'}
+        onSave={handleSave}
+        saving={drawerSaving}
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          {drawerItem?.mensalidade_isento && (
+            <Alert severity="info">
+              Este médium possui isenção permanente configurada.
+            </Alert>
+          )}
+
+          {mes < toYYYYMM(hoje) && (
+            <Alert severity="warning">
+              Você está editando um mês passado. Verifique os dados antes de salvar.
+            </Alert>
+          )}
+
+          <FormControl size="small" fullWidth>
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={drawerStatus}
+              label="Status"
+              onChange={(e) => setDrawerStatus(e.target.value as 'PAGO' | 'PENDENTE' | 'ISENTO')}
+            >
+              <MenuItem value="PAGO">Pago</MenuItem>
+              <MenuItem value="PENDENTE">Pendente</MenuItem>
+              <MenuItem value="ISENTO">Isento</MenuItem>
+            </Select>
+          </FormControl>
+
+          {drawerStatus === 'PAGO' && (
+            <>
+              <TextField
+                size="small"
+                label="Data do pagamento"
+                type="date"
+                value={drawerDataPag}
+                onChange={(e) => setDrawerDataPag(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+              <NumericFormat
+                customInput={TextField}
+                size="small"
+                label="Valor pago (R$)"
+                fullWidth
+                value={drawerValorPago}
+                onValueChange={(values) => setDrawerValorPago(values.value)}
+                thousandSeparator="."
+                decimalSeparator=","
+                decimalScale={2}
+                fixedDecimalScale
+                prefix="R$ "
+                allowNegative={false}
+              />
+              <Box>
+                <Typography variant="caption" color="text.secondary">Comprovante (JPG, PNG, WebP, PDF — max 5MB)</Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  size="small"
+                  startIcon={<AttachFileIcon />}
+                  sx={{ mt: 0.5, display: 'block' }}
+                >
+                  {drawerFile ? drawerFile.name : 'Anexar arquivo'}
+                  <input
+                    type="file"
+                    hidden
+                    accept=".jpg,.jpeg,.png,.webp,.pdf"
+                    onChange={(e) => setDrawerFile(e.target.files?.[0] ?? null)}
+                  />
+                </Button>
+              </Box>
+            </>
+          )}
+
+          <TextField
+            size="small"
+            label="Observação"
+            multiline
+            rows={3}
+            value={drawerObs}
+            onChange={(e) => setDrawerObs(e.target.value)}
+            fullWidth
+          />
+        </Box>
+      </CrudDrawer>
+
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={4000}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snack.severity} onClose={() => setSnack((s) => ({ ...s, open: false }))}>
+          {snack.msg}
+        </Alert>
+      </Snackbar>
+    </AdminLayout>
+  );
+}

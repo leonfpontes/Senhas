@@ -100,6 +100,7 @@ const PLANS: PlanMeta[] = [
       'Médiuns ilimitados',
       'Tudo do Pro',
       'API access',
+      'Controle de mensalidade de médiuns',
       'Suporte prioritário',
     ],
   },

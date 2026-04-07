@@ -4,7 +4,7 @@ Last Updated: 2026-03-19
 Project: Senhas - Multi-Tenant SaaS Password Management
 Repository: leonfpontes/Senhas
 Default Branch: master
-Working Branch (atual): 001-multi-tenant-senhas
+Working Branch (atual): 002-financeiro-mensalidade
 VPS: 76.13.231.19 (Hostinger) — projeto clonado em /opt/senhas
 
 Este arquivo define como agentes de IA devem entender o sistema e como agir ao implementar mudanças com seguranca, qualidade e consistencia arquitetural.
@@ -233,9 +233,20 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009a + 009b → 010 (merge) → 011 (tenant endereco) → ... → 015 → 016 (remove enterprise).
+- 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009a + 009b → 010 (merge) → 011 (tenant endereco) → ... → 015 → 016 (remove enterprise) → ... → 026 (stripe billing) → 027 (mensalidade mediun).
 - Migracoes 009a e 009b foram merge na 010.
-- Ultima migracao: 016_remove_enterprise_plan.
+- Ultima migracao: 027_mensalidade_mediun.
+
+### 11.10 Financeiro — Controle de Mensalidade de Mediuns (branch 002-financeiro-mensalidade)
+- **Feature Premium**: disponivel apenas para tenants com plano PREMIUM (`mensalidade_mediun` flag via `subscription_info.py`).
+- **Modelos**: `MensalidadeConfig` (valor_mensal, dia_vencimento, 1:1 tenant), `MensalidadePagamento` (UNIQUE mediun_id+mes, BYTEA comprovante), `MensalidadeStatus` enum (PENDENTE/PAGO/ISENTO).
+- **Endpoints** (prefixo `/api/v1/admin/financeiro`): config GET/PUT, mensalidades GET/POST por mes, comprovante GET/DELETE, resumo GET (6 hist + 3 proj), relatorio POST enviar / GET download.
+- **Regras de acesso**: leitura para OPERATOR+ADMIN, escrita (PUT config, POST pagamento, DELETE comprovante, POST relatorio) somente ADMIN/SUPER_ADMIN.
+- **Comprovante**: BYTEA no banco, limite 5MB, tipos aceitos: jpeg/png/webp/pdf.
+- **Relatorio**: email HTML gerado por `render_mensalidade_report()` com KPI cards + tabela inadimplentes.
+- **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns + Grafico com Recharts) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`).
+- **Migration 027**: ENUM `mensalidade_status`, tabelas `mensalidade_configs` + `mensalidade_pagamentos`, coluna `mediuns.mensalidade_isento BOOLEAN DEFAULT false`.
+- **Dependencia**: `python-dateutil` (usado em `mensalidade_repo.get_resumo` via `dateutil.relativedelta`).
 
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).

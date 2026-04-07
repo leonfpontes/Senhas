@@ -56,6 +56,7 @@ class PlanFeatures(BaseModel):
     relatorio_gira: bool = False
     api_access: bool = False
     suporte_prioritario: bool = False
+    mensalidade_mediun: bool = False
 
 
 class SubscriptionInfoResponse(BaseModel):
@@ -91,6 +92,7 @@ def _get_plan_features(plan: PlanType) -> PlanFeatures:
         relatorio_gira=tier >= 1,
         api_access=tier >= 3,
         suporte_prioritario=tier >= 3,
+        mensalidade_mediun=tier >= 3,
     )
 
 

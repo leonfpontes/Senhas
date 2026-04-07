@@ -58,6 +58,8 @@ import SwapVertIcon from '@mui/icons-material/SwapVert';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import PaymentsIcon from '@mui/icons-material/Payments';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -223,6 +225,14 @@ function AdminLayoutInner({
   const isRelatoriosActive = relatoriosHrefs.includes(pathname);
   const [relatoriosOpen, setRelatoriosOpen] = useState(isRelatoriosActive);
 
+  const financeiroItems = can('mensalidade_mediun') ? [
+    { text: 'Mensalidades', icon: <PaymentsIcon />, href: '/admin/financeiro/mensalidades' },
+    { text: 'Configuração', icon: <AccountBalanceWalletIcon />, href: '/admin/financeiro/config' },
+  ] : [];
+  const financeiroHrefs = financeiroItems.map((i) => i.href);
+  const isFinanceiroActive = financeiroHrefs.includes(pathname);
+  const [financeiroOpen, setFinanceiroOpen] = useState(isFinanceiroActive);
+
   // Keep accordion groups open when navigating to a child route or when
   // subscription data finishes loading (can() may initially return false).
   useEffect(() => {
@@ -236,6 +246,10 @@ function AdminLayoutInner({
   useEffect(() => {
     if (isRelatoriosActive) setRelatoriosOpen(true);
   }, [isRelatoriosActive]);
+
+  useEffect(() => {
+    if (isFinanceiroActive) setFinanceiroOpen(true);
+  }, [isFinanceiroActive]);
 
   const topItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, href: '/admin/dashboard' },
@@ -500,6 +514,64 @@ function AdminLayoutInner({
           </>
         )}
 
+        {/* Financeiro group — Premium only */}
+        {can('mensalidade_mediun') && (
+          <>
+            <ListItem disablePadding>
+              <ListItemButton
+                onClick={() => setFinanceiroOpen(!financeiroOpen)}
+                sx={{
+                  borderRadius: 2,
+                  mx: 1,
+                  '& .MuiListItemIcon-root': { color: 'text.secondary' },
+                  ...(isFinanceiroActive && !financeiroOpen && {
+                    background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                    color: brandFont,
+                    '& .MuiListItemIcon-root': { color: brandFont },
+                    '& .MuiListItemText-primary': { color: brandFont },
+                  }),
+                }}
+              >
+                <ListItemIcon><AccountBalanceWalletIcon /></ListItemIcon>
+                <ListItemText primary="Financeiro" primaryTypographyProps={{ variant: 'body2', fontWeight: isFinanceiroActive ? 600 : 500 }} />
+                {financeiroOpen ? <ExpandLess /> : <ExpandMore />}
+              </ListItemButton>
+            </ListItem>
+            <Collapse in={financeiroOpen} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                {financeiroItems.map((item) => (
+                  <ListItem key={item.href} disablePadding>
+                    <Link href={item.href} passHref legacyBehavior>
+                      <ListItemButton
+                        selected={pathname === item.href}
+                        sx={{
+                          borderRadius: 2,
+                          mx: 1,
+                          pl: 4,
+                          '& .MuiListItemIcon-root': { color: 'text.secondary', minWidth: 36 },
+                          '&.Mui-selected': {
+                            background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                            color: brandFont,
+                            '& .MuiListItemIcon-root': { color: brandFont },
+                            '& .MuiListItemText-primary': { color: brandFont },
+                          },
+                          '&.Mui-selected:hover': {
+                            background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+                            filter: 'brightness(0.97)',
+                          },
+                        }}
+                      >
+                        <ListItemIcon>{item.icon}</ListItemIcon>
+                        <ListItemText primary={item.text} primaryTypographyProps={{ variant: 'body2', fontWeight: pathname === item.href ? 600 : 500 }} />
+                      </ListItemButton>
+                    </Link>
+                  </ListItem>
+                ))}
+              </List>
+            </Collapse>
+          </>
+        )}
+
         {/* Relatórios group — visible when at least one report feature is available */}
         {relatoriosItems.length > 0 && (
           <>
@@ -626,7 +698,7 @@ function AdminLayoutInner({
           />
         )}
         <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-          Senhas v2.2
+          Senhas v2.3
         </Typography>
       </Box>
     </Box>
