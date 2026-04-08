@@ -155,7 +155,12 @@ export default function PortaPage() {
   const loadGiras = async () => {
     try {
       const res = await apiClient.get('/api/v1/admin/giras');
-      const data = Array.isArray(res.data) ? res.data : res.data.items || [];
+      const all: Gira[] = Array.isArray(res.data) ? res.data : res.data.items || [];
+
+      // Exibir apenas giras que ainda não aconteceram ou que aconteceram há ≤ 1 dia
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const data = all.filter((g) => new Date(g.data_inicio) >= cutoff);
+
       setGiras(data);
       // Auto-select first active gira
       if (data.length > 0 && !selectedGiraId) {
