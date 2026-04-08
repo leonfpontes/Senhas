@@ -201,7 +201,6 @@ class TestEmailIntegration:
             gira_date="15/03/2026 às 18:00",
             gira_location="Centro Espírita",
             rescue_link="https://example.com/ticket/1",
-            qr_code_url="https://api.qrserver.com/v1/create-qr-code/?data=...",
             tenant_name="Espiritismo SP",
             tenant_logo_url="https://example.com/logo.png",
             tenant_color="#2E7D32",

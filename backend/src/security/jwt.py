@@ -145,8 +145,10 @@ def decode_token(token: str) -> TokenPayload:
         user_id = payload.get("sub")
         tenant_id = payload.get("tenant_id")  # None for SUPER_ADMIN
         role = payload.get("role")
-        
-        if not user_id or not role:
+
+        # tenant_id is required for all roles except super_admin
+        missing_tenant = not tenant_id and role != "super_admin"
+        if not user_id or not role or missing_tenant:
             raise InvalidTokenError("Token inválido: campos obrigatórios faltando")
         
         return TokenPayload(

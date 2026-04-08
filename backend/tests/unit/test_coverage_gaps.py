@@ -942,7 +942,6 @@ class TestTicketEmissionTemplate:
             gira_date="01/01/2024",
             gira_location="Sala Principal",
             rescue_link="http://example.com/rescue",
-            qr_code_url="http://example.com/qr.png",
             tenant_name="Centro Espirita",
             tenant_logo_url="http://example.com/logo.png",
         )
@@ -958,7 +957,6 @@ class TestTicketEmissionTemplate:
             gira_date="15/03/2024",
             gira_location="Templo",
             rescue_link="http://link",
-            qr_code_url="http://qr",
             tenant_name="Centro",
             tenant_logo_url="http://logo",
             tenant_color="#FF0000",

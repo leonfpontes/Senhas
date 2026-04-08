@@ -85,7 +85,7 @@ def _get_plan_features(plan: PlanType) -> PlanFeatures:
         analytics_avancado=tier >= 2,
         associados=tier >= 2,
         export_csv=tier >= 2,
-        bulk_operations=True,
+        bulk_operations=tier >= 1,
         auditoria=tier >= 2,
         estoque_controle=tier >= 2,
         mediuns=tier >= 1,

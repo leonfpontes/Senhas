@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.middleware.audit_logging import audit_logging_middleware
-from src.core.errors import UnauthorizedError
 from tests.conftest import TENANT_ID, USER_ID
 
 
@@ -38,17 +37,19 @@ class TestAuditLoggingMiddleware:
         await audit_logging_middleware(request, call_next)
         call_next.assert_called_once()
 
-    async def test_raises_when_no_user_id(self):
+    async def test_no_user_id_passes_through(self):
+        """Audit middleware lets the endpoint handle auth when user_id is absent."""
         request = _make_request(user_id=None)
-        call_next = AsyncMock()
-        with pytest.raises(UnauthorizedError):
-            await audit_logging_middleware(request, call_next)
+        call_next = AsyncMock(return_value=MagicMock(status_code=200))
+        await audit_logging_middleware(request, call_next)
+        call_next.assert_called_once()
 
-    async def test_raises_when_no_tenant_id(self):
+    async def test_no_tenant_id_passes_through(self):
+        """Audit middleware lets the endpoint handle auth when tenant_id is absent."""
         request = _make_request(tenant_id=None)
-        call_next = AsyncMock()
-        with pytest.raises(UnauthorizedError):
-            await audit_logging_middleware(request, call_next)
+        call_next = AsyncMock(return_value=MagicMock(status_code=200))
+        await audit_logging_middleware(request, call_next)
+        call_next.assert_called_once()
 
     @patch("src.middleware.audit_logging.AsyncSessionLocal")
     async def test_logs_successful_post(self, mock_session_cls):

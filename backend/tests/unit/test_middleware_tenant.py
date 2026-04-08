@@ -3,7 +3,6 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
 
 from src.middleware.tenant_context import tenant_context_middleware, get_tenant_id
 from src.core.errors import MultiTenantViolationError
@@ -75,7 +74,8 @@ class TestTenantContextMiddleware:
         await tenant_context_middleware(request, call_next)
         call_next.assert_called_once()
 
-    async def test_public_endpoint_with_invalid_uuid_raises(self):
+    async def test_public_endpoint_with_invalid_uuid_passes_through(self):
+        """Public paths are not validated by the middleware; endpoints handle it."""
         request = _make_request(
             path="/api/v1/public/next-gira",
             query_params={"tenant_id": "not-a-uuid"},
@@ -83,18 +83,17 @@ class TestTenantContextMiddleware:
         request.state = MagicMock(spec=[])
         request.state.tenant_id = None
         call_next = _make_call_next()
-        with pytest.raises(HTTPException) as exc_info:
-            await tenant_context_middleware(request, call_next)
-        assert exc_info.value.status_code == 400
+        await tenant_context_middleware(request, call_next)
+        call_next.assert_called_once()
 
-    async def test_public_endpoint_without_tenant_id_raises(self):
+    async def test_public_endpoint_without_tenant_id_passes_through(self):
+        """Public paths are not validated by the middleware; tenant resolved in endpoint."""
         request = _make_request(path="/api/v1/public/next-gira", query_params={})
         request.state = MagicMock(spec=[])
         request.state.tenant_id = None
         call_next = _make_call_next()
-        with pytest.raises(HTTPException) as exc_info:
-            await tenant_context_middleware(request, call_next)
-        assert exc_info.value.status_code == 400
+        await tenant_context_middleware(request, call_next)
+        call_next.assert_called_once()
 
 
 # ── GetTenantId ──────────────────────────────────────────────────────────────
