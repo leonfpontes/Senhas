@@ -30,10 +30,14 @@ class _ComparableMock:
 class _MockGiraClass:
     """Mock Gira model class with attributes that support comparisons."""
     tenant_id = _ComparableMock()
+    is_active = _ComparableMock()
     release_start_at = _ComparableMock()
     release_end_at = _ComparableMock()
     status = _ComparableMock()
     max_tickets = _ComparableMock()
+    sponsor_release_start_at = _ComparableMock()
+    sponsor_release_end_at = _ComparableMock()
+    sponsor_max_tickets = _ComparableMock()
 
 
 def _mock_db():
@@ -66,6 +70,19 @@ def _super_admin_user(tenant_id=None):
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # emit_ticket.py Coverage (Lines 143-294, 328-387)
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+def _make_starlette_request():
+    """Create a minimal Starlette Request that passes slowapi's isinstance check."""
+    from starlette.requests import Request as StarletteRequest
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/public/test/emit-ticket",
+        "headers": [],
+        "query_string": b"",
+    }
+    return StarletteRequest(scope)
+
+
 class TestEmitTicketEndpoint:
 
     async def test_emit_ticket_tenant_not_found(self):
@@ -73,9 +90,8 @@ class TestEmitTicketEndpoint:
         db = _mock_db()
         db.execute.return_value = _mock_result_scalar(None)
         req = EmitTicketRequest(name="Test", email="t@t.com")
-        bg = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket("bad-slug", req, bg, db)
+            await emit_ticket(_make_starlette_request(), "bad-slug", req, db)
         assert exc.value.status_code == 404
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -100,9 +116,8 @@ class TestEmitTicketEndpoint:
             _mock_result_scalar(None),
         ])
         req = EmitTicketRequest(name="Test", email="t@t.com")
-        bg = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket("test", req, bg, db)
+            await emit_ticket(_make_starlette_request(), "test", req, db)
         assert exc.value.status_code == 404
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -139,9 +154,8 @@ class TestEmitTicketEndpoint:
         MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, False))
         MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=True)
         req = EmitTicketRequest(name="Test", email="t@t.com")
-        bg = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket("test", req, bg, db)
+            await emit_ticket(_make_starlette_request(), "test", req, db)
         assert exc.value.status_code == 409
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -171,9 +185,8 @@ class TestEmitTicketEndpoint:
         ])
         MockConsRepo.return_value.upsert_consulente = AsyncMock(side_effect=ValueError("Invalid email"))
         req = EmitTicketRequest(name="Test", email="t@t.com")
-        bg = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket("test", req, bg, db)
+            await emit_ticket(_make_starlette_request(), "test", req, db)
         assert exc.value.status_code == 400
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -210,9 +223,8 @@ class TestEmitTicketEndpoint:
         MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
         MockSenhaRepo.return_value.increment_atomic = AsyncMock(return_value=11)  # > max_tickets
         req = EmitTicketRequest(name="Test", email="t@t.com")
-        bg = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket("test", req, bg, db)
+            await emit_ticket(_make_starlette_request(), "test", req, db)
         assert exc.value.status_code == 429
 
     @patch("src.api.v1.public.emit_ticket.TicketRepository")
@@ -238,9 +250,8 @@ class TestEmitTicketEndpoint:
         MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
         MockSenhaRepo.return_value.increment_atomic = AsyncMock(side_effect=ValueError("fail"))
         req = EmitTicketRequest(name="Test", email="t@t.com")
-        bg = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket("test", req, bg, db)
+            await emit_ticket(_make_starlette_request(), "test", req, db)
         assert exc.value.status_code == 500
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -268,18 +279,20 @@ class TestEmitTicketEndpoint:
         tenant.brand_color = "#000"
         gira = MagicMock()
         gira.id = GIRA_ID
-        gira.name = "Gira Teste"
+        gira.nome = "Gira Teste"
         gira.max_tickets = 100
-        gira.release_start_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        gira.location = "Sala 1"
+        gira.data_inicio = None
+        gira.local = "Sala 1"
         db.execute = AsyncMock(side_effect=[
             _mock_result_scalar(tenant),
             _mock_result_scalar(gira),
+            _mock_result_scalar(None),  # TenantConfig query (colors/address/logo)
         ])
         consulente = MagicMock()
         consulente.id = uuid4()
         consulente.email = "t@t.com"
-        consulente.name = "Test"
+        consulente.nome = "Test"
+        consulente.telefone = None
         MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, True))
         MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=False)
         MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
@@ -288,11 +301,11 @@ class TestEmitTicketEndpoint:
         ticket.id = TICKET_ID
         MockTicketRepo.return_value.create_ticket = AsyncMock(return_value=ticket)
         req = EmitTicketRequest(name="Test", email="t@t.com")
-        bg = MagicMock()
-        result = await emit_ticket("test", req, bg, db)
+        with patch("src.api.v1.public.emit_ticket.email_queue") as mock_queue:
+            result = await emit_ticket(_make_starlette_request(), "test", req, db)
         assert result.ticket_number == "0042"
         assert result.email_sent is True
-        bg.add_task.assert_called_once()
+        mock_queue.enqueue.assert_called_once()
 
     @patch("src.api.v1.public.emit_ticket.TicketRepository")
     @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")
@@ -305,61 +318,29 @@ class TestEmitTicketEndpoint:
         db = _mock_db()
         db.execute = AsyncMock(side_effect=RuntimeError("DB down"))
         req = EmitTicketRequest(name="Test", email="t@t.com")
-        bg = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket("test", req, bg, db)
+            await emit_ticket(_make_starlette_request(), "test", req, db)
         assert exc.value.status_code == 500
 
-    # _send_ticket_email
+    # _send_ticket_email was replaced by email_queue.enqueue() — tests skipped
+    @pytest.mark.skip(reason="_send_ticket_email removed; email now via email_queue.enqueue")
     @patch("src.api.v1.public.emit_ticket.BrevoEmailService")
     @patch("src.api.v1.public.emit_ticket.generate_ticket_emission_html", return_value="<html>")
     @patch("src.api.v1.public.emit_ticket.generate_plain_text_fallback", return_value="text")
     async def test_send_ticket_email_brevo_success(self, mock_text, mock_html, MockBrevo):
-        from src.api.v1.public.emit_ticket import _send_ticket_email
-        MockBrevo.return_value.is_healthy = AsyncMock(return_value=True)
-        MockBrevo.return_value.send_async = AsyncMock(return_value=True)
-        await _send_ticket_email(
-            "0042", "Test", "t@t.com", "Gira", "01/01", "Sala",
-            "http://link", "http://qr", "Tenant", "http://logo", "#000"
-        )
-        MockBrevo.return_value.send_async.assert_awaited_once()
+        pass
 
-    @patch("src.api.v1.public.emit_ticket.ResendEmailService")
-    @patch("src.api.v1.public.emit_ticket.BrevoEmailService")
-    @patch("src.api.v1.public.emit_ticket.generate_ticket_emission_html", return_value="<html>")
-    @patch("src.api.v1.public.emit_ticket.generate_plain_text_fallback", return_value="text")
-    async def test_send_ticket_email_brevo_fails_resend_succeeds(self, mock_text, mock_html, MockBrevo, MockResend):
-        from src.api.v1.public.emit_ticket import _send_ticket_email
-        MockBrevo.return_value.is_healthy = AsyncMock(side_effect=Exception("Brevo down"))
-        MockResend.return_value.is_healthy = AsyncMock(return_value=True)
-        MockResend.return_value.send_async = AsyncMock(return_value=True)
-        await _send_ticket_email(
-            "0042", "Test", "t@t.com", "Gira", "01/01", "Sala",
-            "http://link", "http://qr", "Tenant", "http://logo", "#000"
-        )
-        MockResend.return_value.send_async.assert_awaited_once()
+    @pytest.mark.skip(reason="_send_ticket_email removed; email now via email_queue.enqueue")
+    async def test_send_ticket_email_brevo_fails_resend_succeeds(self):
+        pass
 
-    @patch("src.api.v1.public.emit_ticket.ResendEmailService")
-    @patch("src.api.v1.public.emit_ticket.BrevoEmailService")
-    @patch("src.api.v1.public.emit_ticket.generate_ticket_emission_html", return_value="<html>")
-    @patch("src.api.v1.public.emit_ticket.generate_plain_text_fallback", return_value="text")
-    async def test_send_ticket_email_all_fail(self, mock_text, mock_html, MockBrevo, MockResend):
-        from src.api.v1.public.emit_ticket import _send_ticket_email
-        MockBrevo.return_value.is_healthy = AsyncMock(return_value=True)
-        MockBrevo.return_value.send_async = AsyncMock(return_value=False)
-        MockResend.return_value.is_healthy = AsyncMock(side_effect=Exception("Resend down"))
-        await _send_ticket_email(
-            "0042", "Test", "t@t.com", "Gira", "01/01", "Sala",
-            "http://link", "http://qr", "Tenant", "http://logo", "#000"
-        )
+    @pytest.mark.skip(reason="_send_ticket_email removed; email now via email_queue.enqueue")
+    async def test_send_ticket_email_all_fail(self):
+        pass
 
-    @patch("src.api.v1.public.emit_ticket.generate_ticket_emission_html", side_effect=Exception("template error"))
-    async def test_send_ticket_email_template_error(self, mock_html):
-        from src.api.v1.public.emit_ticket import _send_ticket_email
-        await _send_ticket_email(
-            "0042", "Test", "t@t.com", "Gira", "01/01", "Sala",
-            "http://link", "http://qr", "Tenant", "http://logo", "#000"
-        )
+    @pytest.mark.skip(reason="_send_ticket_email removed; email now via email_queue.enqueue")
+    async def test_send_ticket_email_template_error(self):
+        pass
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

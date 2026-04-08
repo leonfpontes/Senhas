@@ -29,7 +29,9 @@ async def jwt_middleware(request: Request, call_next: Callable) -> any:
         return await call_next(request)
     
     # Skip JWT validation for public paths
-    public_paths = ["/health", "/docs", "/openapi.json", "/api/v1/auth/login", "/api/v1/webhooks/stripe"]
+    # Note: /docs and /openapi.json are disabled in production (FastAPI config);
+    # they are kept here only for local DEBUG use.
+    public_paths = ["/health", "/docs", "/redoc", "/openapi.json", "/api/v1/auth/login", "/api/v1/webhooks/stripe"]
     if request.url.path in public_paths or request.url.path.startswith("/api/v1/public"):
         return await call_next(request)
     

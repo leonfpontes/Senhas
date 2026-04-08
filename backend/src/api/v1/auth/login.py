@@ -5,6 +5,7 @@ from pydantic import BaseModel, EmailStr
 
 from src.core.database import get_db
 from src.core.errors import ValidationError, UnauthorizedError, NotFoundError
+from src.core.config import DUMMY_BCRYPT_HASH
 from src.models import User
 from src.api.dependencies import get_current_user
 from src.security import (
@@ -64,15 +65,20 @@ async def login(
     )
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
-    
+
     if not user:
-        log_security_event("login", success=False, details={"email": request.email})
-        raise NotFoundError("Usuário")
-    
+        # Run a dummy bcrypt verification to normalise response time and prevent
+        # user enumeration via timing side-channel (real verify takes ~100ms).
+        verify_password(request.password, DUMMY_BCRYPT_HASH)
+        log_security_event("login", success=False, details={"reason": "user_not_found", "email": request.email})
+        raise UnauthorizedError("Credenciais inválidas")
+
     if not user.is_active:
+        # Also consume bcrypt time to keep responses uniform
+        verify_password(request.password, DUMMY_BCRYPT_HASH)
         log_security_event("login", success=False, user_id=user.id, details={"reason": "inactive"})
-        raise UnauthorizedError("Usuário inativo")
-    
+        raise UnauthorizedError("Credenciais inválidas")
+
     # Verify password
     if not verify_password(request.password, user.password_hash):
         log_security_event("login", success=False, user_id=user.id, details={"reason": "invalid_password"})
