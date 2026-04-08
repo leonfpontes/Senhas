@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 import logging
 
 from .core.config import settings
@@ -40,6 +42,8 @@ from .models import (
     FeatureFlag,
 )
 
+
+from .core.limiter import limiter
 
 logger = logging.getLogger("senhas")
 
@@ -86,7 +90,16 @@ def create_app() -> FastAPI:
         version=settings.APP_VERSION,
         description="Sistema Multi-Tenant de Gestão de Senhas para Terreiros de Umbanda",
         lifespan=lifespan,
+        # Disable interactive docs in production to avoid exposing the full API
+        # schema to unauthenticated users. Re-enabled when DEBUG=True.
+        docs_url="/docs" if settings.DEBUG else None,
+        redoc_url="/redoc" if settings.DEBUG else None,
+        openapi_url="/openapi.json" if settings.DEBUG else None,
     )
+
+    # Attach rate limiter state and 429 handler
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     
     # ============================================
     # MIDDLEWARE STACK
@@ -125,8 +138,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
     )
     
     # ============================================

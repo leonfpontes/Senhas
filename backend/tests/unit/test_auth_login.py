@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.api.v1.auth.login import LoginRequest, LoginResponse, login, logout
-from src.core.errors import ValidationError, UnauthorizedError, NotFoundError
+from src.core.errors import ValidationError, UnauthorizedError
 from src.models import User, UserRole
 from tests.conftest import TENANT_ID, USER_ID
 
@@ -17,7 +17,6 @@ class TestLoginRequest:
         req = LoginRequest(
             email="user@test.com",
             password="MySecurePass123!",
-            tenant_id=str(TENANT_ID),
         )
         assert req.email == "user@test.com"
 
@@ -26,7 +25,6 @@ class TestLoginRequest:
             LoginRequest(
                 email="not-an-email",
                 password="pass",
-                tenant_id=str(TENANT_ID),
             )
 
 
@@ -45,7 +43,6 @@ class TestLoginEndpoint:
         request = LoginRequest(
             email="admin@test.com",
             password="ValidPassword123!",
-            tenant_id=str(TENANT_ID),
         )
         response = MagicMock()
 
@@ -54,16 +51,6 @@ class TestLoginEndpoint:
         assert result.token_type == "bearer"
         assert result.user["email"] == "admin@test.com"
         response.set_cookie.assert_called_once()
-
-    async def test_invalid_tenant_id_raises(self, mock_db_session):
-        request = LoginRequest(
-            email="admin@test.com",
-            password="pass",
-            tenant_id="not-a-uuid",
-        )
-        response = MagicMock()
-        with pytest.raises(ValidationError):
-            await login(request, response, mock_db_session)
 
     @patch("src.api.v1.auth.login.log_security_event")
     async def test_user_not_found_raises(self, mock_log, mock_db_session):
@@ -74,10 +61,9 @@ class TestLoginEndpoint:
         request = LoginRequest(
             email="noone@test.com",
             password="pass",
-            tenant_id=str(TENANT_ID),
         )
         response = MagicMock()
-        with pytest.raises(NotFoundError):
+        with pytest.raises(UnauthorizedError):
             await login(request, response, mock_db_session)
 
     @patch("src.api.v1.auth.login.log_security_event")
@@ -94,7 +80,6 @@ class TestLoginEndpoint:
         request = LoginRequest(
             email="inactive@test.com",
             password="pass",
-            tenant_id=str(TENANT_ID),
         )
         response = MagicMock()
         with pytest.raises(UnauthorizedError):
@@ -110,7 +95,6 @@ class TestLoginEndpoint:
         request = LoginRequest(
             email="admin@test.com",
             password="wrong-password",
-            tenant_id=str(TENANT_ID),
         )
         response = MagicMock()
         with pytest.raises(UnauthorizedError):

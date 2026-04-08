@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 import pytest
 
 from src.middleware.jwt_middleware import jwt_middleware
-from src.core.errors import UnauthorizedError, InvalidTokenError
+from src.core.errors import InvalidTokenError
 from tests.conftest import TENANT_ID, USER_ID
 
 
@@ -60,23 +60,23 @@ class TestJwtMiddlewareSkipPaths:
 
 
 class TestJwtMiddlewareAuth:
-    async def test_no_auth_header_raises(self):
+    async def test_no_auth_header_passes_through(self):
         request = _make_request(path="/api/v1/admin/giras", auth_header=None)
         call_next = _make_call_next()
-        with pytest.raises(UnauthorizedError):
-            await jwt_middleware(request, call_next)
+        await jwt_middleware(request, call_next)
+        call_next.assert_called_once()
 
-    async def test_invalid_format_raises(self):
+    async def test_invalid_format_returns_401(self):
         request = _make_request(path="/api/v1/admin/giras", auth_header="InvalidFormat")
         call_next = _make_call_next()
-        with pytest.raises(UnauthorizedError):
-            await jwt_middleware(request, call_next)
+        response = await jwt_middleware(request, call_next)
+        assert response.status_code == 401
 
-    async def test_non_bearer_scheme_raises(self):
+    async def test_non_bearer_scheme_returns_401(self):
         request = _make_request(path="/api/v1/admin/giras", auth_header="Basic abc123")
         call_next = _make_call_next()
-        with pytest.raises(UnauthorizedError):
-            await jwt_middleware(request, call_next)
+        response = await jwt_middleware(request, call_next)
+        assert response.status_code == 401
 
     @patch("src.middleware.jwt_middleware.decode_token")
     async def test_valid_token_sets_state(self, mock_decode):
@@ -100,7 +100,7 @@ class TestJwtMiddlewareAuth:
 
     @patch("src.middleware.jwt_middleware.decode_token")
     @patch("src.middleware.jwt_middleware.log_security_event")
-    async def test_invalid_token_raises_unauthorized(self, mock_log, mock_decode):
+    async def test_invalid_token_returns_401(self, mock_log, mock_decode):
         mock_decode.side_effect = InvalidTokenError("Token expirado")
 
         request = _make_request(
@@ -108,13 +108,13 @@ class TestJwtMiddlewareAuth:
             auth_header="Bearer expired-token",
         )
         call_next = _make_call_next()
-        with pytest.raises(UnauthorizedError):
-            await jwt_middleware(request, call_next)
+        response = await jwt_middleware(request, call_next)
+        assert response.status_code == 401
         mock_log.assert_called_once()
 
     @patch("src.middleware.jwt_middleware.decode_token")
     @patch("src.middleware.jwt_middleware.log_security_event")
-    async def test_unexpected_error_raises_unauthorized(self, mock_log, mock_decode):
+    async def test_unexpected_error_returns_401(self, mock_log, mock_decode):
         mock_decode.side_effect = RuntimeError("unexpected")
 
         request = _make_request(
@@ -122,5 +122,5 @@ class TestJwtMiddlewareAuth:
             auth_header="Bearer bad-token",
         )
         call_next = _make_call_next()
-        with pytest.raises(UnauthorizedError):
-            await jwt_middleware(request, call_next)
+        response = await jwt_middleware(request, call_next)
+        assert response.status_code == 401

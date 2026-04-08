@@ -9,9 +9,9 @@ This is the heart of the product. Handles atomic ticket emission with:
 - Comprehensive error handling
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select, and_
 from datetime import datetime, timezone
 import json
@@ -35,6 +35,7 @@ from src.services.email.templates.ticket_emission import (
     generate_ticket_emission_html,
     generate_plain_text_fallback,
 )
+from src.core.limiter import limiter
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 logger = logging.getLogger(__name__)
@@ -49,9 +50,9 @@ class EmitTicketRequest(BaseModel):
         phone: Phone number (optional, for contact)
     """
 
-    name: str
+    name: str = Field(..., min_length=2, max_length=255)
     email: EmailStr
-    phone: str | None = None
+    phone: str | None = Field(None, max_length=20)
     preferencial: bool = False
 
     class Config:
@@ -81,11 +82,12 @@ class EmitTicketResponse(BaseModel):
 
 
 @router.post("/emit-ticket", response_model=EmitTicketResponse)
+@limiter.limit("30/minute")
 async def emit_ticket(
+    request: Request,
     tenant_slug: str,
-    request: EmitTicketRequest,
+    body: EmitTicketRequest,
     session: AsyncSession = Depends(get_db),
-    tipo: str = "comum",
 ):
     """Emit a new ticket for public consultee
 
@@ -145,7 +147,10 @@ async def emit_ticket(
     """
 
     try:
-        is_sponsor = tipo in ("patrocinador", "associado")
+        # tipo=patrocinador is no longer accepted via public query param.
+        # Sponsor/associado emission must be triggered via the dedicated
+        # /emit-associado endpoint (admin-controlled or gated by config).
+        is_sponsor = False
 
         # === STEP 1: Validate Tenant ===
         tenant_query = select(Tenant).where(
@@ -157,7 +162,7 @@ async def emit_ticket(
         if not tenant:
             raise HTTPException(
                 status_code=404,
-                detail=f"Tenant '{tenant_slug}' not found",
+                detail="Recurso não encontrado",
             )
 
         # === STEP 2: Validate Gira Active and Has Capacity ===
@@ -198,10 +203,9 @@ async def emit_ticket(
         gira = gira_result.scalar_one_or_none()
 
         if not gira:
-            msg = "No active gira available for sponsor ticket emission" if is_sponsor else "No active gira available for ticket emission"
             raise HTTPException(
                 status_code=404,
-                detail=msg,
+                detail="Nenhuma gira disponível para emissão no momento",
             )
 
         # === STEP 2b: Validate Associado Email (if enabled) ===
@@ -212,7 +216,7 @@ async def emit_ticket(
             if tc and tc.validate_associado_on_emit:
                 from src.repositories.associado_repo import AssociadoRepository
                 assoc_repo = AssociadoRepository(session)
-                if not await assoc_repo.email_exists(tenant.id, request.email):
+                if not await assoc_repo.email_exists(tenant.id, body.email):
                     raise HTTPException(
                         status_code=422,
                         detail="E-mail de associado não encontrado. Revise as informações digitadas e tente novamente.",
@@ -231,9 +235,9 @@ async def emit_ticket(
             consulente, is_new = await consulente_repo.upsert_consulente(
                 session=session,
                 tenant_id=tenant.id,
-                name=request.name,
-                email=request.email,
-                phone=request.phone,
+                name=body.name,
+                email=body.email,
+                phone=body.phone,
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -248,10 +252,9 @@ async def emit_ticket(
         )
 
         if has_duplicate:
-            msg = "This email already has a sponsor ticket for this gira" if is_sponsor else "This email already has a ticket for this gira"
             raise HTTPException(
                 status_code=409,
-                detail=msg,
+                detail="Este e-mail já possui uma senha emitida para esta gira",
             )
 
         # === STEP 6: Get or Create SenhaControl (for atomic counting) ===
@@ -283,7 +286,7 @@ async def emit_ticket(
             await session.rollback()
             raise HTTPException(
                 status_code=429,
-                detail="All sponsor tickets for this gira have been emitted" if is_sponsor else "All tickets for this gira have been emitted",
+                detail="Todas as senhas desta gira já foram emitidas",
             )
 
         # === STEP 8: Create Ticket Record ===
@@ -291,7 +294,7 @@ async def emit_ticket(
         obs_payload: dict = {}
         if is_sponsor:
             obs_payload["patrocinador"] = True
-        if request.preferencial:
+        if body.preferencial:
             obs_payload["preferencial"] = True
         observacoes = json.dumps(obs_payload) if obs_payload else None
         ticket = await ticket_repo.create_ticket(

@@ -29,7 +29,8 @@ class TestSettings:
         s = Settings()
         assert "http://localhost:3000" in s.CORS_ORIGINS
 
-    def test_default_app_info(self):
+    def test_default_app_info(self, monkeypatch):
+        monkeypatch.delenv("DEBUG", raising=False)
         s = Settings()
         assert s.APP_NAME == "Senhas API"
         assert s.DEBUG is False
