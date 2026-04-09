@@ -7,6 +7,7 @@ from sqlalchemy import select, func, and_, or_, desc, Integer, case
 from sqlalchemy.sql import text
 
 from ..models import Ticket, TicketStatus, Gira
+from ..core.tz import local_hour, local_date, today_utc_range
 
 
 class TicketAnalyticsRepository:
@@ -140,15 +141,15 @@ class TicketAnalyticsRepository:
         conditions = self._build_conditions(tenant_id, gira_id, start_date, date_to)
         where_clause = and_(*conditions)
         
-        # Query daily breakdown
+        # Query daily breakdown (group by local São Paulo date, not UTC)
         stmt = select(
-            func.date(Ticket.created_at).label("date"),
+            local_date(Ticket.created_at).label("date"),
             func.count(Ticket.id).label("total"),
             func.sum(case((Ticket.status == TicketStatus.COMPLETED, 1), else_=0)).label("completed"),
             func.sum(case((and_(Ticket.is_sponsor.is_(False), Ticket.is_walk_in.is_(False)), 1), else_=0)).label("common"),
             func.sum(case((Ticket.is_sponsor.is_(True), 1), else_=0)).label("sponsor"),
             func.sum(case((Ticket.is_walk_in.is_(True), 1), else_=0)).label("walk_in"),
-        ).where(where_clause).group_by(func.date(Ticket.created_at)).order_by("date")
+        ).where(where_clause).group_by(local_date(Ticket.created_at)).order_by("date")
         
         result = await self.db.execute(stmt)
         rows = result.all()
@@ -175,10 +176,7 @@ class TicketAnalyticsRepository:
         Returns:
             Dict with today's emitted, completed counts
         """
-        from datetime import datetime
-        
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = today_start + timedelta(days=1)
+        today_start, today_end = today_utc_range()
         
         conditions = [
             Ticket.created_at >= today_start,
@@ -299,11 +297,11 @@ class TicketAnalyticsRepository:
         conditions = self._build_conditions(tenant_id, gira_id, start_date, date_to)
         where_clause = and_(*conditions)
         
-        # Group by hour
+        # Group by local São Paulo hour (not raw UTC)
         stmt = select(
-            func.extract("hour", Ticket.created_at).label("hour"),
+            local_hour(Ticket.created_at).label("hour"),
             func.count(Ticket.id).label("count"),
-        ).where(where_clause).group_by("hour").order_by(desc("count"))
+        ).where(where_clause).group_by(local_hour(Ticket.created_at)).order_by(desc("count"))
         
         result = await self.db.execute(stmt)
         rows = result.all()
