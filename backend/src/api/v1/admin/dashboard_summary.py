@@ -1,7 +1,7 @@
 """Admin Dashboard Summary — aggregated endpoint for the dashboard home."""
-import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+import traceback
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -242,62 +242,65 @@ async def get_dashboard_summary(
     analytics_repo = TicketAnalyticsRepository(db)
     sub_repo = SubscriptionRepository(db)
 
-    # Determine plan info + feature flags
-    sub = await sub_repo.get_by_tenant(tenant_id)
-    plan_type = sub.plan if sub else PlanType.FREE
-    tier = _PLAN_TIER.get(plan_type, 0)
-    has_estoque = tier >= 2
+    step = "get_subscription"
+    try:
+        # Determine plan info + feature flags
+        sub = await sub_repo.get_by_tenant(tenant_id)
+        plan_type = sub.plan if sub else PlanType.FREE
+        tier = _PLAN_TIER.get(plan_type, 0)
+        has_estoque = tier >= 2
 
-    plan_badge = PlanBadge(
-        name=plan_type.value if hasattr(plan_type, "value") else str(plan_type),
-        label={"free": "Free", "basic": "Basic", "pro": "Pro", "premium": "Premium"}.get(
-            plan_type.value if hasattr(plan_type, "value") else "free", "Free"
-        ),
-        status=sub.status.value if sub else "active",
-    )
+        plan_badge = PlanBadge(
+            name=plan_type.value if hasattr(plan_type, "value") else str(plan_type),
+            label={"free": "Free", "basic": "Basic", "pro": "Pro", "premium": "Premium"}.get(
+                plan_type.value if hasattr(plan_type, "value") else "free", "Free"
+            ),
+            status=sub.status.value if sub else "active",
+        )
 
-    # Fire all independent queries in parallel
-    now = datetime.now(timezone.utc)
-    seven_days_ago = now - timedelta(days=7)
+        step = "get_upcoming_giras"
+        upcoming_giras = await _get_upcoming_giras(db, tenant_id, limit=3)
 
-    (
-        upcoming_giras,
-        total_stats,
-        today_stats,
-        daily_dist,
-        category_bkdn,
-        peak_hours,
-        estoque_result,
-    ) = await asyncio.gather(
-        _get_upcoming_giras(db, tenant_id, limit=3),
-        analytics_repo.get_total_stats(tenant_id=tenant_id),
-        analytics_repo.get_today_stats(tenant_id=tenant_id),
-        analytics_repo.get_daily_distribution(
-            tenant_id=tenant_id, days=7,
-        ),
-        analytics_repo.get_category_breakdown(tenant_id=tenant_id),
-        analytics_repo.get_peak_hours(tenant_id=tenant_id, days=7),
-        _get_estoque_data(db, tenant_id, has_estoque),
-    )
+        step = "get_total_stats"
+        total_stats = await analytics_repo.get_total_stats(tenant_id=tenant_id)
 
-    estoque_alerts, estoque_summary = estoque_result
+        step = "get_today_stats"
+        today_stats = await analytics_repo.get_today_stats(tenant_id=tenant_id)
 
-    ticket_stats = TicketStats(
-        total_emitted=total_stats["total_emitted"],
-        total_used=total_stats["total_used"],
-        total_cancelled=total_stats["total_cancelled"],
-        usage_rate=total_stats["usage_rate"],
-        emitted_today=today_stats["emitted_today"],
-        used_today=today_stats["used_today"],
-        walk_in_total=category_bkdn.get("walk_in", 0),
-    )
+        step = "get_daily_distribution"
+        daily_dist = await analytics_repo.get_daily_distribution(tenant_id=tenant_id, days=7)
 
-    return DashboardSummaryResponse(
-        upcoming_giras=upcoming_giras,
-        ticket_stats=ticket_stats,
-        daily_distribution=[DailyDistItem(**d) for d in daily_dist],
-        peak_hours=[PeakHourItem(**h) for h in peak_hours[:5]],
-        estoque_alerts=estoque_alerts,
-        estoque_summary=estoque_summary,
-        plan=plan_badge,
-    )
+        step = "get_category_breakdown"
+        category_bkdn = await analytics_repo.get_category_breakdown(tenant_id=tenant_id)
+
+        step = "get_peak_hours"
+        peak_hours = await analytics_repo.get_peak_hours(tenant_id=tenant_id, days=7)
+
+        step = "get_estoque_data"
+        estoque_result = await _get_estoque_data(db, tenant_id, has_estoque)
+        estoque_alerts, estoque_summary = estoque_result
+
+        ticket_stats = TicketStats(
+            total_emitted=total_stats["total_emitted"],
+            total_used=total_stats["total_used"],
+            total_cancelled=total_stats["total_cancelled"],
+            usage_rate=total_stats["usage_rate"],
+            emitted_today=today_stats["emitted_today"],
+            used_today=today_stats["used_today"],
+            walk_in_total=category_bkdn.get("walk_in", 0),
+        )
+
+        return DashboardSummaryResponse(
+            upcoming_giras=upcoming_giras,
+            ticket_stats=ticket_stats,
+            daily_distribution=[DailyDistItem(**d) for d in daily_dist],
+            peak_hours=[PeakHourItem(**h) for h in peak_hours[:5]],
+            estoque_alerts=estoque_alerts,
+            estoque_summary=estoque_summary,
+            plan=plan_badge,
+        )
+
+    except Exception as exc:
+        tb = traceback.format_exc()
+        logger.error("dashboard-summary FAILED at step=%s | %s\n%s", step, exc, tb)
+        raise

@@ -48,8 +48,7 @@ class Ticket(SoftDeleteModel):
     
     numero: Mapped[int] = mapped_column(Integer, nullable=False)  # Sequential ticket number
     status: Mapped[TicketStatus] = mapped_column(
-        SQLEnum(TicketStatus, name="ticket_status", create_constraint=False,
-                values_callable=lambda e: [x.name for x in e]),
+        SQLEnum(TicketStatus, name="ticket_status", create_constraint=False),
         default=TicketStatus.EMITTED, nullable=False,
     )
     chamado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

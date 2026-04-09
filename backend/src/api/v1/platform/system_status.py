@@ -5,7 +5,6 @@ operational history derived from audit_logs activity.
 
 No authentication required — intended for the public /status page.
 """
-import asyncio
 import time
 from datetime import datetime, timezone, timedelta, date
 from typing import Any
@@ -113,12 +112,10 @@ async def get_status(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """
     all_days = _date_range(HISTORY_DAYS)
 
-    # Parallel queries
-    db_health, audit_days, ticket_days = await asyncio.gather(
-        _check_db(db),
-        _audit_log_days(db),
-        _ticket_days(db),
-    )
+    # Sequential — asyncpg does not support concurrent ops on the same connection
+    db_health = await _check_db(db)
+    audit_days = await _audit_log_days(db)
+    ticket_days = await _ticket_days(db)
 
     # API history: union of audit + ticket days (if we got any request, system was up)
     api_active = audit_days | ticket_days

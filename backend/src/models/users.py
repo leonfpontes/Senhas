@@ -49,8 +49,7 @@ class User(SoftDeleteModel):
     profile_photo_content_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
-        SQLEnum(UserRole, name="user_role", create_constraint=False,
-                values_callable=lambda e: [x.name for x in e]),
+        SQLEnum(UserRole, name="user_role", create_constraint=False),
         default=UserRole.OPERATOR, nullable=False,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

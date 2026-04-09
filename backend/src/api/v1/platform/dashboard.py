@@ -1,5 +1,4 @@
 """Platform API - Dashboard aggregates endpoint."""
-import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -184,29 +183,16 @@ async def get_dashboard(
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Return aggregated platform metrics for the super-admin dashboard.
-
-    All queries run in parallel via asyncio.gather for minimal latency.
-    """
-    (
-        tenants,
-        user_count,
-        tickets,
-        mrr,
-        plans_dist,
-        daily_tickets,
-        tenant_growth,
-        top_tenants,
-    ) = await asyncio.gather(
-        _tenant_counts(db),
-        _user_count(db),
-        _ticket_counts(db),
-        _mrr(db),
-        _plans_distribution(db),
-        _daily_tickets(db),
-        _tenant_growth(db),
-        _top_tenants(db),
-    )
+    """Return aggregated platform metrics for the super-admin dashboard."""
+    # Sequential — asyncpg does not support concurrent ops on the same connection
+    tenants = await _tenant_counts(db)
+    user_count = await _user_count(db)
+    tickets = await _ticket_counts(db)
+    mrr = await _mrr(db)
+    plans_dist = await _plans_distribution(db)
+    daily_tickets = await _daily_tickets(db)
+    tenant_growth = await _tenant_growth(db)
+    top_tenants = await _top_tenants(db)
 
     return {
         "tenants": tenants,
