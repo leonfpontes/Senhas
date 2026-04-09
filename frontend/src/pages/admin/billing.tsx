@@ -25,6 +25,7 @@ import CreditCardIcon from '@mui/icons-material/CreditCard';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import StarIcon from '@mui/icons-material/Star';
+import ReplayIcon from '@mui/icons-material/Replay';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import { useRouter } from 'next/router';
@@ -118,6 +119,7 @@ export default function AdminBilling() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [cancelDialog, setCancelDialog] = useState(false);
+  const [reactivateDialog, setReactivateDialog] = useState(false);
 
   const fetchBilling = useCallback(async () => {
     try {
@@ -186,6 +188,21 @@ export default function AdminBilling() {
       await fetchBilling();
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Erro ao cancelar assinatura');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReactivate = async () => {
+    setReactivateDialog(false);
+    setActionLoading('reactivate');
+    setError(null);
+    try {
+      await apiClient.post('/api/v1/admin/billing/reactivate');
+      setSuccess('Assinatura reativada! As cobranças serão retomadas normalmente.');
+      await fetchBilling();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Erro ao reativar assinatura');
     } finally {
       setActionLoading(null);
     }
@@ -292,6 +309,25 @@ export default function AdminBilling() {
                           onClick={() => setCancelDialog(true)}
                         >
                           {actionLoading === 'cancel' ? 'Cancelando...' : 'Cancelar assinatura'}
+                        </Button>
+                      </Box>
+                    )}
+
+                    {!billing.is_bonus && billing.cancel_at_period_end && (
+                      <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                        <Alert severity="warning" sx={{ flexGrow: 1, py: 0.5 }}>
+                          Cancelamento agendado para {formatDate(billing.current_period_end)}. Você perderá o acesso após essa data.
+                        </Alert>
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          disabled={actionLoading === 'reactivate'}
+                          startIcon={<ReplayIcon />}
+                          onClick={() => setReactivateDialog(true)}
+                          sx={{ whiteSpace: 'nowrap' }}
+                        >
+                          {actionLoading === 'reactivate' ? 'Reativando...' : 'Reativar assinatura'}
                         </Button>
                       </Box>
                     )}
@@ -417,6 +453,23 @@ export default function AdminBilling() {
               <Button onClick={() => setCancelDialog(false)}>Manter assinatura</Button>
               <Button color="error" variant="contained" onClick={handleCancel}>
                 Confirmar cancelamento
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* ── Reactivate confirm dialog ── */}
+          <Dialog open={reactivateDialog} onClose={() => setReactivateDialog(false)} maxWidth="xs" fullWidth>
+            <DialogTitle fontWeight={700}>Reativar assinatura?</DialogTitle>
+            <DialogContent>
+              <Typography>
+                O cancelamento agendado será removido e as cobranças continuarão
+                normalmente a partir de {formatDate(billing?.current_period_end || null)}.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setReactivateDialog(false)}>Voltar</Button>
+              <Button color="success" variant="contained" onClick={handleReactivate}>
+                Confirmar reativação
               </Button>
             </DialogActions>
           </Dialog>
