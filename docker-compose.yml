@@ -57,10 +57,14 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
+      dockerfile: frontend/Dockerfile.dev
     container_name: senhas_frontend
+    working_dir: /app/frontend
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: 1
+      NEXT_DISABLE_SWC: 1
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
     ports:
@@ -69,10 +73,12 @@ services:
       - backend
     volumes:
       - ./frontend:/app/frontend
+      - ./packages:/app/packages
       - /app/frontend/node_modules
+      - /app/frontend/.next
     networks:
       - senhas_network
-    command: npm run dev
+    command: sh -c "npm install --legacy-peer-deps --loglevel=error && npm run dev"
     restart: unless-stopped
 
 volumes:

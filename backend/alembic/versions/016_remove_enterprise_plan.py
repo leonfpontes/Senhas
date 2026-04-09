@@ -8,6 +8,7 @@ The ENTERPRISE value is then removed from the plan_type enum.
 Also normalises the duplicate 'free'/'FREE' values to just 'FREE'.
 """
 
+import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers
@@ -31,7 +32,19 @@ def upgrade() -> None:
         "ALTER TABLE subscriptions "
         "ALTER COLUMN plan TYPE TEXT USING plan::text"
     )
-    op.execute("DROP TYPE plan_type")
+    # Detect actual enum name: may be 'plan_type' or 'plantype'
+    bind = op.get_bind()
+    result = bind.execute(
+        sa.text(
+            "SELECT typname FROM pg_type WHERE typtype = 'e' "
+            "AND typname IN ('plan_type', 'plantype') LIMIT 1"
+        )
+    )
+    row = result.fetchone()
+    if row:
+        op.execute(f"DROP TYPE {row[0]}")
+    else:
+        op.execute("DROP TYPE IF EXISTS plan_type")
 
     # 3) Normalise all values as TEXT (no enum validation issues)
     op.execute("UPDATE subscriptions SET plan = UPPER(plan)")

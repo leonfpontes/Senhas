@@ -7,6 +7,7 @@ Create Date: 2026-03-20
 """
 from typing import Sequence, Union
 
+import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers
@@ -17,8 +18,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # PostgreSQL: ADD VALUE is not transactional, must run outside transaction block
-    op.execute("ALTER TYPE plan_type ADD VALUE IF NOT EXISTS 'FREE'")
+    # PostgreSQL: ADD VALUE is not transactional, must run outside transaction block.
+    # Detect actual enum name: may be 'plan_type' (created by migration 003 raw SQL)
+    # or 'plantype' (created by SQLAlchemy model auto-create from PlanType class).
+    bind = op.get_bind()
+    result = bind.execute(
+        sa.text(
+            "SELECT typname FROM pg_type WHERE typtype = 'e' "
+            "AND typname IN ('plan_type', 'plantype') LIMIT 1"
+        )
+    )
+    row = result.fetchone()
+    if row:
+        type_name = row[0]
+        op.execute(f"ALTER TYPE {type_name} ADD VALUE IF NOT EXISTS 'FREE'")
 
 
 def downgrade() -> None:
