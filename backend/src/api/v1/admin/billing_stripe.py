@@ -214,3 +214,42 @@ async def cancel_subscription(
     await db.commit()
 
     return {"detail": "Assinatura será cancelada ao final do período"}
+
+
+@router.post("/reactivate")
+async def reactivate_subscription(
+    current_user: User = Depends(_require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reactivate a subscription scheduled for cancellation at period end.
+
+    Only valid when cancel_at_period_end=True and the current period is still
+    active. Removes the cancellation schedule so billing resumes normally.
+    """
+    sub = await _get_subscription_or_404(current_user.tenant_id, db)
+
+    if sub.is_bonus:
+        raise HTTPException(status_code=400, detail="Tenant bonificado: sem assinatura Stripe gerenciável")
+
+    if not sub.stripe_subscription_id:
+        raise HTTPException(status_code=400, detail="Sem assinatura Stripe ativa")
+
+    if not sub.cancel_at_period_end:
+        raise HTTPException(status_code=400, detail="Assinatura não está agendada para cancelamento")
+
+    await stripe_service.reactivate_subscription(sub.stripe_subscription_id)
+
+    sub.cancel_at_period_end = False
+
+    audit = AuditLogRepository(db)
+    await audit.create(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        action=AuditAction.UPDATE,
+        resource_type="subscription",
+        resource_id=str(sub.id),
+        details={"action": "reactivate", "plan": sub.plan.value},
+    )
+    await db.commit()
+
+    return {"detail": "Assinatura reativada com sucesso"}

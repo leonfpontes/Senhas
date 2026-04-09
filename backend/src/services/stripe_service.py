@@ -90,6 +90,18 @@ async def cancel_subscription_immediately(stripe_subscription_id: str) -> dict:
     return cancelled
 
 
+async def reactivate_subscription(stripe_subscription_id: str) -> dict:
+    """Reactivate a subscription that was scheduled to cancel at period end.
+
+    Only valid when cancel_at_period_end=True and the period has not ended yet.
+    """
+    updated = stripe.Subscription.modify(
+        stripe_subscription_id,
+        cancel_at_period_end=False,
+    )
+    return updated
+
+
 def construct_webhook_event(payload: bytes, sig_header: str) -> stripe.Event:
     """Construct and verify a Stripe webhook event."""
     return stripe.Webhook.construct_event(
