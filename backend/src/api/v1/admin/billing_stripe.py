@@ -126,6 +126,14 @@ async def create_checkout_session(
     if sub.is_bonus:
         raise HTTPException(status_code=400, detail="Tenant bonificado não precisa de checkout")
 
+    # Prevent double-checkout: if an active subscription already exists, the
+    # tenant must use /change-plan instead of creating a duplicate session.
+    if sub.stripe_subscription_id and sub.status.value == "active":
+        raise HTTPException(
+            status_code=400,
+            detail="Assinatura ativa já existe. Use 'Alterar Plano' para fazer upgrade ou downgrade.",
+        )
+
     tenant = await _get_tenant_or_404(current_user.tenant_id, db)
 
     # Get or create Stripe customer

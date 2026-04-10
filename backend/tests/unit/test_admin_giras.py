@@ -10,6 +10,7 @@ from src.api.v1.admin.giras_crud import (
     create_gira, list_giras, get_gira, update_gira, delete_gira,
 )
 from src.core.errors import InsufficientPermissionsError, NotFoundError
+from src.models.subscriptions import SubscriptionStatus
 from tests.conftest import TENANT_ID, USER_ID, GIRA_ID
 
 
@@ -45,15 +46,23 @@ def _mock_gira():
 
 
 class TestCreateGira:
+    @patch("src.api.v1.admin.giras_crud.SubscriptionRepository")
     @patch("src.api.v1.admin.giras_crud.AuditService")
     @patch("src.api.v1.admin.giras_crud.GiraRepository")
-    async def test_success(self, MockRepo, MockAudit):
+    async def test_success(self, MockRepo, MockAudit, MockSubRepo):
         db = AsyncMock()
         repo_inst = AsyncMock()
         repo_inst.create.return_value = _mock_gira()
         MockRepo.return_value = repo_inst
         audit_inst = AsyncMock()
         MockAudit.return_value = audit_inst
+        # Mock an active subscription with unlimited giras
+        sub_repo_inst = AsyncMock()
+        sub = MagicMock()
+        sub.status = SubscriptionStatus.ACTIVE
+        sub.max_giras_per_month = -1
+        sub_repo_inst.get_by_tenant.return_value = sub
+        MockSubRepo.return_value = sub_repo_inst
 
         gira_data = GiraCreate(
             nome="Gira de Maio",

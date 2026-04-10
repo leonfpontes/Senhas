@@ -15,6 +15,7 @@ from src.models.senha_controls import SenhaControl
 from src.repositories.gira_repo import GiraRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
+from src.models.subscriptions import SubscriptionStatus
 
 _BASE = settings.FRONTEND_URL.rstrip("/")
 from src.api.dependencies import get_current_user
@@ -125,6 +126,13 @@ async def create_gira(
     sub_repo = SubscriptionRepository(db)
     sub = await sub_repo.get_by_tenant(current_user.tenant_id)
     if sub is not None:
+        # Block operations for suspended subscriptions (payment failed)
+        if sub.status == SubscriptionStatus.SUSPENDED:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Assinatura suspensa por falta de pagamento. Regularize sua assinatura para criar novas giras.",
+            )
+
         now = datetime.now(timezone.utc)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         count_stmt = select(func.count()).select_from(Gira).where(
