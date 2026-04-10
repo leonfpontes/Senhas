@@ -14,17 +14,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  transpilePackages: ['shared-types', 'shared-ui', 'jspdf', 'html2canvas'],
-  webpack: (config) => {
-    // Garante resolução de módulos do node_modules da raiz do monorepo
-    // (necessário para pacotes hoistados pelo npm workspaces, ex.: jspdf, html2canvas)
-    config.resolve.modules = [
-      ...(config.resolve.modules || ['node_modules']),
-      path.join(__dirname, 'node_modules'),
-      path.join(__dirname, '../node_modules'),
-    ];
-    return config;
-  },
+  transpilePackages: ['shared-types', 'shared-ui'],
   // Generate unique build ID per build for cache busting
   generateBuildId: async () => {
     return `build-${Date.now()}`;
