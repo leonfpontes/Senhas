@@ -737,7 +737,7 @@ function TablePage({
                     whiteSpace: 'pre-wrap',
                   }}
                 >
-                  {t.atendimento_descricao || t.observacoes || '—'}
+                  {t.atendimento_descricao || '—'}
                 </td>
               </tr>
             );

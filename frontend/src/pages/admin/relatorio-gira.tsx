@@ -230,7 +230,7 @@ function RelatorioGiraContent() {
     return allTickets.filter((t) => {
       if (needle) {
         const nome = normalize(t.consulente_nome ?? '');
-        const obs  = normalize(t.atendimento_descricao ?? t.observacoes ?? '');
+        const obs  = normalize(t.atendimento_descricao ?? '');
         if (!nome.includes(needle) && !obs.includes(needle)) return false;
       }
       if (mediumFilter && (t.medium_nome?.trim() || '') !== mediumFilter) return false;
