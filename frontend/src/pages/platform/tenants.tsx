@@ -12,6 +12,12 @@ import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
+  Checkbox,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
   IconButton,
   Menu,
   MenuItem,
@@ -31,6 +37,7 @@ import {
   Alert,
   Pagination,
   Tooltip,
+  Typography,
   useTheme,
   useMediaQuery,
 } from "@mui/material";
@@ -128,6 +135,13 @@ const TenantsPage: React.FC = () => {
   const [originalEdit, setOriginalEdit] = useState<EditFormData>(EMPTY_EDIT);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+
+  // Delete dialog state
+  const [deleteDialogTenant, setDeleteDialogTenant] = useState<Tenant | null>(null);
+  const [deleteSlugInput, setDeleteSlugInput] = useState("");
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTenants();
@@ -228,18 +242,32 @@ const TenantsPage: React.FC = () => {
     }
   };
 
-  const handleDeleteTenant = async (tenantId: string) => {
-    if (!window.confirm("Tem certeza que deseja excluir este tenant?")) return;
-    setLoading(true);
+  const handleDeleteTenant = (tenant: Tenant) => {
+    setDeleteDialogTenant(tenant);
+    setDeleteSlugInput("");
+    setDeleteConfirmed(false);
+    setDeleteError(null);
+    setMenuAnchor(null);
+    setMenuTenant(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteDialogTenant || !deleteConfirmed) return;
+    setDeleting(true);
+    setDeleteError(null);
     try {
-      await apiClient.delete(`/api/v1/platform/tenants/${tenantId}`);
-      setSuccess("Tenant excluído com sucesso!");
-      setTimeout(() => setSuccess(null), 3000);
+      await apiClient.delete(`/api/v1/platform/tenants/${deleteDialogTenant.id}`, {
+        data: { confirm_slug: deleteSlugInput },
+      });
+      setSuccess(`Tenant "${deleteDialogTenant.name}" excluído permanentemente.`);
+      setTimeout(() => setSuccess(null), 4000);
+      setDeleteDialogTenant(null);
       fetchTenants();
     } catch (err: any) {
-      setError(err?.message || "Unknown error");
+      const detail = err?.response?.data?.detail || err?.message || "Erro ao excluir tenant";
+      setDeleteError(typeof detail === "string" ? detail : "Erro ao excluir tenant");
     } finally {
-      setLoading(false);
+      setDeleting(false);
     }
   };
 
@@ -426,7 +454,7 @@ const TenantsPage: React.FC = () => {
                               <EditIcon fontSize="small" sx={{ mr: 1 }} /> Editar
                             </MenuItem>
                             <MenuItem
-                              onClick={() => { handleDeleteTenant(tenant.id); setMenuAnchor(null); setMenuTenant(null); }}
+                              onClick={() => handleDeleteTenant(tenant)}
                               sx={{ color: 'error.main' }}
                             >
                               <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Deletar
@@ -461,11 +489,11 @@ const TenantsPage: React.FC = () => {
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Deletar">
+                          <Tooltip title="Excluir permanentemente">
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => handleDeleteTenant(tenant.id)}
+                              onClick={() => handleDeleteTenant(tenant)}
                             >
                               <DeleteIcon fontSize="small" />
                             </IconButton>
@@ -683,6 +711,87 @@ const TenantsPage: React.FC = () => {
           </>
         )}
       </CrudDrawer>
+
+      {/* Hard Delete Confirmation Dialog */}
+      <Dialog
+        open={Boolean(deleteDialogTenant)}
+        onClose={() => !deleting && setDeleteDialogTenant(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteIcon fontSize="small" />
+          Excluir tenant permanentemente
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Esta ação <strong>não pode ser desfeita</strong>. Todos os usuários, giras, tickets,
+            mediuns, estoque e dados do terreiro serão removidos permanentemente.
+          </Alert>
+          {deleteDialogTenant && (
+            <Box sx={{ mb: 2, p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="body2" color="text.secondary">Terreiro</Typography>
+              <Typography variant="body1" fontWeight={600}>{deleteDialogTenant.name}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Slug: <code>{deleteDialogTenant.slug}</code>
+                {deleteDialogTenant.plan && (
+                  <> &nbsp;·&nbsp; Plano: <strong>{deleteDialogTenant.plan.toUpperCase()}</strong></>
+                )}
+              </Typography>
+            </Box>
+          )}
+          <TextField
+            label={`Digite o slug "${deleteDialogTenant?.slug}" para confirmar`}
+            value={deleteSlugInput}
+            onChange={(e) => setDeleteSlugInput(e.target.value)}
+            fullWidth
+            size="small"
+            disabled={deleting}
+            sx={{ mb: 2 }}
+            error={deleteSlugInput.length > 0 && deleteSlugInput !== deleteDialogTenant?.slug}
+            helperText={
+              deleteSlugInput.length > 0 && deleteSlugInput !== deleteDialogTenant?.slug
+                ? "Slug não corresponde"
+                : " "
+            }
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={deleteConfirmed}
+                onChange={(e) => setDeleteConfirmed(e.target.checked)}
+                disabled={deleting}
+                color="error"
+              />
+            }
+            label="Entendo que todos os dados serão removidos permanentemente e esta ação não pode ser desfeita."
+          />
+          {deleteError && (
+            <Alert severity="error" sx={{ mt: 1 }}>{deleteError}</Alert>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setDeleteDialogTenant(null)}
+            disabled={deleting}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            startIcon={deleting ? <CircularProgress size={16} color="inherit" /> : <DeleteIcon />}
+            disabled={
+              deleting ||
+              !deleteConfirmed ||
+              deleteSlugInput !== deleteDialogTenant?.slug
+            }
+            onClick={handleConfirmDelete}
+          >
+            {deleting ? "Excluindo..." : "Excluir permanentemente"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </PlatformLayout>
   );
 };

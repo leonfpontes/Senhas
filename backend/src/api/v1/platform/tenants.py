@@ -8,6 +8,7 @@ from uuid import UUID
 
 from src.core.database import get_db
 from src.core.errors import NotFoundError, InvalidInputError
+from src.core.logging import log_security_event
 from src.api.dependencies import get_current_user
 from src.models import User, UserRole, PlanType
 from src.models.subscriptions import Subscription
@@ -32,6 +33,17 @@ class UpdateTenantRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+
+
+class DeleteTenantRequest(BaseModel):
+    """Request to permanently delete a tenant.
+
+    confirm_slug must match the tenant slug exactly — this prevents
+    accidental deletions and forces the operator to consciously type
+    the target identifier.
+    """
+
+    confirm_slug: str
 
 
 class TenantResponse(BaseModel):
@@ -180,29 +192,51 @@ async def update_tenant(
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tenant(
     tenant_id: UUID,
+    request: DeleteTenantRequest,
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Soft delete tenant."""
+    """Permanently hard-delete a tenant and all its data (LGPD Art. 18 VI).
+
+    Requires confirm_slug matching the tenant slug to prevent accidents.
+    Cancels active Stripe subscription before deletion (best-effort).
+    Audit trail is preserved with tenant_id=NULL.
+    """
     service = TenantService(db)
-    
+
     try:
-        success = await service.delete_tenant(tenant_id)
-        
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tenant não encontrado",
-            )
-        
+        await service.hard_delete_tenant(
+            tenant_id=tenant_id,
+            confirm_slug=request.confirm_slug,
+            actor_id=current_user.id,
+        )
         await db.commit()
+        log_security_event(
+            "tenant_hard_deleted",
+            user_id=current_user.id,
+            tenant_id=None,
+            success=True,
+        )
+    except NotFoundError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except InvalidInputError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
     except HTTPException:
+        await db.rollback()
         raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao deletar tenant: {str(e)}",
+            detail=f"Erro ao excluir tenant permanentemente: {str(e)}",
         )
 
 

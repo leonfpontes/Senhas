@@ -19,6 +19,7 @@ class AuditAction(str, enum.Enum):
     LOGIN = "login"
     LOGOUT = "logout"
     TOKEN_REFRESH = "token_refresh"
+    TENANT_DELETED = "tenant_deleted"
 
 
 class AuditLog(Base):
