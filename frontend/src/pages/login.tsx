@@ -3,7 +3,8 @@
  */
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import {
   Box,
   Button,
@@ -26,6 +27,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accountDeleted, setAccountDeleted] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (router.query.account_deleted === '1') {
+      setAccountDeleted(true);
+    }
+  }, [router.query.account_deleted]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +104,11 @@ export default function LoginPage() {
 
             <form onSubmit={handleSubmit}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {accountDeleted && (
+                  <Alert severity="success" onClose={() => setAccountDeleted(false)}>
+                    Sua conta foi excluída com sucesso. Seus dados pessoais foram removidos conforme a LGPD.
+                  </Alert>
+                )}
                 {error && (
                   <Alert severity="error" onClose={() => setError(null)}>
                     {error}
