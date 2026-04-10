@@ -157,9 +157,11 @@ class APIClient {
       // Only clear token and redirect if:
       // 1. Not already on the login page (avoid redirect loop)
       // 2. The failed request actually carried a token (stale requests without tokens shouldn't clear a newly stored token)
+      // 3. The caller did NOT opt-out via skipAutoLogout (e.g. delete-account dialog where 401 means "wrong password")
       const hadToken = error.config?.headers?.Authorization;
+      const skipAutoLogout = (error.config as any)?.skipAutoLogout === true;
       const isImpersonating = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('impersonating');
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login' && hadToken) {
+      if (!skipAutoLogout && typeof window !== 'undefined' && window.location.pathname !== '/login' && hadToken) {
         if (isImpersonating) {
           endImpersonation();
         } else {

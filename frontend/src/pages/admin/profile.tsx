@@ -220,7 +220,10 @@ export default function AdminProfilePage() {
     setDeletingAccount(true);
     setDeleteError(null);
     try {
-      await apiClient.delete('/api/v1/auth/account', { data: { password: deletePassword } });
+      await apiClient.delete('/api/v1/auth/account', {
+        data: { password: deletePassword },
+        skipAutoLogout: true,
+      } as any);
       // Clear all local session data
       localStorage.clear();
       sessionStorage.clear();

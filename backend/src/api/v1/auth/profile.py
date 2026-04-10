@@ -243,7 +243,7 @@ async def _send_account_deleted_email(email: str, username: str) -> None:
 
 
 @router.delete("/account", status_code=status.HTTP_200_OK)
-@limiter.limit("3/hour")
+@limiter.limit("5/hour")
 async def delete_own_account(
     request: Request,
     response: Response,
