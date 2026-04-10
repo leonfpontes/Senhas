@@ -35,6 +35,7 @@ class TicketResponse(BaseModel):
     is_sponsor: bool = False
     is_walk_in: bool = False
     observacoes: Optional[str] = None
+    checkin_em: Optional[datetime] = None
     chamado_em: Optional[datetime] = None
     finalizado_em: Optional[datetime] = None
     medium_nome: Optional[str] = None
