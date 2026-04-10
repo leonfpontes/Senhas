@@ -88,8 +88,14 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     except Exception as exc:
         logger.error("Error processing Stripe event %s: %s", event_type, exc, exc_info=True)
-        # Return 200 to Stripe so it does not retry — we log internally
-        return {"received": True, "warning": "processing error logged"}
+        # Re-raise as 500 so Stripe will retry delivery (up to 3 days).
+        # Internal logic errors (unknown price_id, tenant not found) are already
+        # handled inside each _handle_* function with early returns, so only
+        # truly transient failures (DB down, network errors) reach here.
+        raise HTTPException(
+            status_code=500,
+            detail="Webhook processing failed — will be retried by Stripe",
+        )
 
     return {"received": True}
 

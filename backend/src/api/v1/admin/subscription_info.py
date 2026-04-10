@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import get_db
 from src.models import User
 from src.models.giras import Gira
-from src.models.subscriptions import PlanType
+from src.models.subscriptions import PlanType, SubscriptionStatus
 from src.api.dependencies import get_current_user
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.repositories.mediun_repo import MediumRepository
@@ -75,8 +75,14 @@ class SubscriptionInfoResponse(BaseModel):
     features: PlanFeatures
 
 
-def _get_plan_features(plan: PlanType) -> PlanFeatures:
-    """Derive feature flags from plan tier."""
+def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
+    """Derive feature flags from plan tier.
+
+    When suspended=True (payment failed), all features are locked regardless
+    of the plan. The tenant retains only basic read access.
+    """
+    if suspended:
+        return PlanFeatures()  # all False
     tier = _PLAN_TIER.get(plan, 0)
     return PlanFeatures(
         email_transacional=tier >= 2,
@@ -157,5 +163,5 @@ async def get_tenant_subscription(
         is_trial=sub.is_trial,
         trial_ends_at=sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
         auto_renew=sub.auto_renew,
-        features=_get_plan_features(sub.plan),
+        features=_get_plan_features(sub.plan, suspended=sub.status == SubscriptionStatus.SUSPENDED),
     )
