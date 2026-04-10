@@ -6,7 +6,7 @@ import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request, Response, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -312,8 +312,6 @@ async def delete_own_account(
                 )
             )
             if remaining == 0:
-                await db.rollback()
-                from fastapi import HTTPException
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=(
@@ -336,7 +334,7 @@ async def delete_own_account(
 
         await db.commit()
 
-    except Exception:
+    except (HTTPException, Exception):
         await db.rollback()
         raise
 
