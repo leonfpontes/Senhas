@@ -10,8 +10,8 @@ Uses NOT VALID to avoid a full-table lock during the ADD CONSTRAINT step.
 The VALIDATE CONSTRAINT that follows acquires only a ShareUpdateExclusiveLock
 (concurrent DML allowed), making this safe to run on production under live load.
 
-Revision ID: 028_lgpd_account_deletion
-Revises: 027_mensalidade_mediun
+Revision ID: 030_lgpd_account_deletion
+Revises: 029_rename_enum_types
 Create Date: 2026-04-10
 """
 
@@ -19,8 +19,8 @@ from alembic import op
 from sqlalchemy import inspect
 
 # Revision identifiers used by Alembic.
-revision = "028_lgpd_account_deletion"
-down_revision = "027_mensalidade_mediun"
+revision = "030_lgpd_account_deletion"
+down_revision = "029_rename_enum_types"
 branch_labels = None
 depends_on = None
 
