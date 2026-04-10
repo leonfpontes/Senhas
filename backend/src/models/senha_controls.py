@@ -41,7 +41,10 @@ class SenhaControl(SoftDeleteModel):
     
     # Total tickets emitted for this gira (informational)
     total_emitido: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    
+
+    # Tickets cancelled/deleted by admin that freed a slot back into the range
+    slots_returned: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+
     # Relationships
     tenant = relationship("Tenant", back_populates="senha_controls")
     gira = relationship("Gira")

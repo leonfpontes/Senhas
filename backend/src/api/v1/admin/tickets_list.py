@@ -12,11 +12,13 @@ import logging
 
 from src.core.database import get_db
 from src.models import User, Ticket, TicketStatus, Consulente
+from src.models.senha_controls import SenhaControl
 from src.api.dependencies import get_current_user
 from src.core.errors import (
     InsufficientPermissionsError,
     NotFoundError,
 )
+from src.repositories.senha_control_repo import SenhaControlRepository
 from src.services.audit_service import AuditService
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-tickets"])
@@ -282,3 +284,92 @@ async def update_attend_info(
         atendimento_descricao=ticket.atendimento_descricao,
         created_at=ticket.created_at,
     )
+
+
+@router.delete("/giras/{gira_id}/tickets/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_ticket(
+    gira_id: UUID = Path(...),
+    ticket_id: UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Excluir uma senha emitida, devolvendo a vaga ao range da gira.
+
+    A senha é marcada como CANCELLED (soft delete) para preservar histórico
+    e analytics. O campo slots_returned do SenhaControl é incrementado
+    atomicamente para que a próxima emissão pública possa usar a vaga liberada.
+
+    Restrições:
+    - Somente ADMIN ou SUPER_ADMIN.
+    - Ticket deve pertencer ao tenant e à gira informados na URL.
+    - Apenas status EMITTED ou CALLED podem ser excluídos.
+      COMPLETED e NO_SHOW são registros históricos imutáveis.
+    """
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Admin required")
+
+    stmt = (
+        select(Ticket)
+        .options(selectinload(Ticket.consulente))
+        .where(
+            and_(
+                Ticket.id == ticket_id,
+                Ticket.tenant_id == current_user.tenant_id,
+                Ticket.gira_id == gira_id,
+            )
+        )
+    )
+    result = await db.execute(stmt)
+    ticket = result.scalar_one_or_none()
+
+    if not ticket:
+        raise NotFoundError("Ticket não encontrado")
+
+    deletable_statuses = {TicketStatus.EMITTED, TicketStatus.CALLED}
+    current_status = ticket.status if isinstance(ticket.status, TicketStatus) else TicketStatus(ticket.status)
+    if current_status not in deletable_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Não é possível excluir uma senha com status '{current_status.value}'. "
+                   "Somente senhas com status 'emitted' ou 'called' podem ser excluídas.",
+        )
+
+    consulente_email = ticket.consulente.email if ticket.consulente else None
+
+    # Soft cancel + free up the slot atomically inside the same transaction
+    ticket.status = TicketStatus.CANCELLED
+
+    senha_control_repo = SenhaControlRepository(db, SenhaControl)
+    try:
+        await senha_control_repo.increment_slots_returned(
+            session=db,
+            tenant_id=current_user.tenant_id,
+            gira_id=gira_id,
+            is_sponsor=ticket.is_sponsor,
+        )
+    except ValueError:
+        # SenhaControl missing (edge case: walk-in or legacy ticket) — proceed without slot return
+        logger.warning(
+            "SenhaControl not found for gira=%s is_sponsor=%s during ticket delete "
+            "(ticket=%s). Slot not returned.",
+            gira_id,
+            ticket.is_sponsor,
+            ticket_id,
+        )
+
+    audit = AuditService(db)
+    await audit.log_delete(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        resource_type="Ticket",
+        resource_id=ticket.id,
+        previous_state={
+            "numero": ticket.numero,
+            "status": current_status.value,
+            "consulente_email": consulente_email,
+            "gira_id": str(gira_id),
+            "is_sponsor": ticket.is_sponsor,
+        },
+    )
+
+    await db.commit()

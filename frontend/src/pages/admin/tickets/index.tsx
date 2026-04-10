@@ -10,6 +10,11 @@ import {
   Badge,
   Button,
   Collapse,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Table,
   TableBody,
   TableCell,
@@ -38,6 +43,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import StarIcon from '@mui/icons-material/Star';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import MedicalServicesIcon from '@mui/icons-material/MedicalServices';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -109,6 +115,33 @@ function AdminTicketsContent() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+
+  // Delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ ticket: Ticket; giraId: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const openDeleteDialog = (ticket: Ticket) => {
+    if (!giraId) return;
+    setDeleteTarget({ ticket, giraId });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/api/v1/admin/giras/${deleteTarget.giraId}/tickets/${deleteTarget.ticket.id}`);
+      setSuccess(`Senha #${String(deleteTarget.ticket.numero).padStart(4, '0')} excluída com sucesso. A vaga foi devolvida à gira.`);
+      setDeleteDialogOpen(false);
+      setDeleteTarget(null);
+      loadTickets();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Erro ao excluir a senha.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const loadGiras = async () => {
     try {
@@ -518,6 +551,17 @@ function AdminTicketsContent() {
                             </IconButton>
                           </Tooltip>
                         )}
+                        {(ticket.status === 'emitted' || ticket.status === 'called') && (
+                          <Tooltip title="Excluir senha e devolver vaga">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => openDeleteDialog(ticket)}
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -578,6 +622,34 @@ function AdminTicketsContent() {
           minRows={3}
         />
       </CrudDrawer>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => !deleting && setDeleteDialogOpen(false)}>
+        <DialogTitle>Excluir senha</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Deseja excluir a senha{' '}
+            <strong>#{deleteTarget ? String(deleteTarget.ticket.numero).padStart(4, '0') : ''}</strong>
+            {deleteTarget?.ticket.consulente_nome ? ` de ${deleteTarget.ticket.consulente_nome}` : ''}?
+            <br /><br />
+            O consulente poderá emitir uma nova senha e a vaga será devolvida ao range da gira.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleDeleteConfirm}
+            color="error"
+            variant="contained"
+            disabled={deleting}
+            startIcon={deleting ? <CircularProgress size={16} color="inherit" /> : <DeleteOutlineIcon />}
+          >
+            {deleting ? 'Excluindo...' : 'Excluir senha'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar open={!!success} autoHideDuration={4000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>

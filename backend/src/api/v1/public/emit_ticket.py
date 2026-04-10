@@ -280,9 +280,16 @@ async def emit_ticket(
                 detail="Failed to allocate ticket number",
             )
 
-        # Check capacity
+        # Check capacity (account for admin-returned slots)
         max_cap = gira.sponsor_max_tickets if is_sponsor else gira.max_tickets
-        if ticket_number_int > max_cap:
+        sc = await senha_control_repo.get_by_gira(
+            session=session,
+            tenant_id=tenant.id,
+            gira_id=gira.id,
+            is_sponsor=is_sponsor,
+        )
+        slots_returned = sc.slots_returned if sc else 0
+        if ticket_number_int > max_cap + slots_returned:
             await session.rollback()
             raise HTTPException(
                 status_code=429,
