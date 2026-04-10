@@ -12,8 +12,14 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
+  FormControlLabel,
   Grid,
   TextField,
   Typography,
@@ -21,6 +27,8 @@ import {
 import SaveIcon from '@mui/icons-material/Save';
 import UploadIcon from '@mui/icons-material/CloudUpload';
 import LockIcon from '@mui/icons-material/Lock';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import { useRouter } from 'next/router';
 
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
@@ -68,6 +76,14 @@ export default function AdminProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Account deletion state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const router = useRouter();
 
   const avatarText = useMemo(() => {
     const source = fullName || profile?.username || profile?.email || 'A';
@@ -196,6 +212,26 @@ export default function AdminProfilePage() {
       setError(err?.message || 'Não foi possível alterar a senha.');
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword || !deleteConfirmed) return;
+    setDeletingAccount(true);
+    setDeleteError(null);
+    try {
+      await apiClient.delete('/api/v1/auth/account', { data: { password: deletePassword } });
+      // Clear all local session data
+      localStorage.clear();
+      sessionStorage.clear();
+      // Notify other tabs via storage event
+      window.dispatchEvent(new StorageEvent('storage', { key: 'access_token', newValue: null }));
+      router.push('/login?account_deleted=1');
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      setDeleteError(typeof detail === 'string' ? detail : 'Erro ao excluir conta. Verifique sua senha.');
+    } finally {
+      setDeletingAccount(false);
     }
   };
 
@@ -431,6 +467,97 @@ export default function AdminProfilePage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Danger Zone */}
+          <Card sx={{ border: '1px solid', borderColor: 'error.main', mt: 3 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <DeleteForeverIcon color="error" />
+                <Typography variant="h6" color="error.main" fontWeight={700}>
+                  Excluir minha conta
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                A exclusão é <strong>permanente e irreversível</strong>. Todos os seus dados pessoais
+                serão removidos de nossos sistemas em conformidade com o Art. 18, VI da LGPD.
+                Os registros operacionais do terreiro (giras, tickets) não são afetados.
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Não consegue acessar sua conta?{' '}
+                <a href="mailto:privacidade@girahub.com.br" style={{ color: 'inherit' }}>
+                  Solicite a exclusão por email
+                </a>
+                .
+              </Typography>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteForeverIcon />}
+                onClick={() => { setDeleteDialogOpen(true); setDeleteError(null); setDeletePassword(''); setDeleteConfirmed(false); }}
+              >
+                Excluir minha conta
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Delete Account Confirmation Dialog */}
+          <Dialog
+            open={deleteDialogOpen}
+            onClose={() => !deletingAccount && setDeleteDialogOpen(false)}
+            maxWidth="sm"
+            fullWidth
+          >
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <DeleteForeverIcon color="error" />
+              Confirmar exclusão de conta
+            </DialogTitle>
+            <DialogContent>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                Esta ação <strong>não pode ser desfeita</strong>. Todos os seus dados pessoais
+                serão removidos permanentemente.
+              </Typography>
+              {deleteError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {deleteError}
+                </Alert>
+              )}
+              <TextField
+                label="Digite sua senha para confirmar"
+                type="password"
+                fullWidth
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                disabled={deletingAccount}
+                autoComplete="current-password"
+                sx={{ mb: 2 }}
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={deleteConfirmed}
+                    onChange={(e) => setDeleteConfirmed(e.target.checked)}
+                    disabled={deletingAccount}
+                    color="error"
+                  />
+                }
+                label="Entendo que todos os meus dados serão removidos permanentemente e esta ação não pode ser desfeita."
+              />
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button onClick={() => setDeleteDialogOpen(false)} disabled={deletingAccount}>
+                Cancelar
+              </Button>
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={deletingAccount ? <CircularProgress size={16} color="inherit" /> : <DeleteForeverIcon />}
+                onClick={handleDeleteAccount}
+                disabled={!deletePassword || !deleteConfirmed || deletingAccount}
+              >
+                {deletingAccount ? 'Excluindo...' : 'Excluir permanentemente'}
+              </Button>
+            </DialogActions>
+          </Dialog>
         </>
       )}
     </AdminLayout>
