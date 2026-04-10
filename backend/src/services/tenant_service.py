@@ -1,18 +1,23 @@
 """TenantService - Tenant creation, management, and lifecycle (T101)."""
+import logging
 import uuid
 import secrets
 from typing import Optional
 from uuid import UUID
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import Tenant, User, UserRole, Subscription, PlanType
+from ..models.audit_logs import AuditLog, AuditAction
 from ..repositories.tenant_repo import TenantRepository
 from ..repositories.user_repo import UserRepository
 from ..repositories.subscription_repo import SubscriptionRepository
 from ..security.password import hash_password
 from ..core.errors import NotFoundError, InvalidInputError
+
+logger = logging.getLogger(__name__)
 
 
 class TenantService:
@@ -216,6 +221,87 @@ class TenantService:
         """
         result = await self.tenant_repo.soft_delete(tenant_id)
         return result is not None
+
+    async def hard_delete_tenant(self, tenant_id: UUID, confirm_slug: str, actor_id: UUID) -> dict:
+        """Permanently delete a tenant and all its data (LGPD Art. 18 VI).
+
+        Guards:
+        - Tenant must exist and not be soft-deleted.
+        - confirm_slug must match tenant.slug exactly (prevents accidental deletes).
+
+        Side effects (best-effort, non-blocking):
+        - Cancels Stripe subscription immediately if one is active.
+        - Writes a global AuditLog (tenant_id=NULL) after deletion.
+
+        Args:
+            tenant_id: UUID of the tenant to delete.
+            confirm_slug: Must equal tenant.slug — validated before any mutation.
+            actor_id: UUID of the SUPER_ADMIN performing the action (for audit).
+
+        Returns:
+            Dict snapshot of the deleted tenant for logging/response.
+
+        Raises:
+            NotFoundError: Tenant not found.
+            InvalidInputError: confirm_slug does not match.
+        """
+        tenant = await self.tenant_repo.get_by_id_with_subscription(tenant_id)
+        if not tenant:
+            raise NotFoundError("Tenant não encontrado")
+
+        if tenant.slug != confirm_slug:
+            raise InvalidInputError(
+                f"Slug de confirmação '{confirm_slug}' não corresponde ao slug do tenant '{tenant.slug}'"
+            )
+
+        # Capture snapshot before deletion
+        snapshot = {
+            "id": str(tenant.id),
+            "slug": tenant.slug,
+            "name": tenant.name,
+            "plan": tenant.subscription.plan.value if tenant.subscription else None,
+            "stripe_customer_id": tenant.subscription.stripe_customer_id if tenant.subscription else None,
+            "stripe_subscription_id": tenant.subscription.stripe_subscription_id if tenant.subscription else None,
+        }
+
+        # Count users for snapshot
+        user_count_result = await self.db.execute(
+            select(func.count()).select_from(User).where(
+                User.tenant_id == tenant_id,
+                User.deleted_at.is_(None),
+            )
+        )
+        snapshot["user_count"] = user_count_result.scalar() or 0
+
+        # Cancel Stripe subscription (best-effort — never block the delete)
+        stripe_sub_id = snapshot["stripe_subscription_id"]
+        if stripe_sub_id:
+            try:
+                from ..services.stripe_service import cancel_subscription_immediately
+                await cancel_subscription_immediately(stripe_sub_id)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to cancel Stripe subscription %s for tenant %s before deletion: %s",
+                    stripe_sub_id,
+                    tenant_id,
+                    exc,
+                )
+
+        # Hard delete — cascade handles all children
+        await self.tenant_repo.hard_delete(tenant_id)
+
+        # AuditLog with tenant_id=NULL (tenant no longer exists)
+        audit = AuditLog(
+            tenant_id=None,
+            user_id=actor_id,
+            action=AuditAction.TENANT_DELETED,
+            resource_type="Tenant",
+            resource_id=tenant_id,
+            details=snapshot,
+        )
+        self.db.add(audit)
+
+        return snapshot
     
     def _generate_api_key(self) -> str:
         """Generate unique API key for tenant.
