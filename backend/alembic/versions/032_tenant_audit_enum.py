@@ -23,8 +23,9 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Existing enum values in PostgreSQL are uppercase (matching Python enum .name).
     # ADD VALUE is idempotent with IF NOT EXISTS (PostgreSQL 9.6+)
-    op.execute(text("ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'tenant_deleted'"))
+    op.execute(text("ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'TENANT_DELETED'"))
 
 
 def downgrade() -> None:
