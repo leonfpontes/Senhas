@@ -52,7 +52,7 @@ async def create_associado(
     db: AsyncSession = Depends(get_db),
 ) -> AssociadoResponse:
     """Create a new associado (admin only)."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = AssociadoRepository(db)
@@ -94,7 +94,7 @@ async def list_associados(
     db: AsyncSession = Depends(get_db),
 ) -> List[AssociadoResponse]:
     """List associados for the tenant."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = AssociadoRepository(db)
@@ -108,7 +108,7 @@ async def count_associados(
     db: AsyncSession = Depends(get_db),
 ):
     """Count associados for the tenant."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = AssociadoRepository(db)
@@ -123,7 +123,7 @@ async def get_associado(
     db: AsyncSession = Depends(get_db),
 ) -> AssociadoResponse:
     """Get associado details."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = AssociadoRepository(db)
@@ -142,7 +142,7 @@ async def update_associado(
     db: AsyncSession = Depends(get_db),
 ) -> AssociadoResponse:
     """Update an associado."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = AssociadoRepository(db)
@@ -186,7 +186,7 @@ async def delete_associado(
     db: AsyncSession = Depends(get_db),
 ):
     """Soft-delete an associado."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = AssociadoRepository(db)

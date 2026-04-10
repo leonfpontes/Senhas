@@ -165,7 +165,7 @@ async def get_door_stats(
     db: AsyncSession = Depends(get_db),
 ) -> DoorStatsResponse:
     """Get real-time stats for the door view big numbers."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
 
     base = and_(Ticket.tenant_id == current_user.tenant_id, Ticket.gira_id == gira_id)
@@ -210,7 +210,7 @@ async def get_door_queue(
     Order: preferenciais first (by numero), then regular (by numero).
     Includes search by consulente name.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
 
     where_clause = and_(
@@ -284,7 +284,7 @@ async def create_walk_in_ticket(
 
     Walk-ins bypass the gira max_tickets cap and are automatically marked as present.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
 
     tenant_config = await _get_tenant_config(db, current_user.tenant_id)
@@ -363,7 +363,7 @@ async def update_walk_in_ticket(
     db: AsyncSession = Depends(get_db),
 ) -> QueueItemResponse:
     """Edit walk-in information from the door view."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
 
     ticket = await _get_ticket(db, ticket_id, current_user.tenant_id)
@@ -411,7 +411,7 @@ async def checkin_ticket(
     db: AsyncSession = Depends(get_db),
 ) -> QueueItemResponse:
     """Mark a ticket as checked-in (consulente arrived at the door)."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
 
     ticket = await _get_ticket(db, ticket_id, current_user.tenant_id)
@@ -433,7 +433,7 @@ async def undo_checkin(
     db: AsyncSession = Depends(get_db),
 ) -> QueueItemResponse:
     """Undo check-in (remove arrival mark)."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
 
     ticket = await _get_ticket(db, ticket_id, current_user.tenant_id)
@@ -456,7 +456,7 @@ async def attend_ticket(
     db: AsyncSession = Depends(get_db),
 ) -> QueueItemResponse:
     """Mark a ticket as attended and completed in one step."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
 
     ticket = await _get_ticket(db, ticket_id, current_user.tenant_id)
@@ -487,7 +487,7 @@ async def edit_attend_info(
     db: AsyncSession = Depends(get_db),
 ) -> QueueItemResponse:
     """Edit attendance info (medium, cambone, description) on a completed ticket."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
 
     ticket = await _get_ticket(db, ticket_id, current_user.tenant_id)
@@ -512,7 +512,7 @@ async def complete_ticket(
     db: AsyncSession = Depends(get_db),
 ) -> QueueItemResponse:
     """Mark a ticket as completed (consultation finished)."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
 
     ticket = await _get_ticket(db, ticket_id, current_user.tenant_id)
@@ -535,7 +535,7 @@ async def no_show_ticket(
     db: AsyncSession = Depends(get_db),
 ) -> QueueItemResponse:
     """Mark a ticket as no-show (consulente didn't appear)."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
 
     ticket = await _get_ticket(db, ticket_id, current_user.tenant_id)
@@ -562,7 +562,7 @@ async def undo_ticket_action(
     Works for: CALLED → EMITTED, COMPLETED → EMITTED, NO_SHOW → EMITTED.
     Clears all door control fields.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin ou operador necessário")
 
     ticket = await _get_ticket(db, ticket_id, current_user.tenant_id)

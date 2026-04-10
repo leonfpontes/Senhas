@@ -131,8 +131,8 @@ async def list_users(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> List[UserResponse]:
-    """List users (admin only)."""
-    if not current_user.is_admin:
+    """List users (admin or operator)."""
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = UserRepository(db)
@@ -164,8 +164,8 @@ async def get_user(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
-    """Get user details (admin only)."""
-    if not current_user.is_admin:
+    """Get user details (admin or operator)."""
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = UserRepository(db)

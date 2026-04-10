@@ -82,7 +82,7 @@ async def list_gira_tickets(
     - limit: Max results (1-500)
     - status_filter: Filter by ticket status (optional)
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     # Build query
@@ -160,7 +160,7 @@ async def get_ticket(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     stmt = select(Ticket).where(
@@ -221,7 +221,7 @@ async def update_attend_info(
 
     Requires admin role. Enforces multi-tenant isolation.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     stmt = select(Ticket).where(

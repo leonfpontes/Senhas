@@ -84,11 +84,8 @@ async def get_tenant_config(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TenantConfigResponse:
-    """Get tenant configuration.
-    
-    Requires admin role.
-    """
-    if not current_user.is_admin:
+    """Get tenant configuration."""
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     # SUPER_ADMIN has no tenant — return platform defaults

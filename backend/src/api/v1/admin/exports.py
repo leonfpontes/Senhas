@@ -28,7 +28,7 @@ async def export_tickets_csv(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     # Fetch tickets

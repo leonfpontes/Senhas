@@ -70,3 +70,8 @@ class User(SoftDeleteModel):
     def is_admin(self) -> bool:
         """Check if user is admin (tenant or super)."""
         return self.role in (UserRole.SUPER_ADMIN, UserRole.ADMIN)
+
+    @property
+    def is_operator_or_admin(self) -> bool:
+        """Check if user can access most admin routes (admin or operator)."""
+        return self.role in (UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR)

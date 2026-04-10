@@ -235,7 +235,7 @@ async def get_dashboard_summary(
     Returns upcoming giras, ticket KPIs, daily distribution (7 days),
     peak hours, stock alerts, and plan badge — all in a single request.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     tenant_id = current_user.tenant_id

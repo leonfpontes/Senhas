@@ -119,7 +119,7 @@ async def create_gira(
     Requires admin role.
     """
     # Check permissions
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     # Check monthly gira limit
@@ -185,7 +185,7 @@ async def list_giras(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     stmt = select(Gira).where(
@@ -223,7 +223,7 @@ async def get_gira(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = GiraRepository(db)
@@ -246,7 +246,7 @@ async def update_gira(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = GiraRepository(db)
@@ -286,7 +286,7 @@ async def delete_gira(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = GiraRepository(db)
@@ -327,7 +327,7 @@ async def get_senha_config(
     db: AsyncSession = Depends(get_db),
 ) -> SenhaConfigResponse:
     """Get senha configuration and stats for a gira."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = GiraRepository(db)
@@ -360,7 +360,7 @@ async def update_senha_config(
     db: AsyncSession = Depends(get_db),
 ) -> SenhaConfigResponse:
     """Configure senha settings for a gira (max tickets, release window)."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     if config.max_tickets < 1:
@@ -449,7 +449,7 @@ async def release_now(
     db: AsyncSession = Depends(get_db),
 ) -> SenhaConfigResponse:
     """Immediately release senhas for a gira (set release_start_at to now)."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = GiraRepository(db)

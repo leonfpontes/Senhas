@@ -110,7 +110,7 @@ async def list_aniversariantes(
     db: AsyncSession = Depends(get_db),
 ) -> List[BirthdayMediumResponse]:
     """List médiuns whose birthday falls within the next *dias* days."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     sub_repo = SubscriptionRepository(db)
     sub = await sub_repo.get_by_tenant(current_user.tenant_id)
@@ -135,7 +135,7 @@ async def list_mediuns_options(
     (valid as médium); ``only_atendimento=false`` (default) returns all
     active mediuns (valid as cambone).
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     repo = MediumRepository(db)
     return await repo.list(current_user.tenant_id, only_atendimento=only_atendimento)
@@ -149,7 +149,7 @@ async def list_mediuns(
     db: AsyncSession = Depends(get_db),
 ) -> List[MediumResponse]:
     """List mediuns for the CRUD management page."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     repo = MediumRepository(db)
     return await repo.list(
@@ -166,7 +166,7 @@ async def create_medium(
     db: AsyncSession = Depends(get_db),
 ) -> MediumResponse:
     """Create a new medium/cambone."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     # Check plan limit
@@ -225,7 +225,7 @@ async def update_medium(
     db: AsyncSession = Depends(get_db),
 ) -> MediumResponse:
     """Update name, is_atendimento flag, or active status."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = MediumRepository(db)
@@ -283,7 +283,7 @@ async def delete_medium(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Soft-delete a medium/cambone."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = MediumRepository(db)

@@ -194,6 +194,7 @@ function AdminLayoutInner({
 
   const { can, planLabel, subscription, loading: subscriptionLoading } = useSubscription();
   const { birthdayCount } = useBirthday();
+  const isOperator = currentUser?.role === 'operator';
 
   const cadastrosItems = [
     { text: 'Giras', icon: <EventIcon />, href: '/admin/giras' },
@@ -219,13 +220,13 @@ function AdminLayoutInner({
   const relatoriosItems = [
     ...(can('analytics_basico') ? [{ text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' }] : []),
     ...(can('relatorio_gira') ? [{ text: 'Relatório de Gira', icon: <SummarizeIcon />, href: '/admin/relatorio-gira' }] : []),
-    ...(can('auditoria') ? [{ text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' }] : []),
+    ...(!isOperator && can('auditoria') ? [{ text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' }] : []),
   ];
   const relatoriosHrefs = relatoriosItems.map((i) => i.href);
   const isRelatoriosActive = relatoriosHrefs.includes(pathname);
   const [relatoriosOpen, setRelatoriosOpen] = useState(isRelatoriosActive);
 
-  const financeiroItems = can('mensalidade_mediun') ? [
+  const financeiroItems = (!isOperator && can('mensalidade_mediun')) ? [
     { text: 'Mensalidades', icon: <PaymentsIcon />, href: '/admin/financeiro/mensalidades' },
     { text: 'Configuração', icon: <AccountBalanceWalletIcon />, href: '/admin/financeiro/config' },
   ] : [];
@@ -258,9 +259,11 @@ function AdminLayoutInner({
 
   const bottomItems = [
     { text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' },
-    { text: 'Plano', icon: <CardMembershipIcon />, href: '/admin/plano' },
-    { text: 'Assinatura', icon: <CreditCardIcon />, href: '/admin/billing' },
-    { text: 'Configurações', icon: <SettingsIcon />, href: '/admin/config' },
+    ...(!isOperator ? [
+      { text: 'Plano', icon: <CardMembershipIcon />, href: '/admin/plano' },
+      { text: 'Assinatura', icon: <CreditCardIcon />, href: '/admin/billing' },
+      { text: 'Configurações', icon: <SettingsIcon />, href: '/admin/config' },
+    ] : []),
   ];
 
   const TOOLBAR_HEIGHT = 64;
@@ -514,8 +517,8 @@ function AdminLayoutInner({
           </>
         )}
 
-        {/* Financeiro group — Premium only */}
-        {can('mensalidade_mediun') && (
+        {/* Financeiro group — Premium only, not for operators */}
+        {!isOperator && can('mensalidade_mediun') && (
           <>
             <ListItem disablePadding>
               <ListItemButton
