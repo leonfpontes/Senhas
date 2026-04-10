@@ -434,7 +434,7 @@ function AdminGirasContent() {
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadGiras} disabled={loading} size="small">
               Atualizar
             </Button>
-            <Tooltip title={!canCreateGira ? (subscription?.max_giras_per_month != null && subscription.max_giras_per_month >= 0 ? `Limite de ${subscription.max_giras_per_month} gira(s)/mês atingido. Faça upgrade do plano.` : 'Sem assinatura ativa. Faça upgrade do plano.') : ''}>
+            <Tooltip title={!canCreateGira && !subLoading ? (subscription?.max_giras_per_month != null && subscription.max_giras_per_month >= 0 ? `Limite de ${subscription.max_giras_per_month} gira(s)/mês atingido. Faça upgrade do plano.` : 'Sem assinatura ativa. Faça upgrade do plano.') : ''}>
               <span>
                 <Button data-tour="giras-nova" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira} size="small">
                   Nova Gira

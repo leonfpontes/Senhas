@@ -123,6 +123,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     fetchSubscription();
   }, [fetchSubscription]);
 
+  // Re-fetch whenever a new token is stored (e.g. after signup or login via
+  // client-side navigation). ThemeProvider dispatches this event immediately
+  // after the token is written to localStorage, so hasAuthToken() will be true.
+  useEffect(() => {
+    const handleAuthChange = () => {
+      fetchSubscription();
+    };
+    window.addEventListener('tenant-branding-updated', handleAuthChange);
+    return () => {
+      window.removeEventListener('tenant-branding-updated', handleAuthChange);
+    };
+  }, [fetchSubscription]);
+
   const features = subscription?.features ?? DEFAULT_FEATURES;
 
   const can = useCallback(

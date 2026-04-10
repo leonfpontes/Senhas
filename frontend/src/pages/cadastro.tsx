@@ -143,13 +143,18 @@ export default function CadastroPage() {
           window.location.href = checkoutRes.data.checkout_url;
           return;
         } catch {
-          // Checkout failed — go to billing page so user can try again
-          router.push('/admin/billing?status=checkout_error');
+          // Checkout failed — go to billing page so user can try again.
+          // Use full page reload so SubscriptionProvider remounts with the token
+          // already in localStorage (same reason as login.tsx).
+          window.location.href = '/admin/billing?status=checkout_error';
           return;
         }
       }
 
-      router.push('/admin/dashboard');
+      // Full page reload so SubscriptionProvider and ProfileProvider remount
+      // with the token already in localStorage — prevents canCreateGira()=false
+      // on the first visit to /admin/giras after signup.
+      window.location.href = '/admin/dashboard';
     } catch (err: any) {
       const detail =
         err?.response?.data?.detail ??

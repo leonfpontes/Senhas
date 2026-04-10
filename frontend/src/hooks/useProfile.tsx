@@ -89,6 +89,18 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Re-fetch whenever a new token is stored (e.g. after signup or login via
+  // client-side navigation). Ensures sidebar avatar/name updates without F5.
+  useEffect(() => {
+    const handleAuthChange = () => {
+      fetchProfile();
+    };
+    window.addEventListener('tenant-branding-updated', handleAuthChange);
+    return () => {
+      window.removeEventListener('tenant-branding-updated', handleAuthChange);
+    };
+  }, [fetchProfile]);
+
   return (
     <ProfileContext.Provider value={{ profile, loading, refresh: fetchProfile }}>
       {children}
