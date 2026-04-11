@@ -103,8 +103,8 @@ export function useRelatorioPDF() {
               tenant,
             }),
           );
-          // Aguarda Recharts terminar animações
-          setTimeout(resolve, 700);
+          // Aguarda React finalizar renderização (animações desativadas nos charts)
+          setTimeout(resolve, 200);
         });
 
         // 4. Coleta todas as seções A4 na ordem correta

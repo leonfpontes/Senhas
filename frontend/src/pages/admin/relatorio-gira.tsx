@@ -113,7 +113,7 @@ function RelatorioGiraContent() {
   }, [can, router]);
 
   // ── Filtros de seleção de gira (server-side) ──────────────────────
-  const [giras, setGiras] = useState<{ id: string; nome: string; is_active: boolean; data_gira?: string }[]>([]);
+  const [giras, setGiras] = useState<{ id: string; nome: string; is_active: boolean; data_inicio?: string }[]>([]);
   const [giraId, setGiraId]         = useState<string>('');
   const [giraFilter, setGiraFilter] = useState<GiraFilter>('all');
   const [dateFrom, setDateFrom]     = useState<string>('');
@@ -294,7 +294,7 @@ function RelatorioGiraContent() {
       doorStats,
       gira: {
         nome: selectedGira?.nome ?? 'Gira',
-        data: selectedGira?.data_gira,
+        data: selectedGira?.data_inicio,
       },
       tenant: {
         nome: tenantName ?? 'Terreiro',

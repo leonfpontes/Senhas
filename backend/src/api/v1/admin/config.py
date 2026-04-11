@@ -32,6 +32,7 @@ def _build_logo_url(request: Request, config: TenantConfig) -> Optional[str]:
 
 class TenantConfigResponse(BaseModel):
     """Tenant config response."""
+    tenant_nome: Optional[str] = None
     logo_url: Optional[str]
     primary_color: str
     secondary_color: str
@@ -91,6 +92,7 @@ async def get_tenant_config(
     # SUPER_ADMIN has no tenant — return platform defaults
     if current_user.tenant_id is None:
         return TenantConfigResponse(
+            tenant_nome=None,
             logo_url=None,
             primary_color="#6366f1",
             secondary_color="#ec4899",
@@ -111,6 +113,7 @@ async def get_tenant_config(
     
     resp = TenantConfigResponse.from_orm(config)
     resp.logo_url = _build_logo_url(request, config)
+    resp.tenant_nome = current_user.tenant.nome if current_user.tenant else None
     return resp
 
 

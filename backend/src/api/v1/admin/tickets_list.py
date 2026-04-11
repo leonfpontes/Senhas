@@ -134,6 +134,7 @@ async def list_gira_tickets(
             observacoes=t.observacoes if t.observacoes and not preferencial else None,
             chamado_em=t.chamado_em,
             finalizado_em=t.finalizado_em,
+            checkin_em=t.checkin_em,
             medium_nome=t.medium_nome,
             cambone_nome=t.cambone_nome,
             atendimento_descricao=t.atendimento_descricao,

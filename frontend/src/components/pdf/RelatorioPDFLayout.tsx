@@ -448,9 +448,10 @@ function DashboardPage({
               <Pie
                 data={pieAtend}
                 cx="50%"
-                cy="45%"
-                outerRadius={64}
+                cy="50%"
+                outerRadius={62}
                 dataKey="value"
+                isAnimationActive={false}
                 label={({ name, percent }) =>
                   percent > 0 ? `${(percent * 100).toFixed(0)}%` : ''
                 }
@@ -496,9 +497,10 @@ function DashboardPage({
               <Pie
                 data={pieTipos}
                 cx="50%"
-                cy="45%"
-                outerRadius={64}
+                cy="50%"
+                outerRadius={62}
                 dataKey="value"
+                isAnimationActive={false}
                 label={({ name, percent }) =>
                   percent > 0 ? `${(percent * 100).toFixed(0)}%` : ''
                 }
@@ -590,6 +592,7 @@ function DashboardPage({
                   strokeWidth={2}
                   dot={{ r: 3, fill: tenant.primaryColor }}
                   activeDot={{ r: 5 }}
+                  isAnimationActive={false}
                   name="Check-ins"
                 />
               </LineChart>
@@ -767,9 +770,10 @@ const RelatorioPDFLayout = forwardRef<HTMLDivElement, RelatorioPDFLayoutProps>(
       <div
         ref={ref}
         style={{
-          position: 'absolute',
-          left: -9999,
+          position: 'fixed',
           top: 0,
+          left: 0,
+          visibility: 'hidden',
           zIndex: -1,
           pointerEvents: 'none',
           display: 'flex',
