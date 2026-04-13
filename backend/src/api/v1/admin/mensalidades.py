@@ -131,6 +131,7 @@ class ConfigResponse(BaseModel):
     valor_mensal_associado: float = 0.0
     dia_vencimento_associado: int = 10
     relatorio_hora_envio: Optional[str] = None  # "HH:MM" string
+    enable_mensalidade_associado: bool = False
 
     class Config:
         from_attributes = True
@@ -200,6 +201,8 @@ async def get_config(
     config = await repo.get_config(current_user.tenant_id)
     if not config:
         return None
+    config_repo = TenantConfigRepository(db)
+    tc = await config_repo.get_by_tenant(current_user.tenant_id)
     hora_str = config.relatorio_hora_envio.strftime("%H:%M") if config.relatorio_hora_envio else None
     return ConfigResponse(
         tenant_id=config.tenant_id,
@@ -210,6 +213,7 @@ async def get_config(
         valor_mensal_associado=float(config.valor_mensal_associado),
         dia_vencimento_associado=config.dia_vencimento_associado,
         relatorio_hora_envio=hora_str,
+        enable_mensalidade_associado=bool(tc.enable_mensalidade_associado) if tc else False,
     )
 
 
@@ -287,6 +291,8 @@ async def update_config(
         new_state=body.model_dump(exclude_none=True),
     )
     await db.commit()
+    config_repo = TenantConfigRepository(db)
+    tc = await config_repo.get_by_tenant(current_user.tenant_id)
     hora_str = config.relatorio_hora_envio.strftime("%H:%M") if config.relatorio_hora_envio else None
     return ConfigResponse(
         tenant_id=config.tenant_id,
@@ -297,6 +303,7 @@ async def update_config(
         valor_mensal_associado=float(config.valor_mensal_associado),
         dia_vencimento_associado=config.dia_vencimento_associado,
         relatorio_hora_envio=hora_str,
+        enable_mensalidade_associado=bool(tc.enable_mensalidade_associado) if tc else False,
     )
 
 
