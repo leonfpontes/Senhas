@@ -42,21 +42,28 @@ export default function FinanceiroConfigPage() {
   const [valorMensalAssociado, setValorMensalAssociado] = useState<string>('');
   const [diaVencimentoAssociado, setDiaVencimentoAssociado] = useState<string>('10');
   const [relatorioHoraEnvio, setRelatorioHoraEnvio] = useState<string>('');
+  const [flagMensalidadeAssociado, setFlagMensalidadeAssociado] = useState<boolean>(false);
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({
     open: false, msg: '', severity: 'success',
   });
 
   // Hooks must run unconditionally — gate checked after
   useEffect(() => {
-    apiClient.get('/api/v1/admin/financeiro/config')
-      .then((res) => {
-        if (res.data) {
-          setValorMensal(String(res.data.valor_mensal ?? ''));
-          setDiaVencimento(String(res.data.dia_vencimento ?? '10'));
-          setEmailRelatorioAtivo(Boolean(res.data.email_relatorio_ativo));
-          setValorMensalAssociado(String(res.data.valor_mensal_associado ?? ''));
-          setDiaVencimentoAssociado(String(res.data.dia_vencimento_associado ?? '10'));
-          setRelatorioHoraEnvio(res.data.relatorio_hora_envio ?? '');
+    Promise.all([
+      apiClient.get('/api/v1/admin/financeiro/config'),
+      apiClient.get('/api/v1/admin/tenant/config'),
+    ])
+      .then(([finRes, tenantRes]) => {
+        if (finRes.data) {
+          setValorMensal(String(finRes.data.valor_mensal ?? ''));
+          setDiaVencimento(String(finRes.data.dia_vencimento ?? '10'));
+          setEmailRelatorioAtivo(Boolean(finRes.data.email_relatorio_ativo));
+          setValorMensalAssociado(String(finRes.data.valor_mensal_associado ?? ''));
+          setDiaVencimentoAssociado(String(finRes.data.dia_vencimento_associado ?? '10'));
+          setRelatorioHoraEnvio(finRes.data.relatorio_hora_envio ?? '');
+        }
+        if (tenantRes.data) {
+          setFlagMensalidadeAssociado(Boolean(tenantRes.data.enable_mensalidade_associado));
         }
       })
       .catch(() => {})
@@ -175,8 +182,8 @@ export default function FinanceiroConfigPage() {
                 </>
               )}
 
-              {/* Associados section (PRO+) */}
-              {can('mensalidade_associado') && (
+              {/* Associados section (PRO+ and flag enabled in /admin/config) */}
+              {can('mensalidade_associado') && flagMensalidadeAssociado && (
                 <>
                   <Typography variant="subtitle2" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontSize: 11 }}>
                     Associados

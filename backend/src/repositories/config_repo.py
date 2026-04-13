@@ -135,6 +135,7 @@ class TenantConfigRepository:
             "enable_analytics",
             "enable_walk_in",
             "enable_estoque_log",
+            "enable_mensalidade_associado",
         ]:
             setattr(config, feature_flag, enabled)
         
