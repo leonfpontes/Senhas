@@ -326,6 +326,9 @@ export default function MensalidadesPage() {
       }
       setSnack({ open: true, msg: 'Mensalidade registrada com sucesso.', severity: 'success' });
       setDrawerOpen(false);
+      // Refresh resumo so KPI cards and chart stay in sync
+      fetchResumo();
+      if (assocEnabled) fetchAssocResumo();
     } catch (err: any) {
       const detail = err?.response?.data?.detail || 'Erro ao salvar.';
       setSnack({ open: true, msg: detail, severity: 'error' });
@@ -381,9 +384,15 @@ export default function MensalidadesPage() {
     return matchStatus && matchSearch;
   });
 
-  const totalEsperado = items.filter((i) => !i.mensalidade_isento && i.status !== 'ISENTO').length * (config?.valor_mensal ?? 0);
-  const totalArrecadado = items.filter((i) => i.status === 'PAGO').reduce((s, i) => s + (i.valor_pago ?? 0), 0);
-  const inadimplentes = items.filter((i) => !i.mensalidade_isento && i.status !== 'PAGO' && i.status !== 'ISENTO').length;
+  const totalEsperado =
+    items.filter((i) => !i.mensalidade_isento && i.status !== 'ISENTO').length * (config?.valor_mensal ?? 0) +
+    (assocEnabled ? assocItems.filter((i) => !i.mensalidade_isento && i.status !== 'ISENTO').length * (config?.valor_mensal_associado ?? 0) : 0);
+  const totalArrecadado =
+    items.filter((i) => i.status === 'PAGO').reduce((s, i) => s + (i.valor_pago ?? 0), 0) +
+    (assocEnabled ? assocItems.filter((i) => i.status === 'PAGO').reduce((s, i) => s + (i.valor_pago ?? 0), 0) : 0);
+  const inadimplentes =
+    items.filter((i) => !i.mensalidade_isento && i.status !== 'PAGO' && i.status !== 'ISENTO').length +
+    (assocEnabled ? assocItems.filter((i) => !i.mensalidade_isento && i.status !== 'PAGO' && i.status !== 'ISENTO').length : 0);
 
   const statusChip = (item: MensalidadeItem) => {
     const s = item.status;
@@ -398,6 +407,13 @@ export default function MensalidadesPage() {
 
   // ── Chart data ─────────────────────────────────────────────────────────
 
+  const assocArrecadadoByMes: Record<string, number> = {};
+  if (assocResumo) {
+    for (const h of assocResumo.historico) {
+      assocArrecadadoByMes[mesLabel(h.mes)] = h.arrecadado;
+    }
+  }
+
   const chartData = resumo
     ? [
         ...resumo.historico.map((h) => ({
@@ -405,6 +421,7 @@ export default function MensalidadesPage() {
           Esperado: h.esperado,
           Arrecadado: h.arrecadado,
           projecao: false,
+          ...(assocEnabled && assocResumo ? { Associados: assocArrecadadoByMes[mesLabel(h.mes)] ?? 0 } : {}),
         })),
         ...resumo.projecao.map((p) => ({
           mes: mesLabel(p.mes),
@@ -432,7 +449,7 @@ export default function MensalidadesPage() {
             {mesLabel(mes)}
           </Typography>
           <IconButton onClick={handleNextMes} size="small"><ArrowForwardIosIcon fontSize="small" /></IconButton>
-          <IconButton onClick={fetchItems} size="small" title="Atualizar"><RefreshIcon fontSize="small" /></IconButton>
+          <IconButton onClick={() => { fetchItems(); if (assocEnabled) fetchAssocItems(); fetchResumo(); if (assocEnabled) fetchAssocResumo(); }} size="small" title="Atualizar"><RefreshIcon fontSize="small" /></IconButton>
         </Box>
 
         {/* KPI Cards */}
