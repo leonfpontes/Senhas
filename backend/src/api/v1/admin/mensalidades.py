@@ -819,7 +819,10 @@ class RegistrarAssociadoPagamentoRequest(BaseModel):
 async def registrar_associado_pagamento(
     associado_id: UUID,
     mes: str,
-    body: RegistrarAssociadoPagamentoRequest,
+    pagamento_status: str = Form(..., alias="status"),
+    valor_pago: Optional[float] = Form(None),
+    data_pagamento: Optional[str] = Form(None),
+    observacao: Optional[str] = Form(None),
     comprovante: Optional[UploadFile] = File(default=None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -857,9 +860,17 @@ async def registrar_associado_pagamento(
         comprovante_mime = comprovante.content_type
 
     try:
-        status_enum = MensalidadeStatus(body.status)
+        status_enum = MensalidadeStatus(pagamento_status.upper())
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Status inválido: {body.status}")
+        raise HTTPException(status_code=400, detail=f"Status inválido: {pagamento_status}")
+
+    # Parse data_pagamento string to datetime
+    parsed_data_pag: Optional[datetime] = None
+    if data_pagamento:
+        try:
+            parsed_data_pag = datetime.fromisoformat(data_pagamento)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de data inválido. Use ISO 8601.")
 
     from decimal import Decimal
     repo = AssociadoMensalidadeRepository(db)
@@ -869,10 +880,10 @@ async def registrar_associado_pagamento(
         mes_referencia=mes_date,
         status=status_enum,
         registrado_por=current_user.id,
-        valor_vigente=Decimal(str(body.valor_vigente)) if body.valor_vigente is not None else None,
-        valor_pago=Decimal(str(body.valor_pago)) if body.valor_pago is not None else None,
-        data_pagamento=body.data_pagamento,
-        observacao=body.observacao,
+        valor_vigente=None,
+        valor_pago=Decimal(str(valor_pago)) if valor_pago is not None else None,
+        data_pagamento=parsed_data_pag,
+        observacao=observacao,
         comprovante_data=comprovante_data,
         comprovante_filename=comprovante_filename,
         comprovante_mime=comprovante_mime,
