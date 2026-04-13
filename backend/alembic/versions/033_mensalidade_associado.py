@@ -14,6 +14,7 @@ Create Date: 2026-04-13
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
 
 revision: str = "033_mensalidade_associado"
 down_revision: str = "032_tenant_audit_enum"
@@ -54,6 +55,13 @@ def upgrade() -> None:
     # ── 3. associado_mensalidade_pagamentos ───────────────────────────────
     existing_tables = inspector.get_table_names()
     if "associado_mensalidade_pagamentos" not in existing_tables:
+        # Ensure the enum type exists (already created by 027, but guard for safety)
+        op.execute(
+            "DO $$ BEGIN "
+            "  CREATE TYPE mensalidade_status AS ENUM ('PENDENTE', 'PAGO', 'ISENTO'); "
+            "EXCEPTION WHEN duplicate_object THEN null; "
+            "END $$"
+        )
         op.create_table(
             "associado_mensalidade_pagamentos",
             sa.Column(
@@ -78,7 +86,7 @@ def upgrade() -> None:
             sa.Column("mes_referencia", sa.Date(), nullable=False),
             sa.Column(
                 "status",
-                sa.Enum("PENDENTE", "PAGO", "ISENTO", name="mensalidade_status", create_type=False),
+                PG_ENUM("PENDENTE", "PAGO", "ISENTO", name="mensalidade_status", create_type=False),
                 nullable=False,
                 server_default="PENDENTE",
             ),

@@ -97,7 +97,7 @@ class MensalidadePagamento(TimestampedModel):
     )
     mes_referencia: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[MensalidadeStatus] = mapped_column(
-        SAEnum(MensalidadeStatus, name="mensalidade_status"),
+        SAEnum(MensalidadeStatus, name="mensalidade_status", create_type=False),
         nullable=False,
         default=MensalidadeStatus.PENDENTE,
     )
