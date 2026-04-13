@@ -5,6 +5,8 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
+
 from src.core.database import get_db
 from src.api.dependencies import get_current_user
 from src.models import User, UserRole
@@ -89,11 +91,17 @@ async def create_platform_user(
         )
     except HTTPException:
         raise
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email já está em uso",
+        )
     except Exception as e:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao criar usuário: {str(e)}",
+            detail="Erro ao criar usuário",
         )
 
 

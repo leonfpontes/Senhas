@@ -46,7 +46,7 @@ class PlatformUserRepository:
         return result.scalar_one_or_none()
     
     async def get_by_email(self, email: str) -> Optional[User]:
-        """Get platform user by email.
+        """Get any user by email (all roles) — used for uniqueness check.
         
         Args:
             email: User email
@@ -57,8 +57,6 @@ class PlatformUserRepository:
         stmt = select(User).where(
             and_(
                 User.email == email,
-                User.role == UserRole.SUPER_ADMIN,
-                User.tenant_id.is_(None),
                 User.deleted_at.is_(None),
             )
         )
