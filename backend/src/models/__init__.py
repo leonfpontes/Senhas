@@ -15,6 +15,7 @@ from .associados import Associado
 from .estoque import EstoqueGrupo, EstoqueItem, EstoqueMovimentacao, EstoqueMovimentacaoTipo
 from .mediuns import Medium
 from .mensalidades import MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
+from .associado_mensalidade import AssociadoMensalidadePagamento
 
 __all__ = [
     "Base",
@@ -45,4 +46,5 @@ __all__ = [
     "MensalidadeConfig",
     "MensalidadePagamento",
     "MensalidadeStatus",
+    "AssociadoMensalidadePagamento",
 ]

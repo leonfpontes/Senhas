@@ -78,10 +78,26 @@ interface MensalidadeItem {
   observacao: string | null;
 }
 
+interface AssociadoMensalidadeItem {
+  associado_id: string;
+  associado_nome: string;
+  mensalidade_isento: boolean;
+  pagamento_id: string | null;
+  status: 'PAGO' | 'PENDENTE' | 'ISENTO' | null;
+  data_pagamento: string | null;
+  valor_vigente: number | null;
+  valor_pago: number | null;
+  comprovante_filename: string | null;
+  observacao: string | null;
+}
+
 interface Config {
   valor_mensal: number;
   dia_vencimento: number;
   ativo: boolean;
+  valor_mensal_associado?: number;
+  dia_vencimento_associado?: number;
+  enable_mensalidade_associado?: boolean;
 }
 
 interface ResumoHistorico {
@@ -135,10 +151,13 @@ export default function MensalidadesPage() {
   const [tab, setTab] = useState(0);
 
   const [items, setItems] = useState<MensalidadeItem[]>([]);
+  const [assocItems, setAssocItems] = useState<AssociadoMensalidadeItem[]>([]);
   const [config, setConfig] = useState<Config | null>(null);
   const [resumo, setResumo] = useState<Resumo | null>(null);
+  const [assocResumo, setAssocResumo] = useState<Resumo | null>(null);
 
   const [loading, setLoading] = useState(false);
+  const [loadingAssoc, setLoadingAssoc] = useState(false);
   const [loadingResumo, setLoadingResumo] = useState(false);
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({
     open: false, msg: '', severity: 'success',
@@ -149,7 +168,9 @@ export default function MensalidadesPage() {
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<'mediun' | 'associado'>('mediun');
   const [drawerItem, setDrawerItem] = useState<MensalidadeItem | null>(null);
+  const [drawerAssocItem, setDrawerAssocItem] = useState<AssociadoMensalidadeItem | null>(null);
   const [drawerStatus, setDrawerStatus] = useState<'PAGO' | 'PENDENTE' | 'ISENTO'>('PENDENTE');
   const [drawerValorPago, setDrawerValorPago] = useState<string>('');
   const [drawerDataPag, setDrawerDataPag] = useState<string>('');
@@ -180,6 +201,18 @@ export default function MensalidadesPage() {
     }
   }, [mes]);
 
+  const fetchAssocItems = useCallback(async () => {
+    setLoadingAssoc(true);
+    try {
+      const res = await apiClient.get(`/api/v1/admin/financeiro/associados?mes=${mes}`);
+      setAssocItems(res.data);
+    } catch {
+      // non-critical
+    } finally {
+      setLoadingAssoc(false);
+    }
+  }, [mes]);
+
   const fetchResumo = useCallback(async () => {
     setLoadingResumo(true);
     try {
@@ -192,15 +225,34 @@ export default function MensalidadesPage() {
     }
   }, []);
 
+  const fetchAssocResumo = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/api/v1/admin/financeiro/associados/resumo');
+      setAssocResumo(res.data);
+    } catch {
+      // non-critical
+    }
+  }, []);
+
+  const assocEnabled = !!(config?.enable_mensalidade_associado);
+
   useEffect(() => { fetchConfig(); }, [fetchConfig]);
   useEffect(() => { fetchItems(); }, [fetchItems]);
-  useEffect(() => { if (tab === 1) fetchResumo(); }, [tab, fetchResumo]);
+  useEffect(() => {
+    if (tab === 1) {
+      fetchResumo();
+      if (assocEnabled) fetchAssocResumo();
+    }
+  }, [tab, fetchResumo, fetchAssocResumo, assocEnabled]);
+  useEffect(() => {
+    if (tab === 2 && can('mensalidade_associado') && assocEnabled) fetchAssocItems();
+  }, [tab, fetchAssocItems, can, assocEnabled]);
 
   // ── Gate (after all hooks) ────────────────────────────────────────────
-  if (!can('mensalidade_mediun')) {
+  if (!can('mensalidade_mediun') && !can('mensalidade_associado')) {
     return (
       <AdminLayout title="Mensalidades">
-        <UpgradePrompt feature="Controle de Mensalidade" minPlan="Premium" />
+        <UpgradePrompt feature="Controle de Mensalidade" minPlan="Pro" />
       </AdminLayout>
     );
   }
@@ -222,7 +274,9 @@ export default function MensalidadesPage() {
   // ── Drawer handlers ───────────────────────────────────────────────────
 
   const openDrawer = (item: MensalidadeItem) => {
+    setDrawerMode('mediun');
     setDrawerItem(item);
+    setDrawerAssocItem(null);
     setDrawerStatus((item.status as 'PAGO' | 'PENDENTE' | 'ISENTO') || 'PENDENTE');
     setDrawerValorPago(item.valor_pago != null ? String(item.valor_pago) : config ? String(config.valor_mensal) : '');
     setDrawerDataPag(item.data_pagamento ? item.data_pagamento.slice(0, 10) : '');
@@ -231,8 +285,21 @@ export default function MensalidadesPage() {
     setDrawerOpen(true);
   };
 
+  const openAssocDrawer = (item: AssociadoMensalidadeItem) => {
+    setDrawerMode('associado');
+    setDrawerAssocItem(item);
+    setDrawerItem(null);
+    setDrawerStatus((item.status as 'PAGO' | 'PENDENTE' | 'ISENTO') || 'PENDENTE');
+    setDrawerValorPago(item.valor_pago != null ? String(item.valor_pago) : config ? String(config.valor_mensal_associado ?? 0) : '');
+    setDrawerDataPag(item.data_pagamento ? item.data_pagamento.slice(0, 10) : '');
+    setDrawerObs(item.observacao || '');
+    setDrawerFile(null);
+    setDrawerOpen(true);
+  };
+
   const handleSave = async () => {
-    if (!drawerItem) return;
+    if (drawerMode === 'mediun' && !drawerItem) return;
+    if (drawerMode === 'associado' && !drawerAssocItem) return;
     setDrawerSaving(true);
     try {
       const form = new FormData();
@@ -242,14 +309,23 @@ export default function MensalidadesPage() {
       if (drawerObs) form.append('observacao', drawerObs);
       if (drawerFile) form.append('comprovante', drawerFile);
 
-      await apiClient.post(
-        `/api/v1/admin/financeiro/mensalidades/${drawerItem.mediun_id}/${mes}`,
-        form,
-        { headers: { 'Content-Type': 'multipart/form-data' } },
-      );
+      if (drawerMode === 'mediun' && drawerItem) {
+        await apiClient.post(
+          `/api/v1/admin/financeiro/mensalidades/${drawerItem.mediun_id}/${mes}`,
+          form,
+          { headers: { 'Content-Type': 'multipart/form-data' } },
+        );
+        await fetchItems();
+      } else if (drawerMode === 'associado' && drawerAssocItem) {
+        await apiClient.post(
+          `/api/v1/admin/financeiro/associados/${drawerAssocItem.associado_id}/${mes}`,
+          form,
+          { headers: { 'Content-Type': 'multipart/form-data' } },
+        );
+        await fetchAssocItems();
+      }
       setSnack({ open: true, msg: 'Mensalidade registrada com sucesso.', severity: 'success' });
       setDrawerOpen(false);
-      await fetchItems();
     } catch (err: any) {
       const detail = err?.response?.data?.detail || 'Erro ao salvar.';
       setSnack({ open: true, msg: detail, severity: 'error' });
@@ -262,6 +338,23 @@ export default function MensalidadesPage() {
     try {
       const res = await apiClient.get(
         `/api/v1/admin/financeiro/mensalidades/${item.mediun_id}/${mes}/comprovante`,
+        { responseType: 'blob' },
+      );
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.comprovante_filename || 'comprovante';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setSnack({ open: true, msg: 'Comprovante não encontrado.', severity: 'error' });
+    }
+  };
+
+  const handleDownloadAssocComprovante = async (item: AssociadoMensalidadeItem) => {
+    try {
+      const res = await apiClient.get(
+        `/api/v1/admin/financeiro/associados/${item.associado_id}/${mes}/comprovante`,
         { responseType: 'blob' },
       );
       const url = URL.createObjectURL(res.data);
@@ -369,8 +462,9 @@ export default function MensalidadesPage() {
         )}
 
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
-          <Tab label="Médiuns" />
+          {can('mensalidade_mediun') && <Tab label="Médiuns" />}
           <Tab label="Gráfico" />
+          {can('mensalidade_associado') && assocEnabled && <Tab label="Associados" />}
         </Tabs>
 
         {/* TAB: Médiuns */}
@@ -472,6 +566,84 @@ export default function MensalidadesPage() {
           </>
         )}
 
+        {/* TAB: Associados (PRO+) */}
+        {tab === 2 && can('mensalidade_associado') && assocEnabled && (
+          <Box>
+            {loadingAssoc ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
+            ) : assocItems.length === 0 ? (
+              <Paper sx={{ p: 4, textAlign: 'center' }}>
+                <CheckCircleIcon sx={{ fontSize: 48, color: 'success.light', mb: 1 }} />
+                <Typography color="text.secondary">Nenhum associado ativo cadastrado.</Typography>
+              </Paper>
+            ) : (
+              <TableContainer component={Paper}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Nome</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Vencimento</TableCell>
+                      <TableCell>Data Pag.</TableCell>
+                      <TableCell align="right">Valor Pago</TableCell>
+                      <TableCell>Comprovante</TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {assocItems.map((item) => {
+                      const s = item.status;
+                      const chip = s === 'PAGO'
+                        ? <Chip label="Pago" color="success" size="small" />
+                        : s === 'ISENTO'
+                          ? <Chip label="Isento" size="small" />
+                          : hoje > vencimento
+                            ? <Chip label="Inadimplente" color="error" size="small" />
+                            : <Chip label="Pendente" color="warning" size="small" />;
+                      return (
+                        <TableRow key={item.associado_id} hover>
+                          <TableCell>
+                            {item.associado_nome}
+                            {item.mensalidade_isento && <Chip label="isento perm." size="small" sx={{ ml: 1, fontSize: 11 }} />}
+                          </TableCell>
+                          <TableCell>{chip}</TableCell>
+                          <TableCell>
+                            {config ? `${String(config.dia_vencimento_associado ?? 10).padStart(2, '0')}/${mes.replace('-', '/')}` : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {item.data_pagamento
+                              ? (() => { const d = item.data_pagamento!.slice(0, 10); return `${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`; })()
+                              : '—'}
+                          </TableCell>
+                          <TableCell align="right">{item.status === 'PAGO' ? fmtBRL(item.valor_pago) : '—'}</TableCell>
+                          <TableCell>
+                            {item.comprovante_filename ? (
+                              <Tooltip title={item.comprovante_filename}>
+                                <IconButton size="small" onClick={() => handleDownloadAssocComprovante(item)}>
+                                  <DownloadIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : (
+                              <AttachFileIcon fontSize="small" sx={{ color: 'text.disabled' }} />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Tooltip title="Registrar / Editar">
+                              <IconButton size="small" onClick={() => openAssocDrawer(item)}>
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
+        )}
+
         {/* TAB: Gráfico */}
         {tab === 1 && (
           <Box>
@@ -495,6 +667,9 @@ export default function MensalidadesPage() {
                     <Bar dataKey="Esperado" fill="#bdbdbd" />
                     <Bar dataKey="Arrecadado" fill={primaryColor} />
                     <Bar dataKey="Projetado" fill="#c5cae9" />
+                    {assocEnabled && assocResumo && (
+                      <Bar dataKey="Associados" fill="#80cbc4" />
+                    )}
                   </BarChart>
                 </ResponsiveContainer>
 
@@ -538,14 +713,20 @@ export default function MensalidadesPage() {
       <CrudDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title={drawerItem ? `Mensalidade — ${drawerItem.mediun_nome}` : 'Registrar Mensalidade'}
+        title={
+          drawerMode === 'associado' && drawerAssocItem
+            ? `Mensalidade — ${drawerAssocItem.associado_nome}`
+            : drawerItem
+            ? `Mensalidade — ${drawerItem.mediun_nome}`
+            : 'Registrar Mensalidade'
+        }
         onSave={handleSave}
         saving={drawerSaving}
       >
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-          {drawerItem?.mensalidade_isento && (
+          {(drawerItem?.mensalidade_isento || drawerAssocItem?.mensalidade_isento) && (
             <Alert severity="info">
-              Este médium possui isenção permanente configurada.
+              {drawerMode === 'associado' ? 'Este associado' : 'Este médium'} possui isenção permanente configurada.
             </Alert>
           )}
 

@@ -48,6 +48,7 @@ class TenantConfigResponse(BaseModel):
     sponsor_priority_mode: str = "first"
     validate_associado_on_emit: bool = False
     enable_estoque_log: bool = True
+    enable_mensalidade_associado: bool = False
 
     class Config:
         from_attributes = True
@@ -67,6 +68,7 @@ class TenantConfigUpdate(BaseModel):
     sponsor_priority_mode: Optional[str] = None
     validate_associado_on_emit: Optional[bool] = None
     enable_estoque_log: Optional[bool] = None
+    enable_mensalidade_associado: Optional[bool] = None
 
     @field_validator("primary_color", "secondary_color")
     @classmethod
@@ -225,6 +227,14 @@ async def update_tenant_config(
             tenant_id=current_user.tenant_id,
             feature_flag="enable_estoque_log",
             enabled=config_update.enable_estoque_log,
+        )
+
+    # Update enable_mensalidade_associado
+    if config_update.enable_mensalidade_associado is not None:
+        await repo.toggle_feature(
+            tenant_id=current_user.tenant_id,
+            feature_flag="enable_mensalidade_associado",
+            enabled=config_update.enable_mensalidade_associado,
         )
 
     # Get updated config

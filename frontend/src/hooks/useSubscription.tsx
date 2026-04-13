@@ -16,6 +16,7 @@ export interface PlanFeatures {
   api_access: boolean;
   suporte_prioritario: boolean;
   mensalidade_mediun: boolean;
+  mensalidade_associado: boolean;
   estoque_controle: boolean;
   mediuns: boolean;
   relatorio_gira: boolean;
@@ -66,6 +67,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   api_access: false,
   suporte_prioritario: false,
   mensalidade_mediun: false,
+  mensalidade_associado: false,
   estoque_controle: false,
   mediuns: false,
   relatorio_gira: false,

@@ -226,7 +226,7 @@ function AdminLayoutInner({
   const isRelatoriosActive = relatoriosHrefs.includes(pathname);
   const [relatoriosOpen, setRelatoriosOpen] = useState(isRelatoriosActive);
 
-  const financeiroItems = (!isOperator && can('mensalidade_mediun')) ? [
+  const financeiroItems = (!isOperator && (can('mensalidade_mediun') || can('mensalidade_associado'))) ? [
     { text: 'Mensalidades', icon: <PaymentsIcon />, href: '/admin/financeiro/mensalidades' },
     { text: 'Configuração', icon: <AccountBalanceWalletIcon />, href: '/admin/financeiro/config' },
   ] : [];
@@ -518,7 +518,7 @@ function AdminLayoutInner({
         )}
 
         {/* Financeiro group — Premium only, not for operators */}
-        {!isOperator && can('mensalidade_mediun') && (
+        {!isOperator && (can('mensalidade_mediun') || can('mensalidade_associado')) && (
           <>
             <ListItem disablePadding>
               <ListItemButton

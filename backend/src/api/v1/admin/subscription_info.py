@@ -57,6 +57,7 @@ class PlanFeatures(BaseModel):
     api_access: bool = False
     suporte_prioritario: bool = False
     mensalidade_mediun: bool = False
+    mensalidade_associado: bool = False
 
 
 class SubscriptionInfoResponse(BaseModel):
@@ -99,6 +100,7 @@ def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
         api_access=tier >= 3,
         suporte_prioritario=tier >= 3,
         mensalidade_mediun=tier >= 3,
+        mensalidade_associado=tier >= 2,
     )
 
 

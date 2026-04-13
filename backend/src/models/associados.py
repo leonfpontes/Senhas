@@ -1,5 +1,5 @@
 """Associado model - registered members eligible for associado tickets."""
-from sqlalchemy import String, ForeignKey, Index, UniqueConstraint
+from sqlalchemy import Boolean, String, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -28,6 +28,7 @@ class Associado(SoftDeleteModel):
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     email_normalized: Mapped[str] = mapped_column(String(255), nullable=False)
     telefone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    mensalidade_isento: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     # Relationships
     tenant = relationship("Tenant", backref="associados")

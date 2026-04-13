@@ -55,6 +55,8 @@ interface TenantConfig {
   enable_walk_in: boolean;
   validate_associado_on_emit: boolean;
   sponsor_priority_mode?: string;
+  enable_estoque_log?: boolean;
+  enable_mensalidade_associado?: boolean;
 }
 
 type FeedbackState = {
@@ -109,6 +111,12 @@ const FEATURE_ITEMS = [
     title: 'Registrar log de movimentações de estoque',
     description: 'Gera registro de auditoria a cada entrada ou saída de estoque.',
     tooltip: HELP_TEXT.enable_estoque_log,
+  },
+  {
+    field: 'enable_mensalidade_associado' as const,
+    title: 'Controle de Mensalidade de Associados',
+    description: 'Ativa o módulo de mensalidades para associados (plano Pro+).',
+    tooltip: 'Quando ativo, exibe a aba Associados no Financeiro e permite registrar cobranças mensais de associados.',
   },
 ];
 
@@ -348,6 +356,7 @@ function AdminConfigContent() {
         enable_walk_in: config.enable_walk_in,
         validate_associado_on_emit: config.validate_associado_on_emit,
         enable_estoque_log: config.enable_estoque_log,
+        enable_mensalidade_associado: config.enable_mensalidade_associado,
         sponsor_priority_mode: config.sponsor_priority_mode || 'first',
         endereco: config.endereco || '',
       });
@@ -816,6 +825,7 @@ function AdminConfigContent() {
                       if (item.field === 'enable_analytics' && !can('analytics_basico')) return false;
                       if (item.field === 'validate_associado_on_emit' && !can('associados')) return false;
                       if (item.field === 'enable_estoque_log' && !can('estoque_controle')) return false;
+                      if (item.field === 'enable_mensalidade_associado' && !can('mensalidade_associado')) return false;
                       return true;
                     }).map((item) => (
                       <Grid item xs={12} md={6} key={item.field}>
