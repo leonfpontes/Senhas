@@ -1,5 +1,5 @@
 """User model - auth and RBAC (T012)."""
-from sqlalchemy import Column, String, ForeignKey, Boolean, Index, LargeBinary, UniqueConstraint, Enum as SQLEnum
+from sqlalchemy import Column, String, ForeignKey, Boolean, Index, LargeBinary, UniqueConstraint, Enum as SQLEnum, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
@@ -32,6 +32,7 @@ class User(SoftDeleteModel):
         Index("ix_users_tenant_id", "tenant_id"),
         Index("ix_users_is_active", "is_active"),
         Index("ix_users_email", "email"),
+        Index("ix_users_reset_token_hash", "reset_token_hash"),
     )
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -53,7 +54,9 @@ class User(SoftDeleteModel):
         default=UserRole.OPERATOR, nullable=False,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    
+    reset_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True, repr=False)
+    reset_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, repr=False)
+
     # Relationships
     tenant = relationship("Tenant", back_populates="users")
     audit_logs = relationship("AuditLog", back_populates="user", foreign_keys="AuditLog.user_id")

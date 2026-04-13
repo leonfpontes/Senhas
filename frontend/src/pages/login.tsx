@@ -28,13 +28,17 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accountDeleted, setAccountDeleted] = useState(false);
+  const [passwordReset, setPasswordReset] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     if (router.query.account_deleted === '1') {
       setAccountDeleted(true);
     }
-  }, [router.query.account_deleted]);
+    if (router.query.reset === '1') {
+      setPasswordReset(true);
+    }
+  }, [router.query.account_deleted, router.query.reset]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +113,11 @@ export default function LoginPage() {
                     Sua conta foi excluída com sucesso. Seus dados pessoais foram removidos conforme a LGPD.
                   </Alert>
                 )}
+                {passwordReset && (
+                  <Alert severity="success" onClose={() => setPasswordReset(false)}>
+                    Senha redefinida com sucesso. Faça login com sua nova senha.
+                  </Alert>
+                )}
                 {error && (
                   <Alert severity="error" onClose={() => setError(null)}>
                     {error}
@@ -145,6 +154,19 @@ export default function LoginPage() {
                 >
                   {loading ? <CircularProgress size={24} color="inherit" /> : 'Entrar'}
                 </Button>
+
+                <Box sx={{ textAlign: 'center', mt: 1 }}>
+                  <Link href="/forgot-password" passHref legacyBehavior>
+                    <Typography
+                      component="a"
+                      variant="body2"
+                      color="primary.main"
+                      sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                    >
+                      Esqueci minha senha
+                    </Typography>
+                  </Link>
+                </Box>
               </Box>
             </form>
 

@@ -2,10 +2,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
+import secrets
+import hashlib
+from datetime import datetime, timedelta, timezone
 
 from src.core.database import get_db
 from src.core.errors import ValidationError, UnauthorizedError, NotFoundError
-from src.core.config import DUMMY_BCRYPT_HASH
+from src.core.config import DUMMY_BCRYPT_HASH, settings
 from src.models import User
 from src.api.dependencies import get_current_user
 from src.security import (
@@ -205,3 +208,109 @@ async def get_me(
         "phone": current_user.phone,
         "profile_photo_url": current_user.profile_photo_url,
     }
+
+
+# ---------------------------------------------------------------------------
+# Password Reset
+# ---------------------------------------------------------------------------
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+async def forgot_password(
+    body: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """POST /api/v1/auth/forgot-password — Request a password reset link.
+
+    Always returns the same generic message to prevent user enumeration.
+    """
+    from sqlalchemy import select
+    from src.services.email.brevo_provider import BrevoEmailService
+    from src.services.email.base import EmailMessage
+    from src.services.email.templates.password_reset import render_password_reset_email
+
+    stmt = select(User).where(
+        (User.email == body.email) & (User.deleted_at.is_(None)) & (User.is_active.is_(True))
+    )
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if user:
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        user.reset_token_hash = token_hash
+        user.reset_token_expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        await db.commit()
+
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
+        html_body = render_password_reset_email(reset_url, user.full_name or user.username)
+
+        try:
+            svc = BrevoEmailService()
+            await svc.send_async(EmailMessage(
+                to_email=user.email,
+                subject="Redefinição de senha — GiraHub",
+                html_body=html_body,
+                text_body=f"Acesse o link para redefinir sua senha: {reset_url}",
+            ))
+        except Exception:
+            log_security_event("forgot_password", user_id=user.id, success=False,
+                               details={"reason": "email_send_failed"})
+
+        log_security_event("forgot_password", user_id=user.id, success=True)
+
+    return {"message": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+async def reset_password(
+    body: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """POST /api/v1/auth/reset-password — Set a new password using a reset token."""
+    from sqlalchemy import select
+
+    token_hash = hashlib.sha256(body.token.encode()).hexdigest()
+
+    stmt = select(User).where(
+        (User.reset_token_hash == token_hash) & (User.deleted_at.is_(None))
+    )
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": "Token inválido.", "error_code": "INVALID_TOKEN"},
+        )
+
+    now = datetime.now(timezone.utc)
+    expires = user.reset_token_expires_at
+    if expires is None or (expires.tzinfo is None and expires.replace(tzinfo=timezone.utc) < now) or (expires.tzinfo is not None and expires < now):
+        user.reset_token_hash = None
+        user.reset_token_expires_at = None
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": "Token expirado.", "error_code": "EXPIRED_TOKEN"},
+        )
+
+    # Validate password policy (raises ValidationError with PT-BR messages)
+    validate_password_policy(body.new_password)
+
+    user.password_hash = hash_password(body.new_password)
+    user.reset_token_hash = None
+    user.reset_token_expires_at = None
+    await db.commit()
+
+    log_security_event("reset_password", user_id=user.id, success=True)
+
+    return {"message": "Senha redefinida com sucesso."}
