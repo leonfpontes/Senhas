@@ -7,8 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, field_validator
 
+from sqlalchemy import select
 from src.core.database import get_db
 from src.models import User, TenantConfig
+from src.models.tenants import Tenant
 from src.repositories.config_repo import TenantConfigRepository
 from src.services.audit_service import AuditService
 from src.api.dependencies import get_current_user
@@ -111,9 +113,14 @@ async def get_tenant_config(
     repo = TenantConfigRepository(db)
     config = await repo.get_by_tenant(current_user.tenant_id)
     
+    tenant_result = await db.execute(
+        select(Tenant.name).where(Tenant.id == current_user.tenant_id)
+    )
+    tenant_name = tenant_result.scalar_one_or_none()
+
     resp = TenantConfigResponse.from_orm(config)
     resp.logo_url = _build_logo_url(request, config)
-    resp.tenant_nome = current_user.tenant.nome if current_user.tenant else None
+    resp.tenant_nome = tenant_name
     return resp
 
 
