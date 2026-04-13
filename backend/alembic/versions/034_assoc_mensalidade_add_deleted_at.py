@@ -3,14 +3,14 @@
 The table was created in migration 033 without the deleted_at column
 that TimestampedModel defines, causing a ProgrammingError on every query.
 
-Revision ID: 034_assoc_mensalidade_add_deleted_at
+Revision ID: 034_assoc_pag_deleted_at
 Revises: 033_mensalidade_associado
 Create Date: 2026-04-13
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "034_assoc_mensalidade_add_deleted_at"
+revision = "034_assoc_pag_deleted_at"
 down_revision = "033_mensalidade_associado"
 branch_labels = None
 depends_on = None
