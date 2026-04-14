@@ -189,9 +189,17 @@ function SectionListItem({
 
 // ── Hero Preview (pixel-perfect scale of the real site) ──────────────────────
 
-function HeroPreview({ config }: { config: Record<string, unknown> }) {
+function HeroPreview({
+  config,
+  onPositionChange,
+}: {
+  config: Record<string, unknown>;
+  onPositionChange?: (x: number, y: number) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.33);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ mouseX: 0, mouseY: 0, posX: 50, posY: 50 });
 
   useEffect(() => {
     const el = containerRef.current;
@@ -214,10 +222,15 @@ function HeroPreview({ config }: { config: Record<string, unknown> }) {
   const fontWeight = Number(config.font_weight || 700);
   const fontStyle = String(config.font_style || 'normal');
   const subtitleSize = Math.max(16, Math.round(fontSize * 0.6));
+  const posX = Number(config.bg_position_x ?? 50);
+  const posY = Number(config.bg_position_y ?? 50);
+
+  const isImageMode = bgType === 'image' && !!bgUrl;
+  const isDraggable = isImageMode && !!onPositionChange;
 
   let background: string;
   if (bgType === 'image' && bgUrl) {
-    background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${bgUrl}) center/cover no-repeat`;
+    background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${bgUrl}) ${posX}% ${posY}% / cover no-repeat`;
   } else if (bgType === 'solid') {
     background = solidColor;
   } else {
@@ -226,13 +239,35 @@ function HeroPreview({ config }: { config: Record<string, unknown> }) {
       : `linear-gradient(${gradDir}, ${gradFrom} 0%, ${gradTo} 100%)`;
   }
 
-  // The real site hero is always at least 380px tall at 1200px wide.
-  // We scale it down proportionally to the preview container width.
   const containerHeight = Math.round(380 * scale);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!isDraggable) return;
+    e.preventDefault();
+    setIsDragging(true);
+    dragStart.current = { mouseX: e.clientX, mouseY: e.clientY, posX, posY };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !isDraggable || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const dx = e.clientX - dragStart.current.mouseX;
+    const dy = e.clientY - dragStart.current.mouseY;
+    // Drag left → image moves left → x increases (revealing more right side)
+    const newX = Math.round(Math.max(0, Math.min(100, dragStart.current.posX - (dx / rect.width) * 100)));
+    const newY = Math.round(Math.max(0, Math.min(100, dragStart.current.posY - (dy / rect.height) * 100)));
+    onPositionChange!(newX, newY);
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
 
   return (
     <Box
       ref={containerRef}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
       sx={{
         width: '100%',
         height: `${containerHeight}px`,
@@ -241,9 +276,11 @@ function HeroPreview({ config }: { config: Record<string, unknown> }) {
         boxShadow: 2,
         position: 'relative',
         flexShrink: 0,
+        cursor: isDraggable ? (isDragging ? 'grabbing' : 'grab') : 'default',
+        userSelect: 'none',
       }}
     >
-      {/* Inner box matches the REAL site dimensions exactly, then scaled down */}
+      {/* Inner box: real site dimensions scaled down */}
       <Box
         sx={{
           position: 'absolute',
@@ -261,6 +298,7 @@ function HeroPreview({ config }: { config: Record<string, unknown> }) {
           color: '#fff',
           transform: `scale(${scale})`,
           transformOrigin: 'top left',
+          pointerEvents: 'none',
         }}
       >
         {bgType === 'image' && !bgUrl && (
@@ -296,6 +334,26 @@ function HeroPreview({ config }: { config: Record<string, unknown> }) {
           </Typography>
         )}
       </Box>
+
+      {/* Drag hint overlay */}
+      {isDraggable && !isDragging && (
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 6,
+            right: 8,
+            bgcolor: 'rgba(0,0,0,0.45)',
+            color: '#fff',
+            borderRadius: 1,
+            px: 1,
+            py: 0.25,
+            fontSize: 10,
+            pointerEvents: 'none',
+          }}
+        >
+          Arraste para reposicionar
+        </Box>
+      )}
     </Box>
   );
 }
@@ -316,27 +374,28 @@ function SectionEditor({
   siteId: string;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Reset so the same file can be re-selected if needed
     e.target.value = '';
+    setUploadError(null);
     setUploading(true);
     onUploadStart(section.id);
     try {
       const formData = new FormData();
       formData.append('file', file);
 
-      // Use fetch directly: axios instance has 'Content-Type: application/json' as default
-      // which conflicts with multipart/form-data even when set to undefined.
-      // fetch auto-sets Content-Type with the correct boundary when given a FormData body.
+      // Use fetch directly — axios instance default Content-Type conflicts with multipart.
+      // Use window.location.origin to work in any env (localhost, docker, prod) without
+      // depending on NEXT_PUBLIC_API_BASE_URL being set.
       const token =
         (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
         localStorage.getItem('access_token');
 
-      const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
-      const res = await fetch(`${base}/api/v1/admin/sites/images`, {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const res = await fetch(`${origin}/api/v1/admin/sites/images`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
@@ -350,7 +409,7 @@ function SectionEditor({
       const data = await res.json();
       onChange({ ...section.config, [field]: data.id, [`${field}_url`]: data.url });
     } catch (err: any) {
-      alert(err?.message || 'Erro ao fazer upload da imagem.');
+      setUploadError(err?.message || 'Erro ao fazer upload da imagem.');
     } finally {
       setUploading(false);
       onUploadEnd();
@@ -392,7 +451,13 @@ function SectionEditor({
             )}
 
             {/* ── Live Hero Preview (proporcional ao site publicado) ── */}
-            <HeroPreview config={config} />
+            <HeroPreview
+              config={config}
+              onPositionChange={bgType === 'image' && bgImageUrl
+                ? (x, y) => onChange({ ...config, bg_position_x: x, bg_position_y: y })
+                : undefined
+              }
+            />
 
             {/* ── Texto ── */}
             <TextField
@@ -682,16 +747,20 @@ function SectionEditor({
                     </Button>
                   )}
                 </Box>
-                {!bgImageUrl && (
-                  <Box
-                    sx={{
-                      width: '100%', aspectRatio: '16 / 5',
-                      borderRadius: 1, border: '2px dashed', borderColor: 'divider',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >
-                    <Typography variant="caption" color="text.disabled">Preview aparece acima ao selecionar a imagem</Typography>
-                  </Box>
+                {uploadError && (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                    {uploadError}
+                  </Typography>
+                )}
+                {!bgImageUrl && !uploadError && (
+                  <Typography variant="caption" color="text.disabled">
+                    Após escolher a imagem, arraste o preview acima para ajustar o enquadramento.
+                  </Typography>
+                )}
+                {bgImageUrl && (
+                  <Typography variant="caption" color="text.secondary">
+                    Arraste a imagem no preview acima para ajustar o reposicionamento.
+                  </Typography>
                 )}
               </Box>
             )}

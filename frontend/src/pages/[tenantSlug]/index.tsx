@@ -58,10 +58,12 @@ function HeroSection({ config }: { config: Record<string, unknown> }) {
   const titleFontWeight = Number(config.font_weight || 700);
   const fontStyle = String(config.font_style || 'normal');
   const subtitleFontSize = Math.max(16, Math.round(titleFontSize * 0.6));
+  const bgPositionX = Number(config.bg_position_x ?? 50);
+  const bgPositionY = Number(config.bg_position_y ?? 50);
 
   let background: string;
   if (bgType === 'image' && bgUrl) {
-    background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${bgUrl}) center/cover no-repeat`;
+    background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${bgUrl}) ${bgPositionX}% ${bgPositionY}% / cover no-repeat`;
   } else if (bgType === 'solid') {
     background = String(config.bg_color || '#6366f1');
   } else {
