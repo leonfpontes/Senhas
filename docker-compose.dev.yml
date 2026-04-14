@@ -58,6 +58,7 @@ services:
     working_dir: /app/frontend
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000/api
+      INTERNAL_API_URL: http://backend:8000
       NODE_ENV: development
       NEXT_TELEMETRY_DISABLED: 1
       NEXT_DISABLE_SWC: 1

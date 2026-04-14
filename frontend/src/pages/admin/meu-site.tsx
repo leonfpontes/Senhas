@@ -57,6 +57,7 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import PublicIcon from '@mui/icons-material/Public';
 import PublicOffIcon from '@mui/icons-material/PublicOff';
 import SaveIcon from '@mui/icons-material/Save';
+import SettingsIcon from '@mui/icons-material/Settings';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -457,6 +458,14 @@ export default function MeuSitePage() {
   const [showAddSection, setShowAddSection] = useState(false);
   const [newSectionType, setNewSectionType] = useState('HERO');
 
+  // Settings dialog state
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsSlug, setSettingsSlug] = useState('');
+  const [settingsTemplate, setSettingsTemplate] = useState('moderno');
+  const [settingsMetaTitle, setSettingsMetaTitle] = useState('');
+  const [settingsMetaDesc, setSettingsMetaDesc] = useState('');
+  const [savingSettings, setSavingSettings] = useState(false);
+
   // ── Data loading ────────────────────────────────────────────────────────────
 
   const loadSite = useCallback(async () => {
@@ -470,6 +479,11 @@ export default function MeuSitePage() {
       setSections(sectionsRes.data.sections);
       setSiteUpdatedAt(sectionsRes.data.site_updated_at || siteRes.data.updated_at);
       setHasChanges(false);
+      // Init settings state
+      setSettingsSlug(siteRes.data.slug || '');
+      setSettingsTemplate(siteRes.data.template || 'moderno');
+      setSettingsMetaTitle(siteRes.data.meta_title || '');
+      setSettingsMetaDesc(siteRes.data.meta_description || '');
     } catch (err: any) {
       setSnack({ msg: 'Erro ao carregar site.', severity: 'error' });
     } finally {
@@ -549,6 +563,40 @@ export default function MeuSitePage() {
   const canSave = !saving && !uploadingImageFor && allErrors.length === 0;
 
   // ── Save ────────────────────────────────────────────────────────────────────
+
+  // ── Settings ────────────────────────────────────────────────────────────────
+
+  const openSettings = () => {
+    if (site) {
+      setSettingsSlug(site.slug || '');
+      setSettingsTemplate(site.template || 'moderno');
+      setSettingsMetaTitle(site.meta_title || '');
+      setSettingsMetaDesc(site.meta_description || '');
+    }
+    setShowSettings(true);
+  };
+
+  const handleSaveSettings = async () => {
+    if (!settingsSlug.trim()) return;
+    setSavingSettings(true);
+    try {
+      const res = await apiClient.put('/api/v1/admin/sites', {
+        slug: settingsSlug.trim(),
+        template: settingsTemplate,
+        meta_title: settingsMetaTitle || null,
+        meta_description: settingsMetaDesc || null,
+      });
+      setSite(res.data);
+      setShowSettings(false);
+      setSnack({ msg: 'Configurações salvas!', severity: 'success' });
+    } catch (err: any) {
+      setSnack({ msg: err?.response?.data?.detail || 'Erro ao salvar configurações.', severity: 'error' });
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  // ── Save sections ───────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     if (!canSave) return;
@@ -686,6 +734,12 @@ export default function MeuSitePage() {
             </span>
           </Tooltip>
         )}
+
+        <Tooltip title="Configurações do site (URL, template, meta)">
+          <IconButton size="small" onClick={openSettings}>
+            <SettingsIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
 
         <Button
           size="small"
@@ -935,6 +989,60 @@ export default function MeuSitePage() {
           <Button onClick={() => setConfirmRestore(null)}>Cancelar</Button>
           <Button variant="contained" color="warning" onClick={handleRestoreConfirm}>
             Restaurar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Settings Dialog */}
+      <Dialog open={showSettings} onClose={() => setShowSettings(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Configurações do Site</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <TextField
+            label="URL do site (slug) *"
+            value={settingsSlug}
+            onChange={(e) => setSettingsSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+            fullWidth
+            helperText={`Seu site ficará em: ${typeof window !== 'undefined' ? window.location.origin : ''}/` + (settingsSlug || '...')}
+            inputProps={{ maxLength: 100 }}
+          />
+          <FormControl fullWidth>
+            <InputLabel>Template</InputLabel>
+            <Select
+              value={settingsTemplate}
+              label="Template"
+              onChange={(e) => setSettingsTemplate(e.target.value)}
+            >
+              <MenuItem value="moderno">Moderno</MenuItem>
+              <MenuItem value="classico">Clássico</MenuItem>
+              <MenuItem value="minimal">Minimalista</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField
+            label="Título da página (SEO)"
+            value={settingsMetaTitle}
+            onChange={(e) => setSettingsMetaTitle(e.target.value)}
+            fullWidth
+            inputProps={{ maxLength: 200 }}
+          />
+          <TextField
+            label="Descrição (SEO)"
+            value={settingsMetaDesc}
+            onChange={(e) => setSettingsMetaDesc(e.target.value)}
+            fullWidth
+            multiline
+            rows={2}
+            inputProps={{ maxLength: 500 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowSettings(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveSettings}
+            disabled={savingSettings || !settingsSlug.trim()}
+            startIcon={savingSettings ? <CircularProgress size={14} color="inherit" /> : undefined}
+          >
+            Salvar
           </Button>
         </DialogActions>
       </Dialog>

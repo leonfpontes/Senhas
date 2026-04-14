@@ -229,8 +229,11 @@ async def get_site(
     # Auto-derive slug from tenant slug (to be overridden later)
     site = await repo.get_by_tenant(tenant_id)
     if not site:
-        # Use a sensible default slug from tenant_id prefix
-        default_slug = str(tenant_id).split("-")[0]
+        # Use the tenant's actual slug as the default site slug
+        from sqlalchemy import select as sa_select
+        from src.models.tenants import Tenant
+        result = await db.execute(sa_select(Tenant.slug).where(Tenant.id == tenant_id))
+        default_slug = result.scalar_one_or_none() or str(tenant_id).split("-")[0]
         site = await repo.get_or_create(tenant_id, default_slug)
         await db.commit()
 
