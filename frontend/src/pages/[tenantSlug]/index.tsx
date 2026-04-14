@@ -378,9 +378,10 @@ export default function TenantPublicSitePage({ site }: Props) {
 export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   const slug = params?.tenantSlug as string;
 
-  // Use INTERNAL_API_URL for server-side fetches inside Docker network (Gap #22).
-  // Falls back to localhost for local development outside Docker.
-  const base = process.env.INTERNAL_API_URL || 'http://localhost:8000';
+  // Use INTERNAL_API_URL for server-side fetches inside Docker network.
+  // 'backend' is the Docker service name (resolves inside the network).
+  // Falls back to localhost:8000 for development outside Docker.
+  const base = process.env.INTERNAL_API_URL || 'http://backend:8000';
 
   try {
     const res = await fetch(`${base}/api/v1/public/sites/${encodeURIComponent(slug)}`);
