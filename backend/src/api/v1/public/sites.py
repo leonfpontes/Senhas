@@ -4,8 +4,6 @@ Routes:
   GET /api/v1/public/sites/{slug}                — Get published site with sections + upcoming giras (SSR)
   GET /api/v1/public/sites/images/{image_id}     — Serve site image binary (rate-limited, cached)
 """
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 

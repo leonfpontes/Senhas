@@ -13,8 +13,6 @@ Routes:
   GET  /api/v1/admin/sites/versions     — List version history
   POST /api/v1/admin/sites/versions/{version_id}/restore  — Restore a version
 """
-from __future__ import annotations
-
 import io
 import logging
 import uuid
