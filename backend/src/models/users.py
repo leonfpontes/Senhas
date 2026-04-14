@@ -54,8 +54,8 @@ class User(SoftDeleteModel):
         default=UserRole.OPERATOR, nullable=False,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    reset_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True, repr=False)
-    reset_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, repr=False)
+    reset_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reset_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     tenant = relationship("Tenant", back_populates="users")
