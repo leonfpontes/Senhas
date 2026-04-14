@@ -6,7 +6,7 @@ Create Date: 2026-04-14
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, BYTEA, JSONB
+from sqlalchemy.dialects.postgresql import UUID, BYTEA, JSONB, ENUM as PgEnum
 
 revision = "036_site_builder"
 down_revision = "035_password_reset"
@@ -15,11 +15,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 1. Create ENUMs idempotently (DROP IF EXISTS + CREATE)
-    op.execute("DROP TYPE IF EXISTS site_status")
+    # 1. Create ENUMs idempotently (DROP IF EXISTS CASCADE + CREATE)
+    op.execute("DROP TYPE IF EXISTS site_status CASCADE")
     op.execute("CREATE TYPE site_status AS ENUM ('DRAFT', 'PUBLISHED', 'UNPUBLISHED')")
 
-    op.execute("DROP TYPE IF EXISTS site_section_type")
+    op.execute("DROP TYPE IF EXISTS site_section_type CASCADE")
     op.execute(
         "CREATE TYPE site_section_type AS ENUM ("
         "'HERO', 'ABOUT', 'VIDEO_EMBED', 'GIRAS_CALENDAR', "
@@ -40,7 +40,7 @@ def upgrade() -> None:
         sa.Column("slug", sa.String(100), nullable=False),
         sa.Column(
             "status",
-            sa.Enum("DRAFT", "PUBLISHED", "UNPUBLISHED", name="site_status", create_type=False),
+            PgEnum("DRAFT", "PUBLISHED", "UNPUBLISHED", name="site_status", create_type=False),
             nullable=False,
             server_default="DRAFT",
         ),
@@ -83,7 +83,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "section_type",
-            sa.Enum(
+            PgEnum(
                 "HERO", "ABOUT", "VIDEO_EMBED", "GIRAS_CALENDAR",
                 "SPONSOR", "LOCATION", "CONTACT", "CUSTOM_TEXT",
                 name="site_section_type",
