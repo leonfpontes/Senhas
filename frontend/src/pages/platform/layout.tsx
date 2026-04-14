@@ -304,7 +304,7 @@ export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
       {/* Footer */}
       <Box sx={{ p: 2 }}>
         <Typography variant="caption" display="block" color="text.secondary">
-          Senhas v2.3
+          GiraHub v3.0
         </Typography>
         <Typography variant="caption" display="block" color="text.secondary">
           Platform Edition

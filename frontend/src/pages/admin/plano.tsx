@@ -67,6 +67,7 @@ const FEATURES: PlanFeature[] = [
   { label: 'Emissão de senhas online', free: true, basic: true, pro: true, premium: true },
   { label: 'Porta (fila em tempo real)', free: true, basic: true, pro: true, premium: true },
   { label: 'Link público personalizável', free: true, basic: true, pro: true, premium: true },
+  { label: 'Site do Terreiro', free: false, basic: false, pro: true, premium: true },
   { label: 'Usuários', free: '1', basic: '5', pro: '20', premium: 'Ilimitado' },
   { label: 'Giras por mês', free: '2', basic: '10', pro: '50', premium: 'Ilimitado' },
   { label: 'Envio de senhas por e-mail', free: false, basic: false, pro: true, premium: true },

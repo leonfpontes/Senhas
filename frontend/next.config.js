@@ -32,6 +32,16 @@ const nextConfig = {
   },
   // Production: immutable cache for hashed assets.
   // In development, never force immutable caching on /_next/static because it breaks HMR.
+  // Proxy /api/:path* to backend (enables <img src="/api/..."> to work locally)
+  async rewrites() {
+    const backendBase = process.env.INTERNAL_API_URL || 'http://localhost:8000';
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${backendBase}/api/:path*`,
+      },
+    ];
+  },
   async headers() {
     if (process.env.NODE_ENV !== 'production') {
       return [

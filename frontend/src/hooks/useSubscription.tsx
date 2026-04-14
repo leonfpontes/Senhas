@@ -20,6 +20,7 @@ export interface PlanFeatures {
   estoque_controle: boolean;
   mediuns: boolean;
   relatorio_gira: boolean;
+  site_builder: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -71,6 +72,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   estoque_controle: false,
   mediuns: false,
   relatorio_gira: false,
+  site_builder: false,
 };
 
 const PLAN_LABELS: Record<string, string> = {

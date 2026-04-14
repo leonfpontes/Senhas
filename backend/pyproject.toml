@@ -33,6 +33,7 @@ dependencies = [
     "slowapi>=0.1.9",
     "limits>=3.6.0",
     "tzdata>=2023.3",
+    "Pillow>=10.0.0",
 ]
 
 [project.optional-dependencies]

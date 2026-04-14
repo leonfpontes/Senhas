@@ -244,10 +244,23 @@ function AdminGirasContent() {
     if (saveDisabled) return;
     setSaving(true);
     try {
+      // Convert datetime-local string ("2026-04-19T10:00") to UTC ISO string
+      // so the backend stores the correct moment in time.
+      const toUtcIso = (localStr: string) =>
+        localStr ? new Date(localStr).toISOString() : localStr;
+      const payload = {
+        ...formData,
+        data_inicio: toUtcIso(formData.data_inicio),
+        data_fim: formData.data_fim ? toUtcIso(formData.data_fim) : undefined,
+        release_start_at: formData.release_start_at ? toUtcIso(formData.release_start_at) : undefined,
+        release_end_at: formData.release_end_at ? toUtcIso(formData.release_end_at) : undefined,
+        sponsor_release_start_at: formData.sponsor_release_start_at ? toUtcIso(formData.sponsor_release_start_at) : undefined,
+        sponsor_release_end_at: formData.sponsor_release_end_at ? toUtcIso(formData.sponsor_release_end_at) : undefined,
+      };
       if (drawerMode === 'create') {
-        await apiClient.post('/api/v1/admin/giras', formData);
+        await apiClient.post('/api/v1/admin/giras', payload);
       } else if (currentGira) {
-        await apiClient.put(`/api/v1/admin/giras/${currentGira.id}`, formData);
+        await apiClient.put(`/api/v1/admin/giras/${currentGira.id}`, payload);
       }
       closeDrawer();
       loadGiras();
@@ -473,7 +486,11 @@ function AdminGirasContent() {
                 <TableRow key={gira.id}>
                   <TableCell>{gira.nome}</TableCell>
                   <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                    {new Date(gira.data_inicio).toLocaleDateString('pt-BR')}
+                    {new Date(gira.data_inicio).toLocaleString('pt-BR', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                      timeZone: 'UTC',
+                    })}
                   </TableCell>
                   <TableCell>{getSenhaChip(gira)}</TableCell>
                   <TableCell>
