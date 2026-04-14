@@ -86,3 +86,20 @@ export const HERO_FONT_WEIGHTS = [
   { label: 'Extra Negrito', value: 800 },
   { label: 'Preto', value: 900 },
 ];
+
+// Font sizes suitable for section body/title text (smaller scale than hero)
+export const SECTION_TITLE_SIZES = [
+  { label: 'Pequeno', value: 20 },
+  { label: 'Médio', value: 24 },
+  { label: 'Grande', value: 28 },
+  { label: 'Extra Grande', value: 32 },
+  { label: 'Enorme', value: 40 },
+];
+
+export const SECTION_BODY_SIZES = [
+  { label: 'Pequeno', value: 13 },
+  { label: 'Normal', value: 15 },
+  { label: 'Médio', value: 17 },
+  { label: 'Grande', value: 19 },
+  { label: 'Extra Grande', value: 22 },
+];

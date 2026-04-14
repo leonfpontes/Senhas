@@ -39,7 +39,7 @@ class SiteRepository(BaseRepository[TenantSite]):
         return result.scalar_one_or_none()
 
     async def get_published_by_slug(
-        self, slug: str, limit_giras: int = 3
+        self, slug: str, limit_giras: int = 10
     ) -> Optional[dict[str, Any]]:
         """Return published site with sections + upcoming giras for SSR.
 

@@ -706,7 +706,7 @@ function AdminLayoutInner({
           />
         )}
         <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-          Senhas v2.3
+          GiraHub v3.0
         </Typography>
       </Box>
     </Box>
