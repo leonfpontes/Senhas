@@ -48,30 +48,42 @@ def _admin_user():
 
 
 def _pro_sub():
-    from src.models.subscriptions import PlanType
+    from src.models.subscriptions import PlanType, SubscriptionStatus
     sub = MagicMock()
     sub.plan = PlanType.PRO
+    sub.status = SubscriptionStatus.ACTIVE
     return sub
 
 
 def _premium_sub():
-    from src.models.subscriptions import PlanType
+    from src.models.subscriptions import PlanType, SubscriptionStatus
     sub = MagicMock()
     sub.plan = PlanType.PREMIUM
+    sub.status = SubscriptionStatus.ACTIVE
     return sub
 
 
 def _free_sub():
-    from src.models.subscriptions import PlanType
+    from src.models.subscriptions import PlanType, SubscriptionStatus
     sub = MagicMock()
     sub.plan = PlanType.FREE
+    sub.status = SubscriptionStatus.ACTIVE
     return sub
 
 
 def _basic_sub():
-    from src.models.subscriptions import PlanType
+    from src.models.subscriptions import PlanType, SubscriptionStatus
     sub = MagicMock()
     sub.plan = PlanType.BASIC
+    sub.status = SubscriptionStatus.ACTIVE
+    return sub
+
+
+def _pro_sub_suspended():
+    from src.models.subscriptions import PlanType, SubscriptionStatus
+    sub = MagicMock()
+    sub.plan = PlanType.PRO
+    sub.status = SubscriptionStatus.SUSPENDED
     return sub
 
 
@@ -160,6 +172,19 @@ class TestPlanGate:
         from src.api.v1.admin.sites import get_site
         sub_inst = AsyncMock()
         sub_inst.get_by_tenant.return_value = _basic_sub()
+        MockSubRepo.return_value = sub_inst
+        request = MagicMock()
+        with pytest.raises(HTTPException) as exc:
+            await get_site(request, _admin_user(), _mock_db())
+        assert exc.value.status_code == 403
+
+    @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SubscriptionRepository")
+    async def test_pro_suspenso_get_site_retorna_403(self, MockSubRepo):
+        from fastapi import HTTPException
+        from src.api.v1.admin.sites import get_site
+        sub_inst = AsyncMock()
+        sub_inst.get_by_tenant.return_value = _pro_sub_suspended()
         MockSubRepo.return_value = sub_inst
         request = MagicMock()
         with pytest.raises(HTTPException) as exc:

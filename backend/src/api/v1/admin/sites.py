@@ -38,7 +38,7 @@ from src.api.dependencies import get_current_user
 from src.core.database import get_db
 from src.models import User
 from src.models.site import SiteStatus, SiteSectionType
-from src.models.subscriptions import PlanType
+from src.models.subscriptions import PlanType, SubscriptionStatus
 from src.repositories.site_repo import SiteRepository
 from src.repositories.site_image_repo import (
     SiteImageRepository,
@@ -61,7 +61,8 @@ async def _require_pro(current_user: User, db: AsyncSession) -> None:
     sub_repo = SubscriptionRepository(db)
     sub = await sub_repo.get_by_tenant(current_user.tenant_id)
     plan = sub.plan if sub else PlanType.FREE
-    if plan not in _PRO_OR_PREMIUM:
+    is_active = bool(sub and sub.status == SubscriptionStatus.ACTIVE)
+    if plan not in _PRO_OR_PREMIUM or not is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Site Builder está disponível apenas nos planos Pro e Premium.",

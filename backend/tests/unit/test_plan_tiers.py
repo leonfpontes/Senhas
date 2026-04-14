@@ -49,6 +49,7 @@ class TestPlanFeatures:
         assert f.auditoria is False
         assert f.api_access is False
         assert f.suporte_prioritario is False
+        assert f.site_builder is False
 
     def test_basic_plan_has_no_extra_features(self):
         """Basic only provides more capacity, no extra features."""
@@ -63,6 +64,7 @@ class TestPlanFeatures:
         assert f.auditoria is False
         assert f.api_access is False
         assert f.suporte_prioritario is False
+        assert f.site_builder is False
 
     def test_pro_plan_has_mid_tier_features(self):
         """Pro unlocks most features except api/suporte."""
@@ -76,6 +78,7 @@ class TestPlanFeatures:
         assert f.export_csv is True
         assert f.bulk_operations is True
         assert f.auditoria is True
+        assert f.site_builder is True
         # Should still be disabled
         assert f.api_access is False
         assert f.suporte_prioritario is False
@@ -93,6 +96,7 @@ class TestPlanFeatures:
         assert f.auditoria is True
         assert f.api_access is True
         assert f.suporte_prioritario is True
+        assert f.site_builder is True
 
 
 class TestPlanFeaturesMensalidade:
