@@ -548,7 +548,7 @@ export default function MensalidadesPage() {
                         </TableCell>
                         <TableCell>{statusChip(item)}</TableCell>
                         <TableCell>
-                          {config ? `${String(config.dia_vencimento).padStart(2, '0')}/${mes.replace('-', '/')}` : '—'}
+                          {config ? `${String(config.dia_vencimento).padStart(2, '0')}/${mes.slice(5, 7)}/${mes.slice(0, 4)}` : '—'}
                         </TableCell>
                         <TableCell>
                           {item.data_pagamento
@@ -625,7 +625,7 @@ export default function MensalidadesPage() {
                           </TableCell>
                           <TableCell>{chip}</TableCell>
                           <TableCell>
-                            {config ? `${String(config.dia_vencimento_associado ?? 10).padStart(2, '0')}/${mes.replace('-', '/')}` : '—'}
+                            {config ? `${String(config.dia_vencimento_associado ?? 10).padStart(2, '0')}/${mes.slice(5, 7)}/${mes.slice(0, 4)}` : '—'}
                           </TableCell>
                           <TableCell>
                             {item.data_pagamento
