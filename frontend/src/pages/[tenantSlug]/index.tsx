@@ -48,7 +48,24 @@ interface SiteData {
 // ── Section renderers ─────────────────────────────────────────────────────────
 
 function HeroSection({ config }: { config: Record<string, unknown> }) {
+  const bgType = String(config.bg_type || 'gradient');
   const bgUrl = config.bg_image_url ? String(config.bg_image_url) : undefined;
+
+  let background: string;
+  if (bgType === 'image' && bgUrl) {
+    background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${bgUrl}) center/cover no-repeat`;
+  } else if (bgType === 'solid') {
+    background = String(config.bg_color || '#6366f1');
+  } else {
+    // gradient (default)
+    const from = String(config.gradient_from || '#6366f1');
+    const to = String(config.gradient_to || '#ec4899');
+    const dir = String(config.gradient_dir || '135deg');
+    background = dir === 'radial'
+      ? `radial-gradient(circle, ${from} 0%, ${to} 100%)`
+      : `linear-gradient(${dir}, ${from} 0%, ${to} 100%)`;
+  }
+
   return (
     <Box
       sx={{
@@ -59,9 +76,7 @@ function HeroSection({ config }: { config: Record<string, unknown> }) {
         flexDirection: 'column',
         textAlign: 'center',
         p: 6,
-        background: bgUrl
-          ? `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${bgUrl}) center/cover no-repeat`
-          : 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+        background,
         color: '#fff',
       }}
     >

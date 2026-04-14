@@ -248,22 +248,166 @@ function SectionEditor({
             multiline
             rows={2}
           />
-          <Box>
-            <Typography variant="caption" color="text.secondary">Imagem de fundo</Typography>
-            <Button
-              component="label"
-              variant="outlined"
-              size="small"
-              sx={{ ml: 1 }}
-              disabled={uploading}
+
+          {/* ── Background type ── */}
+          <FormControl fullWidth size="small">
+            <InputLabel>Tipo de fundo</InputLabel>
+            <Select
+              value={String(config.bg_type || 'gradient')}
+              label="Tipo de fundo"
+              onChange={(e) => onChange({ ...config, bg_type: e.target.value })}
             >
-              {uploading ? 'Enviando…' : 'Escolher imagem'}
-              <input type="file" hidden accept="image/*" onChange={(e) => handleImageUpload(e, 'bg_image_id')} />
-            </Button>
-            {config.bg_image_url && (
-              <Box component="img" src={String(config.bg_image_url)} sx={{ mt: 1, maxHeight: 80, borderRadius: 1 }} />
-            )}
-          </Box>
+              <MenuItem value="gradient">Gradiente</MenuItem>
+              <MenuItem value="solid">Cor sólida</MenuItem>
+              <MenuItem value="image">Imagem</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* ── Solid color ── */}
+          {(config.bg_type === 'solid' || (!config.bg_type && false)) && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 80 }}>Cor de fundo</Typography>
+              <Box
+                component="input"
+                type="color"
+                value={String(config.bg_color || '#6366f1')}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  onChange({ ...config, bg_color: e.target.value })
+                }
+                sx={{ width: 48, height: 36, border: '1px solid', borderColor: 'divider', borderRadius: 1, cursor: 'pointer', p: 0.25 }}
+              />
+              <Typography variant="caption" color="text.secondary">{String(config.bg_color || '#6366f1')}</Typography>
+            </Box>
+          )}
+
+          {/* ── Gradient options ── */}
+          {(config.bg_type === 'gradient' || !config.bg_type) && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Direção do gradiente</InputLabel>
+                <Select
+                  value={String(config.gradient_dir || '135deg')}
+                  label="Direção do gradiente"
+                  onChange={(e) => onChange({ ...config, gradient_dir: e.target.value })}
+                >
+                  <MenuItem value="to bottom">Vertical (cima → baixo)</MenuItem>
+                  <MenuItem value="to right">Horizontal (esq → dir)</MenuItem>
+                  <MenuItem value="135deg">Diagonal ↘ (padrão)</MenuItem>
+                  <MenuItem value="45deg">Diagonal ↗</MenuItem>
+                  <MenuItem value="225deg">Diagonal ↙</MenuItem>
+                  <MenuItem value="315deg">Diagonal ↖</MenuItem>
+                  <MenuItem value="radial">Radial (centro para fora)</MenuItem>
+                </Select>
+              </FormControl>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 56 }}>Cor inicial</Typography>
+                  <Box
+                    component="input"
+                    type="color"
+                    value={String(config.gradient_from || '#6366f1')}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      onChange({ ...config, gradient_from: e.target.value })
+                    }
+                    sx={{ width: 40, height: 32, border: '1px solid', borderColor: 'divider', borderRadius: 1, cursor: 'pointer', p: 0.2 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 56 }}>Cor final</Typography>
+                  <Box
+                    component="input"
+                    type="color"
+                    value={String(config.gradient_to || '#ec4899')}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      onChange({ ...config, gradient_to: e.target.value })
+                    }
+                    sx={{ width: 40, height: 32, border: '1px solid', borderColor: 'divider', borderRadius: 1, cursor: 'pointer', p: 0.2 }}
+                  />
+                </Box>
+              </Box>
+              {/* Preview */}
+              <Box
+                sx={{
+                  height: 36,
+                  borderRadius: 1,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  background: String(config.gradient_dir || '135deg') === 'radial'
+                    ? `radial-gradient(circle, ${String(config.gradient_from || '#6366f1')} 0%, ${String(config.gradient_to || '#ec4899')} 100%)`
+                    : `linear-gradient(${String(config.gradient_dir || '135deg')}, ${String(config.gradient_from || '#6366f1')} 0%, ${String(config.gradient_to || '#ec4899')} 100%)`,
+                }}
+              />
+            </Box>
+          )}
+
+          {/* ── Image upload ── */}
+          {config.bg_type === 'image' && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                Imagem de fundo — recomendado <strong>1920 × 600 px</strong> (formato landscape, JPEG/PNG, até 5 MB)
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Button
+                  component="label"
+                  variant="outlined"
+                  size="small"
+                  disabled={uploading}
+                  startIcon={uploading ? <CircularProgress size={14} /> : undefined}
+                >
+                  {uploading ? 'Enviando…' : config.bg_image_url ? 'Trocar imagem' : 'Escolher imagem'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => handleImageUpload(e, 'bg_image_id')}
+                  />
+                </Button>
+                {config.bg_image_url && (
+                  <Button
+                    size="small"
+                    color="error"
+                    variant="text"
+                    onClick={() => onChange({ ...config, bg_image_id: undefined, bg_image_url: undefined })}
+                  >
+                    Remover
+                  </Button>
+                )}
+              </Box>
+              {config.bg_image_url ? (
+                <Box
+                  component="img"
+                  src={String(config.bg_image_url)}
+                  alt="Preview do fundo"
+                  sx={{
+                    mt: 0.5,
+                    width: '100%',
+                    maxHeight: 120,
+                    objectFit: 'cover',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                  }}
+                />
+              ) : (
+                <Box
+                  sx={{
+                    mt: 0.5,
+                    height: 80,
+                    borderRadius: 1,
+                    border: '2px dashed',
+                    borderColor: 'divider',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Typography variant="caption" color="text.disabled">
+                    Nenhuma imagem selecionada
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          )}
         </>
       )}
 
