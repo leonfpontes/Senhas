@@ -128,6 +128,10 @@ def create_app() -> FastAPI:
     server_ip = os.environ.get("SERVER_IP", "")
     if server_ip:
         allowed_hosts.append(server_ip)
+    # Allow internal Docker service hostnames (e.g. SSR calls from frontend container)
+    extra_hosts = os.environ.get("EXTRA_ALLOWED_HOSTS", "")
+    if extra_hosts:
+        allowed_hosts.extend([h.strip() for h in extra_hosts.split(",") if h.strip()])
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=allowed_hosts,

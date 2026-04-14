@@ -30,6 +30,7 @@ services:
       PYTHONUNBUFFERED: 1
       LOG_LEVEL: info
       SECRET_KEY: dev-secret-key-change-in-production
+      EXTRA_ALLOWED_HOSTS: backend,backend:8000
     ports:
       - "8000:8000"
     depends_on:
