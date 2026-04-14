@@ -17,6 +17,7 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
+import { HERO_FONTS } from '@/constants/heroFonts';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,13 @@ function HeroSection({ config }: { config: Record<string, unknown> }) {
   const bgType = String(config.bg_type || 'gradient');
   const bgUrl = config.bg_image_url ? String(config.bg_image_url) : undefined;
 
+  // Font
+  const fontFamily = String(config.font_family || 'system-ui, sans-serif');
+  const titleFontSize = Number(config.font_size || 48);
+  const titleFontWeight = Number(config.font_weight || 700);
+  const fontStyle = String(config.font_style || 'normal');
+  const subtitleFontSize = Math.max(16, Math.round(titleFontSize * 0.6));
+
   let background: string;
   if (bgType === 'image' && bgUrl) {
     background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${bgUrl}) center/cover no-repeat`;
@@ -80,11 +88,31 @@ function HeroSection({ config }: { config: Record<string, unknown> }) {
         color: '#fff',
       }}
     >
-      <Typography variant="h3" fontWeight={700} gutterBottom>
+      <Typography
+        variant="h3"
+        gutterBottom
+        sx={{
+          fontFamily,
+          fontWeight: titleFontWeight,
+          fontStyle,
+          fontSize: `${titleFontSize}px`,
+          lineHeight: 1.2,
+          textShadow: '0 2px 8px rgba(0,0,0,0.35)',
+        }}
+      >
         {String(config.title || '')}
       </Typography>
       {config.subtitle && (
-        <Typography variant="h6" sx={{ opacity: 0.9, maxWidth: 640 }}>
+        <Typography
+          variant="h6"
+          sx={{
+            fontFamily,
+            fontStyle,
+            fontSize: `${subtitleFontSize}px`,
+            opacity: 0.9,
+            maxWidth: 640,
+          }}
+        >
           {String(config.subtitle)}
         </Typography>
       )}
@@ -357,6 +385,12 @@ interface Props {
 export default function TenantPublicSitePage({ site }: Props) {
   const sortedSections = [...site.sections].sort((a, b) => a.order_index - b.order_index);
 
+  // Inject Google Font for HERO section if one is configured
+  const heroSection = sortedSections.find(s => s.section_type === 'HERO');
+  const heroFontFamily = heroSection ? String(heroSection.config.font_family || '') : '';
+  const heroFontEntry = HERO_FONTS.find(f => f.value === heroFontFamily);
+  const heroFontImportUrl = heroFontEntry?.importUrl ?? null;
+
   return (
     <>
       <Head>
@@ -367,6 +401,9 @@ export default function TenantPublicSitePage({ site }: Props) {
         <meta property="og:title" content={site.meta_title || 'Terreiro — GiraHub'} />
         {site.meta_description && (
           <meta property="og:description" content={site.meta_description} />
+        )}
+        {heroFontImportUrl && (
+          <link rel="stylesheet" href={heroFontImportUrl} />
         )}
       </Head>
 

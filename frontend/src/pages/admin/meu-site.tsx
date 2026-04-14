@@ -64,6 +64,7 @@ import { useRouter } from 'next/router';
 import AdminLayout from './admin_layout';
 import { apiClient } from '@/services/api_client';
 import { useSubscription } from '@/hooks/useSubscription';
+import { HERO_FONTS, HERO_FONT_SIZES, HERO_FONT_WEIGHTS } from '@/constants/heroFonts';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -206,13 +207,16 @@ function SectionEditor({
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Reset so the same file can be re-selected if needed
+    e.target.value = '';
     setUploading(true);
     onUploadStart(section.id);
     try {
       const formData = new FormData();
       formData.append('file', file);
+      // Do NOT set Content-Type manually — axios auto-sets multipart/form-data with boundary
       const res = await apiClient.post('/api/v1/admin/sites/images', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 'Content-Type': undefined },
       });
       onChange({ ...section.config, [field]: res.data.id, [`${field}_url`]: res.data.url });
     } catch (err: any) {
@@ -232,184 +236,362 @@ function SectionEditor({
       </Typography>
 
       {/* HERO */}
-      {type === 'HERO' && (
-        <>
-          <TextField
-            label="Título *"
-            value={String(config.title || '')}
-            onChange={(e) => onChange({ ...config, title: e.target.value })}
-            fullWidth
-          />
-          <TextField
-            label="Subtítulo"
-            value={String(config.subtitle || '')}
-            onChange={(e) => onChange({ ...config, subtitle: e.target.value })}
-            fullWidth
-            multiline
-            rows={2}
-          />
+      {type === 'HERO' && (() => {
+        const bgType = String(config.bg_type || 'gradient');
+        const gradFrom = String(config.gradient_from || '#6366f1');
+        const gradTo = String(config.gradient_to || '#ec4899');
+        const gradDir = String(config.gradient_dir || '135deg');
+        const solidColor = String(config.bg_color || '#6366f1');
+        const bgImageUrl = config.bg_image_url ? String(config.bg_image_url) : undefined;
 
-          {/* ── Background type ── */}
-          <FormControl fullWidth size="small">
-            <InputLabel>Tipo de fundo</InputLabel>
-            <Select
-              value={String(config.bg_type || 'gradient')}
-              label="Tipo de fundo"
-              onChange={(e) => onChange({ ...config, bg_type: e.target.value })}
+        // ── Font
+        const fontFamily = String(config.font_family || 'system-ui, sans-serif');
+        const fontSize = Number(config.font_size || 48);
+        const fontWeight = Number(config.font_weight || 700);
+        const fontStyle = String(config.font_style || 'normal');
+        const fontEntry = HERO_FONTS.find(f => f.value === fontFamily);
+        const fontImportUrl = fontEntry?.importUrl ?? null;
+        const previewTitleSize = Math.round(fontSize * 0.42);
+        const previewSubtitleSize = Math.round(previewTitleSize * 0.62);
+
+        let previewBg: string;
+        if (bgType === 'image' && bgImageUrl) {
+          previewBg = `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${bgImageUrl}) center/cover no-repeat`;
+        } else if (bgType === 'solid') {
+          previewBg = solidColor;
+        } else {
+          previewBg = gradDir === 'radial'
+            ? `radial-gradient(circle, ${gradFrom} 0%, ${gradTo} 100%)`
+            : `linear-gradient(${gradDir}, ${gradFrom} 0%, ${gradTo} 100%)`;
+        }
+
+        return (
+          <>
+            {/* ── Font import ── */}
+            {fontImportUrl && (
+              <Head>
+                <link key="hero-font" rel="stylesheet" href={fontImportUrl} />
+              </Head>
+            )}
+
+            {/* ── Live Hero Preview ── */}
+            <Box
+              sx={{
+                width: '100%',
+                aspectRatio: '16 / 5',
+                borderRadius: 2,
+                background: previewBg,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                px: 3,
+                py: 2,
+                color: '#fff',
+                boxShadow: 2,
+                overflow: 'hidden',
+                position: 'relative',
+              }}
             >
-              <MenuItem value="gradient">Gradiente</MenuItem>
-              <MenuItem value="solid">Cor sólida</MenuItem>
-              <MenuItem value="image">Imagem</MenuItem>
-            </Select>
-          </FormControl>
-
-          {/* ── Solid color ── */}
-          {(config.bg_type === 'solid' || (!config.bg_type && false)) && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 80 }}>Cor de fundo</Typography>
-              <Box
-                component="input"
-                type="color"
-                value={String(config.bg_color || '#6366f1')}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  onChange({ ...config, bg_color: e.target.value })
-                }
-                sx={{ width: 48, height: 36, border: '1px solid', borderColor: 'divider', borderRadius: 1, cursor: 'pointer', p: 0.25 }}
-              />
-              <Typography variant="caption" color="text.secondary">{String(config.bg_color || '#6366f1')}</Typography>
-            </Box>
-          )}
-
-          {/* ── Gradient options ── */}
-          {(config.bg_type === 'gradient' || !config.bg_type) && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Direção do gradiente</InputLabel>
-                <Select
-                  value={String(config.gradient_dir || '135deg')}
-                  label="Direção do gradiente"
-                  onChange={(e) => onChange({ ...config, gradient_dir: e.target.value })}
-                >
-                  <MenuItem value="to bottom">Vertical (cima → baixo)</MenuItem>
-                  <MenuItem value="to right">Horizontal (esq → dir)</MenuItem>
-                  <MenuItem value="135deg">Diagonal ↘ (padrão)</MenuItem>
-                  <MenuItem value="45deg">Diagonal ↗</MenuItem>
-                  <MenuItem value="225deg">Diagonal ↙</MenuItem>
-                  <MenuItem value="315deg">Diagonal ↖</MenuItem>
-                  <MenuItem value="radial">Radial (centro para fora)</MenuItem>
-                </Select>
-              </FormControl>
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 56 }}>Cor inicial</Typography>
-                  <Box
-                    component="input"
-                    type="color"
-                    value={String(config.gradient_from || '#6366f1')}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      onChange({ ...config, gradient_from: e.target.value })
-                    }
-                    sx={{ width: 40, height: 32, border: '1px solid', borderColor: 'divider', borderRadius: 1, cursor: 'pointer', p: 0.2 }}
-                  />
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 56 }}>Cor final</Typography>
-                  <Box
-                    component="input"
-                    type="color"
-                    value={String(config.gradient_to || '#ec4899')}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      onChange({ ...config, gradient_to: e.target.value })
-                    }
-                    sx={{ width: 40, height: 32, border: '1px solid', borderColor: 'divider', borderRadius: 1, cursor: 'pointer', p: 0.2 }}
-                  />
-                </Box>
-              </Box>
-              {/* Preview */}
-              <Box
+              {bgType === 'image' && !bgImageUrl && (
+                <Typography variant="caption" sx={{ opacity: 0.6, position: 'absolute', top: 6, right: 8 }}>
+                  sem imagem
+                </Typography>
+              )}
+              <Typography
                 sx={{
-                  height: 36,
-                  borderRadius: 1,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  background: String(config.gradient_dir || '135deg') === 'radial'
-                    ? `radial-gradient(circle, ${String(config.gradient_from || '#6366f1')} 0%, ${String(config.gradient_to || '#ec4899')} 100%)`
-                    : `linear-gradient(${String(config.gradient_dir || '135deg')}, ${String(config.gradient_from || '#6366f1')} 0%, ${String(config.gradient_to || '#ec4899')} 100%)`,
+                  fontFamily,
+                  fontWeight,
+                  fontStyle,
+                  fontSize: `${previewTitleSize}px`,
+                  lineHeight: 1.2,
+                  textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                  maxWidth: '90%',
                 }}
-              />
-            </Box>
-          )}
-
-          {/* ── Image upload ── */}
-          {config.bg_type === 'image' && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Typography variant="caption" color="text.secondary">
-                Imagem de fundo — recomendado <strong>1920 × 600 px</strong> (formato landscape, JPEG/PNG, até 5 MB)
+              >
+                {String(config.title || 'Título da página')}
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                <Button
-                  component="label"
-                  variant="outlined"
-                  size="small"
-                  disabled={uploading}
-                  startIcon={uploading ? <CircularProgress size={14} /> : undefined}
-                >
-                  {uploading ? 'Enviando…' : config.bg_image_url ? 'Trocar imagem' : 'Escolher imagem'}
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => handleImageUpload(e, 'bg_image_id')}
-                  />
-                </Button>
-                {config.bg_image_url && (
-                  <Button
-                    size="small"
-                    color="error"
-                    variant="text"
-                    onClick={() => onChange({ ...config, bg_image_id: undefined, bg_image_url: undefined })}
-                  >
-                    Remover
-                  </Button>
-                )}
-              </Box>
-              {config.bg_image_url ? (
-                <Box
-                  component="img"
-                  src={String(config.bg_image_url)}
-                  alt="Preview do fundo"
+              {config.subtitle && (
+                <Typography
                   sx={{
+                    fontFamily,
+                    fontStyle,
+                    fontWeight: 400,
+                    fontSize: `${previewSubtitleSize}px`,
+                    opacity: 0.9,
                     mt: 0.5,
-                    width: '100%',
-                    maxHeight: 120,
-                    objectFit: 'cover',
-                    borderRadius: 1,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                  }}
-                />
-              ) : (
-                <Box
-                  sx={{
-                    mt: 0.5,
-                    height: 80,
-                    borderRadius: 1,
-                    border: '2px dashed',
-                    borderColor: 'divider',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    maxWidth: '85%',
+                    textShadow: '0 1px 3px rgba(0,0,0,0.4)',
                   }}
                 >
-                  <Typography variant="caption" color="text.disabled">
-                    Nenhuma imagem selecionada
-                  </Typography>
-                </Box>
+                  {String(config.subtitle)}
+                </Typography>
               )}
             </Box>
-          )}
-        </>
-      )}
+
+            {/* ── Texto ── */}
+            <TextField
+              label="Título *"
+              value={String(config.title || '')}
+              onChange={(e) => onChange({ ...config, title: e.target.value })}
+              fullWidth
+              size="small"
+            />
+            <TextField
+              label="Subtítulo"
+              value={String(config.subtitle || '')}
+              onChange={(e) => onChange({ ...config, subtitle: e.target.value })}
+              fullWidth
+              size="small"
+              multiline
+              rows={2}
+            />
+
+            {/* ── Tipografia ── */}
+            <Divider sx={{ borderStyle: 'dashed' }}>
+              <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>Tipografia</Typography>
+            </Divider>
+            <FormControl size="small" fullWidth>
+              <InputLabel>Fonte</InputLabel>
+              <Select
+                value={fontFamily}
+                label="Fonte"
+                onChange={(e) => onChange({ ...config, font_family: e.target.value })}
+                renderValue={(v) => {
+                  const entry = HERO_FONTS.find(f => f.value === v);
+                  return (
+                    <Typography sx={{ fontFamily: v, fontSize: 14, lineHeight: '1.4' }}>
+                      {entry?.label ?? String(v)}
+                    </Typography>
+                  );
+                }}
+              >
+                {HERO_FONTS.map(f => (
+                  <MenuItem key={f.value} value={f.value}>
+                    <Typography sx={{ fontFamily: f.value, fontSize: 14 }}>{f.label}</Typography>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1 }}>
+              <FormControl size="small">
+                <InputLabel>Tamanho</InputLabel>
+                <Select
+                  value={fontSize}
+                  label="Tamanho"
+                  onChange={(e) => onChange({ ...config, font_size: Number(e.target.value) })}
+                >
+                  {HERO_FONT_SIZES.map(s => (
+                    <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small">
+                <InputLabel>Peso</InputLabel>
+                <Select
+                  value={fontWeight}
+                  label="Peso"
+                  onChange={(e) => onChange({ ...config, font_weight: Number(e.target.value) })}
+                >
+                  {HERO_FONT_WEIGHTS.map(w => (
+                    <MenuItem key={w.value} value={w.value}>{w.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small">
+                <InputLabel>Estilo</InputLabel>
+                <Select
+                  value={fontStyle}
+                  label="Estilo"
+                  onChange={(e) => onChange({ ...config, font_style: e.target.value })}
+                >
+                  <MenuItem value="normal">Normal</MenuItem>
+                  <MenuItem value="italic">Itálico</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+
+            {/* ── Tipo de fundo (linha compacta) ── */}
+            <Divider sx={{ borderStyle: 'dashed' }}>
+              <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>Fundo</Typography>
+            </Divider>
+            <FormControl size="small" fullWidth>
+              <InputLabel>Tipo</InputLabel>
+              <Select
+                value={bgType}
+                label="Tipo"
+                onChange={(e) => onChange({ ...config, bg_type: e.target.value })}
+              >
+                <MenuItem value="gradient">Gradiente</MenuItem>
+                <MenuItem value="solid">Cor sólida</MenuItem>
+                <MenuItem value="image">Imagem</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* ── Gradiente ── */}
+            {bgType === 'gradient' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Direção</InputLabel>
+                  <Select
+                    value={gradDir}
+                    label="Direção"
+                    onChange={(e) => onChange({ ...config, gradient_dir: e.target.value })}
+                  >
+                    <MenuItem value="to bottom">↓ Vertical</MenuItem>
+                    <MenuItem value="to right">→ Horizontal</MenuItem>
+                    <MenuItem value="135deg">↘ Diagonal (padrão)</MenuItem>
+                    <MenuItem value="45deg">↗ Diagonal</MenuItem>
+                    <MenuItem value="225deg">↙ Diagonal</MenuItem>
+                    <MenuItem value="315deg">↖ Diagonal</MenuItem>
+                    <MenuItem value="radial">⊙ Radial</MenuItem>
+                  </Select>
+                </FormControl>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="caption" color="text.secondary">De</Typography>
+                    <Tooltip title={gradFrom}>
+                      <Box sx={{ position: 'relative', width: 28, height: 28 }}>
+                        <Box
+                          sx={{
+                            width: 28, height: 28, borderRadius: '50%',
+                            background: gradFrom,
+                            border: '2px solid',
+                            borderColor: 'divider',
+                            cursor: 'pointer',
+                          }}
+                        />
+                        <Box
+                          component="input"
+                          type="color"
+                          value={gradFrom}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            onChange({ ...config, gradient_from: e.target.value })
+                          }
+                          sx={{
+                            position: 'absolute', inset: 0, opacity: 0,
+                            width: '100%', height: '100%', cursor: 'pointer',
+                          }}
+                        />
+                      </Box>
+                    </Tooltip>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="caption" color="text.secondary">Para</Typography>
+                    <Tooltip title={gradTo}>
+                      <Box sx={{ position: 'relative', width: 28, height: 28 }}>
+                        <Box
+                          sx={{
+                            width: 28, height: 28, borderRadius: '50%',
+                            background: gradTo,
+                            border: '2px solid',
+                            borderColor: 'divider',
+                            cursor: 'pointer',
+                          }}
+                        />
+                        <Box
+                          component="input"
+                          type="color"
+                          value={gradTo}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            onChange({ ...config, gradient_to: e.target.value })
+                          }
+                          sx={{
+                            position: 'absolute', inset: 0, opacity: 0,
+                            width: '100%', height: '100%', cursor: 'pointer',
+                          }}
+                        />
+                      </Box>
+                    </Tooltip>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+
+            {/* ── Cor sólida ── */}
+            {bgType === 'solid' && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Typography variant="caption" color="text.secondary">Cor</Typography>
+                <Tooltip title={solidColor}>
+                  <Box sx={{ position: 'relative', width: 28, height: 28 }}>
+                    <Box
+                      sx={{
+                        width: 28, height: 28, borderRadius: '50%',
+                        background: solidColor,
+                        border: '2px solid',
+                        borderColor: 'divider',
+                        cursor: 'pointer',
+                      }}
+                    />
+                    <Box
+                      component="input"
+                      type="color"
+                      value={solidColor}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        onChange({ ...config, bg_color: e.target.value })
+                      }
+                      sx={{
+                        position: 'absolute', inset: 0, opacity: 0,
+                        width: '100%', height: '100%', cursor: 'pointer',
+                      }}
+                    />
+                  </Box>
+                </Tooltip>
+                <Typography variant="caption" color="text.secondary">{solidColor}</Typography>
+              </Box>
+            )}
+
+            {/* ── Imagem ── */}
+            {bgType === 'image' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Recomendado <strong>1920 × 600 px</strong> · JPEG/PNG/WebP · até 5 MB
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Button
+                    component="label"
+                    variant="outlined"
+                    size="small"
+                    disabled={uploading}
+                    startIcon={uploading ? <CircularProgress size={13} /> : undefined}
+                  >
+                    {uploading ? 'Enviando…' : bgImageUrl ? 'Trocar imagem' : 'Escolher imagem'}
+                    <input
+                      type="file"
+                      hidden
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => handleImageUpload(e, 'bg_image_id')}
+                    />
+                  </Button>
+                  {bgImageUrl && (
+                    <Button
+                      size="small"
+                      color="error"
+                      variant="text"
+                      sx={{ minWidth: 0 }}
+                      onClick={() => onChange({ ...config, bg_image_id: undefined, bg_image_url: undefined })}
+                    >
+                      Remover
+                    </Button>
+                  )}
+                </Box>
+                {!bgImageUrl && (
+                  <Box
+                    sx={{
+                      width: '100%', aspectRatio: '16 / 5',
+                      borderRadius: 1, border: '2px dashed', borderColor: 'divider',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <Typography variant="caption" color="text.disabled">Preview aparece acima ao selecionar a imagem</Typography>
+                  </Box>
+                )}
+              </Box>
+            )}
+          </>
+        );
+      })()}
 
       {/* ABOUT */}
       {type === 'ABOUT' && (
