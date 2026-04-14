@@ -177,6 +177,8 @@ services:
       NODE_ENV: production
       HOSTNAME: "0.0.0.0"
       PORT: "3000"
+      # Internal API URL for getServerSideProps (server-side Node.js cannot use empty NEXT_PUBLIC_API_BASE_URL)
+      INTERNAL_API_URL: "http://backend:8000"
     ports:
       - "3000:3000"
     healthcheck:

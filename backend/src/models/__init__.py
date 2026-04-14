@@ -16,6 +16,7 @@ from .estoque import EstoqueGrupo, EstoqueItem, EstoqueMovimentacao, EstoqueMovi
 from .mediuns import Medium
 from .mensalidades import MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
 from .associado_mensalidade import AssociadoMensalidadePagamento
+from .site import TenantSite, TenantSiteSection, SiteImage, SiteVersion, SiteStatus, SiteSectionType
 
 __all__ = [
     "Base",
@@ -47,4 +48,10 @@ __all__ = [
     "MensalidadePagamento",
     "MensalidadeStatus",
     "AssociadoMensalidadePagamento",
+    "TenantSite",
+    "TenantSiteSection",
+    "SiteImage",
+    "SiteVersion",
+    "SiteStatus",
+    "SiteSectionType",
 ]

@@ -58,6 +58,7 @@ import SwapVertIcon from '@mui/icons-material/SwapVert';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import LanguageIcon from '@mui/icons-material/Language';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
@@ -78,6 +79,8 @@ interface AdminLayoutProps {
   children: React.ReactNode;
   title?: string;
   maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | false;
+  /** Skip Container wrapper — needed for editors that require full-height internal scroll (e.g. Site Builder) */
+  noPadding?: boolean;
 }
 
 /**
@@ -120,6 +123,7 @@ function AdminLayoutInner({
   children, 
   title,
   maxWidth = 'lg',
+  noPadding = false,
 }: AdminLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -255,6 +259,7 @@ function AdminLayoutInner({
   const topItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, href: '/admin/dashboard' },
     { text: 'Tickets', icon: <TicketIcon />, href: '/admin/tickets' },
+    ...(can('site_builder') ? [{ text: 'Meu Site', icon: <LanguageIcon />, href: '/admin/meu-site' }] : []),
   ];
 
   const bottomItems = [
@@ -890,18 +895,24 @@ function AdminLayoutInner({
         {/* Spacer: matches AppBar height (toolbar + optional banner) */}
         <Toolbar />
         {isImpersonating && <Box sx={{ height: 36 }} />}
-        <Container
-          maxWidth={maxWidth}
-          sx={{
-            py: 3,
-            px: {
-              xs: 2,
-              sm: 3,
-            },
-          }}
-        >
-          {children}
-        </Container>
+        {noPadding ? (
+          <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            {children}
+          </Box>
+        ) : (
+          <Container
+            maxWidth={maxWidth}
+            sx={{
+              py: 3,
+              px: {
+                xs: 2,
+                sm: 3,
+              },
+            }}
+          >
+            {children}
+          </Container>
+        )}
       </Box>
     </Box>
     </>
