@@ -187,6 +187,119 @@ function SectionListItem({
   );
 }
 
+// ── Hero Preview (pixel-perfect scale of the real site) ──────────────────────
+
+function HeroPreview({ config }: { config: Record<string, unknown> }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.33);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setScale(el.offsetWidth / 1200);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const bgType = String(config.bg_type || 'gradient');
+  const bgUrl = config.bg_image_url ? String(config.bg_image_url) : undefined;
+  const gradFrom = String(config.gradient_from || '#6366f1');
+  const gradTo = String(config.gradient_to || '#ec4899');
+  const gradDir = String(config.gradient_dir || '135deg');
+  const solidColor = String(config.bg_color || '#6366f1');
+  const fontFamily = String(config.font_family || 'system-ui, sans-serif');
+  const fontSize = Number(config.font_size || 48);
+  const fontWeight = Number(config.font_weight || 700);
+  const fontStyle = String(config.font_style || 'normal');
+  const subtitleSize = Math.max(16, Math.round(fontSize * 0.6));
+
+  let background: string;
+  if (bgType === 'image' && bgUrl) {
+    background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${bgUrl}) center/cover no-repeat`;
+  } else if (bgType === 'solid') {
+    background = solidColor;
+  } else {
+    background = gradDir === 'radial'
+      ? `radial-gradient(circle, ${gradFrom} 0%, ${gradTo} 100%)`
+      : `linear-gradient(${gradDir}, ${gradFrom} 0%, ${gradTo} 100%)`;
+  }
+
+  // The real site hero is always at least 380px tall at 1200px wide.
+  // We scale it down proportionally to the preview container width.
+  const containerHeight = Math.round(380 * scale);
+
+  return (
+    <Box
+      ref={containerRef}
+      sx={{
+        width: '100%',
+        height: `${containerHeight}px`,
+        overflow: 'hidden',
+        borderRadius: 2,
+        boxShadow: 2,
+        position: 'relative',
+        flexShrink: 0,
+      }}
+    >
+      {/* Inner box matches the REAL site dimensions exactly, then scaled down */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '1200px',
+          minHeight: '380px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          padding: '48px',
+          background,
+          color: '#fff',
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+        }}
+      >
+        {bgType === 'image' && !bgUrl && (
+          <Typography sx={{ opacity: 0.55, position: 'absolute', top: 12, right: 12, fontSize: 14 }}>
+            sem imagem
+          </Typography>
+        )}
+        <Typography
+          sx={{
+            fontFamily,
+            fontWeight,
+            fontStyle,
+            fontSize: `${fontSize}px`,
+            lineHeight: 1.2,
+            textShadow: '0 2px 8px rgba(0,0,0,0.35)',
+          }}
+        >
+          {String(config.title || 'Título da página')}
+        </Typography>
+        {config.subtitle && (
+          <Typography
+            sx={{
+              fontFamily,
+              fontStyle,
+              fontWeight: 400,
+              fontSize: `${subtitleSize}px`,
+              opacity: 0.9,
+              mt: '16px',
+              textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+            }}
+          >
+            {String(config.subtitle)}
+          </Typography>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
 // ── Section Editor panel ──────────────────────────────────────────────────────
 
 function SectionEditor({
@@ -251,19 +364,6 @@ function SectionEditor({
         const fontStyle = String(config.font_style || 'normal');
         const fontEntry = HERO_FONTS.find(f => f.value === fontFamily);
         const fontImportUrl = fontEntry?.importUrl ?? null;
-        const previewTitleSize = Math.round(fontSize * 0.42);
-        const previewSubtitleSize = Math.round(previewTitleSize * 0.62);
-
-        let previewBg: string;
-        if (bgType === 'image' && bgImageUrl) {
-          previewBg = `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${bgImageUrl}) center/cover no-repeat`;
-        } else if (bgType === 'solid') {
-          previewBg = solidColor;
-        } else {
-          previewBg = gradDir === 'radial'
-            ? `radial-gradient(circle, ${gradFrom} 0%, ${gradTo} 100%)`
-            : `linear-gradient(${gradDir}, ${gradFrom} 0%, ${gradTo} 100%)`;
-        }
 
         return (
           <>
@@ -274,61 +374,8 @@ function SectionEditor({
               </Head>
             )}
 
-            {/* ── Live Hero Preview ── */}
-            <Box
-              sx={{
-                width: '100%',
-                aspectRatio: '16 / 5',
-                borderRadius: 2,
-                background: previewBg,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center',
-                px: 3,
-                py: 2,
-                color: '#fff',
-                boxShadow: 2,
-                overflow: 'hidden',
-                position: 'relative',
-              }}
-            >
-              {bgType === 'image' && !bgImageUrl && (
-                <Typography variant="caption" sx={{ opacity: 0.6, position: 'absolute', top: 6, right: 8 }}>
-                  sem imagem
-                </Typography>
-              )}
-              <Typography
-                sx={{
-                  fontFamily,
-                  fontWeight,
-                  fontStyle,
-                  fontSize: `${previewTitleSize}px`,
-                  lineHeight: 1.2,
-                  textShadow: '0 1px 4px rgba(0,0,0,0.4)',
-                  maxWidth: '90%',
-                }}
-              >
-                {String(config.title || 'Título da página')}
-              </Typography>
-              {config.subtitle && (
-                <Typography
-                  sx={{
-                    fontFamily,
-                    fontStyle,
-                    fontWeight: 400,
-                    fontSize: `${previewSubtitleSize}px`,
-                    opacity: 0.9,
-                    mt: 0.5,
-                    maxWidth: '85%',
-                    textShadow: '0 1px 3px rgba(0,0,0,0.4)',
-                  }}
-                >
-                  {String(config.subtitle)}
-                </Typography>
-              )}
-            </Box>
+            {/* ── Live Hero Preview (proporcional ao site publicado) ── */}
+            <HeroPreview config={config} />
 
             {/* ── Texto ── */}
             <TextField
@@ -375,39 +422,81 @@ function SectionEditor({
               </Select>
             </FormControl>
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1 }}>
+              {/* Tamanho — mostra "Aa" escalado */}
               <FormControl size="small">
                 <InputLabel>Tamanho</InputLabel>
                 <Select
                   value={fontSize}
                   label="Tamanho"
                   onChange={(e) => onChange({ ...config, font_size: Number(e.target.value) })}
+                  renderValue={(v) => {
+                    const entry = HERO_FONT_SIZES.find(s => s.value === v);
+                    return (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        <Typography sx={{ fontFamily, fontWeight, fontStyle, fontSize: `${Math.round(Number(v) * 0.38)}px`, lineHeight: 1, color: 'text.primary' }}>Aa</Typography>
+                        <Typography variant="caption">{entry?.label}</Typography>
+                      </Box>
+                    );
+                  }}
                 >
                   {HERO_FONT_SIZES.map(s => (
-                    <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
+                    <MenuItem key={s.value} value={s.value} sx={{ py: 0.75 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Box sx={{ width: 32, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', flexShrink: 0 }}>
+                          <Typography sx={{ fontFamily, fontWeight, fontStyle, fontSize: `${Math.round(s.value * 0.38)}px`, lineHeight: 1, color: 'text.primary' }}>Aa</Typography>
+                        </Box>
+                        <Typography variant="body2">{s.label}</Typography>
+                      </Box>
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
+
+              {/* Peso — rótulo no próprio peso */}
               <FormControl size="small">
                 <InputLabel>Peso</InputLabel>
                 <Select
                   value={fontWeight}
                   label="Peso"
                   onChange={(e) => onChange({ ...config, font_weight: Number(e.target.value) })}
+                  renderValue={(v) => {
+                    const entry = HERO_FONT_WEIGHTS.find(w => w.value === v);
+                    return (
+                      <Typography sx={{ fontFamily, fontWeight: Number(v), fontStyle, fontSize: 13, lineHeight: '1.4' }}>
+                        {entry?.label}
+                      </Typography>
+                    );
+                  }}
                 >
                   {HERO_FONT_WEIGHTS.map(w => (
-                    <MenuItem key={w.value} value={w.value}>{w.label}</MenuItem>
+                    <MenuItem key={w.value} value={w.value} sx={{ py: 0.75 }}>
+                      <Typography sx={{ fontFamily, fontWeight: w.value, fontStyle, fontSize: 14 }}>
+                        {w.label}
+                      </Typography>
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
+
+              {/* Estilo — rótulo no próprio estilo */}
               <FormControl size="small">
                 <InputLabel>Estilo</InputLabel>
                 <Select
                   value={fontStyle}
                   label="Estilo"
                   onChange={(e) => onChange({ ...config, font_style: e.target.value })}
+                  renderValue={(v) => (
+                    <Typography sx={{ fontFamily, fontWeight, fontStyle: String(v), fontSize: 13, lineHeight: '1.4' }}>
+                      {v === 'italic' ? 'Itálico' : 'Normal'}
+                    </Typography>
+                  )}
                 >
-                  <MenuItem value="normal">Normal</MenuItem>
-                  <MenuItem value="italic">Itálico</MenuItem>
+                  <MenuItem value="normal" sx={{ py: 0.75 }}>
+                    <Typography sx={{ fontFamily, fontWeight, fontStyle: 'normal', fontSize: 14 }}>Normal</Typography>
+                  </MenuItem>
+                  <MenuItem value="italic" sx={{ py: 0.75 }}>
+                    <Typography sx={{ fontFamily, fontWeight, fontStyle: 'italic', fontSize: 14 }}>Itálico</Typography>
+                  </MenuItem>
                 </Select>
               </FormControl>
             </Box>

@@ -69,20 +69,20 @@ export const HERO_FONTS: HeroFont[] = [
 ];
 
 export const HERO_FONT_SIZES = [
-  { label: 'Pequeno (24px)', value: 24 },
-  { label: 'Médio (32px)', value: 32 },
-  { label: 'Grande (40px)', value: 40 },
-  { label: 'Extra Grande (48px)', value: 48 },
-  { label: 'Enorme (56px)', value: 56 },
-  { label: 'Gigante (64px)', value: 64 },
-  { label: 'Mega (72px)', value: 72 },
+  { label: 'Pequeno', value: 24 },
+  { label: 'Médio', value: 32 },
+  { label: 'Grande', value: 40 },
+  { label: 'Extra Grande', value: 48 },
+  { label: 'Enorme', value: 56 },
+  { label: 'Gigante', value: 64 },
+  { label: 'Máximo', value: 72 },
 ];
 
 export const HERO_FONT_WEIGHTS = [
-  { label: 'Normal (400)', value: 400 },
-  { label: 'Médio (500)', value: 500 },
-  { label: 'Semi-negrito (600)', value: 600 },
-  { label: 'Negrito (700)', value: 700 },
-  { label: 'Extra Negrito (800)', value: 800 },
-  { label: 'Preto (900)', value: 900 },
+  { label: 'Fino', value: 400 },
+  { label: 'Médio', value: 500 },
+  { label: 'Semi-negrito', value: 600 },
+  { label: 'Negrito', value: 700 },
+  { label: 'Extra Negrito', value: 800 },
+  { label: 'Preto', value: 900 },
 ];
