@@ -327,13 +327,30 @@ function SectionEditor({
     try {
       const formData = new FormData();
       formData.append('file', file);
-      // Do NOT set Content-Type manually — axios auto-sets multipart/form-data with boundary
-      const res = await apiClient.post('/api/v1/admin/sites/images', formData, {
-        headers: { 'Content-Type': undefined },
+
+      // Use fetch directly: axios instance has 'Content-Type: application/json' as default
+      // which conflicts with multipart/form-data even when set to undefined.
+      // fetch auto-sets Content-Type with the correct boundary when given a FormData body.
+      const token =
+        (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
+        localStorage.getItem('access_token');
+
+      const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+      const res = await fetch(`${base}/api/v1/admin/sites/images`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
       });
-      onChange({ ...section.config, [field]: res.data.id, [`${field}_url`]: res.data.url });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.detail || `Erro ${res.status} ao fazer upload.`);
+      }
+
+      const data = await res.json();
+      onChange({ ...section.config, [field]: data.id, [`${field}_url`]: data.url });
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Erro ao fazer upload da imagem.');
+      alert(err?.message || 'Erro ao fazer upload da imagem.');
     } finally {
       setUploading(false);
       onUploadEnd();
