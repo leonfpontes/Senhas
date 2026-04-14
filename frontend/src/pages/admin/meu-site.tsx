@@ -732,7 +732,7 @@ function SectionEditor({
                       type="file"
                       hidden
                       accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) => handleImageUpload(e, 'bg_image_id')}
+                      onChange={(e) => handleImageUpload(e, 'bg_image')}
                     />
                   </Button>
                   {bgImageUrl && (
@@ -741,7 +741,7 @@ function SectionEditor({
                       color="error"
                       variant="text"
                       sx={{ minWidth: 0 }}
-                      onClick={() => onChange({ ...config, bg_image_id: undefined, bg_image_url: undefined })}
+                      onClick={() => onChange({ ...config, bg_image: undefined, bg_image_url: undefined })}
                     >
                       Remover
                     </Button>
@@ -795,7 +795,7 @@ function SectionEditor({
               disabled={uploading}
             >
               {uploading ? 'Enviando…' : 'Escolher imagem'}
-              <input type="file" hidden accept="image/*" onChange={(e) => handleImageUpload(e, 'image_id')} />
+              <input type="file" hidden accept="image/*" onChange={(e) => handleImageUpload(e, 'image')} />
             </Button>
             {config.image_url && (
               <Box component="img" src={String(config.image_url)} sx={{ mt: 1, maxHeight: 80, borderRadius: 1 }} />
