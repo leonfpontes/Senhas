@@ -190,7 +190,7 @@ function GirasCalendarSection({
                   {new Date(g.data_hora).toLocaleString('pt-BR', {
                     dateStyle: 'full',
                     timeStyle: 'short',
-                    timeZone: 'America/Sao_Paulo',
+                    timeZone: 'UTC',
                   })}
                 </Typography>
               )}
