@@ -89,7 +89,7 @@ function HeroSection({ config }: { config: Record<string, unknown> }) {
       }}
     >
       <Typography
-        variant="h3"
+        component="h1"
         gutterBottom
         sx={{
           fontFamily,
@@ -104,7 +104,7 @@ function HeroSection({ config }: { config: Record<string, unknown> }) {
       </Typography>
       {config.subtitle && (
         <Typography
-          variant="h6"
+          component="p"
           sx={{
             fontFamily,
             fontStyle,
