@@ -57,7 +57,7 @@ async def get_published_site(
         {
             "id": str(g.id),
             "nome": g.nome,
-            "data_hora": g.data_hora.isoformat() if g.data_hora else None,
+            "data_hora": g.data_inicio.isoformat() if g.data_inicio else None,
             "descricao": getattr(g, "descricao", None),
         }
         for g in upcoming_giras

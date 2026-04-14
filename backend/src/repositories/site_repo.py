@@ -69,11 +69,11 @@ class SiteRepository(BaseRepository[TenantSite]):
             .where(
                 and_(
                     Gira.tenant_id == site.tenant_id,
-                    Gira.data_hora >= now,
+                    Gira.data_inicio >= now,
                     Gira.deleted_at.is_(None),
                 )
             )
-            .order_by(Gira.data_hora)
+            .order_by(Gira.data_inicio)
             .limit(limit_giras)
         )
         giras_result = await self.db.execute(giras_stmt)
