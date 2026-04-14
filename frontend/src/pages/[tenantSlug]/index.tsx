@@ -1143,10 +1143,136 @@ function renderSection(section: SectionData, upcomingGiras: GiraItem[]) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 interface Props {
-  site: SiteData;
+  site: SiteData | null;
 }
 
 export default function TenantPublicSitePage({ site }: Props) {
+  // ── Fallback: site not published or not set up yet ────────────────────────
+  if (site === null) {
+    return (
+      <>
+        <Head>
+          <title>Site em breve | GiraHub</title>
+          <meta name="robots" content="noindex" />
+        </Head>
+        <Box
+          sx={{
+            minHeight: '100vh',
+            background: 'radial-gradient(ellipse at 50% 30%, #1e0040 0%, #0d0020 60%, #000010 100%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            px: 3,
+            gap: 3,
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          {/* Floating stars */}
+          {Array.from({ length: 18 }).map((_, i) => (
+            <Box
+              key={i}
+              aria-hidden="true"
+              sx={{
+                position: 'absolute',
+                top: `${(i * 41 + 7) % 90}%`,
+                left: `${(i * 67 + 5) % 92}%`,
+                width: i % 3 === 0 ? 3 : 2,
+                height: i % 3 === 0 ? 3 : 2,
+                borderRadius: '50%',
+                background: i % 3 === 0 ? '#f0abfc' : i % 3 === 1 ? '#818cf8' : '#facc15',
+                pointerEvents: 'none',
+                '@keyframes twinkleFS': {
+                  '0%, 100%': { opacity: 0.15 },
+                  '50%':      { opacity: 0.9 },
+                },
+                animation: `twinkleFS ${1.4 + (i % 5) * 0.35}s ${(i * 0.19).toFixed(1)}s ease-in-out infinite`,
+              }}
+            />
+          ))}
+
+          {/* Icon */}
+          <Box
+            aria-hidden="true"
+            sx={{
+              fontSize: '5rem',
+              lineHeight: 1,
+              '@keyframes floatIcon': {
+                '0%, 100%': { transform: 'translateY(0) rotate(-3deg)' },
+                '50%':      { transform: 'translateY(-14px) rotate(3deg)' },
+              },
+              animation: 'floatIcon 4s ease-in-out infinite',
+              zIndex: 1,
+            }}
+          >
+            🕯️
+          </Box>
+
+          <Box sx={{ zIndex: 1 }}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 800,
+                color: '#c084fc',
+                mb: 1.5,
+                textShadow: '0 2px 16px rgba(192,132,252,0.6)',
+                fontSize: { xs: '1.6rem', md: '2rem' },
+              }}
+            >
+              Site em preparação ✨
+            </Typography>
+            <Typography
+              sx={{
+                color: 'rgba(240,171,252,0.7)',
+                fontSize: { xs: '0.95rem', md: '1.05rem' },
+                maxWidth: 420,
+                mx: 'auto',
+                lineHeight: 1.7,
+              }}
+            >
+              Este terreiro ainda está preparando seu espaço digital.
+              Em breve estará no ar com todas as informações.
+            </Typography>
+          </Box>
+
+          <Box
+            component="a"
+            href="/"
+            sx={{
+              mt: 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 1,
+              px: 3,
+              py: 1.25,
+              borderRadius: 2,
+              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '0.95rem',
+              textDecoration: 'none',
+              boxShadow: '0 0 20px rgba(168,85,247,0.4)',
+              zIndex: 1,
+              '&:hover': { opacity: 0.88 },
+              transition: 'opacity 0.2s',
+            }}
+          >
+            🏠 Conhecer o GiraHub
+          </Box>
+
+          <Typography
+            variant="caption"
+            sx={{ position: 'absolute', bottom: 16, color: 'rgba(255,255,255,0.18)', fontSize: '0.72rem' }}
+          >
+            GiraHub © {new Date().getFullYear()}
+          </Typography>
+        </Box>
+      </>
+    );
+  }
+
   const sortedSections = [...site.sections].sort((a, b) => a.order_index - b.order_index);
 
   // Inject Google Font for HERO section if one is configured
@@ -1265,11 +1391,13 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   try {
     const res = await fetch(`${base}/api/v1/public/sites/${encodeURIComponent(slug)}`);
     if (!res.ok) {
-      return { notFound: true };
+      // Site not published or not set up yet — show a friendly "coming soon" page
+      // instead of the default Next.js 404.
+      return { props: { site: null } };
     }
     const site: SiteData = await res.json();
     return { props: { site } };
   } catch {
-    return { notFound: true };
+    return { props: { site: null } };
   }
 };
