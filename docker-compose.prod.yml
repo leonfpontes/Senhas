@@ -106,6 +106,8 @@ services:
       
       # Domain (for TrustedHostMiddleware)
       DOMAIN: ${DOMAIN:-girahub.com.br}
+      # Internal Docker service names allowed for SSR calls from the frontend container
+      EXTRA_ALLOWED_HOSTS: "backend"
       
       # Frontend URL for building public links
       FRONTEND_URL: ${FRONTEND_URL:-http://girahub.com.br}
