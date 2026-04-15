@@ -110,6 +110,68 @@ class TestPlatformTenants:
         await delete_tenant(TENANT_ID, _super_admin(), db)
         db.commit.assert_called_once()
 
+    @patch("src.api.v1.platform.tenants.log_security_event")
+    @patch("src.api.v1.platform.tenants.hash_password")
+    @patch("src.api.v1.platform.tenants.TenantRepository")
+    async def test_reset_tenant_user_password_success(self, MockRepo, mock_hash, mock_log):
+        from src.api.v1.platform.tenants import reset_tenant_user_password, ResetPasswordRequest
+        db = AsyncMock()
+        repo = AsyncMock()
+        tenant = MagicMock()
+        repo.get_by_id.return_value = tenant
+        MockRepo.return_value = repo
+
+        user = MagicMock()
+        user.id = USER_ID
+        user.tenant_id = TENANT_ID
+        scalar_result = MagicMock()
+        scalar_result.scalar_one_or_none.return_value = user
+        db.execute.return_value = scalar_result
+        mock_hash.return_value = "new_hashed"
+
+        body = ResetPasswordRequest(new_password="V@lid1234567")
+        await reset_tenant_user_password(TENANT_ID, USER_ID, body, _super_admin(), db)
+
+        mock_hash.assert_called_once_with("V@lid1234567")
+        assert user.password_hash == "new_hashed"
+        db.commit.assert_called_once()
+        mock_log.assert_called_once()
+
+    @patch("src.api.v1.platform.tenants.TenantRepository")
+    async def test_reset_tenant_user_password_tenant_not_found(self, MockRepo):
+        from src.api.v1.platform.tenants import reset_tenant_user_password, ResetPasswordRequest
+        repo = AsyncMock()
+        repo.get_by_id.return_value = None
+        MockRepo.return_value = repo
+
+        body = ResetPasswordRequest(new_password="V@lid1234567")
+        with pytest.raises(HTTPException) as exc_info:
+            await reset_tenant_user_password(TENANT_ID, USER_ID, body, _super_admin(), AsyncMock())
+        assert exc_info.value.status_code == 404
+
+    @patch("src.api.v1.platform.tenants.TenantRepository")
+    async def test_reset_tenant_user_password_user_not_found(self, MockRepo):
+        from src.api.v1.platform.tenants import reset_tenant_user_password, ResetPasswordRequest
+        db = AsyncMock()
+        repo = AsyncMock()
+        repo.get_by_id.return_value = MagicMock()
+        MockRepo.return_value = repo
+
+        scalar_result = MagicMock()
+        scalar_result.scalar_one_or_none.return_value = None
+        db.execute.return_value = scalar_result
+
+        body = ResetPasswordRequest(new_password="V@lid1234567")
+        with pytest.raises(HTTPException) as exc_info:
+            await reset_tenant_user_password(TENANT_ID, USER_ID, body, _super_admin(), db)
+        assert exc_info.value.status_code == 404
+
+    async def test_reset_tenant_user_password_rejects_non_super_admin(self):
+        from src.api.v1.platform.tenants import require_super_admin
+        with pytest.raises(HTTPException) as exc_info:
+            await require_super_admin(_regular_admin())
+        assert exc_info.value.status_code == 403
+
 
 # ── tenants_search.py ────────────────────────────────────────────────────────
 

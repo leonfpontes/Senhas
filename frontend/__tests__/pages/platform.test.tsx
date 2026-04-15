@@ -80,6 +80,27 @@ describe('Platform Tenants', () => {
   });
 });
 
+describe('Platform Tenant Detail', () => {
+  it('renders without crashing', () => {
+    const { apiClient } = require('@/services/api_client');
+    apiClient.get.mockResolvedValue({
+      data: {
+        id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        slug: 'test',
+        name: 'Test Tenant',
+        description: null,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    });
+
+    const TenantDetailPage = require('@/pages/platform/tenants/[id]').default;
+    const { container } = renderWithTheme(<TenantDetailPage />);
+    expect(container).toBeTruthy();
+  });
+});
+
 describe('Platform Users Global', () => {
   it('renders without crashing', () => {
     const { apiClient } = require('@/services/api_client');

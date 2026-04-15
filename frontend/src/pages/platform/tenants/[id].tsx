@@ -18,6 +18,7 @@ import {
   CircularProgress,
   Alert,
   IconButton,
+  InputAdornment,
   Table,
   TableBody,
   TableCell,
@@ -25,12 +26,17 @@ import {
   TableHead,
   TableRow,
   Paper,
+  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import LockResetIcon from "@mui/icons-material/LockReset";
 import PersonIcon from "@mui/icons-material/Person";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { apiClient } from "../../../services/api_client";
+import CrudDrawer from "../../../components/CrudDrawer";
 import PlatformLayout from "../layout";
 
 interface TenantInfo {
@@ -66,7 +72,18 @@ export default function TenantDetailPage() {
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [impersonating, setImpersonating] = useState<string | null>(null);
+
+  // Reset password drawer state
+  const [resetDrawerOpen, setResetDrawerOpen] = useState(false);
+  const [resetUser, setResetUser] = useState<TenantUser | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -113,6 +130,49 @@ export default function TenantDetailPage() {
     }
   };
 
+  const handleOpenResetDrawer = (user: TenantUser) => {
+    setResetUser(user);
+    setResetDrawerOpen(true);
+  };
+
+  const handleResetClose = () => {
+    setResetDrawerOpen(false);
+    setResetUser(null);
+    setResetPassword("");
+    setResetConfirm("");
+    setResetError(null);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+  };
+
+  const handleResetSave = async () => {
+    if (!resetUser) return;
+    const tenantId = id as string;
+    setResetSaving(true);
+    setResetError(null);
+    try {
+      await apiClient.post(
+        `/api/v1/platform/tenants/${tenantId}/users/${resetUser.id}/reset-password`,
+        { new_password: resetPassword }
+      );
+      handleResetClose();
+      setSuccessMessage(`Senha de ${resetUser.email} redefinida com sucesso.`);
+    } catch (err: any) {
+      setResetError(
+        err.response?.data?.detail || "Erro ao redefinir senha"
+      );
+    } finally {
+      setResetSaving(false);
+    }
+  };
+
+  const passwordMismatch =
+    resetConfirm.length > 0 && resetPassword !== resetConfirm;
+  const resetSaveDisabled =
+    !resetPassword ||
+    resetPassword !== resetConfirm ||
+    resetPassword.length < 12;
+
   const roleColor = (role: string) => {
     switch (role) {
       case "ADMIN":
@@ -140,6 +200,11 @@ export default function TenantDetailPage() {
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}
+          </Alert>
+        )}
+        {successMessage && (
+          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage(null)}>
+            {successMessage}
           </Alert>
         )}
 
@@ -214,6 +279,14 @@ export default function TenantDetailPage() {
                           {new Date(user.created_at).toLocaleDateString("pt-BR")}
                         </TableCell>
                         <TableCell align="right">
+                          <Tooltip title="Redefinir senha">
+                            <IconButton
+                              color="info"
+                              onClick={() => handleOpenResetDrawer(user)}
+                            >
+                              <LockResetIcon />
+                            </IconButton>
+                          </Tooltip>
                           <Tooltip title="Impersonar usuário">
                             <span>
                               <IconButton
@@ -241,6 +314,71 @@ export default function TenantDetailPage() {
           </CardContent>
         </Card>
       </Box>
+
+      {/* Reset Password Drawer */}
+      <CrudDrawer
+        open={resetDrawerOpen}
+        onClose={handleResetClose}
+        title="Redefinir Senha"
+        subtitle={resetUser?.email}
+        icon={<LockResetIcon />}
+        onSave={handleResetSave}
+        saveLabel="Redefinir"
+        saving={resetSaving}
+        saveDisabled={resetSaveDisabled}
+        isDirty={resetPassword.length > 0 || resetConfirm.length > 0}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {resetError && (
+            <Alert severity="error" onClose={() => setResetError(null)}>
+              {resetError}
+            </Alert>
+          )}
+          <TextField
+            label="Nova senha"
+            type={showNewPassword ? "text" : "password"}
+            value={resetPassword}
+            onChange={(e) => setResetPassword(e.target.value)}
+            autoComplete="new-password"
+            fullWidth
+            helperText="Mínimo 12 caracteres, maiúscula, número e símbolo"
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => setShowNewPassword((p) => !p)}
+                    edge="end"
+                  >
+                    {showNewPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+          <TextField
+            label="Confirmar senha"
+            type={showConfirmPassword ? "text" : "password"}
+            value={resetConfirm}
+            onChange={(e) => setResetConfirm(e.target.value)}
+            autoComplete="new-password"
+            fullWidth
+            error={passwordMismatch}
+            helperText={passwordMismatch ? "Senhas não coincidem" : " "}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => setShowConfirmPassword((p) => !p)}
+                    edge="end"
+                  >
+                    {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Box>
+      </CrudDrawer>
     </PlatformLayout>
   );
 }
