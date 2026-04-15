@@ -209,7 +209,7 @@ function AdminGirasContent() {
     setFormData({
       nome: gira.nome,
       descricao: gira.descricao || '',
-      data_inicio: gira.data_inicio ? gira.data_inicio.slice(0, 16) : '',
+      data_inicio: isoToLocalDatetimeInput(gira.data_inicio),
     });
     setTouched({});
     setDrawerMode('edit');
