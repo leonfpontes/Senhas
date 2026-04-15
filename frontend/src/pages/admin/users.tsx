@@ -38,6 +38,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
+import PasswordField from '../../components/PasswordField';
 import { useSubscription } from '../../hooks/useSubscription';
 
 interface UserItem {
@@ -359,9 +360,8 @@ function AdminUsersContent() {
           error={!!usernameError}
           helperText={usernameError}
         />
-        <TextField
+        <PasswordField
           label={drawerMode === 'create' ? 'Senha' : 'Nova Senha (opcional)'}
-          type="password"
           value={formData.password}
           onChange={(e) => handleChange('password', e.target.value)}
           onBlur={() => setTouched((p) => ({ ...p, password: true }))}

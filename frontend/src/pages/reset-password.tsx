@@ -14,6 +14,7 @@ import {
   CircularProgress,
   Container,
 } from '@mui/material';
+import PasswordField from '../components/PasswordField';
 import Link from 'next/link';
 import Head from 'next/head';
 import { apiClient } from '../services/api_client';
@@ -132,9 +133,8 @@ export default function ResetPasswordPage() {
                       </Alert>
                     ) : null}
 
-                    <TextField
+                    <PasswordField
                       label="Nova senha"
-                      type="password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       fullWidth
@@ -143,9 +143,8 @@ export default function ResetPasswordPage() {
                       helperText="Mínimo 12 caracteres, com maiúscula, minúscula, número e símbolo."
                     />
 
-                    <TextField
+                    <PasswordField
                       label="Confirmar nova senha"
-                      type="password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       fullWidth

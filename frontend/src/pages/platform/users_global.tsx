@@ -34,6 +34,7 @@ import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import { apiClient } from "../../services/api_client";
 import PlatformLayout from "./layout";
 import CrudDrawer from "../../components/CrudDrawer";
+import PasswordField from "../../components/PasswordField";
 
 interface PlatformUser {
   id: string;
@@ -334,9 +335,8 @@ const GlobalUsersPage: React.FC = () => {
           helperText={usernameError}
         />
         {drawerMode === "create" && (
-          <TextField
+          <PasswordField
             label="Senha"
-            type="password"
             value={formData.password}
             onChange={(e) => handleChange("password", e.target.value)}
             onBlur={() => setTouched((p) => ({ ...p, password: true }))}

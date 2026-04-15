@@ -17,6 +17,7 @@ import {
   Container,
   Divider,
 } from '@mui/material';
+import PasswordField from '../components/PasswordField';
 import Link from 'next/link';
 import Head from 'next/head';
 import { apiClient } from '../services/api_client';
@@ -134,9 +135,8 @@ export default function LoginPage() {
                   autoComplete="email"
                 />
 
-                <TextField
+                <PasswordField
                   label="Senha"
-                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   fullWidth

@@ -31,6 +31,7 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { useRouter } from 'next/router';
 
 import AdminLayout from './admin_layout';
+import PasswordField from '../../components/PasswordField';
 import { apiClient } from '../../services/api_client';
 
 interface ProfileData {
@@ -432,30 +433,30 @@ export default function AdminProfilePage() {
 
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
-                  <TextField
+                  <PasswordField
                     label="Senha Atual"
-                    type="password"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     fullWidth
+                    autoComplete="current-password"
                   />
                 </Grid>
                 <Grid item xs={12} md={4}>
-                  <TextField
+                  <PasswordField
                     label="Nova Senha"
-                    type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     fullWidth
+                    autoComplete="new-password"
                   />
                 </Grid>
                 <Grid item xs={12} md={4}>
-                  <TextField
+                  <PasswordField
                     label="Confirmar Nova Senha"
-                    type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     fullWidth
+                    autoComplete="new-password"
                   />
                 </Grid>
               </Grid>
@@ -524,9 +525,8 @@ export default function AdminProfilePage() {
                   {deleteError}
                 </Alert>
               )}
-              <TextField
+              <PasswordField
                 label="Digite sua senha para confirmar"
-                type="password"
                 fullWidth
                 value={deletePassword}
                 onChange={(e) => setDeletePassword(e.target.value)}
