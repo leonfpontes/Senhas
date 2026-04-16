@@ -58,6 +58,7 @@ import SwapVertIcon from '@mui/icons-material/SwapVert';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import LanguageIcon from '@mui/icons-material/Language';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
@@ -78,6 +79,8 @@ interface AdminLayoutProps {
   children: React.ReactNode;
   title?: string;
   maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | false;
+  /** Skip Container wrapper — needed for editors that require full-height internal scroll (e.g. Site Builder) */
+  noPadding?: boolean;
 }
 
 /**
@@ -120,6 +123,7 @@ function AdminLayoutInner({
   children, 
   title,
   maxWidth = 'lg',
+  noPadding = false,
 }: AdminLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -194,6 +198,7 @@ function AdminLayoutInner({
 
   const { can, planLabel, subscription, loading: subscriptionLoading } = useSubscription();
   const { birthdayCount } = useBirthday();
+  const isOperator = currentUser?.role === 'operator';
 
   const cadastrosItems = [
     { text: 'Giras', icon: <EventIcon />, href: '/admin/giras' },
@@ -219,13 +224,13 @@ function AdminLayoutInner({
   const relatoriosItems = [
     ...(can('analytics_basico') ? [{ text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' }] : []),
     ...(can('relatorio_gira') ? [{ text: 'Relatório de Gira', icon: <SummarizeIcon />, href: '/admin/relatorio-gira' }] : []),
-    ...(can('auditoria') ? [{ text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' }] : []),
+    ...(!isOperator && can('auditoria') ? [{ text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' }] : []),
   ];
   const relatoriosHrefs = relatoriosItems.map((i) => i.href);
   const isRelatoriosActive = relatoriosHrefs.includes(pathname);
   const [relatoriosOpen, setRelatoriosOpen] = useState(isRelatoriosActive);
 
-  const financeiroItems = can('mensalidade_mediun') ? [
+  const financeiroItems = (!isOperator && (can('mensalidade_mediun') || can('mensalidade_associado'))) ? [
     { text: 'Mensalidades', icon: <PaymentsIcon />, href: '/admin/financeiro/mensalidades' },
     { text: 'Configuração', icon: <AccountBalanceWalletIcon />, href: '/admin/financeiro/config' },
   ] : [];
@@ -254,13 +259,16 @@ function AdminLayoutInner({
   const topItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, href: '/admin/dashboard' },
     { text: 'Tickets', icon: <TicketIcon />, href: '/admin/tickets' },
+    ...(can('site_builder') ? [{ text: 'Meu Site', icon: <LanguageIcon />, href: '/admin/meu-site' }] : []),
   ];
 
   const bottomItems = [
     { text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' },
-    { text: 'Plano', icon: <CardMembershipIcon />, href: '/admin/plano' },
-    { text: 'Assinatura', icon: <CreditCardIcon />, href: '/admin/billing' },
-    { text: 'Configurações', icon: <SettingsIcon />, href: '/admin/config' },
+    ...(!isOperator ? [
+      { text: 'Plano', icon: <CardMembershipIcon />, href: '/admin/plano' },
+      { text: 'Assinatura', icon: <CreditCardIcon />, href: '/admin/billing' },
+      { text: 'Configurações', icon: <SettingsIcon />, href: '/admin/config' },
+    ] : []),
   ];
 
   const TOOLBAR_HEIGHT = 64;
@@ -514,8 +522,8 @@ function AdminLayoutInner({
           </>
         )}
 
-        {/* Financeiro group — Premium only */}
-        {can('mensalidade_mediun') && (
+        {/* Financeiro group — Premium only, not for operators */}
+        {!isOperator && (can('mensalidade_mediun') || can('mensalidade_associado')) && (
           <>
             <ListItem disablePadding>
               <ListItemButton
@@ -698,7 +706,7 @@ function AdminLayoutInner({
           />
         )}
         <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-          Senhas v2.3
+          GiraHub v3.0
         </Typography>
       </Box>
     </Box>
@@ -887,18 +895,24 @@ function AdminLayoutInner({
         {/* Spacer: matches AppBar height (toolbar + optional banner) */}
         <Toolbar />
         {isImpersonating && <Box sx={{ height: 36 }} />}
-        <Container
-          maxWidth={maxWidth}
-          sx={{
-            py: 3,
-            px: {
-              xs: 2,
-              sm: 3,
-            },
-          }}
-        >
-          {children}
-        </Container>
+        {noPadding ? (
+          <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            {children}
+          </Box>
+        ) : (
+          <Container
+            maxWidth={maxWidth}
+            sx={{
+              py: 3,
+              px: {
+                xs: 2,
+                sm: 3,
+              },
+            }}
+          >
+            {children}
+          </Container>
+        )}
       </Box>
     </Box>
     </>

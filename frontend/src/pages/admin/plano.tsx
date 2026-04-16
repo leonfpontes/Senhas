@@ -67,6 +67,7 @@ const FEATURES: PlanFeature[] = [
   { label: 'Emissão de senhas online', free: true, basic: true, pro: true, premium: true },
   { label: 'Porta (fila em tempo real)', free: true, basic: true, pro: true, premium: true },
   { label: 'Link público personalizável', free: true, basic: true, pro: true, premium: true },
+  { label: 'Site do Terreiro', free: false, basic: false, pro: true, premium: true },
   { label: 'Usuários', free: '1', basic: '5', pro: '20', premium: 'Ilimitado' },
   { label: 'Giras por mês', free: '2', basic: '10', pro: '50', premium: 'Ilimitado' },
   { label: 'Envio de senhas por e-mail', free: false, basic: false, pro: true, premium: true },
@@ -77,12 +78,13 @@ const FEATURES: PlanFeature[] = [
   { label: 'Relatório de Gira', free: false, basic: true, pro: true, premium: true },
   { label: 'Relatório Analítico avançado', free: false, basic: false, pro: true, premium: true },
   { label: 'Export CSV', free: false, basic: false, pro: true, premium: true },
-  { label: 'Operações em lote', free: false, basic: false, pro: true, premium: true },
+  { label: 'Operações em lote', free: false, basic: true, pro: true, premium: true },
   { label: 'Auditoria completa', free: false, basic: false, pro: true, premium: true },
   { label: 'Controle de Estoque', free: false, basic: false, pro: true, premium: true },
   { label: 'API access', free: false, basic: false, pro: false, premium: true },
   { label: 'Suporte prioritário', free: false, basic: false, pro: false, premium: true },
   { label: 'Controle de Mensalidade', free: false, basic: false, pro: false, premium: true },
+  { label: 'Mensalidade de Associados', free: false, basic: false, pro: true, premium: true },
 ];
 
 const PLAN_KEYS = ['free', 'basic', 'pro', 'premium'] as const;

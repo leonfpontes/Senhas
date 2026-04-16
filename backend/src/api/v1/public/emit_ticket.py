@@ -86,7 +86,8 @@ class EmitTicketResponse(BaseModel):
 async def emit_ticket(
     request: Request,
     tenant_slug: str,
-    body: EmitTicketRequest,
+    tipo: str = "regular",
+    body: EmitTicketRequest = ...,
     session: AsyncSession = Depends(get_db),
 ):
     """Emit a new ticket for public consultee
@@ -147,10 +148,9 @@ async def emit_ticket(
     """
 
     try:
-        # tipo=patrocinador is no longer accepted via public query param.
-        # Sponsor/associado emission must be triggered via the dedicated
-        # /emit-associado endpoint (admin-controlled or gated by config).
-        is_sponsor = False
+        # tipo=associado: use sponsor/associado emission window (sponsor_release_*)
+        # tipo=regular (default): use normal emission window (release_*)
+        is_sponsor = tipo.lower() in ("associado", "patrocinador")
 
         # === STEP 1: Validate Tenant ===
         tenant_query = select(Tenant).where(

@@ -17,7 +17,9 @@ from src.core.errors import (
     InsufficientPermissionsError,
     NotFoundError,
 )
-from sqlalchemy import select
+from src.repositories.subscription_repo import SubscriptionRepository
+from src.models.subscriptions import SubscriptionStatus
+from sqlalchemy import select, func, and_
 
 router = APIRouter(prefix="/api/v1/admin/users", tags=["admin-users"])
 logger = logging.getLogger(__name__)
@@ -62,7 +64,32 @@ async def create_user(
     """Create new user (admin only)."""
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Admin required")
-    
+
+    # Enforce subscription limits server-side (frontend gates are not sufficient)
+    sub_repo = SubscriptionRepository(db)
+    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
+    if sub is not None:
+        if sub.status == SubscriptionStatus.SUSPENDED:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Assinatura suspensa por falta de pagamento. Regularize sua assinatura para adicionar usuários.",
+            )
+        if sub.max_users != -1:
+            count_stmt = select(func.count()).select_from(User).where(
+                and_(
+                    User.tenant_id == current_user.tenant_id,
+                    User.is_active.is_(True),
+                    User.deleted_at.is_(None),
+                )
+            )
+            result = await db.execute(count_stmt)
+            current_count = result.scalar() or 0
+            if current_count >= sub.max_users:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Limite de usuários atingido ({sub.max_users}). Faça upgrade do plano.",
+                )
+
     # Check if email already exists
     repo = UserRepository(db)
     existing = await repo.get_by_email(current_user.tenant_id, user_data.email)
@@ -104,8 +131,8 @@ async def list_users(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> List[UserResponse]:
-    """List users (admin only)."""
-    if not current_user.is_admin:
+    """List users (admin or operator)."""
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = UserRepository(db)
@@ -137,8 +164,8 @@ async def get_user(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
-    """Get user details (admin only)."""
-    if not current_user.is_admin:
+    """Get user details (admin or operator)."""
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = UserRepository(db)

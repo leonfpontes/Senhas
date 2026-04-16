@@ -16,9 +16,11 @@ export interface PlanFeatures {
   api_access: boolean;
   suporte_prioritario: boolean;
   mensalidade_mediun: boolean;
+  mensalidade_associado: boolean;
   estoque_controle: boolean;
   mediuns: boolean;
   relatorio_gira: boolean;
+  site_builder: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -66,9 +68,11 @@ const DEFAULT_FEATURES: PlanFeatures = {
   api_access: false,
   suporte_prioritario: false,
   mensalidade_mediun: false,
+  mensalidade_associado: false,
   estoque_controle: false,
   mediuns: false,
   relatorio_gira: false,
+  site_builder: false,
 };
 
 const PLAN_LABELS: Record<string, string> = {
@@ -121,6 +125,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     fetchSubscription();
+  }, [fetchSubscription]);
+
+  // Re-fetch whenever a new token is stored (e.g. after signup or login via
+  // client-side navigation). ThemeProvider dispatches this event immediately
+  // after the token is written to localStorage, so hasAuthToken() will be true.
+  useEffect(() => {
+    const handleAuthChange = () => {
+      fetchSubscription();
+    };
+    window.addEventListener('tenant-branding-updated', handleAuthChange);
+    return () => {
+      window.removeEventListener('tenant-branding-updated', handleAuthChange);
+    };
   }, [fetchSubscription]);
 
   const features = subscription?.features ?? DEFAULT_FEATURES;

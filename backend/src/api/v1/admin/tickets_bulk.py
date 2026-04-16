@@ -41,7 +41,7 @@ async def bulk_mark_used(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = SenhaControlRepositoryExtended(db)
@@ -78,7 +78,7 @@ async def bulk_cancel(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = SenhaControlRepositoryExtended(db)

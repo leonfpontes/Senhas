@@ -7,8 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, field_validator
 
+from sqlalchemy import select
 from src.core.database import get_db
 from src.models import User, TenantConfig
+from src.models.tenants import Tenant
 from src.repositories.config_repo import TenantConfigRepository
 from src.services.audit_service import AuditService
 from src.api.dependencies import get_current_user
@@ -32,6 +34,7 @@ def _build_logo_url(request: Request, config: TenantConfig) -> Optional[str]:
 
 class TenantConfigResponse(BaseModel):
     """Tenant config response."""
+    tenant_nome: Optional[str] = None
     logo_url: Optional[str]
     primary_color: str
     secondary_color: str
@@ -45,6 +48,7 @@ class TenantConfigResponse(BaseModel):
     sponsor_priority_mode: str = "first"
     validate_associado_on_emit: bool = False
     enable_estoque_log: bool = True
+    enable_mensalidade_associado: bool = False
 
     class Config:
         from_attributes = True
@@ -64,6 +68,7 @@ class TenantConfigUpdate(BaseModel):
     sponsor_priority_mode: Optional[str] = None
     validate_associado_on_emit: Optional[bool] = None
     enable_estoque_log: Optional[bool] = None
+    enable_mensalidade_associado: Optional[bool] = None
 
     @field_validator("primary_color", "secondary_color")
     @classmethod
@@ -84,16 +89,14 @@ async def get_tenant_config(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TenantConfigResponse:
-    """Get tenant configuration.
-    
-    Requires admin role.
-    """
-    if not current_user.is_admin:
+    """Get tenant configuration."""
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     # SUPER_ADMIN has no tenant — return platform defaults
     if current_user.tenant_id is None:
         return TenantConfigResponse(
+            tenant_nome=None,
             logo_url=None,
             primary_color="#6366f1",
             secondary_color="#ec4899",
@@ -112,8 +115,14 @@ async def get_tenant_config(
     repo = TenantConfigRepository(db)
     config = await repo.get_by_tenant(current_user.tenant_id)
     
+    tenant_result = await db.execute(
+        select(Tenant.name).where(Tenant.id == current_user.tenant_id)
+    )
+    tenant_name = tenant_result.scalar_one_or_none()
+
     resp = TenantConfigResponse.from_orm(config)
     resp.logo_url = _build_logo_url(request, config)
+    resp.tenant_nome = tenant_name
     return resp
 
 
@@ -218,6 +227,14 @@ async def update_tenant_config(
             tenant_id=current_user.tenant_id,
             feature_flag="enable_estoque_log",
             enabled=config_update.enable_estoque_log,
+        )
+
+    # Update enable_mensalidade_associado
+    if config_update.enable_mensalidade_associado is not None:
+        await repo.toggle_feature(
+            tenant_id=current_user.tenant_id,
+            feature_flag="enable_mensalidade_associado",
+            enabled=config_update.enable_mensalidade_associado,
         )
 
     # Get updated config

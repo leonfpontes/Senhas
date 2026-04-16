@@ -3,8 +3,10 @@ from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
+from sqlalchemy.orm import selectinload
 
 from ..models import Tenant
+from ..models.subscriptions import Subscription
 from .base import BaseRepository
 
 
@@ -172,4 +174,60 @@ class TenantRepository(BaseRepository[Tenant]):
         tenant.soft_delete()
         await self.db.flush()
         await self.db.refresh(tenant)
+        return tenant
+
+    async def get_by_id_with_subscription(self, tenant_id: UUID) -> Optional[Tenant]:
+        """Get tenant by ID eagerly loading its subscription.
+
+        Used before hard delete to retrieve stripe IDs before the row vanishes.
+
+        Args:
+            tenant_id: Tenant UUID
+
+        Returns:
+            Tenant with .subscription populated, or None if not found / soft-deleted.
+        """
+        stmt = (
+            select(Tenant)
+            .options(selectinload(Tenant.subscription))
+            .where(
+                and_(
+                    Tenant.id == tenant_id,
+                    Tenant.deleted_at.is_(None),
+                )
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def hard_delete(self, tenant_id: UUID) -> Optional[Tenant]:
+        """Permanently delete a tenant and all cascaded children.
+
+        Relies on SQLAlchemy ORM cascade ("all, delete-orphan") on the Tenant
+        model relationships.  The database FK constraints must already allow
+        the cascade (audit_logs → SET NULL, estoque_movimentacoes → CASCADE).
+
+        Call flush() before commit in the caller so that the delete is sent
+        inside the open transaction and can be rolled back on error.
+
+        Args:
+            tenant_id: Tenant UUID
+
+        Returns:
+            The Tenant object that was deleted, or None if not found.
+        """
+        stmt = select(Tenant).where(
+            and_(
+                Tenant.id == tenant_id,
+                Tenant.deleted_at.is_(None),
+            )
+        )
+        result = await self.db.execute(stmt)
+        tenant = result.scalar_one_or_none()
+
+        if not tenant:
+            return None
+
+        await self.db.delete(tenant)
+        await self.db.flush()
         return tenant

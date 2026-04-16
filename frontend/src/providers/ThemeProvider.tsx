@@ -80,6 +80,7 @@ export interface TenantAwareThemeProviderProps {
 }
 
 interface AdminTenantConfigResponse {
+  tenant_nome?: string | null;
   logo_url?: string | null;
   primary_color?: string | null;
   secondary_color?: string | null;
@@ -137,7 +138,7 @@ const buildTenantThemeConfig = (config: AdminTenantConfigResponse): TenantThemeC
 
   return {
     tenantId: user?.tenant_id || 'tenant',
-    tenantName: getStoredTenantName() || 'Meu Terreiro',
+    tenantName: config.tenant_nome || getStoredTenantName() || 'Meu Terreiro',
     logoUrl: config.logo_url || undefined,
     colors: {
       primary: config.primary_color || DEFAULT_PRIMARY,

@@ -21,7 +21,7 @@ from .middleware import jwt_middleware, tenant_context_middleware, audit_logging
 from .api import auth_router
 from .api.v1.admin import admin_router
 from .api.v1.platform import platform_router
-from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router
+from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router, public_sites_router
 from .api.v1.webhooks import router as webhooks_router
 from .models import (
     Tenant,
@@ -128,6 +128,10 @@ def create_app() -> FastAPI:
     server_ip = os.environ.get("SERVER_IP", "")
     if server_ip:
         allowed_hosts.append(server_ip)
+    # Allow internal Docker service hostnames (e.g. SSR calls from frontend container)
+    extra_hosts = os.environ.get("EXTRA_ALLOWED_HOSTS", "")
+    if extra_hosts:
+        allowed_hosts.extend([h.strip() for h in extra_hosts.split(",") if h.strip()])
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=allowed_hosts,
@@ -230,6 +234,7 @@ def create_app() -> FastAPI:
     app.include_router(resend_email_router)
     app.include_router(images_router)
     app.include_router(onboarding_router)
+    app.include_router(public_sites_router)
 
     # Stripe webhooks (no JWT required — validated by Stripe signature)
     app.include_router(webhooks_router)

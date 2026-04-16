@@ -28,6 +28,7 @@ import StarIcon from '@mui/icons-material/Star';
 import ReplayIcon from '@mui/icons-material/Replay';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
+import { useSubscription } from '../../hooks/useSubscription';
 import { useRouter } from 'next/router';
 
 // ---------------------------------------------------------------------------
@@ -113,6 +114,7 @@ const PLANS: PlanMeta[] = [
 
 export default function AdminBilling() {
   const router = useRouter();
+  const { refresh: refreshSubscription } = useSubscription();
   const [billing, setBilling] = useState<BillingInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -142,7 +144,10 @@ export default function AdminBilling() {
     if (status === 'success') {
       setSuccess('Assinatura realizada com sucesso! Seu plano será atualizado em instantes.');
       // Reload billing info after a short delay to reflect webhook update
-      setTimeout(() => fetchBilling(), 3000);
+      setTimeout(() => {
+        fetchBilling();
+        refreshSubscription(); // sync global feature gates
+      }, 3000);
     } else if (status === 'cancelled') {
       setError('Checkout cancelado. Nenhuma cobrança foi realizada.');
     } else if (status === 'checkout_error') {
@@ -171,6 +176,7 @@ export default function AdminBilling() {
       await apiClient.post('/api/v1/admin/billing/change-plan', { plan });
       setSuccess(`Plano alterado para ${plan} com sucesso!`);
       await fetchBilling();
+      refreshSubscription(); // sync global feature gates immediately
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Erro ao alterar plano');
     } finally {
@@ -186,6 +192,7 @@ export default function AdminBilling() {
       await apiClient.post('/api/v1/admin/billing/cancel');
       setSuccess('Assinatura será cancelada ao final do período atual. Você continuará com acesso até lá.');
       await fetchBilling();
+      refreshSubscription();
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Erro ao cancelar assinatura');
     } finally {
@@ -201,6 +208,7 @@ export default function AdminBilling() {
       await apiClient.post('/api/v1/admin/billing/reactivate');
       setSuccess('Assinatura reativada! As cobranças serão retomadas normalmente.');
       await fetchBilling();
+      refreshSubscription();
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Erro ao reativar assinatura');
     } finally {

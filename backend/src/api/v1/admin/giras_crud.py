@@ -15,6 +15,7 @@ from src.models.senha_controls import SenhaControl
 from src.repositories.gira_repo import GiraRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
+from src.models.subscriptions import SubscriptionStatus
 
 _BASE = settings.FRONTEND_URL.rstrip("/")
 from src.api.dependencies import get_current_user
@@ -118,13 +119,20 @@ async def create_gira(
     Requires admin role.
     """
     # Check permissions
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     # Check monthly gira limit
     sub_repo = SubscriptionRepository(db)
     sub = await sub_repo.get_by_tenant(current_user.tenant_id)
     if sub is not None:
+        # Block operations for suspended subscriptions (payment failed)
+        if sub.status == SubscriptionStatus.SUSPENDED:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Assinatura suspensa por falta de pagamento. Regularize sua assinatura para criar novas giras.",
+            )
+
         now = datetime.now(timezone.utc)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         count_stmt = select(func.count()).select_from(Gira).where(
@@ -177,7 +185,7 @@ async def list_giras(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     stmt = select(Gira).where(
@@ -215,7 +223,7 @@ async def get_gira(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = GiraRepository(db)
@@ -238,7 +246,7 @@ async def update_gira(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = GiraRepository(db)
@@ -278,7 +286,7 @@ async def delete_gira(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = GiraRepository(db)
@@ -319,7 +327,7 @@ async def get_senha_config(
     db: AsyncSession = Depends(get_db),
 ) -> SenhaConfigResponse:
     """Get senha configuration and stats for a gira."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = GiraRepository(db)
@@ -352,7 +360,7 @@ async def update_senha_config(
     db: AsyncSession = Depends(get_db),
 ) -> SenhaConfigResponse:
     """Configure senha settings for a gira (max tickets, release window)."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     if config.max_tickets < 1:
@@ -441,7 +449,7 @@ async def release_now(
     db: AsyncSession = Depends(get_db),
 ) -> SenhaConfigResponse:
     """Immediately release senhas for a gira (set release_start_at to now)."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = GiraRepository(db)

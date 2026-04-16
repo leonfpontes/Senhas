@@ -13,6 +13,7 @@ from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.models import User
 from src.repositories.mediun_repo import MediumRepository
 from src.repositories.subscription_repo import SubscriptionRepository
+from src.models.subscriptions import SubscriptionStatus
 from src.services.audit_service import AuditService
 
 router = APIRouter(prefix="/api/v1/admin/mediuns", tags=["admin-mediuns"])
@@ -109,7 +110,7 @@ async def list_aniversariantes(
     db: AsyncSession = Depends(get_db),
 ) -> List[BirthdayMediumResponse]:
     """List médiuns whose birthday falls within the next *dias* days."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     sub_repo = SubscriptionRepository(db)
     sub = await sub_repo.get_by_tenant(current_user.tenant_id)
@@ -134,7 +135,7 @@ async def list_mediuns_options(
     (valid as médium); ``only_atendimento=false`` (default) returns all
     active mediuns (valid as cambone).
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     repo = MediumRepository(db)
     return await repo.list(current_user.tenant_id, only_atendimento=only_atendimento)
@@ -148,7 +149,7 @@ async def list_mediuns(
     db: AsyncSession = Depends(get_db),
 ) -> List[MediumResponse]:
     """List mediuns for the CRUD management page."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     repo = MediumRepository(db)
     return await repo.list(
@@ -165,20 +166,26 @@ async def create_medium(
     db: AsyncSession = Depends(get_db),
 ) -> MediumResponse:
     """Create a new medium/cambone."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     # Check plan limit
     sub_repo = SubscriptionRepository(db)
     sub = await sub_repo.get_by_tenant(current_user.tenant_id)
-    if sub is not None and sub.max_mediuns > 0:
-        repo_check = MediumRepository(db)
-        current_count = await repo_check.count(current_user.tenant_id)
-        if current_count >= sub.max_mediuns:
+    if sub is not None:
+        if sub.status == SubscriptionStatus.SUSPENDED:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Limite de médiuns/cambones atingido ({sub.max_mediuns}). Faça upgrade do plano.",
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Assinatura suspensa por falta de pagamento. Regularize sua assinatura para adicionar médiuns.",
             )
+        if sub.max_mediuns > 0:
+            repo_check = MediumRepository(db)
+            current_count = await repo_check.count(current_user.tenant_id)
+            if current_count >= sub.max_mediuns:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Limite de médiuns/cambones atingido ({sub.max_mediuns}). Faça upgrade do plano.",
+                )
 
     repo = MediumRepository(db)
     medium = await repo.create(
@@ -218,7 +225,7 @@ async def update_medium(
     db: AsyncSession = Depends(get_db),
 ) -> MediumResponse:
     """Update name, is_atendimento flag, or active status."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = MediumRepository(db)
@@ -276,7 +283,7 @@ async def delete_medium(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Soft-delete a medium/cambone."""
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = MediumRepository(db)

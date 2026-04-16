@@ -42,7 +42,7 @@ async def health_check(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     from datetime import datetime

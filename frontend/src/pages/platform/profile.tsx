@@ -19,6 +19,7 @@ import {
 import SaveIcon from "@mui/icons-material/Save";
 import { apiClient } from "../../services/api_client";
 import PlatformLayout from "./layout";
+import PasswordField from "../../components/PasswordField";
 
 interface UserProfile {
   id: string;
@@ -157,29 +158,29 @@ const ProfilePage: React.FC = () => {
             Alterar Senha
           </Box>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 400 }}>
-            <TextField
+            <PasswordField
               label="Senha Atual"
-              type="password"
               size="small"
               fullWidth
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
             />
-            <TextField
+            <PasswordField
               label="Nova Senha"
-              type="password"
               size="small"
               fullWidth
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
             />
-            <TextField
+            <PasswordField
               label="Confirmar Nova Senha"
-              type="password"
               size="small"
               fullWidth
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
             />
             <Button
               variant="contained"

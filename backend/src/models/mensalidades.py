@@ -17,6 +17,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    Time,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID, BYTEA
@@ -53,6 +54,14 @@ class MensalidadeConfig(TimestampedModel):
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     email_relatorio_ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    # Mensalidade de associados (PRO+)
+    valor_mensal_associado: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), nullable=False, default=Decimal("0.00"), server_default="0.00"
+    )
+    dia_vencimento_associado: Mapped[int] = mapped_column(nullable=False, default=10, server_default="10")
+    # Preferred time for scheduled report email (stored only — no auto-scheduler yet)
+    relatorio_hora_envio: Mapped[Optional[datetime]] = mapped_column(Time, nullable=True)
+
     tenant = relationship("Tenant", backref="mensalidade_config")
 
     def __repr__(self) -> str:
@@ -88,7 +97,7 @@ class MensalidadePagamento(TimestampedModel):
     )
     mes_referencia: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[MensalidadeStatus] = mapped_column(
-        SAEnum(MensalidadeStatus, name="mensalidade_status"),
+        SAEnum(MensalidadeStatus, name="mensalidade_status", create_type=False),
         nullable=False,
         default=MensalidadeStatus.PENDENTE,
     )

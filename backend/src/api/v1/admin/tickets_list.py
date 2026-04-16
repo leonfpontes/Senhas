@@ -37,6 +37,7 @@ class TicketResponse(BaseModel):
     is_sponsor: bool = False
     is_walk_in: bool = False
     observacoes: Optional[str] = None
+    checkin_em: Optional[datetime] = None
     chamado_em: Optional[datetime] = None
     finalizado_em: Optional[datetime] = None
     medium_nome: Optional[str] = None
@@ -84,7 +85,7 @@ async def list_gira_tickets(
     - limit: Max results (1-500)
     - status_filter: Filter by ticket status (optional)
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     # Build query
@@ -135,6 +136,7 @@ async def list_gira_tickets(
             observacoes=t.observacoes if t.observacoes and not preferencial else None,
             chamado_em=t.chamado_em,
             finalizado_em=t.finalizado_em,
+            checkin_em=t.checkin_em,
             medium_nome=t.medium_nome,
             cambone_nome=t.cambone_nome,
             atendimento_descricao=t.atendimento_descricao,
@@ -162,7 +164,7 @@ async def get_ticket(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     stmt = select(Ticket).where(
@@ -223,7 +225,7 @@ async def update_attend_info(
 
     Requires admin role. Enforces multi-tenant isolation.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     stmt = select(Ticket).where(

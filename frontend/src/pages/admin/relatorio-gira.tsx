@@ -35,6 +35,7 @@ import {
   Typography,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/GetApp';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -43,6 +44,8 @@ import SearchIcon from '@mui/icons-material/Search';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import { useSubscription } from '../../hooks/useSubscription';
+import { useTenant } from '../../providers/ThemeProvider';
+import { useRelatorioPDF } from '../../hooks/useRelatorioPDF';
 
 interface Ticket {
   id: string;
@@ -56,7 +59,20 @@ interface Ticket {
   cambone_nome?: string;
   observacoes?: string;
   atendimento_descricao?: string;
+  checkin_em?: string | null;
   created_at: string;
+}
+
+interface DoorStats {
+  total: number;
+  checked_in: number;
+  awaiting: number;
+  in_progress: number;
+  completed: number;
+  no_show: number;
+  walk_in: number;
+  preferenciais: number;
+  patrocinados: number;
 }
 
 type GiraFilter = 'all' | 'active' | 'inactive';
@@ -86,6 +102,8 @@ export default function RelatorioGiraPage() {
 function RelatorioGiraContent() {
   const router = useRouter();
   const { can } = useSubscription();
+  const { tenantName, logoUrl, config } = useTenant();
+  const { generate: generatePDF, loading: loadingPDF } = useRelatorioPDF();
 
   // Feature gate — redireciona para /admin/plano se não tiver acesso
   useEffect(() => {
@@ -95,12 +113,15 @@ function RelatorioGiraContent() {
   }, [can, router]);
 
   // ── Filtros de seleção de gira (server-side) ──────────────────────
-  const [giras, setGiras] = useState<{ id: string; nome: string; is_active: boolean }[]>([]);
+  const [giras, setGiras] = useState<{ id: string; nome: string; is_active: boolean; data_inicio?: string }[]>([]);
   const [giraId, setGiraId]         = useState<string>('');
   const [giraFilter, setGiraFilter] = useState<GiraFilter>('all');
   const [dateFrom, setDateFrom]     = useState<string>('');
   const [dateTo, setDateTo]         = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('completed');
+
+  // ── Door stats (big numbers) para o PDF ──────────────────────────
+  const [doorStats, setDoorStats] = useState<DoorStats | null>(null);
 
   // ── Dados brutos carregados da API ────────────────────────────────
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
@@ -155,6 +176,18 @@ function RelatorioGiraContent() {
     }
   }, [giraId, statusFilter]);
 
+  // ─── Carrega door stats para o PDF (big numbers) ──────────────────
+  const loadDoorStats = useCallback(async () => {
+    if (!giraId) { setDoorStats(null); return; }
+    try {
+      const res = await apiClient.get(`/api/v1/admin/giras/${giraId}/door/stats`);
+      setDoorStats(res.data);
+    } catch (err) {
+      console.error('Erro ao carregar door stats:', err);
+      setDoorStats(null);
+    }
+  }, [giraId]);
+
   useEffect(() => {
     const token =
       (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
@@ -164,7 +197,9 @@ function RelatorioGiraContent() {
   }, [giraFilter, dateFrom, dateTo]);
 
   useEffect(() => {
+    // Carrega tickets e door stats em paralelo
     loadTickets();
+    loadDoorStats();
     // Ao trocar de gira ou status, limpa filtros client-side e volta à página 0
     setSearchText('');
     setMediumFilter('');
@@ -195,7 +230,7 @@ function RelatorioGiraContent() {
     return allTickets.filter((t) => {
       if (needle) {
         const nome = normalize(t.consulente_nome ?? '');
-        const obs  = normalize(t.atendimento_descricao ?? t.observacoes ?? '');
+        const obs  = normalize(t.atendimento_descricao ?? '');
         if (!nome.includes(needle) && !obs.includes(needle)) return false;
       }
       if (mediumFilter && (t.medium_nome?.trim() || '') !== mediumFilter) return false;
@@ -248,6 +283,26 @@ function RelatorioGiraContent() {
     link.download = `relatorio-${giraName.replace(/\s+/g, '-').toLowerCase()}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
+  };
+
+  // ─── Exportar PDF ─────────────────────────────────────────────────
+  const handleExportPDF = async () => {
+    if (!giraId || !doorStats) return;
+    const selectedGira = giras.find((g) => g.id === giraId);
+    await generatePDF({
+      tickets: filteredTickets,
+      doorStats,
+      gira: {
+        nome: selectedGira?.nome ?? 'Gira',
+        data: selectedGira?.data_inicio,
+      },
+      tenant: {
+        nome: tenantName ?? 'Terreiro',
+        logoUrl: logoUrl ?? undefined,
+        primaryColor: config?.colors?.primary ?? '#6366f1',
+        secondaryColor: config?.colors?.secondary ?? '#8b5cf6',
+      },
+    });
   };
 
   const handleClearGiraFilters = () => {
@@ -371,9 +426,18 @@ function RelatorioGiraContent() {
           )}
 
           {giraId && (
-            <Box data-tour="relatorio-export" sx={{ ml: 'auto' }}>
+            <Box data-tour="relatorio-export" sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
               <Button size="small" variant="outlined" startIcon={<DownloadIcon />} onClick={handleExportCSV}>
                 Exportar CSV
+              </Button>
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={loadingPDF ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfIcon />}
+                onClick={handleExportPDF}
+                disabled={loadingPDF || !doorStats}
+              >
+                {loadingPDF ? 'Gerando…' : 'Exportar PDF'}
               </Button>
             </Box>
           )}
@@ -421,6 +485,18 @@ function RelatorioGiraContent() {
           {giraId && (
             <Button size="small" variant="outlined" startIcon={<DownloadIcon />} fullWidth onClick={handleExportCSV}>
               Exportar CSV
+            </Button>
+          )}
+          {giraId && (
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={loadingPDF ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfIcon />}
+              fullWidth
+              onClick={handleExportPDF}
+              disabled={loadingPDF || !doorStats}
+            >
+              {loadingPDF ? 'Gerando PDF…' : 'Exportar PDF'}
             </Button>
           )}
         </Box>

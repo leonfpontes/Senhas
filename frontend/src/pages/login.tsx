@@ -3,7 +3,8 @@
  */
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import {
   Box,
   Button,
@@ -16,6 +17,7 @@ import {
   Container,
   Divider,
 } from '@mui/material';
+import PasswordField from '../components/PasswordField';
 import Link from 'next/link';
 import Head from 'next/head';
 import { apiClient } from '../services/api_client';
@@ -26,6 +28,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accountDeleted, setAccountDeleted] = useState(false);
+  const [passwordReset, setPasswordReset] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (router.query.account_deleted === '1') {
+      setAccountDeleted(true);
+    }
+    if (router.query.reset === '1') {
+      setPasswordReset(true);
+    }
+  }, [router.query.account_deleted, router.query.reset]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +109,16 @@ export default function LoginPage() {
 
             <form onSubmit={handleSubmit}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {accountDeleted && (
+                  <Alert severity="success" onClose={() => setAccountDeleted(false)}>
+                    Sua conta foi excluída com sucesso. Seus dados pessoais foram removidos conforme a LGPD.
+                  </Alert>
+                )}
+                {passwordReset && (
+                  <Alert severity="success" onClose={() => setPasswordReset(false)}>
+                    Senha redefinida com sucesso. Faça login com sua nova senha.
+                  </Alert>
+                )}
                 {error && (
                   <Alert severity="error" onClose={() => setError(null)}>
                     {error}
@@ -111,9 +135,8 @@ export default function LoginPage() {
                   autoComplete="email"
                 />
 
-                <TextField
+                <PasswordField
                   label="Senha"
-                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   fullWidth
@@ -131,6 +154,19 @@ export default function LoginPage() {
                 >
                   {loading ? <CircularProgress size={24} color="inherit" /> : 'Entrar'}
                 </Button>
+
+                <Box sx={{ textAlign: 'center', mt: 1 }}>
+                  <Link href="/forgot-password" passHref legacyBehavior>
+                    <Typography
+                      component="a"
+                      variant="body2"
+                      color="primary.main"
+                      sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                    >
+                      Esqueci minha senha
+                    </Typography>
+                  </Link>
+                </Box>
               </Box>
             </form>
 

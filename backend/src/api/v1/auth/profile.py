@@ -1,18 +1,28 @@
 """Authenticated user profile endpoints."""
-from __future__ import annotations
 
+import asyncio
+import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File, status
 from pydantic import BaseModel, field_validator
+from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user
+from src.core.config import settings
 from src.core.database import get_db
-from src.core.errors import ValidationError, UnauthorizedError
-from src.models import User
+from src.core.errors import ValidationError, UnauthorizedError, InsufficientPermissionsError
+from src.core.limiter import limiter
+from src.models import User, UserRole
+from src.models.audit_logs import AuditLog, AuditAction
 from src.security.password import verify_password, hash_password, validate_password_policy
+from src.services.email.base import EmailMessage
+from src.services.email.resend_fallback import ResendEmailService
+from src.services.email.brevo_provider import BrevoEmailService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth-profile"])
 
@@ -186,3 +196,158 @@ async def upload_profile_photo(
         "message": "Foto de perfil atualizada com sucesso",
         "profile_photo_url": _build_photo_url(request, current_user),
     }
+
+
+# ---------------------------------------------------------------------------
+# Account deletion (LGPD Art. 18 VI)
+# ---------------------------------------------------------------------------
+
+class DeleteAccountRequest(BaseModel):
+    """Payload for permanent account deletion — password confirms identity."""
+
+    password: str
+
+
+async def _send_account_deleted_email(email: str, username: str) -> None:
+    """Best-effort notification email after account deletion (fire-and-forget)."""
+    html = (
+        f"<p>Olá, {username}.</p>"
+        f"<p>Confirmamos que sua conta no <strong>GiraHub</strong> foi excluída permanentemente "
+        f"conforme solicitado, em cumprimento ao Art. 18, VI da LGPD.</p>"
+        f"<p>Todos os seus dados pessoais foram removidos de nossos sistemas.</p>"
+        f"<p>Se você não solicitou essa exclusão, entre em contato imediatamente com "
+        f"<a href='mailto:privacidade@girahub.com.br'>privacidade@girahub.com.br</a>.</p>"
+    )
+    msg = EmailMessage(
+        to_email=email,
+        subject="Sua conta no GiraHub foi excluída",
+        html_body=html,
+        text_body=(
+            f"Olá, {username}.\n\n"
+            "Confirmamos que sua conta no GiraHub foi excluída permanentemente conforme solicitado, "
+            "em cumprimento ao Art. 18, VI da LGPD.\n\n"
+            "Todos os seus dados pessoais foram removidos de nossos sistemas.\n\n"
+            "Se você não solicitou essa exclusão, entre em contato imediatamente com "
+            "privacidade@girahub.com.br."
+        ),
+    )
+    try:
+        sent = await ResendEmailService().send_async(msg)
+        if not sent:
+            raise RuntimeError("Resend returned False")
+    except Exception:
+        try:
+            await BrevoEmailService().send_async(msg)
+        except Exception as exc:
+            logger.warning("Account deletion notification email failed for %s: %s", email, exc)
+
+
+@router.delete("/account", status_code=status.HTTP_200_OK)
+@limiter.limit("5/hour")
+async def delete_own_account(
+    request: Request,
+    response: Response,
+    payload: DeleteAccountRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Permanently delete the authenticated user's own account (LGPD Art. 18 VI).
+
+    Guards:
+    - SUPER_ADMIN accounts cannot be self-deleted via this endpoint.
+    - Impersonated sessions are blocked.
+    - Last ADMIN of a tenant is blocked (would orphan the tenant).
+    - Password confirmation required.
+    - Rate-limited to 3 requests/hour per IP.
+
+    On success:
+    - User row is hard-deleted from the database.
+    - All FK references with SET NULL are automatically nullified by PostgreSQL.
+    - A best-effort notification email is sent (fire-and-forget).
+    - The refresh-token cookie is cleared in the response.
+    """
+    # Guard 1: SUPER_ADMIN cannot self-delete via this endpoint
+    if current_user.role == UserRole.SUPER_ADMIN:
+        raise InsufficientPermissionsError(
+            "Contas de plataforma não podem ser excluídas por aqui. "
+            "Entre em contato com privacidade@girahub.com.br."
+        )
+
+    # Guard 2: Block impersonated sessions
+    token_data = getattr(request.state, "token", None)
+    impersonated_by = getattr(token_data, "impersonated_by", None) if token_data else None
+    if impersonated_by:
+        raise InsufficientPermissionsError(
+            "Operação não permitida durante impersonação."
+        )
+
+    # Guard 3: Confirm identity via password
+    if not verify_password(payload.password, current_user.password_hash):
+        raise UnauthorizedError("Senha incorreta. Confirme sua senha para continuar.")
+
+    # Capture values before delete (user row will be gone after commit)
+    user_id = current_user.id
+    user_email = current_user.email
+    user_username = current_user.username
+    tenant_id = current_user.tenant_id
+    user_role = current_user.role
+
+    # Guard 4 + hard delete — atomic transaction
+    # flush the delete first, then re-check admin count to prevent race condition.
+    try:
+        await db.delete(current_user)
+        await db.flush()
+
+        # Guard 4: If user was an ADMIN, ensure at least one ADMIN remains
+        if user_role == UserRole.ADMIN and tenant_id is not None:
+            remaining = await db.scalar(
+                select(func.count()).where(
+                    and_(
+                        User.tenant_id == tenant_id,
+                        User.role == UserRole.ADMIN,
+                        User.is_active == True,
+                        User.deleted_at.is_(None),
+                    )
+                )
+            )
+            if remaining == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "Você é o único administrador deste terreiro. "
+                        "Transfira a administração para outro usuário antes de excluir sua conta."
+                    ),
+                )
+
+        # Write audit log (user_id FK will be SET NULL by DB after commit,
+        # but we store it here while the row still exists in the flush buffer)
+        audit = AuditLog(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            action=AuditAction.DELETE,
+            resource_type="User",
+            resource_id=user_id,
+            details={"reason": "LGPD Art. 18 VI — self-requested account deletion"},
+        )
+        db.add(audit)
+
+        await db.commit()
+
+    except (HTTPException, Exception):
+        await db.rollback()
+        raise
+
+    # Clear refresh-token cookie
+    response.delete_cookie(
+        key="refresh_token",
+        httponly=True,
+        secure=True,
+        samesite="strict",
+    )
+
+    # Send notification email asynchronously (best-effort, non-blocking)
+    asyncio.create_task(
+        _send_account_deleted_email(user_email, user_username)
+    )
+
+    return {"message": "Sua conta foi excluída permanentemente."}

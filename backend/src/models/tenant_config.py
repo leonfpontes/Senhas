@@ -55,6 +55,9 @@ class TenantConfig(TimestampedModel):
     # Estoque: log de movimentações no audit_log
     enable_estoque_log: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
 
+    # Mensalidade de associados feature toggle (PRO+)
+    enable_mensalidade_associado: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+
     # Custom metadata
     custom_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     

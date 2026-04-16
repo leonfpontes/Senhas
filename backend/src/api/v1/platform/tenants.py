@@ -1,18 +1,20 @@
 """Platform API - Tenant management endpoints (T104)."""
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, status, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
 from uuid import UUID
 
 from src.core.database import get_db
 from src.core.errors import NotFoundError, InvalidInputError
+from src.core.logging import log_security_event
 from src.api.dependencies import get_current_user
 from src.models import User, UserRole, PlanType
 from src.models.subscriptions import Subscription
 from src.services.tenant_service import TenantService
 from src.repositories.tenant_repo import TenantRepository
+from src.security.password import hash_password, validate_password_policy
 
 router = APIRouter(prefix="/api/v1/platform/tenants", tags=["platform-tenants"])
 
@@ -32,6 +34,17 @@ class UpdateTenantRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+
+
+class DeleteTenantRequest(BaseModel):
+    """Request to permanently delete a tenant.
+
+    confirm_slug must match the tenant slug exactly — this prevents
+    accidental deletions and forces the operator to consciously type
+    the target identifier.
+    """
+
+    confirm_slug: str
 
 
 class TenantResponse(BaseModel):
@@ -180,29 +193,51 @@ async def update_tenant(
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tenant(
     tenant_id: UUID,
+    request: DeleteTenantRequest,
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Soft delete tenant."""
+    """Permanently hard-delete a tenant and all its data (LGPD Art. 18 VI).
+
+    Requires confirm_slug matching the tenant slug to prevent accidents.
+    Cancels active Stripe subscription before deletion (best-effort).
+    Audit trail is preserved with tenant_id=NULL.
+    """
     service = TenantService(db)
-    
+
     try:
-        success = await service.delete_tenant(tenant_id)
-        
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tenant não encontrado",
-            )
-        
+        await service.hard_delete_tenant(
+            tenant_id=tenant_id,
+            confirm_slug=request.confirm_slug,
+            actor_id=current_user.id,
+        )
         await db.commit()
+        log_security_event(
+            "tenant_hard_deleted",
+            user_id=current_user.id,
+            tenant_id=None,
+            success=True,
+        )
+    except NotFoundError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except InvalidInputError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
     except HTTPException:
+        await db.rollback()
         raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao deletar tenant: {str(e)}",
+            detail=f"Erro ao excluir tenant permanentemente: {str(e)}",
         )
 
 
@@ -301,3 +336,69 @@ async def list_tenant_users(
         )
         for u in users
     ]
+
+
+class ResetPasswordRequest(BaseModel):
+    """Request to force-reset a tenant user's password (super admin only)."""
+
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        # Guard bcrypt 72-byte silent truncation
+        if len(v.encode("utf-8")) > 72:
+            raise ValueError("Senha deve ter no máximo 72 caracteres")
+        try:
+            validate_password_policy(v)
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
+        return v
+
+
+@router.post(
+    "/{tenant_id}/users/{user_id}/reset-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def reset_tenant_user_password(
+    tenant_id: UUID = Path(...),
+    user_id: UUID = Path(...),
+    body: ResetPasswordRequest = None,
+    current_user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Force-reset a tenant user's password (super admin only)."""
+    # Verify tenant exists
+    repo = TenantRepository(db)
+    tenant = await repo.get_by_id(tenant_id, None)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant não encontrado",
+        )
+
+    # Fetch user — mandatory tenant_id filter (multi-tenant isolation)
+    result = await db.execute(
+        select(User).where(
+            User.id == user_id,
+            User.tenant_id == tenant_id,
+            User.deleted_at.is_(None),
+        )
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado",
+        )
+
+    user.password_hash = hash_password(body.new_password)
+    db.add(user)
+    await db.commit()
+
+    log_security_event(
+        "password_reset_by_admin",
+        user_id=str(current_user.id),
+        tenant_id=str(tenant_id),
+        details={"target_user_id": str(user_id)},
+    )

@@ -17,8 +17,6 @@ import {
   Container,
   FormControlLabel,
   FormHelperText,
-  IconButton,
-  InputAdornment,
   LinearProgress,
   MenuItem,
   Step,
@@ -27,13 +25,13 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import { apiClient } from '../services/api_client';
 import { dispatchTenantBrandingUpdated } from '../providers/ThemeProvider';
+import PasswordField from '../components/PasswordField';
 
 const STEPS = ['Seu Terreiro', 'Seus Dados'];
 
@@ -74,7 +72,6 @@ export default function CadastroPage() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
 
   // Step 1
   const [terreiroNome, setTerreiroNome] = useState('');
@@ -143,13 +140,18 @@ export default function CadastroPage() {
           window.location.href = checkoutRes.data.checkout_url;
           return;
         } catch {
-          // Checkout failed — go to billing page so user can try again
-          router.push('/admin/billing?status=checkout_error');
+          // Checkout failed — go to billing page so user can try again.
+          // Use full page reload so SubscriptionProvider remounts with the token
+          // already in localStorage (same reason as login.tsx).
+          window.location.href = '/admin/billing?status=checkout_error';
           return;
         }
       }
 
-      router.push('/admin/dashboard');
+      // Full page reload so SubscriptionProvider and ProfileProvider remount
+      // with the token already in localStorage — prevents canCreateGira()=false
+      // on the first visit to /admin/giras after signup.
+      window.location.href = '/admin/dashboard';
     } catch (err: any) {
       const detail =
         err?.response?.data?.detail ??
@@ -338,27 +340,13 @@ export default function CadastroPage() {
                     />
 
                     <Box>
-                      <TextField
+                      <PasswordField
                         label="Senha"
-                        type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         fullWidth
                         required
                         autoComplete="new-password"
-                        InputProps={{
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <IconButton
-                                onClick={() => setShowPassword(!showPassword)}
-                                edge="end"
-                                size="small"
-                              >
-                                {showPassword ? <VisibilityOff /> : <Visibility />}
-                              </IconButton>
-                            </InputAdornment>
-                          ),
-                        }}
                       />
                       {password.length > 0 && (
                         <Box sx={{ mt: 0.5 }}>
@@ -381,9 +369,8 @@ export default function CadastroPage() {
                       )}
                     </Box>
 
-                    <TextField
+                    <PasswordField
                       label="Confirmar senha"
-                      type="password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       fullWidth

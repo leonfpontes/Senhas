@@ -62,7 +62,7 @@ async def get_analytics(
     - date_to: End date (defaults to today)
     - gira_id: Optional gira filter
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     repo = TicketAnalyticsRepository(db)

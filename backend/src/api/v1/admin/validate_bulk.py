@@ -40,7 +40,7 @@ async def validate_bulk_operation(
     
     Requires admin role.
     """
-    if not current_user.is_admin:
+    if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
     errors = []
