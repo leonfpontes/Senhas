@@ -66,6 +66,18 @@ function hexToRgba(hex: string, opacity: number): string {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Normalizes a Brazilian phone number for use in WhatsApp links (wa.me).
+ * Numbers stored without country code (10-11 digits) receive the +55 prefix.
+ * Numbers already containing the country code (12-13 digits starting with 55)
+ * are left unchanged.
+ */
+function toBrWhatsAppNumber(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  return digits;
+}
+
 interface GiraItem {
   id: string;
   nome: string;
@@ -907,7 +919,7 @@ function ContactSection({ config }: { config: Record<string, unknown> }) {
 
   type ContactItem = { Icon: React.FC<{ size?: number; color?: string }>; label: string; href: string };
   const contacts: ContactItem[] = [
-    phone     ? { Icon: IconWhatsApp,  label: phone,                                href: `https://wa.me/${phone.replace(/\D/g, '')}` } : null,
+    phone     ? { Icon: IconWhatsApp,  label: phone,                                href: `https://wa.me/${toBrWhatsAppNumber(phone)}` } : null,
     email     ? { Icon: IconEmail,     label: email,                                href: `mailto:${email}` } : null,
     instagram ? { Icon: IconInstagram, label: `@${instagram.replace('@', '')}`,     href: `https://instagram.com/${instagram.replace('@', '')}` } : null,
   ].filter(Boolean) as ContactItem[];
