@@ -292,7 +292,7 @@ async def emit_ticket(
         if ticket_number_int > max_cap + slots_returned:
             await session.rollback()
             raise HTTPException(
-                status_code=429,
+                status_code=410,
                 detail="Todas as senhas desta gira já foram emitidas",
             )
 

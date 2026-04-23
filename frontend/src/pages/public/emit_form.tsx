@@ -133,10 +133,12 @@ export default function EmitForm({
       const message =
         err.response?.status === 409
           ? 'Você já possui uma senha para este evento'
-          : err.response?.status === 429
+          : err.response?.status === 410
             ? 'Todas as senhas para este evento foram emitidas'
-            : err.response?.data?.detail ||
-              'Erro ao emitir senha. Tente novamente.';
+            : err.response?.status === 429
+              ? 'Muitas tentativas. Aguarde alguns instantes e tente novamente.'
+              : err.response?.data?.detail ||
+                'Erro ao emitir senha. Tente novamente.';
 
       setError(message);
       setLoading(false);
