@@ -176,6 +176,7 @@ async def emit_ticket(
                     and_(
                         Gira.tenant_id == tenant.id,
                         Gira.is_active == True,
+                        Gira.deleted_at.is_(None),
                         Gira.sponsor_release_start_at <= now,
                         Gira.sponsor_release_end_at >= now,
                         Gira.sponsor_max_tickets.isnot(None),
@@ -192,6 +193,7 @@ async def emit_ticket(
                     and_(
                         Gira.tenant_id == tenant.id,
                         Gira.is_active == True,
+                        Gira.deleted_at.is_(None),
                         Gira.release_start_at <= now,  # Has started
                         Gira.release_end_at >= now,  # Not ended
                     )

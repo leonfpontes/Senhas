@@ -129,6 +129,7 @@ async def get_next_gira(
                     and_(
                         Gira.tenant_id == tenant.id,
                         Gira.is_active == True,
+                        Gira.deleted_at.is_(None),
                         Gira.sponsor_release_start_at.isnot(None),
                         Gira.sponsor_release_end_at.isnot(None),
                         Gira.sponsor_release_end_at >= now,
@@ -144,6 +145,7 @@ async def get_next_gira(
                     and_(
                         Gira.tenant_id == tenant.id,
                         Gira.is_active == True,
+                        Gira.deleted_at.is_(None),
                         Gira.release_start_at.isnot(None),
                         Gira.release_end_at.isnot(None),
                         Gira.release_end_at >= now,
