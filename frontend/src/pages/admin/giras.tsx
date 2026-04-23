@@ -489,7 +489,6 @@ function AdminGirasContent() {
                     {new Date(gira.data_inicio).toLocaleString('pt-BR', {
                       dateStyle: 'short',
                       timeStyle: 'short',
-                      timeZone: 'UTC',
                     })}
                   </TableCell>
                   <TableCell>{getSenhaChip(gira)}</TableCell>
