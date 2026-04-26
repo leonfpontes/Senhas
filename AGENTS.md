@@ -88,6 +88,7 @@ Regra critica:
 - Toda mudanca de schema exige migracao Alembic.
 - Migracoes devem ser reversiveis (downgrade coerente sempre que possivel).
 - Nomes de colunas/indices/constraints devem ser claros e estaveis.
+- **OBRIGATORIO antes de criar qualquer migracao**: verificar se ha multiplas heads com `alembic heads`. Se houver mais de uma, criar merge revision primeiro (`alembic merge heads -m "merge"`) antes de adicionar nova migracao. Nunca criar duas migracoes com o mesmo `down_revision` em branches diferentes sem merge.
 
 ---
 
@@ -151,6 +152,7 @@ Antes de abrir PR, confirme:
 - [ ] Isolamento multi-tenant preservado.
 - [ ] Nao ha segredo hardcoded nos arquivos alterados.
 - [ ] Migracao criada/aplicavel para mudanca de schema.
+- [ ] `alembic heads` retorna exatamente UMA head (sem divergencias).
 - [ ] Testes relevantes executados e passando.
 - [ ] Docs atualizadas (API, comportamento ou operacao).
 - [ ] Frontend funciona em desktop/mobile para a funcionalidade alterada.
