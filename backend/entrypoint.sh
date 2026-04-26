@@ -17,7 +17,7 @@ echo "Database is ready."
 # Run Alembic migrations
 echo "Running database migrations..."
 cd /app
-alembic upgrade head 2>&1 || { echo "ERROR: Migration failed!"; exit 1; }
+alembic upgrade heads 2>&1 || { echo "ERROR: Migration failed!"; exit 1; }
 echo "Migrations complete."
 
 # Execute the CMD (uvicorn)
