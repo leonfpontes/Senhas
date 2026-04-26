@@ -172,7 +172,7 @@ async def get_door_stats(
 
     stmt = select(
         func.count(Ticket.id).label("total"),
-        func.count(Ticket.id).filter(Ticket.checkin_em.isnot(None), Ticket.status == TicketStatus.EMITTED).label("checked_in"),
+        func.count(Ticket.id).filter(Ticket.checkin_em.isnot(None)).label("checked_in"),
         func.count(Ticket.id).filter(Ticket.checkin_em.is_(None), Ticket.status == TicketStatus.EMITTED).label("awaiting"),
         func.count(Ticket.id).filter(Ticket.status == TicketStatus.CALLED).label("in_progress"),
         func.count(Ticket.id).filter(Ticket.status == TicketStatus.COMPLETED).label("completed"),

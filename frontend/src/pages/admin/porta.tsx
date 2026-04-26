@@ -416,7 +416,7 @@ export default function PortaPage() {
             <StatCard label="Ausentes" value={stats.no_show} color={theme.palette.error.main} />
             <StatCard label="Walk-in" value={stats.walk_in} color="#0ea5e9" />
             <StatCard label="Preferenciais" value={stats.preferenciais} color={theme.palette.warning.main} />
-            <StatCard label="Patrocinados" value={stats.patrocinados} color="#b8860b" />
+            <StatCard label="Check-in" value={stats.checked_in} color="#8b5cf6" />
           </Box>
         )}
 
