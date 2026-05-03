@@ -34,6 +34,7 @@ class TicketRepository(BaseRepository[Ticket]):
         is_walk_in: bool = False,
         emitido_por_id: UUID | None = None,
         checkin_em: datetime | None = None,
+        priority_category: str | None = None,
     ) -> Ticket:
         """Create and save a new ticket
         
@@ -64,6 +65,7 @@ class TicketRepository(BaseRepository[Ticket]):
             is_walk_in=is_walk_in,
             emitido_por_id=emitido_por_id,
             checkin_em=checkin_em,
+            priority_category=priority_category,
         )
         session.add(ticket)
         await session.flush()

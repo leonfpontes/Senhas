@@ -6,6 +6,39 @@
  */
 
 // ============================================================================
+// PRIORITY CATEGORY (Preferential queue)
+// ============================================================================
+
+/**
+ * Priority categories for preferential queue ordering.
+ * Order: ELDERLY > DISABILITY_OR_AUTISM > PREGNANT_LACTATING_OR_INFANT > REDUCED_MOBILITY
+ */
+export const PriorityCategory = {
+  ELDERLY: 'ELDERLY',
+  DISABILITY_OR_AUTISM: 'DISABILITY_OR_AUTISM',
+  PREGNANT_LACTATING_OR_INFANT: 'PREGNANT_LACTATING_OR_INFANT',
+  REDUCED_MOBILITY: 'REDUCED_MOBILITY',
+} as const;
+
+export type PriorityCategoryType = typeof PriorityCategory[keyof typeof PriorityCategory];
+
+/** Ordered array from highest to lowest priority. */
+export const PRIORITY_ORDER: PriorityCategoryType[] = [
+  PriorityCategory.ELDERLY,
+  PriorityCategory.DISABILITY_OR_AUTISM,
+  PriorityCategory.PREGNANT_LACTATING_OR_INFANT,
+  PriorityCategory.REDUCED_MOBILITY,
+];
+
+/** Portuguese labels for each priority category. */
+export const PRIORITY_CATEGORY_LABELS: Record<PriorityCategoryType, string> = {
+  [PriorityCategory.ELDERLY]: 'Idoso (60+)',
+  [PriorityCategory.DISABILITY_OR_AUTISM]: 'PcD / TEA',
+  [PriorityCategory.PREGNANT_LACTATING_OR_INFANT]: 'Gestante, Lactante ou Criança de colo',
+  [PriorityCategory.REDUCED_MOBILITY]: 'Mobilidade Reduzida',
+};
+
+// ============================================================================
 // COMMON TYPES
 // ============================================================================
 

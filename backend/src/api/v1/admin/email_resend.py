@@ -242,6 +242,7 @@ async def resend_ticket_email(
         secondary_color=secondary_color,
         consulente_email=consulente.email,
         consulente_phone=consulente.telefone or "",
+        priority_category=getattr(ticket, "priority_category", None),
     )
     text_body = generate_plain_text_fallback(
         ticket_number=ticket_numero_str,
@@ -255,6 +256,7 @@ async def resend_ticket_email(
         tenant_name=tenant_name,
         consulente_email=consulente.email,
         consulente_phone=consulente.telefone or "",
+        priority_category=getattr(ticket, "priority_category", None),
     )
     subject_prefix = "✦ Associado — " if ticket.is_sponsor else ""
     message = EmailMessage(

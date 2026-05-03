@@ -45,6 +45,10 @@ import AdminLayout from './admin_layout';
 import AttendModal from '../../components/AttendModal';
 import WalkInModal from '../../components/WalkInModal';
 import { apiClient } from '../../services/api_client';
+import {
+  PRIORITY_CATEGORY_LABELS,
+  PriorityCategoryType,
+} from 'shared-types';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -85,6 +89,7 @@ interface QueueItem {
   consulente_email?: string | null;
   consulente_telefone: string | null;
   preferencial: boolean;
+  priority_category?: string | null;
   is_sponsor: boolean;
   is_walk_in: boolean;
   numero_formatado: string;
@@ -313,7 +318,7 @@ export default function PortaPage() {
   const handleUndo = (id: string) =>
     doAction(`/api/v1/admin/door/tickets/${id}/undo`, 'patch', id, undefined, 'Ação desfeita');
 
-  const handleCreateWalkIn = async (data: { nome: string; email?: string; telefone?: string; preferencial: boolean }) => {
+  const handleCreateWalkIn = async (data: { nome: string; email?: string; telefone?: string; priority_category: string | null }) => {
     if (!selectedGiraId) return;
     try {
       setActionLoading('__walkin_create__');
@@ -329,7 +334,7 @@ export default function PortaPage() {
     }
   };
 
-  const handleEditWalkIn = async (data: { nome: string; email?: string; telefone?: string; preferencial: boolean }) => {
+  const handleEditWalkIn = async (data: { nome: string; email?: string; telefone?: string; priority_category: string | null }) => {
     if (!walkInEditTarget) return;
     try {
       setActionLoading(walkInEditTarget.id);
@@ -490,7 +495,12 @@ export default function PortaPage() {
                       <Chip label="Walk-in" size="small" sx={{ bgcolor: '#e0f2fe', color: '#0369a1' }} />
                     )}
                     {nextInLine.preferencial && (
-                      <Chip icon={<StarIcon />} label="Preferencial" color="warning" size="small" />
+                      <Chip
+                        icon={<StarIcon />}
+                        label={nextInLine.priority_category ? (PRIORITY_CATEGORY_LABELS[nextInLine.priority_category as PriorityCategoryType] ?? 'Preferencial') : 'Preferencial'}
+                        color="warning"
+                        size="small"
+                      />
                     )}
                   </Box>
                   <Box>
@@ -652,7 +662,7 @@ export default function PortaPage() {
           nome: walkInEditTarget?.consulente_nome || '',
           email: walkInEditTarget?.consulente_email || '',
           telefone: walkInEditTarget?.consulente_telefone || '',
-          preferencial: walkInEditTarget?.preferencial || false,
+          priority_category: walkInEditTarget?.priority_category ?? null,
         }}
         onConfirm={handleEditWalkIn}
         onClose={() => setWalkInEditTarget(null)}
@@ -918,7 +928,13 @@ function QueueCard({
                 <Chip label="Walk-in" size="small" sx={{ bgcolor: '#e0f2fe', color: '#0369a1' }} />
               )}
               {item.preferencial && (
-                <Chip icon={<StarIcon />} label="Preferencial" color="warning" size="small" />
+                <Chip
+                  icon={<StarIcon />}
+                  label={item.priority_category ? (PRIORITY_CATEGORY_LABELS[item.priority_category as PriorityCategoryType] ?? 'Preferencial') : 'Preferencial'}
+                  color="warning"
+                  size="small"
+                  sx={{ height: 'auto', '& .MuiChip-label': { whiteSpace: 'normal', py: 0.5 } }}
+                />
               )}
               {hasCheckin && isEmitted && (
                 <Chip label="✓ Presente" size="small" color="info" variant="outlined" sx={{ height: 22 }} />
@@ -1013,7 +1029,7 @@ function QueueCard({
               </Typography>
               {item.is_sponsor && <StarIcon sx={{ fontSize: 16, color: '#daa520' }} />}
               {item.is_walk_in && <Chip label="Walk-in" size="small" sx={{ height: 20, bgcolor: '#e0f2fe', color: '#0369a1' }} />}
-              {item.preferencial && <StarIcon sx={{ fontSize: 16, color: 'warning.main' }} />}
+              {item.preferencial && <StarIcon sx={{ fontSize: 16, color: 'warning.main' }} titleAccess={item.priority_category ? (PRIORITY_CATEGORY_LABELS[item.priority_category as PriorityCategoryType] ?? 'Preferencial') : 'Preferencial'} />}
               {hasCheckin && isEmitted && (
                 <Chip label="✓ Presente" size="small" color="info" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
               )}

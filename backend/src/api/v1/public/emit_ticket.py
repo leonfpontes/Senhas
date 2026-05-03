@@ -11,7 +11,7 @@ This is the heart of the product. Handles atomic ticket emission with:
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select, and_
 from datetime import datetime, timezone
 import json
@@ -27,7 +27,7 @@ from src.models.giras import Gira
 from src.models.tenant_config import TenantConfig
 from src.repositories.consulente_repo import ConsulenteRepository
 from src.repositories.senha_control_repo import SenhaControlRepository
-from src.models.tickets import TicketStatus
+from src.models.tickets import TicketStatus, PriorityCategory
 from src.repositories.ticket_repo import TicketRepository
 from src.services.email.base import EmailMessage
 from src.services.email.email_queue import email_queue, EmailQueueItem
@@ -48,12 +48,29 @@ class EmitTicketRequest(BaseModel):
         name: Consulente name (required)
         email: Consulente email (required, validated)
         phone: Phone number (optional, for contact)
+        priority_category: Preferential category (optional)
+        preferencial: DEPRECATED — use priority_category instead. Kept for backward compatibility.
     """
 
     name: str = Field(..., min_length=2, max_length=255)
     email: EmailStr
     phone: str | None = Field(None, max_length=20)
+    priority_category: str | None = None
+    # DEPRECATED: use priority_category instead
     preferencial: bool = False
+
+    @field_validator("priority_category")
+    @classmethod
+    def validate_priority_category(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        allowed = {cat.value for cat in PriorityCategory}
+        if v not in allowed:
+            raise ValueError(
+                f"Categoria de prioridade inválida: '{v}'. "
+                f"Valores aceitos: {', '.join(sorted(allowed))}"
+            )
+        return v
 
     class Config:
         json_schema_extra = {
@@ -61,6 +78,7 @@ class EmitTicketRequest(BaseModel):
                 "name": "João da Silva",
                 "email": "joao@example.com",
                 "phone": "+5511987654321",
+                "priority_category": "ELDERLY",
             }
         }
 
@@ -300,10 +318,16 @@ async def emit_ticket(
 
         # === STEP 8: Create Ticket Record ===
         ticket_number_formatted = f"P{ticket_number_int:03d}" if is_sponsor else f"{ticket_number_int:04d}"
+
+        # Resolve priority_category: new field takes precedence; fallback from deprecated preferencial
+        priority_category = body.priority_category
+        if priority_category is None and body.preferencial:
+            priority_category = PriorityCategory.ELDERLY.value
+
         obs_payload: dict = {}
         if is_sponsor:
             obs_payload["patrocinador"] = True
-        if body.preferencial:
+        if priority_category is not None:
             obs_payload["preferencial"] = True
         observacoes = json.dumps(obs_payload) if obs_payload else None
         ticket = await ticket_repo.create_ticket(
@@ -314,6 +338,7 @@ async def emit_ticket(
             numero=ticket_number_int,
             status=TicketStatus.EMITTED,
             observacoes=observacoes,
+            priority_category=priority_category,
             is_sponsor=is_sponsor,
         )
 
@@ -365,6 +390,7 @@ async def emit_ticket(
             secondary_color=secondary_color,
             consulente_email=consulente.email,
             consulente_phone=consulente.telefone or "",
+            priority_category=priority_category,
         )
         text_body = generate_plain_text_fallback(
             ticket_number=ticket_number_formatted,
@@ -378,6 +404,7 @@ async def emit_ticket(
             tenant_name=tenant.name,
             consulente_email=consulente.email,
             consulente_phone=consulente.telefone or "",
+            priority_category=priority_category,
         )
         message = EmailMessage(
             to_email=consulente.email,

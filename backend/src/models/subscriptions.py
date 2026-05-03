@@ -59,7 +59,8 @@ class Subscription(TimestampedModel):
         nullable=False,
     )
     status: Mapped[SubscriptionStatus] = mapped_column(
-        SQLEnum(SubscriptionStatus, name="subscription_status", create_constraint=False),
+        SQLEnum(SubscriptionStatus, name="subscription_status", create_constraint=False,
+                values_callable=lambda x: [e.value for e in x]),
         default=SubscriptionStatus.ACTIVE,
         nullable=False,
     )

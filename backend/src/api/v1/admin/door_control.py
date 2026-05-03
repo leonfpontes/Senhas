@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Path, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, case, func
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone
@@ -12,6 +12,7 @@ import logging
 
 from src.core.database import get_db
 from src.models import User, Ticket, TicketStatus, Consulente, TenantConfig, Gira
+from src.models.tickets import PriorityCategory, PRIORITY_ORDER
 from src.api.dependencies import get_current_user
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.repositories.consulente_repo import ConsulenteRepository
@@ -47,6 +48,7 @@ class QueueItemResponse(BaseModel):
     consulente_email: Optional[str] = None
     consulente_telefone: Optional[str] = None
     preferencial: bool = False
+    priority_category: Optional[str] = None
     is_sponsor: bool = False
     is_walk_in: bool = False
     checkin_em: Optional[datetime] = None
@@ -74,20 +76,51 @@ class AttendRequest(BaseModel):
     atendimento_descricao: Optional[str] = None
 
 
+def _validate_priority_category_value(v: Optional[str]) -> Optional[str]:
+    """Validate that priority_category is one of the allowed PriorityCategory values."""
+    if v is None:
+        return None
+    allowed = {cat.value for cat in PriorityCategory}
+    if v not in allowed:
+        raise ValueError(
+            f"Categoria de prioridade inválida: '{v}'. "
+            f"Valores aceitos: {', '.join(sorted(allowed))}"
+        )
+    return v
+
+
 class WalkInRequest(BaseModel):
     """Create a walk-in ticket from the door view."""
     nome: str = Field(..., min_length=1, max_length=255)
     email: Optional[EmailStr] = None
     telefone: Optional[str] = Field(None, max_length=20)
+    priority_category: Optional[str] = None
+    # DEPRECATED: use priority_category instead. Kept for backward compatibility.
     preferencial: bool = False
+
+    @field_validator("priority_category")
+    @classmethod
+    def validate_priority_category(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_priority_category_value(v)
 
 
 class WalkInUpdateRequest(BaseModel):
-    """Edit walk-in basic information from the door view."""
+    """Edit walk-in basic information from the door view.
+
+    priority_category=None means "do not change" (preserve existing value).
+    To explicitly clear priority, this is not currently supported by design.
+    """
     nome: str = Field(..., min_length=1, max_length=255)
     email: Optional[EmailStr] = None
     telefone: Optional[str] = Field(None, max_length=20)
+    priority_category: Optional[str] = None
+    # DEPRECATED: use priority_category instead. Kept for backward compatibility.
     preferencial: bool = False
+
+    @field_validator("priority_category")
+    @classmethod
+    def validate_priority_category(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_priority_category_value(v)
 
 
 # ── Helper ───────────────────────────────────────────────────────────────
@@ -102,9 +135,22 @@ def _parse_preferencial(observacoes: Optional[str]) -> bool:
         return False
 
 
-def _build_observacoes(*, preferencial: bool, is_sponsor: bool = False) -> Optional[str]:
+def _build_observacoes(
+    *,
+    priority_category: Optional[str] = None,
+    is_sponsor: bool = False,
+    # DEPRECATED param kept for backward compatibility in callers
+    preferencial: bool = False,
+) -> Optional[str]:
+    """Build the observacoes JSON payload.
+
+    preferencial=True is treated as a fallback: if priority_category is None
+    and preferencial is True, the JSON will still record preferencial=True for
+    backward compatibility. Callers should prefer passing priority_category.
+    """
     payload = {}
-    if preferencial:
+    is_pref = priority_category is not None or preferencial
+    if is_pref:
         payload["preferencial"] = True
     if is_sponsor:
         payload["patrocinador"] = True
@@ -115,6 +161,9 @@ def _ticket_to_queue_item(t: Ticket) -> QueueItemResponse:
     is_sponsor = getattr(t, "is_sponsor", False)
     is_walk_in = getattr(t, "is_walk_in", False)
     numero_fmt = f"P{t.numero:03d}" if is_sponsor else f"{t.numero:04d}"
+    priority_category = getattr(t, "priority_category", None)
+    # preferencial=True if category is set OR if the legacy JSON flag is set
+    is_preferencial = (priority_category is not None) or _parse_preferencial(t.observacoes)
     return QueueItemResponse(
         id=t.id,
         numero=t.numero,
@@ -123,7 +172,8 @@ def _ticket_to_queue_item(t: Ticket) -> QueueItemResponse:
         consulente_nome=t.consulente.nome if t.consulente else None,
         consulente_email=t.consulente.email if t.consulente else None,
         consulente_telefone=t.consulente.telefone if t.consulente else None,
-        preferencial=_parse_preferencial(t.observacoes),
+        preferencial=is_preferencial,
+        priority_category=priority_category,
         is_sponsor=is_sponsor,
         is_walk_in=is_walk_in,
         checkin_em=t.checkin_em,
@@ -178,7 +228,7 @@ async def get_door_stats(
         func.count(Ticket.id).filter(Ticket.status == TicketStatus.COMPLETED).label("completed"),
         func.count(Ticket.id).filter(Ticket.status == TicketStatus.NO_SHOW).label("no_show"),
         func.count(Ticket.id).filter(Ticket.is_walk_in.is_(True)).label("walk_in"),
-        func.count(Ticket.id).filter(Ticket.observacoes.ilike('%"preferencial"%')).label("preferenciais"),
+        func.count(Ticket.id).filter(Ticket.priority_category.isnot(None)).label("preferenciais"),
         func.count(Ticket.id).filter(Ticket.is_sponsor.is_(True)).label("patrocinados"),
     ).where(base)
 
@@ -243,11 +293,6 @@ async def get_door_queue(
     tenant_config = await _get_tenant_config(db, current_user.tenant_id)
     sponsor_mode = tenant_config.sponsor_priority_mode if tenant_config else "first"
 
-    assoc_pref = [i for i in items if i.is_sponsor and i.preferencial]
-    pref = [i for i in items if not i.is_sponsor and i.preferencial]
-    assoc_reg = [i for i in items if i.is_sponsor and not i.preferencial]
-    regular = [i for i in items if not i.is_sponsor and not i.preferencial]
-
     def _interleave(a: list, b: list) -> list:
         """Round-robin merge two lists: a0, b0, a1, b1, ..."""
         result = []
@@ -261,14 +306,37 @@ async def get_door_queue(
                 bi += 1
         return result
 
+    # Build ordered list from priority categories (items already ordered by numero via query)
+    sorted_items: list = []
+    for cat in PRIORITY_ORDER:
+        assoc_cat = [i for i in items if i.is_sponsor and i.priority_category == cat]
+        noassoc_cat = [i for i in items if not i.is_sponsor and i.priority_category == cat]
+        if sponsor_mode == "interleave":
+            sorted_items.extend(_interleave(assoc_cat, noassoc_cat))
+        else:
+            sorted_items.extend(assoc_cat + noassoc_cat)
+
+    # Legacy fallback: preferenciais without a category (old JSON-only tickets)
+    assoc_legacy_pref = [
+        i for i in items
+        if i.is_sponsor and i.preferencial and i.priority_category is None
+    ]
+    noassoc_legacy_pref = [
+        i for i in items
+        if not i.is_sponsor and i.preferencial and i.priority_category is None
+    ]
     if sponsor_mode == "interleave":
-        # Phase 1: assoc_pref ↔ pref (preferencial bucket first)
-        # Phase 2: assoc_reg ↔ regular
-        # Result: [phase1 complete] + [phase2 complete]
-        sorted_items = _interleave(assoc_pref, pref) + _interleave(assoc_reg, regular)
+        sorted_items.extend(_interleave(assoc_legacy_pref, noassoc_legacy_pref))
     else:
-        # Default 'first': assoc_pref → pref → assoc_reg → regular
-        sorted_items = assoc_pref + pref + assoc_reg + regular
+        sorted_items.extend(assoc_legacy_pref + noassoc_legacy_pref)
+
+    # Non-preferencial tickets
+    assoc_reg = [i for i in items if i.is_sponsor and not i.preferencial]
+    regular = [i for i in items if not i.is_sponsor and not i.preferencial]
+    if sponsor_mode == "interleave":
+        sorted_items.extend(_interleave(assoc_reg, regular))
+    else:
+        sorted_items.extend(assoc_reg + regular)
 
     return DoorQueueResponse(items=sorted_items, total=len(sorted_items))
 
@@ -336,6 +404,11 @@ async def create_walk_in_ticket(
         is_sponsor=False,
     )
 
+    # Resolve priority_category: new field takes precedence; fallback from deprecated preferencial
+    walk_in_priority = body.priority_category
+    if walk_in_priority is None and body.preferencial:
+        walk_in_priority = PriorityCategory.ELDERLY.value
+
     ticket = await ticket_repo.create_ticket(
         session=db,
         tenant_id=current_user.tenant_id,
@@ -343,7 +416,8 @@ async def create_walk_in_ticket(
         consulente_id=consulente.id,
         numero=next_number,
         status=TicketStatus.EMITTED,
-        observacoes=_build_observacoes(preferencial=body.preferencial),
+        observacoes=_build_observacoes(priority_category=walk_in_priority),
+        priority_category=walk_in_priority,
         is_walk_in=True,
         emitido_por_id=current_user.id,
         checkin_em=datetime.now(timezone.utc),
@@ -393,8 +467,21 @@ async def update_walk_in_ticket(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
+    # priority_category=None in body means "do not change" — preserve existing value
+    update_priority = body.priority_category
+    if update_priority is None and body.preferencial:
+        # Deprecated preferencial=True: map to ELDERLY if no category currently set
+        if ticket.priority_category is None:
+            update_priority = PriorityCategory.ELDERLY.value
+        else:
+            update_priority = ticket.priority_category
+    elif update_priority is None:
+        # Neither new field nor deprecated field sent: preserve existing
+        update_priority = ticket.priority_category
+
+    ticket.priority_category = update_priority
     ticket.observacoes = _build_observacoes(
-        preferencial=body.preferencial,
+        priority_category=update_priority,
         is_sponsor=ticket.is_sponsor,
     )
 
