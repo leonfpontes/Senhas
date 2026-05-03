@@ -90,6 +90,27 @@ Regra critica:
 - Nomes de colunas/indices/constraints devem ser claros e estaveis.
 - **OBRIGATORIO antes de criar qualquer migracao**: verificar se ha multiplas heads com `alembic heads`. Se houver mais de uma, criar merge revision primeiro (`alembic merge heads -m "merge"`) antes de adicionar nova migracao. Nunca criar duas migracoes com o mesmo `down_revision` em branches diferentes sem merge.
 
+### 4.4 Convencao de Enums SQLAlchemy 2.0 (CRITICA)
+
+O SQLAlchemy 2.0 usa o `.name` do enum Python para lookup no banco por padrao. Para enums com valores
+lowercase no banco, e obrigatorio usar `values_callable=lambda x: [e.value for e in x]` no SQLEnum.
+
+**Enums com valores lowercase no banco** (obrigatorio `values_callable`):
+- `user_role`: super_admin, admin, operator
+- `ticket_status`: emitted, called, completed, cancelled, no_show
+- `subscription_status`: active, suspended, cancelled, expired
+- `invoice_status`: draft, sent, paid, overdue, cancelled
+- `audit_action`: create, read, update, delete, login, logout, token_refresh, TENANT_DELETED
+- `estoque_movimentacao_tipo`: entrada, saida
+
+**Enums com valores UPPERCASE no banco** (NAO usar values_callable):
+- `plan_type`: FREE, BASIC, PRO, PREMIUM
+- `mensalidade_status`: PENDENTE, PAGO, ISENTO
+- `site_status`, `site_section_type`: UPPERCASE
+
+**Regra para novos enums**: decidir antes de criar se serao lowercase ou UPPERCASE e manter consistencia.
+Misturar (DB uppercase + values_callable, ou DB lowercase sem values_callable) causa LookupError em runtime.
+
 ---
 
 ## 5) Politica de Seguranca (OBRIGATORIA)

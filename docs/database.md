@@ -476,15 +476,30 @@ Trail imutável de todas as operações (compliance LGPD). Herda de `Base` diret
 
 ## Enums
 
-| DB Enum Name | Valores | Criado em |
-|---|---|---|
-| `user_role` | `SUPER_ADMIN`, `ADMIN`, `OPERATOR` | 002 |
-| `ticket_status` | `EMITTED`, `CALLED`, `COMPLETED`, `CANCELLED`, `NO_SHOW` | 002 |
-| `audit_action` | `CREATE`, `READ`, `UPDATE`, `DELETE`, `LOGIN`, `LOGOUT`, `TOKEN_REFRESH` | 002 |
-| `plan_type` | `FREE`, `BASIC`, `PRO`, `PREMIUM` | 003 → FREE adicionado em 014 → ENTERPRISE removido e normalizado em 016 |
-| `subscription_status` | `active`, `suspended`, `cancelled`, `expired` | 003 |
-| `invoice_status` | `draft`, `sent`, `paid`, `overdue`, `cancelled` | 003 |
-| `estoque_movimentacao_tipo` | `entrada`, `saida` | 018 |
+> **Convenção SQLAlchemy 2.0 (obrigatória):** Todos os enums com valores lowercase no banco devem usar
+> `values_callable=lambda x: [e.value for e in x]` no `SQLEnum(...)` do model. Isso força o SQLAlchemy
+> a usar o `.value` do enum (ex: `"admin"`) em vez do `.name` (ex: `"ADMIN"`) nas queries.
+> Enums com valores UPPERCASE no banco (plan_type, mensalidade_status) NÃO usam values_callable.
+
+| DB Enum Name | Valores no banco (PostgreSQL) | Python `.value` | Model usa `values_callable`? | Criado em |
+|---|---|---|---|---|
+| `user_role` | `super_admin`, `admin`, `operator` | lowercase | ✅ sim | 002 (renomeado para lowercase em maio/2026) |
+| `ticket_status` | `emitted`, `called`, `completed`, `cancelled`, `no_show` | lowercase | ✅ sim | 002 (renomeado para lowercase em maio/2026) |
+| `audit_action` | `create`, `read`, `update`, `delete`, `login`, `logout`, `token_refresh`, `TENANT_DELETED` | lowercase (exceto TENANT_DELETED) | ✅ sim | 002 (renomeado para lowercase em maio/2026) |
+| `subscription_status` | `active`, `suspended`, `cancelled`, `expired` | lowercase | ✅ sim | 003 (renomeado para lowercase em maio/2026) |
+| `invoice_status` | `draft`, `sent`, `paid`, `overdue`, `cancelled` | lowercase | ✅ sim | 003 (renomeado para lowercase em maio/2026) |
+| `estoque_movimentacao_tipo` | `entrada`, `saida` | lowercase | ✅ sim | 018 |
+| `plan_type` | `FREE`, `BASIC`, `PRO`, `PREMIUM` | uppercase (= nome) | ❌ não (usa `.name`) | 003 |
+| `mensalidade_status` | `PENDENTE`, `PAGO`, `ISENTO` | uppercase (= nome) | ❌ não | 027 |
+| `site_status` | `DRAFT`, `PUBLISHED`, `UNPUBLISHED` | uppercase (= nome) | ❌ não | 036 |
+| `site_section_type` | `HERO`, `ABOUT`, `VIDEO_EMBED`, ... | uppercase (= nome) | ❌ não | 036 |
+
+### Regra para novos enums
+
+Ao criar um novo enum em Alembic + model Python:
+- Se valores serão **lowercase** no banco: usar `values_callable=lambda x: [e.value for e in x]` e `.value = "lowercase"`
+- Se valores serão **UPPERCASE** no banco: não usar `values_callable`; `.value` e `.name` iguais
+- Nunca misturar: DB uppercase com `values_callable` (ou vice-versa) causa `LookupError` em runtime
 
 ---
 
