@@ -15,12 +15,15 @@ import {
   Alert,
   Box,
   Button,
-  Checkbox,
   CircularProgress,
   Container,
+  FormControl,
   FormControlLabel,
+  FormLabel,
   LinearProgress,
   Paper,
+  Radio,
+  RadioGroup,
   Snackbar,
   TextField,
   Typography,
@@ -33,6 +36,11 @@ import BlockIcon from '@mui/icons-material/Block';
 import StarIcon from '@mui/icons-material/Star';
 import { apiClient } from '../../../services/api_client';
 import { useGiraCountdown, parseCountdownParts } from '../../../hooks/useGiraCountdown';
+import {
+  PriorityCategory,
+  PRIORITY_CATEGORY_LABELS,
+  PRIORITY_ORDER,
+} from 'shared-types';
 
 interface GiraPublicData {
   id: string;
@@ -103,7 +111,7 @@ export default function PublicGiraPage() {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
-  const [preferencial, setPreferencial] = useState(false);
+  const [priorityCategory, setPriorityCategory] = useState<string>('none');
   const [submitting, setSubmitting] = useState(false);
 
   // Success
@@ -153,7 +161,7 @@ export default function PublicGiraPage() {
         name: nome,
         email,
         phone: telefone,
-        preferencial: preferencial,
+        priority_category: priorityCategory === 'none' ? null : priorityCategory,
       });
       setSuccess(true);
       setTicketNumber(res.data.numero ?? res.data.ticket_number ?? null);
@@ -318,10 +326,37 @@ export default function PublicGiraPage() {
               fullWidth
               placeholder="(11) 99999-9999"
             />
-            <FormControlLabel
-              control={<Checkbox checked={preferencial} onChange={(e) => setPreferencial(e.target.checked)} />}
-              label="Atendimento preferencial (idoso, gestante, PcD)"
-            />
+            <FormControl component="fieldset" sx={{ mt: 1 }}>
+              <FormLabel
+                component="legend"
+                sx={{ fontSize: 14, mb: 0.5 }}
+                id="priority-category-label"
+              >
+                Atendimento preferencial
+              </FormLabel>
+              <RadioGroup
+                aria-labelledby="priority-category-label"
+                value={priorityCategory}
+                onChange={(e) => setPriorityCategory(e.target.value)}
+              >
+                <FormControlLabel
+                  value="none"
+                  control={<Radio size="small" />}
+                  label={<Typography variant="body2">Não sou de grupo prioritário</Typography>}
+                />
+                {PRIORITY_ORDER.map((cat) => (
+                  <FormControlLabel
+                    key={cat}
+                    value={cat}
+                    control={<Radio size="small" />}
+                    label={<Typography variant="body2">{PRIORITY_CATEGORY_LABELS[cat]}</Typography>}
+                  />
+                ))}
+              </RadioGroup>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', lineHeight: 1.4 }}>
+                O atendimento preferencial obedece à Lei nº 10.048/2000 (idosos, gestantes, lactantes, pessoas com deficiência e mobilidade reduzida) e à Lei nº 13.146/2015 (Estatuto da Pessoa com Deficiência).
+              </Typography>
+            </FormControl>
             <Button
               type="submit"
               variant="contained"

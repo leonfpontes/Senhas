@@ -19,6 +19,30 @@ class TicketStatus(str, enum.Enum):
     NO_SHOW = "no_show"      # Consulente didn't show up
 
 
+class PriorityCategory(str, enum.Enum):
+    """Priority category for preferential queue ordering.
+
+    Order from highest to lowest priority:
+    1. ELDERLY — Idoso (60+)
+    2. DISABILITY_OR_AUTISM — PcD / TEA
+    3. PREGNANT_LACTATING_OR_INFANT — Gestante, lactante ou criança de colo
+    4. REDUCED_MOBILITY — Mobilidade reduzida
+    """
+    ELDERLY = "ELDERLY"
+    DISABILITY_OR_AUTISM = "DISABILITY_OR_AUTISM"
+    PREGNANT_LACTATING_OR_INFANT = "PREGNANT_LACTATING_OR_INFANT"
+    REDUCED_MOBILITY = "REDUCED_MOBILITY"
+
+
+# Ordered list used for queue sorting (highest priority first)
+PRIORITY_ORDER: list[str] = [
+    PriorityCategory.ELDERLY,
+    PriorityCategory.DISABILITY_OR_AUTISM,
+    PriorityCategory.PREGNANT_LACTATING_OR_INFANT,
+    PriorityCategory.REDUCED_MOBILITY,
+]
+
+
 class Ticket(SoftDeleteModel):
     """Ticket model - CORE model representing an emitted senha.
     
@@ -48,7 +72,8 @@ class Ticket(SoftDeleteModel):
     
     numero: Mapped[int] = mapped_column(Integer, nullable=False)  # Sequential ticket number
     status: Mapped[TicketStatus] = mapped_column(
-        SQLEnum(TicketStatus, name="ticket_status", create_constraint=False),
+        SQLEnum(TicketStatus, name="ticket_status", create_constraint=False,
+                values_callable=lambda x: [e.value for e in x]),
         default=TicketStatus.EMITTED, nullable=False,
     )
     chamado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -66,6 +91,9 @@ class Ticket(SoftDeleteModel):
     cambone_nome: Mapped[str | None] = mapped_column(String(255), nullable=True)
     atendimento_descricao: Mapped[str | None] = mapped_column(Text, nullable=True)
     
+    # Priority category for preferential queue ordering (nullable = no priority)
+    priority_category: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+
     # Email tracking
     resend_email_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

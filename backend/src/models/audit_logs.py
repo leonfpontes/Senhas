@@ -19,7 +19,7 @@ class AuditAction(str, enum.Enum):
     LOGIN = "login"
     LOGOUT = "logout"
     TOKEN_REFRESH = "token_refresh"
-    TENANT_DELETED = "tenant_deleted"
+    TENANT_DELETED = "TENANT_DELETED"
 
 
 class AuditLog(Base):
@@ -56,7 +56,8 @@ class AuditLog(Base):
     )
     
     action: Mapped[AuditAction] = mapped_column(
-        SQLEnum(AuditAction, name="audit_action", create_constraint=False),
+        SQLEnum(AuditAction, name="audit_action", create_constraint=False,
+                values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
     resource_type: Mapped[str] = mapped_column(String(100), nullable=False)  # User, Ticket, Gira, etc

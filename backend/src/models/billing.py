@@ -59,7 +59,8 @@ class Invoice(TimestampedModel):
     
     # Status
     status: Mapped[InvoiceStatus] = mapped_column(
-        SQLEnum(InvoiceStatus, name="invoice_status", create_constraint=False),
+        SQLEnum(InvoiceStatus, name="invoice_status", create_constraint=False,
+                values_callable=lambda x: [e.value for e in x]),
         default=InvoiceStatus.DRAFT,
         nullable=False,
     )

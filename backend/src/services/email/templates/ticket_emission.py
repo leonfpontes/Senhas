@@ -7,6 +7,19 @@ All CSS is inline for maximum Gmail/Outlook compatibility.
 from datetime import datetime, timezone
 from urllib.parse import quote
 from html import escape
+from typing import Optional
+
+
+# ---------------------------------------------------------------------------
+# Priority category labels (PT-BR) — intentionally duplicated from shared-types
+# to avoid cross-layer coupling between backend email templates and TS packages.
+# ---------------------------------------------------------------------------
+_PRIORITY_LABELS: dict[str, str] = {
+    "ELDERLY": "Idoso (60+)",
+    "DISABILITY_OR_AUTISM": "PcD / TEA",
+    "PREGNANT_LACTATING_OR_INFANT": "Gestante, Lactante ou Criança de colo",
+    "REDUCED_MOBILITY": "Mobilidade Reduzida",
+}
 
 
 def _maps_url(address: str) -> str:
@@ -38,6 +51,7 @@ def _sponsor_html(
     tenant_address: str,
     rescue_link: str,
     tenant_logo_url: str,
+    priority_category: Optional[str] = None,
 ) -> str:
     gold = "#C9A84C"
     gold_light = "#B8963F"
@@ -58,6 +72,17 @@ def _sponsor_html(
         f'style="max-width:160px;height:auto;margin-bottom:16px;border-radius:50%;border:3px solid {gold};">'
         if tenant_logo_url else ""
     )
+
+    priority_badge = ""
+    if priority_category:
+        prio_label = _esc(_PRIORITY_LABELS.get(priority_category, priority_category))
+        priority_badge = (
+            f'<div style="display:inline-block;margin-top:12px;padding:6px 18px;'
+            f'background:rgba(0,0,0,0.15);border-radius:20px;'
+            f'font-size:13px;font-weight:700;color:{black};letter-spacing:0.5px;">'
+            f'\u2605 Atendimento Preferencial &mdash; {prio_label}'
+            f'</div>'
+        )
 
     address_block = ""
     if tenant_address:
@@ -102,6 +127,7 @@ def _sponsor_html(
     <p style="margin:6px 0 0 0;color:#333;font-size:13px;letter-spacing:1px;">
       Agradecemos imensamente o seu apoio e contribuição
     </p>
+    {priority_badge}
   </div>
 
   <!-- Body -->
@@ -189,6 +215,7 @@ def _regular_html(
     tenant_logo_url: str,
     primary_color: str,
     secondary_color: str,
+    priority_category: Optional[str] = None,
 ) -> str:
     pc = primary_color or "#2E7D32"
     sc = secondary_color or "#1B5E20"
@@ -206,6 +233,17 @@ def _regular_html(
         f'style="max-width:160px;height:auto;margin-bottom:16px;border-radius:50%;border:3px solid rgba(255,255,255,0.3);">'
         if tenant_logo_url else ""
     )
+
+    priority_badge = ""
+    if priority_category:
+        prio_label = _esc(_PRIORITY_LABELS.get(priority_category, priority_category))
+        priority_badge = (
+            f'<div style="display:inline-block;margin-top:12px;padding:6px 18px;'
+            f'background:rgba(255,255,255,0.25);border-radius:20px;'
+            f'font-size:13px;font-weight:700;color:#fff;letter-spacing:0.5px;">'
+            f'\u2605 Atendimento Preferencial &mdash; {prio_label}'
+            f'</div>'
+        )
 
     address_block = ""
     if tenant_address:
@@ -245,6 +283,7 @@ def _regular_html(
     {logo_block}
     <p style="margin:0 0 10px 0;color:rgba(255,255,255,0.9);font-size:18px;font-weight:700;">{t_name}</p>
     <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:800;letter-spacing:1px;">SENHA EMITIDA</h1>
+    {priority_badge}
   </div>
 
   <!-- Body -->
@@ -331,10 +370,13 @@ def generate_ticket_emission_html(
     secondary_color: str = "",
     consulente_email: str = "",
     consulente_phone: str = "",
+    priority_category: Optional[str] = None,
 ) -> str:
     """Generate responsive HTML email for ticket emission.
 
     Selects sponsor (gold/black) or regular (tenant colors) variant.
+    priority_category: one of ELDERLY|DISABILITY_OR_AUTISM|
+                       PREGNANT_LACTATING_OR_INFANT|REDUCED_MOBILITY, or None.
     """
     address = tenant_address or gira_location or ""
 
@@ -350,6 +392,7 @@ def generate_ticket_emission_html(
             tenant_address=address,
             rescue_link=rescue_link,
             tenant_logo_url=tenant_logo_url,
+            priority_category=priority_category,
         )
 
     return _regular_html(
@@ -365,6 +408,7 @@ def generate_ticket_emission_html(
         tenant_logo_url=tenant_logo_url,
         primary_color=primary_color or tenant_color,
         secondary_color=secondary_color or tenant_color,
+        priority_category=priority_category,
     )
 
 
@@ -381,6 +425,7 @@ def generate_plain_text_fallback(
     tenant_name: str = "",
     consulente_email: str = "",
     consulente_phone: str = "",
+    priority_category: Optional[str] = None,
 ) -> str:
     """Generate plain text fallback for email clients that don't support HTML."""
     address = tenant_address or gira_location or ""
@@ -392,6 +437,10 @@ def generate_plain_text_fallback(
         f"\nComo chegar: {_maps_url(address)}\n" if address else ""
     )
     phone_line = f"\n- Telefone: {consulente_phone}" if consulente_phone else ""
+    priority_line = (
+        f"\n- Prioridade: {_PRIORITY_LABELS.get(priority_category, priority_category)}"
+        if priority_category else ""
+    )
 
     return f"""SENHA EMITIDA{' — ASSOCIADO' if is_sponsor else ''}
 
@@ -403,7 +452,7 @@ NÚMERO DA SENHA: {ticket_number}
 
 Seus Dados:
 - Nome: {consulente_name}
-- Email: {consulente_email}{phone_line}
+- Email: {consulente_email}{phone_line}{priority_line}
 
 Detalhes da Gira:
 - Gira: {gira_name}
