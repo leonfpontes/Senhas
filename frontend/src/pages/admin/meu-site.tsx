@@ -70,6 +70,19 @@ import { apiClient } from '@/services/api_client';
 import { useSubscription } from '@/hooks/useSubscription';
 import { HERO_FONTS, HERO_FONT_SIZES, HERO_FONT_WEIGHTS, SECTION_TITLE_SIZES, SECTION_BODY_SIZES } from '@/constants/heroFonts';
 
+// ── Timezone helper ───────────────────────────────────────────────────────────
+function parseSPDate(iso: string): { year: number; month: number; day: number } {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = fmt.formatToParts(new Date(iso));
+  const get = (t: string) => Number(parts.find(p => p.type === t)?.value ?? 0);
+  return { year: get('year'), month: get('month') - 1, day: get('day') };
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 const SECTION_TYPES = [
@@ -1320,8 +1333,8 @@ function GirasCalendarPreview({ config }: { config: Record<string, unknown> }) {
     opacity: 0.85,
   };
 
-  const formatDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', {
-    weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC',
+  const formatDate = (iso: string) => new Date(iso).toLocaleString('pt-BR', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo',
   });
 
   // ── Render helpers ──────────────────────────────────────────────────────────
@@ -1364,21 +1377,20 @@ function GirasCalendarPreview({ config }: { config: Record<string, unknown> }) {
   }
 
   function renderCalendar() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+    const nowSP = parseSPDate(new Date().toISOString());
+    const year = nowSP.year;
+    const month = nowSP.month;
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const monthName = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    const monthName = new Date(year, month, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
     const giraDayMap = new Map<number, typeof MOCK_GIRAS_PREVIEW>();
     for (const g of MOCK_GIRAS_PREVIEW) {
       if (!g.data_hora) continue;
-      const d = new Date(g.data_hora);
-      if (d.getUTCFullYear() === year && d.getUTCMonth() === month) {
-        const day = d.getUTCDate();
-        if (!giraDayMap.has(day)) giraDayMap.set(day, []);
-        giraDayMap.get(day)!.push(g);
+      const sp = parseSPDate(g.data_hora);
+      if (sp.year === year && sp.month === month) {
+        if (!giraDayMap.has(sp.day)) giraDayMap.set(sp.day, []);
+        giraDayMap.get(sp.day)!.push(g);
       }
     }
 

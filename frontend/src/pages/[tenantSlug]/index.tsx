@@ -20,6 +20,23 @@ import {
 } from '@mui/material';
 import { HERO_FONTS } from '@/constants/heroFonts';
 
+// ── Timezone helper ───────────────────────────────────────────────────────────
+/**
+ * Extracts { year, month (0-based), day } from an ISO string using
+ * America/Sao_Paulo timezone. Safe for both SSR (Node TZ=UTC) and browser.
+ */
+function parseSPDate(iso: string): { year: number; month: number; day: number } {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = fmt.formatToParts(new Date(iso));
+  const get = (t: string) => Number(parts.find(p => p.type === t)?.value ?? 0);
+  return { year: get('year'), month: get('month') - 1, day: get('day') };
+}
+
 // ── Contact SVG Icons ─────────────────────────────────────────────────────────
 function IconWhatsApp({ size = 24, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
@@ -533,7 +550,7 @@ function GirasCalendarSection({
   const [calPopoverGiras, setCalPopoverGiras] = useState<GiraItem[]>([]);
 
   const formatDate = (iso: string) => new Date(iso).toLocaleString('pt-BR', {
-    weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
+    weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo',
   });
 
   function GiraCardContent({ g }: { g: GiraItem }) {
@@ -583,21 +600,20 @@ function GirasCalendarSection({
   }
 
   function renderCalendar() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+    const nowSP = parseSPDate(new Date().toISOString());
+    const year = nowSP.year;
+    const month = nowSP.month;
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const monthName = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    const monthName = new Date(year, month, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
     const girasByDay = new Map<number, GiraItem[]>();
     for (const g of upcomingGiras) {
       if (!g.data_hora) continue;
-      const d = new Date(g.data_hora);
-      if (d.getUTCFullYear() === year && d.getUTCMonth() === month) {
-        const day = d.getUTCDate();
-        if (!girasByDay.has(day)) girasByDay.set(day, []);
-        girasByDay.get(day)!.push(g);
+      const sp = parseSPDate(g.data_hora);
+      if (sp.year === year && sp.month === month) {
+        if (!girasByDay.has(sp.day)) girasByDay.set(sp.day, []);
+        girasByDay.get(sp.day)!.push(g);
       }
     }
 
