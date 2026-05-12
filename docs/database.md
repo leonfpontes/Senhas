@@ -102,7 +102,9 @@ Herda as 3 colunas de timestamp. Adiciona método `.soft_delete()` que define `d
 | `updated_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `deleted_at` | `DateTime(tz)` | Sim | — | soft-delete |
 
-**Unique constraint:** `uq_users_email` em `(email)`
+**Unique constraints:**
+- `uq_users_tenant_email` em `(tenant_id, email)` — e-mail único por tenant (multi-tenant)
+- `uq_users_email_superadmin` (partial index) em `(email) WHERE tenant_id IS NULL` — e-mail globalmente único para SUPER_ADMIN
 
 **Indexes:** `ix_users_tenant_id`, `ix_users_is_active`, `ix_users_email`
 

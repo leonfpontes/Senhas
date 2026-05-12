@@ -28,7 +28,8 @@ class User(SoftDeleteModel):
     
     __tablename__ = "users"
     __table_args__ = (
-        UniqueConstraint("email", name="uq_users_email"),
+        # Tenant-scoped uniqueness: same email allowed in different tenants
+        UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
         Index("ix_users_tenant_id", "tenant_id"),
         Index("ix_users_is_active", "is_active"),
         Index("ix_users_email", "email"),
@@ -41,7 +42,7 @@ class User(SoftDeleteModel):
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=True,  # NULL for SUPER_ADMIN users (global admins)
     )
-    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
     username: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
