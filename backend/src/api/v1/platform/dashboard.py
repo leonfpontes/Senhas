@@ -38,12 +38,16 @@ async def _tenant_counts(db: AsyncSession) -> dict:
     )
     row = result.one()
 
-    # Trial count via subscriptions
+    # Trial count via subscriptions — exclude deleted tenants
     trial_result = await db.execute(
-        select(func.count()).select_from(Subscription).where(
+        select(func.count())
+        .select_from(Subscription)
+        .join(Tenant, Tenant.id == Subscription.tenant_id)
+        .where(
             and_(
                 Subscription.is_trial.is_(True),
                 Subscription.status == SubscriptionStatus.ACTIVE,
+                Tenant.deleted_at.is_(None),
             )
         )
     )
@@ -89,8 +93,15 @@ async def _ticket_counts(db: AsyncSession) -> dict:
 
 async def _mrr(db: AsyncSession) -> float:
     result = await db.execute(
-        select(func.coalesce(func.sum(Subscription.monthly_price), 0.0)).where(
-            Subscription.status == SubscriptionStatus.ACTIVE
+        select(func.coalesce(func.sum(Subscription.monthly_price), 0.0))
+        .select_from(Subscription)
+        .join(Tenant, Tenant.id == Subscription.tenant_id)
+        .where(
+            and_(
+                Subscription.status == SubscriptionStatus.ACTIVE,
+                Tenant.deleted_at.is_(None),
+                Tenant.is_active.is_(True),
+            )
         )
     )
     return float(result.scalar() or 0.0)
@@ -99,7 +110,15 @@ async def _mrr(db: AsyncSession) -> float:
 async def _plans_distribution(db: AsyncSession) -> list:
     result = await db.execute(
         select(Subscription.plan, func.count().label("count"))
-        .where(Subscription.status == SubscriptionStatus.ACTIVE)
+        .select_from(Subscription)
+        .join(Tenant, Tenant.id == Subscription.tenant_id)
+        .where(
+            and_(
+                Subscription.status == SubscriptionStatus.ACTIVE,
+                Tenant.deleted_at.is_(None),
+                Tenant.is_active.is_(True),
+            )
+        )
         .group_by(Subscription.plan)
     )
     return [{"plan": row.plan.value if hasattr(row.plan, "value") else row.plan, "count": row.count} for row in result]
