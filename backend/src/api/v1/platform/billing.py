@@ -2,15 +2,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict
 from uuid import UUID
 from datetime import datetime
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 
 from src.core.database import get_db
 from src.api.dependencies import get_current_user
 from src.models import User, UserRole, Invoice
+from src.models.subscriptions import Subscription, PlanType, SubscriptionStatus
+from src.models.tenants import Tenant
 from src.repositories.billing_repo import BillingRepository
 
 router = APIRouter(prefix="/api/v1/platform/billing", tags=["platform-billing"])
@@ -37,10 +39,29 @@ class InvoiceResponse(BaseModel):
 
 class BillingStatisticsResponse(BaseModel):
     """Billing statistics response."""
-    total_invoices: int
-    paid_invoices: int
-    total_revenue: float
-    average_invoice_value: float
+    active_tenants: int
+    trial_tenants: int
+    suspended_tenants: int
+    mrr: float
+    plan_distribution: Dict[str, int]
+
+
+class SubscriptionListItem(BaseModel):
+    """Subscription list item for billing overview."""
+    tenant_id: str
+    tenant_name: str
+    tenant_slug: str
+    plan: str
+    status: str
+    monthly_price: float
+    current_users: int
+    max_users: int
+    is_trial: bool
+    is_bonus: bool
+    cancel_at_period_end: bool
+    current_period_end: Optional[str]
+    trial_ends_at: Optional[str]
+    stripe_customer_id: Optional[str]
 
 
 async def require_super_admin(user: User = Depends(get_current_user)) -> User:
@@ -152,28 +173,76 @@ async def get_billing_statistics(
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Get platform-wide billing statistics."""
-    repo = BillingRepository(db)
-    
+    """Get platform-wide billing statistics from subscriptions table."""
     try:
-        # This is a simplified implementation
-        # In production, these would be cached/materialized views
-        
-        total_revenue = await repo.total_revenue()
-        
-        # These would need additional queries to properly aggregate
-        # For now, return basic statistics
-        
+        result = await db.execute(select(Subscription))
+        subs = result.scalars().all()
+
+        active = [s for s in subs if s.status == SubscriptionStatus.ACTIVE]
+        trial = [s for s in subs if s.is_trial and s.status == SubscriptionStatus.ACTIVE]
+        suspended = [s for s in subs if s.status in (SubscriptionStatus.SUSPENDED, SubscriptionStatus.EXPIRED, SubscriptionStatus.CANCELLED)]
+        mrr = sum(s.monthly_price for s in active)
+
+        distribution: Dict[str, int] = {p.value: 0 for p in PlanType}
+        for s in subs:
+            distribution[s.plan.value] = distribution.get(s.plan.value, 0) + 1
+
         return BillingStatisticsResponse(
-            total_invoices=0,  # Would query count
-            paid_invoices=0,   # Would query count
-            total_revenue=total_revenue,
-            average_invoice_value=0.0,  # Would calculate
+            active_tenants=len(active),
+            trial_tenants=len(trial),
+            suspended_tenants=len(suspended),
+            mrr=mrr,
+            plan_distribution=distribution,
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar estatísticas: {str(e)}",
+        )
+
+
+@router.get("/subscriptions", response_model=List[SubscriptionListItem])
+async def list_billing_subscriptions(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=1000),
+    current_user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> List[dict]:
+    """List all tenant subscriptions for billing overview."""
+    try:
+        stmt = (
+            select(Subscription, Tenant.name, Tenant.slug)
+            .join(Tenant, Subscription.tenant_id == Tenant.id)
+            .offset(skip)
+            .limit(limit)
+            .order_by(Subscription.monthly_price.desc())
+        )
+        result = await db.execute(stmt)
+        rows = result.all()
+
+        return [
+            SubscriptionListItem(
+                tenant_id=str(sub.tenant_id),
+                tenant_name=name,
+                tenant_slug=slug,
+                plan=sub.plan.value,
+                status=sub.status.value,
+                monthly_price=sub.monthly_price,
+                current_users=sub.current_users,
+                max_users=sub.max_users,
+                is_trial=sub.is_trial,
+                is_bonus=sub.is_bonus,
+                cancel_at_period_end=sub.cancel_at_period_end,
+                current_period_end=sub.current_period_end.isoformat() if sub.current_period_end else None,
+                trial_ends_at=sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
+                stripe_customer_id=sub.stripe_customer_id,
+            )
+            for sub, name, slug in rows
+        ]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao listar assinaturas: {str(e)}",
         )
 
 
