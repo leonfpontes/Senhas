@@ -91,20 +91,42 @@ async def _ticket_counts(db: AsyncSession) -> dict:
     return {"total": row.total, "last_30d": row.last_30d, "last_7d": row.last_7d}
 
 
-async def _mrr(db: AsyncSession) -> float:
-    result = await db.execute(
+async def _mrr(db: AsyncSession) -> dict:
+    """Return current MRR and previous-month MRR for delta calculation."""
+    now = datetime.now(timezone.utc)
+    first_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    first_of_prev_month = (first_of_month - timedelta(days=1)).replace(day=1)
+
+    active_filter = and_(
+        Subscription.status == SubscriptionStatus.ACTIVE,
+        Tenant.deleted_at.is_(None),
+        Tenant.is_active.is_(True),
+    )
+
+    current = await db.execute(
         select(func.coalesce(func.sum(Subscription.monthly_price), 0.0))
         .select_from(Subscription)
         .join(Tenant, Tenant.id == Subscription.tenant_id)
-        .where(
-            and_(
-                Subscription.status == SubscriptionStatus.ACTIVE,
-                Tenant.deleted_at.is_(None),
-                Tenant.is_active.is_(True),
-            )
-        )
+        .where(active_filter)
     )
-    return float(result.scalar() or 0.0)
+
+    # Previous month: subscriptions that were active and created before end of previous month
+    prev_filter = and_(
+        Subscription.status == SubscriptionStatus.ACTIVE,
+        Tenant.deleted_at.is_(None),
+        Subscription.created_at < first_of_month,
+    )
+    prev = await db.execute(
+        select(func.coalesce(func.sum(Subscription.monthly_price), 0.0))
+        .select_from(Subscription)
+        .join(Tenant, Tenant.id == Subscription.tenant_id)
+        .where(prev_filter)
+    )
+
+    return {
+        "current": float(current.scalar() or 0.0),
+        "prev_month": float(prev.scalar() or 0.0),
+    }
 
 
 async def _plans_distribution(db: AsyncSession) -> list:
@@ -122,6 +144,51 @@ async def _plans_distribution(db: AsyncSession) -> list:
         .group_by(Subscription.plan)
     )
     return [{"plan": row.plan.value if hasattr(row.plan, "value") else row.plan, "count": row.count} for row in result]
+
+
+async def _alerts(db: AsyncSession) -> dict:
+    """Compute actionable alert counts for the super-admin."""
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+
+    # Tenants that are not deleted but are inactive (disabled)
+    inactive_result = await db.execute(
+        select(func.count()).select_from(Tenant).where(
+            and_(
+                Tenant.deleted_at.is_(None),
+                Tenant.is_active.is_(False),
+            )
+        )
+    )
+    inactive_tenants = inactive_result.scalar() or 0
+
+    # Active tenants with zero tickets emitted in the last 30 days
+    # (subquery: tenant IDs that have at least one ticket in the window)
+    active_with_tickets = (
+        select(Ticket.tenant_id)
+        .where(
+            and_(
+                Ticket.created_at >= thirty_days_ago,
+                Ticket.deleted_at.is_(None),
+            )
+        )
+        .distinct()
+        .scalar_subquery()
+    )
+    no_activity_result = await db.execute(
+        select(func.count()).select_from(Tenant).where(
+            and_(
+                Tenant.deleted_at.is_(None),
+                Tenant.is_active.is_(True),
+                Tenant.id.not_in(active_with_tickets),
+            )
+        )
+    )
+    no_activity_30d = no_activity_result.scalar() or 0
+
+    return {
+        "inactive_tenants": inactive_tenants,
+        "no_activity_30d": no_activity_30d,
+    }
 
 
 async def _daily_tickets(db: AsyncSession) -> list:
@@ -208,6 +275,7 @@ async def get_dashboard(
     user_count = await _user_count(db)
     tickets = await _ticket_counts(db)
     mrr = await _mrr(db)
+    alerts = await _alerts(db)
     plans_dist = await _plans_distribution(db)
     daily_tickets = await _daily_tickets(db)
     tenant_growth = await _tenant_growth(db)
@@ -217,7 +285,9 @@ async def get_dashboard(
         "tenants": tenants,
         "user_count": user_count,
         "tickets": tickets,
-        "mrr": mrr,
+        "mrr": mrr["current"],
+        "mrr_prev_month": mrr["prev_month"],
+        "alerts": alerts,
         "plans_distribution": plans_dist,
         "daily_tickets": daily_tickets,
         "tenant_growth": tenant_growth,

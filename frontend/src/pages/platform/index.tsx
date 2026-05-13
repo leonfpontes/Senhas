@@ -1,14 +1,15 @@
-/**
- * Platform Dashboard — Métricas reais do super-admin
+﻿/**
+ * Platform Dashboard â€” MÃ©tricas reais do super-admin
  *
- * Seções:
- * 1. Faixa de saúde (health check, polling 30s)
- * 2. Big Numbers (6 cards com dados reais)
- * 3. Gráficos (LineChart tickets diários + BarChart distribuição de planos)
- * 4. Crescimento de tenants (AreaChart 90d) + Top 5 tenants (tabela)
+ * SeÃ§Ãµes:
+ * 1. Alertas acionÃ¡veis (tenants inativos, sem atividade)
+ * 2. Hero MRR + KPIs
+ * 3. Tickets diÃ¡rios (LineChart)
+ * 4. DistribuiÃ§Ã£o de planos (pills) + Crescimento cumulativo (AreaChart)
+ * 5. Top 5 tenants
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Alert,
   Box,
@@ -22,6 +23,7 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -31,11 +33,15 @@ import PeopleIcon from '@mui/icons-material/People';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import StorageIcon from '@mui/icons-material/Storage';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import PersonOffIcon from '@mui/icons-material/PersonOff';
+import SignalCellularOffIcon from '@mui/icons-material/SignalCellularOff';
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   LineChart,
   Line,
   XAxis,
@@ -91,16 +97,36 @@ interface TicketCounts {
   last_7d: number;
 }
 
+interface Alerts {
+  inactive_tenants: number;
+  no_activity_30d: number;
+}
+
 interface DashboardData {
   tenants: TenantCounts;
   user_count: number;
   tickets: TicketCounts;
   mrr: number;
+  mrr_prev_month: number;
+  alerts: Alerts;
   plans_distribution: { plan: string; count: number }[];
   daily_tickets: { date: string; count: number }[];
   tenant_growth: { date: string; count: number }[];
   top_tenants: { id: string; name: string; plan: string | null; tickets_30d: number }[];
   generated_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function fmtBRL(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function mrrDeltaPct(current: number, prev: number): number | null {
+  if (prev === 0) return null;
+  return ((current - prev) / prev) * 100;
 }
 
 // ---------------------------------------------------------------------------
@@ -153,6 +179,75 @@ const BigCard = ({
   </Card>
 );
 
+const MrrDeltaBadge = ({ current, prev }: { current: number; prev: number }) => {
+  const delta = mrrDeltaPct(current, prev);
+  if (delta === null) return null;
+  const positive = delta >= 0;
+  const neutral = Math.abs(delta) < 1;
+  return (
+    <Chip
+      size="small"
+      icon={neutral ? <TrendingFlatIcon /> : positive ? <TrendingUpIcon /> : <TrendingDownIcon />}
+      label={`${positive && !neutral ? '+' : ''}${delta.toFixed(1)}% vs mÃªs ant.`}
+      color={neutral ? 'default' : positive ? 'success' : 'error'}
+      variant="outlined"
+      sx={{ mt: 0.5 }}
+    />
+  );
+};
+
+/** DistribuiÃ§Ã£o de planos como progress bars em vez de grÃ¡fico de barras */
+const PlansDistribution = ({
+  plans,
+  totalActive,
+}: {
+  plans: { plan: string; count: number }[];
+  totalActive: number;
+}) => {
+  if (!plans.length) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        Sem dados
+      </Typography>
+    );
+  }
+  const sorted = [...plans].sort((a, b) => b.count - a.count);
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      {sorted.map(({ plan, count }) => {
+        const pct = totalActive > 0 ? Math.round((count / totalActive) * 100) : 0;
+        const color = PLAN_COLORS[plan] ?? '#9e9e9e';
+        return (
+          <Box key={plan}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color }} />
+                <Typography variant="body2" fontWeight={600}>
+                  {PLAN_LABELS[plan] ?? plan}
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                {count} tenant{count !== 1 ? 's' : ''} Â· {pct}%
+              </Typography>
+            </Box>
+            <Box sx={{ height: 6, bgcolor: 'divider', borderRadius: 3, overflow: 'hidden' }}>
+              <Box
+                sx={{
+                  height: '100%',
+                  width: `${pct}%`,
+                  bgcolor: color,
+                  borderRadius: 3,
+                  transition: 'width 0.6s ease',
+                }}
+              />
+            </Box>
+          </Box>
+        );
+      })}
+    </Box>
+  );
+};
+
 // ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
@@ -163,8 +258,7 @@ const PlatformDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Cálculo cumulativo do crescimento de tenants (feito no frontend)
-  const cumulativeGrowth = React.useMemo(() => {
+  const cumulativeGrowth = useMemo(() => {
     if (!data?.tenant_growth) return [];
     let accumulated = 0;
     return data.tenant_growth.map((d) => {
@@ -193,7 +287,6 @@ const PlatformDashboard: React.FC = () => {
     }
   }, []);
 
-  // Carga inicial
   useEffect(() => {
     const init = async () => {
       setLoading(true);
@@ -203,33 +296,32 @@ const PlatformDashboard: React.FC = () => {
     init();
   }, [fetchHealth, fetchDashboard]);
 
-  // Polling de dados principais (60s)
   useEffect(() => {
     const timer = setInterval(fetchDashboard, MAIN_POLLING_MS);
     return () => clearInterval(timer);
   }, [fetchDashboard]);
 
-  // Polling de saúde (30s)
   useEffect(() => {
     const timer = setInterval(fetchHealth, HEALTH_POLLING_MS);
     return () => clearInterval(timer);
   }, [fetchHealth]);
 
   const dbOk = health?.database.status === 'ok';
+  const alerts = data?.alerts;
+  const hasAlerts = alerts && (alerts.inactive_tenants > 0 || alerts.no_activity_30d > 0);
 
   return (
     <PlatformLayout>
       <Box>
         {/* ---------------------------------------------------------------- */}
-        {/* 1. Faixa de saúde                                                 */}
+        {/* 1. Faixa de saÃºde                                                 */}
         {/* ---------------------------------------------------------------- */}
         <Box
-          data-tour="platform-health"
           sx={{
             display: 'flex',
             gap: 2,
             flexWrap: 'wrap',
-            mb: 3,
+            mb: hasAlerts ? 2 : 3,
             p: 2,
             borderRadius: 2,
             bgcolor: 'background.paper',
@@ -255,19 +347,57 @@ const PlatformDashboard: React.FC = () => {
                 </Typography>
               </>
             ) : (
-              <Chip size="small" label="—" />
+              <Chip size="small" label="â€”" />
             )}
           </Box>
-
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip
-              size="small"
-              label="API Online"
-              color="success"
-              icon={<CheckCircleIcon />}
-            />
+            <Chip size="small" label="API Online" color="success" icon={<CheckCircleIcon />} />
           </Box>
         </Box>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* 2. Alertas acionÃ¡veis                                             */}
+        {/* ---------------------------------------------------------------- */}
+        {hasAlerts && (
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 3 }}>
+            {(alerts?.inactive_tenants ?? 0) > 0 && (
+              <Alert
+                severity="warning"
+                icon={<PersonOffIcon fontSize="small" />}
+                sx={{ py: 0.5, flex: '1 1 auto' }}
+                action={
+                  <Chip
+                    size="small"
+                    label={`${alerts!.inactive_tenants} tenant${alerts!.inactive_tenants > 1 ? 's' : ''}`}
+                    color="warning"
+                    variant="outlined"
+                  />
+                }
+              >
+                Tenants desabilitados â€” conta ativa, acesso bloqueado
+              </Alert>
+            )}
+            {(alerts?.no_activity_30d ?? 0) > 0 && (
+              <Alert
+                severity="info"
+                icon={<SignalCellularOffIcon fontSize="small" />}
+                sx={{ py: 0.5, flex: '1 1 auto' }}
+                action={
+                  <Tooltip title="Tenants ativos que nÃ£o emitiram nenhum ticket nos Ãºltimos 30 dias. Risco de churn.">
+                    <Chip
+                      size="small"
+                      label={`${alerts!.no_activity_30d} tenant${alerts!.no_activity_30d > 1 ? 's' : ''}`}
+                      color="info"
+                      variant="outlined"
+                    />
+                  </Tooltip>
+                }
+              >
+                Sem atividade nos Ãºltimos 30d â€” risco de churn
+              </Alert>
+            )}
+          </Box>
+        )}
 
         {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
@@ -278,39 +408,64 @@ const PlatformDashboard: React.FC = () => {
         ) : (
           <>
             {/* -------------------------------------------------------------- */}
-            {/* 2. Big Numbers                                                   */}
+            {/* 3. Hero MRR + KPIs                                              */}
             {/* -------------------------------------------------------------- */}
-            <Grid data-tour="platform-stats" container spacing={2} sx={{ mb: 4 }}>
-              <Grid item xs={12} sm={6} md={4}>
-                <BigCard
-                  title="Total de Tenants"
-                  value={data?.tenants.total ?? 0}
-                  sub={`${data?.tenants.new_30d ?? 0} novos nos últimos 30d`}
-                  icon={<BusinessIcon />}
-                  color="#6366f1"
-                />
+            <Grid container spacing={2} sx={{ mb: 4 }}>
+              {/* Hero MRR */}
+              <Grid item xs={12} md={4}>
+                <Card sx={{ height: '100%', border: '2px solid #10b981' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                      <Box
+                        sx={{
+                          bgcolor: '#10b981',
+                          color: 'white',
+                          borderRadius: '50%',
+                          p: 2,
+                          display: 'flex',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <AttachMoneyIcon />
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">
+                          MRR
+                        </Typography>
+                        <Typography variant="h4" fontWeight={700} lineHeight={1.2}>
+                          {fmtBRL(data?.mrr ?? 0)}
+                        </Typography>
+                        <MrrDeltaBadge
+                          current={data?.mrr ?? 0}
+                          prev={data?.mrr_prev_month ?? 0}
+                        />
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
               </Grid>
+
               <Grid item xs={12} sm={6} md={4}>
                 <BigCard
                   title="Tenants Ativos"
                   value={data?.tenants.active ?? 0}
-                  sub={`${data?.tenants.trial ?? 0} em trial`}
+                  sub={`${data?.tenants.new_30d ?? 0} novos nos Ãºltimos 30d${(data?.tenants.trial ?? 0) > 0 ? ` Â· ${data?.tenants.trial} em trial` : ''}`}
                   icon={<BusinessIcon />}
                   color="#22c55e"
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <BigCard
-                  title="Tenants em Trial"
-                  value={data?.tenants.trial ?? 0}
-                  sub={`${data?.tenants.inactive ?? 0} inativos`}
+                  title="Inativos / Total"
+                  value={`${data?.tenants.inactive ?? 0} / ${data?.tenants.total ?? 0}`}
+                  sub={`${data?.tenants.inactive ?? 0} tenant${(data?.tenants.inactive ?? 0) !== 1 ? 's' : ''} com acesso bloqueado`}
                   icon={<BusinessIcon />}
-                  color="#f59e0b"
+                  color={(data?.tenants.inactive ?? 0) > 0 ? '#f59e0b' : '#9e9e9e'}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <BigCard
-                  title="Usuários Ativos"
+                  title="UsuÃ¡rios Ativos"
                   value={data?.user_count ?? 0}
                   icon={<PeopleIcon />}
                   color="#0ea5e9"
@@ -318,93 +473,78 @@ const PlatformDashboard: React.FC = () => {
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <BigCard
-                  title="Tickets (últimos 30d)"
+                  title="Tickets (Ãºltimos 30d)"
                   value={data?.tickets.last_30d ?? 0}
-                  sub={`${data?.tickets.last_7d ?? 0} nos últimos 7d`}
+                  sub={`${data?.tickets.last_7d ?? 0} nos Ãºltimos 7d`}
                   icon={<ConfirmationNumberIcon />}
                   color="#8b5cf6"
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <BigCard
-                  title="MRR"
-                  value={`R$ ${(data?.mrr ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                  icon={<AttachMoneyIcon />}
-                  color="#10b981"
+                  title="Tickets (total)"
+                  value={(data?.tickets.total ?? 0).toLocaleString('pt-BR')}
+                  icon={<ConfirmationNumberIcon />}
+                  color="#6366f1"
                 />
               </Grid>
             </Grid>
 
             {/* -------------------------------------------------------------- */}
-            {/* 3. Gráficos (tickets diários + distribuição de planos)          */}
+            {/* 4. Tickets diÃ¡rios (30d)                                        */}
+            {/* -------------------------------------------------------------- */}
+            <Card sx={{ mb: 4 }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">Tickets por dia</Typography>
+                  <Chip size="small" label="Ãºltimos 30d" variant="outlined" />
+                </Box>
+                <ResponsiveContainer width="100%" height={240}>
+                  <LineChart data={data?.daily_tickets ?? []}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <RechartsTooltip />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      stroke="#6366f1"
+                      strokeWidth={2}
+                      dot={false}
+                      name="Tickets"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* -------------------------------------------------------------- */}
+            {/* 5. DistribuiÃ§Ã£o de planos + Crescimento cumulativo              */}
             {/* -------------------------------------------------------------- */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
-              <Grid item xs={12} md={8}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Tickets por dia (últimos 30d)
-                    </Typography>
-                    <ResponsiveContainer width="100%" height={240}>
-                      <LineChart data={data?.daily_tickets ?? []}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                        <RechartsTooltip />
-                        <Line
-                          type="monotone"
-                          dataKey="count"
-                          stroke="#6366f1"
-                          strokeWidth={2}
-                          dot={false}
-                          name="Tickets"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-
               <Grid item xs={12} md={4}>
                 <Card sx={{ height: '100%' }}>
                   <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Planos (assinaturas ativas)
-                    </Typography>
-                    <ResponsiveContainer width="100%" height={240}>
-                      <BarChart data={data?.plans_distribution ?? []}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                          dataKey="plan"
-                          tick={{ fontSize: 11 }}
-                          tickFormatter={(v) => PLAN_LABELS[v] ?? v}
-                        />
-                        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                        <RechartsTooltip
-                          formatter={(_value: unknown, _name: unknown, props: { payload: { plan: string } }) => [
-                            _value,
-                            PLAN_LABELS[props.payload.plan] ?? props.payload.plan,
-                          ]}
-                        />
-                        <Bar dataKey="count" name="Tenants" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6">DistribuiÃ§Ã£o de planos</Typography>
+                      <Chip size="small" label="ativos" variant="outlined" />
+                    </Box>
+                    <PlansDistribution
+                      plans={data?.plans_distribution ?? []}
+                      totalActive={data?.tenants.active ?? 0}
+                    />
                   </CardContent>
                 </Card>
               </Grid>
-            </Grid>
 
-            {/* -------------------------------------------------------------- */}
-            {/* 4. Crescimento cumulativo + Top 5 tenants                       */}
-            {/* -------------------------------------------------------------- */}
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={7}>
-                <Card>
+              <Grid item xs={12} md={8}>
+                <Card sx={{ height: '100%' }}>
                   <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Crescimento de tenants (últimos 90d — cumulativo)
-                    </Typography>
-                    <ResponsiveContainer width="100%" height={240}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6">Crescimento de tenants (cumulativo)</Typography>
+                      <Chip size="small" label="Ãºltimos 90d" variant="outlined" />
+                    </Box>
+                    <ResponsiveContainer width="100%" height={200}>
                       <AreaChart data={cumulativeGrowth}>
                         <defs>
                           <linearGradient id="tenantGrowthGrad" x1="0" y1="0" x2="0" y2="1">
@@ -429,56 +569,74 @@ const PlatformDashboard: React.FC = () => {
                   </CardContent>
                 </Card>
               </Grid>
-
-              <Grid item xs={12} md={5}>
-                <Card sx={{ height: '100%' }}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Top 5 tenants (tickets 30d)
-                    </Typography>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Tenant</TableCell>
-                          <TableCell>Plano</TableCell>
-                          <TableCell align="right">Tickets</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {(data?.top_tenants ?? []).map((t) => (
-                          <TableRow key={t.id}>
-                            <TableCell sx={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {t.name}
-                            </TableCell>
-                            <TableCell>
-                              {t.plan ? (
-                                <Chip
-                                  size="small"
-                                  label={PLAN_LABELS[t.plan] ?? t.plan}
-                                  sx={{ bgcolor: PLAN_COLORS[t.plan] ?? '#9e9e9e', color: 'white' }}
-                                />
-                              ) : (
-                                '—'
-                              )}
-                            </TableCell>
-                            <TableCell align="right">{t.tickets_30d}</TableCell>
-                          </TableRow>
-                        ))}
-                        {!data?.top_tenants?.length && (
-                          <TableRow>
-                            <TableCell colSpan={3} align="center">
-                              <Typography variant="body2" color="text.secondary">
-                                Sem dados
-                              </Typography>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              </Grid>
             </Grid>
+
+            {/* -------------------------------------------------------------- */}
+            {/* 6. Top 5 tenants                                                */}
+            {/* -------------------------------------------------------------- */}
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">Top 5 tenants</Typography>
+                  <Chip size="small" label="por tickets nos Ãºltimos 30d" variant="outlined" />
+                </Box>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Tenant</TableCell>
+                      <TableCell>Plano</TableCell>
+                      <TableCell align="right">Tickets (30d)</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(data?.top_tenants ?? []).map((t) => (
+                      <TableRow key={t.id}>
+                        <TableCell
+                          sx={{
+                            maxWidth: 200,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {t.name}
+                        </TableCell>
+                        <TableCell>
+                          {t.plan ? (
+                            <Chip
+                              size="small"
+                              label={PLAN_LABELS[t.plan] ?? t.plan}
+                              sx={{ bgcolor: PLAN_COLORS[t.plan] ?? '#9e9e9e', color: 'white' }}
+                            />
+                          ) : (
+                            'â€”'
+                          )}
+                        </TableCell>
+                        <TableCell align="right">
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                            {t.tickets_30d === 0 && (
+                              <Tooltip title="Nenhum ticket emitido nos Ãºltimos 30d â€” risco de churn">
+                                <WarningAmberIcon fontSize="small" color="warning" />
+                              </Tooltip>
+                            )}
+                            {t.tickets_30d}
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {!data?.top_tenants?.length && (
+                      <TableRow>
+                        <TableCell colSpan={3} align="center">
+                          <Typography variant="body2" color="text.secondary">
+                            Sem dados
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </>
         )}
       </Box>
