@@ -1,6 +1,6 @@
 """Fix user email unique constraint to be tenant-scoped
 
-Revision ID: 039_fix_user_email_unique_constraint
+Revision ID: 039_email_unique
 Revises: 038_priority_category
 Create Date: 2026-05-12
 
@@ -19,7 +19,7 @@ from alembic import op
 from sqlalchemy.engine.reflection import Inspector
 
 # revision identifiers, used by Alembic.
-revision = "039_fix_user_email_unique_constraint"
+revision = "039_email_unique"
 down_revision = "038_priority_category"
 branch_labels = None
 depends_on = None
