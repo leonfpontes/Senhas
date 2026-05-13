@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Platform Dashboard – Métricas reais do super-admin
  *
  * Seções:

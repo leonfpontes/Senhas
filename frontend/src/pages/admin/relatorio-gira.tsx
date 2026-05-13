@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Relatório de Gira — exibe tickets de uma gira com médium, cambone e observações.
  * Feature gate: relatorio_gira (tier >= 1: Basic, Pro, Premium).
  *
