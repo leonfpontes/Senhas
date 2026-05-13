@@ -83,7 +83,18 @@ async def get_audit_logs(
             )
         
         result = await service.get_audit_summary(start, end)
-        
+
+        # Resolve most_active_tenant UUID to name/slug
+        most_active_id = result.get("statistics", {}).get("most_active_tenant")
+        if most_active_id:
+            tenant_row = await db.execute(
+                select(Tenant.name, Tenant.slug).where(Tenant.id == UUID(most_active_id))
+            )
+            tenant_info = tenant_row.first()
+            if tenant_info:
+                result["statistics"]["most_active_tenant_name"] = tenant_info[0]
+                result["statistics"]["most_active_tenant_slug"] = tenant_info[1]
+
         return AuditSummaryResponse(**result)
     except HTTPException:
         raise

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Audit Log Consolidado (T114) - Centro de compliance e seguranca cross-tenant.
  * Responde: "O que esta acontecendo em todos os meus tenants? Quem fez o que e quando?"
  */
@@ -154,12 +154,22 @@ const FIELD_LABELS: Record<string, string> = {
   valor_mensal: "Valor mensal",
   dia_vencimento: "Dia de vencimento",
   mensalidade_isento: "Isento de mensalidade",
+  release_end_at: "Fim do release",
+  release_start_at: "Inicio do release",
+  release_at: "Data do release",
+  max_tickets: "Max. tickets",
+  gira_type: "Tipo de gira",
+  is_open: "Aberta",
+  is_visible: "Visivel",
+  walk_in_enabled: "Walk-in habilitado",
 };
 
 const HIDDEN_FIELDS = new Set([
   "id", "tenant_id", "created_at", "updated_at", "deleted_at",
   "password_hash", "profile_photo_data", "profile_photo_url",
   "profile_photo_content_type", "user_agent", "path", "method",
+  "custom_settings", "logo_data", "logo_content_type", "logo_url",
+  "comprovante_data", "comprovante_content_type",
 ]);
 
 // â”€â”€â”€ Helpers de formatacao de detalhes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -169,7 +179,7 @@ function fieldLabel(key: string): string {
 }
 
 function formatValue(val: unknown): string {
-  if (val === null || val === undefined) return "â€”";
+  if (val === null || val === undefined) return "-";
   if (typeof val === "boolean") return val ? "Sim" : "Nao";
   if (Array.isArray(val)) return `${val.length} item(ns)`;
   if (typeof val === "object") return JSON.stringify(val);
@@ -204,9 +214,9 @@ function FormatDetails({
   action: string;
   details?: Record<string, unknown> | null;
 }) {
-  if (!details) return <Typography variant="body2" color="text.secondary">â€”</Typography>;
+  if (!details) return <Typography variant="body2" color="text.secondary">{"—"}</Typography>;
 
-  // LOGIN / LOGOUT â€” destacar falhas como erros
+  // LOGIN / LOGOUT - destacar falhas como erros
   if (action === "login" || action === "logout") {
     const success = (details as any).success !== false;
     return (
@@ -235,12 +245,12 @@ function FormatDetails({
     return (
       <Typography variant="body2">
         <strong>{opLabels[(details as any).operation_type] || (details as any).operation_type}</strong>
-        {" â€” "}{(details as any).count} registro(s)
+        {" — "}{(details as any).count} registro(s)
       </Typography>
     );
   }
 
-  // UPDATE â€” diff entre estados
+  // UPDATE - diff entre estados
   const prev = (details as any).previous_state || (details as any).previous_values;
   const next = (details as any).new_state || (details as any).new_values;
   if (prev && next) {
@@ -260,7 +270,7 @@ function FormatDetails({
             >
               {formatValue(from)}
             </Typography>
-            <Typography variant="caption" sx={{ mx: 0.3 }}>â†’</Typography>
+            <Typography variant="caption" sx={{ mx: 0.3 }}>{"\u2192"}</Typography>
             <Typography
               variant="caption"
               sx={{ color: "#2e7d32", fontWeight: 700, wordBreak: "break-word" }}
@@ -273,7 +283,7 @@ function FormatDetails({
     );
   }
 
-  // DELETE â€” nome do recurso removido
+  // DELETE - nome do recurso removido
   if (action === "delete" && (details as any).previous_state) {
     const state = (details as any).previous_state as Record<string, unknown>;
     const label = (state.nome || state.email || state.numero) as string | undefined;
@@ -284,11 +294,11 @@ function FormatDetails({
     );
   }
 
-  // CREATE â€” campos principais
+  // CREATE - campos principais
   if (action === "create") {
     const meaningful = Object.entries(details).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== "path" && k !== "user_agent");
     if (meaningful.length === 0)
-      return <Typography variant="body2" color="text.secondary">â€”</Typography>;
+      return <Typography variant="body2" color="text.secondary">-</Typography>;
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
         {meaningful.slice(0, 4).map(([key, val]) => (
@@ -304,7 +314,7 @@ function FormatDetails({
   const raw = JSON.stringify(details);
   return (
     <Typography variant="caption" sx={{ wordBreak: "break-word", color: "text.secondary" }}>
-      {raw.length <= 100 ? raw : raw.slice(0, 100) + "â€¦"}
+      {raw.length <= 100 ? raw : raw.slice(0, 100) + "..."}
     </Typography>
   );
 }
@@ -552,11 +562,11 @@ export default function AuditConsolidadoPage() {
 
   const mostCommonAction = summary?.statistics?.most_common_action ?? null;
 
-  const mostActiveTenantId = summary?.statistics?.most_active_tenant ?? null;
   const mostActiveTenantName =
-    mostActiveTenantId && typeof mostActiveTenantId === "string"
-      ? tenantMap[mostActiveTenantId] ?? mostActiveTenantId.slice(0, 8) + "..."
-      : null;
+    (summary?.statistics?.most_active_tenant_name as string | null | undefined) ??
+    (summary?.statistics?.most_active_tenant as string | null | undefined
+      ? (tenantMap[(summary.statistics.most_active_tenant as string)] ?? (summary.statistics.most_active_tenant as string).slice(0, 8) + "...")
+      : null);
 
   // â”€â”€â”€ Tabela Por Tenant â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -707,14 +717,14 @@ export default function AuditConsolidadoPage() {
               value={
                 mostCommonAction
                   ? ACTION_LABELS[mostCommonAction] ?? mostCommonAction
-                  : "â€”"
+                  : "-"
               }
               color="warning"
             />
             <KpiCard
               icon={<PeopleIcon fontSize="small" />}
               label="Tenant Mais Ativo"
-              value={mostActiveTenantName ?? "â€”"}
+              value={mostActiveTenantName ?? "-"}
               color="success"
             />
           </Stack>
