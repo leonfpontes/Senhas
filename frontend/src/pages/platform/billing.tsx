@@ -1,9 +1,9 @@
 /**
  * Platform Billing Page
  *
- * Visão consolidada de faturamento para SUPER_ADMIN:
+ * VisÃ£o consolidada de faturamento para SUPER_ADMIN:
  * - KPIs: MRR, ativos, trials, suspensos
- * - Distribuição de planos
+ * - DistribuiÃ§Ã£o de planos
  * - Tabela de assinaturas por tenant com busca
  */
 
@@ -39,7 +39,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { apiClient } from "../../services/api_client";
 import PlatformLayout from "./layout";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface BillingStats {
   active_tenants: number;
@@ -66,13 +66,13 @@ interface SubscriptionItem {
   stripe_customer_id: string | null;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("pt-BR") : "—";
+  iso ? new Date(iso).toLocaleDateString("pt-BR") : "â€”";
 
 const PLAN_COLORS: Record<string, "default" | "info" | "primary" | "success"> = {
   free: "default",
@@ -95,7 +95,7 @@ const STATUS_COLORS: Record<string, "success" | "warning" | "error" | "default">
   expired: "error",
 };
 
-// ─── KPI Card ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ KPI Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface KpiCardProps {
   label: string;
@@ -128,7 +128,7 @@ function KpiCard({ label, value, icon, color = "text.primary", subtitle }: KpiCa
   );
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const BillingPage: React.FC = () => {
   const [stats, setStats] = useState<BillingStats | null>(null);
@@ -175,7 +175,7 @@ const BillingPage: React.FC = () => {
         <Box>
           <Typography variant="h5" fontWeight={700}>Faturamento</Typography>
           <Typography variant="body2" color="text.secondary">
-            Visão consolidada de assinaturas e receita da plataforma
+            VisÃ£o consolidada de assinaturas e receita da plataforma
           </Typography>
         </Box>
         <Button
@@ -196,7 +196,7 @@ const BillingPage: React.FC = () => {
         <Grid item xs={12} sm={6} md={3}>
           <KpiCard
             label="MRR Estimado"
-            value={stats ? fmt(stats.mrr) : "—"}
+            value={stats ? fmt(stats.mrr) : "â€”"}
             icon={<TrendingUpIcon />}
             color="primary.main"
             subtitle="Receita mensal recorrente"
@@ -205,7 +205,7 @@ const BillingPage: React.FC = () => {
         <Grid item xs={12} sm={6} md={3}>
           <KpiCard
             label="Tenants Ativos"
-            value={stats?.active_tenants ?? "—"}
+            value={stats?.active_tenants ?? "â€”"}
             icon={<PeopleIcon />}
             color="success.main"
           />
@@ -213,7 +213,7 @@ const BillingPage: React.FC = () => {
         <Grid item xs={12} sm={6} md={3}>
           <KpiCard
             label="Em Trial"
-            value={stats?.trial_tenants ?? "—"}
+            value={stats?.trial_tenants ?? "â€”"}
             icon={<HourglassTopIcon />}
             color="warning.main"
           />
@@ -221,7 +221,7 @@ const BillingPage: React.FC = () => {
         <Grid item xs={12} sm={6} md={3}>
           <KpiCard
             label="Suspensos / Cancelados"
-            value={stats?.suspended_tenants ?? "—"}
+            value={stats?.suspended_tenants ?? "â€”"}
             icon={<WarningAmberIcon />}
             color={stats && stats.suspended_tenants > 0 ? "error.main" : "text.secondary"}
           />
@@ -268,7 +268,7 @@ const BillingPage: React.FC = () => {
             </Typography>
             <TextField
               size="small"
-              placeholder="Buscar por nome ou slug…"
+              placeholder="Buscar por nome ou slugâ€¦"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               sx={{ minWidth: 240 }}
@@ -295,9 +295,9 @@ const BillingPage: React.FC = () => {
                     <TableCell>Plano</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell align="right">MRR</TableCell>
-                    <TableCell align="center" sx={{ display: { xs: "none", sm: "table-cell" } }}>Usuários</TableCell>
+                    <TableCell align="center" sx={{ display: { xs: "none", sm: "table-cell" } }}>UsuÃ¡rios</TableCell>
                     <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>Extras</TableCell>
-                    <TableCell sx={{ display: { xs: "none", lg: "table-cell" } }}>Próx. Ciclo</TableCell>
+                    <TableCell sx={{ display: { xs: "none", lg: "table-cell" } }}>PrÃ³x. Ciclo</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -341,19 +341,19 @@ const BillingPage: React.FC = () => {
                           <Typography variant="body2">
                             {s.current_users}
                             <Typography component="span" variant="caption" color="text.secondary">
-                              /{s.max_users === 999999 ? "∞" : s.max_users}
+                              /{s.max_users === 999999 ? "âˆž" : s.max_users}
                             </Typography>
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>
                           <Stack direction="row" gap={0.5} flexWrap="wrap">
                             {s.is_trial && (
-                              <Tooltip title={s.trial_ends_at ? `Trial até ${fmtDate(s.trial_ends_at)}` : "Em trial"}>
+                              <Tooltip title={s.trial_ends_at ? `Trial atÃ© ${fmtDate(s.trial_ends_at)}` : "Em trial"}>
                                 <Chip label="TRIAL" size="small" color="warning" variant="outlined" sx={{ fontSize: "0.65rem" }} />
                               </Tooltip>
                             )}
                             {s.is_bonus && (
-                              <Chip label="BÔNUS" size="small" color="secondary" variant="outlined" sx={{ fontSize: "0.65rem" }} />
+                              <Chip label="BÃ”NUS" size="small" color="secondary" variant="outlined" sx={{ fontSize: "0.65rem" }} />
                             )}
                             {s.cancel_at_period_end && (
                               <Chip label="CANCELA" size="small" color="error" variant="outlined" sx={{ fontSize: "0.65rem" }} />
@@ -366,289 +366,6 @@ const BillingPage: React.FC = () => {
                       </TableRow>
                     ))
                   )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </CardContent>
-      </Card>
-    </PlatformLayout>
-  );
-};
-
-export default BillingPage;
-
-interface BillingStats {
-  total_invoices: number;
-  paid_invoices: number;
-  total_revenue: number;
-  average_invoice_value: number;
-}
-
-interface Invoice {
-  id: string;
-  tenant_id: string;
-  invoice_number: string;
-  period_start: string;
-  period_end: string;
-  subtotal: number;
-  tax_amount: number;
-  discount_amount: number;
-  total_amount: number;
-  status: string;
-  paid_amount: number;
-  payment_method: string | null;
-  due_date: string;
-  paid_at: string | null;
-  created_at: string;
-}
-
-interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-}
-
-const statusColor = (status: string) => {
-  switch (status) {
-    case "paid":
-      return "success";
-    case "pending":
-      return "warning";
-    case "overdue":
-      return "error";
-    case "cancelled":
-      return "default";
-    default:
-      return "info";
-  }
-};
-
-const BillingPage: React.FC = () => {
-  const [stats, setStats] = useState<BillingStats | null>(null);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [selectedTenant, setSelectedTenant] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchStats();
-    fetchTenants();
-  }, []);
-
-  useEffect(() => {
-    if (selectedTenant) {
-      fetchInvoices(selectedTenant);
-    } else {
-      setInvoices([]);
-    }
-  }, [selectedTenant]);
-
-  const fetchStats = async () => {
-    try {
-      const response = await apiClient.get(
-        "/api/v1/platform/billing/statistics/summary"
-      );
-      setStats(response.data);
-    } catch (err: any) {
-      console.error("Failed to fetch billing stats:", err);
-    }
-  };
-
-  const fetchTenants = async () => {
-    try {
-      const response = await apiClient.get("/api/v1/platform/tenants");
-      setTenants(response.data);
-    } catch (err: any) {
-      console.error("Failed to fetch tenants:", err);
-    }
-  };
-
-  const fetchInvoices = async (tenantId: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await apiClient.get(
-        `/api/v1/platform/billing/${tenantId}/invoices`
-      );
-      setInvoices(response.data);
-    } catch (err: any) {
-      setError(err?.message || "Failed to fetch invoices");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
-
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("pt-BR");
-
-  return (
-    <PlatformLayout>
-      <Box data-tour="billing-header" sx={{ mb: 3 }}>
-        <h1>Billing</h1>
-        <p>Platform billing statistics and invoice management</p>
-      </Box>
-
-      {/* Stats Cards */}
-      {stats && (
-        <Grid data-tour="billing-stats" container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ fontSize: "0.875rem", color: "text.secondary" }}>
-                  Total Invoices
-                </Box>
-                <Box sx={{ fontSize: "1.5rem", fontWeight: 700 }}>
-                  {stats.total_invoices}
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ fontSize: "0.875rem", color: "text.secondary" }}>
-                  Paid Invoices
-                </Box>
-                <Box sx={{ fontSize: "1.5rem", fontWeight: 700, color: "success.main" }}>
-                  {stats.paid_invoices}
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ fontSize: "0.875rem", color: "text.secondary" }}>
-                  Total Revenue
-                </Box>
-                <Box sx={{ fontSize: "1.5rem", fontWeight: 700, color: "primary.main" }}>
-                  {formatCurrency(stats.total_revenue)}
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ fontSize: "0.875rem", color: "text.secondary" }}>
-                  Avg Invoice Value
-                </Box>
-                <Box sx={{ fontSize: "1.5rem", fontWeight: 700 }}>
-                  {formatCurrency(stats.average_invoice_value)}
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      )}
-
-      {/* Tenant Selector + Invoices */}
-      <Card>
-        <CardContent>
-          <Box
-            sx={{
-              display: "flex",
-              gap: 2,
-              alignItems: "center",
-              mb: 2,
-              flexWrap: "wrap",
-            }}
-          >
-            <FormControl data-tour="billing-tenant-select" sx={{ minWidth: { xs: '100%', sm: 250 } }} size="small">
-              <InputLabel>Select Tenant</InputLabel>
-              <Select
-                value={selectedTenant}
-                onChange={(e) => setSelectedTenant(e.target.value)}
-                label="Select Tenant"
-              >
-                <MenuItem value="">
-                  <em>-- Select a tenant --</em>
-                </MenuItem>
-                {tenants.map((t) => (
-                  <MenuItem key={t.id} value={t.id}>
-                    {t.name} ({t.slug})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            {selectedTenant && (
-              <Button
-                variant="outlined"
-                startIcon={<RefreshIcon />}
-                onClick={() => fetchInvoices(selectedTenant)}
-                size="small"
-              >
-                Refresh
-              </Button>
-            )}
-          </Box>
-
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-
-          {loading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : !selectedTenant ? (
-            <Alert severity="info">
-              Select a tenant above to view their invoices.
-            </Alert>
-          ) : invoices.length === 0 ? (
-            <Alert severity="info">No invoices found for this tenant.</Alert>
-          ) : (
-            <TableContainer data-tour="billing-tabela" component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Invoice #</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Period</TableCell>
-                    <TableCell align="right">Total</TableCell>
-                    <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>Paid</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Due Date</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Paid At</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {invoices.map((inv) => (
-                    <TableRow key={inv.id}>
-                      <TableCell>{inv.invoice_number}</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                        {formatDate(inv.period_start)} –{" "}
-                        {formatDate(inv.period_end)}
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatCurrency(inv.total_amount)}
-                      </TableCell>
-                      <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                        {formatCurrency(inv.paid_amount)}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={inv.status}
-                          color={statusColor(inv.status) as any}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>{formatDate(inv.due_date)}</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                        {inv.paid_at ? formatDate(inv.paid_at) : "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
                 </TableBody>
               </Table>
             </TableContainer>
