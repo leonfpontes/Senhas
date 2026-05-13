@@ -1,14 +1,17 @@
 """Platform API - Consolidated audit logs endpoint (T108)."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from uuid import UUID
 from datetime import datetime
 
 from src.core.database import get_db
 from src.api.dependencies import get_current_user
 from src.models import User, UserRole
+from src.models.audit_logs import AuditLog, AuditAction
+from src.models.tenants import Tenant
 from src.services.consolidated_audit_service import ConsolidatedAuditService
 
 router = APIRouter(prefix="/api/v1/platform/audit-logs", tags=["platform-audit"])
@@ -85,6 +88,89 @@ async def get_audit_logs(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar logs de auditoria: {str(e)}",
+        )
+
+
+@router.get("/feed", response_model=List[dict])
+async def get_audit_feed(
+    start_date: str = Query(..., description="Start date (ISO format: YYYY-MM-DD)"),
+    end_date: str = Query(..., description="End date (ISO format: YYYY-MM-DD)"),
+    tenant_id: Optional[str] = Query(None, description="Filter by tenant UUID"),
+    action: Optional[str] = Query(None, description="Filter by action (create, update, delete, login, ...)"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    current_user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> List[dict]:
+    """Feed de logs reais cross-tenant com nome do tenant.
+
+    Retorna entradas paginadas ordenadas por data desc.
+    Cada entrada inclui tenant_name para exibição legível.
+    """
+    try:
+        start = _parse_datetime(start_date)
+        end = _parse_datetime(end_date)
+
+        filters = [
+            AuditLog.created_at >= start,
+            AuditLog.created_at <= end,
+        ]
+        if tenant_id:
+            try:
+                filters.append(AuditLog.tenant_id == UUID(tenant_id))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="tenant_id inválido")
+        if action:
+            try:
+                filters.append(AuditLog.action == AuditAction(action))
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Ação inválida: {action}")
+
+        # Simple join to get tenant name
+        stmt = (
+            select(
+                AuditLog.id,
+                AuditLog.tenant_id,
+                AuditLog.user_id,
+                AuditLog.action,
+                AuditLog.resource_type,
+                AuditLog.resource_id,
+                AuditLog.details,
+                AuditLog.created_at,
+                Tenant.name.label("tenant_name"),
+                Tenant.slug.label("tenant_slug"),
+            )
+            .outerjoin(Tenant, AuditLog.tenant_id == Tenant.id)
+            .where(and_(*filters))
+            .order_by(AuditLog.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+
+        result = await db.execute(stmt)
+        rows = result.all()
+
+        return [
+            {
+                "id": str(row.id),
+                "tenant_id": str(row.tenant_id) if row.tenant_id else None,
+                "tenant_name": row.tenant_name or "Platform",
+                "tenant_slug": row.tenant_slug or "",
+                "user_id": str(row.user_id) if row.user_id else None,
+                "action": row.action.value,
+                "resource_type": row.resource_type,
+                "resource_id": str(row.resource_id) if row.resource_id else None,
+                "details": row.details,
+                "created_at": row.created_at.isoformat(),
+            }
+            for row in rows
+        ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao buscar feed de auditoria: {str(e)}",
         )
 
 
