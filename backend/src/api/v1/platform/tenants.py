@@ -129,7 +129,12 @@ async def get_tenant(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Tenant não encontrado",
             )
-        
+
+        sub_result = await db.execute(
+            select(Subscription).where(Subscription.tenant_id == tenant.id)
+        )
+        sub = sub_result.scalar_one_or_none()
+
         return TenantResponse(
             id=str(tenant.id),
             slug=tenant.slug,
@@ -138,6 +143,9 @@ async def get_tenant(
             is_active=tenant.is_active,
             created_at=tenant.created_at.isoformat(),
             updated_at=tenant.updated_at.isoformat(),
+            plan=sub.plan.value.lower() if sub else None,
+            subscription_status=sub.status.value.lower() if sub else None,
+            is_bonus=sub.is_bonus if sub else None,
         )
     except HTTPException:
         raise
