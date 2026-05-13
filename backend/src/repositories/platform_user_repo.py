@@ -46,7 +46,10 @@ class PlatformUserRepository:
         return result.scalar_one_or_none()
     
     async def get_by_email(self, email: str) -> Optional[User]:
-        """Get any user by email (all roles) — used for uniqueness check.
+        """Get SUPER_ADMIN user by email — used for uniqueness check.
+
+        Only checks platform users (tenant_id IS NULL). Tenant users with the
+        same email are allowed to coexist with a SUPER_ADMIN account.
         
         Args:
             email: User email
@@ -57,6 +60,7 @@ class PlatformUserRepository:
         stmt = select(User).where(
             and_(
                 User.email == email,
+                User.tenant_id.is_(None),
                 User.deleted_at.is_(None),
             )
         )
