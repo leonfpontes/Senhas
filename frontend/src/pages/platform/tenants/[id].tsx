@@ -17,6 +17,11 @@ import {
   Chip,
   CircularProgress,
   Alert,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
   IconButton,
   InputAdornment,
   Table,
@@ -31,8 +36,12 @@ import {
   Typography,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import LockResetIcon from "@mui/icons-material/LockReset";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PersonIcon from "@mui/icons-material/Person";
+import StarIcon from "@mui/icons-material/Star";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { apiClient } from "../../../services/api_client";
@@ -47,6 +56,9 @@ interface TenantInfo {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  plan: string | null;
+  subscription_status: string | null;
+  is_bonus: boolean | null;
 }
 
 interface TenantUser {
@@ -74,6 +86,9 @@ export default function TenantDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [impersonating, setImpersonating] = useState<string | null>(null);
+
+  // Impersonation confirmation dialog
+  const [impersonateTarget, setImpersonateTarget] = useState<TenantUser | null>(null);
 
   // Reset password drawer state
   const [resetDrawerOpen, setResetDrawerOpen] = useState(false);
@@ -110,6 +125,7 @@ export default function TenantDetailPage() {
 
   const handleImpersonate = async (userId: string) => {
     setImpersonating(userId);
+    setImpersonateTarget(null);
     try {
       const res = await apiClient.post<ImpersonateResponse>(
         `/api/v1/platform/impersonate/${userId}`
@@ -218,7 +234,7 @@ export default function TenantDetailPage() {
               {tenant?.name || "Tenant"}
             </Typography>
             <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
                 {tenant?.slug}
               </Typography>
               <Chip
@@ -229,6 +245,53 @@ export default function TenantDetailPage() {
             </Box>
           </Box>
         </Box>
+
+        {/* Context summary card */}
+        <Card variant="outlined" sx={{ mb: 3 }}>
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Typography variant="caption" color="text.secondary">Plano</Typography>
+                {tenant?.plan ? (
+                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                    <Chip
+                      label={tenant.plan.toUpperCase()}
+                      size="small"
+                      color={tenant.plan === 'premium' ? 'warning' : tenant.plan === 'pro' ? 'primary' : tenant.plan === 'basic' ? 'info' : 'default'}
+                    />
+                    {tenant.is_bonus && (
+                      <Tooltip title="Acesso bonificado">
+                        <StarIcon sx={{ fontSize: 16, color: '#f59e0b' }} />
+                      </Tooltip>
+                    )}
+                  </Box>
+                ) : <Typography variant="body2">—</Typography>}
+              </Box>
+              <Divider orientation="vertical" flexItem />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Typography variant="caption" color="text.secondary">Assinatura</Typography>
+                <Chip
+                  label={tenant?.subscription_status ?? 'sem dados'}
+                  size="small"
+                  variant="outlined"
+                  color={tenant?.subscription_status === 'active' ? 'success' : 'default'}
+                />
+              </Box>
+              <Divider orientation="vertical" flexItem />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <CalendarTodayIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                <Typography variant="body2" color="text.secondary">
+                  Criado em {tenant?.created_at ? new Date(tenant.created_at).toLocaleDateString('pt-BR') : '—'}
+                </Typography>
+              </Box>
+              <Divider orientation="vertical" flexItem />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Typography variant="caption" color="text.secondary">Usuários</Typography>
+                <Typography variant="body2" fontWeight={600}>{users.length}</Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
 
         {/* Users Table */}
         <Card>
@@ -291,7 +354,7 @@ export default function TenantDetailPage() {
                             <span>
                               <IconButton
                                 color="warning"
-                                onClick={() => handleImpersonate(user.id)}
+                                onClick={() => setImpersonateTarget(user)}
                                 disabled={
                                   !user.is_active || impersonating === user.id
                                 }
@@ -314,6 +377,46 @@ export default function TenantDetailPage() {
           </CardContent>
         </Card>
       </Box>
+
+      {/* Impersonation Confirmation Dialog */}
+      <Dialog
+        open={Boolean(impersonateTarget)}
+        onClose={() => setImpersonateTarget(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmberIcon color="warning" fontSize="small" />
+          Confirmar impersonar
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" gutterBottom>
+            Você irá operar como o usuário abaixo em uma nova aba:
+          </Typography>
+          <Box sx={{ mt: 1.5, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+            <Typography variant="body2" fontWeight={600}>{impersonateTarget?.email}</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {impersonateTarget?.role} · {tenant?.name}
+            </Typography>
+          </Box>
+          <Alert severity="warning" sx={{ mt: 2 }} icon={<OpenInNewIcon fontSize="small" />}>
+            Uma nova aba será aberta com sessão ativa deste usuário.
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ px: 2, pb: 2 }}>
+          <Button onClick={() => setImpersonateTarget(null)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            color="warning"
+            startIcon={<PersonIcon />}
+            onClick={() => {
+              if (impersonateTarget) handleImpersonate(impersonateTarget.id);
+            }}
+          >
+            Abrir como esse usuário
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Reset Password Drawer */}
       <CrudDrawer

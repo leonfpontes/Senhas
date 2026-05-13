@@ -8,7 +8,7 @@
  * - Delete tenant (confirm dialog)
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Button,
@@ -17,8 +17,10 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   IconButton,
+  InputAdornment,
   Menu,
   MenuItem,
   Table,
@@ -48,6 +50,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import PeopleIcon from "@mui/icons-material/People";
 import BusinessIcon from "@mui/icons-material/Business";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import SearchIcon from "@mui/icons-material/Search";
 import StarIcon from "@mui/icons-material/Star";
 import CreditScoreIcon from "@mui/icons-material/CreditScore";
 import { useRouter } from "next/router";
@@ -113,6 +116,7 @@ const TenantsPage: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuTenant, setMenuTenant] = useState<Tenant | null>(null);
 
@@ -332,6 +336,16 @@ const TenantsPage: React.FC = () => {
     subIsBonus !== (subDrawerTenant?.is_bonus ?? false) ||
     subPlan !== (subDrawerTenant?.plan ?? 'basic');
 
+  const filteredTenants = useMemo(() => {
+    if (!searchQuery.trim()) return tenants;
+    const q = searchQuery.trim().toLowerCase();
+    return tenants.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        t.slug.toLowerCase().includes(q)
+    );
+  }, [tenants, searchQuery]);
+
   return (
     <PlatformLayout>
       <Box data-tour="tenants-header" sx={{ mb: 3 }}>
@@ -345,7 +359,7 @@ const TenantsPage: React.FC = () => {
             mb: 3,
           }}
         >
-          <h1 style={{ margin: 0 }}>Tenant Management</h1>
+          <Typography variant="h5" fontWeight={600} sx={{ m: 0 }}>Tenant Management</Typography>
           <Box sx={{ display: "flex", gap: 1 }}>
             <Button
               variant="outlined"
@@ -370,42 +384,57 @@ const TenantsPage: React.FC = () => {
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
+        {/* Search */}
+        <TextField
+          size="small"
+          placeholder="Buscar por nome ou slug..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          sx={{ mb: 2, width: { xs: '100%', sm: 320 } }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+        />
+
         {/* Tenants Table */}
         <TableContainer data-tour="tenants-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: "primary.light" }}>
-                <TableCell>Slug</TableCell>
-                <TableCell>Name</TableCell>
+                <TableCell>Nome</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Plano</TableCell>
-                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Created</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Criado em</TableCell>
+                <TableCell align="right">Ações</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
+                  <TableCell colSpan={5} align="center">
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
-              ) : tenants.length === 0 ? (
+              ) : filteredTenants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
-                    No tenants found
+                  <TableCell colSpan={5} align="center">
+                    {searchQuery ? `Nenhum tenant encontrado para "${searchQuery}"` : 'No tenants found'}
                   </TableCell>
                 </TableRow>
               ) : (
-                tenants.map((tenant) => (
+                filteredTenants.map((tenant) => (
                   <TableRow key={tenant.id} hover>
-                    <TableCell sx={{ fontFamily: "monospace" }}>
-                      {tenant.slug}
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={500}>{tenant.name}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>{tenant.slug}</Typography>
                     </TableCell>
-                    <TableCell>{tenant.name}</TableCell>
                     <TableCell>
                       <Chip
-                        label={tenant.is_active ? "Active" : "Inactive"}
+                        label={tenant.is_active ? "Ativo" : "Inativo"}
                         color={tenant.is_active ? "success" : "error"}
                         variant="outlined"
                         size="small"
@@ -428,7 +457,7 @@ const TenantsPage: React.FC = () => {
                       ) : '—'}
                     </TableCell>
                     <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                      {new Date(tenant.created_at).toLocaleDateString()}
+                      {new Date(tenant.created_at).toLocaleDateString('pt-BR')}
                     </TableCell>
                     <TableCell align="right">
                       {isMobile ? (
@@ -489,6 +518,7 @@ const TenantsPage: React.FC = () => {
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
+                          <Divider orientation="vertical" flexItem sx={{ mx: 0.5, display: 'inline-flex' }} />
                           <Tooltip title="Excluir permanentemente">
                             <IconButton
                               size="small"
