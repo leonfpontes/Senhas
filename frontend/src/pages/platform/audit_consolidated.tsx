@@ -261,7 +261,7 @@ export default function AuditConsolidadoPage() {
   // ─── KPI calculados ───────────────────────────────────────────────────────
 
   const activeTenantsCount = summary
-    ? Object.keys(summary.by_tenant).length
+    ? Object.keys(summary.by_tenant ?? {}).length
     : 0;
 
   const mostCommonAction = summary?.statistics?.most_common_action ?? null;
@@ -274,7 +274,7 @@ export default function AuditConsolidadoPage() {
   // ─── Tabela Por Tenant ────────────────────────────────────────────────────
 
   const byTenantRows = summary
-    ? Object.entries(summary.by_tenant)
+    ? Object.entries(summary.by_tenant ?? {})
         .map(([id, count]) => ({ id, name: tenantMap[id] ?? id.slice(0, 8) + "...", count }))
         .sort((a, b) => b.count - a.count)
     : [];
@@ -284,7 +284,7 @@ export default function AuditConsolidadoPage() {
   // ─── Tabela Por Acao ──────────────────────────────────────────────────────
 
   const byActionRows = summary
-    ? Object.entries(summary.by_action)
+    ? Object.entries(summary.by_action ?? {})
         .map(([action, count]) => ({ action, count }))
         .sort((a, b) => b.count - a.count)
     : [];
