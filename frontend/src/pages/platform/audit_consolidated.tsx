@@ -187,7 +187,7 @@ export default function AuditConsolidadoPage() {
   // Carrega lista de tenants para resolver nomes
   useEffect(() => {
     apiClient.get<{ items: Tenant[] }>("/api/v1/platform/tenants?limit=200").then((res) => {
-      const list = res.items ?? [];
+      const list = res.data?.items ?? [];
       setTenants(list);
       const map: Record<string, string> = {};
       list.forEach((t) => { map[t.id] = t.name; });
@@ -211,11 +211,11 @@ export default function AuditConsolidadoPage() {
           apiClient.get<FeedEntry[]>(`/api/v1/platform/audit-logs/feed?${feedParams}`),
         ]);
 
-        setSummary(summaryRes);
-        setFeed(feedRes);
+        setSummary(summaryRes.data);
+        setFeed(Array.isArray(feedRes.data) ? feedRes.data : []);
         setFeedPage(page);
         // total feed entries derived from summary
-        setFeedTotal(summaryRes?.total ?? 0);
+        setFeedTotal(summaryRes.data?.total ?? 0);
       } catch (e) {
         setError("Falha ao carregar dados de auditoria.");
       } finally {
@@ -239,10 +239,10 @@ export default function AuditConsolidadoPage() {
         `${params}&skip=0&limit=500` +
         (filterTenant ? `&tenant_id=${filterTenant}` : "") +
         (filterAction ? `&action=${filterAction}` : "");
-      const data = await apiClient.get<FeedEntry[]>(
+      const resp = await apiClient.get<FeedEntry[]>(
         `/api/v1/platform/audit-logs/feed?${feedParams}`
       );
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
+      const blob = new Blob([JSON.stringify(resp.data, null, 2)], {
         type: "application/json",
       });
       const url = URL.createObjectURL(blob);
