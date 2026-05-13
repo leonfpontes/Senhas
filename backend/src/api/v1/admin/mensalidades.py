@@ -144,6 +144,7 @@ class ConfigUpdate(BaseModel):
     valor_mensal_associado: Optional[float] = Field(None, ge=0)
     dia_vencimento_associado: Optional[int] = Field(None, ge=1, le=28)
     relatorio_hora_envio: Optional[str] = None  # "HH:MM" or null
+    enable_mensalidade_associado: Optional[bool] = None
 
 
 class MensalidadeItemResponse(BaseModel):
@@ -282,6 +283,14 @@ async def update_config(
         db.add(config)
         await db.flush()
         await db.refresh(config)
+
+    # Update enable_mensalidade_associado flag in tenant_config if provided
+    if body.enable_mensalidade_associado is not None:
+        config_repo_upd = TenantConfigRepository(db)
+        tc_upd = await config_repo_upd.get_by_tenant(current_user.tenant_id)
+        if tc_upd:
+            tc_upd.enable_mensalidade_associado = body.enable_mensalidade_associado
+            await db.flush()
 
     await audit.log_update(
         tenant_id=current_user.tenant_id,

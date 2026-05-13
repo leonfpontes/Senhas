@@ -5,7 +5,7 @@
  */
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -190,6 +190,7 @@ export default function MensalidadesPage() {
   }, []);
 
   const fetchItems = useCallback(async () => {
+    if (!can('mensalidade_mediun')) return;
     setLoading(true);
     try {
       const res = await apiClient.get(`/api/v1/admin/financeiro/mensalidades?mes=${mes}`);
@@ -199,7 +200,7 @@ export default function MensalidadesPage() {
     } finally {
       setLoading(false);
     }
-  }, [mes]);
+  }, [mes, can]);
 
   const fetchAssocItems = useCallback(async () => {
     setLoadingAssoc(true);
@@ -214,6 +215,7 @@ export default function MensalidadesPage() {
   }, [mes]);
 
   const fetchResumo = useCallback(async () => {
+    if (!can('mensalidade_mediun')) return;
     setLoadingResumo(true);
     try {
       const res = await apiClient.get('/api/v1/admin/financeiro/resumo');
@@ -223,7 +225,7 @@ export default function MensalidadesPage() {
     } finally {
       setLoadingResumo(false);
     }
-  }, []);
+  }, [can]);
 
   const fetchAssocResumo = useCallback(async () => {
     try {
@@ -236,17 +238,31 @@ export default function MensalidadesPage() {
 
   const assocEnabled = !!(config?.enable_mensalidade_associado);
 
+  // tabIds maps the rendered tab index to a stable string id, accounting for
+  // conditional tab rendering (médiuns only for PREMIUM, associados only when flag enabled).
+  const tabIds = useMemo(() => [
+    can('mensalidade_mediun') ? 'mediuns' : null,
+    'grafico',
+    can('mensalidade_associado') && assocEnabled ? 'associados' : null,
+  ].filter(Boolean) as string[], [can, assocEnabled]);
+
   useEffect(() => { fetchConfig(); }, [fetchConfig]);
   useEffect(() => { fetchItems(); }, [fetchItems]);
+  // PRO-only: load assocItems on mount (after config) so KPI cards have accurate data
   useEffect(() => {
-    if (tab === 1) {
-      fetchResumo();
-      if (assocEnabled) fetchAssocResumo();
+    if (!can('mensalidade_mediun') && can('mensalidade_associado') && assocEnabled) {
+      fetchAssocItems();
     }
-  }, [tab, fetchResumo, fetchAssocResumo, assocEnabled]);
+  }, [assocEnabled, fetchAssocItems, can]);
   useEffect(() => {
-    if (tab === 2 && can('mensalidade_associado') && assocEnabled) fetchAssocItems();
-  }, [tab, fetchAssocItems, can, assocEnabled]);
+    if (tabIds[tab] === 'grafico') {
+      fetchResumo();
+      if (can('mensalidade_associado') && assocEnabled) fetchAssocResumo();
+    }
+  }, [tab, tabIds, fetchResumo, fetchAssocResumo, can, assocEnabled]);
+  useEffect(() => {
+    if (tabIds[tab] === 'associados' && can('mensalidade_associado') && assocEnabled) fetchAssocItems();
+  }, [tab, tabIds, fetchAssocItems, can, assocEnabled]);
 
   // ── Gate (after all hooks) ────────────────────────────────────────────
   if (!can('mensalidade_mediun') && !can('mensalidade_associado')) {
@@ -414,16 +430,19 @@ export default function MensalidadesPage() {
     }
   }
 
-  const chartData = resumo
+  // For PRO-only users resumo is null; fall back to assocResumo so the chart renders
+  const effectiveResumo = resumo ?? (can('mensalidade_associado') && assocEnabled ? assocResumo : null);
+
+  const chartData = effectiveResumo
     ? [
-        ...resumo.historico.map((h) => ({
+        ...effectiveResumo.historico.map((h) => ({
           mes: mesLabel(h.mes),
           Esperado: h.esperado,
           Arrecadado: h.arrecadado,
           projecao: false,
-          ...(assocEnabled && assocResumo ? { Associados: assocArrecadadoByMes[mesLabel(h.mes)] ?? 0 } : {}),
+          ...(resumo && assocEnabled && assocResumo ? { Associados: assocArrecadadoByMes[mesLabel(h.mes)] ?? 0 } : {}),
         })),
-        ...resumo.projecao.map((p) => ({
+        ...effectiveResumo.projecao.map((p) => ({
           mes: mesLabel(p.mes),
           Projetado: p.projetado,
           projecao: true,
@@ -449,7 +468,7 @@ export default function MensalidadesPage() {
             {mesLabel(mes)}
           </Typography>
           <IconButton onClick={handleNextMes} size="small"><ArrowForwardIosIcon fontSize="small" /></IconButton>
-          <IconButton onClick={() => { fetchItems(); if (assocEnabled) fetchAssocItems(); fetchResumo(); if (assocEnabled) fetchAssocResumo(); }} size="small" title="Atualizar"><RefreshIcon fontSize="small" /></IconButton>
+          <IconButton onClick={() => { fetchItems(); if (can('mensalidade_associado') && assocEnabled) fetchAssocItems(); fetchResumo(); if (can('mensalidade_associado') && assocEnabled) fetchAssocResumo(); }} size="small" title="Atualizar"><RefreshIcon fontSize="small" /></IconButton>
         </Box>
 
         {/* KPI Cards */}
@@ -485,7 +504,7 @@ export default function MensalidadesPage() {
         </Tabs>
 
         {/* TAB: Médiuns */}
-        {tab === 0 && (
+        {tabIds[tab] === 'mediuns' && (
           <>
             <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
               <TextField
@@ -584,7 +603,7 @@ export default function MensalidadesPage() {
         )}
 
         {/* TAB: Associados (PRO+) */}
-        {tab === 2 && can('mensalidade_associado') && assocEnabled && (
+        {tabIds[tab] === 'associados' && can('mensalidade_associado') && assocEnabled && (
           <Box>
             {loadingAssoc ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
@@ -662,13 +681,13 @@ export default function MensalidadesPage() {
         )}
 
         {/* TAB: Gráfico */}
-        {tab === 1 && (
+        {tabIds[tab] === 'grafico' && (
           <Box>
             {loadingResumo ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
                 <CircularProgress />
               </Box>
-            ) : !resumo ? (
+            ) : !effectiveResumo ? (
               <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
                 Nenhum dado disponível.
               </Typography>
@@ -684,7 +703,7 @@ export default function MensalidadesPage() {
                     <Bar dataKey="Esperado" fill="#bdbdbd" />
                     <Bar dataKey="Arrecadado" fill={primaryColor} />
                     <Bar dataKey="Projetado" fill="#c5cae9" />
-                    {assocEnabled && assocResumo && (
+                    {resumo && assocEnabled && assocResumo && (
                       <Bar dataKey="Associados" fill="#80cbc4" />
                     )}
                   </BarChart>
@@ -694,8 +713,8 @@ export default function MensalidadesPage() {
                   <Grid item xs={12} md={4}>
                     <Card variant="outlined">
                       <CardContent>
-                        <Typography variant="caption" color="text.secondary">Médiums ativos</Typography>
-                        <Typography variant="h6" fontWeight={700}>{resumo.config.count_ativos}</Typography>
+                        <Typography variant="caption" color="text.secondary">Ativos</Typography>
+                        <Typography variant="h6" fontWeight={700}>{effectiveResumo.config.count_ativos}</Typography>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -703,7 +722,7 @@ export default function MensalidadesPage() {
                     <Card variant="outlined">
                       <CardContent>
                         <Typography variant="caption" color="text.secondary">Isentos</Typography>
-                        <Typography variant="h6" fontWeight={700}>{resumo.config.count_isentos}</Typography>
+                        <Typography variant="h6" fontWeight={700}>{effectiveResumo.config.count_isentos}</Typography>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -711,14 +730,14 @@ export default function MensalidadesPage() {
                     <Card variant="outlined">
                       <CardContent>
                         <Typography variant="caption" color="text.secondary">Projeção mensal</Typography>
-                        <Typography variant="h6" fontWeight={700}>{fmtBRL(resumo.projecao[0]?.projetado ?? 0)}</Typography>
+                        <Typography variant="h6" fontWeight={700}>{fmtBRL(effectiveResumo.projecao[0]?.projetado ?? 0)}</Typography>
                       </CardContent>
                     </Card>
                   </Grid>
                 </Grid>
 
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                  * Projeção baseada no valor mensal atual × número de médiuns pagantes ativos.
+                  * Projeção baseada no valor mensal atual × número de associados pagantes ativos.
                 </Typography>
               </>
             )}

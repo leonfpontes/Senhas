@@ -49,11 +49,8 @@ export default function FinanceiroConfigPage() {
 
   // Hooks must run unconditionally — gate checked after
   useEffect(() => {
-    Promise.all([
-      apiClient.get('/api/v1/admin/financeiro/config'),
-      apiClient.get('/api/v1/admin/tenant/config'),
-    ])
-      .then(([finRes, tenantRes]) => {
+    apiClient.get('/api/v1/admin/financeiro/config')
+      .then((finRes) => {
         if (finRes.data) {
           setValorMensal(String(finRes.data.valor_mensal ?? ''));
           setDiaVencimento(String(finRes.data.dia_vencimento ?? '10'));
@@ -61,9 +58,7 @@ export default function FinanceiroConfigPage() {
           setValorMensalAssociado(String(finRes.data.valor_mensal_associado ?? ''));
           setDiaVencimentoAssociado(String(finRes.data.dia_vencimento_associado ?? '10'));
           setRelatorioHoraEnvio(finRes.data.relatorio_hora_envio ?? '');
-        }
-        if (tenantRes.data) {
-          setFlagMensalidadeAssociado(Boolean(tenantRes.data.enable_mensalidade_associado));
+          setFlagMensalidadeAssociado(Boolean(finRes.data.enable_mensalidade_associado));
         }
       })
       .catch(() => {})
@@ -97,6 +92,7 @@ export default function FinanceiroConfigPage() {
         body.email_relatorio_ativo = emailRelatorioAtivo;
       }
       if (can('mensalidade_associado')) {
+        body.enable_mensalidade_associado = flagMensalidadeAssociado;
         if (valorMensalAssociado) body.valor_mensal_associado = parseFloat(valorMensalAssociado);
         if (diaVencimentoAssociado) body.dia_vencimento_associado = parseInt(diaVencimentoAssociado);
         if (relatorioHoraEnvio) body.relatorio_hora_envio = relatorioHoraEnvio;
@@ -119,7 +115,7 @@ export default function FinanceiroConfigPage() {
           Configuração de Mensalidade
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Defina o valor mensal e o dia de vencimento aplicados a todos os médiuns pagantes.
+          Defina o valor mensal e o dia de vencimento para as cobranças do seu terreiro.
         </Typography>
 
         {loading ? (
@@ -182,55 +178,77 @@ export default function FinanceiroConfigPage() {
                 </>
               )}
 
-              {/* Associados section (PRO+ and flag enabled in /admin/config) */}
-              {can('mensalidade_associado') && flagMensalidadeAssociado && (
+              {/* Associados section (PRO+) */}
+              {can('mensalidade_associado') && (
                 <>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontSize: 11 }}>
-                    Associados
-                  </Typography>
-                  <NumericFormat
-                    customInput={TextField}
-                    label="Valor Mensal Associados (R$)"
-                    size="small"
-                    fullWidth
-                    value={valorMensalAssociado}
-                    onValueChange={(values) => setValorMensalAssociado(values.value)}
-                    thousandSeparator="."
-                    decimalSeparator=","
-                    decimalScale={2}
-                    fixedDecimalScale
-                    prefix="R$ "
-                    allowNegative={false}
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={flagMensalidadeAssociado}
+                        onChange={(e) => setFlagMensalidadeAssociado(e.target.checked)}
+                        color="primary"
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="body2" fontWeight={600}>Habilitar Mensalidade de Associados</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Ativa o controle de mensalidades para associados do terreiro.
+                        </Typography>
+                      </Box>
+                    }
                   />
 
-                  <FormControl size="small" fullWidth>
-                    <InputLabel>Dia de Vencimento (Associados)</InputLabel>
-                    <Select
-                      value={diaVencimentoAssociado}
-                      label="Dia de Vencimento (Associados)"
-                      onChange={(e: SelectChangeEvent) => setDiaVencimentoAssociado(e.target.value)}
-                    >
-                      {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
-                        <MenuItem key={d} value={String(d)}>Dia {d}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  {flagMensalidadeAssociado && (
+                    <>
+                      <Typography variant="subtitle2" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontSize: 11 }}>
+                        Associados
+                      </Typography>
+                      <NumericFormat
+                        customInput={TextField}
+                        label="Valor Mensal Associados (R$)"
+                        size="small"
+                        fullWidth
+                        value={valorMensalAssociado}
+                        onValueChange={(values) => setValorMensalAssociado(values.value)}
+                        thousandSeparator="."
+                        decimalSeparator=","
+                        decimalScale={2}
+                        fixedDecimalScale
+                        prefix="R$ "
+                        allowNegative={false}
+                      />
 
-                  <Box>
-                    <TextField
-                      size="small"
-                      label="Hora de envio do relatório"
-                      type="time"
-                      value={relatorioHoraEnvio}
-                      onChange={(e) => setRelatorioHoraEnvio(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                      inputProps={{ step: 300 }}
-                      fullWidth
-                    />
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                      Envio automático — em breve
-                    </Typography>
-                  </Box>
+                      <FormControl size="small" fullWidth>
+                        <InputLabel>Dia de Vencimento (Associados)</InputLabel>
+                        <Select
+                          value={diaVencimentoAssociado}
+                          label="Dia de Vencimento (Associados)"
+                          onChange={(e: SelectChangeEvent) => setDiaVencimentoAssociado(e.target.value)}
+                        >
+                          {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                            <MenuItem key={d} value={String(d)}>Dia {d}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+
+                      <Box>
+                        <TextField
+                          size="small"
+                          label="Hora de envio do relatório"
+                          type="time"
+                          value={relatorioHoraEnvio}
+                          onChange={(e) => setRelatorioHoraEnvio(e.target.value)}
+                          InputLabelProps={{ shrink: true }}
+                          inputProps={{ step: 300 }}
+                          fullWidth
+                        />
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                          Envio automático — em breve
+                        </Typography>
+                      </Box>
+                    </>
+                  )}
                 </>
               )}
 
