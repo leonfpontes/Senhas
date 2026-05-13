@@ -1,11 +1,11 @@
 ﻿/**
- * Platform Dashboard â€” MÃ©tricas reais do super-admin
+ * Platform Dashboard – Métricas reais do super-admin
  *
- * SeÃ§Ãµes:
- * 1. Alertas acionÃ¡veis (tenants inativos, sem atividade)
+ * Seções:
+ * 1. Alertas acionáveis (tenants inativos, sem atividade)
  * 2. Hero MRR + KPIs
- * 3. Tickets diÃ¡rios (LineChart)
- * 4. DistribuiÃ§Ã£o de planos (pills) + Crescimento cumulativo (AreaChart)
+ * 3. Tickets diários (LineChart)
+ * 4. Distribuição de planos (pills) + Crescimento cumulativo (AreaChart)
  * 5. Top 5 tenants
  */
 
@@ -188,7 +188,7 @@ const MrrDeltaBadge = ({ current, prev }: { current: number; prev: number }) => 
     <Chip
       size="small"
       icon={neutral ? <TrendingFlatIcon /> : positive ? <TrendingUpIcon /> : <TrendingDownIcon />}
-      label={`${positive && !neutral ? '+' : ''}${delta.toFixed(1)}% vs mÃªs ant.`}
+      label={`${positive && !neutral ? '+' : ''}${delta.toFixed(1)}% vs mês ant.`}
       color={neutral ? 'default' : positive ? 'success' : 'error'}
       variant="outlined"
       sx={{ mt: 0.5 }}
@@ -196,7 +196,7 @@ const MrrDeltaBadge = ({ current, prev }: { current: number; prev: number }) => 
   );
 };
 
-/** DistribuiÃ§Ã£o de planos como progress bars em vez de grÃ¡fico de barras */
+/** Distribuição de planos como progress bars */
 const PlansDistribution = ({
   plans,
   totalActive,
@@ -227,7 +227,7 @@ const PlansDistribution = ({
                 </Typography>
               </Box>
               <Typography variant="body2" color="text.secondary">
-                {count} tenant{count !== 1 ? 's' : ''} Â· {pct}%
+                {count} tenant{count !== 1 ? 's' : ''} · {pct}%
               </Typography>
             </Box>
             <Box sx={{ height: 6, bgcolor: 'divider', borderRadius: 3, overflow: 'hidden' }}>
@@ -314,7 +314,7 @@ const PlatformDashboard: React.FC = () => {
     <PlatformLayout>
       <Box>
         {/* ---------------------------------------------------------------- */}
-        {/* 1. Faixa de saÃºde                                                 */}
+        {/* 1. Faixa de saude                                                 */}
         {/* ---------------------------------------------------------------- */}
         <Box
           sx={{
@@ -347,7 +347,7 @@ const PlatformDashboard: React.FC = () => {
                 </Typography>
               </>
             ) : (
-              <Chip size="small" label="â€”" />
+              <Chip size="small" label="—" />
             )}
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -356,7 +356,7 @@ const PlatformDashboard: React.FC = () => {
         </Box>
 
         {/* ---------------------------------------------------------------- */}
-        {/* 2. Alertas acionÃ¡veis                                             */}
+        {/* 2. Alertas acionaveis                                             */}
         {/* ---------------------------------------------------------------- */}
         {hasAlerts && (
           <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 3 }}>
@@ -374,7 +374,7 @@ const PlatformDashboard: React.FC = () => {
                   />
                 }
               >
-                Tenants desabilitados â€” conta ativa, acesso bloqueado
+                Tenants desabilitados — conta ativa, acesso bloqueado
               </Alert>
             )}
             {(alerts?.no_activity_30d ?? 0) > 0 && (
@@ -383,7 +383,7 @@ const PlatformDashboard: React.FC = () => {
                 icon={<SignalCellularOffIcon fontSize="small" />}
                 sx={{ py: 0.5, flex: '1 1 auto' }}
                 action={
-                  <Tooltip title="Tenants ativos que nÃ£o emitiram nenhum ticket nos Ãºltimos 30 dias. Risco de churn.">
+                  <Tooltip title="Tenants ativos que não emitiram nenhum ticket nos últimos 30 dias. Risco de churn.">
                     <Chip
                       size="small"
                       label={`${alerts!.no_activity_30d} tenant${alerts!.no_activity_30d > 1 ? 's' : ''}`}
@@ -393,7 +393,7 @@ const PlatformDashboard: React.FC = () => {
                   </Tooltip>
                 }
               >
-                Sem atividade nos Ãºltimos 30d â€” risco de churn
+                Sem atividade nos últimos 30d — risco de churn
               </Alert>
             )}
           </Box>
@@ -449,7 +449,7 @@ const PlatformDashboard: React.FC = () => {
                 <BigCard
                   title="Tenants Ativos"
                   value={data?.tenants.active ?? 0}
-                  sub={`${data?.tenants.new_30d ?? 0} novos nos Ãºltimos 30d${(data?.tenants.trial ?? 0) > 0 ? ` Â· ${data?.tenants.trial} em trial` : ''}`}
+                  sub={`${data?.tenants.new_30d ?? 0} novos nos últimos 30d${(data?.tenants.trial ?? 0) > 0 ? ` · ${data?.tenants.trial} em trial` : ''}`}
                   icon={<BusinessIcon />}
                   color="#22c55e"
                 />
@@ -465,7 +465,7 @@ const PlatformDashboard: React.FC = () => {
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <BigCard
-                  title="UsuÃ¡rios Ativos"
+                  title="Usuários Ativos"
                   value={data?.user_count ?? 0}
                   icon={<PeopleIcon />}
                   color="#0ea5e9"
@@ -473,9 +473,9 @@ const PlatformDashboard: React.FC = () => {
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <BigCard
-                  title="Tickets (Ãºltimos 30d)"
+                  title="Tickets (últimos 30d)"
                   value={data?.tickets.last_30d ?? 0}
-                  sub={`${data?.tickets.last_7d ?? 0} nos Ãºltimos 7d`}
+                  sub={`${data?.tickets.last_7d ?? 0} nos últimos 7d`}
                   icon={<ConfirmationNumberIcon />}
                   color="#8b5cf6"
                 />
@@ -491,13 +491,13 @@ const PlatformDashboard: React.FC = () => {
             </Grid>
 
             {/* -------------------------------------------------------------- */}
-            {/* 4. Tickets diÃ¡rios (30d)                                        */}
+            {/* 4. Tickets diários (30d)                                        */}
             {/* -------------------------------------------------------------- */}
             <Card sx={{ mb: 4 }}>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="h6">Tickets por dia</Typography>
-                  <Chip size="small" label="Ãºltimos 30d" variant="outlined" />
+                  <Chip size="small" label="últimos 30d" variant="outlined" />
                 </Box>
                 <ResponsiveContainer width="100%" height={240}>
                   <LineChart data={data?.daily_tickets ?? []}>
@@ -519,14 +519,14 @@ const PlatformDashboard: React.FC = () => {
             </Card>
 
             {/* -------------------------------------------------------------- */}
-            {/* 5. DistribuiÃ§Ã£o de planos + Crescimento cumulativo              */}
+            {/* 5. Distribuição de planos + Crescimento cumulativo              */}
             {/* -------------------------------------------------------------- */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
               <Grid item xs={12} md={4}>
                 <Card sx={{ height: '100%' }}>
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                      <Typography variant="h6">DistribuiÃ§Ã£o de planos</Typography>
+                      <Typography variant="h6">Distribuição de planos</Typography>
                       <Chip size="small" label="ativos" variant="outlined" />
                     </Box>
                     <PlansDistribution
@@ -542,7 +542,7 @@ const PlatformDashboard: React.FC = () => {
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                       <Typography variant="h6">Crescimento de tenants (cumulativo)</Typography>
-                      <Chip size="small" label="Ãºltimos 90d" variant="outlined" />
+                      <Chip size="small" label="últimos 90d" variant="outlined" />
                     </Box>
                     <ResponsiveContainer width="100%" height={200}>
                       <AreaChart data={cumulativeGrowth}>
@@ -578,7 +578,7 @@ const PlatformDashboard: React.FC = () => {
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="h6">Top 5 tenants</Typography>
-                  <Chip size="small" label="por tickets nos Ãºltimos 30d" variant="outlined" />
+                  <Chip size="small" label="por tickets nos últimos 30d" variant="outlined" />
                 </Box>
                 <Table size="small">
                   <TableHead>
@@ -609,13 +609,13 @@ const PlatformDashboard: React.FC = () => {
                               sx={{ bgcolor: PLAN_COLORS[t.plan] ?? '#9e9e9e', color: 'white' }}
                             />
                           ) : (
-                            'â€”'
+                            '—'
                           )}
                         </TableCell>
                         <TableCell align="right">
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
                             {t.tickets_30d === 0 && (
-                              <Tooltip title="Nenhum ticket emitido nos Ãºltimos 30d â€” risco de churn">
+                              <Tooltip title="Nenhum ticket emitido nos últimos 30d — risco de churn">
                                 <WarningAmberIcon fontSize="small" color="warning" />
                               </Tooltip>
                             )}
@@ -645,4 +645,3 @@ const PlatformDashboard: React.FC = () => {
 };
 
 export default PlatformDashboard;
-
