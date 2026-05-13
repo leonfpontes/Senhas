@@ -100,7 +100,7 @@ def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
         relatorio_gira=tier >= 1,
         api_access=tier >= 3,
         suporte_prioritario=tier >= 3,
-        mensalidade_mediun=tier >= 2,
+        mensalidade_mediun=tier >= 3,
         mensalidade_associado=tier >= 2,
         site_builder=tier >= 2,
     )
