@@ -1,9 +1,9 @@
 /**
  * Platform Billing Page
  *
- * VisÃ£o consolidada de faturamento para SUPER_ADMIN:
+ * Visão consolidada de faturamento para SUPER_ADMIN:
  * - KPIs: MRR, ativos, trials, suspensos
- * - DistribuiÃ§Ã£o de planos
+ * - Distribuição de planos
  * - Tabela de assinaturas por tenant com busca
  */
 
@@ -39,7 +39,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { apiClient } from "../../services/api_client";
 import PlatformLayout from "./layout";
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface BillingStats {
   active_tenants: number;
@@ -66,13 +66,13 @@ interface SubscriptionItem {
   stripe_customer_id: string | null;
 }
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("pt-BR") : "â€”";
+  iso ? new Date(iso).toLocaleDateString("pt-BR") : "—";
 
 const PLAN_COLORS: Record<string, "default" | "info" | "primary" | "success"> = {
   free: "default",
@@ -95,7 +95,7 @@ const STATUS_COLORS: Record<string, "success" | "warning" | "error" | "default">
   expired: "error",
 };
 
-// â”€â”€â”€ KPI Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── KPI Card ────────────────────────────────────────────────────────────────
 
 interface KpiCardProps {
   label: string;
@@ -128,7 +128,7 @@ function KpiCard({ label, value, icon, color = "text.primary", subtitle }: KpiCa
   );
 }
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 const BillingPage: React.FC = () => {
   const [stats, setStats] = useState<BillingStats | null>(null);
@@ -175,7 +175,7 @@ const BillingPage: React.FC = () => {
         <Box>
           <Typography variant="h5" fontWeight={700}>Faturamento</Typography>
           <Typography variant="body2" color="text.secondary">
-            VisÃ£o consolidada de assinaturas e receita da plataforma
+            Visão consolidada de assinaturas e receita da plataforma
           </Typography>
         </Box>
         <Button
@@ -196,7 +196,7 @@ const BillingPage: React.FC = () => {
         <Grid item xs={12} sm={6} md={3}>
           <KpiCard
             label="MRR Estimado"
-            value={stats ? fmt(stats.mrr) : "â€”"}
+            value={stats ? fmt(stats.mrr) : "—"}
             icon={<TrendingUpIcon />}
             color="primary.main"
             subtitle="Receita mensal recorrente"
@@ -205,7 +205,7 @@ const BillingPage: React.FC = () => {
         <Grid item xs={12} sm={6} md={3}>
           <KpiCard
             label="Tenants Ativos"
-            value={stats?.active_tenants ?? "â€”"}
+            value={stats?.active_tenants ?? "—"}
             icon={<PeopleIcon />}
             color="success.main"
           />
@@ -213,7 +213,7 @@ const BillingPage: React.FC = () => {
         <Grid item xs={12} sm={6} md={3}>
           <KpiCard
             label="Em Trial"
-            value={stats?.trial_tenants ?? "â€”"}
+            value={stats?.trial_tenants ?? "—"}
             icon={<HourglassTopIcon />}
             color="warning.main"
           />
@@ -221,7 +221,7 @@ const BillingPage: React.FC = () => {
         <Grid item xs={12} sm={6} md={3}>
           <KpiCard
             label="Suspensos / Cancelados"
-            value={stats?.suspended_tenants ?? "â€”"}
+            value={stats?.suspended_tenants ?? "—"}
             icon={<WarningAmberIcon />}
             color={stats && stats.suspended_tenants > 0 ? "error.main" : "text.secondary"}
           />
@@ -268,7 +268,7 @@ const BillingPage: React.FC = () => {
             </Typography>
             <TextField
               size="small"
-              placeholder="Buscar por nome ou slugâ€¦"
+              placeholder="Buscar por nome ou slug…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               sx={{ minWidth: 240 }}
@@ -295,9 +295,9 @@ const BillingPage: React.FC = () => {
                     <TableCell>Plano</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell align="right">MRR</TableCell>
-                    <TableCell align="center" sx={{ display: { xs: "none", sm: "table-cell" } }}>UsuÃ¡rios</TableCell>
+                    <TableCell align="center" sx={{ display: { xs: "none", sm: "table-cell" } }}>Usuários</TableCell>
                     <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>Extras</TableCell>
-                    <TableCell sx={{ display: { xs: "none", lg: "table-cell" } }}>PrÃ³x. Ciclo</TableCell>
+                    <TableCell sx={{ display: { xs: "none", lg: "table-cell" } }}>Próx. Ciclo</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -341,19 +341,19 @@ const BillingPage: React.FC = () => {
                           <Typography variant="body2">
                             {s.current_users}
                             <Typography component="span" variant="caption" color="text.secondary">
-                              /{s.max_users === 999999 ? "âˆž" : s.max_users}
+                              /{s.max_users === 999999 ? "∞" : s.max_users}
                             </Typography>
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>
                           <Stack direction="row" gap={0.5} flexWrap="wrap">
                             {s.is_trial && (
-                              <Tooltip title={s.trial_ends_at ? `Trial atÃ© ${fmtDate(s.trial_ends_at)}` : "Em trial"}>
+                              <Tooltip title={s.trial_ends_at ? `Trial até ${fmtDate(s.trial_ends_at)}` : "Em trial"}>
                                 <Chip label="TRIAL" size="small" color="warning" variant="outlined" sx={{ fontSize: "0.65rem" }} />
                               </Tooltip>
                             )}
                             {s.is_bonus && (
-                              <Chip label="BÃ”NUS" size="small" color="secondary" variant="outlined" sx={{ fontSize: "0.65rem" }} />
+                              <Chip label="BÔNUS" size="small" color="secondary" variant="outlined" sx={{ fontSize: "0.65rem" }} />
                             )}
                             {s.cancel_at_period_end && (
                               <Chip label="CANCELA" size="small" color="error" variant="outlined" sx={{ fontSize: "0.65rem" }} />
