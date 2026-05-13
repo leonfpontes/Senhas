@@ -14,6 +14,9 @@ from src.models.audit_logs import AuditLog, AuditAction
 from src.models.tenants import Tenant
 from src.services.consolidated_audit_service import ConsolidatedAuditService
 
+# Alias to avoid collision with the `User` dependency
+_User = User
+
 router = APIRouter(prefix="/api/v1/platform/audit-logs", tags=["platform-audit"])
 
 
@@ -126,7 +129,7 @@ async def get_audit_feed(
             except ValueError:
                 raise HTTPException(status_code=400, detail=f"Ação inválida: {action}")
 
-        # Simple join to get tenant name
+        # Join with Tenant and User to get human-readable names
         stmt = (
             select(
                 AuditLog.id,
@@ -139,8 +142,11 @@ async def get_audit_feed(
                 AuditLog.created_at,
                 Tenant.name.label("tenant_name"),
                 Tenant.slug.label("tenant_slug"),
+                _User.email.label("user_email"),
+                _User.username.label("user_username"),
             )
             .outerjoin(Tenant, AuditLog.tenant_id == Tenant.id)
+            .outerjoin(_User, AuditLog.user_id == _User.id)
             .where(and_(*filters))
             .order_by(AuditLog.created_at.desc())
             .offset(skip)
@@ -157,6 +163,8 @@ async def get_audit_feed(
                 "tenant_name": row.tenant_name or "Platform",
                 "tenant_slug": row.tenant_slug or "",
                 "user_id": str(row.user_id) if row.user_id else None,
+                "user_email": row.user_email,
+                "user_username": row.user_username,
                 "action": row.action.value,
                 "resource_type": row.resource_type,
                 "resource_id": str(row.resource_id) if row.resource_id else None,

@@ -241,32 +241,32 @@ class ConsolidatedAuditService:
             return 0.0
         return sum(by_tenant.values()) / len(by_tenant)
     
-    def _get_most_active(self, by_tenant: Dict) -> Optional[tuple]:
+    def _get_most_active(self, by_tenant: Dict) -> Optional[str]:
         """Get most active tenant.
         
         Args:
             by_tenant: Dict of counts by tenant
             
         Returns:
-            Tuple of (tenant_id_str, count) or None
+            Tenant id string or None
         """
         if not by_tenant:
             return None
         max_tenant = max(by_tenant.items(), key=lambda x: x[1])
-        return (str(max_tenant[0]), max_tenant[1])
+        return str(max_tenant[0])
     
-    def _get_most_common_action(self, by_action: Dict) -> Optional[tuple]:
+    def _get_most_common_action(self, by_action: Dict) -> Optional[str]:
         """Get most common action.
         
         Args:
             by_action: Dict of counts by action
             
         Returns:
-            Tuple of (action, count) or None
+            Action string or None
         """
         if not by_action:
             return None
-        return max(by_action.items(), key=lambda x: x[1])
+        return max(by_action.items(), key=lambda x: x[1])[0]
     
     def _audit_log_to_dict(self, log) -> Dict[str, Any]:
         """Convert audit log to dict.

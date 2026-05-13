@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Audit Log Consolidado (T114) - Centro de compliance e seguranca cross-tenant.
  * Responde: "O que esta acontecendo em todos os meus tenants? Quem fez o que e quando?"
  */
@@ -8,6 +8,11 @@ import {
   Button,
   Card,
   CardContent,
+  Collapse,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  IconButton,
   Table,
   TableBody,
   TableCell,
@@ -18,11 +23,9 @@ import {
   TextField,
   CircularProgress,
   Alert,
-  Grid,
   Chip,
   Tab,
   Typography,
-  IconButton,
   Tooltip,
   Select,
   MenuItem,
@@ -38,10 +41,12 @@ import SecurityIcon from "@mui/icons-material/Security";
 import PeopleIcon from "@mui/icons-material/People";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import BusinessIcon from "@mui/icons-material/Business";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import CloseIcon from "@mui/icons-material/Close";
 import { apiClient } from "../../services/api_client";
 import PlatformLayout from "./layout";
 
-// ─── Tipos ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Tipos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface FeedEntry {
   id: string;
@@ -49,6 +54,8 @@ interface FeedEntry {
   tenant_name: string;
   tenant_slug: string;
   user_id: string | null;
+  user_email?: string | null;
+  user_username?: string | null;
   action: string;
   resource_type: string;
   resource_id: string | null;
@@ -76,7 +83,7 @@ interface Tenant {
   slug: string;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Mapeamentos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ACTION_LABELS: Record<string, string> = {
   create: "Criacao",
@@ -100,14 +107,216 @@ const ACTION_COLORS: Record<string, "success" | "info" | "warning" | "error" | "
   TENANT_DELETED: "error",
 };
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const RESOURCE_LABELS: Record<string, string> = {
+  User: "Usuario",
+  Ticket: "Ticket",
+  Gira: "Gira",
+  TenantConfig: "Configuracao",
+  GiraSenhaConfig: "Config. de Senha",
+  Subscription: "Assinatura",
+  EstoqueGrupo: "Grupo de Material",
+  EstoqueItem: "Item de Estoque",
+  EstoqueMovimentacao: "Movimentacao de Estoque",
+  Tenant: "Terreiro",
+  Associado: "Associado",
+  MensalidadeConfig: "Config. Mensalidade",
+  MensalidadePagamento: "Pagamento de Mensalidade",
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  nome: "Nome",
+  email: "Email",
+  full_name: "Nome completo",
+  username: "Usuario",
+  phone: "Telefone",
+  is_active: "Ativo",
+  data_inicio: "Data de inicio",
+  data_fim: "Data de fim",
+  endereco: "Endereco",
+  primary_color: "Cor primaria",
+  secondary_color: "Cor secundaria",
+  font_color: "Cor da fonte",
+  max_giras_per_month: "Max. giras/mes",
+  max_tickets_per_gira: "Max. tickets/gira",
+  enable_walk_in: "Walk-in habilitado",
+  enable_sponsors: "Patrocinadores habilitados",
+  validate_associado_on_emit: "Validar associado na emissao",
+  walk_in_limit: "Limite walk-in",
+  slug: "Slug",
+  role: "Papel",
+  status: "Status",
+  tipo: "Tipo",
+  numero: "Numero",
+  gira_id: "Gira",
+  plan: "Plano",
+  success: "Sucesso",
+  ip_address: "Endereco IP",
+  valor_mensal: "Valor mensal",
+  dia_vencimento: "Dia de vencimento",
+  mensalidade_isento: "Isento de mensalidade",
+};
+
+const HIDDEN_FIELDS = new Set([
+  "id", "tenant_id", "created_at", "updated_at", "deleted_at",
+  "password_hash", "profile_photo_data", "profile_photo_url",
+  "profile_photo_content_type", "user_agent", "path", "method",
+]);
+
+// â”€â”€â”€ Helpers de formatacao de detalhes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function fieldLabel(key: string): string {
+  return FIELD_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatValue(val: unknown): string {
+  if (val === null || val === undefined) return "â€”";
+  if (typeof val === "boolean") return val ? "Sim" : "Nao";
+  if (Array.isArray(val)) return `${val.length} item(ns)`;
+  if (typeof val === "object") return JSON.stringify(val);
+  const s = String(val);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    try { return new Date(s).toLocaleString("pt-BR"); } catch { return s; }
+  }
+  return s;
+}
+
+function diffObjects(
+  prev: Record<string, unknown>,
+  next: Record<string, unknown>
+): Array<{ field: string; from: unknown; to: unknown }> {
+  const changes: Array<{ field: string; from: unknown; to: unknown }> = [];
+  const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
+  for (const key of allKeys) {
+    if (HIDDEN_FIELDS.has(key)) continue;
+    if (JSON.stringify(prev[key] ?? null) !== JSON.stringify(next[key] ?? null)) {
+      changes.push({ field: key, from: prev[key], to: next[key] });
+    }
+  }
+  return changes;
+}
+
+// â”€â”€â”€ Componente de detalhes formatados â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function FormatDetails({
+  action,
+  details,
+}: {
+  action: string;
+  details?: Record<string, unknown> | null;
+}) {
+  if (!details) return <Typography variant="body2" color="text.secondary">â€”</Typography>;
+
+  // LOGIN / LOGOUT â€” destacar falhas como erros
+  if (action === "login" || action === "logout") {
+    const success = (details as any).success !== false;
+    return (
+      <Stack direction="row" flexWrap="wrap" spacing={0.5} alignItems="center">
+        <Chip
+          label={success ? "sucesso" : "FALHA"}
+          size="small"
+          color={success ? "success" : "error"}
+          sx={{ height: 20, fontSize: "0.7rem", fontWeight: 700 }}
+        />
+        {(details as any).ip_address && (
+          <Typography variant="caption" color="text.secondary">
+            IP: {(details as any).ip_address}
+          </Typography>
+        )}
+      </Stack>
+    );
+  }
+
+  // BULK
+  if ((details as any).operation_type) {
+    const opLabels: Record<string, string> = {
+      bulk_mark_used: "Marcar como usado",
+      bulk_cancel: "Cancelar em massa",
+    };
+    return (
+      <Typography variant="body2">
+        <strong>{opLabels[(details as any).operation_type] || (details as any).operation_type}</strong>
+        {" â€” "}{(details as any).count} registro(s)
+      </Typography>
+    );
+  }
+
+  // UPDATE â€” diff entre estados
+  const prev = (details as any).previous_state || (details as any).previous_values;
+  const next = (details as any).new_state || (details as any).new_values;
+  if (prev && next) {
+    const changes = diffObjects(prev, next);
+    if (changes.length === 0)
+      return <Typography variant="body2" color="text.secondary">Sem alteracoes visiveis</Typography>;
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.4 }}>
+        {changes.map(({ field, from, to }) => (
+          <Box key={field} sx={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 0.4 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary" }}>
+              {fieldLabel(field)}:
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ color: "#c62828", textDecoration: "line-through", wordBreak: "break-word" }}
+            >
+              {formatValue(from)}
+            </Typography>
+            <Typography variant="caption" sx={{ mx: 0.3 }}>â†’</Typography>
+            <Typography
+              variant="caption"
+              sx={{ color: "#2e7d32", fontWeight: 700, wordBreak: "break-word" }}
+            >
+              {formatValue(to)}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+    );
+  }
+
+  // DELETE â€” nome do recurso removido
+  if (action === "delete" && (details as any).previous_state) {
+    const state = (details as any).previous_state as Record<string, unknown>;
+    const label = (state.nome || state.email || state.numero) as string | undefined;
+    return (
+      <Typography variant="body2" color="error.main">
+        Removido{label ? `: ${label}` : ""}
+      </Typography>
+    );
+  }
+
+  // CREATE â€” campos principais
+  if (action === "create") {
+    const meaningful = Object.entries(details).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== "path" && k !== "user_agent");
+    if (meaningful.length === 0)
+      return <Typography variant="body2" color="text.secondary">â€”</Typography>;
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+        {meaningful.slice(0, 4).map(([key, val]) => (
+          <Typography key={key} variant="caption">
+            <strong>{fieldLabel(key)}:</strong> {formatValue(val)}
+          </Typography>
+        ))}
+      </Box>
+    );
+  }
+
+  // Fallback
+  const raw = JSON.stringify(details);
+  return (
+    <Typography variant="caption" sx={{ wordBreak: "break-word", color: "text.secondary" }}>
+      {raw.length <= 100 ? raw : raw.slice(0, 100) + "â€¦"}
+    </Typography>
+  );
+}
+
+// â”€â”€â”€ Helpers de data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function fmtDate(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  return {
+    date: d.toLocaleDateString("pt-BR"),
+    time: d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+  };
 }
 
 function todayStr(): string {
@@ -120,7 +329,7 @@ function thirtyDaysAgoStr(): string {
   return d.toISOString().slice(0, 10);
 }
 
-// ─── Componente KPI ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Componente KPI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function KpiCard({
   icon,
@@ -162,7 +371,88 @@ function KpiCard({
   );
 }
 
-// ─── Pagina Principal ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Modal de detalhes completos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function DetailsModal({
+  entry,
+  onClose,
+}: {
+  entry: FeedEntry | null;
+  onClose: () => void;
+}) {
+  if (!entry) return null;
+  return (
+    <Dialog open={!!entry} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Typography variant="subtitle1" fontWeight={700}>
+          Detalhes do Evento
+        </Typography>
+        <IconButton size="small" onClick={onClose}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={1.5}>
+          <Box>
+            <Typography variant="caption" color="text.secondary">Tenant</Typography>
+            <Typography variant="body2" fontWeight={600}>{entry.tenant_name}</Typography>
+            {entry.tenant_slug && (
+              <Typography variant="caption" color="text.secondary">{entry.tenant_slug}</Typography>
+            )}
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">Acao</Typography>
+            <Box mt={0.25}>
+              <Chip
+                label={ACTION_LABELS[entry.action] ?? entry.action}
+                color={ACTION_COLORS[entry.action] ?? "default"}
+                size="small"
+              />
+            </Box>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">Recurso</Typography>
+            <Typography variant="body2">
+              {RESOURCE_LABELS[entry.resource_type] ?? entry.resource_type}
+              {entry.resource_id && (
+                <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                  ({entry.resource_id})
+                </Typography>
+              )}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">Usuario</Typography>
+            <Typography variant="body2">
+              {entry.user_username || entry.user_email || "sistema"}
+              {entry.user_email && entry.user_username && (
+                <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                  ({entry.user_email})
+                </Typography>
+              )}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">Data / Hora</Typography>
+            <Typography variant="body2">
+              {new Date(entry.created_at).toLocaleString("pt-BR")}
+            </Typography>
+          </Box>
+          {entry.details && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                Detalhes
+              </Typography>
+              <FormatDetails action={entry.action} details={entry.details} />
+            </Box>
+          )}
+        </Stack>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// â”€â”€â”€ Pagina Principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function AuditConsolidadoPage() {
   const [startDate, setStartDate] = useState(thirtyDaysAgoStr());
@@ -177,23 +467,13 @@ export default function AuditConsolidadoPage() {
   const [feedTotal, setFeedTotal] = useState(0);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantMap, setTenantMap] = useState<Record<string, string>>({});
+  const [detailEntry, setDetailEntry] = useState<FeedEntry | null>(null);
 
   const [filterTenant, setFilterTenant] = useState<string>("");
   const [filterAction, setFilterAction] = useState<string>("");
   const [exporting, setExporting] = useState(false);
 
   const FEED_LIMIT = 50;
-
-  // Carrega lista de tenants para resolver nomes
-  useEffect(() => {
-    apiClient.get<{ items: Tenant[] }>("/api/v1/platform/tenants?limit=200").then((res) => {
-      const list = res.data?.items ?? [];
-      setTenants(list);
-      const map: Record<string, string> = {};
-      list.forEach((t) => { map[t.id] = t.name; });
-      setTenantMap(map);
-    });
-  }, []);
 
   const fetchAll = useCallback(
     async (page = 0) => {
@@ -206,17 +486,23 @@ export default function AuditConsolidadoPage() {
           (filterTenant ? `&tenant_id=${filterTenant}` : "") +
           (filterAction ? `&action=${filterAction}` : "");
 
-        const [summaryRes, feedRes] = await Promise.all([
+        const [summaryRes, feedRes, tenantsRes] = await Promise.all([
           apiClient.get<AuditSummary>(`/api/v1/platform/audit-logs?${params}`),
           apiClient.get<FeedEntry[]>(`/api/v1/platform/audit-logs/feed?${feedParams}`),
+          apiClient.get<{ items: Tenant[] }>("/api/v1/platform/tenants?limit=200"),
         ]);
+
+        const tenantList = tenantsRes.data?.items ?? [];
+        const map: Record<string, string> = {};
+        tenantList.forEach((t) => { map[t.id] = t.name; });
+        setTenants(tenantList);
+        setTenantMap(map);
 
         setSummary(summaryRes.data);
         setFeed(Array.isArray(feedRes.data) ? feedRes.data : []);
         setFeedPage(page);
-        // total feed entries derived from summary
         setFeedTotal(summaryRes.data?.total ?? 0);
-      } catch (e) {
+      } catch {
         setError("Falha ao carregar dados de auditoria.");
       } finally {
         setLoading(false);
@@ -258,7 +544,7 @@ export default function AuditConsolidadoPage() {
     }
   };
 
-  // ─── KPI calculados ───────────────────────────────────────────────────────
+  // â”€â”€â”€ KPIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const activeTenantsCount = summary
     ? Object.keys(summary.by_tenant ?? {}).length
@@ -267,21 +553,27 @@ export default function AuditConsolidadoPage() {
   const mostCommonAction = summary?.statistics?.most_common_action ?? null;
 
   const mostActiveTenantId = summary?.statistics?.most_active_tenant ?? null;
-  const mostActiveTenantName = mostActiveTenantId
-    ? tenantMap[mostActiveTenantId] ?? mostActiveTenantId.slice(0, 8) + "..."
-    : null;
+  const mostActiveTenantName =
+    mostActiveTenantId && typeof mostActiveTenantId === "string"
+      ? tenantMap[mostActiveTenantId] ?? mostActiveTenantId.slice(0, 8) + "..."
+      : null;
 
-  // ─── Tabela Por Tenant ────────────────────────────────────────────────────
+  // â”€â”€â”€ Tabela Por Tenant â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const byTenantRows = summary
     ? Object.entries(summary.by_tenant ?? {})
-        .map(([id, count]) => ({ id, name: tenantMap[id] ?? id.slice(0, 8) + "...", count }))
+        .map(([id, count]) => ({
+          id,
+          name: tenantMap[id] ?? id.slice(0, 8) + "...",
+          slug: tenants.find((t) => t.id === id)?.slug ?? "",
+          count,
+        }))
         .sort((a, b) => b.count - a.count)
     : [];
 
   const maxTenantCount = byTenantRows[0]?.count ?? 1;
 
-  // ─── Tabela Por Acao ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Tabela Por Acao â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const byActionRows = summary
     ? Object.entries(summary.by_action ?? {})
@@ -291,13 +583,13 @@ export default function AuditConsolidadoPage() {
 
   const totalActions = byActionRows.reduce((s, r) => s + r.count, 0) || 1;
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   return (
     <PlatformLayout>
       <Box sx={{ p: 3 }}>
         {/* Cabecalho */}
-        <Stack direction="row" alignItems="center" spacing={1.5} mb={1}>
+        <Stack data-tour="audit-cons-header" direction="row" alignItems="center" spacing={1.5} mb={1}>
           <SecurityIcon color="action" />
           <Box>
             <Typography variant="h5" fontWeight={700}>
@@ -310,7 +602,7 @@ export default function AuditConsolidadoPage() {
         </Stack>
 
         {/* Filtros */}
-        <Paper sx={{ p: 2, mb: 2 }}>
+        <Paper data-tour="audit-cons-filtros" sx={{ p: 2, mb: 2 }}>
           <Stack
             direction={{ xs: "column", md: "row" }}
             spacing={2}
@@ -415,14 +707,14 @@ export default function AuditConsolidadoPage() {
               value={
                 mostCommonAction
                   ? ACTION_LABELS[mostCommonAction] ?? mostCommonAction
-                  : "—"
+                  : "â€”"
               }
               color="warning"
             />
             <KpiCard
               icon={<PeopleIcon fontSize="small" />}
               label="Tenant Mais Ativo"
-              value={mostActiveTenantName ?? "—"}
+              value={mostActiveTenantName ?? "â€”"}
               color="success"
             />
           </Stack>
@@ -430,7 +722,8 @@ export default function AuditConsolidadoPage() {
 
         {/* Tabs */}
         <TabContext value={tab}>
-          <Paper sx={{ mb: 2 }}>
+          {/* data-tour anchor aplicado no Paper das tabs */}
+          <Paper data-tour="audit-cons-tabs" sx={{ mb: 2 }}>
             <TabList onChange={(_, v) => setTab(v)} variant="scrollable">
               <Tab label="Atividade Recente" value="feed" />
               <Tab label="Por Tenant" value="tenant" />
@@ -438,81 +731,111 @@ export default function AuditConsolidadoPage() {
             </TabList>
           </Paper>
 
-          {/* ── Tab: Atividade Recente ── */}
+          {/* â”€â”€ Tab: Atividade Recente â”€â”€ */}
           <TabPanel value="feed" sx={{ p: 0 }}>
             <TableContainer component={Paper}>
               <Table size="small">
-                <TableHead>
+                <TableHead sx={{ bgcolor: "#f5f5f5" }}>
                   <TableRow>
-                    <TableCell>Tenant</TableCell>
-                    <TableCell>Acao</TableCell>
-                    <TableCell>Recurso</TableCell>
-                    <TableCell>Recurso ID</TableCell>
-                    <TableCell>Usuario</TableCell>
-                    <TableCell>Data / Hora</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Tenant</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Acao</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Recurso</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Usuario</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Detalhes</TableCell>
+                    <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>Data / Hora</TableCell>
+                    <TableCell sx={{ width: 40 }} />
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {feed.length === 0 && !loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                      <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                         <Typography color="text.secondary">
                           Nenhum evento encontrado no periodo selecionado.
                         </Typography>
                       </TableCell>
                     </TableRow>
                   ) : (
-                    feed.map((entry) => (
-                      <TableRow key={entry.id} hover>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={500}>
-                            {entry.tenant_name}
-                          </Typography>
-                          {entry.tenant_slug && (
-                            <Typography variant="caption" color="text.secondary">
-                              {entry.tenant_slug}
+                    feed.map((entry) => {
+                      const isError =
+                        entry.action === "login" &&
+                        (entry.details as any)?.success === false;
+                      const dt = fmtDate(entry.created_at);
+                      return (
+                        <TableRow
+                          key={entry.id}
+                          hover
+                          sx={{
+                            verticalAlign: "top",
+                            bgcolor: isError ? "rgba(211,47,47,0.05)" : undefined,
+                          }}
+                        >
+                          <TableCell sx={{ py: 1.5 }}>
+                            <Typography variant="body2" fontWeight={500}>
+                              {entry.tenant_name}
                             </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={ACTION_LABELS[entry.action] ?? entry.action}
-                            color={ACTION_COLORS[entry.action] ?? "default"}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">{entry.resource_type}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Tooltip title={entry.resource_id ?? ""}>
-                            <Typography variant="caption" noWrap sx={{ maxWidth: 80, display: "block" }}>
-                              {entry.resource_id
-                                ? entry.resource_id.slice(0, 8) + "..."
-                                : "—"}
+                            {entry.tenant_slug && (
+                              <Typography variant="caption" color="text.secondary">
+                                {entry.tenant_slug}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ py: 1.5 }}>
+                            <Chip
+                              label={ACTION_LABELS[entry.action] ?? entry.action}
+                              color={ACTION_COLORS[entry.action] ?? "default"}
+                              size="small"
+                            />
+                            {isError && (
+                              <Chip
+                                label="ERRO"
+                                color="error"
+                                size="small"
+                                sx={{ ml: 0.5, height: 18, fontSize: "0.65rem", fontWeight: 700 }}
+                              />
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ py: 1.5 }}>
+                            <Typography variant="body2">
+                              {RESOURCE_LABELS[entry.resource_type] ?? entry.resource_type}
                             </Typography>
-                          </Tooltip>
-                        </TableCell>
-                        <TableCell>
-                          <Tooltip title={entry.user_id ?? "sistema"}>
-                            <Typography variant="caption" noWrap sx={{ maxWidth: 80, display: "block" }}>
-                              {entry.user_id
-                                ? entry.user_id.slice(0, 8) + "..."
-                                : "sistema"}
+                          </TableCell>
+                          <TableCell sx={{ py: 1.5 }}>
+                            <Typography variant="body2">
+                              {entry.user_username || entry.user_email || "sistema"}
                             </Typography>
-                          </Tooltip>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="caption">{fmtDate(entry.created_at)}</Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                            {entry.user_username && entry.user_email && (
+                              <Typography variant="caption" color="text.secondary">
+                                {entry.user_email}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ py: 1.5, maxWidth: 300 }}>
+                            <FormatDetails action={entry.action} details={entry.details} />
+                          </TableCell>
+                          <TableCell sx={{ py: 1.5, whiteSpace: "nowrap" }}>
+                            <Typography variant="body2">{dt.date}</Typography>
+                            <Typography variant="caption" color="text.secondary">{dt.time}</Typography>
+                          </TableCell>
+                          <TableCell sx={{ py: 1 }}>
+                            <Tooltip title="Ver detalhes completos">
+                              <IconButton
+                                size="small"
+                                onClick={() => setDetailEntry(entry)}
+                              >
+                                <InfoOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
             </TableContainer>
 
-            {/* Paginacao simples */}
+            {/* Paginacao */}
             {feed.length > 0 && (
               <Stack direction="row" spacing={1} justifyContent="center" mt={2}>
                 <Button
@@ -536,16 +859,16 @@ export default function AuditConsolidadoPage() {
             )}
           </TabPanel>
 
-          {/* ── Tab: Por Tenant ── */}
+          {/* â”€â”€ Tab: Por Tenant â”€â”€ */}
           <TabPanel value="tenant" sx={{ p: 0 }}>
             <TableContainer component={Paper}>
               <Table size="small">
-                <TableHead>
+                <TableHead sx={{ bgcolor: "#f5f5f5" }}>
                   <TableRow>
-                    <TableCell>#</TableCell>
-                    <TableCell>Tenant</TableCell>
-                    <TableCell>Eventos</TableCell>
-                    <TableCell sx={{ minWidth: 200 }}>Proporcao</TableCell>
+                    <TableCell sx={{ fontWeight: 700, width: 40 }}>#</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Tenant</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Eventos</TableCell>
+                    <TableCell sx={{ fontWeight: 700, minWidth: 200 }}>Proporcao</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -561,20 +884,22 @@ export default function AuditConsolidadoPage() {
                     byTenantRows.map((row, idx) => (
                       <TableRow key={row.id} hover>
                         <TableCell>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" color="text.secondary" fontWeight={600}>
                             {idx + 1}
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" fontWeight={500}>
+                          <Typography variant="body2" fontWeight={600}>
                             {row.name}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {row.id.slice(0, 8)}...
-                          </Typography>
+                          {row.slug && (
+                            <Typography variant="caption" color="text.secondary">
+                              {row.slug}
+                            </Typography>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" fontWeight={600}>
+                          <Typography variant="body2" fontWeight={700}>
                             {row.count.toLocaleString("pt-BR")}
                           </Typography>
                         </TableCell>
@@ -585,7 +910,7 @@ export default function AuditConsolidadoPage() {
                               value={(row.count / maxTenantCount) * 100}
                               sx={{ flex: 1, height: 8, borderRadius: 4 }}
                             />
-                            <Typography variant="caption" sx={{ minWidth: 36 }}>
+                            <Typography variant="caption" sx={{ minWidth: 38 }}>
                               {((row.count / totalActions) * 100).toFixed(1)}%
                             </Typography>
                           </Box>
@@ -598,16 +923,16 @@ export default function AuditConsolidadoPage() {
             </TableContainer>
           </TabPanel>
 
-          {/* ── Tab: Por Acao ── */}
+          {/* â”€â”€ Tab: Por Acao â”€â”€ */}
           <TabPanel value="action" sx={{ p: 0 }}>
             <TableContainer component={Paper}>
               <Table size="small">
-                <TableHead>
+                <TableHead sx={{ bgcolor: "#f5f5f5" }}>
                   <TableRow>
-                    <TableCell>#</TableCell>
-                    <TableCell>Acao</TableCell>
-                    <TableCell>Eventos</TableCell>
-                    <TableCell sx={{ minWidth: 200 }}>Proporcao</TableCell>
+                    <TableCell sx={{ fontWeight: 700, width: 40 }}>#</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Acao</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Eventos</TableCell>
+                    <TableCell sx={{ fontWeight: 700, minWidth: 200 }}>Proporcao</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -623,7 +948,7 @@ export default function AuditConsolidadoPage() {
                     byActionRows.map((row, idx) => (
                       <TableRow key={row.action} hover>
                         <TableCell>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" color="text.secondary" fontWeight={600}>
                             {idx + 1}
                           </Typography>
                         </TableCell>
@@ -635,7 +960,7 @@ export default function AuditConsolidadoPage() {
                           />
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" fontWeight={600}>
+                          <Typography variant="body2" fontWeight={700}>
                             {row.count.toLocaleString("pt-BR")}
                           </Typography>
                         </TableCell>
@@ -647,7 +972,7 @@ export default function AuditConsolidadoPage() {
                               sx={{ flex: 1, height: 8, borderRadius: 4 }}
                               color={ACTION_COLORS[row.action] === "error" ? "error" : "primary"}
                             />
-                            <Typography variant="caption" sx={{ minWidth: 36 }}>
+                            <Typography variant="caption" sx={{ minWidth: 38 }}>
                               {((row.count / totalActions) * 100).toFixed(1)}%
                             </Typography>
                           </Box>
@@ -661,6 +986,10 @@ export default function AuditConsolidadoPage() {
           </TabPanel>
         </TabContext>
       </Box>
+
+      {/* Modal de detalhes */}
+      <DetailsModal entry={detailEntry} onClose={() => setDetailEntry(null)} />
     </PlatformLayout>
   );
 }
+
