@@ -123,16 +123,21 @@ async def _handle_checkout_completed(session: dict, db: AsyncSession) -> None:
         return
 
     # Retrieve subscription details from Stripe to get price/period
+    import asyncio
     import stripe
-    stripe_sub = stripe.Subscription.retrieve(stripe_subscription_id)
+    stripe_sub = await asyncio.to_thread(stripe.Subscription.retrieve, stripe_subscription_id)
     price_id = stripe_sub["items"]["data"][0]["price"]["id"]
     current_period_end_ts = stripe_sub.get("current_period_end")
 
     plan_map = _get_price_plan_map()
     limits = plan_map.get(price_id)
     if not limits:
-        logger.warning("Unknown price_id from Stripe: %s", price_id)
-        return
+        logger.error(
+            "Unknown price_id from Stripe: %s — verificar STRIPE_PRICE_PRO/BASIC/PREMIUM no .env. "
+            "Retornando 500 para Stripe retentar.",
+            price_id,
+        )
+        raise ValueError(f"price_id desconhecido: {price_id}")
 
     from datetime import datetime, timezone
     sub.stripe_subscription_id = stripe_subscription_id
