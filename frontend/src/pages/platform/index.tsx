@@ -162,7 +162,16 @@ const BigCard = ({
           {icon}
         </Box>
         <Box>
-          <Typography variant="body2" color="text.secondary">
+          <Typography
+            sx={{
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: 'text.secondary',
+              mb: 0.25,
+            }}
+          >
             {title}
           </Typography>
           <Typography variant="h5" fontWeight={700} lineHeight={1.2}>
@@ -257,6 +266,21 @@ const PlatformDashboard: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Agrega tickets diários em semanas para o gráfico
+  const weeklyTickets = useMemo(() => {
+    const days = data?.daily_tickets ?? [];
+    if (!days.length) return days;
+    const weeks: { date: string; count: number }[] = [];
+    for (let i = 0; i < days.length; i += 7) {
+      const slice = days.slice(i, i + 7);
+      weeks.push({
+        date: slice[0].date,
+        count: slice.reduce((s, d) => s + d.count, 0),
+      });
+    }
+    return weeks;
+  }, [data?.daily_tickets]);
 
   const cumulativeGrowth = useMemo(() => {
     if (!data?.tenant_growth) return [];
@@ -379,7 +403,7 @@ const PlatformDashboard: React.FC = () => {
             )}
             {(alerts?.no_activity_30d ?? 0) > 0 && (
               <Alert
-                severity="info"
+                severity="warning"
                 icon={<SignalCellularOffIcon fontSize="small" />}
                 sx={{ py: 0.5, flex: '1 1 auto' }}
                 action={
@@ -387,7 +411,7 @@ const PlatformDashboard: React.FC = () => {
                     <Chip
                       size="small"
                       label={`${alerts!.no_activity_30d} tenant${alerts!.no_activity_30d > 1 ? 's' : ''}`}
-                      color="info"
+                      color="warning"
                       variant="outlined"
                     />
                   </Tooltip>
@@ -455,13 +479,23 @@ const PlatformDashboard: React.FC = () => {
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <BigCard
-                  title="Inativos / Total"
-                  value={`${data?.tenants.inactive ?? 0} / ${data?.tenants.total ?? 0}`}
-                  sub={`${data?.tenants.inactive ?? 0} tenant${(data?.tenants.inactive ?? 0) !== 1 ? 's' : ''} com acesso bloqueado`}
-                  icon={<BusinessIcon />}
-                  color={(data?.tenants.inactive ?? 0) > 0 ? '#f59e0b' : '#9e9e9e'}
-                />
+                {(data?.tenants.inactive ?? 0) > 0 ? (
+                  <BigCard
+                    title="Tenants Inativos"
+                    value={`${data!.tenants.inactive} / ${data!.tenants.total}`}
+                    sub={`${data!.tenants.inactive} tenant${data!.tenants.inactive !== 1 ? 's' : ''} com acesso bloqueado`}
+                    icon={<BusinessIcon />}
+                    color="#f59e0b"
+                  />
+                ) : (
+                  <BigCard
+                    title="Total de Tenants"
+                    value={data?.tenants.total ?? 0}
+                    sub="todos com acesso ativo"
+                    icon={<BusinessIcon />}
+                    color="#9e9e9e"
+                  />
+                )}
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <BigCard
@@ -496,11 +530,14 @@ const PlatformDashboard: React.FC = () => {
             <Card sx={{ mb: 4 }}>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6">Tickets por dia</Typography>
+                  <Box>
+                    <Typography variant="h6">Tickets por semana</Typography>
+                    <Typography variant="caption" color="text.secondary">tendência nos últimos 30d</Typography>
+                  </Box>
                   <Chip size="small" label="últimos 30d" variant="outlined" />
                 </Box>
-                <ResponsiveContainer width="100%" height={240}>
-                  <LineChart data={data?.daily_tickets ?? []}>
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={weeklyTickets}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
@@ -554,7 +591,7 @@ const PlatformDashboard: React.FC = () => {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} domain={[0, 'auto']} />
                         <RechartsTooltip />
                         <Area
                           type="monotone"
