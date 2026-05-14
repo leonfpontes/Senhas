@@ -18,6 +18,7 @@ import json
 import logging
 import hashlib
 import uuid
+from src.core.tz import APP_TZ
 
 from src.core.config import settings
 from src.core.database import get_db
@@ -355,7 +356,7 @@ async def emit_ticket(
             f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{ticket.id}"
         )
 
-        gira_date_str = gira.data_inicio.strftime("%d/%m/%Y às %H:%M") if gira.data_inicio else ""
+        gira_date_str = gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if gira.data_inicio else ""
 
         # Fetch tenant config for address + colors
         tc_query = select(TenantConfig).where(TenantConfig.tenant_id == tenant.id)

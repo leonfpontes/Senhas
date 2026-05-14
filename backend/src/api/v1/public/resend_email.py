@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 
 from src.core.database import get_db
+from src.core.tz import APP_TZ
 from src.repositories.ticket_repo import TicketRepository
 from src.repositories.consulente_repo import ConsulenteRepository
 from src.services.email.base import EmailMessage
@@ -140,7 +141,7 @@ async def resend_ticket_email(
                 consulente_name=ticket.consulente.name,
                 consulente_email=request.email,  # Use requested email
                 gira_name=ticket.gira.name,
-                gira_date=ticket.gira.release_start_at.strftime("%d/%m/%Y às %H:%M"),
+                gira_date=ticket.gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if ticket.gira.data_inicio else "",
                 gira_location=ticket.gira.location,
                 ticket_number=ticket.ticket_number,
                 tenant_name=tenant.name,

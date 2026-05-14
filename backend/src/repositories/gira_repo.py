@@ -68,12 +68,12 @@ class GiraRepository(BaseRepository[Gira]):
         Returns:
             List of upcoming Gira objects sorted by date
         """
-        from datetime import datetime
+        from datetime import datetime, timezone
         
         stmt = select(Gira).where(
             and_(
                 Gira.tenant_id == tenant_id,
-                Gira.data_inicio >= datetime.utcnow(),
+                Gira.data_inicio >= datetime.now(timezone.utc),
                 Gira.is_active == True,
                 Gira.deleted_at.is_(None),
             )
