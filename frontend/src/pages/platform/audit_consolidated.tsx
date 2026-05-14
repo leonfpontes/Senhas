@@ -133,7 +133,9 @@ const FIELD_LABELS: Record<string, string> = {
   full_name: "Nome completo",
   username: "Usuario",
   phone: "Telefone",
-  is_active: "Ativo",
+  impersonated_by: "Impersonado por",
+  is_bonus: "Bonus",
+  plan: "Plano",
   data_inicio: "Data de inicio",
   data_fim: "Data de fim",
   endereco: "Endereco",
@@ -182,15 +184,34 @@ function fieldLabel(key: string): string {
   return FIELD_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const PLAN_LABELS: Record<string, string> = {
+  free: "Free",
+  basic: "Basic",
+  pro: "Pro",
+  premium: "Premium",
+};
+
 function formatValue(val: unknown): string {
   if (val === null || val === undefined) return "-";
   if (typeof val === "boolean") return val ? "Sim" : "Nao";
   if (Array.isArray(val)) return `${val.length} item(ns)`;
-  if (typeof val === "object") return JSON.stringify(val);
+  if (typeof val === "object") {
+    const obj = val as Record<string, unknown>;
+    // Subscription shorthand: {plan, is_bonus}
+    if ("plan" in obj && typeof obj.plan === "string") {
+      const label = PLAN_LABELS[String(obj.plan).toLowerCase()] ?? obj.plan;
+      const bonus = obj.is_bonus ? " + Bonus" : "";
+      return `Plano: ${label}${bonus}`;
+    }
+    return JSON.stringify(val);
+  }
   const s = String(val);
   if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
     try { return new Date(s).toLocaleString("pt-BR"); } catch { return s; }
   }
+  if (UUID_RE.test(s)) return s.slice(0, 8) + "...";
   return s;
 }
 

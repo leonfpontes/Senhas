@@ -13,6 +13,11 @@ from src.models import User, UserRole
 from src.models.audit_logs import AuditLog, AuditAction
 from src.models.tenants import Tenant
 from src.services.consolidated_audit_service import ConsolidatedAuditService
+from src.api.v1.admin.audit_trail import (
+    _collect_impersonator_ids,
+    _replace_impersonator_ids,
+    _resolve_user_names,
+)
 
 # Alias to avoid collision with the `User` dependency
 _User = User
@@ -190,6 +195,20 @@ async def get_audit_feed(
         result = await db.execute(stmt)
         rows = result.all()
 
+        # Resolve impersonated_by UUIDs in details to human-readable names
+        impersonator_ids: set = set()
+        for row in rows:
+            if row.details:
+                _collect_impersonator_ids(row.details, impersonator_ids)
+        impersonator_names = await _resolve_user_names(db, impersonator_ids)
+
+        def _enrich(details):
+            if not details:
+                return details
+            enriched = dict(details)
+            _replace_impersonator_ids(enriched, impersonator_names)
+            return enriched
+
         return [
             {
                 "id": str(row.id),
@@ -202,7 +221,7 @@ async def get_audit_feed(
                 "action": row.action.value,
                 "resource_type": row.resource_type,
                 "resource_id": str(row.resource_id) if row.resource_id else None,
-                "details": row.details,
+                "details": _enrich(row.details),
                 "created_at": row.created_at.isoformat(),
             }
             for row in rows
