@@ -12,6 +12,9 @@ from src.api.dependencies import get_current_user
 from src.models import User, UserRole
 from src.models.audit_logs import AuditLog, AuditAction
 from src.models.tenants import Tenant
+from src.models.mediuns import Medium
+from src.models.associados import Associado
+from src.models.giras import Gira
 from src.services.consolidated_audit_service import ConsolidatedAuditService
 from src.api.v1.admin.audit_trail import (
     _collect_impersonator_ids,
@@ -202,11 +205,19 @@ async def get_audit_feed(
                 _collect_impersonator_ids(row.details, impersonator_ids)
         impersonator_names = await _resolve_user_names(db, impersonator_ids)
 
+        # Collect and resolve mediun_id, associado_id, gira_id in details
+        entity_ids: dict[str, set] = {"mediun_id": set(), "associado_id": set(), "gira_id": set()}
+        for row in rows:
+            if row.details:
+                _collect_entity_ids(row.details, entity_ids)
+        entity_names = await _resolve_entity_names(db, entity_ids)
+
         def _enrich(details):
             if not details:
                 return details
             enriched = dict(details)
             _replace_impersonator_ids(enriched, impersonator_names)
+            _replace_entity_ids(enriched, entity_names)
             return enriched
 
         return [
@@ -233,6 +244,51 @@ async def get_audit_feed(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar feed de auditoria: {str(e)}",
         )
+
+
+# ─── Helpers para resolução de IDs de entidades em details ───────────────────
+
+_ENTITY_FIELDS = {"mediun_id", "associado_id", "gira_id"}
+
+
+def _collect_entity_ids(details: dict, ids: dict[str, set]) -> None:
+    """Recursively collect entity UUIDs from known ID fields in details."""
+    for key, val in details.items():
+        if key in _ENTITY_FIELDS and isinstance(val, str) and len(val) >= 32:
+            ids[key].add(val)
+        elif isinstance(val, dict):
+            _collect_entity_ids(val, ids)
+
+
+async def _resolve_entity_names(db: AsyncSession, ids: dict[str, set]) -> dict[str, dict]:
+    """Batch resolve entity UUIDs to display names. Returns {field: {uuid: name}}."""
+    result: dict[str, dict] = {k: {} for k in ids}
+    try:
+        if ids.get("mediun_id"):
+            uuids = [UUID(i) for i in ids["mediun_id"]]
+            rows = await db.execute(select(Medium.id, Medium.nome).where(Medium.id.in_(uuids)))
+            result["mediun_id"] = {str(r[0]): r[1] for r in rows.all()}
+        if ids.get("associado_id"):
+            uuids = [UUID(i) for i in ids["associado_id"]]
+            rows = await db.execute(select(Associado.id, Associado.nome).where(Associado.id.in_(uuids)))
+            result["associado_id"] = {str(r[0]): r[1] for r in rows.all()}
+        if ids.get("gira_id"):
+            uuids = [UUID(i) for i in ids["gira_id"]]
+            rows = await db.execute(select(Gira.id, Gira.nome).where(Gira.id.in_(uuids)))
+            result["gira_id"] = {str(r[0]): r[1] for r in rows.all()}
+    except Exception:
+        pass
+    return result
+
+
+def _replace_entity_ids(details: dict, entity_names: dict[str, dict]) -> None:
+    """Recursively replace entity UUIDs with display names in details."""
+    for key in list(details.keys()):
+        val = details[key]
+        if key in _ENTITY_FIELDS and isinstance(val, str) and key in entity_names:
+            details[key] = entity_names[key].get(val, val)
+        elif isinstance(val, dict):
+            _replace_entity_ids(val, entity_names)
 
 
 @router.get("/tenant/{tenant_id}", response_model=dict)
