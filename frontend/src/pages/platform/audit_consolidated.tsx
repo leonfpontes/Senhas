@@ -71,10 +71,14 @@ interface AuditSummary {
   period: { start: string; end: string };
   statistics: {
     most_active_tenant: string | null;
+    most_active_tenant_name?: string | null;
+    most_active_tenant_slug?: string | null;
     most_active_user: string | null;
     most_common_action: string | null;
     avg_logs_per_tenant: number;
   };
+  by_tenant_name?: Record<string, string>;
+  by_tenant_slug?: Record<string, string>;
 }
 
 interface Tenant {
@@ -572,12 +576,16 @@ export default function AuditConsolidadoPage() {
 
   const byTenantRows = summary
     ? Object.entries(summary.by_tenant ?? {})
-        .map(([id, count]) => ({
-          id,
-          name: tenantMap[id] ?? id.slice(0, 8) + "...",
-          slug: tenants.find((t) => t.id === id)?.slug ?? "",
-          count,
-        }))
+        .map(([id, count]) => {
+          const isNone = !id || id === "None";
+          const name = isNone
+            ? "Platform"
+            : (summary.by_tenant_name?.[id] ?? tenantMap[id] ?? id.slice(0, 8) + "...");
+          const slug = isNone
+            ? ""
+            : (summary.by_tenant_slug?.[id] ?? tenants.find((t) => t.id === id)?.slug ?? "");
+          return { id, name, slug, count };
+        })
         .sort((a, b) => b.count - a.count)
     : [];
 

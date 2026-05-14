@@ -28,6 +28,8 @@ class AuditSummaryResponse(BaseModel):
     by_user: Dict[str, int]
     period: dict
     statistics: dict
+    by_tenant_name: Dict[str, str] = {}
+    by_tenant_slug: Dict[str, str] = {}
 
 
 async def require_super_admin(user: User = Depends(get_current_user)) -> User:
@@ -84,9 +86,30 @@ async def get_audit_logs(
         
         result = await service.get_audit_summary(start, end)
 
+        # Resolve all tenant UUIDs in by_tenant to {id: {name, slug}}
+        tenant_ids = [
+            UUID(tid) for tid in result.get("by_tenant", {}).keys()
+            if tid and tid != "None"
+        ]
+        tenant_name_map: dict = {}
+        tenant_slug_map: dict = {}
+        if tenant_ids:
+            tenant_rows = await db.execute(
+                select(Tenant.id, Tenant.name, Tenant.slug).where(Tenant.id.in_(tenant_ids))
+            )
+            for t in tenant_rows.all():
+                tenant_name_map[str(t[0])] = t[1]
+                tenant_slug_map[str(t[0])] = t[2]
+
+        result["by_tenant_name"] = tenant_name_map
+        result["by_tenant_slug"] = tenant_slug_map
+
         # Resolve most_active_tenant UUID to name/slug
         most_active_id = result.get("statistics", {}).get("most_active_tenant")
-        if most_active_id:
+        if most_active_id and most_active_id in tenant_name_map:
+            result["statistics"]["most_active_tenant_name"] = tenant_name_map[most_active_id]
+            result["statistics"]["most_active_tenant_slug"] = tenant_slug_map.get(most_active_id, "")
+        elif most_active_id:
             tenant_row = await db.execute(
                 select(Tenant.name, Tenant.slug).where(Tenant.id == UUID(most_active_id))
             )
