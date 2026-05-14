@@ -98,16 +98,35 @@ async def create_user(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email já registrado",
         )
-    
-    # Create user
+
+    # Check if email belongs to a soft-deleted user — if so, resurrect it
     hashed_password = hash_password(user_data.password)
-    created_user = await repo.create(
-        tenant_id=current_user.tenant_id,
-        email=user_data.email,
-        username=user_data.username,
-        password_hash=hashed_password,
-        role=user_data.role,
-    )
+    deleted_user = await repo.get_by_email_including_deleted(current_user.tenant_id, user_data.email)
+    if deleted_user:
+        from datetime import datetime
+        deleted_user.username = user_data.username
+        deleted_user.password_hash = hashed_password
+        deleted_user.role = user_data.role
+        deleted_user.is_active = True
+        deleted_user.deleted_at = None
+        deleted_user.full_name = None
+        deleted_user.phone = None
+        deleted_user.profile_photo_data = None
+        deleted_user.profile_photo_url = None
+        deleted_user.profile_photo_content_type = None
+        deleted_user.updated_at = datetime.utcnow()
+        await db.flush()
+        await db.refresh(deleted_user)
+        created_user = deleted_user
+    else:
+        # Create user
+        created_user = await repo.create(
+            tenant_id=current_user.tenant_id,
+            email=user_data.email,
+            username=user_data.username,
+            password_hash=hashed_password,
+            role=user_data.role,
+        )
     
     # Log audit
     audit_service = AuditService(db)

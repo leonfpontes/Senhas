@@ -57,7 +57,18 @@ class UserRepository(BaseRepository[User]):
         
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
-    
+
+    async def get_by_email_including_deleted(self, tenant_id: UUID, email: str) -> Optional[User]:
+        """Get user by email including soft-deleted records (tenant-scoped)."""
+        stmt = select(User).where(
+            and_(
+                User.tenant_id == tenant_id,
+                User.email == email,
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_admins(self, tenant_id: UUID) -> List[User]:
         """Get all admins for a tenant.
         
