@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from .api.v1.cursos_presenciais import cursos_presenciais_router
 import logging
 
 from .core.config import settings
@@ -227,6 +228,7 @@ def create_app() -> FastAPI:
     
     # Platform routes (SUPER_ADMIN only)
     app.include_router(platform_router)
+    app.include_router(cursos_presenciais_router)
     
     # Public routes (no auth required)
     app.include_router(next_gira_router)

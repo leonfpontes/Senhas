@@ -54,4 +54,6 @@ __all__ = [
     "SiteVersion",
     "SiteStatus",
     "SiteSectionType",
+    "CursoPresencial",
+    "CursoParticipante",
 ]
