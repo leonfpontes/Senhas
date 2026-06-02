@@ -1,56 +1,112 @@
--- Tabela de cursos presenciais
-CREATE TABLE cursos_presenciais (
-    id UUID NOT NULL,
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    titulo VARCHAR(255) NOT NULL,
-    ementa TEXT,
-    data_inicio TIMESTAMP WITH TIME ZONE NOT NULL,
-    data_fim TIMESTAMP WITH TIME ZONE,
-    max_participantes INTEGER,
-    valor_mensalidade_padrao NUMERIC(10, 2),
-    local VARCHAR(255),
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    observacoes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    deleted_at TIMESTAMP WITH TIME ZONE,
-    PRIMARY KEY (id)
-);
+"""Cria as tabelas de cursos presenciais e participantes.
 
--- Índices para facilitar filtros e buscas
-CREATE INDEX ix_cursos_presenciais_tenant_id ON cursos_presenciais (tenant_id);
-CREATE INDEX ix_cursos_presenciais_data_inicio ON cursos_presenciais (data_inicio);
-CREATE INDEX ix_cursos_presenciais_is_active ON cursos_presenciais (is_active);
+Revision ID: 039_cursos_presenciais
+Revises: 038_priority_category
+Create Date: 2026-06-02
 
--- Tabela de participantes
-CREATE TABLE curso_participantes (
-    id UUID NOT NULL,
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    curso_id UUID NOT NULL REFERENCES cursos_presenciais(id) ON DELETE CASCADE,
-    nome VARCHAR(255) NOT NULL,
-    data_nascimento DATE,
-    celular VARCHAR(20),
-    email VARCHAR(255),
-    valor_mensalidade NUMERIC(10, 2),
-    pago BOOLEAN NOT NULL DEFAULT FALSE,
-    valor_pago NUMERIC(10, 2),
-    data_pagamento TIMESTAMP WITH TIME ZONE,
-    observacoes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    deleted_at TIMESTAMP WITH TIME ZONE,
-    PRIMARY KEY (id)
-);
+Esta migração adiciona as tabelas ``cursos_presenciais`` e ``curso_participantes``,
+com índices para facilitar consultas por tenant, data de início e status.
+"""
 
--- Índices para consultas rápidas por tenant e por curso
-CREATE INDEX ix_curso_participantes_tenant_id ON curso_participantes (tenant_id);
-CREATE INDEX ix_curso_participantes_curso_id ON curso_participantes (curso_id);
+import sqlalchemy as sa
+from alembic import op
+from sqlalchemy.dialects import postgresql
 
--- Para desfazer a migração, os comandos de downgrade removeriam os índices e as tabelas:
--- DROP INDEX ix_curso_participantes_curso_id;
--- DROP INDEX ix_curso_participantes_tenant_id;
--- DROP TABLE curso_participantes;
--- DROP INDEX ix_cursos_presenciais_is_active;
--- DROP INDEX ix_cursos_presenciais_data_inicio;
--- DROP INDEX ix_cursos_presenciais_tenant_id;
--- DROP TABLE cursos_presenciais;
+# Identificadores de revisão usados pelo Alembic.
+revision: str = "039_cursos_presenciais"
+down_revision: str = "038_priority_category"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    # Tabela de cursos presenciais
+    op.create_table(
+        "cursos_presenciais",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("titulo", sa.String(255), nullable=False),
+        sa.Column("ementa", sa.Text, nullable=True),
+        sa.Column("data_inicio", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("data_fim", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("max_participantes", sa.Integer, nullable=True),
+        sa.Column("valor_mensalidade_padrao", sa.Numeric(10, 2), nullable=True),
+        sa.Column("local", sa.String(255), nullable=True),
+        sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
+        sa.Column("observacoes", sa.Text, nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.create_index(
+        "ix_cursos_presenciais_tenant_id", "cursos_presenciais", ["tenant_id"]
+    )
+    op.create_index(
+        "ix_cursos_presenciais_data_inicio", "cursos_presenciais", ["data_inicio"]
+    )
+    op.create_index(
+        "ix_cursos_presenciais_is_active", "cursos_presenciais", ["is_active"]
+    )
+
+    # Tabela de participantes dos cursos
+    op.create_table(
+        "curso_participantes",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "curso_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("cursos_presenciais.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("nome", sa.String(255), nullable=False),
+        sa.Column("data_nascimento", sa.Date, nullable=True),
+        sa.Column("celular", sa.String(20), nullable=True),
+        sa.Column("email", sa.String(255), nullable=True),
+        sa.Column("valor_mensalidade", sa.Numeric(10, 2), nullable=True),
+        sa.Column("pago", sa.Boolean, nullable=False, server_default="false"),
+        sa.Column("valor_pago", sa.Numeric(10, 2), nullable=True),
+        sa.Column("data_pagamento", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("observacoes", sa.Text, nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.create_index(
+        "ix_curso_participantes_tenant_id", "curso_participantes", ["tenant_id"]
+    )
+    op.create_index(
+        "ix_curso_participantes_curso_id", "curso_participantes", ["curso_id"]
+    )
+
+
+def downgrade() -> None:
+    # Remove índices e tabelas na ordem inversa
+    op.drop_index(
+        "ix_curso_participantes_curso_id", table_name="curso_participantes"
+    )
+    op.drop_index(
+        "ix_curso_participantes_tenant_id", table_name="curso_participantes"
+    )
+    op.drop_table("curso_participantes")
+
+    op.drop_index(
+        "ix_cursos_presenciais_is_active", table_name="cursos_presenciais"
+    )
+    op.drop_index(
+        "ix_cursos_presenciais_data_inicio", table_name="cursos_presenciais"
+    )
+    op.drop_index(
+        "ix_cursos_presenciais_tenant_id", table_name="cursos_presenciais"
+    )
+    op.drop_table("cursos_presenciais")

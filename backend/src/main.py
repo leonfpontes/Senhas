@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from .api.v1.cursos_presenciais import cursos_presenciais_router
+from .api.v1.platform.cursos_presenciais import router as cursos_presenciais_router
 import logging
 
 from .core.config import settings
