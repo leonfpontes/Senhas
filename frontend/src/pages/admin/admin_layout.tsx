@@ -205,6 +205,7 @@ function AdminLayoutInner({
     ...(can('mediuns') ? [{ text: 'Médiuns', icon: <SelfImprovementIcon />, href: '/admin/mediuns' }] : []),
     { text: 'Usuários', icon: <PeopleIcon />, href: '/admin/users' },
     ...(can('associados') ? [{ text: 'Associados', icon: <Diversity3Icon />, href: '/admin/associados' }] : []),
+    { text: 'Cursos Presenciais', icon: <CardMembershipIcon />, href: '/admin/cursos-presenciais' },
   ];
 
   const cadastrosHrefs = cadastrosItems.map((i) => i.href);
