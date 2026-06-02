@@ -17,6 +17,7 @@ from .mediuns import Medium
 from .mensalidades import MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
 from .associado_mensalidade import AssociadoMensalidadePagamento
 from .site import TenantSite, TenantSiteSection, SiteImage, SiteVersion, SiteStatus, SiteSectionType
+from .cursos_presenciais import CursoPresencial, CursoParticipante
 
 __all__ = [
     "Base",
