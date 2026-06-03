@@ -41,6 +41,7 @@ services:
       STRIPE_PRICE_BASIC: ${STRIPE_PRICE_BASIC:-}
       STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
       STRIPE_PRICE_PREMIUM: ${STRIPE_PRICE_PREMIUM:-}
+      EXTRA_ALLOWED_HOSTS: backend,senhas_backend
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -63,6 +64,7 @@ services:
     working_dir: /app/frontend
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+      INTERNAL_API_URL: http://backend:8000
       NODE_ENV: development
       NEXT_TELEMETRY_DISABLED: 1
       NEXT_DISABLE_SWC: 1

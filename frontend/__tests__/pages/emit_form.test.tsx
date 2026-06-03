@@ -1,7 +1,7 @@
-"""
-T048: Frontend Emit Form Tests
-Jest/React Testing Library tests for EmitForm component
-"""
+/**
+ * T048: Frontend Emit Form Tests
+ * Jest/React Testing Library tests for EmitForm component
+ */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

@@ -1,29 +1,37 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import {
+  Box,
   Table,
   TableHead,
   TableRow,
   TableCell,
   TableBody,
+  TableContainer,
+  Paper,
   Button,
   TextField,
   Checkbox,
   Stack,
   Typography,
   CircularProgress,
+  IconButton,
+  Tooltip,
+  Snackbar,
+  Alert,
 } from "@mui/material";
-// `admin_layout.tsx` exporta o AdminLayout como default, então importe sem chaves.
-import AdminLayout from "./admin_layout";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import AddIcon from "@mui/icons-material/Add";
+import PeopleIcon from "@mui/icons-material/People";
+import SchoolIcon from "@mui/icons-material/School";
+import LinkIcon from "@mui/icons-material/Link";
 
-// Utilize caminhos relativos como nos outros módulos do projeto.
+import AdminLayout from "./admin_layout";
 import CrudDrawer from "../../components/CrudDrawer";
 import { apiClient } from "../../services/api_client";
-
-//import { AdminLayout } from "./admin_layout";
-//import CrudDrawer from "@/components/CrudDrawer";
-//import { apiClient } from "@/services/api_client";
-//import { isoToLocalDatetimeInput } from "@/utils/datetime";
+import { useSubscription } from "../../hooks/useSubscription";
+import UpgradePrompt from "../../components/UpgradePrompt";
 
 interface CursoPresencial {
   id: string;
@@ -37,9 +45,10 @@ interface CursoPresencial {
   local?: string | null;
   observacoes?: string | null;
   is_active: boolean;
+  gerar_mensalidade: boolean;
 }
 
-const API_PREFIX = "/api/v1/cursos-presenciais";
+const API_PREFIX = "/api/v1/admin/cursos-presenciais";
 
 const isoToLocalDatetimeInput = (isoStr: string | null | undefined): string => {
   if (!isoStr) return '';
@@ -49,21 +58,27 @@ const isoToLocalDatetimeInput = (isoStr: string | null | undefined): string => {
 };
 
 const CursosPresenciaisPage = () => {
+  const router = useRouter();
+  const { subscription, loading: subLoading } = useSubscription();
+
   const [cursos, setCursos] = useState<CursoPresencial[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [linkSnack, setLinkSnack] = useState<{ open: boolean; message: string }>({ open: false, message: "" });
   const [formData, setFormData] = useState<Partial<CursoPresencial>>({
     titulo: "",
     data_inicio: isoToLocalDatetimeInput(new Date().toISOString()),
     is_active: true,
+    gerar_mensalidade: false,
   });
 
   const fetchCursos = async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get<CursoPresencial[]>("/api/v1/cursos-presenciais");
+      const res = await apiClient.get<CursoPresencial[]>(API_PREFIX);
       setCursos(res.data);
     } catch (err) {
       console.error("Erro ao buscar cursos:", err);
@@ -73,8 +88,10 @@ const CursosPresenciaisPage = () => {
   };
 
   useEffect(() => {
-    fetchCursos();
-  }, []);
+    if (subscription?.plan === "pro" || subscription?.plan === "premium") {
+      fetchCursos();
+    }
+  }, [subscription]);
 
   const openCreateDrawer = () => {
     setDrawerMode("create");
@@ -89,6 +106,7 @@ const CursosPresenciaisPage = () => {
       local: "",
       observacoes: "",
       is_active: true,
+      gerar_mensalidade: false,
     });
     setDrawerOpen(true);
   };
@@ -98,7 +116,6 @@ const CursosPresenciaisPage = () => {
     setEditingId(curso.id);
     setFormData({
       ...curso,
-      // converter datas ISO para o formato aceito por inputs type="datetime-local"
       data_inicio: isoToLocalDatetimeInput(curso.data_inicio),
       data_fim: curso.data_fim ? isoToLocalDatetimeInput(curso.data_fim) : "",
     });
@@ -107,12 +124,26 @@ const CursosPresenciaisPage = () => {
 
   const handleDelete = async (curso: CursoPresencial) => {
     if (window.confirm(`Deseja excluir o curso "${curso.titulo}"?`)) {
-      await apiClient.delete(`/api/v1/cursos-presenciais/${curso.id}`);
-      fetchCursos();
+      try {
+        await apiClient.delete(`${API_PREFIX}/${curso.id}`);
+        fetchCursos();
+      } catch (err) {
+        console.error("Erro ao excluir curso:", err);
+      }
     }
   };
 
+  const handleCopyLink = (curso: CursoPresencial) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const link = `${origin}/public/cursos/${curso.id}/inscricao`;
+    navigator.clipboard.writeText(link).then(
+      () => setLinkSnack({ open: true, message: "Link copiado!" }),
+      () => setLinkSnack({ open: true, message: `Link: ${link}` })
+    );
+  };
+
   const handleSave = async () => {
+    setSaving(true);
     const payload = {
       titulo: formData.titulo,
       ementa: formData.ementa || null,
@@ -127,135 +158,184 @@ const CursosPresenciaisPage = () => {
       local: formData.local || null,
       observacoes: formData.observacoes || null,
       is_active: formData.is_active,
+      gerar_mensalidade: formData.gerar_mensalidade ?? false,
     };
 
-    const fetchCursos = async () => {
-  setLoading(true);
-  try {
-    const res = await apiClient.get<CursoPresencial[]>(API_PREFIX);
-    setCursos(res.data);
-  } catch (err) {
-    console.error("Erro ao buscar cursos:", err);
-  } finally {
-    setLoading(false);
-  }
-};
-
-    const handleSave = async () => {
-    const payload = {
-        titulo: formData.titulo,
-        ementa: formData.ementa || null,
-        data_inicio: formData.data_inicio
-        ? new Date(formData.data_inicio).toISOString()
-        : null,
-        data_fim: formData.data_fim
-        ? new Date(formData.data_fim).toISOString()
-        : null,
-        max_participantes: formData.max_participantes || null,
-        valor_mensalidade_padrao: formData.valor_mensalidade_padrao || null,
-        local: formData.local || null,
-        observacoes: formData.observacoes || null,
-        is_active: formData.is_active,
-    };
-
-    if (drawerMode === "create") {
+    try {
+      if (drawerMode === "create") {
         await apiClient.post(API_PREFIX, payload);
-    } else if (editingId) {
+      } else if (editingId) {
         await apiClient.put(`${API_PREFIX}/${editingId}`, payload);
+      }
+      setDrawerOpen(false);
+      fetchCursos();
+    } catch (err) {
+      console.error("Erro ao salvar curso:", err);
+    } finally {
+      setSaving(false);
     }
-
-    setDrawerOpen(false);
-    fetchCursos();
-    };
-
-    const handleDelete = async (id: string) => {
-    if (window.confirm("Deseja excluir este curso?")) {
-        await apiClient.delete(`${API_PREFIX}/${id}`);
-        fetchCursos();
-    }
-    };
-
-    if (drawerMode === "create") {
-      await apiClient.post("/api/v1/cursos-presenciais", payload);
-    } else if (editingId) {
-      await apiClient.put(`/api/v1/cursos-presenciais/${editingId}`, payload);
-    }
-
-    setDrawerOpen(false);
-    fetchCursos();
   };
+
+  const isPlanAllowed = subscription?.plan === "pro" || subscription?.plan === "premium";
+
+  if (subLoading) {
+    return (
+      <AdminLayout title="Cursos presenciais">
+        <Stack alignItems="center" mt={8}>
+          <CircularProgress />
+        </Stack>
+      </AdminLayout>
+    );
+  }
+
+  if (!isPlanAllowed) {
+    return (
+      <AdminLayout title="Cursos presenciais">
+        <UpgradePrompt feature="Cursos Presenciais" minPlan="Pro" />
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout title="Cursos presenciais">
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h5">Cursos presenciais</Typography>
-        <Button variant="contained" onClick={openCreateDrawer}>
-          Novo curso
-        </Button>
-      </Stack>
+      <Box sx={{ mb: 3 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h5" fontWeight={700}>Cursos Presenciais</Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={openCreateDrawer}
+            size="small"
+          >
+            Novo curso
+          </Button>
+        </Stack>
+      </Box>
 
       {loading ? (
         <Stack alignItems="center" mt={4}>
           <CircularProgress />
         </Stack>
       ) : (
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Título</TableCell>
-              <TableCell>Início</TableCell>
-              <TableCell>Fim</TableCell>
-              <TableCell>Local</TableCell>
-              <TableCell>Limite</TableCell>
-              <TableCell>Mensalidade (R$)</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell />
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {cursos.map((curso) => (
-              <TableRow key={curso.id} hover>
-                <TableCell>{curso.titulo}</TableCell>
-                <TableCell>
-                  {curso.data_inicio
-                    ? new Date(curso.data_inicio).toLocaleString()
-                    : "-"}
-                </TableCell>
-                <TableCell>
-                  {curso.data_fim
-                    ? new Date(curso.data_fim).toLocaleString()
-                    : "-"}
-                </TableCell>
-                <TableCell>{curso.local || "-"}</TableCell>
-                <TableCell>{curso.max_participantes ?? "-"}</TableCell>
-                <TableCell>{curso.valor_mensalidade_padrao ?? "-"}</TableCell>
-                <TableCell>{curso.is_active ? "Ativo" : "Inativo"}</TableCell>
-                <TableCell>
-                  <Button size="small" onClick={() => openEditDrawer(curso)}>
-                    Editar
-                  </Button>
-                  <Button
-                    size="small"
-                    color="error"
-                    onClick={() => handleDelete(curso)}
-                  >
-                    Excluir
-                  </Button>
-                </TableCell>
+        <TableContainer component={Paper} sx={{ overflowX: "auto" }}>
+          <Table size="small">
+            <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600 }}>Título</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Início</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Fim</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Local</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Limite</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Mensalidade</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600 }}>Ações</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHead>
+            <TableBody>
+              {cursos.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                    Nenhum curso cadastrado.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                cursos.map((curso) => (
+                  <TableRow key={curso.id} hover>
+                    <TableCell sx={{ fontWeight: 500 }}>{curso.titulo}</TableCell>
+                    <TableCell>
+                      {curso.data_inicio
+                        ? new Date(curso.data_inicio).toLocaleString("pt-BR")
+                        : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {curso.data_fim
+                        ? new Date(curso.data_fim).toLocaleString("pt-BR")
+                        : "-"}
+                    </TableCell>
+                    <TableCell>{curso.local || "-"}</TableCell>
+                    <TableCell>{curso.max_participantes ?? "-"}</TableCell>
+                    <TableCell>
+                      {curso.valor_mensalidade_padrao !== null && curso.valor_mensalidade_padrao !== undefined
+                        ? `R$ ${Number(curso.valor_mensalidade_padrao).toFixed(2).replace(".", ",")}`
+                        : "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Box
+                        sx={{
+                          display: "inline-block",
+                          px: 2,
+                          py: 0.5,
+                          borderRadius: 1,
+                          backgroundColor: curso.is_active ? "#c8e6c9" : "#ffcdd2",
+                          color: curso.is_active ? "#2e7d32" : "#c62828",
+                          fontSize: "0.875rem",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {curso.is_active ? "Ativo" : "Inativo"}
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Tooltip title="Link Público de Inscrição">
+                          <IconButton
+                            size="small"
+                            color="info"
+                            onClick={() => handleCopyLink(curso)}
+                          >
+                            <LinkIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Gerenciar Participantes">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => router.push(`/admin/cursos-presenciais/${curso.id}/participantes`)}
+                          >
+                            <PeopleIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Editar">
+                          <IconButton
+                            size="small"
+                            onClick={() => openEditDrawer(curso)}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Excluir">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDelete(curso)}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
 
       <CrudDrawer
         title={drawerMode === "create" ? "Novo curso" : "Editar curso"}
+        subtitle={
+          drawerMode === "create"
+            ? "Cadastre um novo curso presencial para o seu terreiro."
+            : "Altere as informações do curso presencial selecionado."
+        }
+        icon={<SchoolIcon />}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onSave={handleSave}
-        saveDisabled={!formData.titulo}
+        saving={saving}
+        saveDisabled={!formData.titulo || !formData.data_inicio}
       >
-        {/* Formulário dentro do drawer */}
         <Stack spacing={2} mt={1}>
           <TextField
             label="Título"
@@ -279,7 +359,9 @@ const CursosPresenciaisPage = () => {
           <TextField
             label="Data de início"
             type="datetime-local"
+            required
             fullWidth
+            InputLabelProps={{ shrink: true }}
             value={formData.data_inicio || ""}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, data_inicio: e.target.value }))
@@ -289,6 +371,7 @@ const CursosPresenciaisPage = () => {
             label="Data de término"
             type="datetime-local"
             fullWidth
+            InputLabelProps={{ shrink: true }}
             value={formData.data_fim || ""}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, data_fim: e.target.value }))
@@ -342,6 +425,18 @@ const CursosPresenciaisPage = () => {
           />
           <Stack direction="row" alignItems="center">
             <Checkbox
+              checked={formData.gerar_mensalidade ?? false}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  gerar_mensalidade: e.target.checked,
+                }))
+              }
+            />
+            <span>Gerar cobrança mensal</span>
+          </Stack>
+          <Stack direction="row" alignItems="center">
+            <Checkbox
               checked={formData.is_active ?? true}
               onChange={(e) =>
                 setFormData((prev) => ({
@@ -354,6 +449,18 @@ const CursosPresenciaisPage = () => {
           </Stack>
         </Stack>
       </CrudDrawer>
+
+      {/* Snackbar de link copiado */}
+      <Snackbar
+        open={linkSnack.open}
+        autoHideDuration={4000}
+        onClose={() => setLinkSnack((p) => ({ ...p, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert severity="info" onClose={() => setLinkSnack((p) => ({ ...p, open: false }))}>
+          🔗 {linkSnack.message}
+        </Alert>
+      </Snackbar>
     </AdminLayout>
   );
 };

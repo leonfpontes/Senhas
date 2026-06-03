@@ -11,7 +11,6 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from .api.v1.platform.cursos_presenciais import router as cursos_presenciais_router
 import logging
 
 from .core.config import settings
@@ -22,7 +21,7 @@ from .middleware import jwt_middleware, tenant_context_middleware, audit_logging
 from .api import auth_router
 from .api.v1.admin import admin_router
 from .api.v1.platform import platform_router
-from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router, public_sites_router
+from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router, public_sites_router, curso_inscricao_router
 from .api.v1.webhooks import router as webhooks_router
 from .models import (
     Tenant,
@@ -228,7 +227,6 @@ def create_app() -> FastAPI:
     
     # Platform routes (SUPER_ADMIN only)
     app.include_router(platform_router)
-    app.include_router(cursos_presenciais_router)
     
     # Public routes (no auth required)
     app.include_router(next_gira_router)
@@ -237,6 +235,7 @@ def create_app() -> FastAPI:
     app.include_router(images_router)
     app.include_router(onboarding_router)
     app.include_router(public_sites_router)
+    app.include_router(curso_inscricao_router)
 
     # Stripe webhooks (no JWT required — validated by Stripe signature)
     app.include_router(webhooks_router)
