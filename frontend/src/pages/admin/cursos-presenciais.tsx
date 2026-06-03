@@ -13,9 +13,16 @@ import {
   Typography,
   CircularProgress,
 } from "@mui/material";
-import { AdminLayout } from "./admin_layout";
-import CrudDrawer from "@/components/CrudDrawer";
-import { apiClient } from "@/services/api_client";
+// `admin_layout.tsx` exporta o AdminLayout como default, então importe sem chaves.
+import AdminLayout from "./admin_layout";
+
+// Utilize caminhos relativos como nos outros módulos do projeto.
+import CrudDrawer from "../../components/CrudDrawer";
+import { apiClient } from "../../services/api_client";
+
+//import { AdminLayout } from "./admin_layout";
+//import CrudDrawer from "@/components/CrudDrawer";
+//import { apiClient } from "@/services/api_client";
 //import { isoToLocalDatetimeInput } from "@/utils/datetime";
 
 interface CursoPresencial {
@@ -31,6 +38,8 @@ interface CursoPresencial {
   observacoes?: string | null;
   is_active: boolean;
 }
+
+const API_PREFIX = "/api/v1/cursos-presenciais";
 
 const isoToLocalDatetimeInput = (isoStr: string | null | undefined): string => {
   if (!isoStr) return '';
@@ -118,6 +127,52 @@ const CursosPresenciaisPage = () => {
       local: formData.local || null,
       observacoes: formData.observacoes || null,
       is_active: formData.is_active,
+    };
+
+    const fetchCursos = async () => {
+  setLoading(true);
+  try {
+    const res = await apiClient.get<CursoPresencial[]>(API_PREFIX);
+    setCursos(res.data);
+  } catch (err) {
+    console.error("Erro ao buscar cursos:", err);
+  } finally {
+    setLoading(false);
+  }
+};
+
+    const handleSave = async () => {
+    const payload = {
+        titulo: formData.titulo,
+        ementa: formData.ementa || null,
+        data_inicio: formData.data_inicio
+        ? new Date(formData.data_inicio).toISOString()
+        : null,
+        data_fim: formData.data_fim
+        ? new Date(formData.data_fim).toISOString()
+        : null,
+        max_participantes: formData.max_participantes || null,
+        valor_mensalidade_padrao: formData.valor_mensalidade_padrao || null,
+        local: formData.local || null,
+        observacoes: formData.observacoes || null,
+        is_active: formData.is_active,
+    };
+
+    if (drawerMode === "create") {
+        await apiClient.post(API_PREFIX, payload);
+    } else if (editingId) {
+        await apiClient.put(`${API_PREFIX}/${editingId}`, payload);
+    }
+
+    setDrawerOpen(false);
+    fetchCursos();
+    };
+
+    const handleDelete = async (id: string) => {
+    if (window.confirm("Deseja excluir este curso?")) {
+        await apiClient.delete(`${API_PREFIX}/${id}`);
+        fetchCursos();
+    }
     };
 
     if (drawerMode === "create") {
