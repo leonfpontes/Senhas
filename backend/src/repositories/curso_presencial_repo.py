@@ -99,6 +99,35 @@ class CursoParticipanteRepository(BaseRepository[CursoParticipante]):
         result = await self.db.execute(stmt)
         return result.scalars().all()
 
+    async def get_comprovante_inscricao(
+        self,
+        tenant_id: UUID,
+        participante_id: UUID,
+    ) -> Optional[CursoParticipante]:
+        """Retorna o participante com os dados do comprovante de inscrição."""
+        stmt = select(CursoParticipante).where(
+            (CursoParticipante.id == participante_id)
+            & (CursoParticipante.tenant_id == tenant_id)
+            & (CursoParticipante.deleted_at.is_(None))
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def delete_comprovante_inscricao(
+        self,
+        tenant_id: UUID,
+        participante_id: UUID,
+    ) -> Optional[CursoParticipante]:
+        """Remove o comprovante de inscrição do participante."""
+        part = await self.get_by_id(participante_id, tenant_id)
+        if not part:
+            return None
+        part.comprovante_inscricao_data = None
+        part.comprovante_inscricao_filename = None
+        part.comprovante_inscricao_mime = None
+        await self.db.flush()
+        return part
+
 
 class CursoParticipantePagamentoRepository(BaseRepository[CursoParticipantePagamento]):
     """Repositório para gerenciar os pagamentos mensais de alunos em cursos presenciais."""

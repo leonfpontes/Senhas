@@ -19,6 +19,11 @@ import {
   Tooltip,
   Snackbar,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Chip,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -46,6 +51,8 @@ interface CursoPresencial {
   observacoes?: string | null;
   is_active: boolean;
   gerar_mensalidade: boolean;
+  tipo_formulario: string;
+  chave_pix?: string | null;
 }
 
 const API_PREFIX = "/api/v1/admin/cursos-presenciais";
@@ -107,6 +114,8 @@ const CursosPresenciaisPage = () => {
       observacoes: "",
       is_active: true,
       gerar_mensalidade: false,
+      tipo_formulario: "simples",
+      chave_pix: "",
     });
     setDrawerOpen(true);
   };
@@ -159,6 +168,8 @@ const CursosPresenciaisPage = () => {
       observacoes: formData.observacoes || null,
       is_active: formData.is_active,
       gerar_mensalidade: formData.gerar_mensalidade ?? false,
+      tipo_formulario: formData.tipo_formulario || "simples",
+      chave_pix: formData.chave_pix || null,
     };
 
     try {
@@ -227,6 +238,7 @@ const CursosPresenciaisPage = () => {
                 <TableCell sx={{ fontWeight: 600 }}>Local</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Limite</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Mensalidade</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Formulário</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>Ações</TableCell>
               </TableRow>
@@ -258,6 +270,14 @@ const CursosPresenciaisPage = () => {
                       {curso.valor_mensalidade_padrao !== null && curso.valor_mensalidade_padrao !== undefined
                         ? `R$ ${Number(curso.valor_mensalidade_padrao).toFixed(2).replace(".", ",")}`
                         : "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={curso.tipo_formulario === "completo" ? "Completo" : "Simples"}
+                        size="small"
+                        color={curso.tipo_formulario === "completo" ? "primary" : "default"}
+                        variant="outlined"
+                      />
                     </TableCell>
                     <TableCell>
                       <Box
@@ -406,6 +426,14 @@ const CursosPresenciaisPage = () => {
             }
           />
           <TextField
+            label="Chave PIX para Inscrição/Matrícula"
+            fullWidth
+            value={formData.chave_pix || ""}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, chave_pix: e.target.value }))
+            }
+          />
+          <TextField
             label="Local"
             fullWidth
             value={formData.local || ""}
@@ -423,6 +451,24 @@ const CursosPresenciaisPage = () => {
               setFormData((prev) => ({ ...prev, observacoes: e.target.value }))
             }
           />
+          <FormControl fullWidth size="small">
+            <InputLabel id="tipo-formulario-label">Formulário de Inscrição</InputLabel>
+            <Select
+              labelId="tipo-formulario-label"
+              id="tipo-formulario-select"
+              value={formData.tipo_formulario || "simples"}
+              label="Formulário de Inscrição"
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  tipo_formulario: e.target.value as string,
+                }))
+              }
+            >
+              <MenuItem value="simples">Simples (Sem endereço/saúde)</MenuItem>
+              <MenuItem value="completo">Completo (Com endereço, emergência e saúde)</MenuItem>
+            </Select>
+          </FormControl>
           <Stack direction="row" alignItems="center">
             <Checkbox
               checked={formData.gerar_mensalidade ?? false}

@@ -30,6 +30,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Divider,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EditIcon from "@mui/icons-material/Edit";
@@ -52,6 +53,7 @@ import CrudDrawer from "@/components/CrudDrawer";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import { apiClient } from "@/services/api_client";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useTenant } from "@/providers/ThemeProvider";
 import { NumericFormat } from "react-number-format";
 import {
   BarChart,
@@ -77,6 +79,7 @@ interface CursoPresencial {
   observacoes?: string | null;
   is_active: boolean;
   gerar_mensalidade: boolean;
+  tipo_formulario: string;
 }
 
 interface Participante {
@@ -92,6 +95,42 @@ interface Participante {
   valor_pago?: number | string | null;
   data_pagamento?: string | null; // ISO string
   observacoes?: string | null;
+  genero?: string | null;
+  emergencia_contato?: string | null;
+  emergencia_fone?: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  tem_plano_saude?: boolean | null;
+  plano_saude_nome?: string | null;
+  toma_medicamento?: boolean | null;
+  medicamentos_nome?: string | null;
+  tem_doenca_tratamento?: boolean | null;
+  doenca_tratamento_nome?: string | null;
+  tem_diabetes?: boolean | null;
+  outras_doencas?: string | null;
+  aceita_uso_dados_saude?: boolean;
+  cpf?: string | null;
+  rg?: string | null;
+  estado_civil?: string | null;
+  profissao?: string | null;
+  experiencia_umbanda?: string | null;
+  contato_contexto_espiritual?: string | null;
+  motivo_busca_desenvolvimento?: string | null;
+  interesse_aprendizado?: string | null;
+  ja_conhece_terreiro?: boolean | null;
+  como_conheceu_terreiro?: string | null;
+  tratamento_psiquiatrico?: boolean | null;
+  tratamento_psiquiatrico_detalhes?: string | null;
+  restricoes_saude?: string | null;
+  aceita_uso_dados?: boolean;
+  aceita_uso_imagem?: boolean;
+  comprovante_inscricao_filename?: string | null;
+  comprovante_inscricao_mime?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -156,6 +195,7 @@ export default function ParticipantesPage() {
   const router = useRouter();
   const { id } = router.query;
   const { subscription, loading: subLoading } = useSubscription();
+  const { tenantName } = useTenant();
 
   const [curso, setCurso] = useState<CursoPresencial | null>(null);
   const [participantes, setParticipantes] = useState<Participante[]>([]);
@@ -167,6 +207,7 @@ export default function ParticipantesPage() {
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [matriculaFile, setMatriculaFile] = useState<File | null>(null);
   const [formData, setFormData] = useState<any>({
     nome: "",
     data_nascimento: "",
@@ -177,6 +218,40 @@ export default function ParticipantesPage() {
     pago: false,
     valor_pago: "",
     data_pagamento: "",
+    genero: "",
+    emergencia_contato: "",
+    emergencia_fone: "",
+    cep: "",
+    logradouro: "",
+    numero: "",
+    complemento: "",
+    bairro: "",
+    cidade: "",
+    estado: "",
+    tem_plano_saude: false,
+    plano_saude_nome: "",
+    toma_medicamento: false,
+    medicamentos_nome: "",
+    tem_doenca_tratamento: false,
+    doenca_tratamento_nome: "",
+    tem_diabetes: false,
+    outras_doencas: "",
+    cpf: "",
+    rg: "",
+    estado_civil: "",
+    profissao: "",
+    experiencia_umbanda: "",
+    contato_contexto_espiritual: "",
+    motivo_busca_desenvolvimento: "",
+    interesse_aprendizado: "",
+    ja_conhece_terreiro: null,
+    como_conheceu_terreiro: "",
+    tratamento_psiquiatrico: false,
+    tratamento_psiquiatrico_detalhes: "",
+    restricoes_saude: "",
+    aceita_uso_dados: false,
+    aceita_uso_imagem: false,
+    comprovante_inscricao_filename: null,
   });
 
   // Alert state
@@ -341,9 +416,44 @@ export default function ParticipantesPage() {
     }
   };
 
+  const [cepLoading, setCepLoading] = useState(false);
+  const [cepError, setCepError] = useState("");
+
+  const lookupCep = async (rawCep: string) => {
+    if (!rawCep) return;
+    const digits = rawCep.replace(/\D/g, "");
+    if (digits.length !== 8) {
+      setCepError(digits.length > 0 ? "CEP deve ter 8 dígitos" : "");
+      return;
+    }
+    setCepError("");
+    setCepLoading(true);
+    try {
+      const resp = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const json = await resp.json();
+      if (json.erro) {
+        setCepError("CEP não encontrado");
+        return;
+      }
+      setFormData((prev: any) => ({
+        ...prev,
+        cep: digits,
+        logradouro: json.logradouro || "",
+        bairro: json.bairro || "",
+        cidade: json.localidade || "",
+        estado: json.uf || "",
+      }));
+    } catch {
+      setCepError("Erro ao consultar CEP.");
+    } finally {
+      setCepLoading(false);
+    }
+  };
+
   const openCreateDrawer = () => {
     setDrawerMode("create");
     setEditingId(null);
+    setMatriculaFile(null);
     setFormData({
       nome: "",
       data_nascimento: "",
@@ -356,6 +466,40 @@ export default function ParticipantesPage() {
       pago: false,
       valor_pago: "",
       data_pagamento: "",
+      genero: "",
+      emergencia_contato: "",
+      emergencia_fone: "",
+      cep: "",
+      logradouro: "",
+      numero: "",
+      complemento: "",
+      bairro: "",
+      cidade: "",
+      estado: "",
+      tem_plano_saude: false,
+      plano_saude_nome: "",
+      toma_medicamento: false,
+      medicamentos_nome: "",
+      tem_doenca_tratamento: false,
+      doenca_tratamento_nome: "",
+      tem_diabetes: false,
+      outras_doencas: "",
+      cpf: "",
+      rg: "",
+      estado_civil: "",
+      profissao: "",
+      experiencia_umbanda: "",
+      contato_contexto_espiritual: "",
+      motivo_busca_desenvolvimento: "",
+      interesse_aprendizado: "",
+      ja_conhece_terreiro: null,
+      como_conheceu_terreiro: "",
+      tratamento_psiquiatrico: false,
+      tratamento_psiquiatrico_detalhes: "",
+      restricoes_saude: "",
+      aceita_uso_dados: false,
+      aceita_uso_imagem: false,
+      comprovante_inscricao_filename: null,
     });
     setDrawerOpen(true);
   };
@@ -363,6 +507,7 @@ export default function ParticipantesPage() {
   const openEditDrawer = (p: Participante) => {
     setDrawerMode("edit");
     setEditingId(p.id);
+    setMatriculaFile(null);
     setFormData({
       nome: p.nome,
       data_nascimento: p.data_nascimento || "",
@@ -379,6 +524,40 @@ export default function ParticipantesPage() {
         ? String(p.valor_mensalidade)
         : "",
       data_pagamento: p.data_pagamento ? p.data_pagamento.substring(0, 10) : new Date().toISOString().substring(0, 10),
+      genero: p.genero || "",
+      emergencia_contato: p.emergencia_contato || "",
+      emergencia_fone: p.emergencia_fone || "",
+      cep: p.cep || "",
+      logradouro: p.logradouro || "",
+      numero: p.numero || "",
+      complemento: p.complemento || "",
+      bairro: p.bairro || "",
+      cidade: p.cidade || "",
+      estado: p.estado || "",
+      tem_plano_saude: !!p.tem_plano_saude,
+      plano_saude_nome: p.plano_saude_nome || "",
+      toma_medicamento: !!p.toma_medicamento,
+      medicamentos_nome: p.medicamentos_nome || "",
+      tem_doenca_tratamento: !!p.tem_doenca_tratamento,
+      doenca_tratamento_nome: p.doenca_tratamento_nome || "",
+      tem_diabetes: !!p.tem_diabetes,
+      outras_doencas: p.outras_doencas || "",
+      cpf: p.cpf || "",
+      rg: p.rg || "",
+      estado_civil: p.estado_civil || "",
+      profissao: p.profissao || "",
+      experiencia_umbanda: p.experiencia_umbanda || "",
+      contato_contexto_espiritual: p.contato_contexto_espiritual || "",
+      motivo_busca_desenvolvimento: p.motivo_busca_desenvolvimento || "",
+      interesse_aprendizado: p.interesse_aprendizado || "",
+      ja_conhece_terreiro: p.ja_conhece_terreiro,
+      como_conheceu_terreiro: p.como_conheceu_terreiro || "",
+      tratamento_psiquiatrico: !!p.tratamento_psiquiatrico,
+      tratamento_psiquiatrico_detalhes: p.tratamento_psiquiatrico_detalhes || "",
+      restricoes_saude: p.restricoes_saude || "",
+      aceita_uso_dados: !!p.aceita_uso_dados,
+      aceita_uso_imagem: !!p.aceita_uso_imagem,
+      comprovante_inscricao_filename: p.comprovante_inscricao_filename || null,
     });
     setDrawerOpen(true);
   };
@@ -405,6 +584,39 @@ export default function ParticipantesPage() {
       email: formData.email || null,
       valor_mensalidade: formData.valor_mensalidade ? parseFloat(formData.valor_mensalidade) : null,
       observacoes: formData.observacoes || null,
+      genero: formData.genero || null,
+      emergencia_contato: formData.emergencia_contato || null,
+      emergencia_fone: formData.emergencia_fone || null,
+      cep: formData.cep || null,
+      logradouro: formData.logradouro || null,
+      numero: formData.numero || null,
+      complemento: formData.complemento || null,
+      bairro: formData.bairro || null,
+      cidade: formData.cidade || null,
+      estado: formData.estado || null,
+      tem_plano_saude: formData.tem_plano_saude,
+      plano_saude_nome: formData.tem_plano_saude ? formData.plano_saude_nome || null : null,
+      toma_medicamento: formData.toma_medicamento,
+      medicamentos_nome: formData.toma_medicamento ? formData.medicamentos_nome || null : null,
+      tem_doenca_tratamento: formData.tem_doenca_tratamento,
+      doenca_tratamento_nome: formData.tem_doenca_tratamento ? formData.doenca_tratamento_nome || null : null,
+      tem_diabetes: formData.tem_diabetes,
+      outras_doencas: formData.outras_doencas || null,
+      cpf: formData.cpf || null,
+      rg: formData.rg || null,
+      estado_civil: formData.estado_civil || null,
+      profissao: formData.profissao || null,
+      experiencia_umbanda: formData.experiencia_umbanda || null,
+      contato_contexto_espiritual: formData.contato_contexto_espiritual || null,
+      motivo_busca_desenvolvimento: formData.motivo_busca_desenvolvimento || null,
+      interesse_aprendizado: formData.interesse_aprendizado || null,
+      ja_conhece_terreiro: formData.ja_conhece_terreiro,
+      como_conheceu_terreiro: formData.como_conheceu_terreiro || null,
+      tratamento_psiquiatrico: formData.tratamento_psiquiatrico,
+      tratamento_psiquiatrico_detalhes: formData.tratamento_psiquiatrico ? formData.tratamento_psiquiatrico_detalhes || null : null,
+      restricoes_saude: formData.restricoes_saude || null,
+      aceita_uso_dados: formData.aceita_uso_dados,
+      aceita_uso_imagem: formData.aceita_uso_imagem,
     };
 
     if (drawerMode === "edit") {
@@ -416,13 +628,27 @@ export default function ParticipantesPage() {
     }
 
     try {
+      let savedParticipantId = editingId;
       if (drawerMode === "create") {
-        await apiClient.post(`/api/v1/admin/cursos-presenciais/${id}/participantes`, payload);
+        const res = await apiClient.post(`/api/v1/admin/cursos-presenciais/${id}/participantes`, payload);
+        savedParticipantId = res.data.id;
         showAlert("Participante cadastrado com sucesso.", "success");
       } else if (editingId) {
         await apiClient.put(`/api/v1/admin/cursos-presenciais/${id}/participantes/${editingId}`, payload);
         showAlert("Cadastro do participante atualizado.", "success");
       }
+
+      // Se houver um arquivo de comprovante selecionado, faz o upload
+      if (matriculaFile && savedParticipantId) {
+        const form = new FormData();
+        form.append("comprovante", matriculaFile);
+        await apiClient.post(
+          `/api/v1/admin/cursos-presenciais/${id}/participantes/${savedParticipantId}/comprovante`,
+          form,
+          { headers: { 'Content-Type': 'multipart/form-data' } }
+        );
+      }
+
       setDrawerOpen(false);
       fetchParticipantes();
     } catch (err: any) {
@@ -683,6 +909,7 @@ export default function ParticipantesPage() {
                       <TableCell sx={{ fontWeight: 600 }}>Detalhes do Pagamento</TableCell>
                     </>
                   )}
+                  <TableCell sx={{ fontWeight: 600 }}>Comp. Inscrição</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 600 }}>Ações</TableCell>
                 </TableRow>
               </TableHead>
@@ -697,10 +924,27 @@ export default function ParticipantesPage() {
                   filteredParticipantes.map((p) => {
                     const isCustomFee = curso?.valor_mensalidade_padrao !== null &&
                       p.valor_mensalidade !== curso?.valor_mensalidade_padrao;
+                    const isFichaIncompleta =
+                      curso?.tipo_formulario === "completo" &&
+                      (!p.cep || !p.emergencia_contato || !p.emergencia_fone);
 
                     return (
                       <TableRow key={p.id} hover>
-                        <TableCell sx={{ fontWeight: 500 }}>{p.nome}</TableCell>
+                        <TableCell sx={{ fontWeight: 500 }}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <span>{p.nome}</span>
+                            {isFichaIncompleta && (
+                              <Tooltip title="Ficha médica/endereço pendente">
+                                <Chip
+                                  label="Ficha Incompleta"
+                                  color="warning"
+                                  size="small"
+                                  sx={{ height: 18, fontSize: "10px", fontWeight: 600 }}
+                                />
+                              </Tooltip>
+                            )}
+                          </Stack>
+                        </TableCell>
                         <TableCell>
                           <Typography variant="body2" sx={{ fontWeight: 500 }}>
                             {p.email || "—"}
@@ -764,6 +1008,35 @@ export default function ParticipantesPage() {
                             </TableCell>
                           </>
                         )}
+                        <TableCell>
+                          {p.comprovante_inscricao_filename ? (
+                            <Tooltip title={p.comprovante_inscricao_filename}>
+                              <IconButton
+                                size="small"
+                                onClick={async () => {
+                                  try {
+                                    const res = await apiClient.get(
+                                      `/api/v1/admin/cursos-presenciais/${id}/participantes/${p.id}/comprovante`,
+                                      { responseType: 'blob' },
+                                    );
+                                    const url = URL.createObjectURL(res.data);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = p.comprovante_inscricao_filename || 'comprovante-inscricao';
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                  } catch {
+                                    showAlert("Comprovante de inscrição não encontrado.", "error");
+                                  }
+                                }}
+                              >
+                                <DownloadIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          ) : (
+                            <AttachFileIcon fontSize="small" sx={{ color: 'text.disabled' }} />
+                          )}
+                        </TableCell>
                         <TableCell align="right">
                           <Stack direction="row" spacing={1} justifyContent="flex-end">
                             <Tooltip title={curso?.gerar_mensalidade ? "Editar Matrícula" : "Editar Matrícula / Pagamento"}>
@@ -1034,6 +1307,537 @@ export default function ParticipantesPage() {
               setFormData((prev: any) => ({ ...prev, observacoes: e.target.value }))
             }
           />
+
+          {curso?.tipo_formulario === "completo" && (
+            <>
+              {/* Seção Gênero & Emergência */}
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
+                  Dados Pessoais, Documentos & Emergência
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Stack spacing={2}>
+                  <Stack direction="row" spacing={2}>
+                    <TextField
+                      label="CPF"
+                      size="small"
+                      placeholder="000.000.000-00"
+                      fullWidth
+                      value={formData.cpf || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, cpf: e.target.value }))
+                      }
+                    />
+                    <TextField
+                      label="RG"
+                      size="small"
+                      fullWidth
+                      value={formData.rg || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, rg: e.target.value }))
+                      }
+                    />
+                  </Stack>
+                  <Stack direction="row" spacing={2}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id="estado-civil-label">Estado Civil</InputLabel>
+                      <Select
+                        labelId="estado-civil-label"
+                        id="estado-civil-select"
+                        value={formData.estado_civil || ""}
+                        label="Estado Civil"
+                        onChange={(e) =>
+                          setFormData((prev: any) => ({ ...prev, estado_civil: e.target.value }))
+                        }
+                      >
+                        <MenuItem value="Solteiro(a)">Solteiro(a)</MenuItem>
+                        <MenuItem value="Casado(a)">Casado(a)</MenuItem>
+                        <MenuItem value="Divorciado(a)">Divorciado(a)</MenuItem>
+                        <MenuItem value="Viúvo(a)">Viúvo(a)</MenuItem>
+                        <MenuItem value="União Estável">União Estável</MenuItem>
+                        <MenuItem value="Outro">Outro</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <TextField
+                      label="Profissão"
+                      size="small"
+                      fullWidth
+                      value={formData.profissao || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, profissao: e.target.value }))
+                      }
+                    />
+                  </Stack>
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="genero-label">Gênero</InputLabel>
+                    <Select
+                      labelId="genero-label"
+                      id="genero-select"
+                      value={formData.genero || ""}
+                      label="Gênero"
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, genero: e.target.value }))
+                      }
+                    >
+                      <MenuItem value="Masculino">Masculino</MenuItem>
+                      <MenuItem value="Feminino">Feminino</MenuItem>
+                      <MenuItem value="Outro">Outro</MenuItem>
+                      <MenuItem value="Prefiro não responder">Prefiro não responder</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    label="Nome do Contato de Emergência"
+                    fullWidth
+                    size="small"
+                    value={formData.emergencia_contato || ""}
+                    onChange={(e) =>
+                      setFormData((prev: any) => ({ ...prev, emergencia_contato: e.target.value }))
+                    }
+                  />
+                  <TextField
+                    label="Telefone de Emergência"
+                    fullWidth
+                    placeholder="(11) 99999-9999"
+                    size="small"
+                    value={formData.emergencia_fone || ""}
+                    onChange={(e) =>
+                      setFormData((prev: any) => ({ ...prev, emergencia_fone: e.target.value }))
+                    }
+                  />
+                </Stack>
+              </Box>
+
+              {/* Seção Endereço */}
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
+                  Endereço Residencial
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Stack spacing={2}>
+                  <Stack direction="row" spacing={1}>
+                    <TextField
+                      label="CEP"
+                      size="small"
+                      placeholder="00000-000"
+                      value={formData.cep || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, cep: e.target.value.replace(/[^\d-]/g, "").slice(0, 9) }))
+                      }
+                      onBlur={() => lookupCep(formData.cep)}
+                      error={!!cepError}
+                      helperText={cepError}
+                      fullWidth
+                    />
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      disabled={cepLoading}
+                      onClick={() => lookupCep(formData.cep)}
+                    >
+                      {cepLoading ? <CircularProgress size={20} /> : "Buscar"}
+                    </Button>
+                  </Stack>
+                  <TextField
+                    label="Logradouro"
+                    size="small"
+                    value={formData.logradouro || ""}
+                    onChange={(e) =>
+                      setFormData((prev: any) => ({ ...prev, logradouro: e.target.value }))
+                    }
+                    fullWidth
+                  />
+                  <Stack direction="row" spacing={2}>
+                    <TextField
+                      label="Número"
+                      size="small"
+                      value={formData.numero || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, numero: e.target.value }))
+                      }
+                      sx={{ width: "120px" }}
+                    />
+                    <TextField
+                      label="Complemento"
+                      size="small"
+                      value={formData.complemento || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, complemento: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                  </Stack>
+                  <TextField
+                    label="Bairro"
+                    size="small"
+                    value={formData.bairro || ""}
+                    onChange={(e) =>
+                      setFormData((prev: any) => ({ ...prev, bairro: e.target.value }))
+                    }
+                    fullWidth
+                  />
+                  <Stack direction="row" spacing={2}>
+                    <TextField
+                      label="Cidade"
+                      size="small"
+                      value={formData.cidade || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, cidade: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                    <TextField
+                      label="Estado"
+                      size="small"
+                      value={formData.estado || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, estado: e.target.value.toUpperCase().slice(0, 2) }))
+                      }
+                      sx={{ width: "100px" }}
+                    />
+                  </Stack>
+                </Stack>
+              </Box>
+
+              {/* Seção Perfil Espiritual */}
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
+                  Ficha e Perfil Espiritual
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Stack spacing={2}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="umbanda-exp-label">Já teve experiência/estudo sobre Umbanda?</InputLabel>
+                    <Select
+                      labelId="umbanda-exp-label"
+                      value={formData.experiencia_umbanda || ""}
+                      label="Já teve experiência/estudo sobre Umbanda?"
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, experiencia_umbanda: e.target.value }))
+                      }
+                    >
+                      <MenuItem value="Sim">Sim</MenuItem>
+                      <MenuItem value="Não">Não</MenuItem>
+                      <MenuItem value="Outros">Outros</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="filho-contexto-label">Já foi/é filho de algum contexto espiritual?</InputLabel>
+                    <Select
+                      labelId="filho-contexto-label"
+                      value={formData.contato_contexto_espiritual || ""}
+                      label="Já foi/é filho de algum contexto espiritual?"
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, contato_contexto_espiritual: e.target.value }))
+                      }
+                    >
+                      <MenuItem value="Sim">Sim</MenuItem>
+                      <MenuItem value="Não">Não</MenuItem>
+                      <MenuItem value="Outros">Outros</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    label="O que motivou a busca pelo desenvolvimento mediúnico?"
+                    size="small"
+                    multiline
+                    rows={2}
+                    value={formData.motivo_busca_desenvolvimento || ""}
+                    onChange={(e) =>
+                      setFormData((prev: any) => ({ ...prev, motivo_busca_desenvolvimento: e.target.value }))
+                    }
+                    fullWidth
+                  />
+                  <TextField
+                    label="Tem interesse em algum aprendizado específico? Qual?"
+                    size="small"
+                    multiline
+                    rows={2}
+                    value={formData.interesse_aprendizado || ""}
+                    onChange={(e) =>
+                      setFormData((prev: any) => ({ ...prev, interesse_aprendizado: e.target.value }))
+                    }
+                    fullWidth
+                  />
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="conhece-terreiro-label">{`Já conhece o Terreiro ${tenantName || "Terreiro"}?`}</InputLabel>
+                    <Select
+                      labelId="conhece-terreiro-label"
+                      value={formData.ja_conhece_terreiro === true ? "Sim" : formData.ja_conhece_terreiro === false ? "Não" : ""}
+                      label={`Já conhece o Terreiro ${tenantName || "Terreiro"}?`}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData((prev: any) => ({
+                          ...prev,
+                          ja_conhece_terreiro: val === "Sim" ? true : val === "Não" ? false : null
+                        }));
+                      }}
+                    >
+                      <MenuItem value="Sim">Sim</MenuItem>
+                      <MenuItem value="Não">Não</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    label={`Como conheceu o Terreiro ${tenantName || "Terreiro"}?`}
+                    size="small"
+                    value={formData.como_conheceu_terreiro || ""}
+                    onChange={(e) =>
+                      setFormData((prev: any) => ({ ...prev, como_conheceu_terreiro: e.target.value }))
+                    }
+                    fullWidth
+                  />
+                </Stack>
+              </Box>
+
+              {/* Seção Ficha Médica */}
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
+                  Ficha Médica & Saúde
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Stack spacing={2}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.tem_plano_saude || false}
+                        onChange={(e) =>
+                          setFormData((prev: any) => ({ ...prev, tem_plano_saude: e.target.checked }))
+                        }
+                      />
+                    }
+                    label="Possui Plano de Saúde"
+                  />
+                  {formData.tem_plano_saude && (
+                    <TextField
+                      label="Nome do Plano de Saúde"
+                      size="small"
+                      value={formData.plano_saude_nome || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, plano_saude_nome: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                  )}
+
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.toma_medicamento || false}
+                        onChange={(e) =>
+                          setFormData((prev: any) => ({ ...prev, toma_medicamento: e.target.checked }))
+                        }
+                      />
+                    }
+                    label="Toma Algum Medicamento de Uso Contínuo"
+                  />
+                  {formData.toma_medicamento && (
+                    <TextField
+                      label="Medicamentos em Uso"
+                      size="small"
+                      multiline
+                      rows={2}
+                      value={formData.medicamentos_nome || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, medicamentos_nome: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                  )}
+
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.tem_doenca_tratamento || false}
+                        onChange={(e) =>
+                          setFormData((prev: any) => ({ ...prev, tem_doenca_tratamento: e.target.checked }))
+                        }
+                      />
+                    }
+                    label="Faz Algum Tratamento de Doença"
+                  />
+                  {formData.tem_doenca_tratamento && (
+                    <TextField
+                      label="Tratamento/Doença"
+                      size="small"
+                      multiline
+                      rows={2}
+                      value={formData.doenca_tratamento_nome || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, doenca_tratamento_nome: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                  )}
+
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.tem_diabetes || false}
+                        onChange={(e) =>
+                          setFormData((prev: any) => ({ ...prev, tem_diabetes: e.target.checked }))
+                        }
+                      />
+                    }
+                    label="Possui Diabetes"
+                  />
+
+                  <TextField
+                    label="Outras Condições/Doenças a Mencionar"
+                    size="small"
+                    multiline
+                    rows={2}
+                    value={formData.outras_doencas || ""}
+                    onChange={(e) =>
+                      setFormData((prev: any) => ({ ...prev, outras_doencas: e.target.value }))
+                    }
+                    fullWidth
+                  />
+
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.tratamento_psiquiatrico || false}
+                        onChange={(e) =>
+                          setFormData((prev: any) => ({ ...prev, tratamento_psiquiatrico: e.target.checked }))
+                        }
+                      />
+                    }
+                    label="Faz Acompanhamento Psiquiátrico / Remédios Controlados"
+                  />
+                  {formData.tratamento_psiquiatrico && (
+                    <TextField
+                      label="Especifique Tratamentos e Remédios Psiquiátricos"
+                      size="small"
+                      multiline
+                      rows={2}
+                      value={formData.tratamento_psiquiatrico_detalhes || ""}
+                      onChange={(e) =>
+                        setFormData((prev: any) => ({ ...prev, tratamento_psiquiatrico_detalhes: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                  )}
+
+                  <TextField
+                    label="Restrições Médicas, Físicas ou de Cuidado Especial"
+                    size="small"
+                    multiline
+                    rows={2}
+                    value={formData.restricoes_saude || ""}
+                    onChange={(e) =>
+                      setFormData((prev: any) => ({ ...prev, restricoes_saude: e.target.value }))
+                    }
+                    fullWidth
+                  />
+                </Stack>
+              </Box>
+
+              {/* Seção LGPD / Termos */}
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
+                  Termos e Consentimento (LGPD)
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Stack spacing={1}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.aceita_uso_dados || false}
+                        onChange={(e) =>
+                          setFormData((prev: any) => ({ ...prev, aceita_uso_dados: e.target.checked }))
+                        }
+                      />
+                    }
+                    label="Autoriza o uso dos dados pessoais (LGPD)"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.aceita_uso_imagem || false}
+                        onChange={(e) =>
+                          setFormData((prev: any) => ({ ...prev, aceita_uso_imagem: e.target.checked }))
+                        }
+                      />
+                    }
+                    label="Autoriza o uso de imagem e voz"
+                  />
+                </Stack>
+              </Box>
+
+              {/* Seção Comprovante de Inscrição */}
+              <Box sx={{ mt: 2, pt: 2, borderTop: "1px dashed", borderColor: "divider" }}>
+                <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                  Comprovante de Inscrição (Matrícula)
+                </Typography>
+                {formData.comprovante_inscricao_filename && (
+                  <Box sx={{ mb: 2, p: 1.5, bgcolor: "grey.100", borderRadius: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {formData.comprovante_inscricao_filename}
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                      <IconButton
+                        size="small"
+                        onClick={async () => {
+                          try {
+                            const res = await apiClient.get(
+                              `/api/v1/admin/cursos-presenciais/${id}/participantes/${editingId}/comprovante`,
+                              { responseType: 'blob' },
+                            );
+                            const url = URL.createObjectURL(res.data);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = formData.comprovante_inscricao_filename || 'comprovante';
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          } catch {
+                            showAlert("Erro ao baixar comprovante.", "error");
+                          }
+                        }}
+                      >
+                        <DownloadIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={async () => {
+                          if (window.confirm("Deseja remover este comprovante de inscrição?")) {
+                            try {
+                              await apiClient.delete(`/api/v1/admin/cursos-presenciais/${id}/participantes/${editingId}/comprovante`);
+                              setFormData((prev: any) => ({ ...prev, comprovante_inscricao_filename: null }));
+                              showAlert("Comprovante de inscrição removido.", "success");
+                              fetchParticipantes();
+                            } catch {
+                              showAlert("Erro ao remover comprovante.", "error");
+                            }
+                          }
+                        }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Box>
+                )}
+                <Box>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {formData.comprovante_inscricao_filename ? "Alterar comprovante de inscrição (JPG, PNG, WebP, PDF)" : "Anexar comprovante de inscrição (JPG, PNG, WebP, PDF)"}
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    size="small"
+                    startIcon={<AttachFileIcon />}
+                    sx={{ mt: 0.5 }}
+                  >
+                    {matriculaFile ? matriculaFile.name : 'Selecionar arquivo'}
+                    <input
+                      type="file"
+                      hidden
+                      accept=".jpg,.jpeg,.png,.webp,.pdf"
+                      onChange={(e) => setMatriculaFile(e.target.files?.[0] ?? null)}
+                    />
+                  </Button>
+                </Box>
+              </Box>
+            </>
+          )}
 
           {/* Seção Exclusiva de Pagamento Tradicional (Apenas se gerar_mensalidade for falso e for edição) */}
           {!curso?.gerar_mensalidade && drawerMode === "edit" && (

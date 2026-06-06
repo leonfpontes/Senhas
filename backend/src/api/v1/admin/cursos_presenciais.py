@@ -51,6 +51,8 @@ class CursoPresencialCreate(BaseModel):
     observacoes: Optional[str] = None
     is_active: bool = True
     gerar_mensalidade: bool = False
+    tipo_formulario: str = "simples"
+    chave_pix: Optional[str] = None
 
 class CursoPresencialUpdate(BaseModel):
     """Payload para atualização parcial de um curso presencial."""
@@ -64,6 +66,8 @@ class CursoPresencialUpdate(BaseModel):
     observacoes: Optional[str] = None
     is_active: Optional[bool] = None
     gerar_mensalidade: Optional[bool] = None
+    tipo_formulario: Optional[str] = None
+    chave_pix: Optional[str] = None
 
 class CursoPresencialResponse(BaseModel):
     """Resposta retornada ao consultar/editar um curso presencial."""
@@ -79,6 +83,8 @@ class CursoPresencialResponse(BaseModel):
     observacoes: Optional[str] = None
     is_active: bool
     gerar_mensalidade: bool = False
+    tipo_formulario: str = "simples"
+    chave_pix: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -86,6 +92,11 @@ class CursoPresencialResponse(BaseModel):
     @classmethod
     def validate_gerar_mensalidade(cls, v):
         return v if v is not None else False
+
+    @field_validator("tipo_formulario", mode="before")
+    @classmethod
+    def validate_tipo_formulario(cls, v):
+        return v if v is not None else "simples"
 
     class Config:
         from_attributes = True
@@ -98,6 +109,39 @@ class ParticipanteCreate(BaseModel):
     email: Optional[str] = None
     valor_mensalidade: Optional[Decimal] = None
     observacoes: Optional[str] = None
+    genero: Optional[str] = None
+    emergencia_contato: Optional[str] = None
+    emergencia_fone: Optional[str] = None
+    cep: Optional[str] = None
+    logradouro: Optional[str] = None
+    numero: Optional[str] = None
+    complemento: Optional[str] = None
+    bairro: Optional[str] = None
+    cidade: Optional[str] = None
+    estado: Optional[str] = None
+    tem_plano_saude: Optional[bool] = None
+    plano_saude_nome: Optional[str] = None
+    toma_medicamento: Optional[bool] = None
+    medicamentos_nome: Optional[str] = None
+    tem_doenca_tratamento: Optional[bool] = None
+    doenca_tratamento_nome: Optional[str] = None
+    tem_diabetes: Optional[bool] = None
+    outras_doencas: Optional[str] = None
+    cpf: Optional[str] = None
+    rg: Optional[str] = None
+    estado_civil: Optional[str] = None
+    profissao: Optional[str] = None
+    experiencia_umbanda: Optional[str] = None
+    contato_contexto_espiritual: Optional[str] = None
+    motivo_busca_desenvolvimento: Optional[str] = None
+    interesse_aprendizado: Optional[str] = None
+    ja_conhece_terreiro: Optional[bool] = None
+    como_conheceu_terreiro: Optional[str] = None
+    tratamento_psiquiatrico: Optional[bool] = None
+    tratamento_psiquiatrico_detalhes: Optional[str] = None
+    restricoes_saude: Optional[str] = None
+    aceita_uso_dados: bool = False
+    aceita_uso_imagem: bool = False
 
 class ParticipanteUpdate(BaseModel):
     """Payload para atualizar informações de um participante."""
@@ -110,6 +154,39 @@ class ParticipanteUpdate(BaseModel):
     valor_pago: Optional[Decimal] = None
     data_pagamento: Optional[datetime] = None
     observacoes: Optional[str] = None
+    genero: Optional[str] = None
+    emergencia_contato: Optional[str] = None
+    emergencia_fone: Optional[str] = None
+    cep: Optional[str] = None
+    logradouro: Optional[str] = None
+    numero: Optional[str] = None
+    complemento: Optional[str] = None
+    bairro: Optional[str] = None
+    cidade: Optional[str] = None
+    estado: Optional[str] = None
+    tem_plano_saude: Optional[bool] = None
+    plano_saude_nome: Optional[str] = None
+    toma_medicamento: Optional[bool] = None
+    medicamentos_nome: Optional[str] = None
+    tem_doenca_tratamento: Optional[bool] = None
+    doenca_tratamento_nome: Optional[str] = None
+    tem_diabetes: Optional[bool] = None
+    outras_doencas: Optional[str] = None
+    cpf: Optional[str] = None
+    rg: Optional[str] = None
+    estado_civil: Optional[str] = None
+    profissao: Optional[str] = None
+    experiencia_umbanda: Optional[str] = None
+    contato_contexto_espiritual: Optional[str] = None
+    motivo_busca_desenvolvimento: Optional[str] = None
+    interesse_aprendizado: Optional[str] = None
+    ja_conhece_terreiro: Optional[bool] = None
+    como_conheceu_terreiro: Optional[str] = None
+    tratamento_psiquiatrico: Optional[bool] = None
+    tratamento_psiquiatrico_detalhes: Optional[str] = None
+    restricoes_saude: Optional[str] = None
+    aceita_uso_dados: Optional[bool] = None
+    aceita_uso_imagem: Optional[bool] = None
 
 class ParticipanteResponse(BaseModel):
     """Resposta retornada ao consultar/editar um participante."""
@@ -125,8 +202,59 @@ class ParticipanteResponse(BaseModel):
     valor_pago: Optional[Decimal] = None
     data_pagamento: Optional[datetime] = None
     observacoes: Optional[str] = None
+    genero: Optional[str] = None
+    emergencia_contato: Optional[str] = None
+    emergencia_fone: Optional[str] = None
+    cep: Optional[str] = None
+    logradouro: Optional[str] = None
+    numero: Optional[str] = None
+    complemento: Optional[str] = None
+    bairro: Optional[str] = None
+    cidade: Optional[str] = None
+    estado: Optional[str] = None
+    tem_plano_saude: Optional[bool] = None
+    plano_saude_nome: Optional[str] = None
+    toma_medicamento: Optional[bool] = None
+    medicamentos_nome: Optional[str] = None
+    tem_doenca_tratamento: Optional[bool] = None
+    doenca_tratamento_nome: Optional[str] = None
+    tem_diabetes: Optional[bool] = None
+    outras_doencas: Optional[str] = None
+    aceita_uso_dados_saude: bool = False
+    cpf: Optional[str] = None
+    rg: Optional[str] = None
+    estado_civil: Optional[str] = None
+    profissao: Optional[str] = None
+    experiencia_umbanda: Optional[str] = None
+    contato_contexto_espiritual: Optional[str] = None
+    motivo_busca_desenvolvimento: Optional[str] = None
+    interesse_aprendizado: Optional[str] = None
+    ja_conhece_terreiro: Optional[bool] = None
+    como_conheceu_terreiro: Optional[str] = None
+    tratamento_psiquiatrico: Optional[bool] = None
+    tratamento_psiquiatrico_detalhes: Optional[str] = None
+    restricoes_saude: Optional[str] = None
+    aceita_uso_dados: bool = False
+    aceita_uso_imagem: bool = False
+    comprovante_inscricao_filename: Optional[str] = None
+    comprovante_inscricao_mime: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("aceita_uso_dados_saude", mode="before")
+    @classmethod
+    def validate_aceita_uso_dados_saude(cls, v):
+        return v if v is not None else False
+
+    @field_validator("aceita_uso_dados", mode="before")
+    @classmethod
+    def validate_aceita_uso_dados(cls, v):
+        return v if v is not None else False
+
+    @field_validator("aceita_uso_imagem", mode="before")
+    @classmethod
+    def validate_aceita_uso_imagem(cls, v):
+        return v if v is not None else False
 
     class Config:
         from_attributes = True
@@ -343,19 +471,24 @@ async def create_participante(
     if valor_mensalidade is None:
         valor_mensalidade = curso.valor_mensalidade_padrao
 
+    data = participante_in.model_dump()
+    if data.get("valor_mensalidade") is None:
+        data["valor_mensalidade"] = curso.valor_mensalidade_padrao
+    data["pago"] = False
+    data["valor_pago"] = None
+    data["data_pagamento"] = None
+    data["aceita_uso_dados_saude"] = True if (
+        participante_in.tem_plano_saude or 
+        participante_in.toma_medicamento or 
+        participante_in.tem_doenca_tratamento or 
+        participante_in.tem_diabetes
+    ) else False
+
     participante_repo = CursoParticipanteRepository(db)
     participante = await participante_repo.create(
         tenant_id=current_user.tenant_id,
         curso_id=curso_id,
-        nome=participante_in.nome,
-        data_nascimento=participante_in.data_nascimento,
-        celular=participante_in.celular,
-        email=participante_in.email,
-        valor_mensalidade=valor_mensalidade,
-        observacoes=participante_in.observacoes,
-        pago=False,
-        valor_pago=None,
-        data_pagamento=None,
+        **data,
     )
 
     audit = AuditService(db)
@@ -792,3 +925,121 @@ async def get_curso_resumo(
     repo = CursoParticipantePagamentoRepository(db)
     resumo = await repo.get_resumo(current_user.tenant_id, curso_id)
     return CursoResumoResponse(**resumo)
+
+
+@router.get("/{curso_id}/participantes/{participante_id}/comprovante")
+async def download_inscricao_comprovante(
+    curso_id: UUID = Path(...),
+    participante_id: UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Download do comprovante binário para a inscrição (matrícula) do participante."""
+    if not current_user.is_operator_or_admin:
+        raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
+    await _require_active_pro_or_premium_subscription(current_user, db)
+
+    # Verifica curso
+    curso_repo = CursoPresencialRepository(db)
+    curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
+    if not curso:
+        raise NotFoundError("CursoPresencial")
+
+    repo = CursoParticipanteRepository(db)
+    part = await repo.get_comprovante_inscricao(current_user.tenant_id, participante_id)
+    if not part or not part.comprovante_inscricao_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comprovante de inscrição não encontrado.")
+
+    return Response(
+        content=part.comprovante_inscricao_data,
+        media_type=part.comprovante_inscricao_mime or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{part.comprovante_inscricao_filename or "comprovante"}"'
+        },
+    )
+
+
+@router.delete("/{curso_id}/participantes/{participante_id}/comprovante", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_inscricao_comprovante(
+    curso_id: UUID = Path(...),
+    participante_id: UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove o comprovante da matrícula do participante (ADMIN only)."""
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Requer cargo de administrador.")
+    await _require_active_pro_or_premium_subscription(current_user, db)
+
+    # Verifica curso
+    curso_repo = CursoPresencialRepository(db)
+    curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
+    if not curso:
+        raise NotFoundError("CursoPresencial")
+
+    repo = CursoParticipanteRepository(db)
+    part = await repo.delete_comprovante_inscricao(current_user.tenant_id, participante_id)
+    if not part:
+         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Participante não encontrado.")
+
+    audit = AuditService(db)
+    await audit.log_delete(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        resource_type="CursoParticipanteInscricaoComprovante",
+        resource_id=participante_id,
+    )
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{curso_id}/participantes/{participante_id}/comprovante")
+async def upload_inscricao_comprovante(
+    curso_id: UUID = Path(...),
+    participante_id: UUID = Path(...),
+    comprovante: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Registra ou atualiza o comprovante de inscrição do participante."""
+    if not current_user.is_admin:
+        raise InsufficientPermissionsError("Requer cargo de administrador.")
+    await _require_active_pro_or_premium_subscription(current_user, db)
+
+    curso_repo = CursoPresencialRepository(db)
+    curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
+    if not curso:
+        raise NotFoundError("CursoPresencial")
+
+    repo = CursoParticipanteRepository(db)
+    part = await repo.get_by_id(participante_id, current_user.tenant_id)
+    if not part or part.curso_id != curso_id:
+        raise NotFoundError("CursoParticipante")
+
+    content_type = comprovante.content_type or ""
+    if content_type not in ALLOWED_COMPROVANTE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Tipo de arquivo não permitido: {content_type}. Use JPEG, PNG, WebP ou PDF.",
+        )
+    comp_data = await comprovante.read()
+    if len(comp_data) > MAX_COMPROVANTE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Comprovante muito grande (máx. {MAX_COMPROVANTE_BYTES // (1024*1024)}MB).",
+        )
+
+    part.comprovante_inscricao_data = comp_data
+    part.comprovante_inscricao_filename = comprovante.filename
+    part.comprovante_inscricao_mime = content_type
+
+    audit = AuditService(db)
+    await audit.log_update(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        resource_type="CursoParticipanteInscricaoComprovante",
+        resource_id=participante_id,
+        new_state={"filename": comprovante.filename},
+    )
+    await db.commit()
+    return {"message": "Comprovante de inscrição salvo com sucesso."}

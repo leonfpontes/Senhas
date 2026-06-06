@@ -585,3 +585,127 @@
   .formGrid { grid-template-columns: 1fr; }
   .successCard { padding: 36px 20px; }
 }
+
+/* ── Collapsible Sections for Complete Form ── */
+.collapsibleSection {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 20px rgba(0,0,0,0.07);
+  border: 1px solid #e5e7eb;
+  margin-bottom: 24px;
+  overflow: hidden;
+  transition: all 0.25s ease;
+}
+
+.collapsibleHeader {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 24px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  outline: none;
+  text-align: left;
+}
+
+.collapsibleTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.collapsibleIcon {
+  font-size: 20px;
+}
+
+.collapsibleArrow {
+  font-size: 16px;
+  color: #9ca3af;
+  transition: transform 0.2s ease;
+}
+
+.collapsibleArrowOpen {
+  transform: rotate(180deg);
+}
+
+.collapsibleContent {
+  padding: 0 28px 28px;
+  border-top: 1px dashed #e5e7eb;
+  padding-top: 24px;
+}
+
+.select {
+  composes: input;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23374151' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  padding-right: 40px;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.formRow:last-child {
+  margin-bottom: 0;
+}
+
+.cepSearchRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.cepBtn {
+  padding: 11px 20px;
+  background: var(--primary, #4f46e5);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  height: 46px;
+  white-space: nowrap;
+}
+
+.cepBtn:hover {
+  opacity: 0.9;
+}
+
+.cepBtn:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+}
+
+.cepErrorText {
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: 4px;
+}
+
+.conditionalBlock {
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 10px;
+  border: 1px solid #f3f4f6;
+  margin-top: 8px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+

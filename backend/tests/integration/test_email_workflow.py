@@ -23,9 +23,9 @@ from backend.src.models import (
     Tenant, User, UserRole, Gira, Consulente, Ticket, TicketStatus, SenhaControl, AuditLog, AuditAction
 )
 from backend.src.services.email import BrevoEmailService, ResendEmailService
-from backend.src.repositories import TicketRepository, SenhaControlRepository
+from backend.src.repositories.ticket_repo import TicketRepository
+from backend.src.repositories.senha_control_repo import SenhaControlRepository
 from backend.src.core.config import settings
-from backend.src.api.v1.public import emit_ticket_handler
 
 
 # ============================================
