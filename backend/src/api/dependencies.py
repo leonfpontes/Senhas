@@ -10,9 +10,11 @@ from ..core.errors import (
     InsufficientPermissionsError,
     MultiTenantViolationError,
     NotFoundError,
+    GroupPermissionDeniedError,
 )
-from ..models import User, UserRole
+from ..models import User, UserRole, PermissionFeature
 from ..middleware.tenant_context import get_tenant_id
+from ..services.permission_service import PermissionService
 from sqlalchemy import select
 
 
@@ -123,3 +125,31 @@ async def validate_tenant_access(
         raise MultiTenantViolationError()
     
     return tenant_id
+
+
+def require_group_permission(feature: PermissionFeature, action: str):
+    """Dependency factory for group-based permission checking.
+    
+    Verifies that the user has the required group permissions for the specific action on a feature.
+    """
+    async def dependency(
+        request: Request,
+        user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ) -> None:
+        token_data = getattr(request.state, "token_data", None)
+        permission_service = PermissionService(db)
+        
+        has_perm = await permission_service.check_permission(
+            user=user,
+            feature=feature,
+            action=action,
+            token_data=token_data,
+        )
+        if not has_perm:
+            raise GroupPermissionDeniedError(feature.value, action)
+            
+        return None
+        
+    return dependency
+

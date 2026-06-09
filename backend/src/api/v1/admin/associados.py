@@ -8,10 +8,10 @@ from datetime import datetime
 import logging
 
 from src.core.database import get_db
-from src.models import User
+from src.models import User, PermissionFeature
 from src.repositories.associado_repo import AssociadoRepository
 from src.services.audit_service import AuditService
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/admin/associados", tags=["admin-associados"])
@@ -45,7 +45,7 @@ class AssociadoResponse(BaseModel):
 
 # ── Endpoints ────────────────────────────────────────────────────────────
 
-@router.post("", response_model=AssociadoResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=AssociadoResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.ASSOCIADOS, "insert"))])
 async def create_associado(
     data: AssociadoCreate,
     current_user: User = Depends(get_current_user),
@@ -86,7 +86,7 @@ async def create_associado(
     return AssociadoResponse.model_validate(associado)
 
 
-@router.get("", response_model=List[AssociadoResponse])
+@router.get("", response_model=List[AssociadoResponse], dependencies=[Depends(require_group_permission(PermissionFeature.ASSOCIADOS, "view"))])
 async def list_associados(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
@@ -102,7 +102,7 @@ async def list_associados(
     return [AssociadoResponse.model_validate(a) for a in items]
 
 
-@router.get("/count")
+@router.get("/count", dependencies=[Depends(require_group_permission(PermissionFeature.ASSOCIADOS, "view"))])
 async def count_associados(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -116,7 +116,7 @@ async def count_associados(
     return {"count": total}
 
 
-@router.get("/{associado_id}", response_model=AssociadoResponse)
+@router.get("/{associado_id}", response_model=AssociadoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.ASSOCIADOS, "view"))])
 async def get_associado(
     associado_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -134,7 +134,7 @@ async def get_associado(
     return AssociadoResponse.model_validate(associado)
 
 
-@router.put("/{associado_id}", response_model=AssociadoResponse)
+@router.put("/{associado_id}", response_model=AssociadoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.ASSOCIADOS, "edit"))])
 async def update_associado(
     data: AssociadoUpdate,
     associado_id: UUID = Path(...),
@@ -179,7 +179,7 @@ async def update_associado(
     return AssociadoResponse.model_validate(updated)
 
 
-@router.delete("/{associado_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{associado_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.ASSOCIADOS, "delete"))])
 async def delete_associado(
     associado_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),

@@ -5,6 +5,7 @@ import TenantAwareThemeProvider from '@/providers/ThemeProvider';
 import { SubscriptionProvider } from '@/hooks/useSubscription';
 import { ProfileProvider } from '@/hooks/useProfile';
 import { BirthdayProvider } from '@/providers/BirthdayProvider';
+import { PermissionsProvider } from '@/hooks/usePermissions';
 
 /**
  * Estilos do popover do tour — responsivos e compatíveis com MUI.
@@ -35,12 +36,14 @@ function MyApp({ Component, pageProps }: AppProps) {
     <TenantAwareThemeProvider>
       <ProfileProvider>
         <SubscriptionProvider>
-          <BirthdayProvider>
-            {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}
-            <TourProvider steps={[]} styles={tourStyles}>
-              <Component {...pageProps} />
-            </TourProvider>
-          </BirthdayProvider>
+          <PermissionsProvider>
+            <BirthdayProvider>
+              {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}
+              <TourProvider steps={[]} styles={tourStyles}>
+                <Component {...pageProps} />
+              </TourProvider>
+            </BirthdayProvider>
+          </PermissionsProvider>
         </SubscriptionProvider>
       </ProfileProvider>
     </TenantAwareThemeProvider>

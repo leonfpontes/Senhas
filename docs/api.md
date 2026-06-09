@@ -405,6 +405,136 @@ All admin endpoints require:
 
 ---
 
+### 8. Permission Groups (RBAC)
+
+Endpoints for fine-grained authorization control (Admin role only, operators restricted).
+
+#### 8.1 List Groups
+`GET /admin/permission-groups`
+- **Response** (200 OK):
+```json
+[
+  {
+    "id": "group-uuid",
+    "tenant_id": "tenant-uuid",
+    "name": "Operadores de Porta",
+    "description": "Acesso à visão da porta e chamadas de senhas",
+    "version": 1,
+    "created_at": "2026-06-09T15:00:00Z",
+    "updated_at": "2026-06-09T15:00:00Z",
+    "members_count": 2,
+    "features_configured_count": 3
+  }
+]
+```
+
+#### 8.2 Create Group
+`POST /admin/permission-groups`
+- **Request Body**:
+```json
+{
+  "name": "Operadores de Porta",
+  "description": "Acesso à visão da porta e chamadas de senhas"
+}
+```
+- **Response** (201 Created): `PermissionGroupResponse`
+
+#### 8.3 Get Group details
+`GET /admin/permission-groups/{id}`
+- **Response** (200 OK): `PermissionGroupResponse`
+
+#### 8.4 Update Group details
+`PUT /admin/permission-groups/{id}`
+- **Request Body**:
+```json
+{
+  "name": "Novo Nome",
+  "description": "Nova Descrição"
+}
+```
+- **Response** (200 OK): `PermissionGroupResponse`
+
+#### 8.5 Delete Group (Soft delete)
+`DELETE /admin/permission-groups/{id}`
+- **Query Parameters**: `force` (boolean, default `false`). If the group contains active members, returns `409 Conflict` unless `force=true` is provided.
+- **Response** (204 No Content)
+
+#### 8.6 Get Group permissions
+`GET /admin/permission-groups/{id}/permissions`
+- **Response** (200 OK):
+```json
+[
+  {
+    "id": "permission-uuid",
+    "group_id": "group-uuid",
+    "feature": "porta",
+    "can_view": true,
+    "can_insert": true,
+    "can_edit": true,
+    "can_delete": false
+  }
+]
+```
+
+#### 8.7 Update Group permissions
+`PUT /admin/permission-groups/{id}/permissions`
+- **Request Body**:
+```json
+{
+  "permissions": [
+    {
+      "feature": "porta",
+      "can_view": true,
+      "can_insert": true,
+      "can_edit": true,
+      "can_delete": false
+    }
+  ],
+  "version": 1
+}
+```
+- **Response** (200 OK): `PermissionGroupResponse`
+
+#### 8.8 List Group members
+`GET /admin/permission-groups/{id}/members`
+- **Response** (200 OK):
+```json
+[
+  {
+    "id": "user-uuid",
+    "email": "operator@terreiro.com",
+    "username": "operator_a"
+  }
+]
+```
+
+#### 8.9 Add member to Group
+`POST /admin/permission-groups/{id}/members`
+- **Request Body**:
+```json
+{
+  "user_id": "user-uuid"
+}
+```
+- **Response** (200 OK): `GroupMemberResponse`
+
+#### 8.10 Remove member from Group
+`DELETE /admin/permission-groups/{id}/members/{user_id}`
+- **Response** (204 No Content)
+
+#### 8.11 Get My Consolidated Permissions
+`GET /admin/permission-groups/me/permissions`
+- **Headers**: Returns `Cache-Control: private, max-age=300`
+- **Response** (200 OK):
+```json
+{
+  "giras": { "view": true, "insert": false, "edit": false, "delete": false },
+  "tickets": { "view": true, "insert": true, "edit": true, "delete": false }
+}
+```
+
+---
+
 ## Authentication Endpoints
 
 ### 1. Login

@@ -10,7 +10,7 @@ import logging
 
 from src.core.config import settings
 from src.core.database import get_db
-from src.models import User, UserRole, Gira
+from src.models import User, UserRole, Gira, PermissionFeature
 from src.models.senha_controls import SenhaControl
 from src.repositories.gira_repo import GiraRepository
 from src.repositories.subscription_repo import SubscriptionRepository
@@ -18,7 +18,7 @@ from src.services.audit_service import AuditService
 from src.models.subscriptions import SubscriptionStatus
 
 _BASE = settings.FRONTEND_URL.rstrip("/")
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import (
     UnauthorizedError,
     InsufficientPermissionsError,
@@ -108,7 +108,7 @@ class SenhaConfigResponse(BaseModel):
     sponsor_public_link: str = ""
 
 
-@router.post("", response_model=GiraResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=GiraResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "insert"))])
 async def create_gira(
     gira: GiraCreate,
     current_user: User = Depends(get_current_user),
@@ -171,7 +171,7 @@ async def create_gira(
     return GiraResponse.from_orm(created_gira)
 
 
-@router.get("", response_model=List[GiraResponse])
+@router.get("", response_model=List[GiraResponse], dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "view"))])
 async def list_giras(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -213,7 +213,7 @@ async def list_giras(
     return [GiraResponse.from_orm(g) for g in giras]
 
 
-@router.get("/{gira_id}", response_model=GiraResponse)
+@router.get("/{gira_id}", response_model=GiraResponse, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "view"))])
 async def get_gira(
     gira_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -235,7 +235,7 @@ async def get_gira(
     return GiraResponse.from_orm(gira)
 
 
-@router.put("/{gira_id}", response_model=GiraResponse)
+@router.put("/{gira_id}", response_model=GiraResponse, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "edit"))])
 async def update_gira(
     gira_id: UUID = Path(...),
     gira_update: GiraUpdate = None,
@@ -276,7 +276,7 @@ async def update_gira(
     return GiraResponse.from_orm(updated_gira)
 
 
-@router.delete("/{gira_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{gira_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "delete"))])
 async def delete_gira(
     gira_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -320,7 +320,7 @@ async def _get_senha_count(db: AsyncSession, tenant_id: UUID, gira_id: UUID, is_
     return sc.total_emitido if sc else 0
 
 
-@router.get("/{gira_id}/senhas", response_model=SenhaConfigResponse)
+@router.get("/{gira_id}/senhas", response_model=SenhaConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "view"))])
 async def get_senha_config(
     gira_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -352,7 +352,7 @@ async def get_senha_config(
     )
 
 
-@router.put("/{gira_id}/senhas", response_model=SenhaConfigResponse)
+@router.put("/{gira_id}/senhas", response_model=SenhaConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "edit"))])
 async def update_senha_config(
     config: SenhaConfigRequest,
     gira_id: UUID = Path(...),
@@ -442,7 +442,7 @@ async def update_senha_config(
     )
 
 
-@router.post("/{gira_id}/release-now", response_model=SenhaConfigResponse)
+@router.post("/{gira_id}/release-now", response_model=SenhaConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "edit"))])
 async def release_now(
     gira_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),

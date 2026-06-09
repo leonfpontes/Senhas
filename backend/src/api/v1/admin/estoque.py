@@ -16,9 +16,9 @@ from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.database import get_db
-from src.models import User
+from src.models import User, PermissionFeature
 from src.models.estoque import EstoqueMovimentacao, EstoqueMovimentacaoTipo
 from src.models.subscriptions import PlanType
 from src.repositories.config_repo import TenantConfigRepository
@@ -322,7 +322,7 @@ def _saldo_status(saldo: int, minimo: int) -> str:
 # Endpoints — Grupos
 # ──────────────────────────────────────────────────────────────
 
-@router.get("/grupos", response_model=List[GrupoResponse])
+@router.get("/grupos", response_model=List[GrupoResponse], dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "view"))])
 async def list_grupos(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -333,7 +333,7 @@ async def list_grupos(
     return [GrupoResponse.model_validate(g) for g in grupos]
 
 
-@router.post("/grupos", response_model=GrupoResponse, status_code=201)
+@router.post("/grupos", response_model=GrupoResponse, status_code=201, dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "insert"))])
 async def create_grupo(
     body: GrupoCreate,
     current_user: User = Depends(get_current_user),
@@ -357,7 +357,7 @@ async def create_grupo(
     return GrupoResponse.model_validate(grupo)
 
 
-@router.get("/grupos/{grupo_id}", response_model=GrupoResponse)
+@router.get("/grupos/{grupo_id}", response_model=GrupoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "view"))])
 async def get_grupo(
     grupo_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -371,7 +371,7 @@ async def get_grupo(
     return GrupoResponse.model_validate(grupo)
 
 
-@router.put("/grupos/{grupo_id}", response_model=GrupoResponse)
+@router.put("/grupos/{grupo_id}", response_model=GrupoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "edit"))])
 async def update_grupo(
     grupo_id: UUID,
     body: GrupoUpdate,
@@ -401,7 +401,7 @@ async def update_grupo(
     return GrupoResponse.model_validate(grupo)
 
 
-@router.delete("/grupos/{grupo_id}", status_code=204)
+@router.delete("/grupos/{grupo_id}", status_code=204, dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "delete"))])
 async def delete_grupo(
     grupo_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -433,7 +433,7 @@ async def delete_grupo(
 # Endpoints — Itens
 # ──────────────────────────────────────────────────────────────
 
-@router.get("/itens", response_model=List[ItemWithSaldoResponse])
+@router.get("/itens", response_model=List[ItemWithSaldoResponse], dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "view"))])
 async def list_itens(
     grupo_id: Optional[UUID] = Query(None),
     skip: int = Query(0, ge=0),
@@ -451,7 +451,7 @@ async def list_itens(
     return [_item_to_response(item, saldos.get(item.id, 0)) for item in items]
 
 
-@router.post("/itens", response_model=ItemWithSaldoResponse, status_code=201)
+@router.post("/itens", response_model=ItemWithSaldoResponse, status_code=201, dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "insert"))])
 async def create_item(
     body: ItemCreate,
     current_user: User = Depends(get_current_user),
@@ -485,7 +485,7 @@ async def create_item(
     return _item_to_response(item, 0)
 
 
-@router.get("/itens/{item_id}", response_model=ItemWithSaldoResponse)
+@router.get("/itens/{item_id}", response_model=ItemWithSaldoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "view"))])
 async def get_item(
     item_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -500,7 +500,7 @@ async def get_item(
     return _item_to_response(item, saldo)
 
 
-@router.get("/itens/{item_id}/foto")
+@router.get("/itens/{item_id}/foto", dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "view"))])
 async def get_item_foto(
     item_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -517,7 +517,7 @@ async def get_item_foto(
     )
 
 
-@router.put("/itens/{item_id}", response_model=ItemWithSaldoResponse)
+@router.put("/itens/{item_id}", response_model=ItemWithSaldoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "edit"))])
 async def update_item(
     item_id: UUID,
     body: ItemUpdate,
@@ -550,7 +550,7 @@ async def update_item(
     return _item_to_response(item, saldo)
 
 
-@router.delete("/itens/{item_id}", status_code=204)
+@router.delete("/itens/{item_id}", status_code=204, dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "delete"))])
 async def delete_item(
     item_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -575,7 +575,7 @@ async def delete_item(
 # Endpoints — Movimentações
 # ──────────────────────────────────────────────────────────────
 
-@router.get("/movimentacoes", response_model=List[MovimentacaoResponse])
+@router.get("/movimentacoes", response_model=List[MovimentacaoResponse], dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "view"))])
 async def list_movimentacoes(
     item_id: Optional[UUID] = Query(None),
     tipo: Optional[EstoqueMovimentacaoTipo] = Query(None),
@@ -602,7 +602,7 @@ async def list_movimentacoes(
     return [_mov_to_response(m) for m in movs]
 
 
-@router.post("/movimentacoes", response_model=MovimentacaoResponse, status_code=201)
+@router.post("/movimentacoes", response_model=MovimentacaoResponse, status_code=201, dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "insert"))])
 async def create_movimentacao(
     body: MovimentacaoCreate,
     current_user: User = Depends(get_current_user),
@@ -665,7 +665,7 @@ async def create_movimentacao(
 # Endpoints — Relatório
 # ──────────────────────────────────────────────────────────────
 
-@router.get("/relatorio/posicao", response_model=List[RelatorioItemResponse])
+@router.get("/relatorio/posicao", response_model=List[RelatorioItemResponse], dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "view"))])
 async def relatorio_posicao(
     grupo_id: Optional[UUID] = Query(None),
     search: Optional[str] = Query(None, max_length=255),
@@ -707,7 +707,7 @@ def _safe_csv(value: object) -> str:
     return s
 
 
-@router.get("/relatorio/posicao/csv")
+@router.get("/relatorio/posicao/csv", dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "view"))])
 async def relatorio_posicao_csv(
     grupo_id: Optional[UUID] = Query(None),
     current_user: User = Depends(get_current_user),

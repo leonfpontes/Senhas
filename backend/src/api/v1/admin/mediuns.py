@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.database import get_db
 from src.core.errors import InsufficientPermissionsError, NotFoundError
-from src.models import User
+from src.models import User, PermissionFeature
 from src.repositories.mediun_repo import MediumRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.models.subscriptions import SubscriptionStatus
@@ -103,7 +103,7 @@ class BirthdayMediumResponse(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────────────
 
 
-@router.get("/aniversariantes", response_model=List[BirthdayMediumResponse])
+@router.get("/aniversariantes", response_model=List[BirthdayMediumResponse], dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "view"))])
 async def list_aniversariantes(
     dias: int = Query(7, ge=0, le=365, description="Janela de dias (0 = somente hoje)"),
     current_user: User = Depends(get_current_user),
@@ -123,7 +123,7 @@ async def list_aniversariantes(
     return await repo.list_aniversariantes(current_user.tenant_id, dias=dias)
 
 
-@router.get("/options", response_model=List[MediumResponse])
+@router.get("/options", response_model=List[MediumResponse], dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "view"))])
 async def list_mediuns_options(
     only_atendimento: bool = Query(False, description="Filtrar apenas médiuns de atendimento"),
     current_user: User = Depends(get_current_user),
@@ -141,7 +141,7 @@ async def list_mediuns_options(
     return await repo.list(current_user.tenant_id, only_atendimento=only_atendimento)
 
 
-@router.get("", response_model=List[MediumResponse])
+@router.get("", response_model=List[MediumResponse], dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "view"))])
 async def list_mediuns(
     search: Optional[str] = Query(None),
     include_inactive: bool = Query(False),
@@ -159,7 +159,7 @@ async def list_mediuns(
     )
 
 
-@router.post("", response_model=MediumResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=MediumResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "insert"))])
 async def create_medium(
     data: MediumCreate,
     current_user: User = Depends(get_current_user),
@@ -217,7 +217,7 @@ async def create_medium(
     return medium
 
 
-@router.patch("/{medium_id}", response_model=MediumResponse)
+@router.patch("/{medium_id}", response_model=MediumResponse, dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "edit"))])
 async def update_medium(
     medium_id: UUID = Path(...),
     data: MediumUpdate = ...,
@@ -276,7 +276,7 @@ async def update_medium(
     return medium
 
 
-@router.delete("/{medium_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{medium_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "delete"))])
 async def delete_medium(
     medium_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),

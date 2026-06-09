@@ -124,3 +124,13 @@ class InvalidInputError(APIException):
             error_code="INVALID_INPUT",
             details=details,
         )
+
+
+class GroupPermissionDeniedError(ForbiddenError):
+    """Raised when user's group config denies the operation."""
+    
+    def __init__(self, feature: str, action: str):
+        super().__init__(
+            f"Ação '{action}' não permitida em '{feature}' para sua configuração de grupos.",
+            details={"feature": feature, "action": action, "error_code": "GROUP_PERMISSION_DENIED"}
+        )

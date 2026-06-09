@@ -8,9 +8,9 @@ from uuid import UUID
 from datetime import datetime
 
 from src.core.database import get_db
-from src.models import User, AuditLog, AuditAction
+from src.models import User, AuditLog, AuditAction, PermissionFeature
 from src.repositories.audit_log_repo import AuditLogRepository
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import InsufficientPermissionsError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-audit"])
@@ -39,7 +39,7 @@ class AuditLogListResponse(BaseModel):
     items: List[AuditLogResponse]
 
 
-@router.get("/audit-logs", response_model=AuditLogListResponse)
+@router.get("/audit-logs", response_model=AuditLogListResponse, dependencies=[Depends(require_group_permission(PermissionFeature.AUDITORIA, "view"))])
 async def list_audit_logs(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),

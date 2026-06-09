@@ -8,11 +8,11 @@ from datetime import datetime
 import logging
 
 from src.core.database import get_db
-from src.models import User, UserRole
+from src.models import User, UserRole, PermissionFeature
 from src.repositories.user_repo import UserRepository
 from src.security.password import hash_password
 from src.services.audit_service import AuditService
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import (
     InsufficientPermissionsError,
     NotFoundError,
@@ -55,7 +55,7 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
-@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "insert"))])
 async def create_user(
     user_data: UserCreate,
     current_user: User = Depends(get_current_user),
@@ -142,10 +142,10 @@ async def create_user(
     return UserResponse.from_orm(created_user)
 
 
-@router.get("", response_model=List[UserResponse])
+@router.get("", response_model=List[UserResponse], dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "view"))])
 async def list_users(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=500),
     role_filter: Optional[UserRole] = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -177,7 +177,7 @@ async def list_users(
     return [UserResponse.from_orm(u) for u in users]
 
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "view"))])
 async def get_user(
     user_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -196,7 +196,7 @@ async def get_user(
     return UserResponse.from_orm(user)
 
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "edit"))])
 async def update_user(
     user_id: UUID = Path(...),
     user_update: UserUpdate = None,
@@ -241,7 +241,7 @@ async def update_user(
     return UserResponse.from_orm(existing_user)
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "delete"))])
 async def delete_user(
     user_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),

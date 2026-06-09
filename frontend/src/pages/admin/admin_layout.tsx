@@ -32,6 +32,7 @@ import {
   Divider,
   Skeleton,
   Tooltip,
+  CircularProgress,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -72,6 +73,8 @@ import { useProfile } from '@/hooks/useProfile';
 import { useBirthday } from '@/providers/BirthdayProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
 import { endImpersonation } from '../../services/api_client';
+import { usePermissions } from '@/hooks/usePermissions';
+import { PermissionFeature } from '@/constants/permissionFeatures';
 
 const DRAWER_WIDTH = 280;
 
@@ -114,6 +117,25 @@ function TourHelpButton() {
     </Tooltip>
   );
 }
+
+const getFeatureForPath = (path: string): PermissionFeature | null => {
+  if (path.startsWith('/admin/giras')) return 'giras';
+  if (path.startsWith('/admin/tickets')) return 'tickets';
+  if (path.startsWith('/admin/porta')) return 'porta';
+  if (path.startsWith('/admin/mediuns')) return 'mediuns';
+  if (path.startsWith('/admin/associados')) return 'associados';
+  if (path.startsWith('/admin/users')) return 'usuarios';
+  if (path.startsWith('/admin/cursos-presenciais')) return 'cursos_presenciais';
+  if (path.startsWith('/admin/estoque')) return 'estoque';
+  if (path.startsWith('/admin/financeiro')) return 'financeiro';
+  if (path.startsWith('/admin/config')) return 'configuracoes';
+  if (path.startsWith('/admin/plano')) return 'configuracoes';
+  if (path.startsWith('/admin/billing')) return 'configuracoes';
+  if (path.startsWith('/admin/audit-trail')) return 'auditoria';
+  if (path.startsWith('/admin/analytics')) return 'analytics';
+  if (path.startsWith('/admin/relatorio-gira')) return 'relatorio_gira';
+  return null;
+};
 
 export default function AdminLayout(props: AdminLayoutProps) {
   return <AdminLayoutInner {...props} />;
@@ -198,21 +220,31 @@ function AdminLayoutInner({
 
   const { can, planLabel, subscription, loading: subscriptionLoading } = useSubscription();
   const { birthdayCount } = useBirthday();
+  const { can: canGroup, loading: permissionsLoading } = usePermissions();
   const isOperator = currentUser?.role === 'operator';
 
+  const hasGroupView = (feature: PermissionFeature): boolean => {
+    if (!isOperator) return true;
+    return canGroup(feature, 'view');
+  };
+
+  const feature = getFeatureForPath(pathname);
+  const isAuthorized = !isOperator || !feature || canGroup(feature, 'view');
+
   const cadastrosItems = [
-    { text: 'Giras', icon: <EventIcon />, href: '/admin/giras' },
-    ...(can('mediuns') ? [{ text: 'Médiuns', icon: <SelfImprovementIcon />, href: '/admin/mediuns' }] : []),
-    { text: 'Usuários', icon: <PeopleIcon />, href: '/admin/users' },
-    ...(can('associados') ? [{ text: 'Associados', icon: <Diversity3Icon />, href: '/admin/associados' }] : []),
-    { text: 'Cursos Presenciais', icon: <CardMembershipIcon />, href: '/admin/cursos-presenciais' },
+    ...(hasGroupView('giras') ? [{ text: 'Giras', icon: <EventIcon />, href: '/admin/giras' }] : []),
+    ...(can('mediuns') && hasGroupView('mediuns') ? [{ text: 'Médiuns', icon: <SelfImprovementIcon />, href: '/admin/mediuns' }] : []),
+    ...(hasGroupView('usuarios') ? [{ text: 'Usuários', icon: <PeopleIcon />, href: '/admin/users' }] : []),
+    ...(!isOperator ? [{ text: 'Grupos de Permissão', icon: <LockOutlinedIcon />, href: '/admin/permission-groups' }] : []),
+    ...(can('associados') && hasGroupView('associados') ? [{ text: 'Associados', icon: <Diversity3Icon />, href: '/admin/associados' }] : []),
+    ...(hasGroupView('cursos_presenciais') ? [{ text: 'Cursos Presenciais', icon: <CardMembershipIcon />, href: '/admin/cursos-presenciais' }] : []),
   ];
 
   const cadastrosHrefs = cadastrosItems.map((i) => i.href);
   const isCadastrosActive = cadastrosHrefs.includes(pathname);
   const [cadastrosOpen, setCadastrosOpen] = useState(isCadastrosActive);
 
-  const estoqueItems = can('estoque_controle') ? [
+  const estoqueItems = (can('estoque_controle') && hasGroupView('estoque')) ? [
     { text: 'Grupos de Material', icon: <CategoryIcon />, href: '/admin/estoque/grupos' },
     { text: 'Itens', icon: <Inventory2Icon />, href: '/admin/estoque/itens' },
     { text: 'Movimentações', icon: <SwapVertIcon />, href: '/admin/estoque/movimentacoes' },
@@ -223,8 +255,8 @@ function AdminLayoutInner({
   const [estoqueOpen, setEstoqueOpen] = useState(isEstoqueActive);
 
   const relatoriosItems = [
-    ...(can('analytics_basico') ? [{ text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' }] : []),
-    ...(can('relatorio_gira') ? [{ text: 'Relatório de Gira', icon: <SummarizeIcon />, href: '/admin/relatorio-gira' }] : []),
+    ...(can('analytics_basico') && hasGroupView('analytics') ? [{ text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' }] : []),
+    ...(can('relatorio_gira') && hasGroupView('relatorio_gira') ? [{ text: 'Relatório de Gira', icon: <SummarizeIcon />, href: '/admin/relatorio-gira' }] : []),
     ...(!isOperator && can('auditoria') ? [{ text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' }] : []),
   ];
   const relatoriosHrefs = relatoriosItems.map((i) => i.href);
@@ -259,12 +291,12 @@ function AdminLayoutInner({
 
   const topItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, href: '/admin/dashboard' },
-    { text: 'Tickets', icon: <TicketIcon />, href: '/admin/tickets' },
-    ...(can('site_builder') ? [{ text: 'Meu Site', icon: <LanguageIcon />, href: '/admin/meu-site' }] : []),
+    ...(hasGroupView('tickets') ? [{ text: 'Tickets', icon: <TicketIcon />, href: '/admin/tickets' }] : []),
+    ...(can('site_builder') && hasGroupView('cursos_presenciais') ? [{ text: 'Meu Site', icon: <LanguageIcon />, href: '/admin/meu-site' }] : []),
   ];
 
   const bottomItems = [
-    { text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' },
+    ...(hasGroupView('porta') ? [{ text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' }] : []),
     ...(!isOperator ? [
       { text: 'Plano', icon: <CardMembershipIcon />, href: '/admin/plano' },
       { text: 'Assinatura', icon: <CreditCardIcon />, href: '/admin/billing' },
@@ -466,7 +498,7 @@ function AdminLayoutInner({
         </Collapse>
 
         {/* Estoque group — visible only for Pro+ plans */}
-        {can('estoque_controle') && (
+        {can('estoque_controle') && hasGroupView('estoque') && (
           <>
             <ListItem disablePadding>
               <ListItemButton
@@ -896,7 +928,33 @@ function AdminLayoutInner({
         {/* Spacer: matches AppBar height (toolbar + optional banner) */}
         <Toolbar />
         {isImpersonating && <Box sx={{ height: 36 }} />}
-        {noPadding ? (
+        {permissionsLoading && isOperator && feature ? (
+          <Box sx={{ display: 'flex', flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+            <CircularProgress />
+          </Box>
+        ) : !isAuthorized ? (
+          <Container maxWidth="sm" sx={{ py: 8, textAlign: 'center' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+              <LockOutlinedIcon sx={{ fontSize: 64, color: 'error.main', opacity: 0.8 }} />
+              <Typography variant="h5" fontWeight={700}>
+                Acesso Restrito
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Seu usuário (operador) não possui permissão de visualização para esta área do sistema.
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Caso precise de acesso, entre em contato com o administrador do seu terreiro.
+              </Typography>
+              <Button
+                variant="contained"
+                onClick={() => router.push('/admin/dashboard')}
+                sx={{ textTransform: 'none', mt: 2 }}
+              >
+                Voltar para o Dashboard
+              </Button>
+            </Box>
+          </Container>
+        ) : noPadding ? (
           <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             {children}
           </Box>

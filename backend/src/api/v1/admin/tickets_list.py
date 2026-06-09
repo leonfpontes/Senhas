@@ -11,9 +11,9 @@ import json
 import logging
 
 from src.core.database import get_db
-from src.models import User, Ticket, TicketStatus, Consulente
+from src.models import User, Ticket, TicketStatus, Consulente, PermissionFeature
 from src.models.senha_controls import SenhaControl
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import (
     InsufficientPermissionsError,
     NotFoundError,
@@ -67,7 +67,7 @@ class TicketListResponse(BaseModel):
     items: List[TicketResponse]
 
 
-@router.get("/giras/{gira_id}/tickets", response_model=TicketListResponse)
+@router.get("/giras/{gira_id}/tickets", response_model=TicketListResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "view"))])
 async def list_gira_tickets(
     gira_id: UUID = Path(...),
     skip: int = Query(0, ge=0),
@@ -154,7 +154,7 @@ async def list_gira_tickets(
     )
 
 
-@router.get("/tickets/{ticket_id}", response_model=TicketResponse)
+@router.get("/tickets/{ticket_id}", response_model=TicketResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "view"))])
 async def get_ticket(
     ticket_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -214,7 +214,7 @@ async def get_ticket(
     )
 
 
-@router.patch("/tickets/{ticket_id}/attend-info", response_model=TicketResponse)
+@router.patch("/tickets/{ticket_id}/attend-info", response_model=TicketResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "edit"))])
 async def update_attend_info(
     body: UpdateAttendInfoRequest,
     ticket_id: UUID = Path(...),
@@ -288,7 +288,7 @@ async def update_attend_info(
     )
 
 
-@router.delete("/giras/{gira_id}/tickets/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/giras/{gira_id}/tickets/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "delete"))])
 async def delete_ticket(
     gira_id: UUID = Path(...),
     ticket_id: UUID = Path(...),

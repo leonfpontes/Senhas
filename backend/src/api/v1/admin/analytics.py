@@ -7,9 +7,9 @@ from uuid import UUID
 from datetime import date, datetime, timedelta
 
 from src.core.database import get_db
-from src.models import User
+from src.models import User, PermissionFeature
 from src.repositories.ticket_analytics_repo import TicketAnalyticsRepository
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import InsufficientPermissionsError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-analytics"])
@@ -45,7 +45,7 @@ class AnalyticsResponse(BaseModel):
     category_breakdown: CategoryBreakdown
 
 
-@router.get("/analytics", response_model=AnalyticsResponse)
+@router.get("/analytics", response_model=AnalyticsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.ANALYTICS, "view"))])
 async def get_analytics(
     date_from: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
     date_to: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),

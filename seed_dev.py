@@ -24,13 +24,15 @@ from decimal import Decimal
 import psycopg2
 import bcrypt
 
+import os
+
 # ─── Guard: apenas localhost ─────────────────────────────────────────────────
 DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "senhas_db",
-    "user": "senhas_user",
-    "password": "senhas_secure_password",
+    "host": os.environ.get("DB_HOST", "localhost"),
+    "port": int(os.environ.get("DB_PORT", 5432)),
+    "dbname": os.environ.get("DB_NAME", "senhas_db"),
+    "user": os.environ.get("DB_USER", "senhas_user"),
+    "password": os.environ.get("DB_PASSWORD", "changeme"),
 }
 
 if DB_CONFIG["host"] not in ("localhost", "127.0.0.1"):

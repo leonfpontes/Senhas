@@ -18,6 +18,7 @@ from .mensalidades import MensalidadeConfig, MensalidadePagamento, MensalidadeSt
 from .associado_mensalidade import AssociadoMensalidadePagamento
 from .site import TenantSite, TenantSiteSection, SiteImage, SiteVersion, SiteStatus, SiteSectionType
 from .cursos_presenciais import CursoPresencial, CursoParticipante, CursoParticipantePagamento
+from .permission_groups import PermissionGroup, GroupPermission, UserGroupMembership, PermissionFeature
 
 __all__ = [
     "Base",
@@ -58,4 +59,8 @@ __all__ = [
     "CursoPresencial",
     "CursoParticipante",
     "CursoParticipantePagamento",
+    "PermissionGroup",
+    "GroupPermission",
+    "UserGroupMembership",
+    "PermissionFeature",
 ]

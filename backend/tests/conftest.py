@@ -6,6 +6,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.dialects.postgresql import BYTEA, JSONB
+
+@compiles(BYTEA, "sqlite")
+def compile_bytea_sqlite(type_, compiler, **kw):
+    return "BLOB"
+
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(type_, compiler, **kw):
+    return "JSON"
+
 from src.models.users import User, UserRole
 from src.models.tenants import Tenant
 from src.models.giras import Gira

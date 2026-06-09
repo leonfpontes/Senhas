@@ -17,8 +17,8 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 
 from src.core.database import get_db
-from src.api.dependencies import get_current_user
-from src.models import User, CursoPresencial, CursoParticipante
+from src.api.dependencies import get_current_user, require_group_permission
+from src.models import User, CursoPresencial, CursoParticipante, PermissionFeature
 from src.models.subscriptions import PlanType, SubscriptionStatus
 from src.models.mensalidades import MensalidadeStatus
 from src.repositories.curso_presencial_repo import (
@@ -284,7 +284,7 @@ async def _require_active_pro_or_premium_subscription(
 # Endpoint definitions
 # ---------------------------------------------------------------------------
 
-@router.post("", response_model=CursoPresencialResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=CursoPresencialResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "insert"))])
 async def create_curso_presencial(
     curso_in: CursoPresencialCreate,
     current_user: User = Depends(get_current_user),
@@ -314,7 +314,7 @@ async def create_curso_presencial(
     await db.commit()
     return CursoPresencialResponse.from_orm(curso)
 
-@router.get("", response_model=List[CursoPresencialResponse])
+@router.get("", response_model=List[CursoPresencialResponse], dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def list_cursos_presenciais(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -350,7 +350,7 @@ async def list_cursos_presenciais(
 
     return [CursoPresencialResponse.from_orm(c) for c in cursos]
 
-@router.get("/{curso_id}", response_model=CursoPresencialResponse)
+@router.get("/{curso_id}", response_model=CursoPresencialResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def get_curso_presencial(
     curso_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -367,7 +367,7 @@ async def get_curso_presencial(
         raise NotFoundError("CursoPresencial")
     return CursoPresencialResponse.from_orm(curso)
 
-@router.put("/{curso_id}", response_model=CursoPresencialResponse)
+@router.put("/{curso_id}", response_model=CursoPresencialResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
 async def update_curso_presencial(
     curso_id: UUID = Path(...),
     curso_update: CursoPresencialUpdate = None,
@@ -404,7 +404,7 @@ async def update_curso_presencial(
     await db.commit()
     return CursoPresencialResponse.from_orm(updated_curso)
 
-@router.delete("/{curso_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{curso_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "delete"))])
 async def delete_curso_presencial(
     curso_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -441,7 +441,7 @@ async def delete_curso_presencial(
 # Participant endpoints
 # ---------------------------------------------------------------------------
 
-@router.post("/{curso_id}/participantes", response_model=ParticipanteResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{curso_id}/participantes", response_model=ParticipanteResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "insert"))])
 async def create_participante(
     participante_in: ParticipanteCreate,
     curso_id: UUID = Path(...),
@@ -503,7 +503,7 @@ async def create_participante(
     await db.commit()
     return ParticipanteResponse.from_orm(participante)
 
-@router.get("/{curso_id}/participantes", response_model=List[ParticipanteResponse])
+@router.get("/{curso_id}/participantes", response_model=List[ParticipanteResponse], dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def list_participantes(
     curso_id: UUID = Path(...),
     skip: int = Query(0, ge=0),
@@ -531,7 +531,7 @@ async def list_participantes(
     )
     return [ParticipanteResponse.from_orm(p) for p in participantes]
 
-@router.put("/{curso_id}/participantes/{participante_id}", response_model=ParticipanteResponse)
+@router.put("/{curso_id}/participantes/{participante_id}", response_model=ParticipanteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
 async def update_participante(
     participante_id: UUID = Path(...),
     curso_id: UUID = Path(...),
@@ -584,7 +584,7 @@ async def update_participante(
     await db.commit()
     return ParticipanteResponse.from_orm(updated)
 
-@router.delete("/{curso_id}/participantes/{participante_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{curso_id}/participantes/{participante_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "delete"))])
 async def delete_participante(
     curso_id: UUID = Path(...),
     participante_id: UUID = Path(...),
@@ -673,7 +673,7 @@ class CursoResumoResponse(BaseModel):
     config: dict
 
 
-@router.get("/{curso_id}/financeiro/mensalidades", response_model=List[CursoMensalidadeItemResponse])
+@router.get("/{curso_id}/financeiro/mensalidades", response_model=List[CursoMensalidadeItemResponse], dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def list_curso_mensalidades(
     curso_id: UUID = Path(...),
     mes: str = Query(..., description="Mês no formato YYYY-MM"),
@@ -730,7 +730,7 @@ async def list_curso_mensalidades(
     return result
 
 
-@router.post("/{curso_id}/financeiro/mensalidades/{participante_id}/{mes}")
+@router.post("/{curso_id}/financeiro/mensalidades/{participante_id}/{mes}", dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "insert"))])
 async def registrar_curso_pagamento(
     curso_id: UUID = Path(...),
     participante_id: UUID = Path(...),
@@ -837,7 +837,7 @@ async def registrar_curso_pagamento(
     return {"id": str(pag.id), "status": pag.status.value}
 
 
-@router.get("/{curso_id}/financeiro/mensalidades/{participante_id}/{mes}/comprovante")
+@router.get("/{curso_id}/financeiro/mensalidades/{participante_id}/{mes}/comprovante", dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def download_curso_comprovante(
     curso_id: UUID = Path(...),
     participante_id: UUID = Path(...),
@@ -871,7 +871,7 @@ async def download_curso_comprovante(
     )
 
 
-@router.delete("/{curso_id}/financeiro/mensalidades/{pagamento_id}/comprovante", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{curso_id}/financeiro/mensalidades/{pagamento_id}/comprovante", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "delete"))])
 async def delete_curso_comprovante(
     curso_id: UUID = Path(...),
     pagamento_id: UUID = Path(...),
@@ -905,7 +905,7 @@ async def delete_curso_comprovante(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/{curso_id}/financeiro/resumo", response_model=CursoResumoResponse)
+@router.get("/{curso_id}/financeiro/resumo", response_model=CursoResumoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def get_curso_resumo(
     curso_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -927,7 +927,7 @@ async def get_curso_resumo(
     return CursoResumoResponse(**resumo)
 
 
-@router.get("/{curso_id}/participantes/{participante_id}/comprovante")
+@router.get("/{curso_id}/participantes/{participante_id}/comprovante", dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def download_inscricao_comprovante(
     curso_id: UUID = Path(...),
     participante_id: UUID = Path(...),
@@ -959,7 +959,7 @@ async def download_inscricao_comprovante(
     )
 
 
-@router.delete("/{curso_id}/participantes/{participante_id}/comprovante", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{curso_id}/participantes/{participante_id}/comprovante", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "delete"))])
 async def delete_inscricao_comprovante(
     curso_id: UUID = Path(...),
     participante_id: UUID = Path(...),
@@ -993,7 +993,7 @@ async def delete_inscricao_comprovante(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{curso_id}/participantes/{participante_id}/comprovante")
+@router.post("/{curso_id}/participantes/{participante_id}/comprovante", dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "insert"))])
 async def upload_inscricao_comprovante(
     curso_id: UUID = Path(...),
     participante_id: UUID = Path(...),
