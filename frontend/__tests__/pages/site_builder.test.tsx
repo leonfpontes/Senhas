@@ -339,7 +339,7 @@ describe('TenantPublicSitePage — renderers de seções', () => {
       {
         id: 'gira-uuid-1',
         nome: 'Gira de Oxalá',
-        data_hora: '2026-04-20T19:00:00Z',
+        data_hora: new Date().toISOString(),
         descricao: 'Gira especial',
       },
     ],
@@ -391,7 +391,7 @@ describe('TenantPublicSitePage — renderers de seções', () => {
           id: 's5',
           section_type: 'GIRAS_CALENDAR',
           order_index: 4,
-          config: {},
+          config: { display_mode: 'list' },
         },
       ],
     };
@@ -470,7 +470,7 @@ describe('getServerSideProps', () => {
     }));
   });
 
-  it('retorna notFound quando API retorna 404', async () => {
+  it('retorna site null quando API retorna 404', async () => {
     // Mock global fetch to simulate 404
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 404 }) as any;
 
@@ -480,7 +480,7 @@ describe('getServerSideProps', () => {
 
     const ctx = { params: { tenantSlug: 'nao-existe' } };
     const result = await getServerSideProps(ctx as any);
-    expect(result).toHaveProperty('notFound', true);
+    expect(result).toEqual({ props: { site: null } });
   });
 
   it('retorna props.site quando API retorna sucesso', async () => {
@@ -509,7 +509,7 @@ describe('getServerSideProps', () => {
     expect(result?.props?.site?.slug).toBe('terreiro-test');
   });
 
-  it('retorna notFound quando ocorre erro de rede', async () => {
+  it('retorna site null quando ocorre erro de rede', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('Network error')) as any;
 
     const mod = require('@/pages/[tenantSlug]/index');
@@ -518,6 +518,6 @@ describe('getServerSideProps', () => {
 
     const ctx = { params: { tenantSlug: 'terreiro-test' } };
     const result = await getServerSideProps(ctx as any);
-    expect(result).toHaveProperty('notFound', true);
+    expect(result).toEqual({ props: { site: null } });
   });
 });

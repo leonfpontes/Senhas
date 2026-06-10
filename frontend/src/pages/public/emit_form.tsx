@@ -199,7 +199,7 @@ export default function EmitForm({
 
   // Form state
   return (
-    <form className={styles.form} onSubmit={handleSubmit}>
+    <form className={styles.form} onSubmit={handleSubmit} noValidate>
       <h2 className={styles.formtitle}>Emitir Senha</h2>
       
       {error && (

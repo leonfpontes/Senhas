@@ -204,14 +204,14 @@ describe('Theme System - Brand Overrides', () => {
     it('should have proper heading scale', () => {
       const typography = defaultTheme.typography as any;
 
-      expect(parseInt(typography.h1?.fontSize)).toBeGreaterThan(
-        parseInt(typography.h2?.fontSize)
+      expect(parseFloat(typography.h1?.fontSize)).toBeGreaterThan(
+        parseFloat(typography.h2?.fontSize)
       );
-      expect(parseInt(typography.h2?.fontSize)).toBeGreaterThan(
-        parseInt(typography.h3?.fontSize)
+      expect(parseFloat(typography.h2?.fontSize)).toBeGreaterThan(
+        parseFloat(typography.h3?.fontSize)
       );
-      expect(parseInt(typography.h3?.fontSize)).toBeGreaterThan(
-        parseInt(typography.body1?.fontSize)
+      expect(parseFloat(typography.h3?.fontSize)).toBeGreaterThan(
+        parseFloat(typography.body1?.fontSize)
       );
     });
 

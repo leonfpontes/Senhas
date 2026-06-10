@@ -126,6 +126,7 @@ const getFeatureForPath = (path: string): PermissionFeature | null => {
   if (path.startsWith('/admin/associados')) return 'associados';
   if (path.startsWith('/admin/users')) return 'usuarios';
   if (path.startsWith('/admin/cursos-presenciais')) return 'cursos_presenciais';
+  if (path.startsWith('/admin/meu-site')) return 'cursos_presenciais';
   if (path.startsWith('/admin/estoque')) return 'estoque';
   if (path.startsWith('/admin/financeiro')) return 'financeiro';
   if (path.startsWith('/admin/config')) return 'configuracoes';
@@ -229,7 +230,9 @@ function AdminLayoutInner({
   };
 
   const feature = getFeatureForPath(pathname);
-  const isAuthorized = !isOperator || !feature || canGroup(feature, 'view');
+  const isAuthorized = 
+    (!isOperator || !feature || canGroup(feature, 'view')) &&
+    !(isOperator && pathname.startsWith('/admin/permission-groups'));
 
   const cadastrosItems = [
     ...(hasGroupView('giras') ? [{ text: 'Giras', icon: <EventIcon />, href: '/admin/giras' }] : []),

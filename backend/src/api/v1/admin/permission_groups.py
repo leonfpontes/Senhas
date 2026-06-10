@@ -201,7 +201,7 @@ async def get_my_permissions(
     """
     service = PermissionService(db)
     perms = await service.get_user_effective_permissions(current_user.id, current_user.tenant_id)
-    response.headers["Cache-Control"] = "private, max-age=300"
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     return perms
 
 

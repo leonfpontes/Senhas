@@ -18,6 +18,13 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "prettier": "^3.1.1"
+    "prettier": "^3.1.1",
+    "pretty-format": "^29.7.0"
+  },
+  "overrides": {
+    "pretty-format": "^29.7.0",
+    "@testing-library/dom": {
+      "pretty-format": "^29.7.0"
+    }
   }
 }

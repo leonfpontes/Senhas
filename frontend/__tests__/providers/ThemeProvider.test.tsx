@@ -2,12 +2,18 @@
  * Tests for ThemeProvider
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import {
   TenantAwareThemeProvider,
   useTenant,
-  TenantThemeConfig,
 } from '@/providers/ThemeProvider';
+
+// Mock API client
+jest.mock('@/services/api_client', () => ({
+  apiClient: {
+    get: jest.fn().mockResolvedValue({ data: {} }),
+  },
+}));
 
 // Test component that reads tenant context
 function TenantDisplay() {
@@ -22,6 +28,12 @@ function TenantDisplay() {
 }
 
 describe('TenantAwareThemeProvider', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    jest.clearAllMocks();
+  });
+
   it('renders children', () => {
     render(
       <TenantAwareThemeProvider>
@@ -31,35 +43,50 @@ describe('TenantAwareThemeProvider', () => {
     expect(screen.getByTestId('child')).toBeInTheDocument();
   });
 
-  it('provides tenant context to children', () => {
-    const config: TenantThemeConfig = {
-      tenantId: 'test-id',
-      tenantName: 'Test Terreiro',
-      colors: {
-        primary: '#FF0000',
-        secondary: '#00FF00',
-      },
-      logoUrl: 'https://example.com/logo.png',
-    };
+  it('provides tenant context to children', async () => {
+    const { apiClient } = require('@/services/api_client');
+    
+    // Set token to bypass hasToken guard
+    localStorage.setItem('access_token', 'fake-token');
+    
+    // Mock user in storage
+    localStorage.setItem('user', JSON.stringify({
+      tenant_id: 'test-id',
+      tenant_name: 'Test Terreiro'
+    }));
 
-    render(
-      <TenantAwareThemeProvider tenantConfig={config}>
-        <TenantDisplay />
-      </TenantAwareThemeProvider>
-    );
+    // Mock response for tenant config API
+    apiClient.get.mockResolvedValue({
+      data: {
+        tenant_nome: 'Test Terreiro',
+        logo_url: 'https://example.com/logo.png',
+        primary_color: '#FF0000',
+        secondary_color: '#00FF00',
+      }
+    });
 
-    expect(screen.getByTestId('tenant-id')).toHaveTextContent('test-id');
-    expect(screen.getByTestId('tenant-name')).toHaveTextContent('Test Terreiro');
-    expect(screen.getByTestId('tenant-logo')).toHaveTextContent('https://example.com/logo.png');
-  });
-
-  it('provides defaults when no config', () => {
     render(
       <TenantAwareThemeProvider>
         <TenantDisplay />
       </TenantAwareThemeProvider>
     );
 
+    // Since API call is async, wait for details to render
+    await waitFor(() => {
+      expect(screen.getByTestId('tenant-id')).toHaveTextContent('test-id');
+    });
+    expect(screen.getByTestId('tenant-name')).toHaveTextContent('Test Terreiro');
+    expect(screen.getByTestId('tenant-logo')).toHaveTextContent('https://example.com/logo.png');
+  });
+
+  it('provides defaults when no config', async () => {
+    render(
+      <TenantAwareThemeProvider>
+        <TenantDisplay />
+      </TenantAwareThemeProvider>
+    );
+
+    // Should load defaults immediately when no token
     expect(screen.getByTestId('tenant-id')).toHaveTextContent('none');
     expect(screen.getByTestId('tenant-name')).toHaveTextContent('none');
   });

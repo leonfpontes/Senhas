@@ -124,7 +124,12 @@ describe('Platform Audit Consolidated', () => {
 });
 
 describe('Platform Layout', () => {
+  afterEach(() => {
+    localStorage.clear();
+  });
+
   it('renders children', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'super_admin' }));
     const PlatformLayout = require('@/pages/platform/layout').default;
     renderWithTheme(
       <PlatformLayout>

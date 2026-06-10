@@ -80,6 +80,8 @@ export function applyTenantBranding(
 
   if (!theme.palette) {
     theme.palette = {};
+  } else {
+    theme.palette = { ...theme.palette };
   }
 
   // Apply primary color with light/dark variants

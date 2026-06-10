@@ -861,7 +861,7 @@ function LocationSection({ config }: { config: Record<string, unknown> }) {
       <Typography sx={{ fontSize: titleSize, fontWeight: titleWeight, fontStyle, fontFamily, color: fontColor, lineHeight: 1.2 }}>
         {title}
       </Typography>
-      {(addressLine1 || addressLine2 || cepLine) && (
+      {(addressLine1 || addressLine2 || cepLine) ? (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           {addressLine1 && (
             <Typography sx={{ fontSize: bodySize, fontWeight: bodyWeight, fontStyle, fontFamily, color: fontColor, lineHeight: 1.5 }}>
@@ -879,6 +879,12 @@ function LocationSection({ config }: { config: Record<string, unknown> }) {
             </Typography>
           )}
         </Box>
+      ) : (
+        config.address && (
+          <Typography sx={{ fontSize: bodySize, fontWeight: bodyWeight, fontStyle, fontFamily, color: fontColor, lineHeight: 1.5 }}>
+            {String(config.address)}
+          </Typography>
+        )
       )}
       {instructions && (
         <Typography sx={{ fontSize: bodySize - 1, fontFamily, fontStyle, color: fontColor, opacity: 0.7, whiteSpace: 'pre-line', lineHeight: 1.6 }}>

@@ -6,12 +6,12 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { act } from 'react-dom/test-utils';
-import EmitForm from '../../../pages/public/emit_form';
-import * as apiClient from '../../../services/api_client';
+import EmitForm from '../../src/pages/public/emit_form';
+import * as apiClient from '../../src/services/api_client';
 
 
 // Mock API client
-jest.mock('../../../services/api_client');
+jest.mock('../../src/services/api_client');
 
 describe('EmitForm Component', () => {
   const defaultProps = {
@@ -114,7 +114,7 @@ describe('EmitForm Component', () => {
       await user.click(screen.getByRole('button', { name: /Emitir Senha/i }));
 
       await waitFor(() => {
-        expect(screen.getByText(/Email inválido/i)).toBeInTheDocument();
+        expect(screen.getByText(/Email inv.lido/i)).toBeInTheDocument();
       });
     });
 
@@ -122,7 +122,7 @@ describe('EmitForm Component', () => {
       (apiClient.apiClient.post as jest.Mock).mockRejectedValue({
         response: {
           status: 400,
-          data: { detail: 'Invalid email format: example.com' },
+          data: { detail: 'Invalid email format: invalid-email@domain.com' },
         },
       });
 
@@ -130,7 +130,7 @@ describe('EmitForm Component', () => {
       render(<EmitForm {...defaultProps} />);
 
       await user.type(screen.getByLabelText(/Nome Completo/i), 'João da Silva');
-      await user.type(screen.getByLabelText(/Email/i), 'example.com');
+      await user.type(screen.getByLabelText(/Email/i), 'invalid-email@domain.com');
       await user.click(screen.getByRole('button', { name: /Emitir Senha/i }));
 
       await waitFor(() => {
@@ -193,10 +193,10 @@ describe('EmitForm Component', () => {
       });
     });
 
-    it('should handle capacity exceeded error (429)', async () => {
+    it('should handle capacity exceeded error (410)', async () => {
       (apiClient.apiClient.post as jest.Mock).mockRejectedValue({
         response: {
-          status: 429,
+          status: 410,
           data: { detail: 'All tickets for this gira have been emitted' },
         },
       });

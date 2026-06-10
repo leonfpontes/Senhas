@@ -110,7 +110,7 @@ describe('GiraDetails', () => {
   it('renders location', () => {
     const GiraDetails = require('@/pages/public/gira_details').default;
     render(<GiraDetails giraData={giraData} />);
-    expect(screen.getByText('Terreiro Central')).toBeInTheDocument();
+    expect(screen.getByText(/Terreiro Central/)).toBeInTheDocument();
   });
 
   it('renders with custom tenant color', () => {

@@ -34,9 +34,9 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.database import get_db
-from src.models import User
+from src.models import User, PermissionFeature
 from src.models.site import SiteStatus, SiteSectionType
 from src.models.subscriptions import PlanType, SubscriptionStatus
 from src.repositories.site_repo import SiteRepository
@@ -48,8 +48,13 @@ from src.repositories.site_image_repo import (
 )
 from src.repositories.site_version_repo import SiteVersionRepository
 from src.repositories.subscription_repo import SubscriptionRepository
+from fastapi import Depends
 
-router = APIRouter(prefix="/api/v1/admin/sites", tags=["admin-site-builder"])
+router = APIRouter(
+    prefix="/api/v1/admin/sites",
+    tags=["admin-site-builder"],
+    dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))]
+)
 logger = logging.getLogger(__name__)
 
 _PRO_OR_PREMIUM = {PlanType.PRO, PlanType.PREMIUM}
@@ -241,7 +246,7 @@ async def get_site(
     return _site_to_response(site)
 
 
-@router.put("", response_model=SiteResponse)
+@router.put("", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
 async def update_site(
     body: SiteUpdateRequest,
     current_user: User = Depends(get_current_user),
@@ -299,7 +304,7 @@ async def get_sections(
     )
 
 
-@router.put("/sections", response_model=SectionsResponse)
+@router.put("/sections", response_model=SectionsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
 async def save_sections(
     body: SectionsUpdateRequest,
     current_user: User = Depends(get_current_user),
@@ -356,7 +361,7 @@ async def save_sections(
 
 # ── Publish / Unpublish ───────────────────────────────────────────────────────
 
-@router.post("/publish", response_model=SiteResponse)
+@router.post("/publish", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
 async def publish_site(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -371,7 +376,7 @@ async def publish_site(
     return _site_to_response(site)
 
 
-@router.post("/unpublish", response_model=SiteResponse)
+@router.post("/unpublish", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
 async def unpublish_site(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -415,7 +420,7 @@ async def list_images(
     ]
 
 
-@router.post("/images", response_model=ImageResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/images", response_model=ImageResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "insert"))])
 async def upload_image(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
@@ -481,7 +486,7 @@ async def upload_image(
     )
 
 
-@router.delete("/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "delete"))])
 async def delete_image(
     image_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -524,7 +529,7 @@ async def list_versions(
     ]
 
 
-@router.post("/versions/{version_id}/restore", response_model=SectionsResponse)
+@router.post("/versions/{version_id}/restore", response_model=SectionsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
 async def restore_version(
     version_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),

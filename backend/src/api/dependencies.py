@@ -137,7 +137,7 @@ def require_group_permission(feature: PermissionFeature, action: str):
         user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
     ) -> None:
-        token_data = getattr(request.state, "token_data", None)
+        token_data = getattr(request.state, "token", None)
         permission_service = PermissionService(db)
         
         has_perm = await permission_service.check_permission(
