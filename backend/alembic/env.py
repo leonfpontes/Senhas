@@ -18,9 +18,11 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = None
+import sys
+from os.path import abspath, dirname
+sys.path.insert(0, dirname(dirname(abspath(__file__))))
+from src.models import Base
+target_metadata = Base.metadata
 
 # Database URL from environment — convert async driver to sync for Alembic
 database_url = os.getenv(

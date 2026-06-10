@@ -23,11 +23,9 @@ jest.mock('axios', () => {
 });
 
 // Access the mock instance
-const mockAxios = axios as jest.Mocked<typeof axios> & { __mockInstance: any };
-const mockInstance = mockAxios.__mockInstance;
+let mockInstance: any;
 
 describe('APIClient', () => {
-  let APIClient: any;
   let apiClient: any;
 
   beforeEach(() => {
@@ -37,11 +35,12 @@ describe('APIClient', () => {
     // Re-require after reset
     const mod = require('@/services/api_client');
     apiClient = mod.apiClient;
+    mockInstance = require('axios').__mockInstance;
   });
 
   describe('Constructor', () => {
     it('creates axios instance with correct defaults', () => {
-      expect(axios.create).toHaveBeenCalledWith(
+      expect(require('axios').create).toHaveBeenCalledWith(
         expect.objectContaining({
           timeout: 30000,
           headers: { 'Content-Type': 'application/json' },

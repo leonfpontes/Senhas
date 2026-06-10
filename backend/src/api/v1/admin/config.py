@@ -9,11 +9,11 @@ from pydantic import BaseModel, field_validator
 
 from sqlalchemy import select
 from src.core.database import get_db
-from src.models import User, TenantConfig
+from src.models import User, TenantConfig, PermissionFeature
 from src.models.tenants import Tenant
 from src.repositories.config_repo import TenantConfigRepository
 from src.services.audit_service import AuditService
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import InsufficientPermissionsError, ValidationError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-config"])
@@ -126,7 +126,7 @@ async def get_tenant_config(
     return resp
 
 
-@router.put("/tenant/config", response_model=TenantConfigResponse)
+@router.put("/tenant/config", response_model=TenantConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CONFIGURACOES, "edit"))])
 async def update_tenant_config(
     config_update: TenantConfigUpdate,
     request: Request,
@@ -258,7 +258,7 @@ async def update_tenant_config(
     return resp
 
 
-@router.post("/tenant/logo", response_model=TenantConfigResponse)
+@router.post("/tenant/logo", response_model=TenantConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CONFIGURACOES, "edit"))])
 async def upload_tenant_logo(
     request: Request,
     file: UploadFile = File(...),
@@ -304,7 +304,7 @@ async def upload_tenant_logo(
     return resp
 
 
-@router.delete("/tenant/logo", response_model=TenantConfigResponse)
+@router.delete("/tenant/logo", response_model=TenantConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CONFIGURACOES, "edit"))])
 async def delete_tenant_logo(
     request: Request,
     current_user: User = Depends(get_current_user),

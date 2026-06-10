@@ -11,9 +11,9 @@ import json
 import logging
 
 from src.core.database import get_db
-from src.models import User, Ticket, TicketStatus, Consulente, TenantConfig, Gira
+from src.models import User, Ticket, TicketStatus, Consulente, TenantConfig, Gira, PermissionFeature
 from src.models.tickets import PriorityCategory, PRIORITY_ORDER
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.repositories.consulente_repo import ConsulenteRepository
 from src.repositories.senha_control_repo import SenhaControlRepository
@@ -208,7 +208,7 @@ async def _get_tenant_config(db: AsyncSession, tenant_id: UUID) -> Optional[Tena
 
 # ── Endpoints ────────────────────────────────────────────────────────────
 
-@router.get("/giras/{gira_id}/door/stats", response_model=DoorStatsResponse)
+@router.get("/giras/{gira_id}/door/stats", response_model=DoorStatsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "view"))])
 async def get_door_stats(
     gira_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -248,7 +248,7 @@ async def get_door_stats(
     )
 
 
-@router.get("/giras/{gira_id}/door/queue", response_model=DoorQueueResponse)
+@router.get("/giras/{gira_id}/door/queue", response_model=DoorQueueResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "view"))])
 async def get_door_queue(
     gira_id: UUID = Path(...),
     search: Optional[str] = Query(None, max_length=100),
@@ -341,7 +341,7 @@ async def get_door_queue(
     return DoorQueueResponse(items=sorted_items, total=len(sorted_items))
 
 
-@router.post("/giras/{gira_id}/door/walk-in", response_model=QueueItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/giras/{gira_id}/door/walk-in", response_model=QueueItemResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "insert"))])
 async def create_walk_in_ticket(
     body: WalkInRequest,
     gira_id: UUID = Path(...),
@@ -429,7 +429,7 @@ async def create_walk_in_ticket(
     return _ticket_to_queue_item(ticket)
 
 
-@router.patch("/door/tickets/{ticket_id}/walk-in", response_model=QueueItemResponse)
+@router.patch("/door/tickets/{ticket_id}/walk-in", response_model=QueueItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "edit"))])
 async def update_walk_in_ticket(
     body: WalkInUpdateRequest,
     ticket_id: UUID = Path(...),
@@ -491,7 +491,7 @@ async def update_walk_in_ticket(
     return _ticket_to_queue_item(ticket)
 
 
-@router.patch("/door/tickets/{ticket_id}/checkin", response_model=QueueItemResponse)
+@router.patch("/door/tickets/{ticket_id}/checkin", response_model=QueueItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "edit"))])
 async def checkin_ticket(
     ticket_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -513,7 +513,7 @@ async def checkin_ticket(
     return _ticket_to_queue_item(ticket)
 
 
-@router.delete("/door/tickets/{ticket_id}/checkin", response_model=QueueItemResponse)
+@router.delete("/door/tickets/{ticket_id}/checkin", response_model=QueueItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "edit"))])
 async def undo_checkin(
     ticket_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -535,7 +535,7 @@ async def undo_checkin(
     return _ticket_to_queue_item(ticket)
 
 
-@router.patch("/door/tickets/{ticket_id}/attend", response_model=QueueItemResponse)
+@router.patch("/door/tickets/{ticket_id}/attend", response_model=QueueItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "edit"))])
 async def attend_ticket(
     body: AttendRequest,
     ticket_id: UUID = Path(...),
@@ -566,7 +566,7 @@ async def attend_ticket(
     return _ticket_to_queue_item(ticket)
 
 
-@router.patch("/door/tickets/{ticket_id}/attend-info", response_model=QueueItemResponse)
+@router.patch("/door/tickets/{ticket_id}/attend-info", response_model=QueueItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "edit"))])
 async def edit_attend_info(
     body: AttendRequest,
     ticket_id: UUID = Path(...),
@@ -592,7 +592,7 @@ async def edit_attend_info(
     return _ticket_to_queue_item(ticket)
 
 
-@router.patch("/door/tickets/{ticket_id}/complete", response_model=QueueItemResponse)
+@router.patch("/door/tickets/{ticket_id}/complete", response_model=QueueItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "edit"))])
 async def complete_ticket(
     ticket_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -615,7 +615,7 @@ async def complete_ticket(
     return _ticket_to_queue_item(ticket)
 
 
-@router.patch("/door/tickets/{ticket_id}/no-show", response_model=QueueItemResponse)
+@router.patch("/door/tickets/{ticket_id}/no-show", response_model=QueueItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "edit"))])
 async def no_show_ticket(
     ticket_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -638,7 +638,7 @@ async def no_show_ticket(
     return _ticket_to_queue_item(ticket)
 
 
-@router.patch("/door/tickets/{ticket_id}/undo", response_model=QueueItemResponse)
+@router.patch("/door/tickets/{ticket_id}/undo", response_model=QueueItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "edit"))])
 async def undo_ticket_action(
     ticket_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),

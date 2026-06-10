@@ -15,20 +15,20 @@ export const defaultTheme: ThemeOptions = {
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#3498db', // Bright blue
-      light: '#5dade2',
-      dark: '#2980b9',
+      main: '#1a6fa8', // Darker blue — WCAG AA compliant vs white
+      light: '#3498db',
+      dark: '#155a87',
       contrastText: '#ffffff',
     },
     success: {
-      main: '#27ae60', // Green
-      light: '#2ecc71',
-      dark: '#1e8449',
+      main: '#1a7a3f', // Darker green — WCAG AA compliant vs white
+      light: '#27ae60',
+      dark: '#145f31',
     },
     error: {
-      main: '#e74c3c', // Red
-      light: '#ec7063',
-      dark: '#c0392b',
+      main: '#b03a2e', // Darker red — WCAG AA compliant vs white
+      light: '#e74c3c',
+      dark: '#922b21',
     },
     warning: {
       main: '#f39c12', // Orange
@@ -54,13 +54,13 @@ export const defaultTheme: ThemeOptions = {
   typography: {
     fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
     h1: {
-      fontSize: '2.5rem',
+      fontSize: '3rem',
       fontWeight: 700,
       lineHeight: 1.2,
       letterSpacing: '-0.01562em',
     },
     h2: {
-      fontSize: '2rem',
+      fontSize: '2.25rem',
       fontWeight: 700,
       lineHeight: 1.3,
       letterSpacing: '-0.0083em',

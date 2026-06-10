@@ -176,6 +176,21 @@ Características do fluxo:
 
 ---
 
+## Grupos de Permissão (Fine-Grained RBAC)
+
+O sistema conta com um controle de acesso baseado em grupos (Group-Based RBAC) que refina as permissões atribuídas a usuários com a role `OPERATOR`:
+
+1. **Estrutura**: Admins do tenant definem grupos de usuários (ex: "Operadores da Porta", "Financeiro") e mapeiam permissões (Visualizar, Inserir, Editar, Deletar) para cada funcionalidade (giras, tickets, porta, estoque, financeiro, etc.).
+2. **Consolidação**: Usuários podem pertencer a múltiplos grupos. Suas permissões finais são consolidadas via **lógica OR permissiva** (se pelo menos um grupo do usuário concede a permissão, o acesso é liberado).
+3. **Bypass**: Usuários com a role `ADMIN` ou `SUPER_ADMIN` (e sessões de impersonação ativa) bypassam todas as verificações de grupo, mantendo acesso total.
+4. **Compatibilidade Retroativa**: Um operador que não pertença a nenhum grupo de permissões mantém acesso total de operador por padrão.
+5. **Resiliência e Performance**:
+   - As permissões no backend são validadas a cada requisição via injeção de dependência `require_group_permission(feature, action)`.
+   - Para evitar N+1 queries no request pipeline, a consolidação OR é computada diretamente no banco de dados usando cláusulas SQL `MAX()` agrupadas.
+   - O cache HTTP (`Cache-Control: private, max-age=300`) é utilizado no endpoint de permissões do usuário para aliviar as requisições recorrentes.
+
+---
+
 ## Segurança
 
 | Controle | Implementação |

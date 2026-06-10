@@ -15,6 +15,9 @@ const customJestConfig = {
   testEnvironment: 'jest-environment-jsdom',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^shared-ui/(.*)$': '<rootDir>/../packages/shared-ui/src/$1',
+    '^shared-ui$': '<rootDir>/../packages/shared-ui/src/index.ts',
+    '^shared-types$': '<rootDir>/../packages/shared-types/src/index.ts',
     // pnpm workspaces: @mui/icons-material is in frontend/node_modules/@mui/,
     // but @mui/material is only at the root. Icon files internally import
     // @mui/material/useTheme via the package.json exports map — a subpath Jest

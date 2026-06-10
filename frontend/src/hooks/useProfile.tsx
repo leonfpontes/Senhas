@@ -16,6 +16,7 @@ export interface UserProfile {
   profile_photo_url?: string | null;
   tenant_id?: string | null;
   tenant_name?: string | null;
+  role?: string;
 }
 
 interface ProfileContextValue {

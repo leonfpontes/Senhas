@@ -19,13 +19,7 @@ from src.repositories.mediun_repo import MediumRepository
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-subscription"])
 logger = logging.getLogger(__name__)
 
-# Plan hierarchy for feature gating (index = tier level)
-_PLAN_TIER = {
-    PlanType.FREE: 0,
-    PlanType.BASIC: 1,
-    PlanType.PRO: 2,
-    PlanType.PREMIUM: 3,
-}
+from src.services.plan_features import PlanFeatures, _get_plan_features, _PLAN_TIER
 
 
 async def _count_active_users(db: AsyncSession, tenant_id) -> int:
@@ -39,26 +33,6 @@ async def _count_active_users(db: AsyncSession, tenant_id) -> int:
     )
     result = await db.execute(stmt)
     return result.scalar() or 0
-
-
-class PlanFeatures(BaseModel):
-    """Which features are available for current plan."""
-    email_transacional: bool = False
-    tema_personalizado: bool = False
-    analytics_basico: bool = False
-    analytics_avancado: bool = False
-    associados: bool = False
-    export_csv: bool = False
-    bulk_operations: bool = False
-    auditoria: bool = False
-    estoque_controle: bool = False
-    mediuns: bool = False
-    relatorio_gira: bool = False
-    api_access: bool = False
-    suporte_prioritario: bool = False
-    mensalidade_mediun: bool = False
-    mensalidade_associado: bool = False
-    site_builder: bool = False
 
 
 class SubscriptionInfoResponse(BaseModel):
@@ -75,35 +49,6 @@ class SubscriptionInfoResponse(BaseModel):
     trial_ends_at: Optional[str] = None
     auto_renew: bool
     features: PlanFeatures
-
-
-def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
-    """Derive feature flags from plan tier.
-
-    When suspended=True (payment failed), all features are locked regardless
-    of the plan. The tenant retains only basic read access.
-    """
-    if suspended:
-        return PlanFeatures()  # all False
-    tier = _PLAN_TIER.get(plan, 0)
-    return PlanFeatures(
-        email_transacional=tier >= 2,
-        tema_personalizado=tier >= 2,
-        analytics_basico=tier >= 2,
-        analytics_avancado=tier >= 2,
-        associados=tier >= 2,
-        export_csv=tier >= 2,
-        bulk_operations=tier >= 1,
-        auditoria=tier >= 2,
-        estoque_controle=tier >= 2,
-        mediuns=tier >= 1,
-        relatorio_gira=tier >= 1,
-        api_access=tier >= 3,
-        suporte_prioritario=tier >= 3,
-        mensalidade_mediun=tier >= 3,
-        mensalidade_associado=tier >= 2,
-        site_builder=tier >= 2,
-    )
 
 
 @router.get("/subscription", response_model=SubscriptionInfoResponse)

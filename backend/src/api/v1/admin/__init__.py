@@ -22,6 +22,7 @@ from .mediuns import router as mediuns_router
 from .mensalidades import router as mensalidades_router
 from .sites import router as sites_router
 from .cursos_presenciais import router as cursos_presenciais_router
+from .permission_groups import router as permission_groups_router
 
 # Combine all admin routers
 admin_router = APIRouter()
@@ -46,5 +47,6 @@ admin_router.include_router(mediuns_router)
 admin_router.include_router(mensalidades_router)
 admin_router.include_router(sites_router)
 admin_router.include_router(cursos_presenciais_router)
+admin_router.include_router(permission_groups_router)
 
 __all__ = ["admin_router"]

@@ -26,10 +26,10 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.database import get_db
 from src.core.errors import InsufficientPermissionsError, NotFoundError
-from src.models import User
+from src.models import User, PermissionFeature
 from src.models.mensalidades import MensalidadeStatus
 from src.repositories.mensalidade_repo import MensalidadeRepository
 from src.repositories.associado_mensalidade_repo import AssociadoMensalidadeRepository
@@ -181,7 +181,7 @@ class ResumoResponse(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@router.get("/config", response_model=Optional[ConfigResponse])
+@router.get("/config", response_model=Optional[ConfigResponse], dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def get_config(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -218,7 +218,7 @@ async def get_config(
     )
 
 
-@router.put("/config", response_model=ConfigResponse)
+@router.put("/config", response_model=ConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "edit"))])
 async def update_config(
     body: ConfigUpdate,
     current_user: User = Depends(get_current_user),
@@ -316,7 +316,7 @@ async def update_config(
     )
 
 
-@router.get("/mensalidades", response_model=List[MensalidadeItemResponse])
+@router.get("/mensalidades", response_model=List[MensalidadeItemResponse], dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def list_mensalidades(
     mes: str = Query(..., description="Mês no formato YYYY-MM"),
     current_user: User = Depends(get_current_user),
@@ -360,6 +360,7 @@ async def list_mensalidades(
 @router.post(
     "/mensalidades/{mediun_id}/{mes}",
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "insert"))],
 )
 async def registrar_pagamento(
     mediun_id: UUID = Path(...),
@@ -462,7 +463,7 @@ async def registrar_pagamento(
     return {"id": str(pag.id), "status": pag.status.value}
 
 
-@router.get("/mensalidades/{mediun_id}/{mes}/comprovante")
+@router.get("/mensalidades/{mediun_id}/{mes}/comprovante", dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def download_comprovante(
     mediun_id: UUID = Path(...),
     mes: str = Path(...),
@@ -488,6 +489,7 @@ async def download_comprovante(
 @router.delete(
     "/mensalidades/{pagamento_id}/comprovante",
     status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "delete"))],
 )
 async def delete_comprovante(
     pagamento_id: UUID = Path(...),
@@ -511,7 +513,7 @@ async def delete_comprovante(
     await db.commit()
 
 
-@router.get("/resumo", response_model=ResumoResponse)
+@router.get("/resumo", response_model=ResumoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def get_resumo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -523,7 +525,7 @@ async def get_resumo(
     return ResumoResponse(**resumo)
 
 
-@router.post("/relatorio/enviar", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/relatorio/enviar", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "insert"))])
 async def enviar_relatorio(
     mes: str = Query(..., description="Mês no formato YYYY-MM"),
     current_user: User = Depends(get_current_user),
@@ -676,7 +678,7 @@ async def enviar_relatorio(
     return {"mensagem": f"Relatório enviado para {sent} administrador(es).", "mes": mes}
 
 
-@router.get("/relatorio/download", response_class=HTMLResponse)
+@router.get("/relatorio/download", response_class=HTMLResponse, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def download_relatorio(
     mes: str = Query(..., description="Mês no formato YYYY-MM"),
     current_user: User = Depends(get_current_user),
@@ -787,7 +789,7 @@ async def download_relatorio(
 # Associados mensalidade endpoints (PRO+)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.get("/associados", response_model=List[AssociadoMensalidadeItemResponse])
+@router.get("/associados", response_model=List[AssociadoMensalidadeItemResponse], dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def list_associados_mensalidades(
     mes: str = Query(..., description="Mês no formato YYYY-MM"),
     current_user: User = Depends(get_current_user),
@@ -824,7 +826,7 @@ class RegistrarAssociadoPagamentoRequest(BaseModel):
     observacao: Optional[str] = None
 
 
-@router.post("/associados/{associado_id}/{mes}", response_model=AssociadoMensalidadeItemResponse)
+@router.post("/associados/{associado_id}/{mes}", response_model=AssociadoMensalidadeItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "insert"))])
 async def registrar_associado_pagamento(
     associado_id: UUID,
     mes: str,
@@ -913,7 +915,7 @@ async def registrar_associado_pagamento(
     )
 
 
-@router.get("/associados/{associado_id}/{mes}/comprovante")
+@router.get("/associados/{associado_id}/{mes}/comprovante", dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def get_associado_comprovante(
     associado_id: UUID,
     mes: str,
@@ -936,7 +938,7 @@ async def get_associado_comprovante(
     )
 
 
-@router.delete("/associados/{pagamento_id}/comprovante", status_code=status.HTTP_200_OK)
+@router.delete("/associados/{pagamento_id}/comprovante", status_code=status.HTTP_200_OK, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "delete"))])
 async def delete_associado_comprovante(
     pagamento_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -954,7 +956,7 @@ async def delete_associado_comprovante(
     return {"mensagem": "Comprovante removido com sucesso."}
 
 
-@router.get("/associados/resumo", response_model=ResumoResponse)
+@router.get("/associados/resumo", response_model=ResumoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def get_associados_resumo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

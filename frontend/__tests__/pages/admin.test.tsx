@@ -5,11 +5,14 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ProfileProvider } from '@/hooks/useProfile';
+import { PermissionsProvider } from '@/hooks/usePermissions';
 
 // Mock next/router
 jest.mock('next/router', () => ({
   useRouter: () => ({
     push: jest.fn(),
+    replace: jest.fn(),
     pathname: '/admin/dashboard',
     query: {},
     asPath: '/admin/dashboard',
@@ -124,7 +127,7 @@ describe('Admin Audit Trail', () => {
     const { apiClient } = require('@/services/api_client');
     apiClient.get.mockResolvedValue({ data: { logs: [], total: 0 } });
 
-    const AdminAuditTrail = require('@/pages/admin/audit_trail').default;
+    const AdminAuditTrail = require('@/pages/admin/audit-trail').default;
     const { container } = renderWithTheme(<AdminAuditTrail />);
     expect(container).toBeTruthy();
   });
@@ -157,15 +160,22 @@ describe('Admin Layout', () => {
   it('renders children', () => {
     const AdminLayout = require('@/pages/admin/admin_layout').default;
     renderWithTheme(
-      <AdminLayout>
-        <div data-testid="child-content">Test Content</div>
-      </AdminLayout>
+      <ProfileProvider>
+        <PermissionsProvider>
+          <AdminLayout>
+            <div data-testid="child-content">Test Content</div>
+          </AdminLayout>
+        </PermissionsProvider>
+      </ProfileProvider>
     );
     expect(screen.getByTestId('child-content')).toBeInTheDocument();
   });
 
   it('does NOT overwrite localStorage.user when impersonating', async () => {
     const { apiClient } = require('@/services/api_client');
+
+    // Set token to bypass hasAuthToken guard
+    localStorage.setItem('access_token', 'fake-token');
 
     // Superadmin stored in localStorage (the real session)
     const superAdminUser = { role: 'super_admin', email: 'super@test.com', id: 'sa-1' };
@@ -181,9 +191,13 @@ describe('Admin Layout', () => {
 
     const AdminLayout = require('@/pages/admin/admin_layout').default;
     renderWithTheme(
-      <AdminLayout>
-        <div>Content</div>
-      </AdminLayout>
+      <ProfileProvider>
+        <PermissionsProvider>
+          <AdminLayout>
+            <div>Content</div>
+          </AdminLayout>
+        </PermissionsProvider>
+      </ProfileProvider>
     );
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/api/v1/auth/profile'));
@@ -196,6 +210,9 @@ describe('Admin Layout', () => {
 
   it('updates localStorage.user when NOT impersonating', async () => {
     const { apiClient } = require('@/services/api_client');
+
+    // Set token to bypass hasAuthToken guard
+    localStorage.setItem('access_token', 'fake-token');
 
     // Superadmin stored in localStorage with stale email
     const superAdminUser = { role: 'super_admin', email: 'old@test.com', id: 'sa-1' };
@@ -211,9 +228,13 @@ describe('Admin Layout', () => {
 
     const AdminLayout = require('@/pages/admin/admin_layout').default;
     renderWithTheme(
-      <AdminLayout>
-        <div>Content</div>
-      </AdminLayout>
+      <ProfileProvider>
+        <PermissionsProvider>
+          <AdminLayout>
+            <div>Content</div>
+          </AdminLayout>
+        </PermissionsProvider>
+      </ProfileProvider>
     );
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/api/v1/auth/profile'));

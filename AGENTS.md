@@ -4,7 +4,7 @@ Last Updated: 2026-03-19
 Project: Senhas - Multi-Tenant SaaS Password Management
 Repository: leonfpontes/Senhas
 Default Branch: master
-Working Branch (atual): 002-financeiro-mensalidade
+Working Branch (atual): 003-rbac-grupos-permissao
 VPS: 76.13.231.19 (Hostinger) — projeto clonado em /opt/senhas
 
 Este arquivo define como agentes de IA devem entender o sistema e como agir ao implementar mudanças com seguranca, qualidade e consistencia arquitetural.
@@ -270,6 +270,20 @@ Incluir obrigatoriamente:
 - **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns + Grafico com Recharts) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`).
 - **Migration 027**: ENUM `mensalidade_status`, tabelas `mensalidade_configs` + `mensalidade_pagamentos`, coluna `mediuns.mensalidade_isento BOOLEAN DEFAULT false`.
 - **Dependencia**: `python-dateutil` (usado em `mensalidade_repo.get_resumo` via `dateutil.relativedelta`).
+
+### 11.11 Grupos de Permissão — Controle Fino de Acesso (branch 003-rbac-grupos-permissao)
+- **Modelos**: `PermissionGroup` (1:M tenant), `GroupPermission` (grupo + feature + can_view/can_insert/can_edit/can_delete), `UserGroupMembership` (M:N associando users a grupos).
+- **Regras de Acesso e Isolamento**: 
+  - Apenas para operadores (`OPERATOR` role). Admins, Super Admins e sessões sob impersonation têm bypass total de grupos.
+  - Multi-tenancy isolado estritamente no banco via queries com filtros `tenant_id` em repositório e serviços.
+  - Consolidação acumulativa via lógica OR permissiva quando o operador pertence a múltiplos grupos.
+  - Operadores sem grupo atribuído mantêm acesso total (retrocompatibilidade e convenção de onboarding).
+- **Endpoints** (prefixo `/api/v1/admin/permission-groups`): CRUD completo de grupos, atribuição em massa de permissões (`/permissions`), associação/remoção de membros (`/members`), e retorno de permissões do usuário autenticado (`/me/permissions`).
+- **Migração Alembic**: `b6d4a9b749d5_create_permission_groups.py` (tabelas e chaves estrangeiras com cascades).
+- **Hooks e Providers**: `usePermissions` / `PermissionsProvider` gerenciando caching local (TTL 5 minutos), revalidação automática em focos de página ou eventos customizados de atualização de tenant.
+- **Frontend / UI**:
+  - `/admin/permission-groups`: listagem com filtros, alertas para operadores sem grupos (G1) e exclusão com proteção/força (G2).
+  - `/admin/permission-groups/[id]`: detalhes do grupo, matriz de permissões (`PermissionMatrix`) com presets rápidos (G4), autocompletes de operadores e visualizador de permissões consolidadas (G3/G13).
 
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).
