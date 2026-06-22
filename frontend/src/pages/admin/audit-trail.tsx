@@ -411,7 +411,7 @@ function AdminAuditTrailContent() {
         ) : (
           <>
             <Table size="small">
-              <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+              <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>Data</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Usuário</TableCell>
@@ -426,7 +426,7 @@ function AdminAuditTrailContent() {
                   logs.map((log) => {
                     const colors = ACTION_COLORS[log.action] || ACTION_COLORS.read;
                     return (
-                      <TableRow key={log.id} sx={{ verticalAlign: 'top', '&:hover': { backgroundColor: '#fafafa' } }}>
+                      <TableRow key={log.id} sx={{ verticalAlign: 'top' }}>
                         <TableCell sx={{ whiteSpace: 'nowrap', py: 1.5 }}>
                           <Typography variant="body2">
                             {new Date(log.created_at).toLocaleDateString('pt-BR')}

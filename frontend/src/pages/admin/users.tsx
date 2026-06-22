@@ -27,7 +27,6 @@ import {
   InputLabel,
   Switch,
   FormControlLabel,
-  Typography,
   Tooltip,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -40,6 +39,7 @@ import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
 import PasswordField from '../../components/PasswordField';
 import { useSubscription } from '../../hooks/useSubscription';
+import { PageHeader, ConfirmDialog } from '@/components/admin';
 
 interface UserItem {
   id: string;
@@ -96,6 +96,10 @@ function AdminUsersContent() {
   const [originalData, setOriginalData] = useState<FormData>(EMPTY_FORM);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<UserItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -208,52 +212,53 @@ function AdminUsersContent() {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir este usuário?')) return;
-    setLoading(true);
+  const requestDelete = (user: UserItem) => {
+    setConfirmTarget(user);
+    setConfirmOpen(true);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!confirmTarget) return;
+    setDeleting(true);
     setError(null);
     try {
-      await apiClient.delete(`/api/v1/admin/users/${userId}`);
+      await apiClient.delete(`/api/v1/admin/users/${confirmTarget.id}`);
       setSuccess('Usuário excluído com sucesso!');
+      setConfirmOpen(false);
+      setConfirmTarget(null);
       setTimeout(() => setSuccess(null), 3000);
       fetchUsers();
     } catch (err: any) {
       setError(err?.response?.data?.detail || err?.message || 'Erro ao excluir usuário');
     } finally {
-      setLoading(false);
+      setDeleting(false);
     }
   };
 
   return (
     <>
       <Box data-tour="users-header" sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 0 } }}>
-          <Typography variant="h5" fontWeight={700}>Gestão de Usuários</Typography>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
-            <FormControl data-tour="users-filtro" size="small" sx={{ minWidth: { xs: '100%', sm: 140 } }}>
-              <InputLabel>Filtrar Role</InputLabel>
-              <Select
-                value={roleFilter}
-                onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
-                label="Filtrar Role"
-              >
-                <MenuItem value="">Todos</MenuItem>
-                <MenuItem value="admin">Admin</MenuItem>
-                <MenuItem value="operator">Operador</MenuItem>
-              </Select>
-            </FormControl>
-            <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchUsers} disabled={loading}>
-              Atualizar
-            </Button>
-            <Tooltip title={!canCreateUser ? `Limite de ${subscription?.max_users ?? 0} usuário(s) atingido. Faça upgrade do plano.` : ''}>
-              <span>
-                <Button data-tour="users-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={loading || !canCreateUser}>
-                  Novo Usuário
-                </Button>
-              </span>
-            </Tooltip>
-          </Box>
-        </Box>
+        <PageHeader
+          title="Gestão de Usuários"
+          actions={
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <FormControl data-tour="users-filtro" size="small" sx={{ minWidth: 140 }}>
+                <InputLabel>Filtrar Role</InputLabel>
+                <Select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }} label="Filtrar Role">
+                  <MenuItem value="">Todos</MenuItem>
+                  <MenuItem value="admin">Admin</MenuItem>
+                  <MenuItem value="operator">Operador</MenuItem>
+                </Select>
+              </FormControl>
+              <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchUsers} disabled={loading}>Atualizar</Button>
+              <Tooltip title={!canCreateUser ? `Limite de ${subscription?.max_users ?? 0} usuário(s) atingido. Faça upgrade do plano.` : ''}>
+                <span>
+                  <Button data-tour="users-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={loading || !canCreateUser}>Novo Usuário</Button>
+                </span>
+              </Tooltip>
+            </Box>
+          }
+        />
 
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
@@ -261,7 +266,7 @@ function AdminUsersContent() {
         <TableContainer data-tour="users-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: 'primary.light' }}>
+              <TableRow>
                 <TableCell>Email</TableCell>
                 <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Nome de Usuário</TableCell>
                 <TableCell>Role</TableCell>
@@ -305,7 +310,7 @@ function AdminUsersContent() {
                       <IconButton size="small" onClick={() => openEdit(user)}>
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDeleteUser(user.id)}>
+                      <IconButton size="small" color="error" onClick={() => requestDelete(user)}>
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </TableCell>
@@ -393,6 +398,17 @@ function AdminUsersContent() {
           />
         )}
       </CrudDrawer>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Excluir usuário"
+        message={`Tem certeza que deseja excluir o usuário "${confirmTarget?.email}"? Esta ação não pode ser desfeita.`}
+        confirmText="Excluir"
+        destructive
+        loading={deleting}
+        onConfirm={handleDeleteUser}
+        onCancel={() => { setConfirmOpen(false); setConfirmTarget(null); }}
+      />
     </>
   );
 }

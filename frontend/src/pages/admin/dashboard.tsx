@@ -8,8 +8,6 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   Grid,
   IconButton,
@@ -50,6 +48,8 @@ import {
   Legend,
 } from 'recharts';
 import AdminLayout from './admin_layout';
+import { KpiCard, PageHeader } from '@/components/admin';
+import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
 import { useTenant } from '@/providers/ThemeProvider';
 import { apiClient } from '../../services/api_client';
@@ -174,6 +174,7 @@ export default function AdminDashboard() {
   const [aniversariantes, setAniversariantes] = useState<AniversarianteItem[]>([]);
   const { can } = useSubscription();
   const { config: tenantConfig } = useTenant();
+  const { tokens } = useAdminTheme();
   const router = useRouter();
 
   const primaryColor = tenantConfig?.colors?.primary || '#1976d2';
@@ -276,23 +277,19 @@ export default function AdminDashboard() {
 
   return (
     <AdminLayout title="Dashboard">
-      <Box data-tour="dashboard-header" sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            {greeting ? `${greeting}! 👋` : ''}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-            {todayLabel}
-          </Typography>
-        </Box>
-        <Tooltip title="Atualizar dados">
-          <span>
-            <IconButton onClick={() => loadDashboard()} disabled={loading} size="small">
-              <RefreshIcon />
-            </IconButton>
-          </span>
-        </Tooltip>
-      </Box>
+      <PageHeader
+        title={greeting ? `${greeting}!` : 'Dashboard'}
+        subtitle={todayLabel}
+        actions={
+          <Tooltip title="Atualizar dados">
+            <span>
+              <IconButton onClick={() => loadDashboard()} disabled={loading} size="small">
+                <RefreshIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} action={<Button size="small" onClick={() => loadDashboard()}>Tentar novamente</Button>}>
@@ -304,54 +301,13 @@ export default function AdminDashboard() {
         {/* ── KPI Cards ── */}
         {kpis.map((kpi) => (
           <Grid item xs={6} sm={6} md={3} key={kpi.label}>
-            {loading ? (
-              <Skeleton variant="rounded" height={120} />
-            ) : (
-              <Card
-                sx={{
-                  background: `linear-gradient(135deg, ${kpi.color}12 0%, ${kpi.color}06 100%)`,
-                  border: `1.5px solid ${kpi.color}25`,
-                  height: '100%',
-                }}
-              >
-                <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                        {kpi.label}
-                      </Typography>
-                      <Typography
-                        variant="h4"
-                        sx={{
-                          fontWeight: 800,
-                          color: kpi.color,
-                          fontSize: { xs: '1.4rem', sm: '2rem' },
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        {kpi.decimals ? kpi.value.toFixed(kpi.decimals) : kpi.value}
-                        {kpi.suffix}
-                      </Typography>
-                    </Box>
-                    <Box
-                      sx={{
-                        width: { xs: 36, sm: 48 },
-                        height: { xs: 36, sm: 48 },
-                        borderRadius: '50%',
-                        backgroundColor: `${kpi.color}18`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: kpi.color,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {kpi.icon}
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            )}
+            <KpiCard
+              label={kpi.label}
+              value={kpi.decimals ? Number(kpi.value).toFixed(kpi.decimals) + kpi.suffix : String(kpi.value) + kpi.suffix}
+              icon={kpi.icon}
+              color={kpi.color}
+              loading={loading}
+            />
           </Grid>
         ))}
 
@@ -480,11 +436,11 @@ export default function AdminDashboard() {
                 <Box sx={{ flex: 1, minHeight: 180 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={tokens.chartGrid} />
+                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: tokens.chartTick }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: tokens.chartTick }} />
                       <RechartsTooltip
-                        contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                        contentStyle={{ background: tokens.tooltipBg, border: `1px solid ${tokens.border}`, borderRadius: 8, fontSize: 12, color: tokens.textPrimary }}
                       />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
                       <Bar dataKey="Comum" stackId="a" fill="#8b5cf6" radius={[0, 0, 0, 0]} />

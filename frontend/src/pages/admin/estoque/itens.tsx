@@ -10,10 +10,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   FormControl,
   IconButton,
   InputLabel,
@@ -31,6 +27,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { ConfirmDialog } from '@/components/admin';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -448,18 +445,15 @@ function AdminEstoqueItensContent() {
         </Box>
       </CrudDrawer>
 
-      {/* Delete Dialog */}
-      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Excluir Item</DialogTitle>
-        <DialogContent>
-          <Typography>Tem certeza que deseja excluir <strong>{deleteTarget?.nome}</strong>?</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>O histórico de movimentações será mantido.</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteOpen(false)}>Cancelar</Button>
-          <Button color="error" variant="contained" onClick={handleDelete}>Excluir</Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Excluir Item"
+        message={<><Typography component="span">Tem certeza que deseja excluir <strong>{deleteTarget?.nome}</strong>?</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>O histórico de movimentações será mantido.</Typography></>}
+        confirmText="Excluir"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => { setDeleteOpen(false); setDeleteTarget(null); }}
+      />
 
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
         <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })} sx={{ width: '100%' }}>{snackbar.message}</Alert>

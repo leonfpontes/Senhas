@@ -18,10 +18,6 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
   CircularProgress,
   IconButton,
@@ -32,6 +28,7 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material';
+import { PageHeader, ConfirmDialog } from '@/components/admin';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -440,9 +437,9 @@ function AdminGirasContent() {
 
   return (
     <>
-      <Box data-tour="giras-header" sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 0 } }}>
-          <Typography variant="h5" fontWeight={700}>Gestão de Giras</Typography>
+      <PageHeader
+        title="Gestão de Giras"
+        actions={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadGiras} disabled={loading} size="small">
               Atualizar
@@ -455,15 +452,15 @@ function AdminGirasContent() {
               </span>
             </Tooltip>
           </Box>
-        </Box>
+        }
+      />
 
-        {/* Gira usage progress bar — only for plans with finite limits */}
-        {subscription && subscription.max_giras_per_month >= 0 && (
-          <Box data-tour="giras-usage">
-            <GiraUsageBar used={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
-          </Box>
-        )}
-      </Box>
+      {/* Gira usage progress bar — only for plans with finite limits */}
+      {subscription && subscription.max_giras_per_month >= 0 && (
+        <Box data-tour="giras-usage" sx={{ mb: 3 }}>
+          <GiraUsageBar used={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
+        </Box>
+      )}
 
       <TableContainer data-tour="giras-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
         {loading ? (
@@ -472,7 +469,7 @@ function AdminGirasContent() {
           </Box>
         ) : (
           <Table size="small">
-            <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+            <TableHead>
               <TableRow>
                 <TableCell>Nome</TableCell>
                 <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Data Início</TableCell>
@@ -493,19 +490,12 @@ function AdminGirasContent() {
                   </TableCell>
                   <TableCell>{getSenhaChip(gira)}</TableCell>
                   <TableCell>
-                    <Box
-                      sx={{
-                        display: 'inline-block',
-                        px: 2,
-                        py: 0.5,
-                        borderRadius: 1,
-                        backgroundColor: gira.is_active ? '#c8e6c9' : '#ffcdd2',
-                        color: gira.is_active ? '#2e7d32' : '#c62828',
-                        fontSize: '0.875rem',
-                      }}
-                    >
-                      {gira.is_active ? 'Ativa' : 'Inativa'}
-                    </Box>
+                    <Chip
+                      label={gira.is_active ? 'Ativa' : 'Inativa'}
+                      size="small"
+                      color={gira.is_active ? 'success' : 'default'}
+                      variant="outlined"
+                    />
                   </TableCell>
                   <TableCell align="right">
                     {isMobile ? (
@@ -681,7 +671,7 @@ function AdminGirasContent() {
 
             {/* Public link */}
             {senhaConfig?.public_link && (
-              <Box sx={{ mt: 1, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
+              <Box sx={{ mt: 1, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
                 <Typography variant="caption" color="text.secondary">Link Público</Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                   <Typography
@@ -795,7 +785,7 @@ function AdminGirasContent() {
 
                   {/* Sponsor public link */}
                   {senhaConfig?.sponsor_public_link && (
-                    <Box sx={{ mt: 1, p: 2, backgroundColor: '#fef9e7', borderRadius: 1, border: '1px solid #f9e79f' }}>
+                    <Box sx={{ mt: 1, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                         <StarIcon sx={{ fontSize: 14, color: '#b8860b' }} />
                         <Typography variant="caption" sx={{ color: '#7d6608', fontWeight: 600 }}>Link Associado</Typography>
@@ -830,33 +820,26 @@ function AdminGirasContent() {
       </CrudDrawer>
 
       {/* Delete Dialog */}
-      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)}>
-        <DialogTitle>Confirmar Deletar</DialogTitle>
-        <DialogContent>
-          Tem certeza que deseja deletar a gira &quot;{deleteTarget?.nome}&quot;?
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteOpen(false)}>Cancelar</Button>
-          <Button onClick={handleDelete} variant="contained" color="error">
-            Deletar
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Confirmar exclusão"
+        message={`Tem certeza que deseja deletar a gira "${deleteTarget?.nome}"?`}
+        confirmText="Deletar"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => { setDeleteOpen(false); setDeleteTarget(null); }}
+      />
 
       {/* Release Now Confirm Dialog */}
-      <Dialog open={releaseConfirmOpen} onClose={() => setReleaseConfirmOpen(false)}>
-        <DialogTitle>Liberar Senhas Agora?</DialogTitle>
-        <DialogContent>
-          A emissão de senhas para &quot;{senhaTarget?.nome}&quot; será aberta imediatamente.
-          O público poderá emitir senhas a partir de agora.
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setReleaseConfirmOpen(false)}>Cancelar</Button>
-          <Button onClick={handleReleaseNow} variant="contained" color="warning">
-            Liberar Agora
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={releaseConfirmOpen}
+        title="Liberar Senhas Agora?"
+        message={`A emissão de senhas para "${senhaTarget?.nome}" será aberta imediatamente. O público poderá emitir senhas a partir de agora.`}
+        confirmText="Liberar Agora"
+        cancelText="Cancelar"
+        onConfirm={handleReleaseNow}
+        onCancel={() => setReleaseConfirmOpen(false)}
+      />
 
       {/* Snackbar */}
       <Snackbar

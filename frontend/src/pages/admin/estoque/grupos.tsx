@@ -10,10 +10,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
   Paper,
   Snackbar,
@@ -27,6 +23,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { ConfirmDialog } from '@/components/admin';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -228,17 +225,15 @@ function AdminEstoqueGruposContent() {
         />
       </CrudDrawer>
 
-      {/* Delete Dialog */}
-      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Excluir Grupo</DialogTitle>
-        <DialogContent>
-          <Typography>Tem certeza que deseja excluir o grupo <strong>{deleteTarget?.nome}</strong>?</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteOpen(false)}>Cancelar</Button>
-          <Button color="error" variant="contained" onClick={handleDeleteConfirm}>Excluir</Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Excluir Grupo"
+        message={<>Tem certeza que deseja excluir o grupo <strong>{deleteTarget?.nome}</strong>?</>}
+        confirmText="Excluir"
+        destructive
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => { setDeleteOpen(false); setDeleteTarget(null); }}
+      />
 
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
         <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })} sx={{ width: '100%' }}>{snackbar.message}</Alert>

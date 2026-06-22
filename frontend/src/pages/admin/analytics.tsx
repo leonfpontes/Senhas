@@ -36,6 +36,13 @@ import AdminLayout from './admin_layout';
 import { useSubscription } from '../../hooks/useSubscription';
 import UpgradePrompt from '../../components/UpgradePrompt';
 import { apiClient } from '../../services/api_client';
+import { KpiCard } from '@/components/admin';
+import { useAdminTheme } from '@/providers/AdminThemeProvider';
+import SendIcon from '@mui/icons-material/Send';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import CancelIcon from '@mui/icons-material/Cancel';
+import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
 
 interface Gira {
   id: string;
@@ -97,6 +104,7 @@ export default function AdminAnalyticsPage() {
 }
 
 function AdminAnalyticsContent() {
+  const { tokens } = useAdminTheme();
   const { can, loading: subLoading } = useSubscription();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -228,56 +236,17 @@ function AdminAnalyticsContent() {
           {/* Summary Stats */}
           <Grid data-tour="analytics-kpis" item xs={12}>
             <Grid container spacing={2}>
-              <Grid item xs={6} sm={3}>
-                <Paper sx={{ p: 2, textAlign: 'center' }}>
-                  <Typography color="textSecondary" gutterBottom>
-                    Total Emitido
-                  </Typography>
-                  <Typography variant="h5">
-                    {analytics.total_emitted}
-                  </Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <Paper sx={{ p: 2, textAlign: 'center' }}>
-                  <Typography color="textSecondary" gutterBottom>
-                    Total Usado
-                  </Typography>
-                  <Typography variant="h5">
-                    {analytics.total_used}
-                  </Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <Paper sx={{ p: 2, textAlign: 'center' }}>
-                  <Typography color="textSecondary" gutterBottom>
-                    Taxa Uso
-                  </Typography>
-                  <Typography variant="h5">
-                    {analytics.usage_rate}%
-                  </Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <Paper sx={{ p: 2, textAlign: 'center' }}>
-                  <Typography color="textSecondary" gutterBottom>
-                    Cancelados
-                  </Typography>
-                  <Typography variant="h5">
-                    {analytics.total_cancelled}
-                  </Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <Paper sx={{ p: 2, textAlign: 'center' }}>
-                  <Typography color="textSecondary" gutterBottom>
-                    Walk-ins
-                  </Typography>
-                  <Typography variant="h5" sx={{ color: '#0ea5e9' }}>
-                    {analytics.walk_in_total}
-                  </Typography>
-                </Paper>
-              </Grid>
+              {[
+                { label: 'Total Emitido',  value: analytics.total_emitted,   icon: <SendIcon />,                color: '#6366f1' },
+                { label: 'Total Usado',    value: analytics.total_used,      icon: <CheckCircleOutlineIcon />,   color: '#22c55e' },
+                { label: 'Taxa de Uso',    value: `${analytics.usage_rate}%`, icon: <TrendingUpIcon />,          color: '#f59e0b' },
+                { label: 'Cancelados',     value: analytics.total_cancelled, icon: <CancelIcon />,               color: '#ef4444' },
+                { label: 'Walk-ins',       value: analytics.walk_in_total,   icon: <DirectionsWalkIcon />,       color: '#0ea5e9' },
+              ].map((kpi) => (
+                <Grid item xs={6} sm={4} md key={kpi.label}>
+                  <KpiCard label={kpi.label} value={kpi.value} icon={kpi.icon} color={kpi.color} />
+                </Grid>
+              ))}
             </Grid>
           </Grid>
 
@@ -292,10 +261,10 @@ function AdminAnalyticsContent() {
                   data={analytics.daily_distribution}
                   margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
+                  <CartesianGrid strokeDasharray="3 3" stroke={tokens.chartGrid} />
+                  <XAxis dataKey="date" tick={{ fill: tokens.chartTick, fontSize: 11 }} />
+                  <YAxis tick={{ fill: tokens.chartTick, fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: tokens.tooltipBg, border: `1px solid ${tokens.border}`, borderRadius: 8, fontSize: 12, color: tokens.textPrimary }} />
                   <Legend />
                   <Bar dataKey="common" stackId="tickets" fill="#8b5cf6" name="Comum" />
                   <Bar dataKey="sponsor" stackId="tickets" fill="#daa520" name="Associado" />
@@ -316,10 +285,10 @@ function AdminAnalyticsContent() {
                   data={analytics.peak_hours}
                   margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="hour" />
-                  <YAxis />
-                  <Tooltip />
+                  <CartesianGrid strokeDasharray="3 3" stroke={tokens.chartGrid} />
+                  <XAxis dataKey="hour" tick={{ fill: tokens.chartTick, fontSize: 11 }} />
+                  <YAxis tick={{ fill: tokens.chartTick, fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: tokens.tooltipBg, border: `1px solid ${tokens.border}`, borderRadius: 8, fontSize: 12, color: tokens.textPrimary }} />
                   <Legend />
                   <Line
                     type="monotone"
@@ -354,7 +323,7 @@ function AdminAnalyticsContent() {
                       <Cell key={`category-cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={{ background: tokens.tooltipBg, border: `1px solid ${tokens.border}`, borderRadius: 8, fontSize: 12, color: tokens.textPrimary }} />
                 </PieChart>
               </ResponsiveContainer>
             </Paper>
@@ -384,7 +353,7 @@ function AdminAnalyticsContent() {
                       <Cell key={`cell-${index}`} fill={COLORS[index]} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={{ background: tokens.tooltipBg, border: `1px solid ${tokens.border}`, borderRadius: 8, fontSize: 12, color: tokens.textPrimary }} />
                 </PieChart>
               </ResponsiveContainer>
             </Paper>
