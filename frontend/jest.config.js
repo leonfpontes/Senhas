@@ -30,7 +30,9 @@ const customJestConfig = {
     // own directory in the package (Button/, AppBar/, useMediaQuery/, etc.),
     // but @mui/material v5.18 does not include a useTheme/ directory.
     // Map it to the CJS entry in the node/ build so Jest can load it.
-    '^@mui/material/useTheme$': '<rootDir>/../node_modules/@mui/material/node/styles/useTheme',
+    // Try frontend-local node_modules first (Docker container layout), fallback to root workspace
+    '^@mui/material/useTheme$': '<rootDir>/node_modules/@mui/material/node/styles/useTheme',
+    '^@mui/material/useMediaQuery$': '<rootDir>/node_modules/@mui/material/node/useMediaQuery',
   },
   testMatch: ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
   moduleDirectories: ['node_modules', '<rootDir>/../node_modules'],
