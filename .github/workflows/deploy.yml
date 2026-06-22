@@ -1,0 +1,37 @@
+name: Deploy → VPS
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -euo pipefail
+            cd /opt/senhas
+
+            echo "==> Pull"
+            git fetch --all
+            git reset --hard origin/master
+
+            echo "==> Build + restart"
+            docker compose -f docker-compose.prod.yml build --no-cache frontend backend
+            docker compose -f docker-compose.prod.yml up -d --no-deps frontend backend
+
+            echo "==> Migrations"
+            docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
+
+            echo "==> Status"
+            docker compose -f docker-compose.prod.yml ps
