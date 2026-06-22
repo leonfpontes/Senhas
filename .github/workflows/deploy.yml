@@ -9,6 +9,7 @@ jobs:
     name: Deploy to production
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: Hostinger
 
     steps:
       - name: Deploy via SSH
