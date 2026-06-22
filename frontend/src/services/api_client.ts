@@ -46,11 +46,9 @@ class APIClient {
           config.headers.Authorization = `Bearer ${token}`;
         }
 
-        // Log request
-        console.debug(`[API] ${config.method?.toUpperCase()} ${config.url}`, {
-          data: config.data,
-          params: config.params,
-        });
+        if (process.env.NODE_ENV === 'development') {
+          console.debug(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+        }
 
         return config;
       },

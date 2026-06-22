@@ -15,9 +15,13 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   transpilePackages: ['shared-types', 'shared-ui'],
-  // Generate unique build ID per build for cache busting
   generateBuildId: async () => {
-    return `build-${Date.now()}`;
+    const { execSync } = require('child_process');
+    try {
+      return execSync('git rev-parse --short HEAD').toString().trim();
+    } catch {
+      return `build-${Date.now()}`;
+    }
   },
   modularizeImports: {
     '@mui/icons-material': {

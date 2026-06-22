@@ -302,8 +302,8 @@ export default function AdminDashboard() {
 
       <Grid data-tour="dashboard-kpis" container spacing={{ xs: 2, md: 3 }}>
         {/* ── KPI Cards ── */}
-        {kpis.map((kpi, idx) => (
-          <Grid item xs={6} sm={6} md={3} key={idx}>
+        {kpis.map((kpi) => (
+          <Grid item xs={6} sm={6} md={3} key={kpi.label}>
             {loading ? (
               <Skeleton variant="rounded" height={120} />
             ) : (
@@ -625,7 +625,7 @@ export default function AdminDashboard() {
                     const maxCount = data.peak_hours[0]?.count || 1;
                     const pct = (ph.count / maxCount) * 100;
                     return (
-                      <Box key={idx}>
+                      <Box key={ph.hour}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
                           <Typography variant="caption" sx={{ fontWeight: 600 }}>
                             {String(ph.hour).padStart(2, '0')}:00

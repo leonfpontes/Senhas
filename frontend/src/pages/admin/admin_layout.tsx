@@ -75,6 +75,7 @@ import { getAdminTourSteps } from '@/tours/adminTourSteps';
 import { endImpersonation } from '../../services/api_client';
 import { usePermissions } from '@/hooks/usePermissions';
 import { PermissionFeature } from '@/constants/permissionFeatures';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const DRAWER_WIDTH = 280;
 
@@ -959,7 +960,7 @@ function AdminLayoutInner({
           </Container>
         ) : noPadding ? (
           <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            {children}
+            <ErrorBoundary>{children}</ErrorBoundary>
           </Box>
         ) : (
           <Container
@@ -972,7 +973,7 @@ function AdminLayoutInner({
               },
             }}
           >
-            {children}
+            <ErrorBoundary>{children}</ErrorBoundary>
           </Container>
         )}
       </Box>

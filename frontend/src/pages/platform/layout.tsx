@@ -1,461 +1,594 @@
 /**
- * Platform Admin Layout - Super Admin dashboard shell (T111)
- * 
- * Provides:
- * - Top AppBar with branding
- * - Left sidebar drawer with navigation
- * - Main content area
- * - Role-based navigation items
- * - Responsive design
+ * Platform Layout
+ *
+ * Shell for all /platform pages.  Responsibilities:
+ *   1. Auth guard — redirects non-super_admin users
+ *   2. Wraps children in PlatformThemeProvider (scoped dark/light theme)
+ *   3. Renders collapsible sidebar + sticky top-bar
+ *
+ * Every visual sub-piece lives in components/platform/ or providers/.
+ * This file only composes them — no inline business logic.
  */
 
 import React, { useState, useEffect } from "react";
-import {
-  Box,
-  AppBar,
-  CssBaseline,
-  CircularProgress,
-  Container,
-  Drawer,
-  Toolbar,
-  Typography,
-  IconButton,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Divider,
-  useMediaQuery,
-  useTheme,
-  Avatar,
-  Menu,
-  MenuItem,
-  Tooltip,
-} from "@mui/material";
-import MenuIcon from "@mui/icons-material/Menu";
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
-import Head from "next/head";
-import DashboardIcon from "@mui/icons-material/Dashboard";
-import BusinessIcon from "@mui/icons-material/Business";
-import PeopleIcon from "@mui/icons-material/People";
-import DescriptionIcon from "@mui/icons-material/Description";
-import BillingIcon from "@mui/icons-material/ReceiptLong";
-import SettingsIcon from "@mui/icons-material/Settings";
-import LogoutIcon from "@mui/icons-material/Logout";
-import AccountIcon from "@mui/icons-material/AccountCircle";
-import Link from "next/link";
+import Avatar          from "@mui/material/Avatar";
+import Box             from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
+import Divider         from "@mui/material/Divider";
+import Drawer          from "@mui/material/Drawer";
+import IconButton      from "@mui/material/IconButton";
+import List            from "@mui/material/List";
+import ListItem        from "@mui/material/ListItem";
+import ListItemButton  from "@mui/material/ListItemButton";
+import ListItemIcon    from "@mui/material/ListItemIcon";
+import Tooltip         from "@mui/material/Tooltip";
+import Typography      from "@mui/material/Typography";
+import useMediaQuery   from "@mui/material/useMediaQuery";
+
+import DashboardRoundedIcon          from "@mui/icons-material/DashboardRounded";
+import BusinessRoundedIcon           from "@mui/icons-material/BusinessRounded";
+import PeopleAltRoundedIcon          from "@mui/icons-material/PeopleAltRounded";
+import ReceiptLongRoundedIcon        from "@mui/icons-material/ReceiptLongRounded";
+import ManageSearchRoundedIcon       from "@mui/icons-material/ManageSearchRounded";
+import TuneRoundedIcon               from "@mui/icons-material/TuneRounded";
+import LogoutRoundedIcon             from "@mui/icons-material/LogoutRounded";
+import MenuOpenRoundedIcon           from "@mui/icons-material/MenuOpenRounded";
+import MenuRoundedIcon               from "@mui/icons-material/MenuRounded";
+import DarkModeRoundedIcon           from "@mui/icons-material/DarkModeRounded";
+import LightModeRoundedIcon          from "@mui/icons-material/LightModeRounded";
+
+import Head   from "next/head";
+import Link   from "next/link";
 import { useRouter } from "next/router";
-import { useTour } from "@reactour/tour";
+import { ErrorBoundary } from "../../components/ErrorBoundary";
+
+import {
+  PlatformThemeProvider,
+  usePlatformTheme,
+} from "../../providers/PlatformThemeProvider";
+import { ACCENT, ACCENT_GLOW } from "../../styles/platformTheme";
+import { LiveClock } from "../../components/platform";
 import { apiClient } from "../../services/api_client";
-import { getPlatformTourSteps } from "../../tours/platformTourSteps";
 
-const DRAWER_WIDTH = 280;
-const TOOLBAR_HEIGHT = 64;
+// ─── Navigation items — single source of truth ────────────────────────────────
 
-// Platform brand colors (fixed — no tenant context)
-const BRAND_PRIMARY = "#1a237e";
-const BRAND_SECONDARY = "#4a148c";
-const BRAND_FONT = "#FFFFFF";
+const NAV_ITEMS = [
+  { label: "Dashboard",        icon: <DashboardRoundedIcon />,    href: "/platform" },
+  { label: "Tenants",          icon: <BusinessRoundedIcon />,     href: "/platform/tenants" },
+  { label: "Usuários Globais", icon: <PeopleAltRoundedIcon />,    href: "/platform/users_global" },
+  { label: "Audit Logs",       icon: <ManageSearchRoundedIcon />, href: "/platform/audit_consolidated" },
+  { label: "Billing",          icon: <ReceiptLongRoundedIcon />,  href: "/platform/billing" },
+  { label: "Configurações",    icon: <TuneRoundedIcon />,         href: "/platform/settings" },
+] as const;
 
-interface PlatformLayoutProps {
-  children: React.ReactNode;
+// ─── Sizing ───────────────────────────────────────────────────────────────────
+
+const SIDEBAR_EXPANDED  = 240;
+const SIDEBAR_COLLAPSED = 72;
+const TOPBAR_HEIGHT     = 60;
+
+// ─── NavItem ──────────────────────────────────────────────────────────────────
+
+interface NavItemProps {
+  label:    string;
+  icon:     React.ReactNode;
+  href:     string;
+  active:   boolean;
+  expanded: boolean;
+  onClick?: () => void;
 }
 
-/**
- * Botão de ajuda (?) que dispara o tour guiado da tela atual do painel Platform.
- */
-function PlatformTourHelpButton() {
+const NavItem: React.FC<NavItemProps> = ({
+  label, icon, href, active, expanded, onClick,
+}) => {
+  const { tokens } = usePlatformTheme();
+
+  const button = (
+    <Link href={href} passHref legacyBehavior>
+      <ListItemButton
+        selected={active}
+        onClick={onClick}
+        sx={{
+          borderRadius: "10px",
+          mb: 0.5,
+          minHeight: 42,
+          justifyContent: expanded ? "flex-start" : "center",
+          px: expanded ? 1.5 : 0,
+          gap: 1.5,
+          transition: "all 0.15s ease",
+          position: "relative",
+          color: active ? tokens.textPrimary : tokens.textSecondary,
+          "&.Mui-selected": {
+            background: "rgba(99,102,241,0.12)",
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              left: 0, top: "18%",
+              height: "64%", width: 3,
+              borderRadius: "0 3px 3px 0",
+              background: `linear-gradient(180deg, ${ACCENT} 0%, #8B5CF6 100%)`,
+              boxShadow: `0 0 10px ${ACCENT_GLOW}`,
+            },
+          },
+          "&.Mui-selected:hover": { background: "rgba(99,102,241,0.18)" },
+          "&:not(.Mui-selected):hover": {
+            background: "rgba(99,102,241,0.06)",
+            color: tokens.textPrimary,
+          },
+        }}
+      >
+        <ListItemIcon
+          sx={{
+            minWidth: 0,
+            color: active ? ACCENT : "inherit",
+            "& svg": {
+              fontSize: "1.2rem",
+              filter: active ? `drop-shadow(0 0 6px ${ACCENT_GLOW})` : "none",
+              transition: "filter 0.15s ease",
+            },
+          }}
+        >
+          {icon}
+        </ListItemIcon>
+        {expanded && (
+          <Typography
+            sx={{
+              fontSize: "0.82rem",
+              fontWeight: active ? 600 : 500,
+              color: active ? tokens.textPrimary : tokens.textSecondary,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {label}
+          </Typography>
+        )}
+      </ListItemButton>
+    </Link>
+  );
+
+  if (expanded) return <ListItem disablePadding>{button}</ListItem>;
+
+  return (
+    <ListItem disablePadding>
+      <Tooltip title={label} placement="right" arrow>
+        <Box sx={{ width: "100%" }}>{button}</Box>
+      </Tooltip>
+    </ListItem>
+  );
+};
+
+// ─── SidebarContent ───────────────────────────────────────────────────────────
+
+interface SidebarContentProps {
+  expanded:  boolean;
+  isMobile?: boolean;
+  onToggle:  () => void;
+  onClose?:  () => void;
+}
+
+const SidebarContent: React.FC<SidebarContentProps> = ({
+  expanded, isMobile = false, onToggle, onClose,
+}) => {
   const router = useRouter();
-  const { setSteps, setIsOpen, setCurrentStep } = useTour();
-  const steps = getPlatformTourSteps(router.pathname);
+  const { tokens } = usePlatformTheme();
 
-  if (steps.length === 0) return null;
-
-  const handleOpenTour = () => {
-    setSteps?.(steps);
-    setCurrentStep(0);
-    setIsOpen(true);
+  const handleLogout = async () => {
+    try { await apiClient.post("/api/v1/auth/logout"); } catch {}
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user");
+    router.push("/login");
   };
 
   return (
-    <Tooltip title="Guia desta tela">
-      <IconButton
-        color="inherit"
-        aria-label="abrir guia da tela"
-        onClick={handleOpenTour}
-        size="small"
-        sx={{ opacity: 0.85, '&:hover': { opacity: 1 } }}
-      >
-        <HelpOutlineIcon />
-      </IconButton>
-    </Tooltip>
-  );
-}
-
-export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => {
-  const theme = useTheme();
-  const router = useRouter();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [authorized, setAuthorized] = useState(false);
-
-  // Guard: only super_admin may view platform pages
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("user");
-      const user = raw ? JSON.parse(raw) : null;
-      if (!user || user.role !== "super_admin") {
-        router.replace(user ? "/admin/dashboard" : "/login");
-        return;
-      }
-      setAuthorized(true);
-    } catch {
-      router.replace("/login");
-    }
-  }, [router]);
-
-  if (!authorized) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleLogout = async () => {
-    try {
-      await apiClient.post("/api/v1/auth/logout");
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    router.push("/login");
-    handleMenuClose();
-  };
-
-  const navigationItems = [
-    {
-      label: "Dashboard",
-      icon: <DashboardIcon />,
-      href: "/platform",
-    },
-    {
-      label: "Tenants",
-      icon: <BusinessIcon />,
-      href: "/platform/tenants",
-    },
-    {
-      label: "Global Users",
-      icon: <PeopleIcon />,
-      href: "/platform/users_global",
-    },
-    {
-      label: "Audit Logs",
-      icon: <DescriptionIcon />,
-      href: "/platform/audit_consolidated",
-    },
-    {
-      label: "Billing",
-      icon: <BillingIcon />,
-      href: "/platform/billing",
-    },
-    {
-      label: "Settings",
-      icon: <SettingsIcon />,
-      href: "/platform/settings",
-    },
-  ];
-
-  const drawer = (
-    <Box
-      sx={{
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        backgroundColor: "background.paper",
-      }}
-    >
-      {/* Header — gradient matching admin layout */}
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* ── Brand header ── */}
       <Box
         sx={{
-          p: 2,
-          minHeight: TOOLBAR_HEIGHT,
+          height: TOPBAR_HEIGHT,
           display: "flex",
           alignItems: "center",
-          background: `linear-gradient(135deg, ${BRAND_PRIMARY} 0%, ${BRAND_SECONDARY} 100%)`,
-          position: "relative",
+          px: expanded ? 2 : 0,
+          justifyContent: expanded ? "space-between" : "center",
+          borderBottom: `1px solid ${tokens.border}`,
+          flexShrink: 0,
         }}
       >
-        {isMobile && (
-          <IconButton
-            onClick={() => setMobileOpen(false)}
-            size="small"
-            sx={{
-              position: "absolute",
-              top: 8,
-              right: 8,
-              color: BRAND_FONT,
-              opacity: 0.8,
-              "&:hover": { opacity: 1, bgcolor: "rgba(255,255,255,0.15)" },
-            }}
-          >
-            <ChevronLeftIcon />
-          </IconButton>
+        {expanded ? (
+          <>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <BrandLogo size={34} />
+              <Box>
+                <Typography sx={{ fontSize: "0.82rem", fontWeight: 700, color: tokens.textPrimary, lineHeight: 1.2 }}>
+                  Senhas
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: "0.58rem", fontWeight: 700, color: ACCENT,
+                    letterSpacing: "0.2em", textTransform: "uppercase", lineHeight: 1,
+                  }}
+                >
+                  Platform
+                </Typography>
+              </Box>
+            </Box>
+            <IconButton
+              size="small"
+              onClick={isMobile ? onClose : onToggle}
+              sx={{ color: tokens.textSecondary, "&:hover": { color: tokens.textPrimary } }}
+            >
+              <MenuOpenRoundedIcon fontSize="small" />
+            </IconButton>
+          </>
+        ) : (
+          <Tooltip title="Expandir menu" placement="right">
+            <Box onClick={onToggle} sx={{ cursor: "pointer" }}>
+              <BrandLogo size={36} />
+            </Box>
+          </Tooltip>
         )}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Avatar
-            sx={{
-              width: 52,
-              height: 52,
-              bgcolor: "rgba(255,255,255,0.2)",
-              color: BRAND_FONT,
-              fontWeight: 700,
-              fontSize: "1.25rem",
-              border: "2px solid rgba(255,255,255,0.5)",
-            }}
-          >
-            SA
-          </Avatar>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 700,
-                color: BRAND_FONT,
-                lineHeight: 1.3,
-              }}
-            >
-              Senhas Platform
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: BRAND_FONT,
-                opacity: 0.75,
-                fontWeight: 500,
-                letterSpacing: 0.5,
-              }}
-            >
-              Super Admin
-            </Typography>
-          </Box>
-        </Box>
       </Box>
 
-      <Divider />
-
-      {/* Navigation Items */}
-      <List sx={{ flex: 1, py: 2 }}>
-        {navigationItems.map((item) => (
-          <ListItem key={item.href} disablePadding>
-            <Link href={item.href} passHref legacyBehavior>
-              <ListItemButton
-                selected={router.pathname === item.href}
-                sx={{
-                  borderRadius: 2,
-                  mx: 1,
-                  "& .MuiListItemIcon-root": {
-                    color: "text.secondary",
-                  },
-                  "&.Mui-selected": {
-                    background: `linear-gradient(90deg, ${BRAND_PRIMARY} 0%, ${BRAND_SECONDARY} 100%)`,
-                    color: BRAND_FONT,
-                    "& .MuiListItemIcon-root": {
-                      color: BRAND_FONT,
-                    },
-                    "& .MuiListItemText-primary": {
-                      color: BRAND_FONT,
-                    },
-                  },
-                  "&.Mui-selected:hover": {
-                    background: `linear-gradient(90deg, ${BRAND_PRIMARY} 0%, ${BRAND_SECONDARY} 100%)`,
-                    filter: "brightness(0.97)",
-                  },
-                }}
-              >
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  primaryTypographyProps={{
-                    variant: "body2",
-                    fontWeight: router.pathname === item.href ? 600 : 500,
-                  }}
-                />
-              </ListItemButton>
-            </Link>
-          </ListItem>
+      {/* ── Nav ── */}
+      <List sx={{ flex: 1, py: 1.5, px: expanded ? 1 : 0.75 }}>
+        {NAV_ITEMS.map((item) => (
+          <NavItem
+            key={item.href}
+            {...item}
+            active={router.pathname === item.href}
+            expanded={expanded}
+            onClick={isMobile ? onClose : undefined}
+          />
         ))}
       </List>
 
       <Divider />
 
-      {/* Footer */}
-      <Box sx={{ p: 2 }}>
-        <Typography variant="caption" display="block" color="text.secondary">
-          GiraHub v3.0
-        </Typography>
-        <Typography variant="caption" display="block" color="text.secondary">
-          Platform Edition
-        </Typography>
-      </Box>
-    </Box>
-  );
-
-  return (
-    <>
-    <Head>
-      <title>Senhas Platform Admin</title>
-    </Head>
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <CssBaseline />
-
-      {/* AppBar */}
-      <AppBar
-        position="fixed"
-        variant="elevation"
-        sx={{
-          background: `linear-gradient(90deg, ${BRAND_PRIMARY} 0%, ${BRAND_SECONDARY} 100%)`,
-          color: BRAND_FONT,
-          width: { xs: "100%", md: `calc(100% - ${DRAWER_WIDTH}px)` },
-          ml: { md: `${DRAWER_WIDTH}px` },
-        }}
-      >
-        <Toolbar>
-          {isMobile && (
-            <IconButton
-              color="inherit"
-              edge="start"
-              onClick={() => setMobileOpen(true)}
-              sx={{ mr: 2 }}
-            >
-              <MenuIcon />
-            </IconButton>
-          )}
-
-          <Typography variant="h6" sx={{ flex: 1, fontWeight: 700 }}>
-            Platform Administration
-          </Typography>
-
-          <PlatformTourHelpButton />
-
-          <IconButton
-            onClick={handleMenuOpen}
-            size="small"
-            aria-label="user menu"
-            sx={{ ml: 1 }}
+      {/* ── Footer ── */}
+      <Box sx={{ py: 1.5, px: expanded ? 1 : 0.75 }}>
+        {/* Profile */}
+        <Tooltip title={expanded ? "" : "Perfil"} placement="right" arrow>
+          <ListItemButton
+            onClick={() => {
+              router.push("/platform/profile");
+              if (isMobile && onClose) onClose();
+            }}
+            sx={{
+              borderRadius: "10px", mb: 0.5,
+              justifyContent: expanded ? "flex-start" : "center",
+              px: expanded ? 1.5 : 0, gap: 1.5,
+              color: tokens.textSecondary,
+              "&:hover": { background: "rgba(99,102,241,0.06)", color: tokens.textPrimary },
+            }}
           >
             <Avatar
               sx={{
-                width: 34,
-                height: 34,
-                fontSize: "0.875rem",
-                bgcolor: "rgba(255,255,255,0.22)",
-                color: BRAND_FONT,
-                border: "1px solid rgba(255,255,255,0.45)",
+                width: 28, height: 28, fontSize: "0.68rem", fontWeight: 700,
+                background: `linear-gradient(135deg, ${ACCENT} 0%, #8B5CF6 100%)`,
+                flexShrink: 0, boxShadow: `0 0 10px ${ACCENT_GLOW}`,
               }}
             >
               SA
             </Avatar>
-          </IconButton>
+            {expanded && (
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: "0.78rem", fontWeight: 600, color: tokens.textPrimary, lineHeight: 1.3 }}>
+                  Super Admin
+                </Typography>
+                <Typography sx={{ fontSize: "0.64rem", color: tokens.textSecondary }} noWrap>
+                  superadmin@senhas.app
+                </Typography>
+              </Box>
+            )}
+          </ListItemButton>
+        </Tooltip>
 
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleMenuClose}
-            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-            transformOrigin={{ vertical: "top", horizontal: "right" }}
+        {/* Logout */}
+        <Tooltip title={expanded ? "" : "Sair"} placement="right" arrow>
+          <ListItemButton
+            onClick={handleLogout}
+            sx={{
+              borderRadius: "10px",
+              justifyContent: expanded ? "flex-start" : "center",
+              px: expanded ? 1.5 : 0, gap: 1.5,
+              color: tokens.textSecondary,
+              transition: "all 0.15s ease",
+              "&:hover": { background: "rgba(239,68,68,0.08)", color: "#EF4444" },
+            }}
           >
-            <MenuItem onClick={() => { router.push("/platform/profile"); handleMenuClose(); }}>
-              <AccountIcon sx={{ mr: 1, fontSize: "1.2rem" }} />
-              Profile
-            </MenuItem>
-            <Divider />
-            <MenuItem onClick={handleLogout}>
-              <LogoutIcon sx={{ mr: 1, fontSize: "1.2rem" }} />
-              Logout
-            </MenuItem>
-          </Menu>
-        </Toolbar>
-      </AppBar>
+            <LogoutRoundedIcon sx={{ fontSize: "1.1rem", flexShrink: 0 }} />
+            {expanded && (
+              <Typography sx={{ fontSize: "0.82rem", fontWeight: 500 }}>Sair</Typography>
+            )}
+          </ListItemButton>
+        </Tooltip>
 
-      {/* Navigation Drawer */}
-      <Box
-        component="nav"
-        sx={{
-          width: { md: DRAWER_WIDTH },
-          flexShrink: { md: 0 },
-        }}
-      >
-        {/* Mobile Drawer */}
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-          ModalProps={{ keepMounted: true }}
-          sx={{
-            display: { xs: "block", md: "none" },
-            "& .MuiDrawer-paper": {
-              boxSizing: "border-box",
-              width: DRAWER_WIDTH,
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-
-        {/* Desktop Drawer */}
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: "none", md: "block" },
-            "& .MuiDrawer-paper": {
-              boxSizing: "border-box",
-              width: DRAWER_WIDTH,
-              borderRight: "1px solid #e0e0e0",
-            },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
-
-      {/* Main Content */}
-      <Box
-        component="main"
-        sx={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "auto",
-        }}
-      >
-        <Toolbar />
-        <Container
-          maxWidth="lg"
-          sx={{
-            py: 3,
-            px: { xs: 2, sm: 3 },
-          }}
-        >
-          {children}
-        </Container>
+        {expanded && (
+          <Typography
+            sx={{
+              fontSize: "0.58rem", color: tokens.textGhost, fontWeight: 600,
+              textAlign: "center", mt: 1.5, letterSpacing: "0.08em",
+            }}
+          >
+            SENHAS PLATFORM v1.1
+          </Typography>
+        )}
       </Box>
     </Box>
+  );
+};
+
+// ─── BrandLogo ────────────────────────────────────────────────────────────────
+
+const BrandLogo: React.FC<{ size: number }> = ({ size }) => (
+  <Box
+    component="img"
+    src="/favicon.svg"
+    alt="Senhas Platform"
+    sx={{
+      width: size,
+      height: size,
+      borderRadius: `${size * 0.22}px`,
+      boxShadow: `0 0 ${size * 0.5}px ${ACCENT_GLOW}`,
+      transition: "box-shadow 0.15s ease",
+      display: "block",
+      flexShrink: 0,
+      "&:hover": { boxShadow: `0 0 ${size * 0.75}px ${ACCENT_GLOW}` },
+    }}
+  />
+);
+
+// ─── ThemeToggle ──────────────────────────────────────────────────────────────
+
+const ThemeToggle: React.FC = () => {
+  const { isDark, toggleMode, tokens } = usePlatformTheme();
+
+  return (
+    <Tooltip title={isDark ? "Modo claro" : "Modo escuro"}>
+      <IconButton
+        onClick={toggleMode}
+        size="small"
+        sx={{
+          color: tokens.textSecondary,
+          border: `1px solid ${tokens.border}`,
+          borderRadius: "8px",
+          p: 0.75,
+          bgcolor: "rgba(99,102,241,0.05)",
+          "&:hover": {
+            color: ACCENT,
+            bgcolor: "rgba(99,102,241,0.1)",
+            borderColor: ACCENT,
+          },
+          transition: "all 0.15s ease",
+        }}
+      >
+        {isDark
+          ? <LightModeRoundedIcon sx={{ fontSize: "1rem" }} />
+          : <DarkModeRoundedIcon  sx={{ fontSize: "1rem" }} />
+        }
+      </IconButton>
+    </Tooltip>
+  );
+};
+
+// ─── PlatformShell — the actual layout (runs inside PlatformThemeProvider) ────
+
+interface PlatformShellProps {
+  children: React.ReactNode;
+}
+
+const PlatformShell: React.FC<PlatformShellProps> = ({ children }) => {
+  const router    = useRouter();
+  const isMobile  = useMediaQuery("(max-width: 900px)");
+  const { tokens, isDark } = usePlatformTheme();
+
+  const [expanded,   setExpanded]   = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw  = localStorage.getItem("user");
+      const user = raw ? JSON.parse(raw) : null;
+      if (!user || user.role !== "super_admin") {
+        const dest = user ? "/admin/dashboard" : "/login";
+        window.location.replace(dest);
+        return;
+      }
+      setAuthorized(true);
+    } catch {
+      window.location.replace("/login");
+    }
+  // router não é dependência estável no Pages Router — rodar só na montagem
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!authorized) {
+    return (
+      <Box
+        sx={{
+          display: "flex", justifyContent: "center", alignItems: "center",
+          minHeight: "100vh", bgcolor: "background.default",
+        }}
+      >
+        <Box sx={{ textAlign: "center" }}>
+          <BrandLogo size={48} />
+          <CircularProgress size={24} sx={{ color: ACCENT, mt: 2 }} />
+        </Box>
+      </Box>
+    );
+  }
+
+  const sidebarWidth = isMobile ? 0 : (expanded ? SIDEBAR_EXPANDED : SIDEBAR_COLLAPSED);
+  const currentLabel = NAV_ITEMS.find((i) => i.href === router.pathname)?.label ?? "Administration";
+
+  return (
+    <>
+      {/* Ambient glow — decorative only, positioned fixed */}
+      <Box
+        aria-hidden
+        sx={{
+          position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden",
+          "&::before": {
+            content: '""', position: "absolute",
+            top: "-15%", right: "-8%", width: "55vw", height: "55vh",
+            background: tokens.glowTR,
+          },
+          "&::after": {
+            content: '""', position: "absolute",
+            bottom: "-10%", left: "-5%", width: "40vw", height: "40vh",
+            background: tokens.glowBL,
+          },
+        }}
+      />
+
+      <Box
+        sx={{
+          display: "flex", minHeight: "100vh",
+          bgcolor: "background.default",
+          position: "relative", zIndex: 1,
+        }}
+      >
+        {/* ── Desktop sidebar ── */}
+        {!isMobile && (
+          <Box
+            component="nav"
+            sx={{
+              width: sidebarWidth,
+              flexShrink: 0,
+              transition: "width 0.25s cubic-bezier(0.4,0,0.2,1)",
+              position: "fixed", left: 0, top: 0, bottom: 0,
+              bgcolor: tokens.sidebarBg,
+              borderRight: `1px solid ${tokens.border}`,
+              backdropFilter: "blur(24px)",
+              boxShadow: isDark
+                ? "none"
+                : "2px 0 20px rgba(99,102,241,0.07)",
+              zIndex: 100, overflow: "hidden",
+            }}
+          >
+            <SidebarContent
+              expanded={expanded}
+              onToggle={() => setExpanded((v) => !v)}
+            />
+          </Box>
+        )}
+
+        {/* ── Mobile drawer ── */}
+        {isMobile && (
+          <Drawer
+            variant="temporary"
+            open={mobileOpen}
+            onClose={() => setMobileOpen(false)}
+            PaperProps={{
+              sx: {
+                width: SIDEBAR_EXPANDED,
+                bgcolor: tokens.sidebarBg,
+                borderRight: `1px solid ${tokens.border}`,
+                backdropFilter: "blur(24px)",
+              },
+            }}
+          >
+            <SidebarContent
+              expanded
+              isMobile
+              onToggle={() => {}}
+              onClose={() => setMobileOpen(false)}
+            />
+          </Drawer>
+        )}
+
+        {/* ── Main ── */}
+        <Box
+          component="main"
+          sx={{
+            flex: 1,
+            ml: isMobile ? 0 : `${sidebarWidth}px`,
+            transition: "margin-left 0.25s cubic-bezier(0.4,0,0.2,1)",
+            display: "flex", flexDirection: "column", minHeight: "100vh",
+          }}
+        >
+          {/* Top bar */}
+          <Box
+            component="header"
+            sx={{
+              height: TOPBAR_HEIGHT,
+              display: "flex", alignItems: "center",
+              px: { xs: 2, sm: 3 }, gap: 2,
+              position: "sticky", top: 0, zIndex: 50,
+              bgcolor: tokens.topbarBg,
+              backdropFilter: "blur(20px)",
+              borderBottom: `1px solid ${tokens.border}`,
+              flexShrink: 0,
+            }}
+          >
+            {isMobile && (
+              <IconButton
+                onClick={() => setMobileOpen(true)}
+                sx={{ color: tokens.textSecondary, mr: -0.5 }}
+              >
+                <MenuRoundedIcon />
+              </IconButton>
+            )}
+
+            <Box sx={{ flex: 1 }}>
+              <Typography
+                sx={{
+                  fontSize: "0.58rem", fontWeight: 700, color: ACCENT,
+                  letterSpacing: "0.2em", textTransform: "uppercase", lineHeight: 1,
+                }}
+              >
+                Platform
+              </Typography>
+              <Typography
+                sx={{ fontSize: "0.88rem", fontWeight: 600, color: tokens.textPrimary, lineHeight: 1.3 }}
+              >
+                {currentLabel}
+              </Typography>
+            </Box>
+
+            <LiveClock />
+            <ThemeToggle />
+
+            <Avatar
+              onClick={() => router.push("/platform/profile")}
+              sx={{
+                width: 32, height: 32, fontSize: "0.68rem", fontWeight: 700,
+                background: `linear-gradient(135deg, ${ACCENT} 0%, #8B5CF6 100%)`,
+                cursor: "pointer",
+                boxShadow: `0 0 12px ${ACCENT_GLOW}`,
+                transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                "&:hover": {
+                  transform: "scale(1.08)",
+                  boxShadow: `0 0 20px ${ACCENT_GLOW}`,
+                },
+              }}
+            >
+              SA
+            </Avatar>
+          </Box>
+
+          {/* Page content */}
+          <Box sx={{ flex: 1, p: { xs: 2, sm: 3, md: 4 } }}>
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </Box>
+        </Box>
+      </Box>
     </>
   );
 };
+
+// ─── Public export — wraps shell in provider ──────────────────────────────────
+
+interface PlatformLayoutProps {
+  children: React.ReactNode;
+}
+
+export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => (
+  <PlatformThemeProvider>
+    <Head><title>Senhas · Platform</title></Head>
+    <PlatformShell>{children}</PlatformShell>
+  </PlatformThemeProvider>
+);
 
 export default PlatformLayout;
