@@ -37,6 +37,7 @@ import CrudDrawer from "../../components/CrudDrawer";
 import { apiClient } from "../../services/api_client";
 import { useSubscription } from "../../hooks/useSubscription";
 import UpgradePrompt from "../../components/UpgradePrompt";
+import { ConfirmDialog } from '@/components/admin';
 
 interface CursoPresencial {
   id: string;
@@ -75,6 +76,8 @@ const CursosPresenciaisPage = () => {
   const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [linkSnack, setLinkSnack] = useState<{ open: boolean; message: string }>({ open: false, message: "" });
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTarget, setCursoConfirmTarget] = useState<CursoPresencial | null>(null);
   const [formData, setFormData] = useState<Partial<CursoPresencial>>({
     titulo: "",
     data_inicio: isoToLocalDatetimeInput(new Date().toISOString()),
@@ -131,14 +134,21 @@ const CursosPresenciaisPage = () => {
     setDrawerOpen(true);
   };
 
-  const handleDelete = async (curso: CursoPresencial) => {
-    if (window.confirm(`Deseja excluir o curso "${curso.titulo}"?`)) {
-      try {
-        await apiClient.delete(`${API_PREFIX}/${curso.id}`);
-        fetchCursos();
-      } catch (err) {
-        console.error("Erro ao excluir curso:", err);
-      }
+  const requestDelete = (curso: CursoPresencial) => {
+    setCursoConfirmTarget(curso);
+    setConfirmOpen(true);
+  };
+
+  const handleDeleteCurso = async () => {
+    if (!confirmTarget) return;
+    try {
+      await apiClient.delete(`${API_PREFIX}/${confirmTarget.id}`);
+      fetchCursos();
+    } catch (err) {
+      console.error("Erro ao excluir curso:", err);
+    } finally {
+      setConfirmOpen(false);
+      setCursoConfirmTarget(null);
     }
   };
 
@@ -230,7 +240,7 @@ const CursosPresenciaisPage = () => {
       ) : (
         <TableContainer component={Paper} sx={{ overflowX: "auto" }}>
           <Table size="small">
-            <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
+            <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 600 }}>Título</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Início</TableCell>
@@ -327,7 +337,7 @@ const CursosPresenciaisPage = () => {
                           <IconButton
                             size="small"
                             color="error"
-                            onClick={() => handleDelete(curso)}
+                            onClick={() => requestDelete(curso)}
                           >
                             <DeleteIcon />
                           </IconButton>
@@ -495,6 +505,16 @@ const CursosPresenciaisPage = () => {
           </Stack>
         </Stack>
       </CrudDrawer>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Excluir curso"
+        message={`Deseja excluir o curso "${confirmTarget?.titulo}"?`}
+        confirmText="Excluir"
+        destructive
+        onConfirm={handleDeleteCurso}
+        onCancel={() => { setConfirmOpen(false); setCursoConfirmTarget(null); }}
+      />
 
       {/* Snackbar de link copiado */}
       <Snackbar

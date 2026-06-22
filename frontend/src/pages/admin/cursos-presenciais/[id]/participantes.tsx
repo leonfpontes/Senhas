@@ -51,6 +51,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import AdminLayout from "@/pages/admin/admin_layout";
 import CrudDrawer from "@/components/CrudDrawer";
 import UpgradePrompt from "@/components/UpgradePrompt";
+import { ConfirmDialog } from '@/components/admin';
 import { apiClient } from "@/services/api_client";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useTenant } from "@/providers/ThemeProvider";
@@ -281,6 +282,10 @@ export default function ParticipantesPage() {
   const [paymentObs, setPaymentObs] = useState<string>('');
   const [paymentFile, setPaymentFile] = useState<File | null>(null);
   const [paymentSaving, setPaymentSaving] = useState(false);
+
+  const [removePartOpen, setRemovePartOpen] = useState(false);
+  const [removePartTarget, setRemovePartTarget] = useState<Participante | null>(null);
+  const [removeCompOpen, setRemoveCompOpen] = useState(false);
 
   const fetchCurso = async () => {
     try {
@@ -562,16 +567,23 @@ export default function ParticipantesPage() {
     setDrawerOpen(true);
   };
 
-  const handleDelete = async (p: Participante) => {
-    if (window.confirm(`Deseja remover o participante "${p.nome}" do curso?`)) {
-      try {
-        await apiClient.delete(`/api/v1/admin/cursos-presenciais/${id}/participantes/${p.id}`);
-        showAlert("Participante removido com sucesso.", "success");
-        fetchParticipantes();
-      } catch (err) {
-        console.error("Erro ao remover participante:", err);
-        showAlert("Erro ao remover participante.", "error");
-      }
+  const requestRemovePart = (p: Participante) => {
+    setRemovePartTarget(p);
+    setRemovePartOpen(true);
+  };
+
+  const handleRemoveParticipante = async () => {
+    if (!removePartTarget) return;
+    try {
+      await apiClient.delete(`/api/v1/admin/cursos-presenciais/${id}/participantes/${removePartTarget.id}`);
+      showAlert("Participante removido com sucesso.", "success");
+      fetchParticipantes();
+    } catch (err) {
+      console.error("Erro ao remover participante:", err);
+      showAlert("Erro ao remover participante.", "error");
+    } finally {
+      setRemovePartOpen(false);
+      setRemovePartTarget(null);
     }
   };
 
@@ -897,7 +909,7 @@ export default function ParticipantesPage() {
           {/* Tabela de Participantes */}
           <TableContainer component={Paper} sx={{ overflowX: "auto" }}>
             <Table size="small">
-              <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
+              <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600 }}>Nome</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Contato</TableCell>
@@ -1051,7 +1063,7 @@ export default function ParticipantesPage() {
                               <IconButton
                                 size="small"
                                 color="error"
-                                onClick={() => handleDelete(p)}
+                                onClick={() => requestRemovePart(p)}
                               >
                                 <DeleteIcon />
                               </IconButton>
@@ -1126,7 +1138,7 @@ export default function ParticipantesPage() {
           ) : (
             <TableContainer component={Paper}>
               <Table size="small">
-                <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
+                <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 600 }}>Nome</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
@@ -1797,18 +1809,7 @@ export default function ParticipantesPage() {
                       <IconButton
                         size="small"
                         color="error"
-                        onClick={async () => {
-                          if (window.confirm("Deseja remover este comprovante de inscrição?")) {
-                            try {
-                              await apiClient.delete(`/api/v1/admin/cursos-presenciais/${id}/participantes/${editingId}/comprovante`);
-                              setFormData((prev: any) => ({ ...prev, comprovante_inscricao_filename: null }));
-                              showAlert("Comprovante de inscrição removido.", "success");
-                              fetchParticipantes();
-                            } catch {
-                              showAlert("Erro ao remover comprovante.", "error");
-                            }
-                          }
-                        }}
+                        onClick={() => setRemoveCompOpen(true)}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -1986,6 +1987,37 @@ export default function ParticipantesPage() {
           />
         </Box>
       </CrudDrawer>
+
+      <ConfirmDialog
+        open={removePartOpen}
+        title="Remover participante"
+        message={`Deseja remover o participante "${removePartTarget?.nome}" do curso?`}
+        confirmText="Remover"
+        destructive
+        onConfirm={handleRemoveParticipante}
+        onCancel={() => { setRemovePartOpen(false); setRemovePartTarget(null); }}
+      />
+
+      <ConfirmDialog
+        open={removeCompOpen}
+        title="Remover comprovante"
+        message="Deseja remover este comprovante de inscrição?"
+        confirmText="Remover"
+        destructive
+        onConfirm={async () => {
+          try {
+            await apiClient.delete(`/api/v1/admin/cursos-presenciais/${id}/participantes/${editingId}/comprovante`);
+            setFormData((prev: any) => ({ ...prev, comprovante_inscricao_filename: null }));
+            showAlert("Comprovante de inscrição removido.", "success");
+            fetchParticipantes();
+          } catch {
+            showAlert("Erro ao remover comprovante.", "error");
+          } finally {
+            setRemoveCompOpen(false);
+          }
+        }}
+        onCancel={() => setRemoveCompOpen(false)}
+      />
 
       {/* Alerts */}
       <Snackbar

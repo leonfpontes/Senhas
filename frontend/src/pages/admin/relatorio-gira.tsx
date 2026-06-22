@@ -602,7 +602,7 @@ function RelatorioGiraContent() {
           ) : (
             <>
               <Table size="small" sx={{ minWidth: 650 }}>
-                <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                <TableHead>
                   <TableRow>
                     <TableCell>Senha</TableCell>
                     <TableCell>Nome</TableCell>

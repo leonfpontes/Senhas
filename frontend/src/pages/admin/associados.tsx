@@ -15,10 +15,6 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
   CircularProgress,
   IconButton,
@@ -36,6 +32,7 @@ import { useSubscription } from '../../hooks/useSubscription';
 import UpgradePrompt from '../../components/UpgradePrompt';
 import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
+import { ConfirmDialog } from '@/components/admin';
 
 interface Associado {
   id: string;
@@ -232,7 +229,7 @@ function AdminAssociadosContent() {
           </Box>
         ) : (
           <Table size="small">
-            <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+            <TableHead>
               <TableRow>
                 <TableCell>Nome</TableCell>
                 <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>E-mail</TableCell>
@@ -313,19 +310,15 @@ function AdminAssociadosContent() {
       </CrudDrawer>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)}>
-        <DialogTitle>Confirmar Remoção</DialogTitle>
-        <DialogContent>
-          Deseja realmente remover o associado <strong>{deleteTarget?.nome}</strong>?
-          Esta ação não pode ser desfeita.
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteOpen(false)}>Cancelar</Button>
-          <Button onClick={handleDelete} color="error" variant="contained">
-            Remover
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Confirmar Remoção"
+        message={<>Deseja realmente remover o associado <strong>{deleteTarget?.nome}</strong>? Esta ação não pode ser desfeita.</>}
+        confirmText="Remover"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => { setDeleteOpen(false); setDeleteTarget(null); }}
+      />
 
       {/* Snackbar */}
       <Snackbar

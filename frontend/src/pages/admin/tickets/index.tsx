@@ -467,7 +467,7 @@ function AdminTicketsContent() {
         ) : (
           <>
             <Table size="small" sx={{ minWidth: 650 }}>
-              <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+              <TableHead>
                 <TableRow>
                   {hasBulk && (
                     <TableCell padding="checkbox">
