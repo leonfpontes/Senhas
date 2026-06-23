@@ -9,34 +9,34 @@ type TourStepMap = Record<string, StepType[]>;
 export const adminTourSteps: TourStepMap = {
   '/admin/dashboard': [
     {
-      selector: '[data-tour="dashboard-header"]',
+      selector: '[data-tour="dashboard-greeting"]',
       content:
-        'Bem-vindo ao seu painel! Aqui você acompanha o movimento do dia no terreiro — senhas emitidas, atendimentos realizados e muito mais.',
+        'Bem-vindo ao seu painel! Aqui você tem uma visão geral do terreiro — atualizada em tempo real. Use o botão de refresh para recarregar os dados a qualquer momento.',
     },
     {
       selector: '[data-tour="dashboard-kpis"]',
       content:
-        'Esses cartões mostram o resumo do dia: quantas senhas foram emitidas, quantas consulentes já foram atendidos e a taxa de aproveitamento da gira.',
-    },
-    {
-      selector: '[data-tour="dashboard-giras"]',
-      content:
-        'Aqui aparecem as próximas giras do seu terreiro. Você pode acompanhar quantas senhas já foram retiradas e ir direto para a Porta.',
+        'Esses quatro cartões mostram o panorama de senhas do terreiro: total emitido, total utilizado, taxa de aproveitamento e entradas presenciais (walk-in). O número menor abaixo indica o movimento de hoje.',
     },
     {
       selector: '[data-tour="dashboard-chart"]',
       content:
-        'Este gráfico mostra a distribuição de senhas emitidas nos últimos dias — separando senhas comuns, de patrocinadores e entradas presenciais.',
+        'Este gráfico mostra a distribuição de senhas emitidas nos últimos 7 dias — separando senhas comuns, de associados e entradas presenciais. Passe o mouse pelas barras para ver os detalhes de cada dia.',
     },
     {
       selector: '[data-tour="dashboard-peak-hours"]',
       content:
-        'Veja em quais horários o movimento é maior. Isso ajuda a planejar melhor o atendimento nas próximas giras.',
+        'Veja em quais horários o movimento de emissões é maior. Use essa informação para planejar o horário de abertura das filas nas próximas giras.',
     },
     {
-      selector: '[data-tour="dashboard-quick-actions"]',
+      selector: '[data-tour="dashboard-giras"]',
       content:
-        'Atalhos rápidos para as seções mais usadas: Giras, Tickets, Porta e Configurações. Use para navegar sem perder tempo.',
+        'Aqui aparecem as próximas giras do seu terreiro. A barra de progresso mostra quantas senhas já foram retiradas em relação ao limite. Quando a barra fica vermelha, a gira está lotada.',
+    },
+    {
+      selector: '[data-tour="dashboard-estoque"]',
+      content:
+        'Se algum item do estoque estiver abaixo do mínimo configurado, um alerta aparece aqui — separando itens em atenção dos que estão em situação crítica.',
     },
   ],
 
@@ -100,37 +100,32 @@ export const adminTourSteps: TourStepMap = {
     {
       selector: '[data-tour="porta-header"]',
       content:
-        'A Porta é o coração do atendimento! Aqui você gerencia a fila em tempo real durante a gira.',
+        'A Visão da Porta é a central de atendimento em tempo real. Selecione a gira pelo seletor abaixo do título e a fila é carregada automaticamente. O relógio no canto superior direito mostra o horário da última atualização.',
     },
     {
       selector: '[data-tour="porta-gira-select"]',
       content:
-        'Selecione a gira que está em andamento. O sistema carrega automaticamente a fila de espera.',
-    },
-    {
-      selector: '[data-tour="porta-ws-status"]',
-      content:
-        'Este indicador mostra se a conexão em tempo real está ativa (verde) ou desconectada (vermelho). O sistema se reconecta automaticamente.',
+        'Escolha a gira que está acontecendo agora. Apenas giras das últimas 24 horas aparecem aqui. O ponto verde ao lado do nome indica gira ativa. Se walk-in estiver habilitado, o botão "Walk-in" aparecerá ao lado do seletor.',
     },
     {
       selector: '[data-tour="porta-stats"]',
       content:
-        'Acompanhe o resumo da fila: total de senhas, check-ins realizados, consulentes aguardando, em atendimento, atendidos e no-shows.',
+        'Painel de números em tempo real: Total, Atendidos, Em atendimento, Aguardando (com check-in feito), Walk-ins, Preferenciais, Ausentes e Check-ins totais. Os números se atualizam a cada 8 segundos.',
     },
     {
       selector: '[data-tour="porta-busca"]',
       content:
-        'Busque um consulente pelo nome ou número da senha para localizá-lo rapidamente na fila.',
+        'Busque qualquer consulente pelo nome para encontrá-lo na fila, mesmo quando a lista estiver longa.',
     },
     {
       selector: '[data-tour="porta-fila"]',
       content:
-        'A fila de espera aparece aqui. Para cada consulente você pode: fazer o check-in, chamar para atendimento ou cancelar a senha.',
+        'A fila de espera lista todos os tickets emitidos. Borda azul = check-in feito (pessoa já chegou). Borda verde = próximo a ser chamado. Use o check-in para confirmar a chegada antes de chamar para o atendimento.',
     },
     {
       selector: '[data-tour="porta-walkin"]',
       content:
-        'Para consulentes que chegaram pessoalmente sem retirar senha online, clique aqui para registrar a entrada presencial.',
+        'Registre entradas presenciais (walk-in) para quem chegou sem senha pré-emitida. Informe o nome e, opcionalmente, contato e categoria preferencial.',
     },
   ],
 
@@ -207,32 +202,32 @@ export const adminTourSteps: TourStepMap = {
     {
       selector: '[data-tour="analytics-header"]',
       content:
-        'O painel de análise mostra dados detalhados sobre o movimento do terreiro ao longo do tempo.',
+        'O painel de Analytics apresenta métricas detalhadas de emissão e uso de senhas por período ou por gira específica.',
     },
     {
       selector: '[data-tour="analytics-filtros"]',
       content:
-        'Selecione o período e a gira que deseja analisar. Os dados são atualizados automaticamente.',
+        'Defina o intervalo de datas e, opcionalmente, filtre por uma gira. Os gráficos e KPIs se atualizam automaticamente a cada mudança.',
     },
     {
       selector: '[data-tour="analytics-kpis"]',
       content:
-        'Números gerais do período: total de senhas emitidas, atendimentos realizados, taxa de aproveitamento e entradas presenciais.',
+        'Cinco indicadores rápidos do período: total emitido, total utilizado, taxa de uso (%), cancelados e entradas walk-in.',
     },
     {
       selector: '[data-tour="analytics-chart-line"]',
       content:
-        'Evolução diária das senhas emitidas. Veja os dias de maior e menor movimento.',
+        'Distribuição diária empilhada por categoria (Comum, Associado e Walk-in). Identifique os dias de pico e o perfil de cada gira.',
     },
     {
       selector: '[data-tour="analytics-chart-pie"]',
       content:
-        'Distribuição por tipo de senha: comum, associado e entrada presencial.',
+        'Proporção entre as categorias de ticket. Quanto maior a fatia de Associados ou Walk-ins, maior é o engajamento fora da lista regular.',
     },
     {
       selector: '[data-tour="analytics-peak"]',
       content:
-        'Horários de pico ao longo do dia. Use para planejar o fluxo de atendimento nas próximas giras.',
+        'Horários de maior emissão ao longo do dia, exibidos como barras de progresso. Use para dimensionar a equipe e planejar a abertura das filas.',
     },
   ],
 
@@ -240,22 +235,27 @@ export const adminTourSteps: TourStepMap = {
     {
       selector: '[data-tour="relatorio-header"]',
       content:
-        'Gere relatórios detalhados de atendimento por gira.',
+        'O Relatório de Gira reúne todos os atendimentos de uma gira em uma tabela filtrável. Quando uma gira estiver selecionada, os botões de exportação aparecem aqui no canto direito.',
     },
     {
-      selector: '[data-tour="relatorio-filtros"]',
+      selector: '[data-tour="relatorio-filtros-gira"]',
       content:
-        'Escolha a gira, o período e os filtros desejados — como médium responsável ou tipo de senha.',
+        'Comece escolhendo a gira no seletor. Clique em "Filtros de gira" para refinar por período, tipo (ativas/inativas) e status do ticket. O badge vermelho indica quantos filtros estão ativos.',
+    },
+    {
+      selector: '[data-tour="relatorio-kpis"]',
+      content:
+        'Após selecionar uma gira, este painel de números mostra o resumo completo: total de tickets, concluídos, aguardando, em atendimento, no-shows, walk-ins, preferenciais e associados.',
     },
     {
       selector: '[data-tour="relatorio-tabela"]',
       content:
-        'Lista de todos os atendimentos da gira com nome do consulente, médium, cambone e detalhes do atendimento.',
+        'A tabela lista todos os atendimentos com número da senha, nome do consulente, tag (Comum, Preferencial, Associado ou Walk-in), médium, cambone e observações do atendimento.',
     },
     {
       selector: '[data-tour="relatorio-export"]',
       content:
-        'Exporte o relatório em planilha (CSV) para arquivamento ou análise externa.',
+        'Exporte os dados filtrados em CSV (para planilhas) ou em PDF formatado — com logo do terreiro, cores da identidade visual e resumo estatístico da gira.',
     },
   ],
 
@@ -263,22 +263,22 @@ export const adminTourSteps: TourStepMap = {
     {
       selector: '[data-tour="audit-header"]',
       content:
-        'O histórico de auditoria registra todas as ações realizadas no painel — uma memória completa do que foi feito e por quem.',
+        'A Auditoria registra cada ação feita no painel: quem fez, o quê, e quando. O botão "Exportar CSV" no canto superior direito baixa todos os registros filtrados.',
     },
     {
       selector: '[data-tour="audit-filtros"]',
       content:
-        'Filtre o histórico por tipo de recurso (senhas, giras, usuários) ou por tipo de ação (criação, edição, exclusão).',
+        'Filtre por tipo de ação (Criação, Alteração, Exclusão, Login…) ou por tipo de recurso (Usuário, Ticket, Gira, Estoque…). O contador à direita mostra quantos registros combinam com os filtros.',
     },
     {
       selector: '[data-tour="audit-tabela"]',
       content:
-        'Cada linha mostra o que foi alterado, por qual usuário e quando. Clique no ícone de detalhes para ver os valores antes e depois da mudança.',
+        'Cada linha mostra data/hora, usuário responsável, ação (com badge colorido por tipo) e recurso afetado. Na coluna Detalhes você vê os valores antes e depois de uma alteração, ou o resumo do evento.',
     },
     {
       selector: '[data-tour="audit-export"]',
       content:
-        'Exporte o histórico de auditoria para arquivo (CSV) para fins de controle ou compliance.',
+        'Exporta todos os registros filtrados em CSV — útil para auditorias externas, compliance ou arquivamento histórico.',
     },
   ],
 
@@ -286,45 +286,73 @@ export const adminTourSteps: TourStepMap = {
     {
       selector: '[data-tour="config-header"]',
       content:
-        'Aqui você personaliza como o seu terreiro aparece para os consulentes — na página de emissão de senhas e nos e-mails enviados.',
+        'Aqui você personaliza tudo que diz respeito ao seu terreiro — identidade visual, funcionalidades ativas e regras de atendimento. Quando houver mudanças não salvas, uma barra aparece no canto superior direito com os botões Descartar e Salvar.',
     },
     {
-      selector: '[data-tour="config-branding"]',
+      selector: '[data-tour="config-tabs"]',
       content:
-        'Faça o upload do logo do terreiro e defina as cores principais. Essas cores aparecem no painel e nos e-mails das senhas.',
+        'As configurações estão divididas em três abas: Identidade visual (logo e cores), Funcionalidades (módulos do sistema) e Atendimento (regras de fila). Clique em cada aba para navegar.',
     },
     {
-      selector: '[data-tour="config-endereco"]',
+      selector: '[data-tour="config-logo"]',
       content:
-        'Informe o endereço do terreiro. Ele aparece no e-mail da senha como botão "Como chegar" — facilitando para o consulente saber onde é a gira.',
+        'Faça o upload do logo do terreiro. Você pode clicar na área pontilhada ou arrastar a imagem direto para ela. Formatos aceitos: JPG, PNG e WEBP (máx. 2 MB).',
     },
     {
-      selector: '[data-tour="config-flags"]',
+      selector: '[data-tour="config-cores"]',
       content:
-        'Ative ou desative funcionalidades do sistema, como entrada presencial (walk-in) e operações em lote.',
+        'Defina as cores da identidade visual: primária, secundária e da fonte. Clique na bolinha colorida para abrir o seletor visual, ou digite o código hexadecimal diretamente. Informe também o endereço do terreiro — ele aparece nos e-mails como botão "Como chegar".',
     },
     {
-      selector: '[data-tour="config-patrocinador"]',
+      selector: '[data-tour="config-preview"]',
       content:
-        'Escolha como as senhas de patrocinadores são organizadas na fila: todas antes dos demais ou intercaladas com as senhas comuns.',
+        'Este cartão mostra em tempo real como ficará a identidade visual com as cores escolhidas — antes mesmo de salvar. Qualquer mudança nas cores ou no logo é refletida aqui instantaneamente.',
+    },
+  ],
+
+  '/admin/billing': [
+    {
+      selector: '[data-tour="billing-header"]',
+      content:
+        'Esta é a página de Assinatura — aqui você acompanha seu plano atual, data de cobrança e pode fazer upgrade, downgrade ou cancelar quando precisar.',
+    },
+    {
+      selector: '[data-tour="billing-status"]',
+      content:
+        'O cartão de status mostra seu plano ativo, a data da próxima cobrança e o valor mensal. Se você quiser cancelar a assinatura ou reativar um cancelamento agendado, os botões ficam aqui.',
+    },
+    {
+      selector: '[data-tour="billing-planos"]',
+      content:
+        'Abaixo você encontra a comparação entre os planos disponíveis: Basic, Pro e Premium. Cada cartão lista as funcionalidades incluídas e o botão de contratação. O plano atual fica destacado e desabilitado.',
+    },
+    {
+      selector: '[data-tour="billing-suporte"]',
+      content:
+        'Ficou com dúvida sobre qual plano escolher? Entre em contato direto pelo WhatsApp — nossa equipe responde rapidamente.',
     },
   ],
 
   '/admin/plano': [
     {
-      selector: '[data-tour="plano-atual"]',
+      selector: '[data-tour="plano-header"]',
       content:
-        'Seu plano atual e os limites vigentes: número de usuários, giras por mês e médiuns cadastrados.',
+        'Esta página mostra seu plano atual, o quanto você já usou dos limites e uma tabela comparativa com todos os planos disponíveis.',
+    },
+    {
+      selector: '[data-tour="plano-status"]',
+      content:
+        'O cartão de status exibe seu plano ativo e as barras de uso para usuários, giras do mês e médiuns. As barras ficam amarelas quando você está próximo do limite e vermelhas ao atingir 90%.',
     },
     {
       selector: '[data-tour="plano-comparativo"]',
       content:
-        'Compare os planos disponíveis e veja quais funcionalidades cada um oferece.',
+        'A tabela comparativa mostra todas as funcionalidades agrupadas por categoria — base, capacidade, comunicação, relatórios, módulos e enterprise. A coluna do seu plano atual fica destacada.',
     },
     {
-      selector: '[data-tour="plano-upgrade"]',
+      selector: '[data-tour="plano-contato"]',
       content:
-        'Para fazer upgrade ou tirar dúvidas sobre os planos, entre em contato diretamente pelo WhatsApp ou e-mail.',
+        'Para fazer upgrade ou tirar dúvidas, entre em contato pelo WhatsApp ou e-mail. Nossa equipe cuida da alteração de forma rápida e segura.',
     },
   ],
 

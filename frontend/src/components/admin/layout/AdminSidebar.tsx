@@ -248,7 +248,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           />
         )}
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-          GiraHub v3.0
+          GiraHub v4.0
         </Typography>
       </Box>
     </Box>

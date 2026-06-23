@@ -1,47 +1,48 @@
-/**
- * T075: Admin Config Page - Branding, settings, feature flags
- */
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
   Button,
   Card,
-  CardContent,
   Chip,
   CircularProgress,
   Divider,
-  FormControl,
   FormControlLabel,
   Grid,
   IconButton,
   Paper,
   Radio,
   RadioGroup,
-  Stack,
+  Slide,
+  Snackbar,
   Switch,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
-import BrandingWatermarkRoundedIcon from '@mui/icons-material/BrandingWatermarkRounded';
+import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import DoorFrontRoundedIcon from '@mui/icons-material/DoorFrontRounded';
 import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import SettingsSuggestRoundedIcon from '@mui/icons-material/SettingsSuggestRounded';
-import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
+import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
 
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import { dispatchTenantBrandingUpdated } from '../../providers/ThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import { useAdminTheme } from '@/providers/AdminThemeProvider';
+import { PlanFeatures } from '../../hooks/useSubscription';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface TenantConfig {
   logo_url?: string | null;
@@ -59,66 +60,107 @@ interface TenantConfig {
   enable_mensalidade_associado?: boolean;
 }
 
-type FeedbackState = {
-  severity: 'success' | 'error';
-  text: string;
-} | null;
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
-const HELP_TEXT = {
-  logo_url:
-    'Faça upload do logo do seu terreiro. Formatos aceitos: JPG, PNG ou WEBP. Tamanho máximo: 2 MB. Dimensão recomendada: 200×200 px.',
-  primary_color:
-    'Cor principal usada em botões, destaques e elementos de ação do tenant. Use um tom que combine com a identidade visual da casa.',
-  secondary_color:
-    'Cor de apoio usada para compor gradientes, destaques secundários e contrastes visuais da interface pública.',
-  font_color:
-    'Cor do texto aplicada no Header e nos itens selecionados do menu lateral, junto ao branding do tenant.',
-  enable_analytics:
-    'Mostra a área de analytics do tenant com indicadores, gráficos e acompanhamento operacional das giras.',
-  enable_walk_in:
-    'Permite emitir senhas presenciais diretamente pela visão da porta, usando o fluxo de Walk-in configurado para a gira.',
-  sponsor_priority_mode:
-    'Define como tickets de associados entram na ordem de chamada na visão da porta: antes de todos ou intercalados com os demais.',
-  validate_associado_on_emit:
-    'Quando ativado, a emissão de senha de associado exige que o e-mail esteja cadastrado na lista de associados.',
-  enable_estoque_log:
-    'Quando ativado, cada movimentação de estoque gera um registro de auditoria. Desative para reduzir o volume de logs.',
-} as const;
-
-const FEATURE_ITEMS = [
+const FEATURE_ITEMS: {
+  field: keyof TenantConfig;
+  title: string;
+  description: string;
+  plan?: string;
+  gate?: keyof PlanFeatures;
+}[] = [
   {
-    field: 'enable_analytics' as const,
+    field: 'enable_analytics',
     title: 'Analytics',
-    description: 'Exibe a área de indicadores, gráficos e totais do tenant.',
-    tooltip: HELP_TEXT.enable_analytics,
+    description: 'Relatórios de atendimento e gráficos de emissão por período.',
+    plan: 'Pro',
+    gate: 'analytics_basico',
   },
   {
-    field: 'enable_walk_in' as const,
+    field: 'enable_walk_in',
     title: 'Walk-in na porta',
-    description: 'Permite criar atendimentos presenciais diretamente na fila da porta.',
-    tooltip: HELP_TEXT.enable_walk_in,
+    description: 'Permite emissão presencial sem agendamento prévio.',
   },
   {
-    field: 'validate_associado_on_emit' as const,
-    title: 'Validar e-mail de associado na emissão',
-    description: 'Bloqueia emissão de senha de associado se o e-mail não estiver cadastrado.',
-    tooltip: HELP_TEXT.validate_associado_on_emit,
+    field: 'validate_associado_on_emit',
+    title: 'Validar associado na emissão',
+    description: 'Exige vínculo de associado antes de emitir senha.',
+    plan: 'Basic',
+    gate: 'associados',
   },
   {
-    field: 'enable_estoque_log' as const,
-    title: 'Registrar log de movimentações de estoque',
-    description: 'Gera registro de auditoria a cada entrada ou saída de estoque.',
-    tooltip: HELP_TEXT.enable_estoque_log,
+    field: 'enable_estoque_log',
+    title: 'Log de movimentações',
+    description: 'Registra entradas e saídas no histórico do estoque.',
+    plan: 'Pro',
+    gate: 'estoque_controle',
   },
   {
-    field: 'enable_mensalidade_associado' as const,
-    title: 'Controle de Mensalidade de Associados',
-    description: 'Ativa o módulo de mensalidades para associados (plano Pro+).',
-    tooltip: 'Quando ativo, exibe a aba Associados no Financeiro e permite registrar cobranças mensais de associados.',
+    field: 'enable_mensalidade_associado',
+    title: 'Mensalidade de associados',
+    description: 'Ativa o módulo de cobranças mensais para associados.',
+    plan: 'Pro',
+    gate: 'mensalidade_associado',
   },
 ];
+
+const PRIORITY_OPTIONS = [
+  {
+    value: 'first',
+    title: 'Associados primeiro',
+    description: 'Associados são chamados antes dos demais, independente da chegada.',
+  },
+  {
+    value: 'interleave',
+    title: 'Intercalar na fila',
+    description: 'Um associado é chamado a cada atendimento da fila geral.',
+  },
+];
+
+const BRANDING_IMPACT = [
+  'Barra lateral e topbar do painel',
+  'Página pública de emissão de senha',
+  'Site público do terreiro',
+  'E-mails de confirmação',
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const isValidHex = (v: string) => HEX_COLOR_RE.test(v.trim());
+
+const getFontColor = (config: TenantConfig | null): string => {
+  const raw =
+    config?.custom_settings && typeof config.custom_settings === 'object'
+      ? (config.custom_settings as Record<string, unknown>).font_color
+      : undefined;
+  return typeof raw === 'string' ? raw : '#FFFFFF';
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <Typography
+      variant="overline"
+      sx={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', color: 'text.secondary', display: 'block', mb: 1.5 }}
+    >
+      {children}
+    </Typography>
+  );
+}
+
+function FieldHint({ label, help }: { label: string; help: string }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
+      <Typography variant="subtitle2" fontWeight={600} color="text.primary">{label}</Typography>
+      <Tooltip title={help} placement="top-start" arrow>
+        <HelpOutlineRoundedIcon sx={{ fontSize: 15, color: 'text.disabled', cursor: 'help' }} />
+      </Tooltip>
+    </Box>
+  );
+}
 
 function ColorField({
   label,
@@ -132,133 +174,117 @@ function ColorField({
   label: string;
   help: string;
   value: string;
-  onChange: (value: string) => void;
-  error: boolean;
-  helperText: string;
+  onChange: (v: string) => void;
+  error?: boolean;
+  helperText?: string;
   disabled?: boolean;
 }) {
+  const { tokens } = useAdminTheme();
   return (
-    <Box sx={disabled ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
-      <FieldLabel label={label} help={help} />
-      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1.25 }}>
+    <Box>
+      <FieldHint label={label} help={help} />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Box
+          component="label"
           sx={{
-            width: 42,
-            height: 42,
-            overflow: 'hidden',
-            borderRadius: 2,
+            width: 36,
+            height: 36,
+            borderRadius: 1.5,
+            flexShrink: 0,
+            background: isValidHex(value) ? value : tokens.border,
             border: '1px solid',
             borderColor: error ? 'error.main' : 'divider',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            position: 'relative',
+            overflow: 'hidden',
           }}
         >
-          <Box
-            component="input"
+          <input
             type="color"
-            value={HEX_COLOR_RE.test(value) ? value : '#000000'}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange(event.target.value.toUpperCase())}
+            value={isValidHex(value) ? value : '#000000'}
+            onChange={(e) => onChange(e.target.value)}
             disabled={disabled}
-            sx={{
-              width: 54,
-              height: 54,
-              cursor: disabled ? 'default' : 'pointer',
-              border: 0,
-              background: 'transparent',
-              p: 0,
-              m: -0.75,
-            }}
+            style={{ opacity: 0, position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: 'pointer' }}
           />
         </Box>
         <TextField
           value={value}
-          onChange={(event) => onChange(event.target.value.toUpperCase())}
-          placeholder="#000000"
-          inputProps={{ maxLength: 7 }}
-          fullWidth
+          onChange={(e) => onChange(e.target.value)}
           error={error}
+          helperText={helperText}
           disabled={disabled}
+          size="small"
+          inputProps={{ maxLength: 7, style: { fontFamily: 'monospace', fontSize: '0.875rem' } }}
+          sx={{ flex: 1 }}
         />
-      </Stack>
-      <Typography variant="caption" color={error ? 'error.main' : 'text.secondary'}>
-        {helperText}
-      </Typography>
+      </Box>
     </Box>
   );
 }
 
-const PRIORITY_OPTIONS = [
-  {
-    value: 'first',
-    title: 'Associados primeiro',
-    description: 'Associados são chamados antes dos preferenciais e comuns.',
-  },
-  {
-    value: 'interleave',
-    title: 'Intercalar na fila',
-    description: 'Associados entram alternados com os demais atendimentos.',
-  },
-];
-
-function FieldLabel({ label, help }: { label: string; help: string }) {
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75 }}>
-      <Typography variant="subtitle2" fontWeight={700} color="text.primary">
-        {label}
-      </Typography>
-      <Tooltip title={help} placement="top-start">
-        <IconButton size="small" sx={{ color: 'text.secondary', p: 0.25 }}>
-          <HelpOutlineRoundedIcon sx={{ fontSize: 18 }} />
-        </IconButton>
-      </Tooltip>
-    </Box>
-  );
-}
-
-function FeatureToggleCard({
+function ToggleCard({
   title,
   description,
-  tooltip,
+  plan,
   checked,
+  locked,
   onChange,
 }: {
   title: string;
   description: string;
-  tooltip: string;
+  plan?: string;
   checked: boolean;
-  onChange: (checked: boolean) => void;
+  locked: boolean;
+  onChange: (v: boolean) => void;
 }) {
   return (
     <Paper
       variant="outlined"
       sx={{
-        p: 2.25,
+        p: 2,
+        borderRadius: 2,
         height: '100%',
-        borderRadius: 3,
-        borderColor: checked ? 'primary.main' : 'divider',
-        backgroundColor: checked ? 'rgba(99, 102, 241, 0.05)' : 'background.paper',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 2,
+        borderColor: checked && !locked ? 'primary.main' : 'divider',
+        bgcolor: checked && !locked ? 'action.hover' : 'background.paper',
+        opacity: locked ? 0.65 : 1,
+        transition: 'border-color .15s, background .15s',
       }}
     >
-      <Stack direction="row" justifyContent="space-between" gap={2} alignItems="flex-start">
-        <Box sx={{ minWidth: 0 }}>
-          <FieldLabel label={title} help={tooltip} />
-          <Typography variant="body2" color="text.secondary">
-            {description}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          {locked
+            ? <LockOutlinedIcon sx={{ fontSize: 15, color: 'text.disabled' }} />
+            : null}
+          <Typography variant="subtitle2" fontWeight={600} color={locked ? 'text.secondary' : 'text.primary'}>
+            {title}
           </Typography>
+          {plan && (
+            <Chip
+              label={plan}
+              size="small"
+              sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700, bgcolor: locked ? 'action.selected' : 'primary.main', color: locked ? 'text.secondary' : 'primary.contrastText' }}
+            />
+          )}
         </Box>
-        <Switch checked={checked} onChange={(event) => onChange(event.target.checked)} />
-      </Stack>
+        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem', lineHeight: 1.5 }}>
+          {description}
+        </Typography>
+      </Box>
+      <Switch
+        checked={checked}
+        disabled={locked}
+        onChange={(e) => onChange(e.target.checked)}
+        size="small"
+        sx={{ flexShrink: 0, mt: 0.25 }}
+      />
     </Paper>
   );
 }
 
-const isValidHexColor = (value: string) => HEX_COLOR_RE.test(value.trim());
-
-const getFontColor = (config: TenantConfig | null): string => {
-  const raw = config?.custom_settings && typeof config.custom_settings === 'object'
-    ? (config.custom_settings as Record<string, unknown>).font_color
-    : undefined;
-
-  return typeof raw === 'string' ? raw : '#FFFFFF';
-};
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminConfigPage() {
   return (
@@ -270,680 +296,570 @@ export default function AdminConfigPage() {
 
 function AdminConfigContent() {
   const { can } = useSubscription();
+  const { tokens, isDark } = useAdminTheme();
+
+  const [savedConfig, setSavedConfig] = useState<TenantConfig | null>(null);
   const [config, setConfig] = useState<TenantConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [feedback, setFeedback] = useState<FeedbackState>(null);
-  const [logoPreviewFailed, setLogoPreviewFailed] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoPreviewFailed, setLogoPreviewFailed] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; severity: 'success' | 'error'; text: string }>({ open: false, severity: 'success', text: '' });
+  const [activeTab, setActiveTab] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    void loadConfig();
-  }, []);
+  // ── dirty tracking ──────────────────────────────────────────────────────────
+  const isDirty = useMemo(() => {
+    if (!config || !savedConfig) return false;
+    return JSON.stringify(config) !== JSON.stringify(savedConfig);
+  }, [config, savedConfig]);
 
-  const loadConfig = async () => {
+  // ── derived ─────────────────────────────────────────────────────────────────
+  const previewPrimary   = config?.primary_color   || '#6366F1';
+  const previewSecondary = config?.secondary_color || '#EC4899';
+  const previewFontColor = getFontColor(config);
+  const previewLogo      = config?.logo_url?.trim() || '';
+
+  const validationErrors = useMemo(() => ({
+    primary_color:   isValidHex(config?.primary_color   ?? '') ? '' : 'Hex inválido',
+    secondary_color: isValidHex(config?.secondary_color ?? '') ? '' : 'Hex inválido',
+    font_color:      isValidHex(previewFontColor)               ? '' : 'Hex inválido',
+  }), [config, previewFontColor]);
+
+  const hasErrors = Object.values(validationErrors).some(Boolean);
+
+  // ── API ─────────────────────────────────────────────────────────────────────
+  const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get<TenantConfig>('/api/v1/admin/tenant/config');
-      setConfig(response.data);
+      const res = await apiClient.get<TenantConfig>('/api/v1/admin/tenant/config');
+      setSavedConfig(res.data);
+      setConfig(res.data);
       setLogoPreviewFailed(false);
-    } catch (error) {
-      console.error('Error loading config:', error);
-      setFeedback({ severity: 'error', text: 'Erro ao carregar configurações do tenant.' });
+    } catch {
+      showSnackbar('error', 'Erro ao carregar configurações.');
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { void loadConfig(); }, [loadConfig]);
+
+  const handleChange = <K extends keyof TenantConfig>(field: K, value: TenantConfig[K]) =>
+    setConfig((prev) => prev ? { ...prev, [field]: value } : null);
+
+  const handleDiscard = () => {
+    setConfig(savedConfig);
+    setLogoPreviewFailed(false);
   };
-
-  const handleChange = <K extends keyof TenantConfig>(field: K, value: TenantConfig[K]) => {
-    setConfig((prev) => (prev ? { ...prev, [field]: value } : null));
-  };
-
-  const validationErrors = useMemo(() => {
-    if (!config) {
-      return { primary_color: '', secondary_color: '', font_color: '' };
-    }
-
-    const fontColor = getFontColor(config);
-
-    return {
-      primary_color: isValidHexColor(config.primary_color)
-        ? ''
-        : 'Escolha uma cor válida no formato hexadecimal.',
-      secondary_color: isValidHexColor(config.secondary_color)
-        ? ''
-        : 'Escolha uma cor válida no formato hexadecimal.',
-      font_color: isValidHexColor(fontColor)
-        ? ''
-        : 'Escolha uma cor válida no formato hexadecimal.',
-    };
-  }, [config]);
-
-  const hasValidationErrors = Boolean(
-    validationErrors.primary_color ||
-    validationErrors.secondary_color ||
-    validationErrors.font_color
-  );
-
-  const previewPrimary = config?.primary_color || '#6366f1';
-  const previewSecondary = config?.secondary_color || '#ec4899';
-  const previewFontColor = getFontColor(config);
-  const previewLogo = config?.logo_url?.trim() || '';
 
   const handleSave = async () => {
-    if (!config) {
-      return;
-    }
-
-    if (hasValidationErrors) {
-      setFeedback({ severity: 'error', text: 'Revise os campos de identidade visual antes de salvar.' });
-      return;
-    }
-
+    if (!config || hasErrors) return;
     try {
       setSaving(true);
-      const response = await apiClient.put<TenantConfig>('/api/v1/admin/tenant/config', {
-        primary_color: config.primary_color.trim().toUpperCase(),
-        secondary_color: config.secondary_color.trim().toUpperCase(),
+      const res = await apiClient.put<TenantConfig>('/api/v1/admin/tenant/config', {
+        primary_color:              config.primary_color.trim().toUpperCase(),
+        secondary_color:            config.secondary_color.trim().toUpperCase(),
         custom_settings: {
-          ...(config.custom_settings && typeof config.custom_settings === 'object'
-            ? config.custom_settings
-            : {}),
+          ...(config.custom_settings && typeof config.custom_settings === 'object' ? config.custom_settings : {}),
           font_color: previewFontColor.trim().toUpperCase(),
         },
-        enable_analytics: config.enable_analytics,
-        enable_walk_in: config.enable_walk_in,
+        enable_analytics:           config.enable_analytics,
+        enable_walk_in:             config.enable_walk_in,
         validate_associado_on_emit: config.validate_associado_on_emit,
-        enable_estoque_log: config.enable_estoque_log,
+        enable_estoque_log:         config.enable_estoque_log,
         enable_mensalidade_associado: config.enable_mensalidade_associado,
-        sponsor_priority_mode: config.sponsor_priority_mode || 'first',
-        endereco: config.endereco || '',
+        sponsor_priority_mode:      config.sponsor_priority_mode || 'first',
+        endereco:                   config.endereco || '',
       });
-
-      setConfig(response.data);
-      setLogoPreviewFailed(false);
+      setSavedConfig(res.data);
+      setConfig(res.data);
       dispatchTenantBrandingUpdated();
-      setFeedback({
-        severity: 'success',
-        text: 'Configurações salvas. O branding já foi atualizado no painel e no público.',
-      });
-    } catch (error: any) {
-      console.error('Error saving config:', error);
-      setFeedback({
-        severity: 'error',
-        text: error?.message || error?.detail || 'Erro ao salvar configurações.',
-      });
+      showSnackbar('success', 'Configurações salvas. Branding atualizado.');
+    } catch (e: any) {
+      showSnackbar('error', e?.message || 'Erro ao salvar configurações.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  const uploadLogo = async (file: File) => {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setFeedback({ severity: 'error', text: 'Formato inválido. Use JPG, PNG ou WEBP.' });
+      showSnackbar('error', 'Formato inválido. Use JPG, PNG ou WEBP.');
       return;
     }
-
     if (file.size > 2 * 1024 * 1024) {
-      setFeedback({ severity: 'error', text: 'A imagem deve ter no máximo 2 MB.' });
+      showSnackbar('error', 'A imagem deve ter no máximo 2 MB.');
       return;
     }
-
     setUploadingLogo(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await apiClient.post<TenantConfig>('/api/v1/admin/tenant/logo', formData, {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await apiClient.post<TenantConfig>('/api/v1/admin/tenant/logo', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-
-      setConfig(response.data);
+      setSavedConfig(res.data);
+      setConfig(res.data);
       setLogoPreviewFailed(false);
       dispatchTenantBrandingUpdated();
-      setFeedback({ severity: 'success', text: 'Logo atualizado com sucesso.' });
-    } catch (err: any) {
-      setFeedback({ severity: 'error', text: err?.message || 'Erro ao enviar logo.' });
+      showSnackbar('success', 'Logo atualizado.');
+    } catch (e: any) {
+      showSnackbar('error', e?.message || 'Erro ao enviar logo.');
     } finally {
       setUploadingLogo(false);
-      if (event.target) event.target.value = '';
     }
+  };
+
+  const handleLogoInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) void uploadLogo(file);
+    if (e.target) e.target.value = '';
+  };
+
+  const handleLogoDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void uploadLogo(file);
   };
 
   const handleLogoDelete = async () => {
     setUploadingLogo(true);
     try {
-      const response = await apiClient.delete<TenantConfig>('/api/v1/admin/tenant/logo');
-      setConfig(response.data);
+      const res = await apiClient.delete<TenantConfig>('/api/v1/admin/tenant/logo');
+      setSavedConfig(res.data);
+      setConfig(res.data);
       setLogoPreviewFailed(false);
       dispatchTenantBrandingUpdated();
-      setFeedback({ severity: 'success', text: 'Logo removido.' });
-    } catch (err: any) {
-      setFeedback({ severity: 'error', text: err?.message || 'Erro ao remover logo.' });
+      showSnackbar('success', 'Logo removido.');
+    } catch (e: any) {
+      showSnackbar('error', e?.message || 'Erro ao remover logo.');
     } finally {
       setUploadingLogo(false);
     }
   };
 
+  const showSnackbar = (severity: 'success' | 'error', text: string) =>
+    setSnackbar({ open: true, severity, text });
+
+  // ── render ───────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 320 }}>
         <CircularProgress />
       </Box>
     );
   }
 
   if (!config) {
-    return (
-      <Alert severity="error">Erro ao carregar configurações do tenant.</Alert>
-    );
+    return <Alert severity="error">Erro ao carregar configurações do tenant.</Alert>;
   }
 
   return (
-    <Stack spacing={3}>
-        {feedback && (
-          <Alert severity={feedback.severity} onClose={() => setFeedback(null)}>
-            {feedback.text}
-          </Alert>
-        )}
+    <Box>
+      {/* ── Header ── */}
+      <Box data-tour="config-header" sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+        <Box>
+          <Typography variant="h5" fontWeight={700}>Configurações</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+            Identidade visual, funcionalidades e regras de atendimento do terreiro
+          </Typography>
+        </Box>
 
-        <Paper
-          data-tour="config-branding"
-          elevation={0}
-          sx={{
-            p: { xs: 3, md: 4 },
-            borderRadius: 4,
-            color: previewFontColor,
-            background: `linear-gradient(135deg, ${previewPrimary} 0%, ${previewSecondary} 100%)`,
-          }}
+        {/* Save bar — only visible when dirty */}
+        <Slide direction="left" in={isDirty} mountOnEnter unmountOnExit>
+          <Paper
+            elevation={0}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              px: 2,
+              py: 1,
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'warning.light',
+              bgcolor: isDark ? 'rgba(245,158,11,0.08)' : 'rgba(254,243,199,0.8)',
+            }}
+          >
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main', flexShrink: 0 }} />
+            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+              Alterações não salvas
+            </Typography>
+            <Button
+              size="small"
+              variant="text"
+              startIcon={<UndoRoundedIcon />}
+              onClick={handleDiscard}
+              disabled={saving}
+              sx={{ color: 'text.secondary', minWidth: 0 }}
+            >
+              Descartar
+            </Button>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<SaveRoundedIcon />}
+              onClick={handleSave}
+              disabled={saving || hasErrors}
+              disableElevation
+            >
+              {saving ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </Paper>
+        </Slide>
+      </Box>
+
+      {/* ── Tabs ── */}
+      <Box data-tour="config-tabs" sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, v) => setActiveTab(v)}
+          sx={{ '& .MuiTab-root': { minHeight: 44, fontWeight: 600, fontSize: '0.875rem' } }}
         >
-          <Grid container spacing={3} alignItems="center">
-            <Grid item xs={12} md={7}>
-              <Stack spacing={2}>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip icon={<BrandingWatermarkRoundedIcon />} label="Identidade visual" sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: previewFontColor }} />
-                  <Chip icon={<AutoAwesomeRoundedIcon />} label="Aplicação imediata" sx={{ bgcolor: 'rgba(255,255,255,0.12)', color: previewFontColor }} />
-                  <Chip icon={<VisibilityRoundedIcon />} label="Painel + público" sx={{ bgcolor: 'rgba(255,255,255,0.12)', color: previewFontColor }} />
-                </Stack>
-                <Box>
-                  <Typography variant="h4" fontWeight={800} sx={{ mb: 1, fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' } }}>
-                    Organize o branding e as regras do seu tenant em um só lugar
+          <Tab icon={<PaletteRoundedIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Identidade visual" />
+          <Tab icon={<SettingsSuggestRoundedIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Funcionalidades" />
+          {can('associados') && (
+            <Tab icon={<DoorFrontRoundedIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Atendimento" />
+          )}
+        </Tabs>
+      </Box>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 0 — Identidade visual
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 0 && (
+        <Grid container spacing={3} alignItems="flex-start">
+          {/* Left column */}
+          <Grid item xs={12} lg={7}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+
+              {/* Logo */}
+              <Card data-tour="config-logo" elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
+                <Box sx={{ p: 3 }}>
+                  <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.5 }}>
+                    Logo do terreiro
                   </Typography>
-                    <Typography variant="body1" sx={{ opacity: 0.92, maxWidth: { xs: '100%', md: 720 }, color: previewFontColor }}>
-                    Esta tela foi separada por contexto de uso para ficar fácil entender o impacto de cada configuração. Branding altera a identidade visual do painel e da emissão pública. Funcionalidades controlam módulos do tenant. Regras de atendimento organizam a fila da porta.
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+                    Exibido no painel e nas páginas públicas do terreiro.
                   </Typography>
+
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleLogoInput}
+                    style={{ display: 'none' }}
+                  />
+
+                  {previewLogo && !logoPreviewFailed ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Box
+                        component="img"
+                        src={previewLogo}
+                        alt="Logo"
+                        onError={() => setLogoPreviewFailed(true)}
+                        sx={{ width: 80, height: 80, borderRadius: 2, objectFit: 'cover', border: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}
+                      />
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                          Logo atual
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Button size="small" variant="outlined" startIcon={<CloudUploadRoundedIcon />} onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
+                            {uploadingLogo ? 'Enviando…' : 'Trocar'}
+                          </Button>
+                          <Button size="small" variant="outlined" color="error" startIcon={<DeleteRoundedIcon />} onClick={handleLogoDelete} disabled={uploadingLogo}>
+                            Remover
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <Box
+                      onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                      onDragLeave={() => setDragging(false)}
+                      onDrop={handleLogoDrop}
+                      onClick={() => logoInputRef.current?.click()}
+                      sx={{
+                        border: '2px dashed',
+                        borderColor: dragging ? 'primary.main' : 'divider',
+                        borderRadius: 2.5,
+                        p: 4,
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        bgcolor: dragging ? 'action.hover' : 'transparent',
+                        transition: 'border-color .15s, background .15s',
+                        '&:hover': { borderColor: 'primary.light' },
+                      }}
+                    >
+                      <CloudUploadRoundedIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        {uploadingLogo ? 'Enviando…' : 'Clique ou arraste para enviar o logo'}
+                      </Typography>
+                      <Typography variant="caption" color="text.disabled">
+                        JPG, PNG ou WEBP · Máx 2 MB · 200×200 px recomendado
+                      </Typography>
+                    </Box>
+                  )}
                 </Box>
-              </Stack>
-            </Grid>
-            <Grid item xs={12} md={5}>
-              <Paper
-                elevation={0}
+              </Card>
+
+              {/* Colors */}
+              <Card data-tour="config-cores" elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
+                <Box sx={{ p: 3 }}>
+                  <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.5 }}>
+                    Cores da identidade
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+                    As alterações refletem no painel e nas emissões públicas após salvar.
+                  </Typography>
+
+                  {!can('tema_personalizado') && (
+                    <Alert
+                      severity="info"
+                      icon={<LockOutlinedIcon fontSize="small" />}
+                      sx={{ borderRadius: 2, mb: 2.5 }}
+                    >
+                      Personalização de cores disponível a partir do plano Basic.{' '}
+                      <a href="/admin/plano" style={{ fontWeight: 600 }}>Ver planos</a>
+                    </Alert>
+                  )}
+
+                  <SectionLabel>Paleta principal</SectionLabel>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <ColorField
+                        label="Cor primária"
+                        help="Usada em botões, destaques e ações principais do painel."
+                        value={config.primary_color}
+                        onChange={(v) => handleChange('primary_color', v)}
+                        error={Boolean(validationErrors.primary_color)}
+                        helperText={validationErrors.primary_color}
+                        disabled={!can('tema_personalizado')}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <ColorField
+                        label="Cor secundária"
+                        help="Usada em gradientes, contrastes e elementos de apoio."
+                        value={config.secondary_color}
+                        onChange={(v) => handleChange('secondary_color', v)}
+                        error={Boolean(validationErrors.secondary_color)}
+                        helperText={validationErrors.secondary_color}
+                        disabled={!can('tema_personalizado')}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <ColorField
+                        label="Cor da fonte"
+                        help="Aplicada no Header e nos itens selecionados do menu lateral."
+                        value={previewFontColor}
+                        onChange={(v) =>
+                          handleChange('custom_settings', {
+                            ...(config.custom_settings && typeof config.custom_settings === 'object' ? config.custom_settings : {}),
+                            font_color: v,
+                          })
+                        }
+                        error={Boolean(validationErrors.font_color)}
+                        helperText={validationErrors.font_color}
+                        disabled={!can('tema_personalizado')}
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  <SectionLabel>Informações do terreiro</SectionLabel>
+                  <FieldHint label="Endereço" help="Exibido nos e-mails de confirmação e no botão 'Como chegar' via Google Maps." />
+                  <TextField
+                    value={config.endereco || ''}
+                    onChange={(e) => handleChange('endereco', e.target.value)}
+                    placeholder="Rua Exemplo, 123 — Bairro — Cidade/UF"
+                    fullWidth
+                    multiline
+                    rows={2}
+                    size="small"
+                  />
+                </Box>
+              </Card>
+            </Box>
+          </Grid>
+
+          {/* Right column — live preview */}
+          <Grid item xs={12} lg={5}>
+            <Box sx={{ position: { lg: 'sticky' }, top: { lg: 88 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
+
+              {/* Live preview card */}
+              <Box
+                data-tour="config-preview"
                 sx={{
-                  p: 2.5,
                   borderRadius: 3,
-                  color: previewFontColor,
-                  bgcolor: 'rgba(10, 14, 28, 0.16)',
-                  border: '1px solid rgba(255,255,255,0.18)',
-                  backdropFilter: 'blur(10px)',
+                  p: 2.5,
+                  background: `linear-gradient(135deg, ${previewPrimary} 0%, ${previewSecondary} 100%)`,
                 }}
               >
-                <Stack direction="row" spacing={2} alignItems="center">
+                <Typography variant="overline" sx={{ color: previewFontColor, opacity: 0.75, fontSize: '0.7rem', letterSpacing: '0.1em' }}>
+                  Preview ao vivo
+                </Typography>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1 }}>
                   {previewLogo && !logoPreviewFailed ? (
                     <Box
                       component="img"
                       src={previewLogo}
-                      alt="Logo do tenant"
+                      alt="Logo"
                       onError={() => setLogoPreviewFailed(true)}
-                      sx={{
-                        width: 72,
-                        height: 72,
-                        borderRadius: 2.5,
-                        objectFit: 'cover',
-                        border: '1px solid rgba(255,255,255,0.24)',
-                        backgroundColor: 'rgba(255,255,255,0.18)',
-                      }}
+                      sx={{ width: 52, height: 52, borderRadius: 2, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.3)', bgcolor: 'rgba(255,255,255,0.15)', flexShrink: 0 }}
                     />
                   ) : (
-                    <Box
-                      sx={{
-                        width: 72,
-                        height: 72,
-                        borderRadius: 2.5,
-                        display: 'grid',
-                        placeItems: 'center',
-                        fontSize: 28,
-                        fontWeight: 800,
-                        border: '1px solid rgba(255,255,255,0.24)',
-                        backgroundColor: 'rgba(255,255,255,0.18)',
-                      }}
-                    >
-                      T
+                    <Box sx={{ width: 52, height: 52, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Typography sx={{ color: previewFontColor, fontWeight: 700, fontSize: 22 }}>T</Typography>
                     </Box>
                   )}
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="overline" sx={{ opacity: 0.78, color: previewFontColor }}>
-                      Preview ao vivo
-                    </Typography>
-                    <Typography variant="h6" fontWeight={700}>
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight={700} sx={{ color: previewFontColor, lineHeight: 1.2 }}>
                       Meu Terreiro
                     </Typography>
-                    <Typography variant="body2" sx={{ opacity: 0.84, color: previewFontColor }}>
-                      Veja instantaneamente como as cores e o logo vão se comportar no tenant.
+                    <Typography variant="caption" sx={{ color: previewFontColor, opacity: 0.8 }}>
+                      Identidade visual do painel
                     </Typography>
                   </Box>
-                </Stack>
-                <Stack direction="row" spacing={1.5} sx={{ mt: 2.5 }}>
-                  <Button variant="contained" disableElevation sx={{ bgcolor: 'rgba(255,255,255,0.92)', color: previewPrimary, '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' } }}>
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                  <Button size="small" disableElevation variant="contained"
+                    sx={{ bgcolor: 'rgba(255,255,255,0.92)', color: previewPrimary, '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' }, fontWeight: 700 }}>
                     Primária
                   </Button>
-                  <Button variant="contained" disableElevation sx={{ bgcolor: previewSecondary, color: previewFontColor, '&:hover': { bgcolor: previewSecondary } }}>
+                  <Button size="small" disableElevation variant="contained"
+                    sx={{ bgcolor: previewSecondary, color: previewFontColor, '&:hover': { bgcolor: previewSecondary }, border: '1px solid rgba(255,255,255,0.3)' }}>
                     Secundária
                   </Button>
-                </Stack>
+                </Box>
+              </Box>
+
+              {/* Impact summary */}
+              <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2.5, p: 2 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.68rem', display: 'block', mb: 1.5 }}>
+                  O que muda ao salvar
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {BRANDING_IMPACT.map((item) => (
+                    <Box key={item} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CheckCircleOutlineRoundedIcon sx={{ fontSize: 15, color: 'success.main', flexShrink: 0 }} />
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{item}</Typography>
+                    </Box>
+                  ))}
+                </Box>
               </Paper>
-            </Grid>
-          </Grid>
-        </Paper>
-
-        <Grid container spacing={3}>
-          <Grid item xs={12} lg={7}>
-            <Card sx={{ borderRadius: 4, height: '100%' }}>
-              <CardContent sx={{ p: { xs: 3, md: 3.5 } }}>
-                <Stack spacing={3}>
-                  <Box>
-                    <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1 }}>
-                      <PaletteRoundedIcon color="primary" />
-                      <Typography variant="h5" fontWeight={800}>
-                        Identidade visual
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary">
-                      Configure o logo e a paleta principal do tenant. As mudanças refletem no painel administrativo e nas páginas públicas do terreiro.
-                    </Typography>
-                  </Box>
-
-                  <Divider />
-
-                  <Box>
-                    <FieldLabel label="Logo do terreiro" help={HELP_TEXT.logo_url} />
-
-                    <input
-                      ref={logoInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={handleLogoUpload}
-                      style={{ display: 'none' }}
-                    />
-
-                    {previewLogo && !logoPreviewFailed ? (
-                      <Stack spacing={1.5} alignItems="center">
-                        <Box
-                          component="img"
-                          src={previewLogo}
-                          alt="Logo do terreiro"
-                          onError={() => setLogoPreviewFailed(true)}
-                          sx={{
-                            maxWidth: 200,
-                            maxHeight: 200,
-                            objectFit: 'contain',
-                            objectPosition: 'center',
-                            borderRadius: 2,
-                            border: '1px solid',
-                            borderColor: 'divider',
-                          }}
-                        />
-                        <Stack direction="row" spacing={1}>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<CloudUploadRoundedIcon />}
-                            onClick={() => logoInputRef.current?.click()}
-                            disabled={uploadingLogo}
-                          >
-                            {uploadingLogo ? 'Enviando…' : 'Trocar logo'}
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            color="error"
-                            size="small"
-                            startIcon={<DeleteRoundedIcon />}
-                            onClick={handleLogoDelete}
-                            disabled={uploadingLogo}
-                          >
-                            Remover
-                          </Button>
-                        </Stack>
-                      </Stack>
-                    ) : (
-                      <Box
-                        onClick={() => logoInputRef.current?.click()}
-                        sx={{
-                          border: '2px dashed',
-                          borderColor: 'divider',
-                          borderRadius: 3,
-                          p: 4,
-                          textAlign: 'center',
-                          cursor: 'pointer',
-                          transition: 'border-color 0.2s',
-                          '&:hover': { borderColor: 'primary.main' },
-                        }}
-                      >
-                        <CloudUploadRoundedIcon sx={{ fontSize: 40, color: 'text.secondary', mb: 1 }} />
-                        <Typography variant="body2" color="text.secondary">
-                          {uploadingLogo
-                            ? 'Enviando…'
-                            : 'Clique ou arraste para enviar o logo do terreiro'}
-                        </Typography>
-                        <Typography variant="caption" color="text.disabled">
-                          JPG, PNG ou WEBP · Máx 2 MB · Recomendado: 200×200 px
-                        </Typography>
-                      </Box>
-                    )}
-                  </Box>
-
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
-                      <ColorField
-                        label="Cor primária"
-                        help={HELP_TEXT.primary_color}
-                        value={config.primary_color}
-                        onChange={(value) => handleChange('primary_color', value)}
-                        error={Boolean(validationErrors.primary_color)}
-                        helperText={
-                          validationErrors.primary_color ||
-                          'Usada em botões, destaques e ações principais.'
-                        }
-                        disabled={!can('tema_personalizado')}
-                      />
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <ColorField
-                        label="Cor secundária"
-                        help={HELP_TEXT.secondary_color}
-                        value={config.secondary_color}
-                        onChange={(value) => handleChange('secondary_color', value)}
-                        error={Boolean(validationErrors.secondary_color)}
-                        helperText={
-                          validationErrors.secondary_color ||
-                          'Usada em composições de apoio e contraste visual.'
-                        }
-                        disabled={!can('tema_personalizado')}
-                      />
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <ColorField
-                        label="Cor da fonte"
-                        help={HELP_TEXT.font_color}
-                        value={previewFontColor}
-                        onChange={(value) =>
-                          handleChange('custom_settings', {
-                            ...(config.custom_settings && typeof config.custom_settings === 'object'
-                              ? config.custom_settings
-                              : {}),
-                            font_color: value,
-                          })
-                        }
-                        error={Boolean(validationErrors.font_color)}
-                        helperText={
-                          validationErrors.font_color ||
-                          'Aplicada no texto do Header e nos itens selecionados do menu lateral.'
-                        }
-                        disabled={!can('tema_personalizado')}
-                      />
-                    </Grid>
-                  </Grid>
-
-                  {!can('tema_personalizado') && (
-                    <Alert severity="info" icon={<LockOutlinedIcon fontSize="small" />} sx={{ borderRadius: 2 }}>
-                      Personalização de cores disponível a partir do plano Basic. <a href="/admin/plano" style={{ fontWeight: 600 }}>Ver planos</a>
-                    </Alert>
-                  )}
-
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
-                      <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3 }}>
-                        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
-                          Onde a cor primária aparece
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                          Botões principais, links de destaque, estados ativos e controles de navegação.
-                        </Typography>
-                        <Button variant="contained" disableElevation sx={{ bgcolor: config.primary_color, '&:hover': { bgcolor: config.primary_color } }}>
-                          Exemplo primário
-                        </Button>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3 }}>
-                        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
-                          Onde a cor secundária aparece
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                          Gradientes, contrastes públicos, blocos de apoio e elementos complementares.
-                        </Typography>
-                        <Button variant="contained" disableElevation sx={{ bgcolor: config.secondary_color, '&:hover': { bgcolor: config.secondary_color } }}>
-                          Exemplo secundário
-                        </Button>
-                      </Paper>
-                    </Grid>
-                  </Grid>
-
-                  <Divider />
-
-                  <Box data-tour="config-endereco">
-                    <FieldLabel label="Endereço do terreiro" help="Endereço completo do terreiro. Será usado nos e-mails de confirmação de senha e no botão Como chegar (Google Maps)." />
-                    <TextField
-                      value={config.endereco || ''}
-                      onChange={(e) => handleChange('endereco', e.target.value)}
-                      placeholder="Rua Exemplo, 123 - Bairro - Cidade/UF"
-                      fullWidth
-                      multiline
-                      rows={2}
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      Será exibido nos e-mails de confirmação e usado no botão &quot;Como chegar&quot; via Google Maps.
-                    </Typography>
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} lg={5}>
-            <Card sx={{ borderRadius: 4, height: '100%' }}>
-              <CardContent sx={{ p: { xs: 3, md: 3.5 } }}>
-                <Stack spacing={3}>
-                  <Box>
-                    <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1 }}>
-                      <VisibilityRoundedIcon color="primary" />
-                      <Typography variant="h5" fontWeight={800}>
-                        Leitura rápida da tela
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary">
-                      Use esta área como mapa mental da página antes de salvar qualquer ajuste.
-                    </Typography>
-                  </Box>
-
-                  <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3 }}>
-                    <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>
-                      1. Identidade visual
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Logo, cor primária e cor secundária do tenant.
-                    </Typography>
-                  </Paper>
-
-                  <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3 }}>
-                    <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>
-                      2. Funcionalidades operacionais
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Liga ou desliga módulos do painel conforme o momento operacional do terreiro.
-                    </Typography>
-                  </Paper>
-
-                  <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3 }}>
-                    <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>
-                      3. Regras da porta
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Define a prioridade de associados na fila de atendimento da visão da porta.
-                    </Typography>
-                  </Paper>
-
-                  <Alert severity="info" sx={{ borderRadius: 3 }}>
-                    A seção de e-mail foi removida desta página. O envio via Resend será tratado em uma configuração dedicada no momento apropriado.
-                  </Alert>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12}>
-            <Card data-tour="config-flags" sx={{ borderRadius: 4 }}>
-              <CardContent sx={{ p: { xs: 3, md: 3.5 } }}>
-                <Stack spacing={3}>
-                  <Box>
-                    <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1 }}>
-                      <SettingsSuggestRoundedIcon color="primary" />
-                      <Typography variant="h5" fontWeight={800}>
-                        Funcionalidades operacionais
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary">
-                      Cada chave abaixo controla um módulo do tenant. Passe o mouse no ícone de ajuda para entender o impacto de cada funcionalidade antes de ativar.
-                    </Typography>
-                  </Box>
-
-                  <Grid container spacing={2}>
-                    {FEATURE_ITEMS.filter((item) => {
-                      if (item.field === 'enable_analytics' && !can('analytics_basico')) return false;
-                      if (item.field === 'validate_associado_on_emit' && !can('associados')) return false;
-                      if (item.field === 'enable_estoque_log' && !can('estoque_controle')) return false;
-                      if (item.field === 'enable_mensalidade_associado' && !can('mensalidade_associado')) return false;
-                      return true;
-                    }).map((item) => (
-                      <Grid item xs={12} md={6} key={item.field}>
-                        <FeatureToggleCard
-                          title={item.title}
-                          description={item.description}
-                          tooltip={item.tooltip}
-                          checked={config[item.field]}
-                          onChange={(checked) => handleChange(item.field, checked)}
-                        />
-                      </Grid>
-                    ))}
-                  </Grid>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {can('associados') && <Grid item xs={12}>
-            <Card data-tour="config-patrocinador" sx={{ borderRadius: 4 }}>
-              <CardContent sx={{ p: { xs: 3, md: 3.5 } }}>
-                <Stack spacing={3}>
-                  <Box>
-                    <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1 }}>
-                      <TuneRoundedIcon color="primary" />
-                      <Typography variant="h5" fontWeight={800}>
-                        Regras de atendimento na porta
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary">
-                      Escolha a política de posicionamento dos associados na fila. Esta definição afeta exclusivamente a visão da porta.
-                    </Typography>
-                  </Box>
-
-                  <FormControl component="fieldset">
-                    <FieldLabel label="Prioridade dos associados" help={HELP_TEXT.sponsor_priority_mode} />
-                    <RadioGroup
-                      value={config.sponsor_priority_mode || 'first'}
-                      onChange={(event) => handleChange('sponsor_priority_mode', event.target.value)}
-                    >
-                      <Grid container spacing={2}>
-                        {PRIORITY_OPTIONS.map((option) => {
-                          const selected = (config.sponsor_priority_mode || 'first') === option.value;
-
-                          return (
-                            <Grid item xs={12} md={6} key={option.value}>
-                              <Paper
-                                variant="outlined"
-                                sx={{
-                                  p: 2.25,
-                                  borderRadius: 3,
-                                  borderColor: selected ? 'primary.main' : 'divider',
-                                  backgroundColor: selected ? 'rgba(99, 102, 241, 0.05)' : 'background.paper',
-                                }}
-                              >
-                                <FormControlLabel
-                                  value={option.value}
-                                  control={<Radio />}
-                                  sx={{ alignItems: 'flex-start', m: 0 }}
-                                  label={
-                                    <Box>
-                                      <Typography variant="subtitle2" fontWeight={700}>
-                                        {option.title}
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                        {option.description}
-                                      </Typography>
-                                    </Box>
-                                  }
-                                />
-                              </Paper>
-                            </Grid>
-                          );
-                        })}
-                      </Grid>
-                    </RadioGroup>
-                  </FormControl>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>}
-        </Grid>
-
-        <Paper
-          elevation={0}
-          sx={{
-            p: 2.5,
-            borderRadius: 4,
-            position: { md: 'sticky' },
-            bottom: { md: 24 },
-            zIndex: 2,
-            border: '1px solid',
-            borderColor: 'divider',
-            backgroundColor: 'rgba(255,255,255,0.92)',
-            backdropFilter: 'blur(14px)',
-          }}
-        >
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }}>
-            <Box>
-              <Typography variant="subtitle1" fontWeight={700}>
-                Tudo pronto para salvar
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Ao salvar, as cores e o logo do tenant são atualizados imediatamente no painel e nas páginas públicas.
-              </Typography>
             </Box>
-            <Button
-              variant="contained"
-              size="large"
-              startIcon={<SaveRoundedIcon />}
-              onClick={handleSave}
-              disabled={saving || hasValidationErrors}
-              sx={{ minWidth: { md: 260 } }}
-            >
-              {saving ? 'Salvando configurações...' : 'Salvar configurações do tenant'}
-            </Button>
-          </Stack>
-        </Paper>
-      </Stack>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 1 — Funcionalidades
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 1 && (
+        <Box data-tour="config-funcionalidades">
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Cada chave controla um módulo do tenant. Itens bloqueados estão disponíveis em planos superiores.
+          </Typography>
+          <Grid container spacing={2}>
+            {FEATURE_ITEMS.map((item) => {
+              const locked = Boolean(item.gate && !can(item.gate));
+              const value = Boolean(config[item.field]);
+              return (
+                <Grid item xs={12} md={6} key={item.field}>
+                  <ToggleCard
+                    title={item.title}
+                    description={item.description}
+                    plan={item.plan}
+                    checked={value}
+                    locked={locked}
+                    onChange={(v) => handleChange(item.field, v as TenantConfig[typeof item.field])}
+                  />
+                </Grid>
+              );
+            })}
+          </Grid>
+        </Box>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 2 — Atendimento (só aparece se can('associados'))
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 2 && can('associados') && (
+        <Box data-tour="config-atendimento" sx={{ maxWidth: 640 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Escolha a política de posicionamento dos associados na fila. Afeta exclusivamente a visão da porta.
+          </Typography>
+
+          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
+            <Box sx={{ p: 3 }}>
+              <FieldHint label="Prioridade dos associados" help="Define como associados são posicionados na fila de atendimento da porta." />
+              <RadioGroup
+                value={config.sponsor_priority_mode || 'first'}
+                onChange={(e) => handleChange('sponsor_priority_mode', e.target.value)}
+              >
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
+                  {PRIORITY_OPTIONS.map((opt) => {
+                    const selected = (config.sponsor_priority_mode || 'first') === opt.value;
+                    return (
+                      <Paper
+                        key={opt.value}
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          borderRadius: 2,
+                          borderColor: selected ? 'primary.main' : 'divider',
+                          bgcolor: selected ? 'action.hover' : 'background.paper',
+                          cursor: 'pointer',
+                          transition: 'border-color .15s, background .15s',
+                        }}
+                        onClick={() => handleChange('sponsor_priority_mode', opt.value)}
+                      >
+                        <FormControlLabel
+                          value={opt.value}
+                          control={<Radio size="small" />}
+                          sx={{ alignItems: 'flex-start', m: 0, width: '100%' }}
+                          label={
+                            <Box sx={{ ml: 0.5 }}>
+                              <Typography variant="subtitle2" fontWeight={600}>{opt.title}</Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, fontSize: '0.8rem' }}>
+                                {opt.description}
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </Paper>
+                    );
+                  })}
+                </Box>
+              </RadioGroup>
+            </Box>
+          </Card>
+        </Box>
+      )}
+
+      {/* ── Snackbar ── */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+          sx={{ width: '100%', borderRadius: 2 }}
+        >
+          {snackbar.text}
+        </Alert>
+      </Snackbar>
+    </Box>
   );
 }

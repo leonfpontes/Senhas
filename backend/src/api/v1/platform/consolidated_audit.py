@@ -117,7 +117,7 @@ async def get_audit_logs(
         if most_active_id and most_active_id in tenant_name_map:
             result["statistics"]["most_active_tenant_name"] = tenant_name_map[most_active_id]
             result["statistics"]["most_active_tenant_slug"] = tenant_slug_map.get(most_active_id, "")
-        elif most_active_id:
+        elif most_active_id and most_active_id != "None":
             tenant_row = await db.execute(
                 select(Tenant.name, Tenant.slug).where(Tenant.id == UUID(most_active_id))
             )

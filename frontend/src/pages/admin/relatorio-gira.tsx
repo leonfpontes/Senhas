@@ -2,13 +2,13 @@
  * Relatório de Gira — exibe tickets de uma gira com médium, cambone e observações.
  * Feature gate: relatorio_gira (tier >= 1: Basic, Pro, Premium).
  *
- * Estratégia de filtragem:
- *  - status_filter: server-side (parâmetro de query)
- *  - Texto, médium, cambone, tag: client-side sobre o conjunto completo carregado (até 500 tickets)
+ * Filtragem:
+ *  - status_filter, dateFrom, dateTo, giraFilter: server-side
+ *  - texto, médium, cambone, tag: client-side sobre o conjunto completo (até 500 tickets)
  */
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   Alert,
@@ -18,6 +18,7 @@ import {
   Chip,
   CircularProgress,
   Collapse,
+  Divider,
   FormControl,
   InputAdornment,
   InputLabel,
@@ -34,18 +35,21 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import DownloadIcon from '@mui/icons-material/GetApp';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import LockIcon from '@mui/icons-material/Lock';
-import SearchIcon from '@mui/icons-material/Search';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
+import FilterListRoundedIcon from '@mui/icons-material/FilterListRounded';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import PictureAsPdfRoundedIcon from '@mui/icons-material/PictureAsPdfRounded';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
+
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import { useSubscription } from '../../hooks/useSubscription';
 import { useTenant } from '../../providers/ThemeProvider';
 import { useRelatorioPDF } from '../../hooks/useRelatorioPDF';
+import { useAdminTheme } from '@/providers/AdminThemeProvider';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Ticket {
   id: string;
@@ -76,20 +80,38 @@ interface DoorStats {
 }
 
 type GiraFilter = 'all' | 'active' | 'inactive';
-type TagFilter = '' | 'Comum' | 'Preferencial' | 'Associado' | 'Walk-in';
+type TagFilter  = '' | 'Comum' | 'Preferencial' | 'Associado' | 'Walk-in';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getTag(t: Ticket): { label: string; color: string; bg: string } {
-  if (t.is_sponsor)   return { label: 'Associado',    color: '#b8860b', bg: '#fef9e7' };
-  if (t.preferencial) return { label: 'Preferencial', color: '#e65100', bg: '#fff3e0' };
-  if (t.is_walk_in)   return { label: 'Walk-in',      color: '#1565c0', bg: '#e3f2fd' };
-  return                       { label: 'Comum',       color: '#546e7a', bg: '#f5f5f5' };
+  if (t.is_sponsor)   return { label: 'Associado',    color: '#92400e', bg: '#fef3c7' };
+  if (t.preferencial) return { label: 'Preferencial', color: '#9a3412', bg: '#fff7ed' };
+  if (t.is_walk_in)   return { label: 'Walk-in',      color: '#1e40af', bg: '#eff6ff' };
+  return                       { label: 'Comum',       color: '#374151', bg: '#f3f4f6' };
 }
 
-/** Normaliza string para comparação case-insensitive sem acentos */
 const normalize = (s: string) =>
-  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 const PAGE_SIZE = 50;
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function StatPill({ label, value, color }: { label: string; value: number; color?: string }) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 1.5, px: 0.5 }}>
+      <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, lineHeight: 1, color: color || 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
+        {value}
+      </Typography>
+      <Typography sx={{ fontSize: '0.65rem', fontWeight: 500, color: 'text.secondary', mt: 0.25, textAlign: 'center', lineHeight: 1.2 }}>
+        {label}
+      </Typography>
+    </Box>
+  );
+}
+
+// ─── Page wrapper ─────────────────────────────────────────────────────────────
 
 export default function RelatorioGiraPage() {
   return (
@@ -99,46 +121,45 @@ export default function RelatorioGiraPage() {
   );
 }
 
+// ─── Main content ─────────────────────────────────────────────────────────────
+
 function RelatorioGiraContent() {
   const router = useRouter();
-  const { can } = useSubscription();
-  const { tenantName, logoUrl, config } = useTenant();
+  const { can }                                  = useSubscription();
+  const { tenantName, logoUrl, config }          = useTenant();
   const { generate: generatePDF, loading: loadingPDF } = useRelatorioPDF();
+  const { isDark }                               = useAdminTheme();
 
-  // Feature gate — redireciona para /admin/plano se não tiver acesso
+  // Feature gate
   useEffect(() => {
-    if (can('relatorio_gira') === false) {
-      router.replace('/admin/plano');
-    }
+    if (can('relatorio_gira') === false) router.replace('/admin/plano');
   }, [can, router]);
 
-  // ── Filtros de seleção de gira (server-side) ──────────────────────
-  const [giras, setGiras] = useState<{ id: string; nome: string; is_active: boolean; data_inicio?: string }[]>([]);
-  const [giraId, setGiraId]         = useState<string>('');
-  const [giraFilter, setGiraFilter] = useState<GiraFilter>('all');
-  const [dateFrom, setDateFrom]     = useState<string>('');
-  const [dateTo, setDateTo]         = useState<string>('');
+  // ── Gira selector state ───────────────────────────────────────────
+  const [giras, setGiras]             = useState<{ id: string; nome: string; is_active: boolean; data_inicio?: string }[]>([]);
+  const [giraId, setGiraId]           = useState<string>('');
+  const [giraFilter, setGiraFilter]   = useState<GiraFilter>('all');
+  const [dateFrom, setDateFrom]       = useState<string>('');
+  const [dateTo, setDateTo]           = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('completed');
 
-  // ── Door stats (big numbers) para o PDF ──────────────────────────
-  const [doorStats, setDoorStats] = useState<DoorStats | null>(null);
-
-  // ── Dados brutos carregados da API ────────────────────────────────
+  // ── Data state ────────────────────────────────────────────────────
+  const [doorStats, setDoorStats]   = useState<DoorStats | null>(null);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
   const [loading, setLoading]       = useState(false);
 
-  // ── Filtros client-side ───────────────────────────────────────────
+  // ── Client-side search filters ────────────────────────────────────
   const [searchText, setSearchText]       = useState<string>('');
   const [mediumFilter, setMediumFilter]   = useState<string>('');
   const [camboneFilter, setCamboneFilter] = useState<string>('');
   const [tagFilter, setTagFilter]         = useState<TagFilter>('');
+  const [page, setPage]                   = useState(0);
 
-  // ── Paginação client-side (sobre resultado filtrado) ──────────────
-  const [page, setPage] = useState(0);
+  // ── UI state ──────────────────────────────────────────────────────
+  const [giraFiltersOpen, setGiraFiltersOpen] = useState(false);
+  const [searchFiltersOpen, setSearchFiltersOpen] = useState(false);
 
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
-
-  // ─── Carrega lista de giras disponíveis ───────────────────────────
+  // ── Load giras ────────────────────────────────────────────────────
   const loadGiras = useCallback(async () => {
     try {
       const params = new URLSearchParams({ limit: '100' });
@@ -146,96 +167,71 @@ function RelatorioGiraContent() {
       if (giraFilter === 'inactive') params.append('is_active', 'false');
       if (dateFrom) params.append('date_from', dateFrom);
       if (dateTo)   params.append('date_to', dateTo);
-      const res = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`);
+      const res  = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`);
       const data = Array.isArray(res.data) ? res.data : res.data.items ?? [];
       setGiras(data);
-      if (giraId && !data.some((g: any) => g.id === giraId)) {
-        setGiraId('');
-      }
-    } catch (err) {
-      console.error('Erro ao carregar giras:', err);
-    }
+      if (giraId && !data.some((g: any) => g.id === giraId)) setGiraId('');
+    } catch { /* non-critical */ }
   }, [giraFilter, dateFrom, dateTo, giraId]);
 
-  // ─── Carrega todos os tickets de uma gira (até 500) ───────────────
+  // ── Load tickets ──────────────────────────────────────────────────
   const loadTickets = useCallback(async () => {
-    if (!giraId) {
-      setAllTickets([]);
-      return;
-    }
+    if (!giraId) { setAllTickets([]); return; }
     setLoading(true);
     try {
       let url = `/api/v1/admin/giras/${giraId}/tickets?skip=0&limit=500`;
       if (statusFilter) url += `&status_filter=${statusFilter}`;
       const res = await apiClient.get(url);
       setAllTickets(res.data.items ?? []);
-    } catch (err) {
-      console.error('Erro ao carregar tickets:', err);
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* non-critical */ } finally { setLoading(false); }
   }, [giraId, statusFilter]);
 
-  // ─── Carrega door stats para o PDF (big numbers) ──────────────────
+  // ── Load door stats (for PDF + KPIs) ─────────────────────────────
   const loadDoorStats = useCallback(async () => {
     if (!giraId) { setDoorStats(null); return; }
     try {
       const res = await apiClient.get(`/api/v1/admin/giras/${giraId}/door/stats`);
       setDoorStats(res.data);
-    } catch (err) {
-      console.error('Erro ao carregar door stats:', err);
-      setDoorStats(null);
-    }
+    } catch { setDoorStats(null); }
   }, [giraId]);
 
   useEffect(() => {
     const token =
       (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
-      (typeof localStorage !== 'undefined' && localStorage.getItem('access_token'));
+      (typeof localStorage   !== 'undefined' && localStorage.getItem('access_token'));
     if (!token) { router.replace('/login'); return; }
     loadGiras();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [giraFilter, dateFrom, dateTo]);
 
   useEffect(() => {
-    // Carrega tickets e door stats em paralelo
     loadTickets();
     loadDoorStats();
-    // Ao trocar de gira ou status, limpa filtros client-side e volta à página 0
-    setSearchText('');
-    setMediumFilter('');
-    setCamboneFilter('');
-    setTagFilter('');
-    setPage(0);
+    setSearchText(''); setMediumFilter(''); setCamboneFilter(''); setTagFilter(''); setPage(0);
   }, [giraId, statusFilter]);
 
-  // ─── Listas únicas para dropdowns ─────────────────────────────────
-  const uniqueMediums = useMemo(() => {
-    const names = allTickets
-      .map((t) => t.medium_nome?.trim())
-      .filter(Boolean) as string[];
-    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [allTickets]);
+  // ── Derived lists ─────────────────────────────────────────────────
+  const uniqueMediums = useMemo(() =>
+    Array.from(new Set(allTickets.map((t) => t.medium_nome?.trim()).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [allTickets],
+  );
+  const uniqueCambones = useMemo(() =>
+    Array.from(new Set(allTickets.map((t) => t.cambone_nome?.trim()).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [allTickets],
+  );
 
-  const uniqueCambones = useMemo(() => {
-    const names = allTickets
-      .map((t) => t.cambone_nome?.trim())
-      .filter(Boolean) as string[];
-    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [allTickets]);
-
-  // ─── Filtragem client-side ────────────────────────────────────────
+  // ── Client-side filtering ─────────────────────────────────────────
   const filteredTickets = useMemo(() => {
     const needle = searchText.length >= 3 ? normalize(searchText) : '';
-
     return allTickets.filter((t) => {
       if (needle) {
         const nome = normalize(t.consulente_nome ?? '');
         const obs  = normalize(t.atendimento_descricao ?? '');
         if (!nome.includes(needle) && !obs.includes(needle)) return false;
       }
-      if (mediumFilter && (t.medium_nome?.trim() || '') !== mediumFilter) return false;
-      if (camboneFilter && (t.cambone_nome?.trim() || '') !== camboneFilter) return false;
-      if (tagFilter && getTag(t).label !== tagFilter) return false;
+      if (mediumFilter  && (t.medium_nome?.trim()  || '') !== mediumFilter)  return false;
+      if (camboneFilter && (t.cambone_nome?.trim()  || '') !== camboneFilter) return false;
+      if (tagFilter     && getTag(t).label !== tagFilter)                     return false;
       return true;
     });
   }, [allTickets, searchText, mediumFilter, camboneFilter, tagFilter]);
@@ -247,99 +243,69 @@ function RelatorioGiraContent() {
     [filteredTickets, page],
   );
 
-  // ─── Exportar CSV (client-side, a partir dos dados já carregados) ──
+  // ── Export CSV ────────────────────────────────────────────────────
   const handleExportCSV = () => {
     if (!giraId || filteredTickets.length === 0) return;
-
     const escape = (v: string | undefined | null) => {
       if (v == null) return '';
       const s = String(v);
-      // Envolve em aspas se contiver vírgula, aspas ou quebra de linha
-      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-        return `"${s.replace(/"/g, '""')}"`;
-      }
-      return s;
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
     };
-
     const header = ['Senha', 'Nome', 'Tag', 'Status', 'Médium', 'Cambone', 'Observações'];
     const rows = filteredTickets.map((t) => [
       `#${String(t.numero).padStart(4, '0')}`,
-      t.consulente_nome ?? '',
-      getTag(t).label,
-      t.status,
-      t.medium_nome ?? '',
-      t.cambone_nome ?? '',
-      t.atendimento_descricao ?? '',
+      t.consulente_nome ?? '', getTag(t).label, t.status,
+      t.medium_nome ?? '', t.cambone_nome ?? '', t.atendimento_descricao ?? '',
     ]);
-
-    const csv = [header, ...rows]
-      .map((row) => row.map(escape).join(','))
-      .join('\r\n');
-
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const csv  = [header, ...rows].map((r) => r.map(escape).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    const giraName = giras.find((g) => g.id === giraId)?.nome ?? 'relatorio';
-    link.download = `relatorio-${giraName.replace(/\s+/g, '-').toLowerCase()}.csv`;
+    link.href     = URL.createObjectURL(blob);
+    link.download = `relatorio-${(giras.find((g) => g.id === giraId)?.nome ?? 'gira').replace(/\s+/g, '-').toLowerCase()}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
   };
 
-  // ─── Exportar PDF ─────────────────────────────────────────────────
+  // ── Export PDF ────────────────────────────────────────────────────
   const handleExportPDF = async () => {
     if (!giraId || !doorStats) return;
-    const selectedGira = giras.find((g) => g.id === giraId);
+    const g = giras.find((x) => x.id === giraId);
     await generatePDF({
       tickets: filteredTickets,
       doorStats,
-      gira: {
-        nome: selectedGira?.nome ?? 'Gira',
-        data: selectedGira?.data_inicio,
-      },
+      gira: { nome: g?.nome ?? 'Gira', data: g?.data_inicio },
       tenant: {
         nome: tenantName ?? 'Terreiro',
         logoUrl: logoUrl ?? undefined,
-        primaryColor: config?.colors?.primary ?? '#6366f1',
+        primaryColor:   config?.colors?.primary   ?? '#6366f1',
         secondaryColor: config?.colors?.secondary ?? '#8b5cf6',
       },
     });
   };
 
   const handleClearGiraFilters = () => {
-    setGiraFilter('all');
-    setDateFrom('');
-    setDateTo('');
-    setStatusFilter('completed');
-    setGiraId('');
-    setPage(0);
+    setGiraFilter('all'); setDateFrom(''); setDateTo(''); setStatusFilter('completed'); setGiraId(''); setPage(0);
   };
-
   const handleClearSearchFilters = () => {
-    setSearchText('');
-    setMediumFilter('');
-    setCamboneFilter('');
-    setTagFilter('');
-    setPage(0);
+    setSearchText(''); setMediumFilter(''); setCamboneFilter(''); setTagFilter(''); setPage(0);
   };
 
-  const hasActiveSearchFilters = Boolean(searchText || mediumFilter || camboneFilter || tagFilter);
+  const hasActiveSearchFilters     = Boolean(searchText || mediumFilter || camboneFilter || tagFilter);
+  const activeGiraFilterCount      = [dateFrom, dateTo, giraFilter !== 'all' ? giraFilter : '', statusFilter !== 'completed' ? statusFilter : ''].filter(Boolean).length;
+  const selectedGiraName           = giras.find((g) => g.id === giraId)?.nome ?? '';
 
-  const activeGiraFilterCount = [
-    dateFrom,
-    dateTo,
-    giraFilter !== 'all' ? giraFilter : '',
-    statusFilter !== 'completed' ? statusFilter : '',
-  ].filter(Boolean).length;
-
-  // ─── Gate de acesso ───────────────────────────────────────────────
+  // ── Feature gate UI ───────────────────────────────────────────────
   if (!can('relatorio_gira')) {
     return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, gap: 2 }}>
-        <LockIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
-        <Typography variant="h6" color="text.secondary">
-          Recurso disponível nos planos Basic, Pro e Premium.
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, gap: 2, textAlign: 'center' }}>
+        <Box sx={{ width: 64, height: 64, borderRadius: '50%', bgcolor: 'action.selected', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <LockOutlinedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />
+        </Box>
+        <Typography variant="h6" fontWeight={700}>Relatório de gira</Typography>
+        <Typography variant="body2" color="text.secondary">
+          Disponível nos planos Basic, Pro e Premium.
         </Typography>
-        <Button variant="contained" onClick={() => router.push('/admin/plano')}>
+        <Button variant="contained" disableElevation onClick={() => router.push('/admin/plano')}>
           Ver planos
         </Button>
       </Box>
@@ -347,325 +313,328 @@ function RelatorioGiraContent() {
   }
 
   return (
-    <>
-      {/* ── Seletor de Gira + filtros de gira ── */}
-      <Box data-tour="relatorio-header" sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
-        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 240 } }}>
-          <InputLabel>Selecione uma Gira</InputLabel>
-          <Select
-            value={giraId}
-            onChange={(e) => { setGiraId(e.target.value); setPage(0); }}
-            label="Selecione uma Gira"
-          >
-            <MenuItem value="">Nenhuma</MenuItem>
-            {giras.map((g) => (
-              <MenuItem key={g.id} value={g.id}>
-                {g.nome}
-                {!g.is_active && (
-                  <Chip label="inativa" size="small" color="default" sx={{ ml: 1, height: 20 }} />
-                )}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        {/* Toggle de filtros — apenas mobile */}
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<FilterListIcon />}
-          endIcon={filtersExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          onClick={() => setFiltersExpanded((p) => !p)}
-          sx={{ display: { xs: 'flex', sm: 'none' }, width: '100%', justifyContent: 'space-between' }}
-        >
-          <Badge badgeContent={activeGiraFilterCount} color="primary" sx={{ flexGrow: 1, textAlign: 'left' }}>
-            Filtros de gira
-          </Badge>
-        </Button>
-
-        {/* Filtros de gira — desktop sempre visível */}
-        <Box sx={{ display: { xs: 'none', sm: 'flex' }, flexWrap: 'wrap', gap: 2, alignItems: 'center', flexGrow: 1 }}>
-          <FormControl size="small" sx={{ minWidth: 130 }}>
-            <InputLabel>Tipo de Gira</InputLabel>
-            <Select
-              value={giraFilter}
-              onChange={(e) => { setGiraFilter(e.target.value as GiraFilter); setGiraId(''); setPage(0); }}
-              label="Tipo de Gira"
-            >
-              <MenuItem value="all">Todas</MenuItem>
-              <MenuItem value="active">Ativas</MenuItem>
-              <MenuItem value="inactive">Inativas</MenuItem>
-            </Select>
-          </FormControl>
-
-          <TextField size="small" label="Data de" type="date" value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setGiraId(''); setPage(0); }}
-            InputLabelProps={{ shrink: true }} sx={{ minWidth: 160 }} />
-
-          <TextField size="small" label="Data até" type="date" value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setGiraId(''); setPage(0); }}
-            InputLabelProps={{ shrink: true }} sx={{ minWidth: 160 }} />
-
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-              label="Status"
-            >
-              <MenuItem value="">Todos</MenuItem>
-              <MenuItem value="emitted">Emitidos</MenuItem>
-              <MenuItem value="called">Chamados</MenuItem>
-              <MenuItem value="completed">Concluídos</MenuItem>
-              <MenuItem value="cancelled">Cancelados</MenuItem>
-            </Select>
-          </FormControl>
-
-          {(dateFrom || dateTo || giraFilter !== 'all' || statusFilter !== 'completed') && (
-            <Button size="small" onClick={handleClearGiraFilters}>Limpar</Button>
-          )}
-
-          {giraId && (
-            <Box data-tour="relatorio-export" sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-              <Button size="small" variant="outlined" startIcon={<DownloadIcon />} onClick={handleExportCSV}>
-                Exportar CSV
-              </Button>
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={loadingPDF ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfIcon />}
-                onClick={handleExportPDF}
-                disabled={loadingPDF || !doorStats}
-              >
-                {loadingPDF ? 'Gerando…' : 'Exportar PDF'}
-              </Button>
-            </Box>
-          )}
+    <Box>
+      {/* ── Header ── */}
+      <Box data-tour="relatorio-header" sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+        <Box>
+          <Typography variant="h5" fontWeight={700}>Relatório de gira</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+            Selecione uma gira para visualizar os atendimentos
+          </Typography>
         </Box>
-      </Box>
 
-      {/* Filtros de gira colapsáveis — apenas mobile */}
-      <Collapse in={filtersExpanded} sx={{ display: { xs: 'block', sm: 'none' }, mb: filtersExpanded ? 1.5 : 0 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pb: 1 }}>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Tipo de Gira</InputLabel>
-            <Select
-              value={giraFilter}
-              onChange={(e) => { setGiraFilter(e.target.value as GiraFilter); setGiraId(''); setPage(0); }}
-              label="Tipo de Gira"
+        {/* Export actions — only when a gira is selected */}
+        {giraId && (
+          <Box data-tour="relatorio-export" sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<DownloadRoundedIcon sx={{ fontSize: 17 }} />}
+              onClick={handleExportCSV}
+              disabled={filteredTickets.length === 0}
             >
-              <MenuItem value="all">Todas</MenuItem>
-              <MenuItem value="active">Ativas</MenuItem>
-              <MenuItem value="inactive">Inativas</MenuItem>
-            </Select>
-          </FormControl>
-          <TextField size="small" label="Data de" type="date" value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setGiraId(''); setPage(0); }}
-            InputLabelProps={{ shrink: true }} fullWidth />
-          <TextField size="small" label="Data até" type="date" value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setGiraId(''); setPage(0); }}
-            InputLabelProps={{ shrink: true }} fullWidth />
-          <FormControl size="small" fullWidth>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-              label="Status"
-            >
-              <MenuItem value="">Todos</MenuItem>
-              <MenuItem value="emitted">Emitidos</MenuItem>
-              <MenuItem value="called">Chamados</MenuItem>
-              <MenuItem value="completed">Concluídos</MenuItem>
-              <MenuItem value="cancelled">Cancelados</MenuItem>
-            </Select>
-          </FormControl>
-          {(dateFrom || dateTo || giraFilter !== 'all' || statusFilter !== 'completed') && (
-            <Button size="small" variant="text" onClick={handleClearGiraFilters}>Limpar filtros de gira</Button>
-          )}
-          {giraId && (
-            <Button size="small" variant="outlined" startIcon={<DownloadIcon />} fullWidth onClick={handleExportCSV}>
-              Exportar CSV
+              CSV
             </Button>
-          )}
-          {giraId && (
             <Button
               size="small"
               variant="contained"
-              startIcon={loadingPDF ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfIcon />}
-              fullWidth
+              disableElevation
+              startIcon={loadingPDF ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfRoundedIcon sx={{ fontSize: 17 }} />}
               onClick={handleExportPDF}
               disabled={loadingPDF || !doorStats}
             >
-              {loadingPDF ? 'Gerando PDF…' : 'Exportar PDF'}
+              {loadingPDF ? 'Gerando…' : 'PDF'}
             </Button>
-          )}
-        </Box>
-      </Collapse>
+          </Box>
+        )}
+      </Box>
 
-      {/* ── Filtros de busca nos tickets (client-side) ── */}
-      {giraId && !loading && (
-        <Box data-tour="relatorio-filtros" sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'flex-start' }}>
-          <TextField
+      {/* ── Gira selector + gira-level filters ── */}
+      <Paper data-tour="relatorio-filtros-gira" elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 2.5, mb: 3 }}>
+        {/* Main row: gira select + filter toggle */}
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 280 }, flex: { sm: '0 0 280px' } }}>
+            <InputLabel>Selecione uma gira</InputLabel>
+            <Select
+              value={giraId}
+              onChange={(e) => { setGiraId(e.target.value); setPage(0); }}
+              label="Selecione uma gira"
+            >
+              <MenuItem value=""><em>Nenhuma</em></MenuItem>
+              {giras.map((g) => (
+                <MenuItem key={g.id} value={g.id}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                    <span style={{ flex: 1 }}>{g.nome}</span>
+                    {!g.is_active && <Chip label="inativa" size="small" sx={{ height: 18, fontSize: '0.65rem' }} />}
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <Button
             size="small"
-            label="Buscar por nome ou observações"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" color={searchText.length >= 3 ? 'primary' : 'disabled'} />
-                </InputAdornment>
-              ),
-            }}
-            helperText={searchText.length > 0 && searchText.length < 3 ? 'Digite ao menos 3 caracteres' : ''}
-            sx={{ minWidth: { xs: '100%', sm: 260 } }}
-          />
+            variant={giraFiltersOpen || activeGiraFilterCount > 0 ? 'contained' : 'outlined'}
+            disableElevation
+            startIcon={<FilterListRoundedIcon sx={{ fontSize: 17 }} />}
+            onClick={() => setGiraFiltersOpen((p) => !p)}
+            sx={{ flexShrink: 0 }}
+          >
+            <Badge badgeContent={activeGiraFilterCount} color="error" sx={{ '& .MuiBadge-badge': { fontSize: '0.65rem', height: 16, minWidth: 16 } }}>
+              Filtros de gira
+            </Badge>
+          </Button>
 
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 180 } }}>
-            <InputLabel>Médium</InputLabel>
-            <Select
-              value={mediumFilter}
-              onChange={(e) => setMediumFilter(e.target.value)}
-              label="Médium"
-            >
-              <MenuItem value="">Todos</MenuItem>
-              {uniqueMediums.map((name) => (
-                <MenuItem key={name} value={name}>{name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 180 } }}>
-            <InputLabel>Cambone</InputLabel>
-            <Select
-              value={camboneFilter}
-              onChange={(e) => setCamboneFilter(e.target.value)}
-              label="Cambone"
-            >
-              <MenuItem value="">Todos</MenuItem>
-              {uniqueCambones.map((name) => (
-                <MenuItem key={name} value={name}>{name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }}>
-            <InputLabel>Tag</InputLabel>
-            <Select
-              value={tagFilter}
-              onChange={(e) => setTagFilter(e.target.value as TagFilter)}
-              label="Tag"
-            >
-              <MenuItem value="">Todas</MenuItem>
-              <MenuItem value="Comum">Comum</MenuItem>
-              <MenuItem value="Preferencial">Preferencial</MenuItem>
-              <MenuItem value="Associado">Associado</MenuItem>
-              <MenuItem value="Walk-in">Walk-in</MenuItem>
-            </Select>
-          </FormControl>
-
-          {hasActiveSearchFilters && (
-            <Button size="small" variant="text" onClick={handleClearSearchFilters} sx={{ alignSelf: 'center' }}>
-              Limpar busca
+          {activeGiraFilterCount > 0 && (
+            <Button size="small" variant="text" onClick={handleClearGiraFilters} sx={{ color: 'text.secondary' }}>
+              Limpar
             </Button>
           )}
-
-          {hasActiveSearchFilters && (
-            <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', alignSelf: 'center' }}>
-              {filteredTickets.length} de {allTickets.length} ticket{allTickets.length !== 1 ? 's' : ''}
-            </Typography>
-          )}
         </Box>
+
+        {/* Collapsible gira filters */}
+        <Collapse in={giraFiltersOpen}>
+          <Divider sx={{ my: 2 }} />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Tipo de gira</InputLabel>
+              <Select value={giraFilter} onChange={(e) => { setGiraFilter(e.target.value as GiraFilter); setGiraId(''); setPage(0); }} label="Tipo de gira">
+                <MenuItem value="all">Todas</MenuItem>
+                <MenuItem value="active">Ativas</MenuItem>
+                <MenuItem value="inactive">Inativas</MenuItem>
+              </Select>
+            </FormControl>
+
+            <TextField size="small" label="Data de" type="date" value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setGiraId(''); setPage(0); }}
+              InputLabelProps={{ shrink: true }} sx={{ minWidth: 160 }} />
+
+            <TextField size="small" label="Data até" type="date" value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setGiraId(''); setPage(0); }}
+              InputLabelProps={{ shrink: true }} sx={{ minWidth: 160 }} />
+
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>Status do ticket</InputLabel>
+              <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }} label="Status do ticket">
+                <MenuItem value="">Todos</MenuItem>
+                <MenuItem value="emitted">Emitidos</MenuItem>
+                <MenuItem value="called">Chamados</MenuItem>
+                <MenuItem value="completed">Concluídos</MenuItem>
+                <MenuItem value="cancelled">Cancelados</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </Collapse>
+      </Paper>
+
+      {/* ── KPI strip (when gira is selected and doorStats loaded) ── */}
+      {giraId && doorStats && (
+        <Paper
+          data-tour="relatorio-kpis"
+          elevation={0}
+          sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, mb: 3, overflow: 'hidden' }}
+        >
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(4, 1fr)', md: 'repeat(8, 1fr)' },
+              '& > *': {
+                borderRight: '1px solid',
+                borderBottom: { xs: '1px solid', md: 'none' },
+                borderColor: 'divider',
+                '&:nth-of-type(4n)': { borderRight: { xs: 'none', md: '1px solid' } },
+                '&:nth-of-type(8n)': { borderRight: 'none' },
+                '&:nth-of-type(n+5)': { borderBottom: { xs: 'none', md: 'none' } },
+              },
+            }}
+          >
+            <StatPill label="Total"         value={doorStats.total}          />
+            <StatPill label="Concluídos"    value={doorStats.completed}      color="#16a34a" />
+            <StatPill label="Aguardando"    value={doorStats.awaiting}       />
+            <StatPill label="Em atend."     value={doorStats.in_progress}    />
+            <StatPill label="No-show"       value={doorStats.no_show}        color="#dc2626" />
+            <StatPill label="Walk-in"       value={doorStats.walk_in}        color="#2563eb" />
+            <StatPill label="Preferenciais" value={doorStats.preferenciais}  color="#9a3412" />
+            <StatPill label="Associados"    value={doorStats.patrocinados}   color="#92400e" />
+          </Box>
+        </Paper>
       )}
 
-      {/* Alerta de volume alto */}
-      {giraId && allTickets.length > 500 && (
-        <Alert severity="warning" sx={{ mb: 1.5 }}>
-          Esta gira tem mais de <strong>500</strong> registros. A exportação do CSV pode demorar alguns segundos.
-        </Alert>
-      )}
-
-      {/* Estado vazio */}
+      {/* ── Empty state ── */}
       {!giraId && (
-        <Box sx={{ mt: 6, textAlign: 'center', color: 'text.secondary' }}>
-          <Typography variant="body1">Selecione uma gira para visualizar o relatório.</Typography>
+        <Box sx={{ py: 8, textAlign: 'center' }}>
+          <Typography variant="body1" color="text.secondary">
+            Selecione uma gira acima para visualizar o relatório.
+          </Typography>
         </Box>
       )}
 
-      {/* Tabela */}
+      {/* ── Search filters + table ── */}
       {giraId && (
-        <TableContainer data-tour="relatorio-tabela" component={Paper} sx={{ mt: 1, overflowX: 'auto' }}>
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
+        <>
+          {/* Search filter bar */}
+          <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 2.5, mb: 2 }}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                size="small"
+                placeholder="Buscar por nome ou observações…"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRoundedIcon fontSize="small" color={searchText.length >= 3 ? 'primary' : 'disabled'} />
+                    </InputAdornment>
+                  ),
+                }}
+                helperText={searchText.length > 0 && searchText.length < 3 ? 'Digite ao menos 3 caracteres' : ''}
+                sx={{ flex: '1 1 220px', minWidth: 180 }}
+              />
+
+              <Button
+                size="small"
+                variant={searchFiltersOpen || Boolean(mediumFilter || camboneFilter || tagFilter) ? 'contained' : 'outlined'}
+                disableElevation
+                startIcon={<TuneRoundedIcon sx={{ fontSize: 16 }} />}
+                onClick={() => setSearchFiltersOpen((p) => !p)}
+              >
+                <Badge badgeContent={[mediumFilter, camboneFilter, tagFilter].filter(Boolean).length} color="error" sx={{ '& .MuiBadge-badge': { fontSize: '0.65rem', height: 16, minWidth: 16 } }}>
+                  Filtros
+                </Badge>
+              </Button>
+
+              {hasActiveSearchFilters && (
+                <>
+                  <Button size="small" variant="text" onClick={handleClearSearchFilters} sx={{ color: 'text.secondary' }}>
+                    Limpar
+                  </Button>
+                  <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+                    {filteredTickets.length} de {allTickets.length} ticket{allTickets.length !== 1 ? 's' : ''}
+                  </Typography>
+                </>
+              )}
             </Box>
-          ) : (
-            <>
-              <Table size="small" sx={{ minWidth: 650 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Senha</TableCell>
-                    <TableCell>Nome</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Tag</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Médium</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Cambone</TableCell>
-                    <TableCell>Observações</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {pagedTickets.length > 0 ? (
-                    pagedTickets.map((ticket) => {
-                      const tag = getTag(ticket);
-                      return (
-                        <TableRow key={ticket.id}>
-                          <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            #{String(ticket.numero).padStart(4, '0')}
-                          </TableCell>
-                          <TableCell>{ticket.consulente_nome || '-'}</TableCell>
-                          <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                            <Chip
-                              label={tag.label}
-                              size="small"
-                              sx={{ bgcolor: tag.bg, color: tag.color, fontWeight: 600 }}
-                            />
-                          </TableCell>
-                          <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                            {ticket.medium_nome || '-'}
-                          </TableCell>
-                          <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                            {ticket.cambone_nome || '-'}
-                          </TableCell>
-                          <TableCell sx={{ maxWidth: 240, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                            {ticket.atendimento_descricao || '-'}
+
+            <Collapse in={searchFiltersOpen}>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <FormControl size="small" sx={{ minWidth: 180 }}>
+                  <InputLabel>Médium</InputLabel>
+                  <Select value={mediumFilter} onChange={(e) => setMediumFilter(e.target.value)} label="Médium">
+                    <MenuItem value="">Todos</MenuItem>
+                    {uniqueMediums.map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
+                  </Select>
+                </FormControl>
+
+                <FormControl size="small" sx={{ minWidth: 180 }}>
+                  <InputLabel>Cambone</InputLabel>
+                  <Select value={camboneFilter} onChange={(e) => setCamboneFilter(e.target.value)} label="Cambone">
+                    <MenuItem value="">Todos</MenuItem>
+                    {uniqueCambones.map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
+                  </Select>
+                </FormControl>
+
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <InputLabel>Tag</InputLabel>
+                  <Select value={tagFilter} onChange={(e) => setTagFilter(e.target.value as TagFilter)} label="Tag">
+                    <MenuItem value="">Todas</MenuItem>
+                    <MenuItem value="Comum">Comum</MenuItem>
+                    <MenuItem value="Preferencial">Preferencial</MenuItem>
+                    <MenuItem value="Associado">Associado</MenuItem>
+                    <MenuItem value="Walk-in">Walk-in</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            </Collapse>
+          </Paper>
+
+          {allTickets.length > 500 && (
+            <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+              Esta gira tem mais de <strong>500</strong> registros — apenas os primeiros 500 são exibidos.
+            </Alert>
+          )}
+
+          {/* Table */}
+          <Paper
+            data-tour="relatorio-tabela"
+            elevation={0}
+            sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, overflow: 'hidden' }}
+          >
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <>
+                <TableContainer>
+                  <Table size="small" sx={{ minWidth: 600 }}>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.025)' }}>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', py: 1.5 }}>Senha</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Nome</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', display: { xs: 'none', sm: 'table-cell' } }}>Tag</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', display: { xs: 'none', md: 'table-cell' } }}>Médium</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', display: { xs: 'none', md: 'table-cell' } }}>Cambone</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Observações</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {pagedTickets.length > 0 ? (
+                        pagedTickets.map((ticket) => {
+                          const tag = getTag(ticket);
+                          return (
+                            <TableRow key={ticket.id} hover>
+                              <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '0.82rem' }}>
+                                #{String(ticket.numero).padStart(4, '0')}
+                              </TableCell>
+                              <TableCell sx={{ fontSize: '0.85rem' }}>{ticket.consulente_nome || '—'}</TableCell>
+                              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                                <Chip
+                                  label={tag.label}
+                                  size="small"
+                                  sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: tag.bg, color: tag.color }}
+                                />
+                              </TableCell>
+                              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, fontSize: '0.82rem', color: 'text.secondary' }}>
+                                {ticket.medium_nome || '—'}
+                              </TableCell>
+                              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, fontSize: '0.82rem', color: 'text.secondary' }}>
+                                {ticket.cambone_nome || '—'}
+                              </TableCell>
+                              <TableCell sx={{ maxWidth: 240, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.82rem', color: 'text.secondary' }}>
+                                {ticket.atendimento_descricao || '—'}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                            {hasActiveSearchFilters
+                              ? 'Nenhum ticket encontrado para os filtros aplicados.'
+                              : 'Nenhum ticket encontrado para esta gira.'}
                           </TableCell>
                         </TableRow>
-                      );
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                        {hasActiveSearchFilters
-                          ? 'Nenhum ticket encontrado para os filtros aplicados.'
-                          : 'Nenhum ticket encontrado.'}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
 
-              {filteredTickets.length > PAGE_SIZE && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-                  <Pagination
-                    count={Math.ceil(filteredTickets.length / PAGE_SIZE)}
-                    page={page + 1}
-                    onChange={(_, p) => setPage(p - 1)}
-                  />
-                </Box>
-              )}
-            </>
-          )}
-        </TableContainer>
+                {filteredTickets.length > PAGE_SIZE && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                    <Pagination
+                      count={Math.ceil(filteredTickets.length / PAGE_SIZE)}
+                      page={page + 1}
+                      onChange={(_, p) => setPage(p - 1)}
+                      size="small"
+                    />
+                  </Box>
+                )}
+              </>
+            )}
+          </Paper>
+        </>
       )}
-    </>
+    </Box>
   );
 }

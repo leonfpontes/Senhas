@@ -1,59 +1,54 @@
-/**
- * T077: Admin Analytics Page - Advanced charts, heatmaps, exports
- */
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box,
-  Grid,
-  Paper,
-  Typography,
   CircularProgress,
-  Button,
-  Select,
-  MenuItem,
+  Divider,
   FormControl,
+  Grid,
   InputLabel,
+  LinearProgress,
+  MenuItem,
+  Paper,
+  Select,
   TextField,
+  Typography,
 } from '@mui/material';
 import {
-  BarChart,
   Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
+  BarChart,
+  CartesianGrid,
   Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
 } from 'recharts';
+import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import DirectionsWalkRoundedIcon from '@mui/icons-material/DirectionsWalkRounded';
+import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
+
 import AdminLayout from './admin_layout';
-import { useSubscription } from '../../hooks/useSubscription';
-import UpgradePrompt from '../../components/UpgradePrompt';
-import { apiClient } from '../../services/api_client';
 import { KpiCard } from '@/components/admin';
+import UpgradePrompt from '../../components/UpgradePrompt';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
-import SendIcon from '@mui/icons-material/Send';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import CancelIcon from '@mui/icons-material/Cancel';
-import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
+import { useSubscription } from '../../hooks/useSubscription';
+import { apiClient } from '../../services/api_client';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Gira {
   id: string;
   nome: string;
   data_inicio: string;
-}
-
-interface CategoryBreakdown {
-  common: number;
-  sponsor: number;
-  walk_in: number;
 }
 
 interface DailyDistributionItem {
@@ -80,32 +75,51 @@ interface AnalyticsData {
   walk_in_total: number;
   daily_distribution: DailyDistributionItem[];
   peak_hours: PeakHoursItem[];
-  category_breakdown: CategoryBreakdown;
+  category_breakdown: { common: number; sponsor: number; walk_in: number };
 }
 
-interface PieLabelData {
-  name?: string;
-  value?: number;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function formatDate(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function fmtChartDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
+      {title}
+    </Typography>
+  );
+}
+
+function EmptyChart() {
+  return (
+    <Box sx={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Typography variant="body2" color="text.disabled">Sem dados no período</Typography>
+    </Box>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminAnalyticsPage() {
   return (
-    <AdminLayout title="Analytics Detalhado">
+    <AdminLayout title="Analytics">
       <AdminAnalyticsContent />
     </AdminLayout>
   );
 }
 
 function AdminAnalyticsContent() {
-  const { tokens } = useAdminTheme();
+  const { tokens, isDark } = useAdminTheme();
   const { can, loading: subLoading } = useSubscription();
+
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [giras, setGiras] = useState<Gira[]>([]);
@@ -114,135 +128,158 @@ function AdminAnalyticsContent() {
   const [dateTo, setDateTo] = useState<string>('');
   const [ready, setReady] = useState(false);
 
-  // Initialize dates on client only to avoid SSR hydration mismatch
+  // Initialise dates client-side to avoid SSR hydration mismatch
   useEffect(() => {
     const today = new Date();
-    const thirtyDaysAgo = new Date(today);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    setDateFrom(formatDate(thirtyDaysAgo));
-    setDateTo(formatDate(today));
+    const ago30 = new Date(today);
+    ago30.setDate(ago30.getDate() - 30);
+    setDateFrom(fmtDate(ago30));
+    setDateTo(fmtDate(today));
     setReady(true);
   }, []);
 
-  // Reload giras when date range changes
+  const loadGiras = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const params = new URLSearchParams({ limit: '100' });
+      if (dateFrom) params.append('date_from', dateFrom);
+      if (dateTo)   params.append('date_to', dateTo);
+      const res  = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`, { signal });
+      const list: Gira[] = Array.isArray(res.data) ? res.data : res.data.items ?? [];
+      setGiras(list);
+      if (giraId && !list.some((g) => g.id === giraId)) setGiraId('');
+    } catch { /* non-critical */ }
+  }, [dateFrom, dateTo, giraId]);
+
+  const loadAnalytics = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (dateFrom) params.append('date_from', dateFrom);
+      if (dateTo)   params.append('date_to', dateTo);
+      if (giraId)   params.append('gira_id', giraId);
+      const res = await apiClient.get(`/api/v1/admin/analytics?${params.toString()}`, { signal });
+      setAnalytics(res.data);
+    } catch { /* non-critical */ } finally { setLoading(false); }
+  }, [dateFrom, dateTo, giraId]);
+
   useEffect(() => {
     if (!ready) return;
-    const controller = new AbortController();
-    loadGiras(controller.signal);
-    return () => controller.abort();
+    const c = new AbortController();
+    loadGiras(c.signal);
+    return () => c.abort();
   }, [dateFrom, dateTo, ready]);
 
   useEffect(() => {
     if (!ready) return;
-    const controller = new AbortController();
-    loadAnalytics(controller.signal);
-    return () => controller.abort();
+    const c = new AbortController();
+    loadAnalytics(c.signal);
+    return () => c.abort();
   }, [dateFrom, dateTo, giraId, ready]);
 
-  const loadGiras = async (signal?: AbortSignal) => {
-    try {
-      const params = new URLSearchParams({ limit: '100' });
-      if (dateFrom) params.append('date_from', dateFrom);
-      if (dateTo) params.append('date_to', dateTo);
-      const response = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`, { signal });
-      const list: Gira[] = response.data;
-      setGiras(list);
-      // Reset selection if the current gira is no longer in the filtered list
-      if (giraId && !list.some((g) => g.id === giraId)) {
-        setGiraId('');
-      }
-    } catch (error: any) {
-      if (error.name === 'CanceledError' || error.name === 'AbortError') return;
-      console.error('Error loading giras:', error);
-    }
+  // Feature gate
+  if (!subLoading && !can('analytics_basico')) {
+    return <UpgradePrompt feature="Analytics" minPlan="Basic" />;
+  }
+
+  const tooltipStyle = {
+    background: tokens.tooltipBg,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 10,
+    fontSize: 12,
+    color: tokens.textPrimary,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
   };
 
-  const loadAnalytics = async (signal?: AbortSignal) => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (dateFrom) params.append('date_from', dateFrom);
-      if (dateTo) params.append('date_to', dateTo);
-      if (giraId) params.append('gira_id', giraId);
-      const response = await apiClient.get(`/api/v1/admin/analytics?${params.toString()}`, { signal });
-      setAnalytics(response.data);
-    } catch (error: any) {
-      if (error.name === 'CanceledError' || error.name === 'AbortError') return;
-      console.error('Error loading analytics:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const chartCursor = { fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' };
 
-  const COLORS = ['#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'];
-  const categoryData = analytics
-    ? [
-        { name: 'Comum', value: analytics.category_breakdown.common, color: '#8b5cf6' },
-        { name: 'Associado', value: analytics.category_breakdown.sponsor, color: '#daa520' },
-        { name: 'Walk-in', value: analytics.category_breakdown.walk_in, color: '#0ea5e9' },
-      ]
-    : [];
+  const categoryData = analytics ? [
+    { name: 'Comum',    value: analytics.category_breakdown.common,   color: '#8b5cf6' },
+    { name: 'Associado',value: analytics.category_breakdown.sponsor,  color: '#f59e0b' },
+    { name: 'Walk-in',  value: analytics.category_breakdown.walk_in,  color: '#3b82f6' },
+  ] : [];
+
+  const statusData = analytics ? [
+    { name: 'Utilizados',  value: analytics.total_used,      color: '#22c55e' },
+    { name: 'Cancelados',  value: analytics.total_cancelled, color: '#ef4444' },
+    { name: 'Pendentes',   value: Math.max(0, analytics.total_emitted - analytics.total_used - analytics.total_cancelled), color: '#94a3b8' },
+  ] : [];
+
+  const peakMax = analytics?.peak_hours[0]?.count || 1;
+
+  const dailyChartData = (analytics?.daily_distribution ?? []).map((d) => ({
+    ...d,
+    date: fmtChartDate(d.date),
+  }));
+
+  const kpis = analytics ? [
+    { label: 'Total emitido',  value: String(analytics.total_emitted),  icon: <SendRoundedIcon />,           color: '#6366f1' },
+    { label: 'Total utilizado',value: String(analytics.total_used),     icon: <CheckRoundedIcon />,          color: '#22c55e' },
+    { label: 'Taxa de uso',    value: `${analytics.usage_rate}%`,       icon: <TrendingUpRoundedIcon />,     color: '#f59e0b' },
+    { label: 'Cancelados',     value: String(analytics.total_cancelled),icon: <CancelRoundedIcon />,         color: '#ef4444' },
+    { label: 'Walk-ins',       value: String(analytics.walk_in_total),  icon: <DirectionsWalkRoundedIcon />, color: '#0ea5e9' },
+  ] : [];
 
   return (
-    <>
-      {!subLoading && !can('analytics_basico') ? (
-        <UpgradePrompt feature="Analytics" minPlan="Basic" />
-      ) : (
-      <>
-      <Box data-tour="analytics-filtros" sx={{ mb: 3, display: 'flex', gap: { xs: 1.5, sm: 2 }, flexWrap: 'wrap', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
-        <TextField
-          label="Data Início"
-          type="date"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          size="small"
-          fullWidth
-          sx={{ maxWidth: { sm: 180 } }}
-        />
-        <TextField
-          label="Data Fim"
-          type="date"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          size="small"
-          fullWidth
-          sx={{ maxWidth: { sm: 180 } }}
-        />
-        <FormControl sx={{ minWidth: { xs: '100%', sm: 200 } }} size="small">
-          <InputLabel>Gira</InputLabel>
-          <Select
-            value={giraId}
-            onChange={(e) => setGiraId(e.target.value)}
-            label="Gira"
-          >
-            <MenuItem value="">Todas as Giras</MenuItem>
-            {giras.map((g) => (
-              <MenuItem key={g.id} value={g.id}>
-                {g.nome} ({g.data_inicio ? new Date(g.data_inicio).toLocaleDateString('pt-BR') : ''})
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+    <Box>
+      {/* ── Header ── */}
+      <Box data-tour="analytics-header" sx={{ mb: 3 }}>
+        <Typography variant="h5" fontWeight={700}>Analytics</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+          Métricas de emissão, uso e distribuição por período ou gira
+        </Typography>
       </Box>
 
+      {/* ── Filtros ── */}
+      <Paper
+        data-tour="analytics-filtros"
+        elevation={0}
+        sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 2.5, mb: 3 }}
+      >
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+          <TextField
+            label="Data de"
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            size="small"
+            sx={{ minWidth: 160 }}
+          />
+          <TextField
+            label="Data até"
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            size="small"
+            sx={{ minWidth: 160 }}
+          />
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel>Gira</InputLabel>
+            <Select value={giraId} onChange={(e) => setGiraId(e.target.value)} label="Gira">
+              <MenuItem value="">Todas as giras</MenuItem>
+              {giras.map((g) => (
+                <MenuItem key={g.id} value={g.id}>
+                  {g.nome}
+                  {g.data_inicio ? ` (${new Date(g.data_inicio).toLocaleDateString('pt-BR')})` : ''}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      </Paper>
+
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
           <CircularProgress />
         </Box>
       ) : analytics ? (
-        <Grid container spacing={{ xs: 2, md: 3 }}>
-          {/* Summary Stats */}
+        <Grid container spacing={3}>
+
+          {/* ── KPIs ── */}
           <Grid data-tour="analytics-kpis" item xs={12}>
             <Grid container spacing={2}>
-              {[
-                { label: 'Total Emitido',  value: analytics.total_emitted,   icon: <SendIcon />,                color: '#6366f1' },
-                { label: 'Total Usado',    value: analytics.total_used,      icon: <CheckCircleOutlineIcon />,   color: '#22c55e' },
-                { label: 'Taxa de Uso',    value: `${analytics.usage_rate}%`, icon: <TrendingUpIcon />,          color: '#f59e0b' },
-                { label: 'Cancelados',     value: analytics.total_cancelled, icon: <CancelIcon />,               color: '#ef4444' },
-                { label: 'Walk-ins',       value: analytics.walk_in_total,   icon: <DirectionsWalkIcon />,       color: '#0ea5e9' },
-              ].map((kpi) => (
+              {kpis.map((kpi) => (
                 <Grid item xs={6} sm={4} md key={kpi.label}>
                   <KpiCard label={kpi.label} value={kpi.value} icon={kpi.icon} color={kpi.color} />
                 </Grid>
@@ -250,143 +287,148 @@ function AdminAnalyticsContent() {
             </Grid>
           </Grid>
 
-          {/* Daily Distribution Chart */}
-          <Grid data-tour="analytics-chart-line" item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Distribuição Diária
-              </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={analytics.daily_distribution}
-                  margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke={tokens.chartGrid} />
-                  <XAxis dataKey="date" tick={{ fill: tokens.chartTick, fontSize: 11 }} />
-                  <YAxis tick={{ fill: tokens.chartTick, fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: tokens.tooltipBg, border: `1px solid ${tokens.border}`, borderRadius: 8, fontSize: 12, color: tokens.textPrimary }} />
-                  <Legend />
-                  <Bar dataKey="common" stackId="tickets" fill="#8b5cf6" name="Comum" />
-                  <Bar dataKey="sponsor" stackId="tickets" fill="#daa520" name="Associado" />
-                  <Bar dataKey="walk_in" stackId="tickets" fill="#0ea5e9" name="Walk-in" />
-                </BarChart>
-              </ResponsiveContainer>
-            </Paper>
-          </Grid>
-
-          {/* Peak Hours Chart */}
-          <Grid data-tour="analytics-peak" item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Horários de Pico
-              </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart
-                  data={analytics.peak_hours}
-                  margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke={tokens.chartGrid} />
-                  <XAxis dataKey="hour" tick={{ fill: tokens.chartTick, fontSize: 11 }} />
-                  <YAxis tick={{ fill: tokens.chartTick, fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: tokens.tooltipBg, border: `1px solid ${tokens.border}`, borderRadius: 8, fontSize: 12, color: tokens.textPrimary }} />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="count"
-                    stroke="#f59e0b"
-                    name="Emissões"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </Paper>
-          </Grid>
-
-          {/* Status Distribution */}
-          <Grid data-tour="analytics-chart-pie" item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Distribuição por Categoria
-              </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value }: PieLabelData) => `${name}: ${value}`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`category-cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: tokens.tooltipBg, border: `1px solid ${tokens.border}`, borderRadius: 8, fontSize: 12, color: tokens.textPrimary }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Distribuição por Status
-              </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: 'Usado', value: analytics.total_used },
-                      { name: 'Cancelado', value: analytics.total_cancelled },
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value }: PieLabelData) => `${name}: ${value}`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {[0, 1].map((index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: tokens.tooltipBg, border: `1px solid ${tokens.border}`, borderRadius: 8, fontSize: 12, color: tokens.textPrimary }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </Paper>
-          </Grid>
-
-          {/* Trending */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Métricas de Tendência
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box>
-                  <Typography variant="caption" color="textSecondary">
-                    Moyenne de Ressena por Ticket
-                  </Typography>
-                  <Typography variant="h6">1.3x</Typography>
+          {/* ── Distribuição diária ── */}
+          <Grid data-tour="analytics-chart-line" item xs={12} lg={7}>
+            <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3 }}>
+              <SectionHeader title="Distribuição diária" />
+              {dailyChartData.length > 0 ? (
+                <Box sx={{ height: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dailyChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={tokens.chartGrid} vertical={false} />
+                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: tokens.chartTick }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: tokens.chartTick }} axisLine={false} tickLine={false} />
+                      <RechartsTooltip cursor={chartCursor} contentStyle={tooltipStyle} />
+                      <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} iconSize={10} />
+                      <Bar dataKey="common"  stackId="a" fill="#8b5cf6" name="Comum"    radius={[0,0,0,0]} maxBarSize={32} />
+                      <Bar dataKey="sponsor" stackId="a" fill="#f59e0b" name="Associado" radius={[0,0,0,0]} maxBarSize={32} />
+                      <Bar dataKey="walk_in" stackId="a" fill="#3b82f6" name="Walk-in"  radius={[4,4,0,0]} maxBarSize={32} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </Box>
-                <Box>
-                  <Typography variant="caption" color="textSecondary">
-                    Reemissões
-                  </Typography>
-                  <Typography variant="h6">
-                    {Math.round(analytics.total_emitted * 0.03)}
-                  </Typography>
-                </Box>
-              </Box>
+              ) : <EmptyChart />}
             </Paper>
           </Grid>
+
+          {/* ── Distribuição por categoria (donut) ── */}
+          <Grid data-tour="analytics-chart-pie" item xs={12} sm={6} lg={5}>
+            <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3, height: '100%' }}>
+              <SectionHeader title="Distribuição por categoria" />
+              {categoryData.some((d) => d.value > 0) ? (
+                <Box sx={{ height: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        cx="50%"
+                        cy="45%"
+                        innerRadius={60}
+                        outerRadius={95}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {categoryData.map((entry, i) => (
+                          <Cell key={i} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip contentStyle={tooltipStyle} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} iconSize={10} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Box>
+              ) : <EmptyChart />}
+            </Paper>
+          </Grid>
+
+          {/* ── Horários de pico ── */}
+          <Grid data-tour="analytics-peak" item xs={12} sm={6} lg={5}>
+            <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3 }}>
+              <SectionHeader title="Horários de pico" />
+              {analytics.peak_hours.length > 0 ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                  {analytics.peak_hours.map((ph) => {
+                    const pct = (ph.count / peakMax) * 100;
+                    return (
+                      <Box key={ph.hour} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Typography variant="caption" fontWeight={600} sx={{ width: 32, flexShrink: 0, fontFamily: 'monospace', color: 'text.secondary' }}>
+                          {String(ph.hour).padStart(2, '0')}h
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={pct}
+                          sx={{
+                            flex: 1,
+                            height: 8,
+                            borderRadius: 4,
+                            bgcolor: '#f59e0b20',
+                            '& .MuiLinearProgress-bar': { borderRadius: 4, bgcolor: '#f59e0b' },
+                          }}
+                        />
+                        <Typography variant="caption" color="text.secondary" sx={{ width: 44, flexShrink: 0, textAlign: 'right' }}>
+                          {ph.count} emis.
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              ) : <EmptyChart />}
+            </Paper>
+          </Grid>
+
+          {/* ── Status dos tickets (donut) ── */}
+          <Grid item xs={12} sm={6} lg={4}>
+            <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3, height: '100%' }}>
+              <SectionHeader title="Status dos tickets" />
+              {statusData.some((d) => d.value > 0) ? (
+                <Box sx={{ height: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusData}
+                        cx="50%"
+                        cy="45%"
+                        innerRadius={60}
+                        outerRadius={95}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {statusData.map((entry, i) => (
+                          <Cell key={i} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip contentStyle={tooltipStyle} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} iconSize={10} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Box>
+              ) : <EmptyChart />}
+            </Paper>
+          </Grid>
+
+          {/* ── Evolução de uso (line) ── */}
+          <Grid item xs={12} lg={7}>
+            <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3 }}>
+              <SectionHeader title="Evolução de uso no período" />
+              {dailyChartData.length > 0 ? (
+                <Box sx={{ height: 220 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={dailyChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={tokens.chartGrid} vertical={false} />
+                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: tokens.chartTick }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: tokens.chartTick }} axisLine={false} tickLine={false} />
+                      <RechartsTooltip cursor={chartCursor} contentStyle={tooltipStyle} />
+                      <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconSize={10} />
+                      <Line type="monotone" dataKey="total"     stroke="#6366f1" name="Emitidos"  dot={false} strokeWidth={2} />
+                      <Line type="monotone" dataKey="completed" stroke="#22c55e" name="Concluídos" dot={false} strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
+              ) : <EmptyChart />}
+            </Paper>
+          </Grid>
+
         </Grid>
       ) : null}
-      </>
-      )}
-    </>
+    </Box>
   );
 }
