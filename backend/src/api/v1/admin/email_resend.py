@@ -24,6 +24,7 @@ from src.services.email.templates.ticket_emission import (
     generate_plain_text_fallback,
 )
 from src.api.dependencies import get_current_user
+from src.core.tz import APP_TZ
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-email"])
@@ -202,7 +203,7 @@ async def resend_ticket_email(
 
     gira_name = gira.nome if gira else ""
     gira_date_str = (
-        gira.data_inicio.strftime("%d/%m/%Y às %H:%M") if gira and gira.data_inicio else ""
+        gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if gira and gira.data_inicio else ""
     )
     gira_location = (gira.local or "") if gira else ""
     tenant_name = tenant.name if tenant else ""
