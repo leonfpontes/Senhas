@@ -31,6 +31,7 @@ class PlanFeatures(BaseModel):
     mensalidade_mediun: bool = False
     mensalidade_associado: bool = False
     site_builder: bool = False
+    contas_financeiras: bool = False
 
 
 def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
@@ -59,4 +60,5 @@ def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
         mensalidade_mediun=tier >= 3,
         mensalidade_associado=tier >= 2,
         site_builder=tier >= 2,
+        contas_financeiras=tier >= 2,
     )

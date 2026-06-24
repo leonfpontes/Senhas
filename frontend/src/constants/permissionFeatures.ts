@@ -11,7 +11,8 @@ export type PermissionFeature =
   | 'configuracoes'
   | 'auditoria'
   | 'analytics'
-  | 'relatorio_gira';
+  | 'relatorio_gira'
+  | 'contas_financeiras';
 
 export interface FeatureMeta {
   label: string;
@@ -32,4 +33,5 @@ export const FEATURE_LABELS: Record<PermissionFeature, FeatureMeta> = {
   auditoria: { label: 'Auditoria', group: 'Administração' },
   analytics: { label: 'Analytics', group: 'Relatórios' },
   relatorio_gira: { label: 'Relatório de Gira', group: 'Relatórios' },
+  contas_financeiras: { label: 'Contas a Pagar / Receber', group: 'Financeiro' },
 };

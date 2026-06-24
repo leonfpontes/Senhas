@@ -18,6 +18,7 @@ export interface PlanFeatures {
   mensalidade_mediun: boolean;
   mensalidade_associado: boolean;
   estoque_controle: boolean;
+  contas_financeiras: boolean;
   mediuns: boolean;
   relatorio_gira: boolean;
   site_builder: boolean;
@@ -70,6 +71,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   mensalidade_mediun: false,
   mensalidade_associado: false,
   estoque_controle: false,
+  contas_financeiras: false,
   mediuns: false,
   relatorio_gira: false,
   site_builder: false,

@@ -33,6 +33,7 @@ class PermissionFeature(str, enum.Enum):
     RELATORIO_GIRA = "relatorio_gira"
     CURSOS_PRESENCIAIS = "cursos_presenciais"
     PORTA = "porta"
+    CONTAS_FINANCEIRAS = "contas_financeiras"
 
 
 class PermissionGroup(SoftDeleteModel):

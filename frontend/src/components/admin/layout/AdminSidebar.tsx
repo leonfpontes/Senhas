@@ -35,6 +35,9 @@ import LockOutlinedIcon    from '@mui/icons-material/LockOutlined';
 import LanguageIcon        from '@mui/icons-material/Language';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import PaymentsIcon        from '@mui/icons-material/Payments';
+import ArrowUpwardIcon     from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon   from '@mui/icons-material/ArrowDownward';
+import AccountBalanceIcon  from '@mui/icons-material/AccountBalance';
 import { useRouter }        from 'next/router';
 import { useSubscription }  from '@/hooks/useSubscription';
 import { usePermissions }   from '@/hooks/usePermissions';
@@ -102,13 +105,21 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         ]
       : [];
 
-  const financeiroItems: NavGroupItem[] =
-    !isOperator && (can('mensalidade_mediun') || can('mensalidade_associado'))
-      ? [
-          { text: 'Mensalidades', icon: <PaymentsIcon />,            href: '/admin/financeiro/mensalidades' },
-          { text: 'Configuração', icon: <AccountBalanceWalletIcon />, href: '/admin/financeiro/config' },
-        ]
-      : [];
+  const financeiroItems: NavGroupItem[] = (() => {
+    const items: NavGroupItem[] = [];
+    if (!isOperator && (can('mensalidade_mediun') || can('mensalidade_associado'))) {
+      items.push({ text: 'Mensalidades', icon: <PaymentsIcon />, href: '/admin/financeiro/mensalidades' });
+    }
+    if (can('contas_financeiras') && hasGroupView('contas_financeiras')) {
+      items.push({ text: 'Contas a Pagar',   icon: <ArrowUpwardIcon />,   href: '/admin/financeiro/contas-pagar' });
+      items.push({ text: 'Contas a Receber', icon: <ArrowDownwardIcon />, href: '/admin/financeiro/contas-receber' });
+      items.push({ text: 'Fluxo de Caixa',   icon: <AccountBalanceIcon />, href: '/admin/financeiro/fluxo-de-caixa' });
+    }
+    if (!isOperator && (can('mensalidade_mediun') || can('mensalidade_associado') || can('contas_financeiras'))) {
+      items.push({ text: 'Configuração', icon: <AccountBalanceWalletIcon />, href: '/admin/financeiro/config' });
+    }
+    return items;
+  })();
 
   const relatoriosItems: NavGroupItem[] = [
     ...(can('analytics_basico') && hasGroupView('analytics')

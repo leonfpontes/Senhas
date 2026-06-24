@@ -323,6 +323,7 @@ Thank you to:
 
 | Version | Release Date | Status | Notes |
 |---------|--------------|--------|-------|
+| 1.1.0 | 2026-06-24 | Production Ready | Módulo Financeiro (Contas a Pagar/Receber + Fluxo de Caixa) |
 | 1.0.0 | 2026-03-05 | Production Ready | MVP release |
 
 ---
@@ -330,4 +331,102 @@ Thank you to:
 **Thank you for using Senhas! 🎉**
 
 For questions or feedback, please reach out to our team.
+
+---
+
+# GiraHub v1.1.0 — Módulo Financeiro
+
+**Release Date**: 2026-06-24
+**Status**: Production Ready
+
+---
+
+## Novidades
+
+### Contas a Pagar (`/admin/financeiro/contas-pagar`)
+
+Controle completo de despesas do terreiro com visão mensal.
+
+- Lançamento de contas com descrição, valor, vencimento, categoria e conta bancária
+- Filtros de **Mês + Ano** (visão mensal), Status e Categoria
+- Dar baixa (marcar como pago) com data e valor efetivos
+- KPIs do mês: **A Pagar**, **Vencido**, **Pago este mês**
+- Gráfico de situação atual (BarChart por status)
+- Gráfico de tendência mensal (AreaChart dos últimos meses)
+- Recorrência: única, mensal ou anual
+- Soft-delete com confirmação
+
+### Contas a Receber (`/admin/financeiro/contas-receber`)
+
+Controle de receitas com mesma usabilidade de Contas a Pagar.
+
+- Mesmas funcionalidades de lançamento, filtros e baixa
+- KPIs do mês: **A Receber**, **Vencido**, **Recebido este mês**
+- Registrar Recebimento com data e valor efetivos
+
+### Fluxo de Caixa (`/admin/financeiro/fluxo-de-caixa`)
+
+Visão consolidada da saúde financeira do terreiro.
+
+- Seletor de período: 3, 6, 12 ou 24 meses
+- KPIs: Saldo Acumulado, Total Recebido, Total Pago, Projeção Líquida
+- BarChart agrupado: Recebido vs Pago por mês
+- AreaChart de saldo acumulado (verde/vermelho dinâmico com linha de referência em zero)
+- BarChart de projeção (pendentes: A Receber vs A Pagar)
+- Tabela detalhada com saldo do mês colorido e chip "atual" no mês corrente
+
+### Categorias Financeiras
+
+- Categorias separadas por tipo (pagar / receber / ambos)
+- Cor customizável por categoria
+- 10 categorias de despesa + 7 categorias de receita criadas por padrão no seed
+
+### Contas Bancárias
+
+- Cadastro de contas bancárias por tenant
+- Associação de lançamentos e baixas a contas específicas
+
+---
+
+## Planos e Permissões
+
+| Funcionalidade | FREE | BASIC | PRO | PREMIUM |
+|----------------|------|-------|-----|---------|
+| Contas a Pagar/Receber | — | — | ✓ | ✓ |
+| Fluxo de Caixa | — | — | ✓ | ✓ |
+
+### RBAC
+
+A feature `contas_financeiras` foi adicionada ao sistema de permissões por grupo:
+
+- **can_view** — visualizar lançamentos, KPIs e gráficos
+- **can_insert** — criar novos lançamentos
+- **can_edit** — editar lançamentos e registrar baixas
+- **can_delete** — excluir lançamentos (soft-delete)
+
+---
+
+## Arquivos novos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `backend/src/models/contas_financeiras.py` | ORM: `ContaFinanceira`, `CategoriaFinanceira`, `ContaBancaria` |
+| `backend/src/api/v1/admin/contas_financeiras.py` | 14 endpoints REST + fluxo de caixa |
+| `backend/alembic/versions/041_contas_financeiras.py` | Migration: 3 tabelas + enum `contas_financeiras` |
+| `frontend/src/pages/admin/financeiro/contas-pagar.tsx` | Página Contas a Pagar |
+| `frontend/src/pages/admin/financeiro/contas-receber.tsx` | Página Contas a Receber |
+| `frontend/src/pages/admin/financeiro/fluxo-de-caixa.tsx` | Página Fluxo de Caixa |
+| `seed_contas_financeiras.py` | Seed de dev: categorias, contas bancárias e 97 lançamentos por tenant |
+
+## Arquivos modificados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `backend/src/models/__init__.py` | Export dos novos models |
+| `backend/src/models/permission_groups.py` | `CONTAS_FINANCEIRAS` no enum `PermissionFeature` |
+| `backend/src/services/plan_features.py` | `contas_financeiras: tier >= 2` (PRO+) |
+| `backend/src/api/v1/admin/__init__.py` | Registro do router financeiro |
+| `frontend/src/constants/permissionFeatures.ts` | Tipo e label da feature |
+| `frontend/src/hooks/useSubscription.tsx` | Campo `contas_financeiras` em `PlanFeatures` |
+| `frontend/src/components/admin/layout/AdminSidebar.tsx` | Itens Contas a Pagar, Contas a Receber e Fluxo de Caixa no grupo Financeiro |
 
