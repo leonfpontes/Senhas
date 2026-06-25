@@ -113,6 +113,7 @@ class ContaFinanceira(SoftDeleteModel):
     recorrencia: Mapped[str | None] = mapped_column(String(20), nullable=True)
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
     comprovante_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    external_ref: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     criado_por: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

@@ -28,7 +28,7 @@ export const FEATURE_LABELS: Record<PermissionFeature, FeatureMeta> = {
   usuarios: { label: 'Usuários', group: 'Cadastros' },
   cursos_presenciais: { label: 'Cursos Presenciais', group: 'Cadastros' },
   estoque: { label: 'Estoque', group: 'Operacional' },
-  financeiro: { label: 'Financeiro', group: 'Financeiro' },
+  financeiro: { label: 'Mensalidades', group: 'Financeiro' },
   configuracoes: { label: 'Configurações', group: 'Administração' },
   auditoria: { label: 'Auditoria', group: 'Administração' },
   analytics: { label: 'Analytics', group: 'Relatórios' },

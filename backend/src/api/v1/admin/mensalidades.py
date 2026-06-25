@@ -459,6 +459,26 @@ async def registrar_pagamento(
         resource_id=pag.id,
         new_state={"mediun_id": str(mediun_id), "mes": mes, "status": parsed_status.value},
     )
+
+    # Sync to contas_financeiras
+    from src.services.mensalidade_contas_service import sync_pagamento as _sync_pag
+    try:
+        await _sync_pag(
+            db=db,
+            tenant_id=current_user.tenant_id,
+            tipo_pessoa="mediun",
+            pessoa_id=mediun_id,
+            pessoa_nome=mediun.nome,
+            mes_date=mes_date,
+            status_mensalidade=parsed_status.value,
+            valor=valor_vigente,
+            data_pagamento=parsed_data_pag,
+            dia_vencimento=config.dia_vencimento if config else 10,
+            criado_por=current_user.id,
+        )
+    except Exception:
+        logger.exception("Falha ao sincronizar mensalidade com contas_financeiras (médium %s)", mediun_id)
+
     await db.commit()
     return {"id": str(pag.id), "status": pag.status.value}
 
@@ -885,13 +905,20 @@ async def registrar_associado_pagamento(
 
     from decimal import Decimal
     repo = AssociadoMensalidadeRepository(db)
+
+    # Fetch config for valor_mensal_associado and dia_vencimento_associado
+    mens_repo = MensalidadeRepository(db)
+    assoc_config = await mens_repo.get_config(current_user.tenant_id)
+    valor_vigente_assoc = assoc_config.valor_mensal_associado if assoc_config else Decimal("0")
+    dia_venc_assoc = assoc_config.dia_vencimento_associado if assoc_config else 10
+
     pag = await repo.registrar_pagamento(
         tenant_id=current_user.tenant_id,
         associado_id=associado_id,
         mes_referencia=mes_date,
         status=status_enum,
         registrado_por=current_user.id,
-        valor_vigente=None,
+        valor_vigente=valor_vigente_assoc,
         valor_pago=Decimal(str(valor_pago)) if valor_pago is not None else None,
         data_pagamento=parsed_data_pag,
         observacao=observacao,
@@ -899,6 +926,26 @@ async def registrar_associado_pagamento(
         comprovante_filename=comprovante_filename,
         comprovante_mime=comprovante_mime,
     )
+
+    # Sync to contas_financeiras
+    from src.services.mensalidade_contas_service import sync_pagamento as _sync_pag_assoc
+    try:
+        await _sync_pag_assoc(
+            db=db,
+            tenant_id=current_user.tenant_id,
+            tipo_pessoa="associado",
+            pessoa_id=associado_id,
+            pessoa_nome=assoc.nome,
+            mes_date=mes_date,
+            status_mensalidade=status_enum.value,
+            valor=valor_vigente_assoc,
+            data_pagamento=parsed_data_pag,
+            dia_vencimento=dia_venc_assoc,
+            criado_por=current_user.id,
+        )
+    except Exception:
+        logger.exception("Falha ao sincronizar mensalidade com contas_financeiras (associado %s)", associado_id)
+
     await db.commit()
 
     return AssociadoMensalidadeItemResponse(

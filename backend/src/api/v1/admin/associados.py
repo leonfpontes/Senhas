@@ -81,6 +81,32 @@ async def create_associado(
         details={"nome": data.nome, "email": data.email},
     )
 
+    # Create pending conta a receber for next month if associado mensalidade is configured
+    try:
+        from src.repositories.mensalidade_repo import MensalidadeRepository
+        from src.repositories.config_repo import TenantConfigRepository
+        from src.services.mensalidade_contas_service import criar_conta_proxima_mensalidade
+        from decimal import Decimal
+        cfg_repo = TenantConfigRepository(db)
+        tc = await cfg_repo.get_by_tenant(current_user.tenant_id)
+        if tc and tc.enable_mensalidade_associado:
+            mens_repo = MensalidadeRepository(db)
+            config = await mens_repo.get_config(current_user.tenant_id)
+            if config and config.valor_mensal_associado > 0:
+                await criar_conta_proxima_mensalidade(
+                    db=db,
+                    tenant_id=current_user.tenant_id,
+                    tipo_pessoa="associado",
+                    pessoa_id=associado.id,
+                    pessoa_nome=associado.nome,
+                    valor=config.valor_mensal_associado,
+                    dia_vencimento=config.dia_vencimento_associado,
+                    criado_por=current_user.id,
+                )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Falha ao criar conta a receber para associado %s", associado.id)
+
     await db.commit()
     await db.refresh(associado)
     return AssociadoResponse.model_validate(associado)

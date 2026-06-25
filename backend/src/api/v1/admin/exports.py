@@ -10,15 +10,15 @@ import io
 import logging
 
 from src.core.database import get_db
-from src.models import User, Ticket
-from src.api.dependencies import get_current_user
+from src.models import User, Ticket, PermissionFeature
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-exports"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/giras/{gira_id}/export-csv")
+@router.get("/giras/{gira_id}/export-csv", dependencies=[Depends(require_group_permission(PermissionFeature.RELATORIO_GIRA, "view"))])
 async def export_tickets_csv(
     gira_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),

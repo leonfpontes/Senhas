@@ -95,6 +95,18 @@ class ContaBancariaCreate(BaseModel):
     saldo_inicial: float = 0.0
 
 
+class CategoriaUpdate(BaseModel):
+    nome: Optional[str] = Field(None, min_length=1, max_length=100)
+    tipo: Optional[str] = Field(None, pattern="^(pagar|receber|ambos)$")
+    cor: Optional[str] = Field(None, pattern="^#[0-9a-fA-F]{6}$")
+
+
+class ContaBancariaUpdate(BaseModel):
+    nome: Optional[str] = Field(None, min_length=1, max_length=100)
+    banco: Optional[str] = Field(None, max_length=100)
+    saldo_inicial: Optional[float] = None
+
+
 class ContaFinanceiraOut(BaseModel):
     id: UUID
     tipo: str
@@ -246,6 +258,34 @@ async def create_categoria(
     return cat
 
 
+@router.put(
+    "/categorias/{categoria_id}",
+    response_model=CategoriaOut,
+    dependencies=[Depends(require_group_permission(PermissionFeature.CONTAS_FINANCEIRAS, "edit"))],
+)
+async def update_categoria(
+    categoria_id: UUID,
+    body: CategoriaUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _require_pro_or_premium(current_user, db)
+    stmt = select(CategoriaFinanceira).where(
+        CategoriaFinanceira.id == categoria_id,
+        CategoriaFinanceira.tenant_id == current_user.tenant_id,
+        CategoriaFinanceira.deleted_at.is_(None),
+    )
+    result = await db.execute(stmt)
+    cat = result.scalar_one_or_none()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoria não encontrada.")
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(cat, field, value)
+    await db.flush()
+    await db.refresh(cat)
+    return cat
+
+
 @router.delete(
     "/categorias/{categoria_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -315,6 +355,34 @@ async def create_conta_bancaria(
         saldo_inicial=body.saldo_inicial,
     )
     db.add(conta)
+    await db.flush()
+    await db.refresh(conta)
+    return conta
+
+
+@router.put(
+    "/contas-bancarias/{conta_id}",
+    response_model=ContaBancariaOut,
+    dependencies=[Depends(require_group_permission(PermissionFeature.CONTAS_FINANCEIRAS, "edit"))],
+)
+async def update_conta_bancaria(
+    conta_id: UUID,
+    body: ContaBancariaUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _require_pro_or_premium(current_user, db)
+    stmt = select(ContaBancaria).where(
+        ContaBancaria.id == conta_id,
+        ContaBancaria.tenant_id == current_user.tenant_id,
+        ContaBancaria.deleted_at.is_(None),
+    )
+    result = await db.execute(stmt)
+    conta = result.scalar_one_or_none()
+    if not conta:
+        raise HTTPException(status_code=404, detail="Conta bancária não encontrada.")
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(conta, field, value)
     await db.flush()
     await db.refresh(conta)
     return conta
@@ -503,12 +571,11 @@ async def create_conta(
     conta = result.scalar_one()
 
     audit = AuditService(db)
-    await audit.log(
+    await audit.log_create(
         tenant_id=current_user.tenant_id,
         user_id=current_user.id,
-        action="create",
         resource_type=f"conta_{body.tipo}",
-        resource_id=str(conta.id),
+        resource_id=conta.id,
         details={"descricao": conta.descricao, "valor": float(conta.valor)},
     )
     return _conta_to_out(conta)
@@ -607,13 +674,12 @@ async def delete_conta(
     await db.flush()
 
     audit = AuditService(db)
-    await audit.log(
+    await audit.log_delete(
         tenant_id=current_user.tenant_id,
         user_id=current_user.id,
-        action="delete",
         resource_type=f"conta_{conta.tipo}",
-        resource_id=str(conta_id),
-        details={"descricao": conta.descricao},
+        resource_id=conta_id,
+        previous_state={"descricao": conta.descricao},
     )
 
 
@@ -668,13 +734,12 @@ async def dar_baixa(
     conta = result2.scalar_one()
 
     audit = AuditService(db)
-    await audit.log(
+    await audit.log_update(
         tenant_id=current_user.tenant_id,
         user_id=current_user.id,
-        action="update",
         resource_type=f"conta_{conta.tipo}",
-        resource_id=str(conta_id),
-        details={"acao": "baixa", "valor_pago": body.valor_pago, "data_pagamento": str(body.data_pagamento)},
+        resource_id=conta_id,
+        new_state={"acao": "baixa", "valor_pago": body.valor_pago, "data_pagamento": str(body.data_pagamento)},
     )
     return _conta_to_out(conta)
 
@@ -690,25 +755,42 @@ _MES_LABELS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov"
     dependencies=[Depends(require_group_permission(PermissionFeature.CONTAS_FINANCEIRAS, "view"))],
 )
 async def get_fluxo_de_caixa(
-    meses: int = Query(12, ge=1, le=24, description="Quantos meses incluir (passados + atual)"),
+    meses: int = Query(None, ge=1, le=60, description="Quantos meses incluir (legado)"),
+    data_inicio: Optional[date] = Query(None, description="Primeiro dia do intervalo (YYYY-MM-DD)"),
+    data_fim: Optional[date] = Query(None, description="Último dia do intervalo (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Retorna o fluxo de caixa mensal: receitas realizadas, despesas realizadas,
-    projeção de a receber / a pagar, saldo e saldo acumulado."""
+    projeção de a receber / a pagar, saldo e saldo acumulado.
+
+    Aceita data_inicio + data_fim (date range) ou meses (legado, padrão 12)."""
     import calendar
     await _require_pro_or_premium(current_user, db)
     tenant_id = current_user.tenant_id
     today = date.today()
 
-    # Build list of (ano, mes) for the window: (meses-1) past months + current
+    # Build list of (ano, mes) from date range or legacy meses param
     periods: list[tuple[int, int]] = []
-    for delta in range(meses - 1, -1, -1):
-        # go back `delta` months
-        total_months = today.year * 12 + today.month - 1 - delta
-        y = total_months // 12
-        m = total_months % 12 + 1
-        periods.append((y, m))
+    if data_inicio and data_fim:
+        if data_fim < data_inicio:
+            raise HTTPException(status_code=422, detail="data_fim deve ser >= data_inicio.")
+        cur = date(data_inicio.year, data_inicio.month, 1)
+        end = date(data_fim.year, data_fim.month, 1)
+        while cur <= end:
+            periods.append((cur.year, cur.month))
+            # advance one month
+            if cur.month == 12:
+                cur = date(cur.year + 1, 1, 1)
+            else:
+                cur = date(cur.year, cur.month + 1, 1)
+    else:
+        n = meses if meses is not None else 12
+        for delta in range(n - 1, -1, -1):
+            total_months = today.year * 12 + today.month - 1 - delta
+            y = total_months // 12
+            m = total_months % 12 + 1
+            periods.append((y, m))
 
     # Fetch all relevant contas once (avoid N queries)
     first_period = date(periods[0][0], periods[0][1], 1)

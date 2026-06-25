@@ -213,6 +213,29 @@ async def create_medium(
         resource_id=medium.id,
         details={"nome": medium.nome, "is_atendimento": medium.is_atendimento},
     )
+
+    # Create pending conta a receber for next month if mensalidade is configured
+    try:
+        from src.repositories.mensalidade_repo import MensalidadeRepository
+        from src.services.mensalidade_contas_service import criar_conta_proxima_mensalidade
+        from decimal import Decimal
+        mens_repo = MensalidadeRepository(db)
+        config = await mens_repo.get_config(current_user.tenant_id)
+        if config and config.valor_mensal > 0:
+            await criar_conta_proxima_mensalidade(
+                db=db,
+                tenant_id=current_user.tenant_id,
+                tipo_pessoa="mediun",
+                pessoa_id=medium.id,
+                pessoa_nome=medium.nome,
+                valor=config.valor_mensal,
+                dia_vencimento=config.dia_vencimento,
+                criado_por=current_user.id,
+            )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Falha ao criar conta a receber para médium %s", medium.id)
+
     await db.commit()
     return medium
 

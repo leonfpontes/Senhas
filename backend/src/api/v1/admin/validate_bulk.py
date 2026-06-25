@@ -7,9 +7,9 @@ from uuid import UUID
 import logging
 
 from src.core.database import get_db
-from src.models import User
+from src.models import User, PermissionFeature
 from src.repositories.senha_control_repo_extended import SenhaControlRepositoryExtended
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import InsufficientPermissionsError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-bulk"])
@@ -30,7 +30,7 @@ class ValidateBulkResponse(BaseModel):
     warnings: List[str]
 
 
-@router.post("/validate-bulk", response_model=ValidateBulkResponse)
+@router.post("/validate-bulk", response_model=ValidateBulkResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "view"))])
 async def validate_bulk_operation(
     request: ValidateBulkRequest,
     current_user: User = Depends(get_current_user),

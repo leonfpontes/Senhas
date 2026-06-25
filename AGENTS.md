@@ -1,6 +1,6 @@
 # AGENTS.md - Guia Operacional para Agentes de IA
 
-Last Updated: 2026-03-19
+Last Updated: 2026-06-25
 Project: Senhas - Multi-Tenant SaaS Password Management
 Repository: leonfpontes/Senhas
 Default Branch: master
@@ -53,6 +53,90 @@ Regra critica:
 - Roles principais: SUPER_ADMIN, ADMIN, OPERATOR.
 - Endpoints admin so para escopo do tenant atual.
 - Endpoints platform so para super admin (escopo global).
+
+### 3.3 Grupos de Permissao — OBRIGATORIO em toda funcionalidade
+
+O sistema implementa RBAC fino via `PermissionGroup` / `GroupPermission`. Todo endpoint admin e toda
+tela admin DEVEM respeitar esse sistema. Ignorar esse requisito e considerado um bug critico de seguranca.
+
+#### Backend — todo novo endpoint admin precisa de:
+
+```python
+from src.models import PermissionFeature
+from src.api.dependencies import require_group_permission
+
+@router.get("/recurso", dependencies=[Depends(require_group_permission(PermissionFeature.FEATURE, "view"))])
+@router.post("/recurso", dependencies=[Depends(require_group_permission(PermissionFeature.FEATURE, "insert"))])
+@router.put("/recurso/{id}", dependencies=[Depends(require_group_permission(PermissionFeature.FEATURE, "edit"))])
+@router.delete("/recurso/{id}", dependencies=[Depends(require_group_permission(PermissionFeature.FEATURE, "delete"))])
+```
+
+Acoes mapeadas por tipo de endpoint:
+- GET (listagem/detalhe) → "view"
+- POST (criar/registrar) → "insert"
+- PUT/PATCH (atualizar) → "edit"
+- DELETE (remover) → "delete"
+
+Rotas existentes e suas features:
+- Giras, Porta (door_control) → `PermissionFeature.GIRAS` / `PermissionFeature.PORTA`
+- Tickets, tickets_bulk, validate_bulk, email_resend → `PermissionFeature.TICKETS`
+- Mediuns → `PermissionFeature.MEDIUNS`
+- Associados → `PermissionFeature.ASSOCIADOS`
+- Usuarios → `PermissionFeature.USUARIOS`
+- Estoque → `PermissionFeature.ESTOQUE`
+- Mensalidades (financeiro/config/resumo/relatorio) → `PermissionFeature.FINANCEIRO`
+- Contas a Pagar/Receber, Fluxo de Caixa, Config Financeira → `PermissionFeature.CONTAS_FINANCEIRAS`
+- Configuracoes do Tenant → `PermissionFeature.CONFIGURACOES`
+- Auditoria → `PermissionFeature.AUDITORIA`
+- Analytics → `PermissionFeature.ANALYTICS`
+- Relatorio de Gira / exports CSV → `PermissionFeature.RELATORIO_GIRA`
+- Cursos Presenciais / Sites → `PermissionFeature.CURSOS_PRESENCIAIS`
+
+Para nova feature sem equivalente existente:
+1. Adicionar valor ao enum `PermissionFeature` em `backend/src/models/permission_groups.py`.
+2. Criar migracao Alembic para adicionar o valor ao tipo ENUM no banco (`ALTER TYPE ... ADD VALUE`).
+3. Adicionar entrada em `frontend/src/constants/permissionFeatures.ts` (type union + FEATURE_LABELS com label e group).
+4. Mapear no `permission_service.py` se a feature requer restricao de plano.
+
+#### Frontend — toda nova tela admin precisa de:
+
+```tsx
+import { usePermissions } from '@/hooks/usePermissions';
+import { useSubscription } from '@/hooks/useSubscription';
+
+const { can: canGroup } = usePermissions();    // grupo de permissao (RBAC)
+const { can } = useSubscription();             // feature flag de plano
+
+// Gate de plano (se a feature tiver restricao de plano)
+if (!can('nome_da_feature_no_plano')) {
+  return <UpgradePrompt ... />;
+}
+
+// Gate de grupo de permissao (OBRIGATORIO)
+if (!canGroup('feature_enum_value', 'view')) {
+  return <Alert severity="warning">Sem permissao para visualizar.</Alert>;
+}
+
+// Guard de acoes destrutivas/escrita
+const canInsert = canGroup('feature_enum_value', 'insert');
+const canEdit   = canGroup('feature_enum_value', 'edit');
+const canDelete = canGroup('feature_enum_value', 'delete');
+```
+
+Regras de UI:
+- Botoes de criar/editar/excluir devem ser ocultados (nao apenas desabilitados) quando sem permissao.
+- Fetchers que chamam endpoints protegidos devem checar `canGroup` antes do request.
+- A coluna de acoes em tabelas deve ser omitida quando `canInsert && canEdit && canDelete` sao todos false.
+
+#### Checklist especifico para grupos de permissao
+
+Ao criar ou modificar qualquer funcionalidade:
+- [ ] Backend: todos os endpoints novos tem `require_group_permission` com feature e acao corretos.
+- [ ] Backend: feature existente ou nova foi criada no enum `PermissionFeature`.
+- [ ] Frontend: hook `usePermissions` importado e `canGroup` checado antes de fetch e render de acoes.
+- [ ] Frontend: tela exibe mensagem de "sem permissao" (nao erro 403) quando grupo nao autoriza view.
+- [ ] Frontend: `permissionFeatures.ts` atualizado se nova feature foi criada (label + group).
+- [ ] Rotas de sistema (health, billing, subscription_info, permission_groups) sao excecao — nao precisam de guard de grupo.
 
 ### 3.3 Integridade de emissao de senha
 
@@ -178,6 +262,9 @@ Antes de abrir PR, confirme:
 - [ ] Docs atualizadas (API, comportamento ou operacao).
 - [ ] Frontend funciona em desktop/mobile para a funcionalidade alterada.
 - [ ] Logs/erros sem vazamento de dados sensiveis.
+- [ ] **Grupos de permissao**: todos os novos endpoints tem `require_group_permission` com feature e acao corretos (ver secao 3.3).
+- [ ] **Grupos de permissao**: frontend usa `canGroup` para bloquear a tela (view) e ocultar acoes (insert/edit/delete).
+- [ ] **Grupos de permissao**: se feature nova, enum atualizado no backend e `permissionFeatures.ts` atualizado no frontend.
 
 ---
 
@@ -398,3 +485,6 @@ Descricao:
 - [ ] Migracoes criadas (quando necessario)
 - [ ] Testes relevantes passando
 - [ ] Docs atualizadas (quando necessario)
+- [ ] Grupos de permissao: backend com `require_group_permission` em todos os endpoints novos/alterados
+- [ ] Grupos de permissao: frontend com `canGroup` bloqueando view e ocultando acoes sem permissao
+- [ ] Grupos de permissao: nova feature adicionada ao enum e ao `permissionFeatures.ts` (se aplicavel)

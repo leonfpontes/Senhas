@@ -62,6 +62,7 @@ import UpgradePrompt from '../../../components/UpgradePrompt';
 import { NumericFormat } from 'react-number-format';
 import { apiClient } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,6 +146,7 @@ function mesLabel(yyyymm: string): string {
 
 export default function MensalidadesPage() {
   const { can, subscription } = useSubscription();
+  const { can: canGroup } = usePermissions();
 
   const today = new Date();
   const [mes, setMes] = useState<string>(toYYYYMM(today));
@@ -190,7 +192,7 @@ export default function MensalidadesPage() {
   }, []);
 
   const fetchItems = useCallback(async () => {
-    if (!can('mensalidade_mediun')) return;
+    if (!can('mensalidade_mediun') || !canGroup('financeiro', 'view')) return;
     setLoading(true);
     try {
       const res = await apiClient.get(`/api/v1/admin/financeiro/mensalidades?mes=${mes}`);
@@ -200,9 +202,10 @@ export default function MensalidadesPage() {
     } finally {
       setLoading(false);
     }
-  }, [mes, can]);
+  }, [mes, can, canGroup]);
 
   const fetchAssocItems = useCallback(async () => {
+    if (!canGroup('financeiro', 'view')) return;
     setLoadingAssoc(true);
     try {
       const res = await apiClient.get(`/api/v1/admin/financeiro/associados?mes=${mes}`);
@@ -212,10 +215,10 @@ export default function MensalidadesPage() {
     } finally {
       setLoadingAssoc(false);
     }
-  }, [mes]);
+  }, [mes, canGroup]);
 
   const fetchResumo = useCallback(async () => {
-    if (!can('mensalidade_mediun')) return;
+    if (!can('mensalidade_mediun') || !canGroup('financeiro', 'view')) return;
     setLoadingResumo(true);
     try {
       const res = await apiClient.get('/api/v1/admin/financeiro/resumo');
@@ -225,16 +228,17 @@ export default function MensalidadesPage() {
     } finally {
       setLoadingResumo(false);
     }
-  }, [can]);
+  }, [can, canGroup]);
 
   const fetchAssocResumo = useCallback(async () => {
+    if (!canGroup('financeiro', 'view')) return;
     try {
       const res = await apiClient.get('/api/v1/admin/financeiro/associados/resumo');
       setAssocResumo(res.data);
     } catch {
       // non-critical
     }
-  }, []);
+  }, [canGroup]);
 
   const assocEnabled = !!(config?.enable_mensalidade_associado);
 
@@ -272,6 +276,18 @@ export default function MensalidadesPage() {
       </AdminLayout>
     );
   }
+
+  if (!canGroup('financeiro', 'view')) {
+    return (
+      <AdminLayout title="Mensalidades">
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          Você não tem permissão para visualizar as mensalidades. Contate o administrador do sistema.
+        </Alert>
+      </AdminLayout>
+    );
+  }
+
+  const canInsertEdit = canGroup('financeiro', 'insert') || canGroup('financeiro', 'edit');
 
   // ── Month navigation ──────────────────────────────────────────────────
 
@@ -553,7 +569,7 @@ export default function MensalidadesPage() {
                       <TableCell>Data Pag.</TableCell>
                       <TableCell align="right">Valor Pago</TableCell>
                       <TableCell>Comprovante</TableCell>
-                      <TableCell />
+                      {canInsertEdit && <TableCell />}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -586,13 +602,15 @@ export default function MensalidadesPage() {
                             <AttachFileIcon fontSize="small" sx={{ color: 'text.disabled' }} />
                           )}
                         </TableCell>
-                        <TableCell>
-                          <Tooltip title="Registrar / Editar">
-                            <IconButton size="small" onClick={() => openDrawer(item)}>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
+                        {canInsertEdit && (
+                          <TableCell>
+                            <Tooltip title="Registrar / Editar">
+                              <IconButton size="small" onClick={() => openDrawer(item)}>
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -623,7 +641,7 @@ export default function MensalidadesPage() {
                       <TableCell>Data Pag.</TableCell>
                       <TableCell align="right">Valor Pago</TableCell>
                       <TableCell>Comprovante</TableCell>
-                      <TableCell />
+                      {canInsertEdit && <TableCell />}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -663,13 +681,15 @@ export default function MensalidadesPage() {
                               <AttachFileIcon fontSize="small" sx={{ color: 'text.disabled' }} />
                             )}
                           </TableCell>
-                          <TableCell>
-                            <Tooltip title="Registrar / Editar">
-                              <IconButton size="small" onClick={() => openAssocDrawer(item)}>
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
+                          {canInsertEdit && (
+                            <TableCell>
+                              <Tooltip title="Registrar / Editar">
+                                <IconButton size="small" onClick={() => openAssocDrawer(item)}>
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          )}
                         </TableRow>
                       );
                     })}
@@ -745,8 +765,8 @@ export default function MensalidadesPage() {
         )}
       </Box>
 
-      {/* Registration Drawer */}
-      <CrudDrawer
+      {/* Registration Drawer — only rendered for users with insert/edit permission */}
+      {canInsertEdit && <CrudDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={
@@ -841,7 +861,7 @@ export default function MensalidadesPage() {
             fullWidth
           />
         </Box>
-      </CrudDrawer>
+      </CrudDrawer>}
 
       <Snackbar
         open={snack.open}

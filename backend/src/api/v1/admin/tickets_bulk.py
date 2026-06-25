@@ -7,10 +7,10 @@ from uuid import UUID
 import logging
 
 from src.core.database import get_db
-from src.models import User, Ticket, TicketStatus
+from src.models import User, Ticket, TicketStatus, PermissionFeature
 from src.repositories.senha_control_repo_extended import SenhaControlRepositoryExtended
 from src.services.audit_service import AuditService
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import InsufficientPermissionsError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-bulk"])
@@ -30,7 +30,7 @@ class BulkOperationResponse(BaseModel):
     errors: List[str]
 
 
-@router.post("/giras/{gira_id}/tickets/bulk-mark-used", response_model=BulkOperationResponse)
+@router.post("/giras/{gira_id}/tickets/bulk-mark-used", response_model=BulkOperationResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "edit"))])
 async def bulk_mark_used(
     gira_id: UUID = Path(...),
     request: BulkOperationRequest = None,
@@ -67,7 +67,7 @@ async def bulk_mark_used(
     return BulkOperationResponse(**result)
 
 
-@router.post("/giras/{gira_id}/tickets/bulk-cancel", response_model=BulkOperationResponse)
+@router.post("/giras/{gira_id}/tickets/bulk-cancel", response_model=BulkOperationResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "delete"))])
 async def bulk_cancel(
     gira_id: UUID = Path(...),
     request: BulkOperationRequest = None,

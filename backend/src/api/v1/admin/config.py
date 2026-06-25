@@ -83,7 +83,7 @@ class TenantConfigUpdate(BaseModel):
         return normalized.upper()
 
 
-@router.get("/tenant/config", response_model=TenantConfigResponse)
+@router.get("/tenant/config", response_model=TenantConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CONFIGURACOES, "view"))])
 async def get_tenant_config(
     request: Request,
     current_user: User = Depends(get_current_user),
