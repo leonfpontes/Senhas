@@ -111,7 +111,7 @@ async def _backfill_pessoa(
     """Process a single person: sync past payments and ensure next month exists."""
 
     hoje = date.today()
-    system_user_id = tenant_id   # usa tenant_id como proxy de "criado_por" no backfill
+    system_user_id = None  # backfill do sistema — sem usuário responsável
 
     # --- Sincroniza meses com pagamento registrado ---
     for pag in pagamentos:
@@ -358,4 +358,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    asyncio.run(main(dry_run=args.dry_run, tenant_filter=args.tenant))
+    # asyncpg + SQLAlchemy async requerem contexto greenlet. Wrapping garante isso.
+    import greenlet as _greenlet
+
+    def _run():
+        asyncio.run(main(dry_run=args.dry_run, tenant_filter=args.tenant))
+
+    gr = _greenlet.greenlet(_run)
+    gr.switch()
