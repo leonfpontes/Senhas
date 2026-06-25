@@ -62,16 +62,16 @@ async def _get_or_create_categoria(
     if cat:
         return cat.id
 
+    cat_id = uuid.uuid4()
     cat = CategoriaFinanceira(
-        id=uuid.uuid4(),
+        id=cat_id,
         tenant_id=tenant_id,
         nome="Mensalidades",
         tipo="receber",
         cor="#1D9E75",
     )
     db.add(cat)
-    await db.flush()
-    return cat.id
+    return cat_id
 
 
 async def _find_conta(
@@ -152,8 +152,6 @@ async def sync_pagamento(
         if categoria_id and not conta.categoria_id:
             conta.categoria_id = categoria_id
 
-    await db.flush()
-
 
 async def criar_conta_proxima_mensalidade(
     *,
@@ -195,4 +193,3 @@ async def criar_conta_proxima_mensalidade(
         external_ref=ref,
     )
     db.add(conta)
-    await db.flush()
