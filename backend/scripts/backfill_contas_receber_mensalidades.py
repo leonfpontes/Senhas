@@ -39,7 +39,8 @@ sys.path.insert(0, "/app")
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.database import AsyncSessionLocal
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from src.core.config import settings
 from src.models.mediuns import Medium
 from src.models.associados import Associado
 from src.models.mensalidades import MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
@@ -294,7 +295,11 @@ async def main(dry_run: bool, tenant_filter: Optional[str]) -> None:
     log.info("dry_run=%s  tenant_filter=%s", dry_run, tenant_filter or "todos")
     log.info("=" * 60)
 
-    async with AsyncSessionLocal() as db:
+    # Engine dedicado sem pool_pre_ping para evitar MissingGreenlet em scripts standalone
+    _engine = create_async_engine(settings.DATABASE_URL, echo=False, future=True, pool_pre_ping=False)
+    _Session = async_sessionmaker(_engine, expire_on_commit=False)
+
+    async with _Session() as db:
         # Carrega tenants
         stmt = select(Tenant).where(Tenant.deleted_at.is_(None))
         if tenant_filter:
@@ -324,6 +329,8 @@ async def main(dry_run: bool, tenant_filter: Optional[str]) -> None:
                 await db.rollback()
                 stats["erros"] += 1
                 log.error("  ✗ ERRO no tenant %s: %s", tenant.id, exc, exc_info=True)
+
+    await _engine.dispose()
 
     log.info("=" * 60)
     log.info("Resultado:")
