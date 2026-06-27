@@ -35,10 +35,12 @@ import {
   Tooltip,
   Alert,
   Snackbar,
+  InputAdornment,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/GetApp';
+import SearchIcon from '@mui/icons-material/Search';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import StarIcon from '@mui/icons-material/Star';
@@ -105,6 +107,16 @@ function AdminTicketsContent() {
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+
+  // Free-text search (debounced). Filters the current page client-side by
+  // ticket number, consulente name or email. The /tickets endpoint does not
+  // accept a `search`/`q` param, so filtering is done locally.
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   // Drawer state for attend info editing
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -279,8 +291,43 @@ function AdminTicketsContent() {
 
   const activeFilterCount = [dateFrom, dateTo, statusFilter, giraFilter !== 'all' ? 'giraFilter' : ''].filter(Boolean).length;
 
+  // Apply free-text search over the loaded page
+  const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const displayedTickets = (() => {
+    const q = search.trim();
+    if (!q) return tickets;
+    const needle = normalize(q.replace(/^#/, ''));
+    return tickets.filter((t) => {
+      const numStr = String(t.numero);
+      const numPadded = String(t.numero).padStart(4, '0');
+      return (
+        numStr.includes(needle) ||
+        numPadded.includes(needle) ||
+        normalize(t.consulente_nome ?? '').includes(needle) ||
+        normalize(t.consulente_email ?? '').includes(needle)
+      );
+    });
+  })();
+
   return (
     <>
+      {/* ── Busca livre por número, nome ou email ── */}
+      <TextField
+        size="small"
+        fullWidth
+        placeholder="Buscar por número, nome ou email…"
+        value={searchInput}
+        onChange={(e) => setSearchInput(e.target.value)}
+        sx={{ mb: 1.5 }}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon fontSize="small" color={searchInput ? 'primary' : 'disabled'} />
+            </InputAdornment>
+          ),
+        }}
+      />
+
       {/* ── Seletor de Gira — sempre visível ── */}
       <Box data-tour="tickets-header" sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
         <FormControl data-tour="tickets-gira-select" size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
@@ -488,8 +535,8 @@ function AdminTicketsContent() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {tickets.length > 0 ? (
-                  tickets.map((ticket) => (
+                {displayedTickets.length > 0 ? (
+                  displayedTickets.map((ticket) => (
                     <TableRow key={ticket.id}>
                       {hasBulk && (
                         <TableCell padding="checkbox">

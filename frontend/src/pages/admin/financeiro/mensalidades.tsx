@@ -12,6 +12,7 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   CircularProgress,
   FormControl,
@@ -167,6 +168,10 @@ export default function MensalidadesPage() {
 
   const [filterStatus, setFilterStatus] = useState<'TODOS' | 'PENDENTE' | 'PAGO' | 'ISENTO'>('TODOS');
   const [search, setSearch] = useState('');
+
+  // Bulk payment selection (médiuns tab)
+  const [selectedMediuns, setSelectedMediuns] = useState<Set<string>>(new Set());
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -369,6 +374,43 @@ export default function MensalidadesPage() {
     }
   };
 
+  // ── Bulk payment ──────────────────────────────────────────────────────
+  // Não há endpoint bulk dedicado; chamamos o POST por médium selecionado.
+  const handleBulkMarkPaid = async () => {
+    if (selectedMediuns.size === 0) return;
+    setBulkSaving(true);
+    const today = new Date().toISOString().slice(0, 10);
+    let ok = 0;
+    let fail = 0;
+    for (const mediunId of Array.from(selectedMediuns)) {
+      try {
+        const form = new FormData();
+        form.append('status', 'PAGO');
+        form.append('data_pagamento', today);
+        if (config?.valor_mensal != null) form.append('valor_pago', String(config.valor_mensal));
+        await apiClient.post(
+          `/api/v1/admin/financeiro/mensalidades/${mediunId}/${mes}`,
+          form,
+          { headers: { 'Content-Type': 'multipart/form-data' } },
+        );
+        ok += 1;
+      } catch {
+        fail += 1;
+      }
+    }
+    setBulkSaving(false);
+    setSelectedMediuns(new Set());
+    await fetchItems();
+    fetchResumo();
+    setSnack({
+      open: true,
+      msg: fail === 0
+        ? `${ok} mensalidade(s) marcada(s) como paga(s).`
+        : `${ok} paga(s), ${fail} falharam.`,
+      severity: fail === 0 ? 'success' : 'error',
+    });
+  };
+
   const handleDownloadComprovante = async (item: MensalidadeItem) => {
     try {
       const res = await apiClient.get(
@@ -559,10 +601,45 @@ export default function MensalidadesPage() {
                 </Typography>
               </Paper>
             ) : (
+              <>
+              {canInsertEdit && selectedMediuns.size > 0 && (
+                <Paper
+                  variant="outlined"
+                  sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 1.5, mb: 1, bgcolor: 'action.hover' }}
+                >
+                  <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                    {selectedMediuns.size} selecionado(s)
+                  </Typography>
+                  <Button size="small" onClick={() => setSelectedMediuns(new Set())} disabled={bulkSaving}>
+                    Limpar
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    color="success"
+                    startIcon={bulkSaving ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon />}
+                    onClick={handleBulkMarkPaid}
+                    disabled={bulkSaving}
+                  >
+                    Marcar como Pago
+                  </Button>
+                </Paper>
+              )}
               <TableContainer component={Paper}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
+                      {canInsertEdit && (
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            indeterminate={selectedMediuns.size > 0 && selectedMediuns.size < filtered.length}
+                            checked={filtered.length > 0 && selectedMediuns.size === filtered.length}
+                            onChange={(e) =>
+                              setSelectedMediuns(e.target.checked ? new Set(filtered.map((i) => i.mediun_id)) : new Set())
+                            }
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>Nome</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell>Vencimento</TableCell>
@@ -575,6 +652,20 @@ export default function MensalidadesPage() {
                   <TableBody>
                     {filtered.map((item) => (
                       <TableRow key={item.mediun_id} hover>
+                        {canInsertEdit && (
+                          <TableCell padding="checkbox">
+                            <Checkbox
+                              checked={selectedMediuns.has(item.mediun_id)}
+                              onChange={() =>
+                                setSelectedMediuns((prev) => {
+                                  const next = new Set(prev);
+                                  next.has(item.mediun_id) ? next.delete(item.mediun_id) : next.add(item.mediun_id);
+                                  return next;
+                                })
+                              }
+                            />
+                          </TableCell>
+                        )}
                         <TableCell>
                           {item.mediun_nome}
                           {item.mensalidade_isento && (
@@ -616,6 +707,7 @@ export default function MensalidadesPage() {
                   </TableBody>
                 </Table>
               </TableContainer>
+              </>
             )}
           </>
         )}

@@ -2,7 +2,7 @@
  * Visão da Porta — Mobile-first real-time gira queue management
  * Route: /admin/porta
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Badge,
@@ -437,9 +437,14 @@ function QueueCard({
             {item.consulente_nome || '—'}
           </Typography>
 
-          {/* Row 3: phone / medium info */}
+          {/* Row 3: contato (telefone + email) — sempre visível, inclusive mobile */}
           {item.consulente_telefone && (
             <Typography variant="body2" color="text.secondary">{item.consulente_telefone}</Typography>
+          )}
+          {item.consulente_email && (
+            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
+              {item.consulente_email}
+            </Typography>
           )}
           {(isInProgress || isDone) && item.medium_nome && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
@@ -500,7 +505,12 @@ function QueueCard({
               {hasCheckin && isEmitted && <PresentChip />}
             </Box>
             {item.consulente_telefone && (
-              <Typography variant="caption" color="text.secondary">{item.consulente_telefone}</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">{item.consulente_telefone}</Typography>
+            )}
+            {item.consulente_email && (
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ wordBreak: 'break-all' }}>
+                {item.consulente_email}
+              </Typography>
             )}
             {(isInProgress || isDone) && item.medium_nome && (
               <Typography variant="caption" color="text.secondary" display="block">
@@ -728,6 +738,34 @@ export default function PortaPage() {
   const doneQueue       = filteredQueue.filter((t) => t.status === 'completed' || t.status === 'no_show' || t.status === 'cancelled');
 
   const selectedGiraName = giras.find((g) => g.id === selectedGiraId)?.nome ?? '';
+
+  // ── Notificação sonora + badge no título quando entra novo na fila ──────────────
+  // Usa a fila completa (não filtrada) para detectar mudanças reais.
+  const awaitingCount = queue.filter((t) => t.status === 'emitted').length;
+  const prevAwaitingIdsRef = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    const currentIds = new Set(queue.filter((t) => t.status === 'emitted').map((t) => t.id));
+    const prev = prevAwaitingIdsRef.current;
+    // Detecta IDs novos em relação ao snapshot anterior (ignora primeira carga)
+    if (prev) {
+      const hasNew = Array.from(currentIds).some((id) => !prev.has(id));
+      if (hasNew) {
+        try {
+          const audio = new Audio('/sounds/notification.mp3');
+          audio.play().catch(() => { /* autoplay pode estar bloqueado */ });
+        } catch { /* ambiente sem Audio */ }
+      }
+    }
+    prevAwaitingIdsRef.current = currentIds;
+  }, [queue]);
+
+  // Badge numérico no título da aba do navegador
+  useEffect(() => {
+    const base = 'GiraHub — Porta';
+    document.title = awaitingCount > 0 ? `(${awaitingCount}) ${base}` : base;
+    return () => { document.title = base; };
+  }, [awaitingCount]);
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
