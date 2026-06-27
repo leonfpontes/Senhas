@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -17,6 +17,7 @@ import {
   Typography,
 } from '@mui/material';
 import CakeRoundedIcon from '@mui/icons-material/CakeRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
@@ -236,6 +237,29 @@ export default function AdminDashboard() {
   const { tokens, isDark } = useAdminTheme();
   const router = useRouter();
 
+  // Exportação do gráfico como PNG (html2canvas, com fallback para impressão)
+  const chartRef = useRef<HTMLDivElement | null>(null);
+  const handleExportChart = async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      if (chartRef.current) {
+        const canvas = await html2canvas(chartRef.current, {
+          backgroundColor: isDark ? '#0f172a' : '#ffffff',
+          scale: 2,
+        });
+        const link = document.createElement('a');
+        link.download = `dashboard-${today}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        return;
+      }
+    } catch {
+      /* fallback abaixo */
+    }
+    window.print();
+  };
+
   const primary = tenantConfig?.colors?.primary || '#6366f1';
 
   useEffect(() => {
@@ -380,8 +404,17 @@ export default function AdminDashboard() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
 
             {/* Bar chart */}
-            <Paper data-tour="dashboard-chart" elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3 }}>
-              <SectionHeader title="Tickets — últimos 7 dias" />
+            <Paper ref={chartRef} data-tour="dashboard-chart" elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3 }}>
+              <SectionHeader
+                title="Tickets — últimos 7 dias"
+                action={
+                  <Tooltip title="Baixar gráfico (PNG)">
+                    <IconButton size="small" onClick={handleExportChart} data-no-export>
+                      <DownloadRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                }
+              />
               {loading ? (
                 <Skeleton variant="rounded" height={220} />
               ) : chartData.length > 0 ? (

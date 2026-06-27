@@ -41,6 +41,7 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
+import TvRoundedIcon from '@mui/icons-material/TvRounded';
 import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
 
 import AdminLayout from './admin_layout';
@@ -818,6 +819,17 @@ export default function PortaPage() {
                 onClick={() => setWalkInCreateOpen(true)}
               >
                 Walk-in
+              </Button>
+            )}
+
+            {selectedGiraId && (
+              <Button
+                variant="text"
+                size="small"
+                startIcon={<TvRoundedIcon />}
+                onClick={() => window.open(`/admin/porta/kiosk?gira=${selectedGiraId}`, '_blank')}
+              >
+                Modo TV
               </Button>
             )}
           </Box>
