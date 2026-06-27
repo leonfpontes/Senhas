@@ -86,16 +86,16 @@ const FEATURE_GROUPS: FeatureGroup[] = [
   {
     group: 'Capacidade',
     rows: [
-      { label: 'Usuários administradores',      free: '1',         basic: '5',         pro: '20',        premium: 'Ilimitado' },
-      { label: 'Giras por mês',                 free: '2',         basic: '10',        pro: '50',        premium: 'Ilimitado' },
-      { label: 'Médiuns cadastrados',           free: '—',         basic: '15',        pro: '30',        premium: 'Ilimitado' },
+      { label: 'Usuários administradores',      free: '1',         basic: '3',         pro: '10',        premium: 'Ilimitado' },
+      { label: 'Giras por mês',                 free: '4',         basic: '10',        pro: '15',        premium: 'Ilimitado' },
+      { label: 'Médiuns cadastrados',           free: '—',         basic: '50',        pro: '150',       premium: 'Ilimitado' },
     ],
   },
   {
     group: 'Comunicação',
     rows: [
       { label: 'Envio de e-mail transacional',  free: false,       basic: false,       pro: true,        premium: true },
-      { label: 'Tema personalizado',            free: false,       basic: true,        pro: true,        premium: true },
+      { label: 'Tema personalizado',            free: false,       basic: false,       pro: true,        premium: true },
       { label: 'Site do terreiro',              free: false,       basic: false,       pro: true,        premium: true },
     ],
   },
@@ -111,18 +111,21 @@ const FEATURE_GROUPS: FeatureGroup[] = [
   {
     group: 'Módulos',
     rows: [
+      { label: 'Gestão de médiuns',             free: false,       basic: true,        pro: true,        premium: true },
+      { label: 'Mensalidade de médiuns',        free: false,       basic: false,       pro: true,        premium: true },
       { label: 'Gestão de associados',          free: false,       basic: false,       pro: true,        premium: true },
-      { label: 'Controle de estoque',           free: false,       basic: false,       pro: true,        premium: true },
       { label: 'Mensalidade de associados',     free: false,       basic: false,       pro: true,        premium: true },
-      { label: 'Mensalidade de médiuns',        free: false,       basic: false,       pro: false,       premium: true },
+      { label: 'Controle de estoque',           free: false,       basic: false,       pro: true,        premium: true },
+      { label: 'Contas a pagar / receber',      free: false,       basic: false,       pro: true,        premium: true },
+      { label: 'Fluxo de caixa',                free: false,       basic: false,       pro: true,        premium: true },
     ],
   },
   {
     group: 'Enterprise',
     rows: [
+      { label: 'Operações em lote',             free: false,       basic: true,        pro: true,        premium: true },
       { label: 'API access',                    free: false,       basic: false,       pro: false,       premium: true },
       { label: 'Suporte prioritário',           free: false,       basic: false,       pro: false,       premium: true },
-      { label: 'Operações em lote',             free: false,       basic: true,        pro: true,        premium: true },
     ],
   },
 ];

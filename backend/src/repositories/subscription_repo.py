@@ -165,20 +165,20 @@ class SubscriptionRepository(BaseRepository[Subscription]):
         configs = {
             PlanType.FREE: {
                 "max_users": 1,
-                "max_giras_per_month": 2,
+                "max_giras_per_month": 4,
                 "max_mediuns": 0,
                 "price": 0.0,
             },
             PlanType.BASIC: {
-                "max_users": 5,
+                "max_users": 3,
                 "max_giras_per_month": 10,
-                "max_mediuns": 15,
+                "max_mediuns": 50,
                 "price": 49.0,
             },
             PlanType.PRO: {
-                "max_users": 20,
-                "max_giras_per_month": 50,
-                "max_mediuns": 30,
+                "max_users": 10,
+                "max_giras_per_month": 15,
+                "max_mediuns": 150,
                 "price": 79.0,
             },
             PlanType.PREMIUM: {
