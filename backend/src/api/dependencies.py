@@ -65,36 +65,31 @@ async def get_tenant_from_request(request: Request) -> uuid.UUID:
     return get_tenant_id(request)
 
 
+_ROLE_HIERARCHY: dict[UserRole, int] = {
+    UserRole.OPERATOR: 0,
+    UserRole.ADMIN: 1,
+    UserRole.SUPER_ADMIN: 2,
+}
+
+
 async def require_role(
     required_role: UserRole,
 ) -> callable:
     """Dependency factory for role-based access control (RBAC).
-    
+
+    Uses explicit numeric hierarchy: OPERATOR=0 < ADMIN=1 < SUPER_ADMIN=2.
+    A user with a higher or equal level passes; lower levels are denied.
+
     Usage in endpoint:
-        @router.get("/admin-only")
-        async def admin_endpoint(
-            user: User = Depends(get_current_user),
-            _: None = Depends(require_role(UserRole.ADMIN)),
-        ):
-            ...
-    
-    Args:
-        required_role: Required user role
-        
-    Returns:
-        Dependency function
+        @router.get("/admin-only", dependencies=[Depends(require_role(UserRole.ADMIN))])
     """
     async def check_role(user: User = Depends(get_current_user)):
-        # Super admin has access to everything
-        if user.role == UserRole.SUPER_ADMIN:
-            return None
-        
-        # Check if user has required role or higher
-        if user.role != required_role and required_role != UserRole.OPERATOR:
+        user_level = _ROLE_HIERARCHY.get(user.role, -1)
+        required_level = _ROLE_HIERARCHY.get(required_role, 99)
+        if user_level < required_level:
             raise InsufficientPermissionsError(required_role.value)
-        
         return None
-    
+
     return check_role
 
 

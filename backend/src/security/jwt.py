@@ -164,3 +164,38 @@ def decode_token(token: str) -> TokenPayload:
         raise InvalidTokenError(f"Token inválido: {str(e)}")
     except Exception as e:
         raise InvalidTokenError(f"Erro ao decodificar token: {str(e)}")
+
+
+def decode_refresh_token(token: str) -> TokenPayload:
+    """Decode and validate a refresh token.
+
+    Same as decode_token but requires `type == 'refresh'` in the payload,
+    preventing refresh tokens from being accepted as access tokens and vice-versa.
+
+    Raises:
+        InvalidTokenError: If token is invalid, expired, or not a refresh token.
+    """
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+
+        if payload.get("type") != "refresh":
+            raise InvalidTokenError("Token não é um refresh token")
+
+        user_id = payload.get("sub")
+        role = payload.get("role")
+        if not user_id or not role:
+            raise InvalidTokenError("Refresh token inválido: campos obrigatórios faltando")
+
+        return TokenPayload(
+            sub=user_id,
+            tenant_id=payload.get("tenant_id"),
+            role=role,
+            exp=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
+            iat=datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
+        )
+    except JWTError as e:
+        raise InvalidTokenError(f"Refresh token inválido: {str(e)}")
+    except InvalidTokenError:
+        raise
+    except Exception as e:
+        raise InvalidTokenError(f"Erro ao decodificar refresh token: {str(e)}")

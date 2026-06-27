@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://senhas:senhas@localhost:5432/senhas_db"
 
+    # Redis
+    REDIS_URL: str = ""
+
     # JWT
     SECRET_KEY: str = _INSECURE_SECRET_KEY_DEFAULT
     ACCESS_TOKEN_EXPIRE_HOURS: int = 24

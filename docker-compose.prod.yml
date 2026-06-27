@@ -39,6 +39,10 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 8G
 
   # ============================================
   # Redis Cache
@@ -132,6 +136,9 @@ services:
       # Monitoring
       PROMETHEUS_ENABLED: "true"
       PROMETHEUS_PORT: 9090
+
+      # Redis (rate limiter distribuído)
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
 
       # Sentry
       SENTRY_DSN: ${SENTRY_DSN:-}

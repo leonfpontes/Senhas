@@ -64,7 +64,7 @@ jobs:
               | gzip > "$BACKUP_FILE"
             echo "Backup salvo: $BACKUP_FILE"
             # Mantém apenas os 10 backups mais recentes
-            ls -t /opt/senhas/backups/pre-deploy-*.sql.gz | tail -n +11 | xargs -r rm --
+            ls -t /opt/senhas/backups/pre-deploy-*.sql.gz | tail -n +31 | xargs -r rm --
 
             echo "==> [2/6] Pull do código"
             git fetch --all

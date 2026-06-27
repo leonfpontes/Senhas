@@ -56,7 +56,9 @@ Regra critica:
 
 **Fluxo de autenticacao via cookie HttpOnly (desde 2026-06-27):**
 - Login seta 3 cookies: `access_token` (HttpOnly, Secure, SameSite=Strict), `refresh_token` (HttpOnly), `auth_state=1` (nao-HttpOnly — legivel por JS para verificar login).
+- `/auth/refresh` implementado: le `refresh_token` do cookie, valida com `decode_refresh_token` (requer `type=refresh`), emite novo access + rotaciona refresh.
 - `jwt_middleware` extrai token do header `Authorization: Bearer` primeiro (impersonacao via sessionStorage), depois fallback para cookie `access_token`.
+- `jwt_middleware` public_paths inclui `/auth/refresh`, `/auth/forgot-password`, `/auth/reset-password`.
 - Frontend usa `withCredentials: true` no axios — nao ha token no header para sessoes normais.
 - Impersonacao usa sessionStorage e header Bearer — fluxo preservado separado.
 - `hasAuthToken()` checa: `sessionStorage.getItem('access_token')` OR `document.cookie.includes('auth_state=1')` OR `localStorage.getItem('user')`.
@@ -411,6 +413,14 @@ docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml run --rm bac
 docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d backend frontend
 ```
 NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
+
+**Rate limiter distribuído via Redis (desde 2026-06-27):**
+- `REDIS_URL` adicionado ao `config.py` e ao `docker-compose.prod.yml` (backend environment).
+- `limiter.py` usa `storage_uri=REDIS_URL` quando configurado; fallback in-memory em dev (REDIS_URL vazio).
+- `limits[redis]` adicionado como dependencia em `pyproject.toml`.
+- Hierarquia de roles refatorada em `dependencies.py`: `OPERATOR=0 < ADMIN=1 < SUPER_ADMIN=2` (dict `_ROLE_HIERARCHY`).
+- PostgreSQL com `deploy.resources.limits.memory: 8G` no `docker-compose.prod.yml`.
+- Backup retention aumentado de 10 para 30 no workflow CI.
 
 **Monitoramento de erros — Sentry (desde 2026-06-27):**
 - Backend: `sentry-sdk[fastapi]>=1.39.0` — inicializado em `main.py` quando `SENTRY_DSN` definido.

@@ -1,9 +1,10 @@
 """Authentication API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 import secrets
 import hashlib
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from src.core.database import get_db
@@ -163,33 +164,51 @@ class RefreshResponse(BaseModel):
 
 @router.post("/refresh", response_model=RefreshResponse)
 async def refresh_token(
-    request_obj: RefreshRequest,
+    request_obj: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    """POST /api/v1/auth/refresh - Get new access token using refresh token.
-    
-    Refresh token expected in HTTP-only cookie 'refresh_token'.
-    Returns new access token and renews refresh cookie.
-    
-    Args:
-        request_obj: Empty request (token in cookie)
-        response: HTTP response
-        db: Database session
-        
-    Returns:
-        New access token
-        
-    Raises:
-        UnauthorizedError: If refresh token invalid
+    """POST /api/v1/auth/refresh - Renova access_token usando o refresh_token do cookie.
+
+    Lê o cookie HttpOnly 'refresh_token', valida, busca o usuário no banco e emite
+    um novo access_token + rotaciona o refresh_token.
     """
-    from fastapi import Request, HTTPException
-    
-    # This will be injected by FastAPI internally
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="refresh_token não fornecido",
-    )
+    from src.security.jwt import decode_refresh_token
+
+    raw_refresh = request_obj.cookies.get("refresh_token")
+    if not raw_refresh:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh_token não encontrado")
+
+    try:
+        payload = decode_refresh_token(raw_refresh)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh_token inválido ou expirado")
+
+    # Valida que o usuário ainda existe e está ativo
+    stmt = select(User).where(User.id == uuid.UUID(payload.sub))
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário inativo ou não encontrado")
+
+    # Emite novos tokens
+    new_access = create_access_token(user.id, user.tenant_id, user.role.value)
+    new_refresh = create_refresh_token(user.id, user.tenant_id, user.role.value)
+
+    response.set_cookie(key="access_token", value=new_access, httponly=True,
+                        secure=not settings.DEBUG, samesite="strict",
+                        max_age=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600)
+    response.set_cookie(key="refresh_token", value=new_refresh, httponly=True,
+                        secure=not settings.DEBUG, samesite="strict",
+                        max_age=30 * 24 * 60 * 60)
+    response.set_cookie(key="auth_state", value="1", httponly=False,
+                        secure=not settings.DEBUG, samesite="strict",
+                        max_age=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600)
+
+    log_security_event("token_refresh", user_id=user.id, tenant_id=user.tenant_id, success=True)
+
+    return RefreshResponse(access_token=new_access, token_type="bearer",
+                           expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600)
 
 
 @router.post("/logout")
