@@ -132,6 +132,11 @@ services:
       # Monitoring
       PROMETHEUS_ENABLED: "true"
       PROMETHEUS_PORT: 9090
+
+      # Sentry
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     volumes:
       - backend_logs:/var/log/senhas
       - backend_uploads:/app/uploads
@@ -181,6 +186,10 @@ services:
       PORT: "3000"
       # Internal API URL for getServerSideProps (server-side Node.js cannot use empty NEXT_PUBLIC_API_BASE_URL)
       INTERNAL_API_URL: "http://backend:8000"
+
+      # Sentry
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+      NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
     ports:
       - "3000:3000"
     healthcheck:
