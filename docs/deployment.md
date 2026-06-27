@@ -20,10 +20,9 @@ Deploy do Senhas em servidor VPS com Ubuntu 22.04 LTS.
 
 ### Checklist pré-deploy
 - [ ] Todos os testes passando (`pytest`, `npm test`, `cypress`)
-- [ ] Cobertura de testes > 90%
-- [ ] Sem vulnerabilidades (`npm audit`, `pip audit`)
-- [ ] `.env` de produção preparado
-- [ ] Backup do banco (se upgrade)
+- [ ] Sem vulnerabilidades (`npm audit --audit-level=high`, `pip-audit`)
+- [ ] `.env` de produção preparado (incluindo `SENTRY_DSN`)
+- [ ] Backup do banco (feito automaticamente pelo workflow — verificar `/opt/senhas/backups/`)
 - [ ] DNS configurado (A record → IP do VPS)
 
 ---
@@ -111,6 +110,8 @@ nano .env
 
 ### Variáveis críticas (.env de produção)
 
+> Para o template completo ver `.env.prod.example` na raiz do repositório.
+
 ```env
 # Database
 POSTGRES_HOST=postgres
@@ -161,11 +162,37 @@ chmod 600 .env
 
 ## 4. Deploy com Docker Compose
 
-### Build e Start
+> **Deploy automatizado**: push para `master` dispara o GitHub Actions workflow (`.github/workflows/deploy.yml`), que executa backup, build zero-downtime, migração e health check automaticamente.
+
+### Deploy manual zero-downtime
+
+NUNCA usar `up --build` diretamente — isso causa 503 enquanto o build ocorre.
 
 ```bash
 cd /opt/senhas
-docker compose -f docker-compose.prod.yml up -d --build
+
+# 1. Backup do banco ANTES de qualquer mudança
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+docker exec senhas_postgres pg_dump -U senhas_user senhas_prod \
+  > /opt/senhas/backups/senhas_prod_${TIMESTAMP}.sql
+# Manter apenas 10 mais recentes:
+ls -t /opt/senhas/backups/senhas_prod_*.sql | tail -n +11 | xargs -r rm
+
+# 2. Atualizar código
+git pull origin master
+
+# 3. Build com containers antigos AINDA rodando (zero-downtime)
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml build backend frontend
+
+# 4. Rodar migrações em container temporário
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml \
+  run --rm backend alembic upgrade head
+
+# 5. Swap dos containers
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d backend frontend
+
+# 6. Health check
+curl -f https://girahub.com.br/api/v1/health || echo "FALHOU"
 ```
 
 ### Verificar serviços
@@ -253,6 +280,21 @@ sudo systemctl reload nginx
 
 ## 6. Monitoramento
 
+### Sentry (erros em produção)
+
+DSNs já configurados no VPS em `/opt/senhas/.env`. Acesse os projetos em sentry.io:
+- **Backend (FastAPI)**: projeto `senhas-backend` — captura exceções, traces e erros não tratados.
+- **Frontend (Next.js)**: projeto `senhas-frontend` — captura erros client-side, server-side e edge.
+
+Variáveis obrigatórias no `.env` de produção:
+```env
+SENTRY_DSN=<dsn-do-projeto-fastapi>
+NEXT_PUBLIC_SENTRY_DSN=<dsn-do-projeto-nextjs>
+SENTRY_ENVIRONMENT=production
+NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+SENTRY_TRACES_SAMPLE_RATE=0.1
+```
+
 ### Prometheus + Grafana
 
 Já incluídos no `docker-compose.prod.yml`:
@@ -309,14 +351,14 @@ docker compose -f docker-compose.prod.yml exec backend alembic downgrade -1
 
 ## 9. Verificação Pós-Deploy
 
-- [ ] `curl https://senhas.seudominio.com` — Frontend responde
-- [ ] `curl https://api.senhas.seudominio.com/health` — Backend responde
-- [ ] Login admin funciona
+- [ ] `curl https://girahub.com.br/api/v1/health` — Backend responde
+- [ ] `curl https://girahub.com.br` — Frontend responde
+- [ ] Login admin funciona (cookie `auth_state=1` setado após login)
 - [ ] Emissão pública de senha funciona
 - [ ] Email é enviado corretamente
 - [ ] Nginx logs sem erros (`/var/log/nginx/error.log`)
-- [ ] Prometheus coletando métricas
-- [ ] Backup do banco testado
+- [ ] Sentry recebendo eventos (fazer login e verificar no dashboard)
+- [ ] Backup criado em `/opt/senhas/backups/` com timestamp correto
 
 ---
 

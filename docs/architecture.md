@@ -1,6 +1,6 @@
 # Arquitetura do Sistema
 
-**Senhas v1.0** — Sistema SaaS multi-tenant para gestão de senhas de Terreiros de Umbanda.
+**GiraHub (Senhas)** — Sistema SaaS multi-tenant para gestão de senhas de Terreiros de Umbanda.
 
 ---
 
@@ -26,11 +26,11 @@
              │
     ┌────────┼────────┐
     │        │        │
-┌───▼──┐ ┌──▼───┐ ┌──▼───┐
-│Postgr│ │Redis │ │Email │
-│SQL 15│ │ 7    │ │Brevo │
-│:5432 │ │:6379 │ │Resend│
-└──────┘ └──────┘ └──────┘
+┌───▼──┐ ┌──▼───┐ ┌──▼───┐ ┌────────┐
+│Postgr│ │Redis │ │Email │ │Sentry  │
+│SQL 15│ │ 7    │ │Brevo │ │(erros) │
+│:5432 │ │:6379 │ │Resend│ │externo │
+└──────┘ └──────┘ └──────┘ └────────┘
 ```
 
 ---
@@ -47,7 +47,7 @@
 | **Admin dashboard** | CRUD de giras, tickets, analytics, audit |
 | **Platform** | Gestão multi-tenant (SUPER_ADMIN) |
 
-**Libs**: Material-UI v5, Recharts, Axios, Zustand.
+**Libs**: Material-UI v5, Recharts, Axios (withCredentials: true), Zustand, @sentry/nextjs.
 
 ### 2. API Layer (Backend)
 

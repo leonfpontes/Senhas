@@ -1,6 +1,6 @@
 # CLAUDE.md — Instruções para Claude Code
 
-Last Updated: 2026-06-25
+Last Updated: 2026-06-27
 Projeto: Senhas — SaaS multi-tenant de emissão de tickets para giras
 
 Este arquivo é lido automaticamente pelo Claude Code em toda sessão. Contém regras não negociáveis
@@ -121,6 +121,7 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 - Backend: Python 3.11, FastAPI, SQLAlchemy 2 async, Pydantic v2, Alembic
 - Frontend: Next.js, TypeScript, Material UI (v5), Recharts
 - DB: PostgreSQL (Docker local / Hostinger VPS em prod)
+- Monitoramento: Sentry (erros + traces), Prometheus + Grafana (métricas)
 
 ### Fluxo padrão backend
 ```
@@ -140,6 +141,19 @@ model (src/models/) → repository (src/repositories/) → endpoint (src/api/v1/
 
 ---
 
+## Autenticação — Cookie HttpOnly (IMPORTANTE)
+
+O `access_token` é armazenado como **cookie HttpOnly** (não em `localStorage`).
+
+- **Backend login**: seta 3 cookies — `access_token` (HttpOnly), `refresh_token` (HttpOnly), `auth_state=1` (não-HttpOnly, legível pelo JS para detectar login).
+- **jwt_middleware**: lê `Authorization: Bearer` header primeiro (impersonação via sessionStorage), depois fallback para cookie `access_token`.
+- **Frontend api_client**: usa `withCredentials: true` no axios — cookies enviados automaticamente. Não há token no header para sessões normais.
+- **Impersonação**: token fica em `sessionStorage` e vai como `Authorization: Bearer` (fluxo separado preservado).
+- **hasAuthToken()**: checa `sessionStorage.getItem('access_token')` (impersonação) OU `document.cookie.includes('auth_state=1')` OU `localStorage.getItem('user')`.
+- **Logout**: sempre chamar `POST /api/v1/auth/logout` para limpar cookies HttpOnly no servidor, depois remover `user` do localStorage.
+
+---
+
 ## Checklist Rápido Antes de Qualquer PR
 
 - [ ] Tenant isolation em todas as queries
@@ -149,7 +163,8 @@ model (src/models/) → repository (src/repositories/) → endpoint (src/api/v1/
 - [ ] Migração Alembic criada (se schema mudou)
 - [ ] `alembic heads` = uma única head
 - [ ] Nova feature adicionada ao enum e ao `permissionFeatures.ts` (se aplicável)
+- [ ] Logout chama `/api/v1/auth/logout` antes de limpar localStorage
 
 ---
 
-Para contexto completo: ver **AGENTS.md** (especialmente §3.3 para grupos de permissão e §11 para estado atual do sistema).
+Para contexto completo: ver **AGENTS.md** (especialmente §3.3 para grupos de permissão, §11 para estado atual e §11.9 para infra/deploy).

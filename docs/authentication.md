@@ -16,8 +16,13 @@ POST /api/v1/auth/login
     ├── Verifica password com bcrypt
     ├── Gera access_token (JWT, 24h)
     ├── Gera refresh_token (JWT, 30d)
-    └── Retorna tokens + user info
+    ├── Seta cookie HttpOnly: access_token
+    ├── Seta cookie HttpOnly: refresh_token
+    ├── Seta cookie não-HttpOnly: auth_state=1  (JS pode ler para detectar login)
+    └── Retorna user info (sem tokens no body para sessões normais)
 ```
+
+> **Nota de segurança (desde 2026-06-27):** o `access_token` não é mais armazenado no `localStorage`. Ele trafega exclusivamente via cookie `HttpOnly`, eliminando a superfície de ataque de XSS que permitia roubo de token por scripts maliciosos.
 
 ---
 
@@ -29,7 +34,8 @@ POST /api/v1/auth/login
 |-------|-------|
 | Algoritmo | HS256 |
 | Expiração | 24 horas (1440 min) |
-| Transporte | Header `Authorization: Bearer <token>` |
+| Transporte | Cookie `HttpOnly; Secure; SameSite=Strict` (sessão normal) |
+| Transporte (impersonação) | Header `Authorization: Bearer <token>` via sessionStorage |
 
 **Payload:**
 ```json
@@ -66,11 +72,11 @@ Usado para renovar o access token sem re-login.
   "password": "SecurePassword123!"
 }
 
-// Response 200
+// Response 200 — seta 3 cookies + retorna user info
+// Set-Cookie: access_token=eyJ...; HttpOnly; Secure; SameSite=Strict; Max-Age=86400
+// Set-Cookie: refresh_token=eyJ...; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000
+// Set-Cookie: auth_state=1; Secure; SameSite=Strict; Max-Age=86400
 {
-  "access_token": "eyJhbGciOiJIUzI1NiI...",
-  "token_type": "Bearer",
-  "expires_in": 86400,
   "user": {
     "id": "user-uuid",
     "email": "admin@terreiro.com",
@@ -104,7 +110,8 @@ Cookie: auth_token={refresh_token}
 ### POST /api/v1/auth/logout
 
 ```
-Headers: Authorization: Bearer {access_token}
+// Sem body necessário — servidor lê o cookie access_token automaticamente
+// e limpa os 3 cookies via Set-Cookie com Max-Age=0
 
 // Response 200
 {
@@ -172,12 +179,20 @@ async def platform_endpoint(
 
 ### JWTMiddleware
 
-Decodifica o token JWT em cada request autenticado:
+Decodifica o token JWT em cada request autenticado. Ordem de busca do token:
+1. Header `Authorization: Bearer <token>` (usado para impersonação via sessionStorage)
+2. Cookie `access_token` (HttpOnly — sessões normais)
 
 ```python
 class JWTMiddleware:
     async def __call__(self, request, call_next):
-        token = extract_token(request)  # Header ou Cookie
+        # Tenta header Authorization primeiro (impersonação)
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split()[1]
+        else:
+            # Fallback para cookie HttpOnly (sessão normal)
+            token = request.cookies.get("access_token")
         if token:
             payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
             request.state.user_id = payload["sub"]
@@ -236,10 +251,13 @@ def verify_password(password: str, hashed: str) -> bool:
 | Controle | Descrição |
 |----------|-----------|
 | Rate limiting login | 10 tentativas / 15 minutos |
-| Token no header | `Authorization: Bearer <token>` |
-| Refresh via cookie | `HttpOnly`, `SameSite=Strict`, `Secure` |
+| access_token | Cookie `HttpOnly; Secure; SameSite=Strict` — protegido contra XSS |
+| auth_state | Cookie não-HttpOnly `auth_state=1` — permite JS detectar login sem expor token |
+| refresh_token | Cookie `HttpOnly; Secure; SameSite=Strict` |
+| CSRF | Mitigado por `SameSite=Strict` — não requer CSRF token separado |
 | CORS | Origins configuráveis via `.env` |
 | Audit trail | Toda operação de login/logout registrada |
+| Monitoramento | Erros capturados via Sentry (backend + frontend) |
 
 ---
 

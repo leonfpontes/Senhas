@@ -1,10 +1,10 @@
 # AGENTS.md - Guia Operacional para Agentes de IA
 
-Last Updated: 2026-06-25
-Project: Senhas - Multi-Tenant SaaS Password Management
+Last Updated: 2026-06-27
+Project: Senhas / GiraHub - Multi-Tenant SaaS para emissão de tickets
 Repository: leonfpontes/Senhas
 Default Branch: master
-Working Branch (atual): 003-rbac-grupos-permissao
+Working Branch (atual): master
 VPS: 76.13.231.19 (Hostinger) — projeto clonado em /opt/senhas
 
 Este arquivo define como agentes de IA devem entender o sistema e como agir ao implementar mudanças com seguranca, qualidade e consistencia arquitetural.
@@ -53,6 +53,14 @@ Regra critica:
 - Roles principais: SUPER_ADMIN, ADMIN, OPERATOR.
 - Endpoints admin so para escopo do tenant atual.
 - Endpoints platform so para super admin (escopo global).
+
+**Fluxo de autenticacao via cookie HttpOnly (desde 2026-06-27):**
+- Login seta 3 cookies: `access_token` (HttpOnly, Secure, SameSite=Strict), `refresh_token` (HttpOnly), `auth_state=1` (nao-HttpOnly — legivel por JS para verificar login).
+- `jwt_middleware` extrai token do header `Authorization: Bearer` primeiro (impersonacao via sessionStorage), depois fallback para cookie `access_token`.
+- Frontend usa `withCredentials: true` no axios — nao ha token no header para sessoes normais.
+- Impersonacao usa sessionStorage e header Bearer — fluxo preservado separado.
+- `hasAuthToken()` checa: `sessionStorage.getItem('access_token')` OR `document.cookie.includes('auth_state=1')` OR `localStorage.getItem('user')`.
+- Logout DEVE chamar `POST /api/v1/auth/logout` para limpar cookies no servidor.
 
 ### 3.3 Grupos de Permissao — OBRIGATORIO em toda funcionalidade
 
@@ -377,15 +385,40 @@ Incluir obrigatoriamente:
 - VPS: 76.13.231.19 (Hostinger), projeto em /opt/senhas.
 - Dominio: girahub.com.br com SSL (Let's Encrypt).
 - nginx: proxy reverso, terminacao SSL, WebSocket proxy para /door/ws.
-- **Deploy sem downtime (obrigatorio)**:
-  ```bash
-  cd /opt/senhas && git pull origin master
-  # 1) Build com containers antigos ainda rodando:
-  docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml build backend frontend
-  # 2) Restart rapido (downtime ~5s):
-  docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d backend frontend
-  ```
-  NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
+
+**Deploy automatizado via GitHub Actions (`.github/workflows/deploy.yml`):**
+1. Job `security-audit` (paralelo, nao-bloqueante): `pip-audit` + `npm audit --audit-level=high`.
+2. Job `deploy` (SSH no VPS):
+   - `pg_dump` backup antes de qualquer mudanca (mantém 10 backups em `/opt/senhas/backups/`).
+   - `git pull` do repositorio.
+   - Build das imagens com containers antigos AINDA rodando (zero-downtime durante build).
+   - Migracao Alembic em container temporario (`--rm`).
+   - Swap dos containers com `up -d`.
+   - Health check com 5 retentativas antes de declarar sucesso.
+
+**Deploy manual sem downtime (alternativa):**
+```bash
+cd /opt/senhas
+# 1) Backup do banco:
+docker exec senhas_postgres pg_dump -U senhas_user senhas_prod > /opt/senhas/backups/manual_$(date +%Y%m%d_%H%M%S).sql
+# 2) Atualizar codigo:
+git pull origin master
+# 3) Build com containers antigos rodando:
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml build backend frontend
+# 4) Migracoes:
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml run --rm backend alembic upgrade head
+# 5) Swap:
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d backend frontend
+```
+NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
+
+**Monitoramento de erros — Sentry (desde 2026-06-27):**
+- Backend: `sentry-sdk[fastapi]>=1.39.0` — inicializado em `main.py` quando `SENTRY_DSN` definido.
+- Frontend: `@sentry/nextjs ^8` — configurado em `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`.
+- DSNs ja configurados no VPS em `/opt/senhas/.env`.
+- Variaveis: `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`.
+- Em producao: `SENTRY_ENVIRONMENT=production`, `SENTRY_TRACES_SAMPLE_RATE=0.1`.
+- MCP do Sentry disponivel via `.claude/settings.json` (url: `https://mcp.sentry.dev/mcp`).
 
 ---
 

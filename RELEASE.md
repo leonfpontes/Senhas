@@ -67,9 +67,18 @@
 - **Production Docker setup** with multi-container orchestration
 - **Ubuntu VPS provisioning** (PostgreSQL, Nginx, SSL)
 - **GitHub Actions CI/CD** pipeline (lint, test, build, deploy)
-- **Monitoring setup** with Prometheus + Grafana
-- **Backup strategy** with automated daily backups
+- **Zero-downtime deploy** — build com containers antigos rodando, swap rápido
+- **Automated pg_dump backup** antes de cada deploy (10 backups retidos)
+- **Security audit job** em CI — pip-audit + npm audit paralelos
+- **Monitoring setup** with Prometheus + Grafana + **Sentry** (error tracking)
 - **Comprehensive API documentation**
+
+### Fase 8: Hardening de Segurança (2026-06-27)
+- **HttpOnly cookie auth** — access_token migrado de localStorage para cookie HttpOnly (elimina vetor XSS)
+- **auth_state cookie** — cookie não-HttpOnly `auth_state=1` para JS detectar login sem expor token
+- **Sentry integrado** — backend (FastAPI) + frontend (Next.js), DSNs em produção
+- **Deploy zero-downtime via GitHub Actions** — backup automático antes de cada deploy
+- **pip-audit + npm audit** em CI como job paralelo de segurança
 
 ---
 
@@ -81,6 +90,8 @@
 - ✅ Private key rotation support
 - ✅ Session timeout with refresh tokens
 - ✅ Role-based access control (RBAC)
+- ✅ **access_token em cookie HttpOnly** — protegido contra XSS (2026-06-27)
+- ✅ **SameSite=Strict** — CSRF mitigado sem CSRF token separado
 
 ### Data Protection
 - ✅ HTTPS/TLS 1.3 with Let's Encrypt
@@ -106,9 +117,11 @@
 ### Infrastructure
 - ✅ SSH key authentication (no passwords)
 - ✅ UFW firewall configured
-- ✅ Database backup encryption
+- ✅ **Automated pg_dump backup** antes de cada deploy (10 retidos)
 - ✅ Secrets management via .env
 - ✅ Security headers enforced (14+ headers)
+- ✅ **Sentry** — error tracking em produção (backend + frontend)
+- ✅ **Zero-downtime deploy** via GitHub Actions
 
 ---
 
