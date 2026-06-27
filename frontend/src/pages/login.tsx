@@ -13,9 +13,11 @@ import {
   TextField,
   Typography,
   Alert,
+  Checkbox,
   CircularProgress,
   Container,
   Divider,
+  FormControlLabel,
 } from '@mui/material';
 import PasswordField from '../components/PasswordField';
 import Link from 'next/link';
@@ -26,6 +28,7 @@ import { dispatchTenantBrandingUpdated } from '../providers/ThemeProvider';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accountDeleted, setAccountDeleted] = useState(false);
@@ -50,12 +53,20 @@ export default function LoginPage() {
       const response = await apiClient.post('/api/v1/auth/login', {
         email,
         password,
+        remember_me: rememberMe,
       });
 
       const { user } = response.data;
 
       // access_token agora chega como cookie HttpOnly — não armazenar em localStorage
       localStorage.setItem('user', JSON.stringify(user));
+      // Quando "Lembrar-me" está desmarcado, marca a sessão para não persistir.
+      // O backend deve setar cookies de sessão; o frontend também sinaliza via
+      // sessionStorage para limpeza ao fechar a aba.
+      try {
+        if (rememberMe) sessionStorage.removeItem('no_remember');
+        else sessionStorage.setItem('no_remember', '1');
+      } catch {}
       dispatchTenantBrandingUpdated();
 
       // Full page reload on redirect so that _app.tsx providers (ProfileProvider,
@@ -141,6 +152,18 @@ export default function LoginPage() {
                   fullWidth
                   required
                   autoComplete="current-password"
+                />
+
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      size="small"
+                    />
+                  }
+                  label="Lembrar-me"
+                  sx={{ mt: -1 }}
                 />
 
                 <Button

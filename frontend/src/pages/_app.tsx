@@ -6,6 +6,7 @@ import { SubscriptionProvider } from '@/hooks/useSubscription';
 import { ProfileProvider } from '@/hooks/useProfile';
 import { BirthdayProvider } from '@/providers/BirthdayProvider';
 import { PermissionsProvider } from '@/hooks/usePermissions';
+import { SnackbarProvider } from '@/contexts/SnackbarContext';
 
 /**
  * Estilos do popover do tour — responsivos e compatíveis com MUI.
@@ -37,12 +38,14 @@ function MyApp({ Component, pageProps }: AppProps) {
       <ProfileProvider>
         <SubscriptionProvider>
           <PermissionsProvider>
-            <BirthdayProvider>
-              {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}
-              <TourProvider steps={[]} styles={tourStyles}>
-                <Component {...pageProps} />
-              </TourProvider>
-            </BirthdayProvider>
+            <SnackbarProvider>
+              <BirthdayProvider>
+                {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}
+                <TourProvider steps={[]} styles={tourStyles}>
+                  <Component {...pageProps} />
+                </TourProvider>
+              </BirthdayProvider>
+            </SnackbarProvider>
           </PermissionsProvider>
         </SubscriptionProvider>
       </ProfileProvider>
