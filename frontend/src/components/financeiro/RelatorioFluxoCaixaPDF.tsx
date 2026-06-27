@@ -221,7 +221,7 @@ export const RelatorioFluxoCaixaPDF = React.forwardRef<HTMLDivElement, Relatorio
               </div>
             )}
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#2C3E7A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tenantName}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#2C3E7A', wordBreak: 'break-word' }}>{tenantName}</div>
               <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>Sistema de Gestão para Terreiros</div>
             </div>
           </div>
