@@ -28,6 +28,7 @@ import AddIcon from '@mui/icons-material/Add';
 import Diversity3Icon from '@mui/icons-material/Diversity3';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AdminLayout from './admin_layout';
+import MaskedInput from '../../components/shared/MaskedInput';
 import { useSubscription } from '../../hooks/useSubscription';
 import UpgradePrompt from '../../components/UpgradePrompt';
 import { apiClient } from '../../services/api_client';
@@ -300,10 +301,11 @@ function AdminAssociadosContent() {
           error={!!emailError}
           helperText={emailError}
         />
-        <TextField
+        <MaskedInput
+          mask="telefone"
           label="Telefone"
           value={formData.telefone}
-          onChange={(e) => handleChange('telefone', e.target.value)}
+          onChange={(v) => handleChange('telefone', v)}
           fullWidth
           helperText="Opcional"
         />

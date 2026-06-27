@@ -2,7 +2,9 @@ import React from 'react';
 import AppBar     from '@mui/material/AppBar';
 import Avatar     from '@mui/material/Avatar';
 import Box        from '@mui/material/Box';
+import Breadcrumbs from '@mui/material/Breadcrumbs';
 import Divider    from '@mui/material/Divider';
+import Link       from '@mui/material/Link';
 import IconButton from '@mui/material/IconButton';
 import Menu       from '@mui/material/Menu';
 import MenuItem   from '@mui/material/MenuItem';
@@ -23,6 +25,7 @@ import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
 import { ImpersonationBanner } from './ImpersonationBanner';
 import { apiClient } from '@/services/api_client';
+import { routeLabel } from '@/constants/routes';
 
 const DRAWER_WIDTH = 280;
 
@@ -55,6 +58,18 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
 
   const avatarText = (profile?.full_name || profile?.username || profile?.email || 'A')
     .charAt(0).toUpperCase();
+
+  // Breadcrumbs a partir da rota atual (sem querystring).
+  // Exibidos apenas quando há mais de 1 nível dentro de /admin.
+  const segments = router.asPath.split('?')[0].split('/').filter(Boolean);
+  const crumbs = segments.map((seg, idx) => ({
+    label: routeLabel(seg),
+    href: '/' + segments.slice(0, idx + 1).join('/'),
+    isLast: idx === segments.length - 1,
+  }));
+  // Só mostra se há mais de 2 segmentos (ex.: /admin/financeiro/mensalidades),
+  // ocultando na raiz /admin/dashboard.
+  const showBreadcrumbs = segments.length > 2;
 
   // Tour button
   const { setSteps, setIsOpen, setCurrentStep } = useTour();
@@ -102,9 +117,40 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
           <MenuIcon />
         </IconButton>
 
-        <Typography variant="h6" noWrap sx={{ flexGrow: 1, fontWeight: 700, color: brandFont }}>
-          {title}
-        </Typography>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="h6" noWrap sx={{ fontWeight: 700, color: brandFont, lineHeight: 1.2 }}>
+            {title}
+          </Typography>
+          {showBreadcrumbs && (
+            <Breadcrumbs
+              aria-label="breadcrumb"
+              sx={{
+                color: brandFont,
+                '& .MuiBreadcrumbs-separator': { color: brandFont, opacity: 0.6 },
+                '& .MuiTypography-root, & a': { fontSize: '0.72rem' },
+                display: { xs: 'none', sm: 'flex' },
+              }}
+            >
+              {crumbs.map((c) =>
+                c.isLast ? (
+                  <Typography key={c.href} sx={{ color: brandFont, opacity: 0.9 }}>
+                    {c.label}
+                  </Typography>
+                ) : (
+                  <Link
+                    key={c.href}
+                    component="button"
+                    underline="hover"
+                    onClick={() => router.push(c.href)}
+                    sx={{ color: brandFont, opacity: 0.75, '&:hover': { opacity: 1 } }}
+                  >
+                    {c.label}
+                  </Link>
+                ),
+              )}
+            </Breadcrumbs>
+          )}
+        </Box>
 
         {tourSteps.length > 0 && (
           <Tooltip title="Guia desta tela">
