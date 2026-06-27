@@ -62,9 +62,13 @@ async def login(
         UnauthorizedError: If credentials invalid
         NotFoundError: If user not found
     """
-    # Email is globally unique — find user by email alone
-    stmt = select(User).where(
-        (User.email == request.email) & (User.deleted_at.is_(None))
+    # Email may exist in multiple tenants — pick the oldest active record.
+    # If a user belongs to multiple tenants, the first-created account wins.
+    stmt = (
+        select(User)
+        .where((User.email == request.email) & (User.deleted_at.is_(None)))
+        .order_by(User.created_at.asc())
+        .limit(1)
     )
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
