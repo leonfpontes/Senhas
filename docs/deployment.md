@@ -21,7 +21,7 @@ Deploy do Senhas em servidor VPS com Ubuntu 22.04 LTS.
 ### Checklist pré-deploy
 - [ ] Todos os testes passando (`pytest`, `npm test`, `cypress`)
 - [ ] Sem vulnerabilidades (`npm audit --audit-level=high`, `pip-audit`)
-- [ ] `.env` de produção preparado (incluindo `SENTRY_DSN`)
+- [ ] `.env` de produção preparado (incluindo `SENTRY_DSN` e `REDIS_URL`)
 - [ ] Backup do banco (feito automaticamente pelo workflow — verificar `/opt/senhas/backups/`)
 - [ ] DNS configurado (A record → IP do VPS)
 
@@ -293,6 +293,14 @@ NEXT_PUBLIC_SENTRY_DSN=<dsn-do-projeto-nextjs>
 SENTRY_ENVIRONMENT=production
 NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
 SENTRY_TRACES_SAMPLE_RATE=0.1
+```
+
+### Redis (rate limiter distribuído)
+
+Redis já incluso no `docker-compose.prod.yml`. A variável `REDIS_URL` é repassada automaticamente ao container backend. O rate limiter (`slowapi`) usa `RedisStorage` quando `REDIS_URL` está definido — distribuído entre todos os workers.
+
+```env
+REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
 ```
 
 ### Prometheus + Grafana

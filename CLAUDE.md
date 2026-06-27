@@ -120,7 +120,8 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 ### Stack
 - Backend: Python 3.11, FastAPI, SQLAlchemy 2 async, Pydantic v2, Alembic
 - Frontend: Next.js, TypeScript, Material UI (v5), Recharts
-- DB: PostgreSQL (Docker local / Hostinger VPS em prod)
+- DB: PostgreSQL com limit de 8G (Docker local / Hostinger VPS em prod)
+- Cache/Rate limit: Redis com `RedisStorage` no slowapi (distribuído)
 - Monitoramento: Sentry (erros + traces), Prometheus + Grafana (métricas)
 
 ### Fluxo padrão backend

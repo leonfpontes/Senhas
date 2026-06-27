@@ -1,6 +1,6 @@
 # AGENTS.md - Guia Operacional para Agentes de IA
 
-Last Updated: 2026-06-27
+Last Updated: 2026-06-27 (sessão 2)
 Project: Senhas / GiraHub - Multi-Tenant SaaS para emissão de tickets
 Repository: leonfpontes/Senhas
 Default Branch: master

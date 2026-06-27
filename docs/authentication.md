@@ -96,16 +96,24 @@ Usado para renovar o access token sem re-login.
 ### POST /api/v1/auth/refresh
 
 ```
-Headers: Authorization: Bearer {refresh_token}
-  — ou —
-Cookie: auth_token={refresh_token}
+// Sem body — lê automaticamente o cookie HttpOnly 'refresh_token'
+// Rota pública (não requer access_token válido — é exatamente para quando ele expirou)
 
-// Response 200
+// Response 200 — rotaciona ambos os cookies
+// Set-Cookie: access_token=eyJ...; HttpOnly; Secure; SameSite=Strict; Max-Age=86400
+// Set-Cookie: refresh_token=eyJ...; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000
+// Set-Cookie: auth_state=1; Secure; SameSite=Strict; Max-Age=86400
 {
   "access_token": "eyJhbGciOiJIUzI1NiI...",
+  "token_type": "bearer",
   "expires_in": 86400
 }
+
+// Response 401 — refresh_token ausente, expirado ou inválido
+{ "detail": "refresh_token inválido ou expirado" }
 ```
+
+> O refresh token tem `type: refresh` no payload. `decode_refresh_token` rejeita qualquer token sem esse campo, impedindo que um access_token seja usado no lugar do refresh e vice-versa.
 
 ### POST /api/v1/auth/logout
 
@@ -250,13 +258,15 @@ def verify_password(password: str, hashed: str) -> bool:
 
 | Controle | Descrição |
 |----------|-----------|
-| Rate limiting login | 10 tentativas / 15 minutos |
+| Rate limiting login | Nginx: 5 req/s por IP; App: slowapi com **Redis** (distribuído entre workers) |
 | access_token | Cookie `HttpOnly; Secure; SameSite=Strict` — protegido contra XSS |
 | auth_state | Cookie não-HttpOnly `auth_state=1` — permite JS detectar login sem expor token |
-| refresh_token | Cookie `HttpOnly; Secure; SameSite=Strict` |
+| refresh_token | Cookie `HttpOnly; Secure; SameSite=Strict`; payload com `type: refresh` |
+| Separação de tipos | `decode_refresh_token` rejeita access tokens; `decode_token` rejeita refresh tokens |
 | CSRF | Mitigado por `SameSite=Strict` — não requer CSRF token separado |
 | CORS | Origins configuráveis via `.env` |
-| Audit trail | Toda operação de login/logout registrada |
+| Role hierarchy | `OPERATOR=0 < ADMIN=1 < SUPER_ADMIN=2` — hierarquia explícita em `dependencies.py` |
+| Audit trail | Toda operação de login/logout/refresh registrada |
 | Monitoramento | Erros capturados via Sentry (backend + frontend) |
 
 ---
