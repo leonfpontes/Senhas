@@ -25,6 +25,8 @@
     "@reactour/tour": "^3.8.0",
     "axios": "^1.6.2",
     "dayjs": "^1.11.21",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "next": "^14.2.33",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

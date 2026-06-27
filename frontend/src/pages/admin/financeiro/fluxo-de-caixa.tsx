@@ -1,12 +1,16 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
   ButtonGroup,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Grid,
   IconButton,
   Paper,
@@ -27,6 +31,8 @@ import 'dayjs/locale/pt-br';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import ArrowDownwardIcon  from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon    from '@mui/icons-material/ArrowUpward';
+import DownloadIcon       from '@mui/icons-material/Download';
+import PictureAsPdfIcon   from '@mui/icons-material/PictureAsPdf';
 import RefreshIcon        from '@mui/icons-material/Refresh';
 import TrendingUpIcon     from '@mui/icons-material/TrendingUp';
 import {
@@ -50,7 +56,10 @@ import { KpiCard, PageHeader } from '@/components/admin';
 import { useAdminTheme }       from '@/providers/AdminThemeProvider';
 import { useSubscription }     from '../../../hooks/useSubscription';
 import { usePermissions }      from '../../../hooks/usePermissions';
+import { useTenant }           from '@/providers/ThemeProvider';
+import { useProfile }          from '../../../hooks/useProfile';
 import { apiClient }           from '../../../services/api_client';
+import { RelatorioFluxoCaixaPDF } from '@/components/financeiro/RelatorioFluxoCaixaPDF';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -201,10 +210,17 @@ function FluxoDeCaixaContent() {
   const { can }           = useSubscription();
   const { can: canGroup } = usePermissions();
   const { tokens, isDark } = useAdminTheme();
+  const { tenantName, logoUrl } = useTenant();
+  const { profile } = useProfile();
 
   const [dados, setDados]     = useState<FluxoMes[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<PeriodoState>(initialPeriodo);
+
+  const [pdfOpen, setPdfOpen]         = useState(false);
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const [logoBase64, setLogoBase64]   = useState<string | null>(null);
+  const relatorioRef = useRef<HTMLDivElement>(null);
 
   const fetchAll = useCallback(async () => {
     if (!can('contas_financeiras') || !canGroup('contas_financeiras', 'view')) {
@@ -228,6 +244,62 @@ function FluxoDeCaixaContent() {
   }, [can, canGroup, periodo]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Converte logo para base64 para o html2canvas não ter problema com CORS
+  const openPdfPreview = useCallback(async () => {
+    if (logoUrl) {
+      try {
+        const resp = await fetch(logoUrl);
+        const blob = await resp.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => setLogoBase64(reader.result as string);
+        reader.readAsDataURL(blob);
+      } catch {
+        setLogoBase64(null);
+      }
+    }
+    setPdfOpen(true);
+  }, [logoUrl]);
+
+  const handleExportPdf = useCallback(async () => {
+    if (!relatorioRef.current) return;
+    setPdfExporting(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
+
+      const canvas = await html2canvas(relatorioRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#FFFFFF',
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgH = (canvas.height * pageW) / canvas.width;
+
+      if (imgH <= pageH) {
+        pdf.addImage(imgData, 'PNG', 0, 0, pageW, imgH);
+      } else {
+        // conteúdo maior que uma página: divide em fatias
+        let posY = 0;
+        while (posY < imgH) {
+          if (posY > 0) pdf.addPage();
+          pdf.addImage(imgData, 'PNG', 0, -posY, pageW, imgH);
+          posY += pageH;
+        }
+      }
+
+      const nomeArquivo = `relatorio-fluxo-caixa-${periodo.inicio.format('YYYYMM')}-${periodo.fim.format('YYYYMM')}.pdf`;
+      pdf.save(nomeArquivo);
+    } finally {
+      setPdfExporting(false);
+    }
+  }, [periodo]);
 
   const handlePreset = (key: Preset) => {
     if (key === 'customizado') {
@@ -285,6 +357,15 @@ function FluxoDeCaixaContent() {
         actions={
           <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="pt-br">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'nowrap' }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<PictureAsPdfIcon />}
+                onClick={openPdfPreview}
+                disabled={loading || dados.length === 0}
+              >
+                Exportar PDF
+              </Button>
               {/* Preset buttons */}
               <ButtonGroup size="small" variant="outlined">
                 {PRESETS.map(({ key, label }) => (
@@ -696,6 +777,58 @@ function FluxoDeCaixaContent() {
           </Table>
         </TableContainer>
       )}
+
+      {/* Modal de Preview / Exportação PDF */}
+      <Dialog
+        open={pdfOpen}
+        onClose={() => setPdfOpen(false)}
+        maxWidth={false}
+        PaperProps={{ sx: { width: '860px', maxWidth: '98vw', maxHeight: '95vh' } }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="subtitle1" fontWeight={700}>
+            Prévia do Relatório — Fluxo de Caixa
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {periodo.inicio.format('DD/MM/YYYY')} – {periodo.fim.format('DD/MM/YYYY')}
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent dividers sx={{ overflowX: 'auto', bgcolor: '#F0F0F0', p: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <RelatorioFluxoCaixaPDF
+              ref={relatorioRef}
+              dados={dados}
+              projecoes={projecoes}
+              r2={projReg?.r2 ?? null}
+              periodo={{
+                inicio: periodo.inicio.format('DD/MM/YYYY'),
+                fim: periodo.fim.format('DD/MM/YYYY'),
+              }}
+              tenantName={tenantName ?? 'Meu Terreiro'}
+              logoUrl={logoUrl}
+              logoBase64={logoBase64}
+              geradoPor={profile?.full_name ?? profile?.username ?? profile?.email ?? 'Usuário'}
+              geradoEm={dayjs().format('DD/MM/YYYY [às] HH:mm')}
+            />
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, py: 1.5, gap: 1 }}>
+          <Button onClick={() => setPdfOpen(false)} variant="outlined" size="small">
+            Fechar
+          </Button>
+          <Button
+            onClick={handleExportPdf}
+            variant="contained"
+            size="small"
+            startIcon={pdfExporting ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon />}
+            disabled={pdfExporting}
+          >
+            {pdfExporting ? 'Gerando PDF…' : 'Baixar PDF'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
     </Box>
   );
