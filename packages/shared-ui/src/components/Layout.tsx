@@ -48,6 +48,7 @@ export const Layout: React.FC<LayoutProps> = ({
       {/* Drawer */}
       <Drawer
         {...drawerProps}
+        items={drawerProps.items ?? []}
         open={drawerOpen}
         onClose={handleCloseDrawer}
         variant={drawerVariant}
@@ -65,7 +66,7 @@ export const Layout: React.FC<LayoutProps> = ({
         }}
       >
         {/* AppBar */}
-        <AppBar {...appBarProps} onMenuClick={handleOpenDrawer} />
+        <AppBar {...appBarProps} onMenuClick={() => handleOpenDrawer()} />
 
         {/* Page Content */}
         <Container

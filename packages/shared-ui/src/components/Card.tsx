@@ -11,18 +11,19 @@ import {
   CardContent,
   CardHeader,
   CardActions,
-  Box,
-  BoxProps,
+  SxProps,
+  Theme,
 } from '@mui/material';
 
-export interface CardProps extends BoxProps {
+export interface CardProps {
   title?: string;
   subtitle?: string;
   children: React.ReactNode;
   actions?: React.ReactNode;
   elevation?: number;
   variant?: 'outlined' | 'elevation';
-  border?: boolean;
+  hasBorder?: boolean;
+  sx?: SxProps<Theme>;
 }
 
 /**
@@ -36,8 +37,8 @@ export const Card: React.FC<CardProps> = ({
   actions,
   elevation = 1,
   variant = 'elevation',
-  border = false,
-  ...boxProps
+  hasBorder = false,
+  sx,
 }) => {
   return (
     <MuiCard
@@ -47,7 +48,7 @@ export const Card: React.FC<CardProps> = ({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        border: border ? '1px solid #e0e0e0' : 'none',
+        border: hasBorder ? '1px solid #e0e0e0' : 'none',
         borderRadius: 2,
         transition: 'all 0.3s ease',
         '&:hover': {
@@ -56,9 +57,8 @@ export const Card: React.FC<CardProps> = ({
               ? '0 4px 16px rgba(0, 0, 0, 0.15)'
               : '0 2px 8px rgba(0, 0, 0, 0.1)',
         },
-        ...boxProps.sx,
+        ...sx,
       }}
-      {...boxProps}
     >
       {/* Header */}
       {title && (

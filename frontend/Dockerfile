@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ============================================
 # Stage 1 — Install dependencies & build
 # ============================================
@@ -11,11 +12,12 @@ COPY packages ./packages
 COPY frontend ./frontend
 
 # Install all dependencies (workspace resolves shared-types / shared-ui)
-RUN npm install --legacy-peer-deps
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --legacy-peer-deps
 
 # Build shared packages first, then frontend
-RUN npm run build --workspace=packages/shared-types 2>/dev/null || true && \
-    npm run build --workspace=packages/shared-ui 2>/dev/null || true
+RUN npm run build --workspace=packages/shared-types && \
+    npm run build --workspace=packages/shared-ui
 
 WORKDIR /app/frontend
 ENV NEXT_TELEMETRY_DISABLED=1

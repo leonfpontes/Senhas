@@ -27,9 +27,9 @@ export interface AppBarProps {
   logoUrl?: string;
   tenantName?: string;
   onLogout?: () => void;
-  onMenuClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onMenuClick?: (event: React.MouseEvent<HTMLElement>) => void;
   onSettingsClick?: () => void;
-  variant?: 'regular' | 'outlined';
+  variant?: 'outlined';
 }
 
 /**
@@ -43,7 +43,7 @@ export const AppBar: React.FC<AppBarProps> = ({
   onLogout,
   onMenuClick,
   onSettingsClick,
-  variant = 'regular',
+  variant,
 }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
@@ -64,7 +64,7 @@ export const AppBar: React.FC<AppBarProps> = ({
 
   return (
     <>
-      <MuiAppBar position="sticky" variant={variant}>
+      <MuiAppBar position="sticky" {...(variant === 'outlined' && { variant })}>
         <Toolbar>
           {/* Logo and Title */}
           <Box

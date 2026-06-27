@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ============================================
 # Stage 1 — Install dependencies
 # ============================================
@@ -15,8 +16,9 @@ COPY backend/pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     python -c "import tomllib, pathlib; \
     deps = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['dependencies']; \
-    pathlib.Path('requirements.txt').write_text('\n'.join(deps))" && \
-    pip install --no-cache-dir -r requirements.txt
+    pathlib.Path('requirements.txt').write_text('\n'.join(deps))"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 
 # ============================================
 # Stage 2 — Production runtime
