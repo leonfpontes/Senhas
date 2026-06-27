@@ -282,7 +282,7 @@ function FluxoDeCaixaContent() {
       const pageH = pdf.internal.pageSize.getHeight();
       const imgH = (canvas.height * pageW) / canvas.width;
 
-      if (imgH <= pageH) {
+      if (imgH <= pageH + 1) {
         pdf.addImage(imgData, 'PNG', 0, 0, pageW, imgH);
       } else {
         // conteúdo maior que uma página: divide em fatias

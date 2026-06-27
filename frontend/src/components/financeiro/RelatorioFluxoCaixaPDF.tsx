@@ -207,7 +207,7 @@ export const RelatorioFluxoCaixaPDF = React.forwardRef<HTMLDivElement, Relatorio
       >
         {/* ── HEADER ── */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 20, borderBottom: '3px solid #2C3E7A', marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, maxWidth: '48%', overflow: 'hidden' }}>
             {logoSrc ? (
               <img
                 src={logoSrc}
@@ -221,11 +221,11 @@ export const RelatorioFluxoCaixaPDF = React.forwardRef<HTMLDivElement, Relatorio
               </div>
             )}
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#2C3E7A' }}>{tenantName}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#2C3E7A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tenantName}</div>
               <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>Sistema de Gestão para Terreiros</div>
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#2C3E7A' }}>Relatório de Fluxo de Caixa</div>
             <div style={{ fontSize: 10, color: '#666', marginTop: 4, lineHeight: 1.7 }}>
               Período: <strong>{periodoLabel}</strong><br />
