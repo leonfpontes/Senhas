@@ -1,5 +1,5 @@
 """T060: Admin Bulk Operations - POST/DELETE bulk mark-used, cancel"""
-from fastapi import APIRouter, Depends, status, Path, HTTPException
+from fastapi import APIRouter, Depends, status, Path, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import List
@@ -12,6 +12,7 @@ from src.repositories.senha_control_repo_extended import SenhaControlRepositoryE
 from src.services.audit_service import AuditService
 from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import InsufficientPermissionsError
+from src.core.limiter import limiter
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-bulk"])
 logger = logging.getLogger(__name__)
@@ -31,7 +32,9 @@ class BulkOperationResponse(BaseModel):
 
 
 @router.post("/giras/{gira_id}/tickets/bulk-mark-used", response_model=BulkOperationResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "edit"))])
+@limiter.limit("20/minute")
 async def bulk_mark_used(
+    http_request: Request,
     gira_id: UUID = Path(...),
     request: BulkOperationRequest = None,
     current_user: User = Depends(get_current_user),
@@ -68,7 +71,9 @@ async def bulk_mark_used(
 
 
 @router.post("/giras/{gira_id}/tickets/bulk-cancel", response_model=BulkOperationResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "delete"))])
+@limiter.limit("20/minute")
 async def bulk_cancel(
+    http_request: Request,
     gira_id: UUID = Path(...),
     request: BulkOperationRequest = None,
     current_user: User = Depends(get_current_user),
