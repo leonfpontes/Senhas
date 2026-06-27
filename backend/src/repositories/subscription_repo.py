@@ -7,6 +7,15 @@ from sqlalchemy import select, and_
 from ..models import Subscription, PlanType, SubscriptionStatus
 from .base import BaseRepository
 
+# Fonte única de verdade para limites por plano.
+# Importada também por webhooks.py para manter Stripe em sync.
+PLAN_LIMITS: dict = {
+    PlanType.FREE:    {"max_users": 1,     "max_giras_per_month": 4,      "max_mediuns": 0,       "price": 0.0},
+    PlanType.BASIC:   {"max_users": 3,     "max_giras_per_month": 10,     "max_mediuns": 50,      "price": 49.0},
+    PlanType.PRO:     {"max_users": 10,    "max_giras_per_month": 15,     "max_mediuns": 150,     "price": 79.0},
+    PlanType.PREMIUM: {"max_users": 99999, "max_giras_per_month": 999999, "max_mediuns": 9999999, "price": 99.0},
+}
+
 
 class SubscriptionRepository(BaseRepository[Subscription]):
     """Repository for Subscription management.
@@ -162,30 +171,4 @@ class SubscriptionRepository(BaseRepository[Subscription]):
         Returns:
             Plan config dict with limits and pricing
         """
-        configs = {
-            PlanType.FREE: {
-                "max_users": 1,
-                "max_giras_per_month": 4,
-                "max_mediuns": 0,
-                "price": 0.0,
-            },
-            PlanType.BASIC: {
-                "max_users": 3,
-                "max_giras_per_month": 10,
-                "max_mediuns": 50,
-                "price": 49.0,
-            },
-            PlanType.PRO: {
-                "max_users": 10,
-                "max_giras_per_month": 15,
-                "max_mediuns": 150,
-                "price": 79.0,
-            },
-            PlanType.PREMIUM: {
-                "max_users": 99999,  # Effectively unlimited
-                "max_giras_per_month": 999999,
-                "max_mediuns": 9999999,
-                "price": 99.0,
-            },
-        }
-        return configs.get(plan, configs[PlanType.FREE])
+        return PLAN_LIMITS.get(plan, PLAN_LIMITS[PlanType.FREE])

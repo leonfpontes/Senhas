@@ -7,7 +7,7 @@ from sqlalchemy import select
 from src.core.database import get_db
 from fastapi import Depends
 from src.models import Subscription, PlanType, SubscriptionStatus
-from src.repositories.subscription_repo import SubscriptionRepository
+from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
 from src.repositories.audit_log_repo import AuditLogRepository
 from src.models.audit_logs import AuditAction
 from src.services import stripe_service
@@ -24,23 +24,28 @@ _PRICE_TO_PLAN_LIMITS: dict = {}  # populated lazily from settings
 
 
 def _get_price_plan_map() -> dict:
-    """Build price_id → (PlanType, limits) map from settings (lazy, cached)."""
+    """Build price_id → (PlanType, limits) map from settings (lazy, cached).
+
+    Deriva limites de PLAN_LIMITS (subscription_repo) — fonte única de verdade.
+    """
     if _PRICE_TO_PLAN_LIMITS:
         return _PRICE_TO_PLAN_LIMITS
 
     from src.core.config import settings
 
-    _PRICE_TO_PLAN_LIMITS.update({
-        settings.STRIPE_PRICE_BASIC: {
-            "plan": PlanType.BASIC, "max_users": 5, "max_giras_per_month": 10, "max_mediuns": 20, "monthly_price": 49.0,
-        },
-        settings.STRIPE_PRICE_PRO: {
-            "plan": PlanType.PRO, "max_users": 20, "max_giras_per_month": 50, "max_mediuns": 100, "monthly_price": 79.0,
-        },
-        settings.STRIPE_PRICE_PREMIUM: {
-            "plan": PlanType.PREMIUM, "max_users": -1, "max_giras_per_month": -1, "max_mediuns": -1, "monthly_price": 99.0,
-        },
-    })
+    for stripe_price, plan_type in [
+        (settings.STRIPE_PRICE_BASIC, PlanType.BASIC),
+        (settings.STRIPE_PRICE_PRO, PlanType.PRO),
+        (settings.STRIPE_PRICE_PREMIUM, PlanType.PREMIUM),
+    ]:
+        lim = PLAN_LIMITS[plan_type]
+        _PRICE_TO_PLAN_LIMITS[stripe_price] = {
+            "plan": plan_type,
+            "max_users": lim["max_users"],
+            "max_giras_per_month": lim["max_giras_per_month"],
+            "max_mediuns": lim["max_mediuns"],
+            "monthly_price": lim["price"],
+        }
     return _PRICE_TO_PLAN_LIMITS
 
 
@@ -209,15 +214,16 @@ async def _handle_subscription_deleted(stripe_sub: dict, db: AsyncSession) -> No
     if not sub:
         return
 
+    free = PLAN_LIMITS[PlanType.FREE]
     sub.status = SubscriptionStatus.CANCELLED
     sub.plan = PlanType.FREE
     sub.stripe_subscription_id = None
     sub.stripe_price_id = None
     sub.cancel_at_period_end = False
-    sub.max_users = 1
-    sub.max_giras_per_month = 2
-    sub.max_mediuns = 0
-    sub.monthly_price = 0.0
+    sub.max_users = free["max_users"]
+    sub.max_giras_per_month = free["max_giras_per_month"]
+    sub.max_mediuns = free["max_mediuns"]
+    sub.monthly_price = free["price"]
 
     audit = AuditLogRepository(db)
     await audit.create(

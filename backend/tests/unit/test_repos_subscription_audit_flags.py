@@ -113,44 +113,46 @@ class TestSubscriptionRepository:
         assert result is None
 
     def test_get_plan_config_free(self):
-        from src.repositories.subscription_repo import SubscriptionRepository
+        from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
         from src.models import PlanType
         r = SubscriptionRepository(_mock_db())
         config = r._get_plan_config(PlanType.FREE)
-        assert config["max_users"] == 1
-        assert config["max_giras_per_month"] == 2
+        assert config["max_users"] == PLAN_LIMITS[PlanType.FREE]["max_users"]
+        assert config["max_giras_per_month"] == PLAN_LIMITS[PlanType.FREE]["max_giras_per_month"]
         assert config["price"] == 0.0
 
     def test_get_plan_config_basic(self):
-        from src.repositories.subscription_repo import SubscriptionRepository
+        from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
         from src.models import PlanType
         r = SubscriptionRepository(_mock_db())
         config = r._get_plan_config(PlanType.BASIC)
-        assert config["max_users"] == 5
+        assert config["max_users"] == PLAN_LIMITS[PlanType.BASIC]["max_users"]
+        assert config["max_mediuns"] == PLAN_LIMITS[PlanType.BASIC]["max_mediuns"]
         assert config["price"] == 49.0
 
     def test_get_plan_config_pro(self):
-        from src.repositories.subscription_repo import SubscriptionRepository
+        from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
         from src.models import PlanType
         r = SubscriptionRepository(_mock_db())
         config = r._get_plan_config(PlanType.PRO)
-        assert config["max_users"] == 20
+        assert config["max_users"] == PLAN_LIMITS[PlanType.PRO]["max_users"]
+        assert config["max_giras_per_month"] == PLAN_LIMITS[PlanType.PRO]["max_giras_per_month"]
+        assert config["max_mediuns"] == PLAN_LIMITS[PlanType.PRO]["max_mediuns"]
         assert config["price"] == 79.0
 
     def test_get_plan_config_premium(self):
-        from src.repositories.subscription_repo import SubscriptionRepository
+        from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
         from src.models import PlanType
         r = SubscriptionRepository(_mock_db())
         config = r._get_plan_config(PlanType.PREMIUM)
-        assert config["max_users"] == 99999
+        assert config["max_users"] == PLAN_LIMITS[PlanType.PREMIUM]["max_users"]
 
     def test_get_plan_config_unknown(self):
-        from src.repositories.subscription_repo import SubscriptionRepository
+        from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
         from src.models import PlanType
         r = SubscriptionRepository(_mock_db())
-        # Unknown falls back to FREE
         config = r._get_plan_config("unknown")
-        assert config["max_users"] == 1
+        assert config["max_users"] == PLAN_LIMITS[PlanType.FREE]["max_users"]
 
 
 # ═══════════════════════════════════════════════════════════
