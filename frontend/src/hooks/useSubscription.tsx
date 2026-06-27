@@ -99,7 +99,8 @@ const hasAuthToken = (): boolean => {
   if (typeof window === 'undefined') return false;
   return (
     Boolean(sessionStorage.getItem('access_token')) ||
-    Boolean(localStorage.getItem('access_token'))
+    document.cookie.includes('auth_state=1') ||
+    Boolean(localStorage.getItem('user'))
   );
 };
 

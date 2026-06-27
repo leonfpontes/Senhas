@@ -22,6 +22,7 @@ import { useProfile }    from '@/hooks/useProfile';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
 import { ImpersonationBanner } from './ImpersonationBanner';
+import { apiClient } from '@/services/api_client';
 
 const DRAWER_WIDTH = 280;
 
@@ -64,10 +65,9 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
     setIsOpen(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setAnchorEl(null);
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    try { await apiClient.post('/api/v1/auth/logout'); } catch {}
     localStorage.removeItem('user');
     router.push('/login');
   };

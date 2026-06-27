@@ -1,4 +1,5 @@
 const path = require('path');
+const { withSentryConfig } = require('@sentry/nextjs');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -103,5 +104,18 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withSentryConfig(nextConfig, {
+  // Desabilita o upload de source maps se SENTRY_DSN não estiver configurado
+  silent: !process.env.NEXT_PUBLIC_SENTRY_DSN,
+  // Não injeta o Sentry no bundle se não houver DSN
+  disableServerWebpackPlugin: !process.env.NEXT_PUBLIC_SENTRY_DSN,
+  disableClientWebpackPlugin: !process.env.NEXT_PUBLIC_SENTRY_DSN,
+  // Upload de source maps — requer SENTRY_AUTH_TOKEN no CI
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  // Apaga source maps do bundle final (não expõe código-fonte em prod)
+  hideSourceMaps: true,
+  widenClientFileUpload: true,
+});
 

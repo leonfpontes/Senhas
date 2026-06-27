@@ -95,16 +95,37 @@ async def login(
     access_token = create_access_token(user.id, user.tenant_id, user.role.value)
     refresh_token = create_refresh_token(user.id, user.tenant_id, user.role.value)
     
-    # Set refresh token as HTTP-only cookie
+    # Access token em cookie HttpOnly — não fica exposto no localStorage
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=not settings.DEBUG,
+        samesite="strict",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
+    )
+
+    # Refresh token em cookie HttpOnly
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,  # HTTPS only in production
+        secure=not settings.DEBUG,
         samesite="strict",
-        max_age=30 * 24 * 60 * 60,  # 30 days
+        max_age=30 * 24 * 60 * 60,
     )
-    
+
+    # Cookie legível pelo JS só para o frontend saber que está autenticado
+    # sem precisar guardar o JWT em localStorage
+    response.set_cookie(
+        key="auth_state",
+        value="1",
+        httponly=False,
+        secure=not settings.DEBUG,
+        samesite="strict",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
+    )
+
     log_security_event(
         "login",
         user_id=user.id,
@@ -183,12 +204,9 @@ async def logout(response: Response):
     Returns:
         Success message
     """
-    response.delete_cookie(
-        key="refresh_token",
-        httponly=True,
-        secure=True,
-        samesite="strict",
-    )
+    response.delete_cookie(key="access_token",  httponly=True,  secure=not settings.DEBUG, samesite="strict")
+    response.delete_cookie(key="refresh_token", httponly=True,  secure=not settings.DEBUG, samesite="strict")
+    response.delete_cookie(key="auth_state",    httponly=False, secure=not settings.DEBUG, samesite="strict")
     
     log_security_event("logout", success=True)
     

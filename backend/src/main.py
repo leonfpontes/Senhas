@@ -1,5 +1,6 @@
 """Main FastAPI application factory (T026)."""
 import os
+import sentry_sdk
 from pathlib import Path
 
 from fastapi import FastAPI, Request, status
@@ -46,6 +47,21 @@ from .models import (
 from .core.limiter import limiter
 
 logger = logging.getLogger("senhas")
+
+# ── Sentry ────────────────────────────────────────────────────────────────────
+# Inicializa antes de qualquer coisa para capturar erros de startup.
+# DSN vazio = Sentry desabilitado (dev local / ambientes sem configuração).
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.SENTRY_ENVIRONMENT,
+        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+        # Não enviar dados de usuários anônimos
+        send_default_pii=False,
+        # Ignorar erros esperados / ruído de scanners
+        ignore_errors=[KeyboardInterrupt, SystemExit],
+    )
+    logger.info("Sentry inicializado (environment=%s)", settings.SENTRY_ENVIRONMENT)
 
 
 @asynccontextmanager

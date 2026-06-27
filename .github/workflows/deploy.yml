@@ -5,11 +5,41 @@ on:
     branches: [master]
 
 jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Auditoria de segurança de dependências (não bloqueia deploy, mas notifica)
+  # ──────────────────────────────────────────────────────────────────────────
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    continue-on-error: true   # não bloqueia deploy — apenas gera relatório
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Python dependency audit (pip-audit)
+        working-directory: backend
+        run: |
+          pip install pip-audit --quiet
+          pip install . --quiet
+          pip-audit --format=columns || true
+
+      - name: Node.js dependency audit
+        working-directory: frontend
+        run: npm audit --audit-level=high || true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Deploy principal
+  # ──────────────────────────────────────────────────────────────────────────
   deploy:
     name: Deploy to production
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     environment: Hostinger
+    needs: []   # deploy não depende do audit (paralelo)
 
     steps:
       - name: Deploy via SSH
@@ -23,16 +53,47 @@ jobs:
             set -euo pipefail
             cd /opt/senhas
 
-            echo "==> Pull"
+            echo "==> [1/6] Backup do banco antes do deploy"
+            BACKUP_FILE="/opt/senhas/backups/pre-deploy-$(date +%Y%m%d-%H%M%S).sql.gz"
+            mkdir -p /opt/senhas/backups
+            docker compose -f docker-compose.prod.yml exec -T postgres \
+              pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" \
+              | gzip > "$BACKUP_FILE"
+            echo "Backup salvo: $BACKUP_FILE"
+            # Mantém apenas os 10 backups mais recentes
+            ls -t /opt/senhas/backups/pre-deploy-*.sql.gz | tail -n +11 | xargs -r rm --
+
+            echo "==> [2/6] Pull do código"
             git fetch --all
             git reset --hard origin/master
 
-            echo "==> Build + restart"
+            echo "==> [3/6] Build das novas imagens (containers antigos ainda rodando)"
             docker compose -f docker-compose.prod.yml build --no-cache frontend backend
-            docker compose -f docker-compose.prod.yml up -d --no-deps frontend backend
 
-            echo "==> Migrations"
-            docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
+            echo "==> [4/6] Migrations"
+            # Roda migration em container temporário enquanto prod ainda está up
+            docker compose -f docker-compose.prod.yml run --rm --no-deps backend \
+              alembic upgrade head
 
-            echo "==> Status"
+            echo "==> [5/6] Swap dos containers (downtime mínimo)"
+            docker compose -f docker-compose.prod.yml up -d --no-deps --remove-orphans frontend backend
+
+            echo "==> [6/6] Health check pós-deploy"
+            sleep 5
+            for i in 1 2 3 4 5; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || echo "000")
+              if [ "$STATUS" = "200" ]; then
+                echo "Health check OK (tentativa $i)"
+                break
+              fi
+              echo "Health check falhou ($STATUS), aguardando... ($i/5)"
+              sleep 5
+              if [ $i -eq 5 ]; then
+                echo "ERRO: Backend não respondeu após deploy. Verifique os logs."
+                docker compose -f docker-compose.prod.yml logs --tail=50 backend
+                exit 1
+              fi
+            done
+
+            echo "==> Status final"
             docker compose -f docker-compose.prod.yml ps

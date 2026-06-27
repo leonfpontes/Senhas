@@ -174,8 +174,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 
   const handleLogout = async () => {
     try { await apiClient.post("/api/v1/auth/logout"); } catch {}
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
     localStorage.removeItem("user");
     router.push("/login");
   };

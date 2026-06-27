@@ -24,6 +24,8 @@ class APIClient {
     this.instance = axios.create({
       baseURL: this.baseURL,
       timeout: 30000,
+      // Necessário para enviar/receber cookies HttpOnly (access_token, refresh_token)
+      withCredentials: true,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -38,12 +40,13 @@ class APIClient {
     // Request interceptor for logging
     this.instance.interceptors.request.use(
       (config) => {
-        // Add auth token if available (sessionStorage has priority for impersonation)
-        const token =
-          (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
-          localStorage.getItem('access_token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        // Impersonation token fica no sessionStorage e deve ir como Authorization header.
+        // Autenticação normal usa cookie HttpOnly (access_token) enviado automaticamente
+        // pelo browser via withCredentials — não precisa de header manual.
+        const impersonationToken =
+          typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('access_token') : null;
+        if (impersonationToken) {
+          config.headers.Authorization = `Bearer ${impersonationToken}`;
         }
 
         if (process.env.NODE_ENV === 'development') {
@@ -120,7 +123,7 @@ class APIClient {
    * @param error Axios error object
    * @throws Formatted error
    */
-  private handleError(error: AxiosError): Promise<never> {
+  private async handleError(error: AxiosError): Promise<never> {
     // Requests aborted via AbortController (axios >= 0.22 sets code 'ERR_CANCELED').
     // Re-throw as-is so callers can detect and silently ignore them.
     if (axios.isCancel(error) || (error as any).code === 'ERR_CANCELED') {
@@ -156,15 +159,16 @@ class APIClient {
       // 1. Not already on the login page (avoid redirect loop)
       // 2. The failed request actually carried a token (stale requests without tokens shouldn't clear a newly stored token)
       // 3. The caller did NOT opt-out via skipAutoLogout (e.g. delete-account dialog where 401 means "wrong password")
-      const hadToken = error.config?.headers?.Authorization;
+      const hadToken = error.config?.headers?.Authorization || document.cookie.includes('auth_state=1');
       const skipAutoLogout = (error.config as any)?.skipAutoLogout === true;
       const isImpersonating = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('impersonating');
       if (!skipAutoLogout && typeof window !== 'undefined' && window.location.pathname !== '/login' && hadToken) {
         if (isImpersonating) {
           endImpersonation();
         } else {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
+          // Limpa os cookies HttpOnly via endpoint e remove dados locais
+          try { await this.instance.post('/api/v1/auth/logout'); } catch {}
+          localStorage.removeItem('user');
           window.location.href = '/login';
         }
       }

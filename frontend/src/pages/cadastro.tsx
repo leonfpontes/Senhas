@@ -128,8 +128,8 @@ export default function CadastroPage() {
         aceite_termos: true,
       });
 
-      const { access_token, user } = res.data;
-      localStorage.setItem('access_token', access_token);
+      const { user } = res.data;
+      // access_token agora chega como cookie HttpOnly
       localStorage.setItem('user', JSON.stringify(user));
       dispatchTenantBrandingUpdated();
 

@@ -52,10 +52,9 @@ export default function LoginPage() {
         password,
       });
 
-      const { access_token, user } = response.data;
+      const { user } = response.data;
 
-      // Store token
-      localStorage.setItem('access_token', access_token);
+      // access_token agora chega como cookie HttpOnly — não armazenar em localStorage
       localStorage.setItem('user', JSON.stringify(user));
       dispatchTenantBrandingUpdated();
 

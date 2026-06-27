@@ -35,21 +35,25 @@ async def jwt_middleware(request: Request, call_next: Callable) -> any:
     if request.url.path in public_paths or request.url.path.startswith("/api/v1/public"):
         return await call_next(request)
     
-    # Extract token from Authorization header
+    # Extract token — Authorization header (impersonation) first, then HttpOnly cookie
     auth_header = request.headers.get("Authorization")
-    if not auth_header:
-        # No token — pass through, let endpoint handle auth via dependencies
+    token: Optional[str] = None
+
+    if auth_header:
+        parts = auth_header.split()
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            return JSONResponse(
+                status_code=401,
+                content={"error_code": "UNAUTHORIZED", "message": "Formato de Authorization inválido"},
+            )
+        token = parts[1]
+    else:
+        # Fall back to HttpOnly cookie set by login endpoint
+        token = request.cookies.get("access_token")
+
+    if not token:
+        # No token anywhere — pass through, endpoint can require auth via dependencies
         return await call_next(request)
-    
-    # Parse bearer token
-    parts = auth_header.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        return JSONResponse(
-            status_code=401,
-            content={"error_code": "UNAUTHORIZED", "message": "Formato de Authorization inválido"},
-        )
-    
-    token = parts[1]
     
     # Decode and validate token
     try:

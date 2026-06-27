@@ -23,6 +23,7 @@
     "@mui/material": "^5.14.13",
     "@mui/x-date-pickers": "^7.29.4",
     "@reactour/tour": "^3.8.0",
+    "@sentry/nextjs": "^8.0.0",
     "axios": "^1.6.2",
     "dayjs": "^1.11.21",
     "html2canvas": "^1.4.1",

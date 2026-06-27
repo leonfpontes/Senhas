@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     BREVO_FROM_EMAIL: str = "noreply@girahub.com.br"
     BREVO_FROM_NAME: str = "GiraHub"
 
+    # Sentry
+    SENTRY_DSN: str = ""
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1   # 10% das transações em prod
+    SENTRY_ENVIRONMENT: str = "development"
+
     # Password policy
     PASSWORD_MIN_LENGTH: int = 12
     PASSWORD_REQUIRE_UPPERCASE: bool = True

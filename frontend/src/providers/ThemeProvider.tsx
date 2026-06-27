@@ -163,7 +163,9 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
       }
 
       const hasToken =
-        Boolean(sessionStorage.getItem('access_token')) || Boolean(localStorage.getItem('access_token'));
+        Boolean(sessionStorage.getItem('access_token')) ||
+        document.cookie.includes('auth_state=1') ||
+        Boolean(localStorage.getItem('user'));
 
       if (!hasToken) {
         setTenantConfig(undefined);
