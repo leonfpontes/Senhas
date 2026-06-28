@@ -16,10 +16,6 @@ logger = logging.getLogger("senhas")
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
-PLAN_LIMITS = {
-    "price_basic":   {},  # resolved dynamically below
-}
-
 _PRICE_TO_PLAN_LIMITS: dict = {}  # populated lazily from settings
 
 
