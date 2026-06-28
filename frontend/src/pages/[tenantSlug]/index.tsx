@@ -6,7 +6,7 @@
  *
  * All section data including upcoming giras is server-side rendered for SEO (Gap #19).
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import {
@@ -801,11 +801,30 @@ function LocationSection({ config }: { config: Record<string, unknown> }) {
   const mapsUrl      = mapsQuery
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`
     : undefined;
-  const mapsEmbedUrl = mapsQuery
-    ? `https://maps.google.com/maps?q=${encodeURIComponent(mapsQuery)}&output=embed&z=16`
-    : undefined;
+  // Geocode via Nominatim (OpenStreetMap) — no API key needed
+  const [osmCoords, setOsmCoords] = useState<{ lat: number; lon: number } | null>(null);
+  useEffect(() => {
+    if (!mapsQuery) return;
+    let cancelled = false;
+    fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(mapsQuery)}&format=json&limit=1`,
+      { headers: { 'Accept-Language': 'pt-BR' } }
+    )
+      .then(r => r.json())
+      .then(data => {
+        if (!cancelled && data?.[0]) {
+          setOsmCoords({ lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [mapsQuery]);
 
-  const mapBlock = mapsEmbedUrl ? (
+  const osmEmbedUrl = osmCoords
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${osmCoords.lon - 0.005}%2C${osmCoords.lat - 0.003}%2C${osmCoords.lon + 0.005}%2C${osmCoords.lat + 0.003}&layer=mapnik&marker=${osmCoords.lat}%2C${osmCoords.lon}`
+    : null;
+
+  const mapBlock = mapsQuery ? (
     <Box
       sx={{
         flex: '1 1 0',
@@ -814,18 +833,29 @@ function LocationSection({ config }: { config: Record<string, unknown> }) {
         borderRadius: 2,
         overflow: 'hidden',
         boxShadow: 2,
+        bgcolor: 'rgba(0,0,0,0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
       }}
     >
-      <iframe
-        title="Mapa"
-        src={mapsEmbedUrl}
-        width="100%"
-        height="100%"
-        style={{ border: 0, display: 'block' }}
-        allowFullScreen
-        loading="lazy"
-        referrerPolicy="no-referrer-when-downgrade"
-      />
+      {osmEmbedUrl ? (
+        <iframe
+          title="Mapa"
+          src={osmEmbedUrl}
+          width="100%"
+          height="100%"
+          style={{ border: 0, display: 'block' }}
+          allowFullScreen
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+      ) : (
+        <Typography sx={{ fontFamily, color: fontColor, opacity: 0.4, fontSize: 14 }}>
+          Carregando mapa…
+        </Typography>
+      )}
     </Box>
   ) : (
     <Box
