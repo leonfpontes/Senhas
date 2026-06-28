@@ -30,6 +30,14 @@ import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import StarIcon from '@mui/icons-material/Star';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import Inventory2Icon from '@mui/icons-material/Inventory2';
+import SchoolIcon from '@mui/icons-material/School';
+import LanguageIcon from '@mui/icons-material/Language';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import PeopleIcon from '@mui/icons-material/People';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 
 // ─── Design tokens ──────────────────────────────────────────────────────────
 const T = {
@@ -47,45 +55,84 @@ const T = {
 
 const NAV = [
   { label: 'Funcionalidades', href: '#funcionalidades' },
+  { label: 'Financeiro', href: '#financeiro' },
   { label: 'Planos', href: '#planos' },
-  { label: 'Como Funciona', href: '#como-funciona' },
   { label: 'Contato', href: '#contato' },
 ];
 
 const FEATURES = [
-  { icon: <ConfirmationNumberIcon />, title: 'Emissão Online', desc: 'Consulentes emitem senhas pelo celular com link público. Sem papel, sem filas na porta.' },
-  { icon: <EventIcon />, title: 'Gestão de Giras', desc: 'Crie giras com datas, horários e controle de vagas. Calendário organizado do terreiro.' },
-  { icon: <DashboardIcon />, title: 'Porta e Dashboard', desc: 'Tela de chamada ao vivo para a porta de atendimento + dashboard com métricas, histórico e relatórios exportáveis em PDF.' },
-  { icon: <GroupsIcon />, title: 'Médiuns e Cambones', desc: 'Cadastro da corrente com foto, endereço via CEP, controle de mensalidades e relatório de participação em giras.' },
-  { icon: <EmailIcon />, title: 'Notificações por E-mail', desc: 'Envio automático de senha para o consulente com layout personalizado do terreiro.' },
-  { icon: <SecurityIcon />, title: 'Segurança LGPD', desc: 'Dados criptografados, trilha de auditoria completa e conformidade com a LGPD.' },
+  {
+    icon: <ConfirmationNumberIcon />, color: '#4f46e5',
+    title: 'Giras e Senhas Online',
+    desc: 'Consulentes retiram senha pelo celular sem baixar app. Controle de vagas, janela de emissão e calendário de giras.',
+  },
+  {
+    icon: <DashboardIcon />, color: '#7c3aed',
+    title: 'Porta Ao Vivo (TV)',
+    desc: 'Tela dedicada de chamada para exibir na TV da recepção. Número, nome do consulente e contadores em tempo real.',
+  },
+  {
+    icon: <AccountBalanceWalletIcon />, color: '#059669',
+    title: 'Financeiro Completo',
+    desc: 'Contas a pagar e receber, fluxo de caixa com saldo acumulado, categorias e exportação de relatórios em PDF.',
+  },
+  {
+    icon: <GroupsIcon />, color: '#0891b2',
+    title: 'Corrente Espiritual',
+    desc: 'Cadastro de médiuns e cambones com foto, endereço via CEP, participação em giras e controle de mensalidades.',
+  },
+  {
+    icon: <PeopleIcon />, color: '#d97706',
+    title: 'Associados',
+    desc: 'Gerencie membros e associados da casa com histórico, dados completos e controle de anuidades.',
+  },
+  {
+    icon: <Inventory2Icon />, color: '#dc2626',
+    title: 'Estoque do Terreiro',
+    desc: 'Itens organizados por grupos, controle de movimentações, alertas de quantidade mínima e relatório completo.',
+  },
+  {
+    icon: <SchoolIcon />, color: '#7c3aed',
+    title: 'Cursos e Eventos',
+    desc: 'Cadastre cursos presenciais com link público de inscrição e gestão de participantes por turma.',
+  },
+  {
+    icon: <LanguageIcon />, color: '#4f46e5',
+    title: 'Site do Terreiro',
+    desc: 'Página pública personalizada com endereço, próximas giras, galeria e formulário de contato — pronta em minutos.',
+  },
+  {
+    icon: <BarChartIcon />, color: '#059669',
+    title: 'Analytics e Relatórios',
+    desc: 'Dashboard com KPIs, relatório de gira, distribuição de atendimentos, horários de pico e exportação CSV.',
+  },
 ];
 
 const STEPS = [
-  { num: '01', title: 'Cadastre seu Terreiro', desc: 'Crie sua conta e configure o perfil do terreiro em minutos.' },
-  { num: '02', title: 'Crie suas Giras', desc: 'Defina datas, portas de atendimento e vagas disponíveis.' },
-  { num: '03', title: 'Consulentes Retiram Online', desc: 'Compartilhe o link público — senha emitida no celular, sem fila na calçada.' },
-  { num: '04', title: 'Chame na Porta', desc: 'Operador aciona a tela de chamada e os consulentes aguardam com calma.' },
+  { num: '01', title: 'Cadastre seu Terreiro', desc: 'Crie sua conta e configure o perfil, logo e informações públicas do terreiro.' },
+  { num: '02', title: 'Ative os Módulos', desc: 'Corrente, financeiro, estoque, site — ative só o que você precisa agora e expanda depois.' },
+  { num: '03', title: 'Compartilhe o Link', desc: 'Consulentes retiram senhas pelo celular. Médiuns e gestores acessam o painel.' },
+  { num: '04', title: 'Tudo Integrado', desc: 'Gira acontece, relatórios gerados, caixa atualizado. O terreiro gerencia, você descansa.' },
 ];
 
 const STATS = [
-  { value: '+500', label: 'Giras realizadas' },
+  { value: '9+', label: 'Módulos integrados' },
+  { value: '100%', label: 'Sem papel' },
   { value: 'LGPD', label: 'Conformidade total' },
-  { value: '📱+📺', label: 'Celular e TV' },
 ];
 
 const PLANS = [
   {
     name: 'Free', price: 0, highlight: false,
-    features: ['Emissão de senhas online', '1 usuário', '4 giras por mês', 'Porta (fila em tempo real)', 'Link público'],
+    features: ['Senhas e giras online', '1 usuário', '4 giras por mês', 'Porta ao vivo (TV)', 'Link público', 'Dashboard básico'],
   },
   {
     name: 'Basic', price: 49, highlight: false,
-    features: ['Tudo do Free +', '3 usuários', '10 giras por mês', 'Até 50 médiuns/cambones', 'Envio por e-mail', 'Relatório de Gira', 'Operações em lote'],
+    features: ['Tudo do Free +', '3 usuários', '10 giras por mês', 'Até 50 médiuns/cambones', 'E-mail automático', 'Relatório de Gira (PDF)', 'Operações em lote'],
   },
   {
     name: 'Pro', price: 79, highlight: true,
-    features: ['Tudo do Basic +', '10 usuários', '15 giras por mês', 'Até 150 médiuns/cambones', 'Site do Terreiro', 'Gestão de Associados', 'Contas a pagar/receber', 'Fluxo de caixa', 'Analytics avançado', 'Export CSV', 'Mensalidade de médiuns'],
+    features: ['Tudo do Basic +', '10 usuários', '15 giras por mês', 'Até 150 médiuns', 'Financeiro completo', 'Controle de estoque', 'Associados', 'Site do terreiro', 'Cursos e eventos', 'Analytics avançado', 'Export CSV'],
   },
   {
     name: 'Premium', price: 99, highlight: false,
@@ -405,6 +452,112 @@ const MockSenha = () => {
     </Box>
   );
 };
+
+// ─── New mockups ─────────────────────────────────────────────────────────────
+const MockEstoque = () => (
+  <Box sx={{ width: '100%', height: '100%', background: '#fff', borderRadius: 1, overflow: 'hidden', p: 2 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+      <Inventory2Icon sx={{ color: '#dc2626', fontSize: 18 }} />
+      <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#1e1b4b' }}>Estoque · Itens</Typography>
+      <Box sx={{ ml: 'auto', px: 1, py: 0.3, borderRadius: 1, background: '#fef2f2' }}>
+        <Typography sx={{ fontSize: 8, color: '#dc2626', fontWeight: 700 }}>2 alertas</Typography>
+      </Box>
+    </Box>
+    {[
+      { nome: 'Vela 7 dias branca', grupo: 'Velas', qtd: 3, min: 10, alert: true },
+      { nome: 'Incenso Mirra', grupo: 'Incensos', qtd: 42, min: 20, alert: false },
+      { nome: 'Pemba branca', grupo: 'Pemba', qtd: 2, min: 5, alert: true },
+      { nome: 'Defumador Arruda', grupo: 'Defumação', qtd: 18, min: 10, alert: false },
+      { nome: 'Fita vermelha 5m', grupo: 'Materiais', qtd: 30, min: 15, alert: false },
+    ].map((item) => (
+      <Box key={item.nome} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.7, borderBottom: '1px solid #f1f5f9' }}>
+        <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: item.alert ? '#dc2626' : '#22c55e', flexShrink: 0 }} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontSize: 9, fontWeight: 600, color: '#1e1b4b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.nome}</Typography>
+          <Typography sx={{ fontSize: 7, color: '#94a3b8' }}>{item.grupo}</Typography>
+        </Box>
+        <Typography sx={{ fontSize: 10, fontWeight: 800, color: item.alert ? '#dc2626' : '#475569' }}>{item.qtd}</Typography>
+      </Box>
+    ))}
+  </Box>
+);
+
+const MockSite = () => (
+  <Box sx={{ width: '100%', height: '100%', background: '#0f0d2e', borderRadius: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ background: '#1e1b4b', px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ display: 'flex', gap: 0.4 }}>
+        {['#ef4444','#f59e0b','#22c55e'].map(c => <Box key={c} sx={{ width: 6, height: 6, borderRadius: '50%', background: c }} />)}
+      </Box>
+      <Box sx={{ flex: 1, background: '#312e81', borderRadius: 1, px: 1, py: 0.3 }}>
+        <Typography sx={{ fontSize: 7, color: '#818cf8' }}>girahub.com.br/ilê-axe-oxum</Typography>
+      </Box>
+    </Box>
+    <Box sx={{ flex: 1, p: 1.5, overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Box sx={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#f59e0b,#dc2626)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography sx={{ fontSize: 10, color: '#fff', fontWeight: 900 }}>I</Typography>
+        </Box>
+        <Box>
+          <Typography sx={{ fontSize: 9, fontWeight: 700, color: '#fff' }}>Ilê Axé Oxum</Typography>
+          <Typography sx={{ fontSize: 7, color: '#818cf8' }}>Terreiro de Umbanda · SP</Typography>
+        </Box>
+      </Box>
+      <Box sx={{ background: 'rgba(79,70,229,0.2)', borderRadius: 1, p: 1, mb: 1 }}>
+        <Typography sx={{ fontSize: 8, color: '#e2e8f0', lineHeight: 1.4 }}>Bem-vindo ao nosso terreiro. A paz de Oxum!</Typography>
+      </Box>
+      <Typography sx={{ fontSize: 8, color: '#f59e0b', fontWeight: 700, mb: 0.5 }}>Próximas Giras</Typography>
+      {[{ g: 'Gira de Cura', d: 'Sáb 05 Jul' }, { g: 'Gira de Umbanda', d: 'Sáb 12 Jul' }].map(g => (
+        <Box key={g.g} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+          <Typography sx={{ fontSize: 8, color: '#e2e8f0' }}>{g.g}</Typography>
+          <Typography sx={{ fontSize: 8, color: '#818cf8' }}>{g.d}</Typography>
+        </Box>
+      ))}
+      <Box sx={{ mt: 1, px: 1.5, py: 0.7, borderRadius: 1, background: '#4f46e5', textAlign: 'center' }}>
+        <Typography sx={{ fontSize: 9, color: '#fff', fontWeight: 700 }}>Retirar Senha</Typography>
+      </Box>
+    </Box>
+  </Box>
+);
+
+const MockFinanceiroDash = () => (
+  <Box sx={{ width: '100%', height: '100%', background: '#fff', borderRadius: 1, overflow: 'hidden', p: 2 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+      <AccountBalanceWalletIcon sx={{ color: '#059669', fontSize: 18 }} />
+      <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#1e1b4b' }}>Fluxo de Caixa · Jun 2026</Typography>
+    </Box>
+    <Grid container spacing={1} sx={{ mb: 1.5 }}>
+      {[
+        { label: 'Receitas', val: 'R$ 3.480', color: '#059669' },
+        { label: 'Despesas', val: 'R$ 1.210', color: '#dc2626' },
+        { label: 'Saldo', val: 'R$ 2.270', color: '#4f46e5' },
+        { label: 'Pendentes', val: 'R$ 420', color: '#d97706' },
+      ].map(k => (
+        <Grid item xs={6} key={k.label}>
+          <Box sx={{ background: '#f8fafc', borderRadius: 1.5, p: 1, borderLeft: `3px solid ${k.color}` }}>
+            <Typography sx={{ fontSize: 8, color: '#94a3b8', fontWeight: 600 }}>{k.label}</Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 800, color: k.color }}>{k.val}</Typography>
+          </Box>
+        </Grid>
+      ))}
+    </Grid>
+    <Box sx={{ background: '#f8fafc', borderRadius: 1.5, p: 1 }}>
+      <Typography sx={{ fontSize: 8, color: '#94a3b8', mb: 0.8 }}>ÚLTIMOS LANÇAMENTOS</Typography>
+      {[
+        { desc: 'Mensalidade — João Carlos', tipo: 'entrada', val: '+R$ 80' },
+        { desc: 'Velas e incensos', tipo: 'saida', val: '-R$ 95' },
+        { desc: 'Mensalidade — Ana Paula', tipo: 'entrada', val: '+R$ 80' },
+      ].map(l => (
+        <Box key={l.desc} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {l.tipo === 'entrada' ? <TrendingUpIcon sx={{ fontSize: 10, color: '#059669' }} /> : <TrendingDownIcon sx={{ fontSize: 10, color: '#dc2626' }} />}
+            <Typography sx={{ fontSize: 8, color: '#475569' }}>{l.desc}</Typography>
+          </Box>
+          <Typography sx={{ fontSize: 9, fontWeight: 700, color: l.tipo === 'entrada' ? '#059669' : '#dc2626' }}>{l.val}</Typography>
+        </Box>
+      ))}
+    </Box>
+  </Box>
+);
 
 // ─── Screenshots carousel data ───────────────────────────────────────────────
 const SCREENS = [
@@ -938,14 +1091,14 @@ export default function HomePage() {
           <Grid item xs={12} md={6}>
             <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
               <Chip
-                label="✦ Agora com gestão financeira completa do terreiro"
+                label="✦ 9 módulos integrados · gestão completa do terreiro"
                 size="small"
                 sx={{ mb: 3, background: 'rgba(79,70,229,0.2)', color: '#818cf8', border: '1px solid rgba(79,70,229,0.3)', fontWeight: 600, fontSize: 11 }}
               />
               <Typography
                 variant="h1"
                 sx={{
-                  fontSize: { xs: 38, md: 52, lg: 60 },
+                  fontSize: { xs: 36, md: 52, lg: 60 },
                   fontWeight: 900,
                   lineHeight: 1.1,
                   color: '#fff',
@@ -953,15 +1106,31 @@ export default function HomePage() {
                   mb: 3,
                 }}
               >
-                O sistema{' '}
+                A plataforma{' '}
                 <Box component="span" sx={{ background: `linear-gradient(135deg, ${T.primaryLight}, ${T.accent})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                  feito para quem
+                  completa
                 </Box>{' '}
-                cuida de um terreiro
+                para seu terreiro
               </Typography>
-              <Typography sx={{ fontSize: { xs: 16, md: 18 }, color: '#94a3b8', lineHeight: 1.7, mb: 5, maxWidth: 480 }}>
-                Da retirada de senha no celular até a chamada na porta — tudo funciona junto. Sem papel, sem fila na calçada, sem planilha.
+              <Typography sx={{ fontSize: { xs: 16, md: 18 }, color: '#94a3b8', lineHeight: 1.7, mb: 4, maxWidth: 500 }}>
+                Senhas, giras, corrente espiritual, financeiro, estoque, cursos e site — tudo em um lugar. Feito para quem cuida de um terreiro de verdade.
               </Typography>
+
+              {/* Módulos em destaque */}
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 4 }}>
+                {[
+                  { label: 'Senhas e Giras', color: '#4f46e5' },
+                  { label: 'Financeiro', color: '#059669' },
+                  { label: 'Corrente Espiritual', color: '#7c3aed' },
+                  { label: 'Estoque', color: '#dc2626' },
+                  { label: 'Cursos', color: '#d97706' },
+                  { label: 'Site do Terreiro', color: '#0891b2' },
+                ].map(m => (
+                  <Box key={m.label} sx={{ px: 1.2, py: 0.4, borderRadius: 1.5, border: `1px solid ${m.color}40`, background: `${m.color}15` }}>
+                    <Typography sx={{ fontSize: 11, color: m.color, fontWeight: 600 }}>{m.label}</Typography>
+                  </Box>
+                ))}
+              </Box>
 
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', gap: 2, mb: 5 }}>
                 <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} style={{ flex: 1 }}>
@@ -984,14 +1153,14 @@ export default function HomePage() {
                     fullWidth
                     sx={{ borderColor: 'rgba(255,255,255,0.2)', color: '#cbd5e1', fontWeight: 600, borderRadius: 2.5, px: 3, py: 1.6, '&:hover': { borderColor: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.04)' } }}
                   >
-                    Ver funcionalidades
+                    Ver todos os módulos
                   </Button>
                 </motion.div>
               </Box>
 
               {/* Trust badges */}
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                {['Sem papel', 'Funciona no celular', 'Dados protegidos (LGPD)'].map(b => (
+                {['Sem papel', '9 módulos integrados', 'LGPD compliant'].map(b => (
                   <Box key={b} sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
                     <CheckCircleIcon sx={{ color: '#22c55e', fontSize: 16 }} />
                     <Typography sx={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>{b}</Typography>
@@ -1059,13 +1228,13 @@ export default function HomePage() {
         <Reveal>
           <Box sx={{ textAlign: 'center', mb: 8 }}>
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.primary, letterSpacing: 2, textTransform: 'uppercase', mb: 1 }}>
-              Funcionalidades
+              Plataforma completa
             </Typography>
             <Typography variant="h2" sx={{ fontSize: { xs: 32, md: 44 }, fontWeight: 800, color: T.dark, letterSpacing: '-0.02em', mb: 2 }}>
-              Tudo que seu terreiro precisa
+              9 módulos. Um só sistema.
             </Typography>
-            <Typography sx={{ fontSize: 18, color: T.body, maxWidth: 520, mx: 'auto' }}>
-              Desenvolvido especificamente para a realidade dos terreiros de umbanda e candomblé.
+            <Typography sx={{ fontSize: 18, color: T.body, maxWidth: 560, mx: 'auto' }}>
+              Do ticket ao fluxo de caixa — cada área do terreiro tem o seu módulo, e tudo conversa entre si.
             </Typography>
           </Box>
         </Reveal>
@@ -1075,22 +1244,22 @@ export default function HomePage() {
           <Grid container spacing={3}>
             {FEATURES.map((f, i) => (
               <Grid item xs={12} sm={6} md={4} key={f.title}>
-                <Reveal delay={i * 0.08}>
-                  <motion.div whileHover={{ y: -6 }} transition={{ duration: 0.25 }}>
+                <Reveal delay={i * 0.06}>
+                  <motion.div whileHover={{ y: -6 }} transition={{ duration: 0.25 }} style={{ height: '100%' }}>
                     <Card
                       sx={{
                         height: '100%', p: 3, borderRadius: 3,
-                        border: '1px solid #e2e8f0',
+                        border: `1px solid ${f.color}20`,
                         boxShadow: T.cardShadow,
                         cursor: 'default',
                         transition: 'all 0.2s',
-                        '&:hover': { boxShadow: '0 20px 60px rgba(79,70,229,0.12)', borderColor: `${T.primary}40` },
+                        '&:hover': { boxShadow: `0 20px 60px ${f.color}20`, borderColor: `${f.color}50` },
                       }}
                     >
-                      <Box sx={{ width: 48, height: 48, borderRadius: 2.5, background: `${T.primary}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2, color: T.primary }}>
+                      <Box sx={{ width: 48, height: 48, borderRadius: 2.5, background: `${f.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2, color: f.color }}>
                         {f.icon}
                       </Box>
-                      <Typography sx={{ fontSize: 17, fontWeight: 700, color: T.dark, mb: 1 }}>{f.title}</Typography>
+                      <Typography sx={{ fontSize: 16, fontWeight: 700, color: T.dark, mb: 1 }}>{f.title}</Typography>
                       <Typography sx={{ fontSize: 14, color: T.body, lineHeight: 1.7 }}>{f.desc}</Typography>
                     </Card>
                   </motion.div>
@@ -1105,11 +1274,11 @@ export default function HomePage() {
           <MobileCarousel
             items={FEATURES}
             renderItem={(f) => (
-              <Card sx={{ height: '100%', p: 3, borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: T.cardShadow }}>
-                <Box sx={{ width: 48, height: 48, borderRadius: 2.5, background: `${T.primary}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2, color: T.primary }}>
+              <Card sx={{ height: '100%', p: 3, borderRadius: 3, border: `1px solid ${f.color}20`, boxShadow: T.cardShadow }}>
+                <Box sx={{ width: 48, height: 48, borderRadius: 2.5, background: `${f.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2, color: f.color }}>
                   {f.icon}
                 </Box>
-                <Typography sx={{ fontSize: 17, fontWeight: 700, color: T.dark, mb: 1 }}>{f.title}</Typography>
+                <Typography sx={{ fontSize: 16, fontWeight: 700, color: T.dark, mb: 1 }}>{f.title}</Typography>
                 <Typography sx={{ fontSize: 14, color: T.body, lineHeight: 1.7 }}>{f.desc}</Typography>
               </Card>
             )}
@@ -1205,16 +1374,17 @@ export default function HomePage() {
                 Veja o sistema
               </Typography>
               <Typography variant="h2" sx={{ fontSize: { xs: 30, md: 40 }, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', mb: 2 }}>
-                Uma plataforma completa, linda de usar
+                Simples de usar, poderoso de verdade
               </Typography>
               <Typography sx={{ fontSize: 16, color: '#94a3b8', lineHeight: 1.7, mb: 4 }}>
                 Interface pensada para operadores e administradores que não têm tempo a perder. Rápida, clara e intuitiva.
               </Typography>
               {[
-                'Dashboard com métricas em tempo real',
-                'Porta de chamada para exibir em TV',
-                'Cadastro de médiuns com foto',
-                'Relatórios exportáveis em PDF e CSV',
+                'Dashboard com KPIs e alertas em tempo real',
+                'Financeiro com fluxo de caixa e exportação PDF',
+                'Corrente espiritual com histórico de participação',
+                'Porta ao vivo exibida em qualquer TV',
+                'Site do terreiro pronto em minutos',
               ].map((item, i) => (
                 <Reveal key={item} delay={i * 0.1}>
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
@@ -1231,6 +1401,119 @@ export default function HomePage() {
           <Grid item xs={12} md={7}>
             <Reveal delay={0.2} direction="left">
               <ScreenshotCarousel />
+            </Reveal>
+          </Grid>
+        </Grid>
+      </Container>
+    </Box>
+  );
+
+  // ─── Financeiro ──────────────────────────────────────────────────────────
+  const financeiro = (
+    <Box id="financeiro" component="section" sx={{ py: { xs: 10, md: 14 }, background: '#fff', overflow: 'hidden' }}>
+      <Container maxWidth="lg">
+        <Grid container spacing={{ xs: 6, md: 10 }} alignItems="center">
+          <Grid item xs={12} md={6}>
+            <Reveal delay={0.1} direction="right">
+              <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}>
+                <Box sx={{ borderRadius: 1.5, overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: `0 32px 80px rgba(5,150,105,0.15), 0 0 0 1px rgba(5,150,105,0.08)`, height: 380 }}>
+                  <MockFinanceiroDash />
+                </Box>
+              </motion.div>
+            </Reveal>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Reveal>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#059669', letterSpacing: 2, textTransform: 'uppercase', mb: 1 }}>
+                Módulo Financeiro
+              </Typography>
+              <Typography variant="h2" sx={{ fontSize: { xs: 28, md: 42 }, fontWeight: 900, color: T.dark, letterSpacing: '-0.03em', lineHeight: 1.15, mb: 3 }}>
+                Pare de gerenciar o dinheiro do terreiro no papel
+              </Typography>
+              <Typography sx={{ fontSize: 16, color: T.body, lineHeight: 1.75, mb: 4 }}>
+                Contas a pagar, contas a receber, fluxo de caixa e mensalidades integrados. Veja onde o dinheiro entra e sai — e exporte tudo em PDF no final do mês.
+              </Typography>
+              {[
+                'Contas a pagar com alertas de vencimento',
+                'Contas a receber e controle de inadimplência',
+                'Fluxo de caixa com saldo acumulado',
+                'Mensalidades de médiuns e associados',
+                'Categorias personalizadas e múltiplas contas',
+                'Exportação de relatórios em PDF',
+              ].map((item, i) => (
+                <Reveal key={item} delay={i * 0.07}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                    <Box sx={{ width: 22, height: 22, borderRadius: '50%', background: '#05966918', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <CheckCircleIcon sx={{ fontSize: 14, color: '#059669' }} />
+                    </Box>
+                    <Typography sx={{ fontSize: 15, color: T.body }}>{item}</Typography>
+                  </Box>
+                </Reveal>
+              ))}
+              <Reveal delay={0.5}>
+                <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} style={{ display: 'inline-block', marginTop: 24 }}>
+                  <Button
+                    href="/cadastro"
+                    variant="contained"
+                    size="large"
+                    endIcon={<ArrowForwardIcon />}
+                    sx={{ background: '#059669', fontWeight: 700, borderRadius: 2.5, px: 4, py: 1.5, '&:hover': { background: '#047857' } }}
+                  >
+                    Testar o financeiro grátis
+                  </Button>
+                </motion.div>
+              </Reveal>
+            </Reveal>
+          </Grid>
+        </Grid>
+      </Container>
+    </Box>
+  );
+
+  // ─── Corrente Espiritual ─────────────────────────────────────────────────
+  const corrente = (
+    <Box component="section" sx={{ py: { xs: 10, md: 14 }, background: '#f8fafc', overflow: 'hidden' }}>
+      <Container maxWidth="lg">
+        <Grid container spacing={{ xs: 6, md: 10 }} alignItems="center">
+          <Grid item xs={12} md={6}>
+            <Reveal>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#7c3aed', letterSpacing: 2, textTransform: 'uppercase', mb: 1 }}>
+                Corrente Espiritual
+              </Typography>
+              <Typography variant="h2" sx={{ fontSize: { xs: 28, md: 42 }, fontWeight: 900, color: T.dark, letterSpacing: '-0.03em', lineHeight: 1.15, mb: 3 }}>
+                Sua corrente organizada e presente em cada gira
+              </Typography>
+              <Typography sx={{ fontSize: 16, color: T.body, lineHeight: 1.75, mb: 4 }}>
+                Cadastre médiuns e cambones com foto, endereço, data de nascimento e histórico de participação. Veja quem confirmou presença e gere relatórios automáticos.
+              </Typography>
+              {[
+                'Cadastro com foto e endereço via CEP',
+                'Histórico de participação em giras',
+                'Controle de mensalidades por médium',
+                'Associados com anuidades separadas',
+                'Aniversariantes da semana no dashboard',
+                'Relatório de participação exportável em PDF',
+              ].map((item, i) => (
+                <Reveal key={item} delay={i * 0.07}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                    <Box sx={{ width: 22, height: 22, borderRadius: '50%', background: '#7c3aed18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <CheckCircleIcon sx={{ fontSize: 14, color: '#7c3aed' }} />
+                    </Box>
+                    <Typography sx={{ fontSize: 15, color: T.body }}>{item}</Typography>
+                  </Box>
+                </Reveal>
+              ))}
+            </Reveal>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Reveal delay={0.1} direction="left">
+              <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}>
+                <Box sx={{ borderRadius: 1.5, overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: `0 32px 80px rgba(124,58,237,0.15)`, height: 380 }}>
+                  <MockMediuns />
+                </Box>
+              </motion.div>
             </Reveal>
           </Grid>
         </Grid>
@@ -1494,22 +1777,25 @@ export default function HomePage() {
         <Reveal>
           <Box sx={{ textAlign: 'center', mb: 8 }}>
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.primary, letterSpacing: 2, textTransform: 'uppercase', mb: 1 }}>
-              Mais do sistema
+              Veja tudo funcionando
             </Typography>
             <Typography variant="h2" sx={{ fontSize: { xs: 30, md: 42 }, fontWeight: 800, color: T.dark, letterSpacing: '-0.02em' }}>
-              Uma plataforma completa para o terreiro
+              Cada módulo, uma tela
             </Typography>
             <Typography sx={{ fontSize: 17, color: T.body, mt: 2, maxWidth: 560, mx: 'auto' }}>
-              Da senha do consulente até o balanço financeiro do mês — tudo em um único lugar.
+              Interfaces limpas, intuitivas e feitas para quem usa no dia a dia do terreiro.
             </Typography>
           </Box>
         </Reveal>
 
         {(() => {
           const maisTelasList = [
-            { label: 'Médiuns e Cambones', sublabel: 'Cadastro completo da corrente espiritual', component: <MockMediuns />, color: '#7c3aed' },
-            { label: 'Fluxo de Caixa', sublabel: 'Entradas, saídas e saldo exportável em PDF', component: <MockFluxo />, color: '#059669' },
-            { label: 'Senha do Consulente', sublabel: 'Link público — o consulente retira pelo celular', component: <MockSenha />, color: '#4f46e5' },
+            { label: 'Dashboard Geral', sublabel: 'KPIs, alertas e próximas giras em tempo real', component: <MockDashboard />, color: '#4f46e5' },
+            { label: 'Corrente Espiritual', sublabel: 'Médiuns e cambones com histórico de participação', component: <MockMediuns />, color: '#7c3aed' },
+            { label: 'Financeiro', sublabel: 'Fluxo de caixa, entradas, saídas e saldo', component: <MockFinanceiroDash />, color: '#059669' },
+            { label: 'Porta Ao Vivo', sublabel: 'Tela de chamada para exibir na TV da recepção', component: <MockPorta />, color: '#f59e0b' },
+            { label: 'Estoque', sublabel: 'Itens, grupos e alertas de quantidade mínima', component: <MockEstoque />, color: '#dc2626' },
+            { label: 'Site do Terreiro', sublabel: 'Página pública com giras, endereço e contato', component: <MockSite />, color: '#0891b2' },
           ];
           const renderTelaCard = (s: any) => (
             <Box sx={{
@@ -1529,7 +1815,7 @@ export default function HomePage() {
           );
           return (
             <>
-              {/* Desktop grid */}
+              {/* Desktop grid — 3 colunas, 2 linhas */}
               <Box sx={{ display: { xs: 'none', md: 'block' } }}>
                 <Grid container spacing={3}>
                   {maisTelasList.map((s, i) => (
@@ -1613,11 +1899,11 @@ export default function HomePage() {
       <Box aria-hidden sx={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
       <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
         <Reveal>
-          <Typography variant="h2" sx={{ fontSize: { xs: 32, md: 48 }, fontWeight: 900, color: '#fff', letterSpacing: '-0.03em', mb: 2 }}>
-            Pronto para modernizar seu terreiro?
+          <Typography variant="h2" sx={{ fontSize: { xs: 30, md: 48 }, fontWeight: 900, color: '#fff', letterSpacing: '-0.03em', mb: 2 }}>
+            Seu terreiro merece uma plataforma à altura
           </Typography>
           <Typography sx={{ fontSize: 18, color: 'rgba(255,255,255,0.75)', mb: 5 }}>
-            Comece gratuitamente hoje. Sem cartão de crédito.
+            9 módulos. Um sistema. Comece grátis — sem cartão de crédito.
           </Typography>
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }} style={{ display: 'inline-block' }}>
             <Button
@@ -1646,7 +1932,7 @@ export default function HomePage() {
               <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>GiraHub</Typography>
             </Box>
             <Typography sx={{ fontSize: 13, color: '#64748b', lineHeight: 1.7 }}>
-              Sistema moderno de gestão de senhas e giras para terreiros de umbanda e candomblé.
+              Plataforma completa de gestão para terreiros de umbanda e candomblé. Do ticket ao fluxo de caixa.
             </Typography>
           </Grid>
           <Grid item xs={6} md={2}>
@@ -1681,7 +1967,7 @@ export default function HomePage() {
     '@type': 'SoftwareApplication',
     name: 'GiraHub',
     applicationCategory: 'BusinessApplication',
-    description: 'Sistema moderno de gestão de senhas e giras para terreiros de umbanda e candomblé.',
+    description: 'Plataforma completa de gestão para terreiros de umbanda e candomblé — senhas, financeiro, corrente espiritual, estoque, cursos e site.',
     operatingSystem: 'Web',
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'BRL' },
   };
@@ -1689,10 +1975,10 @@ export default function HomePage() {
   return (
     <>
       <Head>
-        <title>GiraHub — Gerencie senhas e giras do seu terreiro</title>
-        <meta name="description" content="Sistema moderno para terreiros de umbanda e candomblé. Emissão online de senhas, gestão de giras, analytics e conformidade LGPD." />
-        <meta property="og:title" content="GiraHub — Modernize seu terreiro" />
-        <meta property="og:description" content="Emissão de senhas, gestão de giras, médiuns e muito mais. Grátis para começar." />
+        <title>GiraHub — Plataforma completa de gestão para terreiros</title>
+        <meta name="description" content="Senhas, giras, financeiro, corrente espiritual, estoque, cursos e site — tudo em um lugar. Feito para terreiros de umbanda e candomblé." />
+        <meta property="og:title" content="GiraHub — A plataforma completa para seu terreiro" />
+        <meta property="og:description" content="9 módulos integrados. Do ticket ao fluxo de caixa. Grátis para começar." />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
         <link rel="canonical" href="https://girahub.com.br" />
@@ -1706,12 +1992,14 @@ export default function HomePage() {
         {header}
         {hero}
         {features}
+        {financeiro}
+        {corrente}
         {porta}
         {screenshots}
+        {maisTelas}
         {steps}
         {pricing}
         {trust}
-        {maisTelas}
         {contact}
         {finalCta}
         {footer}
