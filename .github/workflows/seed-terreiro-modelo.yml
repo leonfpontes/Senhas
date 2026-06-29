@@ -1,0 +1,20 @@
+name: Seed Terreiro Modelo
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Executa seed via SSH na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            cd ~/senhas
+            git pull origin master
+            docker exec senhas_backend python scripts/seed_terreiro_modelo.py
