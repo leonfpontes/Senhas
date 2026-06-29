@@ -196,7 +196,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
       setSuccess('Informações básicas atualizadas com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao atualizar grupo');
+      setError(err?.response?.data?.message || err?.message || 'Erro ao atualizar grupo');
     } finally {
       setSavingInfo(false);
     }

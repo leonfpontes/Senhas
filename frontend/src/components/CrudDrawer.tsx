@@ -11,6 +11,7 @@
 
 import React, { useState } from 'react';
 import {
+  Alert,
   Drawer,
   Box,
   Typography,
@@ -42,6 +43,8 @@ export interface CrudDrawerProps {
   saving?: boolean;
   saveDisabled?: boolean;
   isDirty?: boolean;
+  /** Mensagem de erro exibida dentro do drawer, acima do formulário. */
+  error?: string | null;
 }
 
 export default function CrudDrawer({
@@ -56,6 +59,7 @@ export default function CrudDrawer({
   saving = false,
   saveDisabled = false,
   isDirty = false,
+  error,
 }: CrudDrawerProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -127,6 +131,11 @@ export default function CrudDrawer({
             gap: 2.5,
           }}
         >
+          {error && (
+            <Alert severity="error" sx={{ borderRadius: 1 }}>
+              {error}
+            </Alert>
+          )}
           {children}
         </Box>
 

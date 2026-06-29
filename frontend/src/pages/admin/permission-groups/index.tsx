@@ -77,6 +77,7 @@ function PermissionGroupsContent() {
   const [formData, setFormData] = useState<GroupFormData>(EMPTY_FORM);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+  const [drawerError, setDrawerError] = useState<string | null>(null);
 
   // Delete Dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -141,6 +142,7 @@ function PermissionGroupsContent() {
   const handleCreateOpen = () => {
     setFormData(EMPTY_FORM);
     setTouched({});
+    setDrawerError(null);
     setDrawerOpen(true);
   };
 
@@ -154,7 +156,7 @@ function PermissionGroupsContent() {
 
   const handleSaveGroup = async () => {
     setSaving(true);
-    setError(null);
+    setDrawerError(null);
     try {
       await permissionGroupsService.createGroup({
         name: formData.name,
@@ -165,7 +167,8 @@ function PermissionGroupsContent() {
       fetchData();
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao criar grupo de permissão');
+      const msg = err?.response?.data?.message || err?.message || 'Erro ao criar grupo de permissão';
+      setDrawerError(msg);
     } finally {
       setSaving(false);
     }
@@ -376,7 +379,7 @@ function PermissionGroupsContent() {
       {/* CrudDrawer for creation */}
       <CrudDrawer
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={() => { setDrawerOpen(false); setDrawerError(null); }}
         title="Novo Grupo de Permissão"
         subtitle="Defina o nome e a descrição do grupo. Na próxima tela, você configurará as permissões de acesso e associará usuários."
         icon={<SecurityIcon />}
@@ -385,6 +388,7 @@ function PermissionGroupsContent() {
         saving={saving}
         saveDisabled={!isValid}
         isDirty={isDirty}
+        error={drawerError}
       >
         <TextField
           label="Nome do Grupo"
