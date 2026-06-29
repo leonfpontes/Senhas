@@ -247,11 +247,16 @@ function ContasPagarContent() {
         form.data_vencimento !== editTarget.data_vencimento
       );
 
-  const saveDisabled = !form.descricao.trim() || form.valor <= 0 || !form.data_vencimento;
+  // O botão só fica desabilitado no modo edição sem alterações. Validação de campos
+  // obrigatórios acontece dentro de handleSave para garantir feedback visível ao usuário.
+  const saveDisabled = drawerMode === 'edit' && !isDirty;
 
   const handleSave = async () => {
     setTouched({ descricao: true, valor: true, data_vencimento: true });
-    if (saveDisabled) return;
+    if (!form.descricao.trim() || form.valor <= 0 || !form.data_vencimento) {
+      setDrawerError('Preencha os campos obrigatórios: Descrição, Valor e Data de Vencimento.');
+      return;
+    }
     setSaving(true);
     setDrawerError(null);
     try {
