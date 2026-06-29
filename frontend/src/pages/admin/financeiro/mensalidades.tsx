@@ -60,7 +60,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import AdminLayout from '../admin_layout';
 import CrudDrawer from '../../../components/CrudDrawer';
 import UpgradePrompt from '../../../components/UpgradePrompt';
-import { NumericFormat } from 'react-number-format';
+import CurrencyInput from '../../../components/CurrencyInput';
 import { apiClient } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
@@ -179,7 +179,7 @@ export default function MensalidadesPage() {
   const [drawerItem, setDrawerItem] = useState<MensalidadeItem | null>(null);
   const [drawerAssocItem, setDrawerAssocItem] = useState<AssociadoMensalidadeItem | null>(null);
   const [drawerStatus, setDrawerStatus] = useState<'PAGO' | 'PENDENTE' | 'ISENTO'>('PENDENTE');
-  const [drawerValorPago, setDrawerValorPago] = useState<string>('');
+  const [drawerValorPago, setDrawerValorPago] = useState<number>(0);
   const [drawerDataPag, setDrawerDataPag] = useState<string>('');
   const [drawerObs, setDrawerObs] = useState<string>('');
   const [drawerFile, setDrawerFile] = useState<File | null>(null);
@@ -315,7 +315,7 @@ export default function MensalidadesPage() {
     setDrawerItem(item);
     setDrawerAssocItem(null);
     setDrawerStatus((item.status as 'PAGO' | 'PENDENTE' | 'ISENTO') || 'PENDENTE');
-    setDrawerValorPago(item.valor_pago != null ? String(item.valor_pago) : config ? String(config.valor_mensal) : '');
+    setDrawerValorPago(item.valor_pago != null ? item.valor_pago : config?.valor_mensal ?? 0);
     setDrawerDataPag(item.data_pagamento ? item.data_pagamento.slice(0, 10) : '');
     setDrawerObs(item.observacao || '');
     setDrawerFile(null);
@@ -327,7 +327,7 @@ export default function MensalidadesPage() {
     setDrawerAssocItem(item);
     setDrawerItem(null);
     setDrawerStatus((item.status as 'PAGO' | 'PENDENTE' | 'ISENTO') || 'PENDENTE');
-    setDrawerValorPago(item.valor_pago != null ? String(item.valor_pago) : config ? String(config.valor_mensal_associado ?? 0) : '');
+    setDrawerValorPago(item.valor_pago != null ? item.valor_pago : config?.valor_mensal_associado ?? 0);
     setDrawerDataPag(item.data_pagamento ? item.data_pagamento.slice(0, 10) : '');
     setDrawerObs(item.observacao || '');
     setDrawerFile(null);
@@ -341,7 +341,7 @@ export default function MensalidadesPage() {
     try {
       const form = new FormData();
       form.append('status', drawerStatus);
-      if (drawerValorPago) form.append('valor_pago', drawerValorPago);
+      if (drawerValorPago > 0) form.append('valor_pago', String(drawerValorPago));
       if (drawerDataPag) form.append('data_pagamento', drawerDataPag);
       if (drawerObs) form.append('observacao', drawerObs);
       if (drawerFile) form.append('comprovante', drawerFile);
@@ -908,19 +908,12 @@ export default function MensalidadesPage() {
                 InputLabelProps={{ shrink: true }}
                 fullWidth
               />
-              <NumericFormat
-                customInput={TextField}
+              <CurrencyInput
                 size="small"
-                label="Valor pago (R$)"
+                label="Valor pago"
                 fullWidth
                 value={drawerValorPago}
-                onValueChange={(values) => setDrawerValorPago(values.value)}
-                thousandSeparator="."
-                decimalSeparator=","
-                decimalScale={2}
-                fixedDecimalScale
-                prefix="R$ "
-                allowNegative={false}
+                onValueChange={(v) => setDrawerValorPago(v)}
               />
               <Box>
                 <Typography variant="caption" color="text.secondary">Comprovante (JPG, PNG, WebP, PDF — max 5MB)</Typography>

@@ -40,7 +40,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CategoryIcon from '@mui/icons-material/Category';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import { NumericFormat } from 'react-number-format';
+import CurrencyInput from '../../../components/CurrencyInput';
 import AdminLayout from '../admin_layout';
 import UpgradePrompt from '../../../components/UpgradePrompt';
 import CrudDrawer from '../../../components/CrudDrawer';
@@ -365,7 +365,7 @@ function ContasBancariasTab() {
   const [editTarget, setEditTarget] = useState<ContaBancaria | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const EMPTY_FORM = { nome: '', banco: '', saldo_inicial: '' };
+  const EMPTY_FORM = { nome: '', banco: '', saldo_inicial: 0 };
   const [form, setForm] = useState(EMPTY_FORM);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
@@ -400,7 +400,7 @@ function ContasBancariasTab() {
     setForm({
       nome: conta.nome,
       banco: conta.banco ?? '',
-      saldo_inicial: String(conta.saldo_inicial),
+      saldo_inicial: conta.saldo_inicial,
     });
     setTouched({});
     setDrawerMode('edit');
@@ -416,7 +416,7 @@ function ContasBancariasTab() {
       const body = {
         nome: form.nome.trim(),
         banco: form.banco.trim() || null,
-        saldo_inicial: parseFloat(form.saldo_inicial || '0') || 0,
+        saldo_inicial: form.saldo_inicial,
       };
       if (drawerMode === 'create') {
         await apiClient.post('/api/v1/admin/financeiro/contas-bancarias', body);
@@ -542,17 +542,10 @@ function ContasBancariasTab() {
           helperText="Opcional — ex: Bradesco, Nubank, Caixa"
           fullWidth
         />
-        <NumericFormat
-          customInput={TextField}
-          label="Saldo inicial (R$)"
+        <CurrencyInput
+          label="Saldo inicial"
           value={form.saldo_inicial}
-          onValueChange={(values) => setForm((f) => ({ ...f, saldo_inicial: values.value }))}
-          thousandSeparator="."
-          decimalSeparator=","
-          decimalScale={2}
-          fixedDecimalScale
-          prefix="R$ "
-          allowNegative={false}
+          onValueChange={(v) => setForm((f) => ({ ...f, saldo_inicial: v }))}
           helperText="Saldo da conta no momento do cadastro"
           fullWidth
         />
@@ -592,10 +585,10 @@ function MensalidadeTab() {
   const { can } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [valorMensal, setValorMensal] = useState<string>('');
+  const [valorMensal, setValorMensal] = useState<number>(0);
   const [diaVencimento, setDiaVencimento] = useState<string>('10');
   const [emailRelatorioAtivo, setEmailRelatorioAtivo] = useState<boolean>(false);
-  const [valorMensalAssociado, setValorMensalAssociado] = useState<string>('');
+  const [valorMensalAssociado, setValorMensalAssociado] = useState<number>(0);
   const [diaVencimentoAssociado, setDiaVencimentoAssociado] = useState<string>('10');
   const [relatorioHoraEnvio, setRelatorioHoraEnvio] = useState<string>('');
   const [flagMensalidadeAssociado, setFlagMensalidadeAssociado] = useState<boolean>(false);
@@ -605,10 +598,10 @@ function MensalidadeTab() {
     apiClient.get('/api/v1/admin/financeiro/config')
       .then((res) => {
         if (res.data) {
-          setValorMensal(String(res.data.valor_mensal ?? ''));
+          setValorMensal(res.data.valor_mensal ?? 0);
           setDiaVencimento(String(res.data.dia_vencimento ?? '10'));
           setEmailRelatorioAtivo(Boolean(res.data.email_relatorio_ativo));
-          setValorMensalAssociado(String(res.data.valor_mensal_associado ?? ''));
+          setValorMensalAssociado(res.data.valor_mensal_associado ?? 0);
           setDiaVencimentoAssociado(String(res.data.dia_vencimento_associado ?? '10'));
           setRelatorioHoraEnvio(res.data.relatorio_hora_envio ?? '');
           setFlagMensalidadeAssociado(Boolean(res.data.enable_mensalidade_associado));
@@ -620,24 +613,21 @@ function MensalidadeTab() {
   }, []);
 
   const handleSave = async () => {
-    if (can('mensalidade_mediun')) {
-      const valor = parseFloat(valorMensal);
-      if (isNaN(valor) || valor < 0) {
-        setSnack({ open: true, msg: 'Informe um valor mensal válido (≥ 0).', severity: 'error' });
-        return;
-      }
+    if (can('mensalidade_mediun') && valorMensal < 0) {
+      setSnack({ open: true, msg: 'Informe um valor mensal válido (≥ 0).', severity: 'error' });
+      return;
     }
     setSaving(true);
     try {
       const body: Record<string, unknown> = {};
       if (can('mensalidade_mediun')) {
-        body.valor_mensal = parseFloat(valorMensal);
+        body.valor_mensal = valorMensal;
         body.dia_vencimento = parseInt(diaVencimento);
         body.email_relatorio_ativo = emailRelatorioAtivo;
       }
       if (can('mensalidade_associado')) {
         body.enable_mensalidade_associado = flagMensalidadeAssociado;
-        if (valorMensalAssociado) body.valor_mensal_associado = parseFloat(valorMensalAssociado);
+        if (valorMensalAssociado > 0) body.valor_mensal_associado = valorMensalAssociado;
         if (diaVencimentoAssociado) body.dia_vencimento_associado = parseInt(diaVencimentoAssociado);
         if (relatorioHoraEnvio) body.relatorio_hora_envio = relatorioHoraEnvio;
       }
@@ -663,19 +653,12 @@ function MensalidadeTab() {
                 sx={{ textTransform: 'uppercase', letterSpacing: 1, fontSize: 11 }}>
                 Médiuns
               </Typography>
-              <NumericFormat
-                customInput={TextField}
-                label="Valor Mensal (R$)"
+              <CurrencyInput
+                label="Valor Mensal"
                 size="small"
                 fullWidth
                 value={valorMensal}
-                onValueChange={(values) => setValorMensal(values.value)}
-                thousandSeparator="."
-                decimalSeparator=","
-                decimalScale={2}
-                fixedDecimalScale
-                prefix="R$ "
-                allowNegative={false}
+                onValueChange={(v) => setValorMensal(v)}
               />
               <FormControl size="small" fullWidth>
                 <InputLabel>Dia de Vencimento</InputLabel>
@@ -728,19 +711,12 @@ function MensalidadeTab() {
                     sx={{ textTransform: 'uppercase', letterSpacing: 1, fontSize: 11 }}>
                     Associados
                   </Typography>
-                  <NumericFormat
-                    customInput={TextField}
-                    label="Valor Mensal Associados (R$)"
+                  <CurrencyInput
+                    label="Valor Mensal Associados"
                     size="small"
                     fullWidth
                     value={valorMensalAssociado}
-                    onValueChange={(values) => setValorMensalAssociado(values.value)}
-                    thousandSeparator="."
-                    decimalSeparator=","
-                    decimalScale={2}
-                    fixedDecimalScale
-                    prefix="R$ "
-                    allowNegative={false}
+                    onValueChange={(v) => setValorMensalAssociado(v)}
                   />
                   <FormControl size="small" fullWidth>
                     <InputLabel>Dia de Vencimento (Associados)</InputLabel>

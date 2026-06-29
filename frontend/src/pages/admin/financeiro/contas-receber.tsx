@@ -10,7 +10,6 @@ import {
   FormControl,
   Grid,
   IconButton,
-  InputAdornment,
   InputLabel,
   MenuItem,
   Paper,
@@ -27,6 +26,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import CurrencyInput from '../../../components/CurrencyInput';
 import AddIcon           from '@mui/icons-material/Add';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import CheckCircleIcon   from '@mui/icons-material/CheckCircle';
@@ -93,11 +93,11 @@ interface Resumo {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
-  descricao: '', valor: '', data_vencimento: '', data_competencia: '',
+  descricao: '', valor: 0, data_vencimento: '', data_competencia: '',
   categoria_id: '', conta_bancaria_id: '', recorrencia: 'unica', observacoes: '',
 };
 
-const EMPTY_BAIXA = { data_pagamento: '', valor_pago: '', conta_bancaria_id: '' };
+const EMPTY_BAIXA = { data_pagamento: '', valor_pago: 0, conta_bancaria_id: '' };
 
 const STATUS_LABEL: Record<string, string> = {
   pendente: 'Pendente', pago: 'Recebido', vencido: 'Vencido', cancelado: 'Cancelado',
@@ -222,7 +222,7 @@ function ContasReceberContent() {
 
   const openEdit = (c: ContaFinanceira) => {
     setForm({
-      descricao: c.descricao, valor: String(c.valor),
+      descricao: c.descricao, valor: c.valor,
       data_vencimento: c.data_vencimento, data_competencia: c.data_competencia ?? '',
       categoria_id: c.categoria_id ?? '', conta_bancaria_id: c.conta_bancaria_id ?? '',
       recorrencia: c.recorrencia ?? 'unica', observacoes: c.observacoes ?? '',
@@ -240,14 +240,14 @@ function ContasReceberContent() {
   };
 
   const isDirty = drawerMode === 'create'
-    ? Object.values(form).some((v) => v !== '')
+    ? form.descricao !== '' || form.valor > 0 || form.data_vencimento !== ''
     : editTarget != null && (
         form.descricao !== editTarget.descricao ||
-        form.valor !== String(editTarget.valor) ||
+        form.valor !== editTarget.valor ||
         form.data_vencimento !== editTarget.data_vencimento
       );
 
-  const saveDisabled = !form.descricao.trim() || !form.valor || !form.data_vencimento;
+  const saveDisabled = !form.descricao.trim() || form.valor <= 0 || !form.data_vencimento;
 
   const handleSave = async () => {
     setTouched({ descricao: true, valor: true, data_vencimento: true });
@@ -258,7 +258,7 @@ function ContasReceberContent() {
       const payload = {
         tipo: 'receber',
         descricao: form.descricao,
-        valor: parseFloat(form.valor),
+        valor: form.valor,
         data_vencimento: form.data_vencimento,
         data_competencia: form.data_competencia || null,
         categoria_id: form.categoria_id || null,
@@ -288,14 +288,14 @@ function ContasReceberContent() {
     setBaixaTarget(c);
     setBaixaForm({
       data_pagamento: new Date().toISOString().slice(0, 10),
-      valor_pago: String(c.valor),
+      valor_pago: c.valor,
       conta_bancaria_id: '',
     });
     setBaixaOpen(true);
   };
 
-  const baixaIsDirty    = baixaForm.data_pagamento !== '' || baixaForm.valor_pago !== '';
-  const baixaSaveDisabled = !baixaForm.data_pagamento || !baixaForm.valor_pago;
+  const baixaIsDirty    = baixaForm.data_pagamento !== '' || baixaForm.valor_pago > 0;
+  const baixaSaveDisabled = !baixaForm.data_pagamento || baixaForm.valor_pago <= 0;
 
   const handleBaixa = async () => {
     if (baixaSaveDisabled || !baixaTarget) return;
@@ -303,7 +303,7 @@ function ContasReceberContent() {
     try {
       await apiClient.post(`/api/v1/admin/financeiro/contas/${baixaTarget.id}/baixa`, {
         data_pagamento: baixaForm.data_pagamento,
-        valor_pago: parseFloat(baixaForm.valor_pago),
+        valor_pago: baixaForm.valor_pago,
         conta_bancaria_id: baixaForm.conta_bancaria_id || null,
       });
       showSnack('Recebimento registrado com sucesso.');
@@ -610,15 +610,12 @@ function ContasReceberContent() {
           helperText={touched.descricao && !form.descricao.trim() ? 'Obrigatório' : ''}
           fullWidth
         />
-        <TextField
+        <CurrencyInput
           label="Valor *"
-          type="number"
           value={form.valor}
-          onChange={(e) => setField('valor', e.target.value)}
-          inputProps={{ min: 0, step: 0.01 }}
-          InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }}
-          error={touched.valor && !form.valor}
-          helperText={touched.valor && !form.valor ? 'Obrigatório' : ''}
+          onValueChange={(v) => { setForm((p) => ({ ...p, valor: v })); setTouched((p) => ({ ...p, valor: true })); }}
+          error={touched.valor && form.valor <= 0}
+          helperText={touched.valor && form.valor <= 0 ? 'Obrigatório' : ''}
           fullWidth
         />
         <TextField
@@ -698,12 +695,10 @@ function ContasReceberContent() {
           InputLabelProps={{ shrink: true }}
           fullWidth
         />
-        <TextField
-          label="Valor Recebido (R$) *"
-          type="number"
+        <CurrencyInput
+          label="Valor Recebido *"
           value={baixaForm.valor_pago}
-          onChange={(e) => setBaixaForm((f) => ({ ...f, valor_pago: e.target.value }))}
-          inputProps={{ min: 0, step: 0.01 }}
+          onValueChange={(v) => setBaixaForm((f) => ({ ...f, valor_pago: v }))}
           fullWidth
         />
         <FormControl fullWidth>
