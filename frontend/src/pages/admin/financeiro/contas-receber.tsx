@@ -10,6 +10,7 @@ import {
   FormControl,
   Grid,
   IconButton,
+  InputAdornment,
   InputLabel,
   MenuItem,
   Paper,
@@ -93,7 +94,7 @@ interface Resumo {
 
 const EMPTY_FORM = {
   descricao: '', valor: '', data_vencimento: '', data_competencia: '',
-  categoria_id: '', conta_bancaria_id: '', recorrencia: '', observacoes: '',
+  categoria_id: '', conta_bancaria_id: '', recorrencia: 'unica', observacoes: '',
 };
 
 const EMPTY_BAIXA = { data_pagamento: '', valor_pago: '', conta_bancaria_id: '' };
@@ -151,6 +152,7 @@ function ContasReceberContent() {
   const [form, setForm]             = useState(EMPTY_FORM);
   const [touched, setTouched]       = useState<Record<string, boolean>>({});
   const [saving, setSaving]         = useState(false);
+  const [drawerError, setDrawerError] = useState<string | null>(null);
 
   // Drawer — registrar recebimento
   const [baixaOpen, setBaixaOpen]     = useState(false);
@@ -212,6 +214,7 @@ function ContasReceberContent() {
   const openCreate = () => {
     setForm(EMPTY_FORM);
     setTouched({});
+    setDrawerError(null);
     setEditTarget(null);
     setDrawerMode('create');
     setDrawerOpen(true);
@@ -222,9 +225,10 @@ function ContasReceberContent() {
       descricao: c.descricao, valor: String(c.valor),
       data_vencimento: c.data_vencimento, data_competencia: c.data_competencia ?? '',
       categoria_id: c.categoria_id ?? '', conta_bancaria_id: c.conta_bancaria_id ?? '',
-      recorrencia: c.recorrencia ?? '', observacoes: c.observacoes ?? '',
+      recorrencia: c.recorrencia ?? 'unica', observacoes: c.observacoes ?? '',
     });
     setTouched({});
+    setDrawerError(null);
     setEditTarget(c);
     setDrawerMode('edit');
     setDrawerOpen(true);
@@ -249,6 +253,7 @@ function ContasReceberContent() {
     setTouched({ descricao: true, valor: true, data_vencimento: true });
     if (saveDisabled) return;
     setSaving(true);
+    setDrawerError(null);
     try {
       const payload = {
         tipo: 'receber',
@@ -258,7 +263,7 @@ function ContasReceberContent() {
         data_competencia: form.data_competencia || null,
         categoria_id: form.categoria_id || null,
         conta_bancaria_id: form.conta_bancaria_id || null,
-        recorrencia: form.recorrencia || null,
+        recorrencia: form.recorrencia === 'unica' ? null : form.recorrencia || null,
         observacoes: form.observacoes || null,
       };
       if (drawerMode === 'edit' && editTarget) {
@@ -271,7 +276,7 @@ function ContasReceberContent() {
       setDrawerOpen(false);
       fetchAll();
     } catch (e: any) {
-      showSnack(e?.response?.data?.detail || 'Erro ao salvar.', 'error');
+      setDrawerError(e?.response?.data?.message || e?.response?.data?.detail || 'Erro ao salvar o lançamento. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -586,7 +591,7 @@ function ContasReceberContent() {
       {/* Drawer — criar / editar */}
       <CrudDrawer
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={() => { setDrawerOpen(false); setDrawerError(null); }}
         title={drawerMode === 'create' ? 'Novo Lançamento' : 'Editar Lançamento'}
         subtitle="Conta a receber"
         icon={<ArrowDownwardIcon />}
@@ -594,9 +599,11 @@ function ContasReceberContent() {
         saving={saving}
         saveDisabled={saveDisabled}
         isDirty={isDirty}
+        error={drawerError}
       >
         <TextField
           label="Descrição *"
+          placeholder="Ex: Mensalidade de associado, Doação..."
           value={form.descricao}
           onChange={(e) => setField('descricao', e.target.value)}
           error={touched.descricao && !form.descricao.trim()}
@@ -604,11 +611,12 @@ function ContasReceberContent() {
           fullWidth
         />
         <TextField
-          label="Valor (R$) *"
+          label="Valor *"
           type="number"
           value={form.valor}
           onChange={(e) => setField('valor', e.target.value)}
           inputProps={{ min: 0, step: 0.01 }}
+          InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }}
           error={touched.valor && !form.valor}
           helperText={touched.valor && !form.valor ? 'Obrigatório' : ''}
           fullWidth
@@ -629,6 +637,7 @@ function ContasReceberContent() {
           value={form.data_competencia}
           onChange={(e) => setField('data_competencia', e.target.value)}
           InputLabelProps={{ shrink: true }}
+          helperText="Opcional — período a que a receita se refere (pode diferir do vencimento)"
           fullWidth
         />
         <FormControl fullWidth>
@@ -637,6 +646,11 @@ function ContasReceberContent() {
             <MenuItem value="">Sem categoria</MenuItem>
             {categorias.map((c) => <MenuItem key={c.id} value={c.id}>{c.nome}</MenuItem>)}
           </Select>
+          {categorias.length === 0 && (
+            <Alert severity="info" sx={{ mt: 1, py: 0.5, fontSize: 12 }}>
+              Nenhuma categoria cadastrada. Crie categorias em <strong>Financeiro → Configuração</strong>.
+            </Alert>
+          )}
         </FormControl>
         <FormControl fullWidth>
           <InputLabel>Conta Bancária</InputLabel>
@@ -648,13 +662,14 @@ function ContasReceberContent() {
         <FormControl fullWidth>
           <InputLabel>Recorrência</InputLabel>
           <Select value={form.recorrencia} label="Recorrência" onChange={(e) => setField('recorrencia', e.target.value)}>
-            <MenuItem value="">Única</MenuItem>
+            <MenuItem value="unica">Única</MenuItem>
             <MenuItem value="mensal">Mensal</MenuItem>
             <MenuItem value="anual">Anual</MenuItem>
           </Select>
         </FormControl>
         <TextField
           label="Observações"
+          placeholder="Informações adicionais sobre este lançamento..."
           value={form.observacoes}
           onChange={(e) => setField('observacoes', e.target.value)}
           multiline rows={3}
