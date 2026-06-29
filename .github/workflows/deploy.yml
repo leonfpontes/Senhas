@@ -81,6 +81,10 @@ jobs:
             echo "==> [5/6] Swap dos containers (downtime mínimo)"
             docker compose -f docker-compose.prod.yml up -d --no-deps --remove-orphans frontend backend
 
+            echo "==> [5b] Reload do nginx (aplica mudanças de config sem downtime)"
+            docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || \
+              docker compose -f docker-compose.prod.yml restart nginx
+
             echo "==> [6/6] Health check pós-deploy"
             sleep 5
             for i in 1 2 3 4 5; do
