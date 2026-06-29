@@ -215,6 +215,21 @@ class MovimentacaoCreate(BaseModel):
         return v
 
 
+class MovimentacaoUpdate(BaseModel):
+    tipo: Optional[EstoqueMovimentacaoTipo] = None
+    quantidade: Optional[int] = None
+    data_movimentacao: Optional[datetime] = None
+    motivo: Optional[str] = None
+    requisitante: Optional[str] = None
+
+    @field_validator("quantidade")
+    @classmethod
+    def validate_quantidade(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError("Quantidade deve ser maior que zero")
+        return v
+
+
 class MovimentacaoResponse(BaseModel):
     id: UUID
     item_id: UUID
@@ -659,6 +674,48 @@ async def create_movimentacao(
     )
     mov = (await db.execute(stmt)).scalar_one()
     return _mov_to_response(mov)
+
+
+@router.put("/movimentacoes/{mov_id}", response_model=MovimentacaoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "edit"))])
+async def update_movimentacao(
+    mov_id: UUID,
+    body: MovimentacaoUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _require_estoque_plan(current_user, db)
+
+    mov_repo = EstoqueMovimentacaoRepository(db)
+    update_kwargs = body.model_dump(exclude_unset=True)
+    mov = await mov_repo.update_movimentacao(mov_id, current_user.tenant_id, **update_kwargs)
+    if not mov:
+        raise HTTPException(status_code=404, detail="Movimentação não encontrada")
+
+    await db.commit()
+
+    stmt = (
+        sa_select(EstoqueMovimentacao)
+        .options(selectinload(EstoqueMovimentacao.item))
+        .where(EstoqueMovimentacao.id == mov.id)
+    )
+    mov = (await db.execute(stmt)).scalar_one()
+    return _mov_to_response(mov)
+
+
+@router.delete("/movimentacoes/{mov_id}", status_code=204, dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "delete"))])
+async def delete_movimentacao(
+    mov_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _require_estoque_plan(current_user, db)
+
+    mov_repo = EstoqueMovimentacaoRepository(db)
+    deleted = await mov_repo.delete_movimentacao(mov_id, current_user.tenant_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Movimentação não encontrada")
+
+    await db.commit()
 
 
 # ──────────────────────────────────────────────────────────────

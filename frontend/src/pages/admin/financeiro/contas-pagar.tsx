@@ -212,7 +212,8 @@ function ContasPagarContent() {
   // ── Drawer helpers ─────────────────────────────────────────────────────────
 
   const openCreate = () => {
-    setForm(EMPTY_FORM);
+    const today = new Date().toISOString().slice(0, 10);
+    setForm({ ...EMPTY_FORM, data_vencimento: today });
     setTouched({});
     setDrawerError(null);
     setEditTarget(null);
@@ -277,6 +278,12 @@ function ContasPagarContent() {
       } else {
         await apiClient.post('/api/v1/admin/financeiro/contas', payload);
         showSnack('Lançamento criado.');
+        // Sincroniza o filtro de mês/ano com a data de vencimento do lançamento criado
+        if (form.data_vencimento) {
+          const [y, m] = form.data_vencimento.split('-');
+          setMesFilter(String(parseInt(m, 10)));
+          setAnoFilter(y);
+        }
       }
       setDrawerOpen(false);
       fetchAll();

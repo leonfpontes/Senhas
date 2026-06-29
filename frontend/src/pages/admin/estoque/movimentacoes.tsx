@@ -1,5 +1,5 @@
 /**
- * Admin Estoque — Movimentações (lista imutável + criação via Dialog)
+ * Admin Estoque — Movimentações (CRUD completo)
  */
 'use client';
 
@@ -34,13 +34,17 @@ import {
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '../../../hooks/useSubscription';
+import { usePermissions } from '../../../hooks/usePermissions';
 import UpgradePrompt from '../../../components/UpgradePrompt';
+import CrudDrawer from '../../../components/CrudDrawer';
 import { apiClient } from '../../../services/api_client';
 
 interface Item { id: string; nome: string; saldo: number; estoque_minimo: number; unidade_medida: string; }
@@ -86,6 +90,7 @@ export default function AdminEstoqueMovimentacoesPage() {
 
 function AdminEstoqueMovimentacoesContent() {
   const { can, loading: subLoading } = useSubscription();
+  const { can: canGroup } = usePermissions();
   const [movimentacoes, setMovimentacoes] = useState<Movimentacao[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,16 +104,31 @@ function AdminEstoqueMovimentacoesContent() {
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
+  const [editTarget, setEditTarget] = useState<Movimentacao | null>(null);
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-  
+  const [drawerError, setDrawerError] = useState<string | null>(null);
+
   // For showing negative-stock warning
   const [saldoWarning, setSaldoWarning] = useState<string | null>(null);
+
+  // Delete confirm
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Movimentacao | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'warning' }>({
     open: false, message: '', severity: 'success',
   });
+  const showSnack = (message: string, severity: 'success' | 'error' | 'warning' = 'success') =>
+    setSnackbar({ open: true, message, severity });
+
+  const canEdit = canGroup('estoque', 'edit');
+  const canDelete = canGroup('estoque', 'delete');
+  const canInsert = canGroup('estoque', 'insert');
 
   useEffect(() => {
     loadItems();
@@ -141,7 +161,7 @@ function AdminEstoqueMovimentacoesContent() {
       const res = await apiClient.get('/api/v1/admin/estoque/movimentacoes', { params });
       setMovimentacoes(res.data);
     } catch {
-      setSnackbar({ open: true, message: 'Erro ao carregar movimentações', severity: 'error' });
+      showSnack('Erro ao carregar movimentações', 'error');
     } finally {
       setLoading(false);
     }
@@ -164,35 +184,97 @@ function AdminEstoqueMovimentacoesContent() {
     }
   };
 
+  const openCreate = async () => {
+    await loadItems();
+    setFormData({ ...EMPTY_FORM, data_movimentacao: toLocalDatetimeInput(new Date()) });
+    setSaldoWarning(null);
+    setTouched({});
+    setDrawerError(null);
+    setEditTarget(null);
+    setDrawerMode('create');
+    setDrawerOpen(true);
+  };
+
+  const openEdit = (m: Movimentacao) => {
+    setFormData({
+      item_id: m.item_id,
+      tipo: m.tipo,
+      quantidade: String(m.quantidade),
+      data_movimentacao: toLocalDatetimeInput(new Date(m.data_movimentacao)),
+      motivo: m.motivo ?? '',
+      requisitante: m.requisitante ?? '',
+    });
+    setSaldoWarning(null);
+    setTouched({});
+    setDrawerError(null);
+    setEditTarget(m);
+    setDrawerMode('edit');
+    setDrawerOpen(true);
+  };
+
   const handleSave = async () => {
     setTouched({ item_id: true, quantidade: true });
-    if (!formData.item_id || !formData.quantidade || parseInt(formData.quantidade, 10) <= 0) return;
+    if (!formData.item_id || !formData.quantidade || parseInt(formData.quantidade, 10) <= 0) {
+      setDrawerError('Preencha o item e a quantidade.');
+      return;
+    }
 
     setSaving(true);
+    setDrawerError(null);
     try {
-      await apiClient.post('/api/v1/admin/estoque/movimentacoes', {
-        item_id: formData.item_id,
-        tipo: formData.tipo,
-        quantidade: parseInt(formData.quantidade, 10),
-        data_movimentacao: new Date(formData.data_movimentacao).toISOString(),
-        motivo: formData.motivo.trim() || null,
-        requisitante: formData.requisitante.trim() || null,
-      });
-      setSnackbar({ open: true, message: 'Movimentação registrada!', severity: 'success' });
-      setDialogOpen(false);
+      if (drawerMode === 'edit' && editTarget) {
+        await apiClient.put(`/api/v1/admin/estoque/movimentacoes/${editTarget.id}`, {
+          tipo: formData.tipo,
+          quantidade: parseInt(formData.quantidade, 10),
+          data_movimentacao: new Date(formData.data_movimentacao).toISOString(),
+          motivo: formData.motivo.trim() || null,
+          requisitante: formData.requisitante.trim() || null,
+        });
+        showSnack('Movimentação atualizada!');
+      } else {
+        await apiClient.post('/api/v1/admin/estoque/movimentacoes', {
+          item_id: formData.item_id,
+          tipo: formData.tipo,
+          quantidade: parseInt(formData.quantidade, 10),
+          data_movimentacao: new Date(formData.data_movimentacao).toISOString(),
+          motivo: formData.motivo.trim() || null,
+          requisitante: formData.requisitante.trim() || null,
+        });
+        showSnack('Movimentação registrada!');
+      }
+      setDrawerOpen(false);
       setFormData(EMPTY_FORM);
       setSaldoWarning(null);
       loadItems();
       loadMovimentacoes();
-    } catch {
-      setSnackbar({ open: true, message: 'Erro ao registrar movimentação', severity: 'error' });
+    } catch (e: any) {
+      setDrawerError(e?.response?.data?.detail || e?.response?.data?.message || 'Erro ao salvar movimentação.');
     } finally {
       setSaving(false);
     }
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/api/v1/admin/estoque/movimentacoes/${deleteTarget.id}`);
+      showSnack('Movimentação excluída.');
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+      loadItems();
+      loadMovimentacoes();
+    } catch (e: any) {
+      showSnack(e?.response?.data?.detail || 'Erro ao excluir movimentação.', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (subLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
   if (!can('estoque_controle')) return <UpgradePrompt feature="controle de estoque" minPlan="Pro" />;
+
+  const showActionsColumn = canEdit || canDelete;
 
   return (
     <Box>
@@ -245,9 +327,11 @@ function AdminEstoqueMovimentacoesContent() {
             sx={{ width: 150 }}
           />
           <Tooltip title="Atualizar"><IconButton onClick={loadMovimentacoes}><RefreshIcon /></IconButton></Tooltip>
-          <Button data-tour="estoque-mov-nova" variant="contained" startIcon={<AddIcon />} onClick={async () => { await loadItems(); setFormData({ ...EMPTY_FORM, data_movimentacao: toLocalDatetimeInput(new Date()) }); setSaldoWarning(null); setTouched({}); setDialogOpen(true); }}>
-            Registrar
-          </Button>
+          {canInsert && (
+            <Button data-tour="estoque-mov-nova" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+              Registrar
+            </Button>
+          )}
         </Box>
       </Box>
 
@@ -269,6 +353,7 @@ function AdminEstoqueMovimentacoesContent() {
                 <TableCell><strong>Qtd</strong></TableCell>
                 <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Requisitante</strong></TableCell>
                 <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Motivo</strong></TableCell>
+                {showActionsColumn && <TableCell align="right"><strong>Ações</strong></TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -290,6 +375,24 @@ function AdminEstoqueMovimentacoesContent() {
                   <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' }, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <Tooltip title={m.motivo || ''}><span>{m.motivo || '—'}</span></Tooltip>
                   </TableCell>
+                  {showActionsColumn && (
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {canEdit && (
+                        <Tooltip title="Editar">
+                          <IconButton size="small" onClick={() => openEdit(m)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {canDelete && (
+                        <Tooltip title="Excluir">
+                          <IconButton size="small" color="error" onClick={() => { setDeleteTarget(m); setDeleteOpen(true); }}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -297,94 +400,106 @@ function AdminEstoqueMovimentacoesContent() {
         </TableContainer>
       )}
 
-      {/* Nova Movimentação Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Registrar Movimentação</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3, mt: 1 }}>
-            <ToggleButtonGroup
-              exclusive
-              value={formData.tipo}
-              onChange={(_, val) => {
-                if (!val) return;
-                setFormData((prev) => ({ ...prev, tipo: val }));
-                checkNegativeWarning(formData.item_id, val, formData.quantidade);
-              }}
-              color={formData.tipo === 'entrada' ? 'success' : 'error'}
-            >
-              <ToggleButton value="entrada" sx={{ px: 4 }}>Entrada</ToggleButton>
-              <ToggleButton value="saida" sx={{ px: 4 }}>Saída</ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
+      {/* Drawer criar / editar */}
+      <CrudDrawer
+        open={drawerOpen}
+        title={drawerMode === 'edit' ? 'Editar Movimentação' : 'Registrar Movimentação'}
+        onClose={() => { setDrawerOpen(false); setDrawerError(null); }}
+        onSave={handleSave}
+        saving={saving}
+        saveLabel={drawerMode === 'edit' ? 'Salvar alterações' : 'Confirmar'}
+        error={drawerError}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+          <ToggleButtonGroup
+            exclusive
+            value={formData.tipo}
+            onChange={(_, val) => {
+              if (!val) return;
+              setFormData((prev) => ({ ...prev, tipo: val }));
+              checkNegativeWarning(formData.item_id, val, formData.quantidade);
+            }}
+            color={formData.tipo === 'entrada' ? 'success' : 'error'}
+          >
+            <ToggleButton value="entrada" sx={{ px: 4 }}>Entrada</ToggleButton>
+            <ToggleButton value="saida" sx={{ px: 4 }}>Saída</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
 
-          <FormControl fullWidth sx={{ mb: 2 }} error={touched.item_id && !formData.item_id}>
-            <InputLabel>Item *</InputLabel>
-            <Select value={formData.item_id} label="Item *" onChange={(e) => handleItemChange(e.target.value)}>
-              {items.map((i) => (
-                <MenuItem key={i.id} value={i.id}>
-                  {i.nome} — saldo: {i.saldo} {i.unidade_medida}
-                </MenuItem>
-              ))}
-            </Select>
-            {touched.item_id && !formData.item_id && <Typography variant="caption" color="error" sx={{ ml: 2 }}>Selecione um item</Typography>}
-          </FormControl>
+        <FormControl fullWidth sx={{ mb: 2 }} error={touched.item_id && !formData.item_id} disabled={drawerMode === 'edit'}>
+          <InputLabel>Item *</InputLabel>
+          <Select value={formData.item_id} label="Item *" onChange={(e) => handleItemChange(e.target.value)}>
+            {items.map((i) => (
+              <MenuItem key={i.id} value={i.id}>
+                {i.nome} — saldo: {i.saldo} {i.unidade_medida}
+              </MenuItem>
+            ))}
+          </Select>
+          {touched.item_id && !formData.item_id && <Typography variant="caption" color="error" sx={{ ml: 2 }}>Selecione um item</Typography>}
+        </FormControl>
 
-          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-            <TextField
-              label="Quantidade *"
-              type="number"
-              inputProps={{ min: 1 }}
-              fullWidth
-              value={formData.quantidade}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, quantidade: e.target.value }));
-                checkNegativeWarning(formData.item_id, formData.tipo, e.target.value);
-              }}
-              error={touched.quantidade && (!formData.quantidade || parseInt(formData.quantidade, 10) <= 0)}
-              helperText={touched.quantidade && (!formData.quantidade || parseInt(formData.quantidade, 10) <= 0) ? 'Quantidade inválida' : ''}
-            />
-            <TextField
-              label="Data/hora"
-              type="datetime-local"
-              fullWidth
-              value={formData.data_movimentacao}
-              onChange={(e) => setFormData((prev) => ({ ...prev, data_movimentacao: e.target.value }))}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Box>
-
-          {saldoWarning && (
-            <Alert severity="warning" icon={<WarningAmberIcon />} sx={{ mb: 2 }}>
-              {saldoWarning}
-            </Alert>
-          )}
-
+        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
           <TextField
-            label="Requisitante"
+            label="Quantidade *"
+            type="number"
+            inputProps={{ min: 1 }}
             fullWidth
-            value={formData.requisitante}
-            onChange={(e) => setFormData((prev) => ({ ...prev, requisitante: e.target.value }))}
-            sx={{ mb: 2 }}
+            value={formData.quantidade}
+            onChange={(e) => {
+              setFormData((prev) => ({ ...prev, quantidade: e.target.value }));
+              checkNegativeWarning(formData.item_id, formData.tipo, e.target.value);
+            }}
+            error={touched.quantidade && (!formData.quantidade || parseInt(formData.quantidade, 10) <= 0)}
+            helperText={touched.quantidade && (!formData.quantidade || parseInt(formData.quantidade, 10) <= 0) ? 'Quantidade inválida' : ''}
           />
           <TextField
-            label="Motivo / Observação"
+            label="Data/hora"
+            type="datetime-local"
             fullWidth
-            multiline
-            rows={2}
-            value={formData.motivo}
-            onChange={(e) => setFormData((prev) => ({ ...prev, motivo: e.target.value }))}
+            value={formData.data_movimentacao}
+            onChange={(e) => setFormData((prev) => ({ ...prev, data_movimentacao: e.target.value }))}
+            InputLabelProps={{ shrink: true }}
           />
+        </Box>
+
+        {saldoWarning && (
+          <Alert severity="warning" icon={<WarningAmberIcon />} sx={{ mb: 2 }}>
+            {saldoWarning}
+          </Alert>
+        )}
+
+        <TextField
+          label="Requisitante"
+          fullWidth
+          value={formData.requisitante}
+          onChange={(e) => setFormData((prev) => ({ ...prev, requisitante: e.target.value }))}
+          sx={{ mb: 2 }}
+        />
+        <TextField
+          label="Motivo / Observação"
+          fullWidth
+          multiline
+          rows={2}
+          value={formData.motivo}
+          onChange={(e) => setFormData((prev) => ({ ...prev, motivo: e.target.value }))}
+        />
+      </CrudDrawer>
+
+      {/* Confirmação de exclusão */}
+      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Excluir movimentação?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Isso removerá a movimentação de <strong>{deleteTarget?.tipo === 'entrada' ? 'entrada' : 'saída'}</strong> de{' '}
+            <strong>{deleteTarget?.quantidade}</strong> unidade(s) do item <strong>{deleteTarget?.item_nome}</strong>.
+            O saldo do item será recalculado automaticamente.
+          </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDialogOpen(false)}>Cancelar</Button>
-          <Button
-            variant="contained"
-            color={formData.tipo === 'entrada' ? 'success' : 'error'}
-            onClick={handleSave}
-            disabled={saving}
-            startIcon={saving ? <CircularProgress size={16} /> : undefined}
-          >
-            {saving ? 'Salvando...' : 'Confirmar'}
+          <Button onClick={() => setDeleteOpen(false)}>Cancelar</Button>
+          <Button variant="contained" color="error" onClick={handleDelete} disabled={deleting}
+            startIcon={deleting ? <CircularProgress size={16} /> : undefined}>
+            {deleting ? 'Excluindo...' : 'Excluir'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -253,6 +253,52 @@ class EstoqueMovimentacaoRepository:
         await self.db.refresh(mov)
         return mov
 
+    async def get_by_id(self, mov_id: UUID, tenant_id: UUID) -> Optional[EstoqueMovimentacao]:
+        stmt = (
+            select(EstoqueMovimentacao)
+            .options(selectinload(EstoqueMovimentacao.item))
+            .where(
+                EstoqueMovimentacao.id == mov_id,
+                EstoqueMovimentacao.tenant_id == tenant_id,
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def update_movimentacao(
+        self,
+        mov_id: UUID,
+        tenant_id: UUID,
+        **kwargs,
+    ) -> Optional[EstoqueMovimentacao]:
+        stmt = select(EstoqueMovimentacao).where(
+            EstoqueMovimentacao.id == mov_id,
+            EstoqueMovimentacao.tenant_id == tenant_id,
+        )
+        result = await self.db.execute(stmt)
+        mov = result.scalar_one_or_none()
+        if not mov:
+            return None
+        for key, value in kwargs.items():
+            if value is not None or key in ("motivo", "requisitante"):
+                setattr(mov, key, value)
+        await self.db.flush()
+        await self.db.refresh(mov)
+        return mov
+
+    async def delete_movimentacao(self, mov_id: UUID, tenant_id: UUID) -> bool:
+        stmt = select(EstoqueMovimentacao).where(
+            EstoqueMovimentacao.id == mov_id,
+            EstoqueMovimentacao.tenant_id == tenant_id,
+        )
+        result = await self.db.execute(stmt)
+        mov = result.scalar_one_or_none()
+        if not mov:
+            return False
+        await self.db.delete(mov)
+        await self.db.flush()
+        return True
+
     async def list_filtered(
         self,
         tenant_id: UUID,
