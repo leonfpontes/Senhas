@@ -31,6 +31,7 @@ import PeopleAltRoundedIcon          from "@mui/icons-material/PeopleAltRounded"
 import ReceiptLongRoundedIcon        from "@mui/icons-material/ReceiptLongRounded";
 import ManageSearchRoundedIcon       from "@mui/icons-material/ManageSearchRounded";
 import TuneRoundedIcon               from "@mui/icons-material/TuneRounded";
+import TravelExploreRoundedIcon      from "@mui/icons-material/TravelExploreRounded";
 import LogoutRoundedIcon             from "@mui/icons-material/LogoutRounded";
 import MenuOpenRoundedIcon           from "@mui/icons-material/MenuOpenRounded";
 import MenuRoundedIcon               from "@mui/icons-material/MenuRounded";
@@ -57,6 +58,7 @@ const NAV_ITEMS = [
   { label: "Dashboard",        icon: <DashboardRoundedIcon />,    href: "/platform" },
   { label: "Tenants",          icon: <BusinessRoundedIcon />,     href: "/platform/tenants" },
   { label: "Usuários Globais", icon: <PeopleAltRoundedIcon />,    href: "/platform/users_global" },
+  { label: "Observatório",      icon: <TravelExploreRoundedIcon />, href: "/platform/observatory" },
   { label: "Audit Logs",       icon: <ManageSearchRoundedIcon />, href: "/platform/audit_consolidated" },
   { label: "Billing",          icon: <ReceiptLongRoundedIcon />,  href: "/platform/billing" },
   { label: "Configurações",    icon: <TuneRoundedIcon />,         href: "/platform/settings" },
