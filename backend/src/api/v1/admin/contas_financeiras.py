@@ -254,6 +254,7 @@ async def create_categoria(
     )
     db.add(cat)
     await db.flush()
+    await db.commit()
     await db.refresh(cat)
     return cat
 
@@ -282,6 +283,7 @@ async def update_categoria(
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(cat, field, value)
     await db.flush()
+    await db.commit()
     await db.refresh(cat)
     return cat
 
@@ -308,6 +310,7 @@ async def delete_categoria(
         raise HTTPException(status_code=404, detail="Categoria não encontrada.")
     cat.deleted_at = datetime.now(timezone.utc)
     await db.flush()
+    await db.commit()
 
 
 # ── Contas Bancárias ──────────────────────────────────────────────────────────
@@ -356,6 +359,7 @@ async def create_conta_bancaria(
     )
     db.add(conta)
     await db.flush()
+    await db.commit()
     await db.refresh(conta)
     return conta
 
@@ -384,6 +388,7 @@ async def update_conta_bancaria(
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(conta, field, value)
     await db.flush()
+    await db.commit()
     await db.refresh(conta)
     return conta
 
@@ -410,6 +415,7 @@ async def delete_conta_bancaria(
         raise HTTPException(status_code=404, detail="Conta bancária não encontrada.")
     conta.deleted_at = datetime.now(timezone.utc)
     await db.flush()
+    await db.commit()
 
 
 # ── Contas Financeiras ────────────────────────────────────────────────────────
@@ -525,6 +531,7 @@ async def list_contas(
             updated = True
     if updated:
         await db.flush()
+        await db.commit()
 
     return [_conta_to_out(c) for c in contas]
 
@@ -558,6 +565,7 @@ async def create_conta(
     )
     db.add(conta)
     await db.flush()
+    await db.commit()
 
     stmt = (
         select(ContaFinanceira)
@@ -637,6 +645,7 @@ async def update_conta(
         setattr(conta, field, value)
 
     await db.flush()
+    await db.commit()
 
     stmt2 = (
         select(ContaFinanceira)
@@ -672,6 +681,7 @@ async def delete_conta(
         raise HTTPException(status_code=404, detail="Lançamento não encontrado.")
     conta.deleted_at = datetime.now(timezone.utc)
     await db.flush()
+    await db.commit()
 
     audit = AuditService(db)
     await audit.log_delete(
@@ -721,6 +731,7 @@ async def dar_baixa(
         conta.observacoes = body.observacoes
 
     await db.flush()
+    await db.commit()
 
     stmt2 = (
         select(ContaFinanceira)
