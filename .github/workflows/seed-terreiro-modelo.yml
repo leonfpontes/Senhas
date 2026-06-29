@@ -6,6 +6,7 @@ on:
 jobs:
   seed:
     runs-on: ubuntu-latest
+    environment: Hostinger
     steps:
       - name: Executa seed via SSH na VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -13,8 +14,9 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
           command_timeout: 10m
           script: |
-            cd ~/senhas
+            cd /opt/senhas
             git pull origin master
             docker exec senhas_backend python scripts/seed_terreiro_modelo.py
