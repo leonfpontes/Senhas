@@ -297,7 +297,9 @@ function FeaturesSection({ tenants }: { tenants: TenantFeatures[] }) {
               onClick={() => setExpanded(isOpen ? null : t.tenant_id)}
               sx={{ display: "flex", alignItems: "center", gap: 2, px: 2, py: 1.5, cursor: "pointer", "&:hover": { bgcolor: "action.hover" } }}
             >
-              <TenantChip name={t.tenant_name} />
+              <Box sx={{ width: 220, flexShrink: 0 }}>
+                <TenantChip name={t.tenant_name} />
+              </Box>
               <Box sx={{ flex: 1 }}>
                 <LinearProgress
                   variant="determinate"
@@ -308,7 +310,7 @@ function FeaturesSection({ tenants }: { tenants: TenantFeatures[] }) {
                   }}
                 />
               </Box>
-              <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: ACCENT, minWidth: 60, textAlign: "right" }}>
+              <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: ACCENT, width: 72, textAlign: "right", flexShrink: 0 }}>
                 {t.total_acoes.toLocaleString("pt-BR")} ações
               </Typography>
               {isOpen ? <ExpandLessRoundedIcon fontSize="small" /> : <ExpandMoreRoundedIcon fontSize="small" />}
@@ -317,7 +319,7 @@ function FeaturesSection({ tenants }: { tenants: TenantFeatures[] }) {
               <Box sx={{ px: 2, pb: 2, pt: 0.5, display: "flex", flexDirection: "column", gap: 1 }}>
                 {t.features.map((f) => (
                   <Box key={f.resource_type} sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                    <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", minWidth: 160 }}>{f.label}</Typography>
+                    <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", width: 220, flexShrink: 0 }}>{f.label}</Typography>
                     <Box sx={{ flex: 1 }}>
                       <LinearProgress
                         variant="determinate"
@@ -328,7 +330,7 @@ function FeaturesSection({ tenants }: { tenants: TenantFeatures[] }) {
                         }}
                       />
                     </Box>
-                    <Typography sx={{ fontSize: "0.72rem", fontWeight: 700, color: "text.primary", minWidth: 40, textAlign: "right" }}>
+                    <Typography sx={{ fontSize: "0.72rem", fontWeight: 700, color: "text.primary", width: 40, textAlign: "right", flexShrink: 0 }}>
                       {f.uso}
                     </Typography>
                   </Box>
