@@ -207,9 +207,15 @@ async def main():
             "contas_financeiras","categorias_financeiras","contas_bancarias",
             "tickets","senha_controls","giras",
             "consulentes","associados","mediuns",
-            "user_group_memberships","group_permissions","permission_groups",
+            "user_group_memberships",
         ]:
             await db.execute(text(f"DELETE FROM {tbl} WHERE tenant_id = '{tid}'"))
+        # group_permissions não tem tenant_id — deleta via FK
+        await db.execute(text(
+            f"DELETE FROM group_permissions WHERE group_id IN "
+            f"(SELECT id FROM permission_groups WHERE tenant_id = '{tid}')"
+        ))
+        await db.execute(text(f"DELETE FROM permission_groups WHERE tenant_id = '{tid}'"))
         await db.commit()
         print("[OK] Dados anteriores removidos.")
 
