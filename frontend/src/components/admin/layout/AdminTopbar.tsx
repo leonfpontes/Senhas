@@ -24,6 +24,7 @@ import { useProfile }    from '@/hooks/useProfile';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
 import { ImpersonationBanner } from './ImpersonationBanner';
+import * as Sentry from '@sentry/nextjs';
 import { apiClient } from '@/services/api_client';
 import { routeLabel } from '@/constants/routes';
 
@@ -84,6 +85,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
     setAnchorEl(null);
     try { await apiClient.post('/api/v1/auth/logout'); } catch {}
     localStorage.removeItem('user');
+    Sentry.setUser(null);
     router.push('/login');
   };
 

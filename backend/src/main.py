@@ -18,7 +18,7 @@ from .core.config import settings
 from .core.errors import APIException
 from .core.database import engine
 from .models.base import Base
-from .middleware import jwt_middleware, tenant_context_middleware, audit_logging_middleware
+from .middleware import jwt_middleware, tenant_context_middleware, audit_logging_middleware, error_rate_middleware
 from .api import auth_router
 from .api.v1.admin import admin_router
 from .api.v1.platform import platform_router
@@ -125,9 +125,12 @@ def create_app() -> FastAPI:
     # Desired request flow: CORS → TrustedHost → tenant → jwt → audit → handler
     # So we add innermost first, outermost last.
 
-    # Audit Logging Middleware (innermost - needs user_id/tenant_id from jwt)
+    # Error Rate Monitor (innermost — precisa da response já processada)
+    app.middleware("http")(error_rate_middleware)
+
+    # Audit Logging Middleware (needs user_id/tenant_id from jwt)
     app.middleware("http")(audit_logging_middleware)
-    
+
     # JWT Validation Middleware
     app.middleware("http")(jwt_middleware)
     

@@ -68,6 +68,14 @@ class Settings(BaseSettings):
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1   # 10% das transações em prod
     SENTRY_ENVIRONMENT: str = "development"
 
+    # Alertas de erro — email do operador que receberá notificações de erros 5xx
+    ALERT_EMAIL: str = ""
+    # Threshold: quantos erros 5xx em ERROR_RATE_WINDOW_MINUTES para disparar alerta
+    ERROR_RATE_THRESHOLD: int = 5
+    ERROR_RATE_WINDOW_MINUTES: int = 5
+    # Cooldown entre alertas do mesmo tipo (minutos) para evitar flood de emails
+    ERROR_ALERT_COOLDOWN_MINUTES: int = 30
+
     # Password policy
     PASSWORD_MIN_LENGTH: int = 12
     PASSWORD_REQUIRE_UPPERCASE: bool = True

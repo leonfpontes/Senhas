@@ -22,6 +22,7 @@ import {
 import PasswordField from '../components/PasswordField';
 import Link from 'next/link';
 import Head from 'next/head';
+import * as Sentry from '@sentry/nextjs';
 import { apiClient } from '../services/api_client';
 import { dispatchTenantBrandingUpdated } from '../providers/ThemeProvider';
 
@@ -60,6 +61,10 @@ export default function LoginPage() {
 
       // access_token agora chega como cookie HttpOnly — não armazenar em localStorage
       localStorage.setItem('user', JSON.stringify(user));
+
+      // Identificar usuário/tenant no Sentry para rastrear quem é afetado por erros
+      Sentry.setUser({ id: user.id, role: user.role });
+      if (user.tenant_id) Sentry.setTag('tenant_id', user.tenant_id);
       // Quando "Lembrar-me" está desmarcado, marca a sessão para não persistir.
       // O backend deve setar cookies de sessão; o frontend também sinaliza via
       // sessionStorage para limpeza ao fechar a aba.

@@ -48,6 +48,7 @@ import {
 } from "../../providers/PlatformThemeProvider";
 import { ACCENT, ACCENT_GLOW } from "../../styles/platformTheme";
 import { LiveClock } from "../../components/platform";
+import * as Sentry from '@sentry/nextjs';
 import { apiClient } from "../../services/api_client";
 
 // ─── Navigation items — single source of truth ────────────────────────────────
@@ -175,6 +176,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   const handleLogout = async () => {
     try { await apiClient.post("/api/v1/auth/logout"); } catch {}
     localStorage.removeItem("user");
+    Sentry.setUser(null);
     router.push("/login");
   };
 

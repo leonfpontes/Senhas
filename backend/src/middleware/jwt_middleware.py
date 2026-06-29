@@ -3,6 +3,7 @@ from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from typing import Callable, Optional
 import uuid
+import sentry_sdk
 
 from ..core.errors import InvalidTokenError, UnauthorizedError
 from ..security.jwt import decode_token
@@ -87,6 +88,11 @@ async def jwt_middleware(request: Request, call_next: Callable) -> any:
     request.state.tenant_id = uuid.UUID(token_data.tenant_id) if token_data.tenant_id else None
     request.state.role = token_data.role
     request.state.token = token_data
-    
+
+    # Enriquecer contexto do Sentry com tenant/user para rastrear quem foi afetado
+    if token_data.tenant_id:
+        sentry_sdk.set_tag("tenant_id", token_data.tenant_id)
+    sentry_sdk.set_user({"id": token_data.sub, "role": token_data.role})
+
     response = await call_next(request)
     return response
