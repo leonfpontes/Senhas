@@ -171,8 +171,16 @@ def create_app() -> FastAPI:
     
     @app.exception_handler(APIException)
     async def api_exception_handler(request: Request, exc: APIException):
-        """Handle custom API exceptions."""
-        logger.error(f"API Error: {exc.error_code} - {exc.message}")
+        """Handle custom API exceptions.
+
+        4xx são erros de cliente (validação, conflito, não autorizado) — logados
+        como WARNING para não poluir o Sentry com falsos positivos.
+        5xx são erros reais do servidor — logados como ERROR para captura no Sentry.
+        """
+        if exc.status_code < 500:
+            logger.warning("API %s [%d]: %s", exc.error_code, exc.status_code, exc.message)
+        else:
+            logger.error("API %s [%d]: %s", exc.error_code, exc.status_code, exc.message)
         return JSONResponse(
             status_code=exc.status_code,
             content={
