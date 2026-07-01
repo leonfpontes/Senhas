@@ -367,6 +367,25 @@ class TestUpdateUser:
         # The function sets attr on existing_user then returns from_orm(existing_user)
         assert result is not None
 
+    @patch("src.api.v1.admin.users.AuditService")
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_password_change_revokes_existing_sessions(self, MockRepo, MockAudit):
+        from src.api.v1.admin.users import update_user, UserUpdate
+        db = AsyncMock()
+        repo_inst = AsyncMock()
+        existing = _mock_user_model()
+        existing.sessions_revoked_at = None
+        repo_inst.get_by_id.return_value = existing
+        MockRepo.return_value = repo_inst
+        MockAudit.return_value = AsyncMock()
+        db.refresh = AsyncMock()
+
+        with patch("src.api.v1.admin.users.session_service.end_all_sessions", new=AsyncMock()) as mock_end_all:
+            await update_user(USER_ID, UserUpdate(password="NewPass456!"), _admin_user(), db)
+
+        assert existing.sessions_revoked_at is not None
+        mock_end_all.assert_awaited_once_with(db, existing.id)
+
 
 class TestDeleteUser:
     @patch("src.api.v1.admin.users.AuditService")

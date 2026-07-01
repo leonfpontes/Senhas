@@ -2,6 +2,7 @@
 from fastapi import Request, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+from datetime import timezone
 import uuid
 
 from ..core.database import get_db
@@ -38,15 +39,30 @@ async def get_current_user(
     user_id = getattr(request.state, "user_id", None)
     if not user_id:
         raise UnauthorizedError("Usuário não identificado")
-    
+
     # Get user from database
     stmt = select(User).where(User.id == user_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
-    
+
     if not user or not user.is_active:
         raise UnauthorizedError("Usuário não encontrado ou inativo")
-    
+
+    # Password change / "logout all devices" invalidates every token issued
+    # before that moment — even ones that haven't hit their own exp yet. Cheap
+    # to check here: `user` is already loaded, no extra query.
+    if user.sessions_revoked_at is not None:
+        token_data = getattr(request.state, "token", None)
+        token_iat = getattr(token_data, "iat", None)
+        if token_iat is not None:
+            revoked_at = user.sessions_revoked_at
+            if token_iat.tzinfo is None:
+                token_iat = token_iat.replace(tzinfo=timezone.utc)
+            if revoked_at.tzinfo is None:
+                revoked_at = revoked_at.replace(tzinfo=timezone.utc)
+            if token_iat < revoked_at:
+                raise UnauthorizedError("Sessão revogada")
+
     return user
 
 

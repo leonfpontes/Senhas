@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_HOURS: int = 24
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     ALGORITHM: str = "HS256"
+    # Absolute session lifetime cap: even with continuous silent refresh, a
+    # session forces a fresh login this many days after the *original* login
+    # (tracked via UserSession.orig_iat / expires_at), independent of activity.
+    MAX_SESSION_DAYS: int = 14
+    # Grace window for benign refresh-token races between concurrent tabs/devices
+    # sharing the same session: a jti superseded by rotation within this window
+    # is still accepted once, instead of being treated as a reuse/theft signal.
+    REFRESH_REUSE_GRACE_SECONDS: int = 30
 
     # CORS — stored as comma-separated string to avoid pydantic-settings JSON parse
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"

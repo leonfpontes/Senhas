@@ -22,6 +22,7 @@ from src.security import (
     AccessToken,
 )
 from src.core.logging import log_security_event
+from src.services import session_service
 from sqlalchemy import select
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -47,15 +48,17 @@ class LoginResponse(BaseModel):
 async def login(
     request: LoginRequest,
     response: Response,
+    request_obj: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """POST /api/v1/auth/login - Authenticate user and return tokens.
-    
+
     Args:
         request: Login credentials (email + password)
         response: HTTP response (for setting cookies)
+        request_obj: HTTP request (for User-Agent, stored on the session row)
         db: Database session
-        
+
     Returns:
         AccessToken with JWT tokens and user info
         
@@ -92,10 +95,15 @@ async def login(
         log_security_event("login", success=False, user_id=user.id, details={"reason": "invalid_password"})
         raise UnauthorizedError("Credenciais inválidas")
     
-    # Create tokens
+    # Create tokens. The refresh token is bound to a new UserSession row so it
+    # can be rotated/revoked server-side (see src/services/session_service.py).
+    session_id, jti = await session_service.start_session(
+        db, user, user_agent=request_obj.headers.get("user-agent")
+    )
     access_token = create_access_token(user.id, user.tenant_id, user.role.value)
-    refresh_token = create_refresh_token(user.id, user.tenant_id, user.role.value)
-    
+    refresh_token = create_refresh_token(user.id, user.tenant_id, user.role.value, session_id, jti)
+    await db.commit()
+
     # Access token em cookie HttpOnly — não fica exposto no localStorage
     response.set_cookie(
         key="access_token",
@@ -171,7 +179,8 @@ async def refresh_token(
     """POST /api/v1/auth/refresh - Renova access_token usando o refresh_token do cookie.
 
     Lê o cookie HttpOnly 'refresh_token', valida, busca o usuário no banco e emite
-    um novo access_token + rotaciona o refresh_token.
+    um novo access_token + rotaciona o refresh_token (com detecção de reuso — ver
+    src/services/session_service.py — e teto absoluto de MAX_SESSION_DAYS).
     """
     from src.security.jwt import decode_refresh_token
 
@@ -191,9 +200,33 @@ async def refresh_token(
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário inativo ou não encontrado")
 
+    # Troca de senha / "logout em todos os dispositivos" invalida qualquer token
+    # emitido antes desse timestamp, mesmo que ainda esteja dentro da validade.
+    if user.sessions_revoked_at is not None:
+        token_iat = payload.iat if payload.iat.tzinfo else payload.iat.replace(tzinfo=timezone.utc)
+        revoked_at = user.sessions_revoked_at if user.sessions_revoked_at.tzinfo else user.sessions_revoked_at.replace(tzinfo=timezone.utc)
+        if token_iat < revoked_at:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão revogada")
+
+    if payload.session_id and payload.jti:
+        rotation = await session_service.rotate_session(
+            db, user.id, uuid.UUID(payload.session_id), uuid.UUID(payload.jti)
+        )
+        if not rotation.ok:
+            await db.commit()  # persist the revoke (delete) from rotate_session
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh_token inválido ou expirado")
+        session_id, new_jti = uuid.UUID(payload.session_id), rotation.new_jti
+    else:
+        # Legacy refresh token issued before rotation tracking existed — upgrade
+        # it transparently to a tracked session instead of forcing a re-login.
+        session_id, new_jti = await session_service.start_session(
+            db, user, user_agent=request_obj.headers.get("user-agent")
+        )
+
     # Emite novos tokens
     new_access = create_access_token(user.id, user.tenant_id, user.role.value)
-    new_refresh = create_refresh_token(user.id, user.tenant_id, user.role.value)
+    new_refresh = create_refresh_token(user.id, user.tenant_id, user.role.value, session_id, new_jti)
+    await db.commit()
 
     response.set_cookie(key="access_token", value=new_access, httponly=True,
                         secure=not settings.DEBUG, samesite="strict",
@@ -212,24 +245,67 @@ async def refresh_token(
 
 
 @router.post("/logout")
-async def logout(response: Response):
+async def logout(request_obj: Request, response: Response, db: AsyncSession = Depends(get_db)):
     """POST /api/v1/auth/logout - Logout user and clear refresh token.
-    
-    Clears the refresh_token cookie on client side.
-    
+
+    Clears the auth cookies client-side and, best-effort, revokes the
+    matching UserSession row server-side (this device only — other devices
+    keep working, see /logout-all for revoking everything).
+
     Args:
+        request_obj: HTTP request (to read the refresh_token cookie)
         response: HTTP response
-        
+        db: Database session
+
     Returns:
         Success message
     """
+    from src.security.jwt import decode_refresh_token
+
+    raw_refresh = request_obj.cookies.get("refresh_token")
+    if raw_refresh:
+        try:
+            payload = decode_refresh_token(raw_refresh)
+            if payload.session_id:
+                await session_service.end_session(db, uuid.UUID(payload.sub), uuid.UUID(payload.session_id))
+                await db.commit()
+        except Exception:
+            pass  # Best-effort: an already-invalid/expired token has nothing to revoke.
+
     response.delete_cookie(key="access_token",  httponly=True,  secure=not settings.DEBUG, samesite="strict")
     response.delete_cookie(key="refresh_token", httponly=True,  secure=not settings.DEBUG, samesite="strict")
     response.delete_cookie(key="auth_state",    httponly=False, secure=not settings.DEBUG, samesite="strict")
-    
+
     log_security_event("logout", success=True)
-    
+
     return {"message": "Logout realizado com sucesso"}
+
+
+@router.post("/logout-all")
+async def logout_all(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """POST /api/v1/auth/logout-all - Revoke every session for the current user.
+
+    Ends all other devices/tabs immediately (their next request is rejected —
+    see get_current_user's sessions_revoked_at check — no need to wait for
+    their refresh token to be used), and clears cookies for this device too.
+    Intended for a lost/stolen device or "sign out everywhere" in account settings.
+    """
+    current_user.sessions_revoked_at = datetime.now(timezone.utc)
+    db.add(current_user)
+    await session_service.end_all_sessions(db, current_user.id)
+    await db.commit()
+
+    response.delete_cookie(key="access_token",  httponly=True,  secure=not settings.DEBUG, samesite="strict")
+    response.delete_cookie(key="refresh_token", httponly=True,  secure=not settings.DEBUG, samesite="strict")
+    response.delete_cookie(key="auth_state",    httponly=False, secure=not settings.DEBUG, samesite="strict")
+
+    log_security_event("logout_all", user_id=current_user.id, tenant_id=current_user.tenant_id, success=True)
+
+    return {"message": "Todas as sessões foram encerradas"}
 
 
 @router.get("/me")
@@ -350,6 +426,10 @@ async def reset_password(
     user.password_hash = hash_password(body.new_password)
     user.reset_token_hash = None
     user.reset_token_expires_at = None
+    # A forgotten-password reset is often triggered *because* the account may
+    # be compromised — revoke every existing session, not just future ones.
+    user.sessions_revoked_at = datetime.now(timezone.utc)
+    await session_service.end_all_sessions(db, user.id)
     await db.commit()
 
     log_security_event("reset_password", user_id=user.id, success=True)

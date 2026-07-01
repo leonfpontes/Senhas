@@ -34,6 +34,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [accountDeleted, setAccountDeleted] = useState(false);
   const [passwordReset, setPasswordReset] = useState(false);
+  const [sessionsEnded, setSessionsEnded] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -43,7 +44,10 @@ export default function LoginPage() {
     if (router.query.reset === '1') {
       setPasswordReset(true);
     }
-  }, [router.query.account_deleted, router.query.reset]);
+    if (router.query.sessions_ended === '1') {
+      setSessionsEnded(true);
+    }
+  }, [router.query.account_deleted, router.query.reset, router.query.sessions_ended]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,6 +136,11 @@ export default function LoginPage() {
                 {passwordReset && (
                   <Alert severity="success" onClose={() => setPasswordReset(false)}>
                     Senha redefinida com sucesso. Faça login com sua nova senha.
+                  </Alert>
+                )}
+                {sessionsEnded && (
+                  <Alert severity="info" onClose={() => setSessionsEnded(false)}>
+                    Todas as sessões foram encerradas por segurança. Faça login novamente.
                   </Alert>
                 )}
                 {error && (

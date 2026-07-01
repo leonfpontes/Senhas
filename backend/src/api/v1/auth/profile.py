@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File, status
@@ -18,6 +19,7 @@ from src.core.limiter import limiter
 from src.models import User, UserRole
 from src.models.audit_logs import AuditLog, AuditAction
 from src.security.password import verify_password, hash_password, validate_password_policy
+from src.services import session_service
 from src.services.email.base import EmailMessage
 from src.services.email.resend_fallback import ResendEmailService
 from src.services.email.brevo_provider import BrevoEmailService
@@ -160,7 +162,12 @@ async def change_password(
     validate_password_policy(payload.new_password)
 
     current_user.password_hash = hash_password(payload.new_password)
+    # Invalidate every other session (device/tab) using the old password —
+    # otherwise a device that had the old credentials keeps working via its
+    # still-valid access/refresh tokens.
+    current_user.sessions_revoked_at = datetime.now(timezone.utc)
     db.add(current_user)
+    await session_service.end_all_sessions(db, current_user.id)
     await db.commit()
 
     return {"message": "Senha alterada com sucesso"}

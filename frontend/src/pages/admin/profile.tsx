@@ -27,6 +27,7 @@ import {
 import SaveIcon from '@mui/icons-material/Save';
 import UploadIcon from '@mui/icons-material/CloudUpload';
 import LockIcon from '@mui/icons-material/Lock';
+import LogoutIcon from '@mui/icons-material/Logout';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { useRouter } from 'next/router';
 
@@ -61,6 +62,7 @@ export default function AdminProfilePage() {
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [loggingOutAll, setLoggingOutAll] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
@@ -205,14 +207,30 @@ export default function AdminProfilePage() {
         new_password: newPassword,
       });
 
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setSuccess('Senha atualizada com sucesso.');
+      // Changing the password revokes every session (this tab included) so a
+      // device that captured the old credentials stops working immediately.
+      // Send the user back to /login instead of leaving them on a page whose
+      // very next request would 401 unexpectedly.
+      localStorage.removeItem('user');
+      router.push('/login?sessions_ended=1');
     } catch (err: any) {
       setError(err?.message || 'Não foi possível alterar a senha.');
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const handleLogoutAllDevices = async () => {
+    setError(null);
+    setSuccess(null);
+    setLoggingOutAll(true);
+    try {
+      await apiClient.post('/api/v1/auth/logout-all');
+      localStorage.removeItem('user');
+      router.push('/login?sessions_ended=1');
+    } catch (err: any) {
+      setError(err?.message || 'Não foi possível encerrar as sessões.');
+      setLoggingOutAll(false);
     }
   };
 
@@ -468,6 +486,33 @@ export default function AdminProfilePage() {
                 sx={{ mt: 2 }}
               >
                 {savingPassword ? 'Alterando...' : 'Atualizar Senha'}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card data-tour="profile-sessoes" sx={{ mt: 2.5 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <LogoutIcon fontSize="small" />
+                <Typography variant="h6" fontWeight={700}>
+                  Sessões ativas
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Encerra sua sessão em todos os dispositivos e abas conectados com esta conta
+                (celular, outro computador, etc). Use se você perdeu um dispositivo ou suspeita
+                de acesso indevido — você precisará entrar novamente em todos eles.
+              </Typography>
+
+              <Divider sx={{ mb: 2 }} />
+
+              <Button
+                variant="outlined"
+                color="warning"
+                onClick={handleLogoutAllDevices}
+                disabled={loggingOutAll}
+              >
+                {loggingOutAll ? 'Encerrando...' : 'Sair de todos os dispositivos'}
               </Button>
             </CardContent>
           </Card>

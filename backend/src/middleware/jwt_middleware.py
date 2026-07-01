@@ -33,9 +33,15 @@ async def jwt_middleware(request: Request, call_next: Callable) -> any:
     # Note: /docs and /openapi.json are disabled in production (FastAPI config);
     # they are kept here only for local DEBUG use.
     public_paths = ["/health", "/docs", "/redoc", "/openapi.json",
-                    "/api/v1/auth/login", "/api/v1/auth/refresh",
+                    "/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout",
                     "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password",
                     "/api/v1/webhooks/stripe"]
+    # /auth/logout is public for the same reason /auth/refresh is: it must be able
+    # to run its own cleanup (revoking the matching UserSession row) even when the
+    # access_token cookie being logged out of is itself already invalid/expired —
+    # that's precisely the common case when the frontend calls it after a failed
+    # silent refresh. Blocking it here would 401 before the handler ever runs,
+    # leaving cookies and the session row uncleaned.
     if request.url.path in public_paths or request.url.path.startswith("/api/v1/public"):
         return await call_next(request)
     

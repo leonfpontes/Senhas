@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from src.core.database import get_db
@@ -12,6 +12,7 @@ from src.models import User, UserRole, PermissionFeature
 from src.repositories.user_repo import UserRepository
 from src.security.password import hash_password
 from src.services.audit_service import AuditService
+from src.services import session_service
 from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import (
     InsufficientPermissionsError,
@@ -223,7 +224,9 @@ async def update_user(
     # Handle password separately
     if user_update.password:
         existing_user.password_hash = hash_password(user_update.password)
-    
+        existing_user.sessions_revoked_at = datetime.now(timezone.utc)
+        await session_service.end_all_sessions(db, existing_user.id)
+
     db.add(existing_user)
     await db.flush()
     await db.refresh(existing_user)

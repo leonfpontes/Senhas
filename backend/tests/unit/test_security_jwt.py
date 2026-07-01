@@ -10,6 +10,7 @@ from src.security.jwt import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    decode_refresh_token,
     TokenPayload,
     AccessToken,
     RefreshTokenData,
@@ -75,21 +76,31 @@ class TestCreateRefreshToken:
     def test_creates_valid_jwt(self):
         user_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
-        token = create_refresh_token(user_id, tenant_id, "admin")
+        token = create_refresh_token(user_id, tenant_id, "admin", uuid.uuid4(), uuid.uuid4())
         assert isinstance(token, str)
         assert len(token) > 0
 
     def test_contains_type_refresh(self):
         user_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
-        token = create_refresh_token(user_id, tenant_id, "admin")
+        token = create_refresh_token(user_id, tenant_id, "admin", uuid.uuid4(), uuid.uuid4())
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         assert payload["type"] == "refresh"
+
+    def test_contains_session_id_and_jti(self):
+        user_id = uuid.uuid4()
+        tenant_id = uuid.uuid4()
+        session_id = uuid.uuid4()
+        jti = uuid.uuid4()
+        token = create_refresh_token(user_id, tenant_id, "admin", session_id, jti)
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        assert payload["session_id"] == str(session_id)
+        assert payload["jti"] == str(jti)
 
     def test_default_expiration_30_days(self):
         user_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
-        token = create_refresh_token(user_id, tenant_id, "admin")
+        token = create_refresh_token(user_id, tenant_id, "admin", uuid.uuid4(), uuid.uuid4())
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
         iat = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
@@ -101,12 +112,50 @@ class TestCreateRefreshToken:
         user_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
         custom_delta = timedelta(days=7)
-        token = create_refresh_token(user_id, tenant_id, "admin", expires_delta=custom_delta)
+        token = create_refresh_token(user_id, tenant_id, "admin", uuid.uuid4(), uuid.uuid4(), expires_delta=custom_delta)
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
         iat = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
         delta = exp - iat
         assert abs(delta.total_seconds() - 7 * 86400) < 2
+
+
+class TestDecodeRefreshToken:
+    """Tests for decode_refresh_token function."""
+
+    def test_decodes_session_id_and_jti(self):
+        user_id = uuid.uuid4()
+        tenant_id = uuid.uuid4()
+        session_id = uuid.uuid4()
+        jti = uuid.uuid4()
+        token = create_refresh_token(user_id, tenant_id, "admin", session_id, jti)
+        payload = decode_refresh_token(token)
+        assert payload.session_id == str(session_id)
+        assert payload.jti == str(jti)
+
+    def test_legacy_token_without_session_id_still_decodes(self):
+        """Refresh tokens issued before rotation tracking existed (no
+        session_id/jti claims) must still decode successfully — the caller
+        (POST /auth/refresh) is responsible for transparently upgrading them."""
+        payload = {
+            "sub": str(uuid.uuid4()),
+            "tenant_id": str(uuid.uuid4()),
+            "role": "admin",
+            "exp": datetime.now(timezone.utc) + timedelta(days=30),
+            "iat": datetime.now(timezone.utc),
+            "type": "refresh",
+        }
+        token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        result = decode_refresh_token(token)
+        assert result.session_id is None
+        assert result.jti is None
+
+    def test_rejects_access_token(self):
+        user_id = uuid.uuid4()
+        tenant_id = uuid.uuid4()
+        access = create_access_token(user_id, tenant_id, "admin")
+        with pytest.raises(InvalidTokenError):
+            decode_refresh_token(access)
 
 
 class TestDecodeToken:

@@ -1,5 +1,6 @@
 """Tests for API dependencies (auth, RBAC, tenant access)."""
 import uuid
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -63,6 +64,36 @@ class TestGetCurrentUser:
 
         with pytest.raises(UnauthorizedError):
             await get_current_user(request, mock_db_session)
+
+    async def test_raises_when_token_issued_before_sessions_revoked(self, operator_user, mock_db_session):
+        """Password change / logout-all-devices bumps sessions_revoked_at — any
+        token minted before that instant must be rejected immediately, even if
+        it hasn't hit its own exp yet."""
+        operator_user.sessions_revoked_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+
+        request = MagicMock()
+        request.state.user_id = USER_ID
+        request.state.token = MagicMock(iat=datetime.now(timezone.utc) - timedelta(hours=1))
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = operator_user
+        mock_db_session.execute.return_value = result_mock
+
+        with pytest.raises(UnauthorizedError):
+            await get_current_user(request, mock_db_session)
+
+    async def test_allows_token_issued_after_sessions_revoked(self, operator_user, mock_db_session):
+        """A fresh login performed *after* sessions_revoked_at must keep working."""
+        operator_user.sessions_revoked_at = datetime.now(timezone.utc) - timedelta(hours=1)
+
+        request = MagicMock()
+        request.state.user_id = USER_ID
+        request.state.token = MagicMock(iat=datetime.now(timezone.utc) - timedelta(minutes=1))
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = operator_user
+        mock_db_session.execute.return_value = result_mock
+
+        user = await get_current_user(request, mock_db_session)
+        assert user.id == USER_ID
 
 
 # ── get_tenant_from_request ──────────────────────────────────────────────────

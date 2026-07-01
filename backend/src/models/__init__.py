@@ -20,6 +20,7 @@ from .site import TenantSite, TenantSiteSection, SiteImage, SiteVersion, SiteSta
 from .cursos_presenciais import CursoPresencial, CursoParticipante, CursoParticipantePagamento
 from .permission_groups import PermissionGroup, GroupPermission, UserGroupMembership, PermissionFeature
 from .contas_financeiras import ContaFinanceira, CategoriaFinanceira, ContaBancaria, TipoContaFinanceira, StatusContaFinanceira, RecorrenciaConta
+from .user_sessions import UserSession
 
 __all__ = [
     "Base",
@@ -70,4 +71,5 @@ __all__ = [
     "TipoContaFinanceira",
     "StatusContaFinanceira",
     "RecorrenciaConta",
+    "UserSession",
 ]

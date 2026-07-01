@@ -25,6 +25,7 @@ from src.repositories.tenant_repo import TenantRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.security.password import hash_password
 from src.security.jwt import create_access_token, create_refresh_token
+from src.services import session_service
 from src.services.email.base import EmailMessage
 from src.services.email.resend_fallback import ResendEmailService
 from src.services.email.brevo_provider import BrevoEmailService
@@ -261,8 +262,10 @@ async def onboarding(
         )
 
     # 8. Generate tokens
+    session_id, jti = await session_service.start_session(db, user)
+    await db.commit()
     access_token = create_access_token(user.id, tenant.id, user.role.value)
-    refresh_token = create_refresh_token(user.id, tenant.id, user.role.value)
+    refresh_token = create_refresh_token(user.id, tenant.id, user.role.value, session_id, jti)
 
     response.set_cookie(
         key="refresh_token",

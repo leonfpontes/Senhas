@@ -18,6 +18,7 @@ jest.mock('axios', () => {
   };
   return {
     create: jest.fn(() => mockInstance),
+    isCancel: jest.fn(() => false),
     __mockInstance: mockInstance,
   };
 });
@@ -108,6 +109,113 @@ describe('APIClient', () => {
     it('returns the configured base URL', () => {
       const url = apiClient.getBaseURL();
       expect(typeof url).toBe('string');
+    });
+  });
+
+  describe('401 handling (silent refresh + cross-tab logout)', () => {
+    // Grabs the rejection handler passed to interceptors.response.use(success, errorHandler)
+    const getErrorHandler = () => mockInstance.interceptors.response.use.mock.calls[0][1];
+
+    const makeError = (url: string, overrides: Record<string, any> = {}) => ({
+      response: { status: 401, data: { detail: 'Usuário não identificado' } },
+      config: { url, headers: {}, ...overrides },
+      isAxiosError: true,
+    });
+
+    beforeEach(() => {
+      document.cookie = 'auth_state=1';
+      delete (window as any).location;
+      (window as any).location = { href: '', pathname: '/admin/tickets' };
+    });
+
+    afterEach(() => {
+      document.cookie = 'auth_state=; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+    });
+
+    it('retries the original request after a successful silent refresh, without logging out', async () => {
+      mockInstance.post.mockImplementation((url: string) => {
+        if (url === '/api/v1/auth/refresh') return Promise.resolve({ data: {} });
+        return Promise.resolve({ data: { ok: true } });
+      });
+      mockInstance.request = jest.fn().mockResolvedValue({ data: { ok: true } });
+
+      const errorHandler = getErrorHandler();
+      const result = await errorHandler(makeError('/api/v1/admin/tickets'));
+
+      expect(mockInstance.post).toHaveBeenCalledWith(
+        '/api/v1/auth/refresh',
+        undefined,
+        expect.objectContaining({ skipAutoLogout: true }),
+      );
+      expect(mockInstance.request).toHaveBeenCalled();
+      expect(result).toEqual({ data: { ok: true } });
+      // Real logout must NOT have been triggered
+      expect(mockInstance.post).not.toHaveBeenCalledWith('/api/v1/auth/logout');
+      expect(window.location.href).toBe('');
+    });
+
+    it('dedupes concurrent refresh calls into a single POST /auth/refresh', async () => {
+      let resolveRefresh: (v: any) => void;
+      mockInstance.post.mockImplementation((url: string) => {
+        if (url === '/api/v1/auth/refresh') {
+          return new Promise((resolve) => {
+            resolveRefresh = resolve;
+          });
+        }
+        return Promise.resolve({ data: {} });
+      });
+      mockInstance.request = jest.fn().mockResolvedValue({ data: { ok: true } });
+
+      const errorHandler = getErrorHandler();
+      const p1 = errorHandler(makeError('/api/v1/admin/tickets'));
+      const p2 = errorHandler(makeError('/api/v1/admin/subscription'));
+
+      resolveRefresh!({ data: {} });
+      await Promise.all([p1, p2]);
+
+      const refreshCalls = mockInstance.post.mock.calls.filter((c: any[]) => c[0] === '/api/v1/auth/refresh');
+      expect(refreshCalls).toHaveLength(1);
+    });
+
+    it('falls back to full logout and broadcasts to other tabs when refresh fails', async () => {
+      mockInstance.post.mockImplementation((url: string) => {
+        if (url === '/api/v1/auth/refresh') return Promise.reject(new Error('refresh_token expired'));
+        if (url === '/api/v1/auth/logout') return Promise.resolve({ data: {} });
+        return Promise.resolve({ data: {} });
+      });
+
+      const postMessage = jest.fn();
+      (apiClient as any).authChannel = { postMessage };
+
+      const errorHandler = getErrorHandler();
+      await expect(errorHandler(makeError('/api/v1/admin/tickets'))).rejects.toBeTruthy();
+
+      expect(mockInstance.post).toHaveBeenCalledWith('/api/v1/auth/logout');
+      expect(postMessage).toHaveBeenCalledWith('logout');
+      expect(window.location.href).toBe('/login');
+    });
+
+    it('does not attempt refresh for the refresh/login endpoints themselves (no infinite loop)', async () => {
+      mockInstance.post.mockResolvedValue({ data: {} });
+
+      const errorHandler = getErrorHandler();
+      await expect(errorHandler(makeError('/api/v1/auth/refresh'))).rejects.toBeTruthy();
+
+      const refreshCalls = mockInstance.post.mock.calls.filter((c: any[]) => c[0] === '/api/v1/auth/refresh');
+      expect(refreshCalls).toHaveLength(0);
+    });
+
+    it('does not retry a request that has already been retried once', async () => {
+      mockInstance.post.mockResolvedValue({ data: {} });
+
+      const errorHandler = getErrorHandler();
+      await expect(
+        errorHandler(makeError('/api/v1/admin/tickets', { _retry: true })),
+      ).rejects.toBeTruthy();
+
+      const refreshCalls = mockInstance.post.mock.calls.filter((c: any[]) => c[0] === '/api/v1/auth/refresh');
+      expect(refreshCalls).toHaveLength(0);
+      expect(mockInstance.post).toHaveBeenCalledWith('/api/v1/auth/logout');
     });
   });
 });

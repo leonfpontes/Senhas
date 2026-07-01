@@ -58,6 +58,9 @@ class User(SoftDeleteModel):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     reset_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reset_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Bumped on password change / "logout all devices". Access tokens issued
+    # before this timestamp are rejected on their next use (see get_current_user).
+    sessions_revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     tenant = relationship("Tenant", back_populates="users")

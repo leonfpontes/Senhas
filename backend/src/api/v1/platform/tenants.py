@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
 from uuid import UUID
+from datetime import datetime, timezone
 
 from src.core.database import get_db
 from src.core.errors import NotFoundError, InvalidInputError
@@ -13,6 +14,7 @@ from src.api.dependencies import get_current_user
 from src.models import User, UserRole, PlanType
 from src.models.subscriptions import Subscription
 from src.services.tenant_service import TenantService
+from src.services import session_service
 from src.repositories.tenant_repo import TenantRepository
 from src.security.password import hash_password, validate_password_policy
 
@@ -401,7 +403,9 @@ async def reset_tenant_user_password(
         )
 
     user.password_hash = hash_password(body.new_password)
+    user.sessions_revoked_at = datetime.now(timezone.utc)
     db.add(user)
+    await session_service.end_all_sessions(db, user.id)
     await db.commit()
 
     log_security_event(
