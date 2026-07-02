@@ -38,6 +38,7 @@ class _MockGiraClass:
     sponsor_release_start_at = _ComparableMock()
     sponsor_release_end_at = _ComparableMock()
     sponsor_max_tickets = _ComparableMock()
+    deleted_at = _ComparableMock()
 
 
 def _mock_db():
@@ -91,7 +92,7 @@ class TestEmitTicketEndpoint:
         db.execute.return_value = _mock_result_scalar(None)
         req = EmitTicketRequest(name="Test", email="t@t.com")
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket(_make_starlette_request(), "bad-slug", req, db)
+            await emit_ticket(_make_starlette_request(), "bad-slug", "regular", req, db)
         assert exc.value.status_code == 404
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -117,7 +118,7 @@ class TestEmitTicketEndpoint:
         ])
         req = EmitTicketRequest(name="Test", email="t@t.com")
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket(_make_starlette_request(), "test", req, db)
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 404
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -155,7 +156,7 @@ class TestEmitTicketEndpoint:
         MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=True)
         req = EmitTicketRequest(name="Test", email="t@t.com")
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket(_make_starlette_request(), "test", req, db)
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 409
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -186,7 +187,7 @@ class TestEmitTicketEndpoint:
         MockConsRepo.return_value.upsert_consulente = AsyncMock(side_effect=ValueError("Invalid email"))
         req = EmitTicketRequest(name="Test", email="t@t.com")
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket(_make_starlette_request(), "test", req, db)
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 400
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -222,10 +223,11 @@ class TestEmitTicketEndpoint:
         MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=False)
         MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
         MockSenhaRepo.return_value.increment_atomic = AsyncMock(return_value=11)  # > max_tickets
+        MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
         req = EmitTicketRequest(name="Test", email="t@t.com")
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket(_make_starlette_request(), "test", req, db)
-        assert exc.value.status_code == 429
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        assert exc.value.status_code == 410
 
     @patch("src.api.v1.public.emit_ticket.TicketRepository")
     @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")
@@ -251,7 +253,7 @@ class TestEmitTicketEndpoint:
         MockSenhaRepo.return_value.increment_atomic = AsyncMock(side_effect=ValueError("fail"))
         req = EmitTicketRequest(name="Test", email="t@t.com")
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket(_make_starlette_request(), "test", req, db)
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 500
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -297,12 +299,13 @@ class TestEmitTicketEndpoint:
         MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=False)
         MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
         MockSenhaRepo.return_value.increment_atomic = AsyncMock(return_value=42)
+        MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
         ticket = MagicMock()
         ticket.id = TICKET_ID
         MockTicketRepo.return_value.create_ticket = AsyncMock(return_value=ticket)
         req = EmitTicketRequest(name="Test", email="t@t.com")
         with patch("src.api.v1.public.emit_ticket.email_queue") as mock_queue:
-            result = await emit_ticket(_make_starlette_request(), "test", req, db)
+            result = await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert result.ticket_number == "0042"
         assert result.email_sent is True
         mock_queue.enqueue.assert_called_once()
@@ -319,7 +322,7 @@ class TestEmitTicketEndpoint:
         db.execute = AsyncMock(side_effect=RuntimeError("DB down"))
         req = EmitTicketRequest(name="Test", email="t@t.com")
         with pytest.raises(HTTPException) as exc:
-            await emit_ticket(_make_starlette_request(), "test", req, db)
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 500
 
     # _send_ticket_email was replaced by email_queue.enqueue() — tests skipped
@@ -1451,23 +1454,26 @@ class TestPlatformTenantsExtended:
             assert exc.value.status_code == 500
 
     async def test_delete_tenant_not_found(self):
-        from src.api.v1.platform.tenants import delete_tenant
+        from src.api.v1.platform.tenants import delete_tenant, DeleteTenantRequest
+        from src.core.errors import NotFoundError
         db = _mock_db()
         user = _super_admin_user()
+        req = DeleteTenantRequest(confirm_slug="terreiro-test")
         with patch("src.api.v1.platform.tenants.TenantService") as MockSvc:
-            MockSvc.return_value.delete_tenant = AsyncMock(return_value=False)
+            MockSvc.return_value.hard_delete_tenant = AsyncMock(side_effect=NotFoundError("Tenant não encontrado"))
             with pytest.raises(HTTPException) as exc:
-                await delete_tenant(TENANT_ID, user, db)
+                await delete_tenant(TENANT_ID, req, user, db)
             assert exc.value.status_code == 404
 
     async def test_delete_tenant_exception(self):
-        from src.api.v1.platform.tenants import delete_tenant
+        from src.api.v1.platform.tenants import delete_tenant, DeleteTenantRequest
         db = _mock_db()
         user = _super_admin_user()
+        req = DeleteTenantRequest(confirm_slug="terreiro-test")
         with patch("src.api.v1.platform.tenants.TenantService") as MockSvc:
-            MockSvc.return_value.delete_tenant = AsyncMock(side_effect=RuntimeError("err"))
+            MockSvc.return_value.hard_delete_tenant = AsyncMock(side_effect=RuntimeError("err"))
             with pytest.raises(HTTPException) as exc:
-                await delete_tenant(TENANT_ID, user, db)
+                await delete_tenant(TENANT_ID, req, user, db)
             assert exc.value.status_code == 500
 
     async def test_get_tenant_exception(self):
@@ -1626,6 +1632,7 @@ class TestMainApp:
         from src.core.errors import InsufficientPermissionsError
         user = MagicMock()
         user.is_admin = False
+        user.is_operator_or_admin = False
         db = _mock_db()
         with pytest.raises(InsufficientPermissionsError):
             await health_check(user, db)
