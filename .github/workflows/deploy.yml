@@ -81,19 +81,15 @@ jobs:
             echo "==> [5/6] Swap dos containers (downtime mínimo)"
             docker compose -f docker-compose.prod.yml up -d --no-deps --remove-orphans frontend backend
 
-            echo "==> [5b] Reload do nginx (aplica mudanças de config sem downtime)"
-            docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || \
-              docker compose -f docker-compose.prod.yml restart nginx
-
-            echo "==> [DEBUG-TEMP] Diagnóstico de CSP (remover após investigação)"
-            echo "--- host: nginx/conf.d/senhas.conf (linha CSP) ---"
-            grep "add_header Content-Security-Policy" nginx/conf.d/senhas.conf || echo "NÃO ENCONTRADO no host"
-            echo "--- container: arquivo montado em /etc/nginx/conf.d/senhas.conf ---"
-            docker compose -f docker-compose.prod.yml exec -T nginx cat /etc/nginx/conf.d/senhas.conf | grep "add_header Content-Security-Policy" || echo "NÃO ENCONTRADO no container"
-            echo "--- container: nginx -T (config efetivamente carregada) ---"
-            docker compose -f docker-compose.prod.yml exec -T nginx nginx -T 2>/dev/null | grep "add_header Content-Security-Policy" || echo "NÃO ENCONTRADO via nginx -T"
-            echo "--- container: qual arquivo compose está usando (docker inspect mounts) ---"
-            docker inspect senhas-nginx --format '{{ range .Mounts }}{{ .Source }} -> {{ .Destination }}{{ "\n" }}{{ end }}'
+            echo "==> [5b] Recriar nginx (aplica mudanças de config)"
+            # 'nginx -s reload' NÃO basta: o bind mount de arquivo único fica preso ao
+            # inode antigo depois de um 'git reset --hard' (que substitui o arquivo em vez
+            # de editar em place), então o container continua servindo a config anterior
+            # até ser recriado. É preciso recriar incluindo o overlay de SSL, senão o
+            # nginx perde os mounts de conf.d/certs que só existem em docker-compose.ssl.yml.
+            docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d --no-deps --force-recreate nginx
+            sleep 2
+            docker compose -f docker-compose.prod.yml exec -T nginx nginx -t
 
             echo "==> [6/6] Health check pós-deploy"
             sleep 5
