@@ -212,7 +212,7 @@ class TestTicketAnalyticsRepository:
         r, db = repo
         mock_date = MagicMock()
         mock_date.isoformat.return_value = "2024-06-01"
-        row = (mock_date, 10, 5)
+        row = (mock_date, 10, 5, 6, 2, 2)  # date, total, completed, common, sponsor, walk_in
         db.execute.return_value = _mock_result_rows([row])
         result = await r.get_daily_distribution(uuid4())
         assert len(result) == 1
@@ -233,7 +233,7 @@ class TestTicketAnalyticsRepository:
     @patch("src.repositories.ticket_analytics_repo.func", MagicMock())
     async def test_get_daily_distribution_none_date(self, repo):
         r, db = repo
-        row = (None, 3, 1)
+        row = (None, 3, 1, 1, 0, 0)  # date, total, completed, common, sponsor, walk_in
         db.execute.return_value = _mock_result_rows([row])
         result = await r.get_daily_distribution(uuid4())
         assert result[0]["date"] is None

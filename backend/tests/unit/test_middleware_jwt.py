@@ -19,6 +19,7 @@ def _make_request(path="/api/v1/admin/giras", auth_header=None):
     request.url.path = path
     request.headers = MagicMock()
     request.headers.get = MagicMock(side_effect=lambda k, d=None: headers_dict.get(k, d))
+    request.cookies = {}  # real dict — jwt_middleware falls back to cookies.get("access_token")
     request.state = MagicMock()
     return request
 

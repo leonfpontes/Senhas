@@ -250,11 +250,11 @@ class TestTenantConfigRepository:
         db.refresh.assert_awaited()
 
     async def test_update_branding(self, repo):
+        """logo is managed via a dedicated upload endpoint, not update_branding."""
         r, db = repo
         config = MagicMock()
         r.get_by_tenant = AsyncMock(return_value=config)
-        result = await r.update_branding(uuid4(), logo_url="http://logo.png", primary_color="#FF0000")
-        assert config.logo_url == "http://logo.png"
+        result = await r.update_branding(uuid4(), primary_color="#FF0000")
         assert config.primary_color == "#FF0000"
         db.flush.assert_awaited()
 

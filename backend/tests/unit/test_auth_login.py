@@ -43,6 +43,7 @@ class TestLoginRequest:
 # ── Login endpoint ───────────────────────────────────────────────────────────
 
 class TestLoginEndpoint:
+    @patch("src.api.v1.auth.login.settings.DEBUG", False)
     @patch("src.api.v1.auth.login.log_security_event")
     @patch("src.api.v1.auth.login.create_refresh_token", return_value="refresh-jwt")
     @patch("src.api.v1.auth.login.create_access_token", return_value="access-jwt")
@@ -125,6 +126,7 @@ class TestLoginEndpoint:
 # ── Refresh endpoint ─────────────────────────────────────────────────────────
 
 class TestRefreshEndpoint:
+    @patch("src.api.v1.auth.login.settings.DEBUG", False)
     @patch("src.api.v1.auth.login.log_security_event")
     @patch("src.api.v1.auth.login.create_refresh_token", return_value="new-refresh-jwt")
     @patch("src.api.v1.auth.login.create_access_token", return_value="new-access-jwt")

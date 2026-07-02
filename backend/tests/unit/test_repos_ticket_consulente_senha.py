@@ -390,11 +390,12 @@ class TestSenhaControlRepository:
         r, _ = repo
         session = _mock_db()
         sc = MagicMock()
-        sc.current_number = 5
+        sc.proximo_numero = 5
         session.execute.return_value = _mock_result_scalar(sc)
         result = await r.increment_atomic(session, 1, 1)
         assert result == 6
-        assert sc.current_number == 6
+        assert sc.proximo_numero == 6
+        assert sc.total_emitido == 6
         session.flush.assert_awaited()
 
     @patch("src.repositories.senha_control_repo.SenhaControl", _MockSenhaControlModel)
@@ -432,7 +433,7 @@ class TestSenhaControlRepository:
         r, _ = repo
         session = _mock_db()
         sc = MagicMock()
-        sc.current_number = 10
+        sc.total_emitido = 10
         r.get_by_gira = AsyncMock(return_value=sc)
         result = await r.get_current_count(session, 1, 1)
         assert result == 10

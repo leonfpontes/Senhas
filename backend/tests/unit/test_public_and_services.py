@@ -20,7 +20,7 @@ class TestGetNextGira:
 
         from fastapi import HTTPException
         with pytest.raises(HTTPException) as exc_info:
-            await get_next_gira("nonexistent", db)
+            await get_next_gira("nonexistent", session=db)
         assert exc_info.value.status_code == 404
 
     async def test_no_active_gira(self):

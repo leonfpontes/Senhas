@@ -30,7 +30,12 @@ class TestSettings:
         assert "http://localhost:3000" in s.CORS_ORIGINS
 
     def test_default_app_info(self, monkeypatch):
+        # DEBUG=False triggers _validate_production_secrets — needs
+        # non-default SECRET_KEY/DATABASE_URL to construct successfully,
+        # independent of what this test actually wants to check.
         monkeypatch.delenv("DEBUG", raising=False)
+        monkeypatch.setenv("SECRET_KEY", "a" * 32)
+        monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://safe_user:safe_pass@localhost:5432/senhas_db")
         s = Settings()
         assert s.APP_NAME == "Senhas API"
         assert s.DEBUG is False

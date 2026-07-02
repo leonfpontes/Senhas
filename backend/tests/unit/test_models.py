@@ -48,7 +48,10 @@ class TestAuditAction:
     """Tests for AuditAction enum."""
 
     def test_all_actions(self):
-        expected = {"create", "read", "update", "delete", "login", "logout", "token_refresh"}
+        expected = {
+            "create", "read", "update", "delete", "login", "logout", "token_refresh",
+            "TENANT_DELETED", "TENANT_DEACTIVATED", "TENANT_REACTIVATED",
+        }
         actual = {a.value for a in AuditAction}
         assert actual == expected
 

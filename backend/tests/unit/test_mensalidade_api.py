@@ -104,15 +104,21 @@ class TestPremiumGate:
 
     @pytest.mark.asyncio
     @patch("src.api.v1.admin.mensalidades.SubscriptionRepository")
-    async def test_pro_retorna_403(self, MockSubRepo):
-        from fastapi import HTTPException
+    @patch("src.api.v1.admin.mensalidades.MensalidadeRepository")
+    async def test_pro_permite_acesso(self, MockMensalidadeRepo, MockSubRepo):
+        """get_config é "Accessible to PRO+" (ver docstring do endpoint) —
+        diferente dos demais endpoints do módulo, que são Premium-only. PRO
+        não deve receber 403 aqui."""
         from src.api.v1.admin.mensalidades import get_config
         sub_inst = AsyncMock()
         sub_inst.get_by_tenant.return_value = _mock_pro_sub()
         MockSubRepo.return_value = sub_inst
-        with pytest.raises(HTTPException) as exc:
-            await get_config(_admin_user(), _mock_db())
-        assert exc.value.status_code == 403
+        mensalidade_repo_inst = AsyncMock()
+        mensalidade_repo_inst.get_config.return_value = None
+        MockMensalidadeRepo.return_value = mensalidade_repo_inst
+
+        result = await get_config(_admin_user(), _mock_db())
+        assert result is None
 
     @pytest.mark.asyncio
     @patch("src.api.v1.admin.mensalidades.MensalidadeRepository")
