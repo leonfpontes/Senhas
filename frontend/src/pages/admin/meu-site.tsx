@@ -1813,14 +1813,17 @@ function SectionEditor({
       // Use fetch directly — axios instance default Content-Type conflicts with multipart.
       // Use window.location.origin to work in any env (localhost, docker, prod) without
       // depending on NEXT_PUBLIC_API_BASE_URL being set.
-      const token =
-        (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
-        localStorage.getItem('access_token');
+      // Normal sessions authenticate via the HttpOnly access_token cookie (sent
+      // automatically with credentials: 'include'); only impersonation carries
+      // a bearer token in sessionStorage.
+      const impersonationToken =
+        typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('access_token') : null;
 
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
       const res = await fetch(`${origin}/api/v1/admin/sites/images`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
+        headers: impersonationToken ? { Authorization: `Bearer ${impersonationToken}` } : {},
         body: formData,
       });
 

@@ -198,10 +198,15 @@ function AdminTicketsContent() {
   };
 
   useEffect(() => {
-    const token =
-      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
-      (typeof localStorage !== 'undefined' && localStorage.getItem('access_token'));
-    if (!token) {
+    // Auth is cookie-based (HttpOnly access_token) for normal sessions — it's
+    // never in sessionStorage/localStorage except during impersonation. A
+    // check against those two alone is always false for a regular login and
+    // would bounce every visit straight back to /login before the page even
+    // gets a chance to call the API.
+    const hasAuthToken =
+      Boolean(typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
+      Boolean(typeof document !== 'undefined' && document.cookie.includes('auth_state=1'));
+    if (!hasAuthToken) {
       router.replace('/login');
       return;
     }
