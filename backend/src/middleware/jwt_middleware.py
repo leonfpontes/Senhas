@@ -35,6 +35,7 @@ async def jwt_middleware(request: Request, call_next: Callable) -> any:
     public_paths = ["/health", "/docs", "/redoc", "/openapi.json",
                     "/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout",
                     "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password",
+                    "/api/v1/auth/reactivate-account",
                     "/api/v1/webhooks/stripe"]
     # /auth/logout is public for the same reason /auth/refresh is: it must be able
     # to run its own cleanup (revoking the matching UserSession row) even when the

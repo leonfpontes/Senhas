@@ -14,6 +14,7 @@ import { AdminThemeProvider } from '@/providers/AdminThemeProvider';
 import { AdminSidebar, DRAWER_WIDTH } from '@/components/admin/layout/AdminSidebar';
 import { AdminTopbar }   from '@/components/admin/layout/AdminTopbar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { SubscriptionWarningBanner } from '@/components/admin/SubscriptionWarningBanner';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useProfile }    from '@/hooks/useProfile';
 import { PermissionFeature } from '@/constants/permissionFeatures';
@@ -122,6 +123,7 @@ function AdminLayoutInner({
         >
           <Toolbar />
           {isImpersonating && <Box sx={{ height: 36 }} />}
+          <SubscriptionWarningBanner />
 
           {permissionsLoading && isOperator && feature ? (
             <Box sx={{ display: 'flex', flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>

@@ -133,6 +133,7 @@ export default function AdminBilling() {
   const [success, setSuccess] = useState<string | null>(null);
   const [cancelDialog, setCancelDialog] = useState(false);
   const [reactivateDialog, setReactivateDialog] = useState(false);
+  const [changePlanTarget, setChangePlanTarget] = useState<string | null>(null);
 
   const fetchBilling = useCallback(async () => {
     try {
@@ -152,7 +153,14 @@ export default function AdminBilling() {
     const { status } = router.query;
     if (status === 'success') {
       setSuccess('Assinatura realizada com sucesso! Seu plano será atualizado em instantes.');
-      setTimeout(() => { fetchBilling(); refreshSubscription(); }, 3000);
+      // O webhook do Stripe chega em paralelo ao redirect do navegador, não
+      // antes — um único refetch em 3s pode acontecer antes do webhook ser
+      // processado, mostrando o plano antigo por engano. Tenta algumas vezes
+      // com backoff em vez de confiar em um timing fixo.
+      const delays = [2000, 4000, 8000];
+      delays.forEach((delay) => {
+        setTimeout(() => { fetchBilling(); refreshSubscription(); }, delay);
+      });
     } else if (status === 'cancelled') {
       setError('Checkout cancelado. Nenhuma cobrança foi realizada.');
     } else if (status === 'checkout_error') {
@@ -499,7 +507,7 @@ export default function AdminBilling() {
                                   ? { bgcolor: plan.color, '&:hover': { bgcolor: plan.color, filter: 'brightness(0.9)' }, fontWeight: 700 }
                                   : { borderColor: plan.color, color: plan.color }
                               }
-                              onClick={() => handleChangePlan(plan.key)}
+                              onClick={() => setChangePlanTarget(plan.key)}
                             >
                               {isLoading
                                 ? <CircularProgress size={20} sx={{ color: plan.popular ? '#fff' : plan.color }} />
@@ -577,6 +585,36 @@ export default function AdminBilling() {
               </Button>
               <Button color="success" variant="contained" disableElevation onClick={handleReactivate}>
                 Confirmar reativação
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* ── Change-plan confirm dialog ── */}
+          <Dialog open={!!changePlanTarget} onClose={() => setChangePlanTarget(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+            <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
+              Trocar para o plano {changePlanTarget ? planLabel(changePlanTarget) : ''}?
+            </DialogTitle>
+            <DialogContent>
+              <Typography variant="body2" color="text.secondary">
+                A troca de plano é aplicada imediatamente. A diferença entre o plano atual e o novo plano
+                é cobrada ou estornada na sua próxima fatura, de forma proporcional aos dias restantes do
+                período atual, conforme a política de cobrança da Stripe.
+              </Typography>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+              <Button onClick={() => setChangePlanTarget(null)} variant="outlined">
+                Cancelar
+              </Button>
+              <Button
+                variant="contained"
+                disableElevation
+                onClick={() => {
+                  const plan = changePlanTarget!;
+                  setChangePlanTarget(null);
+                  handleChangePlan(plan);
+                }}
+              >
+                Confirmar troca
               </Button>
             </DialogActions>
           </Dialog>

@@ -32,14 +32,20 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [accountDeleted, setAccountDeleted] = useState(false);
+  const [accountDeactivated, setAccountDeactivated] = useState(false);
   const [passwordReset, setPasswordReset] = useState(false);
   const [sessionsEnded, setSessionsEnded] = useState(false);
+  const [accountReactivated, setAccountReactivated] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     if (router.query.account_deleted === '1') {
       setAccountDeleted(true);
+    }
+    if (router.query.account_deactivated === '1') {
+      setAccountDeactivated(true);
     }
     if (router.query.reset === '1') {
       setPasswordReset(true);
@@ -47,12 +53,22 @@ export default function LoginPage() {
     if (router.query.sessions_ended === '1') {
       setSessionsEnded(true);
     }
-  }, [router.query.account_deleted, router.query.reset, router.query.sessions_ended]);
+    if (router.query.reactivated === '1') {
+      setAccountReactivated(true);
+    }
+  }, [
+    router.query.account_deleted,
+    router.query.account_deactivated,
+    router.query.reset,
+    router.query.sessions_ended,
+    router.query.reactivated,
+  ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setErrorCode(null);
 
     try {
       const response = await apiClient.post('/api/v1/auth/login', {
@@ -89,10 +105,13 @@ export default function LoginPage() {
         window.location.href = '/admin/dashboard';
       }
     } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      const code = typeof detail === 'object' ? detail?.error_code : null;
       const message =
+        (typeof detail === 'object' ? detail?.message : detail) ||
         err?.response?.data?.message ||
-        err?.response?.data?.detail ||
         'Credenciais inválidas. Tente novamente.';
+      if (code) setErrorCode(code);
       setError(message);
     } finally {
       setLoading(false);
@@ -133,6 +152,12 @@ export default function LoginPage() {
                     Sua conta foi excluída com sucesso. Seus dados pessoais foram removidos conforme a LGPD.
                   </Alert>
                 )}
+                {accountDeactivated && (
+                  <Alert severity="info" onClose={() => setAccountDeactivated(false)}>
+                    Conta e terreiro desativados. Seus dados foram preservados — você pode
+                    reativar quando quiser em &quot;Reativar conta&quot;.
+                  </Alert>
+                )}
                 {passwordReset && (
                   <Alert severity="success" onClose={() => setPasswordReset(false)}>
                     Senha redefinida com sucesso. Faça login com sua nova senha.
@@ -143,11 +168,23 @@ export default function LoginPage() {
                     Todas as sessões foram encerradas por segurança. Faça login novamente.
                   </Alert>
                 )}
-                {error && (
+                {accountReactivated && (
+                  <Alert severity="success" onClose={() => setAccountReactivated(false)}>
+                    Conta reativada com sucesso! Faça login para continuar.
+                  </Alert>
+                )}
+                {error && errorCode === 'TENANT_DEACTIVATED' ? (
+                  <Alert severity="warning">
+                    {error}{' '}
+                    <Link href={{ pathname: '/reactivate-account', query: email ? { email } : undefined }}>
+                      Reativar conta
+                    </Link>
+                  </Alert>
+                ) : error ? (
                   <Alert severity="error" onClose={() => setError(null)}>
                     {error}
                   </Alert>
-                )}
+                ) : null}
 
                 <TextField
                   label="Email"
@@ -200,6 +237,18 @@ export default function LoginPage() {
                       sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
                     >
                       Esqueci minha senha
+                    </Typography>
+                  </Link>
+                </Box>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Link href="/reactivate-account" passHref legacyBehavior>
+                    <Typography
+                      component="a"
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                    >
+                      Desativou sua conta? Reative aqui
                     </Typography>
                   </Link>
                 </Box>

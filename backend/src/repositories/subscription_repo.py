@@ -162,6 +162,50 @@ class SubscriptionRepository(BaseRepository[Subscription]):
         await self.db.refresh(subscription)
         return subscription
     
+    async def reset_to_free(
+        self,
+        tenant_id: UUID,
+        status: SubscriptionStatus = SubscriptionStatus.CANCELLED,
+    ) -> Optional[Subscription]:
+        """Reset a tenant's subscription to the FREE plan.
+
+        Used by: the customer.subscription.deleted webhook (paid period ended
+        — status=CANCELLED, the default), the self-service "deactivate account"
+        flow (immediate Stripe cancel — status=CANCELLED), and the "reactivate
+        account" flow (account always comes back on FREE, never auto-restores
+        the previous paid plan — pass status=ACTIVE, since there's no
+        cancelled subscription to reflect anymore).
+
+        Clears the Stripe subscription/price linkage but preserves
+        stripe_customer_id — the Customer object in Stripe isn't deleted,
+        only the Subscription, so a future checkout can reuse it.
+
+        Args:
+            tenant_id: Tenant ID
+            status: Resulting SubscriptionStatus (default CANCELLED)
+
+        Returns:
+            Updated Subscription or None if the tenant has no subscription row
+        """
+        subscription = await self.get_by_tenant(tenant_id)
+        if not subscription:
+            return None
+
+        free = PLAN_LIMITS[PlanType.FREE]
+        subscription.plan = PlanType.FREE
+        subscription.status = status
+        subscription.stripe_subscription_id = None
+        subscription.stripe_price_id = None
+        subscription.cancel_at_period_end = False
+        subscription.max_users = free["max_users"]
+        subscription.max_giras_per_month = free["max_giras_per_month"]
+        subscription.max_mediuns = free["max_mediuns"]
+        subscription.monthly_price = free["price"]
+
+        await self.db.flush()
+        await self.db.refresh(subscription)
+        return subscription
+
     def _get_plan_config(self, plan: PlanType) -> dict:
         """Get plan configuration.
         

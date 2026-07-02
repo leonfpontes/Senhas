@@ -37,6 +37,8 @@ export interface SubscriptionInfo {
   is_trial: boolean;
   trial_ends_at: string | null;
   auto_renew: boolean;
+  cancel_at_period_end: boolean;
+  current_period_end: string | null;
   features: PlanFeatures;
 }
 

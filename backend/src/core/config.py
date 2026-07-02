@@ -125,6 +125,13 @@ class Settings(BaseSettings):
                 "STRIPE_WEBHOOK_SECRET está vazio. Eventos Stripe não serão validados."
             )
 
+        if self.STRIPE_SECRET_KEY and not self.STRIPE_SECRET_KEY.startswith("sk_live_"):
+            errors.append(
+                "STRIPE_SECRET_KEY não começa com 'sk_live_' — parece uma chave de "
+                "teste (sk_test_) sendo usada em produção (DEBUG=False). Isso "
+                "aceitaria pagamentos de teste como reais ou vice-versa."
+            )
+
         if errors:
             msg = "Configuração insegura para produção (DEBUG=False):\n" + "\n".join(
                 f"  • {e}" for e in errors

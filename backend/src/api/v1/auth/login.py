@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from src.core.database import get_db
 from src.core.errors import ValidationError, UnauthorizedError, NotFoundError
 from src.core.config import DUMMY_BCRYPT_HASH, settings
-from src.models import User
+from src.models import User, Tenant
 from src.api.dependencies import get_current_user
 from src.security import (
     hash_password,
@@ -88,7 +88,37 @@ async def login(
         raise UnauthorizedError("Credenciais inválidas")
 
     if not user.is_active:
-        # Also consume bcrypt time to keep responses uniform
+        # is_active=False has two possible causes: ordinary administrative
+        # suspension (an admin disabled this specific user — stays generic,
+        # exactly as before) or the tenant was self-deactivated via
+        # POST /auth/deactivate-account (reversible — see deactivation.py).
+        # The second case is only revealed *after* confirming the real
+        # password, so someone without the password can't use this endpoint
+        # as an oracle to learn "this tenant is deactivated".
+        tenant_deactivated = False
+        if user.tenant_id is not None:
+            tenant = await db.get(Tenant, user.tenant_id)
+            # Deliberately keyed off this dedicated column alone (not
+            # is_active/deleted_at), which only the self-deactivation flow
+            # ever sets — avoids sharing a signature with unrelated tenant
+            # states (e.g. a future platform-side suspension/hold).
+            tenant_deactivated = bool(tenant and tenant.self_deactivated_at is not None)
+
+        if tenant_deactivated:
+            if not verify_password(request.password, user.password_hash):
+                log_security_event("login", success=False, user_id=user.id, details={"reason": "invalid_password"})
+                raise UnauthorizedError("Credenciais inválidas")
+            log_security_event("login", success=False, user_id=user.id, details={"reason": "tenant_deactivated"})
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "message": "Esta conta está desativada. Deseja reativá-la?",
+                    "error_code": "TENANT_DEACTIVATED",
+                },
+            )
+
+        # Ordinary administrative suspension — unchanged: consume bcrypt time
+        # without checking the real password, keep the response generic.
         verify_password(request.password, DUMMY_BCRYPT_HASH)
         log_security_event("login", success=False, user_id=user.id, details={"reason": "inactive"})
         raise UnauthorizedError("Credenciais inválidas")

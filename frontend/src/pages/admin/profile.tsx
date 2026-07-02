@@ -29,6 +29,7 @@ import UploadIcon from '@mui/icons-material/CloudUpload';
 import LockIcon from '@mui/icons-material/Lock';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import { useRouter } from 'next/router';
 
 import AdminLayout from './admin_layout';
@@ -86,6 +87,14 @@ export default function AdminProfilePage() {
   const [deleteConfirmed, setDeleteConfirmed] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Account deactivation state (reversible — distinct from permanent deletion above)
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
+  const [deactivatePassword, setDeactivatePassword] = useState('');
+  const [deactivateConfirmed, setDeactivateConfirmed] = useState(false);
+  const [deactivatingAccount, setDeactivatingAccount] = useState(false);
+  const [deactivateError, setDeactivateError] = useState<string | null>(null);
+
   const router = useRouter();
 
   const avatarText = useMemo(() => {
@@ -261,6 +270,29 @@ export default function AdminProfilePage() {
       setDeleteError(typeof detail === 'string' ? detail : 'Erro ao excluir conta. Verifique sua senha.');
     } finally {
       setDeletingAccount(false);
+    }
+  };
+
+  const handleDeactivateAccount = async () => {
+    if (!deactivatePassword || !deactivateConfirmed) return;
+    setDeactivatingAccount(true);
+    setDeactivateError(null);
+    try {
+      await apiClient.post(
+        '/api/v1/auth/deactivate-account',
+        { password: deactivatePassword },
+        // Senha incorreta retorna 401 (mesmo motivo do fix em change-password/
+        // delete-account: sem isso, o interceptor global desloga sem explicar).
+        { skipAutoLogout: true } as any,
+      );
+      localStorage.clear();
+      sessionStorage.clear();
+      window.dispatchEvent(new StorageEvent('storage', { key: 'access_token', newValue: null }));
+      router.push('/login?account_deactivated=1');
+    } catch (err: any) {
+      setDeactivateError(err?.message || 'Erro ao desativar conta. Verifique sua senha.');
+    } finally {
+      setDeactivatingAccount(false);
     }
   };
 
@@ -523,6 +555,91 @@ export default function AdminProfilePage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Deactivate account — reversible, keeps data (distinct from permanent deletion below) */}
+          <Card sx={{ border: '1px solid', borderColor: 'warning.main', mt: 2.5 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <PauseCircleOutlineIcon color="warning" />
+                <Typography variant="h6" color="warning.main" fontWeight={700}>
+                  Desativar conta e terreiro
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Diferente da exclusão permanente abaixo, a desativação é <strong>reversível</strong>.
+                Seu terreiro para de ficar acessível e a assinatura é cancelada, mas todos os
+                dados (giras, tickets, médiuns, associados) ficam preservados. Você pode reativar
+                quando quiser, voltando no plano gratuito. Só é possível desativar se você for o
+                único usuário ativo do terreiro.
+              </Typography>
+              <Button
+                variant="outlined"
+                color="warning"
+                startIcon={<PauseCircleOutlineIcon />}
+                onClick={() => { setDeactivateDialogOpen(true); setDeactivateError(null); setDeactivatePassword(''); setDeactivateConfirmed(false); }}
+              >
+                Desativar conta
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Deactivate Account Confirmation Dialog */}
+          <Dialog
+            open={deactivateDialogOpen}
+            onClose={() => !deactivatingAccount && setDeactivateDialogOpen(false)}
+            maxWidth="sm"
+            fullWidth
+          >
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <PauseCircleOutlineIcon color="warning" />
+              Confirmar desativação
+            </DialogTitle>
+            <DialogContent>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                Você poderá reativar sua conta depois, fazendo login novamente com seu email e
+                senha na tela &quot;Reativar conta&quot;. Seus dados não serão apagados.
+              </Typography>
+              {deactivateError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {deactivateError}
+                </Alert>
+              )}
+              <PasswordField
+                label="Digite sua senha para confirmar"
+                fullWidth
+                value={deactivatePassword}
+                onChange={(e) => setDeactivatePassword(e.target.value)}
+                disabled={deactivatingAccount}
+                autoComplete="current-password"
+                sx={{ mb: 2 }}
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={deactivateConfirmed}
+                    onChange={(e) => setDeactivateConfirmed(e.target.checked)}
+                    disabled={deactivatingAccount}
+                    color="warning"
+                  />
+                }
+                label="Entendo que meu terreiro ficará inacessível até que eu reative a conta."
+              />
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button onClick={() => setDeactivateDialogOpen(false)} disabled={deactivatingAccount}>
+                Cancelar
+              </Button>
+              <Button
+                variant="contained"
+                color="warning"
+                startIcon={deactivatingAccount ? <CircularProgress size={16} color="inherit" /> : <PauseCircleOutlineIcon />}
+                onClick={handleDeactivateAccount}
+                disabled={!deactivatePassword || !deactivateConfirmed || deactivatingAccount}
+              >
+                {deactivatingAccount ? 'Desativando...' : 'Confirmar desativação'}
+              </Button>
+            </DialogActions>
+          </Dialog>
 
           {/* Danger Zone */}
           <Card sx={{ border: '1px solid', borderColor: 'error.main', mt: 3 }}>

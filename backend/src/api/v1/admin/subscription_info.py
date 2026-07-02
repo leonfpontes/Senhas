@@ -48,6 +48,8 @@ class SubscriptionInfoResponse(BaseModel):
     is_trial: bool
     trial_ends_at: Optional[str] = None
     auto_renew: bool
+    cancel_at_period_end: bool = False
+    current_period_end: Optional[str] = None
     features: PlanFeatures
 
 
@@ -112,5 +114,7 @@ async def get_tenant_subscription(
         is_trial=sub.is_trial,
         trial_ends_at=sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
         auto_renew=sub.auto_renew,
+        cancel_at_period_end=sub.cancel_at_period_end,
+        current_period_end=sub.current_period_end.isoformat() if sub.current_period_end else None,
         features=_get_plan_features(sub.plan, suspended=sub.status == SubscriptionStatus.SUSPENDED),
     )

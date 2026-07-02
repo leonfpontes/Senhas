@@ -1,18 +1,66 @@
 """Stripe webhook handler — no JWT, validates Stripe signature."""
+import asyncio
 import logging
 from fastapi import APIRouter, Request, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
+from sqlalchemy.exc import IntegrityError
 
 from src.core.database import get_db
 from fastapi import Depends
-from src.models import Subscription, PlanType, SubscriptionStatus
+from src.core.config import settings
+from src.models import Subscription, PlanType, SubscriptionStatus, StripeEventProcessed, User, UserRole
 from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
 from src.repositories.audit_log_repo import AuditLogRepository
 from src.models.audit_logs import AuditAction
 from src.services import stripe_service
+from src.services.email.base import EmailMessage
+from src.services.email.resend_fallback import ResendEmailService
+from src.services.email.brevo_provider import BrevoEmailService
+from src.services.email.templates.subscription_reverted_to_free import render_subscription_reverted_to_free_email
 
 logger = logging.getLogger("senhas")
+
+
+async def _get_tenant_primary_contact(tenant_id, db: AsyncSession) -> "User | None":
+    """Best-effort pick of who should receive tenant-level billing notifications:
+    the oldest active ADMIN, falling back to the oldest active user of any role.
+    """
+    for role_filter in (User.role == UserRole.ADMIN, None):
+        conditions = [User.tenant_id == tenant_id, User.is_active.is_(True), User.deleted_at.is_(None)]
+        if role_filter is not None:
+            conditions.append(role_filter)
+        result = await db.execute(
+            select(User).where(and_(*conditions)).order_by(User.created_at.asc()).limit(1)
+        )
+        user = result.scalar_one_or_none()
+        if user:
+            return user
+    return None
+
+
+async def _send_subscription_reverted_email(email: str, user_name: str) -> None:
+    """Best-effort notification when a subscription reverts to FREE (fire-and-forget)."""
+    billing_url = f"{settings.FRONTEND_URL}/admin/billing"
+    html = render_subscription_reverted_to_free_email(user_name, billing_url)
+    msg = EmailMessage(
+        to_email=email,
+        subject="Sua conta no GiraHub agora é gratuita",
+        html_body=html,
+        text_body=(
+            f"Olá, {user_name}.\n\nO período pago da sua assinatura terminou e sua conta "
+            f"voltou para o plano gratuito. Veja os planos disponíveis em {billing_url}."
+        ),
+    )
+    try:
+        sent = await ResendEmailService().send_async(msg)
+        if not sent:
+            raise RuntimeError("Resend returned False")
+    except Exception:
+        try:
+            await BrevoEmailService().send_async(msg)
+        except Exception as exc:
+            logger.warning("Subscription-reverted-to-free notification email failed for %s: %s", email, exc)
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
@@ -69,7 +117,20 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid Stripe signature")
 
     event_type = event["type"]
+    event_id = event["id"]
     data = event["data"]["object"]
+
+    # Stripe delivers webhooks at-least-once — the same event id can arrive
+    # more than once (retries, duplicate delivery). Skip reprocessing if we've
+    # already handled it (checked *before* dispatch, marked *after* success —
+    # marking upfront would permanently "poison" an event whose processing
+    # actually failed, since the retry would then be silently skipped too).
+    already_processed = await db.scalar(
+        select(StripeEventProcessed).where(StripeEventProcessed.event_id == event_id)
+    )
+    if already_processed:
+        logger.info("Stripe event %s (%s) already processed — skipping", event_id, event_type)
+        return {"received": True}
 
     try:
         if event_type == "checkout.session.completed":
@@ -97,6 +158,14 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
             status_code=500,
             detail="Webhook processing failed — will be retried by Stripe",
         )
+
+    try:
+        db.add(StripeEventProcessed(event_id=event_id, event_type=event_type))
+        await db.commit()
+    except IntegrityError:
+        # Race: same event processed concurrently by another request. The
+        # processing above already ran either way — nothing left to do.
+        await db.rollback()
 
     return {"received": True}
 
@@ -210,16 +279,7 @@ async def _handle_subscription_deleted(stripe_sub: dict, db: AsyncSession) -> No
     if not sub:
         return
 
-    free = PLAN_LIMITS[PlanType.FREE]
-    sub.status = SubscriptionStatus.CANCELLED
-    sub.plan = PlanType.FREE
-    sub.stripe_subscription_id = None
-    sub.stripe_price_id = None
-    sub.cancel_at_period_end = False
-    sub.max_users = free["max_users"]
-    sub.max_giras_per_month = free["max_giras_per_month"]
-    sub.max_mediuns = free["max_mediuns"]
-    sub.monthly_price = free["price"]
+    await SubscriptionRepository(db).reset_to_free(sub.tenant_id)
 
     audit = AuditLogRepository(db)
     await audit.create(
@@ -232,6 +292,12 @@ async def _handle_subscription_deleted(stripe_sub: dict, db: AsyncSession) -> No
     )
     await db.commit()
     logger.info("Subscription cancelled for tenant %s", sub.tenant_id)
+
+    contact = await _get_tenant_primary_contact(sub.tenant_id, db)
+    if contact:
+        asyncio.create_task(
+            _send_subscription_reverted_email(contact.email, contact.full_name or contact.username)
+        )
 
 
 async def _handle_payment_failed(invoice: dict, db: AsyncSession) -> None:
