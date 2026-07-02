@@ -85,7 +85,12 @@ class TestPlatformTenants:
         repo.get_by_id.return_value = tenant
         MockRepo.return_value = repo
 
-        result = await get_tenant(TENANT_ID, _super_admin(), AsyncMock())
+        db = AsyncMock()
+        sub_result = MagicMock()
+        sub_result.scalar_one_or_none.return_value = None
+        db.execute.return_value = sub_result
+
+        result = await get_tenant(TENANT_ID, _super_admin(), db)
         assert result.slug == "t"
 
     @patch("src.api.v1.platform.tenants.TenantRepository")
@@ -101,13 +106,14 @@ class TestPlatformTenants:
 
     @patch("src.api.v1.platform.tenants.TenantService")
     async def test_delete_tenant(self, MockService):
-        from src.api.v1.platform.tenants import delete_tenant
+        from src.api.v1.platform.tenants import delete_tenant, DeleteTenantRequest
         db = AsyncMock()
         service = AsyncMock()
-        service.delete_tenant.return_value = True
+        service.hard_delete_tenant.return_value = None
         MockService.return_value = service
 
-        await delete_tenant(TENANT_ID, _super_admin(), db)
+        req = DeleteTenantRequest(confirm_slug="terreiro-test")
+        await delete_tenant(TENANT_ID, req, _super_admin(), db)
         db.commit.assert_called_once()
 
     @patch("src.api.v1.platform.tenants.log_security_event")
@@ -254,18 +260,27 @@ class TestBilling:
         result = await get_tenant_invoices(TENANT_ID, 0, 50, _super_admin(), AsyncMock())
         assert isinstance(result, list)
 
-    @patch("src.api.v1.platform.billing.BillingRepository")
-    async def test_get_billing_statistics(self, MockRepo):
+    async def test_get_billing_statistics(self):
+        """get_billing_statistics queries Subscription directly (no repository) —
+        db.execute(select(Subscription)).scalars().all() must return real-ish
+        subscription mocks, not an unconfigured AsyncMock chain."""
         from src.api.v1.platform.billing import get_billing_statistics
-        repo = AsyncMock()
-        repo.get_statistics.return_value = {
-            "total_invoices": 100, "paid_invoices": 80,
-            "total_revenue": 5000.0, "average_invoice_value": 50.0,
-        }
-        MockRepo.return_value = repo
+        from src.models.subscriptions import SubscriptionStatus, PlanType
 
-        result = await get_billing_statistics(_super_admin(), AsyncMock())
-        assert result is not None
+        sub = MagicMock()
+        sub.status = SubscriptionStatus.ACTIVE
+        sub.is_trial = False
+        sub.monthly_price = 50.0
+        sub.plan = PlanType.PRO
+
+        db = AsyncMock()
+        result_mock = MagicMock()
+        result_mock.scalars.return_value.all.return_value = [sub]
+        db.execute.return_value = result_mock
+
+        result = await get_billing_statistics(_super_admin(), db)
+        assert result.active_tenants == 1
+        assert result.mrr == 50.0
 
 
 # ── subscriptions.py ─────────────────────────────────────────────────────────
@@ -380,19 +395,28 @@ class TestFeatureFlags:
 class TestConsolidatedAudit:
     @patch("src.api.v1.platform.consolidated_audit.ConsolidatedAuditService")
     async def test_get_audit_logs(self, MockService):
+        """by_tenant keys must be real UUID strings — get_audit_logs parses
+        them with UUID(tid) to resolve tenant names/slugs afterward."""
         from src.api.v1.platform.consolidated_audit import get_audit_logs
+        tenant_1 = str(TENANT_ID)
+        tenant_2 = str(uuid.uuid4())
         service = AsyncMock()
         service.get_audit_summary.return_value = {
             "total": 10,
-            "by_tenant": {"tenant-1": 5, "tenant-2": 5},
+            "by_tenant": {tenant_1: 5, tenant_2: 5},
             "by_action": {"create": 4, "delete": 6},
             "by_user": {"user-1": 10},
             "period": {"start": "2026-01-01", "end": "2026-12-31"},
-            "statistics": {"avg_logs_per_tenant": 5, "most_active_tenant": "tenant-1", "most_common_action": "delete"},
+            "statistics": {"avg_logs_per_tenant": 5, "most_active_tenant": tenant_1, "most_common_action": "delete"},
         }
         MockService.return_value = service
 
-        result = await get_audit_logs("2026-01-01", "2026-12-31", _super_admin(), AsyncMock())
+        db = AsyncMock()
+        tenant_rows = MagicMock()
+        tenant_rows.all.return_value = []
+        db.execute.return_value = tenant_rows
+
+        result = await get_audit_logs("2026-01-01", "2026-12-31", _super_admin(), db)
         assert result.total == 10
 
     @patch("src.api.v1.platform.consolidated_audit.ConsolidatedAuditService")
