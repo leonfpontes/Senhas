@@ -392,6 +392,7 @@ async def emit_ticket(
             consulente_email=consulente.email,
             consulente_phone=consulente.telefone or "",
             priority_category=priority_category,
+            recados=gira.recados,
         )
         text_body = generate_plain_text_fallback(
             ticket_number=ticket_number_formatted,
@@ -406,6 +407,7 @@ async def emit_ticket(
             consulente_email=consulente.email,
             consulente_phone=consulente.telefone or "",
             priority_category=priority_category,
+            recados=gira.recados,
         )
         message = EmailMessage(
             to_email=consulente.email,

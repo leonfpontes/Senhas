@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.core.errors import InsufficientPermissionsError, NotFoundError
+from src.models import PlanType
 from tests.conftest import TENANT_ID, USER_ID, GIRA_ID, TICKET_ID
 
 
@@ -429,17 +430,109 @@ class TestValidateBulk:
 
 # ── email_resend.py ──────────────────────────────────────────────────────────
 
+def _mock_ticket_row():
+    t = MagicMock()
+    t.id = TICKET_ID
+    t.numero = 1
+    t.gira_id = GIRA_ID
+    t.consulente_id = uuid.uuid4()
+    t.is_sponsor = False
+    t.priority_category = None
+    return t
+
+
+def _mock_consulente_row():
+    c = MagicMock()
+    c.nome = "Maria Silva"
+    c.email = "maria@example.com"
+    c.telefone = None
+    return c
+
+
+def _mock_gira_row(recados=None):
+    g = MagicMock()
+    g.nome = "Gira de Caboclos"
+    g.data_inicio = datetime(2026, 7, 1, tzinfo=timezone.utc)
+    g.local = "Salão principal"
+    g.recados = recados
+    return g
+
+
+def _mock_tenant_row():
+    t = MagicMock()
+    t.slug = "terreiro-modelo"
+    t.name = "Terreiro Modelo"
+    return t
+
+
 class TestResendTicketEmail:
     async def test_non_admin_raises(self):
         from src.api.v1.admin.email_resend import resend_ticket_email
         with pytest.raises(InsufficientPermissionsError):
-            await resend_ticket_email(TICKET_ID, MagicMock(), _operator_user(), AsyncMock())
+            await resend_ticket_email(TICKET_ID, _operator_user(), AsyncMock())
 
     async def test_ticket_not_found(self):
-        from src.api.v1.admin.email_resend import resend_ticket_email
+        from src.api.v1.admin import email_resend as mod
         db = AsyncMock()
         result = MagicMock()
         result.scalar_one_or_none.return_value = None
         db.execute.return_value = result
-        with pytest.raises(NotFoundError):
-            await resend_ticket_email(TICKET_ID, MagicMock(), _admin_user(), db)
+        sub = MagicMock()
+        sub.plan = PlanType.PREMIUM
+        with patch.object(mod, "SubscriptionRepository") as MockSubRepo:
+            sub_repo_inst = AsyncMock()
+            sub_repo_inst.get_by_tenant.return_value = sub
+            MockSubRepo.return_value = sub_repo_inst
+            with pytest.raises(NotFoundError):
+                await mod.resend_ticket_email(TICKET_ID, _admin_user(), db)
+
+    async def _run_resend_success(self, recados):
+        """Drives resend_ticket_email through a full success path and returns
+        the kwargs the email template functions were called with."""
+        from src.api.v1.admin import email_resend as mod
+        from src.api.v1.admin.email_resend import resend_ticket_email
+
+        db = AsyncMock()
+
+        def _result_for(value):
+            r = MagicMock()
+            r.scalar_one_or_none.return_value = value
+            return r
+
+        db.execute = AsyncMock(
+            side_effect=[
+                _result_for(_mock_ticket_row()),       # Ticket
+                _result_for(_mock_consulente_row()),   # Consulente
+                _result_for(_mock_gira_row(recados)),  # Gira
+                _result_for(_mock_tenant_row()),       # Tenant
+                _result_for(None),                     # TenantConfig
+            ]
+        )
+
+        sub = MagicMock()
+        sub.plan = PlanType.PREMIUM
+
+        with patch.object(mod, "generate_ticket_emission_html", return_value="<html></html>") as mock_html, \
+             patch.object(mod, "generate_plain_text_fallback", return_value="text") as mock_text, \
+             patch.object(mod, "SubscriptionRepository") as MockSubRepo, \
+             patch.object(mod.email_queue, "enqueue"):
+            sub_repo_inst = AsyncMock()
+            sub_repo_inst.get_by_tenant.return_value = sub
+            MockSubRepo.return_value = sub_repo_inst
+
+            result = await resend_ticket_email(TICKET_ID, _admin_user(), db)
+
+        assert result.success is True
+        return mock_html, mock_text
+
+    async def test_success_forwards_gira_recados_to_email(self):
+        mock_html, mock_text = await self._run_resend_success(
+            recados="Investimento sugerido: R$ 20."
+        )
+        assert mock_html.call_args.kwargs["recados"] == "Investimento sugerido: R$ 20."
+        assert mock_text.call_args.kwargs["recados"] == "Investimento sugerido: R$ 20."
+
+    async def test_success_without_recados_passes_none(self):
+        mock_html, mock_text = await self._run_resend_success(recados=None)
+        assert mock_html.call_args.kwargs["recados"] is None
+        assert mock_text.call_args.kwargs["recados"] is None

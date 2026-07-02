@@ -37,6 +37,7 @@ class GiraCreate(BaseModel):
     data_fim: Optional[datetime] = None
     local: Optional[str] = None
     is_active: bool = True
+    recados: Optional[str] = None
 
     class Config:
         json_schema_extra = {
@@ -46,6 +47,7 @@ class GiraCreate(BaseModel):
                 "data_inicio": "2026-05-01T18:00:00Z",
                 "data_fim": "2026-05-02T02:00:00Z",
                 "local": "Centro Espírita",
+                "recados": "Investimento sugerido: R$ 20. Trazer uma vela branca.",
             }
         }
 
@@ -58,6 +60,7 @@ class GiraUpdate(BaseModel):
     data_fim: Optional[datetime] = None
     local: Optional[str] = None
     is_active: Optional[bool] = None
+    recados: Optional[str] = None
 
 
 class GiraResponse(BaseModel):
@@ -69,6 +72,7 @@ class GiraResponse(BaseModel):
     data_fim: Optional[datetime]
     local: Optional[str]
     is_active: bool
+    recados: Optional[str] = None
     max_tickets: Optional[int] = None
     release_start_at: Optional[datetime] = None
     release_end_at: Optional[datetime] = None

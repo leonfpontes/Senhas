@@ -36,6 +36,23 @@ def _esc(value: str) -> str:
     return escape(value) if value else ""
 
 
+def _esc_multiline(value: str) -> str:
+    """Escape HTML entities, preserving line breaks typed by the admin."""
+    return _esc(value).replace("\n", "<br>")
+
+
+def _recados_block(recados: Optional[str], accent: str, bg: str, text: str) -> str:
+    """Bloco de 'Recados' (investimento, itens de doação, avisos) — só
+    aparece no email se a gira tiver algo cadastrado nesse campo."""
+    if not recados or not recados.strip():
+        return ""
+    return f"""
+        <div style="background-color:{bg};border-left:4px solid {accent};padding:16px;margin:24px 0;border-radius:4px;">
+          <h3 style="margin:0 0 10px 0;color:{accent};font-size:17px;font-weight:700;">Recados</h3>
+          <p style="margin:0;font-size:14px;color:{text};line-height:1.6;white-space:pre-line;">{_esc_multiline(recados.strip())}</p>
+        </div>"""
+
+
 # ---------------------------------------------------------------------------
 # Sponsor template  –  gold (#C9A84C) / black palette
 # ---------------------------------------------------------------------------
@@ -52,6 +69,7 @@ def _sponsor_html(
     rescue_link: str,
     tenant_logo_url: str,
     priority_category: Optional[str] = None,
+    recados: Optional[str] = None,
 ) -> str:
     gold = "#C9A84C"
     gold_light = "#B8963F"
@@ -109,6 +127,8 @@ def _sponsor_html(
               <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Telefone</td>
               <td style="padding:6px 12px;font-size:14px;color:#333;">{c_phone}</td>
             </tr>"""
+
+    recados_block = _recados_block(recados, accent=gold_light, bg=light_bg, text="#333")
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -176,7 +196,7 @@ def _sponsor_html(
         </tr>{address_block}
       </table>
     </div>
-
+{recados_block}
     <!-- Notes -->
     <div style="border-top:1px solid #e0e0e0;padding-top:18px;margin-top:20px;font-size:13px;color:#777;line-height:1.8;">
       <p style="margin:0 0 6px 0;">⏰ <strong>Validade:</strong> Apenas para a data do evento acima.</p>
@@ -216,6 +236,7 @@ def _regular_html(
     primary_color: str,
     secondary_color: str,
     priority_category: Optional[str] = None,
+    recados: Optional[str] = None,
 ) -> str:
     pc = primary_color or "#2E7D32"
     sc = secondary_color or "#1B5E20"
@@ -270,6 +291,8 @@ def _regular_html(
               <td style="padding:6px 12px;font-size:14px;color:#555;font-weight:700;white-space:nowrap;">Telefone</td>
               <td style="padding:6px 12px;font-size:14px;color:#333;">{c_phone}</td>
             </tr>"""
+
+    recados_block = _recados_block(recados, accent=pc, bg="#f9f9f9", text="#555")
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -327,7 +350,7 @@ def _regular_html(
         </tr>{address_block}
       </table>
     </div>
-
+{recados_block}
     <!-- Notes -->
     <div style="border-top:2px solid #e0e0e0;padding-top:18px;margin-top:20px;font-size:13px;color:#888;line-height:1.8;">
       <p style="margin:0 0 6px 0;">⏰ <strong>Validade:</strong> Apenas para a data do evento acima.</p>
@@ -371,12 +394,15 @@ def generate_ticket_emission_html(
     consulente_email: str = "",
     consulente_phone: str = "",
     priority_category: Optional[str] = None,
+    recados: Optional[str] = None,
 ) -> str:
     """Generate responsive HTML email for ticket emission.
 
     Selects sponsor (gold/black) or regular (tenant colors) variant.
     priority_category: one of ELDERLY|DISABILITY_OR_AUTISM|
                        PREGNANT_LACTATING_OR_INFANT|REDUCED_MOBILITY, or None.
+    recados: optional free text set on the Gira (investment, donation items,
+             notices) — rendered as its own block only when non-blank.
     """
     address = tenant_address or gira_location or ""
 
@@ -393,6 +419,7 @@ def generate_ticket_emission_html(
             rescue_link=rescue_link,
             tenant_logo_url=tenant_logo_url,
             priority_category=priority_category,
+            recados=recados,
         )
 
     return _regular_html(
@@ -409,6 +436,7 @@ def generate_ticket_emission_html(
         primary_color=primary_color or tenant_color,
         secondary_color=secondary_color or tenant_color,
         priority_category=priority_category,
+        recados=recados,
     )
 
 
@@ -426,6 +454,7 @@ def generate_plain_text_fallback(
     consulente_email: str = "",
     consulente_phone: str = "",
     priority_category: Optional[str] = None,
+    recados: Optional[str] = None,
 ) -> str:
     """Generate plain text fallback for email clients that don't support HTML."""
     address = tenant_address or gira_location or ""
@@ -440,6 +469,9 @@ def generate_plain_text_fallback(
     priority_line = (
         f"\n- Prioridade: {_PRIORITY_LABELS.get(priority_category, priority_category)}"
         if priority_category else ""
+    )
+    recados_section = (
+        f"\nRecados:\n{recados.strip()}\n" if recados and recados.strip() else ""
     )
 
     return f"""SENHA EMITIDA{' — ASSOCIADO' if is_sponsor else ''}
@@ -458,7 +490,7 @@ Detalhes da Gira:
 - Gira: {gira_name}
 - Data: {gira_date}
 - Endereço: {address or 'Não informado'}
-{maps_line}
+{maps_line}{recados_section}
 Para resgatar sua senha, acesse:
 {rescue_link}
 

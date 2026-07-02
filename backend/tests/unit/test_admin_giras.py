@@ -30,7 +30,7 @@ def _operator_user():
     return user
 
 
-def _mock_gira():
+def _mock_gira(recados=None):
     g = MagicMock()
     g.id = GIRA_ID
     g.tenant_id = TENANT_ID
@@ -40,6 +40,7 @@ def _mock_gira():
     g.data_fim = datetime(2026, 5, 2, tzinfo=timezone.utc)
     g.local = "Centro"
     g.is_active = True
+    g.recados = recados
     g.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
     g.updated_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
     return g
@@ -81,6 +82,36 @@ class TestCreateGira:
                 _operator_user(),
                 AsyncMock(),
             )
+
+    @patch("src.api.v1.admin.giras_crud.SubscriptionRepository")
+    @patch("src.api.v1.admin.giras_crud.AuditService")
+    @patch("src.api.v1.admin.giras_crud.GiraRepository")
+    async def test_forwards_recados_to_repository(self, MockRepo, MockAudit, MockSubRepo):
+        db = AsyncMock()
+        repo_inst = AsyncMock()
+        repo_inst.create.return_value = _mock_gira(recados="Investimento: R$ 20.")
+        MockRepo.return_value = repo_inst
+        MockAudit.return_value = AsyncMock()
+        sub_repo_inst = AsyncMock()
+        sub = MagicMock()
+        sub.status = SubscriptionStatus.ACTIVE
+        sub.max_giras_per_month = -1
+        sub_repo_inst.get_by_tenant.return_value = sub
+        MockSubRepo.return_value = sub_repo_inst
+
+        gira_data = GiraCreate(
+            nome="Gira de Maio",
+            data_inicio=datetime(2026, 5, 1, tzinfo=timezone.utc),
+            recados="Investimento: R$ 20.",
+        )
+        result = await create_gira(gira_data, _admin_user(), db)
+
+        assert repo_inst.create.call_args.kwargs["recados"] == "Investimento: R$ 20."
+        assert result.recados == "Investimento: R$ 20."
+
+    async def test_recados_defaults_to_none(self):
+        gira_data = GiraCreate(nome="X", data_inicio=datetime.now(timezone.utc))
+        assert gira_data.recados is None
 
 
 class TestListGiras:
@@ -147,6 +178,39 @@ class TestUpdateGira:
 
         with pytest.raises(NotFoundError):
             await update_gira(GIRA_ID, GiraUpdate(nome="X"), _admin_user(), AsyncMock())
+
+    @patch("src.api.v1.admin.giras_crud.AuditService")
+    @patch("src.api.v1.admin.giras_crud.GiraRepository")
+    async def test_forwards_recados_to_repository(self, MockRepo, MockAudit):
+        db = AsyncMock()
+        repo_inst = AsyncMock()
+        repo_inst.get_by_id.return_value = _mock_gira()
+        repo_inst.update.return_value = _mock_gira(recados="Trazer vela branca.")
+        MockRepo.return_value = repo_inst
+        MockAudit.return_value = AsyncMock()
+
+        result = await update_gira(
+            GIRA_ID, GiraUpdate(recados="Trazer vela branca."), _admin_user(), db,
+        )
+
+        assert repo_inst.update.call_args.kwargs["recados"] == "Trazer vela branca."
+        assert result.recados == "Trazer vela branca."
+
+    @patch("src.api.v1.admin.giras_crud.AuditService")
+    @patch("src.api.v1.admin.giras_crud.GiraRepository")
+    async def test_clearing_recados_sends_empty_string(self, MockRepo, MockAudit):
+        """exclude_unset=True still forwards an explicit '' — clearing the
+        field must be possible, not just adding to it."""
+        db = AsyncMock()
+        repo_inst = AsyncMock()
+        repo_inst.get_by_id.return_value = _mock_gira(recados="Antigo recado.")
+        repo_inst.update.return_value = _mock_gira(recados="")
+        MockRepo.return_value = repo_inst
+        MockAudit.return_value = AsyncMock()
+
+        await update_gira(GIRA_ID, GiraUpdate(recados=""), _admin_user(), db)
+
+        assert repo_inst.update.call_args.kwargs["recados"] == ""
 
 
 class TestDeleteGira:

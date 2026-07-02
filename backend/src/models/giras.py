@@ -30,6 +30,10 @@ class Gira(SoftDeleteModel):
     data_fim: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     local: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Texto livre opcional (investimento, itens de doação, avisos) incluído no
+    # email de emissão de senha quando preenchido. Ver ticket_emission.py.
+    recados: Mapped[str | None] = mapped_column(Text, nullable=True)
     
     # Senha emission control fields
     max_tickets: Mapped[int | None] = mapped_column(Integer, nullable=True)

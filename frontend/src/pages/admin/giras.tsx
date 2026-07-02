@@ -57,6 +57,7 @@ interface Gira {
   max_tickets?: number | null;
   release_start_at?: string | null;
   release_end_at?: string | null;
+  recados?: string;
 }
 
 interface SenhaConfig {
@@ -72,7 +73,7 @@ interface SenhaConfig {
   sponsor_public_link?: string;
 }
 
-const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '' };
+const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '', recados: '' };
 const EMPTY_SENHA_FORM = {
   max_tickets: '', release_start_at: '', release_end_at: '',
   sponsor_max_tickets: '', sponsor_release_start_at: '', sponsor_release_end_at: '',
@@ -207,6 +208,7 @@ function AdminGirasContent() {
       nome: gira.nome,
       descricao: gira.descricao || '',
       data_inicio: isoToLocalDatetimeInput(gira.data_inicio),
+      recados: gira.recados || '',
     });
     setTouched({});
     setDrawerMode('edit');
@@ -230,7 +232,8 @@ function AdminGirasContent() {
       ? Object.values(formData).some((v) => v !== '')
       : currentGira != null &&
         (formData.nome !== currentGira.nome ||
-          formData.descricao !== (currentGira.descricao || ''));
+          formData.descricao !== (currentGira.descricao || '') ||
+          formData.recados !== (currentGira.recados || ''));
 
   const nomeError = touched.nome && !formData.nome.trim() ? 'Nome é obrigatório' : '';
   const dataError = touched.data_inicio && !formData.data_inicio ? 'Data de início é obrigatória' : '';
@@ -584,6 +587,15 @@ function AdminGirasContent() {
           fullWidth
           multiline
           rows={2}
+        />
+        <TextField
+          label="Recados"
+          value={formData.recados}
+          onChange={(e) => handleChange('recados', e.target.value)}
+          fullWidth
+          multiline
+          rows={3}
+          helperText="Opcional. Aparece no email da senha — investimento, itens de doação, avisos etc."
         />
         <TextField
           label="Data Início"
