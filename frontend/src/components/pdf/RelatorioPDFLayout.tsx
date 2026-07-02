@@ -29,7 +29,12 @@ const A4_WIDTH_PX = 794;
 const A4_HEIGHT_PX = 1123; // 297mm @ 96dpi (≈ 1122.5)
 const PAGE_PADDING_H = 36; // ~10mm
 const PAGE_PADDING_V = 28; // ~7.5mm
-const ROWS_PER_PAGE = 28; // linhas de tabela por página (deixa espaço p/ header + footer)
+const ROWS_PER_PAGE = 21; // linhas de tabela por página. Testado para garantir espaço mesmo se
+// TODAS as linhas tiverem observação longa (2 linhas via line-clamp) — ver tdObsStyle abaixo.
+// A coluna de Observações trunca em 2 linhas propositalmente: sem isso, uma gira onde a
+// maioria dos consulentes tem observação extensa faz o texto ultrapassar a altura fixa da
+// página e o `overflow: hidden` corta linhas da tabela silenciosamente (era o caso mesmo
+// antes deste aumento de fonte, com a constante antiga de 28 linhas).
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 export interface PdfTicket {
@@ -123,7 +128,7 @@ const pageStyle: React.CSSProperties = {
   paddingBottom: PAGE_PADDING_V,
   backgroundColor: '#ffffff',
   fontFamily: "'Segoe UI', Arial, sans-serif",
-  fontSize: 11,
+  fontSize: 13,
   color: '#212121',
   display: 'flex',
   flexDirection: 'column',
@@ -185,10 +190,10 @@ function Header({ tenant, gira }: { tenant: PdfTenant; gira: { nome: string; dat
 
       {/* Textos */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: tenant.primaryColor, lineHeight: 1.2 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: tenant.primaryColor, lineHeight: 1.2 }}>
           {tenant.nome}
         </div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#333', lineHeight: 1.2 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#333', lineHeight: 1.2 }}>
           {gira.nome}
           {gira.data ? (
             <span style={{ fontWeight: 400, color: '#666', marginLeft: 6 }}>
@@ -196,7 +201,7 @@ function Header({ tenant, gira }: { tenant: PdfTenant; gira: { nome: string; dat
             </span>
           ) : null}
         </div>
-        <div style={{ fontSize: 10, color: '#888' }}>Relatório de Gira</div>
+        <div style={{ fontSize: 12, color: '#888' }}>Relatório de Gira</div>
       </div>
     </div>
   );
@@ -255,10 +260,10 @@ function HeaderCompact({
         </div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <span style={{ fontWeight: 700, fontSize: 12, color: tenant.primaryColor }}>
+        <span style={{ fontWeight: 700, fontSize: 14, color: tenant.primaryColor }}>
           {tenant.nome}
         </span>
-        <span style={{ fontSize: 10, color: '#666' }}>
+        <span style={{ fontSize: 12, color: '#666' }}>
           {gira.nome}
           {gira.data ? ` — ${formatDate(gira.data)}` : ''}
         </span>
@@ -277,7 +282,7 @@ function FooterDashboard() {
         borderTop: '1px solid #e0e0e0',
         display: 'flex',
         justifyContent: 'space-between',
-        fontSize: 9,
+        fontSize: 11,
         color: '#9e9e9e',
       }}
     >
@@ -305,7 +310,7 @@ function FooterTable({
         borderTop: '1px solid #e0e0e0',
         display: 'flex',
         justifyContent: 'space-between',
-        fontSize: 9,
+        fontSize: 11,
         color: '#9e9e9e',
       }}
     >
@@ -344,8 +349,8 @@ function BigNumberCard({
         gap: 2,
       }}
     >
-      <div style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 9, color: '#555', textAlign: 'center', lineHeight: 1.2 }}>{label}</div>
+      <div style={{ fontSize: 25, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 11, color: '#555', textAlign: 'center', lineHeight: 1.2 }}>{label}</div>
     </div>
   );
 }
@@ -386,7 +391,7 @@ function DashboardPage({
       <div style={{ marginBottom: 14 }}>
         <div
           style={{
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: 600,
             color: '#666',
             textTransform: 'uppercase',
@@ -412,7 +417,7 @@ function DashboardPage({
       <div style={{ marginBottom: 14 }}>
         <div
           style={{
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: 600,
             color: '#666',
             textTransform: 'uppercase',
@@ -435,7 +440,7 @@ function DashboardPage({
           >
             <div
               style={{
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: 600,
                 color: '#333',
                 textAlign: 'center',
@@ -466,7 +471,7 @@ function DashboardPage({
               <Legend
                 iconSize={10}
                 formatter={(value) => (
-                  <span style={{ fontSize: 9, color: '#444' }}>{value}</span>
+                  <span style={{ fontSize: 11, color: '#444' }}>{value}</span>
                 )}
               />
             </PieChart>
@@ -484,7 +489,7 @@ function DashboardPage({
           >
             <div
               style={{
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: 600,
                 color: '#333',
                 textAlign: 'center',
@@ -515,7 +520,7 @@ function DashboardPage({
               <Legend
                 iconSize={10}
                 formatter={(value) => (
-                  <span style={{ fontSize: 9, color: '#444' }}>{value}</span>
+                  <span style={{ fontSize: 11, color: '#444' }}>{value}</span>
                 )}
               />
             </PieChart>
@@ -529,7 +534,7 @@ function DashboardPage({
       <div style={{ flex: 1, minHeight: 0 }}>
         <div
           style={{
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: 600,
             color: '#666',
             textTransform: 'uppercase',
@@ -570,13 +575,13 @@ function DashboardPage({
                 <CartesianGrid strokeDasharray="3 3" stroke="#eeeeee" />
                 <XAxis
                   dataKey="slot"
-                  tick={{ fontSize: 9, fill: '#666' }}
+                  tick={{ fontSize: 11, fill: '#666' }}
                   tickLine={false}
                   axisLine={{ stroke: '#ddd' }}
                 />
                 <YAxis
                   allowDecimals={false}
-                  tick={{ fontSize: 9, fill: '#666' }}
+                  tick={{ fontSize: 11, fill: '#666' }}
                   tickLine={false}
                   axisLine={{ stroke: '#ddd' }}
                   width={28}
@@ -624,9 +629,9 @@ function TablePage({
   totalPages: number;   // total geral incluindo dashboard
 }) {
   const thStyle: React.CSSProperties = {
-    padding: '5px 7px',
+    padding: '6px 7px',
     textAlign: 'left',
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 700,
     color: '#555',
     textTransform: 'uppercase',
@@ -637,8 +642,8 @@ function TablePage({
   };
 
   const tdStyle: React.CSSProperties = {
-    padding: '4px 7px',
-    fontSize: 10,
+    padding: '6px 7px',
+    fontSize: 12,
     borderBottom: '1px solid #f0f0f0',
     verticalAlign: 'top',
   };
@@ -698,11 +703,11 @@ function TablePage({
                   <span
                     style={{
                       display: 'inline-block',
-                      padding: '1px 6px',
+                      padding: '2px 7px',
                       borderRadius: 10,
                       backgroundColor: tag.bg,
                       color: tag.color,
-                      fontSize: 9,
+                      fontSize: 11,
                       fontWeight: 600,
                       whiteSpace: 'nowrap',
                     }}
@@ -737,8 +742,11 @@ function TablePage({
                     ...tdStyle,
                     color: '#555',
                     wordBreak: 'break-word',
-                    whiteSpace: 'pre-wrap',
-                  }}
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitBoxOrient: 'vertical',
+                    WebkitLineClamp: 2,
+                  } as React.CSSProperties}
                 >
                   {t.atendimento_descricao || '—'}
                 </td>
