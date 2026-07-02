@@ -159,8 +159,41 @@ def require_group_permission(feature: PermissionFeature, action: str):
         )
         if not has_perm:
             raise GroupPermissionDeniedError(feature.value, action)
-            
+
         return None
-        
+
+    return dependency
+
+
+def require_any_group_permission(*features: PermissionFeature, action: str):
+    """Dependency factory that grants access if the user has the given action
+    on ANY of the listed features.
+
+    Used by read endpoints shared across pages backed by different permission
+    groups — e.g. Relatório de Gira reads giras/tickets/door-stats, each
+    normally gated by its own feature (GIRAS/TICKETS/PORTA) elsewhere. Without
+    this, a group granted only RELATORIO_GIRA view can open the report page
+    but every underlying fetch 403s, leaving the ticket listing silently empty.
+    """
+    async def dependency(
+        request: Request,
+        user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ) -> None:
+        token_data = getattr(request.state, "token", None)
+        permission_service = PermissionService(db)
+
+        for feature in features:
+            has_perm = await permission_service.check_permission(
+                user=user,
+                feature=feature,
+                action=action,
+                token_data=token_data,
+            )
+            if has_perm:
+                return None
+
+        raise GroupPermissionDeniedError(features[0].value, action)
+
     return dependency
 

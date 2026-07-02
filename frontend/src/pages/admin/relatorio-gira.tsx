@@ -45,6 +45,7 @@ import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import { useSubscription } from '../../hooks/useSubscription';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useTenant } from '../../providers/ThemeProvider';
 import { useRelatorioPDF } from '../../hooks/useRelatorioPDF';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
@@ -126,6 +127,7 @@ export default function RelatorioGiraPage() {
 function RelatorioGiraContent() {
   const router = useRouter();
   const { can }                                  = useSubscription();
+  const { can: canGroup }                        = usePermissions();
   const { tenantName, logoUrl, config }          = useTenant();
   const { generate: generatePDF, loading: loadingPDF } = useRelatorioPDF();
   const { isDark }                               = useAdminTheme();
@@ -161,6 +163,7 @@ function RelatorioGiraContent() {
 
   // ── Load giras ────────────────────────────────────────────────────
   const loadGiras = useCallback(async () => {
+    if (!canGroup('relatorio_gira', 'view')) return;
     try {
       const params = new URLSearchParams({ limit: '100' });
       if (giraFilter === 'active')   params.append('is_active', 'true');
@@ -172,11 +175,11 @@ function RelatorioGiraContent() {
       setGiras(data);
       if (giraId && !data.some((g: any) => g.id === giraId)) setGiraId('');
     } catch { /* non-critical */ }
-  }, [giraFilter, dateFrom, dateTo, giraId]);
+  }, [giraFilter, dateFrom, dateTo, giraId, canGroup]);
 
   // ── Load tickets ──────────────────────────────────────────────────
   const loadTickets = useCallback(async () => {
-    if (!giraId) { setAllTickets([]); return; }
+    if (!giraId || !canGroup('relatorio_gira', 'view')) { setAllTickets([]); return; }
     setLoading(true);
     try {
       let url = `/api/v1/admin/giras/${giraId}/tickets?skip=0&limit=500`;
@@ -184,16 +187,16 @@ function RelatorioGiraContent() {
       const res = await apiClient.get(url);
       setAllTickets(res.data.items ?? []);
     } catch { /* non-critical */ } finally { setLoading(false); }
-  }, [giraId, statusFilter]);
+  }, [giraId, statusFilter, canGroup]);
 
   // ── Load door stats (for PDF + KPIs) ─────────────────────────────
   const loadDoorStats = useCallback(async () => {
-    if (!giraId) { setDoorStats(null); return; }
+    if (!giraId || !canGroup('relatorio_gira', 'view')) { setDoorStats(null); return; }
     try {
       const res = await apiClient.get(`/api/v1/admin/giras/${giraId}/door/stats`);
       setDoorStats(res.data);
     } catch { setDoorStats(null); }
-  }, [giraId]);
+  }, [giraId, canGroup]);
 
   useEffect(() => {
     // Auth is cookie-based (HttpOnly access_token) for normal sessions — it's
@@ -314,6 +317,15 @@ function RelatorioGiraContent() {
           Ver planos
         </Button>
       </Box>
+    );
+  }
+
+  // ── Group permission gate ──────────────────────────────────────────
+  if (!canGroup('relatorio_gira', 'view')) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar o relatório de gira. Contate o administrador do sistema.
+      </Alert>
     );
   }
 

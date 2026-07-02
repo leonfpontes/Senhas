@@ -18,7 +18,7 @@ from src.services.audit_service import AuditService
 from src.models.subscriptions import SubscriptionStatus
 
 _BASE = settings.FRONTEND_URL.rstrip("/")
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_any_group_permission
 from src.core.errors import (
     UnauthorizedError,
     InsufficientPermissionsError,
@@ -171,7 +171,7 @@ async def create_gira(
     return GiraResponse.from_orm(created_gira)
 
 
-@router.get("", response_model=List[GiraResponse], dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "view"))])
+@router.get("", response_model=List[GiraResponse], dependencies=[Depends(require_any_group_permission(PermissionFeature.GIRAS, PermissionFeature.RELATORIO_GIRA, action="view"))])
 async def list_giras(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),

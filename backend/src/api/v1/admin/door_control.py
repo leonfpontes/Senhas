@@ -13,7 +13,7 @@ import logging
 from src.core.database import get_db
 from src.models import User, Ticket, TicketStatus, Consulente, TenantConfig, Gira, PermissionFeature
 from src.models.tickets import PriorityCategory, PRIORITY_ORDER
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_any_group_permission
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.repositories.consulente_repo import ConsulenteRepository
 from src.repositories.senha_control_repo import SenhaControlRepository
@@ -208,7 +208,7 @@ async def _get_tenant_config(db: AsyncSession, tenant_id: UUID) -> Optional[Tena
 
 # ── Endpoints ────────────────────────────────────────────────────────────
 
-@router.get("/giras/{gira_id}/door/stats", response_model=DoorStatsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "view"))])
+@router.get("/giras/{gira_id}/door/stats", response_model=DoorStatsResponse, dependencies=[Depends(require_any_group_permission(PermissionFeature.PORTA, PermissionFeature.RELATORIO_GIRA, action="view"))])
 async def get_door_stats(
     gira_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),

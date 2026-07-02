@@ -13,7 +13,7 @@ import logging
 from src.core.database import get_db
 from src.models import User, Ticket, TicketStatus, Consulente, PermissionFeature
 from src.models.senha_controls import SenhaControl
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_any_group_permission
 from src.core.errors import (
     InsufficientPermissionsError,
     NotFoundError,
@@ -67,7 +67,7 @@ class TicketListResponse(BaseModel):
     items: List[TicketResponse]
 
 
-@router.get("/giras/{gira_id}/tickets", response_model=TicketListResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "view"))])
+@router.get("/giras/{gira_id}/tickets", response_model=TicketListResponse, dependencies=[Depends(require_any_group_permission(PermissionFeature.TICKETS, PermissionFeature.RELATORIO_GIRA, action="view"))])
 async def list_gira_tickets(
     gira_id: UUID = Path(...),
     skip: int = Query(0, ge=0),
