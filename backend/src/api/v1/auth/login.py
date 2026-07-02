@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
+import logging
 import secrets
 import hashlib
 import uuid
@@ -24,6 +25,8 @@ from src.security import (
 from src.core.logging import log_security_event
 from src.services import session_service
 from sqlalchemy import select
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -351,6 +354,7 @@ async def forgot_password(
     """
     from sqlalchemy import select
     from src.services.email.brevo_provider import BrevoEmailService
+    from src.services.email.resend_fallback import ResendEmailService
     from src.services.email.base import EmailMessage
     from src.services.email.templates.password_reset import render_password_reset_email
 
@@ -369,20 +373,36 @@ async def forgot_password(
 
         reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
         html_body = render_password_reset_email(reset_url, user.full_name or user.username)
+        msg = EmailMessage(
+            to_email=user.email,
+            subject="Redefinição de senha — GiraHub",
+            html_body=html_body,
+            text_body=f"Acesse o link para redefinir sua senha: {reset_url}",
+        )
 
+        # Resend é o provedor primário do GiraHub; se falhar (chave inválida,
+        # domínio não verificado, indisponibilidade), cai para o Brevo antes de
+        # desistir — sem isso o usuário nunca recebe o link e a falha fica só
+        # no log. Mesmo padrão usado em profile.py (e-mail de exclusão de conta)
+        # e onboarding.py (e-mail de boas-vindas).
+        sent = False
         try:
-            svc = BrevoEmailService()
-            await svc.send_async(EmailMessage(
-                to_email=user.email,
-                subject="Redefinição de senha — GiraHub",
-                html_body=html_body,
-                text_body=f"Acesse o link para redefinir sua senha: {reset_url}",
-            ))
-        except Exception:
-            log_security_event("forgot_password", user_id=user.id, success=False,
-                               details={"reason": "email_send_failed"})
+            sent = await ResendEmailService().send_async(msg)
+        except Exception as exc:
+            logger.warning("Resend forgot-password email failed for user %s: %s", user.id, exc)
 
-        log_security_event("forgot_password", user_id=user.id, success=True)
+        if not sent:
+            try:
+                sent = await BrevoEmailService().send_async(msg)
+            except Exception as exc:
+                logger.warning("Brevo forgot-password email failed for user %s: %s", user.id, exc)
+
+        log_security_event(
+            "forgot_password",
+            user_id=user.id,
+            success=sent,
+            details=None if sent else {"reason": "email_send_failed"},
+        )
 
     return {"message": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
 

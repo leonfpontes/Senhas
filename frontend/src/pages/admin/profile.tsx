@@ -202,10 +202,17 @@ export default function AdminProfilePage() {
 
     setSavingPassword(true);
     try {
-      await apiClient.post('/api/v1/auth/change-password', {
-        current_password: currentPassword,
-        new_password: newPassword,
-      });
+      await apiClient.post(
+        '/api/v1/auth/change-password',
+        {
+          current_password: currentPassword,
+          new_password: newPassword,
+        },
+        // Senha atual errada retorna 401 (UnauthorizedError) — sem isso o
+        // interceptor global trata como sessão expirada, tenta refresh
+        // silencioso, falha de novo e desloga o usuário sem explicação.
+        { skipAutoLogout: true } as any,
+      );
 
       // Changing the password revokes every session (this tab included) so a
       // device that captured the old credentials stops working immediately.

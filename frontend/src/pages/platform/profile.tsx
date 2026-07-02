@@ -61,8 +61,8 @@ const ProfilePage: React.FC = () => {
     setError(null);
     setSuccess(null);
 
-    if (newPassword.length < 8) {
-      setError("A nova senha deve ter pelo menos 8 caracteres.");
+    if (newPassword.length < 12) {
+      setError("A nova senha deve ter pelo menos 12 caracteres.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -72,10 +72,17 @@ const ProfilePage: React.FC = () => {
 
     setChangingPassword(true);
     try {
-      await apiClient.post("/api/v1/auth/change-password", {
-        current_password: currentPassword,
-        new_password: newPassword,
-      });
+      await apiClient.post(
+        "/api/v1/auth/change-password",
+        {
+          current_password: currentPassword,
+          new_password: newPassword,
+        },
+        // Senha atual errada retorna 401 (UnauthorizedError) — sem isso o
+        // interceptor global trata como sessão expirada, tenta refresh
+        // silencioso, falha de novo e desloga o usuário sem explicação.
+        { skipAutoLogout: true } as any,
+      );
       setSuccess("Senha alterada com sucesso!");
       setCurrentPassword("");
       setNewPassword("");
