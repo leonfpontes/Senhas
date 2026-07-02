@@ -34,27 +34,27 @@ class BulkOperationResponse(BaseModel):
 @router.post("/giras/{gira_id}/tickets/bulk-mark-used", response_model=BulkOperationResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "edit"))])
 @limiter.limit("20/minute")
 async def bulk_mark_used(
-    http_request: Request,
+    request: Request,
     gira_id: UUID = Path(...),
-    request: BulkOperationRequest = None,
+    body: BulkOperationRequest = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BulkOperationResponse:
     """Mark multiple tickets as used/completed.
-    
+
     Requires admin role.
     """
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
-    
+
     repo = SenhaControlRepositoryExtended(db)
     result = await repo.bulk_mark_used(
-        ticket_ids=request.ticket_ids,
+        ticket_ids=body.ticket_ids,
         tenant_id=current_user.tenant_id,
-        dry_run=request.dry_run,
+        dry_run=body.dry_run,
     )
-    
-    if not request.dry_run:
+
+    if not body.dry_run:
         # Log audit
         audit_service = AuditService(db)
         await audit_service.log_bulk_operation(
@@ -63,37 +63,37 @@ async def bulk_mark_used(
             operation_type="bulk_mark_used",
             resource_type="Ticket",
             count=result["modified"],
-            resource_ids=request.ticket_ids,
+            resource_ids=body.ticket_ids,
         )
         await db.commit()
-    
+
     return BulkOperationResponse(**result)
 
 
 @router.post("/giras/{gira_id}/tickets/bulk-cancel", response_model=BulkOperationResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "delete"))])
 @limiter.limit("20/minute")
 async def bulk_cancel(
-    http_request: Request,
+    request: Request,
     gira_id: UUID = Path(...),
-    request: BulkOperationRequest = None,
+    body: BulkOperationRequest = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BulkOperationResponse:
     """Cancel multiple tickets.
-    
+
     Requires admin role.
     """
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
-    
+
     repo = SenhaControlRepositoryExtended(db)
     result = await repo.bulk_cancel(
-        ticket_ids=request.ticket_ids,
+        ticket_ids=body.ticket_ids,
         tenant_id=current_user.tenant_id,
-        dry_run=request.dry_run,
+        dry_run=body.dry_run,
     )
-    
-    if not request.dry_run:
+
+    if not body.dry_run:
         # Log audit
         audit_service = AuditService(db)
         await audit_service.log_bulk_operation(
@@ -102,8 +102,8 @@ async def bulk_cancel(
             operation_type="bulk_cancel",
             resource_type="Ticket",
             count=result["modified"],
-            resource_ids=request.ticket_ids,
+            resource_ids=body.ticket_ids,
         )
         await db.commit()
-    
+
     return BulkOperationResponse(**result)

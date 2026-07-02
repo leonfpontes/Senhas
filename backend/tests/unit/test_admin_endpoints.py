@@ -4,10 +4,25 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from starlette.requests import Request as StarletteRequest
 
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.models import PlanType
 from tests.conftest import TENANT_ID, USER_ID, GIRA_ID, TICKET_ID
+
+
+def _fake_request() -> StarletteRequest:
+    """Minimal real Starlette Request — satisfies slowapi's isinstance check
+    on rate-limited endpoints (bulk_mark_used/bulk_cancel), which a MagicMock
+    fails since slowapi validates the type explicitly."""
+    return StarletteRequest({
+        "type": "http",
+        "method": "POST",
+        "path": "/",
+        "query_string": b"",
+        "headers": [],
+        "client": ("127.0.0.1", 12345),
+    })
 
 
 def _admin_user():
@@ -15,6 +30,7 @@ def _admin_user():
     user.id = USER_ID
     user.tenant_id = TENANT_ID
     user.is_admin = True
+    user.is_operator_or_admin = True
     return user
 
 
@@ -23,6 +39,7 @@ def _operator_user():
     user.id = USER_ID
     user.tenant_id = TENANT_ID
     user.is_admin = False
+    user.is_operator_or_admin = False
     return user
 
 
@@ -65,20 +82,32 @@ class TestGetTicket:
     async def test_success(self):
         from src.api.v1.admin.tickets_list import get_ticket
         db = AsyncMock()
+        db.refresh = AsyncMock()
         ticket = MagicMock()
         ticket.id = TICKET_ID
         ticket.numero = 1
         ticket.status = "emitted"
-        ticket.email = "t@t.com"
-        ticket.name = "Test"
+        ticket.consulente.nome = "Maria Silva"
+        ticket.consulente.email = "maria@example.com"
+        ticket.consulente.telefone = None
+        ticket.is_sponsor = False
+        ticket.is_walk_in = False
+        ticket.observacoes = None
         ticket.chamado_em = datetime(2026, 1, 1, tzinfo=timezone.utc)
         ticket.finalizado_em = None
+        ticket.medium_nome = None
+        ticket.cambone_nome = None
+        ticket.atendimento_descricao = None
         ticket.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        ticket.resend_email_id = None
+        ticket.email_sent_at = None
+        ticket.email_provider = None
         result = MagicMock()
         result.scalar_one_or_none.return_value = ticket
         db.execute.return_value = result
         resp = await get_ticket(TICKET_ID, _admin_user(), db)
         assert resp.id == TICKET_ID
+        assert resp.consulente_nome == "Maria Silva"
 
 
 # ── tickets_bulk.py ──────────────────────────────────────────────────────────
@@ -87,7 +116,7 @@ class TestBulkMarkUsed:
     async def test_non_admin_raises(self):
         from src.api.v1.admin.tickets_bulk import bulk_mark_used, BulkOperationRequest
         with pytest.raises(InsufficientPermissionsError):
-            await bulk_mark_used(GIRA_ID, BulkOperationRequest(ticket_ids=[TICKET_ID]), _operator_user(), AsyncMock())
+            await bulk_mark_used(_fake_request(), GIRA_ID, BulkOperationRequest(ticket_ids=[TICKET_ID]), _operator_user(), AsyncMock())
 
     @patch("src.api.v1.admin.tickets_bulk.AuditService")
     @patch("src.api.v1.admin.tickets_bulk.SenhaControlRepositoryExtended")
@@ -100,7 +129,7 @@ class TestBulkMarkUsed:
 
         from src.api.v1.admin.tickets_bulk import bulk_mark_used, BulkOperationRequest
         result = await bulk_mark_used(
-            GIRA_ID, BulkOperationRequest(ticket_ids=[TICKET_ID]), _admin_user(), db,
+            _fake_request(), GIRA_ID, BulkOperationRequest(ticket_ids=[TICKET_ID]), _admin_user(), db,
         )
         assert result.modified == 1
         db.commit.assert_called_once()
@@ -118,7 +147,7 @@ class TestBulkCancel:
 
         from src.api.v1.admin.tickets_bulk import bulk_cancel, BulkOperationRequest
         result = await bulk_cancel(
-            GIRA_ID, BulkOperationRequest(ticket_ids=[TICKET_ID, uuid.uuid4()]), _admin_user(), db,
+            _fake_request(), GIRA_ID, BulkOperationRequest(ticket_ids=[TICKET_ID, uuid.uuid4()]), _admin_user(), db,
         )
         assert result.modified == 2
 
@@ -129,7 +158,7 @@ class TestGetAnalytics:
     async def test_non_admin_raises(self):
         from src.api.v1.admin.analytics import get_analytics
         with pytest.raises(InsufficientPermissionsError):
-            await get_analytics("week", None, _operator_user(), AsyncMock())
+            await get_analytics(None, None, None, _operator_user(), AsyncMock())
 
     @patch("src.api.v1.admin.analytics.TicketAnalyticsRepository")
     async def test_success(self, MockRepo):
@@ -141,12 +170,14 @@ class TestGetAnalytics:
         repo_inst.get_today_stats.return_value = {"emitted_today": 10, "used_today": 5}
         repo_inst.get_daily_distribution.return_value = []
         repo_inst.get_peak_hours.return_value = []
+        repo_inst.get_category_breakdown.return_value = {"common": 40, "sponsor": 5, "walk_in": 5}
         MockRepo.return_value = repo_inst
 
         from src.api.v1.admin.analytics import get_analytics
-        result = await get_analytics("week", None, _admin_user(), AsyncMock())
+        result = await get_analytics(None, None, None, _admin_user(), AsyncMock())
         assert result.total_emitted == 100
         assert result.total_used == 50
+        assert result.walk_in_total == 5
 
 
 # ── audit_trail.py ───────────────────────────────────────────────────────────
@@ -160,7 +191,8 @@ class TestListAuditLogs:
     @patch("src.api.v1.admin.audit_trail.AuditLogRepository")
     async def test_success(self, MockRepo):
         repo_inst = AsyncMock()
-        repo_inst.list_filtered.return_value = ([], 0)
+        repo_inst.list_filtered.return_value = []
+        repo_inst.count_filtered.return_value = 0
         MockRepo.return_value = repo_inst
 
         from src.api.v1.admin.audit_trail import list_audit_logs
@@ -171,29 +203,46 @@ class TestListAuditLogs:
 
 # ── config.py ────────────────────────────────────────────────────────────────
 
+def _mock_tenant_config():
+    """MagicMock satisfying TenantConfigResponse's from_orm validation — every
+    Optional[str] field needs an explicit string/None, otherwise pydantic
+    rejects the auto-generated MagicMock child for that attribute."""
+    config = MagicMock()
+    config.logo_url = None
+    config.logo_data = None
+    config.primary_color = "#1976d2"
+    config.secondary_color = "#dc004e"
+    config.endereco = None
+    config.tenant_nome = None
+    config.reply_to_email = None
+    config.email_signature = None
+    config.enable_bulk_operations = True
+    config.enable_analytics = True
+    config.enable_walk_in = False
+    config.custom_settings = None
+    config.sponsor_priority_mode = "first"
+    config.validate_associado_on_emit = False
+    config.enable_estoque_log = True
+    config.enable_mensalidade_associado = False
+    return config
+
+
 class TestGetTenantConfig:
     async def test_non_admin_raises(self):
         from src.api.v1.admin.config import get_tenant_config
         with pytest.raises(InsufficientPermissionsError):
-            await get_tenant_config(_operator_user(), AsyncMock())
+            await get_tenant_config(MagicMock(), _operator_user(), AsyncMock())
 
     @patch("src.api.v1.admin.config.TenantConfigRepository")
     async def test_success(self, MockRepo):
         repo_inst = AsyncMock()
-        config = MagicMock()
-        config.logo_url = None
+        config = _mock_tenant_config()
         config.primary_color = "#1976d2"
-        config.secondary_color = "#dc004e"
-        config.reply_to_email = None
-        config.email_signature = None
-        config.enable_bulk_operations = True
-        config.enable_analytics = True
-        config.custom_settings = None
         repo_inst.get_by_tenant.return_value = config
         MockRepo.return_value = repo_inst
 
         from src.api.v1.admin.config import get_tenant_config
-        result = await get_tenant_config(_admin_user(), AsyncMock())
+        result = await get_tenant_config(MagicMock(), _admin_user(), AsyncMock())
         assert result.primary_color == "#1976d2"
 
 
@@ -203,15 +252,8 @@ class TestUpdateTenantConfig:
     async def test_success(self, MockRepo, MockAudit):
         db = AsyncMock()
         repo_inst = AsyncMock()
-        config = MagicMock()
-        config.logo_url = None
+        config = _mock_tenant_config()
         config.primary_color = "#ff0000"
-        config.secondary_color = "#dc004e"
-        config.reply_to_email = None
-        config.email_signature = None
-        config.enable_bulk_operations = True
-        config.enable_analytics = True
-        config.custom_settings = None
         repo_inst.get_by_tenant.return_value = config
         repo_inst.update_branding.return_value = config
         repo_inst.update_email_config.return_value = config
@@ -221,7 +263,7 @@ class TestUpdateTenantConfig:
 
         from src.api.v1.admin.config import update_tenant_config, TenantConfigUpdate
         result = await update_tenant_config(
-            TenantConfigUpdate(primary_color="#ff0000"), _admin_user(), db,
+            TenantConfigUpdate(primary_color="#ff0000"), MagicMock(), _admin_user(), db,
         )
         assert result.primary_color == "#ff0000"
 
@@ -295,18 +337,23 @@ def _mock_user_model():
 
 
 class TestCreateUser:
+    @patch("src.api.v1.admin.users.SubscriptionRepository")
     @patch("src.api.v1.admin.users.AuditService")
     @patch("src.api.v1.admin.users.hash_password")
     @patch("src.api.v1.admin.users.UserRepository")
-    async def test_success(self, MockRepo, mock_hash, MockAudit):
+    async def test_success(self, MockRepo, mock_hash, MockAudit, MockSubRepo):
         from src.api.v1.admin.users import create_user, UserCreate
         db = AsyncMock()
         repo_inst = AsyncMock()
         repo_inst.get_by_email.return_value = None
+        repo_inst.get_by_email_including_deleted.return_value = None
         repo_inst.create.return_value = _mock_user_model()
         MockRepo.return_value = repo_inst
         mock_hash.return_value = "hashed"
         MockAudit.return_value = AsyncMock()
+        sub_repo_inst = AsyncMock()
+        sub_repo_inst.get_by_tenant.return_value = None
+        MockSubRepo.return_value = sub_repo_inst
 
         result = await create_user(
             UserCreate(email="user@test.com", username="testuser", password="SecureP@ss1234"),

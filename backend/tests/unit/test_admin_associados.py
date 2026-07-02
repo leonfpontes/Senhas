@@ -22,6 +22,7 @@ def _admin_user():
     user.id = USER_ID
     user.tenant_id = TENANT_ID
     user.is_admin = True
+    user.is_operator_or_admin = True
     return user
 
 
@@ -30,6 +31,7 @@ def _operator_user():
     user.id = USER_ID
     user.tenant_id = TENANT_ID
     user.is_admin = False
+    user.is_operator_or_admin = False
     return user
 
 
