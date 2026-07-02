@@ -110,8 +110,12 @@ class TestCursosPresenciaisAPI:
         assert data["id"] == str(CURSO_ID)
 
     @pytest.mark.asyncio
+    @patch(
+        "src.services.permission_service.PermissionService.check_permission",
+        new_callable=AsyncMock, return_value=True,
+    )
     async def test_create_curso_presencial_forbidden_as_operator(
-        self, client, mock_operator_user
+        self, mock_check_permission, client, mock_operator_user
     ):
         client.app.dependency_overrides[get_current_user] = lambda: mock_operator_user
 
@@ -127,15 +131,19 @@ class TestCursosPresenciaisAPI:
         assert "cargo de administrador" in response.json()["message"]
 
     @pytest.mark.asyncio
+    @patch("src.services.permission_service.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
     async def test_list_cursos_presenciais_success(
-        self, mock_sub_repo_cls, client, mock_operator_user, mock_subscription, mock_db_session
+        self, mock_sub_repo_cls, mock_perm_sub_repo_cls, client, mock_operator_user, mock_subscription, mock_db_session
     ):
         client.app.dependency_overrides[get_current_user] = lambda: mock_operator_user
 
         mock_sub_repo = AsyncMock()
         mock_sub_repo.get_by_tenant.return_value = mock_subscription
         mock_sub_repo_cls.return_value = mock_sub_repo
+        mock_perm_sub_repo = AsyncMock()
+        mock_perm_sub_repo.get_by_tenant.return_value = mock_subscription
+        mock_perm_sub_repo_cls.return_value = mock_perm_sub_repo
 
         # Mock select query result
         mock_course = CursoPresencial(
@@ -280,11 +288,15 @@ class TestCursosPresenciaisAPI:
         mock_part_repo.delete.assert_called_once_with(PARTICIPANTE_ID, TENANT_ID, soft=True)
 
     @pytest.mark.asyncio
+    @patch(
+        "src.services.permission_service.PermissionService.check_permission",
+        new_callable=AsyncMock, return_value=True,
+    )
     @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoParticipantePagamentoRepository")
     async def test_list_curso_mensalidades_success(
-        self, mock_pag_repo_cls, mock_course_repo_cls, mock_sub_repo_cls, client, mock_operator_user, mock_subscription
+        self, mock_pag_repo_cls, mock_course_repo_cls, mock_sub_repo_cls, mock_check_permission, client, mock_operator_user, mock_subscription
     ):
         client.app.dependency_overrides[get_current_user] = lambda: mock_operator_user
 
@@ -374,11 +386,15 @@ class TestCursosPresenciaisAPI:
         assert "id" in data
 
     @pytest.mark.asyncio
+    @patch(
+        "src.services.permission_service.PermissionService.check_permission",
+        new_callable=AsyncMock, return_value=True,
+    )
     @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoParticipantePagamentoRepository")
     async def test_download_curso_comprovante_success(
-        self, mock_pag_repo_cls, mock_course_repo_cls, mock_sub_repo_cls, client, mock_operator_user, mock_subscription
+        self, mock_pag_repo_cls, mock_course_repo_cls, mock_sub_repo_cls, mock_check_permission, client, mock_operator_user, mock_subscription
     ):
         client.app.dependency_overrides[get_current_user] = lambda: mock_operator_user
 
@@ -441,11 +457,15 @@ class TestCursosPresenciaisAPI:
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
     @pytest.mark.asyncio
+    @patch(
+        "src.services.permission_service.PermissionService.check_permission",
+        new_callable=AsyncMock, return_value=True,
+    )
     @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoParticipantePagamentoRepository")
     async def test_get_curso_resumo_success(
-        self, mock_pag_repo_cls, mock_course_repo_cls, mock_sub_repo_cls, client, mock_operator_user, mock_subscription
+        self, mock_pag_repo_cls, mock_course_repo_cls, mock_sub_repo_cls, mock_check_permission, client, mock_operator_user, mock_subscription
     ):
         client.app.dependency_overrides[get_current_user] = lambda: mock_operator_user
 
