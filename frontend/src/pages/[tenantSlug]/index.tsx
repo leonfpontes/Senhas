@@ -803,22 +803,40 @@ function LocationSection({ config }: { config: Record<string, unknown> }) {
     : undefined;
   // Geocode via Nominatim (OpenStreetMap) — no API key needed
   const [osmCoords, setOsmCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [geocodeFailed, setGeocodeFailed] = useState(false);
   useEffect(() => {
     if (!mapsQuery) return;
     let cancelled = false;
-    fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(mapsQuery)}&format=json&limit=1`,
-      { headers: { 'Accept-Language': 'pt-BR' } }
-    )
-      .then(r => r.json())
-      .then(data => {
-        if (!cancelled && data?.[0]) {
-          setOsmCoords({ lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) });
+    setGeocodeFailed(false);
+
+    const geocode = (query: string) =>
+      fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+        { headers: { 'Accept-Language': 'pt-BR' } }
+      )
+        .then(r => r.json())
+        .then(data => data?.[0] ?? null);
+
+    // Endereços com nome de condomínio/bairro específico às vezes não têm
+    // correspondência exata no OpenStreetMap — tenta de novo com uma versão
+    // simplificada (rua, número, cidade, estado) antes de desistir.
+    const fallbackQuery = [street, number, city, state].filter(Boolean).join(', ');
+
+    geocode(mapsQuery)
+      .then(result => result ?? (fallbackQuery && fallbackQuery !== mapsQuery ? geocode(fallbackQuery) : null))
+      .then(result => {
+        if (cancelled) return;
+        if (result) {
+          setOsmCoords({ lat: parseFloat(result.lat), lon: parseFloat(result.lon) });
+        } else {
+          setGeocodeFailed(true);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setGeocodeFailed(true);
+      });
     return () => { cancelled = true; };
-  }, [mapsQuery]);
+  }, [mapsQuery, street, number, city, state]);
 
   const osmEmbedUrl = osmCoords
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${osmCoords.lon - 0.005}%2C${osmCoords.lat - 0.003}%2C${osmCoords.lon + 0.005}%2C${osmCoords.lat + 0.003}&layer=mapnik&marker=${osmCoords.lat}%2C${osmCoords.lon}`
@@ -851,6 +869,12 @@ function LocationSection({ config }: { config: Record<string, unknown> }) {
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
         />
+      ) : geocodeFailed ? (
+        <Typography sx={{ fontFamily, color: fontColor, opacity: 0.5, fontSize: 14, textAlign: 'center', px: 2 }}>
+          Não foi possível localizar este endereço no mapa.
+          <br />
+          Use o botão &quot;Abrir no Google Maps&quot; abaixo.
+        </Typography>
       ) : (
         <Typography sx={{ fontFamily, color: fontColor, opacity: 0.4, fontSize: 14 }}>
           Carregando mapa…
