@@ -85,6 +85,16 @@ jobs:
             docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || \
               docker compose -f docker-compose.prod.yml restart nginx
 
+            echo "==> [DEBUG-TEMP] Diagnóstico de CSP (remover após investigação)"
+            echo "--- host: nginx/conf.d/senhas.conf (linha CSP) ---"
+            grep "add_header Content-Security-Policy" nginx/conf.d/senhas.conf || echo "NÃO ENCONTRADO no host"
+            echo "--- container: arquivo montado em /etc/nginx/conf.d/senhas.conf ---"
+            docker compose -f docker-compose.prod.yml exec -T nginx cat /etc/nginx/conf.d/senhas.conf | grep "add_header Content-Security-Policy" || echo "NÃO ENCONTRADO no container"
+            echo "--- container: nginx -T (config efetivamente carregada) ---"
+            docker compose -f docker-compose.prod.yml exec -T nginx nginx -T 2>/dev/null | grep "add_header Content-Security-Policy" || echo "NÃO ENCONTRADO via nginx -T"
+            echo "--- container: qual arquivo compose está usando (docker inspect mounts) ---"
+            docker inspect senhas-nginx --format '{{ range .Mounts }}{{ .Source }} -> {{ .Destination }}{{ "\n" }}{{ end }}'
+
             echo "==> [6/6] Health check pós-deploy"
             sleep 5
             for i in 1 2 3 4 5; do
