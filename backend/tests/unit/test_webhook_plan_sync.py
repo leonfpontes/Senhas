@@ -20,8 +20,14 @@ def _build_price_map():
     mock_settings.STRIPE_PRICE_PRO = "price_pro_test"
     mock_settings.STRIPE_PRICE_PREMIUM = "price_premium_test"
 
-    with patch("src.api.v1.webhooks.settings", mock_settings):
-        result = wh._get_price_plan_map()
+    # _get_price_plan_map() does `from src.core.config import settings` locally,
+    # which re-resolves src.core.config.settings at call time — patching the
+    # webhooks-module-level name has no effect on it.
+    with patch("src.core.config.settings", mock_settings):
+        # _get_price_plan_map() returns the module-level dict itself, not a
+        # copy — take a snapshot here before the clear() below mutates the
+        # very object we're about to return.
+        result = dict(wh._get_price_plan_map())
 
     wh._PRICE_TO_PLAN_LIMITS.clear()  # limpa após o teste
     return result, mock_settings
