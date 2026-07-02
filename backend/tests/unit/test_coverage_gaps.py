@@ -347,138 +347,53 @@ class TestEmitTicketEndpoint:
 # resend_email.py Coverage (Lines 99-164, 198-267)
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class TestResendEmailEndpoint:
+    """resend_ticket_email — success path + full template wiring is covered by
+    tests/unit/test_resend_ticket_email.py. Here: the error/early-return
+    branches only. `_resend_ticket_email_task` and the direct Brevo/Resend
+    calls it used to test no longer exist — the endpoint now builds the email
+    inline and hands it to email_queue, matching the admin resend endpoint."""
 
     async def test_resend_tenant_not_found(self):
         from src.api.v1.public.resend_email import resend_ticket_email, ResendTicketEmailRequest
         db = _mock_db()
         db.execute.return_value = _mock_result_scalar(None)
         req = ResendTicketEmailRequest(email="t@t.com")
-        bg = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            await resend_ticket_email("bad", req, bg, db)
+            await resend_ticket_email("bad", req, db)
         assert exc.value.status_code == 404
 
-    @patch("src.api.v1.public.resend_email.TicketRepository")
-    @patch("src.api.v1.public.resend_email.ConsulenteRepository")
-    @patch("src.api.v1.public.resend_email.select")
-    async def test_resend_invalid_email(self, mock_select, MockConsRepo, MockTicketRepo):
+    @patch("src.api.v1.public.resend_email.ConsulenteRepository.normalize_email")
+    async def test_resend_invalid_email(self, mock_normalize):
         from src.api.v1.public.resend_email import resend_ticket_email, ResendTicketEmailRequest
         db = _mock_db()
         tenant = MagicMock(); tenant.id = TENANT_ID
         db.execute.return_value = _mock_result_scalar(tenant)
-        MockConsRepo.return_value.normalize_email = MagicMock(side_effect=ValueError("Invalid"))
+        mock_normalize.side_effect = ValueError("Invalid")
         req = ResendTicketEmailRequest(email="t@t.com")
-        bg = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            await resend_ticket_email("test", req, bg, db)
+            await resend_ticket_email("test", req, db)
         assert exc.value.status_code == 400
 
     @patch("src.api.v1.public.resend_email.TicketRepository")
-    @patch("src.api.v1.public.resend_email.ConsulenteRepository")
-    @patch("src.api.v1.public.resend_email.select")
-    async def test_resend_no_tickets(self, mock_select, MockConsRepo, MockTicketRepo):
+    async def test_resend_no_tickets(self, MockTicketRepo):
         from src.api.v1.public.resend_email import resend_ticket_email, ResendTicketEmailRequest
         db = _mock_db()
         tenant = MagicMock(); tenant.id = TENANT_ID
         db.execute.return_value = _mock_result_scalar(tenant)
-        MockConsRepo.return_value.normalize_email = MagicMock(return_value="t@t.com")
         MockTicketRepo.return_value.list_by_consulente_email = AsyncMock(return_value=[])
         req = ResendTicketEmailRequest(email="t@t.com")
-        bg = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            await resend_ticket_email("test", req, bg, db)
+            await resend_ticket_email("test", req, db)
         assert exc.value.status_code == 404
 
-    @patch("src.api.v1.public.resend_email.TicketRepository")
-    @patch("src.api.v1.public.resend_email.ConsulenteRepository")
-    @patch("src.api.v1.public.resend_email.select")
-    async def test_resend_success(self, mock_select, MockConsRepo, MockTicketRepo):
-        from src.api.v1.public.resend_email import resend_ticket_email, ResendTicketEmailRequest
-        db = _mock_db()
-        tenant = MagicMock()
-        tenant.id = TENANT_ID
-        tenant.name = "T"
-        tenant.slug = "t"
-        tenant.logo_url = "http://logo"
-        tenant.brand_color = "#000"
-        db.execute.return_value = _mock_result_scalar(tenant)
-        MockConsRepo.return_value.normalize_email = MagicMock(return_value="t@t.com")
-        ticket = MagicMock()
-        ticket.id = TICKET_ID
-        ticket.ticket_number = "0001"
-        ticket.consulente.name = "Test"
-        ticket.gira.name = "Gira"
-        ticket.gira.release_start_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        ticket.gira.location = "Sala"
-        MockTicketRepo.return_value.list_by_consulente_email = AsyncMock(return_value=[ticket])
-        req = ResendTicketEmailRequest(email="t@t.com")
-        bg = MagicMock()
-        result = await resend_ticket_email("test", req, bg, db)
-        assert result.tickets_count == 1
-        assert result.email_sent is True
-        bg.add_task.assert_called_once()
-
-    @patch("src.api.v1.public.resend_email.TicketRepository")
-    @patch("src.api.v1.public.resend_email.ConsulenteRepository")
-    @patch("src.api.v1.public.resend_email.select")
-    async def test_resend_unexpected_error(self, mock_select, MockConsRepo, MockTicketRepo):
+    async def test_resend_unexpected_error(self):
         from src.api.v1.public.resend_email import resend_ticket_email, ResendTicketEmailRequest
         db = _mock_db()
         db.execute = AsyncMock(side_effect=RuntimeError("boom"))
         req = ResendTicketEmailRequest(email="t@t.com")
-        bg = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            await resend_ticket_email("test", req, bg, db)
+            await resend_ticket_email("test", req, db)
         assert exc.value.status_code == 500
-
-    # _resend_ticket_email_task
-    @patch("src.api.v1.public.resend_email.BrevoEmailService")
-    @patch("src.api.v1.public.resend_email.generate_ticket_emission_html", return_value="<html>")
-    @patch("src.api.v1.public.resend_email.generate_plain_text_fallback", return_value="text")
-    async def test_resend_task_brevo_ok(self, mock_text, mock_html, MockBrevo):
-        from src.api.v1.public.resend_email import _resend_ticket_email_task
-        MockBrevo.return_value.is_healthy = AsyncMock(return_value=True)
-        MockBrevo.return_value.send_async = AsyncMock(return_value=True)
-        await _resend_ticket_email_task(
-            1, "Test", "t@t.com", "Gira", "01/01", "Sala", "0001",
-            "Tenant", "http://logo", "#000", "slug"
-        )
-
-    @patch("src.api.v1.public.resend_email.ResendEmailService")
-    @patch("src.api.v1.public.resend_email.BrevoEmailService")
-    @patch("src.api.v1.public.resend_email.generate_ticket_emission_html", return_value="<html>")
-    @patch("src.api.v1.public.resend_email.generate_plain_text_fallback", return_value="text")
-    async def test_resend_task_brevo_fails_resend_ok(self, mock_text, mock_html, MockBrevo, MockResend):
-        from src.api.v1.public.resend_email import _resend_ticket_email_task
-        MockBrevo.return_value.is_healthy = AsyncMock(side_effect=Exception("fail"))
-        MockResend.return_value.is_healthy = AsyncMock(return_value=True)
-        MockResend.return_value.send_async = AsyncMock(return_value=True)
-        await _resend_ticket_email_task(
-            1, "Test", "t@t.com", "Gira", "01/01", "Sala", "0001",
-            "Tenant", "http://logo", "#000", "slug"
-        )
-
-    @patch("src.api.v1.public.resend_email.ResendEmailService")
-    @patch("src.api.v1.public.resend_email.BrevoEmailService")
-    @patch("src.api.v1.public.resend_email.generate_ticket_emission_html", return_value="<html>")
-    @patch("src.api.v1.public.resend_email.generate_plain_text_fallback", return_value="text")
-    async def test_resend_task_all_fail(self, mock_text, mock_html, MockBrevo, MockResend):
-        from src.api.v1.public.resend_email import _resend_ticket_email_task
-        MockBrevo.return_value.is_healthy = AsyncMock(return_value=True)
-        MockBrevo.return_value.send_async = AsyncMock(return_value=False)
-        MockResend.return_value.is_healthy = AsyncMock(side_effect=Exception("fail"))
-        await _resend_ticket_email_task(
-            1, "Test", "t@t.com", "Gira", "01/01", "Sala", "0001",
-            "Tenant", "http://logo", "#000", "slug"
-        )
-
-    @patch("src.api.v1.public.resend_email.generate_ticket_emission_html", side_effect=Exception("err"))
-    async def test_resend_task_template_error(self, mock_html):
-        from src.api.v1.public.resend_email import _resend_ticket_email_task
-        await _resend_ticket_email_task(
-            1, "Test", "t@t.com", "Gira", "01/01", "Sala", "0001",
-            "Tenant", "http://logo", "#000", "slug"
-        )
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

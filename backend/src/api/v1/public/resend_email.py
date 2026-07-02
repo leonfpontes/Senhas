@@ -8,23 +8,24 @@ Handles scenarios where:
 - Resend all recent tickets for a consulente
 """
 
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 
+from src.core.config import settings
 from src.core.database import get_db
 from src.core.tz import APP_TZ
 from src.repositories.ticket_repo import TicketRepository
 from src.repositories.consulente_repo import ConsulenteRepository
 from src.services.email.base import EmailMessage
-from src.services.email.brevo_provider import BrevoEmailService
-from src.services.email.resend_fallback import ResendEmailService
+from src.services.email.email_queue import email_queue, EmailQueueItem
 from src.services.email.templates.ticket_emission import (
     generate_ticket_emission_html,
     generate_plain_text_fallback,
 )
 from src.models.tenants import Tenant
-from sqlalchemy import select
+from src.models.tenant_config import TenantConfig
 
 import logging
 
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 class ResendTicketEmailRequest(BaseModel):
     """Request to resend ticket email
-    
+
     Can be used to:
     - Resend to original email
     - Send to different email (for same name)
@@ -46,7 +47,7 @@ class ResendTicketEmailRequest(BaseModel):
 
 class ResendTicketEmailResponse(BaseModel):
     """Response after resending email
-    
+
     Fields:
         tickets_count: Number of tickets found and email resent for
         email_sent: Whether email was sent successfully
@@ -62,7 +63,6 @@ class ResendTicketEmailResponse(BaseModel):
 async def resend_ticket_email(
     tenant_slug: str,
     request: ResendTicketEmailRequest,
-    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db),
 ):
     """Resend ticket emission email
@@ -113,8 +113,7 @@ async def resend_ticket_email(
 
         # === STEP 2: Normalize Email ===
         try:
-            consulente_repo = ConsulenteRepository()
-            normalized_email = consulente_repo.normalize_email(request.email)
+            normalized_email = ConsulenteRepository.normalize_email(request.email)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -123,7 +122,7 @@ async def resend_ticket_email(
         tickets = await ticket_repo.list_by_consulente_email(
             session=session,
             tenant_id=tenant.id,
-            email=request.email,
+            email=normalized_email,
             limit=10,  # Last 10 tickets
         )
 
@@ -133,28 +132,94 @@ async def resend_ticket_email(
                 detail=f"No tickets found for email '{request.email}' in this tenant",
             )
 
-        # === STEP 4: Queue Email Resends ===
+        # === STEP 4: Load Tenant Branding ===
+        tc_query = select(TenantConfig).where(TenantConfig.tenant_id == tenant.id)
+        tc_result = await session.execute(tc_query)
+        tenant_config = tc_result.scalar_one_or_none()
+
+        tenant_address = (tenant_config.endereco or "") if tenant_config else ""
+        primary_color = (
+            (tenant_config.primary_color or "#2E7D32") if tenant_config else "#2E7D32"
+        )
+        secondary_color = (
+            (tenant_config.secondary_color or primary_color)
+            if tenant_config
+            else primary_color
+        )
+        tenant_logo_url = ""
+        if tenant_config and tenant_config.logo_data:
+            tenant_logo_url = (
+                f"{settings.FRONTEND_URL.rstrip('/')}/api/v1/public/tenant/{tenant.id}/logo"
+            )
+        elif tenant_config and tenant_config.logo_url:
+            tenant_logo_url = tenant_config.logo_url
+
+        # === STEP 5: Queue Email Resends ===
         for ticket in tickets:
-            background_tasks.add_task(
-                _resend_ticket_email_task,
-                ticket_id=ticket.id,
-                consulente_name=ticket.consulente.name,
-                consulente_email=request.email,  # Use requested email
-                gira_name=ticket.gira.name,
-                gira_date=ticket.gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if ticket.gira.data_inicio else "",
-                gira_location=ticket.gira.location,
-                ticket_number=ticket.ticket_number,
-                tenant_name=tenant.name,
-                tenant_logo_url=tenant.logo_url,
-                tenant_color=tenant.brand_color,
-                tenant_slug=tenant.slug,
+            gira = ticket.gira
+            consulente = ticket.consulente
+            ticket_number = str(ticket.numero).zfill(4)
+            gira_name = gira.nome if gira else ""
+            gira_date = (
+                gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M")
+                if gira and gira.data_inicio
+                else ""
+            )
+            gira_location = (gira.local or "") if gira else ""
+            consulente_name = consulente.nome if consulente else ""
+            consulente_phone = (consulente.telefone or "") if consulente else ""
+            rescue_link = (
+                f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{ticket.id}"
             )
 
-        # === STEP 5: Return Response ===
+            html_body = generate_ticket_emission_html(
+                ticket_number=ticket_number,
+                consulente_name=consulente_name,
+                gira_name=gira_name,
+                gira_date=gira_date,
+                gira_location=gira_location,
+                rescue_link=rescue_link,
+                tenant_name=tenant.name,
+                tenant_logo_url=tenant_logo_url,
+                tenant_color=primary_color,
+                is_sponsor=ticket.is_sponsor,
+                tenant_address=tenant_address,
+                primary_color=primary_color,
+                secondary_color=secondary_color,
+                consulente_email=request.email,
+                consulente_phone=consulente_phone,
+                priority_category=getattr(ticket, "priority_category", None),
+                recados=gira.recados if gira else None,
+            )
+            text_body = generate_plain_text_fallback(
+                ticket_number=ticket_number,
+                consulente_name=consulente_name,
+                gira_name=gira_name,
+                gira_date=gira_date,
+                gira_location=gira_location,
+                rescue_link=rescue_link,
+                is_sponsor=ticket.is_sponsor,
+                tenant_address=tenant_address,
+                tenant_name=tenant.name,
+                consulente_email=request.email,
+                consulente_phone=consulente_phone,
+                priority_category=getattr(ticket, "priority_category", None),
+                recados=gira.recados if gira else None,
+            )
+            subject_prefix = "✦ Associado — " if ticket.is_sponsor else ""
+            message = EmailMessage(
+                to_email=request.email,  # Use requested email
+                subject=f"{subject_prefix}[REENVIADO] Sua Senha #{ticket_number} - {tenant.name}",
+                html_body=html_body,
+                text_body=text_body,
+            )
+            email_queue.enqueue(EmailQueueItem(message=message, ticket_id=str(ticket.id)))
+
+        # === STEP 6: Return Response ===
         ticket_count = len(tickets)
         return ResendTicketEmailResponse(
             tickets_count=ticket_count,
-            email_sent=True,  # Will be true if at least one sent
+            email_sent=True,
             message=f"Email resent to {request.email} ({ticket_count} ticket{'s' if ticket_count > 1 else ''})",
         )
 
@@ -166,103 +231,3 @@ async def resend_ticket_email(
             status_code=500,
             detail="Internal server error",
         )
-
-
-async def _resend_ticket_email_task(
-    ticket_id: int,
-    consulente_name: str,
-    consulente_email: str,
-    gira_name: str,
-    gira_date: str,
-    gira_location: str,
-    ticket_number: str,
-    tenant_name: str,
-    tenant_logo_url: str,
-    tenant_color: str,
-    tenant_slug: str,
-):
-    """Background task to resend ticket email
-
-    Args:
-        ticket_id: ID of ticket being resent
-        consulente_name: Original consulente name
-        consulente_email: Email to send to
-        gira_name: Event name
-        gira_date: Event date formatted
-        gira_location: Event location
-        ticket_number: Formatted ticket number
-        tenant_name: Organization name
-        tenant_logo_url: Logo URL
-        tenant_color: Brand color hex
-        tenant_slug: Tenant slug for rescue link
-    """
-    try:
-        rescue_link = (
-            f"https://app.example.com/public/{tenant_slug}/ticket/{ticket_id}"
-        )
-        qr_code_url = (
-            f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={rescue_link}"
-        )
-
-        # Generate email
-        html_body = generate_ticket_emission_html(
-            ticket_number=ticket_number,
-            consulente_name=consulente_name,
-            gira_name=gira_name,
-            gira_date=gira_date,
-            gira_location=gira_location,
-            rescue_link=rescue_link,
-            qr_code_url=qr_code_url,
-            tenant_name=tenant_name,
-            tenant_logo_url=tenant_logo_url,
-            tenant_color=tenant_color,
-        )
-
-        text_body = generate_plain_text_fallback(
-            ticket_number=ticket_number,
-            consulente_name=consulente_name,
-            gira_name=gira_name,
-            gira_date=gira_date,
-            gira_location=gira_location,
-            rescue_link=rescue_link,
-        )
-
-        message = EmailMessage(
-            to_email=consulente_email,
-            subject=f"[REENVIADO] Sua Senha #{ticket_number} - {tenant_name}",
-            html_body=html_body,
-            text_body=text_body,
-        )
-
-        # Try Brevo
-        try:
-            brevo_service = BrevoEmailService()
-            if await brevo_service.is_healthy():
-                success = await brevo_service.send_async(message)
-                if success:
-                    logger.info(
-                        f"Resent ticket {ticket_number} via Brevo to {consulente_email}"
-                    )
-                    return
-        except Exception as e:
-            logger.warning(f"Brevo resend failed, trying Resend fallback: {e}")
-
-        # Fallback to Resend
-        try:
-            resend_service = ResendEmailService()
-            if await resend_service.is_healthy():
-                success = await resend_service.send_async(message)
-                if success:
-                    logger.info(
-                        f"Resent ticket {ticket_number} via Resend to {consulente_email}"
-                    )
-                    return
-        except Exception as e:
-            logger.error(f"Resend fallback also failed: {e}")
-
-        logger.error(
-            f"Failed to resend ticket {ticket_number} to {consulente_email}"
-        )
-
-    except Exception as e:
-        logger.error(f"Error in _resend_ticket_email_task: {e}", exc_info=True)

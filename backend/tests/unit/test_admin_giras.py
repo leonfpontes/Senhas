@@ -19,6 +19,7 @@ def _admin_user():
     user.id = USER_ID
     user.tenant_id = TENANT_ID
     user.is_admin = True
+    user.is_operator_or_admin = True
     return user
 
 
@@ -27,6 +28,7 @@ def _operator_user():
     user.id = USER_ID
     user.tenant_id = TENANT_ID
     user.is_admin = False
+    user.is_operator_or_admin = False
     return user
 
 
@@ -115,18 +117,24 @@ class TestCreateGira:
 
 
 class TestListGiras:
-    @patch("src.api.v1.admin.giras_crud.GiraRepository")
-    async def test_success(self, MockRepo):
-        repo_inst = AsyncMock()
-        repo_inst.list.return_value = [_mock_gira()]
-        MockRepo.return_value = repo_inst
+    async def test_success(self):
+        db = AsyncMock()
+        query_result = MagicMock()
+        query_result.scalars.return_value.all.return_value = [_mock_gira()]
+        db.execute.return_value = query_result
 
-        result = await list_giras(0, 50, _admin_user(), AsyncMock())
+        result = await list_giras(
+            skip=0, limit=50, is_active=None, date_from=None, date_to=None,
+            current_user=_admin_user(), db=db,
+        )
         assert len(result) == 1
 
     async def test_non_admin_raises(self):
         with pytest.raises(InsufficientPermissionsError):
-            await list_giras(0, 50, _operator_user(), AsyncMock())
+            await list_giras(
+                skip=0, limit=50, is_active=None, date_from=None, date_to=None,
+                current_user=_operator_user(), db=AsyncMock(),
+            )
 
 
 class TestGetGira:
