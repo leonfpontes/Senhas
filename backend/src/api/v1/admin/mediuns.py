@@ -25,6 +25,7 @@ router = APIRouter(prefix="/api/v1/admin/mediuns", tags=["admin-mediuns"])
 class MediumCreate(BaseModel):
     nome: str
     is_atendimento: bool = False
+    data_entrada: Optional[date] = None
     telefone: Optional[str] = None
     email: Optional[str] = None
     data_nascimento: Optional[date] = None
@@ -48,6 +49,8 @@ class MediumUpdate(BaseModel):
     nome: Optional[str] = None
     is_atendimento: Optional[bool] = None
     is_active: Optional[bool] = None
+    data_entrada: Optional[date] = None
+    data_saida: Optional[date] = None
     telefone: Optional[str] = None
     email: Optional[str] = None
     data_nascimento: Optional[date] = None
@@ -74,6 +77,8 @@ class MediumResponse(BaseModel):
     nome: str
     is_atendimento: bool
     is_active: bool
+    data_entrada: Optional[date] = None
+    data_saida: Optional[date] = None
     telefone: Optional[str] = None
     email: Optional[str] = None
     data_nascimento: Optional[date] = None
@@ -192,6 +197,7 @@ async def create_medium(
         tenant_id=current_user.tenant_id,
         nome=data.nome,
         is_atendimento=data.is_atendimento,
+        data_entrada=data.data_entrada,
         telefone=data.telefone or None,
         email=data.email or None,
         data_nascimento=data.data_nascimento,
@@ -266,6 +272,15 @@ async def update_medium(
     if data.is_active is not None:
         changes["is_active"] = {"old": medium.is_active, "new": data.is_active}
         medium.is_active = data.is_active
+    # data_entrada/data_saida: field explicitly sent (even as null) means
+    # "apply this value", so reactivating a médium can clear data_saida.
+    fields_set = data.model_fields_set
+    if "data_entrada" in fields_set and data.data_entrada != medium.data_entrada:
+        changes["data_entrada"] = {"old": str(medium.data_entrada), "new": str(data.data_entrada)}
+        medium.data_entrada = data.data_entrada
+    if "data_saida" in fields_set and data.data_saida != medium.data_saida:
+        changes["data_saida"] = {"old": str(medium.data_saida), "new": str(data.data_saida)}
+        medium.data_saida = data.data_saida
     # Optional contact/profile fields — None means "don't change",
     # empty string means "clear the field"
     _SENTINEL = object()

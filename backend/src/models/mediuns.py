@@ -42,6 +42,10 @@ class Medium(SoftDeleteModel):
         Boolean, default=False, nullable=False
     )
 
+    # Vínculo com a casa
+    data_entrada: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    data_saida: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
     # Dados de contato / ficha pessoal
     telefone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

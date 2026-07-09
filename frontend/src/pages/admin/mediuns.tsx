@@ -24,6 +24,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   TextField,
   Tooltip,
   Typography,
@@ -66,6 +67,8 @@ interface Medium {
   nome: string;
   is_atendimento: boolean;
   is_active: boolean;
+  data_entrada?: string | null;
+  data_saida?: string | null;
   telefone?: string | null;
   email?: string | null;
   data_nascimento?: string | null;
@@ -82,6 +85,8 @@ interface FormData {
   nome: string;
   is_atendimento: boolean;
   is_active: boolean;
+  data_entrada: string;
+  data_saida: string;
   telefone: string;
   email: string;
   data_nascimento: string;
@@ -97,6 +102,8 @@ const EMPTY_FORM: FormData = {
   nome: '',
   is_atendimento: false,
   is_active: true,
+  data_entrada: '',
+  data_saida: '',
   telefone: '',
   email: '',
   data_nascimento: '',
@@ -107,6 +114,38 @@ const EMPTY_FORM: FormData = {
   cidade: '',
   observacoes: '',
 };
+
+// ── Tempo de casa ────────────────────────────────────────────────────
+
+/** Format elapsed time between data_entrada and (data_saida ou hoje) as "X anos e Y meses". */
+function formatTempoCasa(dataEntrada?: string | null, dataSaida?: string | null, isActive = true): string {
+  if (!dataEntrada) return '—';
+  const start = new Date(`${dataEntrada}T00:00:00`);
+  const end = !isActive && dataSaida ? new Date(`${dataSaida}T00:00:00`) : new Date();
+  if (end < start) return '—';
+
+  let years = end.getFullYear() - start.getFullYear();
+  let months = end.getMonth() - start.getMonth();
+  if (end.getDate() < start.getDate()) months -= 1;
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  if (years === 0 && months === 0) return 'Menos de 1 mês';
+  const parts: string[] = [];
+  if (years > 0) parts.push(`${years} ano${years > 1 ? 's' : ''}`);
+  if (months > 0) parts.push(`${months} ${months > 1 ? 'meses' : 'mês'}`);
+  return parts.join(' e ');
+}
+
+/** Tempo de casa em ms — quanto maior, mais antigo. Sem data_entrada vai para o fim. */
+function tempoCasaSortKey(m: Medium): number {
+  if (!m.data_entrada) return -Infinity;
+  const start = new Date(`${m.data_entrada}T00:00:00`).getTime();
+  const end = !m.is_active && m.data_saida ? new Date(`${m.data_saida}T00:00:00`).getTime() : Date.now();
+  return end - start;
+}
 
 // ── Usage progress bar ──────────────────────────────────────────────────
 
@@ -185,6 +224,7 @@ function MediunsContent() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sortAntiguidade, setSortAntiguidade] = useState<'asc' | 'desc' | null>(null);
 
   // Birthday data: Map of medium id -> dias_ate_aniversario
   const [birthdayMap, setBirthdayMap] = useState<Map<string, number>>(new Map());
@@ -308,6 +348,8 @@ function MediunsContent() {
     nome: m.nome,
     is_atendimento: m.is_atendimento,
     is_active: m.is_active,
+    data_entrada: m.data_entrada ?? '',
+    data_saida: m.data_saida ?? '',
     telefone: m.telefone ? maskPhone(m.telefone) : '',
     email: m.email ?? '',
     data_nascimento: m.data_nascimento ?? '',
@@ -349,7 +391,19 @@ function MediunsContent() {
   };
 
   const handleChange = (field: keyof FormData, value: string | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      // Ao inativar, sugere a data de saída de hoje (se ainda não informada).
+      // Ao reativar, limpa a data de saída — ela não se aplica mais.
+      if (field === 'is_active') {
+        if (value === false && !prev.data_saida) {
+          return { ...prev, is_active: false, data_saida: new Date().toISOString().slice(0, 10) };
+        }
+        if (value === true && prev.data_saida) {
+          return { ...prev, is_active: true, data_saida: '' };
+        }
+      }
+      return { ...prev, [field]: value };
+    });
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
@@ -374,6 +428,7 @@ function MediunsContent() {
       const payload: Record<string, unknown> = {
         nome: formData.nome.trim(),
         is_atendimento: formData.is_atendimento,
+        data_entrada: formData.data_entrada || null,
         telefone: unmaskedPhone(formData.telefone) || null,
         email: formData.email.trim() || null,
         data_nascimento: formData.data_nascimento || null,
@@ -392,6 +447,7 @@ function MediunsContent() {
         await apiClient.patch(`/api/v1/admin/mediuns/${currentItem.id}`, {
           ...payload,
           is_active: formData.is_active,
+          data_saida: formData.data_saida || null,
         });
         showSnackbar('Médium atualizado com sucesso!', 'success');
       }
@@ -540,6 +596,17 @@ function MediunsContent() {
                 <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Telefone</TableCell>
                 <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Cidade</TableCell>
                 <TableCell>Tipo</TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                  <TableSortLabel
+                    active={sortAntiguidade !== null}
+                    direction={sortAntiguidade ?? 'desc'}
+                    onClick={() =>
+                      setSortAntiguidade((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+                    }
+                  >
+                    Tempo de casa
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
               </TableRow>
@@ -547,6 +614,12 @@ function MediunsContent() {
             <TableBody>
               {mediuns
                 .filter((m) => !filterAniversariantes || birthdayMap.has(m.id))
+                .slice()
+                .sort((a, b) => {
+                  if (!sortAntiguidade) return 0;
+                  const diff = tempoCasaSortKey(a) - tempoCasaSortKey(b);
+                  return sortAntiguidade === 'desc' ? -diff : diff;
+                })
                 .map((m) => {
                 const diasAte = birthdayMap.get(m.id);
                 const birthdayLabel =
@@ -593,6 +666,11 @@ function MediunsContent() {
                       size="small"
                       color={m.is_atendimento ? 'primary' : 'default'}
                     />
+                  </TableCell>
+                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                    <Typography variant="body2">
+                      {formatTempoCasa(m.data_entrada, m.data_saida, m.is_active)}
+                    </Typography>
                   </TableCell>
                   <TableCell>
                     <Chip
@@ -670,6 +748,37 @@ function MediunsContent() {
             }
             label="Ativo"
           />
+        )}
+
+        {/* ── Vínculo com a casa ── */}
+        <SectionLabel label="Vínculo com a casa" />
+
+        <TextField
+          label="Data de entrada na casa"
+          type="date"
+          value={formData.data_entrada}
+          onChange={(e) => handleChange('data_entrada', e.target.value)}
+          fullWidth
+          InputLabelProps={{ shrink: true }}
+          helperText="Opcional — usada para calcular o tempo de casa"
+        />
+
+        {drawerMode === 'edit' && !formData.is_active && (
+          <TextField
+            label="Data de saída da casa"
+            type="date"
+            value={formData.data_saida}
+            onChange={(e) => handleChange('data_saida', e.target.value)}
+            fullWidth
+            InputLabelProps={{ shrink: true }}
+            helperText="Preenchida automaticamente ao inativar — pode ser ajustada"
+          />
+        )}
+
+        {formData.data_entrada && (
+          <Typography variant="body2" color="text.secondary">
+            Tempo de casa: <strong>{formatTempoCasa(formData.data_entrada, formData.data_saida, formData.is_active)}</strong>
+          </Typography>
         )}
 
         {/* ── Contato ── */}
