@@ -4,7 +4,7 @@
  *
  * 3 states:
  *  1. Waiting — countdown until release_start_at
- *  2. Open — emit form with capacity bar
+ *  2. Open — emit form
  *  3. Exhausted — all tickets taken or window closed
  */
 'use client';
@@ -20,7 +20,6 @@ import {
   FormControl,
   FormControlLabel,
   FormLabel,
-  LinearProgress,
   Paper,
   Radio,
   RadioGroup,
@@ -194,7 +193,6 @@ export default function PublicGiraPage() {
     );
   }
 
-  const capacityPct = gira.max_tickets ? Math.min(100, (gira.current_tickets / gira.max_tickets) * 100) : 0;
   const brandPrimary = gira.primary_color || '#2E7D32';
   const brandSecondary = gira.secondary_color || '#1565C0';
 
@@ -278,27 +276,6 @@ export default function PublicGiraPage() {
       {/* State 2: Open — form */}
       {isOpen && !success && (
         <Paper sx={{ p: 3, borderRadius: 2 }}>
-          {/* Capacity bar */}
-          {gira.max_tickets && gira.max_tickets > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="body2" color="text.secondary">
-                  <ConfirmationNumberIcon sx={{ fontSize: 16, verticalAlign: 'text-bottom', mr: 0.5 }} />
-                  {gira.tickets_available} restantes
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {gira.current_tickets}/{gira.max_tickets}
-                </Typography>
-              </Box>
-              <LinearProgress
-                variant="determinate"
-                value={capacityPct}
-                sx={{ height: 10, borderRadius: 5 }}
-                color={capacityPct > 80 ? 'warning' : 'primary'}
-              />
-            </Box>
-          )}
-
           <Typography variant="h6" gutterBottom>
             {isSponsor ? 'Emitir Senha Associado' : 'Emitir Senha'}
           </Typography>

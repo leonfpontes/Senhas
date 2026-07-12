@@ -42,9 +42,6 @@ export default function GiraDetails({
     status,
   } = useGiraCountdown(giraData.release_start_at, giraData.release_end_at);
 
-  const capacityPercentage = (giraData.current_tickets / giraData.max_tickets) * 100;
-  const availabilityPercentage = (giraData.tickets_available / giraData.max_tickets) * 100;
-
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('pt-BR', {
       dateStyle: 'long',
@@ -111,47 +108,6 @@ export default function GiraDetails({
           </div>
         </div>
       )}
-
-      {/* Ticket Availability */}
-      <div className={styles.availability}>
-        <h3 className={styles.availabilitytitle}>Disponibilidade de Senhas</h3>
-        
-        {/* Meter Bar */}
-        <div className={styles.metercontainer}>
-          <div className={styles.meterfull} style={{ 
-            backgroundColor: '#e0e0e0',
-            borderRadius: '8px',
-            overflow: 'hidden',
-            height: '24px',
-          }}>
-            <div 
-              className={styles.meterfilled}
-              style={{
-                backgroundColor: tenantColor,
-                width: `${capacityPercentage}%`,
-                height: '100%',
-                transition: 'width 0.3s ease-in-out',
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Statistics */}
-        <div className={styles.stats}>
-          <div className={styles.statitem}>
-            <span className={styles.statlabel}>Emitidas:</span>
-            <span className={styles.statvalue} style={{ color: tenantColor }}>
-              {giraData.current_tickets} de {giraData.max_tickets}
-            </span>
-          </div>
-          <div className={styles.statitem}>
-            <span className={styles.statlabel}>Disponíveis:</span>
-            <span className={styles.statvalue} style={{ color: '#4CAF50' }}>
-              {giraData.tickets_available}
-            </span>
-          </div>
-        </div>
-      </div>
 
       {/* Capacity Warning */}
       {giraData.tickets_available < 50 && giraData.tickets_available > 0 && (

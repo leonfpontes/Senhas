@@ -794,8 +794,12 @@ export default function PortaPage() {
             </Tooltip>
           </Box>
 
-          <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <FormControl data-tour="porta-gira-select" size="small" sx={{ minWidth: 240, flex: { xs: 1, sm: '0 0 auto' } }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 2, alignItems: 'center' }}>
+            <FormControl
+              data-tour="porta-gira-select"
+              size="small"
+              sx={{ minWidth: 240, maxWidth: { xs: '100%', sm: 320 }, flex: { xs: '1 1 100%', sm: '0 1 auto' } }}
+            >
               <InputLabel>Selecione a gira</InputLabel>
               <Select value={selectedGiraId} onChange={(e) => setSelectedGiraId(e.target.value)} label="Selecione a gira">
                 {giras.map((g) => (
@@ -810,28 +814,32 @@ export default function PortaPage() {
               </Select>
             </FormControl>
 
-            {selectedGiraId && config?.enable_walk_in && (
-              <Button
-                data-tour="porta-walkin"
-                variant="outlined"
-                size="small"
-                startIcon={<AddRoundedIcon />}
-                onClick={() => setWalkInCreateOpen(true)}
-              >
-                Walk-in
-              </Button>
-            )}
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {selectedGiraId && config?.enable_walk_in && (
+                <Button
+                  data-tour="porta-walkin"
+                  variant="outlined"
+                  size="small"
+                  startIcon={<AddRoundedIcon />}
+                  onClick={() => setWalkInCreateOpen(true)}
+                  sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                >
+                  Walk-in
+                </Button>
+              )}
 
-            {selectedGiraId && (
-              <Button
-                variant="text"
-                size="small"
-                startIcon={<TvRoundedIcon />}
-                onClick={() => window.open(`/admin/porta/kiosk?gira=${selectedGiraId}`, '_blank')}
-              >
-                Modo TV
-              </Button>
-            )}
+              {selectedGiraId && (
+                <Button
+                  variant="text"
+                  size="small"
+                  startIcon={<TvRoundedIcon />}
+                  onClick={() => window.open(`/admin/porta/kiosk?gira=${selectedGiraId}`, '_blank')}
+                  sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                >
+                  Modo TV
+                </Button>
+              )}
+            </Box>
           </Box>
         </Box>
 
