@@ -28,6 +28,7 @@ function makeFeatures(overrides: Partial<PlanFeatures> = {}): PlanFeatures {
     mediuns: false,
     relatorio_gira: false,
     site_builder: false,
+    fila_espera: false,
     ...overrides,
   };
 }
@@ -108,6 +109,27 @@ describe('can() — contas_financeiras', () => {
   it('PREMIUM: true', () => {
     const sub = makeSub({ plan: 'premium', features: makeFeatures({ contas_financeiras: true }) });
     expect(can(sub, 'contas_financeiras')).toBe(true);
+  });
+});
+
+describe('can() — fila_espera', () => {
+  it('FREE: false', () => {
+    expect(can(makeSub(), 'fila_espera')).toBe(false);
+  });
+
+  it('BASIC: false', () => {
+    const sub = makeSub({ plan: 'basic', features: makeFeatures({ fila_espera: false }) });
+    expect(can(sub, 'fila_espera')).toBe(false);
+  });
+
+  it('PRO: true', () => {
+    const sub = makeSub({ plan: 'pro', features: makeFeatures({ fila_espera: true }) });
+    expect(can(sub, 'fila_espera')).toBe(true);
+  });
+
+  it('PREMIUM: true', () => {
+    const sub = makeSub({ plan: 'premium', features: makeFeatures({ fila_espera: true }) });
+    expect(can(sub, 'fila_espera')).toBe(true);
   });
 });
 

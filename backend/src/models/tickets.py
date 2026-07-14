@@ -17,6 +17,8 @@ class TicketStatus(str, enum.Enum):
     COMPLETED = "completed"  # Consultation finished
     CANCELLED = "cancelled"  # Cancelled before consultation
     NO_SHOW = "no_show"      # Consulente didn't show up
+    WAITLISTED = "waitlisted"          # Capacity reached — waiting for a slot
+    WAITLIST_EXPIRED = "waitlist_expired"  # Promoted but confirmation window lapsed
 
 
 class PriorityCategory(str, enum.Enum):
@@ -94,6 +96,10 @@ class Ticket(SoftDeleteModel):
     # Priority category for preferential queue ordering (nullable = no priority)
     priority_category: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
 
+    # Waitlist: set when a WAITLISTED ticket is promoted, pending consulente confirmation
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    confirmation_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Email tracking
     resend_email_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -112,3 +118,8 @@ class Ticket(SoftDeleteModel):
     def is_active(self) -> bool:
         """Check if ticket is still active (not completed or cancelled)."""
         return self.status in (TicketStatus.EMITTED, TicketStatus.CALLED)
+
+    @property
+    def is_waitlist_pending_confirmation(self) -> bool:
+        """WAITLISTED ticket that has been promoted and awaits consulente confirmation."""
+        return self.status == TicketStatus.WAITLISTED and self.promoted_at is not None

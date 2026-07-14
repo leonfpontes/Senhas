@@ -48,6 +48,8 @@ export default function EmitForm({
   const [success, setSuccess] = useState(false);
   const [successTicket, setSuccessTicket] = useState<string>('');
   const [successEmail, setSuccessEmail] = useState<string>('');
+  const [successWaitlisted, setSuccessWaitlisted] = useState(false);
+  const [successWaitlistPosition, setSuccessWaitlistPosition] = useState<number | null>(null);
 
   const { isOpen: emissionOpen } = useGiraCountdown(
     girReleaseStart,
@@ -119,6 +121,8 @@ export default function EmitForm({
       setSuccess(true);
       setSuccessTicket(response.data.ticket_number);
       setSuccessEmail(formData.email);
+      setSuccessWaitlisted(Boolean(response.data.waitlisted));
+      setSuccessWaitlistPosition(response.data.waitlist_position ?? null);
 
       // Call callback
       if (onSuccess) {
@@ -153,12 +157,14 @@ export default function EmitForm({
     return (
       <div className={styles.successcontainer}>
         <div className={styles.successcard}>
-          <div className={styles.successicon}>✓</div>
-          <h3 className={styles.successtitle}>Senha Emitida com Sucesso!</h3>
-          
+          <div className={styles.successicon}>{successWaitlisted ? '⏳' : '✓'}</div>
+          <h3 className={styles.successtitle}>
+            {successWaitlisted ? 'Você está na fila de espera!' : 'Senha Emitida com Sucesso!'}
+          </h3>
+
           <div className={styles.ticketdisplay}>
             <p style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>
-              Sua senha:
+              {successWaitlisted ? 'Sua posição na fila:' : 'Sua senha:'}
             </p>
             <p style={{
               fontSize: '56px',
@@ -167,7 +173,7 @@ export default function EmitForm({
               letterSpacing: '8px',
               margin: '10px 0',
             }}>
-              {successTicket}
+              {successWaitlisted ? `${successWaitlistPosition ?? 1}º` : successTicket}
             </p>
           </div>
 
@@ -175,15 +181,26 @@ export default function EmitForm({
             Um email de confirmação foi enviado para <strong>{successEmail}</strong>
           </p>
 
-          <div className={styles.successinstructions}>
-            <h4>Próximos Passos:</h4>
-            <ol>
-              <li>Verifique seu email (inclua a pasta de spam)</li>
-              <li>Clique no link para confirmar sua senha</li>
-              <li>Guarde seu número para a entrada do evento</li>
-              <li>Apresente o número na entrada do local</li>
-            </ol>
-          </div>
+          {successWaitlisted ? (
+            <div className={styles.successinstructions}>
+              <h4>O que acontece agora:</h4>
+              <ol>
+                <li>As senhas deste evento já foram todas emitidas</li>
+                <li>Se uma senha for cancelada, você recebe um e-mail com sua vaga</li>
+                <li>Você terá um prazo para confirmar antes de passar para o próximo da fila</li>
+              </ol>
+            </div>
+          ) : (
+            <div className={styles.successinstructions}>
+              <h4>Próximos Passos:</h4>
+              <ol>
+                <li>Verifique seu email (inclua a pasta de spam)</li>
+                <li>Clique no link para confirmar sua senha</li>
+                <li>Guarde seu número para a entrada do evento</li>
+                <li>Apresente o número na entrada do local</li>
+              </ol>
+            </div>
+          )}
 
           <button
             className={styles.resetbutton}

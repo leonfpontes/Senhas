@@ -136,6 +136,7 @@ class TenantConfigRepository:
             "enable_walk_in",
             "enable_estoque_log",
             "enable_mensalidade_associado",
+            "enable_waitlist",
         ]:
             setattr(config, feature_flag, enabled)
         

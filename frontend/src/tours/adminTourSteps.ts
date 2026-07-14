@@ -94,6 +94,11 @@ export const adminTourSteps: TourStepMap = {
       content:
         'Exporte a lista de senhas para uma planilha (CSV) para análise ou arquivo da gira.',
     },
+    {
+      selector: '[data-tour="tickets-fila-espera"]',
+      content:
+        'Se a fila de espera estiver habilitada nas Configurações (plano Pro ou Premium), este painel aparece aqui quando houver alguém aguardando vaga. Ao cancelar uma senha oficial, o próximo da fila é promovido automaticamente e avisado por e-mail. Você também pode agir manualmente: o ✓ promove fora da ordem exigindo confirmação do consulente, e o ⚡ libera a senha na hora, sem precisar de confirmação — total autonomia para o operador decidir.',
+    },
   ],
 
   '/admin/porta': [

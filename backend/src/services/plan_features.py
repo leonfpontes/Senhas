@@ -32,6 +32,7 @@ class PlanFeatures(BaseModel):
     mensalidade_associado: bool = False
     site_builder: bool = False
     contas_financeiras: bool = False
+    fila_espera: bool = False
 
 
 def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
@@ -61,4 +62,5 @@ def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
         mensalidade_associado=tier >= 2,
         site_builder=tier >= 2,
         contas_financeiras=tier >= 2,
+        fila_espera=tier >= 2,
     )

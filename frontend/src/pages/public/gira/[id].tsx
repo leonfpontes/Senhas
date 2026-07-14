@@ -33,6 +33,7 @@ import PlaceIcon from '@mui/icons-material/Place';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import BlockIcon from '@mui/icons-material/Block';
 import StarIcon from '@mui/icons-material/Star';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import { apiClient } from '../../../services/api_client';
 import { useGiraCountdown, parseCountdownParts } from '../../../hooks/useGiraCountdown';
 import {
@@ -54,6 +55,7 @@ interface GiraPublicData {
   tickets_available: number;
   is_open: boolean;
   is_exhausted: boolean;
+  waitlist_available: boolean;
   tenant_slug: string;
   tenant_name: string;
   logo_url?: string | null;
@@ -116,6 +118,8 @@ export default function PublicGiraPage() {
   // Success
   const [success, setSuccess] = useState(false);
   const [ticketNumber, setTicketNumber] = useState<number | null>(null);
+  const [waitlisted, setWaitlisted] = useState(false);
+  const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null);
 
   // Snackbar
   const [snack, setSnack] = useState<{ open: boolean; msg: string; sev: 'success' | 'error' }>({
@@ -147,8 +151,9 @@ export default function PublicGiraPage() {
   // Determine state
   const hasRelease = gira?.release_start_at && gira?.release_end_at;
   const isWaiting = hasRelease && countdown.status === 'upcoming';
-  const isOpen = hasRelease && countdown.status === 'open' && !gira?.is_exhausted;
-  const isExhausted = gira?.is_exhausted || (hasRelease && countdown.status === 'closed');
+  const waitlistMode = Boolean(gira?.is_exhausted && gira?.waitlist_available);
+  const isOpen = hasRelease && countdown.status === 'open' && (!gira?.is_exhausted || waitlistMode);
+  const isExhausted = (gira?.is_exhausted && !waitlistMode) || (hasRelease && countdown.status === 'closed');
   const notConfigured = gira && !hasRelease;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,6 +169,8 @@ export default function PublicGiraPage() {
       });
       setSuccess(true);
       setTicketNumber(res.data.numero ?? res.data.ticket_number ?? null);
+      setWaitlisted(Boolean(res.data.waitlisted));
+      setWaitlistPosition(res.data.waitlist_position ?? null);
       // Refresh gira data to update counts
       fetchGira();
     } catch (err: any) {
@@ -273,12 +280,19 @@ export default function PublicGiraPage() {
         </Paper>
       )}
 
-      {/* State 2: Open — form */}
+      {/* State 2: Open — form (or fila de espera, quando lotado mas com fila habilitada) */}
       {isOpen && !success && (
         <Paper sx={{ p: 3, borderRadius: 2 }}>
           <Typography variant="h6" gutterBottom>
-            {isSponsor ? 'Emitir Senha Associado' : 'Emitir Senha'}
+            {waitlistMode ? 'Entrar na fila de espera' : (isSponsor ? 'Emitir Senha Associado' : 'Emitir Senha')}
           </Typography>
+
+          {waitlistMode && (
+            <Alert severity="info" icon={<HourglassEmptyIcon />} sx={{ mb: 2 }}>
+              As senhas desta gira já foram todas emitidas. Preencha seus dados para entrar
+              na fila de espera — se alguma senha for cancelada, avisaremos por e-mail.
+            </Alert>
+          )}
 
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
@@ -339,10 +353,10 @@ export default function PublicGiraPage() {
               variant="contained"
               size="large"
               disabled={submitting || !nome.trim() || !email.trim()}
-              startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : <ConfirmationNumberIcon />}
+              startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : (waitlistMode ? <HourglassEmptyIcon /> : <ConfirmationNumberIcon />)}
               sx={isSponsor ? { bgcolor: '#daa520', color: '#3e2723', fontWeight: 700, '&:hover': { bgcolor: '#b8860b' }, '&.Mui-disabled': { bgcolor: '#daa52080', color: '#3e2723' } } : {}}
             >
-              {submitting ? 'Emitindo...' : 'Emitir Senha'}
+              {submitting ? 'Enviando...' : (waitlistMode ? 'Entrar na fila de espera' : 'Emitir Senha')}
             </Button>
           </Box>
 
@@ -354,7 +368,7 @@ export default function PublicGiraPage() {
       )}
 
       {/* Success state */}
-      {success && (
+      {success && !waitlisted && (
         <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
           <CheckCircleIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
           <Typography variant="h5" fontWeight={700} gutterBottom>Senha emitida!</Typography>
@@ -368,6 +382,25 @@ export default function PublicGiraPage() {
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             Guarde este número. Apresente-o no dia da gira.
+          </Typography>
+        </Paper>
+      )}
+
+      {/* Success state — entrou na fila de espera */}
+      {success && waitlisted && (
+        <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
+          <HourglassEmptyIcon sx={{ fontSize: 64, color: 'warning.main', mb: 2 }} />
+          <Typography variant="h5" fontWeight={700} gutterBottom>Você está na fila de espera!</Typography>
+          {waitlistPosition && (
+            <Typography variant="h3" fontWeight={700} color="warning.main" sx={{ my: 2 }}>
+              {waitlistPosition}º
+            </Typography>
+          )}
+          <Typography color="text.secondary">
+            Enviamos os detalhes para <strong>{email}</strong>.
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Se uma senha oficial for cancelada, você será avisado por e-mail para confirmar a sua.
           </Typography>
         </Paper>
       )}

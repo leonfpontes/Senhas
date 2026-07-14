@@ -71,12 +71,14 @@ interface SenhaConfig {
   sponsor_release_end_at?: string | null;
   sponsor_current_count?: number;
   sponsor_public_link?: string;
+  waitlist_confirmation_hours?: number | null;
 }
 
 const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '', recados: '' };
 const EMPTY_SENHA_FORM = {
   max_tickets: '', release_start_at: '', release_end_at: '',
   sponsor_max_tickets: '', sponsor_release_start_at: '', sponsor_release_end_at: '',
+  waitlist_confirmation_hours: '',
 };
 
 // Convert a UTC ISO string from the API (e.g. "2026-03-31T15:00:00+00:00") to
@@ -311,6 +313,7 @@ function AdminGirasContent() {
         sponsor_max_tickets: config.sponsor_max_tickets ? String(config.sponsor_max_tickets) : '',
         sponsor_release_start_at: isoToLocalDatetimeInput(config.sponsor_release_start_at),
         sponsor_release_end_at: isoToLocalDatetimeInput(config.sponsor_release_end_at),
+        waitlist_confirmation_hours: config.waitlist_confirmation_hours ? String(config.waitlist_confirmation_hours) : '',
       };
       setSenhaForm(loaded);
       setSenhaInitial(loaded);
@@ -364,6 +367,9 @@ function AdminGirasContent() {
           ? new Date(senhaForm.sponsor_release_end_at).toISOString()
           : payload.release_end_at;
       }
+      if (can('fila_espera') && senhaForm.waitlist_confirmation_hours) {
+        payload.waitlist_confirmation_hours = Number(senhaForm.waitlist_confirmation_hours);
+      }
       const response = await apiClient.put(`/api/v1/admin/giras/${senhaTarget.id}/senhas`, payload);
       setSenhaConfig(response.data);
       // Sync senhaInitial with current form so senhaDirty resets to false
@@ -394,6 +400,7 @@ function AdminGirasContent() {
         sponsor_max_tickets: response.data.sponsor_max_tickets ? String(response.data.sponsor_max_tickets) : '',
         sponsor_release_start_at: isoToLocalDatetimeInput(response.data.sponsor_release_start_at),
         sponsor_release_end_at: isoToLocalDatetimeInput(response.data.sponsor_release_end_at),
+        waitlist_confirmation_hours: response.data.waitlist_confirmation_hours ? String(response.data.waitlist_confirmation_hours) : '',
       };
       setSenhaForm(released);
       setSenhaInitial(released);
@@ -666,6 +673,18 @@ function AdminGirasContent() {
               error={!!senhaEndError}
               helperText={senhaEndError || 'Quando a emissão será encerrada'}
             />
+
+            {can('fila_espera') && (
+              <TextField
+                label="Prazo de confirmação da fila de espera (horas)"
+                type="number"
+                value={senhaForm.waitlist_confirmation_hours}
+                onChange={(e) => handleSenhaChange('waitlist_confirmation_hours', e.target.value)}
+                fullWidth
+                inputProps={{ min: 1 }}
+                helperText="Quando uma vaga abre para quem está na fila, esse é o prazo para confirmar antes de passar para o próximo. Padrão: 24h."
+              />
+            )}
 
             {/* Current count + progress */}
             {senhaConfig && senhaConfig.max_tickets > 0 && (

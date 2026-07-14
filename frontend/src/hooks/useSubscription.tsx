@@ -22,6 +22,7 @@ export interface PlanFeatures {
   mediuns: boolean;
   relatorio_gira: boolean;
   site_builder: boolean;
+  fila_espera: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -77,6 +78,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   mediuns: false,
   relatorio_gira: false,
   site_builder: false,
+  fila_espera: false,
 };
 
 const PLAN_LABELS: Record<string, string> = {

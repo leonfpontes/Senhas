@@ -35,7 +35,10 @@ class TestTicketStatus:
     """Tests for TicketStatus enum."""
 
     def test_all_statuses(self):
-        expected = {"emitted", "called", "completed", "cancelled", "no_show"}
+        expected = {
+            "emitted", "called", "completed", "cancelled", "no_show",
+            "waitlisted", "waitlist_expired",
+        }
         actual = {s.value for s in TicketStatus}
         assert actual == expected
 

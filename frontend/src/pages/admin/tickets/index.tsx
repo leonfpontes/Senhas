@@ -51,11 +51,14 @@ import MedicalServicesIcon from '@mui/icons-material/MedicalServices';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import FlashOnIcon from '@mui/icons-material/FlashOn';
 import AdminLayout from '../admin_layout';
 import BulkActionsBar from '../../../components/admin/BulkActionsBar';
 import CrudDrawer from '../../../components/CrudDrawer';
 import { apiClient } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 interface Ticket {
   id: string;
@@ -80,6 +83,20 @@ interface Ticket {
 
 type GiraFilter = 'all' | 'active' | 'inactive';
 
+interface WaitlistItem {
+  id: string;
+  numero: number;
+  consulente_nome?: string;
+  consulente_email?: string;
+  is_sponsor?: boolean;
+  priority_category?: string;
+  status: 'aguardando' | 'aguardando_confirmacao' | 'expirado' | 'emitido';
+  position?: number;
+  promoted_at?: string;
+  confirmation_expires_at?: string;
+  created_at: string;
+}
+
 export default function AdminTicketsPage() {
   return (
     <AdminLayout title="Tickets">
@@ -90,6 +107,7 @@ export default function AdminTicketsPage() {
 
 function AdminTicketsContent() {
   const { can } = useSubscription();
+  const { can: canGroup } = usePermissions();
   const hasBulk = true;
   const router = useRouter();
   const theme = useTheme();
@@ -174,6 +192,70 @@ function AdminTicketsContent() {
     }
   };
 
+  const [waitlist, setWaitlist] = useState<WaitlistItem[]>([]);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [waitlistExpanded, setWaitlistExpanded] = useState(false);
+  const [waitlistActionId, setWaitlistActionId] = useState<string | null>(null);
+
+  const loadWaitlist = async () => {
+    if (!giraId || !can('fila_espera')) {
+      setWaitlist([]);
+      return;
+    }
+    try {
+      setWaitlistLoading(true);
+      const response = await apiClient.get(`/api/v1/admin/giras/${giraId}/waitlist`);
+      setWaitlist(response.data);
+    } catch (error) {
+      console.error('Error loading waitlist:', error);
+    } finally {
+      setWaitlistLoading(false);
+    }
+  };
+
+  const handlePromoteWaitlist = async (item: WaitlistItem, requireConfirmation: boolean) => {
+    if (!giraId) return;
+    setWaitlistActionId(item.id);
+    try {
+      await apiClient.post(`/api/v1/admin/giras/${giraId}/waitlist/${item.id}/promote`, {
+        require_confirmation: requireConfirmation,
+      });
+      setSuccess(
+        requireConfirmation
+          ? `Senha #${item.numero} promovida — e-mail de confirmação enviado.`
+          : `Senha #${item.numero} liberada diretamente, sem precisar de confirmação.`,
+      );
+      await loadWaitlist();
+    } catch (error: any) {
+      setError(error?.response?.data?.detail || 'Erro ao promover senha da fila.');
+    } finally {
+      setWaitlistActionId(null);
+    }
+  };
+
+  const [releaseConfirmTarget, setReleaseConfirmTarget] = useState<WaitlistItem | null>(null);
+
+  const handleRemoveWaitlist = async (item: WaitlistItem) => {
+    if (!giraId) return;
+    setWaitlistActionId(item.id);
+    try {
+      await apiClient.delete(`/api/v1/admin/giras/${giraId}/waitlist/${item.id}`);
+      setSuccess(`Senha #${item.numero} removida da fila de espera.`);
+      await loadWaitlist();
+    } catch (error: any) {
+      setError(error?.response?.data?.detail || 'Erro ao remover senha da fila.');
+    } finally {
+      setWaitlistActionId(null);
+    }
+  };
+
+  const waitlistStatusLabel: Record<WaitlistItem['status'], string> = {
+    aguardando: 'Aguardando',
+    aguardando_confirmacao: 'Aguardando confirmação',
+    expirado: 'Expirado',
+    emitido: 'Liberada',
+  };
+
   const loadTickets = async () => {
     try {
       setLoading(true);
@@ -216,6 +298,10 @@ function AdminTicketsContent() {
   useEffect(() => {
     loadTickets();
   }, [page, statusFilter, giraId]);
+
+  useEffect(() => {
+    loadWaitlist();
+  }, [giraId]);
 
   const handleSelectTicket = (id: string) => {
     const newSelected = new Set(selectedTickets);
@@ -511,6 +597,110 @@ function AdminTicketsContent() {
         />
       )}
 
+      {can('fila_espera') && giraId && (
+        <Paper data-tour="tickets-fila-espera" variant="outlined" sx={{ mt: 2, p: 1.5 }}>
+          <Box
+            sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
+            onClick={() => setWaitlistExpanded((v) => !v)}
+          >
+            <HourglassEmptyIcon fontSize="small" color="action" />
+            <Box sx={{ fontWeight: 600, flex: 1 }}>Fila de espera</Box>
+            {waitlist.length > 0 && (
+              <Badge badgeContent={waitlist.length} color="warning" sx={{ mr: 2 }} />
+            )}
+            <IconButton size="small">
+              {waitlistExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          </Box>
+          <Collapse in={waitlistExpanded}>
+            <Box sx={{ mt: 1.5 }}>
+              {waitlistLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : waitlist.length === 0 ? (
+                <Box sx={{ color: 'text.secondary', fontSize: 14, p: 1 }}>
+                  Ninguém na fila de espera para esta gira no momento.
+                </Box>
+              ) : (
+                <TableContainer sx={{ overflowX: 'auto' }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Número</TableCell>
+                        <TableCell>Nome</TableCell>
+                        <TableCell>Email</TableCell>
+                        <TableCell>Posição</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell align="center">Ações</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {waitlist.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.is_sponsor ? 'P' : ''}{String(item.numero).padStart(4, '0')}</TableCell>
+                          <TableCell>{item.consulente_nome || '—'}</TableCell>
+                          <TableCell>{item.consulente_email || '—'}</TableCell>
+                          <TableCell>{item.position ? `${item.position}º` : '—'}</TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={waitlistStatusLabel[item.status]}
+                              color={item.status === 'aguardando_confirmacao' ? 'info' : item.status === 'expirado' ? 'default' : 'warning'}
+                            />
+                          </TableCell>
+                          <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                            {item.status === 'aguardando' && canGroup('tickets', 'edit') && (
+                              <Tooltip title="Promover fora da ordem (envia e-mail de confirmação, com prazo)">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    disabled={waitlistActionId === item.id}
+                                    onClick={() => handlePromoteWaitlist(item, true)}
+                                  >
+                                    <CheckIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
+                            {item.status === 'aguardando' && canGroup('tickets', 'edit') && (
+                              <Tooltip title="Liberar senha direto, sem exigir confirmação do consulente">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    disabled={waitlistActionId === item.id}
+                                    onClick={() => setReleaseConfirmTarget(item)}
+                                  >
+                                    <FlashOnIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
+                            {item.status !== 'expirado' && canGroup('tickets', 'delete') && (
+                              <Tooltip title="Remover da fila">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    disabled={waitlistActionId === item.id}
+                                    onClick={() => handleRemoveWaitlist(item)}
+                                  >
+                                    <DeleteOutlineIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
+          </Collapse>
+        </Paper>
+      )}
+
       <TableContainer data-tour="tickets-tabela" component={Paper} sx={{ mt: 2, overflowX: 'auto' }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -699,6 +889,38 @@ function AdminTicketsContent() {
             startIcon={deleting ? <CircularProgress size={16} color="inherit" /> : <DeleteOutlineIcon />}
           >
             {deleting ? 'Excluindo...' : 'Excluir senha'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Waitlist: release-without-confirmation dialog */}
+      <Dialog open={!!releaseConfirmTarget} onClose={() => setReleaseConfirmTarget(null)}>
+        <DialogTitle>Liberar senha sem confirmação</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Deseja liberar a senha{' '}
+            <strong>#{releaseConfirmTarget ? String(releaseConfirmTarget.numero).padStart(4, '0') : ''}</strong>
+            {releaseConfirmTarget?.consulente_nome ? ` de ${releaseConfirmTarget.consulente_nome}` : ''} diretamente?
+            <br /><br />
+            A senha vira oficial imediatamente — o consulente não precisa clicar em nenhum link de confirmação.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReleaseConfirmTarget(null)} disabled={!!waitlistActionId}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              const target = releaseConfirmTarget;
+              setReleaseConfirmTarget(null);
+              if (target) handlePromoteWaitlist(target, false);
+            }}
+            color="warning"
+            variant="contained"
+            disabled={!!waitlistActionId}
+            startIcon={<FlashOnIcon />}
+          >
+            Liberar sem confirmação
           </Button>
         </DialogActions>
       </Dialog>

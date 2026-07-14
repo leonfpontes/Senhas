@@ -58,6 +58,9 @@ class TenantConfig(TimestampedModel):
     # Mensalidade de associados feature toggle (PRO+)
     enable_mensalidade_associado: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
+    # Fila de espera feature toggle (PRO+)
+    enable_waitlist: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+
     # Custom metadata
     custom_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     

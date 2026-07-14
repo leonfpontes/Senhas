@@ -17,6 +17,7 @@ from src.core.database import get_db
 from src.models.giras import Gira
 from src.models.tenants import Tenant
 from src.models.senha_controls import SenhaControl
+from src.services import waitlist_service
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
@@ -35,6 +36,7 @@ class GiraPublicResponse(BaseModel):
     tickets_available: int = 0
     is_open: bool = False
     is_exhausted: bool = False
+    waitlist_available: bool = False
     is_sponsor: bool = False
     tenant_slug: str
     tenant_name: str
@@ -43,7 +45,13 @@ class GiraPublicResponse(BaseModel):
     secondary_color: Optional[str] = None
 
 
-def _build_gira_response(gira: Gira, tenant: Tenant, current_tickets: int, is_sponsor: bool = False) -> dict:
+def _build_gira_response(
+    gira: Gira,
+    tenant: Tenant,
+    current_tickets: int,
+    is_sponsor: bool = False,
+    waitlist_available: bool = False,
+) -> dict:
     """Build standardized public gira response dict."""
     now = datetime.now(timezone.utc)
 
@@ -75,6 +83,7 @@ def _build_gira_response(gira: Gira, tenant: Tenant, current_tickets: int, is_sp
         "tickets_available": available,
         "is_open": is_open and available > 0,
         "is_exhausted": max_t > 0 and available <= 0,
+        "waitlist_available": waitlist_available,
         "is_sponsor": is_sponsor,
         "tenant_slug": tenant.slug,
         "tenant_name": tenant.name,
@@ -161,7 +170,8 @@ async def get_next_gira(
             raise HTTPException(status_code=404, detail="No active gira scheduled for this tenant")
 
         current_tickets = await _get_ticket_count(session, tenant.id, gira.id, is_sponsor)
-        return _build_gira_response(gira, tenant, current_tickets, is_sponsor)
+        waitlist_available = await waitlist_service.waitlist_enabled_for_tenant(session, tenant.id)
+        return _build_gira_response(gira, tenant, current_tickets, is_sponsor, waitlist_available)
 
     except HTTPException:
         raise
@@ -204,7 +214,8 @@ async def get_gira_by_id(
 
         is_sponsor = tipo in ("patrocinador", "associado")
         current_tickets = await _get_ticket_count(session, tenant.id, gira.id, is_sponsor)
-        return _build_gira_response(gira, tenant, current_tickets, is_sponsor)
+        waitlist_available = await waitlist_service.waitlist_enabled_for_tenant(session, tenant.id)
+        return _build_gira_response(gira, tenant, current_tickets, is_sponsor, waitlist_available)
 
     except HTTPException:
         raise

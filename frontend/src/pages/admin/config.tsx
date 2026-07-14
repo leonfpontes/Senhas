@@ -58,6 +58,7 @@ interface TenantConfig {
   sponsor_priority_mode?: string;
   enable_estoque_log?: boolean;
   enable_mensalidade_associado?: boolean;
+  enable_waitlist?: boolean;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -103,6 +104,13 @@ const FEATURE_ITEMS: {
     description: 'Ativa o módulo de cobranças mensais para associados.',
     plan: 'Pro',
     gate: 'mensalidade_associado',
+  },
+  {
+    field: 'enable_waitlist',
+    title: 'Fila de espera',
+    description: 'Quando uma gira lota, novos pedidos entram na fila e são promovidos automaticamente se uma senha for cancelada.',
+    plan: 'Pro',
+    gate: 'fila_espera',
   },
 ];
 
@@ -370,6 +378,7 @@ function AdminConfigContent() {
         validate_associado_on_emit: config.validate_associado_on_emit,
         enable_estoque_log:         config.enable_estoque_log,
         enable_mensalidade_associado: config.enable_mensalidade_associado,
+        enable_waitlist:            config.enable_waitlist,
         sponsor_priority_mode:      config.sponsor_priority_mode || 'first',
         endereco:                   config.endereco || '',
       });

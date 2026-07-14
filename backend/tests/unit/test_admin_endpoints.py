@@ -224,6 +224,7 @@ def _mock_tenant_config():
     config.validate_associado_on_emit = False
     config.enable_estoque_log = True
     config.enable_mensalidade_associado = False
+    config.enable_waitlist = False
     return config
 
 

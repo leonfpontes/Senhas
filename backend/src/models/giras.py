@@ -44,6 +44,10 @@ class Gira(SoftDeleteModel):
     sponsor_max_tickets: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sponsor_release_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sponsor_release_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Waitlist: hours a promoted ticket has to confirm before the slot cascades
+    # to the next person in line. Only relevant when tenant_config.enable_waitlist.
+    waitlist_confirmation_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
     
     # Relationships
     tenant = relationship("Tenant", back_populates="giras")

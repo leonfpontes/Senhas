@@ -216,6 +216,9 @@ class TestEmitTicketEndpoint:
         db.execute = AsyncMock(side_effect=[
             _mock_result_scalar(tenant),
             _mock_result_scalar(gira),
+            # waitlist_service.waitlist_enabled_for_tenant's TenantConfig lookup —
+            # feature disabled, so capacity overflow must still 410 as before.
+            _mock_result_scalar(MagicMock(enable_waitlist=False)),
         ])
         consulente = MagicMock()
         consulente.id = uuid4()

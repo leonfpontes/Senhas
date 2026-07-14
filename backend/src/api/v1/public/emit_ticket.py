@@ -36,6 +36,11 @@ from src.services.email.templates.ticket_emission import (
     generate_ticket_emission_html,
     generate_plain_text_fallback,
 )
+from src.services.email.templates.waitlist import (
+    generate_waitlist_entry_html,
+    generate_waitlist_entry_text,
+)
+from src.services import waitlist_service
 from src.core.limiter import limiter
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
@@ -98,6 +103,8 @@ class EmitTicketResponse(BaseModel):
     email_sent: bool
     rescue_link: str
     message: str
+    waitlisted: bool = False
+    waitlist_position: int | None = None
 
 
 @router.post("/emit-ticket", response_model=EmitTicketResponse)
@@ -310,12 +317,17 @@ async def emit_ticket(
             is_sponsor=is_sponsor,
         )
         slots_returned = sc.slots_returned if sc else 0
-        if ticket_number_int > max_cap + slots_returned:
-            await session.rollback()
-            raise HTTPException(
-                status_code=410,
-                detail="Todas as senhas desta gira já foram emitidas",
-            )
+        is_over_capacity = ticket_number_int > max_cap + slots_returned
+
+        waitlisted = False
+        if is_over_capacity:
+            waitlisted = await waitlist_service.waitlist_enabled_for_tenant(session, tenant.id)
+            if not waitlisted:
+                await session.rollback()
+                raise HTTPException(
+                    status_code=410,
+                    detail="Todas as senhas desta gira já foram emitidas",
+                )
 
         # === STEP 8: Create Ticket Record ===
         ticket_number_formatted = f"P{ticket_number_int:03d}" if is_sponsor else f"{ticket_number_int:04d}"
@@ -337,7 +349,7 @@ async def emit_ticket(
             gira_id=gira.id,
             consulente_id=consulente.id,
             numero=ticket_number_int,
-            status=TicketStatus.EMITTED,
+            status=TicketStatus.WAITLISTED if waitlisted else TicketStatus.EMITTED,
             observacoes=observacoes,
             priority_category=priority_category,
             is_sponsor=is_sponsor,
@@ -375,49 +387,93 @@ async def emit_ticket(
             tenant_logo_url = tenant_config.logo_url
 
         subject_prefix = "✦ Associado — " if is_sponsor else ""
-        html_body = generate_ticket_emission_html(
-            ticket_number=ticket_number_formatted,
-            consulente_name=consulente.nome,
-            gira_name=gira.nome,
-            gira_date=gira_date_str,
-            gira_location=gira.local or "",
-            rescue_link=rescue_link,
-            tenant_name=tenant.name,
-            tenant_logo_url=tenant_logo_url,
-            tenant_color=primary_color,
-            is_sponsor=is_sponsor,
-            tenant_address=tenant_address,
-            primary_color=primary_color,
-            secondary_color=secondary_color,
-            consulente_email=consulente.email,
-            consulente_phone=consulente.telefone or "",
-            priority_category=priority_category,
-            recados=gira.recados,
-        )
-        text_body = generate_plain_text_fallback(
-            ticket_number=ticket_number_formatted,
-            consulente_name=consulente.nome,
-            gira_name=gira.nome,
-            gira_date=gira_date_str,
-            gira_location=gira.local or "",
-            rescue_link=rescue_link,
-            is_sponsor=is_sponsor,
-            tenant_address=tenant_address,
-            tenant_name=tenant.name,
-            consulente_email=consulente.email,
-            consulente_phone=consulente.telefone or "",
-            priority_category=priority_category,
-            recados=gira.recados,
-        )
-        message = EmailMessage(
-            to_email=consulente.email,
-            subject=f"{subject_prefix}Sua Senha #{ticket_number_formatted} - {tenant.name}",
-            html_body=html_body,
-            text_body=text_body,
-        )
+
+        waitlist_position: int | None = None
+        if waitlisted:
+            waitlist_position = await waitlist_service.compute_queue_position(
+                session=session,
+                tenant_id=tenant.id,
+                gira_id=gira.id,
+                is_sponsor=is_sponsor,
+                ticket=ticket,
+            )
+            html_body = generate_waitlist_entry_html(
+                consulente_name=consulente.nome,
+                gira_name=gira.nome,
+                gira_date=gira_date_str,
+                position=waitlist_position or 1,
+                tenant_name=tenant.name,
+                tenant_logo_url=tenant_logo_url,
+                primary_color=primary_color,
+                secondary_color=secondary_color,
+            )
+            text_body = generate_waitlist_entry_text(
+                consulente_name=consulente.nome,
+                gira_name=gira.nome,
+                gira_date=gira_date_str,
+                position=waitlist_position or 1,
+                tenant_name=tenant.name,
+            )
+            message = EmailMessage(
+                to_email=consulente.email,
+                subject=f"Você está na fila de espera - {gira.nome} - {tenant.name}",
+                html_body=html_body,
+                text_body=text_body,
+            )
+        else:
+            html_body = generate_ticket_emission_html(
+                ticket_number=ticket_number_formatted,
+                consulente_name=consulente.nome,
+                gira_name=gira.nome,
+                gira_date=gira_date_str,
+                gira_location=gira.local or "",
+                rescue_link=rescue_link,
+                tenant_name=tenant.name,
+                tenant_logo_url=tenant_logo_url,
+                tenant_color=primary_color,
+                is_sponsor=is_sponsor,
+                tenant_address=tenant_address,
+                primary_color=primary_color,
+                secondary_color=secondary_color,
+                consulente_email=consulente.email,
+                consulente_phone=consulente.telefone or "",
+                priority_category=priority_category,
+                recados=gira.recados,
+            )
+            text_body = generate_plain_text_fallback(
+                ticket_number=ticket_number_formatted,
+                consulente_name=consulente.nome,
+                gira_name=gira.nome,
+                gira_date=gira_date_str,
+                gira_location=gira.local or "",
+                rescue_link=rescue_link,
+                is_sponsor=is_sponsor,
+                tenant_address=tenant_address,
+                tenant_name=tenant.name,
+                consulente_email=consulente.email,
+                consulente_phone=consulente.telefone or "",
+                priority_category=priority_category,
+                recados=gira.recados,
+            )
+            message = EmailMessage(
+                to_email=consulente.email,
+                subject=f"{subject_prefix}Sua Senha #{ticket_number_formatted} - {tenant.name}",
+                html_body=html_body,
+                text_body=text_body,
+            )
         email_queue.enqueue(EmailQueueItem(message=message, ticket_id=str(ticket.id)))
 
         # === STEP 10: Return Response ===
+        if waitlisted:
+            return EmitTicketResponse(
+                ticket_number=ticket_number_formatted,
+                email_sent=True,
+                rescue_link=rescue_link,
+                message=f"Gira lotada — você entrou na fila de espera (posição {waitlist_position or 1}).",
+                waitlisted=True,
+                waitlist_position=waitlist_position,
+            )
+
         return EmitTicketResponse(
             ticket_number=ticket_number_formatted,
             email_sent=True,  # Will be true if sent successfully

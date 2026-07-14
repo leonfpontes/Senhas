@@ -49,6 +49,7 @@ class TenantConfigResponse(BaseModel):
     validate_associado_on_emit: bool = False
     enable_estoque_log: bool = True
     enable_mensalidade_associado: bool = False
+    enable_waitlist: bool = False
 
     class Config:
         from_attributes = True
@@ -69,6 +70,7 @@ class TenantConfigUpdate(BaseModel):
     validate_associado_on_emit: Optional[bool] = None
     enable_estoque_log: Optional[bool] = None
     enable_mensalidade_associado: Optional[bool] = None
+    enable_waitlist: Optional[bool] = None
 
     @field_validator("primary_color", "secondary_color")
     @classmethod
@@ -235,6 +237,28 @@ async def update_tenant_config(
             tenant_id=current_user.tenant_id,
             feature_flag="enable_mensalidade_associado",
             enabled=config_update.enable_mensalidade_associado,
+        )
+
+    # Update enable_waitlist — enabling it requires a PRO/Premium plan;
+    # disabling is always allowed regardless of plan.
+    if config_update.enable_waitlist is not None:
+        if config_update.enable_waitlist:
+            from src.services.plan_features import _get_plan_features
+            from src.repositories.subscription_repo import SubscriptionRepository
+            from src.models.subscriptions import SubscriptionStatus
+
+            sub = await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id)
+            plan = sub.plan if sub else None
+            suspended = bool(sub and sub.status == SubscriptionStatus.SUSPENDED)
+            if plan is None or not _get_plan_features(plan, suspended=suspended).fila_espera:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Fila de espera disponível apenas nos planos Pro e Premium",
+                )
+        await repo.toggle_feature(
+            tenant_id=current_user.tenant_id,
+            feature_flag="enable_waitlist",
+            enabled=config_update.enable_waitlist,
         )
 
     # Get updated config

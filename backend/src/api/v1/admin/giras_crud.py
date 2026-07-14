@@ -95,6 +95,9 @@ class SenhaConfigRequest(BaseModel):
     sponsor_max_tickets: Optional[int] = None
     sponsor_release_start_at: Optional[datetime] = None
     sponsor_release_end_at: Optional[datetime] = None
+    # Fila de espera: hours a promoted ticket has to confirm (PRO+ only; ignored
+    # server-side when the tenant doesn't have the feature enabled)
+    waitlist_confirmation_hours: Optional[int] = None
 
 
 class SenhaConfigResponse(BaseModel):
@@ -110,6 +113,7 @@ class SenhaConfigResponse(BaseModel):
     sponsor_release_end_at: Optional[datetime] = None
     sponsor_current_count: int = 0
     sponsor_public_link: str = ""
+    waitlist_confirmation_hours: Optional[int] = None
 
 
 @router.post("", response_model=GiraResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "insert"))])
@@ -353,6 +357,7 @@ async def get_senha_config(
         sponsor_release_end_at=gira.sponsor_release_end_at,
         sponsor_current_count=sponsor_count,
         sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=associado" if gira.sponsor_max_tickets else "",
+        waitlist_confirmation_hours=gira.waitlist_confirmation_hours,
     )
 
 
@@ -371,11 +376,21 @@ async def update_senha_config(
         raise HTTPException(status_code=400, detail="max_tickets deve ser >= 1")
     if config.release_end_at <= config.release_start_at:
         raise HTTPException(status_code=400, detail="release_end_at deve ser posterior a release_start_at")
+    if config.waitlist_confirmation_hours is not None and config.waitlist_confirmation_hours < 1:
+        raise HTTPException(status_code=400, detail="waitlist_confirmation_hours deve ser >= 1")
 
     repo = GiraRepository(db)
     gira = await repo.get_by_id(gira_id, current_user.tenant_id)
     if not gira:
         raise NotFoundError("Gira não encontrada")
+
+    # waitlist_confirmation_hours only makes sense when the tenant actually has
+    # the feature enabled; ignore it otherwise instead of silently persisting
+    # a setting that will never take effect.
+    from src.services import waitlist_service
+    waitlist_confirmation_hours = config.waitlist_confirmation_hours
+    if not await waitlist_service.waitlist_enabled_for_tenant(db, current_user.tenant_id):
+        waitlist_confirmation_hours = None
 
     await repo.update(
         gira_id,
@@ -386,6 +401,7 @@ async def update_senha_config(
         sponsor_max_tickets=config.sponsor_max_tickets,
         sponsor_release_start_at=config.sponsor_release_start_at,
         sponsor_release_end_at=config.sponsor_release_end_at,
+        waitlist_confirmation_hours=waitlist_confirmation_hours,
     )
 
     # Ensure SenhaControl exists for regular tickets
@@ -443,6 +459,7 @@ async def update_senha_config(
         sponsor_release_end_at=config.sponsor_release_end_at,
         sponsor_current_count=sponsor_count,
         sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=associado" if config.sponsor_max_tickets else "",
+        waitlist_confirmation_hours=waitlist_confirmation_hours,
     )
 
 
