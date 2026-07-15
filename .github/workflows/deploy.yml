@@ -32,6 +32,112 @@ jobs:
         run: npm audit --audit-level=high || true
 
   # ──────────────────────────────────────────────────────────────────────────
+  # Testes backend (bloqueante) — suíte tests/unit/ (863 testes).
+  # tests/api/ e tests/integration/ ficam de fora por ora: dependem de fixture
+  # 'db' que não existe em nenhum conftest.py do repo (quebrados antes desta
+  # mudança, não fazem parte do comando documentado em docs/testing.md).
+  # ──────────────────────────────────────────────────────────────────────────
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -e ".[dev]"
+
+      - name: Run unit tests
+        working-directory: backend
+        env:
+          DEBUG: "true"
+        run: python -m pytest tests/unit/ --no-cov
+
+      - name: Audit — grupos de permissão em endpoints admin
+        working-directory: backend
+        run: python scripts/audit_permission_guards.py
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Build frontend (bloqueante) — falha de build é sinal confiável de app
+  # quebrado. Lint/type-check ficam em job separado não-bloqueante por ora
+  # (ver frontend-quality-report): next.config.js ignora ambos durante o
+  # build (ignoreDuringBuilds / ignoreBuildErrors), e hoje há debt real
+  # acumulado nos dois (334 problemas de lint, erros de tsc em 3 arquivos)
+  # que precisa de uma limpeza dedicada antes de virar gate duro.
+  # ──────────────────────────────────────────────────────────────────────────
+  test-frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4.1.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build shared packages
+        run: |
+          npm run build --workspace=packages/shared-types
+          npm run build --workspace=packages/shared-ui
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Relatório de qualidade frontend — informativo, NÃO bloqueia deploy ainda.
+  # Existe debt real: lint (43 erros/291 warnings), type-check (erros em
+  # meu-site.tsx, audit_consolidated.tsx, inscricao.tsx), 49 testes jest
+  # falhando, e 16 páginas admin sem usePermissions (audit de RBAC). Promover
+  # para bloqueante exige limpar isso primeiro — ver conversa/PR de contexto.
+  # ──────────────────────────────────────────────────────────────────────────
+  frontend-quality-report:
+    name: Frontend Quality (informativo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4.1.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Type check
+        working-directory: frontend
+        run: npm run type-check
+
+      - name: Unit tests
+        working-directory: frontend
+        run: npm run test -- --ci
+
+      - name: Audit — usePermissions em telas admin
+        working-directory: frontend
+        run: node scripts/audit-permission-guards.js
+
+  # ──────────────────────────────────────────────────────────────────────────
   # Deploy principal
   # ──────────────────────────────────────────────────────────────────────────
   deploy:
@@ -39,7 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: Hostinger
-    needs: []   # deploy não depende do audit (paralelo)
+    needs: [test-backend, test-frontend]   # security-audit e frontend-quality-report ficam fora (não-bloqueantes)
 
     steps:
       - name: Deploy via SSH
