@@ -4,7 +4,7 @@
  * Handles errors, auth headers, and request/response logging
  */
 
-import axios, { AxiosInstance, AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosError, AxiosResponse, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 
 
 interface APIError {
@@ -17,6 +17,12 @@ type RetryableConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
   skipAutoLogout?: boolean;
 };
+
+/** Shape of the JSON body FastAPI/our backends send back on error responses. */
+interface ErrorResponseBody {
+  detail?: string;
+  message?: string;
+}
 
 // Nome do canal usado para coordenar logout entre abas/telas abertas na mesma
 // origem. Sem isso, uma aba que perde a sessão apaga os cookies HttpOnly
@@ -100,11 +106,17 @@ class APIClient {
   /**
    * GET request
    *
+   * T defaults to `any` (not `unknown`) deliberately: callers across the app read
+   * `res.data.someField` without an explicit generic in most call sites, and
+   * `unknown` would force a type annotation everywhere. Pass an explicit `<T>`
+   * where you want the response typed.
+   *
    * @param url Endpoint URL
    * @param config Optional axios config
    * @returns Promise with response data
    */
-  async get<T = any>(url: string, config?: any): Promise<AxiosResponse<T>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async get<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     return this.instance.get<T>(url, config);
   }
 
@@ -116,7 +128,8 @@ class APIClient {
    * @param config Optional axios config
    * @returns Promise with response data
    */
-  async post<T = any>(url: string, data?: any, config?: any): Promise<AxiosResponse<T>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async post<T = any>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     return this.instance.post<T>(url, data, config);
   }
 
@@ -128,7 +141,8 @@ class APIClient {
    * @param config Optional axios config
    * @returns Promise with response data
    */
-  async put<T = any>(url: string, data?: any, config?: any): Promise<AxiosResponse<T>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async put<T = any>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     return this.instance.put<T>(url, data, config);
   }
 
@@ -139,7 +153,8 @@ class APIClient {
    * @param config Optional axios config
    * @returns Promise with response data
    */
-  async delete<T = any>(url: string, config?: any): Promise<AxiosResponse<T>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     return this.instance.delete<T>(url, config);
   }
 
@@ -151,7 +166,8 @@ class APIClient {
    * @param config Optional axios config
    * @returns Promise with response data
    */
-  async patch<T = any>(url: string, data?: any, config?: any): Promise<AxiosResponse<T>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async patch<T = any>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     return this.instance.patch<T>(url, data, config);
   }
 
@@ -166,7 +182,7 @@ class APIClient {
   private tryRefresh(): Promise<boolean> {
     if (!this.refreshPromise) {
       this.refreshPromise = this.instance
-        .post(REFRESH_PATH, undefined, { skipAutoLogout: true } as any)
+        .post(REFRESH_PATH, undefined, { skipAutoLogout: true } as AxiosRequestConfig & { skipAutoLogout: boolean })
         .then(() => true)
         .catch(() => false)
         .finally(() => {
@@ -182,10 +198,10 @@ class APIClient {
    * @param error Axios error object
    * @throws Formatted error
    */
-  private async handleError(error: AxiosError): Promise<any> {
+  private async handleError(error: AxiosError): Promise<AxiosResponse> {
     // Requests aborted via AbortController (axios >= 0.22 sets code 'ERR_CANCELED').
     // Re-throw as-is so callers can detect and silently ignore them.
-    if (axios.isCancel(error) || (error as any).code === 'ERR_CANCELED') {
+    if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
       return Promise.reject(error);
     }
 
@@ -201,7 +217,7 @@ class APIClient {
     }
 
     const status = response.status;
-    const data: any = response.data;
+    const data = response.data as ErrorResponseBody | undefined;
     const config = error.config as RetryableConfig | undefined;
 
     // Log error
@@ -297,6 +313,24 @@ class APIClient {
 export const apiClient = new APIClient();
 
 export type { APIError };
+
+/**
+ * Pulls a user-facing message out of a caught API error, in the order the
+ * backend actually populates them: response detail, then axios's own
+ * message, then a caller-supplied fallback. Replaces the
+ * `err?.response?.data?.detail || err?.message || 'fallback'` one-liner
+ * repeated across most catch blocks in the app.
+ */
+export function extractApiErrorMessage(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    const detail = (err.response?.data as ErrorResponseBody | undefined)?.detail;
+    if (typeof detail === 'string' && detail) return detail;
+    if (err.message) return err.message;
+  } else if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  return fallback;
+}
 
 /**
  * Ends an active impersonation session.
