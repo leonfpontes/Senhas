@@ -49,6 +49,7 @@ import AttendModal from '../../components/AttendModal';
 import WalkInModal from '../../components/WalkInModal';
 import { apiClient } from '../../services/api_client';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
+import { usePermissions } from '../../hooks/usePermissions';
 import {
   PRIORITY_CATEGORY_LABELS,
   PriorityCategoryType,
@@ -567,6 +568,10 @@ export default function PortaPage() {
   const theme   = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { isDark } = useAdminTheme();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('porta', 'view');
+  const canInsert = canGroup('porta', 'insert');
+  const canEdit = canGroup('porta', 'edit');
 
   const [giras, setGiras]                   = useState<Gira[]>([]);
   const [selectedGiraId, setSelectedGiraId] = useState<string>('');
@@ -624,15 +629,15 @@ export default function PortaPage() {
   };
 
   const loadStats = useCallback(async () => {
-    if (!selectedGiraId) return;
+    if (!selectedGiraId || !canView) return;
     try {
       const res = await apiClient.get(`/api/v1/admin/giras/${selectedGiraId}/door/stats`);
       setStats(res.data);
     } catch { /* retry on next poll */ }
-  }, [selectedGiraId]);
+  }, [selectedGiraId, canView]);
 
   const loadQueue = useCallback(async () => {
-    if (!selectedGiraId) return;
+    if (!selectedGiraId || !canView) return;
     try {
       setLoading(true);
       // Fetch full queue — filtering is done client-side so we can search by name AND number
@@ -641,7 +646,7 @@ export default function PortaPage() {
       setLastUpdated(new Date());
     } catch { showSnackbar('Erro ao carregar fila', 'error'); }
     finally { setLoading(false); }
-  }, [selectedGiraId]);
+  }, [selectedGiraId, canView]);
 
   const refreshAll = useCallback(() => { loadStats(); loadQueue(); }, [loadStats, loadQueue]);
 
@@ -659,6 +664,7 @@ export default function PortaPage() {
     setSnackbar({ open: true, message, severity });
 
   const doAction = async (url: string, method: 'patch' | 'delete', ticketId: string, body?: any, successMsg?: string) => {
+    if (!canEdit) return;
     try {
       setActionLoading(ticketId);
       if (method === 'patch') await apiClient.patch(url, body);
@@ -688,7 +694,7 @@ export default function PortaPage() {
   };
 
   const handleCreateWalkIn = async (data: { nome: string; email?: string; telefone?: string; priority_category: string | null }) => {
-    if (!selectedGiraId) return;
+    if (!selectedGiraId || !canInsert) return;
     try {
       setActionLoading('__walkin_create__');
       const res = await apiClient.post(`/api/v1/admin/giras/${selectedGiraId}/door/walk-in`, data);
@@ -701,7 +707,7 @@ export default function PortaPage() {
   };
 
   const handleEditWalkIn = async (data: { nome: string; email?: string; telefone?: string; priority_category: string | null }) => {
-    if (!walkInEditTarget) return;
+    if (!walkInEditTarget || !canEdit) return;
     try {
       setActionLoading(walkInEditTarget.id);
       await apiClient.patch(`/api/v1/admin/door/tickets/${walkInEditTarget.id}/walk-in`, data);
@@ -770,6 +776,16 @@ export default function PortaPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  if (!canView) {
+    return (
+      <AdminLayout title="Visão da Porta" maxWidth="md">
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          Você não tem permissão para visualizar a porta. Contate o administrador do sistema.
+        </Alert>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout title="Visão da Porta" maxWidth="md">
       <Box sx={{ pb: 6 }}>
@@ -815,7 +831,7 @@ export default function PortaPage() {
             </FormControl>
 
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              {selectedGiraId && config?.enable_walk_in && (
+              {selectedGiraId && config?.enable_walk_in && canInsert && (
                 <Button
                   data-tour="porta-walkin"
                   variant="outlined"

@@ -36,6 +36,7 @@ import AdminLayout from "./admin_layout";
 import CrudDrawer from "../../components/CrudDrawer";
 import { apiClient } from "../../services/api_client";
 import { useSubscription } from "../../hooks/useSubscription";
+import { usePermissions } from "../../hooks/usePermissions";
 import UpgradePrompt from "../../components/UpgradePrompt";
 import { ConfirmDialog } from '@/components/admin';
 
@@ -68,6 +69,11 @@ const isoToLocalDatetimeInput = (isoStr: string | null | undefined): string => {
 const CursosPresenciaisPage = () => {
   const router = useRouter();
   const { subscription, loading: subLoading } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('cursos_presenciais', 'view');
+  const canInsert = canGroup('cursos_presenciais', 'insert');
+  const canEdit = canGroup('cursos_presenciais', 'edit');
+  const canDelete = canGroup('cursos_presenciais', 'delete');
 
   const [cursos, setCursos] = useState<CursoPresencial[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -86,6 +92,7 @@ const CursosPresenciaisPage = () => {
   });
 
   const fetchCursos = async () => {
+    if (!canView) { setLoading(false); return; }
     setLoading(true);
     try {
       const res = await apiClient.get<CursoPresencial[]>(API_PREFIX);
@@ -101,7 +108,7 @@ const CursosPresenciaisPage = () => {
     if (subscription?.plan === "pro" || subscription?.plan === "premium") {
       fetchCursos();
     }
-  }, [subscription]);
+  }, [subscription, canView]);
 
   const openCreateDrawer = () => {
     setDrawerMode("create");
@@ -140,7 +147,7 @@ const CursosPresenciaisPage = () => {
   };
 
   const handleDeleteCurso = async () => {
-    if (!confirmTarget) return;
+    if (!confirmTarget || !canDelete) return;
     try {
       await apiClient.delete(`${API_PREFIX}/${confirmTarget.id}`);
       fetchCursos();
@@ -162,6 +169,8 @@ const CursosPresenciaisPage = () => {
   };
 
   const handleSave = async () => {
+    if (drawerMode === 'create' && !canInsert) return;
+    if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
     const payload = {
       titulo: formData.titulo,
@@ -217,19 +226,31 @@ const CursosPresenciaisPage = () => {
     );
   }
 
+  if (!canView) {
+    return (
+      <AdminLayout title="Cursos presenciais">
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          Você não tem permissão para visualizar cursos presenciais. Contate o administrador do sistema.
+        </Alert>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout title="Cursos presenciais">
       <Box sx={{ mb: 3 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h5" fontWeight={700}>Cursos Presenciais</Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={openCreateDrawer}
-            size="small"
-          >
-            Novo curso
-          </Button>
+          {canInsert && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={openCreateDrawer}
+              size="small"
+            >
+              Novo curso
+            </Button>
+          )}
         </Stack>
       </Box>
 
@@ -325,23 +346,27 @@ const CursosPresenciaisPage = () => {
                             <PeopleIcon />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Editar">
-                          <IconButton
-                            size="small"
-                            onClick={() => openEditDrawer(curso)}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Excluir">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => requestDelete(curso)}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
+                        {canEdit && (
+                          <Tooltip title="Editar">
+                            <IconButton
+                              size="small"
+                              onClick={() => openEditDrawer(curso)}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canDelete && (
+                          <Tooltip title="Excluir">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => requestDelete(curso)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </Stack>
                     </TableCell>
                   </TableRow>

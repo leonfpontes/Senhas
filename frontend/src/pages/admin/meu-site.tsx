@@ -68,6 +68,7 @@ import { useRouter } from 'next/router';
 import AdminLayout from './admin_layout';
 import { apiClient } from '@/services/api_client';
 import { useSubscription } from '@/hooks/useSubscription';
+import { usePermissions } from '@/hooks/usePermissions';
 import { HERO_FONTS, HERO_FONT_SIZES, HERO_FONT_WEIGHTS, SECTION_TITLE_SIZES, SECTION_BODY_SIZES } from '@/constants/heroFonts';
 
 // ── Timezone helper ───────────────────────────────────────────────────────────
@@ -3943,6 +3944,9 @@ function SectionEditor({
 
 export default function MeuSitePage() {
   const { can } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('cursos_presenciais', 'view');
+  const canEdit = canGroup('cursos_presenciais', 'edit');
   const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -3982,6 +3986,7 @@ export default function MeuSitePage() {
   // ── Data loading ────────────────────────────────────────────────────────────
 
   const loadSite = useCallback(async () => {
+    if (!canView) { setLoading(false); return; }
     setLoading(true);
     try {
       const [siteRes, sectionsRes] = await Promise.all([
@@ -4002,14 +4007,15 @@ export default function MeuSitePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canView]);
 
   const loadVersions = useCallback(async () => {
+    if (!canView) return;
     try {
       const res = await apiClient.get('/api/v1/admin/sites/versions');
       setVersions(res.data);
     } catch {}
-  }, []);
+  }, [canView]);
 
   useEffect(() => {
     if (!can('site_builder')) {
@@ -4090,7 +4096,7 @@ export default function MeuSitePage() {
   };
 
   const handleSaveSettings = async () => {
-    if (!settingsSlug.trim()) return;
+    if (!settingsSlug.trim() || !canEdit) return;
     setSavingSettings(true);
     try {
       const res = await apiClient.put('/api/v1/admin/sites', {
@@ -4112,7 +4118,7 @@ export default function MeuSitePage() {
   // ── Save sections ───────────────────────────────────────────────────────────
 
   const handleSave = async () => {
-    if (!canSave) return;
+    if (!canSave || !canEdit) return;
     setSaving(true);
     try {
       const payload = {
@@ -4149,6 +4155,7 @@ export default function MeuSitePage() {
   // ── Publish / Unpublish ─────────────────────────────────────────────────────
 
   const handlePublish = async () => {
+    if (!canEdit) return;
     try {
       await apiClient.post('/api/v1/admin/sites/publish');
       setSite((prev) => prev ? { ...prev, status: 'PUBLISHED' } : prev);
@@ -4159,6 +4166,7 @@ export default function MeuSitePage() {
   };
 
   const handleUnpublish = async () => {
+    if (!canEdit) return;
     try {
       await apiClient.post('/api/v1/admin/sites/unpublish');
       setSite((prev) => prev ? { ...prev, status: 'UNPUBLISHED' } : prev);
@@ -4171,7 +4179,7 @@ export default function MeuSitePage() {
   // ── Restore version ─────────────────────────────────────────────────────────
 
   const handleRestoreConfirm = async () => {
-    if (!confirmRestore) return;
+    if (!confirmRestore || !canEdit) return;
     try {
       const res = await apiClient.post(`/api/v1/admin/sites/versions/${confirmRestore.id}/restore`);
       setSections(res.data.sections);
@@ -4196,6 +4204,16 @@ export default function MeuSitePage() {
           <Button size="small" sx={{ ml: 2 }} onClick={() => router.push('/admin/plano')}>
             Ver planos
           </Button>
+        </Alert>
+      </AdminLayout>
+    );
+  }
+
+  if (!canView) {
+    return (
+      <AdminLayout title="Meu Site">
+        <Alert severity="warning" sx={{ mt: 4 }}>
+          Você não tem permissão para visualizar o Meu Site. Contate o administrador do sistema.
         </Alert>
       </AdminLayout>
     );
@@ -4248,11 +4266,13 @@ export default function MeuSitePage() {
           </Tooltip>
         )}
 
-        <Tooltip title="Configurações do site (URL, template, meta)">
-          <IconButton size="small" onClick={openSettings}>
-            <SettingsIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        {canEdit && (
+          <Tooltip title="Configurações do site (URL, template, meta)">
+            <IconButton size="small" onClick={openSettings}>
+              <SettingsIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
 
         <Button
           size="small"
@@ -4263,44 +4283,48 @@ export default function MeuSitePage() {
           Histórico
         </Button>
 
-        {isPublished ? (
-          <Button size="small" startIcon={<PublicOffIcon />} onClick={handleUnpublish} color="warning">
-            Despublicar
-          </Button>
-        ) : (
-          <Button
-            size="small"
-            startIcon={<PublicIcon />}
-            onClick={handlePublish}
-            variant="outlined"
-            color="success"
-            disabled={hasChanges}
-          >
-            Publicar
-          </Button>
+        {canEdit && (
+          isPublished ? (
+            <Button size="small" startIcon={<PublicOffIcon />} onClick={handleUnpublish} color="warning">
+              Despublicar
+            </Button>
+          ) : (
+            <Button
+              size="small"
+              startIcon={<PublicIcon />}
+              onClick={handlePublish}
+              variant="outlined"
+              color="success"
+              disabled={hasChanges}
+            >
+              Publicar
+            </Button>
+          )
         )}
 
-        <Tooltip
-          title={
-            uploadingImageFor
-              ? 'Aguardando upload de imagem…'
-              : allErrors.length > 0
-              ? allErrors[0]
-              : ''
-          }
-        >
-          <span>
-            <Button
-              variant="contained"
-              startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon />}
-              onClick={handleSave}
-              disabled={!hasChanges || !canSave || loading}
-              size="small"
-            >
-              Salvar
-            </Button>
-          </span>
-        </Tooltip>
+        {canEdit && (
+          <Tooltip
+            title={
+              uploadingImageFor
+                ? 'Aguardando upload de imagem…'
+                : allErrors.length > 0
+                ? allErrors[0]
+                : ''
+            }
+          >
+            <span>
+              <Button
+                variant="contained"
+                startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon />}
+                onClick={handleSave}
+                disabled={!hasChanges || !canSave || loading}
+                size="small"
+              >
+                Salvar
+              </Button>
+            </span>
+          </Tooltip>
+        )}
       </Box>
 
       {saving && <LinearProgress />}

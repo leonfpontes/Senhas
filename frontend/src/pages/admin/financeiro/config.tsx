@@ -46,6 +46,7 @@ import UpgradePrompt from '../../../components/UpgradePrompt';
 import CrudDrawer from '../../../components/CrudDrawer';
 import { apiClient } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,11 @@ const SNACK_CLOSED: Snack = { open: false, msg: '', severity: 'success' };
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function CategoriasTab() {
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('contas_financeiras', 'view');
+  const canInsert = canGroup('contas_financeiras', 'insert');
+  const canEdit = canGroup('contas_financeiras', 'edit');
+  const canDelete = canGroup('contas_financeiras', 'delete');
   const [items, setItems] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [snack, setSnack] = useState<Snack>(SNACK_CLOSED);
@@ -120,6 +126,7 @@ function CategoriasTab() {
   const isDirty = form.nome !== EMPTY_FORM.nome || form.tipo !== EMPTY_FORM.tipo;
 
   const load = useCallback(async () => {
+    if (!canView) { setLoading(false); return; }
     try {
       const res = await apiClient.get<Categoria[]>('/api/v1/admin/financeiro/categorias');
       setItems(res.data);
@@ -128,7 +135,7 @@ function CategoriasTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canView]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -151,6 +158,8 @@ function CategoriasTab() {
   const handleSave = async () => {
     setTouched({ nome: true });
     if (!form.nome.trim()) return;
+    if (drawerMode === 'create' && !canInsert) return;
+    if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
     try {
       if (drawerMode === 'create') {
@@ -177,7 +186,7 @@ function CategoriasTab() {
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !canDelete) return;
     setDeleting(true);
     try {
       await apiClient.delete(`/api/v1/admin/financeiro/categorias/${deleteTarget.id}`);
@@ -192,15 +201,25 @@ function CategoriasTab() {
     }
   };
 
+  if (!canView) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar categorias financeiras. Contate o administrador do sistema.
+      </Alert>
+    );
+  }
+
   return (
     <>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="body2" color="text.secondary">
           {loading ? '' : `${items.length} categoria${items.length !== 1 ? 's' : ''} cadastrada${items.length !== 1 ? 's' : ''}`}
         </Typography>
-        <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
-          Nova categoria
-        </Button>
+        {canInsert && (
+          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
+            Nova categoria
+          </Button>
+        )}
       </Box>
 
       {loading ? (
@@ -247,16 +266,20 @@ function CategoriasTab() {
                 size="small"
                 variant="outlined"
               />
-              <Tooltip title="Editar">
-                <IconButton size="small" onClick={() => openEdit(cat)}>
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Excluir">
-                <IconButton size="small" color="error" onClick={() => setDeleteTarget(cat)}>
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+              {canEdit && (
+                <Tooltip title="Editar">
+                  <IconButton size="small" onClick={() => openEdit(cat)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {canDelete && (
+                <Tooltip title="Excluir">
+                  <IconButton size="small" color="error" onClick={() => setDeleteTarget(cat)}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
             </Box>
           ))}
         </Card>
@@ -355,6 +378,11 @@ function CategoriasTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function ContasBancariasTab() {
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('contas_financeiras', 'view');
+  const canInsert = canGroup('contas_financeiras', 'insert');
+  const canEdit = canGroup('contas_financeiras', 'edit');
+  const canDelete = canGroup('contas_financeiras', 'delete');
   const [items, setItems] = useState<ContaBancaria[]>([]);
   const [loading, setLoading] = useState(true);
   const [snack, setSnack] = useState<Snack>(SNACK_CLOSED);
@@ -376,6 +404,7 @@ function ContasBancariasTab() {
   const isDirty = form.nome !== EMPTY_FORM.nome || form.banco !== EMPTY_FORM.banco || form.saldo_inicial !== EMPTY_FORM.saldo_inicial;
 
   const load = useCallback(async () => {
+    if (!canView) { setLoading(false); return; }
     try {
       const res = await apiClient.get<ContaBancaria[]>('/api/v1/admin/financeiro/contas-bancarias');
       setItems(res.data);
@@ -384,7 +413,7 @@ function ContasBancariasTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canView]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -411,6 +440,8 @@ function ContasBancariasTab() {
   const handleSave = async () => {
     setTouched({ nome: true });
     if (!form.nome.trim()) return;
+    if (drawerMode === 'create' && !canInsert) return;
+    if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
     try {
       const body = {
@@ -434,7 +465,7 @@ function ContasBancariasTab() {
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !canDelete) return;
     setDeleting(true);
     try {
       await apiClient.delete(`/api/v1/admin/financeiro/contas-bancarias/${deleteTarget.id}`);
@@ -452,15 +483,25 @@ function ContasBancariasTab() {
   const fmtSaldo = (v: number) =>
     v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  if (!canView) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar contas bancárias. Contate o administrador do sistema.
+      </Alert>
+    );
+  }
+
   return (
     <>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="body2" color="text.secondary">
           {loading ? '' : `${items.length} conta${items.length !== 1 ? 's' : ''} cadastrada${items.length !== 1 ? 's' : ''}`}
         </Typography>
-        <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
-          Nova conta
-        </Button>
+        {canInsert && (
+          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
+            Nova conta
+          </Button>
+        )}
       </Box>
 
       {loading ? (
@@ -498,16 +539,20 @@ function ContasBancariasTab() {
                   {conta.banco ? `${conta.banco} · ` : ''}Saldo inicial {fmtSaldo(conta.saldo_inicial)}
                 </Typography>
               </Box>
-              <Tooltip title="Editar">
-                <IconButton size="small" onClick={() => openEdit(conta)}>
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Excluir">
-                <IconButton size="small" color="error" onClick={() => setDeleteTarget(conta)}>
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+              {canEdit && (
+                <Tooltip title="Editar">
+                  <IconButton size="small" onClick={() => openEdit(conta)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {canDelete && (
+                <Tooltip title="Excluir">
+                  <IconButton size="small" color="error" onClick={() => setDeleteTarget(conta)}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
             </Box>
           ))}
         </Card>
@@ -583,6 +628,9 @@ function ContasBancariasTab() {
 
 function MensalidadeTab() {
   const { can } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('financeiro', 'view');
+  const canEdit = canGroup('financeiro', 'edit');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [valorMensal, setValorMensal] = useState<number>(0);
@@ -595,6 +643,7 @@ function MensalidadeTab() {
   const [snack, setSnack] = useState<Snack>(SNACK_CLOSED);
 
   useEffect(() => {
+    if (!canView) { setLoading(false); return; }
     apiClient.get('/api/v1/admin/financeiro/config')
       .then((res) => {
         if (res.data) {
@@ -610,9 +659,10 @@ function MensalidadeTab() {
       .catch(() => {})
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [canView]);
 
   const handleSave = async () => {
+    if (!canEdit) return;
     if (can('mensalidade_mediun') && valorMensal < 0) {
       setSnack({ open: true, msg: 'Informe um valor mensal válido (≥ 0).', severity: 'error' });
       return;
@@ -641,6 +691,14 @@ function MensalidadeTab() {
   };
 
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>;
+
+  if (!canView) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar a configuração de mensalidade. Contate o administrador do sistema.
+      </Alert>
+    );
+  }
 
   return (
     <>
@@ -750,15 +808,17 @@ function MensalidadeTab() {
             </>
           )}
 
-          <Button
-            variant="contained"
-            startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
-            onClick={handleSave}
-            disabled={saving}
-            sx={{ alignSelf: 'flex-start' }}
-          >
-            Salvar Configuração
-          </Button>
+          {canEdit && (
+            <Button
+              variant="contained"
+              startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
+              onClick={handleSave}
+              disabled={saving}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              Salvar Configuração
+            </Button>
+          )}
         </CardContent>
       </Card>
 

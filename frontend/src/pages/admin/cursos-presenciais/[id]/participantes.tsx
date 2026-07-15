@@ -54,6 +54,7 @@ import UpgradePrompt from "@/components/UpgradePrompt";
 import { ConfirmDialog } from '@/components/admin';
 import { apiClient } from "@/services/api_client";
 import { useSubscription } from "@/hooks/useSubscription";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useTenant } from "@/providers/ThemeProvider";
 import { NumericFormat } from "react-number-format";
 import {
@@ -197,6 +198,11 @@ export default function ParticipantesPage() {
   const { id } = router.query;
   const { subscription, loading: subLoading } = useSubscription();
   const { tenantName } = useTenant();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('cursos_presenciais', 'view');
+  const canInsert = canGroup('cursos_presenciais', 'insert');
+  const canEdit = canGroup('cursos_presenciais', 'edit');
+  const canDelete = canGroup('cursos_presenciais', 'delete');
 
   const [curso, setCurso] = useState<CursoPresencial | null>(null);
   const [participantes, setParticipantes] = useState<Participante[]>([]);
@@ -288,6 +294,7 @@ export default function ParticipantesPage() {
   const [removeCompOpen, setRemoveCompOpen] = useState(false);
 
   const fetchCurso = async () => {
+    if (!canView) return;
     try {
       const res = await apiClient.get<CursoPresencial>(`/api/v1/admin/cursos-presenciais/${id}`);
       setCurso(res.data);
@@ -298,6 +305,7 @@ export default function ParticipantesPage() {
   };
 
   const fetchParticipantes = async () => {
+    if (!canView) return;
     try {
       const res = await apiClient.get<Participante[]>(`/api/v1/admin/cursos-presenciais/${id}/participantes`);
       setParticipantes(res.data);
@@ -308,7 +316,7 @@ export default function ParticipantesPage() {
   };
 
   const fetchMensalidades = useCallback(async () => {
-    if (!id || !curso?.gerar_mensalidade) return;
+    if (!id || !curso?.gerar_mensalidade || !canView) return;
     setLoadingMensalidades(true);
     try {
       const res = await apiClient.get(`/api/v1/admin/cursos-presenciais/${id}/financeiro/mensalidades?mes=${mes}`);
@@ -319,10 +327,10 @@ export default function ParticipantesPage() {
     } finally {
       setLoadingMensalidades(false);
     }
-  }, [id, mes, curso?.gerar_mensalidade]);
+  }, [id, mes, curso?.gerar_mensalidade, canView]);
 
   const fetchResumo = useCallback(async () => {
-    if (!id || !curso?.gerar_mensalidade) return;
+    if (!id || !curso?.gerar_mensalidade || !canView) return;
     setLoadingResumo(true);
     try {
       const res = await apiClient.get(`/api/v1/admin/cursos-presenciais/${id}/financeiro/resumo`);
@@ -332,9 +340,10 @@ export default function ParticipantesPage() {
     } finally {
       setLoadingResumo(false);
     }
-  }, [id, curso?.gerar_mensalidade]);
+  }, [id, curso?.gerar_mensalidade, canView]);
 
   const loadData = async () => {
+    if (!canView) { setLoading(false); return; }
     setLoading(true);
     await Promise.all([fetchCurso(), fetchParticipantes()]);
     setLoading(false);
@@ -344,7 +353,7 @@ export default function ParticipantesPage() {
     if (id && (subscription?.plan === "pro" || subscription?.plan === "premium")) {
       loadData();
     }
-  }, [id, subscription]);
+  }, [id, subscription, canView]);
 
   useEffect(() => {
     if (id && curso?.gerar_mensalidade) {
@@ -373,7 +382,7 @@ export default function ParticipantesPage() {
   };
 
   const handleSavePayment = async () => {
-    if (!paymentItem) return;
+    if (!paymentItem || !canInsert) return;
     setPaymentSaving(true);
     try {
       const form = new FormData();
@@ -573,7 +582,7 @@ export default function ParticipantesPage() {
   };
 
   const handleRemoveParticipante = async () => {
-    if (!removePartTarget) return;
+    if (!removePartTarget || !canDelete) return;
     try {
       await apiClient.delete(`/api/v1/admin/cursos-presenciais/${id}/participantes/${removePartTarget.id}`);
       showAlert("Participante removido com sucesso.", "success");
@@ -588,6 +597,8 @@ export default function ParticipantesPage() {
   };
 
   const handleSave = async () => {
+    if (drawerMode === 'create' && !canInsert) return;
+    if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
     const payload: any = {
       nome: formData.nome,
@@ -698,6 +709,16 @@ export default function ParticipantesPage() {
         <Stack alignItems="center" mt={8}>
           <CircularProgress />
         </Stack>
+      </AdminLayout>
+    );
+  }
+
+  if (!canView) {
+    return (
+      <AdminLayout title="Participantes">
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          Você não tem permissão para visualizar participantes. Contate o administrador do sistema.
+        </Alert>
       </AdminLayout>
     );
   }
@@ -893,16 +914,18 @@ export default function ParticipantesPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 sx={{ width: 350, maxWidth: "100%" }}
               />
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={openCreateDrawer}
-                size="small"
-                disabled={totalVagas !== null && vagasPreenchidas >= totalVagas}
-                sx={{ textTransform: "none" }}
-              >
-                Matricular Participante
-              </Button>
+              {canInsert && (
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={openCreateDrawer}
+                  size="small"
+                  disabled={totalVagas !== null && vagasPreenchidas >= totalVagas}
+                  sx={{ textTransform: "none" }}
+                >
+                  Matricular Participante
+                </Button>
+              )}
             </Stack>
           </Box>
 
@@ -1051,23 +1074,27 @@ export default function ParticipantesPage() {
                         </TableCell>
                         <TableCell align="right">
                           <Stack direction="row" spacing={1} justifyContent="flex-end">
-                            <Tooltip title={curso?.gerar_mensalidade ? "Editar Matrícula" : "Editar Matrícula / Pagamento"}>
-                              <IconButton
-                                size="small"
-                                onClick={() => openEditDrawer(p)}
-                              >
-                                <EditIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Remover Matrícula">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => requestRemovePart(p)}
-                              >
-                                <DeleteIcon />
-                              </IconButton>
-                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title={curso?.gerar_mensalidade ? "Editar Matrícula" : "Editar Matrícula / Pagamento"}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => openEditDrawer(p)}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Remover Matrícula">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => requestRemovePart(p)}
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -2005,6 +2032,7 @@ export default function ParticipantesPage() {
         confirmText="Remover"
         destructive
         onConfirm={async () => {
+          if (!canDelete) return;
           try {
             await apiClient.delete(`/api/v1/admin/cursos-presenciais/${id}/participantes/${editingId}/comprovante`);
             setFormData((prev: any) => ({ ...prev, comprovante_inscricao_filename: null }));

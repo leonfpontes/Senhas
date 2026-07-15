@@ -23,6 +23,7 @@ const EXEMPT_FILES = new Set([
   path.join('permission-groups', 'index.tsx'), // gestão de RBAC em si, checagem is_admin própria
   path.join('permission-groups', '[id].tsx'),
   path.join('porta', 'kiosk.tsx'), // tela pública de TV, sem sessão de usuário normal
+  path.join('tickets', '[ticketId]', 'email.tsx'), // backend email_resend.py é is_admin-only, sem RBAC de grupo (ver CLAUDE.md)
 ]);
 
 function listTsxFiles(dir, base = '') {

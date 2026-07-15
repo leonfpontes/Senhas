@@ -39,6 +39,7 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '../../../hooks/useSubscription';
+import { usePermissions } from '../../../hooks/usePermissions';
 import UpgradePrompt from '../../../components/UpgradePrompt';
 import { apiClient } from '../../../services/api_client';
 
@@ -72,6 +73,8 @@ export default function AdminEstoqueRelatorioPage() {
 
 function AdminEstoqueRelatorioContent() {
   const { can, loading: subLoading } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('estoque', 'view');
   const [posicao, setPosicao] = useState<RelatorioItem[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [filterGrupo, setFilterGrupo] = useState('');
@@ -89,7 +92,7 @@ function AdminEstoqueRelatorioContent() {
   useEffect(() => {
     loadGrupos();
     loadPosicao();
-  }, []);
+  }, [canView]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -97,9 +100,10 @@ function AdminEstoqueRelatorioContent() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [filterSearch]);
 
-  useEffect(() => { loadPosicao(); }, [filterGrupo, debouncedSearch]);
+  useEffect(() => { loadPosicao(); }, [filterGrupo, debouncedSearch, canView]);
 
   const loadGrupos = async () => {
+    if (!canView) return;
     try {
       const res = await apiClient.get('/api/v1/admin/estoque/grupos');
       setGrupos(res.data);
@@ -107,6 +111,7 @@ function AdminEstoqueRelatorioContent() {
   };
 
   const loadPosicao = async () => {
+    if (!canView) { setLoading(false); return; }
     try {
       setLoading(true);
       const params: Record<string, string> = {};
@@ -122,6 +127,7 @@ function AdminEstoqueRelatorioContent() {
   };
 
   const handleExportCsv = async () => {
+    if (!canView) return;
     if (!can('export_csv')) {
       setSnackbar({ open: true, message: 'Export CSV disponível a partir do plano Premium', severity: 'error' });
       return;
@@ -155,6 +161,13 @@ function AdminEstoqueRelatorioContent() {
 
   if (subLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
   if (!can('estoque_controle')) return <UpgradePrompt feature="controle de estoque" minPlan="Pro" />;
+  if (!canView) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar o relatório de estoque. Contate o administrador do sistema.
+      </Alert>
+    );
+  }
 
   return (
     <Box>

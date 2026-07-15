@@ -45,6 +45,7 @@ import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
 import { useSubscription } from '../../hooks/useSubscription';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface Gira {
   id: string;
@@ -137,6 +138,11 @@ export default function AdminGirasPage() {
 
 function AdminGirasContent() {
   const { subscription, can, loading: subLoading, canCreateGira: canCreateGiraFn, refresh: refreshSubscription } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('giras', 'view');
+  const canInsert = canGroup('giras', 'insert');
+  const canEdit = canGroup('giras', 'edit');
+  const canDelete = canGroup('giras', 'delete');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [giras, setGiras] = useState<Gira[]>([]);
@@ -180,9 +186,10 @@ function AdminGirasContent() {
     const controller = new AbortController();
     loadGiras(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [canView]);
 
   const loadGiras = async (signal?: AbortSignal) => {
+    if (!canView) { setLoading(false); return; }
     try {
       setLoading(true);
       const response = await apiClient.get('/api/v1/admin/giras', { signal });
@@ -244,6 +251,8 @@ function AdminGirasContent() {
   const handleSave = async () => {
     setTouched({ nome: true, data_inicio: true });
     if (saveDisabled) return;
+    if (drawerMode === 'create' && !canInsert) return;
+    if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
     try {
       // Convert datetime-local string ("2026-04-19T10:00") to UTC ISO string
@@ -281,7 +290,7 @@ function AdminGirasContent() {
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !canDelete) return;
     try {
       await apiClient.delete(`/api/v1/admin/giras/${deleteTarget.id}`);
       setDeleteOpen(false);
@@ -350,7 +359,7 @@ function AdminGirasContent() {
 
   const handleSenhaSave = async () => {
     setSenhaTouched({ max_tickets: true, release_start_at: true, release_end_at: true });
-    if (senhaSaveDisabled || !senhaTarget) return;
+    if (senhaSaveDisabled || !senhaTarget || !canEdit) return;
     setSenhaSaving(true);
     try {
       const payload: any = {
@@ -387,7 +396,7 @@ function AdminGirasContent() {
   };
 
   const handleReleaseNow = async () => {
-    if (!senhaTarget) return;
+    if (!senhaTarget || !canEdit) return;
     setReleaseConfirmOpen(false);
     setSenhaSaving(true);
     try {
@@ -445,6 +454,14 @@ function AdminGirasContent() {
     return <Chip label="Configurado" size="small" color="warning" />;
   };
 
+  if (!canView) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar giras. Contate o administrador do sistema.
+      </Alert>
+    );
+  }
+
   return (
     <>
       <PageHeader
@@ -454,13 +471,15 @@ function AdminGirasContent() {
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadGiras} disabled={loading} size="small">
               Atualizar
             </Button>
-            <Tooltip title={!canCreateGira && !subLoading ? (subscription?.max_giras_per_month != null && subscription.max_giras_per_month >= 0 ? `Limite de ${subscription.max_giras_per_month} gira(s)/mês atingido. Faça upgrade do plano.` : 'Sem assinatura ativa. Faça upgrade do plano.') : ''}>
-              <span>
-                <Button data-tour="giras-nova" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira} size="small">
-                  Nova Gira
-                </Button>
-              </span>
-            </Tooltip>
+            {canInsert && (
+              <Tooltip title={!canCreateGira && !subLoading ? (subscription?.max_giras_per_month != null && subscription.max_giras_per_month >= 0 ? `Limite de ${subscription.max_giras_per_month} gira(s)/mês atingido. Faça upgrade do plano.` : 'Sem assinatura ativa. Faça upgrade do plano.') : ''}>
+                <span>
+                  <Button data-tour="giras-nova" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira} size="small">
+                    Nova Gira
+                  </Button>
+                </span>
+              </Tooltip>
+            )}
           </Box>
         }
       />
@@ -485,7 +504,7 @@ function AdminGirasContent() {
                 <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Data Início</TableCell>
                 <TableCell>Senhas</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell align="right">Ações</TableCell>
+                {(canEdit || canDelete) && <TableCell align="right">Ações</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -507,52 +526,66 @@ function AdminGirasContent() {
                       variant="outlined"
                     />
                   </TableCell>
-                  <TableCell align="right">
-                    {isMobile ? (
-                      <>
-                        <IconButton
-                          data-tour="giras-acoes"
-                          size="small"
-                          onClick={(e) => { setMenuAnchor(e.currentTarget); setMenuGira(gira); }}
-                        >
-                          <MoreVertIcon />
-                        </IconButton>
-                        <Menu
-                          anchorEl={menuAnchor}
-                          open={Boolean(menuAnchor) && menuGira?.id === gira.id}
-                          onClose={() => { setMenuAnchor(null); setMenuGira(null); }}
-                        >
-                          <MuiMenuItem onClick={() => { openSenhaDrawer(gira); setMenuAnchor(null); setMenuGira(null); }}>
-                            <ConfirmationNumberIcon fontSize="small" sx={{ mr: 1 }} /> Configurar Senhas
-                          </MuiMenuItem>
-                          <MuiMenuItem onClick={() => { openEdit(gira); setMenuAnchor(null); setMenuGira(null); }}>
-                            <EditIcon fontSize="small" sx={{ mr: 1 }} /> Editar
-                          </MuiMenuItem>
-                          <MuiMenuItem onClick={() => { handleDeleteClick(gira); setMenuAnchor(null); setMenuGira(null); }} sx={{ color: 'error.main' }}>
-                            <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Deletar
-                          </MuiMenuItem>
-                        </Menu>
-                      </>
-                    ) : (
-                      <>
-                        <Tooltip title="Configurar Senhas">
-                          <IconButton size="small" onClick={() => openSenhaDrawer(gira)}>
-                            <ConfirmationNumberIcon />
+                  {(canEdit || canDelete) && (
+                    <TableCell align="right">
+                      {isMobile ? (
+                        <>
+                          <IconButton
+                            data-tour="giras-acoes"
+                            size="small"
+                            onClick={(e) => { setMenuAnchor(e.currentTarget); setMenuGira(gira); }}
+                          >
+                            <MoreVertIcon />
                           </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Editar">
-                          <IconButton size="small" onClick={() => openEdit(gira)}>
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Deletar">
-                          <IconButton size="small" onClick={() => handleDeleteClick(gira)}>
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </>
-                    )}
-                  </TableCell>
+                          <Menu
+                            anchorEl={menuAnchor}
+                            open={Boolean(menuAnchor) && menuGira?.id === gira.id}
+                            onClose={() => { setMenuAnchor(null); setMenuGira(null); }}
+                          >
+                            {canEdit && (
+                              <MuiMenuItem onClick={() => { openSenhaDrawer(gira); setMenuAnchor(null); setMenuGira(null); }}>
+                                <ConfirmationNumberIcon fontSize="small" sx={{ mr: 1 }} /> Configurar Senhas
+                              </MuiMenuItem>
+                            )}
+                            {canEdit && (
+                              <MuiMenuItem onClick={() => { openEdit(gira); setMenuAnchor(null); setMenuGira(null); }}>
+                                <EditIcon fontSize="small" sx={{ mr: 1 }} /> Editar
+                              </MuiMenuItem>
+                            )}
+                            {canDelete && (
+                              <MuiMenuItem onClick={() => { handleDeleteClick(gira); setMenuAnchor(null); setMenuGira(null); }} sx={{ color: 'error.main' }}>
+                                <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Deletar
+                              </MuiMenuItem>
+                            )}
+                          </Menu>
+                        </>
+                      ) : (
+                        <>
+                          {canEdit && (
+                            <Tooltip title="Configurar Senhas">
+                              <IconButton size="small" onClick={() => openSenhaDrawer(gira)}>
+                                <ConfirmationNumberIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {canEdit && (
+                            <Tooltip title="Editar">
+                              <IconButton size="small" onClick={() => openEdit(gira)}>
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {canDelete && (
+                            <Tooltip title="Deletar">
+                              <IconButton size="small" onClick={() => handleDeleteClick(gira)}>
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </>
+                      )}
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

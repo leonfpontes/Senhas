@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   Box,
   CircularProgress,
   Divider,
@@ -41,6 +42,7 @@ import { KpiCard } from '@/components/admin';
 import UpgradePrompt from '../../components/UpgradePrompt';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
+import { usePermissions } from '../../hooks/usePermissions';
 import { apiClient } from '../../services/api_client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -119,6 +121,8 @@ export default function AdminAnalyticsPage() {
 function AdminAnalyticsContent() {
   const { tokens, isDark } = useAdminTheme();
   const { can, loading: subLoading } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('analytics', 'view');
 
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,6 +143,7 @@ function AdminAnalyticsContent() {
   }, []);
 
   const loadGiras = useCallback(async (signal?: AbortSignal) => {
+    if (!canView) return;
     try {
       const params = new URLSearchParams({ limit: '100' });
       if (dateFrom) params.append('date_from', dateFrom);
@@ -148,9 +153,10 @@ function AdminAnalyticsContent() {
       setGiras(list);
       if (giraId && !list.some((g) => g.id === giraId)) setGiraId('');
     } catch { /* non-critical */ }
-  }, [dateFrom, dateTo, giraId]);
+  }, [dateFrom, dateTo, giraId, canView]);
 
   const loadAnalytics = useCallback(async (signal?: AbortSignal) => {
+    if (!canView) { setLoading(false); return; }
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -160,25 +166,33 @@ function AdminAnalyticsContent() {
       const res = await apiClient.get(`/api/v1/admin/analytics?${params.toString()}`, { signal });
       setAnalytics(res.data);
     } catch { /* non-critical */ } finally { setLoading(false); }
-  }, [dateFrom, dateTo, giraId]);
+  }, [dateFrom, dateTo, giraId, canView]);
 
   useEffect(() => {
     if (!ready) return;
     const c = new AbortController();
     loadGiras(c.signal);
     return () => c.abort();
-  }, [dateFrom, dateTo, ready]);
+  }, [dateFrom, dateTo, ready, canView]);
 
   useEffect(() => {
     if (!ready) return;
     const c = new AbortController();
     loadAnalytics(c.signal);
     return () => c.abort();
-  }, [dateFrom, dateTo, giraId, ready]);
+  }, [dateFrom, dateTo, giraId, ready, canView]);
 
   // Feature gate
   if (!subLoading && !can('analytics_basico')) {
     return <UpgradePrompt feature="Analytics" minPlan="Basic" />;
+  }
+
+  if (!canView) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar o analytics. Contate o administrador do sistema.
+      </Alert>
+    );
   }
 
   const tooltipStyle = {

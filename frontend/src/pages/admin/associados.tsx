@@ -30,6 +30,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AdminLayout from './admin_layout';
 import MaskedInput from '../../components/shared/MaskedInput';
 import { useSubscription } from '../../hooks/useSubscription';
+import { usePermissions } from '../../hooks/usePermissions';
 import UpgradePrompt from '../../components/UpgradePrompt';
 import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
@@ -55,6 +56,11 @@ export default function AdminAssociadosPage() {
 
 function AdminAssociadosContent() {
   const { can, loading: subLoading } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('associados', 'view');
+  const canInsert = canGroup('associados', 'insert');
+  const canEdit = canGroup('associados', 'edit');
+  const canDelete = canGroup('associados', 'delete');
   const [associados, setAssociados] = useState<Associado[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -77,9 +83,10 @@ function AdminAssociadosContent() {
 
   useEffect(() => {
     loadAssociados();
-  }, []);
+  }, [canView]);
 
   const loadAssociados = async () => {
+    if (!canView) { setLoading(false); return; }
     try {
       setLoading(true);
       const response = await apiClient.get('/api/v1/admin/associados');
@@ -148,6 +155,8 @@ function AdminAssociadosContent() {
   const handleSave = async () => {
     setTouched({ nome: true, email: true, telefone: true });
     if (saveDisabled) return;
+    if (drawerMode === 'create' && !canInsert) return;
+    if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
     try {
       const payload: Record<string, string | undefined> = {
@@ -183,7 +192,7 @@ function AdminAssociadosContent() {
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !canDelete) return;
     try {
       await apiClient.delete(`/api/v1/admin/associados/${deleteTarget.id}`);
       setDeleteOpen(false);
@@ -201,6 +210,10 @@ function AdminAssociadosContent() {
     <>
       {!subLoading && !can('associados') ? (
         <UpgradePrompt feature="Associados" minPlan="Pro" />
+      ) : !canView ? (
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          Você não tem permissão para visualizar associados. Contate o administrador do sistema.
+        </Alert>
       ) : (
       <>
       <Box data-tour="associados-header" sx={{ mb: 3 }}>
@@ -210,9 +223,11 @@ function AdminAssociadosContent() {
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadAssociados} disabled={loading}>
               Atualizar
             </Button>
-            <Button data-tour="associados-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-              Novo Associado
-            </Button>
+            {canInsert && (
+              <Button data-tour="associados-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+                Novo Associado
+              </Button>
+            )}
           </Box>
         </Box>
       </Box>
@@ -235,7 +250,7 @@ function AdminAssociadosContent() {
                 <TableCell>Nome</TableCell>
                 <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>E-mail</TableCell>
                 <TableCell>Telefone</TableCell>
-                <TableCell align="right">Ações</TableCell>
+                {(canEdit || canDelete) && <TableCell align="right">Ações</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -244,18 +259,24 @@ function AdminAssociadosContent() {
                   <TableCell>{item.nome}</TableCell>
                   <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{item.email}</TableCell>
                   <TableCell>{item.telefone || '—'}</TableCell>
-                  <TableCell align="right">
-                    <Tooltip title="Editar">
-                      <IconButton size="small" onClick={() => openEdit(item)}>
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Remover">
-                      <IconButton size="small" onClick={() => handleDeleteClick(item)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
+                  {(canEdit || canDelete) && (
+                    <TableCell align="right">
+                      {canEdit && (
+                        <Tooltip title="Editar">
+                          <IconButton size="small" onClick={() => openEdit(item)}>
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {canDelete && (
+                        <Tooltip title="Remover">
+                          <IconButton size="small" onClick={() => handleDeleteClick(item)}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

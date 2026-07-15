@@ -36,6 +36,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '../../../hooks/useSubscription';
+import { usePermissions } from '../../../hooks/usePermissions';
 import UpgradePrompt from '../../../components/UpgradePrompt';
 import { apiClient } from '../../../services/api_client';
 import CrudDrawer from '../../../components/CrudDrawer';
@@ -115,6 +116,11 @@ export default function AdminEstoqueItensPage() {
 
 function AdminEstoqueItensContent() {
   const { can, loading: subLoading } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('estoque', 'view');
+  const canInsert = canGroup('estoque', 'insert');
+  const canEdit = canGroup('estoque', 'edit');
+  const canDelete = canGroup('estoque', 'delete');
   const [items, setItems] = useState<Item[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,11 +143,12 @@ function AdminEstoqueItensContent() {
 
   useEffect(() => {
     loadGrupos();
-  }, []);
+  }, [canView]);
 
-  useEffect(() => { loadItems(); }, [filterGrupo]);
+  useEffect(() => { loadItems(); }, [filterGrupo, canView]);
 
   const loadGrupos = async () => {
+    if (!canView) return;
     try {
       const res = await apiClient.get('/api/v1/admin/estoque/grupos');
       setGrupos(res.data);
@@ -149,6 +156,7 @@ function AdminEstoqueItensContent() {
   };
 
   const loadItems = async () => {
+    if (!canView) { setLoading(false); return; }
     try {
       setLoading(true);
       const params: Record<string, string> = {};
@@ -219,6 +227,8 @@ function AdminEstoqueItensContent() {
   const handleSave = async () => {
     setTouched({ nome: true });
     if (!formData.nome.trim()) return;
+    if (drawerMode === 'create' && !canInsert) return;
+    if (drawerMode === 'edit' && !canEdit) return;
 
     const minimo = parseInt(formData.estoque_minimo, 10);
     if (isNaN(minimo) || minimo < 0) {
@@ -258,7 +268,7 @@ function AdminEstoqueItensContent() {
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !canDelete) return;
     try {
       await apiClient.delete(`/api/v1/admin/estoque/itens/${deleteTarget.id}`);
       setSnackbar({ open: true, message: 'Item excluído.', severity: 'success' });
@@ -273,6 +283,13 @@ function AdminEstoqueItensContent() {
 
   if (subLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
   if (!can('estoque_controle')) return <UpgradePrompt feature="controle de estoque" minPlan="Pro" />;
+  if (!canView) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar itens de estoque. Contate o administrador do sistema.
+      </Alert>
+    );
+  }
 
   return (
     <Box>
@@ -290,7 +307,9 @@ function AdminEstoqueItensContent() {
             </Select>
           </FormControl>
           <Tooltip title="Atualizar"><IconButton onClick={loadItems}><RefreshIcon /></IconButton></Tooltip>
-          <Button data-tour="estoque-itens-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Novo Item</Button>
+          {canInsert && (
+            <Button data-tour="estoque-itens-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Novo Item</Button>
+          )}
         </Box>
       </Box>
 
@@ -311,7 +330,7 @@ function AdminEstoqueItensContent() {
                 <TableCell><strong>Saldo</strong></TableCell>
                 <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Mínimo</strong></TableCell>
                 <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Custo Unit.</strong></TableCell>
-                <TableCell align="right"><strong>Ações</strong></TableCell>
+                {(canEdit || canDelete) && <TableCell align="right"><strong>Ações</strong></TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -335,10 +354,12 @@ function AdminEstoqueItensContent() {
                   <TableCell><SaldoChip saldo={item.saldo} minimo={item.estoque_minimo} unidade={item.unidade_medida} /></TableCell>
                   <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{item.estoque_minimo} {item.unidade_medida}</TableCell>
                   <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', md: 'table-cell' } }}>{item.custo_unitario != null ? `R$ ${item.custo_unitario.toFixed(2)}` : '—'}</TableCell>
-                  <TableCell align="right">
-                    <Tooltip title="Editar"><IconButton size="small" onClick={() => openEdit(item)}><EditIcon fontSize="small" /></IconButton></Tooltip>
-                    <Tooltip title="Excluir"><IconButton size="small" color="error" onClick={() => { setDeleteTarget(item); setDeleteOpen(true); }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
-                  </TableCell>
+                  {(canEdit || canDelete) && (
+                    <TableCell align="right">
+                      {canEdit && <Tooltip title="Editar"><IconButton size="small" onClick={() => openEdit(item)}><EditIcon fontSize="small" /></IconButton></Tooltip>}
+                      {canDelete && <Tooltip title="Excluir"><IconButton size="small" color="error" onClick={() => { setDeleteTarget(item); setDeleteOpen(true); }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>}
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

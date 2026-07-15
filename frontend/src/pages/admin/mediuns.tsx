@@ -36,6 +36,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import SelfImprovementIcon from '@mui/icons-material/SelfImprovement';
 import AdminLayout from './admin_layout';
 import { useSubscription } from '../../hooks/useSubscription';
+import { usePermissions } from '../../hooks/usePermissions';
 import UpgradePrompt from '../../components/UpgradePrompt';
 import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
@@ -217,6 +218,11 @@ export default function AdminMediunsPage() {
 
 function MediunsContent() {
   const { can, loading: subLoading, subscription, canCreateMedium: canCreateMediumFn } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('mediuns', 'view');
+  const canInsert = canGroup('mediuns', 'insert');
+  const canEdit = canGroup('mediuns', 'edit');
+  const canDelete = canGroup('mediuns', 'delete');
 
   const [mediuns, setMediuns] = useState<Medium[]>([]);
   const [loading, setLoading] = useState(true);
@@ -265,6 +271,7 @@ function MediunsContent() {
   }, [search]);
 
   const load = useCallback(async () => {
+    if (!canView) { setLoading(false); return; }
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -277,7 +284,7 @@ function MediunsContent() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, includeInactive]);
+  }, [debouncedSearch, includeInactive, canView]);
 
   useEffect(() => {
     load();
@@ -423,6 +430,8 @@ function MediunsContent() {
   const handleSave = async () => {
     setTouched((p) => ({ ...p, nome: true }));
     if (saveDisabled) return;
+    if (drawerMode === 'create' && !canInsert) return;
+    if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -471,7 +480,7 @@ function MediunsContent() {
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !canDelete) return;
     try {
       await apiClient.delete(`/api/v1/admin/mediuns/${deleteTarget.id}`);
       setDeleteOpen(false);
@@ -490,6 +499,14 @@ function MediunsContent() {
 
   if (!subLoading && !can('mediuns')) {
     return <UpgradePrompt feature="Médiuns e Cambones" minPlan="Basic" />;
+  }
+
+  if (!canView) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar médiuns e cambones. Contate o administrador do sistema.
+      </Alert>
+    );
   }
 
   // canCreate uses server-side current_mediuns count to avoid false allows when search is filtering the list
@@ -527,25 +544,27 @@ function MediunsContent() {
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={load} disabled={loading}>
               Atualizar
             </Button>
-            <Tooltip
-              title={
-                !canCreate
-                  ? `Limite de ${subscription?.max_mediuns ?? 0} médium(ns) atingido. Faça upgrade do plano.`
-                  : ''
-              }
-            >
-              <span>
-                <Button
-                  data-tour="mediuns-novo"
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={openCreate}
-                  disabled={!canCreate}
-                >
-                  Novo
-                </Button>
-              </span>
-            </Tooltip>
+            {canInsert && (
+              <Tooltip
+                title={
+                  !canCreate
+                    ? `Limite de ${subscription?.max_mediuns ?? 0} médium(ns) atingido. Faça upgrade do plano.`
+                    : ''
+                }
+              >
+                <span>
+                  <Button
+                    data-tour="mediuns-novo"
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={openCreate}
+                    disabled={!canCreate}
+                  >
+                    Novo
+                  </Button>
+                </span>
+              </Tooltip>
+            )}
           </Box>
         </Box>
 
@@ -608,7 +627,7 @@ function MediunsContent() {
                   </TableSortLabel>
                 </TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell align="right">Ações</TableCell>
+                {canDelete && <TableCell align="right">Ações</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -630,8 +649,8 @@ function MediunsContent() {
                 <TableRow
                   key={m.id}
                   hover
-                  sx={{ cursor: 'pointer' }}
-                  onClick={() => openEdit(m)}
+                  sx={{ cursor: canEdit ? 'pointer' : 'default' }}
+                  onClick={() => { if (canEdit) openEdit(m); }}
                 >
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
@@ -679,13 +698,15 @@ function MediunsContent() {
                       color={m.is_active ? 'success' : 'default'}
                     />
                   </TableCell>
-                  <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                    <Tooltip title="Remover">
-                      <IconButton size="small" onClick={() => handleDeleteClick(m)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
+                  {canDelete && (
+                    <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                      <Tooltip title="Remover">
+                        <IconButton size="small" onClick={() => handleDeleteClick(m)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  )}
                 </TableRow>
                 );
               })}
