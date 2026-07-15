@@ -323,18 +323,27 @@ export type { APIError };
 
 /**
  * Pulls a user-facing message out of a caught API error, in the order the
- * backend actually populates them: response detail, then axios's own
- * message, then a caller-supplied fallback. Replaces the
- * `err?.response?.data?.detail || err?.message || 'fallback'` one-liner
- * repeated across most catch blocks in the app.
+ * backend actually populates them: response detail, then response message
+ * (some endpoints return {message} instead of {detail}), then a top-level
+ * message, then a caller-supplied fallback.
+ *
+ * NOTE: apiClient's response interceptor (handleError above) rejects with a
+ * plain `{status, message, detail, response}` object, not the original
+ * AxiosError — so this checks that shape structurally rather than via
+ * axios.isAxiosError(), which would be false here. Falls back to duck-typing
+ * a raw AxiosError/Error too, in case a caller bypasses the interceptor
+ * (e.g. a manual axios call, or a rejection re-thrown as-is like cancellation).
+ * Replaces the `err?.response?.data?.detail || err?.message || 'fallback'`
+ * one-liner repeated across most catch blocks in the app.
  */
 export function extractApiErrorMessage(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    const detail = (err.response?.data as ErrorResponseBody | undefined)?.detail;
-    if (typeof detail === 'string' && detail) return detail;
-    if (err.message) return err.message;
-  } else if (err instanceof Error && err.message) {
-    return err.message;
+  if (err && typeof err === 'object') {
+    const e = err as { response?: AxiosResponse; message?: unknown; detail?: unknown };
+    const body = e.response?.data as ErrorResponseBody | undefined;
+    if (typeof body?.detail === 'string' && body.detail) return body.detail;
+    if (typeof body?.message === 'string' && body.message) return body.message;
+    if (typeof e.detail === 'string' && e.detail) return e.detail;
+    if (typeof e.message === 'string' && e.message) return e.message;
   }
   return fallback;
 }

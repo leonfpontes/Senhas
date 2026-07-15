@@ -40,7 +40,7 @@ import {
   GroupPermission,
   GroupMember,
 } from '../../../services/permissionGroupsService';
-import { apiClient } from '../../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import PermissionMatrix from '../../../components/PermissionMatrix';
 import { PermissionFeature, FEATURE_LABELS } from '../../../constants/permissionFeatures';
 
@@ -159,8 +159,8 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
       setAllGroupMembers(allMembersMap);
       setAllGroupPermissions(allPermsMap);
 
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao carregar dados do grupo');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao carregar dados do grupo'));
     } finally {
       setLoading(false);
     }
@@ -190,8 +190,8 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
       setGroup(updated);
       setSuccess('Informações básicas atualizadas com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Erro ao atualizar grupo');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao atualizar grupo'));
     } finally {
       setSavingInfo(false);
     }
@@ -218,14 +218,15 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
       setGroup(updated);
       setSuccess('Permissões do grupo atualizadas com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      if (err?.status === 409) {
+    } catch (err) {
+      const status = err && typeof err === 'object' ? (err as { status?: number }).status : undefined;
+      if (status === 409) {
         setError(
           'Conflito de Concorrência: As permissões deste grupo foram alteradas por outro administrador. Recarregando dados...'
         );
         setTimeout(() => loadData(), 3000);
       } else {
-        setError(err?.message || 'Erro ao salvar permissões do grupo');
+        setError(extractApiErrorMessage(err, 'Erro ao salvar permissões do grupo'));
       }
     } finally {
       setSavingPermissions(false);
@@ -243,8 +244,8 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
       setSelectedUser(null);
       loadData(); // Reload groups, memberships map
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao adicionar membro');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao adicionar membro'));
     } finally {
       setAddingMember(false);
     }
@@ -259,8 +260,8 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
       setSuccess('Membro removido do grupo.');
       loadData(); // Reload
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao remover membro');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao remover membro'));
     }
   };
 
@@ -282,16 +283,16 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
       });
 
       const allFeatures = Object.keys(FEATURE_LABELS) as PermissionFeature[];
-      const effective: Record<PermissionFeature, Record<string, boolean>> = {} as any;
+      const effective = Object.fromEntries(
+        allFeatures.map(
+          (f): [PermissionFeature, Record<string, boolean>] => [
+            f,
+            { view: false, insert: false, edit: false, delete: false },
+          ]
+        )
+      ) as Record<PermissionFeature, Record<string, boolean>>;
 
       allFeatures.forEach((f) => {
-        effective[f] = {
-          view: false,
-          insert: false,
-          edit: false,
-          delete: false,
-        };
-
         // If user is in no groups, they have total access (backward compat)
         if (userGroupIds.length === 0) {
           effective[f] = {
