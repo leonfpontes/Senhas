@@ -18,7 +18,7 @@ import {
 import PasswordField from '../components/PasswordField';
 import Link from 'next/link';
 import Head from 'next/head';
-import { apiClient } from '../services/api_client';
+import { apiClient, extractApiErrorMessage, ApiRequestConfig } from '../services/api_client';
 
 export default function ReactivateAccountPage() {
   const router = useRouter();
@@ -39,14 +39,14 @@ export default function ReactivateAccountPage() {
         { email, password },
         // Resposta é sempre a mesma mensagem genérica, mesmo em falha —
         // não é um 401 de sessão, então não faz sentido tratar como tal.
-        { skipAutoLogout: true } as any,
+        { skipAutoLogout: true } as ApiRequestConfig,
       );
       setSuccess(true);
       setTimeout(() => {
         router.push('/login?reactivated=1');
       }, 2500);
-    } catch (err: any) {
-      setError(err?.message || 'Não foi possível processar a solicitação. Tente novamente.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Não foi possível processar a solicitação. Tente novamente.'));
     } finally {
       setLoading(false);
     }

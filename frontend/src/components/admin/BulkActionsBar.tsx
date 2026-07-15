@@ -22,7 +22,16 @@ import {
   Close as CloseIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
-import { apiClient } from '../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../services/api_client';
+
+interface BulkActionResult {
+  success: boolean;
+  modified?: number;
+  failed?: number;
+  errors?: string[];
+  warnings?: string[];
+  isDryRun?: boolean;
+}
 
 interface BulkActionsBarProps {
   selectedCount: number;
@@ -42,7 +51,7 @@ export default function BulkActionsBar({
   const [actionDialog, setActionDialog] = useState<'mark_used' | 'cancel' | null>(null);
   const [dryRun, setDryRun] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<BulkActionResult | null>(null);
 
   const handleAction = async (action: 'mark_used' | 'cancel') => {
     try {
@@ -99,10 +108,10 @@ export default function BulkActionsBar({
           isDryRun: true,
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       setResult({
         success: false,
-        errors: [error.response?.data?.message || 'Erro ao executar operação'],
+        errors: [extractApiErrorMessage(error, 'Erro ao executar operação')],
       });
     } finally {
       setLoading(false);
@@ -211,7 +220,7 @@ export default function BulkActionsBar({
                   ) : (
                     <Alert severity="success">
                       Operação concluída: {result.modified} ticket(s) processado(s).
-                      {result.failed > 0 && ` ${result.failed} falha(s).`}
+                      {!!result.failed && result.failed > 0 && ` ${result.failed} falha(s).`}
                     </Alert>
                   )}
 

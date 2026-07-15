@@ -45,7 +45,7 @@ import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
 import UpgradePrompt from '../../../components/UpgradePrompt';
 import CrudDrawer from '../../../components/CrudDrawer';
-import { apiClient } from '../../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 
 interface Item { id: string; nome: string; saldo: number; estoque_minimo: number; unidade_medida: string; }
 interface Movimentacao {
@@ -249,8 +249,8 @@ function AdminEstoqueMovimentacoesContent() {
       setSaldoWarning(null);
       loadItems();
       loadMovimentacoes();
-    } catch (e: any) {
-      setDrawerError(e?.response?.data?.detail || e?.response?.data?.message || 'Erro ao salvar movimentação.');
+    } catch (e) {
+      setDrawerError(extractApiErrorMessage(e, 'Erro ao salvar movimentação.'));
     } finally {
       setSaving(false);
     }
@@ -266,8 +266,8 @@ function AdminEstoqueMovimentacoesContent() {
       setDeleteTarget(null);
       loadItems();
       loadMovimentacoes();
-    } catch (e: any) {
-      showSnack(e?.response?.data?.detail || 'Erro ao excluir movimentação.', 'error');
+    } catch (e) {
+      showSnack(extractApiErrorMessage(e, 'Erro ao excluir movimentação.'), 'error');
     } finally {
       setDeleting(false);
     }

@@ -32,7 +32,7 @@ import MaskedInput from '../../components/shared/MaskedInput';
 import { useSubscription } from '../../hooks/useSubscription';
 import { usePermissions } from '../../hooks/usePermissions';
 import UpgradePrompt from '../../components/UpgradePrompt';
-import { apiClient } from '../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
 import { ConfirmDialog } from '@/components/admin';
 
@@ -178,9 +178,8 @@ function AdminAssociadosContent() {
       }
       closeDrawer();
       loadAssociados();
-    } catch (error: any) {
-      const detail = error?.response?.data?.detail;
-      const msg = typeof detail === 'string' ? detail : 'Erro ao salvar associado';
+    } catch (error) {
+      const msg = extractApiErrorMessage(error, 'Erro ao salvar associado');
       setSnackbar({ open: true, message: msg, severity: 'error' });
     } finally {
       setSaving(false);
@@ -201,9 +200,8 @@ function AdminAssociadosContent() {
       setDeleteTarget(null);
       setSnackbar({ open: true, message: 'Associado removido com sucesso!', severity: 'success' });
       loadAssociados();
-    } catch (error: any) {
-      const detail = error?.response?.data?.detail;
-      const msg = typeof detail === 'string' ? detail : 'Erro ao remover associado';
+    } catch (error) {
+      const msg = extractApiErrorMessage(error, 'Erro ao remover associado');
       setSnackbar({ open: true, message: msg, severity: 'error' });
     }
   };

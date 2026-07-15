@@ -55,7 +55,7 @@ import { KpiCard, PageHeader, ConfirmDialog } from '@/components/admin';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions }  from '../../../hooks/usePermissions';
-import { apiClient }       from '../../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -287,8 +287,8 @@ function ContasPagarContent() {
       }
       setDrawerOpen(false);
       fetchAll();
-    } catch (e: any) {
-      setDrawerError(e?.response?.data?.message || e?.response?.data?.detail || 'Erro ao salvar o lançamento. Tente novamente.');
+    } catch (e) {
+      setDrawerError(extractApiErrorMessage(e, 'Erro ao salvar o lançamento. Tente novamente.'));
     } finally {
       setSaving(false);
     }
@@ -321,8 +321,8 @@ function ContasPagarContent() {
       showSnack('Baixa registrada com sucesso.');
       setBaixaOpen(false);
       fetchAll();
-    } catch (e: any) {
-      showSnack(e?.response?.data?.detail || 'Erro ao dar baixa.', 'error');
+    } catch (e) {
+      showSnack(extractApiErrorMessage(e, 'Erro ao dar baixa.'), 'error');
     } finally {
       setSavingBaixa(false);
     }
