@@ -18,6 +18,13 @@ type RetryableConfig = InternalAxiosRequestConfig & {
   skipAutoLogout?: boolean;
 };
 
+/**
+ * Config shape for callers that need `skipAutoLogout` (opt out of the global
+ * 401 → refresh/logout flow for endpoints where 401 means "wrong password",
+ * not "session expired" — e.g. change-password, delete-account).
+ */
+export type ApiRequestConfig = AxiosRequestConfig & { skipAutoLogout?: boolean };
+
 /** Shape of the JSON body FastAPI/our backends send back on error responses. */
 interface ErrorResponseBody {
   detail?: string;
