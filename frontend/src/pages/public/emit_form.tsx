@@ -134,13 +134,14 @@ export default function EmitForm({
 
     } catch (err) {
       // Handle error
-      const e = err as { status?: number; response?: { data?: { detail?: string } } } | undefined;
+      const e = err as { status?: number; response?: { status?: number; data?: { detail?: string } } } | undefined;
+      const status = e?.status ?? e?.response?.status;
       const message =
-        e?.status === 409
+        status === 409
           ? 'Você já possui uma senha para este evento'
-          : e?.status === 410
+          : status === 410
             ? 'Todas as senhas para este evento foram emitidas'
-            : e?.status === 429
+            : status === 429
               ? 'Muitas tentativas. Aguarde alguns instantes e tente novamente.'
               : e?.response?.data?.detail ||
                 'Erro ao emitir senha. Tente novamente.';
