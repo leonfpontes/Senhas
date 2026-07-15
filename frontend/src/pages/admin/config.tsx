@@ -39,6 +39,7 @@ import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import { dispatchTenantBrandingUpdated } from '../../providers/ThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { PlanFeatures } from '../../hooks/useSubscription';
 
@@ -304,6 +305,9 @@ export default function AdminConfigPage() {
 
 function AdminConfigContent() {
   const { can } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('configuracoes', 'view');
+  const canEdit = canGroup('configuracoes', 'edit');
   const { tokens, isDark } = useAdminTheme();
 
   const [savedConfig, setSavedConfig] = useState<TenantConfig | null>(null);
@@ -339,6 +343,7 @@ function AdminConfigContent() {
 
   // ── API ─────────────────────────────────────────────────────────────────────
   const loadConfig = useCallback(async () => {
+    if (!canView) { setLoading(false); return; }
     try {
       setLoading(true);
       const res = await apiClient.get<TenantConfig>('/api/v1/admin/tenant/config');
@@ -350,7 +355,7 @@ function AdminConfigContent() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canView]);
 
   useEffect(() => { void loadConfig(); }, [loadConfig]);
 
@@ -363,7 +368,7 @@ function AdminConfigContent() {
   };
 
   const handleSave = async () => {
-    if (!config || hasErrors) return;
+    if (!config || hasErrors || !canEdit) return;
     try {
       setSaving(true);
       const res = await apiClient.put<TenantConfig>('/api/v1/admin/tenant/config', {
@@ -394,6 +399,7 @@ function AdminConfigContent() {
   };
 
   const uploadLogo = async (file: File) => {
+    if (!canEdit) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       showSnackbar('error', 'Formato inválido. Use JPG, PNG ou WEBP.');
       return;
@@ -435,6 +441,7 @@ function AdminConfigContent() {
   };
 
   const handleLogoDelete = async () => {
+    if (!canEdit) return;
     setUploadingLogo(true);
     try {
       const res = await apiClient.delete<TenantConfig>('/api/v1/admin/tenant/logo');
@@ -462,6 +469,14 @@ function AdminConfigContent() {
     );
   }
 
+  if (!canView) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar as configurações. Contate o administrador do sistema.
+      </Alert>
+    );
+  }
+
   if (!config) {
     return <Alert severity="error">Erro ao carregar configurações do tenant.</Alert>;
   }
@@ -477,8 +492,8 @@ function AdminConfigContent() {
           </Typography>
         </Box>
 
-        {/* Save bar — only visible when dirty */}
-        <Slide direction="left" in={isDirty} mountOnEnter unmountOnExit>
+        {/* Save bar — only visible when dirty and user can edit */}
+        <Slide direction="left" in={isDirty && canEdit} mountOnEnter unmountOnExit>
           <Paper
             elevation={0}
             sx={{

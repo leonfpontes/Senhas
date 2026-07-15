@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -35,6 +36,7 @@ import AdminLayout from './admin_layout';
 import UpgradePrompt from '../../components/UpgradePrompt';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
+import { usePermissions } from '../../hooks/usePermissions';
 import { apiClient } from '../../services/api_client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -228,6 +230,8 @@ export default function AdminAuditTrailPage() {
 
 function AdminAuditTrailContent() {
   const { can, loading: subLoading } = useSubscription();
+  const { can: canGroup }            = usePermissions();
+  const canView                      = canGroup('auditoria', 'view');
   const { isDark }                   = useAdminTheme();
   const theme                        = useTheme();
   const isMobile                     = useMediaQuery(theme.breakpoints.down('md'));
@@ -242,10 +246,11 @@ function AdminAuditTrailContent() {
   const [detailLog, setDetailLog]                 = useState<AuditLog | null>(null);
 
   useEffect(() => {
+    if (!canView) { setLoading(false); return; }
     const c = new AbortController();
     loadLogs(c.signal);
     return () => c.abort();
-  }, [page, actionFilter, resourceTypeFilter]);
+  }, [page, actionFilter, resourceTypeFilter, canView]);
 
   function buildQuery(overrideLimit?: number, overrideSkip?: number) {
     const p = new URLSearchParams();
@@ -268,6 +273,7 @@ function AdminAuditTrailContent() {
   }
 
   async function handleExport() {
+    if (!canView) return;
     try {
       const res = await apiClient.get(`/api/v1/admin/audit-logs?${buildQuery(10000, 0)}`, { responseType: 'blob' });
       const url  = window.URL.createObjectURL(new Blob([res.data]));
@@ -284,6 +290,14 @@ function AdminAuditTrailContent() {
     return <UpgradePrompt feature="Auditoria" minPlan="Pro" />;
   }
 
+  if (!canView) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar a auditoria. Contate o administrador do sistema.
+      </Alert>
+    );
+  }
+
   return (
     <Box>
       {/* ── Header ── */}
@@ -297,16 +311,18 @@ function AdminAuditTrailContent() {
             Registro de todas as ações realizadas no sistema
           </Typography>
         </Box>
-        <Button
-          data-tour="audit-export"
-          variant="outlined"
-          size="small"
-          startIcon={<DownloadRoundedIcon sx={{ fontSize: 17 }} />}
-          onClick={handleExport}
-          sx={{ flexShrink: 0 }}
-        >
-          Exportar CSV
-        </Button>
+        {canView && (
+          <Button
+            data-tour="audit-export"
+            variant="outlined"
+            size="small"
+            startIcon={<DownloadRoundedIcon sx={{ fontSize: 17 }} />}
+            onClick={handleExport}
+            sx={{ flexShrink: 0 }}
+          >
+            Exportar CSV
+          </Button>
+        )}
       </Box>
 
       {/* ── Filters ── */}

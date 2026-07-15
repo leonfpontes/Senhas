@@ -39,6 +39,7 @@ import { apiClient } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
 import PasswordField from '../../components/PasswordField';
 import { useSubscription } from '../../hooks/useSubscription';
+import { usePermissions } from '../../hooks/usePermissions';
 import { PageHeader, ConfirmDialog } from '@/components/admin';
 
 interface UserItem {
@@ -78,6 +79,11 @@ export default function AdminUsersPage() {
 
 function AdminUsersContent() {
   const { subscription, canCreateUser: canCreateUserCheck } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canView = canGroup('usuarios', 'view');
+  const canInsert = canGroup('usuarios', 'insert');
+  const canEdit = canGroup('usuarios', 'edit');
+  const canDelete = canGroup('usuarios', 'delete');
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,9 +109,10 @@ function AdminUsersContent() {
 
   useEffect(() => {
     fetchUsers();
-  }, [page, roleFilter]);
+  }, [page, roleFilter, canView]);
 
   const fetchUsers = async () => {
+    if (!canView) return;
     setLoading(true);
     setError(null);
     try {
@@ -235,6 +242,14 @@ function AdminUsersContent() {
     }
   };
 
+  if (!canView) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Você não tem permissão para visualizar a gestão de usuários. Contate o administrador do sistema.
+      </Alert>
+    );
+  }
+
   return (
     <>
       <Box data-tour="users-header" sx={{ mb: 3 }}>
@@ -251,11 +266,13 @@ function AdminUsersContent() {
                 </Select>
               </FormControl>
               <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchUsers} disabled={loading}>Atualizar</Button>
-              <Tooltip title={!canCreateUser ? `Limite de ${subscription?.max_users ?? 0} usuário(s) atingido. Faça upgrade do plano.` : ''}>
-                <span>
-                  <Button data-tour="users-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={loading || !canCreateUser}>Novo Usuário</Button>
-                </span>
-              </Tooltip>
+              {canInsert && (
+                <Tooltip title={!canCreateUser ? `Limite de ${subscription?.max_users ?? 0} usuário(s) atingido. Faça upgrade do plano.` : ''}>
+                  <span>
+                    <Button data-tour="users-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={loading || !canCreateUser}>Novo Usuário</Button>
+                  </span>
+                </Tooltip>
+              )}
             </Box>
           }
         />
@@ -272,7 +289,7 @@ function AdminUsersContent() {
                 <TableCell>Role</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Criado em</TableCell>
-                <TableCell align="right">Ações</TableCell>
+                {(canEdit || canDelete) && <TableCell align="right">Ações</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -306,14 +323,20 @@ function AdminUsersContent() {
                       />
                     </TableCell>
                     <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{new Date(user.created_at).toLocaleDateString('pt-BR')}</TableCell>
-                    <TableCell align="right">
-                      <IconButton size="small" onClick={() => openEdit(user)}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" color="error" onClick={() => requestDelete(user)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
+                    {(canEdit || canDelete) && (
+                      <TableCell align="right">
+                        {canEdit && (
+                          <IconButton size="small" onClick={() => openEdit(user)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                        {canDelete && (
+                          <IconButton size="small" color="error" onClick={() => requestDelete(user)}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
