@@ -2,12 +2,20 @@
  * Jest Configuration for Frontend Testing
  */
 
+const fs = require('fs');
+const path = require('path');
 const nextJest = require('next/jest');
 
 const createJestConfig = nextJest({
   // Provide the path to your Next.js app to load next.config.js and .env files in your test environment
   dir: './',
 });
+
+// @mui/material lives in frontend/node_modules in the Docker build, but npm workspaces
+// hoisting puts it in the repo-root node_modules in local dev. Pick whichever exists.
+const muiMaterialRoot = fs.existsSync(path.join(__dirname, 'node_modules/@mui/material'))
+  ? '<rootDir>/node_modules/@mui/material'
+  : '<rootDir>/../node_modules/@mui/material';
 
 // Add any custom config to be passed to Jest
 const customJestConfig = {
@@ -30,9 +38,11 @@ const customJestConfig = {
     // own directory in the package (Button/, AppBar/, useMediaQuery/, etc.),
     // but @mui/material v5.18 does not include a useTheme/ directory.
     // Map it to the CJS entry in the node/ build so Jest can load it.
-    // Try frontend-local node_modules first (Docker container layout), fallback to root workspace
-    '^@mui/material/useTheme$': '<rootDir>/node_modules/@mui/material/node/styles/useTheme',
-    '^@mui/material/useMediaQuery$': '<rootDir>/node_modules/@mui/material/node/useMediaQuery',
+    '^@mui/material/useTheme$': `${muiMaterialRoot}/node/styles/useTheme`,
+    '^@mui/material/useMediaQuery$': `${muiMaterialRoot}/node/useMediaQuery`,
+    // @sentry/nextjs reads next/router's `.events` at import time (browserTracingIntegration),
+    // which doesn't exist in jsdom — crashes any test that imports a page using Sentry.setUser().
+    '^@sentry/nextjs$': '<rootDir>/__mocks__/sentry-nextjs-mock.js',
   },
   testMatch: ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
   moduleDirectories: ['node_modules', '<rootDir>/../node_modules'],

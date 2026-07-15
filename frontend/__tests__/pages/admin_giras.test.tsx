@@ -41,6 +41,10 @@ jest.mock('@/hooks/useSubscription', () => ({
   }),
 }));
 
+jest.mock('@/hooks/usePermissions', () => ({
+  usePermissions: () => ({ can: () => true, permissions: null, loading: false, refresh: jest.fn() }),
+}));
+
 jest.mock('@/components/CrudDrawer', () => ({
   __esModule: true,
   default: ({ children, open, title }: any) =>
