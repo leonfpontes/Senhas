@@ -173,7 +173,7 @@ function RelatorioGiraContent() {
       const res  = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`);
       const data = Array.isArray(res.data) ? res.data : res.data.items ?? [];
       setGiras(data);
-      if (giraId && !data.some((g: any) => g.id === giraId)) setGiraId('');
+      if (giraId && !data.some((g: { id: string }) => g.id === giraId)) setGiraId('');
     } catch { /* non-critical */ }
   }, [giraFilter, dateFrom, dateTo, giraId, canGroup]);
 

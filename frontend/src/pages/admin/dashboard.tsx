@@ -290,8 +290,8 @@ export default function AdminDashboard() {
       setError(null);
       const res = await apiClient.get('/api/v1/admin/dashboard-summary', { signal });
       setData(res.data);
-    } catch (err: any) {
-      if (err.name === 'CanceledError' || err.name === 'AbortError') return;
+    } catch (err) {
+      if (err instanceof Error && (err.name === 'CanceledError' || err.name === 'AbortError')) return;
       setError('Não foi possível carregar os dados do dashboard.');
     } finally {
       setLoading(false);

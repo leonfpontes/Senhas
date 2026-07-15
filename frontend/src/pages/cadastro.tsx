@@ -152,11 +152,9 @@ export default function CadastroPage() {
       // with the token already in localStorage — prevents canCreateGira()=false
       // on the first visit to /admin/giras after signup.
       window.location.href = '/admin/dashboard';
-    } catch (err: any) {
-      const detail =
-        err?.response?.data?.detail ??
-        err?.response?.data?.message ??
-        'Erro ao criar conta. Tente novamente.';
+    } catch (err) {
+      const e = err as { response?: { data?: { detail?: unknown; message?: unknown } } } | undefined;
+      const detail = e?.response?.data?.detail ?? e?.response?.data?.message ?? 'Erro ao criar conta. Tente novamente.';
       setError(typeof detail === 'string' ? detail : JSON.stringify(detail));
     } finally {
       setLoading(false);

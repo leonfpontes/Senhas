@@ -18,7 +18,7 @@ import {
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import { apiClient } from '../../../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../../../services/api_client';
 
 type ConfirmState = 'loading' | 'success' | 'expired' | 'error';
 
@@ -37,13 +37,14 @@ export default function WaitlistConfirmPage() {
       setTicketNumber(res.data.ticket_number);
       setMessage(res.data.message);
       setState('success');
-    } catch (err: any) {
-      if (err?.response?.status === 410) {
+    } catch (err) {
+      const status = err && typeof err === 'object' ? (err as { status?: number }).status : undefined;
+      if (status === 410) {
         setState('expired');
       } else {
         setState('error');
       }
-      setMessage(err?.response?.data?.detail || 'Não foi possível confirmar sua senha.');
+      setMessage(extractApiErrorMessage(err, 'Não foi possível confirmar sua senha.'));
     }
   }, [ticketId]);
 

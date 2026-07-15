@@ -104,15 +104,16 @@ export default function LoginPage() {
       } else {
         window.location.href = '/admin/dashboard';
       }
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      const code = typeof detail === 'object' ? detail?.error_code : null;
+    } catch (err) {
+      const e = err as { response?: { data?: { detail?: unknown; message?: unknown } } } | undefined;
+      const detail = e?.response?.data?.detail;
+      const code = detail && typeof detail === 'object' ? (detail as { error_code?: string }).error_code : null;
       const message =
-        (typeof detail === 'object' ? detail?.message : detail) ||
-        err?.response?.data?.message ||
+        (detail && typeof detail === 'object' ? (detail as { message?: string }).message : detail) ||
+        e?.response?.data?.message ||
         'Credenciais inválidas. Tente novamente.';
       if (code) setErrorCode(code);
-      setError(message);
+      setError(message as string);
     } finally {
       setLoading(false);
     }

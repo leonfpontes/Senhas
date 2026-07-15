@@ -59,7 +59,7 @@ import AdminLayout from '../admin_layout';
 import CrudDrawer from '../../../components/CrudDrawer';
 import UpgradePrompt from '../../../components/UpgradePrompt';
 import CurrencyInput from '../../../components/CurrencyInput';
-import { apiClient } from '../../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
 
@@ -364,8 +364,8 @@ export default function MensalidadesPage() {
       // Refresh resumo so KPI cards and chart stay in sync
       fetchResumo();
       if (assocEnabled) fetchAssocResumo();
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail || 'Erro ao salvar.';
+    } catch (err) {
+      const detail = extractApiErrorMessage(err, 'Erro ao salvar.');
       setSnack({ open: true, msg: detail, severity: 'error' });
     } finally {
       setDrawerSaving(false);
