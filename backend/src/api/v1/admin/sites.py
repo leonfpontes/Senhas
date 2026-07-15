@@ -221,7 +221,7 @@ async def _extract_image_dimensions(data: bytes, mimetype: str) -> tuple[int | N
 
 # ── Site config endpoints ─────────────────────────────────────────────────────
 
-@router.get("", response_model=SiteResponse)
+@router.get("", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def get_site(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -286,7 +286,7 @@ async def update_site(
 
 # ── Sections endpoints ────────────────────────────────────────────────────────
 
-@router.get("/sections", response_model=SectionsResponse)
+@router.get("/sections", response_model=SectionsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def get_sections(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -393,7 +393,7 @@ async def unpublish_site(
 
 # ── Image endpoints ───────────────────────────────────────────────────────────
 
-@router.get("/images", response_model=list[ImageResponse])
+@router.get("/images", response_model=list[ImageResponse], dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def list_images(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -505,7 +505,7 @@ async def delete_image(
 
 # ── Version history ───────────────────────────────────────────────────────────
 
-@router.get("/versions", response_model=list[VersionResponse])
+@router.get("/versions", response_model=list[VersionResponse], dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def list_versions(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
