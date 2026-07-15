@@ -43,7 +43,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AdminLayout from './admin_layout';
-import { apiClient } from '../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
 import { useSubscription } from '../../hooks/useSubscription';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -197,8 +197,8 @@ function AdminGirasContent() {
       setLoading(true);
       const response = await apiClient.get('/api/v1/admin/giras', { signal });
       setGiras(response.data.items || response.data);
-    } catch (error: any) {
-      if (error.name === 'CanceledError' || error.name === 'AbortError') return;
+    } catch (error) {
+      if (error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError')) return;
       console.error('Error loading giras:', error);
     } finally {
       setLoading(false);
@@ -360,7 +360,7 @@ function AdminGirasContent() {
     if (senhaSaveDisabled || !senhaTarget || !canEdit) return;
     setSenhaSaving(true);
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         max_tickets: Number(senhaForm.max_tickets),
         release_start_at: new Date(senhaForm.release_start_at).toISOString(),
         release_end_at: new Date(senhaForm.release_end_at).toISOString(),
@@ -385,8 +385,8 @@ function AdminGirasContent() {
       setSenhaInitial({ ...senhaForm });
       setSnackbar({ open: true, message: 'Configuração de senhas salva!', severity: 'success' });
       loadGiras();
-    } catch (error: any) {
-      const msg = error?.response?.data?.detail || 'Erro ao salvar configuração';
+    } catch (error) {
+      const msg = extractApiErrorMessage(error, 'Erro ao salvar configuração');
       setSnackbar({ open: true, message: msg, severity: 'error' });
     } finally {
       setSenhaSaving(false);
@@ -413,8 +413,8 @@ function AdminGirasContent() {
       setSenhaInitial(released);
       setSnackbar({ open: true, message: 'Senhas liberadas agora!', severity: 'success' });
       loadGiras();
-    } catch (error: any) {
-      const msg = error?.response?.data?.detail || 'Erro ao liberar senhas';
+    } catch (error) {
+      const msg = extractApiErrorMessage(error, 'Erro ao liberar senhas');
       setSnackbar({ open: true, message: msg, severity: 'error' });
     } finally {
       setSenhaSaving(false);

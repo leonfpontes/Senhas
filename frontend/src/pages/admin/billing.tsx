@@ -24,7 +24,7 @@ import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 
 import AdminLayout from './admin_layout';
-import { apiClient } from '../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../services/api_client';
 import { useSubscription } from '../../hooks/useSubscription';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { useRouter } from 'next/router';
@@ -175,8 +175,8 @@ export default function AdminBilling() {
     try {
       const res = await apiClient.post('/api/v1/admin/billing/checkout', { plan });
       window.location.href = res.data.checkout_url;
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Erro ao iniciar checkout.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao iniciar checkout.'));
       setActionLoading(null);
     }
   };
@@ -189,8 +189,8 @@ export default function AdminBilling() {
       setSuccess(`Plano alterado para ${planLabel(plan)} com sucesso!`);
       await fetchBilling();
       refreshSubscription();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Erro ao alterar plano.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao alterar plano.'));
     } finally {
       setActionLoading(null);
     }
@@ -205,8 +205,8 @@ export default function AdminBilling() {
       setSuccess('Assinatura será cancelada ao final do período atual. Você continuará com acesso até lá.');
       await fetchBilling();
       refreshSubscription();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Erro ao cancelar assinatura.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao cancelar assinatura.'));
     } finally {
       setActionLoading(null);
     }
@@ -221,8 +221,8 @@ export default function AdminBilling() {
       setSuccess('Assinatura reativada com sucesso! As cobranças continuarão normalmente.');
       await fetchBilling();
       refreshSubscription();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Erro ao reativar assinatura.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao reativar assinatura.'));
     } finally {
       setActionLoading(null);
     }

@@ -44,7 +44,7 @@ import CurrencyInput from '../../../components/CurrencyInput';
 import AdminLayout from '../admin_layout';
 import UpgradePrompt from '../../../components/UpgradePrompt';
 import CrudDrawer from '../../../components/CrudDrawer';
-import { apiClient } from '../../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
 
@@ -178,8 +178,8 @@ function CategoriasTab() {
       setDrawerOpen(false);
       setSnack({ open: true, msg: drawerMode === 'create' ? 'Categoria criada.' : 'Categoria atualizada.', severity: 'success' });
       load();
-    } catch (err: any) {
-      setSnack({ open: true, msg: err?.response?.data?.detail ?? 'Erro ao salvar.', severity: 'error' });
+    } catch (err) {
+      setSnack({ open: true, msg: extractApiErrorMessage(err, 'Erro ao salvar.'), severity: 'error' });
     } finally {
       setSaving(false);
     }
@@ -193,9 +193,9 @@ function CategoriasTab() {
       setDeleteTarget(null);
       setSnack({ open: true, msg: 'Categoria excluída.', severity: 'success' });
       load();
-    } catch (err: any) {
+    } catch (err) {
       setDeleteTarget(null);
-      setSnack({ open: true, msg: err?.response?.data?.detail ?? 'Erro ao excluir.', severity: 'error' });
+      setSnack({ open: true, msg: extractApiErrorMessage(err, 'Erro ao excluir.'), severity: 'error' });
     } finally {
       setDeleting(false);
     }
@@ -457,8 +457,8 @@ function ContasBancariasTab() {
       setDrawerOpen(false);
       setSnack({ open: true, msg: drawerMode === 'create' ? 'Conta criada.' : 'Conta atualizada.', severity: 'success' });
       load();
-    } catch (err: any) {
-      setSnack({ open: true, msg: err?.response?.data?.detail ?? 'Erro ao salvar.', severity: 'error' });
+    } catch (err) {
+      setSnack({ open: true, msg: extractApiErrorMessage(err, 'Erro ao salvar.'), severity: 'error' });
     } finally {
       setSaving(false);
     }
@@ -472,9 +472,9 @@ function ContasBancariasTab() {
       setDeleteTarget(null);
       setSnack({ open: true, msg: 'Conta excluída.', severity: 'success' });
       load();
-    } catch (err: any) {
+    } catch (err) {
       setDeleteTarget(null);
-      setSnack({ open: true, msg: err?.response?.data?.detail ?? 'Erro ao excluir.', severity: 'error' });
+      setSnack({ open: true, msg: extractApiErrorMessage(err, 'Erro ao excluir.'), severity: 'error' });
     } finally {
       setDeleting(false);
     }
@@ -683,8 +683,8 @@ function MensalidadeTab() {
       }
       await apiClient.put('/api/v1/admin/financeiro/config', body);
       setSnack({ open: true, msg: 'Configuração salva com sucesso.', severity: 'success' });
-    } catch (err: any) {
-      setSnack({ open: true, msg: err?.response?.data?.detail ?? 'Erro ao salvar configuração.', severity: 'error' });
+    } catch (err) {
+      setSnack({ open: true, msg: extractApiErrorMessage(err, 'Erro ao salvar configuração.'), severity: 'error' });
     } finally {
       setSaving(false);
     }

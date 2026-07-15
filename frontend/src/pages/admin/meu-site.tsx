@@ -63,7 +63,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import AdminLayout from './admin_layout';
-import { apiClient } from '@/services/api_client';
+import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
 import { HERO_FONTS, HERO_FONT_SIZES, HERO_FONT_WEIGHTS, SECTION_TITLE_SIZES, SECTION_BODY_SIZES } from '@/constants/heroFonts';
@@ -1832,8 +1832,8 @@ function SectionEditor({
 
       const data = await res.json();
       onChange({ ...section.config, [field]: data.id, [`${field}_url`]: data.url });
-    } catch (err: any) {
-      setUploadError(err?.message || 'Erro ao fazer upload da imagem.');
+    } catch (err) {
+      setUploadError(extractApiErrorMessage(err, 'Erro ao fazer upload da imagem.'));
     } finally {
       setUploading(false);
       onUploadEnd();
@@ -4104,8 +4104,8 @@ export default function MeuSitePage() {
       setSite(res.data);
       setShowSettings(false);
       setSnack({ msg: 'Configurações salvas!', severity: 'success' });
-    } catch (err: any) {
-      setSnack({ msg: err?.response?.data?.detail || 'Erro ao salvar configurações.', severity: 'error' });
+    } catch (err) {
+      setSnack({ msg: extractApiErrorMessage(err, 'Erro ao salvar configurações.'), severity: 'error' });
     } finally {
       setSavingSettings(false);
     }
@@ -4133,8 +4133,9 @@ export default function MeuSitePage() {
       setHasChanges(false);
       setSelectedSectionId(null);
       setSnack({ msg: 'Rascunho salvo!', severity: 'success' });
-    } catch (err: any) {
-      if (err?.response?.status === 409) {
+    } catch (err) {
+      const status = err && typeof err === 'object' ? (err as { status?: number }).status : undefined;
+      if (status === 409) {
         // Optimistic lock conflict (Gap #6)
         setSnack({
           msg: 'O site foi alterado por outro usuário. Recarregue a página para ver as mudanças.',
@@ -4142,7 +4143,7 @@ export default function MeuSitePage() {
         });
         return;
       }
-      setSnack({ msg: err?.response?.data?.detail || 'Erro ao salvar.', severity: 'error' });
+      setSnack({ msg: extractApiErrorMessage(err, 'Erro ao salvar.'), severity: 'error' });
     } finally {
       setSaving(false);
     }
@@ -4156,8 +4157,8 @@ export default function MeuSitePage() {
       await apiClient.post('/api/v1/admin/sites/publish');
       setSite((prev) => prev ? { ...prev, status: 'PUBLISHED' } : prev);
       setSnack({ msg: 'Site publicado!', severity: 'success' });
-    } catch (err: any) {
-      setSnack({ msg: err?.response?.data?.detail || 'Erro ao publicar.', severity: 'error' });
+    } catch (err) {
+      setSnack({ msg: extractApiErrorMessage(err, 'Erro ao publicar.'), severity: 'error' });
     }
   };
 
@@ -4167,8 +4168,8 @@ export default function MeuSitePage() {
       await apiClient.post('/api/v1/admin/sites/unpublish');
       setSite((prev) => prev ? { ...prev, status: 'UNPUBLISHED' } : prev);
       setSnack({ msg: 'Site despublicado.', severity: 'info' });
-    } catch (err: any) {
-      setSnack({ msg: err?.response?.data?.detail || 'Erro.', severity: 'error' });
+    } catch (err) {
+      setSnack({ msg: extractApiErrorMessage(err, 'Erro.'), severity: 'error' });
     }
   };
 

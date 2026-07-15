@@ -45,7 +45,7 @@ import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
 import AdminLayout from './admin_layout';
 import AttendModal from '../../components/AttendModal';
 import WalkInModal from '../../components/WalkInModal';
-import { apiClient } from '../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../services/api_client';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { usePermissions } from '../../hooks/usePermissions';
 import {
@@ -663,7 +663,7 @@ export default function PortaPage() {
   const showSnackbar = (message: string, severity: 'success' | 'error' | 'info') =>
     setSnackbar({ open: true, message, severity });
 
-  const doAction = async (url: string, method: 'patch' | 'delete', ticketId: string, body?: any, successMsg?: string) => {
+  const doAction = async (url: string, method: 'patch' | 'delete', ticketId: string, body?: Record<string, unknown>, successMsg?: string) => {
     if (!canEdit) return;
     try {
       setActionLoading(ticketId);
@@ -671,8 +671,8 @@ export default function PortaPage() {
       else await apiClient.delete(url);
       showSnackbar(successMsg || 'Ação realizada', 'success');
       refreshAll();
-    } catch (err: any) {
-      showSnackbar(err?.response?.data?.message || err?.response?.data?.detail || 'Erro ao realizar ação', 'error');
+    } catch (err) {
+      showSnackbar(extractApiErrorMessage(err, 'Erro ao realizar ação'), 'error');
     } finally { setActionLoading(null); }
   };
 
@@ -701,8 +701,8 @@ export default function PortaPage() {
       showSnackbar(`Walk-in ${res.data.numero_formatado} criado`, 'success');
       setWalkInCreateOpen(false);
       refreshAll();
-    } catch (err: any) {
-      showSnackbar(err?.response?.data?.detail || 'Erro ao criar walk-in', 'error');
+    } catch (err) {
+      showSnackbar(extractApiErrorMessage(err, 'Erro ao criar walk-in'), 'error');
     } finally { setActionLoading(null); }
   };
 
@@ -714,8 +714,8 @@ export default function PortaPage() {
       showSnackbar('Walk-in atualizado', 'success');
       setWalkInEditTarget(null);
       refreshAll();
-    } catch (err: any) {
-      showSnackbar(err?.response?.data?.detail || 'Erro ao editar walk-in', 'error');
+    } catch (err) {
+      showSnackbar(extractApiErrorMessage(err, 'Erro ao editar walk-in'), 'error');
     } finally { setActionLoading(null); }
   };
 

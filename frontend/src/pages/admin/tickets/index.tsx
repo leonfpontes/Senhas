@@ -52,7 +52,7 @@ import FlashOnIcon from '@mui/icons-material/FlashOn';
 import AdminLayout from '../admin_layout';
 import BulkActionsBar from '../../../components/admin/BulkActionsBar';
 import CrudDrawer from '../../../components/CrudDrawer';
-import { apiClient } from '../../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
 
@@ -160,8 +160,8 @@ function AdminTicketsContent() {
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
       loadTickets();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Erro ao excluir a senha.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao excluir a senha.'));
     } finally {
       setDeleting(false);
     }
@@ -178,7 +178,7 @@ function AdminTicketsContent() {
       const data = Array.isArray(response.data) ? response.data : response.data.items || [];
       setGiras(data);
       // If current selected gira is not in filtered results, clear it
-      if (giraId && !data.some((g: any) => g.id === giraId)) {
+      if (giraId && !data.some((g: { id: string }) => g.id === giraId)) {
         setGiraId('');
       }
     } catch (error) {
@@ -220,8 +220,8 @@ function AdminTicketsContent() {
           : `Senha #${item.numero} liberada diretamente, sem precisar de confirmação.`,
       );
       await loadWaitlist();
-    } catch (error: any) {
-      setError(error?.response?.data?.detail || 'Erro ao promover senha da fila.');
+    } catch (error) {
+      setError(extractApiErrorMessage(error, 'Erro ao promover senha da fila.'));
     } finally {
       setWaitlistActionId(null);
     }
@@ -236,8 +236,8 @@ function AdminTicketsContent() {
       await apiClient.delete(`/api/v1/admin/giras/${giraId}/waitlist/${item.id}`);
       setSuccess(`Senha #${item.numero} removida da fila de espera.`);
       await loadWaitlist();
-    } catch (error: any) {
-      setError(error?.response?.data?.detail || 'Erro ao remover senha da fila.');
+    } catch (error) {
+      setError(extractApiErrorMessage(error, 'Erro ao remover senha da fila.'));
     } finally {
       setWaitlistActionId(null);
     }
@@ -368,8 +368,8 @@ function AdminTicketsContent() {
       setDrawerOpen(false);
       setSuccess('Informações de atendimento salvas com sucesso!');
       loadTickets();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Erro ao salvar informações de atendimento');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao salvar informações de atendimento'));
     } finally {
       setSaving(false);
     }

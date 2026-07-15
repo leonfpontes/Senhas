@@ -470,7 +470,15 @@ const SCREENS = [
 ];
 
 // ─── Scroll-reveal wrapper ───────────────────────────────────────────────────
-const Reveal = ({ children, delay = 0, direction = 'up' }: any) => {
+const Reveal = ({
+  children,
+  delay = 0,
+  direction = 'up',
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  direction?: 'up' | 'down' | 'left' | 'right';
+}) => {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -487,10 +495,10 @@ const Reveal = ({ children, delay = 0, direction = 'up' }: any) => {
 };
 
 // ─── Mobile carousel (swipeable, snap, dot indicators) ──────────────────────
-const MobileCarousel = ({ items, renderItem }: {
-  items: any[];
-  renderItem: (item: any, i: number) => React.ReactNode;
-}) => {
+function MobileCarousel<T>({ items, renderItem }: {
+  items: T[];
+  renderItem: (item: T, i: number) => React.ReactNode;
+}) {
   const [active, setActive] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -550,7 +558,7 @@ const MobileCarousel = ({ items, renderItem }: {
       </Box>
     </Box>
   );
-};
+}
 
 // ─── Cursor glow (follows mouse) — multi-layer magnetic effect ───────────────
 const CursorGlow = () => {
@@ -1697,7 +1705,7 @@ export default function HomePage() {
             { label: 'Estoque', sublabel: 'Itens, grupos e alertas de quantidade mínima', component: <MockEstoque />, color: '#dc2626' },
             { label: 'Site do Terreiro', sublabel: 'Página pública com giras, endereço e contato', component: <MockSite />, color: '#0891b2' },
           ];
-          const renderTelaCard = (s: any) => (
+          const renderTelaCard = (s: (typeof maisTelasList)[number]) => (
             <Box sx={{
               borderRadius: 1, overflow: 'hidden', border: '1px solid #e2e8f0',
               boxShadow: T.cardShadow, background: '#fff',

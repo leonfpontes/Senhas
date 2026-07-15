@@ -35,7 +35,7 @@ import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import AdminLayout from './admin_layout';
-import { apiClient } from '../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
 import PasswordField from '../../components/PasswordField';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -126,8 +126,8 @@ function AdminUsersContent() {
       const data = response.data;
       setUsers(Array.isArray(data) ? data : data.items || []);
       setTotalPages(Math.max(1, Math.ceil((Array.isArray(data) ? data.length : data.total || 0) / 50)));
-    } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Erro ao carregar usuários');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao carregar usuários'));
     } finally {
       setLoading(false);
     }
@@ -200,7 +200,7 @@ function AdminUsersContent() {
         });
         setSuccess('Usuário criado com sucesso!');
       } else {
-        const payload: Record<string, any> = {
+        const payload: Record<string, unknown> = {
           username: formData.username,
           role: formData.role,
           is_active: formData.is_active,
@@ -214,8 +214,8 @@ function AdminUsersContent() {
       setDrawerOpen(false);
       setTimeout(() => setSuccess(null), 3000);
       fetchUsers();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || 'Erro ao salvar usuário');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao salvar usuário'));
     } finally {
       setSaving(false);
     }
@@ -237,8 +237,8 @@ function AdminUsersContent() {
       setConfirmTarget(null);
       setTimeout(() => setSuccess(null), 3000);
       fetchUsers();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || 'Erro ao excluir usuário');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao excluir usuário'));
     } finally {
       setDeleting(false);
     }
