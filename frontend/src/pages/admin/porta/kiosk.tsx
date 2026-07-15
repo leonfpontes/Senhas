@@ -79,9 +79,12 @@ export default function PortaKioskPage() {
       try {
         const audio = new Audio('/sounds/notification.mp3');
         audio.play().catch(() => {});
-      } catch {}
+      } catch { /* non-critical */ }
     }
     prevNextRef.current = nextInLine?.id ?? null;
+    // Intentionally depends on the id, not the nextInLine object reference,
+    // so the sound only fires when the "next" ticket actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nextInLine?.id]);
 
   return (

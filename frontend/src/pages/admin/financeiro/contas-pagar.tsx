@@ -51,7 +51,7 @@ import {
 import AdminLayout from '../admin_layout';
 import CrudDrawer  from '../../../components/CrudDrawer';
 import UpgradePrompt from '../../../components/UpgradePrompt';
-import { KpiCard, PageHeader, ConfirmDialog, ChartTooltip } from '@/components/admin';
+import { KpiCard, PageHeader, ConfirmDialog } from '@/components/admin';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions }  from '../../../hooks/usePermissions';

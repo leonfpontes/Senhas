@@ -5,7 +5,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  Badge,
   Box,
   Button,
   Card,
@@ -13,7 +12,6 @@ import {
   Chip,
   CircularProgress,
   Collapse,
-  Divider,
   FormControl,
   IconButton,
   InputAdornment,
@@ -650,6 +648,8 @@ export default function PortaPage() {
 
   const refreshAll = useCallback(() => { loadStats(); loadQueue(); }, [loadStats, loadQueue]);
 
+  // loadGiras/loadConfig/loadMediunOptions aren't memoized — this effect only runs once on mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadGiras(); loadConfig(); loadMediunOptions(); }, []);
   useEffect(() => { if (selectedGiraId) refreshAll(); }, [selectedGiraId, refreshAll]);
   useEffect(() => {

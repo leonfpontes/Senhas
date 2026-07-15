@@ -344,7 +344,7 @@ function FeaturesSection({ tenants }: { tenants: TenantFeatures[] }) {
   );
 }
 
-function ErrorsSection({ errors, windowMinutes }: { errors: TenantErrors[]; windowMinutes: number }) {
+function ErrorsSection({ errors, windowMinutes: _windowMinutes }: { errors: TenantErrors[]; windowMinutes: number }) {
   const { tokens } = usePlatformTheme();
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -359,7 +359,7 @@ function ErrorsSection({ errors, windowMinutes }: { errors: TenantErrors[]; wind
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-      {errors.map((e, i) => {
+      {errors.map((e) => {
         const key = e.tenant_id ?? "__anon__";
         const isOpen = expanded === key;
         const label = e.tenant_id ?? "Sem tenant (público)";

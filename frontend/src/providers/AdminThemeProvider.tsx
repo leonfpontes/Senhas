@@ -54,13 +54,13 @@ export const AdminThemeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       const saved = localStorage.getItem(STORAGE_KEY) as AdminThemeMode | null;
       if (saved === 'dark' || saved === 'light') setMode(saved);
-    } catch {}
+    } catch { /* non-critical */ }
   }, []);
 
   const toggleMode = useCallback(() => {
     setMode((prev) => {
       const next: AdminThemeMode = prev === 'dark' ? 'light' : 'dark';
-      try { localStorage.setItem(STORAGE_KEY, next); } catch {}
+      try { localStorage.setItem(STORAGE_KEY, next); } catch { /* non-critical */ }
       return next;
     });
   }, []);

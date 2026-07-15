@@ -54,7 +54,7 @@ export function useRelatorioPDF() {
 
   const cleanup = useCallback(() => {
     if (rootRef.current) {
-      try { rootRef.current.unmount(); } catch (_) { /* ignore */ }
+      try { rootRef.current.unmount(); } catch { /* ignore */ }
       rootRef.current = null;
     }
     if (mountNodeRef.current && document.body.contains(mountNodeRef.current)) {

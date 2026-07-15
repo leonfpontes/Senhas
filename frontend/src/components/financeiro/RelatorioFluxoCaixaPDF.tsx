@@ -209,6 +209,11 @@ export const RelatorioFluxoCaixaPDF = React.forwardRef<HTMLDivElement, Relatorio
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 20, borderBottom: '3px solid #2C3E7A', marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, maxWidth: '48%', overflow: 'hidden' }}>
             {logoSrc ? (
+              // next/image doesn't fit here: this layout is captured off-screen via
+              // html2canvas for PDF export, which needs a plain <img> that's
+              // synchronously loaded with crossOrigin set — not the optimized/lazy
+              // loading next/image provides.
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={logoSrc}
                 alt="Logo"

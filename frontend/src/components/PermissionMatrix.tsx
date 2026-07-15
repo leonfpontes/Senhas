@@ -16,7 +16,6 @@ import {
   Grid,
   useTheme,
   useMediaQuery,
-  Tooltip,
 } from '@mui/material';
 import {
   PermissionFeature,

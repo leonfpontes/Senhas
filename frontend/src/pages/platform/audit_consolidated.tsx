@@ -8,7 +8,6 @@ import {
   Button,
   Card,
   CardContent,
-  Collapse,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -21,7 +20,6 @@ import {
   TableRow,
   Paper,
   TextField,
-  CircularProgress,
   Alert,
   Chip,
   Tab,
@@ -156,8 +154,6 @@ const FIELD_LABELS: Record<string, string> = {
   status: "Status",
   tipo: "Tipo",
   numero: "Numero",
-  gira_id: "Gira",
-  plan: "Plano",
   success: "Sucesso",
   ip_address: "Endereco IP",
   valor_mensal: "Valor mensal",
@@ -502,7 +498,6 @@ export default function AuditConsolidadoPage() {
   const [summary, setSummary] = useState<AuditSummary | null>(null);
   const [feed, setFeed] = useState<FeedEntry[]>([]);
   const [feedPage, setFeedPage] = useState(0);
-  const [feedTotal, setFeedTotal] = useState(0);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantMap, setTenantMap] = useState<Record<string, string>>({});
   const [detailEntry, setDetailEntry] = useState<FeedEntry | null>(null);
@@ -539,7 +534,6 @@ export default function AuditConsolidadoPage() {
         setSummary(summaryRes.data);
         setFeed(Array.isArray(feedRes.data) ? feedRes.data : []);
         setFeedPage(page);
-        setFeedTotal(summaryRes.data?.total ?? 0);
       } catch {
         setError("Falha ao carregar dados de auditoria.");
       } finally {
@@ -593,7 +587,7 @@ export default function AuditConsolidadoPage() {
   const mostActiveTenantName =
     (summary?.statistics?.most_active_tenant_name as string | null | undefined) ??
     (summary?.statistics?.most_active_tenant as string | null | undefined
-      ? (tenantMap[(summary.statistics.most_active_tenant as string)] ?? (summary.statistics.most_active_tenant as string).slice(0, 8) + "...")
+      ? (tenantMap[(summary?.statistics?.most_active_tenant as string)] ?? (summary?.statistics?.most_active_tenant as string).slice(0, 8) + "...")
       : null);
 
   // â”€â”€â”€ Tabela Por Tenant â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

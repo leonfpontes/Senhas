@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import styles from './gira_details.module.css';
 import { useGiraCountdown } from '@/hooks/useGiraCountdown';
 
@@ -33,14 +33,12 @@ export default function GiraDetails({
   giraData,
   tenantColor = '#2E7D32',
 }: GiraDetailsProps) {
-  if (!giraData) return null;
-
   const {
     timeRemaining,
     isOpen,
-    percentRemaining,
-    status,
-  } = useGiraCountdown(giraData.release_start_at, giraData.release_end_at);
+  } = useGiraCountdown(giraData?.release_start_at ?? '', giraData?.release_end_at ?? '');
+
+  if (!giraData) return null;
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('pt-BR', {

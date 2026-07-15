@@ -91,7 +91,7 @@ export default function LoginPage() {
       try {
         if (rememberMe) sessionStorage.removeItem('no_remember');
         else sessionStorage.setItem('no_remember', '1');
-      } catch {}
+      } catch { /* non-critical */ }
       dispatchTenantBrandingUpdated();
 
       // Full page reload on redirect so that _app.tsx providers (ProfileProvider,

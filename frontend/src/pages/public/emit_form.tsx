@@ -35,8 +35,6 @@ export default function EmitForm({
   tenantColor = '#2E7D32',
   onSuccess,
 }: EmitFormProps) {
-  if (!tenantSlug) return null;
-
   const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
@@ -55,6 +53,8 @@ export default function EmitForm({
     girReleaseStart,
     giraReleaseEnd,
   );
+
+  if (!tenantSlug) return null;
 
   // Form validation
   const validateForm = (): string | null => {

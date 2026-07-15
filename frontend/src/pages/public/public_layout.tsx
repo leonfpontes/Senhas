@@ -38,6 +38,10 @@ export default function PublicLayout({
       <header className={styles.header} style={{ background: brandGradient }}>
         <div className={styles.headerContent}>
           {tenantLogoUrl && !logoFailed ? (
+            // next/image needs the tenant logo's host allow-listed in next.config.js
+            // images.remotePatterns; not configured yet, and this already has a
+            // graceful onError fallback — not worth the config risk for a warning.
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={tenantLogoUrl}
               alt={tenantName}

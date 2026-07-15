@@ -72,7 +72,7 @@ export default function ResponsiveTable({
  * Or simpler — just use sx display directly:
  *   <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
  */
-export function HideOnMobile({ children, ...props }: React.HTMLAttributes<HTMLTableCellElement> & { component?: React.ElementType }) {
+export function HideOnMobile({ children }: React.HTMLAttributes<HTMLTableCellElement> & { component?: React.ElementType }) {
   // This is a convenience reminder — prefer using sx={{ display: { xs: 'none', sm: 'table-cell' } }}
   // directly on MUI TableCell for cleaner code.
   return <>{children}</>;

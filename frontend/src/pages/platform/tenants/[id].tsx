@@ -104,6 +104,8 @@ export default function TenantDetailPage() {
     if (id) {
       loadData();
     }
+    // loadData isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const loadData = async () => {

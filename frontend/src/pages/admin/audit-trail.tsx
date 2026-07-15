@@ -250,6 +250,8 @@ function AdminAuditTrailContent() {
     const c = new AbortController();
     loadLogs(c.signal);
     return () => c.abort();
+    // loadLogs isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, actionFilter, resourceTypeFilter, canView]);
 
   function buildQuery(overrideLimit?: number, overrideSkip?: number) {

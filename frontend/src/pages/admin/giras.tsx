@@ -4,6 +4,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   Alert,
   Box,
@@ -121,7 +122,7 @@ function GiraUsageBar({ used, max }: { used: number; max: number }) {
       />
       {atLimit && (
         <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
-          Limite mensal atingido. <a href="/admin/plano" style={{ fontWeight: 600, color: 'inherit' }}>Faça upgrade</a> para criar mais giras.
+          Limite mensal atingido. <Link href="/admin/plano" style={{ fontWeight: 600, color: 'inherit' }}>Faça upgrade</Link> para criar mais giras.
         </Typography>
       )}
     </Box>
@@ -186,6 +187,8 @@ function AdminGirasContent() {
     const controller = new AbortController();
     loadGiras(controller.signal);
     return () => controller.abort();
+    // loadGiras isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView]);
 
   const loadGiras = async (signal?: AbortSignal) => {
@@ -262,11 +265,6 @@ function AdminGirasContent() {
       const payload = {
         ...formData,
         data_inicio: toUtcIso(formData.data_inicio),
-        data_fim: formData.data_fim ? toUtcIso(formData.data_fim) : undefined,
-        release_start_at: formData.release_start_at ? toUtcIso(formData.release_start_at) : undefined,
-        release_end_at: formData.release_end_at ? toUtcIso(formData.release_end_at) : undefined,
-        sponsor_release_start_at: formData.sponsor_release_start_at ? toUtcIso(formData.sponsor_release_start_at) : undefined,
-        sponsor_release_end_at: formData.sponsor_release_end_at ? toUtcIso(formData.sponsor_release_end_at) : undefined,
       };
       if (drawerMode === 'create') {
         await apiClient.post('/api/v1/admin/giras', payload);
@@ -468,7 +466,7 @@ function AdminGirasContent() {
         title="Gestão de Giras"
         actions={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadGiras} disabled={loading} size="small">
+            <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => loadGiras()} disabled={loading} size="small">
               Atualizar
             </Button>
             {canInsert && (

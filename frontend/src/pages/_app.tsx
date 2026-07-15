@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppProps } from 'next/app';
+import Script from 'next/script';
 import { TourProvider } from '@reactour/tour';
 import TenantAwareThemeProvider from '@/providers/ThemeProvider';
 import { SubscriptionProvider } from '@/hooks/useSubscription';
@@ -34,22 +35,34 @@ const tourStyles = {
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
-    <TenantAwareThemeProvider>
-      <ProfileProvider>
-        <SubscriptionProvider>
-          <PermissionsProvider>
-            <SnackbarProvider>
-              <BirthdayProvider>
-                {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}
-                <TourProvider steps={[]} styles={tourStyles}>
-                  <Component {...pageProps} />
-                </TourProvider>
-              </BirthdayProvider>
-            </SnackbarProvider>
-          </PermissionsProvider>
-        </SubscriptionProvider>
-      </ProfileProvider>
-    </TenantAwareThemeProvider>
+    <>
+      {/* Google Analytics 4 */}
+      <Script strategy="afterInteractive" src="https://www.googletagmanager.com/gtag/js?id=G-BF9G0RFCDB" />
+      <Script id="ga4-init" strategy="afterInteractive">
+        {`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-BF9G0RFCDB');
+        `}
+      </Script>
+      <TenantAwareThemeProvider>
+        <ProfileProvider>
+          <SubscriptionProvider>
+            <PermissionsProvider>
+              <SnackbarProvider>
+                <BirthdayProvider>
+                  {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}
+                  <TourProvider steps={[]} styles={tourStyles}>
+                    <Component {...pageProps} />
+                  </TourProvider>
+                </BirthdayProvider>
+              </SnackbarProvider>
+            </PermissionsProvider>
+          </SubscriptionProvider>
+        </ProfileProvider>
+      </TenantAwareThemeProvider>
+    </>
   );
 }
 

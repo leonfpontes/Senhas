@@ -140,6 +140,8 @@ function AdminEstoqueMovimentacoesContent() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [filterSearch]);
 
+  // loadMovimentacoes isn't memoized — including it would refetch every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadMovimentacoes(); }, [filterItem, filterTipo, filterDateFrom, filterDateTo, debouncedSearch]);
 
   const loadItems = async () => {

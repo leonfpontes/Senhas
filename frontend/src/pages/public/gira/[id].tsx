@@ -37,7 +37,6 @@ import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import { apiClient } from '../../../services/api_client';
 import { useGiraCountdown, parseCountdownParts } from '../../../hooks/useGiraCountdown';
 import {
-  PriorityCategory,
   PRIORITY_CATEGORY_LABELS,
   PRIORITY_ORDER,
 } from 'shared-types';
@@ -345,7 +344,7 @@ export default function PublicGiraPage() {
                 ))}
               </RadioGroup>
               <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', lineHeight: 1.4 }}>
-                O atendimento preferencial obedece à Lei nº 10.048/2000 (idosos, gestantes, lactantes, pessoas com deficiência e mobilidade reduzida) e à Lei nº 13.146/2015 (Estatuto da Pessoa com Deficiência).
+                O atendimento preferencial obedece à Lei nº 10.048/2000 (idosos, gestantes, lactantes, pessoas com deficiência e mobilidade reduzida) e à Lei nº 13.146/2015 (Estatuto da Pessoa com Deficiência).
               </Typography>
             </FormControl>
             <Button

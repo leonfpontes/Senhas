@@ -4,6 +4,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   Alert,
   Box,
@@ -179,7 +180,7 @@ function MediunsUsageBar({ used, max }: { used: number; max: number }) {
       {atLimit && (
         <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
           Limite de médiuns atingido.{' '}
-          <a href="/admin/plano" style={{ fontWeight: 600, color: 'inherit' }}>Faça upgrade</a> para cadastrar mais.
+          <Link href="/admin/plano" style={{ fontWeight: 600, color: 'inherit' }}>Faça upgrade</Link> para cadastrar mais.
         </Typography>
       )}
     </Box>

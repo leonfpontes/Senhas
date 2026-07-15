@@ -5,7 +5,6 @@ import {
   Alert,
   Box,
   CircularProgress,
-  Divider,
   FormControl,
   Grid,
   InputLabel,
@@ -173,6 +172,8 @@ function AdminAnalyticsContent() {
     const c = new AbortController();
     loadGiras(c.signal);
     return () => c.abort();
+    // loadGiras/loadAnalytics aren't memoized — including them would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo, ready, canView]);
 
   useEffect(() => {
@@ -180,6 +181,7 @@ function AdminAnalyticsContent() {
     const c = new AbortController();
     loadAnalytics(c.signal);
     return () => c.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo, giraId, ready, canView]);
 
   // Feature gate

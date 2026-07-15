@@ -149,6 +149,8 @@ const TenantsPage: React.FC = () => {
 
   useEffect(() => {
     fetchTenants();
+    // fetchTenants isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   const fetchTenants = async () => {

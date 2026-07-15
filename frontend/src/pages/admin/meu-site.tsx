@@ -24,7 +24,6 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  Fab,
   FormControl,
   FormControlLabel,
   IconButton,
@@ -35,7 +34,6 @@ import {
   ListItemButton,
   ListItemText,
   MenuItem,
-  Paper,
   Select,
   Slider,
   Popover,
@@ -51,7 +49,6 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import CheckIcon from '@mui/icons-material/Check';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import EditIcon from '@mui/icons-material/Edit';
@@ -370,20 +367,20 @@ function HeroPreview({
               fontFamily,
               fontWeight,
               fontStyle,
-              fontSize: `${fontSize}px`,
+              fontSize: `${scaledFontSize}px`,
               lineHeight: 1.2,
               textShadow: '0 2px 8px rgba(0,0,0,0.35)',
             }}
           >
             {String(config.title || 'Título da página')}
           </Typography>
-          {config.subtitle && (
+          {Boolean(config.subtitle) && (
             <Typography
               sx={{
                 fontFamily,
                 fontStyle,
                 fontWeight: 400,
-                fontSize: `${subtitleSize}px`,
+                fontSize: `${scaledSubtitleSize}px`,
                 opacity: 0.9,
                 mt: '16px',
                 textShadow: '0 1px 4px rgba(0,0,0,0.4)',
@@ -516,7 +513,7 @@ function SobrePreview({ config }: { config: Record<string, unknown> }) {
 
   const textBox = (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: `${Math.round(8 * sc)}px` }}>
-      {config.title && (
+      {Boolean(config.title) && (
         <Typography sx={{
           fontFamily,
           fontSize: `${Math.round(titleFontSize * sc)}px`,
@@ -532,7 +529,7 @@ function SobrePreview({ config }: { config: Record<string, unknown> }) {
           {String(config.title)}
         </Typography>
       )}
-      {config.body && (
+      {Boolean(config.body) && (
         <Typography sx={{
           fontFamily,
           fontSize: `${Math.round(bodyFontSize * sc)}px`,
@@ -1155,7 +1152,7 @@ function SponsorPreview({ config }: { config: Record<string, unknown> }) {
       >
         {String(config.title || 'Apoiadores')}
       </Box>
-      {config.intro && (
+      {Boolean(config.intro) && (
         <Box
           sx={{
             fontSize: Math.round(bodyFontSize * sc),
@@ -1252,12 +1249,12 @@ function CustomTextPreview({ config }: { config: Record<string, unknown> }) {
         fontFamily,
       }}
     >
-      {config.title && (
+      {Boolean(config.title) && (
         <Box sx={{ fontSize: Math.round(titleSize * sc), fontWeight: titleWeight, fontStyle, fontFamily, color: fontColor, lineHeight: 1.2 }}>
           {String(config.title)}
         </Box>
       )}
-      {config.body && (
+      {Boolean(config.body) && (
         <Box
           sx={{
             fontSize: Math.round(bodySize * sc),
@@ -1789,7 +1786,7 @@ function SectionEditor({
   onChange,
   onUploadStart,
   onUploadEnd,
-  siteId,
+  siteId: _siteId,
 }: {
   section: Section;
   onChange: (config: Record<string, unknown>) => void;
@@ -1992,7 +1989,7 @@ function SectionEditor({
                     Recomendado <strong>200 × 200 px</strong> · PNG com transparência · até 5 MB
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {config.logo_image_url && (
+                    {Boolean(config.logo_image_url) && (
                       <Box
                         component="img"
                         src={String(config.logo_image_url)}
@@ -2014,7 +2011,7 @@ function SectionEditor({
                         onChange={(e) => handleImageUpload(e, 'logo_image')}
                       />
                     </Button>
-                    {config.logo_image_url && (
+                    {Boolean(config.logo_image_url) && (
                       <Button
                         size="small"
                         color="error"
@@ -2426,7 +2423,7 @@ function SectionEditor({
               {uploading ? 'Enviando…' : config.image_url ? 'Trocar imagem' : 'Escolher imagem'}
               <input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={(e) => handleImageUpload(e, 'image')} />
             </Button>
-            {config.image_url && (
+            {Boolean(config.image_url) && (
               <>
                 <Box component="img" src={String(config.image_url)} sx={{ height: 40, width: 40, objectFit: 'cover', borderRadius: 1 }} />
                 <Button
@@ -3036,7 +3033,7 @@ function SectionEditor({
                   onChange={(e) => onChange({ ...config, show_ticket_button: e.target.checked })}
                 />
               }
-              label={<Typography variant="caption">Mostrar botão "Retire sua senha"</Typography>}
+              label={<Typography variant="caption">Mostrar botão &quot;Retire sua senha&quot;</Typography>}
             />
             <FormControlLabel
               control={
@@ -3970,7 +3967,6 @@ export default function MeuSitePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' | 'info' | 'warning' } | null>(null);
-  const [showVersionDialog, setShowVersionDialog] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState<SiteVersion | null>(null);
   const [showAddSection, setShowAddSection] = useState(false);
   const [newSectionType, setNewSectionType] = useState('HERO');
@@ -4002,7 +3998,7 @@ export default function MeuSitePage() {
       setSettingsTemplate(siteRes.data.template || 'moderno');
       setSettingsMetaTitle(siteRes.data.meta_title || '');
       setSettingsMetaDesc(siteRes.data.meta_description || '');
-    } catch (err: any) {
+    } catch {
       setSnack({ msg: 'Erro ao carregar site.', severity: 'error' });
     } finally {
       setLoading(false);
@@ -4014,7 +4010,7 @@ export default function MeuSitePage() {
     try {
       const res = await apiClient.get('/api/v1/admin/sites/versions');
       setVersions(res.data);
-    } catch {}
+    } catch { /* non-critical */ }
   }, [canView]);
 
   useEffect(() => {
@@ -4186,9 +4182,8 @@ export default function MeuSitePage() {
       setSiteUpdatedAt(res.data.site_updated_at);
       setHasChanges(false);
       setConfirmRestore(null);
-      setShowVersionDialog(false);
       setSnack({ msg: 'Versão restaurada!', severity: 'success' });
-    } catch (err: any) {
+    } catch {
       setSnack({ msg: 'Erro ao restaurar versão.', severity: 'error' });
       setConfirmRestore(null);
     }
@@ -4277,7 +4272,7 @@ export default function MeuSitePage() {
         <Button
           size="small"
           startIcon={<HistoryIcon />}
-          onClick={() => setShowVersionDialog(true)}
+          onClick={() => { setTabIndex(1); setMobileShowEditor(false); }}
           variant="outlined"
         >
           Histórico

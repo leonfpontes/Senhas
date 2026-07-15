@@ -739,7 +739,7 @@ function MensalidadeTab() {
                   <Box>
                     <Typography variant="body2" fontWeight={600}>Enviar relatório por e-mail</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Quando ativo, o botão "Enviar Relatório" dispara e-mail para todos os admins do tenant.
+                      Quando ativo, o botão &quot;Enviar Relatório&quot; dispara e-mail para todos os admins do tenant.
                     </Typography>
                   </Box>
                 }

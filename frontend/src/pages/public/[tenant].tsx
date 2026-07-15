@@ -152,8 +152,7 @@ export default function PublicPage() {
               girReleaseStart={giraData.release_start_at}
               giraReleaseEnd={giraData.release_end_at}
               tenantColor={tenantInfo.primary_color}
-              onSuccess={(ticketNumber, email) => {
-                console.log('Ticket emitted:', ticketNumber, email);
+              onSuccess={() => {
                 // Could scroll to success section or refresh data here
               }}
             />

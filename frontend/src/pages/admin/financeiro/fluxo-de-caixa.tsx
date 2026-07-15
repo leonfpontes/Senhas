@@ -41,7 +41,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
   ReferenceLine,
   ResponsiveContainer,

@@ -12,7 +12,6 @@ import {
   Tabs,
   Tab,
   TextField,
-  Divider,
   Paper,
   Table,
   TableBody,
@@ -27,13 +26,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Grid,
   Chip,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import SecurityIcon from '@mui/icons-material/Security';
-import InfoIcon from '@mui/icons-material/Info';
-import GroupIcon from '@mui/icons-material/Group';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -483,8 +478,6 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
             </TableHead>
             <TableBody>
               {members.map((user) => {
-                const { userGroupIds } = calculateEffectivePermissions(user.id);
-
                 return (
                   <TableRow key={user.id} hover>
                     <TableCell sx={{ fontWeight: 600 }}>{user.username}</TableCell>

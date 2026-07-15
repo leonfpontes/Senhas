@@ -73,6 +73,8 @@ const GlobalUsersPage: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
+    // fetchUsers isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   const fetchUsers = async () => {

@@ -87,6 +87,7 @@ class APIClient {
         }
 
         if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
           console.debug(`[API] ${config.method?.toUpperCase()} ${config.url}`);
         }
 
@@ -241,7 +242,7 @@ class APIClient {
           endImpersonation();
         } else {
           // Limpa os cookies HttpOnly via endpoint e remove dados locais
-          try { await this.instance.post('/api/v1/auth/logout'); } catch {}
+          try { await this.instance.post('/api/v1/auth/logout'); } catch { /* non-critical */ }
           localStorage.removeItem('user');
           // Avisa outras abas para redirecionarem sem repetir a chamada de
           // logout — os cookies já foram apagados e são compartilhados por

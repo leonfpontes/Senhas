@@ -353,6 +353,8 @@ export default function ParticipantesPage() {
     if (id && (subscription?.plan === "pro" || subscription?.plan === "premium")) {
       loadData();
     }
+    // loadData isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, subscription, canView]);
 
   useEffect(() => {

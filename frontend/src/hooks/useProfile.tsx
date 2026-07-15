@@ -85,7 +85,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     try {
       const stored = sessionStorage.getItem('user') || localStorage.getItem('user');
       if (stored) setProfile(JSON.parse(stored) as UserProfile);
-    } catch {}
+    } catch { /* non-critical */ }
     fetchProfile();
     // fetchProfile is stable (useCallback with []), safe to omit from deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps

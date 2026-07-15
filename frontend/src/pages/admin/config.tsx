@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   Alert,
   Box,
@@ -11,7 +12,6 @@ import {
   Divider,
   FormControlLabel,
   Grid,
-  IconButton,
   Paper,
   Radio,
   RadioGroup,
@@ -308,7 +308,7 @@ function AdminConfigContent() {
   const { can: canGroup } = usePermissions();
   const canView = canGroup('configuracoes', 'view');
   const canEdit = canGroup('configuracoes', 'edit');
-  const { tokens, isDark } = useAdminTheme();
+  const { isDark } = useAdminTheme();
 
   const [savedConfig, setSavedConfig] = useState<TenantConfig | null>(null);
   const [config, setConfig] = useState<TenantConfig | null>(null);
@@ -648,7 +648,7 @@ function AdminConfigContent() {
                       sx={{ borderRadius: 2, mb: 2.5 }}
                     >
                       Personalização de cores disponível a partir do plano Basic.{' '}
-                      <a href="/admin/plano" style={{ fontWeight: 600 }}>Ver planos</a>
+                      <Link href="/admin/plano" style={{ fontWeight: 600 }}>Ver planos</Link>
                     </Alert>
                   )}
 

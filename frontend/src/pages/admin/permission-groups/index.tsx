@@ -431,7 +431,7 @@ function PermissionGroupsContent() {
             </Box>
           ) : (
             <Typography variant="body1" sx={{ mt: 1 }}>
-              Tem certeza que deseja excluir o grupo "{groupToDelete?.name}"? Esta ação é irreversível.
+              Tem certeza que deseja excluir o grupo &quot;{groupToDelete?.name}&quot;? Esta ação é irreversível.
             </Typography>
           )}
         </DialogContent>

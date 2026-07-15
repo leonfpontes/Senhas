@@ -83,6 +83,8 @@ function AdminAssociadosContent() {
 
   useEffect(() => {
     loadAssociados();
+    // loadAssociados isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView]);
 
   const loadAssociados = async () => {

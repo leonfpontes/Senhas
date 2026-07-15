@@ -176,7 +176,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   const { tokens } = usePlatformTheme();
 
   const handleLogout = async () => {
-    try { await apiClient.post("/api/v1/auth/logout"); } catch {}
+    try { await apiClient.post("/api/v1/auth/logout"); } catch { /* non-critical */ }
     localStorage.removeItem("user");
     Sentry.setUser(null);
     router.push("/login");

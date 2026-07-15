@@ -94,33 +94,6 @@ function TicketEmailContent() {
   const { ticketId } = router.query as { ticketId?: string };
   const { can, loading: subLoading } = useSubscription();
 
-  if (!subLoading && !can('email_transacional')) {
-    return (
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 320,
-          gap: 2,
-          textAlign: 'center',
-          px: 2,
-        }}
-      >
-        <LockOutlinedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
-        <Typography variant="h6">Recurso não disponível</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Rastreio de e-mail está disponível nos planos <strong>Pro</strong> e{' '}
-          <strong>Premium</strong>.
-        </Typography>
-        <Button variant="outlined" onClick={() => router.back()}>
-          Voltar
-        </Button>
-      </Box>
-    );
-  }
-
   const [data, setData] = useState<EmailStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [resending, setResending] = useState(false);
@@ -156,6 +129,33 @@ function TicketEmailContent() {
       fetchStatus();
     }
   }, [ticketId, fetchStatus]);
+
+  if (!subLoading && !can('email_transacional')) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 320,
+          gap: 2,
+          textAlign: 'center',
+          px: 2,
+        }}
+      >
+        <LockOutlinedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
+        <Typography variant="h6">Recurso não disponível</Typography>
+        <Typography variant="body2" color="text.secondary">
+          Rastreio de e-mail está disponível nos planos <strong>Pro</strong> e{' '}
+          <strong>Premium</strong>.
+        </Typography>
+        <Button variant="outlined" onClick={() => router.back()}>
+          Voltar
+        </Button>
+      </Box>
+    );
+  }
 
   const handleResend = async () => {
     if (!ticketId) return;
