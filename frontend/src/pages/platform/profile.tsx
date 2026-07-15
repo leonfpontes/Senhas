@@ -9,15 +9,13 @@ import {
   Box,
   Card,
   CardContent,
-  TextField,
   Button,
   Alert,
   CircularProgress,
-  Divider,
   Chip,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
-import { apiClient } from "../../services/api_client";
+import { apiClient, extractApiErrorMessage, ApiRequestConfig } from "../../services/api_client";
 import PlatformLayout from "./layout";
 import PasswordField from "../../components/PasswordField";
 
@@ -50,8 +48,8 @@ const ProfilePage: React.FC = () => {
     try {
       const response = await apiClient.get("/api/v1/auth/me");
       setProfile(response.data);
-    } catch (err: any) {
-      setError(err?.message || "Failed to load profile");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Failed to load profile"));
     } finally {
       setLoading(false);
     }
@@ -81,14 +79,14 @@ const ProfilePage: React.FC = () => {
         // Senha atual errada retorna 401 (UnauthorizedError) — sem isso o
         // interceptor global trata como sessão expirada, tenta refresh
         // silencioso, falha de novo e desloga o usuário sem explicação.
-        { skipAutoLogout: true } as any,
+        { skipAutoLogout: true } as ApiRequestConfig,
       );
       setSuccess("Senha alterada com sucesso!");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (err: any) {
-      setError(err?.message || "Falha ao alterar senha");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Falha ao alterar senha"));
     } finally {
       setChangingPassword(false);
     }

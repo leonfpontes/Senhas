@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.dialects.postgresql import BYTEA, JSONB
+from sqlalchemy.dialects.postgresql import BYTEA, JSONB, UUID
 
 @compiles(BYTEA, "sqlite")
 def compile_bytea_sqlite(type_, compiler, **kw):
@@ -16,6 +16,10 @@ def compile_bytea_sqlite(type_, compiler, **kw):
 @compiles(JSONB, "sqlite")
 def compile_jsonb_sqlite(type_, compiler, **kw):
     return "JSON"
+
+@compiles(UUID, "sqlite")
+def compile_uuid_sqlite(type_, compiler, **kw):
+    return "CHAR(32)"
 
 from src.models.users import User, UserRole
 from src.models.tenants import Tenant

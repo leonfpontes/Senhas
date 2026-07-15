@@ -143,8 +143,12 @@ function AdminEstoqueItensContent() {
 
   useEffect(() => {
     loadGrupos();
+    // loadGrupos isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView]);
 
+  // loadItems isn't memoized — including it would refetch every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadItems(); }, [filterGrupo, canView]);
 
   const loadGrupos = async () => {

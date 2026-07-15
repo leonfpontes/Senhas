@@ -52,7 +52,7 @@ import AdminLayout from "@/pages/admin/admin_layout";
 import CrudDrawer from "@/components/CrudDrawer";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import { ConfirmDialog } from '@/components/admin';
-import { apiClient } from "@/services/api_client";
+import { apiClient, extractApiErrorMessage } from "@/services/api_client";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTenant } from "@/providers/ThemeProvider";
@@ -137,6 +137,72 @@ interface Participante {
   updated_at: string;
 }
 
+/** Shape of the create/edit drawer's controlled form — all text fields are
+ * plain strings (even numeric ones) since they're bound to MUI TextFields. */
+interface ParticipanteFormData {
+  nome: string;
+  data_nascimento: string;
+  celular: string;
+  email: string;
+  valor_mensalidade: string;
+  observacoes: string;
+  pago: boolean;
+  valor_pago: string;
+  data_pagamento: string;
+  genero: string;
+  emergencia_contato: string;
+  emergencia_fone: string;
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  tem_plano_saude: boolean;
+  plano_saude_nome: string;
+  toma_medicamento: boolean;
+  medicamentos_nome: string;
+  tem_doenca_tratamento: boolean;
+  doenca_tratamento_nome: string;
+  tem_diabetes: boolean;
+  outras_doencas: string;
+  cpf: string;
+  rg: string;
+  estado_civil: string;
+  profissao: string;
+  experiencia_umbanda: string;
+  contato_contexto_espiritual: string;
+  motivo_busca_desenvolvimento: string;
+  interesse_aprendizado: string;
+  ja_conhece_terreiro: boolean | null;
+  como_conheceu_terreiro: string;
+  tratamento_psiquiatrico: boolean;
+  tratamento_psiquiatrico_detalhes: string;
+  restricoes_saude: string;
+  aceita_uso_dados: boolean;
+  aceita_uso_imagem: boolean;
+  comprovante_inscricao_filename: string | null;
+}
+
+/** Row shape returned by GET .../financeiro/mensalidades. */
+interface MensalidadeItem {
+  participante_id: string;
+  participante_nome: string;
+  status: 'PAGO' | 'PENDENTE' | 'ISENTO';
+  valor_mensalidade: number | string | null;
+  valor_pago: number | string | null;
+  data_pagamento: string | null;
+  observacao: string | null;
+  comprovante_filename: string | null;
+}
+
+interface ResumoFinanceiro {
+  historico: { mes: string; esperado: number; arrecadado: number }[];
+  projecao: { mes: string; projetado: number }[];
+  config: { count_ativos: number };
+}
+
 const fmtBRL = (value: number | string | null | undefined): string => {
   if (value == null || value === "") return "R$ 0,00";
   const num = typeof value === "string" ? parseFloat(value) : value;
@@ -215,7 +281,7 @@ export default function ParticipantesPage() {
   const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [matriculaFile, setMatriculaFile] = useState<File | null>(null);
-  const [formData, setFormData] = useState<any>({
+  const [formData, setFormData] = useState<ParticipanteFormData>({
     nome: "",
     data_nascimento: "",
     celular: "",
@@ -272,8 +338,8 @@ export default function ParticipantesPage() {
   const [mes, setMes] = useState<string>(toYYYYMM(today));
   const [tab, setTab] = useState(0);
 
-  const [mensalidadeItems, setMensalidadeItems] = useState<any[]>([]);
-  const [resumo, setResumo] = useState<any>(null);
+  const [mensalidadeItems, setMensalidadeItems] = useState<MensalidadeItem[]>([]);
+  const [resumo, setResumo] = useState<ResumoFinanceiro | null>(null);
   const [loadingMensalidades, setLoadingMensalidades] = useState(false);
   const [loadingResumo, setLoadingResumo] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'TODOS' | 'PENDENTE' | 'PAGO' | 'ISENTO'>('TODOS');
@@ -281,7 +347,7 @@ export default function ParticipantesPage() {
 
   // Payment Drawer state
   const [paymentDrawerOpen, setPaymentDrawerOpen] = useState(false);
-  const [paymentItem, setPaymentItem] = useState<any | null>(null);
+  const [paymentItem, setPaymentItem] = useState<MensalidadeItem | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'PAGO' | 'PENDENTE' | 'ISENTO'>('PENDENTE');
   const [paymentValorPago, setPaymentValorPago] = useState<string>('');
   const [paymentDataPag, setPaymentDataPag] = useState<string>('');
@@ -353,6 +419,8 @@ export default function ParticipantesPage() {
     if (id && (subscription?.plan === "pro" || subscription?.plan === "premium")) {
       loadData();
     }
+    // loadData isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, subscription, canView]);
 
   useEffect(() => {
@@ -371,7 +439,7 @@ export default function ParticipantesPage() {
     setAlert({ open: true, message, severity });
   };
 
-  const openPaymentDrawer = (item: any) => {
+  const openPaymentDrawer = (item: MensalidadeItem) => {
     setPaymentItem(item);
     setPaymentStatus((item.status as 'PAGO' | 'PENDENTE' | 'ISENTO') || 'PENDENTE');
     setPaymentValorPago(item.valor_pago != null ? String(item.valor_pago) : item.valor_mensalidade != null ? String(item.valor_mensalidade) : '');
@@ -404,16 +472,15 @@ export default function ParticipantesPage() {
       setPaymentDrawerOpen(false);
       fetchMensalidades();
       fetchResumo();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Erro ao registrar pagamento:", err);
-      const detail = err?.response?.data?.detail || "Erro ao registrar pagamento.";
-      showAlert(detail, "error");
+      showAlert(extractApiErrorMessage(err, "Erro ao registrar pagamento."), "error");
     } finally {
       setPaymentSaving(false);
     }
   };
 
-  const handleDownloadComprovante = async (item: any) => {
+  const handleDownloadComprovante = async (item: MensalidadeItem) => {
     try {
       const res = await apiClient.get(
         `/api/v1/admin/cursos-presenciais/${id}/financeiro/mensalidades/${item.participante_id}/${mes}/comprovante`,
@@ -449,7 +516,7 @@ export default function ParticipantesPage() {
         setCepError("CEP não encontrado");
         return;
       }
-      setFormData((prev: any) => ({
+      setFormData((prev: ParticipanteFormData) => ({
         ...prev,
         cep: digits,
         logradouro: json.logradouro || "",
@@ -564,7 +631,7 @@ export default function ParticipantesPage() {
       contato_contexto_espiritual: p.contato_contexto_espiritual || "",
       motivo_busca_desenvolvimento: p.motivo_busca_desenvolvimento || "",
       interesse_aprendizado: p.interesse_aprendizado || "",
-      ja_conhece_terreiro: p.ja_conhece_terreiro,
+      ja_conhece_terreiro: p.ja_conhece_terreiro ?? null,
       como_conheceu_terreiro: p.como_conheceu_terreiro || "",
       tratamento_psiquiatrico: !!p.tratamento_psiquiatrico,
       tratamento_psiquiatrico_detalhes: p.tratamento_psiquiatrico_detalhes || "",
@@ -600,7 +667,7 @@ export default function ParticipantesPage() {
     if (drawerMode === 'create' && !canInsert) return;
     if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       nome: formData.nome,
       data_nascimento: formData.data_nascimento || null,
       celular: formData.celular || null,
@@ -674,10 +741,9 @@ export default function ParticipantesPage() {
 
       setDrawerOpen(false);
       fetchParticipantes();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Erro ao salvar participante:", err);
-      const detail = err?.response?.data?.detail || "Erro ao salvar participante.";
-      showAlert(detail, "error");
+      showAlert(extractApiErrorMessage(err, "Erro ao salvar participante."), "error");
     } finally {
       setSaving(false);
     }
@@ -747,7 +813,7 @@ export default function ParticipantesPage() {
     return matchStatus && matchSearch;
   });
 
-  const statusChip = (item: any) => {
+  const statusChip = (item: MensalidadeItem) => {
     const s = item.status;
     if (s === 'PAGO') return <Chip label="Pago" color="success" size="small" />;
     if (s === 'ISENTO') return <Chip label="Isento" size="small" />;
@@ -764,13 +830,13 @@ export default function ParticipantesPage() {
 
   const chartData = resumo
     ? [
-        ...resumo.historico.map((h: any) => ({
+        ...resumo.historico.map((h: ResumoFinanceiro['historico'][number]) => ({
           mes: mesLabel(h.mes),
           Esperado: h.esperado,
           Arrecadado: h.arrecadado,
           projecao: false,
         })),
-        ...resumo.projecao.map((p: any) => ({
+        ...resumo.projecao.map((p: ResumoFinanceiro['projecao'][number]) => ({
           mes: mesLabel(p.mes),
           Projetado: p.projetado,
           projecao: true,
@@ -1140,7 +1206,7 @@ export default function ParticipantesPage() {
               <Select
                 value={filterStatus}
                 label="Status"
-                onChange={(e) => setFilterStatus(e.target.value as any)}
+                onChange={(e) => setFilterStatus(e.target.value as 'TODOS' | 'PENDENTE' | 'PAGO' | 'ISENTO')}
               >
                 <MenuItem value="TODOS">Todos</MenuItem>
                 <MenuItem value="PENDENTE">Pendente / Inadimplente</MenuItem>
@@ -1295,7 +1361,7 @@ export default function ParticipantesPage() {
             fullWidth
             value={formData.nome || ""}
             onChange={(e) =>
-              setFormData((prev: any) => ({ ...prev, nome: e.target.value }))
+              setFormData((prev: ParticipanteFormData) => ({ ...prev, nome: e.target.value }))
             }
           />
           <TextField
@@ -1305,7 +1371,7 @@ export default function ParticipantesPage() {
             InputLabelProps={{ shrink: true }}
             value={formData.data_nascimento || ""}
             onChange={(e) =>
-              setFormData((prev: any) => ({ ...prev, data_nascimento: e.target.value }))
+              setFormData((prev: ParticipanteFormData) => ({ ...prev, data_nascimento: e.target.value }))
             }
           />
           <TextField
@@ -1314,7 +1380,7 @@ export default function ParticipantesPage() {
             placeholder="(11) 99999-9999"
             value={formData.celular || ""}
             onChange={(e) =>
-              setFormData((prev: any) => ({ ...prev, celular: e.target.value }))
+              setFormData((prev: ParticipanteFormData) => ({ ...prev, celular: e.target.value }))
             }
           />
           <TextField
@@ -1323,7 +1389,7 @@ export default function ParticipantesPage() {
             fullWidth
             value={formData.email || ""}
             onChange={(e) =>
-              setFormData((prev: any) => ({ ...prev, email: e.target.value }))
+              setFormData((prev: ParticipanteFormData) => ({ ...prev, email: e.target.value }))
             }
           />
           <TextField
@@ -1333,7 +1399,7 @@ export default function ParticipantesPage() {
             helperText="Se não informado, herdará o valor padrão do curso."
             value={formData.valor_mensalidade || ""}
             onChange={(e) =>
-              setFormData((prev: any) => ({ ...prev, valor_mensalidade: e.target.value }))
+              setFormData((prev: ParticipanteFormData) => ({ ...prev, valor_mensalidade: e.target.value }))
             }
           />
           <TextField
@@ -1343,7 +1409,7 @@ export default function ParticipantesPage() {
             fullWidth
             value={formData.observacoes || ""}
             onChange={(e) =>
-              setFormData((prev: any) => ({ ...prev, observacoes: e.target.value }))
+              setFormData((prev: ParticipanteFormData) => ({ ...prev, observacoes: e.target.value }))
             }
           />
 
@@ -1364,7 +1430,7 @@ export default function ParticipantesPage() {
                       fullWidth
                       value={formData.cpf || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, cpf: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, cpf: e.target.value }))
                       }
                     />
                     <TextField
@@ -1373,7 +1439,7 @@ export default function ParticipantesPage() {
                       fullWidth
                       value={formData.rg || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, rg: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, rg: e.target.value }))
                       }
                     />
                   </Stack>
@@ -1386,7 +1452,7 @@ export default function ParticipantesPage() {
                         value={formData.estado_civil || ""}
                         label="Estado Civil"
                         onChange={(e) =>
-                          setFormData((prev: any) => ({ ...prev, estado_civil: e.target.value }))
+                          setFormData((prev: ParticipanteFormData) => ({ ...prev, estado_civil: e.target.value }))
                         }
                       >
                         <MenuItem value="Solteiro(a)">Solteiro(a)</MenuItem>
@@ -1403,7 +1469,7 @@ export default function ParticipantesPage() {
                       fullWidth
                       value={formData.profissao || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, profissao: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, profissao: e.target.value }))
                       }
                     />
                   </Stack>
@@ -1415,7 +1481,7 @@ export default function ParticipantesPage() {
                       value={formData.genero || ""}
                       label="Gênero"
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, genero: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, genero: e.target.value }))
                       }
                     >
                       <MenuItem value="Masculino">Masculino</MenuItem>
@@ -1430,7 +1496,7 @@ export default function ParticipantesPage() {
                     size="small"
                     value={formData.emergencia_contato || ""}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({ ...prev, emergencia_contato: e.target.value }))
+                      setFormData((prev: ParticipanteFormData) => ({ ...prev, emergencia_contato: e.target.value }))
                     }
                   />
                   <TextField
@@ -1440,7 +1506,7 @@ export default function ParticipantesPage() {
                     size="small"
                     value={formData.emergencia_fone || ""}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({ ...prev, emergencia_fone: e.target.value }))
+                      setFormData((prev: ParticipanteFormData) => ({ ...prev, emergencia_fone: e.target.value }))
                     }
                   />
                 </Stack>
@@ -1460,7 +1526,7 @@ export default function ParticipantesPage() {
                       placeholder="00000-000"
                       value={formData.cep || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, cep: e.target.value.replace(/[^\d-]/g, "").slice(0, 9) }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, cep: e.target.value.replace(/[^\d-]/g, "").slice(0, 9) }))
                       }
                       onBlur={() => lookupCep(formData.cep)}
                       error={!!cepError}
@@ -1481,7 +1547,7 @@ export default function ParticipantesPage() {
                     size="small"
                     value={formData.logradouro || ""}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({ ...prev, logradouro: e.target.value }))
+                      setFormData((prev: ParticipanteFormData) => ({ ...prev, logradouro: e.target.value }))
                     }
                     fullWidth
                   />
@@ -1491,7 +1557,7 @@ export default function ParticipantesPage() {
                       size="small"
                       value={formData.numero || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, numero: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, numero: e.target.value }))
                       }
                       sx={{ width: "120px" }}
                     />
@@ -1500,7 +1566,7 @@ export default function ParticipantesPage() {
                       size="small"
                       value={formData.complemento || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, complemento: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, complemento: e.target.value }))
                       }
                       fullWidth
                     />
@@ -1510,7 +1576,7 @@ export default function ParticipantesPage() {
                     size="small"
                     value={formData.bairro || ""}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({ ...prev, bairro: e.target.value }))
+                      setFormData((prev: ParticipanteFormData) => ({ ...prev, bairro: e.target.value }))
                     }
                     fullWidth
                   />
@@ -1520,7 +1586,7 @@ export default function ParticipantesPage() {
                       size="small"
                       value={formData.cidade || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, cidade: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, cidade: e.target.value }))
                       }
                       fullWidth
                     />
@@ -1529,7 +1595,7 @@ export default function ParticipantesPage() {
                       size="small"
                       value={formData.estado || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, estado: e.target.value.toUpperCase().slice(0, 2) }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, estado: e.target.value.toUpperCase().slice(0, 2) }))
                       }
                       sx={{ width: "100px" }}
                     />
@@ -1551,7 +1617,7 @@ export default function ParticipantesPage() {
                       value={formData.experiencia_umbanda || ""}
                       label="Já teve experiência/estudo sobre Umbanda?"
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, experiencia_umbanda: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, experiencia_umbanda: e.target.value }))
                       }
                     >
                       <MenuItem value="Sim">Sim</MenuItem>
@@ -1566,7 +1632,7 @@ export default function ParticipantesPage() {
                       value={formData.contato_contexto_espiritual || ""}
                       label="Já foi/é filho de algum contexto espiritual?"
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, contato_contexto_espiritual: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, contato_contexto_espiritual: e.target.value }))
                       }
                     >
                       <MenuItem value="Sim">Sim</MenuItem>
@@ -1581,7 +1647,7 @@ export default function ParticipantesPage() {
                     rows={2}
                     value={formData.motivo_busca_desenvolvimento || ""}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({ ...prev, motivo_busca_desenvolvimento: e.target.value }))
+                      setFormData((prev: ParticipanteFormData) => ({ ...prev, motivo_busca_desenvolvimento: e.target.value }))
                     }
                     fullWidth
                   />
@@ -1592,7 +1658,7 @@ export default function ParticipantesPage() {
                     rows={2}
                     value={formData.interesse_aprendizado || ""}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({ ...prev, interesse_aprendizado: e.target.value }))
+                      setFormData((prev: ParticipanteFormData) => ({ ...prev, interesse_aprendizado: e.target.value }))
                     }
                     fullWidth
                   />
@@ -1604,7 +1670,7 @@ export default function ParticipantesPage() {
                       label={`Já conhece o Terreiro ${tenantName || "Terreiro"}?`}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setFormData((prev: any) => ({
+                        setFormData((prev: ParticipanteFormData) => ({
                           ...prev,
                           ja_conhece_terreiro: val === "Sim" ? true : val === "Não" ? false : null
                         }));
@@ -1619,7 +1685,7 @@ export default function ParticipantesPage() {
                     size="small"
                     value={formData.como_conheceu_terreiro || ""}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({ ...prev, como_conheceu_terreiro: e.target.value }))
+                      setFormData((prev: ParticipanteFormData) => ({ ...prev, como_conheceu_terreiro: e.target.value }))
                     }
                     fullWidth
                   />
@@ -1638,7 +1704,7 @@ export default function ParticipantesPage() {
                       <Checkbox
                         checked={formData.tem_plano_saude || false}
                         onChange={(e) =>
-                          setFormData((prev: any) => ({ ...prev, tem_plano_saude: e.target.checked }))
+                          setFormData((prev: ParticipanteFormData) => ({ ...prev, tem_plano_saude: e.target.checked }))
                         }
                       />
                     }
@@ -1650,7 +1716,7 @@ export default function ParticipantesPage() {
                       size="small"
                       value={formData.plano_saude_nome || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, plano_saude_nome: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, plano_saude_nome: e.target.value }))
                       }
                       fullWidth
                     />
@@ -1661,7 +1727,7 @@ export default function ParticipantesPage() {
                       <Checkbox
                         checked={formData.toma_medicamento || false}
                         onChange={(e) =>
-                          setFormData((prev: any) => ({ ...prev, toma_medicamento: e.target.checked }))
+                          setFormData((prev: ParticipanteFormData) => ({ ...prev, toma_medicamento: e.target.checked }))
                         }
                       />
                     }
@@ -1675,7 +1741,7 @@ export default function ParticipantesPage() {
                       rows={2}
                       value={formData.medicamentos_nome || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, medicamentos_nome: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, medicamentos_nome: e.target.value }))
                       }
                       fullWidth
                     />
@@ -1686,7 +1752,7 @@ export default function ParticipantesPage() {
                       <Checkbox
                         checked={formData.tem_doenca_tratamento || false}
                         onChange={(e) =>
-                          setFormData((prev: any) => ({ ...prev, tem_doenca_tratamento: e.target.checked }))
+                          setFormData((prev: ParticipanteFormData) => ({ ...prev, tem_doenca_tratamento: e.target.checked }))
                         }
                       />
                     }
@@ -1700,7 +1766,7 @@ export default function ParticipantesPage() {
                       rows={2}
                       value={formData.doenca_tratamento_nome || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, doenca_tratamento_nome: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, doenca_tratamento_nome: e.target.value }))
                       }
                       fullWidth
                     />
@@ -1711,7 +1777,7 @@ export default function ParticipantesPage() {
                       <Checkbox
                         checked={formData.tem_diabetes || false}
                         onChange={(e) =>
-                          setFormData((prev: any) => ({ ...prev, tem_diabetes: e.target.checked }))
+                          setFormData((prev: ParticipanteFormData) => ({ ...prev, tem_diabetes: e.target.checked }))
                         }
                       />
                     }
@@ -1725,7 +1791,7 @@ export default function ParticipantesPage() {
                     rows={2}
                     value={formData.outras_doencas || ""}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({ ...prev, outras_doencas: e.target.value }))
+                      setFormData((prev: ParticipanteFormData) => ({ ...prev, outras_doencas: e.target.value }))
                     }
                     fullWidth
                   />
@@ -1735,7 +1801,7 @@ export default function ParticipantesPage() {
                       <Checkbox
                         checked={formData.tratamento_psiquiatrico || false}
                         onChange={(e) =>
-                          setFormData((prev: any) => ({ ...prev, tratamento_psiquiatrico: e.target.checked }))
+                          setFormData((prev: ParticipanteFormData) => ({ ...prev, tratamento_psiquiatrico: e.target.checked }))
                         }
                       />
                     }
@@ -1749,7 +1815,7 @@ export default function ParticipantesPage() {
                       rows={2}
                       value={formData.tratamento_psiquiatrico_detalhes || ""}
                       onChange={(e) =>
-                        setFormData((prev: any) => ({ ...prev, tratamento_psiquiatrico_detalhes: e.target.value }))
+                        setFormData((prev: ParticipanteFormData) => ({ ...prev, tratamento_psiquiatrico_detalhes: e.target.value }))
                       }
                       fullWidth
                     />
@@ -1762,7 +1828,7 @@ export default function ParticipantesPage() {
                     rows={2}
                     value={formData.restricoes_saude || ""}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({ ...prev, restricoes_saude: e.target.value }))
+                      setFormData((prev: ParticipanteFormData) => ({ ...prev, restricoes_saude: e.target.value }))
                     }
                     fullWidth
                   />
@@ -1781,7 +1847,7 @@ export default function ParticipantesPage() {
                       <Checkbox
                         checked={formData.aceita_uso_dados || false}
                         onChange={(e) =>
-                          setFormData((prev: any) => ({ ...prev, aceita_uso_dados: e.target.checked }))
+                          setFormData((prev: ParticipanteFormData) => ({ ...prev, aceita_uso_dados: e.target.checked }))
                         }
                       />
                     }
@@ -1792,7 +1858,7 @@ export default function ParticipantesPage() {
                       <Checkbox
                         checked={formData.aceita_uso_imagem || false}
                         onChange={(e) =>
-                          setFormData((prev: any) => ({ ...prev, aceita_uso_imagem: e.target.checked }))
+                          setFormData((prev: ParticipanteFormData) => ({ ...prev, aceita_uso_imagem: e.target.checked }))
                         }
                       />
                     }
@@ -1885,7 +1951,7 @@ export default function ParticipantesPage() {
                   <Checkbox
                     checked={formData.pago || false}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({
+                      setFormData((prev: ParticipanteFormData) => ({
                         ...prev,
                         pago: e.target.checked,
                         valor_pago: e.target.checked && !prev.valor_pago ? prev.valor_mensalidade : prev.valor_pago,
@@ -1906,7 +1972,7 @@ export default function ParticipantesPage() {
                     required
                     value={formData.valor_pago || ""}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({ ...prev, valor_pago: e.target.value }))
+                      setFormData((prev: ParticipanteFormData) => ({ ...prev, valor_pago: e.target.value }))
                     }
                   />
                   <TextField
@@ -1917,7 +1983,7 @@ export default function ParticipantesPage() {
                     InputLabelProps={{ shrink: true }}
                     value={formData.data_pagamento || ""}
                     onChange={(e) =>
-                      setFormData((prev: any) => ({ ...prev, data_pagamento: e.target.value }))
+                      setFormData((prev: ParticipanteFormData) => ({ ...prev, data_pagamento: e.target.value }))
                     }
                   />
                 </Stack>
@@ -1947,7 +2013,7 @@ export default function ParticipantesPage() {
             <Select
               value={paymentStatus}
               label="Status"
-              onChange={(e) => setPaymentStatus(e.target.value as any)}
+              onChange={(e) => setPaymentStatus(e.target.value as 'PAGO' | 'PENDENTE' | 'ISENTO')}
             >
               <MenuItem value="PAGO">Pago</MenuItem>
               <MenuItem value="PENDENTE">Pendente</MenuItem>
@@ -2035,7 +2101,7 @@ export default function ParticipantesPage() {
           if (!canDelete) return;
           try {
             await apiClient.delete(`/api/v1/admin/cursos-presenciais/${id}/participantes/${editingId}/comprovante`);
-            setFormData((prev: any) => ({ ...prev, comprovante_inscricao_filename: null }));
+            setFormData((prev: ParticipanteFormData) => ({ ...prev, comprovante_inscricao_filename: null }));
             showAlert("Comprovante de inscrição removido.", "success");
             fetchParticipantes();
           } catch {

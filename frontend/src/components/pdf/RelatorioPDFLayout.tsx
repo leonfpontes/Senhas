@@ -457,7 +457,7 @@ function DashboardPage({
                 outerRadius={62}
                 dataKey="value"
                 isAnimationActive={false}
-                label={({ name, percent }) =>
+                label={({ percent }) =>
                   percent > 0 ? `${(percent * 100).toFixed(0)}%` : ''
                 }
                 labelLine={false}
@@ -506,7 +506,7 @@ function DashboardPage({
                 outerRadius={62}
                 dataKey="value"
                 isAnimationActive={false}
-                label={({ name, percent }) =>
+                label={({ percent }) =>
                   percent > 0 ? `${(percent * 100).toFixed(0)}%` : ''
                 }
                 labelLine={false}
@@ -618,14 +618,12 @@ function TablePage({
   gira,
   tenant,
   pageIndex,
-  totalTablePages,
   totalPages,
 }: {
   tickets: PdfTicket[];
   gira: { nome: string; data?: string };
   tenant: PdfTenant;
   pageIndex: number;    // 0-based index desta página de tabela
-  totalTablePages: number;
   totalPages: number;   // total geral incluindo dashboard
 }) {
   const thStyle: React.CSSProperties = {
@@ -805,7 +803,6 @@ const RelatorioPDFLayout = forwardRef<HTMLDivElement, RelatorioPDFLayoutProps>(
             gira={gira}
             tenant={tenant}
             pageIndex={i}
-            totalTablePages={totalTablePages}
             totalPages={totalPages}
           />
         ))}

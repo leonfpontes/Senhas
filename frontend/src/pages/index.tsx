@@ -6,7 +6,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
 import {
   AppBar, Toolbar, Box, Button, Container, Typography,
   Grid, Card, IconButton, Drawer, List, ListItem,
@@ -14,14 +13,11 @@ import {
 } from '@mui/material';
 import {
   motion, useMotionValue, useSpring, AnimatePresence,
-  useScroll, useTransform,
 } from 'framer-motion';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import EventIcon from '@mui/icons-material/Event';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import GroupsIcon from '@mui/icons-material/Groups';
-import EmailIcon from '@mui/icons-material/Email';
-import SecurityIcon from '@mui/icons-material/Security';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
@@ -359,100 +355,6 @@ const MockMediuns = () => (
   </Box>
 );
 
-const MockFluxo = () => (
-  <Box sx={{ width: '100%', height: '100%', background: '#0f172a', borderRadius: 1, overflow: 'hidden', p: 2 }}>
-    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
-      <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Fluxo de Caixa · Jun 2026</Typography>
-      <Box sx={{ ml: 'auto', px: 1.2, py: 0.3, borderRadius: 1, background: '#4f46e520', border: '1px solid #4f46e540' }}>
-        <Typography sx={{ fontSize: 8, color: '#818cf8' }}>Exportar PDF</Typography>
-      </Box>
-    </Box>
-    <Box sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
-      {[
-        { l: 'Entradas', v: 'R$4.820', cor: '#22c55e' },
-        { l: 'Saídas', v: 'R$1.340', cor: '#f87171' },
-        { l: 'Saldo', v: 'R$3.480', cor: '#818cf8' },
-      ].map(k => (
-        <Box key={k.l} sx={{ flex: 1, background: '#1e293b', borderRadius: 1.5, p: 1 }}>
-          <Typography sx={{ fontSize: 8, color: '#64748b', mb: 0.3 }}>{k.l}</Typography>
-          <Typography sx={{ fontSize: 12, fontWeight: 800, color: k.cor }}>{k.v}</Typography>
-        </Box>
-      ))}
-    </Box>
-    {[
-      { desc: 'Mensalidades Jun', tipo: 'Entrada', val: '+R$2.400', cor: '#22c55e', data: '01/06' },
-      { desc: 'Doação — Gira Cura', tipo: 'Entrada', val: '+R$890', cor: '#22c55e', data: '07/06' },
-      { desc: 'Aluguel do espaço', tipo: 'Saída', val: '-R$800', cor: '#f87171', data: '10/06' },
-      { desc: 'Material litúrgico', tipo: 'Saída', val: '-R$320', cor: '#f87171', data: '15/06' },
-      { desc: 'Doação — Umbanda', tipo: 'Entrada', val: '+R$1.530', cor: '#22c55e', data: '22/06' },
-    ].map((t, i) => (
-      <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.6, borderBottom: '1px solid #1e293b' }}>
-        <Box sx={{ width: 28, height: 28, borderRadius: 1, background: `${t.cor}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Typography sx={{ fontSize: 10, color: t.cor }}>{t.tipo === 'Entrada' ? '↑' : '↓'}</Typography>
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontSize: 9, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.desc}</Typography>
-          <Typography sx={{ fontSize: 7, color: '#475569' }}>{t.data}</Typography>
-        </Box>
-        <Typography sx={{ fontSize: 10, fontWeight: 700, color: t.cor }}>{t.val}</Typography>
-      </Box>
-    ))}
-  </Box>
-);
-
-const MockSenha = () => {
-  const [etapa, setEtapa] = useState(0);
-  useEffect(() => { const t = setInterval(() => setEtapa(x => (x + 1) % 3), 2500); return () => clearInterval(t); }, []);
-  return (
-    <Box sx={{ width: '100%', height: '100%', background: 'linear-gradient(160deg, #1e1b4b 0%, #312e81 100%)', borderRadius: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 2, gap: 1.5 }}>
-      <Typography sx={{ fontSize: 9, color: '#818cf8', letterSpacing: 2, textTransform: 'uppercase' }}>Ilê Axé Oxum · Gira de Cura</Typography>
-      <AnimatePresence mode="wait">
-        {etapa === 0 && (
-          <motion.div key="form" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ width: '100%' }}>
-            <Box sx={{ background: 'rgba(255,255,255,0.06)', borderRadius: 2, p: 2, textAlign: 'center' }}>
-              <Typography sx={{ fontSize: 12, color: '#e2e8f0', fontWeight: 700, mb: 1.5 }}>Retirar minha senha</Typography>
-              <Box sx={{ background: 'rgba(255,255,255,0.08)', borderRadius: 1.5, p: 1, mb: 1, textAlign: 'left' }}>
-                <Typography sx={{ fontSize: 8, color: '#64748b', mb: 0.3 }}>Nome completo</Typography>
-                <Typography sx={{ fontSize: 10, color: '#e2e8f0' }}>Maria da Conceição Silva</Typography>
-              </Box>
-              <Box sx={{ background: 'rgba(255,255,255,0.08)', borderRadius: 1.5, p: 1, mb: 1.5, textAlign: 'left' }}>
-                <Typography sx={{ fontSize: 8, color: '#64748b', mb: 0.3 }}>Celular</Typography>
-                <Typography sx={{ fontSize: 10, color: '#e2e8f0' }}>(11) 98765-4321</Typography>
-              </Box>
-              <Box sx={{ px: 2, py: 1, borderRadius: 1.5, background: '#4f46e5' }}>
-                <Typography sx={{ fontSize: 10, color: '#fff', fontWeight: 700 }}>Confirmar</Typography>
-              </Box>
-            </Box>
-          </motion.div>
-        )}
-        {etapa === 1 && (
-          <motion.div key="senha" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }}>
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography sx={{ fontSize: 10, color: '#818cf8', mb: 0.5 }}>Sua senha</Typography>
-              <Box sx={{ background: 'rgba(245,158,11,0.15)', border: '2px solid #f59e0b', borderRadius: 2, px: 4, py: 2 }}>
-                <Typography sx={{ fontSize: 56, fontWeight: 900, color: '#f59e0b', lineHeight: 1 }}>#73</Typography>
-              </Box>
-              <Typography sx={{ fontSize: 9, color: '#64748b', mt: 1 }}>Sáb, 28 Jun · 14h00</Typography>
-            </Box>
-          </motion.div>
-        )}
-        {etapa === 2 && (
-          <motion.div key="email" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-            <Box sx={{ textAlign: 'center' }}>
-              <Box sx={{ width: 40, height: 40, borderRadius: '50%', background: '#22c55e20', border: '2px solid #22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 1 }}>
-                <Typography sx={{ fontSize: 18 }}>✓</Typography>
-              </Box>
-              <Typography sx={{ fontSize: 11, color: '#e2e8f0', fontWeight: 700 }}>Senha enviada!</Typography>
-              <Typography sx={{ fontSize: 9, color: '#64748b', mt: 0.5 }}>Confirmação no e-mail</Typography>
-            </Box>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <Typography sx={{ fontSize: 8, color: '#475569', textAlign: 'center' }}>app.girahub.com.br/s/ile-axe-oxum</Typography>
-    </Box>
-  );
-};
-
 // ─── New mockups ─────────────────────────────────────────────────────────────
 const MockEstoque = () => (
   <Box sx={{ width: '100%', height: '100%', background: '#fff', borderRadius: 1, overflow: 'hidden', p: 2 }}>
@@ -568,7 +470,15 @@ const SCREENS = [
 ];
 
 // ─── Scroll-reveal wrapper ───────────────────────────────────────────────────
-const Reveal = ({ children, delay = 0, direction = 'up' }: any) => {
+const Reveal = ({
+  children,
+  delay = 0,
+  direction = 'up',
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  direction?: 'up' | 'down' | 'left' | 'right';
+}) => {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -585,10 +495,10 @@ const Reveal = ({ children, delay = 0, direction = 'up' }: any) => {
 };
 
 // ─── Mobile carousel (swipeable, snap, dot indicators) ──────────────────────
-const MobileCarousel = ({ items, renderItem }: {
-  items: any[];
-  renderItem: (item: any, i: number) => React.ReactNode;
-}) => {
+function MobileCarousel<T>({ items, renderItem }: {
+  items: T[];
+  renderItem: (item: T, i: number) => React.ReactNode;
+}) {
   const [active, setActive] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -648,7 +558,7 @@ const MobileCarousel = ({ items, renderItem }: {
       </Box>
     </Box>
   );
-};
+}
 
 // ─── Cursor glow (follows mouse) — multi-layer magnetic effect ───────────────
 const CursorGlow = () => {
@@ -961,8 +871,6 @@ export default function HomePage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const heroRef = useRef(null);
-  const { scrollYProgress } = useScroll({ target: heroRef });
-  const heroY = useTransform(scrollYProgress, [0, 1], [0, 80]);
 
   const smoothScroll = useCallback((e: React.MouseEvent, href: string) => {
     e.preventDefault();
@@ -1797,7 +1705,7 @@ export default function HomePage() {
             { label: 'Estoque', sublabel: 'Itens, grupos e alertas de quantidade mínima', component: <MockEstoque />, color: '#dc2626' },
             { label: 'Site do Terreiro', sublabel: 'Página pública com giras, endereço e contato', component: <MockSite />, color: '#0891b2' },
           ];
-          const renderTelaCard = (s: any) => (
+          const renderTelaCard = (s: (typeof maisTelasList)[number]) => (
             <Box sx={{
               borderRadius: 1, overflow: 'hidden', border: '1px solid #e2e8f0',
               boxShadow: T.cardShadow, background: '#fff',

@@ -36,7 +36,7 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import PeopleIcon from "@mui/icons-material/People";
 import HourglassTopIcon from "@mui/icons-material/HourglassTop";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { apiClient } from "../../services/api_client";
+import { apiClient, extractApiErrorMessage } from "../../services/api_client";
 import PlatformLayout from "./layout";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -147,8 +147,8 @@ const BillingPage: React.FC = () => {
       ]);
       setStats(statsRes.data);
       setSubs(subsRes.data);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || "Erro ao carregar dados de faturamento");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Erro ao carregar dados de faturamento"));
     } finally {
       setLoading(false);
     }

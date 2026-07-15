@@ -44,7 +44,7 @@ import StarIcon from "@mui/icons-material/Star";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
-import { apiClient } from "../../../services/api_client";
+import { apiClient, extractApiErrorMessage } from "../../../services/api_client";
 import CrudDrawer from "../../../components/CrudDrawer";
 import PlatformLayout from "../layout";
 
@@ -104,6 +104,8 @@ export default function TenantDetailPage() {
     if (id) {
       loadData();
     }
+    // loadData isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const loadData = async () => {
@@ -116,8 +118,8 @@ export default function TenantDetailPage() {
       ]);
       setTenant(tenantRes.data);
       setUsers(usersRes.data);
-    } catch (err: any) {
-      setError(err.message || "Erro ao carregar dados do tenant");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Erro ao carregar dados do tenant"));
     } finally {
       setLoading(false);
     }
@@ -139,8 +141,8 @@ export default function TenantDetailPage() {
         `/admin/impersonate?token=${encodeURIComponent(access_token)}&user=${encodeURIComponent(userB64)}&tenant=${encodeURIComponent(tenantB64)}`,
         "_blank"
       );
-    } catch (err: any) {
-      setError(err.message || "Erro ao impersonar usuário");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Erro ao impersonar usuário"));
     } finally {
       setImpersonating(null);
     }
@@ -173,10 +175,8 @@ export default function TenantDetailPage() {
       );
       handleResetClose();
       setSuccessMessage(`Senha de ${resetUser.email} redefinida com sucesso.`);
-    } catch (err: any) {
-      setResetError(
-        err.response?.data?.detail || "Erro ao redefinir senha"
-      );
+    } catch (err) {
+      setResetError(extractApiErrorMessage(err, "Erro ao redefinir senha"));
     } finally {
       setResetSaving(false);
     }
@@ -189,7 +189,7 @@ export default function TenantDetailPage() {
     resetPassword !== resetConfirm ||
     resetPassword.length < 12;
 
-  const roleColor = (role: string) => {
+  const roleColor = (role: string): "primary" | "secondary" | "default" => {
     switch (role) {
       case "ADMIN":
         return "primary";
@@ -326,7 +326,7 @@ export default function TenantDetailPage() {
                         <TableCell>
                           <Chip
                             label={user.role}
-                            color={roleColor(user.role) as any}
+                            color={roleColor(user.role)}
                             size="small"
                           />
                         </TableCell>

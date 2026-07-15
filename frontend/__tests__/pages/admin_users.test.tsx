@@ -40,6 +40,10 @@ jest.mock('@/hooks/useSubscription', () => ({
   }),
 }));
 
+jest.mock('@/hooks/usePermissions', () => ({
+  usePermissions: () => ({ can: () => true, permissions: null, loading: false, refresh: jest.fn() }),
+}));
+
 // CrudDrawer and PasswordField use @mui/material/useTheme subpath not found in the test container.
 jest.mock('@/components/CrudDrawer', () => ({
   __esModule: true,

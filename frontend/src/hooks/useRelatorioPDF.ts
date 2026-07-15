@@ -47,6 +47,40 @@ interface GenerateParams {
   tenant: PdfTenant;
 }
 
+/** Shape mínima do UMD global exposto pelo CDN do jsPDF — sem @types disponível. */
+interface JsPDFInstance {
+  addPage(): void;
+  addImage(
+    imageData: string,
+    format: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    alias: string | undefined,
+    compression: string,
+  ): void;
+  save(filename: string): void;
+}
+type JsPDFConstructor = new (options: {
+  orientation: string;
+  unit: string;
+  format: string;
+  compress: boolean;
+}) => JsPDFInstance;
+
+/** Shape mínima do UMD global exposto pelo CDN do html2canvas — sem @types disponível. */
+type Html2CanvasFn = (
+  element: HTMLElement,
+  options: Record<string, unknown>,
+) => Promise<{ toDataURL(type: string): string }>;
+
+interface PdfCdnWindow {
+  jspdf?: { jsPDF: JsPDFConstructor };
+  jsPDF?: JsPDFConstructor;
+  html2canvas?: Html2CanvasFn;
+}
+
 export function useRelatorioPDF() {
   const [loading, setLoading] = useState(false);
   const mountNodeRef = useRef<HTMLDivElement | null>(null);
@@ -54,7 +88,7 @@ export function useRelatorioPDF() {
 
   const cleanup = useCallback(() => {
     if (rootRef.current) {
-      try { rootRef.current.unmount(); } catch (_) { /* ignore */ }
+      try { rootRef.current.unmount(); } catch { /* ignore */ }
       rootRef.current = null;
     }
     if (mountNodeRef.current && document.body.contains(mountNodeRef.current)) {
@@ -76,8 +110,9 @@ export function useRelatorioPDF() {
         ]);
 
         // Acessa as libs expostas como UMD no window
-        const jsPDFClass = (window as any).jspdf?.jsPDF ?? (window as any).jsPDF;
-        const html2canvas = (window as any).html2canvas;
+        const pdfWindow = window as unknown as PdfCdnWindow;
+        const jsPDFClass = pdfWindow.jspdf?.jsPDF ?? pdfWindow.jsPDF;
+        const html2canvas = pdfWindow.html2canvas;
 
         if (!jsPDFClass || !html2canvas) {
           throw new Error('Bibliotecas PDF não carregaram. Verifique a conexão com a internet.');

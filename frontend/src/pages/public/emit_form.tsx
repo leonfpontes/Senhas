@@ -35,8 +35,6 @@ export default function EmitForm({
   tenantColor = '#2E7D32',
   onSuccess,
 }: EmitFormProps) {
-  if (!tenantSlug) return null;
-
   const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
@@ -55,6 +53,8 @@ export default function EmitForm({
     girReleaseStart,
     giraReleaseEnd,
   );
+
+  if (!tenantSlug) return null;
 
   // Form validation
   const validateForm = (): string | null => {
@@ -132,16 +132,18 @@ export default function EmitForm({
       // Reset form
       setFormData({ name: '', email: '', phone: '' });
 
-    } catch (err: any) {
+    } catch (err) {
       // Handle error
+      const e = err as { status?: number; response?: { status?: number; data?: { detail?: string } } } | undefined;
+      const status = e?.status ?? e?.response?.status;
       const message =
-        err.response?.status === 409
+        status === 409
           ? 'Você já possui uma senha para este evento'
-          : err.response?.status === 410
+          : status === 410
             ? 'Todas as senhas para este evento foram emitidas'
-            : err.response?.status === 429
+            : status === 429
               ? 'Muitas tentativas. Aguarde alguns instantes e tente novamente.'
-              : err.response?.data?.detail ||
+              : e?.response?.data?.detail ||
                 'Erro ao emitir senha. Tente novamente.';
 
       setError(message);

@@ -78,7 +78,7 @@ function AdminLayoutInner({
       try {
         setImpersonateUser(JSON.parse(sessionStorage.getItem('user') || '{}'));
         setImpersonateTenant(JSON.parse(sessionStorage.getItem('impersonate_tenant') || '{}'));
-      } catch {}
+      } catch { /* non-critical */ }
     }
   }, []);
 

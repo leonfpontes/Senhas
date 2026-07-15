@@ -36,13 +36,9 @@ import {
   Alert,
   Snackbar,
   InputAdornment,
-  useTheme,
-  useMediaQuery,
 } from '@mui/material';
-import DownloadIcon from '@mui/icons-material/GetApp';
 import SearchIcon from '@mui/icons-material/Search';
 import CheckIcon from '@mui/icons-material/Check';
-import CloseIcon from '@mui/icons-material/Close';
 import StarIcon from '@mui/icons-material/Star';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -56,7 +52,7 @@ import FlashOnIcon from '@mui/icons-material/FlashOn';
 import AdminLayout from '../admin_layout';
 import BulkActionsBar from '../../../components/admin/BulkActionsBar';
 import CrudDrawer from '../../../components/CrudDrawer';
-import { apiClient } from '../../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
 
@@ -110,8 +106,6 @@ function AdminTicketsContent() {
   const { can: canGroup } = usePermissions();
   const hasBulk = true;
   const router = useRouter();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -166,8 +160,8 @@ function AdminTicketsContent() {
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
       loadTickets();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Erro ao excluir a senha.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao excluir a senha.'));
     } finally {
       setDeleting(false);
     }
@@ -184,7 +178,7 @@ function AdminTicketsContent() {
       const data = Array.isArray(response.data) ? response.data : response.data.items || [];
       setGiras(data);
       // If current selected gira is not in filtered results, clear it
-      if (giraId && !data.some((g: any) => g.id === giraId)) {
+      if (giraId && !data.some((g: { id: string }) => g.id === giraId)) {
         setGiraId('');
       }
     } catch (error) {
@@ -226,8 +220,8 @@ function AdminTicketsContent() {
           : `Senha #${item.numero} liberada diretamente, sem precisar de confirmação.`,
       );
       await loadWaitlist();
-    } catch (error: any) {
-      setError(error?.response?.data?.detail || 'Erro ao promover senha da fila.');
+    } catch (error) {
+      setError(extractApiErrorMessage(error, 'Erro ao promover senha da fila.'));
     } finally {
       setWaitlistActionId(null);
     }
@@ -242,8 +236,8 @@ function AdminTicketsContent() {
       await apiClient.delete(`/api/v1/admin/giras/${giraId}/waitlist/${item.id}`);
       setSuccess(`Senha #${item.numero} removida da fila de espera.`);
       await loadWaitlist();
-    } catch (error: any) {
-      setError(error?.response?.data?.detail || 'Erro ao remover senha da fila.');
+    } catch (error) {
+      setError(extractApiErrorMessage(error, 'Erro ao remover senha da fila.'));
     } finally {
       setWaitlistActionId(null);
     }
@@ -293,14 +287,20 @@ function AdminTicketsContent() {
       return;
     }
     loadGiras();
+    // loadGiras isn't memoized and router is a stable Next.js reference — safe to omit both.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [giraFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     loadTickets();
+    // loadTickets isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, statusFilter, giraId]);
 
   useEffect(() => {
     loadWaitlist();
+    // loadWaitlist isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [giraId]);
 
   const handleSelectTicket = (id: string) => {
@@ -368,8 +368,8 @@ function AdminTicketsContent() {
       setDrawerOpen(false);
       setSuccess('Informações de atendimento salvas com sucesso!');
       loadTickets();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Erro ao salvar informações de atendimento');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao salvar informações de atendimento'));
     } finally {
       setSaving(false);
     }

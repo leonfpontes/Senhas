@@ -48,7 +48,7 @@ interface AuditLog {
   resource_id?: string;
   user_id?: string;
   user_name?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   created_at: string;
 }
 
@@ -124,7 +124,7 @@ function fieldLabel(key: string): string {
   return FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function formatValue(val: any): string {
+function formatValue(val: unknown): string {
   if (val === null || val === undefined) return '—';
   if (typeof val === 'boolean') return val ? 'Sim' : 'Não';
   if (Array.isArray(val)) return `${val.length} item(ns)`;
@@ -136,8 +136,8 @@ function formatValue(val: any): string {
   return s;
 }
 
-function diffObjects(prev: Record<string, any>, next: Record<string, any>) {
-  const changes: Array<{ field: string; from: any; to: any }> = [];
+function diffObjects(prev: Record<string, unknown>, next: Record<string, unknown>) {
+  const changes: Array<{ field: string; from: unknown; to: unknown }> = [];
   const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
   for (const key of allKeys) {
     if (HIDDEN_FIELDS.has(key)) continue;
@@ -148,33 +148,35 @@ function diffObjects(prev: Record<string, any>, next: Record<string, any>) {
   return changes;
 }
 
-function FormatDetails({ action, details }: { action: string; details?: Record<string, any> }) {
+function FormatDetails({ action, details }: { action: string; details?: Record<string, unknown> }) {
   if (!details) return <Typography variant="body2" color="text.secondary">—</Typography>;
 
   if (action === 'login' || action === 'logout') {
     const ok = details.success !== false;
+    const ipAddress = details.ip_address as string | undefined;
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         <Typography variant="body2">{action === 'login' ? 'Login' : 'Logout'}</Typography>
         <Chip label={ok ? 'sucesso' : 'falha'} size="small" color={ok ? 'success' : 'error'} sx={{ height: 20, fontSize: '0.7rem' }} />
-        {details.ip_address && (
-          <Typography variant="caption" color="text.secondary">IP: {details.ip_address}</Typography>
+        {ipAddress && (
+          <Typography variant="caption" color="text.secondary">IP: {ipAddress}</Typography>
         )}
       </Box>
     );
   }
 
-  if (details.operation_type) {
+  const operationType = details.operation_type as string | undefined;
+  if (operationType) {
     const opLabels: Record<string, string> = { bulk_mark_used: 'Marcar como usado', bulk_cancel: 'Cancelar em massa' };
     return (
       <Typography variant="body2">
-        <strong>{opLabels[details.operation_type] || details.operation_type}</strong>{' — '}{details.count} registro(s)
+        <strong>{opLabels[operationType] || operationType}</strong>{' — '}{details.count as number} registro(s)
       </Typography>
     );
   }
 
-  const prev = details.previous_state || details.previous_values;
-  const next = details.new_state || details.new_values;
+  const prev = (details.previous_state || details.previous_values) as Record<string, unknown> | undefined;
+  const next = (details.new_state || details.new_values) as Record<string, unknown> | undefined;
   if (prev && next) {
     const changes = diffObjects(prev, next);
     if (changes.length === 0) return <Typography variant="body2" color="text.secondary">Sem alterações visíveis</Typography>;
@@ -193,8 +195,8 @@ function FormatDetails({ action, details }: { action: string; details?: Record<s
   }
 
   if (action === 'delete' && details.previous_state) {
-    const state = details.previous_state;
-    const summary = state.nome || state.email || state.numero || '';
+    const state = details.previous_state as Record<string, unknown>;
+    const summary = (state.nome || state.email || state.numero || '') as string;
     return <Typography variant="body2">Removido{summary ? `: ${summary}` : ''}</Typography>;
   }
 
@@ -250,6 +252,8 @@ function AdminAuditTrailContent() {
     const c = new AbortController();
     loadLogs(c.signal);
     return () => c.abort();
+    // loadLogs isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, actionFilter, resourceTypeFilter, canView]);
 
   function buildQuery(overrideLimit?: number, overrideSkip?: number) {
@@ -267,8 +271,8 @@ function AdminAuditTrailContent() {
       const res = await apiClient.get(`/api/v1/admin/audit-logs?${buildQuery()}`, { signal });
       setLogs(res.data.items);
       setTotal(res.data.total);
-    } catch (e: any) {
-      if (e.name === 'CanceledError' || e.name === 'AbortError') return;
+    } catch (e) {
+      if (e instanceof Error && (e.name === 'CanceledError' || e.name === 'AbortError')) return;
     } finally { setLoading(false); }
   }
 

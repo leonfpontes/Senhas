@@ -54,7 +54,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import StarIcon from "@mui/icons-material/Star";
 import CreditScoreIcon from "@mui/icons-material/CreditScore";
 import { useRouter } from "next/router";
-import { apiClient } from "../../services/api_client";
+import { apiClient, extractApiErrorMessage } from "../../services/api_client";
 import PlatformLayout from "./layout";
 import CrudDrawer from "../../components/CrudDrawer";
 
@@ -149,6 +149,8 @@ const TenantsPage: React.FC = () => {
 
   useEffect(() => {
     fetchTenants();
+    // fetchTenants isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   const fetchTenants = async () => {
@@ -161,8 +163,8 @@ const TenantsPage: React.FC = () => {
       const data = response.data;
       setTenants(data);
       setTotalPages(Math.ceil(data.length / 100));
-    } catch (err: any) {
-      setError(err?.message || "Unknown error");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Unknown error"));
     } finally {
       setLoading(false);
     }
@@ -239,8 +241,8 @@ const TenantsPage: React.FC = () => {
       setDrawerOpen(false);
       setTimeout(() => setSuccess(null), 3000);
       fetchTenants();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || "Erro ao salvar tenant");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Erro ao salvar tenant"));
     } finally {
       setSaving(false);
     }
@@ -267,9 +269,8 @@ const TenantsPage: React.FC = () => {
       setTimeout(() => setSuccess(null), 4000);
       setDeleteDialogTenant(null);
       fetchTenants();
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail || err?.message || "Erro ao excluir tenant";
-      setDeleteError(typeof detail === "string" ? detail : "Erro ao excluir tenant");
+    } catch (err) {
+      setDeleteError(extractApiErrorMessage(err, "Erro ao excluir tenant"));
     } finally {
       setDeleting(false);
     }
@@ -325,8 +326,8 @@ const TenantsPage: React.FC = () => {
       setSubDrawerTenant(null);
       setTimeout(() => setSuccess(null), 4000);
       fetchTenants();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Erro ao salvar assinatura');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao salvar assinatura'));
     } finally {
       setSubSaving(false);
     }

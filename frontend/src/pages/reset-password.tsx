@@ -8,7 +8,6 @@ import {
   Button,
   Card,
   CardContent,
-  TextField,
   Typography,
   Alert,
   CircularProgress,
@@ -58,11 +57,15 @@ export default function ResetPasswordPage() {
       setTimeout(() => {
         router.push('/login?reset=1');
       }, 2000);
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      const code = typeof detail === 'object' ? detail?.error_code : null;
-      const message = typeof detail === 'object' ? detail?.message : (detail || 'Erro ao redefinir senha.');
-      const validationErrors = err?.response?.data?.errors;
+    } catch (err) {
+      const e = err as { response?: { data?: { detail?: unknown; errors?: unknown } } } | undefined;
+      const detail = e?.response?.data?.detail;
+      const code = detail && typeof detail === 'object' ? (detail as { error_code?: string }).error_code : null;
+      const message =
+        detail && typeof detail === 'object'
+          ? (detail as { message?: string }).message || 'Erro ao redefinir senha.'
+          : (typeof detail === 'string' && detail) || 'Erro ao redefinir senha.';
+      const validationErrors = e?.response?.data?.errors;
 
       if (code) setErrorCode(code);
 

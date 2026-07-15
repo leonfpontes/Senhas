@@ -76,6 +76,8 @@ function AdminEstoqueGruposContent() {
     open: false, message: '', severity: 'success',
   });
 
+  // loadGrupos isn't memoized — including it would refetch every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadGrupos(); }, [canView]);
 
   const loadGrupos = async () => {
@@ -223,7 +225,7 @@ function AdminEstoqueGruposContent() {
         title={drawerMode === 'create' ? 'Novo Grupo' : 'Editar Grupo'}
         onClose={closeDrawer}
         onSave={handleSave}
-        loading={saving}
+        saving={saving}
       >
         <TextField
           label="Nome do grupo *"

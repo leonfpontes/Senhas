@@ -7,7 +7,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import type { GetServerSideProps } from "next";
 import styles from "./inscricao.module.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -322,28 +321,28 @@ export default function InscricaoCursoPage() {
       if (!form.como_conheceu_terreiro.trim()) return `O campo 'Como conheceu o ${curso?.tenant_nome || "Terreiro"}?' é obrigatório.`;
       
       // Ficha Médica
-      if (form.tem_plano_saude === undefined || form.tem_plano_saude === null || form.tem_plano_saude === "") {
+      if (form.tem_plano_saude === undefined || form.tem_plano_saude === null) {
         return "Por favor, selecione se possui plano de saúde.";
       }
       if (form.tem_plano_saude === true && !form.plano_saude_nome.trim()) {
         return "Informe o nome do seu plano de saúde.";
       }
-      if (form.toma_medicamento === undefined || form.toma_medicamento === null || form.toma_medicamento === "") {
+      if (form.toma_medicamento === undefined || form.toma_medicamento === null) {
         return "Por favor, selecione se toma medicamentos controlados.";
       }
       if (form.toma_medicamento === true && !form.medicamentos_nome.trim()) {
         return "Especifique os medicamentos controlados que você toma.";
       }
-      if (form.tem_doenca_tratamento === undefined || form.tem_doenca_tratamento === null || form.tem_doenca_tratamento === "") {
+      if (form.tem_doenca_tratamento === undefined || form.tem_doenca_tratamento === null) {
         return "Por favor, selecione se faz algum tratamento de saúde.";
       }
       if (form.tem_doenca_tratamento === true && !form.doenca_tratamento_nome.trim()) {
         return "Especifique o tratamento de saúde que você realiza.";
       }
-      if (form.tem_diabetes === undefined || form.tem_diabetes === null || form.tem_diabetes === "") {
+      if (form.tem_diabetes === undefined || form.tem_diabetes === null) {
         return "Por favor, selecione se possui diabetes.";
       }
-      if (form.tratamento_psiquiatrico === undefined || form.tratamento_psiquiatrico === null || form.tratamento_psiquiatrico === "") {
+      if (form.tratamento_psiquiatrico === undefined || form.tratamento_psiquiatrico === null) {
         return "Por favor, selecione se faz acompanhamento psiquiátrico.";
       }
       if (form.tratamento_psiquiatrico === true && !form.tratamento_psiquiatrico_detalhes.trim()) {
@@ -602,6 +601,10 @@ export default function InscricaoCursoPage() {
           <div className={styles.heroContent}>
             {/* Logo */}
             {curso.tenant_logo_url && !logoError ? (
+              // next/image needs the tenant logo's host allow-listed in next.config.js
+              // images.remotePatterns; not configured yet, and this already has a
+              // graceful onError fallback — not worth the config risk for a warning.
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={curso.tenant_logo_url}
                 alt={curso.tenant_nome}

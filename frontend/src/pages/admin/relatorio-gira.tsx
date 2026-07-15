@@ -173,7 +173,7 @@ function RelatorioGiraContent() {
       const res  = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`);
       const data = Array.isArray(res.data) ? res.data : res.data.items ?? [];
       setGiras(data);
-      if (giraId && !data.some((g: any) => g.id === giraId)) setGiraId('');
+      if (giraId && !data.some((g: { id: string }) => g.id === giraId)) setGiraId('');
     } catch { /* non-critical */ }
   }, [giraFilter, dateFrom, dateTo, giraId, canGroup]);
 
@@ -216,6 +216,8 @@ function RelatorioGiraContent() {
     loadTickets();
     loadDoorStats();
     setSearchText(''); setMediumFilter(''); setCamboneFilter(''); setTagFilter(''); setPage(0);
+    // loadTickets/loadDoorStats aren't memoized — including them would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [giraId, statusFilter]);
 
   // ── Derived lists ─────────────────────────────────────────────────
@@ -300,7 +302,6 @@ function RelatorioGiraContent() {
 
   const hasActiveSearchFilters     = Boolean(searchText || mediumFilter || camboneFilter || tagFilter);
   const activeGiraFilterCount      = [dateFrom, dateTo, giraFilter !== 'all' ? giraFilter : '', statusFilter !== 'completed' ? statusFilter : ''].filter(Boolean).length;
-  const selectedGiraName           = giras.find((g) => g.id === giraId)?.nome ?? '';
 
   // ── Feature gate UI ───────────────────────────────────────────────
   if (!can('relatorio_gira')) {

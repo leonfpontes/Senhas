@@ -108,6 +108,8 @@ const CursosPresenciaisPage = () => {
     if (subscription?.plan === "pro" || subscription?.plan === "premium") {
       fetchCursos();
     }
+    // fetchCursos isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscription, canView]);
 
   const openCreateDrawer = () => {

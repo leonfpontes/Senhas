@@ -6,6 +6,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   Alert,
   Box,
@@ -45,10 +46,8 @@ import {
   Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
-  Cell,
 } from 'recharts';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
@@ -56,12 +55,11 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DownloadIcon from '@mui/icons-material/Download';
 import EditIcon from '@mui/icons-material/Edit';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import AdminLayout from '../admin_layout';
 import CrudDrawer from '../../../components/CrudDrawer';
 import UpgradePrompt from '../../../components/UpgradePrompt';
 import CurrencyInput from '../../../components/CurrencyInput';
-import { apiClient } from '../../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
 
@@ -146,7 +144,7 @@ function mesLabel(yyyymm: string): string {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function MensalidadesPage() {
-  const { can, subscription } = useSubscription();
+  const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
 
   const today = new Date();
@@ -366,8 +364,8 @@ export default function MensalidadesPage() {
       // Refresh resumo so KPI cards and chart stay in sync
       fetchResumo();
       if (assocEnabled) fetchAssocResumo();
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail || 'Erro ao salvar.';
+    } catch (err) {
+      const detail = extractApiErrorMessage(err, 'Erro ao salvar.');
       setSnack({ open: true, msg: detail, severity: 'error' });
     } finally {
       setDrawerSaving(false);
@@ -551,7 +549,7 @@ export default function MensalidadesPage() {
         {!config && (
           <Alert severity="info" sx={{ mb: 2 }}>
             Configure o valor mensal em{' '}
-            <a href="/admin/financeiro/config">Financeiro → Configuração</a> para ativar o controle.
+            <Link href="/admin/financeiro/config">Financeiro → Configuração</Link> para ativar o controle.
           </Alert>
         )}
 
@@ -659,7 +657,11 @@ export default function MensalidadesPage() {
                               onChange={() =>
                                 setSelectedMediuns((prev) => {
                                   const next = new Set(prev);
-                                  next.has(item.mediun_id) ? next.delete(item.mediun_id) : next.add(item.mediun_id);
+                                  if (next.has(item.mediun_id)) {
+                                    next.delete(item.mediun_id);
+                                  } else {
+                                    next.add(item.mediun_id);
+                                  }
                                   return next;
                                 })
                               }

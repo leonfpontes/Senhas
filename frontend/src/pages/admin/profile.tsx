@@ -34,7 +34,7 @@ import { useRouter } from 'next/router';
 
 import AdminLayout from './admin_layout';
 import PasswordField from '../../components/PasswordField';
-import { apiClient } from '../../services/api_client';
+import { apiClient, extractApiErrorMessage, ApiRequestConfig } from '../../services/api_client';
 
 interface ProfileData {
   id: string;
@@ -135,8 +135,8 @@ export default function AdminProfilePage() {
           ...user,
         }),
       );
-    } catch (err: any) {
-      setError(err?.message || 'Não foi possível carregar seu perfil.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Não foi possível carregar seu perfil.'));
     } finally {
       setLoading(false);
     }
@@ -183,8 +183,8 @@ export default function AdminProfilePage() {
       }
 
       setSuccess('Dados pessoais atualizados com sucesso.');
-    } catch (err: any) {
-      setError(err?.message || 'Falha ao salvar os dados do perfil.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Falha ao salvar os dados do perfil.'));
     } finally {
       setSavingProfile(false);
     }
@@ -220,7 +220,7 @@ export default function AdminProfilePage() {
         // Senha atual errada retorna 401 (UnauthorizedError) — sem isso o
         // interceptor global trata como sessão expirada, tenta refresh
         // silencioso, falha de novo e desloga o usuário sem explicação.
-        { skipAutoLogout: true } as any,
+        { skipAutoLogout: true } as ApiRequestConfig,
       );
 
       // Changing the password revokes every session (this tab included) so a
@@ -229,8 +229,8 @@ export default function AdminProfilePage() {
       // very next request would 401 unexpectedly.
       localStorage.removeItem('user');
       router.push('/login?sessions_ended=1');
-    } catch (err: any) {
-      setError(err?.message || 'Não foi possível alterar a senha.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Não foi possível alterar a senha.'));
     } finally {
       setSavingPassword(false);
     }
@@ -244,8 +244,8 @@ export default function AdminProfilePage() {
       await apiClient.post('/api/v1/auth/logout-all');
       localStorage.removeItem('user');
       router.push('/login?sessions_ended=1');
-    } catch (err: any) {
-      setError(err?.message || 'Não foi possível encerrar as sessões.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Não foi possível encerrar as sessões.'));
       setLoggingOutAll(false);
     }
   };
@@ -258,16 +258,15 @@ export default function AdminProfilePage() {
       await apiClient.delete('/api/v1/auth/account', {
         data: { password: deletePassword },
         skipAutoLogout: true,
-      } as any);
+      } as ApiRequestConfig);
       // Clear all local session data
       localStorage.clear();
       sessionStorage.clear();
       // Notify other tabs via storage event
       window.dispatchEvent(new StorageEvent('storage', { key: 'access_token', newValue: null }));
       router.push('/login?account_deleted=1');
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      setDeleteError(typeof detail === 'string' ? detail : 'Erro ao excluir conta. Verifique sua senha.');
+    } catch (err) {
+      setDeleteError(extractApiErrorMessage(err, 'Erro ao excluir conta. Verifique sua senha.'));
     } finally {
       setDeletingAccount(false);
     }
@@ -283,14 +282,14 @@ export default function AdminProfilePage() {
         { password: deactivatePassword },
         // Senha incorreta retorna 401 (mesmo motivo do fix em change-password/
         // delete-account: sem isso, o interceptor global desloga sem explicar).
-        { skipAutoLogout: true } as any,
+        { skipAutoLogout: true } as ApiRequestConfig,
       );
       localStorage.clear();
       sessionStorage.clear();
       window.dispatchEvent(new StorageEvent('storage', { key: 'access_token', newValue: null }));
       router.push('/login?account_deactivated=1');
-    } catch (err: any) {
-      setDeactivateError(err?.message || 'Erro ao desativar conta. Verifique sua senha.');
+    } catch (err) {
+      setDeactivateError(extractApiErrorMessage(err, 'Erro ao desativar conta. Verifique sua senha.'));
     } finally {
       setDeactivatingAccount(false);
     }
@@ -349,8 +348,8 @@ export default function AdminProfilePage() {
       }
 
       setSuccess('Foto de perfil atualizada com sucesso.');
-    } catch (err: any) {
-      setError(err?.message || 'Falha ao enviar foto de perfil.');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Falha ao enviar foto de perfil.'));
       await loadProfile();
     } finally {
       setUploadingPhoto(false);

@@ -74,9 +74,10 @@ export default function PublicPage() {
           secondary_color: giraResponse.data.secondary_color || '#1565C0',
         });
 
-      } catch (err: any) {
+      } catch (err) {
+        const status = err && typeof err === 'object' ? (err as { status?: number }).status : undefined;
         const message =
-          err?.response?.status === 404
+          status === 404
             ? 'Tenant ou gira não encontrado'
             : 'Erro ao carregar dados. Tente novamente.';
         setError(message);
@@ -152,8 +153,7 @@ export default function PublicPage() {
               girReleaseStart={giraData.release_start_at}
               giraReleaseEnd={giraData.release_end_at}
               tenantColor={tenantInfo.primary_color}
-              onSuccess={(ticketNumber, email) => {
-                console.log('Ticket emitted:', ticketNumber, email);
+              onSuccess={() => {
                 // Could scroll to success section or refresh data here
               }}
             />

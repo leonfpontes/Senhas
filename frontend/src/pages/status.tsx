@@ -30,7 +30,6 @@ import { apiClient } from '../services/api_client';
 // ---------------------------------------------------------------------------
 
 const POLLING_MS = 60_000;
-const HISTORY_DAYS = 90;
 
 const STATUS_COLOR: Record<string, string> = {
   operational: '#22c55e',

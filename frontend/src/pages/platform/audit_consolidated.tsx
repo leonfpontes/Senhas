@@ -8,7 +8,6 @@ import {
   Button,
   Card,
   CardContent,
-  Collapse,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -21,7 +20,6 @@ import {
   TableRow,
   Paper,
   TextField,
-  CircularProgress,
   Alert,
   Chip,
   Tab,
@@ -156,8 +154,6 @@ const FIELD_LABELS: Record<string, string> = {
   status: "Status",
   tipo: "Tipo",
   numero: "Numero",
-  gira_id: "Gira",
-  plan: "Plano",
   success: "Sucesso",
   ip_address: "Endereco IP",
   valor_mensal: "Valor mensal",
@@ -246,7 +242,8 @@ function FormatDetails({
 
   // LOGIN / LOGOUT - destacar falhas como erros
   if (action === "login" || action === "logout") {
-    const success = (details as any).success !== false;
+    const success = details.success !== false;
+    const ipAddress = details.ip_address as string | undefined;
     return (
       <Stack direction="row" flexWrap="wrap" spacing={0.5} alignItems="center">
         <Chip
@@ -255,9 +252,9 @@ function FormatDetails({
           color={success ? "success" : "error"}
           sx={{ height: 20, fontSize: "0.7rem", fontWeight: 700 }}
         />
-        {(details as any).ip_address && (
+        {ipAddress && (
           <Typography variant="caption" color="text.secondary">
-            IP: {(details as any).ip_address}
+            IP: {ipAddress}
           </Typography>
         )}
       </Stack>
@@ -265,22 +262,23 @@ function FormatDetails({
   }
 
   // BULK
-  if ((details as any).operation_type) {
+  const operationType = details.operation_type as string | undefined;
+  if (operationType) {
     const opLabels: Record<string, string> = {
       bulk_mark_used: "Marcar como usado",
       bulk_cancel: "Cancelar em massa",
     };
     return (
       <Typography variant="body2">
-        <strong>{opLabels[(details as any).operation_type] || (details as any).operation_type}</strong>
-        {" — "}{(details as any).count} registro(s)
+        <strong>{opLabels[operationType] || operationType}</strong>
+        {" — "}{details.count as number} registro(s)
       </Typography>
     );
   }
 
   // UPDATE - diff entre estados
-  const prev = (details as any).previous_state || (details as any).previous_values;
-  const next = (details as any).new_state || (details as any).new_values;
+  const prev = (details.previous_state || details.previous_values) as Record<string, unknown> | undefined;
+  const next = (details.new_state || details.new_values) as Record<string, unknown> | undefined;
   if (prev && next) {
     const changes = diffObjects(prev, next);
     if (changes.length === 0)
@@ -312,8 +310,8 @@ function FormatDetails({
   }
 
   // DELETE - nome do recurso removido
-  if (action === "delete" && (details as any).previous_state) {
-    const state = (details as any).previous_state as Record<string, unknown>;
+  if (action === "delete" && details.previous_state) {
+    const state = details.previous_state as Record<string, unknown>;
     const label = (state.nome || state.email || state.numero) as string | undefined;
     return (
       <Typography variant="body2" color="error.main">
@@ -502,7 +500,6 @@ export default function AuditConsolidadoPage() {
   const [summary, setSummary] = useState<AuditSummary | null>(null);
   const [feed, setFeed] = useState<FeedEntry[]>([]);
   const [feedPage, setFeedPage] = useState(0);
-  const [feedTotal, setFeedTotal] = useState(0);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantMap, setTenantMap] = useState<Record<string, string>>({});
   const [detailEntry, setDetailEntry] = useState<FeedEntry | null>(null);
@@ -539,7 +536,6 @@ export default function AuditConsolidadoPage() {
         setSummary(summaryRes.data);
         setFeed(Array.isArray(feedRes.data) ? feedRes.data : []);
         setFeedPage(page);
-        setFeedTotal(summaryRes.data?.total ?? 0);
       } catch {
         setError("Falha ao carregar dados de auditoria.");
       } finally {
@@ -593,7 +589,7 @@ export default function AuditConsolidadoPage() {
   const mostActiveTenantName =
     (summary?.statistics?.most_active_tenant_name as string | null | undefined) ??
     (summary?.statistics?.most_active_tenant as string | null | undefined
-      ? (tenantMap[(summary.statistics.most_active_tenant as string)] ?? (summary.statistics.most_active_tenant as string).slice(0, 8) + "...")
+      ? (tenantMap[(summary?.statistics?.most_active_tenant as string)] ?? (summary?.statistics?.most_active_tenant as string).slice(0, 8) + "...")
       : null);
 
   // â”€â”€â”€ Tabela Por Tenant â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -801,7 +797,7 @@ export default function AuditConsolidadoPage() {
                     feed.map((entry) => {
                       const isError =
                         entry.action === "login" &&
-                        (entry.details as any)?.success === false;
+                        entry.details?.success === false;
                       const dt = fmtDate(entry.created_at);
                       return (
                         <TableRow

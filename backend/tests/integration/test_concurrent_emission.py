@@ -22,9 +22,9 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select, text
 
-from backend.src.models import Gira, SenhaControl, Ticket, TicketStatus
-from backend.src.repositories.senha_control_repo_extended import SenhaControlRepositoryExtended
-from backend.src.repositories.ticket_repo import TicketRepository
+from src.models import Gira, SenhaControl, Ticket, TicketStatus
+from src.repositories.senha_control_repo_extended import SenhaControlRepositoryExtended
+from src.repositories.ticket_repo import TicketRepository
 
 
 # ============================================

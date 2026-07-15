@@ -34,10 +34,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import BlockIcon from '@mui/icons-material/Block';
 import StarIcon from '@mui/icons-material/Star';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import { apiClient } from '../../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import { useGiraCountdown, parseCountdownParts } from '../../../hooks/useGiraCountdown';
 import {
-  PriorityCategory,
   PRIORITY_CATEGORY_LABELS,
   PRIORITY_ORDER,
 } from 'shared-types';
@@ -133,8 +132,8 @@ export default function PublicGiraPage() {
       const res = await apiClient.get(`/api/v1/public/gira/${giraId}?tipo=${tipo}`);
       setGira(res.data);
       setError(null);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Gira não encontrada');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Gira não encontrada'));
     } finally {
       setLoading(false);
     }
@@ -173,8 +172,8 @@ export default function PublicGiraPage() {
       setWaitlistPosition(res.data.waitlist_position ?? null);
       // Refresh gira data to update counts
       fetchGira();
-    } catch (err: any) {
-      const msg = err?.response?.data?.detail || 'Erro ao emitir senha';
+    } catch (err) {
+      const msg = extractApiErrorMessage(err, 'Erro ao emitir senha');
       setSnack({ open: true, msg, sev: 'error' });
     } finally {
       setSubmitting(false);
@@ -345,7 +344,7 @@ export default function PublicGiraPage() {
                 ))}
               </RadioGroup>
               <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', lineHeight: 1.4 }}>
-                O atendimento preferencial obedece à Lei nº 10.048/2000 (idosos, gestantes, lactantes, pessoas com deficiência e mobilidade reduzida) e à Lei nº 13.146/2015 (Estatuto da Pessoa com Deficiência).
+                O atendimento preferencial obedece à Lei nº 10.048/2000 (idosos, gestantes, lactantes, pessoas com deficiência e mobilidade reduzida) e à Lei nº 13.146/2015 (Estatuto da Pessoa com Deficiência).
               </Typography>
             </FormControl>
             <Button

@@ -19,18 +19,30 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
-from backend.src.models import (
-    Tenant, User, UserRole, Gira, Consulente, Ticket, TicketStatus, SenhaControl, AuditLog, AuditAction
+from src.models import (
+    Base, Tenant, User, UserRole, Gira, Consulente, Ticket, TicketStatus, SenhaControl, AuditLog, AuditAction
 )
-from backend.src.services.email import BrevoEmailService, ResendEmailService
-from backend.src.repositories.ticket_repo import TicketRepository
-from backend.src.repositories.senha_control_repo import SenhaControlRepository
-from backend.src.core.config import settings
+from src.services.email import BrevoEmailService, ResendEmailService
+from src.repositories.ticket_repo import TicketRepository
+from src.repositories.senha_control_repo import SenhaControlRepository
+from src.core.config import settings
 
 
 # ============================================
 # FIXTURES
 # ============================================
+
+@pytest.fixture(autouse=True)
+def email_provider_settings(monkeypatch):
+    """Brevo/Resend services raise in __init__ if their API key is unset.
+    These tests mock send_email itself and never call a real provider,
+    so a dummy key is enough to get past the constructor check."""
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "test-brevo-key")
+    monkeypatch.setattr(settings, "BREVO_FROM_EMAIL", "test@example.com")
+    monkeypatch.setattr(settings, "BREVO_FROM_NAME", "Test Sender")
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "test-resend-key")
+    monkeypatch.setattr(settings, "RESEND_FROM_EMAIL", "test@example.com")
+
 
 @pytest.fixture
 async def test_db_session():

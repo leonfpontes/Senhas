@@ -44,6 +44,10 @@ jest.mock('@/hooks/useSubscription', () => ({
   })),
 }));
 
+jest.mock('@/hooks/usePermissions', () => ({
+  usePermissions: () => ({ can: () => true, permissions: null, loading: false, refresh: jest.fn() }),
+}));
+
 // AdminLayout renders children directly in tests
 jest.mock('@/pages/admin/admin_layout', () => {
   return function MockAdminLayout({ children }: any) {

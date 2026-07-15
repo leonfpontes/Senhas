@@ -4,6 +4,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   Alert,
   Box,
@@ -42,7 +43,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AdminLayout from './admin_layout';
-import { apiClient } from '../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
 import { useSubscription } from '../../hooks/useSubscription';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -121,7 +122,7 @@ function GiraUsageBar({ used, max }: { used: number; max: number }) {
       />
       {atLimit && (
         <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
-          Limite mensal atingido. <a href="/admin/plano" style={{ fontWeight: 600, color: 'inherit' }}>Faça upgrade</a> para criar mais giras.
+          Limite mensal atingido. <Link href="/admin/plano" style={{ fontWeight: 600, color: 'inherit' }}>Faça upgrade</Link> para criar mais giras.
         </Typography>
       )}
     </Box>
@@ -186,6 +187,8 @@ function AdminGirasContent() {
     const controller = new AbortController();
     loadGiras(controller.signal);
     return () => controller.abort();
+    // loadGiras isn't memoized — including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView]);
 
   const loadGiras = async (signal?: AbortSignal) => {
@@ -194,8 +197,8 @@ function AdminGirasContent() {
       setLoading(true);
       const response = await apiClient.get('/api/v1/admin/giras', { signal });
       setGiras(response.data.items || response.data);
-    } catch (error: any) {
-      if (error.name === 'CanceledError' || error.name === 'AbortError') return;
+    } catch (error) {
+      if (error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError')) return;
       console.error('Error loading giras:', error);
     } finally {
       setLoading(false);
@@ -262,11 +265,6 @@ function AdminGirasContent() {
       const payload = {
         ...formData,
         data_inicio: toUtcIso(formData.data_inicio),
-        data_fim: formData.data_fim ? toUtcIso(formData.data_fim) : undefined,
-        release_start_at: formData.release_start_at ? toUtcIso(formData.release_start_at) : undefined,
-        release_end_at: formData.release_end_at ? toUtcIso(formData.release_end_at) : undefined,
-        sponsor_release_start_at: formData.sponsor_release_start_at ? toUtcIso(formData.sponsor_release_start_at) : undefined,
-        sponsor_release_end_at: formData.sponsor_release_end_at ? toUtcIso(formData.sponsor_release_end_at) : undefined,
       };
       if (drawerMode === 'create') {
         await apiClient.post('/api/v1/admin/giras', payload);
@@ -362,7 +360,7 @@ function AdminGirasContent() {
     if (senhaSaveDisabled || !senhaTarget || !canEdit) return;
     setSenhaSaving(true);
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         max_tickets: Number(senhaForm.max_tickets),
         release_start_at: new Date(senhaForm.release_start_at).toISOString(),
         release_end_at: new Date(senhaForm.release_end_at).toISOString(),
@@ -387,8 +385,8 @@ function AdminGirasContent() {
       setSenhaInitial({ ...senhaForm });
       setSnackbar({ open: true, message: 'Configuração de senhas salva!', severity: 'success' });
       loadGiras();
-    } catch (error: any) {
-      const msg = error?.response?.data?.detail || 'Erro ao salvar configuração';
+    } catch (error) {
+      const msg = extractApiErrorMessage(error, 'Erro ao salvar configuração');
       setSnackbar({ open: true, message: msg, severity: 'error' });
     } finally {
       setSenhaSaving(false);
@@ -415,8 +413,8 @@ function AdminGirasContent() {
       setSenhaInitial(released);
       setSnackbar({ open: true, message: 'Senhas liberadas agora!', severity: 'success' });
       loadGiras();
-    } catch (error: any) {
-      const msg = error?.response?.data?.detail || 'Erro ao liberar senhas';
+    } catch (error) {
+      const msg = extractApiErrorMessage(error, 'Erro ao liberar senhas');
       setSnackbar({ open: true, message: msg, severity: 'error' });
     } finally {
       setSenhaSaving(false);
@@ -468,7 +466,7 @@ function AdminGirasContent() {
         title="Gestão de Giras"
         actions={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadGiras} disabled={loading} size="small">
+            <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => loadGiras()} disabled={loading} size="small">
               Atualizar
             </Button>
             {canInsert && (

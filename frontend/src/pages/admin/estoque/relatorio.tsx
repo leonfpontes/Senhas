@@ -92,6 +92,8 @@ function AdminEstoqueRelatorioContent() {
   useEffect(() => {
     loadGrupos();
     loadPosicao();
+    // loadGrupos/loadPosicao aren't memoized — including them would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView]);
 
   useEffect(() => {
@@ -100,6 +102,8 @@ function AdminEstoqueRelatorioContent() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [filterSearch]);
 
+  // loadPosicao isn't memoized — including it would refetch every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadPosicao(); }, [filterGrupo, debouncedSearch, canView]);
 
   const loadGrupos = async () => {
@@ -261,7 +265,7 @@ function AdminEstoqueRelatorioContent() {
                   const st = STATUS_LABEL[row.status];
                   return (
                     <TableRow key={row.item_id} hover sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
-                      <TableCell fontWeight={500}>{row.item_nome}</TableCell>
+                      <TableCell sx={{ fontWeight: 500 }}>{row.item_nome}</TableCell>
                       <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{row.grupo_nome || '—'}</TableCell>
                       <TableCell>
                         <Typography

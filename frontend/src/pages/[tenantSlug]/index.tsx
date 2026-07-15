@@ -16,7 +16,6 @@ import {
   Divider,
   Popover,
   Typography,
-  useTheme,
 } from '@mui/material';
 import { HERO_FONTS } from '@/constants/heroFonts';
 
@@ -214,7 +213,7 @@ function HeroSection({ config }: { config: Record<string, unknown> }) {
         >
           {String(config.title || '')}
         </Typography>
-        {config.subtitle && (
+        {Boolean(config.subtitle) && (
           <Typography
             component="p"
             sx={{
@@ -278,7 +277,7 @@ function AboutSection({ config }: { config: Record<string, unknown> }) {
         </Head>
       )}
       <Box sx={aboutContainerSx}>
-        {config.title && (
+        {Boolean(config.title) && (
           <Typography
             component="h2"
             gutterBottom
@@ -320,7 +319,7 @@ function AboutSection({ config }: { config: Record<string, unknown> }) {
           >
             {String(config.body || '')}
           </Typography>
-          {config.image_url && (
+          {Boolean(config.image_url) && (
             <Box
               sx={{
                 flexShrink: 0,
@@ -934,7 +933,7 @@ function LocationSection({ config }: { config: Record<string, unknown> }) {
           )}
         </Box>
       ) : (
-        config.address && (
+        Boolean(config.address) && (
           <Typography sx={{ fontSize: bodySize, fontWeight: bodyWeight, fontStyle, fontFamily, color: fontColor, lineHeight: 1.5 }}>
             {String(config.address)}
           </Typography>
@@ -1119,7 +1118,7 @@ function CustomTextSection({ config }: { config: Record<string, unknown> }) {
         </Head>
       )}
       <Container maxWidth={maxWidth} sx={{ py: 6 }}>
-        {config.title && (
+        {Boolean(config.title) && (
           <Typography
             component="h2"
             gutterBottom
@@ -1184,7 +1183,7 @@ function SponsorSection({ config }: { config: Record<string, unknown> }) {
         >
           {String(config.title || 'Apoiadores')}
         </Typography>
-        {config.intro && (
+        {Boolean(config.intro) && (
           <Typography
             sx={{
               fontSize: bodySize,
