@@ -45,7 +45,7 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
 import TableChartIcon from "@mui/icons-material/TableChart";
-import { apiClient } from "../../services/api_client";
+import { apiClient, extractApiErrorMessage } from "../../services/api_client";
 import PlatformLayout from "./layout";
 import CrudDrawer from "../../components/CrudDrawer";
 
@@ -193,8 +193,8 @@ function FeatureFlagsTab() {
       setSuccess("Feature flag adicionada com sucesso!");
       setTimeout(() => setSuccess(null), 3000);
       fetchFlags(selectedTenant);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || "Erro ao adicionar feature flag");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Erro ao adicionar feature flag"));
     } finally {
       setSaving(false);
     }
@@ -206,8 +206,8 @@ function FeatureFlagsTab() {
     try {
       await apiClient.delete(`/api/v1/platform/feature-flags/${selectedTenant}/${feature}`);
       fetchFlags(selectedTenant);
-    } catch (err: any) {
-      setError(err?.message || "Erro ao remover feature flag");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Erro ao remover feature flag"));
     }
   };
 
@@ -345,8 +345,8 @@ function SystemStatusTab() {
       const res = await apiClient.get("/api/v1/platform/status");
       setData(res.data);
       setCheckedAt(new Date());
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Erro ao buscar status do sistema");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Erro ao buscar status do sistema"));
     } finally {
       setLoading(false);
     }

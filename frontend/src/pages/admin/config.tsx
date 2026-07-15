@@ -36,7 +36,7 @@ import SettingsSuggestRoundedIcon from '@mui/icons-material/SettingsSuggestRound
 import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
 
 import AdminLayout from './admin_layout';
-import { apiClient } from '../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../services/api_client';
 import { dispatchTenantBrandingUpdated } from '../../providers/ThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -391,8 +391,8 @@ function AdminConfigContent() {
       setConfig(res.data);
       dispatchTenantBrandingUpdated();
       showSnackbar('success', 'Configurações salvas. Branding atualizado.');
-    } catch (e: any) {
-      showSnackbar('error', e?.message || 'Erro ao salvar configurações.');
+    } catch (e) {
+      showSnackbar('error', extractApiErrorMessage(e, 'Erro ao salvar configurações.'));
     } finally {
       setSaving(false);
     }
@@ -420,8 +420,8 @@ function AdminConfigContent() {
       setLogoPreviewFailed(false);
       dispatchTenantBrandingUpdated();
       showSnackbar('success', 'Logo atualizado.');
-    } catch (e: any) {
-      showSnackbar('error', e?.message || 'Erro ao enviar logo.');
+    } catch (e) {
+      showSnackbar('error', extractApiErrorMessage(e, 'Erro ao enviar logo.'));
     } finally {
       setUploadingLogo(false);
     }
@@ -450,8 +450,8 @@ function AdminConfigContent() {
       setLogoPreviewFailed(false);
       dispatchTenantBrandingUpdated();
       showSnackbar('success', 'Logo removido.');
-    } catch (e: any) {
-      showSnackbar('error', e?.message || 'Erro ao remover logo.');
+    } catch (e) {
+      showSnackbar('error', extractApiErrorMessage(e, 'Erro ao remover logo.'));
     } finally {
       setUploadingLogo(false);
     }

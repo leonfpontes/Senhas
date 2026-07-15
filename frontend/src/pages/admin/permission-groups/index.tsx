@@ -32,7 +32,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import { useRouter } from 'next/router';
 import AdminLayout from '../admin_layout';
 import { permissionGroupsService, PermissionGroup } from '../../../services/permissionGroupsService';
-import { apiClient } from '../../../services/api_client';
+import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import CrudDrawer from '../../../components/CrudDrawer';
 
 interface UserItem {
@@ -113,8 +113,8 @@ function PermissionGroupsContent() {
         })
       );
       setGroupMembersMap(membersMap);
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao carregar dados dos grupos de permissão');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao carregar dados dos grupos de permissão'));
     } finally {
       setLoading(false);
     }
@@ -166,9 +166,8 @@ function PermissionGroupsContent() {
       setDrawerOpen(false);
       fetchData();
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Erro ao criar grupo de permissão';
-      setDrawerError(msg);
+    } catch (err) {
+      setDrawerError(extractApiErrorMessage(err, 'Erro ao criar grupo de permissão'));
     } finally {
       setSaving(false);
     }
@@ -192,8 +191,8 @@ function PermissionGroupsContent() {
       setGroupToDelete(null);
       fetchData();
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao excluir grupo de permissão');
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Erro ao excluir grupo de permissão'));
     } finally {
       setLoading(false);
     }

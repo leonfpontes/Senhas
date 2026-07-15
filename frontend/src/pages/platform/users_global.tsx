@@ -31,7 +31,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
-import { apiClient } from "../../services/api_client";
+import { apiClient, extractApiErrorMessage } from "../../services/api_client";
 import PlatformLayout from "./layout";
 import CrudDrawer from "../../components/CrudDrawer";
 import PasswordField from "../../components/PasswordField";
@@ -87,8 +87,8 @@ const GlobalUsersPage: React.FC = () => {
       const data = response.data;
       setUsers(data);
       setTotalPages(Math.ceil(data.length / 100));
-    } catch (err: any) {
-      setError(err?.message || "Unknown error");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Unknown error"));
     } finally {
       setLoading(false);
     }
@@ -154,8 +154,8 @@ const GlobalUsersPage: React.FC = () => {
       setDrawerOpen(false);
       setTimeout(() => setSuccess(null), 3000);
       fetchUsers();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || "Erro ao salvar usuário");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Erro ao salvar usuário"));
     } finally {
       setSaving(false);
     }
@@ -169,8 +169,8 @@ const GlobalUsersPage: React.FC = () => {
       setSuccess("Usuário excluído com sucesso!");
       setTimeout(() => setSuccess(null), 3000);
       fetchUsers();
-    } catch (err: any) {
-      setError(err?.message || "Unknown error");
+    } catch (err) {
+      setError(extractApiErrorMessage(err, "Unknown error"));
     } finally {
       setLoading(false);
     }

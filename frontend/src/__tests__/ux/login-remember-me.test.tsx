@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 // Mocks de dependências externas do LoginPage
 const mockPost = jest.fn();
 jest.mock('../../services/api_client', () => ({
-  apiClient: { post: (...args: any[]) => mockPost(...args) },
+  apiClient: { post: (...args: unknown[]) => mockPost(...args) },
 }));
 jest.mock('../../providers/ThemeProvider', () => ({
   dispatchTenantBrandingUpdated: jest.fn(),
@@ -20,8 +20,8 @@ describe('Login — Lembrar-me', () => {
     mockPost.mockReset();
     mockPost.mockResolvedValue({ data: { user: { role: 'admin' } } });
     // jsdom não implementa navigation; evita erro ao redirecionar
-    delete (window as any).location;
-    (window as any).location = { href: '' };
+    delete (window as unknown as { location?: unknown }).location;
+    (window as unknown as { location: { href: string } }).location = { href: '' };
   });
 
   it('exibe o checkbox "Lembrar-me" marcado por padrão', () => {
