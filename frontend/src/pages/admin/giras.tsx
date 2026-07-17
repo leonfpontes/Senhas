@@ -148,6 +148,7 @@ function AdminGirasContent() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [giras, setGiras] = useState<Gira[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unifiedLinks, setUnifiedLinks] = useState<{ public_link: string; sponsor_public_link: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuGira, setMenuGira] = useState<Gira | null>(null);
@@ -186,8 +187,9 @@ function AdminGirasContent() {
   useEffect(() => {
     const controller = new AbortController();
     loadGiras(controller.signal);
+    loadUnifiedLinks(controller.signal);
     return () => controller.abort();
-    // loadGiras isn't memoized — including it would refetch every render.
+    // loadGiras/loadUnifiedLinks aren't memoized — including them would refetch every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView]);
 
@@ -202,6 +204,17 @@ function AdminGirasContent() {
       console.error('Error loading giras:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadUnifiedLinks = async (signal?: AbortSignal) => {
+    if (!canView) return;
+    try {
+      const response = await apiClient.get('/api/v1/admin/giras/unified-links', { signal });
+      setUnifiedLinks(response.data);
+    } catch (error) {
+      if (error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError')) return;
+      console.error('Error loading unified links:', error);
     }
   };
 
@@ -487,6 +500,41 @@ function AdminGirasContent() {
         <Box data-tour="giras-usage" sx={{ mb: 3 }}>
           <GiraUsageBar used={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
         </Box>
+      )}
+
+      {unifiedLinks && (
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+            Links únicos do terreiro
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Sempre apontam para a próxima gira (ou a que estiver aberta). Compartilhe uma vez só — não precisa trocar o link a cada gira.
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
+              <Typography variant="body2" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                Senha comum: {unifiedLinks.public_link}
+              </Typography>
+              <IconButton size="small" onClick={() => copyPublicLink(unifiedLinks.public_link)}>
+                <ContentCopyIcon fontSize="small" />
+              </IconButton>
+              <IconButton size="small" component="a" href={unifiedLinks.public_link} target="_blank" rel="noopener noreferrer">
+                <OpenInNewIcon fontSize="small" />
+              </IconButton>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
+              <Typography variant="body2" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                Senha associado: {unifiedLinks.sponsor_public_link}
+              </Typography>
+              <IconButton size="small" onClick={() => copyPublicLink(unifiedLinks.sponsor_public_link)}>
+                <ContentCopyIcon fontSize="small" />
+              </IconButton>
+              <IconButton size="small" component="a" href={unifiedLinks.sponsor_public_link} target="_blank" rel="noopener noreferrer">
+                <OpenInNewIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          </Box>
+        </Paper>
       )}
 
       <TableContainer data-tour="giras-tabela" component={Paper} sx={{ overflowX: 'auto' }}>

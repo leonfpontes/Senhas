@@ -11,6 +11,7 @@ import logging
 from src.core.config import settings
 from src.core.database import get_db
 from src.models import User, UserRole, Gira, PermissionFeature
+from src.models.tenants import Tenant
 from src.models.senha_controls import SenhaControl
 from src.repositories.gira_repo import GiraRepository
 from src.repositories.subscription_repo import SubscriptionRepository
@@ -116,6 +117,12 @@ class SenhaConfigResponse(BaseModel):
     waitlist_confirmation_hours: Optional[int] = None
 
 
+class UnifiedLinksResponse(BaseModel):
+    """Tenant-wide links that always resolve to the next/active gira."""
+    public_link: str
+    sponsor_public_link: str
+
+
 @router.post("", response_model=GiraResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "insert"))])
 async def create_gira(
     gira: GiraCreate,
@@ -219,6 +226,28 @@ async def list_giras(
     giras = result.scalars().all()
 
     return [GiraResponse.from_orm(g) for g in giras]
+
+
+@router.get("/unified-links", response_model=UnifiedLinksResponse, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "view"))])
+async def get_unified_links(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UnifiedLinksResponse:
+    """Tenant-wide public links for senha emission.
+
+    Unlike the per-gira `public_link`/`sponsor_public_link`, these links carry
+    no gira_id — the public page resolves the next/active gira on each visit,
+    so the same link can be shared once and keeps working across giras.
+    """
+    tenant_result = await db.execute(select(Tenant.slug).where(Tenant.id == current_user.tenant_id))
+    slug = tenant_result.scalar_one_or_none()
+    if not slug:
+        raise NotFoundError("Tenant not found")
+
+    return UnifiedLinksResponse(
+        public_link=f"{_BASE}/public/{slug}/senha",
+        sponsor_public_link=f"{_BASE}/public/{slug}/associado",
+    )
 
 
 @router.get("/{gira_id}", response_model=GiraResponse, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "view"))])
