@@ -23,15 +23,18 @@ export const BrandHeader: React.FC<BrandHeaderProps> = ({ showClose, onClose }) 
 
   return (
     <Box
-      sx={{
-        p: 2,
-        minHeight: 64,
+      sx={(theme) => ({
+        ...theme.mixins.toolbar,
+        px: 2,
         display: 'flex',
         alignItems: 'center',
-        background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
+        // 'to left' places brandPrimary at the right edge, where this block
+        // meets AdminTopbar's own gradient (which starts at brandPrimary on
+        // its left edge) — keeps the color continuous across the seam.
+        background: `linear-gradient(to left, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
         position: 'relative',
         flexShrink: 0,
-      }}
+      })}
     >
       {showClose && (
         <IconButton
