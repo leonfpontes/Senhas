@@ -12,6 +12,7 @@ import {
   Chip,
   CircularProgress,
   Collapse,
+  Fab,
   FormControl,
   IconButton,
   InputAdornment,
@@ -830,32 +831,17 @@ export default function PortaPage() {
               </Select>
             </FormControl>
 
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              {selectedGiraId && config?.enable_walk_in && canInsert && (
-                <Button
-                  data-tour="porta-walkin"
-                  variant="outlined"
-                  size="small"
-                  startIcon={<AddRoundedIcon />}
-                  onClick={() => setWalkInCreateOpen(true)}
-                  sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-                >
-                  Walk-in
-                </Button>
-              )}
-
-              {selectedGiraId && (
-                <Button
-                  variant="text"
-                  size="small"
-                  startIcon={<TvRoundedIcon />}
-                  onClick={() => window.open(`/admin/porta/kiosk?gira=${selectedGiraId}`, '_blank')}
-                  sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-                >
-                  Modo TV
-                </Button>
-              )}
-            </Box>
+            {selectedGiraId && (
+              <Button
+                variant="text"
+                size="small"
+                startIcon={<TvRoundedIcon />}
+                onClick={() => window.open(`/admin/porta/kiosk?gira=${selectedGiraId}`, '_blank')}
+                sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+              >
+                Modo TV
+              </Button>
+            )}
           </Box>
         </Box>
 
@@ -1160,6 +1146,25 @@ export default function PortaPage() {
         onClose={() => setWalkInEditTarget(null)}
         loading={actionLoading === walkInEditTarget?.id}
       />
+
+      {/* ── Walk-in FAB: fixed position so it's never hidden by header wrapping/overflow on any viewport ── */}
+      {selectedGiraId && config?.enable_walk_in && canInsert && (
+        <Fab
+          data-tour="porta-walkin"
+          variant="extended"
+          color="primary"
+          onClick={() => setWalkInCreateOpen(true)}
+          sx={{
+            position: 'fixed',
+            bottom: 'calc(24px + env(safe-area-inset-bottom))',
+            right: 'calc(24px + env(safe-area-inset-right))',
+            zIndex: (theme) => theme.zIndex.speedDial,
+          }}
+        >
+          <AddRoundedIcon sx={{ mr: 1 }} />
+          Walk-in
+        </Fab>
+      )}
 
       {/* ── Snackbar ── */}
       <Snackbar
