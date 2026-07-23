@@ -879,6 +879,37 @@ export default function HomePage() {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
+  // ─── Trial banner ────────────────────────────────────────────────────────
+  const trialBanner = (
+    <Box
+      component="a"
+      href="/cadastro"
+      sx={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: (t) => t.zIndex.appBar + 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1,
+        textAlign: 'center',
+        textDecoration: 'none',
+        px: 2,
+        py: { xs: 0.9, md: 0.7 },
+        background: `linear-gradient(90deg, ${T.primary}, #7c3aed)`,
+        cursor: 'pointer',
+        '&:hover': { background: `linear-gradient(90deg, #4338ca, #6d28d9)` },
+      }}
+    >
+      <Typography sx={{ fontSize: { xs: 12, md: 13 }, color: '#fff', fontWeight: 700, lineHeight: 1.4 }}>
+        🎉 Novos terreiros ganham <Box component="span" sx={{ textDecoration: 'underline' }}>1 mês grátis no plano Premium</Box> — sem cartão de crédito
+      </Typography>
+      <ArrowForwardIcon sx={{ fontSize: 15, color: '#fff', display: { xs: 'none', sm: 'block' } }} />
+    </Box>
+  );
+
   // ─── Header ──────────────────────────────────────────────────────────────
   const header = (
     <AppBar
@@ -887,6 +918,7 @@ export default function HomePage() {
       aria-label="Navegação principal"
       elevation={0}
       sx={{
+        top: { xs: 34, md: 32 },
         background: 'rgba(15,13,46,0.92)',
         backdropFilter: 'blur(16px)',
         borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -976,7 +1008,7 @@ export default function HomePage() {
         display: 'flex',
         alignItems: 'center',
         background: `linear-gradient(135deg, ${T.dark} 0%, ${T.deep} 50%, ${T.mid} 100%)`,
-        pt: { xs: 14, md: 10 },
+        pt: { xs: 18, md: 13 },
         pb: { xs: 10, md: 8 },
         position: 'relative',
         overflow: 'hidden',
@@ -1897,6 +1929,7 @@ export default function HomePage() {
       {!isMobile && <CursorGlow />}
 
       <Box component="main" sx={{ overflowX: 'hidden' }}>
+        {trialBanner}
         {header}
         {hero}
         {features}

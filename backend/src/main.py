@@ -72,10 +72,11 @@ async def lifespan(app: FastAPI):
     """
     from .services.email.email_queue import email_queue
     from .services.birthday_scheduler import birthday_scheduler
+    from .services.trial_scheduler import trial_scheduler
 
     # Startup
     logger.info("Starting Senhas API...")
-    
+
     # In production, Alembic handles schema via entrypoint.sh.
     # create_all is only used in local development when running without Alembic.
     if settings.DEBUG:
@@ -84,12 +85,14 @@ async def lifespan(app: FastAPI):
 
     email_queue.start()
     birthday_scheduler.start()
+    trial_scheduler.start()
     logger.info("Senhas API started successfully")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down Senhas API...")
+    await trial_scheduler.stop()
     await birthday_scheduler.stop()
     await email_queue.stop()
     await engine.dispose()

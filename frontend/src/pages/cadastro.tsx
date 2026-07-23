@@ -50,6 +50,54 @@ function maskPhone(value: string): string {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
+// CPF (000.000.000-00) or CNPJ (00.000.000/0000-00) mask, auto-detected by length.
+function maskDocumento(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 14);
+  if (digits.length <= 11) {
+    return digits
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  }
+  return digits
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+}
+
+function validarCPF(cpf: string): boolean {
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  for (const i of [9, 10]) {
+    let value = 0;
+    for (let num = 0; num < i; num++) value += parseInt(cpf[num], 10) * (i + 1 - num);
+    const digit = ((value * 10) % 11) % 10;
+    if (digit !== parseInt(cpf[i], 10)) return false;
+  }
+  return true;
+}
+
+function validarCNPJ(cnpj: string): boolean {
+  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
+  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  for (const [weights, checkIdx] of [[weights1, 12], [weights2, 13]] as [number[], number][]) {
+    let value = 0;
+    for (let i = 0; i < weights.length; i++) value += parseInt(cnpj[i], 10) * weights[i];
+    let digit = 11 - (value % 11);
+    if (digit >= 10) digit = 0;
+    if (digit !== parseInt(cnpj[checkIdx], 10)) return false;
+  }
+  return true;
+}
+
+function validarDocumento(value: string): boolean {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11) return validarCPF(digits);
+  if (digits.length === 14) return validarCNPJ(digits);
+  return false;
+}
+
 function passwordStrength(pw: string): number {
   let score = 0;
   if (pw.length >= 8) score++;
@@ -82,6 +130,7 @@ export default function CadastroPage() {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  const [documento, setDocumento] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [aceiteTermos, setAceiteTermos] = useState(false);
@@ -89,12 +138,15 @@ export default function CadastroPage() {
   // Validation helpers
   const step1Valid = terreiroNome.trim().length >= 3;
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const documentoDigits = documento.replace(/\D/g, '');
+  const documentoValid = validarDocumento(documento);
   const passwordMatch = password === confirmPassword;
   const pwStrength = passwordStrength(password);
   const step2Valid =
     nome.trim().length >= 2 &&
     emailValid &&
     whatsapp.replace(/\D/g, '').length >= 10 &&
+    documentoValid &&
     password.length >= 8 &&
     passwordMatch &&
     aceiteTermos;
@@ -123,6 +175,7 @@ export default function CadastroPage() {
         responsavel_nome: nome.trim(),
         email,
         whatsapp: whatsapp.replace(/\D/g, ''),
+        documento: documentoDigits,
         password,
         como_conheceu: comoConheceu || undefined,
         aceite_termos: true,
@@ -194,9 +247,37 @@ export default function CadastroPage() {
                   GiraHub
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {wantedPlan ? 'Crie sua conta e assine' : 'Crie sua conta gratuita'}
+                  {wantedPlan ? 'Crie sua conta e assine' : '1 mês grátis no plano Premium, sem cartão de crédito'}
                 </Typography>
               </Box>
+
+              {/* Trial banner */}
+              {!wantedPlan && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    bgcolor: '#f59e0b12',
+                    border: '1px solid #f59e0b40',
+                    borderRadius: 2,
+                    px: 2,
+                    py: 1.2,
+                    mb: 3,
+                  }}
+                >
+                  <Typography sx={{ fontSize: 18 }}>🎉</Typography>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" fontWeight={700} sx={{ color: '#b45309' }}>
+                      Novos terreiros ganham 1 mês grátis no Premium
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Sem cartão de crédito. Depois do trial, sua conta continua no plano gratuito
+                      até você escolher assinar.
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
 
               {/* Plan banner */}
               {wantedPlan && (
@@ -335,6 +416,22 @@ export default function CadastroPage() {
                       required
                       placeholder="(99) 99999-9999"
                       inputProps={{ maxLength: 15 }}
+                    />
+
+                    <TextField
+                      label="CPF ou CNPJ"
+                      value={documento}
+                      onChange={(e) => setDocumento(maskDocumento(e.target.value))}
+                      fullWidth
+                      required
+                      placeholder="000.000.000-00"
+                      inputProps={{ maxLength: 18 }}
+                      error={documentoDigits.length > 0 && !documentoValid}
+                      helperText={
+                        documentoDigits.length > 0 && !documentoValid
+                          ? 'Documento inválido'
+                          : 'Usado para liberar seu mês grátis no plano Premium'
+                      }
                     />
 
                     <Box>

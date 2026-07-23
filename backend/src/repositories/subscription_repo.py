@@ -8,7 +8,11 @@ from ..models import Subscription, PlanType, SubscriptionStatus
 from .base import BaseRepository
 
 # Fonte única de verdade para limites por plano.
-# Importada também por webhooks.py para manter Stripe em sync.
+# Importada por webhooks.py, platform/subscriptions.py, platform/billing_sync.py e
+# admin/billing_stripe.py para manter tudo em sync — não duplicar esses valores.
+# PREMIUM usa números grandes (não -1) como sentinel de "ilimitado" — é o que
+# o restante do frontend (platform/billing.tsx, admin/plano.tsx, admin/mediuns.tsx)
+# já espera; ver test_webhook_plan_sync.py::test_premium_never_uses_negative_one.
 PLAN_LIMITS: dict = {
     PlanType.FREE:    {"max_users": 1,     "max_giras_per_month": 4,      "max_mediuns": 0,       "price": 0.0},
     PlanType.BASIC:   {"max_users": 3,     "max_giras_per_month": 10,     "max_mediuns": 50,      "price": 49.0},
@@ -201,6 +205,8 @@ class SubscriptionRepository(BaseRepository[Subscription]):
         subscription.max_giras_per_month = free["max_giras_per_month"]
         subscription.max_mediuns = free["max_mediuns"]
         subscription.monthly_price = free["price"]
+        subscription.is_trial = False
+        subscription.trial_ends_at = None
 
         await self.db.flush()
         await self.db.refresh(subscription)

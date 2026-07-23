@@ -22,6 +22,7 @@ from .permission_groups import PermissionGroup, GroupPermission, UserGroupMember
 from .contas_financeiras import ContaFinanceira, CategoriaFinanceira, ContaBancaria, TipoContaFinanceira, StatusContaFinanceira, RecorrenciaConta
 from .user_sessions import UserSession
 from .stripe_events import StripeEventProcessed
+from .trial_grants import TrialGrant
 
 __all__ = [
     "Base",
@@ -74,4 +75,5 @@ __all__ = [
     "RecorrenciaConta",
     "UserSession",
     "StripeEventProcessed",
+    "TrialGrant",
 ]

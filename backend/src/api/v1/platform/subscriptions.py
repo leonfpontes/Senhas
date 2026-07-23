@@ -9,7 +9,7 @@ from src.core.database import get_db
 from src.api.dependencies import get_current_user
 from src.models import User, UserRole, PlanType, SubscriptionStatus
 from src.services.subscription_service import SubscriptionService
-from src.repositories.subscription_repo import SubscriptionRepository
+from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
 from src.repositories.audit_log_repo import AuditLogRepository
 from src.models.audit_logs import AuditAction
 from src.core.errors import NotFoundError
@@ -201,13 +201,6 @@ class SetBonusRequest(BaseModel):
     plan: Optional[PlanType] = None  # Plan to grant when enabling bonus
 
 
-PLAN_LIMITS = {
-    PlanType.BASIC:   {"max_users": 5,  "max_giras_per_month": 10, "max_mediuns": 20,  "monthly_price": 49.0},
-    PlanType.PRO:     {"max_users": 20, "max_giras_per_month": 50, "max_mediuns": 100, "monthly_price": 79.0},
-    PlanType.PREMIUM: {"max_users": -1, "max_giras_per_month": -1, "max_mediuns": -1,  "monthly_price": 99.0},
-}
-
-
 @router.patch("/{tenant_id}/bonus")
 async def set_bonus(
     tenant_id: UUID,
@@ -252,11 +245,12 @@ async def set_bonus(
         sub.is_bonus = False
         # Revert to FREE if no active Stripe subscription
         if not sub.stripe_subscription_id:
+            free = PLAN_LIMITS[PlanType.FREE]
             sub.plan = PlanType.FREE
-            sub.max_users = 1
-            sub.max_giras_per_month = 2
-            sub.max_mediuns = 0
-            sub.monthly_price = 0.0
+            sub.max_users = free["max_users"]
+            sub.max_giras_per_month = free["max_giras_per_month"]
+            sub.max_mediuns = free["max_mediuns"]
+            sub.monthly_price = free["price"]
 
     audit = AuditLogRepository(db)
     await audit.create(

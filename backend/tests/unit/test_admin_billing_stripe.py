@@ -50,6 +50,8 @@ def _make_sub(
     cancel_at_period_end: bool = False,
     is_bonus: bool = False,
     current_period_end: datetime | None = None,
+    is_trial: bool = False,
+    trial_ends_at: datetime | None = None,
 ):
     sub = MagicMock()
     sub.id = SUB_ID
@@ -63,6 +65,8 @@ def _make_sub(
     sub.current_period_end = current_period_end or datetime(2026, 5, 9, tzinfo=timezone.utc)
     sub.monthly_price = 79.0
     sub.currency = "brl"
+    sub.is_trial = is_trial
+    sub.trial_ends_at = trial_ends_at
     return sub
 
 

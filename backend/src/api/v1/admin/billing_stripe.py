@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 import stripe as stripe_sdk
 
@@ -216,10 +216,21 @@ async def create_checkout_session(
             sub.stripe_customer_id = customer_id
             await db.commit()
 
+        # Se o tenant ainda está no trial local (sem stripe_subscription_id),
+        # preserva os dias restantes no checkout — o "1 mês grátis" vale os
+        # 30 dias corridos desde o cadastro, não a partir de quando ele
+        # decide adicionar cartão.
+        trial_period_days = None
+        if sub.is_trial and sub.trial_ends_at:
+            remaining = (sub.trial_ends_at - datetime.now(timezone.utc)).days
+            if remaining > 0:
+                trial_period_days = remaining
+
         checkout_url = await stripe_service.create_checkout_session(
             customer_id=customer_id,
             plan=body.plan,
             tenant_id=str(current_user.tenant_id),
+            trial_period_days=trial_period_days,
         )
     except (stripe_sdk.error.StripeError, ValueError) as exc:
         _reraise_stripe_error(exc)

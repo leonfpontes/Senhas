@@ -1,12 +1,19 @@
-"""Public onboarding endpoint — self-service registration for Free plan."""
+"""Public onboarding endpoint — self-service registration.
+
+New tenants are eligible for a 1-month Premium trial (no credit card
+required) unless their CPF/CNPJ or e-mail already claimed one before — see
+_check_trial_eligibility / TrialGrant.
+"""
+import hashlib
 import re
 import unicodedata
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, field_validator
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +27,7 @@ from src.models import (
     Subscription,
     PlanType,
     SubscriptionStatus,
+    TrialGrant,
 )
 from src.repositories.tenant_repo import TenantRepository
 from src.repositories.subscription_repo import SubscriptionRepository
@@ -33,6 +41,8 @@ from src.services.email.templates.welcome import generate_welcome_html
 
 logger = logging.getLogger(__name__)
 
+TRIAL_DAYS = 30
+
 router = APIRouter(prefix="/api/v1/public", tags=["onboarding"])
 
 
@@ -40,15 +50,55 @@ router = APIRouter(prefix="/api/v1/public", tags=["onboarding"])
 # Schemas
 # ---------------------------------------------------------------------------
 
+def _validar_cpf(cpf: str) -> bool:
+    if len(cpf) != 11 or cpf == cpf[0] * 11:
+        return False
+    for i in (9, 10):
+        value = sum(int(cpf[num]) * ((i + 1) - num) for num in range(i))
+        digit = ((value * 10) % 11) % 10
+        if digit != int(cpf[i]):
+            return False
+    return True
+
+
+def _validar_cnpj(cnpj: str) -> bool:
+    if len(cnpj) != 14 or cnpj == cnpj[0] * 14:
+        return False
+    weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    for weights, check_idx in ((weights1, 12), (weights2, 13)):
+        value = sum(int(cnpj[i]) * weights[i] for i in range(len(weights)))
+        digit = 11 - (value % 11)
+        digit = digit if digit < 10 else 0
+        if digit != int(cnpj[check_idx]):
+            return False
+    return True
+
+
 class OnboardingRequest(BaseModel):
     terreiro_nome: str
     endereco: Optional[str] = None
     responsavel_nome: str
     email: EmailStr
     whatsapp: str
+    documento: str
     password: str
     como_conheceu: Optional[str] = None
     aceite_termos: bool
+
+    @field_validator("documento")
+    @classmethod
+    def documento_valido(cls, v: str) -> str:
+        digits = re.sub(r"\D", "", v)
+        if len(digits) == 11:
+            if not _validar_cpf(digits):
+                raise ValueError("CPF inválido")
+        elif len(digits) == 14:
+            if not _validar_cnpj(digits):
+                raise ValueError("CNPJ inválido")
+        else:
+            raise ValueError("Documento deve ser um CPF ou CNPJ válido")
+        return digits
 
     @field_validator("terreiro_nome")
     @classmethod
@@ -154,12 +204,14 @@ async def _unique_username(base: str, db: AsyncSession) -> str:
         counter += 1
 
 
-async def _send_welcome_email(email: str, name: str, tenant_name: str) -> None:
+async def _send_welcome_email(email: str, name: str, tenant_name: str, is_trial: bool = False) -> None:
     """Best-effort welcome email (Resend primary, Brevo fallback)."""
     html = generate_welcome_html(
         responsavel_nome=name,
         tenant_name=tenant_name,
         dashboard_url=f"{settings.FRONTEND_URL}/admin/dashboard",
+        is_trial=is_trial,
+        trial_days=TRIAL_DAYS,
     )
     msg = EmailMessage(
         to_email=email,
@@ -179,6 +231,22 @@ async def _send_welcome_email(email: str, name: str, tenant_name: str) -> None:
             logger.warning("Welcome email failed for %s: %s", email, exc)
 
 
+def _hash_documento(documento_digits: str) -> str:
+    return hashlib.sha256(documento_digits.encode("ascii")).hexdigest()
+
+
+async def _check_trial_eligibility(db: AsyncSession, documento: str, email: str) -> bool:
+    """A CPF/CNPJ or e-mail that already claimed a trial can't claim another —
+    even if the original tenant was later hard-deleted (TrialGrant has no FK
+    to tenants for exactly that reason)."""
+    documento_hash = _hash_documento(documento)
+    stmt = select(TrialGrant.id).where(
+        or_(TrialGrant.documento_hash == documento_hash, TrialGrant.email == email.lower())
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none() is None
+
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
@@ -189,7 +257,11 @@ async def onboarding(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    """Self-service registration: creates tenant + admin user on Free plan."""
+    """Self-service registration: creates tenant + admin user.
+
+    New tenants get a 1-month Premium trial (no card required) unless their
+    CPF/CNPJ or e-mail already claimed one before.
+    """
 
     # 1. Check email uniqueness
     stmt = select(User).where(User.email == body.email, User.deleted_at.is_(None))
@@ -204,6 +276,8 @@ async def onboarding(
     tenant_repo = TenantRepository(db)
     slug = await _unique_slug(_slugify(body.terreiro_nome), tenant_repo)
 
+    trial_eligible = await _check_trial_eligibility(db, body.documento, body.email)
+
     try:
         # 3. Create tenant
         tenant = await tenant_repo.create(
@@ -211,6 +285,7 @@ async def onboarding(
             slug=slug,
             description=f"Terreiro {body.terreiro_nome.strip()}",
             is_active=True,
+            documento=body.documento,
         )
 
         # 4. Create tenant config
@@ -221,9 +296,23 @@ async def onboarding(
         )
         db.add(config)
 
-        # 5. Create subscription (FREE)
+        # 5. Create subscription — PREMIUM trial if eligible, FREE otherwise
         sub_repo = SubscriptionRepository(db)
-        await sub_repo.create_for_tenant(tenant_id=tenant.id, plan=PlanType.FREE)
+        if trial_eligible:
+            trial_ends_at = datetime.now(timezone.utc) + timedelta(days=TRIAL_DAYS)
+            await sub_repo.create_for_tenant(
+                tenant_id=tenant.id,
+                plan=PlanType.PREMIUM,
+                is_trial=True,
+                trial_ends_at=trial_ends_at,
+            )
+            db.add(TrialGrant(
+                documento_hash=_hash_documento(body.documento),
+                email=body.email.lower(),
+                tenant_id=tenant.id,
+            ))
+        else:
+            await sub_repo.create_for_tenant(tenant_id=tenant.id, plan=PlanType.FREE)
 
         # 6. Create admin user
         base_username = body.email.split("@")[0]
@@ -282,6 +371,7 @@ async def onboarding(
             email=body.email,
             name=body.responsavel_nome.strip(),
             tenant_name=body.terreiro_nome.strip(),
+            is_trial=trial_eligible,
         )
     except Exception as exc:
         logger.warning("Welcome email fire-and-forget failed: %s", exc)

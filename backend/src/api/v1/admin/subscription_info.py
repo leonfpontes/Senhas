@@ -13,7 +13,7 @@ from src.models import User
 from src.models.giras import Gira
 from src.models.subscriptions import PlanType, SubscriptionStatus
 from src.api.dependencies import get_current_user
-from src.repositories.subscription_repo import SubscriptionRepository
+from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
 from src.repositories.mediun_repo import MediumRepository
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-subscription"])
@@ -86,16 +86,17 @@ async def get_tenant_subscription(
     current_mediuns = await medium_repo.count(tenant_id)
 
     if not sub:
+        free = PLAN_LIMITS[PlanType.FREE]
         return SubscriptionInfoResponse(
             plan="free",
             status="active",
-            max_users=1,
-            max_giras_per_month=2,
-            max_mediuns=0,
+            max_users=free["max_users"],
+            max_giras_per_month=free["max_giras_per_month"],
+            max_mediuns=free["max_mediuns"],
             current_users=active_users,
             current_giras_this_month=current_giras_this_month,
             current_mediuns=current_mediuns,
-            monthly_price=0.0,
+            monthly_price=free["price"],
             is_trial=False,
             auto_renew=False,
             features=_get_plan_features(PlanType.FREE),

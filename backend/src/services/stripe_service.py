@@ -40,11 +40,21 @@ async def create_checkout_session(
     customer_id: str,
     plan: str,
     tenant_id: str,
+    trial_period_days: Optional[int] = None,
 ) -> str:
-    """Create a Stripe Checkout Session and return the URL."""
+    """Create a Stripe Checkout Session and return the URL.
+
+    trial_period_days: when the tenant converts mid local-trial, pass the
+    remaining trial days here so Stripe doesn't charge immediately — keeps
+    the "1 month free" promise intact regardless of when they add a card.
+    """
     price_id = _price_id_for_plan(plan)
     if not price_id:
         raise ValueError(f"Plano inválido ou sem Price ID configurado: {plan}")
+
+    subscription_data: dict = {"metadata": {"tenant_id": tenant_id}}
+    if trial_period_days and trial_period_days > 0:
+        subscription_data["trial_period_days"] = trial_period_days
 
     session = stripe.checkout.Session.create(
         customer=customer_id,
@@ -53,7 +63,7 @@ async def create_checkout_session(
         success_url=f"{settings.FRONTEND_URL}/admin/billing?session_id={{CHECKOUT_SESSION_ID}}&status=success",
         cancel_url=f"{settings.FRONTEND_URL}/admin/billing?status=cancelled",
         metadata={"tenant_id": tenant_id},
-        subscription_data={"metadata": {"tenant_id": tenant_id}},
+        subscription_data=subscription_data,
     )
     return session.url
 

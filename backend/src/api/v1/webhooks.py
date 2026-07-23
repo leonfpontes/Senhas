@@ -39,16 +39,21 @@ async def _get_tenant_primary_contact(tenant_id, db: AsyncSession) -> "User | No
     return None
 
 
-async def _send_subscription_reverted_email(email: str, user_name: str) -> None:
+async def _send_subscription_reverted_email(email: str, user_name: str, trial_expired: bool = False) -> None:
     """Best-effort notification when a subscription reverts to FREE (fire-and-forget)."""
     billing_url = f"{settings.FRONTEND_URL}/admin/billing"
-    html = render_subscription_reverted_to_free_email(user_name, billing_url)
+    html = render_subscription_reverted_to_free_email(user_name, billing_url, trial_expired=trial_expired)
+    text_intro = (
+        "Seu trial gratuito de 1 mês no plano Premium terminou e, como nenhum plano foi assinado,"
+        if trial_expired
+        else "O período pago da sua assinatura terminou e"
+    )
     msg = EmailMessage(
         to_email=email,
         subject="Sua conta no GiraHub agora é gratuita",
         html_body=html,
         text_body=(
-            f"Olá, {user_name}.\n\nO período pago da sua assinatura terminou e sua conta "
+            f"Olá, {user_name}.\n\n{text_intro} sua conta "
             f"voltou para o plano gratuito. Veja os planos disponíveis em {billing_url}."
         ),
     )
@@ -198,6 +203,8 @@ async def _handle_checkout_completed(session: dict, db: AsyncSession) -> None:
     stripe_sub = await asyncio.to_thread(stripe.Subscription.retrieve, stripe_subscription_id)
     price_id = stripe_sub["items"]["data"][0]["price"]["id"]
     current_period_end_ts = stripe_sub.get("current_period_end")
+    trial_end_ts = stripe_sub.get("trial_end")
+    stripe_status = stripe_sub.get("status")
 
     plan_map = _get_price_plan_map()
     limits = plan_map.get(price_id)
@@ -220,6 +227,14 @@ async def _handle_checkout_completed(session: dict, db: AsyncSession) -> None:
     sub.monthly_price = limits["monthly_price"]
     sub.status = SubscriptionStatus.ACTIVE
     sub.cancel_at_period_end = False
+    # Conversão mid-trial: se veio com trial_period_days, a subscription do
+    # Stripe está "trialing" (ainda não cobrou) — mantém is_trial=True e
+    # sincroniza trial_ends_at com a data real da Stripe (fonte de verdade
+    # a partir de agora).
+    sub.is_trial = stripe_status == "trialing"
+    sub.trial_ends_at = (
+        datetime.fromtimestamp(trial_end_ts, tz=timezone.utc) if (sub.is_trial and trial_end_ts) else None
+    )
     if current_period_end_ts:
         sub.current_period_end = datetime.fromtimestamp(current_period_end_ts, tz=timezone.utc)
 
@@ -246,6 +261,7 @@ async def _handle_subscription_updated(stripe_sub: dict, db: AsyncSession) -> No
 
     price_id = stripe_sub["items"]["data"][0]["price"]["id"]
     current_period_end_ts = stripe_sub.get("current_period_end")
+    trial_end_ts = stripe_sub.get("trial_end")
     cancel_at_end = stripe_sub.get("cancel_at_period_end", False)
     stripe_status = stripe_sub.get("status")
 
@@ -264,8 +280,16 @@ async def _handle_subscription_updated(stripe_sub: dict, db: AsyncSession) -> No
         from datetime import datetime, timezone
         sub.current_period_end = datetime.fromtimestamp(current_period_end_ts, tz=timezone.utc)
 
-    if stripe_status == "active":
+    if stripe_status == "trialing":
+        sub.is_trial = True
+        if trial_end_ts:
+            from datetime import datetime, timezone
+            sub.trial_ends_at = datetime.fromtimestamp(trial_end_ts, tz=timezone.utc)
+    elif stripe_status == "active":
+        # Cobrança confirmada — trial (se havia) terminou com sucesso.
         sub.status = SubscriptionStatus.ACTIVE
+        sub.is_trial = False
+        sub.trial_ends_at = None
     elif stripe_status in ("past_due", "unpaid"):
         sub.status = SubscriptionStatus.SUSPENDED
 
@@ -301,21 +325,40 @@ async def _handle_subscription_deleted(stripe_sub: dict, db: AsyncSession) -> No
 
 
 async def _handle_payment_failed(invoice: dict, db: AsyncSession) -> None:
-    """invoice.payment_failed — suspend subscription."""
+    """invoice.payment_failed — suspend subscription, ou rebaixa pra FREE se a
+    cobrança que falhou era a primeira tentativa de um trial (sem tolerância:
+    decisão de produto foi rebaixar direto, não suspender)."""
     customer_id = invoice.get("customer")
     sub = await _get_subscription_by_customer(customer_id, db)
     if not sub:
         return
 
-    sub.status = SubscriptionStatus.SUSPENDED
+    was_trial = sub.is_trial
+    tenant_id = sub.tenant_id
+
+    if was_trial:
+        await SubscriptionRepository(db).reset_to_free(tenant_id, status=SubscriptionStatus.ACTIVE)
+    else:
+        sub.status = SubscriptionStatus.SUSPENDED
+
     audit = AuditLogRepository(db)
     await audit.create(
-        tenant_id=sub.tenant_id,
+        tenant_id=tenant_id,
         user_id=None,
         action=AuditAction.UPDATE,
         resource_type="stripe_subscription",
         resource_id=sub.id,
-        details={"event": "invoice.payment_failed"},
+        details={"event": "invoice.payment_failed", "was_trial": was_trial},
     )
     await db.commit()
-    logger.warning("Payment failed — tenant %s suspended", sub.tenant_id)
+    if was_trial:
+        logger.warning("Payment failed at trial conversion — tenant %s reverted to FREE", tenant_id)
+        contact = await _get_tenant_primary_contact(tenant_id, db)
+        if contact:
+            asyncio.create_task(
+                _send_subscription_reverted_email(
+                    contact.email, contact.full_name or contact.username, trial_expired=True
+                )
+            )
+    else:
+        logger.warning("Payment failed — tenant %s suspended", tenant_id)

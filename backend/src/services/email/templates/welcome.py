@@ -10,12 +10,42 @@ def generate_welcome_html(
     responsavel_nome: str,
     tenant_name: str,
     dashboard_url: str,
+    is_trial: bool = False,
+    trial_days: int = 30,
 ) -> str:
     """Generate Gmail-safe inline-CSS welcome email."""
     name = _esc(responsavel_nome)
     t_name = _esc(tenant_name)
     primary = "#6C63FF"
     dark = "#1A1A2E"
+
+    if is_trial:
+        plan_label = "Premium"
+        intro = (
+            f"Sua conta para <strong>{t_name}</strong> foi criada com sucesso — e você ganhou "
+            f"<strong>{trial_days} dias grátis no plano Premium</strong>, sem precisar de cartão de crédito."
+        )
+        beneficios = """\
+                <li>Usuários, giras e médiuns <strong>ilimitados</strong></li>
+                <li>Financeiro completo, estoque e site do terreiro</li>
+                <li>Analytics avançado e suporte prioritário</li>
+                <li>Emitir senhas para consulentes em tempo real</li>"""
+        aviso = (
+            f"Seu trial Premium termina em {trial_days} dias. Antes disso, avisaremos por e-mail — "
+            "e se você não assinar um plano, sua conta continua ativa no plano Grátis, sem cobrança."
+        )
+    else:
+        plan_label = "Grátis"
+        intro = (
+            f"Sua conta para <strong>{t_name}</strong> foi criada com sucesso no plano "
+            f"<strong>Grátis</strong>."
+        )
+        beneficios = """\
+                <li>Criar até <strong>4 giras por mês</strong></li>
+                <li>Emitir senhas para consulentes</li>
+                <li>Gerenciar fila de atendimento em tempo real</li>
+                <li>Acompanhar o painel de controle</li>"""
+        aviso = None
 
     return f"""\
 <!DOCTYPE html>
@@ -44,24 +74,22 @@ def generate_welcome_html(
             Bem-vindo, {name}! 🎉
           </h2>
           <p style="margin:0 0 20px;font-size:15px;color:#555;line-height:1.6;">
-            Sua conta para <strong>{t_name}</strong> foi criada com sucesso no plano
-            <strong>Grátis</strong>.
+            {intro}
           </p>
 
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
                  style="background-color:#F8F7FF;border-radius:8px;margin-bottom:24px;">
             <tr><td style="padding:20px 24px;">
               <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:{dark};">
-                O que você já pode fazer:
+                O que você já pode fazer no plano {plan_label}:
               </p>
               <ul style="margin:0;padding:0 0 0 20px;color:#555;font-size:14px;line-height:2;">
-                <li>Criar até <strong>2 giras por mês</strong></li>
-                <li>Emitir senhas para consulentes</li>
-                <li>Gerenciar fila de atendimento em tempo real</li>
-                <li>Acompanhar o painel de controle</li>
+{beneficios}
               </ul>
             </td></tr>
           </table>
+
+          {f'<p style="margin:0 0 24px;font-size:13px;color:#777;line-height:1.6;">{aviso}</p>' if aviso else ''}
 
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
             <tr><td align="center" style="border-radius:8px;background-color:{primary};">

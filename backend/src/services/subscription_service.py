@@ -107,38 +107,6 @@ class SubscriptionService:
         
         return self._subscription_to_dict(sub)
     
-    async def activate_trial(
-        self,
-        tenant_id: UUID,
-        trial_days: int = 14,
-    ) -> dict:
-        """Activate trial for tenant.
-        
-        Args:
-            tenant_id: Tenant ID
-            trial_days: Number of trial days
-            
-        Returns:
-            Updated subscription dict
-            
-        Raises:
-            NotFoundError: If subscription not found
-        """
-        sub = await self.subscription_repo.get_by_tenant(tenant_id)
-        
-        if not sub:
-            raise NotFoundError("Subscrição não encontrada")
-        
-        if not sub.is_trial:
-            raise InvalidInputError("Trial já foi utilizado")
-        
-        sub.trial_ends_at = datetime.now(timezone.utc) + timedelta(days=trial_days)
-        
-        await self.db.flush()
-        await self.db.refresh(sub)
-        
-        return self._subscription_to_dict(sub)
-    
     async def suspend_subscription(self, tenant_id: UUID) -> dict:
         """Suspend tenant subscription.
         

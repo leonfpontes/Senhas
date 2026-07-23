@@ -25,6 +25,8 @@ import EmailRoundedIcon from '@mui/icons-material/EmailRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 
+import { useRouter } from 'next/router';
+
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
@@ -199,6 +201,11 @@ export default function AdminPlano() {
   const [error, setError] = useState<string | null>(null);
   const { tenantName } = useTenant();
   const { isDark } = useAdminTheme();
+  const router = useRouter();
+
+  const diasRestantesTrial = subscription?.is_trial && subscription.trial_ends_at
+    ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : null;
 
   useEffect(() => {
     apiClient
@@ -278,6 +285,22 @@ export default function AdminPlano() {
                 </Box>
               </Box>
             </Box>
+
+            {diasRestantesTrial !== null && (
+              <Alert
+                severity="info"
+                sx={{ mb: 3, borderRadius: 2 }}
+                action={
+                  <Button color="inherit" size="small" onClick={() => router.push('/admin/billing')} sx={{ fontWeight: 700 }}>
+                    Adicionar cartão
+                  </Button>
+                }
+              >
+                Faltam <strong>{diasRestantesTrial === 1 ? '1 dia' : `${diasRestantesTrial} dias`}</strong> do
+                seu mês grátis no Premium. Depois disso, se nenhum plano for assinado, sua conta volta
+                automaticamente para o plano gratuito.
+              </Alert>
+            )}
 
             <Divider sx={{ mb: 3 }} />
 

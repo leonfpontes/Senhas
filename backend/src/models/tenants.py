@@ -33,7 +33,12 @@ class Tenant(SoftDeleteModel):
     # reactivate_account() key off this field exclusively to decide whether a
     # tenant is eligible for self-service reactivation.
     self_deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    
+    # CPF/CNPJ do responsável/terreiro (somente dígitos). Coletado no cadastro
+    # a partir da introdução do trial gratuito de 1 mês — usado para checagem
+    # de elegibilidade contra TrialGrant. Nullable pra não quebrar tenants
+    # criados antes dessa mudança.
+    documento: Mapped[str | None] = mapped_column(String(14), nullable=True)
+
     # Relationships
     users = relationship("User", back_populates="tenant", cascade="all, delete-orphan")
     giras = relationship("Gira", back_populates="tenant", cascade="all, delete-orphan")

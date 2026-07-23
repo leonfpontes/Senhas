@@ -6,18 +6,38 @@ def _esc(value: str) -> str:
     return escape(value) if value else ""
 
 
-def render_subscription_reverted_to_free_email(user_name: str, billing_url: str) -> str:
+def render_subscription_reverted_to_free_email(
+    user_name: str,
+    billing_url: str,
+    trial_expired: bool = False,
+) -> str:
     """Generate inline-CSS email confirming a subscription reverted to FREE.
 
     Args:
         user_name: Display name of the user (escaped before rendering).
         billing_url: Full URL to the billing page (to resubscribe).
+        trial_expired: True when this reversion is the end of the 1-month
+            Premium trial (no card added), rather than a paid plan whose
+            cancel_at_period_end cycle finished.
 
     Returns:
         HTML string ready to send via email provider.
     """
     name = _esc(user_name) or "usuário"
     safe_url = escape(billing_url)
+    intro_paragraph = (
+        (
+            "Seu <strong>trial gratuito de 1 mês no plano Premium</strong> chegou ao fim. "
+            "Como nenhum plano foi assinado, sua conta no GiraHub voltou automaticamente para o "
+            "<strong>plano gratuito</strong> — seus dados continuam intactos."
+        )
+        if trial_expired
+        else (
+            "O período pago da sua assinatura terminou e, conforme combinado no "
+            "cancelamento, sua conta no GiraHub voltou automaticamente para o "
+            "<strong>plano gratuito</strong>."
+        )
+    )
 
     return f"""\
 <!DOCTYPE html>
@@ -44,9 +64,7 @@ def render_subscription_reverted_to_free_email(user_name: str, billing_url: str)
             Olá, <strong>{name}</strong>!
           </p>
           <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
-            O período pago da sua assinatura terminou e, conforme combinado no
-            cancelamento, sua conta no GiraHub voltou automaticamente para o
-            <strong>plano gratuito</strong>.
+            {intro_paragraph}
           </p>
 
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">

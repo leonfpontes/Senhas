@@ -504,36 +504,6 @@ class TestSubscriptionService:
         result = await s.downgrade_plan(TENANT_ID, PlanType.BASIC)
         assert result["plan"] == "basic"
 
-    async def test_activate_trial_not_found(self, svc):
-        from src.core.errors import NotFoundError
-        s, _ = svc
-        s.subscription_repo.get_by_tenant = AsyncMock(return_value=None)
-        with pytest.raises(NotFoundError):
-            await s.activate_trial(TENANT_ID)
-
-    async def test_activate_trial_already_used(self, svc):
-        from src.core.errors import InvalidInputError
-        s, db = svc
-        sub = MagicMock()
-        sub.is_trial = False
-        s.subscription_repo.get_by_tenant = AsyncMock(return_value=sub)
-        with pytest.raises(InvalidInputError, match="Trial"):
-            await s.activate_trial(TENANT_ID)
-
-    async def test_activate_trial_success(self, svc):
-        s, db = svc
-        sub = MagicMock()
-        sub.is_trial = True
-        sub.id = uuid4(); sub.tenant_id = TENANT_ID
-        sub.plan.value = "basic"; sub.status.value = "active"
-        sub.max_users = 5; sub.max_giras_per_month = 10
-        sub.current_users = 0; sub.monthly_price = 0.0
-        sub.trial_ends_at = None; sub.auto_renew = False
-        sub.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        s.subscription_repo.get_by_tenant = AsyncMock(return_value=sub)
-        result = await s.activate_trial(TENANT_ID, trial_days=7)
-        db.flush.assert_awaited()
-
     async def test_suspend_not_found(self, svc):
         from src.core.errors import NotFoundError
         s, _ = svc
