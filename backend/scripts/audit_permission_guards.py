@@ -26,6 +26,12 @@ EXEMPT_FILES = {
 GUARD_NAMES = {"require_group_permission", "require_any_group_permission"}
 ROUTER_METHODS = {"get", "post", "put", "patch", "delete"}
 
+# Endpoints individuais isentos do guard de grupo (ver CLAUDE.md), em arquivos que
+# continuam auditados normalmente para os demais endpoints.
+EXEMPT_ENDPOINTS = {
+    ("config.py", "get_tenant_branding"),  # branding é dado público, não sensível
+}
+
 
 def _calls_guard(node: ast.AST) -> bool:
     """True se algum Call dentro da subárvore chama uma das funções de guard."""
@@ -64,7 +70,7 @@ def find_unguarded_endpoints(path: Path) -> list[tuple[int, str]]:
             guarded = _calls_guard(dec) or any(
                 _calls_guard(default) for default in node.args.defaults
             )
-            if not guarded:
+            if not guarded and (path.name, node.name) not in EXEMPT_ENDPOINTS:
                 violations.append((node.lineno, node.name))
     return violations
 
@@ -87,8 +93,9 @@ def main() -> int:
         for lineno, funcname in violations:
             print(f"  {ADMIN_DIR.name}/{filename}:{lineno} — {funcname}()")
     print(
-        "\nSe algum destes é intencional (rota de sistema), adicione o arquivo a "
-        "EXEMPT_FILES neste script E à lista de exceções em CLAUDE.md/AGENTS.md §3.3."
+        "\nSe algum destes é intencional: rota de sistema inteira → EXEMPT_FILES; "
+        "endpoint pontual num arquivo majoritariamente guardado → EXEMPT_ENDPOINTS. "
+        "Em ambos os casos, adicione também à lista de exceções em CLAUDE.md/AGENTS.md §3.3."
     )
     return 1
 
