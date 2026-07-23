@@ -6,6 +6,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter }   from "next/router";
 import Alert           from "@mui/material/Alert";
 import Box             from "@mui/material/Box";
 import Card            from "@mui/material/Card";
@@ -136,6 +137,7 @@ const SystemStatusBar: React.FC<{ health: HealthData | null }> = ({ health }) =>
 
 const PlatformDashboard: React.FC = () => {
   const { tokens } = usePlatformTheme();
+  const router = useRouter();
 
   const [health,  setHealth]  = useState<HealthData | null>(null);
   const [data,    setData]    = useState<DashboardData | null>(null);
@@ -218,7 +220,8 @@ const PlatformDashboard: React.FC = () => {
               <Alert
                 severity="warning"
                 icon={<PersonOffRoundedIcon fontSize="small" />}
-                sx={{ py: 0.5, flex: "1 1 auto" }}
+                sx={{ py: 0.5, flex: "1 1 auto", cursor: "pointer", "&:hover": { filter: "brightness(0.97)" } }}
+                onClick={() => router.push("/platform/tenants")}
                 action={
                   <Chip
                     size="small"
@@ -235,7 +238,8 @@ const PlatformDashboard: React.FC = () => {
               <Alert
                 severity="warning"
                 icon={<SignalCellularOffRoundedIcon fontSize="small" />}
-                sx={{ py: 0.5, flex: "1 1 auto" }}
+                sx={{ py: 0.5, flex: "1 1 auto", cursor: "pointer", "&:hover": { filter: "brightness(0.97)" } }}
+                onClick={() => router.push("/platform/observatory#retencao")}
                 action={
                   <Chip
                     size="small"
@@ -245,7 +249,7 @@ const PlatformDashboard: React.FC = () => {
                   />
                 }
               >
-                Sem atividade nos últimos 30d — risco de churn
+                Sem atividade nos últimos 30d — risco de churn · ver no Observatório
               </Alert>
             )}
           </Box>

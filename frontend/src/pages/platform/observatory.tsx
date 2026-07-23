@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/router";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
@@ -32,6 +33,11 @@ import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import HeartBrokenRoundedIcon from "@mui/icons-material/HeartBrokenRounded";
+import PaidRoundedIcon from "@mui/icons-material/PaidRounded";
+import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
+import TrendingDownRoundedIcon from "@mui/icons-material/TrendingDownRounded";
+import TrendingFlatRoundedIcon from "@mui/icons-material/TrendingFlatRounded";
 
 import PlatformLayout from "./layout";
 import { KpiCard, SectionLabel } from "../../components/platform";
@@ -76,6 +82,28 @@ interface UpcomingCurso {
   tenant_slug: string;
 }
 
+interface RetentionTenant {
+  tenant_id: string;
+  tenant_name: string;
+  tenant_slug: string;
+  plan: string | null;
+  mrr: number;
+  last_ticket_at: string | null;
+  never_emitted: boolean;
+  days_inactive: number;
+  tickets_30d: number;
+  tickets_prev_30d: number;
+  severity: "atencao" | "risco" | "critico";
+}
+
+interface RetentionSummary {
+  total_at_risk: number;
+  mrr_at_risk: number;
+  critico: number;
+  risco: number;
+  atencao: number;
+}
+
 interface TenantFeatures {
   tenant_id: string;
   tenant_name: string;
@@ -90,6 +118,8 @@ interface TenantErrors {
 }
 
 interface ObservatoryData {
+  retention: RetentionTenant[];
+  retention_summary: RetentionSummary;
   upcoming_giras: UpcomingGira[];
   upcoming_cursos: UpcomingCurso[];
   top_features_by_tenant: TenantFeatures[];
@@ -117,6 +147,16 @@ function daysUntil(iso: string) {
   const diff = new Date(iso).getTime() - Date.now();
   return Math.ceil(diff / 86_400_000);
 }
+
+function fmtMoney(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+}
+
+const SEVERITY_META: Record<RetentionTenant["severity"], { label: string; color: string }> = {
+  atencao: { label: "Atenção", color: "#F59E0B" },
+  risco: { label: "Risco", color: "#F97316" },
+  critico: { label: "Crítico", color: "#EF4444" },
+};
 
 function OcupacaoBar({ pct, emitidos, max }: { pct: number | null; emitidos: number; max: number | null }) {
   if (pct === null) return <Typography variant="caption" color="text.secondary">{emitidos} emitidos</Typography>;
@@ -163,6 +203,76 @@ function DaysChip({ days }: { days: number }) {
 }
 
 // ─── Sections ─────────────────────────────────────────────────────────────────
+
+function RetentionSection({ tenants }: { tenants: RetentionTenant[] }) {
+  const { tokens } = usePlatformTheme();
+  const router = useRouter();
+
+  if (!tenants.length) return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 2, borderRadius: 2, border: `1px solid ${tokens.border}`, bgcolor: "#10B98108" }}>
+      <CheckCircleRoundedIcon sx={{ color: "#10B981", fontSize: "1rem" }} />
+      <Typography sx={{ fontSize: "0.8rem", color: "#10B981", fontWeight: 600 }}>
+        Nenhum tenant em risco — todos com atividade recente.
+      </Typography>
+    </Box>
+  );
+
+  return (
+    <TableContainer component={Card} sx={{ border: `1px solid ${tokens.border}` }}>
+      <Table size="small">
+        <TableHead>
+          <TableRow sx={{ "& th": { fontWeight: 700, fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "text.secondary", py: 1.25 } }}>
+            <TableCell>Tenant</TableCell>
+            <TableCell>Plano</TableCell>
+            <TableCell>MRR</TableCell>
+            <TableCell>Última emissão</TableCell>
+            <TableCell>Inatividade</TableCell>
+            <TableCell>Tendência (30d)</TableCell>
+            <TableCell>Severidade</TableCell>
+            <TableCell align="center">Ver</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {tenants.map((t) => {
+            const sev = SEVERITY_META[t.severity];
+            const delta = t.tickets_30d - t.tickets_prev_30d;
+            const TrendIcon = delta > 0 ? TrendingUpRoundedIcon : delta < 0 ? TrendingDownRoundedIcon : TrendingFlatRoundedIcon;
+            const trendColor = delta > 0 ? "#10B981" : delta < 0 ? "#EF4444" : "text.secondary";
+            return (
+              <TableRow key={t.tenant_id} hover sx={{ "& td": { py: 1.2, fontSize: "0.8rem" } }}>
+                <TableCell><TenantChip name={t.tenant_name} /></TableCell>
+                <TableCell sx={{ color: "text.secondary", textTransform: "uppercase", fontSize: "0.7rem" }}>{t.plan || "—"}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{t.mrr > 0 ? fmtMoney(t.mrr) : "—"}</TableCell>
+                <TableCell sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>
+                  {t.never_emitted ? "Nunca emitiu" : fmtDateShort(t.last_ticket_at as string)}
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700, color: sev.color }}>{t.days_inactive}d</TableCell>
+                <TableCell>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: trendColor }}>
+                    <TrendIcon sx={{ fontSize: "1rem" }} />
+                    <Typography sx={{ fontSize: "0.75rem", color: "inherit" }}>
+                      {t.tickets_prev_30d} → {t.tickets_30d}
+                    </Typography>
+                  </Box>
+                </TableCell>
+                <TableCell>
+                  <Chip size="small" label={sev.label} sx={{ fontSize: "0.65rem", height: 20, fontWeight: 700, bgcolor: `${sev.color}18`, color: sev.color }} />
+                </TableCell>
+                <TableCell align="center">
+                  <Tooltip title="Ver tenant">
+                    <IconButton size="small" onClick={() => router.push(`/platform/tenants/${t.tenant_id}`)}>
+                      <OpenInNewRoundedIcon sx={{ fontSize: "0.9rem" }} />
+                    </IconButton>
+                  </Tooltip>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}
 
 function GirasSection({ giras }: { giras: UpcomingGira[] }) {
   const { tokens } = usePlatformTheme();
@@ -422,7 +532,32 @@ export default function ObservatoryPage() {
     return () => clearInterval(id);
   }, [load]);
 
+  // Deep-link support: dashboard alerts link here with #retencao — scroll to
+  // it once the section is actually rendered (data arrives async).
+  useEffect(() => {
+    if (!data || typeof window === "undefined") return;
+    if (window.location.hash === "#retencao") {
+      document.getElementById("retencao")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [data]);
+
   const kpis = data ? [
+    {
+      label: "Tenants em risco",
+      value: data.retention_summary.total_at_risk,
+      sub: `${data.retention_summary.critico} crítico · ${data.retention_summary.risco} risco · ${data.retention_summary.atencao} atenção`,
+      icon: <HeartBrokenRoundedIcon />,
+      color: data.retention_summary.total_at_risk > 0 ? "#EF4444" : "#10B981",
+      highlight: data.retention_summary.total_at_risk > 0,
+    },
+    {
+      label: "MRR em risco",
+      value: fmtMoney(data.retention_summary.mrr_at_risk),
+      sub: "soma dos tenants em risco",
+      icon: <PaidRoundedIcon />,
+      color: "#F97316",
+      highlight: data.retention_summary.mrr_at_risk > 0,
+    },
     {
       label: "Giras (próx. 30d)",
       value: data.upcoming_giras.length,
@@ -486,11 +621,19 @@ export default function ObservatoryPage() {
             {/* KPIs */}
             <Grid container spacing={2}>
               {kpis.map((k) => (
-                <Grid item xs={6} md={3} key={k.label}>
+                <Grid item xs={6} md={2} key={k.label}>
                   <KpiCard {...k} />
                 </Grid>
               ))}
             </Grid>
+
+            {/* Retenção — tenants em risco de churn */}
+            <Box id="retencao">
+              <SectionLabel sub="Tenants ativos sem emissão de senhas há 15+ dias, ordenados por severidade">
+                Retenção — Tenants em risco
+              </SectionLabel>
+              <RetentionSection tenants={data.retention} />
+            </Box>
 
             {/* Próximas Giras */}
             <Box>
