@@ -600,7 +600,10 @@ export default function PortaPage() {
       const res = await apiClient.get('/api/v1/admin/giras');
       const all: Gira[] = Array.isArray(res.data) ? res.data : res.data.items || [];
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const data = all.filter((g) => new Date(g.data_inicio) >= cutoff);
+      const data = all
+        .filter((g) => new Date(g.data_inicio) >= cutoff)
+        // Soonest first — the door screen defaults to the next gira, not the furthest-future one.
+        .sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
       setGiras(data);
       if (data.length > 0 && !selectedGiraId) {
         const active = data.find((g: Gira) => g.is_active);
