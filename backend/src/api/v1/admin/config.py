@@ -55,6 +55,18 @@ class TenantConfigResponse(BaseModel):
         from_attributes = True
 
 
+class TenantBrandingResponse(BaseModel):
+    """Public-ish branding subset (sem dados sensíveis). Consumido pelo
+    ThemeProvider de QUALQUER usuário autenticado do tenant, não só quem
+    tem CONFIGURACOES:view — logo/cores já são expostos sem autenticação
+    nas páginas públicas de emissão de ticket (ver public/emit_ticket.py)."""
+    tenant_nome: Optional[str] = None
+    logo_url: Optional[str] = None
+    primary_color: str
+    secondary_color: str
+    font_color: Optional[str] = None
+
+
 class TenantConfigUpdate(BaseModel):
     """Tenant config update request."""
     primary_color: Optional[str] = None
@@ -83,6 +95,48 @@ class TenantConfigUpdate(BaseModel):
             raise ValueError("Cor deve estar no formato hexadecimal #RRGGBB")
 
         return normalized.upper()
+
+
+@router.get("/tenant/branding", response_model=TenantBrandingResponse)
+async def get_tenant_branding(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TenantBrandingResponse:
+    """Branding (logo/cores) para o shell do app.
+
+    Intencionalmente SEM require_group_permission(CONFIGURACOES, "view"):
+    branding é cosmético, não sensível — já é servido sem autenticação nas
+    páginas públicas de ticket (public/emit_ticket.py). Todo usuário
+    autenticado do tenant precisa disso pro ThemeProvider, não só admins
+    com CONFIGURACOES. Ver exceção documentada em CLAUDE.md.
+    """
+    if not current_user.is_operator_or_admin:
+        raise InsufficientPermissionsError("Usuário do tenant necessário")
+
+    if current_user.tenant_id is None:
+        return TenantBrandingResponse(
+            tenant_nome=None, logo_url=None,
+            primary_color="#6366f1", secondary_color="#ec4899", font_color=None,
+        )
+
+    repo = TenantConfigRepository(db)
+    config = await repo.get_by_tenant(current_user.tenant_id)
+    tenant_result = await db.execute(select(Tenant.name).where(Tenant.id == current_user.tenant_id))
+    tenant_name = tenant_result.scalar_one_or_none()
+
+    font_color = None
+    if config.custom_settings and isinstance(config.custom_settings, dict):
+        fc = config.custom_settings.get("font_color")
+        font_color = fc if isinstance(fc, str) else None
+
+    return TenantBrandingResponse(
+        tenant_nome=tenant_name,
+        logo_url=_build_logo_url(request, config),
+        primary_color=config.primary_color,
+        secondary_color=config.secondary_color,
+        font_color=font_color,
+    )
 
 
 @router.get("/tenant/config", response_model=TenantConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CONFIGURACOES, "view"))])

@@ -58,6 +58,10 @@ Exceções (não precisam de guard de grupo):
 - `health.py`, `billing_stripe.py`, `subscription_info.py`, `permission_groups.py` — rotas de sistema/plataforma
 - `email_resend.py` — já é `is_admin` (admins fazem bypass de grupos automaticamente)
 - `dashboard_summary.py` — dashboard agregado geral
+- `config.py::get_tenant_branding` (`GET /api/v1/admin/tenant/branding`) — branding
+  (logo/cores) já é dado público (servido sem auth em `public/emit_ticket.py`);
+  qualquer usuário autenticado do tenant precisa dele pro `ThemeProvider`, não só
+  quem tem `CONFIGURACOES:view`
 
 ### Frontend — checklist por tela
 

@@ -69,6 +69,11 @@ class DoorQueueResponse(BaseModel):
     total: int
 
 
+class DoorConfigResponse(BaseModel):
+    """Lightweight tenant-config subset needed by the door view (PORTA-gated)."""
+    enable_walk_in: bool
+
+
 class AttendRequest(BaseModel):
     """Request body for marking a ticket as being attended."""
     medium_nome: str = Field(..., min_length=1, max_length=255)
@@ -207,6 +212,18 @@ async def _get_tenant_config(db: AsyncSession, tenant_id: UUID) -> Optional[Tena
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────
+
+@router.get("/door/config", response_model=DoorConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "view"))])
+async def get_door_config(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DoorConfigResponse:
+    """Tenant-level flags needed by the door view (walk-in toggle), exposed
+    under PORTA instead of CONFIGURACOES so porteiros sem acesso admin de
+    config ainda veem o FAB de walk-in quando habilitado."""
+    tenant_config = await _get_tenant_config(db, current_user.tenant_id)
+    return DoorConfigResponse(enable_walk_in=bool(tenant_config and tenant_config.enable_walk_in))
+
 
 @router.get("/giras/{gira_id}/door/stats", response_model=DoorStatsResponse, dependencies=[Depends(require_any_group_permission(PermissionFeature.PORTA, PermissionFeature.RELATORIO_GIRA, action="view"))])
 async def get_door_stats(

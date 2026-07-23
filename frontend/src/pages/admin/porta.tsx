@@ -611,9 +611,12 @@ export default function PortaPage() {
 
   const loadConfig = async () => {
     try {
-      const res = await apiClient.get('/api/v1/admin/tenant/config');
+      const res = await apiClient.get('/api/v1/admin/door/config');
       setConfig(res.data);
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error('Erro ao carregar config da porta:', err);
+      showSnackbar('Não foi possível carregar configurações da porta (walk-in pode ficar indisponível)', 'error');
+    }
   };
 
   const loadMediunOptions = async () => {

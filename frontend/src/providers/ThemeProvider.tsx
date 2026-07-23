@@ -84,7 +84,7 @@ interface AdminTenantConfigResponse {
   logo_url?: string | null;
   primary_color?: string | null;
   secondary_color?: string | null;
-  custom_settings?: Record<string, unknown> | null;
+  font_color?: string | null;
 }
 
 interface StoredUser {
@@ -131,10 +131,7 @@ const getStoredTenantName = (): string | undefined => {
 
 const buildTenantThemeConfig = (config: AdminTenantConfigResponse): TenantThemeConfig => {
   const user = getStoredUser();
-  const fontColor =
-    typeof config.custom_settings?.font_color === 'string'
-      ? config.custom_settings.font_color
-      : '#FFFFFF';
+  const fontColor = typeof config.font_color === 'string' ? config.font_color : '#FFFFFF';
 
   return {
     tenantId: user?.tenant_id || 'tenant',
@@ -174,7 +171,7 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
       }
 
       try {
-        const response = await apiClient.get<AdminTenantConfigResponse>('/api/v1/admin/tenant/config');
+        const response = await apiClient.get<AdminTenantConfigResponse>('/api/v1/admin/tenant/branding');
         setTenantConfig(buildTenantThemeConfig(response.data));
       } catch {
         setTenantConfig(undefined);

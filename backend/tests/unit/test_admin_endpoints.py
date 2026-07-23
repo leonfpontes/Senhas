@@ -228,6 +228,44 @@ def _mock_tenant_config():
     return config
 
 
+class TestGetDoorConfig:
+    """GET /door/config — exposes enable_walk_in under PORTA instead of CONFIGURACOES."""
+
+    async def test_enable_walk_in_true(self):
+        from src.api.v1.admin.door_control import get_door_config
+        db = AsyncMock()
+        config = MagicMock()
+        config.enable_walk_in = True
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = config
+        db.execute.return_value = result_mock
+
+        result = await get_door_config(_operator_user(), db)
+        assert result.enable_walk_in is True
+
+    async def test_enable_walk_in_false(self):
+        from src.api.v1.admin.door_control import get_door_config
+        db = AsyncMock()
+        config = MagicMock()
+        config.enable_walk_in = False
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = config
+        db.execute.return_value = result_mock
+
+        result = await get_door_config(_operator_user(), db)
+        assert result.enable_walk_in is False
+
+    async def test_no_tenant_config_defaults_false(self):
+        from src.api.v1.admin.door_control import get_door_config
+        db = AsyncMock()
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = None
+        db.execute.return_value = result_mock
+
+        result = await get_door_config(_operator_user(), db)
+        assert result.enable_walk_in is False
+
+
 class TestGetTenantConfig:
     async def test_non_admin_raises(self):
         from src.api.v1.admin.config import get_tenant_config
@@ -245,6 +283,58 @@ class TestGetTenantConfig:
         from src.api.v1.admin.config import get_tenant_config
         result = await get_tenant_config(MagicMock(), _admin_user(), AsyncMock())
         assert result.primary_color == "#1976d2"
+
+
+class TestGetTenantBranding:
+    """GET /tenant/branding — logo/cores sem gate de CONFIGURACOES (só autenticação)."""
+
+    async def test_non_admin_raises(self):
+        from src.api.v1.admin.config import get_tenant_branding
+        with pytest.raises(InsufficientPermissionsError):
+            await get_tenant_branding(MagicMock(), _operator_user(), AsyncMock())
+
+    @patch("src.api.v1.admin.config.TenantConfigRepository")
+    async def test_success_with_font_color(self, MockRepo):
+        repo_inst = AsyncMock()
+        config = _mock_tenant_config()
+        config.custom_settings = {"font_color": "#FFFFFF"}
+        repo_inst.get_by_tenant.return_value = config
+        MockRepo.return_value = repo_inst
+
+        db = AsyncMock()
+        tenant_result = MagicMock()
+        tenant_result.scalar_one_or_none.return_value = "Terreiro Teste"
+        db.execute.return_value = tenant_result
+
+        from src.api.v1.admin.config import get_tenant_branding
+        result = await get_tenant_branding(MagicMock(), _admin_user(), db)
+        assert result.primary_color == "#1976d2"
+        assert result.font_color == "#FFFFFF"
+
+    @patch("src.api.v1.admin.config.TenantConfigRepository")
+    async def test_success_no_custom_settings(self, MockRepo):
+        repo_inst = AsyncMock()
+        config = _mock_tenant_config()
+        config.custom_settings = None
+        repo_inst.get_by_tenant.return_value = config
+        MockRepo.return_value = repo_inst
+
+        db = AsyncMock()
+        tenant_result = MagicMock()
+        tenant_result.scalar_one_or_none.return_value = "Terreiro Teste"
+        db.execute.return_value = tenant_result
+
+        from src.api.v1.admin.config import get_tenant_branding
+        result = await get_tenant_branding(MagicMock(), _admin_user(), db)
+        assert result.font_color is None
+
+    async def test_no_tenant_id_returns_defaults(self):
+        from src.api.v1.admin.config import get_tenant_branding
+        user = _admin_user()
+        user.tenant_id = None
+        result = await get_tenant_branding(MagicMock(), user, AsyncMock())
+        assert result.primary_color == "#6366f1"
+        assert result.font_color is None
 
 
 class TestUpdateTenantConfig:
