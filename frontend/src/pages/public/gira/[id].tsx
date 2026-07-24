@@ -35,6 +35,7 @@ import BlockIcon from '@mui/icons-material/Block';
 import StarIcon from '@mui/icons-material/Star';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
+import PoweredByGiraHubFooter from '../../../components/shared/PoweredByGiraHubFooter';
 import { useGiraCountdown, parseCountdownParts } from '../../../hooks/useGiraCountdown';
 import {
   PRIORITY_CATEGORY_LABELS,
@@ -418,6 +419,8 @@ export default function PublicGiraPage() {
           </Typography>
         </Paper>
       )}
+
+      <PoweredByGiraHubFooter />
 
       {/* Snackbar */}
       <Snackbar
