@@ -95,11 +95,12 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
             "modified": 0,
             "failed": 0,
             "errors": [],
+            "cancelled_tickets": [],
         }
-        
+
         if not ticket_ids:
             return results
-        
+
         # Verify all tickets belong to tenant
         stmt = select(Ticket).where(
             and_(
@@ -107,14 +108,14 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
                 Ticket.id.in_(ticket_ids),
             )
         )
-        
+
         result = await self.db.execute(stmt)
         tickets = result.scalars().all()
-        
+
         if len(tickets) != len(ticket_ids):
             results["failed"] += len(ticket_ids) - len(ticket_ids)
             results["errors"].append("Some tickets not found or belong to different tenant")
-        
+
         # Update tickets
         for ticket in tickets:
             try:
@@ -122,13 +123,16 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
                     ticket.status = TicketStatus.CANCELLED
                     self.db.add(ticket)
                     results["modified"] += 1
+                    # Caller uses these to free up the slot (slots_returned / waitlist)
+                    # per (gira_id, is_sponsor), mirroring the single-ticket delete flow.
+                    results["cancelled_tickets"].append(ticket)
             except Exception as e:
                 results["failed"] += 1
                 results["errors"].append(f"Error cancelling ticket {ticket.id}: {str(e)}")
-        
+
         if not dry_run:
             await self.db.flush()
-        
+
         return results
     
     async def bulk_reset_gira_counter(

@@ -121,7 +121,7 @@ async def _get_upcoming_giras(
     # Fetch current ticket counts: regular (non-sponsor) and sponsor
     gira_ids = [g.id for g in giras]
     stmt = (
-        select(SenhaControl.gira_id, SenhaControl.total_emitido, SenhaControl.is_sponsor)
+        select(SenhaControl.gira_id, SenhaControl.total_emitido, SenhaControl.slots_returned, SenhaControl.is_sponsor)
         .where(
             and_(
                 SenhaControl.tenant_id == tenant_id,
@@ -133,10 +133,11 @@ async def _get_upcoming_giras(
     count_map: Dict[UUID, int] = {}
     sponsor_map: Dict[UUID, int] = {}
     for row in rows:
+        net_count = max(0, row.total_emitido - row.slots_returned)
         if row.is_sponsor:
-            sponsor_map[row.gira_id] = sponsor_map.get(row.gira_id, 0) + row.total_emitido
+            sponsor_map[row.gira_id] = sponsor_map.get(row.gira_id, 0) + net_count
         else:
-            count_map[row.gira_id] = count_map.get(row.gira_id, 0) + row.total_emitido
+            count_map[row.gira_id] = count_map.get(row.gira_id, 0) + net_count
 
     now = datetime.now(timezone.utc)
     result = []

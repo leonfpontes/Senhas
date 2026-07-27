@@ -94,7 +94,7 @@ def _build_gira_response(
 
 
 async def _get_ticket_count(session, tenant_id, gira_id, is_sponsor: bool = False) -> int:
-    """Get current ticket count for a gira."""
+    """Get current ticket count for a gira, net of slots freed by admin cancellations."""
     query = select(SenhaControl).where(
         and_(
             SenhaControl.tenant_id == tenant_id,
@@ -104,7 +104,9 @@ async def _get_ticket_count(session, tenant_id, gira_id, is_sponsor: bool = Fals
     )
     result = await session.execute(query)
     sc = result.scalar_one_or_none()
-    return sc.total_emitido if sc else 0
+    if not sc:
+        return 0
+    return max(0, sc.total_emitido - sc.slots_returned)
 
 
 @router.get("/next-gira")

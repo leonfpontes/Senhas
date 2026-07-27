@@ -348,13 +348,15 @@ async def delete_gira(
 
 
 async def _get_senha_count(db: AsyncSession, tenant_id: UUID, gira_id: UUID, is_sponsor: bool = False) -> int:
-    """Get current ticket count for a gira."""
+    """Get current ticket count for a gira, net of slots freed by admin cancellations."""
     query = select(SenhaControl).where(
         and_(SenhaControl.tenant_id == tenant_id, SenhaControl.gira_id == gira_id, SenhaControl.is_sponsor == is_sponsor)
     )
     result = await db.execute(query)
     sc = result.scalar_one_or_none()
-    return sc.total_emitido if sc else 0
+    if not sc:
+        return 0
+    return max(0, sc.total_emitido - sc.slots_returned)
 
 
 @router.get("/{gira_id}/senhas", response_model=SenhaConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "view"))])
