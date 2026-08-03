@@ -90,10 +90,13 @@ class TestGiraTimeSlotRepository:
         result = await r.get_by_id_for_gira(session, uuid4(), uuid4(), uuid4())
         assert result is None
 
-    async def test_replace_slots_for_gira_soft_deletes_existing_and_creates_new(self, repo):
+    async def test_replace_slots_for_gira_all_new_deletes_old_creates_new(self, repo):
+        """No overlap in horário — old slots are hard-deleted, new ones created."""
         r, _ = repo
         session = _mock_db()
+        session.delete = AsyncMock()
         existing_slot = MagicMock()
+        existing_slot.horario = time(19, 0)
         r.list_by_gira = AsyncMock(return_value=[existing_slot])
         tenant_id, gira_id = uuid4(), uuid4()
 
@@ -110,18 +113,41 @@ class TestGiraTimeSlotRepository:
                 ],
             )
 
-        existing_slot.soft_delete.assert_called_once()
+        session.delete.assert_awaited_once_with(existing_slot)
         assert session.add.call_count == 2
         session.flush.assert_awaited()
         assert result == created_instances
 
+    async def test_replace_slots_for_gira_updates_matching_horario_in_place(self, repo):
+        """Same horário reused across saves must update capacity in place, not
+        delete+recreate — otherwise it collides with the unique constraint and
+        resets total_emitido/slots_returned for an unchanged horário."""
+        r, _ = repo
+        session = _mock_db()
+        session.delete = AsyncMock()
+        existing_slot = MagicMock()
+        existing_slot.horario = time(20, 0)
+        existing_slot.capacidade_maxima = 25
+        r.list_by_gira = AsyncMock(return_value=[existing_slot])
+
+        result = await r.replace_slots_for_gira(
+            session, uuid4(), uuid4(), [{"horario": time(20, 0), "capacidade_maxima": 30}],
+        )
+
+        session.delete.assert_not_called()
+        session.add.assert_not_called()
+        assert existing_slot.capacidade_maxima == 30
+        assert result == [existing_slot]
+
     async def test_replace_slots_for_gira_empty_clears_all(self, repo):
         r, _ = repo
         session = _mock_db()
+        session.delete = AsyncMock()
         existing_slot = MagicMock()
+        existing_slot.horario = time(19, 0)
         r.list_by_gira = AsyncMock(return_value=[existing_slot])
         result = await r.replace_slots_for_gira(session, uuid4(), uuid4(), [])
-        existing_slot.soft_delete.assert_called_once()
+        session.delete.assert_awaited_once_with(existing_slot)
         session.add.assert_not_called()
         assert result == []
 

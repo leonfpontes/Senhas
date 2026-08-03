@@ -73,35 +73,51 @@ class GiraTimeSlotRepository(BaseRepository[GiraTimeSlot]):
         gira_id: UUID,
         slots: list[dict],
     ) -> List[GiraTimeSlot]:
-        """Replace a gira's slot list wholesale (used by the admin editor and
-        when copying the tenant template into a newly-enabled gira).
+        """Reconcile a gira's slot list with the given set (used by the admin
+        editor and when copying the tenant template into a newly-enabled gira).
 
-        Existing slots are soft-deleted rather than hard-deleted so tickets
-        that already reference them (time_slot_id) keep a valid FK — the
-        column has ondelete=SET NULL but a soft delete is preferable here
-        since we're replacing config, not removing the gira/ticket history.
+        Diffs by horário instead of delete-everything-then-recreate:
+        - horários no longer present are hard-deleted (tickets that already
+          reference them fall back to time_slot_id=NULL via ondelete=SET NULL —
+          history is preserved, they just lose the horário tag)
+        - horários still present are updated in place, so total_emitido /
+          slots_returned (and any tickets pointing at that slot) survive
+        - only genuinely new horários get a fresh row
+
+        A naive soft-delete-then-reinsert would collide with the
+        (tenant_id, gira_id, horario) unique constraint — soft-deleted rows
+        still occupy that tuple — and would also reset the atomic counters
+        for horários that didn't actually change.
 
         `slots` items: {"horario": time, "capacidade_maxima": int}
         """
         existing = await self.list_by_gira(session, tenant_id, gira_id)
-        for slot in existing:
-            slot.soft_delete()
+        existing_by_horario = {slot.horario: slot for slot in existing}
+        incoming_horarios = {item["horario"] for item in slots}
 
-        created: list[GiraTimeSlot] = []
+        for horario, slot in existing_by_horario.items():
+            if horario not in incoming_horarios:
+                await session.delete(slot)
+
+        result: list[GiraTimeSlot] = []
         for item in slots:
-            new_slot = GiraTimeSlot(
-                tenant_id=tenant_id,
-                gira_id=gira_id,
-                horario=item["horario"],
-                capacidade_maxima=item["capacidade_maxima"],
-            )
-            session.add(new_slot)
-            created.append(new_slot)
+            slot = existing_by_horario.get(item["horario"])
+            if slot:
+                slot.capacidade_maxima = item["capacidade_maxima"]
+            else:
+                slot = GiraTimeSlot(
+                    tenant_id=tenant_id,
+                    gira_id=gira_id,
+                    horario=item["horario"],
+                    capacidade_maxima=item["capacidade_maxima"],
+                )
+                session.add(slot)
+            result.append(slot)
 
         await session.flush()
-        for slot in created:
+        for slot in result:
             await session.refresh(slot)
-        return created
+        return result
 
     async def increment_atomic(
         self,
