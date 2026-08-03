@@ -42,6 +42,9 @@ import StarIcon from '@mui/icons-material/Star';
 import LockIcon from '@mui/icons-material/Lock';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import AdminLayout from './admin_layout';
 import { apiClient, extractApiErrorMessage } from '../../services/api_client';
 import CrudDrawer from '../../components/CrudDrawer';
@@ -75,6 +78,18 @@ interface SenhaConfig {
   sponsor_public_link?: string;
   waitlist_confirmation_hours?: number | null;
 }
+
+interface TimeSlotRow {
+  id?: string;
+  horario: string; // "HH:MM"
+  capacidade_maxima: string;
+  total_emitido?: number;
+  vagas_disponiveis?: number;
+}
+
+const timeToInputValue = (horario: string): string => horario.slice(0, 5);
+
+const emptySlotRow = (): TimeSlotRow => ({ horario: '', capacidade_maxima: '' });
 
 const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '', recados: '' };
 const EMPTY_SENHA_FORM = {
@@ -179,6 +194,13 @@ function AdminGirasContent() {
   // Release confirm dialog
   const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false);
 
+  // Horários de atendimento (agendamento por horário)
+  const [timeSlotSchedulingEnabled, setTimeSlotSchedulingEnabled] = useState(false);
+  const [useTimeSlots, setUseTimeSlots] = useState(false);
+  const [useTimeSlotsInitial, setUseTimeSlotsInitial] = useState(false);
+  const [timeSlots, setTimeSlots] = useState<TimeSlotRow[]>([]);
+  const [timeSlotsInitial, setTimeSlotsInitial] = useState<TimeSlotRow[]>([]);
+
   // Snackbar
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false, message: '', severity: 'success',
@@ -188,10 +210,24 @@ function AdminGirasContent() {
     const controller = new AbortController();
     loadGiras(controller.signal);
     loadUnifiedLinks(controller.signal);
+    loadTimeSlotSchedulingToggle(controller.signal);
     return () => controller.abort();
-    // loadGiras/loadUnifiedLinks aren't memoized — including them would refetch every render.
+    // loadGiras/loadUnifiedLinks/loadTimeSlotSchedulingToggle aren't memoized —
+    // including them would refetch every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView]);
+
+  const loadTimeSlotSchedulingToggle = async (signal?: AbortSignal) => {
+    if (!canView) return;
+    try {
+      const response = await apiClient.get('/api/v1/admin/tenant/config', { signal });
+      setTimeSlotSchedulingEnabled(!!response.data.enable_time_slot_scheduling);
+    } catch (error) {
+      if (error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError')) return;
+      // Sem permissão de CONFIGURACOES ou outro erro — mantém a seção oculta.
+      setTimeSlotSchedulingEnabled(false);
+    }
+  };
 
   const loadGiras = async (signal?: AbortSignal) => {
     if (!canView) { setLoading(false); return; }
@@ -342,6 +378,30 @@ function AdminGirasContent() {
     } finally {
       setSenhaLoading(false);
     }
+
+    if (timeSlotSchedulingEnabled) {
+      try {
+        const response = await apiClient.get(`/api/v1/admin/giras/${gira.id}/time-slots`);
+        const loadedSlots: TimeSlotRow[] = (response.data.slots || []).map((s: {
+          id: string; horario: string; capacidade_maxima: number; total_emitido: number; vagas_disponiveis: number;
+        }) => ({
+          id: s.id,
+          horario: timeToInputValue(s.horario),
+          capacidade_maxima: String(s.capacidade_maxima),
+          total_emitido: s.total_emitido,
+          vagas_disponiveis: s.vagas_disponiveis,
+        }));
+        setUseTimeSlots(!!response.data.use_time_slots);
+        setUseTimeSlotsInitial(!!response.data.use_time_slots);
+        setTimeSlots(loadedSlots);
+        setTimeSlotsInitial(loadedSlots);
+      } catch {
+        setUseTimeSlots(false);
+        setUseTimeSlotsInitial(false);
+        setTimeSlots([]);
+        setTimeSlotsInitial([]);
+      }
+    }
   };
 
   const closeSenhaDrawer = () => {
@@ -350,7 +410,46 @@ function AdminGirasContent() {
     setSenhaConfig(null);
     setSenhaForm(EMPTY_SENHA_FORM);
     setSenhaTouched({});
+    setUseTimeSlots(false);
+    setUseTimeSlotsInitial(false);
+    setTimeSlots([]);
+    setTimeSlotsInitial([]);
   };
+
+  // --- Horários de atendimento ---
+  const handleToggleUseTimeSlots = async (checked: boolean) => {
+    setUseTimeSlots(checked);
+    if (checked && timeSlots.length === 0) {
+      try {
+        const response = await apiClient.get('/api/v1/admin/config/time-slot-templates');
+        const templateSlots: TimeSlotRow[] = (response.data || []).map((t: { horario: string; capacidade_maxima: number }) => ({
+          horario: timeToInputValue(t.horario),
+          capacidade_maxima: String(t.capacidade_maxima),
+        }));
+        setTimeSlots(templateSlots.length > 0 ? templateSlots : [emptySlotRow()]);
+      } catch {
+        setTimeSlots([emptySlotRow()]);
+      }
+    }
+  };
+
+  const updateSlotRow = (index: number, field: 'horario' | 'capacidade_maxima', value: string) => {
+    setTimeSlots((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const addSlotRow = () => setTimeSlots((prev) => [...prev, emptySlotRow()]);
+
+  const removeSlotRow = (index: number) => setTimeSlots((prev) => prev.filter((_, i) => i !== index));
+
+  const timeSlotsValid = !useTimeSlots || (
+    timeSlots.length > 0 &&
+    timeSlots.every((s) => s.horario && Number(s.capacidade_maxima) >= 1) &&
+    new Set(timeSlots.map((s) => s.horario)).size === timeSlots.length
+  );
+
+  const timeSlotsDirty = useTimeSlots !== useTimeSlotsInitial ||
+    JSON.stringify(timeSlots.map((s) => ({ horario: s.horario, capacidade_maxima: s.capacidade_maxima }))) !==
+    JSON.stringify(timeSlotsInitial.map((s) => ({ horario: s.horario, capacidade_maxima: s.capacidade_maxima })));
 
   const handleSenhaChange = (field: string, value: string) => {
     setSenhaForm((prev) => ({ ...prev, [field]: value }));
@@ -364,9 +463,10 @@ function AdminGirasContent() {
   const senhaEndError = senhaTouched.release_end_at && !senhaForm.release_end_at
     ? 'Fim é obrigatório' : '';
   const senhaSaveDisabled = !senhaForm.max_tickets || Number(senhaForm.max_tickets) < 1
-    || !senhaForm.release_start_at || !senhaForm.release_end_at;
+    || !senhaForm.release_start_at || !senhaForm.release_end_at
+    || !timeSlotsValid;
 
-  const senhaDirty = JSON.stringify(senhaForm) !== JSON.stringify(senhaInitial);
+  const senhaDirty = JSON.stringify(senhaForm) !== JSON.stringify(senhaInitial) || timeSlotsDirty;
 
   const handleSenhaSave = async () => {
     setSenhaTouched({ max_tickets: true, release_start_at: true, release_end_at: true });
@@ -396,6 +496,29 @@ function AdminGirasContent() {
       // after saving. Without this, the "Descartar alterações?" dialog would
       // appear even though the form was just successfully saved.
       setSenhaInitial({ ...senhaForm });
+
+      if (timeSlotSchedulingEnabled) {
+        const slotsResponse = await apiClient.put(`/api/v1/admin/giras/${senhaTarget.id}/time-slots`, {
+          use_time_slots: useTimeSlots,
+          slots: useTimeSlots
+            ? timeSlots.map((s) => ({ horario: s.horario, capacidade_maxima: Number(s.capacidade_maxima) }))
+            : [],
+        });
+        const savedSlots: TimeSlotRow[] = (slotsResponse.data.slots || []).map((s: {
+          id: string; horario: string; capacidade_maxima: number; total_emitido: number; vagas_disponiveis: number;
+        }) => ({
+          id: s.id,
+          horario: timeToInputValue(s.horario),
+          capacidade_maxima: String(s.capacidade_maxima),
+          total_emitido: s.total_emitido,
+          vagas_disponiveis: s.vagas_disponiveis,
+        }));
+        setUseTimeSlots(!!slotsResponse.data.use_time_slots);
+        setUseTimeSlotsInitial(!!slotsResponse.data.use_time_slots);
+        setTimeSlots(savedSlots);
+        setTimeSlotsInitial(savedSlots);
+      }
+
       setSnackbar({ open: true, message: 'Configuração de senhas salva!', severity: 'success' });
       loadGiras();
     } catch (error) {
@@ -816,6 +939,74 @@ function AdminGirasContent() {
                 Liberar Agora
               </Button>
             </Box>
+
+            {/* ═══ Horários de Atendimento (agendamento por horário) ═══ */}
+            {timeSlotSchedulingEnabled && (
+              <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <AccessTimeIcon color="action" />
+                  <Typography variant="subtitle1" fontWeight="bold">
+                    Horários de Atendimento
+                  </Typography>
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={useTimeSlots}
+                      onChange={(e) => handleToggleUseTimeSlots(e.target.checked)}
+                    />
+                  }
+                  label="Consulente escolhe um horário ao emitir a senha"
+                />
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                  Divide as {senhaForm.max_tickets || 'X'} senhas em janelas de horário (ex: 20h, 20h30, 21h) para
+                  evitar acúmulo de pessoas na porta.
+                </Typography>
+
+                {useTimeSlots && (
+                  <>
+                    {timeSlots.map((slot, index) => (
+                      <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mb: 1 }}>
+                        <TextField
+                          label="Horário"
+                          type="time"
+                          value={slot.horario}
+                          onChange={(e) => updateSlotRow(index, 'horario', e.target.value)}
+                          InputLabelProps={{ shrink: true }}
+                          size="small"
+                          sx={{ flex: 1 }}
+                        />
+                        <TextField
+                          label="Vagas"
+                          type="number"
+                          value={slot.capacidade_maxima}
+                          onChange={(e) => updateSlotRow(index, 'capacidade_maxima', e.target.value)}
+                          inputProps={{ min: 1 }}
+                          size="small"
+                          sx={{ flex: 1 }}
+                          helperText={
+                            slot.vagas_disponiveis !== undefined
+                              ? `${slot.vagas_disponiveis} disponíveis`
+                              : undefined
+                          }
+                        />
+                        <IconButton size="small" onClick={() => removeSlotRow(index)} sx={{ mt: 0.5 }}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    ))}
+                    <Button size="small" startIcon={<AddIcon />} onClick={addSlotRow}>
+                      Adicionar horário
+                    </Button>
+                    {!timeSlotsValid && timeSlots.length > 0 && (
+                      <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+                        Preencha todos os horários com vagas ≥ 1 e sem horários repetidos.
+                      </Typography>
+                    )}
+                  </>
+                )}
+              </Box>
+            )}
 
             {/* ═══ Sponsor Section ═══ */}
             <Box sx={{ mt: 3, pt: 2, borderTop: '2px solid #daa520' }}>

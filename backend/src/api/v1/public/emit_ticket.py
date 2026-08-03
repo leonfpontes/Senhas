@@ -41,6 +41,7 @@ from src.services.email.templates.waitlist import (
     generate_waitlist_entry_text,
 )
 from src.services import waitlist_service
+from src.repositories.gira_time_slot_repo import GiraTimeSlotRepository, TimeSlotFullError
 from src.core.limiter import limiter
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
@@ -62,6 +63,9 @@ class EmitTicketRequest(BaseModel):
     email: EmailStr
     phone: str | None = Field(None, max_length=20)
     priority_category: str | None = None
+    # Agendamento por horário: obrigatório quando gira.use_time_slots está ligado.
+    # Ignorado (não requerido) quando a gira não usa a feature.
+    time_slot_id: uuid.UUID | None = None
     # DEPRECATED: use priority_category instead
     preferencial: bool = False
 
@@ -329,6 +333,42 @@ async def emit_ticket(
                     detail="Todas as senhas desta gira já foram emitidas",
                 )
 
+        # === STEP 7b: Claim Time Slot (agendamento por horário, if enabled) ===
+        # A full slot has no waitlist fallback (product decision — the UI just
+        # hides/disables it), so this is a hard reject unless the gira-level
+        # capacity above already routed the ticket to the waitlist, in which
+        # case there's no fixed horário to hold and the claimed slot (if any)
+        # is given back.
+        time_slot_id_for_ticket = None
+        if gira.use_time_slots:
+            if not body.time_slot_id:
+                await session.rollback()
+                raise HTTPException(status_code=400, detail="Selecione um horário de atendimento")
+
+            slot_repo = GiraTimeSlotRepository(session)
+            slot = await slot_repo.get_by_id_for_gira(session, tenant.id, gira.id, body.time_slot_id)
+            if not slot:
+                await session.rollback()
+                raise HTTPException(status_code=404, detail="Horário inválido para esta gira")
+
+            if waitlisted:
+                # Ticket is going to the general waitlist (gira-level capacity
+                # exhausted) — it has no fixed horário in this MVP.
+                time_slot_id_for_ticket = None
+            else:
+                try:
+                    await slot_repo.increment_atomic(session, tenant.id, gira.id, slot.id)
+                    time_slot_id_for_ticket = slot.id
+                except TimeSlotFullError:
+                    # Nothing has been committed yet — rollback undoes the
+                    # STEP 7 SenhaControl.increment_atomic too, so gira
+                    # capacity accounting stays correct without extra bookkeeping.
+                    await session.rollback()
+                    raise HTTPException(
+                        status_code=410,
+                        detail="Este horário não tem mais vagas disponíveis. Escolha outro horário.",
+                    )
+
         # === STEP 8: Create Ticket Record ===
         ticket_number_formatted = f"P{ticket_number_int:03d}" if is_sponsor else f"{ticket_number_int:04d}"
 
@@ -353,6 +393,7 @@ async def emit_ticket(
             observacoes=observacoes,
             priority_category=priority_category,
             is_sponsor=is_sponsor,
+            time_slot_id=time_slot_id_for_ticket,
         )
 
         # Commit transaction

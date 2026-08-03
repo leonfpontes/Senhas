@@ -34,6 +34,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import BlockIcon from '@mui/icons-material/Block';
 import StarIcon from '@mui/icons-material/Star';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import PoweredByGiraHubFooter from '../../../components/shared/PoweredByGiraHubFooter';
 import { useGiraCountdown, parseCountdownParts } from '../../../hooks/useGiraCountdown';
@@ -41,6 +42,12 @@ import {
   PRIORITY_CATEGORY_LABELS,
   PRIORITY_ORDER,
 } from 'shared-types';
+
+interface TimeSlotOption {
+  id: string;
+  horario: string; // "HH:MM"
+  vagas_disponiveis: number;
+}
 
 interface GiraPublicData {
   id: string;
@@ -61,6 +68,8 @@ interface GiraPublicData {
   logo_url?: string | null;
   primary_color?: string | null;
   secondary_color?: string | null;
+  use_time_slots: boolean;
+  time_slots: TimeSlotOption[];
 }
 
 function CountdownBlock({ seconds }: { seconds: number }) {
@@ -113,6 +122,7 @@ export default function PublicGiraPage() {
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [priorityCategory, setPriorityCategory] = useState<string>('none');
+  const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Success
@@ -159,6 +169,7 @@ export default function PublicGiraPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gira) return;
+    if (gira.use_time_slots && !selectedTimeSlotId) return;
     setSubmitting(true);
     try {
       const res = await apiClient.post(`/api/v1/public/emit-ticket?tenant_slug=${gira.tenant_slug}&tipo=${tipo}`, {
@@ -166,6 +177,7 @@ export default function PublicGiraPage() {
         email,
         phone: telefone,
         priority_category: priorityCategory === 'none' ? null : priorityCategory,
+        time_slot_id: gira.use_time_slots ? selectedTimeSlotId : null,
       });
       setSuccess(true);
       setTicketNumber(res.data.numero ?? res.data.ticket_number ?? null);
@@ -176,6 +188,11 @@ export default function PublicGiraPage() {
     } catch (err) {
       const msg = extractApiErrorMessage(err, 'Erro ao emitir senha');
       setSnack({ open: true, msg, sev: 'error' });
+      // Horário pode ter lotado entre a seleção e o envio — atualiza as vagas.
+      if (gira.use_time_slots) {
+        setSelectedTimeSlotId(null);
+        fetchGira();
+      }
     } finally {
       setSubmitting(false);
     }
@@ -294,6 +311,39 @@ export default function PublicGiraPage() {
             </Alert>
           )}
 
+          {gira.use_time_slots && !waitlistMode && (
+            <Box sx={{ mb: 3 }}>
+              <FormLabel component="legend" sx={{ fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <AccessTimeIcon fontSize="small" /> Escolha o horário que pretende ser atendido
+              </FormLabel>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {gira.time_slots.map((slot) => {
+                  const full = slot.vagas_disponiveis <= 0;
+                  const selected = selectedTimeSlotId === slot.id;
+                  return (
+                    <Button
+                      key={slot.id}
+                      variant={selected ? 'contained' : 'outlined'}
+                      disabled={full}
+                      onClick={() => setSelectedTimeSlotId(slot.id)}
+                      sx={{ flexDirection: 'column', minWidth: 84, lineHeight: 1.2, py: 1 }}
+                    >
+                      <Typography variant="body2" fontWeight={700}>{slot.horario}</Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                        {full ? 'Esgotado' : `${slot.vagas_disponiveis} vaga${slot.vagas_disponiveis === 1 ? '' : 's'}`}
+                      </Typography>
+                    </Button>
+                  );
+                })}
+              </Box>
+              {gira.time_slots.length === 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  Nenhum horário disponível no momento.
+                </Typography>
+              )}
+            </Box>
+          )}
+
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
               label="Nome completo"
@@ -352,7 +402,7 @@ export default function PublicGiraPage() {
               type="submit"
               variant="contained"
               size="large"
-              disabled={submitting || !nome.trim() || !email.trim()}
+              disabled={submitting || !nome.trim() || !email.trim() || (gira.use_time_slots && !waitlistMode && !selectedTimeSlotId)}
               startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : (waitlistMode ? <HourglassEmptyIcon /> : <ConfirmationNumberIcon />)}
               sx={isSponsor ? { bgcolor: '#daa520', color: '#3e2723', fontWeight: 700, '&:hover': { bgcolor: '#b8860b' }, '&.Mui-disabled': { bgcolor: '#daa52080', color: '#3e2723' } } : {}}
             >

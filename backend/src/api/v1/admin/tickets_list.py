@@ -24,6 +24,7 @@ from src.core.errors import (
     NotFoundError,
 )
 from src.repositories.senha_control_repo import SenhaControlRepository
+from src.repositories.gira_time_slot_repo import GiraTimeSlotRepository
 from src.services.audit_service import AuditService
 from src.services import waitlist_service
 from src.services.email.base import EmailMessage
@@ -459,6 +460,17 @@ async def delete_ticket(
                     ticket.is_sponsor,
                     ticket_id,
                 )
+
+    if ticket.time_slot_id is not None:
+        time_slot_repo = GiraTimeSlotRepository(db)
+        try:
+            await time_slot_repo.increment_slots_returned(db, current_user.tenant_id, ticket.time_slot_id)
+        except ValueError:
+            logger.warning(
+                "GiraTimeSlot not found (slot=%s) during ticket delete (ticket=%s). Slot not returned.",
+                ticket.time_slot_id,
+                ticket_id,
+            )
 
     audit = AuditService(db)
     await audit.log_delete(

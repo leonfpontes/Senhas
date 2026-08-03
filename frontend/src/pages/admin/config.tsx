@@ -60,6 +60,14 @@ interface TenantConfig {
   enable_estoque_log?: boolean;
   enable_mensalidade_associado?: boolean;
   enable_waitlist?: boolean;
+  enable_time_slot_scheduling?: boolean;
+}
+
+interface TimeSlotTemplateItem {
+  id: string;
+  horario: string; // "HH:MM:SS" from the API
+  capacidade_maxima: number;
+  ordem: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -112,6 +120,11 @@ const FEATURE_ITEMS: {
     description: 'Quando uma gira lota, novos pedidos entram na fila e são promovidos automaticamente se uma senha for cancelada.',
     plan: 'Pro',
     gate: 'fila_espera',
+  },
+  {
+    field: 'enable_time_slot_scheduling',
+    title: 'Agendamento por horário',
+    description: 'Consulente escolhe um horário de atendimento ao emitir a senha, evitando acúmulo de pessoas na porta. Configure os horários padrão logo abaixo e habilite por gira em "Configurar Senhas".',
   },
 ];
 
@@ -293,6 +306,120 @@ function ToggleCard({
   );
 }
 
+function TimeSlotTemplateEditor({ canEdit }: { canEdit: boolean }) {
+  const [slots, setSlots] = useState<{ horario: string; capacidade_maxima: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; severity: 'success' | 'error'; text: string }>({ open: false, severity: 'success', text: '' });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiClient.get<TimeSlotTemplateItem[]>('/api/v1/admin/config/time-slot-templates');
+        if (cancelled) return;
+        setSlots(res.data.map((t) => ({ horario: t.horario.slice(0, 5), capacidade_maxima: String(t.capacidade_maxima) })));
+      } catch {
+        // sem template ainda — fica vazio
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const updateRow = (index: number, field: 'horario' | 'capacidade_maxima', value: string) =>
+    setSlots((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  const addRow = () => setSlots((prev) => [...prev, { horario: '', capacidade_maxima: '' }]);
+  const removeRow = (index: number) => setSlots((prev) => prev.filter((_, i) => i !== index));
+
+  const valid = slots.every((s) => s.horario && Number(s.capacidade_maxima) >= 1)
+    && new Set(slots.map((s) => s.horario)).size === slots.length;
+
+  const handleSave = async () => {
+    if (!valid || !canEdit) return;
+    setSaving(true);
+    try {
+      const res = await apiClient.put<TimeSlotTemplateItem[]>('/api/v1/admin/config/time-slot-templates', {
+        slots: slots.map((s) => ({ horario: s.horario, capacidade_maxima: Number(s.capacidade_maxima) })),
+      });
+      setSlots(res.data.map((t) => ({ horario: t.horario.slice(0, 5), capacidade_maxima: String(t.capacidade_maxima) })));
+      setSnackbar({ open: true, severity: 'success', text: 'Horários padrão salvos.' });
+    } catch (e) {
+      setSnackbar({ open: true, severity: 'error', text: extractApiErrorMessage(e, 'Erro ao salvar horários.') });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <CircularProgress size={20} />;
+
+  return (
+    <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, mt: 2 }}>
+      <Box sx={{ p: 3 }}>
+        <FieldHint label="Horários padrão" help="Aplicados automaticamente ao habilitar agendamento por horário em uma nova gira — ainda editável caso a caso." />
+        {slots.map((slot, index) => (
+          <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mt: 1.5 }}>
+            <TextField
+              label="Horário"
+              type="time"
+              value={slot.horario}
+              onChange={(e) => updateRow(index, 'horario', e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              size="small"
+              disabled={!canEdit}
+              sx={{ flex: 1 }}
+            />
+            <TextField
+              label="Vagas"
+              type="number"
+              value={slot.capacidade_maxima}
+              onChange={(e) => updateRow(index, 'capacidade_maxima', e.target.value)}
+              inputProps={{ min: 1 }}
+              size="small"
+              disabled={!canEdit}
+              sx={{ flex: 1 }}
+            />
+            {canEdit && (
+              <Button size="small" color="error" onClick={() => removeRow(index)} sx={{ minWidth: 0, px: 1 }}>
+                <DeleteRoundedIcon fontSize="small" />
+              </Button>
+            )}
+          </Box>
+        ))}
+        {slots.length === 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+            Nenhum horário padrão configurado ainda.
+          </Typography>
+        )}
+        {!valid && slots.length > 0 && (
+          <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1 }}>
+            Preencha todos os horários com vagas ≥ 1 e sem horários repetidos.
+          </Typography>
+        )}
+        {canEdit && (
+          <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+            <Button size="small" onClick={addRow}>Adicionar horário</Button>
+            <Button size="small" variant="contained" onClick={handleSave} disabled={saving || !valid}>
+              {saving ? 'Salvando…' : 'Salvar horários padrão'}
+            </Button>
+          </Box>
+        )}
+      </Box>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar((s) => ({ ...s, open: false }))} sx={{ width: '100%', borderRadius: 2 }}>
+          {snackbar.text}
+        </Alert>
+      </Snackbar>
+    </Card>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminConfigPage() {
@@ -384,6 +511,7 @@ function AdminConfigContent() {
         enable_estoque_log:         config.enable_estoque_log,
         enable_mensalidade_associado: config.enable_mensalidade_associado,
         enable_waitlist:            config.enable_waitlist,
+        enable_time_slot_scheduling: config.enable_time_slot_scheduling,
         sponsor_priority_mode:      config.sponsor_priority_mode || 'first',
         endereco:                   config.endereco || '',
       });
@@ -810,6 +938,12 @@ function AdminConfigContent() {
               );
             })}
           </Grid>
+
+          {config.enable_time_slot_scheduling && (
+            <Box sx={{ maxWidth: 640 }}>
+              <TimeSlotTemplateEditor canEdit={canEdit} />
+            </Box>
+          )}
         </Box>
       )}
 

@@ -58,6 +58,7 @@ class QueueItemResponse(BaseModel):
     medium_nome: Optional[str] = None
     cambone_nome: Optional[str] = None
     atendimento_descricao: Optional[str] = None
+    horario_desejado: Optional[str] = None  # "HH:MM" — agendamento por horário, se a gira usar
 
     class Config:
         from_attributes = True
@@ -169,6 +170,8 @@ def _ticket_to_queue_item(t: Ticket) -> QueueItemResponse:
     priority_category = getattr(t, "priority_category", None)
     # preferencial=True if category is set OR if the legacy JSON flag is set
     is_preferencial = (priority_category is not None) or _parse_preferencial(t.observacoes)
+    time_slot = getattr(t, "time_slot", None)
+    horario_desejado = time_slot.horario.strftime("%H:%M") if time_slot else None
     return QueueItemResponse(
         id=t.id,
         numero=t.numero,
@@ -188,6 +191,7 @@ def _ticket_to_queue_item(t: Ticket) -> QueueItemResponse:
         medium_nome=t.medium_nome,
         cambone_nome=t.cambone_nome,
         atendimento_descricao=t.atendimento_descricao,
+        horario_desejado=horario_desejado,
     )
 
 
@@ -195,7 +199,7 @@ async def _get_ticket(db: AsyncSession, ticket_id: UUID, tenant_id: UUID) -> Tic
     """Fetch a ticket ensuring tenant isolation."""
     stmt = (
         select(Ticket)
-        .options(selectinload(Ticket.consulente))
+        .options(selectinload(Ticket.consulente), selectinload(Ticket.time_slot))
         .where(and_(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id))
     )
     result = await db.execute(stmt)
@@ -287,7 +291,7 @@ async def get_door_queue(
 
     stmt = (
         select(Ticket)
-        .options(selectinload(Ticket.consulente))
+        .options(selectinload(Ticket.consulente), selectinload(Ticket.time_slot))
         .where(where_clause)
         .order_by(Ticket.numero)
     )

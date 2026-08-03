@@ -14,6 +14,7 @@ from src.models.giras import Gira
 from src.models.senha_controls import SenhaControl
 from src.repositories.senha_control_repo import SenhaControlRepository
 from src.repositories.senha_control_repo_extended import SenhaControlRepositoryExtended
+from src.repositories.gira_time_slot_repo import GiraTimeSlotRepository
 from src.services.audit_service import AuditService
 from src.services import waitlist_service
 from src.api.v1.admin.tickets_list import _send_waitlist_promotion_email
@@ -78,6 +79,19 @@ async def _release_slots_for_cancelled_tickets(
                     gira_id,
                     is_sponsor,
                 )
+
+    time_slot_repo = GiraTimeSlotRepository(db)
+    for ticket in cancelled_tickets:
+        if ticket.time_slot_id is None:
+            continue
+        try:
+            await time_slot_repo.increment_slots_returned(db, tenant_id, ticket.time_slot_id)
+        except ValueError:
+            logger.warning(
+                "GiraTimeSlot not found (slot=%s) during bulk cancel (ticket=%s). Slot not returned.",
+                ticket.time_slot_id,
+                ticket.id,
+            )
 
 
 class BulkOperationRequest(BaseModel):

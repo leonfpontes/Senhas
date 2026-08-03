@@ -64,6 +64,7 @@ class Ticket(SoftDeleteModel):
         Index("ix_tickets_status", "status"),
         Index("ix_tickets_numero", "numero"),
         Index("ix_tickets_created_at", "created_at"),
+        Index("ix_tickets_time_slot_id", "time_slot_id"),
     )
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -71,6 +72,9 @@ class Ticket(SoftDeleteModel):
     gira_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("giras.id", ondelete="CASCADE"), nullable=False)
     consulente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("consulentes.id", ondelete="CASCADE"), nullable=False)
     emitido_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    # Horário de atendimento escolhido pelo consulente (agendamento por horário).
+    # Nulo quando a gira não usa slots ou o ticket é anterior à feature.
+    time_slot_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("gira_time_slots.id", ondelete="SET NULL"), nullable=True)
     
     numero: Mapped[int] = mapped_column(Integer, nullable=False)  # Sequential ticket number
     status: Mapped[TicketStatus] = mapped_column(
@@ -110,6 +114,7 @@ class Ticket(SoftDeleteModel):
     gira = relationship("Gira", back_populates="tickets")
     consulente = relationship("Consulente", back_populates="tickets")
     emitido_por = relationship("User", foreign_keys=[emitido_por_id])
+    time_slot = relationship("GiraTimeSlot")
     
     def __repr__(self) -> str:
         return f"<Ticket(id={self.id}, numero={self.numero}, status={self.status.value}, tenant_id={self.tenant_id})>"

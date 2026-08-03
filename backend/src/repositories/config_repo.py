@@ -137,6 +137,7 @@ class TenantConfigRepository:
             "enable_estoque_log",
             "enable_mensalidade_associado",
             "enable_waitlist",
+            "enable_time_slot_scheduling",
         ]:
             setattr(config, feature_flag, enabled)
         

@@ -28,6 +28,7 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
@@ -93,6 +94,7 @@ interface QueueItem {
   medium_nome: string | null;
   cambone_nome: string | null;
   atendimento_descricao: string | null;
+  horario_desejado?: string | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -190,6 +192,22 @@ function WalkInChip({ isDark }: { isDark: boolean }) {
         height: 22, fontSize: '0.68rem', fontWeight: 700,
         bgcolor: isDark ? '#0c4a6e' : '#e0f2fe',
         color: isDark ? '#7dd3fc' : '#0369a1',
+      }}
+    />
+  );
+}
+
+function TimeSlotChip({ horario, isDark }: { horario: string; isDark: boolean }) {
+  return (
+    <Chip
+      icon={<AccessTimeRoundedIcon sx={{ fontSize: '14px !important' }} />}
+      label={horario}
+      size="small"
+      variant="outlined"
+      sx={{
+        height: 22, fontSize: '0.68rem', fontWeight: 700,
+        borderColor: isDark ? '#475569' : '#cbd5e1',
+        color: isDark ? '#cbd5e1' : '#475569',
       }}
     />
   );
@@ -422,6 +440,7 @@ function QueueCard({
               {item.preferencial && (
                 <Chip icon={<StarRoundedIcon sx={{ fontSize: '14px !important' }} />} label={priorityLabel(item)} color="warning" size="small" sx={{ height: 22, fontSize: '0.68rem', fontWeight: 700 }} />
               )}
+              {item.horario_desejado && <TimeSlotChip horario={item.horario_desejado} isDark={isDark} />}
               {hasCheckin && isEmitted && <PresentChip />}
             </Box>
             <Chip
@@ -503,6 +522,7 @@ function QueueCard({
                   <StarRoundedIcon sx={{ fontSize: 16, color: 'warning.main' }} />
                 </Tooltip>
               )}
+              {item.horario_desejado && <TimeSlotChip horario={item.horario_desejado} isDark={isDark} />}
               {hasCheckin && isEmitted && <PresentChip />}
             </Box>
             {item.consulente_telefone && (

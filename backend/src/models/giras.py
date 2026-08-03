@@ -48,11 +48,17 @@ class Gira(SoftDeleteModel):
     # Waitlist: hours a promoted ticket has to confirm before the slot cascades
     # to the next person in line. Only relevant when tenant_config.enable_waitlist.
     waitlist_confirmation_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    
+
+    # Agendamento por horário: quando True, o consulente escolhe um GiraTimeSlot
+    # ao emitir a senha em vez de disputar a capacidade geral da gira. Só tem
+    # efeito quando tenant_config.enable_time_slot_scheduling também está ligado.
+    use_time_slots: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+
     # Relationships
     tenant = relationship("Tenant", back_populates="giras")
     tickets = relationship("Ticket", back_populates="gira", cascade="all, delete-orphan")
     senha_controls = relationship("SenhaControl", back_populates="gira", cascade="all, delete-orphan")
+    time_slots = relationship("GiraTimeSlot", back_populates="gira", cascade="all, delete-orphan")
     
     def __repr__(self) -> str:
         return f"<Gira(id={self.id}, nome='{self.nome}', tenant_id={self.tenant_id})>"

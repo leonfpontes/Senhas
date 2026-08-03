@@ -6,6 +6,7 @@ from .giras import Gira
 from .consulentes import Consulente
 from .tickets import Ticket, TicketStatus
 from .senha_controls import SenhaControl
+from .gira_time_slots import GiraTimeSlot, GiraTimeSlotTemplate
 from .audit_logs import AuditLog, AuditAction
 from .tenant_config import TenantConfig
 from .subscriptions import Subscription, PlanType, SubscriptionStatus
@@ -36,6 +37,8 @@ __all__ = [
     "Ticket",
     "TicketStatus",
     "SenhaControl",
+    "GiraTimeSlot",
+    "GiraTimeSlotTemplate",
     "AuditLog",
     "AuditAction",
     "TenantConfig",

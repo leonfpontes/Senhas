@@ -50,6 +50,7 @@ class TenantConfigResponse(BaseModel):
     enable_estoque_log: bool = True
     enable_mensalidade_associado: bool = False
     enable_waitlist: bool = False
+    enable_time_slot_scheduling: bool = False
 
     class Config:
         from_attributes = True
@@ -83,6 +84,7 @@ class TenantConfigUpdate(BaseModel):
     enable_estoque_log: Optional[bool] = None
     enable_mensalidade_associado: Optional[bool] = None
     enable_waitlist: Optional[bool] = None
+    enable_time_slot_scheduling: Optional[bool] = None
 
     @field_validator("primary_color", "secondary_color")
     @classmethod
@@ -313,6 +315,14 @@ async def update_tenant_config(
             tenant_id=current_user.tenant_id,
             feature_flag="enable_waitlist",
             enabled=config_update.enable_waitlist,
+        )
+
+    # Update enable_time_slot_scheduling — no plan gate, available on every plan.
+    if config_update.enable_time_slot_scheduling is not None:
+        await repo.toggle_feature(
+            tenant_id=current_user.tenant_id,
+            feature_flag="enable_time_slot_scheduling",
+            enabled=config_update.enable_time_slot_scheduling,
         )
 
     # Get updated config

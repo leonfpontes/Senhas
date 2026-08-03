@@ -288,6 +288,7 @@ class TestEmitTicketEndpoint:
         gira.max_tickets = 100
         gira.data_inicio = None
         gira.local = "Sala 1"
+        gira.use_time_slots = False
         db.execute = AsyncMock(side_effect=[
             _mock_result_scalar(tenant),
             _mock_result_scalar(gira),
@@ -312,6 +313,160 @@ class TestEmitTicketEndpoint:
         assert result.ticket_number == "0042"
         assert result.email_sent is True
         mock_queue.enqueue.assert_called_once()
+
+    # ── agendamento por horário (time slots) ────────────────────────────────
+    @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
+    @patch("src.api.v1.public.emit_ticket.TicketRepository")
+    @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")
+    @patch("src.api.v1.public.emit_ticket.ConsulenteRepository")
+    @patch("src.api.v1.public.emit_ticket.select")
+    @patch("src.api.v1.public.emit_ticket.and_")
+    async def test_emit_ticket_time_slot_required_but_missing(
+        self, mock_and, mock_select, MockConsRepo, MockSenhaRepo, MockTicketRepo,
+    ):
+        from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest
+        db = _mock_db()
+        tenant = MagicMock(); tenant.id = TENANT_ID; tenant.slug = "test"
+        gira = MagicMock(); gira.id = GIRA_ID; gira.max_tickets = 100; gira.use_time_slots = True
+        db.execute = AsyncMock(side_effect=[
+            _mock_result_scalar(tenant),
+            _mock_result_scalar(gira),
+        ])
+        consulente = MagicMock(); consulente.id = uuid4()
+        MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, True))
+        MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=False)
+        MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
+        MockSenhaRepo.return_value.increment_atomic = AsyncMock(return_value=1)
+        MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
+        req = EmitTicketRequest(name="Test", email="t@t.com")  # no time_slot_id
+        with pytest.raises(HTTPException) as exc:
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        assert exc.value.status_code == 400
+        db.rollback.assert_awaited()
+
+    @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
+    @patch("src.api.v1.public.emit_ticket.GiraTimeSlotRepository")
+    @patch("src.api.v1.public.emit_ticket.TicketRepository")
+    @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")
+    @patch("src.api.v1.public.emit_ticket.ConsulenteRepository")
+    @patch("src.api.v1.public.emit_ticket.select")
+    @patch("src.api.v1.public.emit_ticket.and_")
+    async def test_emit_ticket_time_slot_invalid(
+        self, mock_and, mock_select, MockConsRepo, MockSenhaRepo, MockTicketRepo, MockSlotRepo,
+    ):
+        from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest
+        db = _mock_db()
+        tenant = MagicMock(); tenant.id = TENANT_ID; tenant.slug = "test"
+        gira = MagicMock(); gira.id = GIRA_ID; gira.max_tickets = 100; gira.use_time_slots = True
+        db.execute = AsyncMock(side_effect=[
+            _mock_result_scalar(tenant),
+            _mock_result_scalar(gira),
+        ])
+        consulente = MagicMock(); consulente.id = uuid4()
+        MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, True))
+        MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=False)
+        MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
+        MockSenhaRepo.return_value.increment_atomic = AsyncMock(return_value=1)
+        MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
+        MockSlotRepo.return_value.get_by_id_for_gira = AsyncMock(return_value=None)
+        req = EmitTicketRequest(name="Test", email="t@t.com", time_slot_id=uuid4())
+        with pytest.raises(HTTPException) as exc:
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        assert exc.value.status_code == 404
+        db.rollback.assert_awaited()
+
+    @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
+    @patch("src.api.v1.public.emit_ticket.GiraTimeSlotRepository")
+    @patch("src.api.v1.public.emit_ticket.TicketRepository")
+    @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")
+    @patch("src.api.v1.public.emit_ticket.ConsulenteRepository")
+    @patch("src.api.v1.public.emit_ticket.select")
+    @patch("src.api.v1.public.emit_ticket.and_")
+    async def test_emit_ticket_time_slot_full(
+        self, mock_and, mock_select, MockConsRepo, MockSenhaRepo, MockTicketRepo, MockSlotRepo,
+    ):
+        from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest
+        from src.repositories.gira_time_slot_repo import TimeSlotFullError
+        db = _mock_db()
+        tenant = MagicMock(); tenant.id = TENANT_ID; tenant.slug = "test"
+        gira = MagicMock(); gira.id = GIRA_ID; gira.max_tickets = 100; gira.use_time_slots = True
+        db.execute = AsyncMock(side_effect=[
+            _mock_result_scalar(tenant),
+            _mock_result_scalar(gira),
+        ])
+        consulente = MagicMock(); consulente.id = uuid4()
+        MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, True))
+        MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=False)
+        MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
+        MockSenhaRepo.return_value.increment_atomic = AsyncMock(return_value=1)
+        MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
+        slot = MagicMock(); slot.id = uuid4()
+        MockSlotRepo.return_value.get_by_id_for_gira = AsyncMock(return_value=slot)
+        MockSlotRepo.return_value.increment_atomic = AsyncMock(side_effect=TimeSlotFullError("full"))
+        req = EmitTicketRequest(name="Test", email="t@t.com", time_slot_id=slot.id)
+        with pytest.raises(HTTPException) as exc:
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        assert exc.value.status_code == 410
+        db.rollback.assert_awaited()
+        MockTicketRepo.return_value.create_ticket.assert_not_called()
+
+    @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
+    @patch("src.api.v1.public.emit_ticket.GiraTimeSlotRepository")
+    @patch("src.api.v1.public.emit_ticket.TicketRepository")
+    @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")
+    @patch("src.api.v1.public.emit_ticket.ConsulenteRepository")
+    @patch("src.api.v1.public.emit_ticket.select")
+    @patch("src.api.v1.public.emit_ticket.and_")
+    async def test_emit_ticket_time_slot_success(
+        self, mock_and, mock_select, MockConsRepo, MockSenhaRepo, MockTicketRepo, MockSlotRepo,
+    ):
+        from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest
+        mock_select.return_value = MagicMock(
+            where=MagicMock(return_value=MagicMock(
+                order_by=MagicMock(return_value=MagicMock(
+                    limit=MagicMock(return_value=MagicMock())
+                ))
+            ))
+        )
+        db = _mock_db()
+        tenant = MagicMock()
+        tenant.id = TENANT_ID
+        tenant.slug = "test"
+        tenant.name = "Test Tenant"
+        gira = MagicMock()
+        gira.id = GIRA_ID
+        gira.nome = "Gira Teste"
+        gira.max_tickets = 100
+        gira.data_inicio = None
+        gira.local = "Sala 1"
+        gira.use_time_slots = True
+        db.execute = AsyncMock(side_effect=[
+            _mock_result_scalar(tenant),
+            _mock_result_scalar(gira),
+            _mock_result_scalar(None),  # TenantConfig query (colors/address/logo)
+        ])
+        consulente = MagicMock()
+        consulente.id = uuid4()
+        consulente.email = "t@t.com"
+        consulente.nome = "Test"
+        consulente.telefone = None
+        MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, True))
+        MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=False)
+        MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
+        MockSenhaRepo.return_value.increment_atomic = AsyncMock(return_value=42)
+        MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
+        slot = MagicMock(); slot.id = uuid4()
+        MockSlotRepo.return_value.get_by_id_for_gira = AsyncMock(return_value=slot)
+        MockSlotRepo.return_value.increment_atomic = AsyncMock(return_value=5)
+        ticket = MagicMock()
+        ticket.id = TICKET_ID
+        MockTicketRepo.return_value.create_ticket = AsyncMock(return_value=ticket)
+        req = EmitTicketRequest(name="Test", email="t@t.com", time_slot_id=slot.id)
+        with patch("src.api.v1.public.emit_ticket.email_queue"):
+            result = await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        assert result.ticket_number == "0042"
+        MockTicketRepo.return_value.create_ticket.assert_awaited_once()
+        assert MockTicketRepo.return_value.create_ticket.call_args.kwargs["time_slot_id"] == slot.id
 
     @patch("src.api.v1.public.emit_ticket.TicketRepository")
     @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")

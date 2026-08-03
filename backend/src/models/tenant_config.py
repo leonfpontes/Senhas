@@ -61,6 +61,11 @@ class TenantConfig(TimestampedModel):
     # Fila de espera feature toggle (PRO+)
     enable_waitlist: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
+    # Agendamento por horário de atendimento (habilita o seletor de horário na
+    # emissão pública). Default desabilitado — cada gira ainda decide via
+    # Gira.use_time_slots se usa ou não.
+    enable_time_slot_scheduling: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+
     # Custom metadata
     custom_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     

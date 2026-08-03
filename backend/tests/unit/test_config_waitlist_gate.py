@@ -40,6 +40,7 @@ def _mock_tenant_config():
     config.enable_estoque_log = True
     config.enable_mensalidade_associado = False
     config.enable_waitlist = False
+    config.enable_time_slot_scheduling = False
     return config
 
 

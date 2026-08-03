@@ -44,6 +44,90 @@ class TestGetNextGira:
         assert exc_info.value.status_code in (404, 500)
 
 
+class TestBuildTimeSlotsPayload:
+    async def test_returns_empty_when_gira_does_not_use_time_slots(self):
+        from src.api.v1.public.next_gira import _build_time_slots_payload
+        gira = MagicMock()
+        gira.use_time_slots = False
+        result = await _build_time_slots_payload(AsyncMock(), TENANT_ID, gira)
+        assert result == []
+
+    async def test_serializes_available_slots(self):
+        from src.api.v1.public.next_gira import _build_time_slots_payload
+        from src.services.time_slot_service import SlotAvailability
+        from datetime import time as time_cls
+
+        gira = MagicMock()
+        gira.use_time_slots = True
+        gira.id = GIRA_ID
+        slot = MagicMock()
+        slot.id = uuid.uuid4()
+        slot.horario = time_cls(20, 30)
+        availabilities = [SlotAvailability(slot=slot, vagas_disponiveis=12)]
+
+        with patch(
+            "src.api.v1.public.next_gira.time_slot_service.list_available_slots",
+            AsyncMock(return_value=availabilities),
+        ):
+            result = await _build_time_slots_payload(AsyncMock(), TENANT_ID, gira)
+
+        assert result == [{"id": str(slot.id), "horario": "20:30", "vagas_disponiveis": 12}]
+
+
+class TestGetGiraByIdTimeSlots:
+    async def test_includes_time_slots_when_enabled(self):
+        from src.api.v1.public.next_gira import get_gira_by_id
+        from src.services.time_slot_service import SlotAvailability
+        from datetime import time as time_cls
+
+        db = AsyncMock()
+        gira = MagicMock()
+        gira.id = GIRA_ID
+        gira.tenant_id = TENANT_ID
+        gira.use_time_slots = True
+        gira.data_inicio = datetime(2026, 8, 7, 20, 0, tzinfo=timezone.utc)
+        gira.max_tickets = 100
+        gira.sponsor_max_tickets = None
+        gira.release_start_at = None
+        gira.release_end_at = None
+        gira.sponsor_release_start_at = None
+        gira.sponsor_release_end_at = None
+
+        tenant = MagicMock()
+        tenant.id = TENANT_ID
+        tenant.slug = "test"
+        tenant.name = "Test Tenant"
+        tenant.config = None
+
+        senha_control = MagicMock()
+        senha_control.total_emitido = 5
+        senha_control.slots_returned = 0
+
+        tenant_config = MagicMock()
+        tenant_config.enable_waitlist = False
+
+        gira_result = MagicMock(); gira_result.scalar_one_or_none.return_value = gira
+        tenant_result = MagicMock(); tenant_result.scalar_one_or_none.return_value = tenant
+        senha_result = MagicMock(); senha_result.scalar_one_or_none.return_value = senha_control
+        tc_result = MagicMock(); tc_result.scalar_one_or_none.return_value = tenant_config
+
+        db.execute = AsyncMock(side_effect=[gira_result, tenant_result, senha_result, tc_result])
+
+        slot = MagicMock()
+        slot.id = uuid.uuid4()
+        slot.horario = time_cls(20, 0)
+        availabilities = [SlotAvailability(slot=slot, vagas_disponiveis=20)]
+
+        with patch(
+            "src.api.v1.public.next_gira.time_slot_service.list_available_slots",
+            AsyncMock(return_value=availabilities),
+        ):
+            result = await get_gira_by_id(GIRA_ID, session=db)
+
+        assert result["use_time_slots"] is True
+        assert result["time_slots"] == [{"id": str(slot.id), "horario": "20:00", "vagas_disponiveis": 20}]
+
+
 # ── services/tenant_service.py ───────────────────────────────────────────────
 
 class TestTenantService:

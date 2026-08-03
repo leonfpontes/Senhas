@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 
 from .giras_crud import router as giras_router
+from .gira_time_slots import router as gira_time_slots_router
 from .tickets_list import router as tickets_router
 from .tickets_bulk import router as bulk_router
 from .email_resend import router as email_router
@@ -28,6 +29,7 @@ from .contas_financeiras import router as contas_financeiras_router
 # Combine all admin routers
 admin_router = APIRouter()
 admin_router.include_router(giras_router)
+admin_router.include_router(gira_time_slots_router)
 admin_router.include_router(tickets_router)
 admin_router.include_router(bulk_router)
 admin_router.include_router(email_router)
