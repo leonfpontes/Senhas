@@ -356,6 +356,7 @@ async def emit_ticket(
         # case there's no fixed horário to hold and the claimed slot (if any)
         # is given back.
         time_slot_id_for_ticket = None
+        horario_desejado_str: str | None = None
         if gira.use_time_slots:
             if not body.time_slot_id:
                 await session.rollback()
@@ -375,6 +376,7 @@ async def emit_ticket(
                 try:
                     await slot_repo.increment_atomic(session, tenant.id, gira.id, slot.id)
                     time_slot_id_for_ticket = slot.id
+                    horario_desejado_str = slot.horario.strftime("%H:%M")
                 except TimeSlotFullError:
                     # Nothing has been committed yet — rollback undoes the
                     # STEP 7 SenhaControl.increment_atomic too, so gira
@@ -496,6 +498,7 @@ async def emit_ticket(
                 consulente_phone=consulente.telefone or "",
                 priority_category=priority_category,
                 recados=gira.recados,
+                horario_desejado=horario_desejado_str,
             )
             text_body = generate_plain_text_fallback(
                 ticket_number=ticket_number_formatted,
@@ -511,6 +514,7 @@ async def emit_ticket(
                 consulente_phone=consulente.telefone or "",
                 priority_category=priority_category,
                 recados=gira.recados,
+                horario_desejado=horario_desejado_str,
             )
             message = EmailMessage(
                 to_email=consulente.email,

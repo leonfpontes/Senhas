@@ -5,7 +5,7 @@ email providers, templates, tenant_service, main.py, health.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from uuid import uuid4, UUID
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, time
 from fastapi import HTTPException
 
 
@@ -507,18 +507,21 @@ class TestEmitTicketEndpoint:
         MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
         MockSenhaRepo.return_value.increment_atomic = AsyncMock(return_value=42)
         MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
-        slot = MagicMock(); slot.id = uuid4()
+        slot = MagicMock(); slot.id = uuid4(); slot.horario = time(20, 30)
         MockSlotRepo.return_value.get_by_id_for_gira = AsyncMock(return_value=slot)
         MockSlotRepo.return_value.increment_atomic = AsyncMock(return_value=5)
         ticket = MagicMock()
         ticket.id = TICKET_ID
         MockTicketRepo.return_value.create_ticket = AsyncMock(return_value=ticket)
         req = EmitTicketRequest(name="Test", email="t@t.com", time_slot_id=slot.id)
-        with patch("src.api.v1.public.emit_ticket.email_queue"):
+        with patch("src.api.v1.public.emit_ticket.email_queue") as mock_queue:
             result = await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert result.ticket_number == "0042"
         MockTicketRepo.return_value.create_ticket.assert_awaited_once()
         assert MockTicketRepo.return_value.create_ticket.call_args.kwargs["time_slot_id"] == slot.id
+        sent_message = mock_queue.enqueue.call_args.args[0].message
+        assert "20:30" in sent_message.html_body
+        assert "- Horário: 20:30" in sent_message.text_body
 
     @patch("src.api.v1.public.emit_ticket.TicketRepository")
     @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")

@@ -70,6 +70,7 @@ def _sponsor_html(
     tenant_logo_url: str,
     priority_category: Optional[str] = None,
     recados: Optional[str] = None,
+    horario_desejado: Optional[str] = None,
 ) -> str:
     gold = "#C9A84C"
     gold_light = "#B8963F"
@@ -129,6 +130,14 @@ def _sponsor_html(
             </tr>"""
 
     recados_block = _recados_block(recados, accent=gold_light, bg=light_bg, text="#333")
+
+    horario_row = ""
+    if horario_desejado:
+        horario_row = f"""
+            <tr>
+              <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Horário</td>
+              <td style="padding:6px 12px;font-size:14px;color:#333;font-weight:700;">{_esc(horario_desejado)}</td>
+            </tr>"""
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -193,13 +202,14 @@ def _sponsor_html(
         <tr>
           <td style="padding:6px 12px;font-size:14px;color:{gold};font-weight:700;white-space:nowrap;">Data</td>
           <td style="padding:6px 12px;font-size:14px;color:#333;">{_esc(gira_date)}</td>
-        </tr>{address_block}
+        </tr>{horario_row}{address_block}
       </table>
     </div>
 {recados_block}
     <!-- Notes -->
     <div style="border-top:1px solid #e0e0e0;padding-top:18px;margin-top:20px;font-size:13px;color:#777;line-height:1.8;">
-      <p style="margin:0 0 6px 0;">⏰ <strong>Validade:</strong> Apenas para a data do evento acima.</p>
+      <p style="margin:0 0 6px 0;">⏰ <strong>Validade:</strong> Apenas para a data do evento acima.</p>{f'''
+      <p style="margin:0 0 6px 0;">🕐 <strong>Horário marcado:</strong> Chegue por volta das {_esc(horario_desejado)}.</p>''' if horario_desejado else ''}
       <p style="margin:0 0 6px 0;">📋 <strong>Na entrada:</strong> Informe o número {_esc(ticket_number)} ao atendente.</p>
       <p style="margin:0;">🔐 <strong>Privacidade:</strong> Não compartilhe este email com terceiros.</p>
     </div>
@@ -237,6 +247,7 @@ def _regular_html(
     secondary_color: str,
     priority_category: Optional[str] = None,
     recados: Optional[str] = None,
+    horario_desejado: Optional[str] = None,
 ) -> str:
     pc = primary_color or "#2E7D32"
     sc = secondary_color or "#1B5E20"
@@ -294,6 +305,14 @@ def _regular_html(
 
     recados_block = _recados_block(recados, accent=pc, bg="#f9f9f9", text="#555")
 
+    horario_row = ""
+    if horario_desejado:
+        horario_row = f"""
+            <tr>
+              <td style="padding:6px 12px;font-size:14px;color:#555;font-weight:700;white-space:nowrap;">Horário</td>
+              <td style="padding:6px 12px;font-size:14px;color:#333;font-weight:700;">{_esc(horario_desejado)}</td>
+            </tr>"""
+
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -347,13 +366,14 @@ def _regular_html(
         <tr>
           <td style="padding:6px 12px;font-size:14px;color:#555;font-weight:700;white-space:nowrap;">Data</td>
           <td style="padding:6px 12px;font-size:14px;color:#333;">{_esc(gira_date)}</td>
-        </tr>{address_block}
+        </tr>{horario_row}{address_block}
       </table>
     </div>
 {recados_block}
     <!-- Notes -->
     <div style="border-top:2px solid #e0e0e0;padding-top:18px;margin-top:20px;font-size:13px;color:#888;line-height:1.8;">
-      <p style="margin:0 0 6px 0;">⏰ <strong>Validade:</strong> Apenas para a data do evento acima.</p>
+      <p style="margin:0 0 6px 0;">⏰ <strong>Validade:</strong> Apenas para a data do evento acima.</p>{f'''
+      <p style="margin:0 0 6px 0;">🕐 <strong>Horário marcado:</strong> Chegue por volta das {_esc(horario_desejado)}.</p>''' if horario_desejado else ''}
       <p style="margin:0 0 6px 0;">📋 <strong>Na entrada:</strong> Informe o número {_esc(ticket_number)} ao atendente.</p>
       <p style="margin:0;">🔐 <strong>Privacidade:</strong> Não compartilhe este email com terceiros.</p>
     </div>
@@ -395,6 +415,7 @@ def generate_ticket_emission_html(
     consulente_phone: str = "",
     priority_category: Optional[str] = None,
     recados: Optional[str] = None,
+    horario_desejado: Optional[str] = None,
 ) -> str:
     """Generate responsive HTML email for ticket emission.
 
@@ -403,6 +424,8 @@ def generate_ticket_emission_html(
                        PREGNANT_LACTATING_OR_INFANT|REDUCED_MOBILITY, or None.
     recados: optional free text set on the Gira (investment, donation items,
              notices) — rendered as its own block only when non-blank.
+    horario_desejado: "HH:MM" horário the consulente picked (agendamento por
+             horário) — rendered as its own row only when set.
     """
     address = tenant_address or gira_location or ""
 
@@ -420,6 +443,7 @@ def generate_ticket_emission_html(
             tenant_logo_url=tenant_logo_url,
             priority_category=priority_category,
             recados=recados,
+            horario_desejado=horario_desejado,
         )
 
     return _regular_html(
@@ -437,6 +461,7 @@ def generate_ticket_emission_html(
         secondary_color=secondary_color or tenant_color,
         priority_category=priority_category,
         recados=recados,
+        horario_desejado=horario_desejado,
     )
 
 
@@ -455,6 +480,7 @@ def generate_plain_text_fallback(
     consulente_phone: str = "",
     priority_category: Optional[str] = None,
     recados: Optional[str] = None,
+    horario_desejado: Optional[str] = None,
 ) -> str:
     """Generate plain text fallback for email clients that don't support HTML."""
     address = tenant_address or gira_location or ""
@@ -470,6 +496,7 @@ def generate_plain_text_fallback(
         f"\n- Prioridade: {_PRIORITY_LABELS.get(priority_category, priority_category)}"
         if priority_category else ""
     )
+    horario_line = f"\n- Horário: {horario_desejado}" if horario_desejado else ""
     recados_section = (
         f"\nRecados:\n{recados.strip()}\n" if recados and recados.strip() else ""
     )
@@ -488,7 +515,7 @@ Seus Dados:
 
 Detalhes da Gira:
 - Gira: {gira_name}
-- Data: {gira_date}
+- Data: {gira_date}{horario_line}
 - Endereço: {address or 'Não informado'}
 {maps_line}{recados_section}
 Para resgatar sua senha, acesse:

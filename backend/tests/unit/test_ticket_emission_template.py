@@ -125,3 +125,53 @@ class TestPlainTextRecadosBlock:
         )
         assert "Recados:" in text
         assert "Traga uma vela branca." in text
+
+
+class TestHtmlHorarioDesejadoRegular:
+    def test_row_appears_with_horario(self):
+        html = generate_ticket_emission_html(**_BASE_KWARGS, horario_desejado="20:30")
+        assert "Horário" in html
+        assert "20:30" in html
+
+    def test_reminder_note_appears_with_horario(self):
+        html = generate_ticket_emission_html(**_BASE_KWARGS, horario_desejado="20:30")
+        assert "Horário marcado" in html
+        assert "Chegue por volta das 20:30" in html
+
+    def test_row_absent_when_none(self):
+        html = generate_ticket_emission_html(**_BASE_KWARGS, horario_desejado=None)
+        assert "Horário marcado" not in html
+
+    def test_row_absent_when_omitted(self):
+        html = generate_ticket_emission_html(**_BASE_KWARGS)
+        assert "Horário marcado" not in html
+
+
+class TestHtmlHorarioDesejadoSponsor:
+    def test_row_appears_with_horario(self):
+        html = generate_ticket_emission_html(**_BASE_KWARGS, is_sponsor=True, horario_desejado="21:00")
+        assert "Horário" in html
+        assert "21:00" in html
+        assert "Chegue por volta das 21:00" in html
+
+    def test_row_absent_when_none(self):
+        html = generate_ticket_emission_html(**_BASE_KWARGS, is_sponsor=True, horario_desejado=None)
+        assert "Horário marcado" not in html
+
+
+class TestPlainTextHorarioDesejado:
+    def test_line_appears_with_horario(self):
+        text = generate_plain_text_fallback(**_TEXT_KWARGS, horario_desejado="20:30")
+        assert "- Horário: 20:30" in text
+
+    def test_line_absent_when_none(self):
+        text = generate_plain_text_fallback(**_TEXT_KWARGS, horario_desejado=None)
+        assert "- Horário:" not in text
+
+    def test_line_absent_when_omitted(self):
+        text = generate_plain_text_fallback(**_TEXT_KWARGS)
+        assert "- Horário:" not in text
+
+    def test_sponsor_variant_also_includes_horario(self):
+        text = generate_plain_text_fallback(**_TEXT_KWARGS, is_sponsor=True, horario_desejado="19:45")
+        assert "- Horário: 19:45" in text
