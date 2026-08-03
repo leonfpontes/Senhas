@@ -29,6 +29,7 @@ class _ComparableMock:
 
 class _MockGiraClass:
     """Mock Gira model class with attributes that support comparisons."""
+    id = _ComparableMock()
     tenant_id = _ComparableMock()
     is_active = _ComparableMock()
     release_start_at = _ComparableMock()
@@ -120,6 +121,57 @@ class TestEmitTicketEndpoint:
         with pytest.raises(HTTPException) as exc:
             await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 404
+
+    @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
+    @patch("src.api.v1.public.emit_ticket.select")
+    async def test_emit_ticket_gira_id_pins_the_resolution_query(self, mock_select):
+        """Without gira_id, emit-ticket picks 'whichever gira is open now' for
+        the tenant — ambiguous when two giras have overlapping release
+        windows. Passing gira_id (as the direct /public/gira/{id} page does)
+        must add an extra Gira.id == gira_id condition to the query so
+        emission always lands on the gira the caller is actually looking at,
+        never a different one."""
+        from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest
+
+        mock_select.return_value = MagicMock(
+            where=MagicMock(return_value=MagicMock(
+                order_by=MagicMock(return_value=MagicMock(
+                    limit=MagicMock(return_value=MagicMock())
+                ))
+            ))
+        )
+        db = _mock_db()
+        tenant = MagicMock()
+        tenant.id = TENANT_ID
+        tenant.slug = "test"
+        db.execute = AsyncMock(side_effect=[
+            _mock_result_scalar(tenant),
+            _mock_result_scalar(None),
+        ])
+        req = EmitTicketRequest(name="Test", email="t@t.com")
+
+        captured = {}
+
+        def spy_and(*args, **kwargs):
+            captured["args"] = args
+            return MagicMock()
+
+        with patch("src.api.v1.public.emit_ticket.and_", spy_and):
+            with pytest.raises(HTTPException):
+                await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        without_gira_id = len(captured["args"])
+
+        db2 = _mock_db()
+        db2.execute = AsyncMock(side_effect=[
+            _mock_result_scalar(tenant),
+            _mock_result_scalar(None),
+        ])
+        with patch("src.api.v1.public.emit_ticket.and_", spy_and):
+            with pytest.raises(HTTPException):
+                await emit_ticket(_make_starlette_request(), "test", "regular", req, db2, gira_id=uuid4())
+        with_gira_id = len(captured["args"])
+
+        assert with_gira_id == without_gira_id + 1
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
     @patch("src.api.v1.public.emit_ticket.TicketRepository")

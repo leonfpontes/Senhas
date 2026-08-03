@@ -172,7 +172,7 @@ export default function PublicGiraPage() {
     if (gira.use_time_slots && !selectedTimeSlotId) return;
     setSubmitting(true);
     try {
-      const res = await apiClient.post(`/api/v1/public/emit-ticket?tenant_slug=${gira.tenant_slug}&tipo=${tipo}`, {
+      const res = await apiClient.post(`/api/v1/public/emit-ticket?tenant_slug=${gira.tenant_slug}&tipo=${tipo}&gira_id=${gira.id}`, {
         name: nome,
         email,
         phone: telefone,

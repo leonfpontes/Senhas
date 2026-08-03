@@ -119,6 +119,7 @@ async def emit_ticket(
     tipo: str = "regular",
     body: EmitTicketRequest = ...,
     session: AsyncSession = Depends(get_db),
+    gira_id: uuid.UUID | None = None,
 ):
     """Emit a new ticket for public consultee
 
@@ -135,6 +136,11 @@ async def emit_ticket(
 
     Path Parameters:
         tenant_slug: Tenant identifier (e.g., "espiritismo-sp")
+        gira_id: Optional. Pins emission to this exact gira. Always pass this
+            when the caller already knows which gira it's showing (e.g. the
+            direct /public/gira/{id} link) — without it, this endpoint picks
+            "whichever gira has an open release window right now" for the
+            tenant, which is ambiguous when two giras are open at once.
 
     Body:
         {
@@ -196,7 +202,15 @@ async def emit_ticket(
             )
 
         # === STEP 2: Validate Gira Active and Has Capacity ===
+        # gira_id pins emission to the exact gira the caller is looking at
+        # (e.g. the direct /public/gira/{id} link). Without it — legacy
+        # entry points that only know tenant+tipo — we fall back to
+        # resolving whichever gira has an open release window right now.
+        # That fallback is ambiguous when two giras are open at once, so any
+        # caller that already knows the gira MUST pass gira_id.
         now = datetime.now(timezone.utc)
+
+        gira_id_filter = [Gira.id == gira_id] if gira_id is not None else []
 
         if is_sponsor:
             # Sponsor: use sponsor emission window
@@ -210,6 +224,7 @@ async def emit_ticket(
                         Gira.sponsor_release_start_at <= now,
                         Gira.sponsor_release_end_at >= now,
                         Gira.sponsor_max_tickets.isnot(None),
+                        *gira_id_filter,
                     )
                 )
                 .order_by(Gira.sponsor_release_start_at.asc())
@@ -226,6 +241,7 @@ async def emit_ticket(
                         Gira.deleted_at.is_(None),
                         Gira.release_start_at <= now,  # Has started
                         Gira.release_end_at >= now,  # Not ended
+                        *gira_id_filter,
                     )
                 )
                 .order_by(Gira.release_start_at.asc())
