@@ -29,12 +29,13 @@ const A4_WIDTH_PX = 794;
 const A4_HEIGHT_PX = 1123; // 297mm @ 96dpi (≈ 1122.5)
 const PAGE_PADDING_H = 36; // ~10mm
 const PAGE_PADDING_V = 28; // ~7.5mm
-const ROWS_PER_PAGE = 21; // linhas de tabela por página. Testado para garantir espaço mesmo se
-// TODAS as linhas tiverem observação longa (2 linhas via line-clamp) — ver tdObsStyle abaixo.
-// A coluna de Observações trunca em 2 linhas propositalmente: sem isso, uma gira onde a
-// maioria dos consulentes tem observação extensa faz o texto ultrapassar a altura fixa da
-// página e o `overflow: hidden` corta linhas da tabela silenciosamente (era o caso mesmo
-// antes deste aumento de fonte, com a constante antiga de 28 linhas).
+const ROWS_PER_PAGE = 16; // linhas de tabela por página. Medido no navegador (altura real de
+// linha ≈57px com fonte 14 e clamp de 2 linhas) para garantir espaço mesmo se TODAS as
+// linhas tiverem 2 linhas de texto em Nome/Médium/Cambone/Observações — ver clamp2Style
+// abaixo. Essas colunas quebram linha em vez de truncar com "...", para não perder
+// informação impressa; por isso o orçamento de altura da linha assume o pior caso (2
+// linhas) em qualquer uma delas. Sem essa margem, o
+// `overflow: hidden` da página cortaria linhas da tabela silenciosamente.
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 export interface PdfTicket {
@@ -310,7 +311,7 @@ function FooterTable({
         borderTop: '1px solid #e0e0e0',
         display: 'flex',
         justifyContent: 'space-between',
-        fontSize: 11,
+        fontSize: 12,
         color: '#9e9e9e',
       }}
     >
@@ -627,9 +628,9 @@ function TablePage({
   totalPages: number;   // total geral incluindo dashboard
 }) {
   const thStyle: React.CSSProperties = {
-    padding: '6px 7px',
+    padding: '7px 7px',
     textAlign: 'left',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 700,
     color: '#555',
     textTransform: 'uppercase',
@@ -640,11 +641,25 @@ function TablePage({
   };
 
   const tdStyle: React.CSSProperties = {
-    padding: '6px 7px',
-    fontSize: 12,
+    padding: '7px 7px',
+    fontSize: 14,
     borderBottom: '1px solid #f0f0f0',
     verticalAlign: 'top',
   };
+
+  // Colunas que priorizam quebra de linha sobre truncamento: em vez de cortar o texto
+  // com "..." em 1 linha, deixa quebrar em até 2 linhas. Mantém o mesmo orçamento de
+  // altura (2 linhas) usado pela coluna Observações, para não desalinhar ROWS_PER_PAGE.
+  // O clamp fica numa <div> interna, não no <td> diretamente: aplicar `display:
+  // -webkit-box` num <td> tira a célula do algoritmo de table-layout e quebra o
+  // alinhamento das colunas quando mais de uma célula da mesma linha usa o hack.
+  const clamp2Style: React.CSSProperties = {
+    wordBreak: 'break-word',
+    overflow: 'hidden',
+    display: '-webkit-box',
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: 2,
+  } as React.CSSProperties;
 
   const currentPage = pageIndex + 2; // +1 para 1-based, +1 pelo dashboard
 
@@ -687,15 +702,8 @@ function TablePage({
                 <td style={{ ...tdStyle, fontWeight: 600, whiteSpace: 'nowrap', color: '#333' }}>
                   #{String(t.numero).padStart(4, '0')}
                 </td>
-                <td
-                  style={{
-                    ...tdStyle,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {t.consulente_nome || '—'}
+                <td style={tdStyle}>
+                  <div style={clamp2Style}>{t.consulente_nome || '—'}</div>
                 </td>
                 <td style={tdStyle}>
                   <span
@@ -713,40 +721,14 @@ function TablePage({
                     {tag.label}
                   </span>
                 </td>
-                <td
-                  style={{
-                    ...tdStyle,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    color: '#555',
-                  }}
-                >
-                  {t.medium_nome || '—'}
+                <td style={{ ...tdStyle, color: '#555' }}>
+                  <div style={clamp2Style}>{t.medium_nome || '—'}</div>
                 </td>
-                <td
-                  style={{
-                    ...tdStyle,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    color: '#555',
-                  }}
-                >
-                  {t.cambone_nome || '—'}
+                <td style={{ ...tdStyle, color: '#555' }}>
+                  <div style={clamp2Style}>{t.cambone_nome || '—'}</div>
                 </td>
-                <td
-                  style={{
-                    ...tdStyle,
-                    color: '#555',
-                    wordBreak: 'break-word',
-                    overflow: 'hidden',
-                    display: '-webkit-box',
-                    WebkitBoxOrient: 'vertical',
-                    WebkitLineClamp: 2,
-                  } as React.CSSProperties}
-                >
-                  {t.atendimento_descricao || '—'}
+                <td style={{ ...tdStyle, color: '#555' }}>
+                  <div style={clamp2Style}>{t.atendimento_descricao || '—'}</div>
                 </td>
               </tr>
             );
