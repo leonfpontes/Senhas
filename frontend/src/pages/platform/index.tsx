@@ -249,7 +249,7 @@ const PlatformDashboard: React.FC = () => {
                   />
                 }
               >
-                Sem atividade nos últimos 30d — risco de churn · ver no Observatório
+                Sem emissão de senhas há 15+ dias — risco de churn · ver no Observatório
               </Alert>
             )}
           </Box>

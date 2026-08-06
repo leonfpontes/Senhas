@@ -10,6 +10,7 @@ from src.api.dependencies import get_current_user
 from src.models import User, UserRole, Tenant, Ticket, Subscription, SubscriptionStatus
 from src.models.giras import Gira
 from src.models.subscriptions import PlanType
+from src.services.tenant_retention_service import get_at_risk_tenants
 
 router = APIRouter(prefix="/api/v1/platform/dashboard", tags=["platform-dashboard"])
 
@@ -148,7 +149,6 @@ async def _plans_distribution(db: AsyncSession) -> list:
 
 async def _alerts(db: AsyncSession) -> dict:
     """Compute actionable alert counts for the super-admin."""
-    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
 
     # Tenants that are not deleted but are inactive (disabled)
     inactive_result = await db.execute(
@@ -161,29 +161,11 @@ async def _alerts(db: AsyncSession) -> dict:
     )
     inactive_tenants = inactive_result.scalar() or 0
 
-    # Active tenants with zero tickets emitted in the last 30 days
-    # (subquery: tenant IDs that have at least one ticket in the window)
-    active_with_tickets = (
-        select(Ticket.tenant_id)
-        .where(
-            and_(
-                Ticket.created_at >= thirty_days_ago,
-                Ticket.deleted_at.is_(None),
-            )
-        )
-        .distinct()
-        .scalar_subquery()
-    )
-    no_activity_result = await db.execute(
-        select(func.count()).select_from(Tenant).where(
-            and_(
-                Tenant.deleted_at.is_(None),
-                Tenant.is_active.is_(True),
-                Tenant.id.not_in(active_with_tickets),
-            )
-        )
-    )
-    no_activity_30d = no_activity_result.scalar() or 0
+    # Same definition of "at risk of churn" used by the Tenant Observatory's
+    # retention list, so the dashboard badge count always matches what
+    # clicking through to the observatory actually shows.
+    at_risk_tenants = await get_at_risk_tenants(db)
+    no_activity_30d = len(at_risk_tenants)
 
     return {
         "inactive_tenants": inactive_tenants,
