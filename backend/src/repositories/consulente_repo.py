@@ -7,10 +7,13 @@ from typing import Optional
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+import logging
 import re
 
 from src.models.consulentes import Consulente
 from src.repositories.base import BaseRepository
+
+logger = logging.getLogger(__name__)
 
 
 class ConsulenteRepository(BaseRepository[Consulente]):
@@ -105,14 +108,31 @@ class ConsulenteRepository(BaseRepository[Consulente]):
         """
         normalized_email = self.normalize_email(email)
 
-        query = select(Consulente).where(
-            and_(
-                Consulente.tenant_id == tenant_id,
-                Consulente.email_normalized == normalized_email,
+        # email_normalized only has a plain index (no unique constraint — see
+        # migration 004), so duplicate consulente rows for the same
+        # tenant+email can exist from historical data. scalar_one_or_none()
+        # would raise MultipleResultsFound and 500 the whole emission for
+        # anyone whose email happens to be duplicated, so pick the oldest row
+        # deterministically instead of crashing.
+        query = (
+            select(Consulente)
+            .where(
+                and_(
+                    Consulente.tenant_id == tenant_id,
+                    Consulente.email_normalized == normalized_email,
+                )
             )
+            .order_by(Consulente.created_at.asc())
+            .limit(2)
         )
         result = await session.execute(query)
-        return result.scalar_one_or_none()
+        rows = result.scalars().all()
+        if len(rows) > 1:
+            logger.warning(
+                "Duplicate consulente rows for tenant_id=%s email=%s — using oldest (id=%s)",
+                tenant_id, normalized_email, rows[0].id,
+            )
+        return rows[0] if rows else None
 
     async def get_by_id_with_audit(
         self,

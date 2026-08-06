@@ -262,7 +262,7 @@ class TestConsulenteRepository:
         r, _ = repo
         session = _mock_db()
         consulente = MagicMock()
-        session.execute.return_value = _mock_result_scalar(consulente)
+        session.execute.return_value = _mock_result_scalars([consulente])
         result = await r.get_by_email(session, 1, "test@mail.com")
         assert result is consulente
 
@@ -272,9 +272,25 @@ class TestConsulenteRepository:
     async def test_get_by_email_not_found(self, repo):
         r, _ = repo
         session = _mock_db()
-        session.execute.return_value = _mock_result_scalar(None)
+        session.execute.return_value = _mock_result_scalars([])
         result = await r.get_by_email(session, 1, "no@mail.com")
         assert result is None
+
+    @patch("src.repositories.consulente_repo.Consulente", _MockConsulenteModel)
+    @patch("src.repositories.consulente_repo.select", _mock_select)
+    @patch("src.repositories.consulente_repo.and_", _mock_and)
+    async def test_get_by_email_duplicate_rows_returns_oldest(self, repo):
+        """Historical data can have >1 consulente row for the same tenant+email
+        (email_normalized has no unique constraint). get_by_email must not blow
+        up with MultipleResultsFound — it should deterministically return the
+        oldest row instead of crashing ticket emission for that person."""
+        r, _ = repo
+        session = _mock_db()
+        oldest = MagicMock()
+        newest = MagicMock()
+        session.execute.return_value = _mock_result_scalars([oldest, newest])
+        result = await r.get_by_email(session, 1, "dup@mail.com")
+        assert result is oldest
 
     # get_by_id_with_audit
     @patch("src.repositories.consulente_repo.selectinload", lambda *a, **kw: MagicMock())

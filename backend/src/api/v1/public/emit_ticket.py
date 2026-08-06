@@ -390,6 +390,16 @@ async def emit_ticket(
                         status_code=410,
                         detail="Este horário não tem mais vagas disponíveis. Escolha outro horário.",
                     )
+                except ValueError:
+                    # The slot was deleted between get_by_id_for_gira above and
+                    # the SELECT FOR UPDATE in increment_atomic — e.g. an admin
+                    # edited/removed the horário while this consulente had the
+                    # form open. Same rollback rationale as above.
+                    await session.rollback()
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Este horário deixou de estar disponível. Atualize a página e escolha outro horário.",
+                    )
 
         # === STEP 8: Create Ticket Record ===
         ticket_number_formatted = f"P{ticket_number_int:03d}" if is_sponsor else f"{ticket_number_int:04d}"

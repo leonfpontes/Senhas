@@ -528,6 +528,46 @@ class TestEmitTicketEndpoint:
     @patch("src.api.v1.public.emit_ticket.select")
     @patch("src.api.v1.public.emit_ticket.and_")
     @patch("src.api.v1.public.emit_ticket.time_slot_scheduling_enabled_for_tenant", new_callable=AsyncMock)
+    async def test_emit_ticket_time_slot_deleted_mid_flight(
+        self, mock_plan_check, mock_and, mock_select, MockConsRepo, MockSenhaRepo, MockTicketRepo, MockSlotRepo,
+    ):
+        """Slot existed at get_by_id_for_gira but was deleted before increment_atomic's
+        SELECT FOR UPDATE (e.g. an admin edited/removed the horário concurrently).
+        increment_atomic raises ValueError in this case — must surface as a 409
+        with an actionable message, not fall through to the generic 500 handler."""
+        from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest
+        mock_plan_check.return_value = True
+        db = _mock_db()
+        tenant = MagicMock(); tenant.id = TENANT_ID; tenant.slug = "test"
+        gira = MagicMock(); gira.id = GIRA_ID; gira.max_tickets = 100; gira.use_time_slots = True
+        db.execute = AsyncMock(side_effect=[
+            _mock_result_scalar(tenant),
+            _mock_result_scalar(gira),
+        ])
+        consulente = MagicMock(); consulente.id = uuid4()
+        MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, True))
+        MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=False)
+        MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
+        MockSenhaRepo.return_value.increment_atomic = AsyncMock(return_value=1)
+        MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
+        slot = MagicMock(); slot.id = uuid4()
+        MockSlotRepo.return_value.get_by_id_for_gira = AsyncMock(return_value=slot)
+        MockSlotRepo.return_value.increment_atomic = AsyncMock(side_effect=ValueError("slot not found"))
+        req = EmitTicketRequest(name="Test", email="t@t.com", time_slot_id=slot.id)
+        with pytest.raises(HTTPException) as exc:
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        assert exc.value.status_code == 409
+        db.rollback.assert_awaited()
+        MockTicketRepo.return_value.create_ticket.assert_not_called()
+
+    @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
+    @patch("src.api.v1.public.emit_ticket.GiraTimeSlotRepository")
+    @patch("src.api.v1.public.emit_ticket.TicketRepository")
+    @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")
+    @patch("src.api.v1.public.emit_ticket.ConsulenteRepository")
+    @patch("src.api.v1.public.emit_ticket.select")
+    @patch("src.api.v1.public.emit_ticket.and_")
+    @patch("src.api.v1.public.emit_ticket.time_slot_scheduling_enabled_for_tenant", new_callable=AsyncMock)
     async def test_emit_ticket_time_slot_success(
         self, mock_plan_check, mock_and, mock_select, MockConsRepo, MockSenhaRepo, MockTicketRepo, MockSlotRepo,
     ):
