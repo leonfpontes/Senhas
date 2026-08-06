@@ -634,9 +634,11 @@ class TestEmitTicketEndpoint:
         db = _mock_db()
         db.execute = AsyncMock(side_effect=RuntimeError("DB down"))
         req = EmitTicketRequest(name="Test", email="t@t.com")
-        with pytest.raises(HTTPException) as exc:
-            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        with patch("src.api.v1.public.emit_ticket.sentry_sdk") as mock_sentry:
+            with pytest.raises(HTTPException) as exc:
+                await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 500
+        mock_sentry.capture_exception.assert_called_once()
 
     # _send_ticket_email was replaced by email_queue.enqueue() — tests skipped
     @pytest.mark.skip(reason="_send_ticket_email removed; email now via email_queue.enqueue")
@@ -707,9 +709,11 @@ class TestResendEmailEndpoint:
         db = _mock_db()
         db.execute = AsyncMock(side_effect=RuntimeError("boom"))
         req = ResendTicketEmailRequest(email="t@t.com")
-        with pytest.raises(HTTPException) as exc:
-            await resend_ticket_email("test", req, db)
+        with patch("src.api.v1.public.resend_email.sentry_sdk") as mock_sentry:
+            with pytest.raises(HTTPException) as exc:
+                await resend_ticket_email("test", req, db)
         assert exc.value.status_code == 500
+        mock_sentry.capture_exception.assert_called_once()
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

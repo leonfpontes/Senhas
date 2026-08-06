@@ -5,6 +5,7 @@ Handles lookup, upsert, and normalization of email/phone for deduplication
 
 from typing import Optional
 from sqlalchemy import select, and_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 import logging
@@ -108,18 +109,22 @@ class ConsulenteRepository(BaseRepository[Consulente]):
         """
         normalized_email = self.normalize_email(email)
 
-        # email_normalized only has a plain index (no unique constraint — see
-        # migration 004), so duplicate consulente rows for the same
-        # tenant+email can exist from historical data. scalar_one_or_none()
-        # would raise MultipleResultsFound and 500 the whole emission for
-        # anyone whose email happens to be duplicated, so pick the oldest row
-        # deterministically instead of crashing.
+        # Excludes soft-deleted rows: a prior consulente who requested LGPD
+        # erasure shouldn't be resurrected/matched by a new signup with the
+        # same email. Migration 052 enforces uniqueness on this same shape
+        # (tenant_id, email_normalized) among active rows — this query must
+        # stay aligned with it. Historical data from before that migration
+        # could still carry duplicates among active rows in tenants that
+        # weren't caught by the backfill, so this stays defensive
+        # (order_by + limit(2) + oldest-wins) rather than assuming
+        # exactly-one-or-none.
         query = (
             select(Consulente)
             .where(
                 and_(
                     Consulente.tenant_id == tenant_id,
                     Consulente.email_normalized == normalized_email,
+                    Consulente.deleted_at.is_(None),
                 )
             )
             .order_by(Consulente.created_at.asc())
@@ -279,9 +284,20 @@ class ConsulenteRepository(BaseRepository[Consulente]):
                     await session.flush()
             return (existing, False)
 
-        # Create new
-        consulente = await self.create_consulente(session, tenant_id, name, email, phone)
-        return (consulente, True)
+        # Create new. Two concurrent requests for the same not-yet-seen email
+        # can both pass the get_by_email check above before either commits —
+        # the unique index from migration 052 (tenant_id, email_normalized
+        # among active rows) catches that race at the DB level. The loser
+        # re-fetches instead of 500ing the consulente's own request.
+        try:
+            consulente = await self.create_consulente(session, tenant_id, name, email, phone)
+            return (consulente, True)
+        except IntegrityError:
+            await session.rollback()
+            existing = await self.get_by_email(session, tenant_id, email)
+            if existing:
+                return (existing, False)
+            raise
 
     async def list_by_tenant(
         self,

@@ -12,6 +12,8 @@ from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
+import logging
+import sentry_sdk
 
 from src.core.database import get_db
 from src.models.giras import Gira
@@ -19,6 +21,7 @@ from src.models.tenants import Tenant
 from src.models.senha_controls import SenhaControl
 from src.services import waitlist_service, time_slot_service
 
+logger = logging.getLogger("senhas")
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
 
@@ -212,6 +215,8 @@ async def get_next_gira(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception(f"Unexpected error in get_next_gira: {e}")
+        sentry_sdk.capture_exception(e)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -258,6 +263,6 @@ async def get_gira_by_id(
     except HTTPException:
         raise
     except Exception as e:
-        import logging
-        logging.getLogger("senhas").exception(f"get_gira_by_id error: {e}")
+        logger.exception(f"get_gira_by_id error: {e}")
+        sentry_sdk.capture_exception(e)
         raise HTTPException(status_code=500, detail="Internal server error")

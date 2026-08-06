@@ -43,6 +43,34 @@ class TestGetNextGira:
         # The function catches internal errors as 500
         assert exc_info.value.status_code in (404, 500)
 
+    async def test_unexpected_error_reaches_sentry(self):
+        from src.api.v1.public.next_gira import get_next_gira
+        from fastapi import HTTPException
+
+        db = AsyncMock()
+        db.execute = AsyncMock(side_effect=RuntimeError("boom"))
+
+        with patch("src.api.v1.public.next_gira.sentry_sdk") as mock_sentry:
+            with pytest.raises(HTTPException) as exc_info:
+                await get_next_gira("test", session=db)
+        assert exc_info.value.status_code == 500
+        mock_sentry.capture_exception.assert_called_once()
+
+
+class TestGetGiraByIdUnexpectedError:
+    async def test_unexpected_error_reaches_sentry(self):
+        from src.api.v1.public.next_gira import get_gira_by_id
+        from fastapi import HTTPException
+
+        db = AsyncMock()
+        db.execute = AsyncMock(side_effect=RuntimeError("boom"))
+
+        with patch("src.api.v1.public.next_gira.sentry_sdk") as mock_sentry:
+            with pytest.raises(HTTPException) as exc_info:
+                await get_gira_by_id(GIRA_ID, session=db)
+        assert exc_info.value.status_code == 500
+        mock_sentry.capture_exception.assert_called_once()
+
 
 class TestResolveTimeSlots:
     async def test_returns_empty_when_gira_does_not_use_time_slots(self):

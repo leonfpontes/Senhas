@@ -224,9 +224,9 @@ async def _top_features(db: AsyncSession) -> list[dict]:
     return sorted(tenants.values(), key=lambda t: t["total_acoes"], reverse=True)[:20]
 
 
-def _errors_by_tenant(window_minutes: int) -> list[dict]:
-    """Agrega erros recentes do monitor in-memory por tenant."""
-    errors = error_alert_service.recent_errors(window_minutes)
+async def _errors_by_tenant(window_minutes: int) -> list[dict]:
+    """Agrega erros recentes do monitor de erros por tenant."""
+    errors = await error_alert_service.recent_errors(window_minutes)
     by_tenant: dict[str, dict] = {}
     for e in errors:
         key = e.tenant_id or "__anonymous__"
@@ -260,7 +260,7 @@ async def get_tenant_observatory(
     upcoming_giras = await _upcoming_giras(db)
     upcoming_cursos = await _upcoming_cursos(db)
     top_features = await _top_features(db)
-    errors = _errors_by_tenant(window_minutes=60)
+    errors = await _errors_by_tenant(window_minutes=60)
 
     retention_summary = {
         "total_at_risk": len(retention),

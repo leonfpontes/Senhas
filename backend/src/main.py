@@ -209,6 +209,7 @@ def create_app() -> FastAPI:
     async def general_exception_handler(request: Request, exc: Exception):
         """Handle uncaught exceptions."""
         logger.exception(f"Uncaught exception: {exc}")
+        sentry_sdk.capture_exception(exc)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={

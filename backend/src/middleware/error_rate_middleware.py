@@ -16,10 +16,13 @@ logger = logging.getLogger("senhas.error_rate")
 async def error_rate_middleware(request: Request, call_next: Callable) -> Response:
     response = await call_next(request)
 
-    if response.status_code >= 500 and settings.ALERT_EMAIL:
+    if response.status_code >= 500:
+        # Recorded unconditionally so /platform/observatory has visibility
+        # into every 5xx, independent of whether email alerting is set up.
+        # Sending the actual alert email still requires ALERT_EMAIL.
         tenant_id = getattr(request.state, "tenant_id", None)
         user_id = getattr(request.state, "user_id", None)
-        error_alert_service.record_error(
+        await error_alert_service.record_error(
             method=request.method,
             path=request.url.path,
             status_code=response.status_code,
@@ -27,12 +30,12 @@ async def error_rate_middleware(request: Request, call_next: Callable) -> Respon
             user_id=str(user_id) if user_id else None,
         )
 
-        if error_alert_service.should_alert(
+        if settings.ALERT_EMAIL and await error_alert_service.should_alert(
             threshold=settings.ERROR_RATE_THRESHOLD,
             window_minutes=settings.ERROR_RATE_WINDOW_MINUTES,
             cooldown_minutes=settings.ERROR_ALERT_COOLDOWN_MINUTES,
         ):
-            error_alert_service.mark_alert_sent()
+            await error_alert_service.mark_alert_sent(settings.ERROR_ALERT_COOLDOWN_MINUTES)
             asyncio.create_task(_send_alert())
 
     return response
@@ -44,7 +47,7 @@ async def _send_alert() -> None:
         from ..services.email.base import EmailMessage
         from ..services.error_alert_service import build_alert_email_html
 
-        errors = error_alert_service.recent_errors(settings.ERROR_RATE_WINDOW_MINUTES)
+        errors = await error_alert_service.recent_errors(settings.ERROR_RATE_WINDOW_MINUTES)
         html = build_alert_email_html(
             errors=errors,
             window_minutes=settings.ERROR_RATE_WINDOW_MINUTES,

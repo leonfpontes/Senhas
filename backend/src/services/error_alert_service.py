@@ -1,23 +1,39 @@
 """Monitor de taxa de erro 5xx com alerta por email.
 
-Conta erros por janela de tempo (in-memory). Quando o threshold é atingido,
-envia email para ALERT_EMAIL e aguarda o cooldown antes de enviar novamente.
-Funciona independente do Sentry — não consome cota do plano Free.
+Conta erros por janela de tempo e, quando o threshold é atingido, envia email
+para ALERT_EMAIL e aguarda o cooldown antes de enviar novamente. Funciona
+independente do Sentry — não consome cota do plano Free.
+
+Armazenamento: quando REDIS_URL está configurado, os eventos ficam num
+sorted set no Redis (score = timestamp), compartilhado entre os workers do
+backend (--workers 2) e entre instâncias — sem isso, cada worker tinha sua
+própria cópia em memória e o Observatório perdia eventos dependendo de qual
+worker atendeu a requisição de leitura. Sem REDIS_URL (dev local sem Redis),
+cai para um deque em memória por processo — mesmo comportamento de antes,
+só que atrás da mesma interface assíncrona.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import uuid
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
+from src.core.config import settings
+
 logger = logging.getLogger("senhas.error_alert")
 
 _TZ_BRT = ZoneInfo("America/Sao_Paulo")
 _SENTRY_PROJECT_URL = "https://lfpontes-consultoria-em-inform.sentry.io/issues/?project=python-fastapi"
+
+_REDIS_EVENTS_KEY = "senhas:error_alert:events"
+_REDIS_COOLDOWN_KEY = "senhas:error_alert:cooldown"
+_MAX_EVENTS_RETAINED = 1000  # safety cap so an error storm can't grow the set unbounded
 
 
 @dataclass
@@ -31,13 +47,23 @@ class ErrorEvent:
 
 
 class ErrorAlertService:
-    """Singleton para rastrear erros 5xx e disparar alertas."""
+    """Rastreia erros 5xx e decide quando disparar alerta.
+
+    Interface assíncrona em ambos os backends (Redis ou in-memory) para que
+    os chamadores não precisem se importar com qual está ativo.
+    """
 
     def __init__(self) -> None:
+        self._redis = None
+        if settings.REDIS_URL:
+            import redis.asyncio as redis
+            self._redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+        # Fallback in-memory (dev local sem Redis) — só usado quando self._redis é None.
         self._errors: deque[ErrorEvent] = deque()
         self._last_alert_sent: Optional[datetime] = None
 
-    def record_error(
+    async def record_error(
         self,
         method: str,
         path: str,
@@ -45,15 +71,31 @@ class ErrorAlertService:
         tenant_id: str | None,
         user_id: str | None,
     ) -> None:
+        now = datetime.now(_TZ_BRT)
         event = ErrorEvent(
-            timestamp=datetime.now(_TZ_BRT),
+            timestamp=now,
             method=method,
             path=path,
             status_code=status_code,
             tenant_id=tenant_id,
             user_id=user_id,
         )
-        self._errors.append(event)
+        if self._redis is not None:
+            member = json.dumps({
+                "timestamp": now.isoformat(),
+                "method": method,
+                "path": path,
+                "status_code": status_code,
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "nonce": uuid.uuid4().hex,  # keeps identical events from colliding in the sorted set
+            })
+            async with self._redis.pipeline() as pipe:
+                pipe.zadd(_REDIS_EVENTS_KEY, {member: now.timestamp()})
+                pipe.zremrangebyrank(_REDIS_EVENTS_KEY, 0, -_MAX_EVENTS_RETAINED - 1)
+                await pipe.execute()
+        else:
+            self._errors.append(event)
         logger.debug("Erro %s registrado (path=%s tenant=%s)", status_code, path, tenant_id)
 
     def _prune_old(self, window: timedelta) -> None:
@@ -61,19 +103,46 @@ class ErrorAlertService:
         while self._errors and self._errors[0].timestamp < cutoff:
             self._errors.popleft()
 
-    def should_alert(self, threshold: int, window_minutes: int, cooldown_minutes: int) -> bool:
-        self._prune_old(timedelta(minutes=window_minutes))
-        if len(self._errors) < threshold:
+    async def should_alert(self, threshold: int, window_minutes: int, cooldown_minutes: int) -> bool:
+        count = len(await self.recent_errors(window_minutes))
+        if count < threshold:
             return False
+        if self._redis is not None:
+            # Key existing means we're still inside a cooldown from a previous alert.
+            return not await self._redis.exists(_REDIS_COOLDOWN_KEY)
         if self._last_alert_sent:
             if datetime.now(_TZ_BRT) - self._last_alert_sent < timedelta(minutes=cooldown_minutes):
                 return False
         return True
 
-    def mark_alert_sent(self) -> None:
-        self._last_alert_sent = datetime.now(_TZ_BRT)
+    async def mark_alert_sent(self, cooldown_minutes: int = 30) -> None:
+        if self._redis is not None:
+            await self._redis.set(_REDIS_COOLDOWN_KEY, "1", ex=cooldown_minutes * 60)
+        else:
+            self._last_alert_sent = datetime.now(_TZ_BRT)
 
-    def recent_errors(self, window_minutes: int) -> list[ErrorEvent]:
+    async def recent_errors(self, window_minutes: int) -> list[ErrorEvent]:
+        cutoff = datetime.now(_TZ_BRT) - timedelta(minutes=window_minutes)
+        if self._redis is not None:
+            async with self._redis.pipeline() as pipe:
+                pipe.zremrangebyscore(_REDIS_EVENTS_KEY, 0, cutoff.timestamp())
+                pipe.zrangebyscore(_REDIS_EVENTS_KEY, cutoff.timestamp(), "+inf")
+                _, members = await pipe.execute()
+            events = []
+            for member in members:
+                try:
+                    data = json.loads(member)
+                    events.append(ErrorEvent(
+                        timestamp=datetime.fromisoformat(data["timestamp"]),
+                        method=data["method"],
+                        path=data["path"],
+                        status_code=data["status_code"],
+                        tenant_id=data.get("tenant_id"),
+                        user_id=data.get("user_id"),
+                    ))
+                except (json.JSONDecodeError, KeyError):
+                    logger.warning("Evento de erro corrompido no Redis, ignorando: %r", member)
+            return events
         self._prune_old(timedelta(minutes=window_minutes))
         return list(self._errors)
 

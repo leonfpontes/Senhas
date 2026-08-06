@@ -18,6 +18,7 @@ import json
 import logging
 import hashlib
 import uuid
+import sentry_sdk
 from src.core.tz import APP_TZ
 
 from src.core.config import settings
@@ -560,6 +561,10 @@ async def emit_ticket(
         raise
     except Exception as e:
         logger.error(f"Unexpected error in emit_ticket: {e}", exc_info=True)
+        # Caught here to attach a friendly HTTPException instead of a raw
+        # 500 traceback — but that means it never reaches Sentry's default
+        # exception-propagation capture, so it has to be sent explicitly.
+        sentry_sdk.capture_exception(e)
         await session.rollback()
         raise HTTPException(
             status_code=500,

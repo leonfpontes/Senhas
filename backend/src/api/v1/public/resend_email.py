@@ -28,6 +28,7 @@ from src.models.tenants import Tenant
 from src.models.tenant_config import TenantConfig
 
 import logging
+import sentry_sdk
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 logger = logging.getLogger(__name__)
@@ -227,6 +228,7 @@ async def resend_ticket_email(
         raise
     except Exception as e:
         logger.error(f"Error in resend_ticket_email: {e}", exc_info=True)
+        sentry_sdk.capture_exception(e)
         raise HTTPException(
             status_code=500,
             detail="Internal server error",
