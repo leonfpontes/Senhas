@@ -359,27 +359,9 @@ class TestUpdateTenantConfig:
         )
         assert result.primary_color == "#ff0000"
 
-    @patch("src.api.v1.admin.config.AuditService")
-    @patch("src.api.v1.admin.config.TenantConfigRepository")
-    async def test_enable_time_slot_scheduling_no_plan_gate(self, MockRepo, MockAudit):
-        """Unlike enable_waitlist, this toggle has no plan-tier check — every plan can use it."""
-        db = AsyncMock()
-        repo_inst = AsyncMock()
-        config = _mock_tenant_config()
-        config.enable_time_slot_scheduling = True
-        repo_inst.get_by_tenant.return_value = config
-        repo_inst.toggle_feature = AsyncMock(return_value=config)
-        MockRepo.return_value = repo_inst
-        MockAudit.return_value = AsyncMock()
-
-        from src.api.v1.admin.config import update_tenant_config, TenantConfigUpdate
-        result = await update_tenant_config(
-            TenantConfigUpdate(enable_time_slot_scheduling=True), MagicMock(), _admin_user(), db,
-        )
-        repo_inst.toggle_feature.assert_awaited_once_with(
-            tenant_id=TENANT_ID, feature_flag="enable_time_slot_scheduling", enabled=True,
-        )
-        assert result.enable_time_slot_scheduling is True
+    # enable_time_slot_scheduling plan gate (PRO+/Premium): see
+    # test_config_time_slot_gate.py for the full coverage — enabling requires
+    # a Pro/Premium plan, mirroring enable_waitlist.
 
 
 # ── exports.py ───────────────────────────────────────────────────────────────

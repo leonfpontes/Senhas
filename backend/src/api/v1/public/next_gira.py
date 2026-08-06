@@ -102,12 +102,19 @@ def _build_gira_response(
     }
 
 
-async def _build_time_slots_payload(session, tenant_id, gira: Gira) -> list[dict]:
-    """Public horário list for a gira, empty when the feature is off."""
+async def _resolve_time_slots(session, tenant_id, gira: Gira) -> tuple[bool, list[dict]]:
+    """Effective use_time_slots flag + public horário list for a gira.
+
+    Re-checks the tenant's plan at read time (not just gira.use_time_slots,
+    set once when the gira was configured) so a plan downgrade hides the
+    horário picker immediately — mirrors waitlist_available's live check.
+    """
     if not gira.use_time_slots:
-        return []
+        return False, []
+    if not await time_slot_service.time_slot_scheduling_enabled_for_tenant(session, tenant_id):
+        return False, []
     availabilities = await time_slot_service.list_available_slots(session, tenant_id, gira.id)
-    return [
+    slots = [
         {
             "id": str(a.slot.id),
             "horario": a.slot.horario.strftime("%H:%M"),
@@ -115,6 +122,7 @@ async def _build_time_slots_payload(session, tenant_id, gira: Gira) -> list[dict
         }
         for a in availabilities
     ]
+    return True, slots
 
 
 async def _get_ticket_count(session, tenant_id, gira_id, is_sponsor: bool = False) -> int:
@@ -198,8 +206,7 @@ async def get_next_gira(
         current_tickets = await _get_ticket_count(session, tenant.id, gira.id, is_sponsor)
         waitlist_available = await waitlist_service.waitlist_enabled_for_tenant(session, tenant.id)
         response = _build_gira_response(gira, tenant, current_tickets, is_sponsor, waitlist_available)
-        response["use_time_slots"] = gira.use_time_slots
-        response["time_slots"] = await _build_time_slots_payload(session, tenant.id, gira)
+        response["use_time_slots"], response["time_slots"] = await _resolve_time_slots(session, tenant.id, gira)
         return response
 
     except HTTPException:
@@ -245,8 +252,7 @@ async def get_gira_by_id(
         current_tickets = await _get_ticket_count(session, tenant.id, gira.id, is_sponsor)
         waitlist_available = await waitlist_service.waitlist_enabled_for_tenant(session, tenant.id)
         response = _build_gira_response(gira, tenant, current_tickets, is_sponsor, waitlist_available)
-        response["use_time_slots"] = gira.use_time_slots
-        response["time_slots"] = await _build_time_slots_payload(session, tenant.id, gira)
+        response["use_time_slots"], response["time_slots"] = await _resolve_time_slots(session, tenant.id, gira)
         return response
 
     except HTTPException:

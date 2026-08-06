@@ -126,6 +126,30 @@ class TestPlanFeaturesMensalidade:
         assert f.mensalidade_mediun is True
 
 
+class TestPlanFeaturesAgendamentoPorHorario:
+    """Verify agendamento_por_horario feature flag is available on PRO and PREMIUM only."""
+
+    def _get_features(self, plan: PlanType):
+        from src.api.v1.admin.subscription_info import _get_plan_features
+        return _get_plan_features(plan)
+
+    def test_free_nao_tem_agendamento_por_horario(self):
+        f = self._get_features(PlanType.FREE)
+        assert f.agendamento_por_horario is False
+
+    def test_basic_nao_tem_agendamento_por_horario(self):
+        f = self._get_features(PlanType.BASIC)
+        assert f.agendamento_por_horario is False
+
+    def test_pro_tem_agendamento_por_horario(self):
+        f = self._get_features(PlanType.PRO)
+        assert f.agendamento_por_horario is True
+
+    def test_premium_tem_agendamento_por_horario(self):
+        f = self._get_features(PlanType.PREMIUM)
+        assert f.agendamento_por_horario is True
+
+
 class TestPlanConfig:
     """Verify _get_plan_config returns correct limits and prices."""
 

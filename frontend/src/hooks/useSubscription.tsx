@@ -23,6 +23,7 @@ export interface PlanFeatures {
   relatorio_gira: boolean;
   site_builder: boolean;
   fila_espera: boolean;
+  agendamento_por_horario: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -79,6 +80,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   relatorio_gira: false,
   site_builder: false,
   fila_espera: false,
+  agendamento_por_horario: false,
 };
 
 const PLAN_LABELS: Record<string, string> = {

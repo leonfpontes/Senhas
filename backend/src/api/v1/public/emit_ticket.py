@@ -41,6 +41,7 @@ from src.services.email.templates.waitlist import (
     generate_waitlist_entry_text,
 )
 from src.services import waitlist_service
+from src.services.time_slot_service import time_slot_scheduling_enabled_for_tenant
 from src.repositories.gira_time_slot_repo import GiraTimeSlotRepository, TimeSlotFullError
 from src.core.limiter import limiter
 
@@ -357,7 +358,10 @@ async def emit_ticket(
         # is given back.
         time_slot_id_for_ticket = None
         horario_desejado_str: str | None = None
-        if gira.use_time_slots:
+        gira_uses_time_slots = gira.use_time_slots and await time_slot_scheduling_enabled_for_tenant(
+            session, tenant.id
+        )
+        if gira_uses_time_slots:
             if not body.time_slot_id:
                 await session.rollback()
                 raise HTTPException(status_code=400, detail="Selecione um horário de atendimento")

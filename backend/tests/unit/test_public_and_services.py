@@ -44,16 +44,33 @@ class TestGetNextGira:
         assert exc_info.value.status_code in (404, 500)
 
 
-class TestBuildTimeSlotsPayload:
+class TestResolveTimeSlots:
     async def test_returns_empty_when_gira_does_not_use_time_slots(self):
-        from src.api.v1.public.next_gira import _build_time_slots_payload
+        from src.api.v1.public.next_gira import _resolve_time_slots
         gira = MagicMock()
         gira.use_time_slots = False
-        result = await _build_time_slots_payload(AsyncMock(), TENANT_ID, gira)
-        assert result == []
+        use_time_slots, slots = await _resolve_time_slots(AsyncMock(), TENANT_ID, gira)
+        assert use_time_slots is False
+        assert slots == []
+
+    async def test_returns_empty_when_plan_no_longer_allows_it(self):
+        """gira.use_time_slots=True but the tenant downgraded below Pro — the
+        public page must hide the picker immediately, not just at toggle-time."""
+        from src.api.v1.public.next_gira import _resolve_time_slots
+        gira = MagicMock()
+        gira.use_time_slots = True
+        gira.id = GIRA_ID
+
+        with patch(
+            "src.api.v1.public.next_gira.time_slot_service.time_slot_scheduling_enabled_for_tenant",
+            AsyncMock(return_value=False),
+        ):
+            use_time_slots, slots = await _resolve_time_slots(AsyncMock(), TENANT_ID, gira)
+        assert use_time_slots is False
+        assert slots == []
 
     async def test_serializes_available_slots(self):
-        from src.api.v1.public.next_gira import _build_time_slots_payload
+        from src.api.v1.public.next_gira import _resolve_time_slots
         from src.services.time_slot_service import SlotAvailability
         from datetime import time as time_cls
 
@@ -66,12 +83,16 @@ class TestBuildTimeSlotsPayload:
         availabilities = [SlotAvailability(slot=slot, vagas_disponiveis=12)]
 
         with patch(
+            "src.api.v1.public.next_gira.time_slot_service.time_slot_scheduling_enabled_for_tenant",
+            AsyncMock(return_value=True),
+        ), patch(
             "src.api.v1.public.next_gira.time_slot_service.list_available_slots",
             AsyncMock(return_value=availabilities),
         ):
-            result = await _build_time_slots_payload(AsyncMock(), TENANT_ID, gira)
+            use_time_slots, slots = await _resolve_time_slots(AsyncMock(), TENANT_ID, gira)
 
-        assert result == [{"id": str(slot.id), "horario": "20:30", "vagas_disponiveis": 12}]
+        assert use_time_slots is True
+        assert slots == [{"id": str(slot.id), "horario": "20:30", "vagas_disponiveis": 12}]
 
 
 class TestGetGiraByIdTimeSlots:
@@ -119,6 +140,9 @@ class TestGetGiraByIdTimeSlots:
         availabilities = [SlotAvailability(slot=slot, vagas_disponiveis=20)]
 
         with patch(
+            "src.api.v1.public.next_gira.time_slot_service.time_slot_scheduling_enabled_for_tenant",
+            AsyncMock(return_value=True),
+        ), patch(
             "src.api.v1.public.next_gira.time_slot_service.list_available_slots",
             AsyncMock(return_value=availabilities),
         ):

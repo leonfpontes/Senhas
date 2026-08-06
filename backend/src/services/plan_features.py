@@ -33,6 +33,7 @@ class PlanFeatures(BaseModel):
     site_builder: bool = False
     contas_financeiras: bool = False
     fila_espera: bool = False
+    agendamento_por_horario: bool = False
 
 
 def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
@@ -63,4 +64,5 @@ def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
         site_builder=tier >= 2,
         contas_financeiras=tier >= 2,
         fila_espera=tier >= 2,
+        agendamento_por_horario=tier >= 2,
     )

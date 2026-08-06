@@ -119,6 +119,7 @@ const FEATURE_GROUPS: FeatureGroup[] = [
       { label: 'Controle de estoque',           free: false,       basic: false,       pro: true,        premium: true },
       { label: 'Contas a pagar / receber',      free: false,       basic: false,       pro: true,        premium: true },
       { label: 'Fluxo de caixa',                free: false,       basic: false,       pro: true,        premium: true },
+      { label: 'Agendamento por horário',       free: false,       basic: false,       pro: true,        premium: true },
     ],
   },
   {

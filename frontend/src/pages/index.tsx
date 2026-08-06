@@ -128,7 +128,7 @@ const PLANS = [
   },
   {
     name: 'Pro', price: 79, highlight: true,
-    features: ['Tudo do Basic +', '10 usuários', '15 giras por mês', 'Até 150 médiuns', 'Financeiro completo', 'Controle de estoque', 'Associados', 'Site do terreiro', 'Cursos e eventos', 'Analytics avançado', 'Export CSV'],
+    features: ['Tudo do Basic +', '10 usuários', '15 giras por mês', 'Até 150 médiuns', 'Financeiro completo', 'Controle de estoque', 'Associados', 'Site do terreiro', 'Cursos e eventos', 'Analytics avançado', 'Export CSV', 'Agendamento por horário'],
   },
   {
     name: 'Premium', price: 99, highlight: false,

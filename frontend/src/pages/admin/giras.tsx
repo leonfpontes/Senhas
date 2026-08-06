@@ -941,72 +941,101 @@ function AdminGirasContent() {
             </Box>
 
             {/* ═══ Horários de Atendimento (agendamento por horário) ═══ */}
-            {timeSlotSchedulingEnabled && (
-              <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <AccessTimeIcon color="action" />
-                  <Typography variant="subtitle1" fontWeight="bold">
-                    Horários de Atendimento
-                  </Typography>
-                </Box>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={useTimeSlots}
-                      onChange={(e) => handleToggleUseTimeSlots(e.target.checked)}
-                    />
-                  }
-                  label="Consulente escolhe um horário ao emitir a senha"
-                />
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                  Divide as {senhaForm.max_tickets || 'X'} senhas em janelas de horário (ex: 20h, 20h30, 21h) para
-                  evitar acúmulo de pessoas na porta.
+            <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <AccessTimeIcon color="action" />
+                <Typography variant="subtitle1" fontWeight="bold">
+                  Horários de Atendimento
                 </Typography>
-
-                {useTimeSlots && (
-                  <>
-                    {timeSlots.map((slot, index) => (
-                      <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mb: 1 }}>
-                        <TextField
-                          label="Horário"
-                          type="time"
-                          value={slot.horario}
-                          onChange={(e) => updateSlotRow(index, 'horario', e.target.value)}
-                          InputLabelProps={{ shrink: true }}
-                          size="small"
-                          sx={{ flex: 1 }}
-                        />
-                        <TextField
-                          label="Vagas"
-                          type="number"
-                          value={slot.capacidade_maxima}
-                          onChange={(e) => updateSlotRow(index, 'capacidade_maxima', e.target.value)}
-                          inputProps={{ min: 1 }}
-                          size="small"
-                          sx={{ flex: 1 }}
-                          helperText={
-                            slot.vagas_disponiveis !== undefined
-                              ? `${slot.vagas_disponiveis} disponíveis`
-                              : undefined
-                          }
-                        />
-                        <IconButton size="small" onClick={() => removeSlotRow(index)} sx={{ mt: 0.5 }}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    ))}
-                    <Button size="small" startIcon={<AddIcon />} onClick={addSlotRow}>
-                      Adicionar horário
-                    </Button>
-                    {!timeSlotsValid && timeSlots.length > 0 && (
-                      <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
-                        Preencha todos os horários com vagas ≥ 1 e sem horários repetidos.
-                      </Typography>
-                    )}
-                  </>
-                )}
               </Box>
-            )}
+
+              {!subLoading && !can('agendamento_por_horario') ? (
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, p: 2, borderRadius: 2, bgcolor: '#f5f5f5', border: '1px solid #e0e0e0' }}>
+                  <LockIcon sx={{ fontSize: 20, color: 'text.disabled', mt: 0.2, flexShrink: 0 }} />
+                  <Box>
+                    <Typography variant="body2" fontWeight={600} color="text.secondary">
+                      Disponível a partir do plano Pro
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.25 }}>
+                      Faça upgrade para deixar o consulente escolher um horário de atendimento ao emitir a senha.
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{ mt: 1, textTransform: 'none' }}
+                      onClick={() => { window.location.href = '/admin/plano'; }}
+                    >
+                      Ver Planos
+                    </Button>
+                  </Box>
+                </Box>
+              ) : !timeSlotSchedulingEnabled ? (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                  Habilite em{' '}
+                  <Link href="/admin/config" style={{ fontWeight: 600 }}>Configurações → Funcionalidades</Link>
+                  {' '}para usar horários de atendimento.
+                </Typography>
+              ) : (
+                <>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={useTimeSlots}
+                        onChange={(e) => handleToggleUseTimeSlots(e.target.checked)}
+                      />
+                    }
+                    label="Consulente escolhe um horário ao emitir a senha"
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                    Divide as {senhaForm.max_tickets || 'X'} senhas em janelas de horário (ex: 20h, 20h30, 21h) para
+                    evitar acúmulo de pessoas na porta.
+                  </Typography>
+
+                  {useTimeSlots && (
+                    <>
+                      {timeSlots.map((slot, index) => (
+                        <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mb: 1 }}>
+                          <TextField
+                            label="Horário"
+                            type="time"
+                            value={slot.horario}
+                            onChange={(e) => updateSlotRow(index, 'horario', e.target.value)}
+                            InputLabelProps={{ shrink: true }}
+                            size="small"
+                            sx={{ flex: 1 }}
+                          />
+                          <TextField
+                            label="Vagas"
+                            type="number"
+                            value={slot.capacidade_maxima}
+                            onChange={(e) => updateSlotRow(index, 'capacidade_maxima', e.target.value)}
+                            inputProps={{ min: 1 }}
+                            size="small"
+                            sx={{ flex: 1 }}
+                            helperText={
+                              slot.vagas_disponiveis !== undefined
+                                ? `${slot.vagas_disponiveis} disponíveis`
+                                : undefined
+                            }
+                          />
+                          <IconButton size="small" onClick={() => removeSlotRow(index)} sx={{ mt: 0.5 }}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ))}
+                      <Button size="small" startIcon={<AddIcon />} onClick={addSlotRow}>
+                        Adicionar horário
+                      </Button>
+                      {!timeSlotsValid && timeSlots.length > 0 && (
+                        <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+                          Preencha todos os horários com vagas ≥ 1 e sem horários repetidos.
+                        </Typography>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </Box>
 
             {/* ═══ Sponsor Section ═══ */}
             <Box sx={{ mt: 3, pt: 2, borderTop: '2px solid #daa520' }}>

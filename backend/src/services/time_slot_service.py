@@ -1,10 +1,11 @@
 """Time slot scheduling service — agendamento por horário.
 
-Optional feature (off by default) that lets a gira publish named attendance
-windows (ex: 20h, 20h30, 21h) each with their own capacity, so consulentes
-pick when they intend to show up instead of everyone queuing at the door at
-once. Two toggles gate it: TenantConfig.enable_time_slot_scheduling
-(tenant-wide) AND Gira.use_time_slots (per-gira).
+Optional feature (off by default, PRO+/Premium only) that lets a gira publish
+named attendance windows (ex: 20h, 20h30, 21h) each with their own capacity,
+so consulentes pick when they intend to show up instead of everyone queuing
+at the door at once. Three things gate it: the tenant's plan tier, the
+tenant-wide TenantConfig.enable_time_slot_scheduling toggle, and the
+per-gira Gira.use_time_slots toggle.
 
 Unlike the waitlist feature, a full slot has no fallback queue — it's simply
 hidden/disabled in the public emission UI and the consulente picks a
@@ -27,14 +28,29 @@ class SlotAvailability(NamedTuple):
 
 
 async def time_slot_scheduling_enabled_for_tenant(session: AsyncSession, tenant_id: UUID) -> bool:
-    """Whether the tenant has turned the feature on.
+    """True when the tenant toggled the feature on AND its current plan allows it.
 
-    No plan-tier gate (available on every plan) — unlike enable_waitlist,
-    this isn't monetized separately.
+    PRO+/Premium only. Both checks are enforced server-side (not just relying
+    on the toggle) so a plan downgrade after the toggle was enabled disables
+    the feature immediately — mirrors waitlist_service.waitlist_enabled_for_tenant.
     """
     result = await session.execute(select(TenantConfig).where(TenantConfig.tenant_id == tenant_id))
     tc = result.scalar_one_or_none()
-    return bool(tc and tc.enable_time_slot_scheduling)
+    if not tc or not tc.enable_time_slot_scheduling:
+        return False
+
+    from src.models.subscriptions import SubscriptionStatus
+    from src.repositories.subscription_repo import SubscriptionRepository
+    from src.services.plan_features import _get_plan_features
+
+    sub_repo = SubscriptionRepository(session)
+    sub = await sub_repo.get_by_tenant(tenant_id)
+    if not sub:
+        return False
+
+    suspended = sub.status == SubscriptionStatus.SUSPENDED
+    features = _get_plan_features(sub.plan, suspended=suspended)
+    return features.agendamento_por_horario
 
 
 def _vagas_disponiveis(slot: GiraTimeSlot) -> int:

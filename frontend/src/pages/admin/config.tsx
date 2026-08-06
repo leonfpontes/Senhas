@@ -125,6 +125,8 @@ const FEATURE_ITEMS: {
     field: 'enable_time_slot_scheduling',
     title: 'Agendamento por horário',
     description: 'Consulente escolhe um horário de atendimento ao emitir a senha, evitando acúmulo de pessoas na porta. Configure os horários padrão logo abaixo e habilite por gira em "Configurar Senhas".',
+    plan: 'Pro',
+    gate: 'agendamento_por_horario',
   },
 ];
 

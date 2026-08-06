@@ -39,17 +39,57 @@ class TestTimeSlotSchedulingEnabledForTenant:
 
     async def test_false_when_toggle_off(self):
         db = _mock_db()
-        tc = MagicMock()
-        tc.enable_time_slot_scheduling = False
+        tc = MagicMock(enable_time_slot_scheduling=False)
         db.execute.return_value = _mock_result_scalar(tc)
         assert await time_slot_service.time_slot_scheduling_enabled_for_tenant(db, uuid4()) is False
 
-    async def test_true_when_toggle_on(self):
+    async def test_false_when_toggle_on_but_no_subscription(self):
         db = _mock_db()
-        tc = MagicMock()
-        tc.enable_time_slot_scheduling = True
+        tc = MagicMock(enable_time_slot_scheduling=True)
         db.execute.return_value = _mock_result_scalar(tc)
-        assert await time_slot_service.time_slot_scheduling_enabled_for_tenant(db, uuid4()) is True
+        with patch("src.repositories.subscription_repo.SubscriptionRepository") as MockRepo:
+            MockRepo.return_value.get_by_tenant = AsyncMock(return_value=None)
+            assert await time_slot_service.time_slot_scheduling_enabled_for_tenant(db, uuid4()) is False
+
+    async def test_false_on_basic_plan(self):
+        from src.models.subscriptions import PlanType, SubscriptionStatus
+        db = _mock_db()
+        tc = MagicMock(enable_time_slot_scheduling=True)
+        db.execute.return_value = _mock_result_scalar(tc)
+        sub = MagicMock(plan=PlanType.BASIC, status=SubscriptionStatus.ACTIVE)
+        with patch("src.repositories.subscription_repo.SubscriptionRepository") as MockRepo:
+            MockRepo.return_value.get_by_tenant = AsyncMock(return_value=sub)
+            assert await time_slot_service.time_slot_scheduling_enabled_for_tenant(db, uuid4()) is False
+
+    async def test_true_on_pro_plan(self):
+        from src.models.subscriptions import PlanType, SubscriptionStatus
+        db = _mock_db()
+        tc = MagicMock(enable_time_slot_scheduling=True)
+        db.execute.return_value = _mock_result_scalar(tc)
+        sub = MagicMock(plan=PlanType.PRO, status=SubscriptionStatus.ACTIVE)
+        with patch("src.repositories.subscription_repo.SubscriptionRepository") as MockRepo:
+            MockRepo.return_value.get_by_tenant = AsyncMock(return_value=sub)
+            assert await time_slot_service.time_slot_scheduling_enabled_for_tenant(db, uuid4()) is True
+
+    async def test_true_on_premium_plan(self):
+        from src.models.subscriptions import PlanType, SubscriptionStatus
+        db = _mock_db()
+        tc = MagicMock(enable_time_slot_scheduling=True)
+        db.execute.return_value = _mock_result_scalar(tc)
+        sub = MagicMock(plan=PlanType.PREMIUM, status=SubscriptionStatus.ACTIVE)
+        with patch("src.repositories.subscription_repo.SubscriptionRepository") as MockRepo:
+            MockRepo.return_value.get_by_tenant = AsyncMock(return_value=sub)
+            assert await time_slot_service.time_slot_scheduling_enabled_for_tenant(db, uuid4()) is True
+
+    async def test_false_on_pro_plan_when_suspended(self):
+        from src.models.subscriptions import PlanType, SubscriptionStatus
+        db = _mock_db()
+        tc = MagicMock(enable_time_slot_scheduling=True)
+        db.execute.return_value = _mock_result_scalar(tc)
+        sub = MagicMock(plan=PlanType.PRO, status=SubscriptionStatus.SUSPENDED)
+        with patch("src.repositories.subscription_repo.SubscriptionRepository") as MockRepo:
+            MockRepo.return_value.get_by_tenant = AsyncMock(return_value=sub)
+            assert await time_slot_service.time_slot_scheduling_enabled_for_tenant(db, uuid4()) is False
 
 
 class TestListAvailableSlots:

@@ -317,8 +317,22 @@ async def update_tenant_config(
             enabled=config_update.enable_waitlist,
         )
 
-    # Update enable_time_slot_scheduling — no plan gate, available on every plan.
+    # Update enable_time_slot_scheduling — enabling it requires a PRO/Premium
+    # plan; disabling is always allowed regardless of plan.
     if config_update.enable_time_slot_scheduling is not None:
+        if config_update.enable_time_slot_scheduling:
+            from src.services.plan_features import _get_plan_features
+            from src.repositories.subscription_repo import SubscriptionRepository
+            from src.models.subscriptions import SubscriptionStatus
+
+            sub = await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id)
+            plan = sub.plan if sub else None
+            suspended = bool(sub and sub.status == SubscriptionStatus.SUSPENDED)
+            if plan is None or not _get_plan_features(plan, suspended=suspended).agendamento_por_horario:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Agendamento por horário disponível apenas nos planos Pro e Premium",
+                )
         await repo.toggle_feature(
             tenant_id=current_user.tenant_id,
             feature_flag="enable_time_slot_scheduling",
