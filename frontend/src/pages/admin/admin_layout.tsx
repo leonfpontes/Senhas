@@ -157,7 +157,11 @@ function AdminLayoutInner({
           )}
         </Box>
 
-        <SupportChatWidget enabled={Boolean(profile?.tenant_id) && !isImpersonating} />
+        {/* Aparece também durante impersonação: o token vira o do usuário
+            impersonado (ver CLAUDE.md), então mensagens já ficam corretamente
+            atribuídas a ele — e o superadmin consegue reproduzir/testar o
+            fluxo de suporte exatamente como esse usuário vê. */}
+        <SupportChatWidget enabled={Boolean(profile?.tenant_id)} />
       </Box>
     </>
   );

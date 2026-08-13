@@ -20,6 +20,7 @@ EXEMPT_FILES = {
     "permission_groups.py",  # usa checagem manual de is_admin (evita paradoxo de lockout)
     "email_resend.py",  # já é is_admin bypass
     "dashboard_summary.py",  # dashboard agregado geral
+    "support_chat.py",  # chat de suporte é canal universal, sem gate de grupo (ver CLAUDE.md)
     "__init__.py",
 }
 
