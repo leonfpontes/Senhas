@@ -24,6 +24,7 @@ from .contas_financeiras import ContaFinanceira, CategoriaFinanceira, ContaBanca
 from .user_sessions import UserSession
 from .stripe_events import StripeEventProcessed
 from .trial_grants import TrialGrant
+from .support_chat import SupportConversation, SupportMessage, SupportConversationStatus
 
 __all__ = [
     "Base",
@@ -79,4 +80,7 @@ __all__ = [
     "UserSession",
     "StripeEventProcessed",
     "TrialGrant",
+    "SupportConversation",
+    "SupportMessage",
+    "SupportConversationStatus",
 ]

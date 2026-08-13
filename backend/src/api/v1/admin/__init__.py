@@ -25,6 +25,7 @@ from .sites import router as sites_router
 from .cursos_presenciais import router as cursos_presenciais_router
 from .permission_groups import router as permission_groups_router
 from .contas_financeiras import router as contas_financeiras_router
+from .support_chat import router as support_chat_router
 
 # Combine all admin routers
 admin_router = APIRouter()
@@ -52,5 +53,6 @@ admin_router.include_router(sites_router)
 admin_router.include_router(cursos_presenciais_router)
 admin_router.include_router(permission_groups_router)
 admin_router.include_router(contas_financeiras_router)
+admin_router.include_router(support_chat_router)
 
 __all__ = ["admin_router"]

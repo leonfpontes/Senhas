@@ -32,6 +32,8 @@ import ReceiptLongRoundedIcon        from "@mui/icons-material/ReceiptLongRounde
 import ManageSearchRoundedIcon       from "@mui/icons-material/ManageSearchRounded";
 import TuneRoundedIcon               from "@mui/icons-material/TuneRounded";
 import TravelExploreRoundedIcon      from "@mui/icons-material/TravelExploreRounded";
+import SupportAgentRoundedIcon       from "@mui/icons-material/SupportAgentRounded";
+import Badge                         from "@mui/material/Badge";
 import LogoutRoundedIcon             from "@mui/icons-material/LogoutRounded";
 import MenuOpenRoundedIcon           from "@mui/icons-material/MenuOpenRounded";
 import MenuRoundedIcon               from "@mui/icons-material/MenuRounded";
@@ -49,6 +51,7 @@ import {
 } from "../../providers/PlatformThemeProvider";
 import { ACCENT, ACCENT_GLOW } from "../../styles/platformTheme";
 import { LiveClock } from "../../components/platform";
+import { usePlatformSupportUnread } from "../../components/support/usePlatformSupportUnread";
 import * as Sentry from '@sentry/nextjs';
 import { apiClient } from "../../services/api_client";
 
@@ -56,6 +59,7 @@ import { apiClient } from "../../services/api_client";
 
 const NAV_ITEMS = [
   { label: "Dashboard",        icon: <DashboardRoundedIcon />,    href: "/platform" },
+  { label: "Suporte",          icon: <SupportAgentRoundedIcon />, href: "/platform/suporte" },
   { label: "Tenants",          icon: <BusinessRoundedIcon />,     href: "/platform/tenants" },
   { label: "Usuários Globais", icon: <PeopleAltRoundedIcon />,    href: "/platform/users_global" },
   { label: "Observatório",      icon: <TravelExploreRoundedIcon />, href: "/platform/observatory" },
@@ -79,10 +83,11 @@ interface NavItemProps {
   active:   boolean;
   expanded: boolean;
   onClick?: () => void;
+  badge?:   number;
 }
 
 const NavItem: React.FC<NavItemProps> = ({
-  label, icon, href, active, expanded, onClick,
+  label, icon, href, active, expanded, onClick, badge,
 }) => {
   const { tokens } = usePlatformTheme();
 
@@ -131,7 +136,15 @@ const NavItem: React.FC<NavItemProps> = ({
             },
           }}
         >
-          {icon}
+          <Badge
+            badgeContent={badge}
+            color="error"
+            max={9}
+            invisible={!badge}
+            overlap="circular"
+          >
+            {icon}
+          </Badge>
         </ListItemIcon>
         {expanded && (
           <Typography
@@ -174,6 +187,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 }) => {
   const router = useRouter();
   const { tokens } = usePlatformTheme();
+  const unreadSupportCount = usePlatformSupportUnread();
 
   const handleLogout = async () => {
     try { await apiClient.post("/api/v1/auth/logout"); } catch { /* non-critical */ }
@@ -240,6 +254,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             active={router.pathname === item.href}
             expanded={expanded}
             onClick={isMobile ? onClose : undefined}
+            badge={item.href === "/platform/suporte" ? unreadSupportCount : undefined}
           />
         ))}
       </List>

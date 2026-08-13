@@ -18,6 +18,7 @@ import { SubscriptionWarningBanner } from '@/components/admin/SubscriptionWarnin
 import { usePermissions } from '@/hooks/usePermissions';
 import { useProfile }    from '@/hooks/useProfile';
 import { PermissionFeature } from '@/constants/permissionFeatures';
+import { SupportChatWidget } from '@/components/support/SupportChatWidget';
 
 interface AdminLayoutProps {
   children:  React.ReactNode;
@@ -155,6 +156,8 @@ function AdminLayoutInner({
             </Container>
           )}
         </Box>
+
+        <SupportChatWidget enabled={Boolean(profile?.tenant_id) && !isImpersonating} />
       </Box>
     </>
   );

@@ -22,6 +22,7 @@ import SettingsIcon        from '@mui/icons-material/Settings';
 import AnalyticsIcon       from '@mui/icons-material/Assessment';
 import HistoryIcon         from '@mui/icons-material/History';
 import MeetingRoomIcon     from '@mui/icons-material/MeetingRoom';
+import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded';
 import FolderOpenIcon      from '@mui/icons-material/FolderOpen';
 import Diversity3Icon      from '@mui/icons-material/Diversity3';
 import CardMembershipIcon  from '@mui/icons-material/CardMembership';
@@ -42,6 +43,7 @@ import { useRouter }        from 'next/router';
 import { useSubscription }  from '@/hooks/useSubscription';
 import { usePermissions }   from '@/hooks/usePermissions';
 import { useBirthday }      from '@/providers/BirthdayProvider';
+import { useTenantSupportUnread } from '@/components/support/useTenantSupportUnread';
 import { PermissionFeature } from '@/constants/permissionFeatures';
 import { BrandHeader }      from './BrandHeader';
 import { NavItem }          from './NavItem';
@@ -66,6 +68,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const { can, planLabel, subscription, loading: subscriptionLoading } = useSubscription();
   const { birthdayCount } = useBirthday();
   const { can: canGroup }  = usePermissions();
+  const unreadTeamSupportCount = useTenantSupportUnread(!isOperator);
 
   const hasGroupView = (feature: PermissionFeature): boolean =>
     !isOperator || canGroup(feature, 'view');
@@ -135,6 +138,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       ? [{ text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' }] : []),
     ...(!isOperator
       ? [
+          { text: 'Suporte',       icon: <SupportAgentRoundedIcon />, href: '/admin/suporte', badge: unreadTeamSupportCount },
           { text: 'Plano',         icon: <CardMembershipIcon />, href: '/admin/plano' },
           { text: 'Assinatura',    icon: <CreditCardIcon />,     href: '/admin/billing' },
           { text: 'Configurações', icon: <SettingsIcon />,        href: '/admin/config' },
@@ -233,6 +237,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             text={item.text}
             icon={item.icon}
             active={pathname === item.href}
+            badge={'badge' in item ? item.badge : undefined}
           />
         ))}
       </List>

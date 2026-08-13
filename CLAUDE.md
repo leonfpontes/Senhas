@@ -62,6 +62,15 @@ Exceções (não precisam de guard de grupo):
   (logo/cores) já é dado público (servido sem auth em `public/emit_ticket.py`);
   qualquer usuário autenticado do tenant precisa dele pro `ThemeProvider`, não só
   quem tem `CONFIGURACOES:view`
+- `support_chat.py` (`GET/POST /api/v1/admin/support-chat/me*`) — chat de
+  suporte é canal universal do usuário autenticado com a plataforma, não um
+  módulo de negócio gateável por grupo; todo usuário do tenant precisa da
+  própria conversa, não só quem tem alguma feature liberada. Os endpoints
+  `GET /api/v1/admin/support-chat/conversations*` (visão agregada de todas
+  as conversas do tenant) usam check manual `if not current_user.is_admin`
+  em vez de `require_group_permission`, já que essa visão é binária
+  (admin vê tudo, operator não vê nada) sem granularidade de grupo. Também
+  não é gateado por plano/assinatura — disponível em todos os planos.
 
 ### Frontend — checklist por tela
 
