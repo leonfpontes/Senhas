@@ -21,6 +21,7 @@ import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
+import MeetingRoomRoundedIcon from '@mui/icons-material/MeetingRoomRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import TodayRoundedIcon from '@mui/icons-material/TodayRounded';
@@ -41,9 +42,11 @@ import AdminLayout from './admin_layout';
 import { KpiCard } from '@/components/admin';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useTenant } from '@/providers/ThemeProvider';
 import { apiClient } from '../../services/api_client';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -150,7 +153,7 @@ function SectionHeader({ title, action }: { title: string; action?: React.ReactN
   );
 }
 
-function GiraCard({ gira, primary }: { gira: UpcomingGira; primary: string }) {
+function GiraCard({ gira, primary, canOpenPorta }: { gira: UpcomingGira; primary: string; canOpenPorta: boolean }) {
   const pct = gira.max_tickets ? Math.min((gira.current_count / gira.max_tickets) * 100, 100) : null;
   const isFull = pct !== null && pct >= 100;
 
@@ -169,18 +172,26 @@ function GiraCard({ gira, primary }: { gira: UpcomingGira; primary: string }) {
         <Typography variant="body2" fontWeight={600} noWrap sx={{ flex: 1, mr: 1 }}>
           {gira.nome}
         </Typography>
-        <Chip
-          label={gira.is_open ? 'Aberta' : 'Fechada'}
-          size="small"
-          sx={{
-            height: 20,
-            fontSize: '0.65rem',
-            fontWeight: 700,
-            bgcolor: gira.is_open ? '#dcfce7' : 'action.selected',
-            color: gira.is_open ? '#16a34a' : 'text.secondary',
-            flexShrink: 0,
-          }}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+          <Chip
+            label={gira.is_open ? 'Aberta' : 'Fechada'}
+            size="small"
+            sx={{
+              height: 20,
+              fontSize: '0.65rem',
+              fontWeight: 700,
+              bgcolor: gira.is_open ? '#dcfce7' : 'action.selected',
+              color: gira.is_open ? '#16a34a' : 'text.secondary',
+            }}
+          />
+          {canOpenPorta && !!gira.max_tickets && (
+            <Tooltip title="Abrir na Porta">
+              <IconButton size="small" component={Link} href={`/admin/porta?gira=${gira.id}`} sx={{ p: 0.5 }}>
+                <MeetingRoomRoundedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
       </Box>
 
       <Typography variant="caption" color="text.secondary">
@@ -233,6 +244,8 @@ export default function AdminDashboard() {
   const [todayLabel, setTodayLabel] = useState('');
 
   const { can } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const canViewPorta = canGroup('porta', 'view');
   const { config: tenantConfig } = useTenant();
   const { tokens, isDark } = useAdminTheme();
   const router = useRouter();
@@ -512,7 +525,7 @@ export default function AdminDashboard() {
               ) : upcomingGiras.length > 0 ? (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                   {upcomingGiras.map((g) => (
-                    <GiraCard key={g.id} gira={g} primary={primary} />
+                    <GiraCard key={g.id} gira={g} primary={primary} canOpenPorta={canViewPorta} />
                   ))}
                 </Box>
               ) : (

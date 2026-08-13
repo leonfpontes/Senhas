@@ -35,6 +35,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import EventIcon from '@mui/icons-material/Event';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
+import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
@@ -159,6 +160,7 @@ function AdminGirasContent() {
   const canInsert = canGroup('giras', 'insert');
   const canEdit = canGroup('giras', 'edit');
   const canDelete = canGroup('giras', 'delete');
+  const canViewPorta = canGroup('porta', 'view');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [giras, setGiras] = useState<Gira[]>([]);
@@ -673,7 +675,7 @@ function AdminGirasContent() {
                 <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Data Início</TableCell>
                 <TableCell>Senhas</TableCell>
                 <TableCell>Status</TableCell>
-                {(canEdit || canDelete) && <TableCell align="right">Ações</TableCell>}
+                {(canEdit || canDelete || canViewPorta) && <TableCell align="right">Ações</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -695,7 +697,7 @@ function AdminGirasContent() {
                       variant="outlined"
                     />
                   </TableCell>
-                  {(canEdit || canDelete) && (
+                  {(canEdit || canDelete || canViewPorta) && (
                     <TableCell align="right">
                       {isMobile ? (
                         <>
@@ -711,6 +713,15 @@ function AdminGirasContent() {
                             open={Boolean(menuAnchor) && menuGira?.id === gira.id}
                             onClose={() => { setMenuAnchor(null); setMenuGira(null); }}
                           >
+                            {canViewPorta && !!gira.max_tickets && (
+                              <MuiMenuItem
+                                component={Link}
+                                href={`/admin/porta?gira=${gira.id}`}
+                                onClick={() => { setMenuAnchor(null); setMenuGira(null); }}
+                              >
+                                <MeetingRoomIcon fontSize="small" sx={{ mr: 1 }} /> Abrir na Porta
+                              </MuiMenuItem>
+                            )}
                             {canEdit && (
                               <MuiMenuItem onClick={() => { openSenhaDrawer(gira); setMenuAnchor(null); setMenuGira(null); }}>
                                 <ConfirmationNumberIcon fontSize="small" sx={{ mr: 1 }} /> Configurar Senhas
@@ -730,6 +741,13 @@ function AdminGirasContent() {
                         </>
                       ) : (
                         <>
+                          {canViewPorta && !!gira.max_tickets && (
+                            <Tooltip title="Abrir na Porta">
+                              <IconButton size="small" component={Link} href={`/admin/porta?gira=${gira.id}`}>
+                                <MeetingRoomIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                           {canEdit && (
                             <Tooltip title="Configurar Senhas">
                               <IconButton size="small" onClick={() => openSenhaDrawer(gira)}>

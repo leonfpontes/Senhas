@@ -3,6 +3,7 @@
  * Route: /admin/porta
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import {
   Alert,
   Box,
@@ -586,6 +587,7 @@ function SectionHeader({
 export default function PortaPage() {
   const theme   = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const router = useRouter();
   const { isDark } = useAdminTheme();
   const { can: canGroup } = usePermissions();
   const canView = canGroup('porta', 'view');
@@ -678,6 +680,14 @@ export default function PortaPage() {
   // loadGiras/loadConfig/loadMediunOptions aren't memoized — this effect only runs once on mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadGiras(); loadConfig(); loadMediunOptions(); }, []);
+  // Deep link support: ?gira=<id> from the giras list / dashboard overrides the auto-selected gira.
+  useEffect(() => {
+    if (!router.isReady) return;
+    const queryGiraId = typeof router.query.gira === 'string' ? router.query.gira : '';
+    if (queryGiraId && giras.some((g) => g.id === queryGiraId)) {
+      setSelectedGiraId(queryGiraId);
+    }
+  }, [router.isReady, router.query.gira, giras]);
   useEffect(() => { if (selectedGiraId) refreshAll(); }, [selectedGiraId, refreshAll]);
   useEffect(() => {
     if (!selectedGiraId) return;
