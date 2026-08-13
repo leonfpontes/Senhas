@@ -5,7 +5,7 @@ distinct from the existing hard-delete LGPD flow). ALTER TYPE ... ADD VALUE
 is non-transactional in PostgreSQL; each statement commits immediately.
 
 Revision ID: 045_tenant_deactivation_audit_actions
-Revises: 044_stripe_events_processed
+Revises: 044b_widen_alembic_version_num
 Create Date: 2026-07-02
 """
 
@@ -13,7 +13,7 @@ from alembic import op
 from sqlalchemy import text
 
 revision: str = "045_tenant_deactivation_audit_actions"
-down_revision: str = "044_stripe_events_processed"
+down_revision: str = "044b_widen_alembic_version_num"
 branch_labels = None
 depends_on = None
 
