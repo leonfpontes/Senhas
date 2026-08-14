@@ -123,7 +123,9 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     event_type = event["type"]
     event_id = event["id"]
-    data = event["data"]["object"]
+    # stripe-python's StripeObject stopped being dict-like (no .get()) — the
+    # handlers below rely on plain-dict semantics, so convert once here.
+    data = event["data"]["object"].to_dict()
 
     # Stripe delivers webhooks at-least-once — the same event id can arrive
     # more than once (retries, duplicate delivery). Skip reprocessing if we've
@@ -200,7 +202,7 @@ async def _handle_checkout_completed(session: dict, db: AsyncSession) -> None:
     # Retrieve subscription details from Stripe to get price/period
     import asyncio
     import stripe
-    stripe_sub = await asyncio.to_thread(stripe.Subscription.retrieve, stripe_subscription_id)
+    stripe_sub = (await asyncio.to_thread(stripe.Subscription.retrieve, stripe_subscription_id)).to_dict()
     price_id = stripe_sub["items"]["data"][0]["price"]["id"]
     current_period_end_ts = stripe_sub.get("current_period_end")
     trial_end_ts = stripe_sub.get("trial_end")

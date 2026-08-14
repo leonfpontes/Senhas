@@ -72,9 +72,9 @@ async def sync_stripe_subscription(
 
     # Fetch from Stripe (blocking call wrapped in thread)
     try:
-        stripe_sub = await asyncio.to_thread(
-            stripe.Subscription.retrieve, body.stripe_subscription_id
-        )
+        stripe_sub = (
+            await asyncio.to_thread(stripe.Subscription.retrieve, body.stripe_subscription_id)
+        ).to_dict()
     except stripe.error.InvalidRequestError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
