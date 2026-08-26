@@ -1,0 +1,22 @@
+# CI de pré-merge (item I-04 do docs/plano-execucao.md).
+# Dá sinal em pull requests e em branches ANTES do código chegar na master —
+# na master, push é deploy (deploy.yml), então este é o único gate que roda
+# sem consequência em produção.
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches-ignore: [master]
+
+# Um push novo na mesma branch/PR cancela o run anterior — só o estado mais
+# recente importa e economiza minutos do free tier.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
