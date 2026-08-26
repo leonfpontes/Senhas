@@ -1,6 +1,8 @@
 # AGENTS.md - Guia Operacional para Agentes de IA
 
-Last Updated: 2026-06-27 (sessão 2)
+Last Updated: 2026-08-26 (correcao de docs divergentes do codigo: Porta usa polling e nao
+WebSocket; Prometheus/Grafana nao operacionais; cadeia de migracoes atualizada ate a 054.
+Plano de execucao vigente: docs/plano-execucao.md)
 Project: Senhas / GiraHub - Multi-Tenant SaaS para emissão de tickets
 Repository: leonfpontes/Senhas
 Default Branch: master
@@ -298,6 +300,8 @@ Incluir obrigatoriamente:
 
 ## 10) Referencias de Documentacao do Projeto
 
+- docs/plano-execucao.md — plano de execucao vigente (fases, itens, criterios de aceite e
+  regras de trabalho R-01..R-04; consultar antes de propor feature nova)
 - docs/architecture.md
 - docs/api.md
 - docs/database.md
@@ -330,10 +334,10 @@ Incluir obrigatoriamente:
 - Campo "Local" removido do formulario de criacao/edicao e da tabela — endereco agora vem da config do tenant.
 
 ### 11.4 Porta (Visao da Porta)
-- Gestao em tempo real da fila de atendimento com WebSocket.
-- WebSocket URL usa `window.location.host` (sem porta hardcoded).
-- nginx tem location regex para proxy WebSocket: `location ~ ^/api/v1/admin/giras/.+/door/ws$` com upgrade headers.
-- Hook `useWebSocket` com reconexao automatica.
+- Gestao da fila de atendimento via **polling HTTP a cada 8s** (`POLLING_INTERVAL_MS`) — NAO ha
+  WebSocket no codigo atual (zero `@router.websocket` no backend; o hook `useWebSocket` foi
+  removido). A location de proxy WebSocket no nginx e legado sem efeito.
+- Modo TV/Kiosk fullscreen em `porta/kiosk.tsx` (mesmo polling).
 - Modais: AttendModal, WalkInModal.
 
 ### 11.5 Layout Admin (Sidebar)
@@ -353,9 +357,14 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009a + 009b → 010 (merge) → 011 (tenant endereco) → ... → 015 → 016 (remove enterprise) → ... → 026 (stripe billing) → 027 (mensalidade mediun).
-- Migracoes 009a e 009b foram merge na 010.
-- Ultima migracao: 027_mensalidade_mediun.
+- 64 migracoes; head atual: `054_purge_soft_deleted_gira_time_slots` (2026-08-26).
+- Historico com 4 merge revisions (010, 030, 037, d9fafadd9261) — prefixos numericos ja
+  colidiram 3x (009, 028, 030). Por isso a regra do §4.3: `alembic heads` ANTES de criar
+  qualquer migracao nova.
+- Migracoes corretivas notaveis (post-mortems nos docstrings): 044b (largura de
+  alembic_version.version_num — banco zerado quebrava no upgrade), 052 (dedup de consulentes +
+  unique parcial por tenant+email), 054 (purga de time slots soft-deletados que colidiam na
+  unique).
 
 ### 11.10 Financeiro — Controle de Mensalidade de Mediuns (branch 002-financeiro-mensalidade)
 - **Feature Premium**: disponivel apenas para tenants com plano PREMIUM (`mensalidade_mediun` flag via `subscription_info.py`).
@@ -421,6 +430,14 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
 - Hierarquia de roles refatorada em `dependencies.py`: `OPERATOR=0 < ADMIN=1 < SUPER_ADMIN=2` (dict `_ROLE_HIERARCHY`).
 - PostgreSQL com `deploy.resources.limits.memory: 8G` no `docker-compose.prod.yml`.
 - Backup retention aumentado de 10 para 30 no workflow CI.
+
+**Prometheus/Grafana — NAO operacionais (constatado em 2026-08-26):**
+- Os containers existem no compose, mas o backend NAO expoe `/metrics` (o modulo
+  `src/monitoring/prometheus.py` e orfao — nunca importado; `prometheus_client` nem esta nas
+  dependencias). 2 dos 3 scrape targets estao permanentemente DOWN, Grafana tem 0 dashboards e
+  nao ha Alertmanager/alertas. Decisao pendente no plano de execucao (item I-03,
+  docs/plano-execucao.md): remover a pilha ou assumi-la de verdade. Ate la, NAO descrever
+  Prometheus/Grafana como parte da stack de monitoramento.
 
 **Monitoramento de erros — Sentry (desde 2026-06-27):**
 - Backend: `sentry-sdk[fastapi]>=1.39.0` — inicializado em `main.py` quando `SENTRY_DSN` definido.

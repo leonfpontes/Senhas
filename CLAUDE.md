@@ -135,7 +135,9 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 - Frontend: Next.js, TypeScript, Material UI (v5), Recharts
 - DB: PostgreSQL com limit de 8G (Docker local / Hostinger VPS em prod)
 - Cache/Rate limit: Redis com `RedisStorage` no slowapi (distribuído)
-- Monitoramento: Sentry (erros + traces), Prometheus + Grafana (métricas)
+- Monitoramento: Sentry (erros + traces). Prometheus/Grafana estão no compose mas NÃO são
+  operacionais (backend não expõe /metrics; 0 dashboards; 0 alertas) — ver item I-03 do
+  docs/plano-execucao.md
 
 ### Fluxo padrão backend
 ```
@@ -178,6 +180,19 @@ O `access_token` é armazenado como **cookie HttpOnly** (não em `localStorage`)
 - [ ] `alembic heads` = uma única head
 - [ ] Nova feature adicionada ao enum e ao `permissionFeatures.ts` (se aplicável)
 - [ ] Logout chama `/api/v1/auth/logout` antes de limpar localStorage
+
+---
+
+## Plano de Execução Vigente
+
+**docs/plano-execucao.md** é o backlog priorizado do projeto (criado 2026-08-26 após auditoria
+completa). Regras de trabalho ativas:
+- **R-01**: nenhum módulo/feature novo até Q-01 (testes de integração com Postgres real) e
+  Q-02 (auditor de tenant_id) concluídos — exceto itens do plano e correções de produção.
+- **R-02**: documentação divergente do código é bug — corrigir na mesma sessão em que for
+  encontrada.
+- **R-03**: abstração frontend com 0 consumidores — adotar ou deletar na próxima sessão que
+  tocar tela relacionada.
 
 ---
 
