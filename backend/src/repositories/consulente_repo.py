@@ -214,9 +214,24 @@ class ConsulenteRepository(BaseRepository[Consulente]):
         email: Optional[str] = None,
         phone: Optional[str] = None,
     ) -> Consulente:
-        """Create a consulente for a walk-in flow where email is optional."""
+        """Get-or-create a consulente for a walk-in flow where email is optional.
+
+        When an email is provided, reuses the existing active consulente with
+        that email (same dedup shape as upsert_consulente) — walk-ins for
+        someone who already emitted a ticket online must not trip the
+        uq_consulentes_tenant_email_active constraint from migration 052.
+        """
         email_normalized = self.normalize_optional_email(email)
         phone_normalized = self.normalize_phone(phone)
+
+        if email_normalized:
+            existing = await self.get_by_email(session, tenant_id, email)
+            if existing:
+                if phone_normalized and existing.phone_normalized != phone_normalized:
+                    existing.telefone = phone
+                    existing.phone_normalized = phone_normalized
+                    await session.flush()
+                return existing
 
         consulente = Consulente(
             tenant_id=tenant_id,
@@ -227,7 +242,17 @@ class ConsulenteRepository(BaseRepository[Consulente]):
             phone_normalized=phone_normalized,
         )
         session.add(consulente)
-        await session.flush()
+        try:
+            await session.flush()
+        except IntegrityError:
+            # Concurrent walk-in/public emission with the same email won the
+            # insert race — recover the winner instead of 500ing the door view.
+            await session.rollback()
+            if email_normalized:
+                existing = await self.get_by_email(session, tenant_id, email)
+                if existing:
+                    return existing
+            raise
         return consulente
 
     async def update_basic_info(

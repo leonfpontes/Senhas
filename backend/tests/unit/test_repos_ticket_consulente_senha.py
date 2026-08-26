@@ -352,6 +352,65 @@ class TestConsulenteRepository:
         assert is_new is False
         session.flush.assert_awaited()
 
+    # create_walk_in_consulente — must reuse the existing active consulente
+    # when the email already exists (uq_consulentes_tenant_email_active)
+    async def test_walk_in_existing_email_reuses_consulente(self, repo):
+        r, _ = repo
+        session = _mock_db()
+        existing = MagicMock()
+        existing.phone_normalized = "+5535992013427"
+        r.get_by_email = AsyncMock(return_value=existing)
+        result = await r.create_walk_in_consulente(
+            session, 1, "Flavia", email="flavinha@mail.com", phone="+5535992013427"
+        )
+        assert result is existing
+        session.add.assert_not_called()
+
+    async def test_walk_in_existing_email_updates_phone(self, repo):
+        r, _ = repo
+        session = _mock_db()
+        existing = MagicMock()
+        existing.phone_normalized = "+5511000000000"
+        r.get_by_email = AsyncMock(return_value=existing)
+        result = await r.create_walk_in_consulente(
+            session, 1, "Flavia", email="flavinha@mail.com", phone="+5535992013427"
+        )
+        assert result is existing
+        assert existing.phone_normalized == "+5535992013427"
+        session.flush.assert_awaited()
+
+    async def test_walk_in_new_email_creates(self, repo):
+        r, _ = repo
+        session = _mock_db()
+        r.get_by_email = AsyncMock(return_value=None)
+        with patch("src.repositories.consulente_repo.Consulente") as MockC:
+            MockC.return_value = MagicMock()
+            await r.create_walk_in_consulente(session, 1, "Nova", email="nova@mail.com")
+            session.add.assert_called_once()
+
+    async def test_walk_in_without_email_creates_without_lookup(self, repo):
+        r, _ = repo
+        session = _mock_db()
+        r.get_by_email = AsyncMock()
+        with patch("src.repositories.consulente_repo.Consulente") as MockC:
+            MockC.return_value = MagicMock()
+            await r.create_walk_in_consulente(session, 1, "Sem Email", phone="+5535992013427")
+            r.get_by_email.assert_not_awaited()
+            session.add.assert_called_once()
+
+    async def test_walk_in_integrity_race_recovers_existing(self, repo):
+        from sqlalchemy.exc import IntegrityError as SAIntegrityError
+        r, _ = repo
+        session = _mock_db()
+        winner = MagicMock()
+        r.get_by_email = AsyncMock(side_effect=[None, winner])
+        session.flush = AsyncMock(side_effect=SAIntegrityError("stmt", {}, Exception("dup")))
+        with patch("src.repositories.consulente_repo.Consulente") as MockC:
+            MockC.return_value = MagicMock()
+            result = await r.create_walk_in_consulente(session, 1, "Race", email="race@mail.com")
+        assert result is winner
+        session.rollback.assert_awaited_once()
+
     # list_by_tenant
     @patch("src.repositories.consulente_repo.Consulente", _MockConsulenteModel)
     @patch("src.repositories.consulente_repo.select", _mock_select)
