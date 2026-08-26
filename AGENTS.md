@@ -1,7 +1,7 @@
 # AGENTS.md - Guia Operacional para Agentes de IA
 
 Last Updated: 2026-08-26 (correcao de docs divergentes do codigo: Porta usa polling e nao
-WebSocket; Prometheus/Grafana nao operacionais; cadeia de migracoes atualizada ate a 054.
+WebSocket; pilha Prometheus/Grafana removida (I-03); cadeia de migracoes atualizada ate a 054.
 Plano de execucao vigente: docs/plano-execucao.md)
 Project: Senhas / GiraHub - Multi-Tenant SaaS para emissão de tickets
 Repository: leonfpontes/Senhas
@@ -431,13 +431,12 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
 - PostgreSQL com `deploy.resources.limits.memory: 8G` no `docker-compose.prod.yml`.
 - Backup retention aumentado de 10 para 30 no workflow CI.
 
-**Prometheus/Grafana — NAO operacionais (constatado em 2026-08-26):**
-- Os containers existem no compose, mas o backend NAO expoe `/metrics` (o modulo
-  `src/monitoring/prometheus.py` e orfao — nunca importado; `prometheus_client` nem esta nas
-  dependencias). 2 dos 3 scrape targets estao permanentemente DOWN, Grafana tem 0 dashboards e
-  nao ha Alertmanager/alertas. Decisao pendente no plano de execucao (item I-03,
-  docs/plano-execucao.md): remover a pilha ou assumi-la de verdade. Ate la, NAO descrever
-  Prometheus/Grafana como parte da stack de monitoramento.
+**Prometheus/Grafana — REMOVIDOS (2026-08-26, item I-03 do plano de execucao):**
+- A pilha nunca ficou operacional (backend nao expunha `/metrics`, modulo orfao, 0 dashboards,
+  0 alertas) e foi removida por completo: containers fora do compose, diretorios `prometheus/`
+  e `grafana/` apagados, `src/monitoring/prometheus.py` deletado, env vars `PROMETHEUS_*` e
+  `GRAFANA_PASSWORD` eliminadas. Se um dia houver necessidade de metricas de infra, religar e
+  um item novo — feito de verdade, com `/metrics` exposto e alertas.
 
 **Monitoramento de erros — Sentry (desde 2026-06-27):**
 - Backend: `sentry-sdk[fastapi]>=1.39.0` — inicializado em `main.py` quando `SENTRY_DSN` definido.

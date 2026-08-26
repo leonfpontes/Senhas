@@ -43,7 +43,6 @@ O script instala:
 - Nginx
 - Certbot (Let's Encrypt SSL)
 - UFW (firewall)
-- Prometheus + Grafana
 
 ### Manual (se necessário)
 
@@ -302,13 +301,6 @@ Redis já incluso no `docker-compose.prod.yml`. A variável `REDIS_URL` é repas
 ```env
 REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
 ```
-
-### Prometheus + Grafana
-
-Já incluídos no `docker-compose.prod.yml`:
-
-- **Prometheus**: `http://VPS_IP:9090` — coleta métricas
-- **Grafana**: `http://VPS_IP:3001` — dashboards visuais
 
 ### Health Check
 

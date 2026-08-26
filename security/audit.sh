@@ -393,11 +393,11 @@ echo -e "${BLUE}================================================${NC}"
     LOG_PASS=0
   fi
   
-  # Check for monitoring utilities
-  if grep -r "Prometheus\|monitoring\|metrics" backend/src --include="*.py" >/dev/null 2>&1; then
-    echo "  ✓ PASS: Monitoring/metrics detected"
+  # Check for error monitoring (Sentry)
+  if grep -r "sentry_sdk" backend/src --include="*.py" >/dev/null 2>&1; then
+    echo "  ✓ PASS: Error monitoring (Sentry) detected"
   else
-    echo "  ⚠ WARNING: Monitoring utilities not clearly found"
+    echo "  ⚠ WARNING: Error monitoring not clearly found"
     ((WARNINGS++))
   fi
   

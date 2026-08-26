@@ -216,8 +216,6 @@ Services:
   backend:    FastAPI + Uvicorn (multi-worker)
   frontend:   Next.js (production build)
   nginx:      Reverse proxy, SSL termination
-  prometheus: Coleta de métricas
-  grafana:    Dashboards de monitoramento
 ```
 
 ---

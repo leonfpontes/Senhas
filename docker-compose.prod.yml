@@ -6,7 +6,6 @@
 # - PostgreSQL database
 # - Redis cache
 # - Nginx reverse proxy
-# - Prometheus monitoring
 # - Secrets management via env files
 
 services:
@@ -134,10 +133,6 @@ services:
       LOG_LEVEL: INFO
       LOG_FILE: /var/log/senhas/app.log
       
-      # Monitoring
-      PROMETHEUS_ENABLED: "true"
-      PROMETHEUS_PORT: 9090
-
       # Sentry
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
@@ -259,58 +254,6 @@ services:
         max-size: "30m"
         max-file: "5"
 
-  # ============================================
-  # Prometheus Monitoring
-  # ============================================
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: senhas-prometheus
-    restart: always
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    ports:
-      # Loopback only — acessar via túnel SSH (ssh -L 9091:localhost:9091)
-      - "127.0.0.1:9091:9090"
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.time=30d"
-    networks:
-      - senhas-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ============================================
-  # Grafana Dashboards
-  # ============================================
-  grafana:
-    image: grafana/grafana:latest
-    container_name: senhas-grafana
-    restart: always
-    depends_on:
-      - prometheus
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_INSTALL_PLUGINS: "grafana-clock-panel"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-    ports:
-      # Loopback only — acessar via túnel SSH (ssh -L 3001:localhost:3001)
-      - "127.0.0.1:3001:3000"
-    networks:
-      - senhas-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
 networks:
   senhas-network:
     driver: bridge
@@ -323,10 +266,6 @@ volumes:
   backend_logs:
     driver: local
   backend_uploads:
-    driver: local
-  prometheus_data:
-    driver: local
-  grafana_data:
     driver: local
   nginx_cache:
     driver: local

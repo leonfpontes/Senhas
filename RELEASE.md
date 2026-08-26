@@ -70,7 +70,8 @@
 - **Zero-downtime deploy** — build com containers antigos rodando, swap rápido
 - **Automated pg_dump backup** antes de cada deploy (10 backups retidos)
 - **Security audit job** em CI — pip-audit + npm audit paralelos
-- **Monitoring setup** with Prometheus + Grafana + **Sentry** (error tracking)
+- **Monitoring setup** com **Sentry** (error tracking; a pilha Prometheus + Grafana
+  original nunca ficou operacional e foi removida em 2026-08-26 — item I-03 do plano)
 - **Comprehensive API documentation**
 
 ### Fase 8: Hardening de Segurança (2026-06-27)
@@ -162,7 +163,7 @@
 - **Cache**: Redis (optional)
 - **Email**: Brevo + Resend
 - **Auth**: JWT + Bcrypt
-- **Monitoring**: Prometheus
+- **Monitoring**: Sentry
 
 ### Frontend
 - **Framework**: Next.js 14 (React 18)
@@ -328,7 +329,6 @@ Thank you to:
 - **API Docs**: [docs/api.md](docs/api.md)
 - **Deployment Guide**: [DEPLOYMENT.md](DEPLOYMENT.md)
 - **Security Audit**: [security/audit.sh](security/audit.sh)
-- **Monitoring**: [Prometheus setup](backend/src/monitoring/prometheus.py)
 
 ---
 

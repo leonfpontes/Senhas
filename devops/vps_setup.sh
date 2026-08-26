@@ -9,8 +9,7 @@
 # 4. Nginx reverse proxy
 # 5. SSL certificates (Let's Encrypt)
 # 6. GitHub Actions runner
-# 7. Monitoring (Prometheus + Grafana)
-# 8. Backups and maintenance
+# 7. Backups and maintenance
 
 set -e
 
@@ -373,49 +372,10 @@ echo -e "${GREEN}✓ GitHub Actions runner prepared${NC}"
 echo
 
 # ============================================
-# 8. MONITORING SETUP
+# 8. FIREWALL CONFIGURATION
 # ============================================
 
-echo -e "${YELLOW}Step 8: Prometheus & Grafana${NC}"
-
-sudo apt-get install -y prometheus grafana-server
-
-# Configure Prometheus
-sudo tee /etc/prometheus/prometheus.yml > /dev/null <<EOF
-global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-
-scrape_configs:
-  - job_name: 'senhas-backend'
-    static_configs:
-      - targets: ['localhost:9090']
-  - job_name: 'node'
-    static_configs:
-      - targets: ['localhost:9100']
-  - job_name: 'nginx'
-    static_configs:
-      - targets: ['localhost:9113']
-EOF
-
-# Start services
-sudo systemctl start prometheus
-sudo systemctl start grafana-server
-sudo systemctl enable prometheus
-sudo systemctl enable grafana-server
-
-echo "Grafana URL: https://$DOMAIN:3001"
-echo "Default credentials: admin / admin"
-echo "⚠️ Change password immediately!"
-
-echo -e "${GREEN}✓ Prometheus & Grafana installed${NC}"
-echo
-
-# ============================================
-# 9. FIREWALL CONFIGURATION
-# ============================================
-
-echo -e "${YELLOW}Step 9: UFW Firewall${NC}"
+echo -e "${YELLOW}Step 8: UFW Firewall${NC}"
 
 sudo apt-get install -y ufw
 
@@ -429,18 +389,14 @@ sudo ufw allow 22/tcp
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 
-# Allow monitoring (restricted)
-sudo ufw allow from 127.0.0.1 to 127.0.0.1 port 9090
-sudo ufw allow from 127.0.0.1 to 127.0.0.1 port 3001
-
 echo -e "${GREEN}✓ Firewall configured${NC}"
 echo
 
 # ============================================
-# 10. ENVIRONMENT CONFIGURATION
+# 9. ENVIRONMENT CONFIGURATION
 # ============================================
 
-echo -e "${YELLOW}Step 10: Environment Setup${NC}"
+echo -e "${YELLOW}Step 9: Environment Setup${NC}"
 
 # Create .env file for Docker Compose
 sudo tee "$APP_HOME/.env" > /dev/null <<EOF
@@ -474,8 +430,6 @@ CORS_ORIGINS=https://$DOMAIN
 DOMAIN=$DOMAIN
 CERTBOT_EMAIL=$ADMIN_EMAIL
 
-# Grafana
-GRAFANA_PASSWORD=$(openssl rand -base64 32)
 
 # Registry
 REGISTRY=docker.io
@@ -491,10 +445,10 @@ echo -e "${GREEN}✓ Environment configured${NC}"
 echo
 
 # ============================================
-# 11. SYSTEMD SERVICE
+# 10. SYSTEMD SERVICE
 # ============================================
 
-echo -e "${YELLOW}Step 11: Systemd Service${NC}"
+echo -e "${YELLOW}Step 10: Systemd Service${NC}"
 
 sudo tee /etc/systemd/system/senhas.service > /dev/null <<EOF
 [Unit]
@@ -522,10 +476,10 @@ echo -e "${GREEN}✓ Systemd service created${NC}"
 echo
 
 # ============================================
-# 12. LOG ROTATION
+# 11. LOG ROTATION
 # ============================================
 
-echo -e "${YELLOW}Step 12: Log Rotation${NC}"
+echo -e "${YELLOW}Step 11: Log Rotation${NC}"
 
 sudo tee /etc/logrotate.d/senhas > /dev/null <<EOF
 /var/log/senhas-backup.log {
@@ -570,7 +524,6 @@ echo "4. Verify deployment:"
 echo "   curl https://$DOMAIN/api/health"
 echo "5. Access dashboard:"
 echo "   https://$DOMAIN (frontend)"
-echo "   https://$DOMAIN:3001 (Grafana)"
 echo
 echo "IMPORTANT:"
 echo "- Save database credentials"

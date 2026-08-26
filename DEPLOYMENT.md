@@ -130,7 +130,6 @@ bash /tmp/vps_setup.sh
 # - Configure Nginx
 # - Issue SSL certificates (Let's Encrypt)
 # - Set up GitHub Actions runner
-# - Install monitoring (Prometheus + Grafana)
 ```
 
 ### 2. Configure DNS
@@ -341,30 +340,13 @@ sudo systemctl enable certbot.timer
 
 ## Monitoring Setup
 
-### 1. Access Monitoring Dashboard
+### 1. Sentry (erros + traces)
 
-```bash
-# Prometheus
-https://senhas.example.com:9091
+Observabilidade de produção é feita via Sentry — backend (`sentry-sdk[fastapi]`) e
+frontend (`@sentry/nextjs`), ativados quando `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN`
+estão definidos no `.env`.
 
-# Grafana
-https://senhas.example.com:3001
-Default: admin / admin
-
-# CHANGE PASSWORD IMMEDIATELY!
-```
-
-### 2. Configure Grafana
-
-```bash
-# 1. Login with default credentials
-# 2. Add Prometheus data source
-#    URL: http://localhost:9090
-# 3. Import dashboard (or create custom)
-# 4. Set up alerts
-```
-
-### 3. Configure Log Monitoring
+### 2. Configure Log Monitoring
 
 ```bash
 # View live logs
@@ -375,17 +357,6 @@ docker-compose logs -f backend
 
 # Get logs from container
 docker logs senhas-backend --tail 100
-```
-
-### 4. Set Up Alerts
-
-```bash
-# Configure alerting rules in Prometheus
-sudo vim /etc/prometheus/prometheus.yml
-
-# Add alert rules:
-alert_rules:
-  - /etc/prometheus/alerts/senhas-rules.yml
 ```
 
 ---
@@ -613,7 +584,6 @@ sudo systemctl restart nginx
 - [ ] Review security logs
 - [ ] Update dependencies
 - [ ] Performance review
-- [ ] Backup Grafana configuration
 
 ### Monthly
 - [ ] Security audit

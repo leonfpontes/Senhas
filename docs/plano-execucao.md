@@ -81,7 +81,14 @@ Estes três foram confirmados em código durante a auditoria e já estão em exe
   upload diário visível no bucket.
 - **Esforço**: M. **Custo**: R$ 0 (free tier).
 
-### I-03 — Prometheus/Grafana: desligar (ou assumir de verdade) — `pendente`
+### I-03 — Prometheus/Grafana: desligar (ou assumir de verdade) — `feito` (2026-08-26)
+- **Executado**: opção "remover" aplicada por completo — serviços `prometheus` e `grafana`
+  fora do `docker-compose.prod.yml` (com volumes `prometheus_data`/`grafana_data`),
+  diretórios `prometheus/` e `grafana/` apagados, `src/monitoring/prometheus.py` deletado,
+  env vars mortas removidas (`PROMETHEUS_ENABLED`, `PROMETHEUS_PORT`, `GRAFANA_PASSWORD` nos
+  `.env.example`), step de instalação removido do `devops/vps_setup.sh`, check do
+  `security/audit.sh` trocado para Sentry, e docs atualizados (README, RELEASE, DEPLOYMENT,
+  AGENTS, CLAUDE, docs/architecture, docs/deployment).
 - **Problema**: a pilha está montada mas não observa nada — o backend não expõe `/metrics`
   (módulo `src/monitoring/prometheus.py` é órfão, nunca importado; `prometheus_client` nem está
   nas dependências), 2 dos 3 scrape targets estão permanentemente DOWN, Grafana tem 0 dashboards,

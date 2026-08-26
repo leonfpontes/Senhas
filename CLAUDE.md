@@ -135,9 +135,8 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 - Frontend: Next.js, TypeScript, Material UI (v5), Recharts
 - DB: PostgreSQL com limit de 8G (Docker local / Hostinger VPS em prod)
 - Cache/Rate limit: Redis com `RedisStorage` no slowapi (distribuído)
-- Monitoramento: Sentry (erros + traces). Prometheus/Grafana estão no compose mas NÃO são
-  operacionais (backend não expõe /metrics; 0 dashboards; 0 alertas) — ver item I-03 do
-  docs/plano-execucao.md
+- Monitoramento: Sentry (erros + traces). A pilha Prometheus/Grafana foi removida em
+  2026-08-26 (nunca ficou operacional — item I-03 do docs/plano-execucao.md)
 
 ### Fluxo padrão backend
 ```

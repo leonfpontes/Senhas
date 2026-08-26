@@ -33,7 +33,7 @@ Sistema SaaS multi-tenant para emissão e gestão de senhas (tickets) para Terre
 | **E-mail** | Brevo + Resend |
 | **Infra** | Docker Compose, Nginx, Let's Encrypt SSL |
 | **CI/CD** | GitHub Actions |
-| **Monitoring** | Prometheus + Grafana |
+| **Monitoring** | Sentry (erros + traces) |
 
 ---
 
