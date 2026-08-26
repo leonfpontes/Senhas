@@ -157,7 +157,12 @@ def decode_token(token: str) -> TokenPayload:
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
         )
-        
+
+        if payload.get("type") == "refresh":
+            raise InvalidTokenError(
+                "Token inválido: refresh token não pode ser usado como access token"
+            )
+
         # Validate required fields
         user_id = payload.get("sub")
         tenant_id = payload.get("tenant_id")  # None for SUPER_ADMIN
@@ -179,6 +184,8 @@ def decode_token(token: str) -> TokenPayload:
         
     except JWTError as e:
         raise InvalidTokenError(f"Token inválido: {str(e)}")
+    except InvalidTokenError:
+        raise
     except Exception as e:
         raise InvalidTokenError(f"Erro ao decodificar token: {str(e)}")
 

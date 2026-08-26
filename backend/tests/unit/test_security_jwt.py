@@ -186,6 +186,28 @@ class TestDecodeToken:
         with pytest.raises(InvalidTokenError):
             decode_token("")
 
+    def test_rejects_refresh_token(self):
+        """A refresh token (long-lived) must never be accepted as an access
+        token — decode_token is what jwt_middleware authenticates with."""
+        user_id = uuid.uuid4()
+        tenant_id = uuid.uuid4()
+        refresh = create_refresh_token(user_id, tenant_id, "admin", uuid.uuid4(), uuid.uuid4())
+        with pytest.raises(InvalidTokenError, match="refresh token"):
+            decode_token(refresh)
+
+    def test_rejects_handcrafted_type_refresh_payload(self):
+        payload = {
+            "sub": str(uuid.uuid4()),
+            "tenant_id": str(uuid.uuid4()),
+            "role": "admin",
+            "exp": datetime.now(timezone.utc) + timedelta(days=30),
+            "iat": datetime.now(timezone.utc),
+            "type": "refresh",
+        }
+        token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        with pytest.raises(InvalidTokenError, match="refresh token"):
+            decode_token(token)
+
     def test_decode_token_missing_sub_raises(self):
         payload = {
             "tenant_id": str(uuid.uuid4()),
