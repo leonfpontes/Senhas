@@ -9,25 +9,35 @@ Status possíveis: `pendente` · `em andamento` · `feito` · `descartado`
 
 ---
 
-## Fase 0 — Bugs confirmados (em andamento em sessões paralelas)
+## Fase 0 — Bugs confirmados — `concluída` (2026-08-26)
 
-Estes três foram confirmados em código durante a auditoria e já estão em execução.
+Os três foram confirmados em código durante a auditoria, corrigidos e deployados no mesmo dia.
 
-### E-01 — Reenvio público de e-mail retorna 500 em toda chamada — `em andamento`
+### E-01 — Reenvio público de e-mail retorna 500 em toda chamada — `feito` (2026-08-26)
+- **Executado**: `6efb0cc` — instanciação de `TicketRepository` corrigida; teste passou a
+  exercitar a instanciação real (sem patch da classe).
 - **Problema**: `backend/src/api/v1/public/resend_email.py:122` instancia `TicketRepository()` sem
   argumentos (herda `BaseRepository.__init__(self, db, model)`); `TypeError` engolido pelo
   `except Exception` → HTTP 500 sempre. Teste passa verde porque mocka a própria classe.
 - **Aceite**: endpoint reenviando e-mail de verdade; teste que exercita a instanciação real
   (sem patch da classe `TicketRepository`).
 
-### E-02 — `decode_token` aceita refresh token como access token — `em andamento`
+### E-02 — `decode_token` aceita refresh token como access token — `feito` (2026-08-26)
+- **Executado**: `9a3fd36` — `decode_token` rejeita `type == "refresh"`; testes nas duas
+  direções; refresh e impersonação preservados.
 - **Problema**: `decode_refresh_token` exige `type == "refresh"`, mas `decode_token` não rejeita
   esse tipo — refresh de 30 dias vale como access no `jwt_middleware`. Docstring promete as duas
   direções; só uma existe.
 - **Aceite**: `decode_token` rejeita `type == "refresh"`; testes cobrindo as duas direções;
   fluxos de refresh e impersonação intactos.
 
-### E-03 — Rate limit em login / forgot-password / reset-password / resend público — `em andamento`
+### E-03 — Rate limit em login / forgot-password / reset-password / resend público — `feito` (2026-08-26)
+- **Executado**: `f99fe79` — login 10/min, forgot 5/h, reset 10/h, resend público 5/h (subido
+  pra 15/h em `9acb93f` após atrito real), todos por IP. O keying atrás do proxy foi resolvido
+  junto: `key_func` usa `X-Real-IP` (nginx sobrescreve com `$remote_addr`, não spoofável);
+  deliberadamente sem `FORWARDED_ALLOW_IPS="*"` (pegaria o primeiro IP do `X-Forwarded-For`,
+  controlado pelo cliente). Depende do 8000 publicado só em loopback (I-01). Testes de 429 em
+  `test_rate_limits.py`.
 - **Problema**: nenhum `@limiter.limit` nesses endpoints; resend público dispara até 10 e-mails
   por chamada sem auth. Atenção ao keying: uvicorn roda sem `--forwarded-allow-ips` atrás do
   nginx, então o IP visto pode ser o do próprio nginx (bucket único global) — corrigir o
@@ -43,9 +53,13 @@ Estes três foram confirmados em código durante a auditoria e já estão em exe
   apenas 80/443 respondem; site 200 e `/health` ok. Todos os containers recriados com bind
   em `127.0.0.1` (aplicado na VPS às 14:55 UTC pelo deploy, verificado via `docker port` e
   scan externo de outra rede).
-- **Bônus na mesma passada**: healthcheck do frontend trocado de `curl` (inexistente na
-  imagem `node:20-alpine` runner) para `wget --spider` do busybox — o container ficava
-  permanentemente `unhealthy` por erro do check, não do app.
+- **Bônus na mesma passada**: healthcheck do frontend consertado em duas etapas — a causa
+  era dupla. `c421144`: troca de `curl` (inexistente na imagem `node:20-alpine` runner) por
+  `wget --spider` do busybox; ainda falhava com connection refused porque `localhost` no
+  container resolve pra `::1` e o Next standalone escuta só IPv4 (busybox wget não faz
+  fallback). `9810153`: alvo trocado pra `http://127.0.0.1:3000` — container finalmente
+  `healthy`, verificado em produção. Regra derivada: healthcheck de container usa
+  `127.0.0.1`, nunca `localhost`.
 - **Problema**: `docker-compose.prod.yml` publica `postgres:5432`, `backend:8000`,
   `frontend:3000`, `prometheus:9091`, `grafana:3001` no host. UFW **não** protege porta publicada
   por container (a cadeia DOCKER do iptables roda antes do INPUT). Postgres de produção e backend
@@ -116,6 +130,20 @@ Estes três foram confirmados em código durante a auditoria e já estão em exe
   `workflow_call` pra não duplicar). Deploy continua só em master.
 - **Aceite**: abrir um PR de teste e ver os checks rodando antes do merge.
 - **Esforço**: P–M. **Custo**: R$ 0 (GitHub Actions free tier cobre).
+
+### Registro de operação — incidente de deploys paralelos (2026-08-26) — `resolvido`
+- **O que houve**: dois pushes próximos na master dispararam runs de Deploy → VPS simultâneos
+  (32980645099 e 32981679793) intercalando `docker compose` via SSH no mesmo `/opt/senhas`.
+  Sequela: o `--force-recreate` intercalado deixou um container backend órfão renomeado
+  (`<hash>_senhas-backend`) que bloqueava todo swap seguinte com "Conflict. The container
+  name ... is already in use" — e a remoção do órfão derrubou o backend até o deploy seguinte
+  recriá-lo.
+- **Correções**: `65f177b` adiciona `concurrency: { group: deploy-vps, cancel-in-progress:
+  false }` no deploy.yml — deploys agora enfileiram (verificado em produção: fila funcionando
+  no mesmo dia); órfão removido manualmente na VPS (`docker rm -f`).
+- **Nota**: no fim do dia o GitHub Actions teve `major_outage` oficial — runs com
+  `startup_failure` em segundos e sem log são sintoma do incidente deles, não de erro nos
+  workflows; re-run após a recuperação resolveu.
 
 ### I-05 — Consertos pequenos de operação (lote único) — `pendente`
 - `backend/entrypoint.sh` roda `alembic upgrade heads` (plural, mascara heads divergentes);
