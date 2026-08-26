@@ -26,6 +26,7 @@ from src.services.email.templates.ticket_emission import (
 )
 from src.models.tenants import Tenant
 from src.models.tenant_config import TenantConfig
+from src.models.tickets import Ticket
 
 import logging
 import sentry_sdk
@@ -119,7 +120,7 @@ async def resend_ticket_email(
             raise HTTPException(status_code=400, detail=str(e))
 
         # === STEP 3: Find Recent Tickets ===
-        ticket_repo = TicketRepository()
+        ticket_repo = TicketRepository(session, Ticket)
         tickets = await ticket_repo.list_by_consulente_email(
             session=session,
             tenant_id=tenant.id,

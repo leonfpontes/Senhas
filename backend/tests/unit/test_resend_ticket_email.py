@@ -57,15 +57,17 @@ class TestResendTicketEmail:
 
         request = ResendTicketEmailRequest(email="joao@example.com")
 
-        with patch(
-            "src.api.v1.public.resend_email.TicketRepository"
-        ) as MockTicketRepo, patch(
+        # Patch only the query method so the endpoint exercises the real
+        # TicketRepository(session, Ticket) instantiation.
+        from src.repositories.ticket_repo import TicketRepository
+
+        with patch.object(
+            TicketRepository,
+            "list_by_consulente_email",
+            AsyncMock(return_value=[ticket]),
+        ), patch(
             "src.api.v1.public.resend_email.email_queue"
         ) as mock_queue:
-            repo = AsyncMock()
-            repo.list_by_consulente_email.return_value = [ticket]
-            MockTicketRepo.return_value = repo
-
             response = await resend_ticket_email(
                 tenant_slug="terreiro-test",
                 request=request,
