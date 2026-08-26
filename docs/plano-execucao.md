@@ -38,7 +38,7 @@ Estes três foram confirmados em código durante a auditoria e já estão em exe
 
 ## Fase 1 — Infra de custo zero (prioridade máxima após Fase 0)
 
-### I-01 — Fechar portas de serviços internos no host — `pendente`
+### I-01 — Fechar portas de serviços internos no host — `em andamento` (2026-08-26)
 - **Problema**: `docker-compose.prod.yml` publica `postgres:5432`, `backend:8000`,
   `frontend:3000`, `prometheus:9091`, `grafana:3001` no host. UFW **não** protege porta publicada
   por container (a cadeia DOCKER do iptables roda antes do INPUT). Postgres de produção e backend
@@ -49,6 +49,15 @@ Estes três foram confirmados em código durante a auditoria e já estão em exe
 - **Aceite**: de fora da VPS, apenas 22/80/443 respondem.
 - **Esforço**: P (uma edição de compose + deploy + verificação). **Custo**: R$ 0.
 - **Risco**: se algo externo hoje depende do 8000/5432 direto (não deveria), quebra — verificar antes.
+- **Nota operacional**: o deploy automático só recria backend/frontend/nginx. Após o merge,
+  aplicar o bind novo aos demais serviços manualmente na VPS (~segundos de indisponibilidade
+  do banco ao recriar o postgres — fazer fora de horário de gira):
+  `cd /opt/senhas && docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d postgres prometheus grafana`
+  Depois verificar de fora: `nc -zv -w3 76.13.231.19 5432 8000 3000 9091 3001` deve falhar em
+  todas; 80/443 devem responder.
+- **Verificação pré-mudança feita**: nginx fala com backend/frontend pela rede interna do
+  compose (`proxy_pass http://backend:8000`); o health check do deploy roda via SSH dentro da
+  VPS (`localhost:8000`) — ambos preservados pelo bind em loopback.
 
 ### I-02 — Backup fora da VPS, criptografado, com restore testado — `pendente`
 - **Problema**: os dois mecanismos de backup (pré-deploy no CI e cron diário) gravam no mesmo
