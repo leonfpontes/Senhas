@@ -4,6 +4,15 @@ on:
   push:
     branches: [master]
 
+# Serializa deploys na VPS: dois runs simultâneos intercalam comandos
+# docker compose via SSH no mesmo /opt/senhas (observado em produção em
+# 2026-08-26). cancel-in-progress: false — o run em andamento termina e o
+# mais recente fica na fila (pushes intermediários pendentes são descartados
+# pelo GitHub, o que é desejado: só o último estado do master importa).
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
 jobs:
   # ──────────────────────────────────────────────────────────────────────────
   # Auditoria de segurança de dependências (não bloqueia deploy, mas notifica)
