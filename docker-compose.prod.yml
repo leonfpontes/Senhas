@@ -26,7 +26,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
-      - "5432:5432"
+      # Loopback only — host access for maintenance/backups; nunca exposto à internet
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-senhas_prod}"]
       interval: 10s
@@ -145,7 +146,9 @@ services:
       - backend_logs:/var/log/senhas
       - backend_uploads:/app/uploads
     ports:
-      - "8000:8000"
+      # Loopback only — acesso externo passa pelo nginx (TLS, headers, rate limit);
+      # o smoke test do deploy usa localhost:8000 no host e continua funcionando
+      - "127.0.0.1:8000:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -195,7 +198,8 @@ services:
       NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
       NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
     ports:
-      - "3000:3000"
+      # Loopback only — acesso externo passa pelo nginx (proxy via http://frontend:3000)
+      - "127.0.0.1:3000:3000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
@@ -263,7 +267,8 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "9091:9090"
+      # Loopback only — acessar via túnel SSH (ssh -L 9091:localhost:9091)
+      - "127.0.0.1:9091:9090"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -293,7 +298,8 @@ services:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
-      - "3001:3000"
+      # Loopback only — acessar via túnel SSH (ssh -L 3001:localhost:3001)
+      - "127.0.0.1:3001:3000"
     networks:
       - senhas-network
     logging:
