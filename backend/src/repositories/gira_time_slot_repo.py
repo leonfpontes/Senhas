@@ -66,6 +66,22 @@ class GiraTimeSlotRepository(BaseRepository[GiraTimeSlot]):
         result = await session.execute(query)
         return result.scalar_one_or_none()
 
+    async def _list_soft_deleted_by_gira(
+        self,
+        session: AsyncSession,
+        tenant_id: UUID,
+        gira_id: UUID,
+    ) -> List[GiraTimeSlot]:
+        query = select(GiraTimeSlot).where(
+            and_(
+                GiraTimeSlot.tenant_id == tenant_id,
+                GiraTimeSlot.gira_id == gira_id,
+                GiraTimeSlot.deleted_at.is_not(None),
+            )
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
     async def replace_slots_for_gira(
         self,
         session: AsyncSession,
@@ -98,6 +114,19 @@ class GiraTimeSlotRepository(BaseRepository[GiraTimeSlot]):
         for horario, slot in existing_by_horario.items():
             if horario not in incoming_horarios:
                 await session.delete(slot)
+
+        # Purge soft-deleted leftovers: the pre-a6d20cd version of this method
+        # soft-deleted replaced rows, and those still occupy the
+        # (tenant_id, gira_id, horario) tuple in the unique constraint — a new
+        # insert reusing one of those horários would 500. Migration 054 clears
+        # the historical rows; this keeps the method safe against any future
+        # soft-delete of a slot (e.g. via BaseRepository.delete).
+        for slot in await self._list_soft_deleted_by_gira(session, tenant_id, gira_id):
+            await session.delete(slot)
+
+        # Flush deletes before the inserts below — SQLAlchemy's unit of work
+        # flushes inserts first otherwise, which would still hit the constraint.
+        await session.flush()
 
         result: list[GiraTimeSlot] = []
         for item in slots:

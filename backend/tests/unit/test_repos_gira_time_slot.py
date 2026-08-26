@@ -98,6 +98,7 @@ class TestGiraTimeSlotRepository:
         existing_slot = MagicMock()
         existing_slot.horario = time(19, 0)
         r.list_by_gira = AsyncMock(return_value=[existing_slot])
+        r._list_soft_deleted_by_gira = AsyncMock(return_value=[])
         tenant_id, gira_id = uuid4(), uuid4()
 
         with patch("src.repositories.gira_time_slot_repo.GiraTimeSlot") as MockModel:
@@ -129,6 +130,7 @@ class TestGiraTimeSlotRepository:
         existing_slot.horario = time(20, 0)
         existing_slot.capacidade_maxima = 25
         r.list_by_gira = AsyncMock(return_value=[existing_slot])
+        r._list_soft_deleted_by_gira = AsyncMock(return_value=[])
 
         result = await r.replace_slots_for_gira(
             session, uuid4(), uuid4(), [{"horario": time(20, 0), "capacidade_maxima": 30}],
@@ -146,10 +148,33 @@ class TestGiraTimeSlotRepository:
         existing_slot = MagicMock()
         existing_slot.horario = time(19, 0)
         r.list_by_gira = AsyncMock(return_value=[existing_slot])
+        r._list_soft_deleted_by_gira = AsyncMock(return_value=[])
         result = await r.replace_slots_for_gira(session, uuid4(), uuid4(), [])
         session.delete.assert_awaited_once_with(existing_slot)
         session.add.assert_not_called()
         assert result == []
+
+    async def test_replace_slots_purges_soft_deleted_leftovers(self, repo):
+        """Soft-deleted rows from the pre-a6d20cd era still occupy the
+        (tenant_id, gira_id, horario) unique tuple — replace must hard-delete
+        them (with a flush before inserting) so re-adding one of those
+        horários doesn't 500 with UniqueViolationError."""
+        r, _ = repo
+        session = _mock_db()
+        session.delete = AsyncMock()
+        ghost = MagicMock()
+        ghost.horario = time(20, 0)
+        r.list_by_gira = AsyncMock(return_value=[])
+        r._list_soft_deleted_by_gira = AsyncMock(return_value=[ghost])
+
+        with patch("src.repositories.gira_time_slot_repo.GiraTimeSlot") as MockModel:
+            MockModel.return_value = MagicMock()
+            await r.replace_slots_for_gira(
+                session, uuid4(), uuid4(), [{"horario": time(20, 0), "capacidade_maxima": 25}],
+            )
+
+        session.delete.assert_awaited_once_with(ghost)
+        session.add.assert_called_once()
 
     @patch("src.repositories.gira_time_slot_repo.GiraTimeSlot", _MockGiraTimeSlotModel)
     @patch("src.repositories.gira_time_slot_repo.select", _mock_select)
