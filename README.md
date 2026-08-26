@@ -250,3 +250,4 @@ Veja [`.env.example`](.env.example) para todas as configurações:
 ## Licença
 
 Proprietário — © 2026 Leon F. Pontes. Todos os direitos reservados.
+
