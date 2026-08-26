@@ -665,6 +665,15 @@ class TestEmitTicketEndpoint:
 # resend_email.py Coverage (Lines 99-164, 198-267)
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class TestResendEmailEndpoint:
+    @pytest.fixture(autouse=True)
+    def _bypass_rate_limit(self):
+        """Disable slowapi enforcement — the endpoint is @limiter.limit-decorated."""
+        import src.api.v1.public.resend_email as resend_module
+        original = resend_module.limiter.enabled
+        resend_module.limiter.enabled = False
+        yield
+        resend_module.limiter.enabled = original
+
     """resend_ticket_email — success path + full template wiring is covered by
     tests/unit/test_resend_ticket_email.py. Here: the error/early-return
     branches only. `_resend_ticket_email_task` and the direct Brevo/Resend
@@ -677,7 +686,7 @@ class TestResendEmailEndpoint:
         db.execute.return_value = _mock_result_scalar(None)
         req = ResendTicketEmailRequest(email="t@t.com")
         with pytest.raises(HTTPException) as exc:
-            await resend_ticket_email("bad", req, db)
+            await resend_ticket_email(MagicMock(), "bad", req, db)
         assert exc.value.status_code == 404
 
     @patch("src.api.v1.public.resend_email.ConsulenteRepository.normalize_email")
@@ -689,7 +698,7 @@ class TestResendEmailEndpoint:
         mock_normalize.side_effect = ValueError("Invalid")
         req = ResendTicketEmailRequest(email="t@t.com")
         with pytest.raises(HTTPException) as exc:
-            await resend_ticket_email("test", req, db)
+            await resend_ticket_email(MagicMock(), "test", req, db)
         assert exc.value.status_code == 400
 
     @patch("src.api.v1.public.resend_email.TicketRepository")
@@ -701,7 +710,7 @@ class TestResendEmailEndpoint:
         MockTicketRepo.return_value.list_by_consulente_email = AsyncMock(return_value=[])
         req = ResendTicketEmailRequest(email="t@t.com")
         with pytest.raises(HTTPException) as exc:
-            await resend_ticket_email("test", req, db)
+            await resend_ticket_email(MagicMock(), "test", req, db)
         assert exc.value.status_code == 404
 
     async def test_resend_unexpected_error(self):
@@ -711,7 +720,7 @@ class TestResendEmailEndpoint:
         req = ResendTicketEmailRequest(email="t@t.com")
         with patch("src.api.v1.public.resend_email.sentry_sdk") as mock_sentry:
             with pytest.raises(HTTPException) as exc:
-                await resend_ticket_email("test", req, db)
+                await resend_ticket_email(MagicMock(), "test", req, db)
         assert exc.value.status_code == 500
         mock_sentry.capture_exception.assert_called_once()
 

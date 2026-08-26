@@ -22,6 +22,21 @@ def _mock_request(cookies=None, headers=None):
     return req
 
 
+@pytest.fixture(autouse=True)
+def _bypass_rate_limit():
+    """Disable slowapi rate-limit enforcement for all tests in this module.
+
+    Setting limiter.enabled=False makes the async_wrapper skip all checks,
+    including the isinstance(request, Request) guard (login, forgot-password
+    and reset-password are decorated with @limiter.limit).
+    """
+    import src.api.v1.auth.login as login_module
+    original = login_module.limiter.enabled
+    login_module.limiter.enabled = False
+    yield
+    login_module.limiter.enabled = original
+
+
 # ── LoginRequest model ───────────────────────────────────────────────────────
 
 class TestLoginRequest:
@@ -296,7 +311,7 @@ class TestResetPassword:
 
         with patch("src.services.session_service.end_all_sessions", new=AsyncMock()) as mock_end_all:
             body = ResetPasswordRequest(token="raw-token", new_password="V@lid1234567")
-            await reset_password(body, mock_db_session)
+            await reset_password(_mock_request(), body, mock_db_session)
 
         assert admin_user.password_hash == "new-hash"
         assert admin_user.sessions_revoked_at is not None

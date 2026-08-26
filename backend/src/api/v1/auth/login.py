@@ -22,6 +22,7 @@ from src.security import (
     decode_token,
     AccessToken,
 )
+from src.core.limiter import limiter
 from src.core.logging import log_security_event
 from src.services import session_service
 from sqlalchemy import select
@@ -48,18 +49,22 @@ class LoginResponse(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit("10/minute")
 async def login(
-    request: LoginRequest,
+    credentials: LoginRequest,
     response: Response,
-    request_obj: Request,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """POST /api/v1/auth/login - Authenticate user and return tokens.
 
+    Rate-limited per client IP (anti credential stuffing) — the app-level
+    limit mirrors nginx's login_limit zone as defense in depth.
+
     Args:
-        request: Login credentials (email + password)
+        credentials: Login credentials (email + password)
         response: HTTP response (for setting cookies)
-        request_obj: HTTP request (for User-Agent, stored on the session row)
+        request: HTTP request (for User-Agent, stored on the session row)
         db: Database session
 
     Returns:
@@ -73,7 +78,7 @@ async def login(
     # If a user belongs to multiple tenants, the first-created account wins.
     stmt = (
         select(User)
-        .where((User.email == request.email) & (User.deleted_at.is_(None)))
+        .where((User.email == credentials.email) & (User.deleted_at.is_(None)))
         .order_by(User.created_at.asc())
         .limit(1)
     )
@@ -83,8 +88,8 @@ async def login(
     if not user:
         # Run a dummy bcrypt verification to normalise response time and prevent
         # user enumeration via timing side-channel (real verify takes ~100ms).
-        verify_password(request.password, DUMMY_BCRYPT_HASH)
-        log_security_event("login", success=False, details={"reason": "user_not_found", "email": request.email})
+        verify_password(credentials.password, DUMMY_BCRYPT_HASH)
+        log_security_event("login", success=False, details={"reason": "user_not_found", "email": credentials.email})
         raise UnauthorizedError("Credenciais inválidas")
 
     if not user.is_active:
@@ -105,7 +110,7 @@ async def login(
             tenant_deactivated = bool(tenant and tenant.self_deactivated_at is not None)
 
         if tenant_deactivated:
-            if not verify_password(request.password, user.password_hash):
+            if not verify_password(credentials.password, user.password_hash):
                 log_security_event("login", success=False, user_id=user.id, details={"reason": "invalid_password"})
                 raise UnauthorizedError("Credenciais inválidas")
             log_security_event("login", success=False, user_id=user.id, details={"reason": "tenant_deactivated"})
@@ -119,19 +124,19 @@ async def login(
 
         # Ordinary administrative suspension — unchanged: consume bcrypt time
         # without checking the real password, keep the response generic.
-        verify_password(request.password, DUMMY_BCRYPT_HASH)
+        verify_password(credentials.password, DUMMY_BCRYPT_HASH)
         log_security_event("login", success=False, user_id=user.id, details={"reason": "inactive"})
         raise UnauthorizedError("Credenciais inválidas")
 
     # Verify password
-    if not verify_password(request.password, user.password_hash):
+    if not verify_password(credentials.password, user.password_hash):
         log_security_event("login", success=False, user_id=user.id, details={"reason": "invalid_password"})
         raise UnauthorizedError("Credenciais inválidas")
     
     # Create tokens. The refresh token is bound to a new UserSession row so it
     # can be rotated/revoked server-side (see src/services/session_service.py).
     session_id, jti = await session_service.start_session(
-        db, user, user_agent=request_obj.headers.get("user-agent")
+        db, user, user_agent=request.headers.get("user-agent")
     )
     access_token = create_access_token(user.id, user.tenant_id, user.role.value)
     refresh_token = create_refresh_token(user.id, user.tenant_id, user.role.value, session_id, jti)
@@ -374,13 +379,16 @@ class ResetPasswordRequest(BaseModel):
 
 
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
+@limiter.limit("5/hour")
 async def forgot_password(
+    request: Request,
     body: ForgotPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """POST /api/v1/auth/forgot-password — Request a password reset link.
 
     Always returns the same generic message to prevent user enumeration.
+    Rate-limited per client IP (anti e-mail bombing / enumeration).
     """
     from sqlalchemy import select
     from src.services.email.brevo_provider import BrevoEmailService
@@ -438,11 +446,16 @@ async def forgot_password(
 
 
 @router.post("/reset-password", status_code=status.HTTP_200_OK)
+@limiter.limit("10/hour")
 async def reset_password(
+    request: Request,
     body: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """POST /api/v1/auth/reset-password — Set a new password using a reset token."""
+    """POST /api/v1/auth/reset-password — Set a new password using a reset token.
+
+    Rate-limited per client IP (anti token brute-force).
+    """
     from sqlalchemy import select
 
     token_hash = hashlib.sha256(body.token.encode()).hexdigest()

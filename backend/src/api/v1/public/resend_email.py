@@ -8,13 +8,14 @@ Handles scenarios where:
 - Resend all recent tickets for a consulente
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 
 from src.core.config import settings
 from src.core.database import get_db
+from src.core.limiter import limiter
 from src.core.tz import APP_TZ
 from src.repositories.ticket_repo import TicketRepository
 from src.repositories.consulente_repo import ConsulenteRepository
@@ -62,12 +63,18 @@ class ResendTicketEmailResponse(BaseModel):
 
 
 @router.post("/resend-ticket-email", response_model=ResendTicketEmailResponse)
+@limiter.limit("5/hour")
 async def resend_ticket_email(
+    request: Request,
     tenant_slug: str,
-    request: ResendTicketEmailRequest,
+    payload: ResendTicketEmailRequest,
     session: AsyncSession = Depends(get_db),
 ):
     """Resend ticket emission email
+
+    Rate-limited per client IP (5/hour) — public endpoint that triggers
+    outbound e-mail; without a limit it can be abused to bomb a victim's
+    inbox with up to 10 ticket e-mails per request.
 
     This endpoint resends the ticket confirmation email for recent tickets.
     Supports:
@@ -115,7 +122,7 @@ async def resend_ticket_email(
 
         # === STEP 2: Normalize Email ===
         try:
-            normalized_email = ConsulenteRepository.normalize_email(request.email)
+            normalized_email = ConsulenteRepository.normalize_email(payload.email)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -131,7 +138,7 @@ async def resend_ticket_email(
         if not tickets:
             raise HTTPException(
                 status_code=404,
-                detail=f"No tickets found for email '{request.email}' in this tenant",
+                detail=f"No tickets found for email '{payload.email}' in this tenant",
             )
 
         # === STEP 4: Load Tenant Branding ===
@@ -188,7 +195,7 @@ async def resend_ticket_email(
                 tenant_address=tenant_address,
                 primary_color=primary_color,
                 secondary_color=secondary_color,
-                consulente_email=request.email,
+                consulente_email=payload.email,
                 consulente_phone=consulente_phone,
                 priority_category=getattr(ticket, "priority_category", None),
                 recados=gira.recados if gira else None,
@@ -203,14 +210,14 @@ async def resend_ticket_email(
                 is_sponsor=ticket.is_sponsor,
                 tenant_address=tenant_address,
                 tenant_name=tenant.name,
-                consulente_email=request.email,
+                consulente_email=payload.email,
                 consulente_phone=consulente_phone,
                 priority_category=getattr(ticket, "priority_category", None),
                 recados=gira.recados if gira else None,
             )
             subject_prefix = "✦ Associado — " if ticket.is_sponsor else ""
             message = EmailMessage(
-                to_email=request.email,  # Use requested email
+                to_email=payload.email,  # Use requested email
                 subject=f"{subject_prefix}[REENVIADO] Sua Senha #{ticket_number} - {tenant.name}",
                 html_body=html_body,
                 text_body=text_body,
@@ -222,7 +229,7 @@ async def resend_ticket_email(
         return ResendTicketEmailResponse(
             tickets_count=ticket_count,
             email_sent=True,
-            message=f"Email resent to {request.email} ({ticket_count} ticket{'s' if ticket_count > 1 else ''})",
+            message=f"Email resent to {payload.email} ({ticket_count} ticket{'s' if ticket_count > 1 else ''})",
         )
 
     except HTTPException:

@@ -147,7 +147,9 @@ services:
       - backend_uploads:/app/uploads
     ports:
       # Loopback only — acesso externo passa pelo nginx (TLS, headers, rate limit);
-      # o smoke test do deploy usa localhost:8000 no host e continua funcionando
+      # o smoke test do deploy usa localhost:8000 no host e continua funcionando.
+      # Também protege o rate limiter da aplicação (src/core/limiter.py): expor
+      # 8000 publicamente permitiria forjar X-Real-IP e burlar os limites por IP.
       - "127.0.0.1:8000:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

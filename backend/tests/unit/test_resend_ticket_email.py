@@ -11,6 +11,16 @@ import pytest
 from tests.conftest import TENANT_ID, TICKET_ID
 
 
+@pytest.fixture(autouse=True)
+def _bypass_rate_limit():
+    """Disable slowapi enforcement — the endpoint is @limiter.limit-decorated."""
+    import src.api.v1.public.resend_email as resend_module
+    original = resend_module.limiter.enabled
+    resend_module.limiter.enabled = False
+    yield
+    resend_module.limiter.enabled = original
+
+
 class TestResendTicketEmail:
     async def test_resend_success(self):
         from src.api.v1.public.resend_email import (
@@ -55,7 +65,7 @@ class TestResendTicketEmail:
         tenant_config_result.scalar_one_or_none.return_value = tenant_config
         db.execute = AsyncMock(side_effect=[tenant_result, tenant_config_result])
 
-        request = ResendTicketEmailRequest(email="joao@example.com")
+        body = ResendTicketEmailRequest(email="joao@example.com")
 
         # Patch only the query method so the endpoint exercises the real
         # TicketRepository(session, Ticket) instantiation.
@@ -69,8 +79,9 @@ class TestResendTicketEmail:
             "src.api.v1.public.resend_email.email_queue"
         ) as mock_queue:
             response = await resend_ticket_email(
+                request=MagicMock(),
                 tenant_slug="terreiro-test",
-                request=request,
+                payload=body,
                 session=db,
             )
 
