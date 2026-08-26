@@ -63,7 +63,7 @@ class ResendTicketEmailResponse(BaseModel):
 
 
 @router.post("/resend-ticket-email", response_model=ResendTicketEmailResponse)
-@limiter.limit("5/hour")
+@limiter.limit("15/hour")
 async def resend_ticket_email(
     request: Request,
     tenant_slug: str,
@@ -72,9 +72,10 @@ async def resend_ticket_email(
 ):
     """Resend ticket emission email
 
-    Rate-limited per client IP (5/hour) — public endpoint that triggers
+    Rate-limited per client IP (15/hour) — public endpoint that triggers
     outbound e-mail; without a limit it can be abused to bomb a victim's
-    inbox with up to 10 ticket e-mails per request.
+    inbox with up to 10 ticket e-mails per request. The quota is generous
+    enough for several consulentes sharing one NAT/Wi-Fi at an event.
 
     This endpoint resends the ticket confirmation email for recent tickets.
     Supports:
