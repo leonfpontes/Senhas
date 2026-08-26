@@ -34,11 +34,11 @@ jobs:
         run: |
           pip install pip-audit --quiet
           pip install . --quiet
-          pip-audit --format=columns || true
+          pip-audit --format=columns
 
       - name: Node.js dependency audit
         working-directory: frontend
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high
 
   # ──────────────────────────────────────────────────────────────────────────
   # Testes (bloqueantes) — definidos uma única vez em tests.yml e compartilhados
@@ -80,7 +80,7 @@ jobs:
               pg_dump -U "$DB_USER" "$DB_NAME" \
               | gzip > "$BACKUP_FILE"
             echo "Backup salvo: $BACKUP_FILE"
-            # Mantém apenas os 10 backups mais recentes
+            # Mantém apenas os 30 backups mais recentes
             ls -t /opt/senhas/backups/pre-deploy-*.sql.gz | tail -n +31 | xargs -r rm --
 
             echo "==> [2/6] Pull do código"
@@ -88,7 +88,7 @@ jobs:
             git reset --hard origin/master
 
             echo "==> [3/6] Build das novas imagens (containers antigos ainda rodando)"
-            docker compose -f docker-compose.prod.yml build --no-cache frontend backend
+            docker compose -f docker-compose.prod.yml build frontend backend
 
             echo "==> [4/6] Migrations"
             # Roda migration em container temporário enquanto prod ainda está up

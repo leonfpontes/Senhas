@@ -1,7 +1,0 @@
-{
-  "name": "husky",
-  "description": "Git hooks for Senhas project",
-  "hooks": {
-    "pre-commit": "lint-staged"
-  }
-}

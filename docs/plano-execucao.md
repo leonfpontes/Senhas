@@ -145,7 +145,11 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   `startup_failure` em segundos e sem log são sintoma do incidente deles, não de erro nos
   workflows; re-run após a recuperação resolveu.
 
-### I-05 — Consertos pequenos de operação (lote único) — `pendente`
+### I-05 — Consertos pequenos de operação (lote único) — `feito` (2026-08-26)
+- **Executado**: os 7 itens abaixo aplicados num único commit. Validação: `npm ci` resolve o
+  lockfile do workspace sem `--legacy-peer-deps`, e o build de produção do frontend passa com
+  type-check e lint reativados (`next build` local, exit 0). O `npm audit` sem `|| true` pode
+  aparecer vermelho no job (não-bloqueante via `continue-on-error`) — comportamento desejado.
 - `backend/entrypoint.sh` roda `alembic upgrade heads` (plural, mascara heads divergentes);
   deploy.yml roda `head` (singular). Unificar em `head`.
 - Comentário do backup no deploy.yml diz "10 backups", código mantém 30. Corrigir o comentário.

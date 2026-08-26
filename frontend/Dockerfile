@@ -13,7 +13,7 @@ COPY frontend ./frontend
 
 # Install all dependencies (workspace resolves shared-types / shared-ui)
 RUN --mount=type=cache,target=/root/.npm \
-    npm install --legacy-peer-deps
+    npm ci
 
 # Build shared packages first, then frontend
 RUN npm run build --workspace=packages/shared-types && \

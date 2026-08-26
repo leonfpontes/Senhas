@@ -1,5 +1,0 @@
-{
-  "*.py": ["black --line-length=100", "ruff check --fix"],
-  "*.{ts,tsx,js,jsx}": ["eslint --fix", "prettier --write"],
-  "*.{json,md,yaml,yml}": ["prettier --write"]
-}

@@ -9,12 +9,6 @@ const nextConfig = {
   experimental: {
     outputFileTracingRoot: path.join(__dirname, '../'),
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   transpilePackages: ['shared-types', 'shared-ui'],
   generateBuildId: async () => {
     const { execSync } = require('child_process');
