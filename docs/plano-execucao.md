@@ -101,7 +101,14 @@ Estes três foram confirmados em código durante a auditoria e já estão em exe
 - **Aceite**: containers fora do ar, RAM liberada, nenhuma referência morta no repo/doc.
 - **Esforço**: P. **Custo**: negativo (libera recursos).
 
-### I-04 — CI em pull request (separado do deploy) — `pendente`
+### I-04 — CI em pull request (separado do deploy) — `feito` (2026-08-26)
+- **Executado**: jobs de teste extraídos pra `.github/workflows/tests.yml` (workflow_call);
+  `ci.yml` novo roda em `pull_request` pra master e em push de branches, com `concurrency`
+  cancelando runs obsoletos da mesma ref; `deploy.yml` chama o mesmo `tests.yml`
+  (`needs: tests`) — definição única, sem divergência entre sinal de PR e gate de deploy.
+- **Aceite verificado**: PR de fumaça (#8) disparou `Tests / Backend Tests` (pass, 49s) e
+  `Tests / Frontend Tests` (pass, 2m48s) automaticamente antes de qualquer merge; PR fechado
+  sem merge e branch removida após a verificação.
 - **Problema**: o único workflow roda em push na master — merge é deploy, branch não tem sinal
   nenhum. Todo erro só aparece quando já está indo pra produção.
 - **Entrega**: `ci.yml` novo com gatilho `pull_request` (e `push` em branches), rodando os mesmos
