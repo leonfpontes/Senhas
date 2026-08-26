@@ -38,7 +38,14 @@ Estes três foram confirmados em código durante a auditoria e já estão em exe
 
 ## Fase 1 — Infra de custo zero (prioridade máxima após Fase 0)
 
-### I-01 — Fechar portas de serviços internos no host — `em andamento` (2026-08-26)
+### I-01 — Fechar portas de serviços internos no host — `feito` (2026-08-26)
+- **Aceite verificado**: scan externo pós-aplicação — 5432/8000/3000/9091/3001 fechadas,
+  apenas 80/443 respondem; site 200 e `/health` ok. Todos os containers recriados com bind
+  em `127.0.0.1` (aplicado na VPS às 14:55 UTC pelo deploy, verificado via `docker port` e
+  scan externo de outra rede).
+- **Bônus na mesma passada**: healthcheck do frontend trocado de `curl` (inexistente na
+  imagem `node:20-alpine` runner) para `wget --spider` do busybox — o container ficava
+  permanentemente `unhealthy` por erro do check, não do app.
 - **Problema**: `docker-compose.prod.yml` publica `postgres:5432`, `backend:8000`,
   `frontend:3000`, `prometheus:9091`, `grafana:3001` no host. UFW **não** protege porta publicada
   por container (a cadeia DOCKER do iptables roda antes do INPUT). Postgres de produção e backend
