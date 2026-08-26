@@ -198,8 +198,10 @@ services:
       # Loopback only — acesso externo passa pelo nginx (proxy via http://frontend:3000)
       - "127.0.0.1:3000:3000"
     healthcheck:
-      # wget do busybox — a imagem runner (node:20-alpine) não tem curl
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      # wget do busybox — a imagem runner (node:20-alpine) não tem curl.
+      # 127.0.0.1, não localhost: o Next standalone escuta só em IPv4 (0.0.0.0)
+      # e o busybox wget resolve localhost para ::1 sem fallback → refused.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000"]
       interval: 30s
       timeout: 10s
       retries: 3
