@@ -55,6 +55,7 @@ import CrudDrawer from '../../../components/CrudDrawer';
 import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
+import { PRIORITY_ORDER, PRIORITY_CATEGORY_LABELS } from 'shared-types';
 
 interface Ticket {
   id: string;
@@ -64,6 +65,7 @@ interface Ticket {
   consulente_email?: string;
   consulente_telefone?: string;
   preferencial?: boolean;
+  priority_category?: string;
   is_sponsor?: boolean;
   observacoes?: string;
   chamado_em?: string;
@@ -134,8 +136,8 @@ function AdminTicketsContent() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editTicketId, setEditTicketId] = useState<string | null>(null);
   const [editTicketNumero, setEditTicketNumero] = useState<number>(0);
-  const [formData, setFormData] = useState({ medium_nome: '', cambone_nome: '', atendimento_descricao: '' });
-  const [originalData, setOriginalData] = useState({ medium_nome: '', cambone_nome: '', atendimento_descricao: '' });
+  const [formData, setFormData] = useState({ medium_nome: '', cambone_nome: '', atendimento_descricao: '', priority_category: 'none' });
+  const [originalData, setOriginalData] = useState({ medium_nome: '', cambone_nome: '', atendimento_descricao: '', priority_category: 'none' });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -348,6 +350,7 @@ function AdminTicketsContent() {
       medium_nome: ticket.medium_nome || '',
       cambone_nome: ticket.cambone_nome || '',
       atendimento_descricao: ticket.atendimento_descricao || '',
+      priority_category: ticket.priority_category || 'none',
     };
     setFormData(data);
     setOriginalData(data);
@@ -365,8 +368,18 @@ function AdminTicketsContent() {
         cambone_nome: formData.cambone_nome.trim() || null,
         atendimento_descricao: formData.atendimento_descricao.trim() || null,
       });
+      const priorityChanged = formData.priority_category !== originalData.priority_category;
+      if (priorityChanged) {
+        await apiClient.patch(`/api/v1/admin/tickets/${editTicketId}/priority`, {
+          priority_category: formData.priority_category === 'none' ? null : formData.priority_category,
+        });
+      }
       setDrawerOpen(false);
-      setSuccess('Informações de atendimento salvas com sucesso!');
+      setSuccess(
+        priorityChanged
+          ? 'Dados salvos. A prioridade foi atualizada — use o botão de e-mail da senha para reenviar a confirmação ao consulente.'
+          : 'Informações de atendimento salvas com sucesso!'
+      );
       loadTickets();
     } catch (err) {
       setError(extractApiErrorMessage(err, 'Erro ao salvar informações de atendimento'));
@@ -378,7 +391,8 @@ function AdminTicketsContent() {
   const isDirty =
     formData.medium_nome !== originalData.medium_nome ||
     formData.cambone_nome !== originalData.cambone_nome ||
-    formData.atendimento_descricao !== originalData.atendimento_descricao;
+    formData.atendimento_descricao !== originalData.atendimento_descricao ||
+    formData.priority_category !== originalData.priority_category;
 
   const activeFilterCount = [dateFrom, dateTo, statusFilter, giraFilter !== 'all' ? 'giraFilter' : ''].filter(Boolean).length;
 
@@ -769,11 +783,13 @@ function AdminTicketsContent() {
                         {new Date(ticket.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                       </TableCell>
                       <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
-                        <Tooltip title="Editar atendimento">
-                          <IconButton size="small" onClick={() => openAttendEdit(ticket)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {canGroup('tickets', 'edit') && (
+                          <Tooltip title="Editar atendimento e prioridade">
+                            <IconButton size="small" onClick={() => openAttendEdit(ticket)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                         {ticket.consulente_email && can('email_transacional') && (
                           <Tooltip title={ticket.email_sent_at ? 'Ver rastreio de e-mail' : 'E-mail não enviado'}>
                             <IconButton
@@ -793,7 +809,7 @@ function AdminTicketsContent() {
                             </IconButton>
                           </Tooltip>
                         )}
-                        {(ticket.status === 'emitted' || ticket.status === 'called') && (
+                        {(ticket.status === 'emitted' || ticket.status === 'called') && canGroup('tickets', 'delete') && (
                           <Tooltip title="Excluir senha e devolver vaga">
                             <IconButton
                               size="small"
@@ -834,7 +850,7 @@ function AdminTicketsContent() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={`Atendimento — Senha #${String(editTicketNumero).padStart(4, '0')}`}
-        subtitle="Edite as informações de médium, cambone e observações do atendimento."
+        subtitle="Edite médium, cambone, observações e o atendimento preferencial da senha."
         icon={<MedicalServicesIcon />}
         onSave={handleSaveAttendInfo}
         saveLabel="Salvar"
@@ -862,7 +878,23 @@ function AdminTicketsContent() {
           fullWidth
           multiline
           minRows={3}
+          sx={{ mb: 2 }}
         />
+        <TextField
+          select
+          label="Atendimento preferencial"
+          value={formData.priority_category}
+          onChange={(e) => setFormData((p) => ({ ...p, priority_category: e.target.value }))}
+          fullWidth
+          helperText="Ao alterar, reenvie o e-mail de confirmação pelo botão de e-mail da senha."
+        >
+          <MenuItem value="none">Sem prioridade</MenuItem>
+          {PRIORITY_ORDER.map((cat) => (
+            <MenuItem key={cat} value={cat}>
+              {PRIORITY_CATEGORY_LABELS[cat]}
+            </MenuItem>
+          ))}
+        </TextField>
       </CrudDrawer>
 
       {/* Delete confirmation dialog */}

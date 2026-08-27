@@ -130,6 +130,7 @@ export default function PublicGiraPage() {
   const [ticketNumber, setTicketNumber] = useState<number | null>(null);
   const [waitlisted, setWaitlisted] = useState(false);
   const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null);
+  const [priorityUpgraded, setPriorityUpgraded] = useState(false);
 
   // Snackbar
   const [snack, setSnack] = useState<{ open: boolean; msg: string; sev: 'success' | 'error' }>({
@@ -183,6 +184,7 @@ export default function PublicGiraPage() {
       setTicketNumber(res.data.numero ?? res.data.ticket_number ?? null);
       setWaitlisted(Boolean(res.data.waitlisted));
       setWaitlistPosition(res.data.waitlist_position ?? null);
+      setPriorityUpgraded(Boolean(res.data.priority_upgraded));
       // Refresh gira data to update counts
       fetchGira();
     } catch (err) {
@@ -421,7 +423,15 @@ export default function PublicGiraPage() {
       {success && !waitlisted && (
         <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
           <CheckCircleIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
-          <Typography variant="h5" fontWeight={700} gutterBottom>Senha emitida!</Typography>
+          <Typography variant="h5" fontWeight={700} gutterBottom>
+            {priorityUpgraded ? 'Prioridade registrada!' : 'Senha emitida!'}
+          </Typography>
+          {priorityUpgraded && (
+            <Alert severity="info" sx={{ mb: 2, textAlign: 'left' }}>
+              Você já tinha uma senha para esta gira — registramos seu atendimento
+              preferencial nela e reenviamos o e-mail de confirmação.
+            </Alert>
+          )}
           {ticketNumber && (
             <Typography variant="h3" fontWeight={700} color="primary" sx={{ my: 2 }}>
               #{ticketNumber}
@@ -441,6 +451,12 @@ export default function PublicGiraPage() {
         <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
           <HourglassEmptyIcon sx={{ fontSize: 64, color: 'warning.main', mb: 2 }} />
           <Typography variant="h5" fontWeight={700} gutterBottom>Você está na fila de espera!</Typography>
+          {priorityUpgraded && (
+            <Alert severity="info" sx={{ mb: 2, textAlign: 'left' }}>
+              Você já estava na fila desta gira — registramos seu atendimento
+              preferencial e sua posição foi atualizada.
+            </Alert>
+          )}
           {waitlistPosition && (
             <Typography variant="h3" fontWeight={700} color="warning.main" sx={{ my: 2 }}>
               {waitlistPosition}º

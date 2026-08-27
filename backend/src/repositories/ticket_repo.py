@@ -218,6 +218,34 @@ class TicketRepository(BaseRepository[Ticket]):
         result = await session.execute(query)
         return result.scalar_one_or_none() is not None
 
+    async def get_duplicate_in_gira(
+        self,
+        session: AsyncSession,
+        tenant_id: int,
+        gira_id: int,
+        consulente_id: int,
+        is_sponsor: bool = False,
+    ) -> Optional[Ticket]:
+        """Fetch the consulente's existing non-cancelled ticket of the same type
+        in this gira (the one check_duplicate_in_gira detects), with consulente
+        eager-loaded for email resend."""
+        query = (
+            select(Ticket)
+            .options(selectinload(Ticket.consulente))
+            .where(
+                and_(
+                    Ticket.tenant_id == tenant_id,
+                    Ticket.gira_id == gira_id,
+                    Ticket.consulente_id == consulente_id,
+                    Ticket.is_sponsor == is_sponsor,
+                    Ticket.status != TicketStatus.CANCELLED,
+                )
+            )
+            .limit(1)
+        )
+        result = await session.execute(query)
+        return result.scalars().first()
+
     async def update_status(
         self,
         session: AsyncSession,

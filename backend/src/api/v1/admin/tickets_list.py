@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -14,6 +14,7 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.core.tz import APP_TZ
 from src.models import User, Ticket, TicketStatus, Consulente, PermissionFeature
+from src.models.tickets import PriorityCategory
 from src.models.giras import Gira
 from src.models.tenants import Tenant
 from src.models.tenant_config import TenantConfig
@@ -47,6 +48,7 @@ class TicketResponse(BaseModel):
     consulente_email: Optional[str] = None
     consulente_telefone: Optional[str] = None
     preferencial: bool = False
+    priority_category: Optional[str] = None
     is_sponsor: bool = False
     is_walk_in: bool = False
     observacoes: Optional[str] = None
@@ -70,6 +72,24 @@ class UpdateAttendInfoRequest(BaseModel):
     medium_nome: Optional[str] = Field(None, max_length=255)
     cambone_nome: Optional[str] = Field(None, max_length=255)
     atendimento_descricao: Optional[str] = None
+
+
+class UpdatePriorityRequest(BaseModel):
+    """Request body for editing a ticket's priority category (None removes it)."""
+    priority_category: Optional[str] = None
+
+    @field_validator("priority_category")
+    @classmethod
+    def validate_priority_category(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        allowed = {cat.value for cat in PriorityCategory}
+        if v not in allowed:
+            raise ValueError(
+                f"Categoria de prioridade inválida: '{v}'. "
+                f"Valores aceitos: {', '.join(sorted(allowed))}"
+            )
+        return v
 
 
 class TicketListResponse(BaseModel):
@@ -144,6 +164,7 @@ async def list_gira_tickets(
             consulente_email=t.consulente.email if t.consulente else None,
             consulente_telefone=t.consulente.telefone if t.consulente else None,
             preferencial=preferencial,
+            priority_category=t.priority_category,
             is_sponsor=t.is_sponsor,
             is_walk_in=t.is_walk_in,
             observacoes=t.observacoes if t.observacoes and not preferencial else None,
@@ -212,6 +233,7 @@ async def get_ticket(
         consulente_email=ticket.consulente.email if ticket.consulente else None,
         consulente_telefone=ticket.consulente.telefone if ticket.consulente else None,
         preferencial=preferencial,
+        priority_category=ticket.priority_category,
         is_sponsor=ticket.is_sponsor,
         is_walk_in=ticket.is_walk_in,
         observacoes=ticket.observacoes if ticket.observacoes and not preferencial else None,
@@ -289,6 +311,87 @@ async def update_attend_info(
         consulente_email=ticket.consulente.email if ticket.consulente else None,
         consulente_telefone=ticket.consulente.telefone if ticket.consulente else None,
         preferencial=preferencial,
+        priority_category=ticket.priority_category,
+        is_sponsor=ticket.is_sponsor,
+        is_walk_in=ticket.is_walk_in,
+        observacoes=ticket.observacoes if ticket.observacoes and not preferencial else None,
+        chamado_em=ticket.chamado_em,
+        finalizado_em=ticket.finalizado_em,
+        medium_nome=ticket.medium_nome,
+        cambone_nome=ticket.cambone_nome,
+        atendimento_descricao=ticket.atendimento_descricao,
+        created_at=ticket.created_at,
+    )
+
+
+@router.patch("/tickets/{ticket_id}/priority", response_model=TicketResponse, dependencies=[Depends(require_group_permission(PermissionFeature.TICKETS, "edit"))])
+async def update_ticket_priority(
+    body: UpdatePriorityRequest,
+    ticket_id: UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TicketResponse:
+    """Set or remove the priority category of an existing ticket.
+
+    Recovery path for consulentes who emitted without marking their priority
+    group — the emission email can then be resent via the existing
+    /tickets/{ticket_id}/resend-email endpoint, which reads the updated
+    category. Enforces multi-tenant isolation.
+    """
+    if not current_user.is_operator_or_admin:
+        raise InsufficientPermissionsError("Admin required")
+
+    stmt = select(Ticket).where(
+        and_(
+            Ticket.id == ticket_id,
+            Ticket.tenant_id == current_user.tenant_id,
+        )
+    )
+    result = await db.execute(stmt)
+    ticket = result.scalar_one_or_none()
+
+    if not ticket:
+        raise NotFoundError("Ticket não encontrado")
+
+    ticket.priority_category = body.priority_category
+
+    # Keep the legacy observacoes "preferencial" flag in sync — the door
+    # queue and list views still read it for legacy tickets.
+    try:
+        obs = json.loads(ticket.observacoes) if ticket.observacoes else {}
+        if not isinstance(obs, dict):
+            obs = {}
+    except (json.JSONDecodeError, TypeError):
+        obs = {}
+    if body.priority_category is not None:
+        obs["preferencial"] = True
+    else:
+        obs.pop("preferencial", None)
+    ticket.observacoes = json.dumps(obs) if obs else None
+
+    audit = AuditService(db)
+    await audit.log_update(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        resource_type="Ticket",
+        resource_id=ticket.id,
+        new_state={"priority_category": body.priority_category},
+    )
+
+    await db.commit()
+    await db.refresh(ticket, ["consulente"])
+
+    preferencial = ticket.priority_category is not None
+
+    return TicketResponse(
+        id=ticket.id,
+        numero=ticket.numero,
+        status=ticket.status.value if hasattr(ticket.status, 'value') else ticket.status,
+        consulente_nome=ticket.consulente.nome if ticket.consulente else None,
+        consulente_email=ticket.consulente.email if ticket.consulente else None,
+        consulente_telefone=ticket.consulente.telefone if ticket.consulente else None,
+        preferencial=preferencial,
+        priority_category=ticket.priority_category,
         is_sponsor=ticket.is_sponsor,
         is_walk_in=ticket.is_walk_in,
         observacoes=ticket.observacoes if ticket.observacoes and not preferencial else None,

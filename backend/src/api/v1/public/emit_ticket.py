@@ -111,6 +111,156 @@ class EmitTicketResponse(BaseModel):
     message: str
     waitlisted: bool = False
     waitlist_position: int | None = None
+    # True when the consulente already had a ticket in this gira and this
+    # request only registered their priority on it (no new ticket emitted).
+    priority_upgraded: bool = False
+
+
+async def _tenant_branding(session: AsyncSession, tenant: Tenant) -> tuple[str, str, str, str]:
+    """Load (address, primary_color, secondary_color, logo_url) for emails."""
+    tc_query = select(TenantConfig).where(TenantConfig.tenant_id == tenant.id)
+    tc_result = await session.execute(tc_query)
+    tenant_config = tc_result.scalar_one_or_none()
+
+    tenant_address = (tenant_config.endereco or "") if tenant_config else ""
+    primary_color = (tenant_config.primary_color or "#2E7D32") if tenant_config else "#2E7D32"
+    secondary_color = (tenant_config.secondary_color or primary_color) if tenant_config else primary_color
+
+    tenant_logo_url = ""
+    if tenant_config and tenant_config.logo_data:
+        tenant_logo_url = f"{settings.FRONTEND_URL.rstrip('/')}/api/v1/public/tenant/{tenant.id}/logo"
+    elif tenant_config and tenant_config.logo_url:
+        tenant_logo_url = tenant_config.logo_url
+
+    return tenant_address, primary_color, secondary_color, tenant_logo_url
+
+
+async def _upgrade_duplicate_priority(
+    session: AsyncSession,
+    ticket_repo: TicketRepository,
+    tenant: Tenant,
+    gira: Gira,
+    consulente_id: uuid.UUID,
+    is_sponsor: bool,
+    priority_category: str,
+) -> EmitTicketResponse | None:
+    """Duplicate emission that carries a priority the existing ticket lacks:
+    register the priority on the existing ticket and resend its email, instead
+    of discarding the information with a plain 409.
+
+    Returns None when the plain 409 should still be raised (no upgradable
+    ticket: not found, already prioritized, or in a non-upgradable status).
+    """
+    existing = await ticket_repo.get_duplicate_in_gira(
+        session=session,
+        tenant_id=tenant.id,
+        gira_id=gira.id,
+        consulente_id=consulente_id,
+        is_sponsor=is_sponsor,
+    )
+    if existing is None or existing.priority_category is not None:
+        return None
+    if existing.status not in (TicketStatus.EMITTED, TicketStatus.WAITLISTED):
+        return None
+
+    existing.priority_category = priority_category
+    try:
+        obs = json.loads(existing.observacoes) if existing.observacoes else {}
+        if not isinstance(obs, dict):
+            obs = {}
+    except (json.JSONDecodeError, TypeError):
+        obs = {}
+    obs["preferencial"] = True
+    existing.observacoes = json.dumps(obs)
+    await session.commit()
+
+    ticket_number_formatted = (
+        f"P{existing.numero:03d}" if existing.is_sponsor else f"{existing.numero:04d}"
+    )
+    rescue_link = (
+        f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{existing.id}"
+    )
+
+    logger.info(
+        f"Ticket {ticket_number_formatted} priority upgraded to {priority_category} "
+        f"on duplicate emission (tenant={tenant.slug}, gira={gira.id})"
+    )
+
+    if existing.status == TicketStatus.EMITTED:
+        await waitlist_service.send_confirmed_ticket_email(session, existing)
+        return EmitTicketResponse(
+            ticket_number=ticket_number_formatted,
+            email_sent=True,
+            rescue_link=rescue_link,
+            message=(
+                f"Você já tinha a senha {ticket_number_formatted} para esta gira — "
+                "registramos seu atendimento preferencial nela e reenviamos o "
+                "e-mail de confirmação."
+            ),
+            priority_upgraded=True,
+        )
+
+    # WAITLISTED: the priority changes the queue ordering. When still in the
+    # queue (not promoted), recompute the position and resend the entry email.
+    waitlist_position: int | None = None
+    email_sent = False
+    if existing.promoted_at is None:
+        waitlist_position = await waitlist_service.compute_queue_position(
+            session=session,
+            tenant_id=tenant.id,
+            gira_id=gira.id,
+            is_sponsor=is_sponsor,
+            ticket=existing,
+        )
+        _, primary_color, secondary_color, tenant_logo_url = await _tenant_branding(session, tenant)
+        gira_date_str = (
+            gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M")
+            if gira.data_inicio else ""
+        )
+        html_body = generate_waitlist_entry_html(
+            consulente_name=existing.consulente.nome,
+            gira_name=gira.nome,
+            gira_date=gira_date_str,
+            position=waitlist_position or 1,
+            tenant_name=tenant.name,
+            tenant_logo_url=tenant_logo_url,
+            primary_color=primary_color,
+            secondary_color=secondary_color,
+        )
+        text_body = generate_waitlist_entry_text(
+            consulente_name=existing.consulente.nome,
+            gira_name=gira.nome,
+            gira_date=gira_date_str,
+            position=waitlist_position or 1,
+            tenant_name=tenant.name,
+        )
+        message = EmailMessage(
+            to_email=existing.consulente.email,
+            subject=f"Você está na fila de espera - {gira.nome} - {tenant.name}",
+            html_body=html_body,
+            text_body=text_body,
+        )
+        email_queue.enqueue(EmailQueueItem(message=message, ticket_id=str(existing.id)))
+        email_sent = True
+        response_message = (
+            "Você já estava na fila de espera desta gira — registramos seu "
+            f"atendimento preferencial e sua posição agora é {waitlist_position or 1}."
+        )
+    else:
+        response_message = (
+            "Você já tem uma vaga reservada nesta gira — registramos seu "
+            "atendimento preferencial. Confirme sua senha pelo e-mail que enviamos."
+        )
+
+    return EmitTicketResponse(
+        ticket_number=ticket_number_formatted,
+        email_sent=email_sent,
+        rescue_link=rescue_link,
+        message=response_message,
+        waitlisted=True,
+        waitlist_position=waitlist_position,
+        priority_upgraded=True,
+    )
 
 
 @router.post("/emit-ticket", response_model=EmitTicketResponse)
@@ -292,6 +442,11 @@ async def emit_ticket(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+        # Resolve priority_category: new field takes precedence; fallback from deprecated preferencial
+        priority_category = body.priority_category
+        if priority_category is None and body.preferencial:
+            priority_category = PriorityCategory.ELDERLY.value
+
         # === STEP 5: Check for Duplicate in Same Gira ===
         has_duplicate = await ticket_repo.check_duplicate_in_gira(
             session=session,
@@ -302,6 +457,21 @@ async def emit_ticket(
         )
 
         if has_duplicate:
+            # Re-emission that adds a priority the existing ticket lacks
+            # (consulente forgot to mark it the first time): register the
+            # priority and resend the email instead of just rejecting.
+            if priority_category is not None:
+                upgraded = await _upgrade_duplicate_priority(
+                    session=session,
+                    ticket_repo=ticket_repo,
+                    tenant=tenant,
+                    gira=gira,
+                    consulente_id=consulente.id,
+                    is_sponsor=is_sponsor,
+                    priority_category=priority_category,
+                )
+                if upgraded is not None:
+                    return upgraded
             raise HTTPException(
                 status_code=409,
                 detail="Este e-mail já possui uma senha emitida para esta gira",
@@ -405,11 +575,6 @@ async def emit_ticket(
         # === STEP 8: Create Ticket Record ===
         ticket_number_formatted = f"P{ticket_number_int:03d}" if is_sponsor else f"{ticket_number_int:04d}"
 
-        # Resolve priority_category: new field takes precedence; fallback from deprecated preferencial
-        priority_category = body.priority_category
-        if priority_category is None and body.preferencial:
-            priority_category = PriorityCategory.ELDERLY.value
-
         obs_payload: dict = {}
         if is_sponsor:
             obs_payload["patrocinador"] = True
@@ -444,21 +609,8 @@ async def emit_ticket(
 
         gira_date_str = gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if gira.data_inicio else ""
 
-        # Fetch tenant config for address + colors
-        tc_query = select(TenantConfig).where(TenantConfig.tenant_id == tenant.id)
-        tc_result = await session.execute(tc_query)
-        tenant_config = tc_result.scalar_one_or_none()
-
-        tenant_address = (tenant_config.endereco or "") if tenant_config else ""
-        primary_color = (tenant_config.primary_color or "#2E7D32") if tenant_config else "#2E7D32"
-        secondary_color = (tenant_config.secondary_color or primary_color) if tenant_config else primary_color
-
-        # Build logo URL
-        tenant_logo_url = ""
-        if tenant_config and tenant_config.logo_data:
-            tenant_logo_url = f"{settings.FRONTEND_URL.rstrip('/')}/api/v1/public/tenant/{tenant.id}/logo"
-        elif tenant_config and tenant_config.logo_url:
-            tenant_logo_url = tenant_config.logo_url
+        # Fetch tenant config for address + colors + logo
+        tenant_address, primary_color, secondary_color, tenant_logo_url = await _tenant_branding(session, tenant)
 
         subject_prefix = "✦ Associado — " if is_sponsor else ""
 

@@ -217,6 +217,84 @@ class TestEmitTicketEndpoint:
     @patch("src.api.v1.public.emit_ticket.ConsulenteRepository")
     @patch("src.api.v1.public.emit_ticket.select")
     @patch("src.api.v1.public.emit_ticket.and_")
+    async def test_emit_ticket_duplicate_with_priority_upgrades(
+            self, mock_and, mock_select, MockConsRepo, MockSenhaRepo, MockTicketRepo):
+        """Duplicate emission that adds a missing priority must update the
+        existing ticket and resend its email instead of raising 409."""
+        from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest
+        from src.models.tickets import TicketStatus
+        db = _mock_db()
+        tenant = MagicMock()
+        tenant.id = TENANT_ID
+        tenant.slug = "test"
+        gira = MagicMock()
+        gira.id = GIRA_ID
+        db.execute = AsyncMock(side_effect=[
+            _mock_result_scalar(tenant),
+            _mock_result_scalar(gira),
+        ])
+        consulente = MagicMock()
+        consulente.id = uuid4()
+        MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, False))
+        MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=True)
+        existing = MagicMock()
+        existing.priority_category = None
+        existing.status = TicketStatus.EMITTED
+        existing.numero = 42
+        existing.is_sponsor = False
+        existing.observacoes = None
+        existing.id = uuid4()
+        MockTicketRepo.return_value.get_duplicate_in_gira = AsyncMock(return_value=existing)
+        req = EmitTicketRequest(name="Test", email="t@t.com", priority_category="ELDERLY")
+        with patch("src.api.v1.public.emit_ticket.waitlist_service.send_confirmed_ticket_email",
+                   AsyncMock(return_value="0042")) as mock_send:
+            resp = await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        assert resp.priority_upgraded is True
+        assert resp.ticket_number == "0042"
+        assert existing.priority_category == "ELDERLY"
+        assert mock_send.await_count == 1
+        assert db.commit.await_count == 1
+
+    @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
+    @patch("src.api.v1.public.emit_ticket.TicketRepository")
+    @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")
+    @patch("src.api.v1.public.emit_ticket.ConsulenteRepository")
+    @patch("src.api.v1.public.emit_ticket.select")
+    @patch("src.api.v1.public.emit_ticket.and_")
+    async def test_emit_ticket_duplicate_already_prioritized_still_409(
+            self, mock_and, mock_select, MockConsRepo, MockSenhaRepo, MockTicketRepo):
+        """Duplicate emission with priority when the existing ticket already
+        has one must keep the plain 409."""
+        from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest
+        db = _mock_db()
+        tenant = MagicMock()
+        tenant.id = TENANT_ID
+        tenant.slug = "test"
+        gira = MagicMock()
+        gira.id = GIRA_ID
+        db.execute = AsyncMock(side_effect=[
+            _mock_result_scalar(tenant),
+            _mock_result_scalar(gira),
+        ])
+        consulente = MagicMock()
+        consulente.id = uuid4()
+        MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, False))
+        MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=True)
+        existing = MagicMock()
+        existing.priority_category = "REDUCED_MOBILITY"
+        MockTicketRepo.return_value.get_duplicate_in_gira = AsyncMock(return_value=existing)
+        req = EmitTicketRequest(name="Test", email="t@t.com", priority_category="ELDERLY")
+        with pytest.raises(HTTPException) as exc:
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        assert exc.value.status_code == 409
+        assert existing.priority_category == "REDUCED_MOBILITY"
+
+    @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
+    @patch("src.api.v1.public.emit_ticket.TicketRepository")
+    @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")
+    @patch("src.api.v1.public.emit_ticket.ConsulenteRepository")
+    @patch("src.api.v1.public.emit_ticket.select")
+    @patch("src.api.v1.public.emit_ticket.and_")
     async def test_emit_ticket_invalid_email(self, mock_and, mock_select,
                                               MockConsRepo, MockSenhaRepo, MockTicketRepo):
         from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest

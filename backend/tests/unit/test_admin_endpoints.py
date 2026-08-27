@@ -90,6 +90,7 @@ class TestGetTicket:
         ticket.consulente.nome = "Maria Silva"
         ticket.consulente.email = "maria@example.com"
         ticket.consulente.telefone = None
+        ticket.priority_category = None
         ticket.is_sponsor = False
         ticket.is_walk_in = False
         ticket.observacoes = None
