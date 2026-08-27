@@ -606,6 +606,9 @@ async def emit_ticket(
         rescue_link = (
             f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{ticket.id}"
         )
+        cancel_link = (
+            f"{settings.FRONTEND_URL.rstrip('/')}/public/ticket/{ticket.id}/cancelar"
+        )
 
         gira_date_str = gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if gira.data_inicio else ""
 
@@ -666,6 +669,7 @@ async def emit_ticket(
                 priority_category=priority_category,
                 recados=gira.recados,
                 horario_desejado=horario_desejado_str,
+                cancel_link=cancel_link,
             )
             text_body = generate_plain_text_fallback(
                 ticket_number=ticket_number_formatted,
@@ -682,6 +686,7 @@ async def emit_ticket(
                 priority_category=priority_category,
                 recados=gira.recados,
                 horario_desejado=horario_desejado_str,
+                cancel_link=cancel_link,
             )
             message = EmailMessage(
                 to_email=consulente.email,

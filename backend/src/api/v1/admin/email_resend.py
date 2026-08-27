@@ -225,6 +225,7 @@ async def resend_ticket_email(
         if tenant
         else ""
     )
+    cancel_link = f"{settings.FRONTEND_URL.rstrip('/')}/public/ticket/{ticket.id}/cancelar"
 
     ticket_numero_str = str(ticket.numero).zfill(4)
     html_body = generate_ticket_emission_html(
@@ -245,6 +246,7 @@ async def resend_ticket_email(
         consulente_phone=consulente.telefone or "",
         priority_category=getattr(ticket, "priority_category", None),
         recados=gira.recados if gira else None,
+        cancel_link=cancel_link,
     )
     text_body = generate_plain_text_fallback(
         ticket_number=ticket_numero_str,
@@ -260,6 +262,7 @@ async def resend_ticket_email(
         consulente_phone=consulente.telefone or "",
         priority_category=getattr(ticket, "priority_category", None),
         recados=gira.recados if gira else None,
+        cancel_link=cancel_link,
     )
     subject_prefix = "✦ Associado — " if ticket.is_sponsor else ""
     message = EmailMessage(

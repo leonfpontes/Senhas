@@ -53,6 +53,23 @@ def _recados_block(recados: Optional[str], accent: str, bg: str, text: str) -> s
         </div>"""
 
 
+def _cancel_block(cancel_link: Optional[str]) -> str:
+    """Bloco de autocancelamento — link para o consulente desistir da senha e
+    devolver a vaga sem precisar contatar o terreiro. Só aparece quando o
+    caller fornece o link (senhas já emitidas, não fila de espera)."""
+    if not cancel_link:
+        return ""
+    return f"""
+    <div style="text-align:center;margin:24px 0 0 0;padding:16px;background-color:#fafafa;border:1px dashed #ccc;border-radius:6px;">
+      <p style="margin:0 0 10px 0;font-size:13px;color:#777;">Não vai poder comparecer? Libere sua vaga para outra pessoa.</p>
+      <a href="{cancel_link}" target="_blank"
+         style="display:inline-block;color:#c62828;border:1px solid #c62828;text-decoration:none;
+                padding:8px 22px;border-radius:6px;font-weight:bold;font-size:13px;">
+          Cancelar minha senha
+      </a>
+    </div>"""
+
+
 # ---------------------------------------------------------------------------
 # Sponsor template  –  gold (#C9A84C) / black palette
 # ---------------------------------------------------------------------------
@@ -71,6 +88,7 @@ def _sponsor_html(
     priority_category: Optional[str] = None,
     recados: Optional[str] = None,
     horario_desejado: Optional[str] = None,
+    cancel_link: Optional[str] = None,
 ) -> str:
     gold = "#C9A84C"
     gold_light = "#B8963F"
@@ -213,7 +231,7 @@ def _sponsor_html(
       <p style="margin:0 0 6px 0;">📋 <strong>Na entrada:</strong> Informe o número {_esc(ticket_number)} ao atendente.</p>
       <p style="margin:0;">🔐 <strong>Privacidade:</strong> Não compartilhe este email com terceiros.</p>
     </div>
-
+{_cancel_block(cancel_link)}
     <p style="margin:24px 0 0 0;text-align:center;font-size:12px;color:#999;border-top:1px solid #e0e0e0;padding-top:16px;">
       {t_name} &copy; {datetime.now().year}
     </p>
@@ -248,6 +266,7 @@ def _regular_html(
     priority_category: Optional[str] = None,
     recados: Optional[str] = None,
     horario_desejado: Optional[str] = None,
+    cancel_link: Optional[str] = None,
 ) -> str:
     pc = primary_color or "#2E7D32"
     sc = secondary_color or "#1B5E20"
@@ -377,7 +396,7 @@ def _regular_html(
       <p style="margin:0 0 6px 0;">📋 <strong>Na entrada:</strong> Informe o número {_esc(ticket_number)} ao atendente.</p>
       <p style="margin:0;">🔐 <strong>Privacidade:</strong> Não compartilhe este email com terceiros.</p>
     </div>
-
+{_cancel_block(cancel_link)}
     <p style="margin:24px 0 0 0;text-align:center;font-size:12px;color:#999;border-top:1px solid #e0e0e0;padding-top:16px;">
       {t_name} &copy; {datetime.now().year}
     </p>
@@ -416,6 +435,7 @@ def generate_ticket_emission_html(
     priority_category: Optional[str] = None,
     recados: Optional[str] = None,
     horario_desejado: Optional[str] = None,
+    cancel_link: Optional[str] = None,
 ) -> str:
     """Generate responsive HTML email for ticket emission.
 
@@ -426,6 +446,8 @@ def generate_ticket_emission_html(
              notices) — rendered as its own block only when non-blank.
     horario_desejado: "HH:MM" horário the consulente picked (agendamento por
              horário) — rendered as its own row only when set.
+    cancel_link: self-service cancellation URL — rendered as a "não vai poder
+             comparecer?" block only when set.
     """
     address = tenant_address or gira_location or ""
 
@@ -444,6 +466,7 @@ def generate_ticket_emission_html(
             priority_category=priority_category,
             recados=recados,
             horario_desejado=horario_desejado,
+            cancel_link=cancel_link,
         )
 
     return _regular_html(
@@ -462,6 +485,7 @@ def generate_ticket_emission_html(
         priority_category=priority_category,
         recados=recados,
         horario_desejado=horario_desejado,
+        cancel_link=cancel_link,
     )
 
 
@@ -481,6 +505,7 @@ def generate_plain_text_fallback(
     priority_category: Optional[str] = None,
     recados: Optional[str] = None,
     horario_desejado: Optional[str] = None,
+    cancel_link: Optional[str] = None,
 ) -> str:
     """Generate plain text fallback for email clients that don't support HTML."""
     address = tenant_address or gira_location or ""
@@ -524,7 +549,10 @@ Para resgatar sua senha, acesse:
 Na entrada, informe o número {ticket_number} ao atendente.
 
 Validade: Esta senha é válida apenas para a data do evento acima.
-
+{f'''
+Não vai poder comparecer? Cancele sua senha e libere a vaga para outra pessoa:
+{cancel_link}
+''' if cancel_link else ''}
 ---
 {tenant_name} — Email automático
 """

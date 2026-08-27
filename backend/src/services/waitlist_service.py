@@ -217,6 +217,7 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
         tenant_logo_url = tenant_config.logo_url
 
     rescue_link = f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{ticket.id}"
+    cancel_link = f"{settings.FRONTEND_URL.rstrip('/')}/public/ticket/{ticket.id}/cancelar"
     gira_date_str = gira_obj.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if gira_obj.data_inicio else ""
 
     html_body = generate_ticket_emission_html(
@@ -237,6 +238,7 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
         consulente_phone=ticket.consulente.telefone or "",
         priority_category=ticket.priority_category,
         recados=gira_obj.recados,
+        cancel_link=cancel_link,
     )
     text_body = generate_plain_text_fallback(
         ticket_number=ticket_number_formatted,
@@ -252,6 +254,7 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
         consulente_phone=ticket.consulente.telefone or "",
         priority_category=ticket.priority_category,
         recados=gira_obj.recados,
+        cancel_link=cancel_link,
     )
     message = EmailMessage(
         to_email=ticket.consulente.email,
