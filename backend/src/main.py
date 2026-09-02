@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
@@ -195,13 +196,18 @@ def create_app() -> FastAPI:
     
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        """Handle pydantic validation errors."""
+        """Handle pydantic validation errors.
+
+        jsonable_encoder é obrigatório: quando um field_validator levanta
+        ValueError, exc.errors() inclui ctx={"error": ValueError(...)} — objeto
+        não serializável que fazia o próprio handler estourar 500 em vez de 422.
+        """
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={
                 "error_code": "VALIDATION_ERROR",
                 "message": "Erro na validação dos dados",
-                "details": exc.errors(),
+                "details": jsonable_encoder(exc.errors(), custom_encoder={ValueError: str}),
             },
         )
     

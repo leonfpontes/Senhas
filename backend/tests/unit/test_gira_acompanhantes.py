@@ -238,6 +238,28 @@ class TestEmitRequestAcompanhantes:
             self._body(acompanhantes=[f"Pessoa {i:02d}" for i in range(21)])
 
 
+class TestValidationErrorSerialization:
+    def test_field_validator_error_returns_422_not_500(self):
+        """Regressão: field_validators que levantam ValueError põem o próprio
+        objeto da exceção em exc.errors()[..]["ctx"]; o handler global de
+        RequestValidationError precisa serializá-lo (jsonable_encoder) em vez
+        de estourar 500 no json.dumps."""
+        from fastapi.testclient import TestClient
+        from src.main import create_app
+
+        # base_url localhost: o TrustedHostMiddleware rejeita o host padrão
+        # "testserver" do TestClient com 400 antes de chegar na validação.
+        client = TestClient(create_app(), raise_server_exceptions=False, base_url="http://localhost")
+        response = client.post(
+            "/api/v1/public/emit-ticket?tenant_slug=qualquer",
+            json={"name": "Maria Silva", "email": "maria@example.com", "acompanhantes": ["  "]},
+        )
+        assert response.status_code == 422
+        data = response.json()
+        assert data["error_code"] == "VALIDATION_ERROR"
+        assert "acompanhante" in str(data["details"])
+
+
 # ── emit_ticket: per-gira opt-in (STEP 2c) ───────────────────────────────────
 
 class TestEmitAcompanhantesGating:
