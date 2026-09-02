@@ -125,6 +125,90 @@ class TestValidateAcompanhantesConfig:
         _validate_acompanhantes_config(True, 3)  # não levanta
 
 
+# ── giras_crud: senha config endpoint ────────────────────────────────────────
+
+class TestSenhaConfigAcompanhantes:
+    def _config(self, **overrides):
+        from src.api.v1.admin.giras_crud import SenhaConfigRequest
+        now = datetime.now(timezone.utc)
+        data = {
+            "max_tickets": 100,
+            "release_start_at": now,
+            "release_end_at": now + timedelta(hours=4),
+        }
+        data.update(overrides)
+        return SenhaConfigRequest(**data)
+
+    def _admin_user(self):
+        user = MagicMock()
+        user.id = uuid4()
+        user.tenant_id = TENANT_ID
+        user.is_operator_or_admin = True
+        return user
+
+    @patch("src.services.waitlist_service.waitlist_enabled_for_tenant", new_callable=AsyncMock)
+    @patch("src.api.v1.admin.giras_crud.AuditService")
+    @patch("src.api.v1.admin.giras_crud.GiraRepository")
+    async def test_enabled_without_max_rejects_before_saving(
+        self, MockRepo, MockAudit, mock_waitlist
+    ):
+        from src.api.v1.admin.giras_crud import update_senha_config
+
+        config = self._config(allow_acompanhantes=True, max_acompanhantes=None)
+        with pytest.raises(HTTPException) as exc:
+            await update_senha_config(config, GIRA_ID, self._admin_user(), AsyncMock())
+        assert exc.value.status_code == 400
+        MockRepo.return_value.update.assert_not_called()
+
+    @patch("src.services.waitlist_service.waitlist_enabled_for_tenant", new_callable=AsyncMock)
+    @patch("src.api.v1.admin.giras_crud.AuditService")
+    @patch("src.api.v1.admin.giras_crud.GiraRepository")
+    async def test_persists_acompanhantes_config(self, MockRepo, MockAudit, mock_waitlist):
+        from src.api.v1.admin.giras_crud import update_senha_config
+
+        mock_waitlist.return_value = False
+        repo_inst = MockRepo.return_value
+        repo_inst.get_by_id = AsyncMock(return_value=_mock_gira())
+        repo_inst.update = AsyncMock()
+        MockAudit.return_value.log_update = AsyncMock()
+        # SenhaControl regular + 2x _get_senha_count
+        db = _mock_db(
+            _mock_result_scalar(None), _mock_result_scalar(None), _mock_result_scalar(None)
+        )
+
+        config = self._config(allow_acompanhantes=True, max_acompanhantes=2)
+        response = await update_senha_config(config, GIRA_ID, self._admin_user(), db)
+
+        update_kwargs = repo_inst.update.call_args.kwargs
+        assert update_kwargs["allow_acompanhantes"] is True
+        assert update_kwargs["max_acompanhantes"] == 2
+        assert response.allow_acompanhantes is True
+        assert response.max_acompanhantes == 2
+
+    @patch("src.services.waitlist_service.waitlist_enabled_for_tenant", new_callable=AsyncMock)
+    @patch("src.api.v1.admin.giras_crud.AuditService")
+    @patch("src.api.v1.admin.giras_crud.GiraRepository")
+    async def test_disabled_clears_max(self, MockRepo, MockAudit, mock_waitlist):
+        from src.api.v1.admin.giras_crud import update_senha_config
+
+        mock_waitlist.return_value = False
+        repo_inst = MockRepo.return_value
+        repo_inst.get_by_id = AsyncMock(return_value=_mock_gira())
+        repo_inst.update = AsyncMock()
+        MockAudit.return_value.log_update = AsyncMock()
+        db = _mock_db(
+            _mock_result_scalar(None), _mock_result_scalar(None), _mock_result_scalar(None)
+        )
+
+        config = self._config(allow_acompanhantes=False, max_acompanhantes=5)
+        response = await update_senha_config(config, GIRA_ID, self._admin_user(), db)
+
+        update_kwargs = repo_inst.update.call_args.kwargs
+        assert update_kwargs["allow_acompanhantes"] is False
+        assert update_kwargs["max_acompanhantes"] is None
+        assert response.max_acompanhantes is None
+
+
 # ── emit_ticket: request validation ──────────────────────────────────────────
 
 class TestEmitRequestAcompanhantes:

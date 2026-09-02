@@ -39,10 +39,6 @@ class GiraCreate(BaseModel):
     local: Optional[str] = None
     is_active: bool = True
     recados: Optional[str] = None
-    # Acompanhantes: quando ligado, o titular pode emitir senhas extras para
-    # até max_acompanhantes acompanhantes na mesma emissão pública.
-    allow_acompanhantes: bool = False
-    max_acompanhantes: Optional[int] = None
 
     class Config:
         json_schema_extra = {
@@ -66,8 +62,6 @@ class GiraUpdate(BaseModel):
     local: Optional[str] = None
     is_active: Optional[bool] = None
     recados: Optional[str] = None
-    allow_acompanhantes: Optional[bool] = None
-    max_acompanhantes: Optional[int] = None
 
 
 class GiraResponse(BaseModel):
@@ -100,6 +94,10 @@ class SenhaConfigRequest(BaseModel):
     max_tickets: int
     release_start_at: datetime
     release_end_at: datetime
+    # Acompanhantes: quando ligado, o titular pode emitir senhas extras para
+    # até max_acompanhantes acompanhantes na mesma emissão pública.
+    allow_acompanhantes: bool = False
+    max_acompanhantes: Optional[int] = None
     # Sponsor config (optional)
     sponsor_max_tickets: Optional[int] = None
     sponsor_release_start_at: Optional[datetime] = None
@@ -114,6 +112,8 @@ class SenhaConfigResponse(BaseModel):
     max_tickets: int
     release_start_at: datetime
     release_end_at: datetime
+    allow_acompanhantes: bool = False
+    max_acompanhantes: Optional[int] = None
     current_count: int = 0
     public_link: str = ""
     # Sponsor config
@@ -156,8 +156,6 @@ async def create_gira(
     # Check permissions
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
-
-    _validate_acompanhantes_config(gira.allow_acompanhantes, gira.max_acompanhantes)
 
     # Check monthly gira limit
     sub_repo = SubscriptionRepository(db)
@@ -314,18 +312,10 @@ async def update_gira(
     if not existing_gira:
         raise NotFoundError("Gira não encontrado")
 
-    # Valida o estado final da config de acompanhantes (payload mesclado com o
-    # que já está salvo, já que o update é parcial via exclude_unset).
-    update_data = gira_update.dict(exclude_unset=True)
-    _validate_acompanhantes_config(
-        update_data.get("allow_acompanhantes", existing_gira.allow_acompanhantes),
-        update_data.get("max_acompanhantes", existing_gira.max_acompanhantes),
-    )
-
     updated_gira = await repo.update(
         gira_id,
         current_user.tenant_id,
-        **update_data,
+        **gira_update.dict(exclude_unset=True),
     )
     
     # Log audit
@@ -411,6 +401,8 @@ async def get_senha_config(
         max_tickets=gira.max_tickets or 0,
         release_start_at=gira.release_start_at or gira.data_inicio,
         release_end_at=gira.release_end_at or gira.data_inicio,
+        allow_acompanhantes=gira.allow_acompanhantes,
+        max_acompanhantes=gira.max_acompanhantes,
         current_count=current_count,
         public_link=f"{_BASE}/public/gira/{gira_id}",
         sponsor_max_tickets=gira.sponsor_max_tickets,
@@ -439,6 +431,7 @@ async def update_senha_config(
         raise HTTPException(status_code=400, detail="release_end_at deve ser posterior a release_start_at")
     if config.waitlist_confirmation_hours is not None and config.waitlist_confirmation_hours < 1:
         raise HTTPException(status_code=400, detail="waitlist_confirmation_hours deve ser >= 1")
+    _validate_acompanhantes_config(config.allow_acompanhantes, config.max_acompanhantes)
 
     repo = GiraRepository(db)
     gira = await repo.get_by_id(gira_id, current_user.tenant_id)
@@ -459,6 +452,8 @@ async def update_senha_config(
         max_tickets=config.max_tickets,
         release_start_at=config.release_start_at,
         release_end_at=config.release_end_at,
+        allow_acompanhantes=config.allow_acompanhantes,
+        max_acompanhantes=config.max_acompanhantes if config.allow_acompanhantes else None,
         sponsor_max_tickets=config.sponsor_max_tickets,
         sponsor_release_start_at=config.sponsor_release_start_at,
         sponsor_release_end_at=config.sponsor_release_end_at,
@@ -513,6 +508,8 @@ async def update_senha_config(
         max_tickets=config.max_tickets,
         release_start_at=config.release_start_at,
         release_end_at=config.release_end_at,
+        allow_acompanhantes=config.allow_acompanhantes,
+        max_acompanhantes=config.max_acompanhantes if config.allow_acompanhantes else None,
         current_count=current_count,
         public_link=f"{_BASE}/public/gira/{gira_id}",
         sponsor_max_tickets=config.sponsor_max_tickets,
@@ -615,6 +612,8 @@ async def release_now(
         max_tickets=updated_gira.max_tickets,
         release_start_at=now,
         release_end_at=end,
+        allow_acompanhantes=updated_gira.allow_acompanhantes,
+        max_acompanhantes=updated_gira.max_acompanhantes,
         current_count=current_count,
         public_link=f"{_BASE}/public/gira/{gira_id}",
         sponsor_max_tickets=updated_gira.sponsor_max_tickets,
