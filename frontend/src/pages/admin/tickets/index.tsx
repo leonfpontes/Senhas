@@ -67,6 +67,7 @@ interface Ticket {
   preferencial?: boolean;
   priority_category?: string;
   is_sponsor?: boolean;
+  is_acompanhante?: boolean;
   observacoes?: string;
   chamado_em?: string;
   finalizado_em?: string;
@@ -767,7 +768,10 @@ function AdminTicketsContent() {
                           {ticket.preferencial && (
                             <Chip icon={<StarIcon />} label="Preferencial" color="warning" size="small" variant="outlined" />
                           )}
-                          {!ticket.is_sponsor && !ticket.preferencial && (
+                          {ticket.is_acompanhante && (
+                            <Chip label="Acompanhante" color="info" size="small" variant="outlined" />
+                          )}
+                          {!ticket.is_sponsor && !ticket.preferencial && !ticket.is_acompanhante && (
                             <Chip label="Comum" size="small" variant="outlined" />
                           )}
                         </Box>
@@ -907,6 +911,13 @@ function AdminTicketsContent() {
             {deleteTarget?.ticket.consulente_nome ? ` de ${deleteTarget.ticket.consulente_nome}` : ''}?
             <br /><br />
             O consulente poderá emitir uma nova senha e a vaga será devolvida ao range da gira.
+            {deleteTarget && !deleteTarget.ticket.is_acompanhante && (
+              <>
+                <br /><br />
+                Se esta senha tiver acompanhantes vinculados, as senhas deles também serão
+                canceladas e as vagas devolvidas.
+              </>
+            )}
           </DialogContentText>
         </DialogContent>
         <DialogActions>

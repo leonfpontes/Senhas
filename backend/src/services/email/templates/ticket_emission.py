@@ -53,6 +53,32 @@ def _recados_block(recados: Optional[str], accent: str, bg: str, text: str) -> s
         </div>"""
 
 
+def _acompanhantes_block(
+    acompanhantes: Optional[list[tuple[str, str]]], accent: str, bg: str, text: str
+) -> str:
+    """Bloco de 'Senhas dos Acompanhantes' — lista (nome, número) das senhas
+    extras emitidas junto com a do titular. Só aparece quando há acompanhantes."""
+    if not acompanhantes:
+        return ""
+    rows = "".join(
+        f"""
+        <tr>
+          <td style="padding:6px 12px;font-size:14px;color:{accent};font-weight:700;white-space:nowrap;">{_esc(numero)}</td>
+          <td style="padding:6px 12px;font-size:14px;color:{text};">{_esc(nome)}</td>
+        </tr>"""
+        for nome, numero in acompanhantes
+    )
+    return f"""
+        <div style="background-color:{bg};border-left:4px solid {accent};padding:16px;margin:24px 0;border-radius:4px;">
+          <h3 style="margin:0 0 10px 0;color:{accent};font-size:17px;font-weight:700;">Senhas dos Acompanhantes</h3>
+          <table style="width:100%;border-collapse:collapse;">{rows}
+          </table>
+          <p style="margin:10px 0 0 0;font-size:13px;color:{text};line-height:1.6;">
+            Cada acompanhante deve informar o próprio número na entrada.
+          </p>
+        </div>"""
+
+
 def _cancel_block(cancel_link: Optional[str]) -> str:
     """Bloco de autocancelamento — link para o consulente desistir da senha e
     devolver a vaga sem precisar contatar o terreiro. Só aparece quando o
@@ -89,6 +115,7 @@ def _sponsor_html(
     recados: Optional[str] = None,
     horario_desejado: Optional[str] = None,
     cancel_link: Optional[str] = None,
+    acompanhantes: Optional[list[tuple[str, str]]] = None,
 ) -> str:
     gold = "#C9A84C"
     gold_light = "#B8963F"
@@ -148,6 +175,7 @@ def _sponsor_html(
             </tr>"""
 
     recados_block = _recados_block(recados, accent=gold_light, bg=light_bg, text="#333")
+    acompanhantes_block = _acompanhantes_block(acompanhantes, accent=gold, bg=light_bg, text="#333")
 
     horario_row = ""
     if horario_desejado:
@@ -223,7 +251,7 @@ def _sponsor_html(
         </tr>{horario_row}{address_block}
       </table>
     </div>
-{recados_block}
+{acompanhantes_block}{recados_block}
     <!-- Notes -->
     <div style="border-top:1px solid #e0e0e0;padding-top:18px;margin-top:20px;font-size:13px;color:#777;line-height:1.8;">
       <p style="margin:0 0 6px 0;">⏰ <strong>Validade:</strong> Apenas para a data do evento acima.</p>{f'''
@@ -267,6 +295,7 @@ def _regular_html(
     recados: Optional[str] = None,
     horario_desejado: Optional[str] = None,
     cancel_link: Optional[str] = None,
+    acompanhantes: Optional[list[tuple[str, str]]] = None,
 ) -> str:
     pc = primary_color or "#2E7D32"
     sc = secondary_color or "#1B5E20"
@@ -323,6 +352,7 @@ def _regular_html(
             </tr>"""
 
     recados_block = _recados_block(recados, accent=pc, bg="#f9f9f9", text="#555")
+    acompanhantes_block = _acompanhantes_block(acompanhantes, accent=pc, bg="#f9f9f9", text="#555")
 
     horario_row = ""
     if horario_desejado:
@@ -388,7 +418,7 @@ def _regular_html(
         </tr>{horario_row}{address_block}
       </table>
     </div>
-{recados_block}
+{acompanhantes_block}{recados_block}
     <!-- Notes -->
     <div style="border-top:2px solid #e0e0e0;padding-top:18px;margin-top:20px;font-size:13px;color:#888;line-height:1.8;">
       <p style="margin:0 0 6px 0;">⏰ <strong>Validade:</strong> Apenas para a data do evento acima.</p>{f'''
@@ -436,6 +466,7 @@ def generate_ticket_emission_html(
     recados: Optional[str] = None,
     horario_desejado: Optional[str] = None,
     cancel_link: Optional[str] = None,
+    acompanhantes: Optional[list[tuple[str, str]]] = None,
 ) -> str:
     """Generate responsive HTML email for ticket emission.
 
@@ -448,6 +479,8 @@ def generate_ticket_emission_html(
              horário) — rendered as its own row only when set.
     cancel_link: self-service cancellation URL — rendered as a "não vai poder
              comparecer?" block only when set.
+    acompanhantes: (nome, número formatado) das senhas extras emitidas para os
+             acompanhantes do titular — rendered as its own block only when set.
     """
     address = tenant_address or gira_location or ""
 
@@ -467,6 +500,7 @@ def generate_ticket_emission_html(
             recados=recados,
             horario_desejado=horario_desejado,
             cancel_link=cancel_link,
+            acompanhantes=acompanhantes,
         )
 
     return _regular_html(
@@ -486,6 +520,7 @@ def generate_ticket_emission_html(
         recados=recados,
         horario_desejado=horario_desejado,
         cancel_link=cancel_link,
+        acompanhantes=acompanhantes,
     )
 
 
@@ -506,6 +541,7 @@ def generate_plain_text_fallback(
     recados: Optional[str] = None,
     horario_desejado: Optional[str] = None,
     cancel_link: Optional[str] = None,
+    acompanhantes: Optional[list[tuple[str, str]]] = None,
 ) -> str:
     """Generate plain text fallback for email clients that don't support HTML."""
     address = tenant_address or gira_location or ""
@@ -525,6 +561,13 @@ def generate_plain_text_fallback(
     recados_section = (
         f"\nRecados:\n{recados.strip()}\n" if recados and recados.strip() else ""
     )
+    acompanhantes_section = ""
+    if acompanhantes:
+        linhas = "\n".join(f"- {numero}: {nome}" for nome, numero in acompanhantes)
+        acompanhantes_section = (
+            f"\nSenhas dos Acompanhantes:\n{linhas}\n"
+            "Cada acompanhante deve informar o próprio número na entrada.\n"
+        )
 
     return f"""SENHA EMITIDA{' — ASSOCIADO' if is_sponsor else ''}
 
@@ -542,7 +585,7 @@ Detalhes da Gira:
 - Gira: {gira_name}
 - Data: {gira_date}{horario_line}
 - Endereço: {address or 'Não informado'}
-{maps_line}{recados_section}
+{maps_line}{acompanhantes_section}{recados_section}
 Para resgatar sua senha, acesse:
 {rescue_link}
 

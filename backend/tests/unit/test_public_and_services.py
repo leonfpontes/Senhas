@@ -141,6 +141,8 @@ class TestGetGiraByIdTimeSlots:
         gira.release_end_at = None
         gira.sponsor_release_start_at = None
         gira.sponsor_release_end_at = None
+        gira.allow_acompanhantes = False
+        gira.max_acompanhantes = None
 
         tenant = MagicMock()
         tenant.id = TENANT_ID

@@ -220,6 +220,28 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
     cancel_link = f"{settings.FRONTEND_URL.rstrip('/')}/public/ticket/{ticket.id}/cancelar"
     gira_date_str = gira_obj.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if gira_obj.data_inicio else ""
 
+    # Reenvio (upgrade de prioridade, liberação da fila): mantém no e-mail as
+    # senhas de acompanhante ainda ativas vinculadas a este titular.
+    acomp_result = await session.execute(
+        select(Ticket)
+        .options(selectinload(Ticket.consulente))
+        .where(
+            and_(
+                Ticket.tenant_id == ticket.tenant_id,
+                Ticket.parent_ticket_id == ticket.id,
+                Ticket.status != TicketStatus.CANCELLED,
+            )
+        )
+        .order_by(Ticket.numero)
+    )
+    acompanhantes = [
+        (
+            acomp.consulente.nome if acomp.consulente else "Acompanhante",
+            f"P{acomp.numero:03d}" if acomp.is_sponsor else f"{acomp.numero:04d}",
+        )
+        for acomp in acomp_result.scalars().all()
+    ]
+
     html_body = generate_ticket_emission_html(
         ticket_number=ticket_number_formatted,
         consulente_name=ticket.consulente.nome,
@@ -239,6 +261,7 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
         priority_category=ticket.priority_category,
         recados=gira_obj.recados,
         cancel_link=cancel_link,
+        acompanhantes=acompanhantes or None,
     )
     text_body = generate_plain_text_fallback(
         ticket_number=ticket_number_formatted,
@@ -255,6 +278,7 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
         priority_category=ticket.priority_category,
         recados=gira_obj.recados,
         cancel_link=cancel_link,
+        acompanhantes=acompanhantes or None,
     )
     message = EmailMessage(
         to_email=ticket.consulente.email,

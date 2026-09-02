@@ -36,6 +36,8 @@ class TicketRepository(BaseRepository[Ticket]):
         checkin_em: datetime | None = None,
         priority_category: str | None = None,
         time_slot_id: UUID | None = None,
+        is_acompanhante: bool = False,
+        parent_ticket_id: UUID | None = None,
     ) -> Ticket:
         """Create and save a new ticket
         
@@ -68,6 +70,8 @@ class TicketRepository(BaseRepository[Ticket]):
             checkin_em=checkin_em,
             priority_category=priority_category,
             time_slot_id=time_slot_id,
+            is_acompanhante=is_acompanhante,
+            parent_ticket_id=parent_ticket_id,
         )
         session.add(ticket)
         await session.flush()
@@ -206,17 +210,20 @@ class TicketRepository(BaseRepository[Ticket]):
         Returns:
             True if duplicate exists, False otherwise
         """
+        # Senhas de acompanhante compartilham o consulente_id do titular, então
+        # não contam como emissão do próprio consulente.
         query = select(Ticket).where(
             and_(
                 Ticket.tenant_id == tenant_id,
                 Ticket.gira_id == gira_id,
                 Ticket.consulente_id == consulente_id,
                 Ticket.is_sponsor == is_sponsor,
+                Ticket.is_acompanhante == False,
                 Ticket.status != TicketStatus.CANCELLED,
             )
         )
         result = await session.execute(query)
-        return result.scalar_one_or_none() is not None
+        return result.scalars().first() is not None
 
     async def get_duplicate_in_gira(
         self,
@@ -238,6 +245,7 @@ class TicketRepository(BaseRepository[Ticket]):
                     Ticket.gira_id == gira_id,
                     Ticket.consulente_id == consulente_id,
                     Ticket.is_sponsor == is_sponsor,
+                    Ticket.is_acompanhante == False,
                     Ticket.status != TicketStatus.CANCELLED,
                 )
             )
@@ -245,6 +253,28 @@ class TicketRepository(BaseRepository[Ticket]):
         )
         result = await session.execute(query)
         return result.scalars().first()
+
+    async def list_active_acompanhantes(
+        self,
+        session: AsyncSession,
+        tenant_id: UUID,
+        parent_ticket_id: UUID,
+    ) -> List[Ticket]:
+        """Fetch the non-cancelled acompanhante tickets linked to a titular
+        ticket, ordered by numero (for emails and cancel cascades)."""
+        query = (
+            select(Ticket)
+            .where(
+                and_(
+                    Ticket.tenant_id == tenant_id,
+                    Ticket.parent_ticket_id == parent_ticket_id,
+                    Ticket.status != TicketStatus.CANCELLED,
+                )
+            )
+            .order_by(Ticket.numero)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
 
     async def update_status(
         self,

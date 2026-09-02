@@ -55,6 +55,8 @@ class GiraPublicResponse(BaseModel):
     secondary_color: Optional[str] = None
     use_time_slots: bool = False
     time_slots: list[TimeSlotPublicItem] = []
+    allow_acompanhantes: bool = False
+    max_acompanhantes: int = 0
 
 
 def _build_gira_response(
@@ -102,6 +104,8 @@ def _build_gira_response(
         "logo_url": tenant.config.logo_url if tenant.config else None,
         "primary_color": tenant.config.primary_color if tenant.config else None,
         "secondary_color": tenant.config.secondary_color if tenant.config else None,
+        "allow_acompanhantes": bool(gira.allow_acompanhantes and (gira.max_acompanhantes or 0) > 0),
+        "max_acompanhantes": gira.max_acompanhantes or 0,
     }
 
 

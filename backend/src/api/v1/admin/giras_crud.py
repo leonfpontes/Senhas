@@ -39,6 +39,10 @@ class GiraCreate(BaseModel):
     local: Optional[str] = None
     is_active: bool = True
     recados: Optional[str] = None
+    # Acompanhantes: quando ligado, o titular pode emitir senhas extras para
+    # até max_acompanhantes acompanhantes na mesma emissão pública.
+    allow_acompanhantes: bool = False
+    max_acompanhantes: Optional[int] = None
 
     class Config:
         json_schema_extra = {
@@ -62,6 +66,8 @@ class GiraUpdate(BaseModel):
     local: Optional[str] = None
     is_active: Optional[bool] = None
     recados: Optional[str] = None
+    allow_acompanhantes: Optional[bool] = None
+    max_acompanhantes: Optional[int] = None
 
 
 class GiraResponse(BaseModel):
@@ -74,6 +80,8 @@ class GiraResponse(BaseModel):
     local: Optional[str]
     is_active: bool
     recados: Optional[str] = None
+    allow_acompanhantes: bool = False
+    max_acompanhantes: Optional[int] = None
     max_tickets: Optional[int] = None
     release_start_at: Optional[datetime] = None
     release_end_at: Optional[datetime] = None
@@ -117,6 +125,18 @@ class SenhaConfigResponse(BaseModel):
     waitlist_confirmation_hours: Optional[int] = None
 
 
+def _validate_acompanhantes_config(allow_acompanhantes: bool, max_acompanhantes: Optional[int]) -> None:
+    """Valida a config de acompanhantes de uma gira (create e update)."""
+    if allow_acompanhantes:
+        if max_acompanhantes is None or max_acompanhantes < 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Informe o máximo de acompanhantes (mínimo 1) para permitir acompanhantes",
+            )
+        if max_acompanhantes > 20:
+            raise HTTPException(status_code=400, detail="Máximo de acompanhantes não pode passar de 20")
+
+
 class UnifiedLinksResponse(BaseModel):
     """Tenant-wide links that always resolve to the next/active gira."""
     public_link: str
@@ -136,6 +156,8 @@ async def create_gira(
     # Check permissions
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
+
+    _validate_acompanhantes_config(gira.allow_acompanhantes, gira.max_acompanhantes)
 
     # Check monthly gira limit
     sub_repo = SubscriptionRepository(db)
@@ -291,11 +313,19 @@ async def update_gira(
     
     if not existing_gira:
         raise NotFoundError("Gira não encontrado")
-    
+
+    # Valida o estado final da config de acompanhantes (payload mesclado com o
+    # que já está salvo, já que o update é parcial via exclude_unset).
+    update_data = gira_update.dict(exclude_unset=True)
+    _validate_acompanhantes_config(
+        update_data.get("allow_acompanhantes", existing_gira.allow_acompanhantes),
+        update_data.get("max_acompanhantes", existing_gira.max_acompanhantes),
+    )
+
     updated_gira = await repo.update(
         gira_id,
         current_user.tenant_id,
-        **gira_update.dict(exclude_unset=True),
+        **update_data,
     )
     
     # Log audit

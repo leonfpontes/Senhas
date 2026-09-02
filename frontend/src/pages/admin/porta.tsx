@@ -87,6 +87,7 @@ interface QueueItem {
   priority_category?: string | null;
   is_sponsor: boolean;
   is_walk_in: boolean;
+  is_acompanhante?: boolean;
   numero_formatado: string;
   checkin_em: string | null;
   atendido_em: string | null;
@@ -193,6 +194,20 @@ function WalkInChip({ isDark }: { isDark: boolean }) {
         height: 22, fontSize: '0.68rem', fontWeight: 700,
         bgcolor: isDark ? '#0c4a6e' : '#e0f2fe',
         color: isDark ? '#7dd3fc' : '#0369a1',
+      }}
+    />
+  );
+}
+
+function AcompanhanteChip({ isDark }: { isDark: boolean }) {
+  return (
+    <Chip
+      label="Acompanhante"
+      size="small"
+      sx={{
+        height: 22, fontSize: '0.68rem', fontWeight: 700,
+        bgcolor: isDark ? '#312e81' : '#e0e7ff',
+        color: isDark ? '#a5b4fc' : '#4338ca',
       }}
     />
   );
@@ -438,6 +453,7 @@ function QueueCard({
               </Typography>
               {item.is_sponsor  && <SponsorChip isDark={isDark} />}
               {item.is_walk_in  && <WalkInChip  isDark={isDark} />}
+              {item.is_acompanhante && <AcompanhanteChip isDark={isDark} />}
               {item.preferencial && (
                 <Chip icon={<StarRoundedIcon sx={{ fontSize: '14px !important' }} />} label={priorityLabel(item)} color="warning" size="small" sx={{ height: 22, fontSize: '0.68rem', fontWeight: 700 }} />
               )}
@@ -518,6 +534,7 @@ function QueueCard({
               </Typography>
               {item.is_sponsor   && <SponsorChip isDark={isDark} />}
               {item.is_walk_in   && <WalkInChip  isDark={isDark} />}
+              {item.is_acompanhante && <AcompanhanteChip isDark={isDark} />}
               {item.preferencial && (
                 <Tooltip title={priorityLabel(item)}>
                   <StarRoundedIcon sx={{ fontSize: 16, color: 'warning.main' }} />
@@ -1002,6 +1019,7 @@ export default function PortaPage() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
                       {nextInLine.is_sponsor   && <SponsorChip isDark={isDark} />}
                       {nextInLine.is_walk_in   && <WalkInChip  isDark={isDark} />}
+                      {nextInLine.is_acompanhante && <AcompanhanteChip isDark={isDark} />}
                       {nextInLine.preferencial && (
                         <Chip icon={<StarRoundedIcon sx={{ fontSize: '14px !important' }} />} label={priorityLabel(nextInLine)} color="warning" size="small" sx={{ height: 22, fontSize: '0.68rem', fontWeight: 700 }} />
                       )}

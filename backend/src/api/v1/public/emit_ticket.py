@@ -70,6 +70,24 @@ class EmitTicketRequest(BaseModel):
     time_slot_id: uuid.UUID | None = None
     # DEPRECATED: use priority_category instead
     preferencial: bool = False
+    # Acompanhantes: nomes dos acompanhantes que o titular vai levar. Só aceito
+    # quando gira.allow_acompanhantes está ligado, limitado a
+    # gira.max_acompanhantes. Cada acompanhante recebe uma senha própria com
+    # número da mesma sequência, vinculada à do titular (parent_ticket_id).
+    acompanhantes: list[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("acompanhantes")
+    @classmethod
+    def validate_acompanhantes(cls, v: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for nome in v:
+            nome = (nome or "").strip()
+            if len(nome) < 2:
+                raise ValueError("Informe o nome de cada acompanhante (mínimo 2 letras)")
+            if len(nome) > 255:
+                raise ValueError("Nome de acompanhante muito longo (máximo 255 letras)")
+            cleaned.append(nome)
+        return cleaned
 
     @field_validator("priority_category")
     @classmethod
@@ -95,6 +113,13 @@ class EmitTicketRequest(BaseModel):
         }
 
 
+class AcompanhanteEmitido(BaseModel):
+    """Senha extra emitida para um acompanhante do titular."""
+
+    name: str
+    ticket_number: str
+
+
 class EmitTicketResponse(BaseModel):
     """Response after ticket emission
     
@@ -114,6 +139,9 @@ class EmitTicketResponse(BaseModel):
     # True when the consulente already had a ticket in this gira and this
     # request only registered their priority on it (no new ticket emitted).
     priority_upgraded: bool = False
+    # Senhas extras emitidas para os acompanhantes do titular (mesma ordem do
+    # request). Vazio quando a emissão não teve acompanhantes.
+    acompanhantes: list[AcompanhanteEmitido] = []
 
 
 async def _tenant_branding(session: AsyncSession, tenant: Tenant) -> tuple[str, str, str, str]:
@@ -422,6 +450,21 @@ async def emit_ticket(
                         detail="E-mail de associado não encontrado. Revise as informações digitadas e tente novamente.",
                     )
 
+        # === STEP 2c: Validate Acompanhantes (per-gira opt-in) ===
+        acompanhantes_nomes = body.acompanhantes
+        if acompanhantes_nomes:
+            max_acompanhantes = gira.max_acompanhantes or 0
+            if not gira.allow_acompanhantes or max_acompanhantes <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Esta gira não permite acompanhantes",
+                )
+            if len(acompanhantes_nomes) > max_acompanhantes:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Esta gira permite no máximo {max_acompanhantes} acompanhante(s) por senha",
+                )
+
         # === STEP 3: Initialize Repositories ===
         from src.models.consulentes import Consulente
         from src.models.senha_controls import SenhaControl
@@ -513,6 +556,16 @@ async def emit_ticket(
 
         waitlisted = False
         if is_over_capacity:
+            # Grupo com acompanhantes não entra na fila de espera (a fila
+            # promove uma vaga por vez e não garante números contíguos para o
+            # grupo) — o titular pode reenviar sem acompanhantes se quiser.
+            if acompanhantes_nomes:
+                waitlist_available = await waitlist_service.waitlist_enabled_for_tenant(session, tenant.id)
+                await session.rollback()
+                detail = "Todas as senhas desta gira já foram emitidas"
+                if waitlist_available:
+                    detail += ". Para entrar na fila de espera, emita sem acompanhantes"
+                raise HTTPException(status_code=410, detail=detail)
             waitlisted = await waitlist_service.waitlist_enabled_for_tenant(session, tenant.id)
             if not waitlisted:
                 await session.rollback()
@@ -572,6 +625,47 @@ async def emit_ticket(
                         detail="Este horário deixou de estar disponível. Atualize a página e escolha outro horário.",
                     )
 
+        # === STEP 7c: Allocate Acompanhante Numbers (same sequence) ===
+        # O grupo inteiro precisa caber na capacidade — se não couber, a emissão
+        # toda é desfeita (rollback devolve os números do STEP 7/7c e as vagas
+        # de horário, que ainda não foram commitados).
+        acompanhante_numeros: list[int] = []
+        if acompanhantes_nomes and not waitlisted:
+            for _ in acompanhantes_nomes:
+                acomp_num = await senha_control_repo.increment_atomic(
+                    session=session,
+                    tenant_id=tenant.id,
+                    gira_id=gira.id,
+                    is_sponsor=is_sponsor,
+                )
+                if acomp_num > max_cap + slots_returned:
+                    vagas_restantes = max(0, max_cap + slots_returned - ticket_number_int + 1)
+                    await session.rollback()
+                    raise HTTPException(
+                        status_code=410,
+                        detail=(
+                            f"Restam apenas {vagas_restantes} senha(s) nesta gira — não é possível "
+                            f"emitir para você e mais {len(acompanhantes_nomes)} acompanhante(s). "
+                            "Tente com menos acompanhantes."
+                        ),
+                    )
+                acompanhante_numeros.append(acomp_num)
+
+            if time_slot_id_for_ticket is not None:
+                # Acompanhantes ocupam o mesmo horário do titular.
+                for _ in acompanhantes_nomes:
+                    try:
+                        await slot_repo.increment_atomic(session, tenant.id, gira.id, time_slot_id_for_ticket)
+                    except (TimeSlotFullError, ValueError):
+                        await session.rollback()
+                        raise HTTPException(
+                            status_code=410,
+                            detail=(
+                                "Este horário não tem vagas suficientes para você e seus "
+                                "acompanhantes. Escolha outro horário."
+                            ),
+                        )
+
         # === STEP 8: Create Ticket Record ===
         ticket_number_formatted = f"P{ticket_number_int:03d}" if is_sponsor else f"{ticket_number_int:04d}"
 
@@ -594,11 +688,36 @@ async def emit_ticket(
             time_slot_id=time_slot_id_for_ticket,
         )
 
+        # Acompanhantes: cada um vira um consulente próprio (sem e-mail, mesmo
+        # padrão do walk-in) com senha vinculada à do titular.
+        acompanhantes_emitidos: list[tuple[str, str]] = []  # (nome, número formatado)
+        for nome_acomp, numero_acomp in zip(acompanhantes_nomes, acompanhante_numeros):
+            acomp_consulente = await consulente_repo.create_walk_in_consulente(
+                session=session,
+                tenant_id=tenant.id,
+                name=nome_acomp,
+            )
+            await ticket_repo.create_ticket(
+                session=session,
+                tenant_id=tenant.id,
+                gira_id=gira.id,
+                consulente_id=acomp_consulente.id,
+                numero=numero_acomp,
+                status=TicketStatus.EMITTED,
+                is_sponsor=is_sponsor,
+                time_slot_id=time_slot_id_for_ticket,
+                is_acompanhante=True,
+                parent_ticket_id=ticket.id,
+            )
+            numero_acomp_formatted = f"P{numero_acomp:03d}" if is_sponsor else f"{numero_acomp:04d}"
+            acompanhantes_emitidos.append((nome_acomp, numero_acomp_formatted))
+
         # Commit transaction
         await session.commit()
 
         logger.info(
             f"Ticket {ticket_number_formatted} emitted for {consulente.email} "
+            f"with {len(acompanhantes_emitidos)} acompanhante(s) "
             f"(tenant={tenant.slug}, gira={gira.id})"
         )
 
@@ -670,6 +789,7 @@ async def emit_ticket(
                 recados=gira.recados,
                 horario_desejado=horario_desejado_str,
                 cancel_link=cancel_link,
+                acompanhantes=acompanhantes_emitidos or None,
             )
             text_body = generate_plain_text_fallback(
                 ticket_number=ticket_number_formatted,
@@ -687,6 +807,7 @@ async def emit_ticket(
                 recados=gira.recados,
                 horario_desejado=horario_desejado_str,
                 cancel_link=cancel_link,
+                acompanhantes=acompanhantes_emitidos or None,
             )
             message = EmailMessage(
                 to_email=consulente.email,
@@ -712,6 +833,10 @@ async def emit_ticket(
             email_sent=True,  # Will be true if sent successfully
             rescue_link=rescue_link,
             message="Ticket emitted successfully! Check your email for confirmation.",
+            acompanhantes=[
+                AcompanhanteEmitido(name=nome, ticket_number=numero)
+                for nome, numero in acompanhantes_emitidos
+            ],
         )
 
     except HTTPException:

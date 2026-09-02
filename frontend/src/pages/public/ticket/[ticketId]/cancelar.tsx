@@ -27,6 +27,11 @@ import { apiClient, extractApiErrorMessage } from '../../../../services/api_clie
 
 type PageState = 'loading' | 'confirm' | 'blocked' | 'cancelling' | 'success' | 'error';
 
+interface AcompanhanteCancelInfo {
+  ticket_number: string;
+  name: string;
+}
+
 interface CancelInfo {
   ticket_number: string;
   status: string;
@@ -38,6 +43,7 @@ interface CancelInfo {
   tenant_slug: string;
   consulente_name: string;
   waitlisted: boolean;
+  acompanhantes?: AcompanhanteCancelInfo[];
 }
 
 export default function CancelTicketPage() {
@@ -106,6 +112,12 @@ export default function CancelTicketPage() {
             <Typography color="text.secondary" sx={{ mb: 3 }}>
               {info.tenant_name}
             </Typography>
+            {(info.acompanhantes?.length ?? 0) > 0 && (
+              <Typography color="warning.main" sx={{ mb: 2 }}>
+                As senhas dos seus acompanhantes também serão canceladas:{' '}
+                {info.acompanhantes!.map((a) => `#${a.ticket_number} (${a.name})`).join(', ')}.
+              </Typography>
+            )}
             <Typography sx={{ mb: 3 }}>
               {info.waitlisted
                 ? 'Você sairá da fila de espera desta gira. Esta ação não pode ser desfeita.'

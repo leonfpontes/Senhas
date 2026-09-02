@@ -54,6 +54,12 @@ class Gira(SoftDeleteModel):
     # efeito quando tenant_config.enable_time_slot_scheduling também está ligado.
     use_time_slots: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
+    # Acompanhantes: quando True, o titular pode emitir senhas extras para até
+    # max_acompanhantes acompanhantes na mesma emissão. Cada acompanhante recebe
+    # um número próprio da mesma sequência da gira (consome max_tickets).
+    allow_acompanhantes: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    max_acompanhantes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Relationships
     tenant = relationship("Tenant", back_populates="giras")
     tickets = relationship("Ticket", back_populates="gira", cascade="all, delete-orphan")

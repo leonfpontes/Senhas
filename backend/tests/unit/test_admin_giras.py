@@ -43,6 +43,8 @@ def _mock_gira(recados=None):
     g.local = "Centro"
     g.is_active = True
     g.recados = recados
+    g.allow_acompanhantes = False
+    g.max_acompanhantes = None
     g.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
     g.updated_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
     return g

@@ -51,6 +51,7 @@ class TicketResponse(BaseModel):
     priority_category: Optional[str] = None
     is_sponsor: bool = False
     is_walk_in: bool = False
+    is_acompanhante: bool = False
     observacoes: Optional[str] = None
     checkin_em: Optional[datetime] = None
     chamado_em: Optional[datetime] = None
@@ -167,6 +168,7 @@ async def list_gira_tickets(
             priority_category=t.priority_category,
             is_sponsor=t.is_sponsor,
             is_walk_in=t.is_walk_in,
+            is_acompanhante=t.is_acompanhante,
             observacoes=t.observacoes if t.observacoes and not preferencial else None,
             chamado_em=t.chamado_em,
             finalizado_em=t.finalizado_em,
@@ -236,6 +238,7 @@ async def get_ticket(
         priority_category=ticket.priority_category,
         is_sponsor=ticket.is_sponsor,
         is_walk_in=ticket.is_walk_in,
+        is_acompanhante=ticket.is_acompanhante,
         observacoes=ticket.observacoes if ticket.observacoes and not preferencial else None,
         chamado_em=ticket.chamado_em,
         finalizado_em=ticket.finalizado_em,
@@ -314,6 +317,7 @@ async def update_attend_info(
         priority_category=ticket.priority_category,
         is_sponsor=ticket.is_sponsor,
         is_walk_in=ticket.is_walk_in,
+        is_acompanhante=ticket.is_acompanhante,
         observacoes=ticket.observacoes if ticket.observacoes and not preferencial else None,
         chamado_em=ticket.chamado_em,
         finalizado_em=ticket.finalizado_em,
@@ -394,6 +398,7 @@ async def update_ticket_priority(
         priority_category=ticket.priority_category,
         is_sponsor=ticket.is_sponsor,
         is_walk_in=ticket.is_walk_in,
+        is_acompanhante=ticket.is_acompanhante,
         observacoes=ticket.observacoes if ticket.observacoes and not preferencial else None,
         chamado_em=ticket.chamado_em,
         finalizado_em=ticket.finalizado_em,
@@ -518,14 +523,35 @@ async def delete_ticket(
 
     consulente_email = ticket.consulente.email if ticket.consulente else None
 
+    # Excluir a senha do titular cancela em cascata as senhas de acompanhante
+    # ainda ativas vinculadas a ela (o acompanhante não entra sem o titular).
+    # Excluir uma senha de acompanhante individualmente segue o fluxo normal
+    # (devolve só a vaga dela) — é como o admin reduz o grupo.
+    acompanhantes: list[Ticket] = []
+    if not ticket.is_acompanhante:
+        acomp_result = await db.execute(
+            select(Ticket).where(
+                and_(
+                    Ticket.tenant_id == current_user.tenant_id,
+                    Ticket.parent_ticket_id == ticket.id,
+                    Ticket.status.in_(list(deletable_statuses)),
+                )
+            )
+        )
+        acompanhantes = list(acomp_result.scalars().all())
+
     # Soft cancel + free up the slot atomically inside the same transaction
     ticket.status = TicketStatus.CANCELLED
+    for acomp in acompanhantes:
+        acomp.status = TicketStatus.CANCELLED
+
+    slots_to_release = 1 + len(acompanhantes)
 
     # If the waitlist feature is enabled for this tenant, the freed slot goes
     # first to whoever is next in line (respecting priority) instead of being
     # reopened to the general public. Only slots nobody in the queue could
     # take fall back to the old slots_returned behavior.
-    unfilled_slots = 1
+    unfilled_slots = slots_to_release
     promoted_tickets: list[Ticket] = []
     if await waitlist_service.waitlist_enabled_for_tenant(db, current_user.tenant_id):
         gira_result = await db.execute(
@@ -539,7 +565,7 @@ async def delete_ticket(
                 gira_id=gira_id,
                 is_sponsor=ticket.is_sponsor,
                 gira=gira_obj,
-                extra_slots=1,
+                extra_slots=slots_to_release,
             )
             for promoted in promoted_tickets:
                 await _send_waitlist_promotion_email(db, current_user.tenant_id, promoted, gira_obj)
@@ -564,15 +590,17 @@ async def delete_ticket(
                     ticket_id,
                 )
 
-    if ticket.time_slot_id is not None:
-        time_slot_repo = GiraTimeSlotRepository(db)
+    time_slot_repo = GiraTimeSlotRepository(db)
+    for holder in [ticket] + acompanhantes:
+        if holder.time_slot_id is None:
+            continue
         try:
-            await time_slot_repo.increment_slots_returned(db, current_user.tenant_id, ticket.time_slot_id)
+            await time_slot_repo.increment_slots_returned(db, current_user.tenant_id, holder.time_slot_id)
         except ValueError:
             logger.warning(
                 "GiraTimeSlot not found (slot=%s) during ticket delete (ticket=%s). Slot not returned.",
-                ticket.time_slot_id,
-                ticket_id,
+                holder.time_slot_id,
+                holder.id,
             )
 
     audit = AuditService(db)
@@ -587,6 +615,7 @@ async def delete_ticket(
             "consulente_email": consulente_email,
             "gira_id": str(gira_id),
             "is_sponsor": ticket.is_sponsor,
+            "acompanhantes_cancelados": [acomp.numero for acomp in acompanhantes],
         },
     )
 

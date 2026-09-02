@@ -15,11 +15,14 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
+  Chip,
   CircularProgress,
   Container,
   FormControl,
   FormControlLabel,
   FormLabel,
+  MenuItem,
   Paper,
   Radio,
   RadioGroup,
@@ -35,6 +38,7 @@ import BlockIcon from '@mui/icons-material/Block';
 import StarIcon from '@mui/icons-material/Star';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import GroupsIcon from '@mui/icons-material/Groups';
 import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import PoweredByGiraHubFooter from '../../../components/shared/PoweredByGiraHubFooter';
 import { useGiraCountdown, parseCountdownParts } from '../../../hooks/useGiraCountdown';
@@ -70,6 +74,13 @@ interface GiraPublicData {
   secondary_color?: string | null;
   use_time_slots: boolean;
   time_slots: TimeSlotOption[];
+  allow_acompanhantes: boolean;
+  max_acompanhantes: number;
+}
+
+interface AcompanhanteEmitido {
+  name: string;
+  ticket_number: string;
 }
 
 function CountdownBlock({ seconds }: { seconds: number }) {
@@ -123,11 +134,14 @@ export default function PublicGiraPage() {
   const [telefone, setTelefone] = useState('');
   const [priorityCategory, setPriorityCategory] = useState<string>('none');
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string | null>(null);
+  const [levarAcompanhantes, setLevarAcompanhantes] = useState(false);
+  const [acompanhantes, setAcompanhantes] = useState<string[]>(['']);
   const [submitting, setSubmitting] = useState(false);
 
   // Success
   const [success, setSuccess] = useState(false);
   const [ticketNumber, setTicketNumber] = useState<number | null>(null);
+  const [acompanhantesEmitidos, setAcompanhantesEmitidos] = useState<AcompanhanteEmitido[]>([]);
   const [waitlisted, setWaitlisted] = useState(false);
   const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null);
   const [priorityUpgraded, setPriorityUpgraded] = useState(false);
@@ -167,6 +181,22 @@ export default function PublicGiraPage() {
   const isExhausted = (gira?.is_exhausted && !waitlistMode) || (hasRelease && countdown.status === 'closed');
   const notConfigured = gira && !hasRelease;
 
+  // Acompanhantes: só fora da fila de espera e limitado tanto pela config da
+  // gira quanto pelas senhas ainda disponíveis (o titular ocupa uma).
+  const maxAcompanhantesSelecionavel = gira?.allow_acompanhantes
+    ? Math.min(gira.max_acompanhantes, Math.max(0, gira.tickets_available - 1))
+    : 0;
+  const acompanhantesAtivos = levarAcompanhantes && !waitlistMode && maxAcompanhantesSelecionavel > 0;
+  const acompanhantesInvalidos = acompanhantesAtivos && acompanhantes.some((n) => n.trim().length < 2);
+
+  const setQtdAcompanhantes = (qtd: number) => {
+    setAcompanhantes((prev) => {
+      const next = prev.slice(0, qtd);
+      while (next.length < qtd) next.push('');
+      return next;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gira) return;
@@ -179,9 +209,11 @@ export default function PublicGiraPage() {
         phone: telefone,
         priority_category: priorityCategory === 'none' ? null : priorityCategory,
         time_slot_id: gira.use_time_slots ? selectedTimeSlotId : null,
+        acompanhantes: acompanhantesAtivos ? acompanhantes.slice(0, maxAcompanhantesSelecionavel).map((n) => n.trim()) : [],
       });
       setSuccess(true);
       setTicketNumber(res.data.numero ?? res.data.ticket_number ?? null);
+      setAcompanhantesEmitidos(res.data.acompanhantes ?? []);
       setWaitlisted(Boolean(res.data.waitlisted));
       setWaitlistPosition(res.data.waitlist_position ?? null);
       setPriorityUpgraded(Boolean(res.data.priority_upgraded));
@@ -400,11 +432,69 @@ export default function PublicGiraPage() {
                 O atendimento preferencial obedece à Lei nº 10.048/2000 (idosos, gestantes, lactantes, pessoas com deficiência e mobilidade reduzida) e à Lei nº 13.146/2015 (Estatuto da Pessoa com Deficiência).
               </Typography>
             </FormControl>
+
+            {gira.allow_acompanhantes && !waitlistMode && (
+              <Box sx={{ mt: 1 }}>
+                <FormLabel component="legend" sx={{ fontSize: 14, mb: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <GroupsIcon fontSize="small" /> Acompanhantes
+                </FormLabel>
+                {maxAcompanhantesSelecionavel > 0 ? (
+                  <>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={levarAcompanhantes}
+                          onChange={(e) => {
+                            setLevarAcompanhantes(e.target.checked);
+                            if (e.target.checked && acompanhantes.length === 0) setAcompanhantes(['']);
+                          }}
+                        />
+                      }
+                      label={<Typography variant="body2">Levarei acompanhante(s)</Typography>}
+                    />
+                    {levarAcompanhantes && (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                        <TextField
+                          select
+                          label="Quantidade de acompanhantes"
+                          value={Math.min(acompanhantes.length, maxAcompanhantesSelecionavel) || 1}
+                          onChange={(e) => setQtdAcompanhantes(Number(e.target.value))}
+                          fullWidth
+                        >
+                          {Array.from({ length: maxAcompanhantesSelecionavel }, (_, i) => i + 1).map((qtd) => (
+                            <MenuItem key={qtd} value={qtd}>{qtd}</MenuItem>
+                          ))}
+                        </TextField>
+                        {acompanhantes.map((nomeAcomp, index) => (
+                          <TextField
+                            key={index}
+                            label={`Nome do acompanhante ${index + 1}`}
+                            value={nomeAcomp}
+                            onChange={(e) =>
+                              setAcompanhantes((prev) => prev.map((n, i) => (i === index ? e.target.value : n)))
+                            }
+                            required
+                            fullWidth
+                          />
+                        ))}
+                        <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4 }}>
+                          Cada acompanhante receberá uma senha própria, enviada no mesmo e-mail.
+                        </Typography>
+                      </Box>
+                    )}
+                  </>
+                ) : (
+                  <Typography variant="caption" color="text.secondary">
+                    Não há senhas suficientes para levar acompanhantes.
+                  </Typography>
+                )}
+              </Box>
+            )}
             <Button
               type="submit"
               variant="contained"
               size="large"
-              disabled={submitting || !nome.trim() || !email.trim() || (gira.use_time_slots && !waitlistMode && !selectedTimeSlotId)}
+              disabled={submitting || !nome.trim() || !email.trim() || (gira.use_time_slots && !waitlistMode && !selectedTimeSlotId) || acompanhantesInvalidos}
               startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : (waitlistMode ? <HourglassEmptyIcon /> : <ConfirmationNumberIcon />)}
               sx={isSponsor ? { bgcolor: '#daa520', color: '#3e2723', fontWeight: 700, '&:hover': { bgcolor: '#b8860b' }, '&.Mui-disabled': { bgcolor: '#daa52080', color: '#3e2723' } } : {}}
             >
@@ -437,11 +527,31 @@ export default function PublicGiraPage() {
               #{ticketNumber}
             </Typography>
           )}
+          {acompanhantesEmitidos.length > 0 && (
+            <Box sx={{ my: 2 }}>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                Senhas dos acompanhantes
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
+                {acompanhantesEmitidos.map((acomp) => (
+                  <Chip
+                    key={acomp.ticket_number}
+                    icon={<GroupsIcon />}
+                    label={`#${acomp.ticket_number} — ${acomp.name}`}
+                    variant="outlined"
+                    color="primary"
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
           <Typography color="text.secondary">
             Enviamos os detalhes para <strong>{email}</strong>.
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Guarde este número. Apresente-o no dia da gira.
+            {acompanhantesEmitidos.length > 0
+              ? 'Guarde estes números. Cada pessoa apresenta o próprio número no dia da gira.'
+              : 'Guarde este número. Apresente-o no dia da gira.'}
           </Typography>
         </Paper>
       )}

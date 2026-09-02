@@ -65,6 +65,7 @@ class Ticket(SoftDeleteModel):
         Index("ix_tickets_numero", "numero"),
         Index("ix_tickets_created_at", "created_at"),
         Index("ix_tickets_time_slot_id", "time_slot_id"),
+        Index("ix_tickets_parent_ticket_id", "parent_ticket_id"),
     )
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -89,6 +90,12 @@ class Ticket(SoftDeleteModel):
     # Sponsor flag
     is_sponsor: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     is_walk_in: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+
+    # Acompanhante: senha extra emitida junto com a do titular. Compartilha o
+    # consulente do titular (acompanhantes não têm cadastro próprio) e é
+    # vinculada via parent_ticket_id para cascatear cancelamento.
+    is_acompanhante: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    parent_ticket_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tickets.id", ondelete="SET NULL"), nullable=True)
     
     # Door control fields (Visão da Porta)
     checkin_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

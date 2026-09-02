@@ -54,6 +54,11 @@ logger = logging.getLogger(__name__)
 _CANCELLABLE_STATUSES = {TicketStatus.EMITTED, TicketStatus.WAITLISTED}
 
 
+class AcompanhanteCancelInfo(BaseModel):
+    ticket_number: str
+    name: str
+
+
 class CancelInfoResponse(BaseModel):
     ticket_number: str
     status: str
@@ -65,6 +70,9 @@ class CancelInfoResponse(BaseModel):
     tenant_slug: str
     consulente_name: str
     waitlisted: bool = False
+    # Senhas de acompanhante ativas vinculadas a esta senha — canceladas em
+    # cascata junto com a do titular.
+    acompanhantes: list[AcompanhanteCancelInfo] = []
 
 
 class CancelTicketResponse(BaseModel):
@@ -107,6 +115,24 @@ async def _load_ticket_context(
     return ticket, gira, tenant
 
 
+async def _load_active_acompanhantes(session: AsyncSession, ticket: Ticket) -> list[Ticket]:
+    """Non-cancelled acompanhante tickets linked to this titular ticket (empty
+    when the ticket itself is an acompanhante)."""
+    if ticket.is_acompanhante:
+        return []
+    result = await session.execute(
+        select(Ticket)
+        .options(selectinload(Ticket.consulente))
+        .where(
+            Ticket.tenant_id == ticket.tenant_id,
+            Ticket.parent_ticket_id == ticket.id,
+            Ticket.status != TicketStatus.CANCELLED,
+        )
+        .order_by(Ticket.numero)
+    )
+    return list(result.scalars().all())
+
+
 def _cancellability(ticket: Ticket, gira: Gira) -> tuple[bool, str | None]:
     """(cancellable, human-readable reason when not)."""
     status = ticket.status if isinstance(ticket.status, TicketStatus) else TicketStatus(ticket.status)
@@ -139,6 +165,7 @@ async def get_cancel_info(
         gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M")
         if gira.data_inicio else ""
     )
+    acompanhantes = await _load_active_acompanhantes(session, ticket)
     return CancelInfoResponse(
         ticket_number=_format_numero(ticket),
         status=status.value,
@@ -150,6 +177,13 @@ async def get_cancel_info(
         tenant_slug=tenant.slug,
         consulente_name=ticket.consulente.nome if ticket.consulente else "",
         waitlisted=status == TicketStatus.WAITLISTED,
+        acompanhantes=[
+            AcompanhanteCancelInfo(
+                ticket_number=_format_numero(acomp),
+                name=acomp.consulente.nome if acomp.consulente else "Acompanhante",
+            )
+            for acomp in acompanhantes
+        ],
     )
 
 
@@ -169,17 +203,26 @@ async def cancel_ticket(
     previous_status = ticket.status if isinstance(ticket.status, TicketStatus) else TicketStatus(ticket.status)
     ticket_number_formatted = _format_numero(ticket)
 
+    # Cancelar o titular cancela também as senhas de acompanhante ainda ativas
+    # vinculadas a ele — um acompanhante não tem senha própria sem o titular.
+    acompanhantes = await _load_active_acompanhantes(session, ticket)
+
     ticket.status = TicketStatus.CANCELLED
+    for acomp in acompanhantes:
+        acomp.status = TicketStatus.CANCELLED
 
     # A ticket occupies a slot when EMITTED, or when WAITLISTED with an active
     # promotion (the reservation holds the slot until confirmed/expired). A
     # plain queue entry holds nothing — cancelling it just leaves the queue.
+    # Acompanhantes are always EMITTED (a group never enters the waitlist), so
+    # each one holds a slot of its own.
     held_a_slot = previous_status == TicketStatus.EMITTED or (
         previous_status == TicketStatus.WAITLISTED and ticket.promoted_at is not None
     )
+    slots_to_release = (1 if held_a_slot else 0) + len(acompanhantes)
 
-    if held_a_slot:
-        unfilled_slots = 1
+    if slots_to_release > 0:
+        unfilled_slots = slots_to_release
         if await waitlist_service.waitlist_enabled_for_tenant(session, ticket.tenant_id):
             promoted_tickets, unfilled_slots = await waitlist_service.reconcile_and_fill(
                 session=session,
@@ -187,7 +230,7 @@ async def cancel_ticket(
                 gira_id=ticket.gira_id,
                 is_sponsor=ticket.is_sponsor,
                 gira=gira,
-                extra_slots=1,
+                extra_slots=slots_to_release,
             )
             # Reuses the admin module's composer — same email, same branding.
             from src.api.v1.admin.tickets_list import _send_waitlist_promotion_email
@@ -214,16 +257,19 @@ async def cancel_ticket(
                         ticket.id,
                     )
 
-        if ticket.time_slot_id is not None:
-            time_slot_repo = GiraTimeSlotRepository(session)
+        time_slot_holders = ([ticket] if held_a_slot else []) + acompanhantes
+        time_slot_repo = GiraTimeSlotRepository(session)
+        for holder in time_slot_holders:
+            if holder.time_slot_id is None:
+                continue
             try:
-                await time_slot_repo.increment_slots_returned(session, ticket.tenant_id, ticket.time_slot_id)
+                await time_slot_repo.increment_slots_returned(session, holder.tenant_id, holder.time_slot_id)
             except ValueError:
                 logger.warning(
                     "GiraTimeSlot not found (slot=%s) during self-service cancel (ticket=%s). "
                     "Slot not returned.",
-                    ticket.time_slot_id,
-                    ticket.id,
+                    holder.time_slot_id,
+                    holder.id,
                 )
 
     audit = AuditService(session)
@@ -239,14 +285,17 @@ async def cancel_ticket(
             "gira_id": str(ticket.gira_id),
             "is_sponsor": ticket.is_sponsor,
             "cancelled_by": "consulente",
+            "acompanhantes_cancelados": [acomp.numero for acomp in acompanhantes],
         },
     )
 
     await session.commit()
 
     logger.info(
-        "Ticket %s self-cancelled by consulente (tenant=%s, gira=%s, previous_status=%s)",
+        "Ticket %s self-cancelled by consulente with %d acompanhante(s) "
+        "(tenant=%s, gira=%s, previous_status=%s)",
         ticket_number_formatted,
+        len(acompanhantes),
         tenant.slug,
         ticket.gira_id,
         previous_status.value,
@@ -295,7 +344,16 @@ async def cancel_ticket(
         )
         email_queue.enqueue(EmailQueueItem(message=message, ticket_id=str(ticket.id)))
 
+    if acompanhantes:
+        n = len(acompanhantes)
+        message_text = (
+            f"Senha cancelada com sucesso, junto com {n} senha(s) de acompanhante. "
+            "As vagas foram liberadas para outras pessoas."
+        )
+    else:
+        message_text = "Senha cancelada com sucesso. Sua vaga foi liberada para outra pessoa."
+
     return CancelTicketResponse(
         ticket_number=ticket_number_formatted,
-        message="Senha cancelada com sucesso. Sua vaga foi liberada para outra pessoa.",
+        message=message_text,
     )

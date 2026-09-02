@@ -51,6 +51,7 @@ class QueueItemResponse(BaseModel):
     priority_category: Optional[str] = None
     is_sponsor: bool = False
     is_walk_in: bool = False
+    is_acompanhante: bool = False
     checkin_em: Optional[datetime] = None
     atendido_em: Optional[datetime] = None
     chamado_em: Optional[datetime] = None
@@ -184,6 +185,7 @@ def _ticket_to_queue_item(t: Ticket) -> QueueItemResponse:
         priority_category=priority_category,
         is_sponsor=is_sponsor,
         is_walk_in=is_walk_in,
+        is_acompanhante=t.is_acompanhante,
         checkin_em=t.checkin_em,
         atendido_em=t.atendido_em,
         chamado_em=t.chamado_em,

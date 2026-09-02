@@ -19,6 +19,7 @@ def _mock_result_scalar(value):
     result.scalar_one_or_none.return_value = value
     result.scalar_one.return_value = value
     result.scalar.return_value = value
+    result.scalars.return_value.first.return_value = value
     return result
 
 

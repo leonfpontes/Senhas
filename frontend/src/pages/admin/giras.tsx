@@ -44,6 +44,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import GroupsIcon from '@mui/icons-material/Groups';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import AdminLayout from './admin_layout';
@@ -64,6 +65,8 @@ interface Gira {
   release_start_at?: string | null;
   release_end_at?: string | null;
   recados?: string;
+  allow_acompanhantes?: boolean;
+  max_acompanhantes?: number | null;
 }
 
 interface SenhaConfig {
@@ -92,7 +95,7 @@ const timeToInputValue = (horario: string): string => horario.slice(0, 5);
 
 const emptySlotRow = (): TimeSlotRow => ({ horario: '', capacidade_maxima: '' });
 
-const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '', recados: '' };
+const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '', recados: '', allow_acompanhantes: false, max_acompanhantes: '' };
 const EMPTY_SENHA_FORM = {
   max_tickets: '', release_start_at: '', release_end_at: '',
   sponsor_max_tickets: '', sponsor_release_start_at: '', sponsor_release_end_at: '',
@@ -272,6 +275,8 @@ function AdminGirasContent() {
       descricao: gira.descricao || '',
       data_inicio: isoToLocalDatetimeInput(gira.data_inicio),
       recados: gira.recados || '',
+      allow_acompanhantes: !!gira.allow_acompanhantes,
+      max_acompanhantes: gira.max_acompanhantes ? String(gira.max_acompanhantes) : '',
     });
     setTouched({});
     setDrawerMode('edit');
@@ -292,15 +297,22 @@ function AdminGirasContent() {
 
   const isDirty =
     drawerMode === 'create'
-      ? Object.values(formData).some((v) => v !== '')
+      ? Object.values(formData).some((v) => v !== '' && v !== false)
       : currentGira != null &&
         (formData.nome !== currentGira.nome ||
           formData.descricao !== (currentGira.descricao || '') ||
-          formData.recados !== (currentGira.recados || ''));
+          formData.recados !== (currentGira.recados || '') ||
+          formData.allow_acompanhantes !== !!currentGira.allow_acompanhantes ||
+          formData.max_acompanhantes !== (currentGira.max_acompanhantes ? String(currentGira.max_acompanhantes) : ''));
 
   const nomeError = touched.nome && !formData.nome.trim() ? 'Nome é obrigatório' : '';
   const dataError = touched.data_inicio && !formData.data_inicio ? 'Data de início é obrigatória' : '';
-  const saveDisabled = !formData.nome.trim() || !formData.data_inicio;
+  const maxAcompanhantesError =
+    formData.allow_acompanhantes && touched.max_acompanhantes &&
+    (!formData.max_acompanhantes || Number(formData.max_acompanhantes) < 1)
+      ? 'Informe o máximo de acompanhantes (mínimo 1)' : '';
+  const saveDisabled = !formData.nome.trim() || !formData.data_inicio ||
+    (formData.allow_acompanhantes && (!formData.max_acompanhantes || Number(formData.max_acompanhantes) < 1));
 
   const handleSave = async () => {
     setTouched({ nome: true, data_inicio: true });
@@ -316,6 +328,10 @@ function AdminGirasContent() {
       const payload = {
         ...formData,
         data_inicio: toUtcIso(formData.data_inicio),
+        allow_acompanhantes: formData.allow_acompanhantes,
+        max_acompanhantes: formData.allow_acompanhantes && formData.max_acompanhantes
+          ? Number(formData.max_acompanhantes)
+          : null,
       };
       if (drawerMode === 'create') {
         await apiClient.post('/api/v1/admin/giras', payload);
@@ -836,6 +852,51 @@ function AdminGirasContent() {
           error={!!dataError}
           helperText={dataError}
         />
+
+        {/* ═══ Acompanhantes ═══ */}
+        <Box sx={{ mt: 1, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <GroupsIcon color="action" />
+            <Typography variant="subtitle1" fontWeight="bold">
+              Acompanhantes
+            </Typography>
+          </Box>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={formData.allow_acompanhantes}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setFormData((prev) => ({
+                    ...prev,
+                    allow_acompanhantes: checked,
+                    max_acompanhantes: checked && !prev.max_acompanhantes ? '1' : prev.max_acompanhantes,
+                  }));
+                  setTouched((prev) => ({ ...prev, allow_acompanhantes: true }));
+                }}
+              />
+            }
+            label="Permitir que o consulente leve acompanhantes"
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+            Na emissão da senha, o consulente informa o nome de cada acompanhante e cada um
+            recebe uma senha própria (consome a quantidade de senhas da gira).
+          </Typography>
+          {formData.allow_acompanhantes && (
+            <TextField
+              label="Máximo de acompanhantes por senha"
+              type="number"
+              value={formData.max_acompanhantes}
+              onChange={(e) => handleChange('max_acompanhantes', e.target.value)}
+              onBlur={() => setTouched((p) => ({ ...p, max_acompanhantes: true }))}
+              fullWidth
+              required
+              inputProps={{ min: 1, max: 20 }}
+              error={!!maxAcompanhantesError}
+              helperText={maxAcompanhantesError || 'Quantos acompanhantes cada consulente pode levar (1 a 20)'}
+            />
+          )}
+        </Box>
       </CrudDrawer>
 
       {/* Senha Config Drawer */}
