@@ -53,7 +53,12 @@ jobs:
 
       - name: Node.js dependency audit
         working-directory: frontend
-        run: npm audit --audit-level=high
+        # audit-ci em vez de `npm audit` cru pra ter allowlist por advisory (o
+        # npm audit nao tem). Config em frontend/audit-ci.jsonc: falha em high+,
+        # audita so producao (skip-dev) e allowlista os advisories que exigem
+        # major do Next/Sentry, rastreados na task de upgrade. Roda via npx sem
+        # precisar de node_modules (le o package-lock.json do workspace).
+        run: npx --yes audit-ci@^7 --config audit-ci.jsonc
 
   # ──────────────────────────────────────────────────────────────────────────
   # Testes (bloqueantes) — definidos uma única vez em tests.yml e compartilhados
