@@ -89,16 +89,28 @@ describe('PublicLayout', () => {
 });
 
 describe('GiraDetails', () => {
+  // Espelha o payload real de GET /api/v1/public/next-gira (GiraPublic)
   const giraData = {
-    id: 1,
-    name: 'Gira de Oxalá',
-    location: 'Terreiro Central',
+    id: 'gira-1',
+    nome: 'Gira de Oxalá',
+    descricao: 'Trabalho espiritual mensal.',
+    data_inicio: new Date(Date.now() + 86400000).toISOString(),
+    local: 'Terreiro Central',
     release_start_at: new Date(Date.now() - 1800000).toISOString(),
     release_end_at: new Date(Date.now() + 1800000).toISOString(),
     max_tickets: 100,
     current_tickets: 42,
     tickets_available: 58,
     is_open: true,
+    is_exhausted: false,
+    waitlist_available: false,
+    is_sponsor: false,
+    tenant_slug: 'test-tenant',
+    tenant_name: 'Test Terreiro',
+    use_time_slots: false,
+    time_slots: [],
+    allow_acompanhantes: false,
+    max_acompanhantes: 0,
   };
 
   it('renders gira name', () => {
@@ -111,6 +123,33 @@ describe('GiraDetails', () => {
     const GiraDetails = require('@/pages/public/gira_details').default;
     render(<GiraDetails giraData={giraData} />);
     expect(screen.getByText(/Terreiro Central/)).toBeInTheDocument();
+  });
+
+  it('renders event date', () => {
+    const GiraDetails = require('@/pages/public/gira_details').default;
+    render(<GiraDetails giraData={giraData} />);
+    expect(screen.getByText(/🗓️/)).toBeInTheDocument();
+  });
+
+  it('does not render sold-out banner for uncapped gira', () => {
+    const GiraDetails = require('@/pages/public/gira_details').default;
+    // Gira sem limite: backend envia tickets_available: 0 e is_exhausted: false
+    render(
+      <GiraDetails
+        giraData={{ ...giraData, max_tickets: null, tickets_available: 0, is_exhausted: false }}
+      />
+    );
+    expect(screen.queryByText(/Todas as senhas/)).not.toBeInTheDocument();
+  });
+
+  it('renders sold-out banner when exhausted', () => {
+    const GiraDetails = require('@/pages/public/gira_details').default;
+    render(
+      <GiraDetails
+        giraData={{ ...giraData, tickets_available: 0, is_exhausted: true }}
+      />
+    );
+    expect(screen.getByText(/Todas as senhas/)).toBeInTheDocument();
   });
 
   it('renders with custom tenant color', () => {
@@ -127,14 +166,21 @@ describe('Tenant Public Page', () => {
     const { apiClient } = require('@/services/api_client');
     apiClient.get.mockResolvedValue({
       data: {
-        id: 1,
-        name: 'Test Gira',
-        location: 'Test Location',
+        id: 'gira-1',
+        nome: 'Test Gira',
+        data_inicio: new Date(Date.now() + 86400000).toISOString(),
+        local: 'Test Location',
         release_start_at: new Date().toISOString(),
         release_end_at: new Date(Date.now() + 3600000).toISOString(),
         max_tickets: 100,
         current_tickets: 0,
         tickets_available: 100,
+        is_open: true,
+        is_exhausted: false,
+        tenant_slug: 'test-tenant',
+        tenant_name: 'Test Terreiro',
+        use_time_slots: false,
+        time_slots: [],
       },
     });
 

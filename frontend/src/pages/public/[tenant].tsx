@@ -16,21 +16,7 @@ import GiraDetails from './gira_details';
 import EmitForm from './emit_form';
 import { apiClient } from '@/services/api_client';
 import styles from './public_page.module.css';
-
-
-interface GiraData {
-  id: string;
-  nome: string;
-  descricao?: string | null;
-  data_inicio: string;
-  local?: string | null;
-  release_start_at: string | null;
-  release_end_at: string | null;
-  max_tickets: number | null;
-  current_tickets: number;
-  tickets_available: number;
-  is_open: boolean;
-}
+import type { GiraPublic } from 'shared-types';
 
 
 interface TenantInfo {
@@ -47,11 +33,14 @@ export default function PublicPage() {
   const router = useRouter();
   const tenantSlug = router.query.tenant as string;
 
-  const [giraData, setGiraData] = useState<GiraData | null>(null);
+  const [giraData, setGiraData] = useState<GiraPublic | null>(null);
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notFound, setNotFound] = useState(false);
+  // Dois 404 distintos do next-gira: tenant inexistente vs tenant sem gira
+  // com emissão configurada (distinguidos pelo detail do erro)
+  const [tenantMissing, setTenantMissing] = useState(false);
+  const [noGira, setNoGira] = useState(false);
 
   useEffect(() => {
     if (!tenantSlug) return;
@@ -60,12 +49,21 @@ export default function PublicPage() {
       try {
         setLoading(true);
         setError(null);
-        setNotFound(false);
+        setTenantMissing(false);
+        setNoGira(false);
 
         // Fetch next gira
         const giraResponse = await apiClient.get(
-          `/api/v1/public/next-gira?tenant_slug=${tenantSlug}`
+          `/api/v1/public/next-gira?tenant_slug=${encodeURIComponent(tenantSlug)}`
         );
+
+        // Gira com agendamento por horário: esta página não tem seletor de
+        // horário — a emissão falharia com 400. A página completa tem.
+        if (giraResponse.data.use_time_slots) {
+          router.replace(`/public/gira/${giraResponse.data.id}`);
+          return;
+        }
+
         setGiraData(giraResponse.data);
 
         // Extract tenant info from response or use defaults
@@ -79,10 +77,17 @@ export default function PublicPage() {
         });
 
       } catch (err) {
-        const status = err && typeof err === 'object' ? (err as { status?: number }).status : undefined;
-        // 404 = tenant sem gira com emissão configurada — estado vazio esperado, não erro
+        const { status, detail } =
+          err && typeof err === 'object'
+            ? (err as { status?: number; detail?: unknown })
+            : { status: undefined, detail: undefined };
         if (status === 404) {
-          setNotFound(true);
+          // next_gira.py: "Tenant '<slug>' not found" vs "No active gira scheduled..."
+          if (typeof detail === 'string' && detail.startsWith('Tenant')) {
+            setTenantMissing(true);
+          } else {
+            setNoGira(true);
+          }
         } else {
           setError('Erro ao carregar dados. Tente novamente.');
         }
@@ -93,7 +98,7 @@ export default function PublicPage() {
     };
 
     fetchData();
-  }, [tenantSlug]);
+  }, [tenantSlug, router]);
 
   if (loading) {
     return (
@@ -106,26 +111,44 @@ export default function PublicPage() {
     );
   }
 
-  if (error || notFound || !giraData || !tenantInfo) {
+  if (error || tenantMissing || noGira || !giraData || !tenantInfo) {
     const defaultColors = {
       primary_color: '#2E7D32',
       secondary_color: '#1565C0',
     };
+    // Sem resposta da gira não há branding do tenant; o nome derivado do slug
+    // é mais honesto que um genérico "Centro Espírita"
+    const slugDisplayName = (tenantSlug || '')
+      .split('-')
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+    const headerName = tenantMissing
+      ? 'Emissão de Senhas'
+      : tenantInfo?.name || slugDisplayName || 'Emissão de Senhas';
     return (
       <PublicLayout
-        tenantName={tenantInfo?.name || 'Centro Espírita'}
+        tenantName={headerName}
         tenantLogoUrl={tenantInfo?.logo_url}
         tenantColor={tenantInfo?.primary_color || defaultColors.primary_color}
         tenantSecondaryColor={tenantInfo?.secondary_color || defaultColors.secondary_color}
       >
         <div className={styles.errorcontainer}>
           <div className={styles.errorcontent}>
-            {notFound ? (
+            {tenantMissing ? (
               <>
-                <h2 className={styles.emptytitle}>🕯️ Nenhuma gira aberta no momento</h2>
+                <h2 className={styles.emptytitle}>🔍 Terreiro não encontrado</h2>
                 <p>
-                  A emissão de senhas para a próxima gira ainda não foi aberta.
-                  Volte mais tarde ou entre em contato com o terreiro para saber a data.
+                  Não encontramos nenhum terreiro neste endereço.
+                  Confira se o link está correto ou fale com quem o enviou.
+                </p>
+              </>
+            ) : noGira ? (
+              <>
+                <h2 className={styles.emptytitle}>🕯️ Nenhuma gira com emissão aberta</h2>
+                <p>
+                  No momento não há emissão de senhas disponível.
+                  Entre em contato com o terreiro para saber a data da próxima gira.
                 </p>
               </>
             ) : (
@@ -134,13 +157,15 @@ export default function PublicPage() {
                 <p>{error || 'Informações não disponíveis'}</p>
               </>
             )}
-            <button
-              onClick={() => window.location.reload()}
-              className={styles.retrybutton}
-              style={{ backgroundColor: tenantInfo?.primary_color || defaultColors.primary_color }}
-            >
-              {notFound ? 'Atualizar' : 'Tentar Novamente'}
-            </button>
+            {!tenantMissing && (
+              <button
+                onClick={() => window.location.reload()}
+                className={styles.retrybutton}
+                style={{ backgroundColor: tenantInfo?.primary_color || defaultColors.primary_color }}
+              >
+                {noGira ? 'Atualizar' : 'Tentar Novamente'}
+              </button>
+            )}
           </div>
         </div>
       </PublicLayout>
@@ -167,6 +192,7 @@ export default function PublicPage() {
           <div className={styles.formspan}>
             <EmitForm
               tenantSlug={tenantSlug}
+              giraId={giraData.id}
               girReleaseStart={giraData.release_start_at}
               giraReleaseEnd={giraData.release_end_at}
               tenantColor={tenantInfo.primary_color}

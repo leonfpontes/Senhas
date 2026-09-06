@@ -46,37 +46,9 @@ import {
   PRIORITY_CATEGORY_LABELS,
   PRIORITY_ORDER,
 } from 'shared-types';
+import type { GiraPublic } from 'shared-types';
 
-interface TimeSlotOption {
-  id: string;
-  horario: string; // "HH:MM"
-  vagas_disponiveis: number;
-}
-
-interface GiraPublicData {
-  id: string;
-  nome: string;
-  descricao?: string;
-  data_inicio: string;
-  local?: string;
-  release_start_at: string | null;
-  release_end_at: string | null;
-  max_tickets: number | null;
-  current_tickets: number;
-  tickets_available: number;
-  is_open: boolean;
-  is_exhausted: boolean;
-  waitlist_available: boolean;
-  tenant_slug: string;
-  tenant_name: string;
-  logo_url?: string | null;
-  primary_color?: string | null;
-  secondary_color?: string | null;
-  use_time_slots: boolean;
-  time_slots: TimeSlotOption[];
-  allow_acompanhantes: boolean;
-  max_acompanhantes: number;
-}
+type GiraPublicData = GiraPublic;
 
 interface AcompanhanteEmitido {
   name: string;

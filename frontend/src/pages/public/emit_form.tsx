@@ -14,6 +14,7 @@ import { useGiraCountdown } from '@/hooks/useGiraCountdown';
 
 interface EmitFormProps {
   tenantSlug: string;
+  giraId: string;
   girReleaseStart: string | null;
   giraReleaseEnd: string | null;
   tenantColor?: string;
@@ -30,6 +31,7 @@ interface FormData {
 
 export default function EmitForm({
   tenantSlug,
+  giraId,
   girReleaseStart,
   giraReleaseEnd,
   tenantColor = '#2E7D32',
@@ -49,10 +51,7 @@ export default function EmitForm({
   const [successWaitlisted, setSuccessWaitlisted] = useState(false);
   const [successWaitlistPosition, setSuccessWaitlistPosition] = useState<number | null>(null);
 
-  const { isOpen: emissionOpen } = useGiraCountdown(
-    girReleaseStart ?? '',
-    giraReleaseEnd ?? '',
-  );
+  const { isOpen: emissionOpen } = useGiraCountdown(girReleaseStart, giraReleaseEnd);
 
   if (!tenantSlug) return null;
 
@@ -108,8 +107,10 @@ export default function EmitForm({
 
     try {
       // Call API
+      // gira_id fixa a emissão na gira exibida — sem ele o backend resolve
+      // sozinho a gira de janela aberta, que pode ser outra
       const response = await apiClient.post(
-        `/api/v1/public/emit-ticket?tenant_slug=${tenantSlug}`,
+        `/api/v1/public/emit-ticket?tenant_slug=${tenantSlug}&gira_id=${giraId}`,
         {
           name: formData.name.trim(),
           email: formData.email.trim().toLowerCase(),

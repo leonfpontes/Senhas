@@ -6,27 +6,13 @@
 'use client';
 
 import React from 'react';
+import type { GiraPublic } from 'shared-types';
 import styles from './gira_details.module.css';
 import { useGiraCountdown } from '@/hooks/useGiraCountdown';
 
 
-interface GiraDetailsInfo {
-  id: string;
-  nome: string;
-  descricao?: string | null;
-  data_inicio: string;
-  local?: string | null;
-  release_start_at: string | null;
-  release_end_at: string | null;
-  max_tickets: number | null;
-  current_tickets: number;
-  tickets_available: number;
-  is_open: boolean;
-}
-
-
 interface GiraDetailsProps {
-  giraData: GiraDetailsInfo;
+  giraData: GiraPublic;
   tenantColor?: string;
 }
 
@@ -38,9 +24,12 @@ export default function GiraDetails({
   const {
     timeRemaining,
     isOpen,
-  } = useGiraCountdown(giraData?.release_start_at ?? '', giraData?.release_end_at ?? '');
+    status,
+  } = useGiraCountdown(giraData?.release_start_at ?? null, giraData?.release_end_at ?? null);
 
   if (!giraData) return null;
+
+  const hasWindow = status !== 'unconfigured';
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—';
@@ -85,27 +74,31 @@ export default function GiraDetails({
       </div>
 
       {/* Status Badge */}
-      <div className={styles.statusbadge} style={{
-        backgroundColor: isOpen ? '#4CAF50' : '#2196F3',
-        color: 'white',
-      }}>
-        {isOpen ? '🟢 EMISSÃO ABERTA' : '🔵 PRÓXIMO'}
-      </div>
+      {hasWindow && (
+        <div className={styles.statusbadge} style={{
+          backgroundColor: isOpen ? '#4CAF50' : '#2196F3',
+          color: 'white',
+        }}>
+          {isOpen ? '🟢 EMISSÃO ABERTA' : '🔵 PRÓXIMO'}
+        </div>
+      )}
 
       {/* Emission Window (secondary info) */}
-      <div className={styles.eventinfo}>
-        <div className={styles.infoitem}>
-          <span className={styles.label}>Senhas disponíveis a partir de:</span>
-          <span className={styles.value}>{formatDate(giraData.release_start_at)}</span>
+      {hasWindow && (
+        <div className={styles.eventinfo}>
+          <div className={styles.infoitem}>
+            <span className={styles.label}>Senhas disponíveis a partir de:</span>
+            <span className={styles.value}>{formatDate(giraData.release_start_at)}</span>
+          </div>
+          <div className={styles.infoitem}>
+            <span className={styles.label}>Fim da emissão:</span>
+            <span className={styles.value}>{formatDate(giraData.release_end_at)}</span>
+          </div>
         </div>
-        <div className={styles.infoitem}>
-          <span className={styles.label}>Emissão encerra em:</span>
-          <span className={styles.value}>{formatDate(giraData.release_end_at)}</span>
-        </div>
-      </div>
+      )}
 
       {/* Countdown Timer */}
-      {!isOpen && (
+      {hasWindow && !isOpen && (
         <div className={styles.countdown}>
           <h3 className={styles.countdowntitle}>Próxima Emissão em</h3>
           <div className={styles.countdowntimer}>
@@ -134,7 +127,7 @@ export default function GiraDetails({
       )}
 
       {/* Capacity Warning */}
-      {giraData.tickets_available < 50 && giraData.tickets_available > 0 && (
+      {giraData.max_tickets != null && giraData.tickets_available < 50 && giraData.tickets_available > 0 && (
         <div className={styles.warning} style={{
           backgroundColor: '#fff3cd',
           borderLeftColor: '#ffc107',
@@ -145,7 +138,9 @@ export default function GiraDetails({
         </div>
       )}
 
-      {giraData.tickets_available === 0 && (
+      {/* is_exhausted (não tickets_available === 0): gira sem limite reporta
+          tickets_available: 0 com is_exhausted: false — não está esgotada */}
+      {giraData.is_exhausted && (
         <div className={styles.error} style={{
           backgroundColor: '#f8d7da',
           borderLeftColor: '#dc3545',
