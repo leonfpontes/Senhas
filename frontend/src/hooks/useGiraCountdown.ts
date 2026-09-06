@@ -12,13 +12,13 @@ interface UseGiraCountdownReturn {
   isOpen: boolean;
   isClosed: boolean;
   percentRemaining: number; // 0-100
-  status: 'upcoming' | 'open' | 'closed';
+  status: 'unconfigured' | 'upcoming' | 'open' | 'closed';
 }
 
 
 export function useGiraCountdown(
-  releaseStartAt: string,
-  releaseEndAt: string,
+  releaseStartAt: string | null,
+  releaseEndAt: string | null,
 ): UseGiraCountdownReturn {
   /**
    * Hook to track countdown until gira emission window
@@ -50,13 +50,30 @@ export function useGiraCountdown(
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isClosed, setIsClosed] = useState<boolean>(false);
-  const [status, setStatus] = useState<'upcoming' | 'open' | 'closed'>('upcoming');
+  const [status, setStatus] = useState<'unconfigured' | 'upcoming' | 'open' | 'closed'>('upcoming');
+
+  // Sem janela de emissão configurada (null ou timestamp inválido): estado
+  // próprio, distinto de "encerrado" — new Date('') seria Invalid Date e
+  // cairia silenciosamente no branch de closed.
+  const hasWindow =
+    !!releaseStartAt &&
+    !!releaseEndAt &&
+    !Number.isNaN(new Date(releaseStartAt).getTime()) &&
+    !Number.isNaN(new Date(releaseEndAt).getTime());
 
   useEffect(() => {
+    if (!hasWindow) {
+      setTimeRemaining(0);
+      setIsOpen(false);
+      setIsClosed(false);
+      setStatus('unconfigured');
+      return;
+    }
+
     const calculateCountdown = () => {
       const now = new Date();
-      const startTime = new Date(releaseStartAt);
-      const endTime = new Date(releaseEndAt);
+      const startTime = new Date(releaseStartAt as string);
+      const endTime = new Date(releaseEndAt as string);
 
       // Determine current status
       if (now < startTime) {
@@ -92,13 +109,17 @@ export function useGiraCountdown(
     const interval = setInterval(calculateCountdown, 1000);
 
     return () => clearInterval(interval);
-  }, [releaseStartAt, releaseEndAt]);
+  }, [releaseStartAt, releaseEndAt, hasWindow]);
 
   // Calculate percentage of emission window
-  const startTime = new Date(releaseStartAt);
-  const endTime = new Date(releaseEndAt);
-  const totalDuration = (endTime.getTime() - startTime.getTime()) / 1000;
-  const percentRemaining = Math.max(0, Math.min(100, (timeRemaining / totalDuration) * 100));
+  let percentRemaining = 0;
+  if (hasWindow) {
+    const startTime = new Date(releaseStartAt as string);
+    const endTime = new Date(releaseEndAt as string);
+    const totalDuration = (endTime.getTime() - startTime.getTime()) / 1000;
+    percentRemaining =
+      totalDuration > 0 ? Math.max(0, Math.min(100, (timeRemaining / totalDuration) * 100)) : 0;
+  }
 
   return {
     timeRemaining,

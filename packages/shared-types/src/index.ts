@@ -191,3 +191,47 @@ export interface QueryAuditLogsRequest {
   limit?: number;
   offset?: number;
 }
+
+// ============================================================================
+// PUBLIC GIRA (emission pages)
+// ============================================================================
+
+/** Public time-slot option, as returned inside GiraPublic.time_slots. */
+export interface TimeSlotPublic {
+  id: string;
+  horario: string; // "HH:MM"
+  vagas_disponiveis: number;
+}
+
+/**
+ * Public gira payload — mirror of backend GiraPublicResponse
+ * (backend/src/api/v1/public/next_gira.py). Returned by
+ * GET /api/v1/public/next-gira and GET /api/v1/public/gira/{gira_id}.
+ * Keep in sync with the Pydantic model; the public pages import this type
+ * instead of hand-copying the shape.
+ */
+export interface GiraPublic {
+  id: string;
+  nome: string;
+  descricao?: string | null;
+  data_inicio: string;
+  local?: string | null;
+  release_start_at: string | null;
+  release_end_at: string | null;
+  max_tickets: number | null;
+  current_tickets: number;
+  tickets_available: number;
+  is_open: boolean;
+  is_exhausted: boolean;
+  waitlist_available: boolean;
+  is_sponsor: boolean;
+  tenant_slug: string;
+  tenant_name: string;
+  logo_url?: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+  use_time_slots: boolean;
+  time_slots: TimeSlotPublic[];
+  allow_acompanhantes: boolean;
+  max_acompanhantes: number;
+}

@@ -55,36 +55,60 @@ Cookie: auth_token=eyJhbGc...
 
 ### 1. Get Next Available Gira
 
-**Endpoint**: `GET /public/{tenant_id}/next-gira`
+**Endpoint**: `GET /public/next-gira`
 
 **Parameters**:
-- `tenant_id` (path, required): Tenant UUID
+- `tenant_slug` (query, required): Tenant slug (e.g. `terreiro-caboclo-tupinamba`)
+- `tipo` (query, optional): `regular` (default) or `associado` (sponsor window)
 
-**Response** (200 OK):
+**Response** (200 OK) — mirror of `GiraPublicResponse`
+(`backend/src/api/v1/public/next_gira.py`) and the shared frontend type
+`GiraPublic` (`packages/shared-types/src/index.ts`):
 ```json
 {
-  "data": {
-    "id": "gira-uuid",
-    "name": "Gira de Terreiro ABC",
-    "description": "Monthly gira event",
-    "event_date": "2026-03-06T18:00:00Z",
-    "location": "Terreiro ABC",
-    "current_number": 45,
-    "tickets_limit": 100,
-    "remaining_slots": 55,
-    "status": "ACTIVE"
-  }
+  "id": "gira-uuid",
+  "nome": "Gira de Caboclos",
+  "descricao": "Trabalho espiritual com a linha dos Caboclos.",
+  "data_inicio": "2026-03-06T18:00:00+00:00",
+  "local": "Terreiro ABC",
+  "release_start_at": "2026-03-01T08:00:00+00:00",
+  "release_end_at": "2026-03-06T18:00:00+00:00",
+  "max_tickets": 100,
+  "current_tickets": 45,
+  "tickets_available": 55,
+  "is_open": true,
+  "is_exhausted": false,
+  "waitlist_available": false,
+  "is_sponsor": false,
+  "tenant_slug": "terreiro-abc",
+  "tenant_name": "Terreiro ABC",
+  "logo_url": null,
+  "primary_color": "#2E7D32",
+  "secondary_color": "#1565C0",
+  "use_time_slots": false,
+  "time_slots": [],
+  "allow_acompanhantes": false,
+  "max_acompanhantes": 0
 }
 ```
 
+Notes:
+- `max_tickets: null` means uncapped; the backend then reports
+  `tickets_available: 0` with `is_exhausted: false` — key "sold out" UI off
+  `is_exhausted`, never off `tickets_available === 0`.
+- `release_start_at`/`release_end_at` are non-null in practice for this
+  endpoint (giras without a configured emission window are filtered out).
+
 **Error Responses**:
-- `404 Not Found`: Tenant or gira not found
+- `404 Not Found`: two distinct details — `"Tenant '<slug>' not found"`
+  (unknown slug) vs `"No active gira scheduled for this tenant"` (tenant
+  exists, no gira with an emission window)
 - `429 Too Many Requests`: Rate limit exceeded
 
 **cURL Example**:
 ```bash
 curl -X GET \
-  "https://api.senhas.com/api/v1/public/uuid-123/next-gira" \
+  "https://api.senhas.com/api/v1/public/next-gira?tenant_slug=terreiro-abc" \
   -H "Accept: application/json"
 ```
 

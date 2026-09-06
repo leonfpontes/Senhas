@@ -14,8 +14,9 @@ import { useGiraCountdown } from '@/hooks/useGiraCountdown';
 
 interface EmitFormProps {
   tenantSlug: string;
-  girReleaseStart: string;
-  giraReleaseEnd: string;
+  giraId: string;
+  girReleaseStart: string | null;
+  giraReleaseEnd: string | null;
   tenantColor?: string;
   onSuccess?: (ticketNumber: string, email: string) => void;
 }
@@ -30,6 +31,7 @@ interface FormData {
 
 export default function EmitForm({
   tenantSlug,
+  giraId,
   girReleaseStart,
   giraReleaseEnd,
   tenantColor = '#2E7D32',
@@ -49,10 +51,7 @@ export default function EmitForm({
   const [successWaitlisted, setSuccessWaitlisted] = useState(false);
   const [successWaitlistPosition, setSuccessWaitlistPosition] = useState<number | null>(null);
 
-  const { isOpen: emissionOpen } = useGiraCountdown(
-    girReleaseStart,
-    giraReleaseEnd,
-  );
+  const { isOpen: emissionOpen } = useGiraCountdown(girReleaseStart, giraReleaseEnd);
 
   if (!tenantSlug) return null;
 
@@ -108,8 +107,10 @@ export default function EmitForm({
 
     try {
       // Call API
+      // gira_id fixa a emissão na gira exibida — sem ele o backend resolve
+      // sozinho a gira de janela aberta, que pode ser outra
       const response = await apiClient.post(
-        `/api/v1/public/emit-ticket?tenant_slug=${tenantSlug}`,
+        `/api/v1/public/emit-ticket?tenant_slug=${tenantSlug}&gira_id=${giraId}`,
         {
           name: formData.name.trim(),
           email: formData.email.trim().toLowerCase(),
@@ -180,7 +181,11 @@ export default function EmitForm({
           </div>
 
           <p className={styles.successmessage}>
-            Um email de confirmação foi enviado para <strong>{successEmail}</strong>
+            {successWaitlisted ? (
+              <>Enviamos um email com sua posição na fila para <strong>{successEmail}</strong></>
+            ) : (
+              <>Enviamos os detalhes da sua senha para <strong>{successEmail}</strong></>
+            )}
           </p>
 
           {successWaitlisted ? (
@@ -196,9 +201,9 @@ export default function EmitForm({
             <div className={styles.successinstructions}>
               <h4>Próximos Passos:</h4>
               <ol>
-                <li>Verifique seu email (inclua a pasta de spam)</li>
-                <li>Clique no link para confirmar sua senha</li>
-                <li>Guarde seu número para a entrada do evento</li>
+                <li>Sua senha já está garantida — não precisa confirmar nada</li>
+                <li>Guarde ou anote o número acima</li>
+                <li>Enviamos um email com os detalhes (confira a pasta de spam)</li>
                 <li>Apresente o número na entrada do local</li>
               </ol>
             </div>
