@@ -13,9 +13,13 @@ authors = [
 license = {text = "MIT"}
 
 dependencies = [
-    "fastapi==0.104.1",
+    # fastapi 0.118.3 corrige PYSEC-2024-38 e puxa starlette >=0.40 (fix de
+    # varios advisories); mantido abaixo de 0.120/starlette 1.x que exigiria
+    # migracao (regex->pattern, API de rotas, pydantic 2.13) — ver docs.
+    "fastapi==0.118.3",
+    "starlette>=0.48.0,<0.49.0",
     "uvicorn[standard]==0.24.0",
-    "python-multipart==0.0.9",
+    "python-multipart==0.0.31",  # corrige PYSEC-2026-185x/303x (DoS no parser)
     "websockets>=12.0",
     "sqlalchemy==2.0.23",
     "asyncpg==0.29.0",
@@ -23,8 +27,11 @@ dependencies = [
     "alembic==1.12.1",
     "pydantic==2.5.0",
     "pydantic-settings==2.1.0",
-    "python-dotenv==1.0.0",
-    "python-jose[cryptography]==3.3.0",
+    "python-dotenv==1.2.2",  # corrige PYSEC-2026-2270
+    # PyJWT no lugar de python-jose: elimina de vez o ecdsa (PYSEC-2026-1325,
+    # sem correcao) e o pyasn1<0.5 que o jose forcava. HS256 no PyJWT usa
+    # hmac/hashlib — nao precisa de cryptography. Ver src/security/jwt.py.
+    "PyJWT>=2.10.1",
     "passlib[bcrypt]==1.7.4",
     "email-validator>=2.2.0,<3.0.0",
     "httpx==0.25.2",
