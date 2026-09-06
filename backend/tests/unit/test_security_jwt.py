@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 
 import pytest
-from jose import jwt
+import jwt  # PyJWT
 
 from src.security.jwt import (
     create_access_token,

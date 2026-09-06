@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 import uuid
-from jose import jwt, JWTError
+import jwt  # PyJWT — substitui python-jose (que arrastava ecdsa/pyasn1 vulneráveis)
 from pydantic import BaseModel, Field
 
 from ..core.config import settings
@@ -182,7 +182,7 @@ def decode_token(token: str) -> TokenPayload:
             impersonated_by=payload.get("impersonated_by"),
         )
         
-    except JWTError as e:
+    except jwt.PyJWTError as e:
         raise InvalidTokenError(f"Token inválido: {str(e)}")
     except InvalidTokenError:
         raise
@@ -222,7 +222,7 @@ def decode_refresh_token(token: str) -> TokenPayload:
             session_id=payload.get("session_id"),
             jti=payload.get("jti"),
         )
-    except JWTError as e:
+    except jwt.PyJWTError as e:
         raise InvalidTokenError(f"Refresh token inválido: {str(e)}")
     except InvalidTokenError:
         raise
