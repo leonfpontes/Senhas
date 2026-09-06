@@ -1,3 +1,4 @@
+/* eslint-env jest */
 /**
  * No-op mock for @sentry/nextjs in Jest.
  *
@@ -16,8 +17,11 @@ module.exports = {
   setTags: noop,
   setContext: noop,
   setExtra: noop,
-  captureException: noop,
-  captureMessage: noop,
+  // jest.fn() (não noop) para que os testes possam assertar que erros foram
+  // reportados; em runtime comporta-se como noop. jest.clearAllMocks() limpa
+  // as chamadas entre os testes.
+  captureException: jest.fn(),
+  captureMessage: jest.fn(),
   withScope: (callback) => callback({ setTag: noop, setUser: noop, setContext: noop, setExtra: noop }),
   browserTracingIntegration: () => ({}),
   replayIntegration: () => ({}),

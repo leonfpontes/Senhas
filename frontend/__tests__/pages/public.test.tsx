@@ -1,191 +1,125 @@
 /**
- * Tests for public pages
- * Testing: [tenant], gira_details, emit_form, public_layout
+ * Tests for the unified public emission flow
+ * Testing: UnifiedGiraRedirect (used by /public/[tenant],
+ * /public/[tenant]/senha and /public/[tenant]/associado)
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { render, screen, waitFor } from '@testing-library/react';
+
+const mockReplace = jest.fn();
+
+// Objeto estável — o Next real retorna a mesma referência de useRouter entre
+// renders; um objeto novo a cada chamada faria o useCallback([...router]) do
+// componente re-disparar o efeito em loop.
+const mockRouter = {
+  push: jest.fn(),
+  replace: mockReplace,
+  pathname: '/public/[tenant]',
+  query: { tenant: 'test-tenant' },
+  asPath: '/public/test-tenant',
+  isReady: true,
+  events: { on: jest.fn(), off: jest.fn() },
+};
 
 // Mock next/router
 jest.mock('next/router', () => ({
-  useRouter: () => ({
-    push: jest.fn(),
-    pathname: '/public/test-tenant',
-    query: { tenant: 'test-tenant' },
-    asPath: '/public/test-tenant',
-    isReady: true,
-    events: { on: jest.fn(), off: jest.fn() },
-  }),
+  useRouter: () => mockRouter,
 }));
 
 // Mock API client
 jest.mock('@/services/api_client', () => ({
   apiClient: {
-    get: jest.fn().mockResolvedValue({ data: {} }),
-    post: jest.fn().mockResolvedValue({ data: {} }),
+    get: jest.fn(),
+    post: jest.fn(),
   },
 }));
 
-// Mock useGiraCountdown
-jest.mock('@/hooks/useGiraCountdown', () => ({
-  useGiraCountdown: () => ({
-    timeRemaining: 3600,
-    isOpen: true,
-    isClosed: false,
-    percentRemaining: 50,
-    status: 'open' as const,
-  }),
-}));
+import * as Sentry from '@sentry/nextjs';
+import UnifiedGiraRedirect from '@/components/shared/UnifiedGiraRedirect';
+import TenantPage from '@/pages/public/[tenant]';
 
-// Mock CSS modules
-jest.mock('@/pages/public/gira_details.module.css', () => ({}), { virtual: true });
-jest.mock('@/pages/public/emit_form.module.css', () => ({}), { virtual: true });
-jest.mock('@/pages/public/public_layout.module.css', () => ({}), { virtual: true });
-jest.mock('@/pages/public/public_page.module.css', () => ({}), { virtual: true });
+const { apiClient } = jest.requireMock('@/services/api_client');
 
-// Mock ThemeProvider
-jest.mock('@/providers/ThemeProvider', () => ({
-  useTenant: () => ({
-    tenantId: 'test-id',
-    tenantName: 'Test Terreiro',
-    logoUrl: undefined,
-    config: undefined,
-  }),
-  TenantAwareThemeProvider: ({ children }: any) => <div>{children}</div>,
-}));
-
-const theme = createTheme();
-
-function renderWithTheme(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
-}
-
-describe('PublicLayout', () => {
-  it('renders tenant name', () => {
-    const PublicLayout = require('@/pages/public/public_layout').default;
-    render(
-      <PublicLayout tenantName="Test Terreiro" tenantColor="#2E7D32">
-        <div data-testid="child">Content</div>
-      </PublicLayout>
-    );
-    expect(screen.getByText('Test Terreiro')).toBeInTheDocument();
-    expect(screen.getByTestId('child')).toBeInTheDocument();
-  });
-
-  it('renders logo when provided', () => {
-    const PublicLayout = require('@/pages/public/public_layout').default;
-    render(
-      <PublicLayout
-        tenantName="Test"
-        tenantLogoUrl="https://example.com/logo.png"
-      >
-        <div>Content</div>
-      </PublicLayout>
-    );
-    const logo = screen.getByAltText('Test');
-    expect(logo).toBeInTheDocument();
-    expect(logo).toHaveAttribute('src', 'https://example.com/logo.png');
-  });
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-describe('GiraDetails', () => {
-  // Espelha o payload real de GET /api/v1/public/next-gira (GiraPublic)
-  const giraData = {
-    id: 'gira-1',
-    nome: 'Gira de Oxalá',
-    descricao: 'Trabalho espiritual mensal.',
-    data_inicio: new Date(Date.now() + 86400000).toISOString(),
-    local: 'Terreiro Central',
-    release_start_at: new Date(Date.now() - 1800000).toISOString(),
-    release_end_at: new Date(Date.now() + 1800000).toISOString(),
-    max_tickets: 100,
-    current_tickets: 42,
-    tickets_available: 58,
-    is_open: true,
-    is_exhausted: false,
-    waitlist_available: false,
-    is_sponsor: false,
-    tenant_slug: 'test-tenant',
-    tenant_name: 'Test Terreiro',
-    use_time_slots: false,
-    time_slots: [],
-    allow_acompanhantes: false,
-    max_acompanhantes: 0,
-  };
-
-  it('renders gira name', () => {
-    const GiraDetails = require('@/pages/public/gira_details').default;
-    render(<GiraDetails giraData={giraData} />);
-    expect(screen.getByText('Gira de Oxalá')).toBeInTheDocument();
-  });
-
-  it('renders location', () => {
-    const GiraDetails = require('@/pages/public/gira_details').default;
-    render(<GiraDetails giraData={giraData} />);
-    expect(screen.getByText(/Terreiro Central/)).toBeInTheDocument();
-  });
-
-  it('renders event date', () => {
-    const GiraDetails = require('@/pages/public/gira_details').default;
-    render(<GiraDetails giraData={giraData} />);
-    expect(screen.getByText(/🗓️/)).toBeInTheDocument();
-  });
-
-  it('does not render sold-out banner for uncapped gira', () => {
-    const GiraDetails = require('@/pages/public/gira_details').default;
-    // Gira sem limite: backend envia tickets_available: 0 e is_exhausted: false
-    render(
-      <GiraDetails
-        giraData={{ ...giraData, max_tickets: null, tickets_available: 0, is_exhausted: false }}
-      />
-    );
-    expect(screen.queryByText(/Todas as senhas/)).not.toBeInTheDocument();
-  });
-
-  it('renders sold-out banner when exhausted', () => {
-    const GiraDetails = require('@/pages/public/gira_details').default;
-    render(
-      <GiraDetails
-        giraData={{ ...giraData, tickets_available: 0, is_exhausted: true }}
-      />
-    );
-    expect(screen.getByText(/Todas as senhas/)).toBeInTheDocument();
-  });
-
-  it('renders with custom tenant color', () => {
-    const GiraDetails = require('@/pages/public/gira_details').default;
-    const { container } = render(
-      <GiraDetails giraData={giraData} tenantColor="#FF0000" />
-    );
-    expect(container).toBeTruthy();
-  });
-});
-
-describe('Tenant Public Page', () => {
-  it('renders without crashing', () => {
-    const { apiClient } = require('@/services/api_client');
-    apiClient.get.mockResolvedValue({
-      data: {
-        id: 'gira-1',
-        nome: 'Test Gira',
-        data_inicio: new Date(Date.now() + 86400000).toISOString(),
-        local: 'Test Location',
-        release_start_at: new Date().toISOString(),
-        release_end_at: new Date(Date.now() + 3600000).toISOString(),
-        max_tickets: 100,
-        current_tickets: 0,
-        tickets_available: 100,
-        is_open: true,
-        is_exhausted: false,
-        tenant_slug: 'test-tenant',
-        tenant_name: 'Test Terreiro',
-        use_time_slots: false,
-        time_slots: [],
-      },
+describe('UnifiedGiraRedirect', () => {
+  it('redirects to the resolved gira page', async () => {
+    apiClient.get.mockResolvedValue({ data: { id: 'gira-1' } });
+    render(<UnifiedGiraRedirect tipo="comum" />);
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/public/gira/gira-1');
     });
+  });
 
-    const TenantPage = require('@/pages/public/[tenant]').default;
-    const { container } = renderWithTheme(<TenantPage />);
-    expect(container).toBeTruthy();
+  it('keeps tipo=associado on the redirect', async () => {
+    apiClient.get.mockResolvedValue({ data: { id: 'gira-2' } });
+    render(<UnifiedGiraRedirect tipo="associado" />);
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/public/gira/gira-2?tipo=associado');
+    });
+  });
+
+  it('shows "Terreiro não encontrado" for an unknown slug (404 Tenant not found)', async () => {
+    // Shape do erro rejeitado pelo api_client: {status, message, detail, response}
+    apiClient.get.mockRejectedValue({
+      status: 404,
+      detail: "Tenant 'test-tenant' not found",
+    });
+    render(<UnifiedGiraRedirect tipo="comum" />);
+    await waitFor(() => {
+      expect(screen.getByText('Terreiro não encontrado')).toBeInTheDocument();
+      // Sem botão de retry: recarregar não conserta um slug errado
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('shows the empty state when the tenant has no gira with open emission', async () => {
+    apiClient.get.mockRejectedValue({
+      status: 404,
+      detail: 'No active gira scheduled for this tenant',
+    });
+    render(<UnifiedGiraRedirect tipo="comum" />);
+    await waitFor(() => {
+      expect(screen.getByText('Nenhuma gira com emissão aberta')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Atualizar' })).toBeInTheDocument();
+    });
+  });
+
+  it('still detects a reworded tenant-not-found 404 (robust to message changes)', async () => {
+    // A deteccao casa "not found", nao um startsWith posicional — resiste a
+    // uma reescrita da mensagem no backend desde que ela mantenha "not found".
+    apiClient.get.mockRejectedValue({
+      status: 404,
+      detail: "Terreiro with slug 'x' not found",
+    });
+    render(<UnifiedGiraRedirect tipo="comum" />);
+    await waitFor(() => {
+      expect(screen.getByText('Terreiro não encontrado')).toBeInTheDocument();
+    });
+  });
+
+  it('shows a real error state for non-404 failures and reports it to Sentry', async () => {
+    const err = { status: 500, detail: 'Internal server error' };
+    apiClient.get.mockRejectedValue(err);
+    render(<UnifiedGiraRedirect tipo="comum" />);
+    await waitFor(() => {
+      expect(screen.getByText('Erro ao carregar')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    });
+    // Ponto de entrada público: a falha nao pode sumir sem rastro
+    expect(Sentry.captureException).toHaveBeenCalledWith(err, expect.anything());
+  });
+});
+
+describe('Tenant Public Page (/public/[tenant])', () => {
+  it('renders the redirect flow (legacy page retired)', async () => {
+    apiClient.get.mockResolvedValue({ data: { id: 'gira-3' } });
+    render(<TenantPage />);
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/public/gira/gira-3');
+    });
   });
 });
