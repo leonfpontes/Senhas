@@ -34,6 +34,7 @@ jest.mock('@/services/api_client', () => ({
   },
 }));
 
+import * as Sentry from '@sentry/nextjs';
 import UnifiedGiraRedirect from '@/components/shared/UnifiedGiraRedirect';
 import TenantPage from '@/pages/public/[tenant]';
 
@@ -87,13 +88,29 @@ describe('UnifiedGiraRedirect', () => {
     });
   });
 
-  it('shows a real error state for non-404 failures', async () => {
-    apiClient.get.mockRejectedValue({ status: 500, detail: 'Internal server error' });
+  it('still detects a reworded tenant-not-found 404 (robust to message changes)', async () => {
+    // A deteccao casa "not found", nao um startsWith posicional — resiste a
+    // uma reescrita da mensagem no backend desde que ela mantenha "not found".
+    apiClient.get.mockRejectedValue({
+      status: 404,
+      detail: "Terreiro with slug 'x' not found",
+    });
+    render(<UnifiedGiraRedirect tipo="comum" />);
+    await waitFor(() => {
+      expect(screen.getByText('Terreiro não encontrado')).toBeInTheDocument();
+    });
+  });
+
+  it('shows a real error state for non-404 failures and reports it to Sentry', async () => {
+    const err = { status: 500, detail: 'Internal server error' };
+    apiClient.get.mockRejectedValue(err);
     render(<UnifiedGiraRedirect tipo="comum" />);
     await waitFor(() => {
       expect(screen.getByText('Erro ao carregar')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
     });
+    // Ponto de entrada público: a falha nao pode sumir sem rastro
+    expect(Sentry.captureException).toHaveBeenCalledWith(err, expect.anything());
   });
 });
 

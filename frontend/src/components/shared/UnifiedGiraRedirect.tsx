@@ -10,14 +10,22 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { Box, Button, CircularProgress, Container, Paper, Typography } from '@mui/material';
+import * as Sentry from '@sentry/nextjs';
 import { apiClient } from '@/services/api_client';
 
 interface UnifiedGiraRedirectProps {
   tipo: 'comum' | 'associado';
 }
 
-// next_gira.py emite dois 404 distintos: "Tenant '<slug>' not found" e
-// "No active gira scheduled for this tenant" — estados diferentes para o visitante
+// next_gira.py emite dois 404 distintos: "Tenant '<slug>' not found" (tenant
+// inexistente) e "No active gira scheduled for this tenant" (existe, mas sem
+// gira com emissão) — estados diferentes para o visitante. O backend ainda não
+// expõe um error_code estável, então distinguimos pela mensagem: só o caso de
+// tenant ausente contém "not found". Casar a ausência dessa marca (em vez de um
+// startsWith posicional) resiste a mudanças de texto — ver o backend task de
+// error codes. Qualquer 404 sem "not found" recai em no-gira, que é o genérico
+// seguro (não afirma que o terreiro não existe).
+const TENANT_MISSING_RE = /not found/i;
 type ErrorKind = 'tenant-missing' | 'no-gira' | 'error';
 
 export default function UnifiedGiraRedirect({ tipo }: UnifiedGiraRedirectProps) {
@@ -42,13 +50,20 @@ export default function UnifiedGiraRedirect({ tipo }: UnifiedGiraRedirectProps) 
           ? (err as { status?: number; detail?: unknown })
           : { status: undefined, detail: undefined };
       if (status === 404) {
-        if (typeof detail === 'string' && detail.startsWith('Tenant')) {
+        if (typeof detail === 'string' && TENANT_MISSING_RE.test(detail)) {
           setErrorKind('tenant-missing');
         } else {
           setErrorKind('no-gira');
         }
       } else {
+        // 500 / timeout / rede: ponto de entrada público sem auth — registrar
+        // para o Sentry, senão a falha some sem rastro no cliente
         setErrorKind('error');
+        Sentry.captureException(err, {
+          tags: { area: 'public-emission', slug: tenantSlug, tipo },
+        });
+        // eslint-disable-next-line no-console
+        console.error('Erro ao resolver a próxima gira:', err);
       }
     }
   }, [tenantSlug, tipo, router]);
