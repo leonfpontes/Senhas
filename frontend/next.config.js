@@ -4,11 +4,10 @@ const { withSentryConfig } = require('@sentry/nextjs');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
+  // swcMinify removido no Next 15 (SWC minify é o padrão);
+  // outputFileTracingRoot saiu de experimental para top-level no Next 15.
   output: 'standalone',
-  experimental: {
-    outputFileTracingRoot: path.join(__dirname, '../'),
-  },
+  outputFileTracingRoot: path.join(__dirname, '../'),
   transpilePackages: ['shared-types', 'shared-ui'],
   generateBuildId: async () => {
     const { execSync } = require('child_process');
