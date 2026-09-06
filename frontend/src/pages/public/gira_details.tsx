@@ -11,12 +11,14 @@ import { useGiraCountdown } from '@/hooks/useGiraCountdown';
 
 
 interface GiraDetailsInfo {
-  id: number;
-  name: string;
-  location: string;
-  release_start_at: string;
-  release_end_at: string;
-  max_tickets: number;
+  id: string;
+  nome: string;
+  descricao?: string | null;
+  data_inicio: string;
+  local?: string | null;
+  release_start_at: string | null;
+  release_end_at: string | null;
+  max_tickets: number | null;
   current_tickets: number;
   tickets_available: number;
   is_open: boolean;
@@ -40,7 +42,8 @@ export default function GiraDetails({
 
   if (!giraData) return null;
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '—';
     return new Date(dateStr).toLocaleString('pt-BR', {
       dateStyle: 'long',
       timeStyle: 'short',
@@ -48,14 +51,37 @@ export default function GiraDetails({
     });
   };
 
+  // Data do evento com dia da semana — é a informação que o consulente mais precisa
+  const formatEventDate = (dateStr: string) => {
+    const formatted = new Date(dateStr).toLocaleString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    });
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  };
+
   return (
     <div className={styles.container}>
       {/* Header */}
       <div className={styles.header} style={{ borderBottomColor: tenantColor }}>
-        <h2 className={styles.title}>{giraData.name}</h2>
-        <p className={styles.location}>
-          📍 {giraData.location}
-        </p>
+        <h2 className={styles.title}>{giraData.nome}</h2>
+        {giraData.data_inicio && (
+          <p className={styles.eventdate} style={{ color: tenantColor }}>
+            🗓️ {formatEventDate(giraData.data_inicio)}
+          </p>
+        )}
+        {giraData.local && (
+          <p className={styles.location}>
+            📍 {giraData.local}
+          </p>
+        )}
+        {giraData.descricao && (
+          <p className={styles.description}>{giraData.descricao}</p>
+        )}
       </div>
 
       {/* Status Badge */}
@@ -66,14 +92,14 @@ export default function GiraDetails({
         {isOpen ? '🟢 EMISSÃO ABERTA' : '🔵 PRÓXIMO'}
       </div>
 
-      {/* Event Date/Time */}
+      {/* Emission Window (secondary info) */}
       <div className={styles.eventinfo}>
         <div className={styles.infoitem}>
-          <span className={styles.label}>Início da Emissão:</span>
+          <span className={styles.label}>Senhas disponíveis a partir de:</span>
           <span className={styles.value}>{formatDate(giraData.release_start_at)}</span>
         </div>
         <div className={styles.infoitem}>
-          <span className={styles.label}>Fim da Emissão:</span>
+          <span className={styles.label}>Emissão encerra em:</span>
           <span className={styles.value}>{formatDate(giraData.release_end_at)}</span>
         </div>
       </div>

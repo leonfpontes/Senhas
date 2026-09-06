@@ -75,6 +75,11 @@
   margin: 0 0 25px 0;
 }
 
+/* Estado vazio (sem gira aberta) — informativo, não erro */
+.errorcontent h2.emptytitle {
+  color: #333;
+}
+
 .retrybutton {
   padding: 12px 30px;
   color: white;

@@ -19,12 +19,14 @@ import styles from './public_page.module.css';
 
 
 interface GiraData {
-  id: number;
-  name: string;
-  location: string;
-  release_start_at: string;
-  release_end_at: string;
-  max_tickets: number;
+  id: string;
+  nome: string;
+  descricao?: string | null;
+  data_inicio: string;
+  local?: string | null;
+  release_start_at: string | null;
+  release_end_at: string | null;
+  max_tickets: number | null;
   current_tickets: number;
   tickets_available: number;
   is_open: boolean;
@@ -49,6 +51,7 @@ export default function PublicPage() {
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (!tenantSlug) return;
@@ -57,6 +60,7 @@ export default function PublicPage() {
       try {
         setLoading(true);
         setError(null);
+        setNotFound(false);
 
         // Fetch next gira
         const giraResponse = await apiClient.get(
@@ -76,11 +80,12 @@ export default function PublicPage() {
 
       } catch (err) {
         const status = err && typeof err === 'object' ? (err as { status?: number }).status : undefined;
-        const message =
-          status === 404
-            ? 'Tenant ou gira não encontrado'
-            : 'Erro ao carregar dados. Tente novamente.';
-        setError(message);
+        // 404 = tenant sem gira com emissão configurada — estado vazio esperado, não erro
+        if (status === 404) {
+          setNotFound(true);
+        } else {
+          setError('Erro ao carregar dados. Tente novamente.');
+        }
         console.error('Error fetching gira data:', err);
       } finally {
         setLoading(false);
@@ -101,13 +106,13 @@ export default function PublicPage() {
     );
   }
 
-  if (error || !giraData || !tenantInfo) {
+  if (error || notFound || !giraData || !tenantInfo) {
     const defaultColors = {
       primary_color: '#2E7D32',
       secondary_color: '#1565C0',
     };
     return (
-      <PublicLayout 
+      <PublicLayout
         tenantName={tenantInfo?.name || 'Centro Espírita'}
         tenantLogoUrl={tenantInfo?.logo_url}
         tenantColor={tenantInfo?.primary_color || defaultColors.primary_color}
@@ -115,14 +120,26 @@ export default function PublicPage() {
       >
         <div className={styles.errorcontainer}>
           <div className={styles.errorcontent}>
-            <h2>❌ Erro ao Carregar</h2>
-            <p>{error || 'Informações não disponíveis'}</p>
+            {notFound ? (
+              <>
+                <h2 className={styles.emptytitle}>🕯️ Nenhuma gira aberta no momento</h2>
+                <p>
+                  A emissão de senhas para a próxima gira ainda não foi aberta.
+                  Volte mais tarde ou entre em contato com o terreiro para saber a data.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2>❌ Erro ao Carregar</h2>
+                <p>{error || 'Informações não disponíveis'}</p>
+              </>
+            )}
             <button
               onClick={() => window.location.reload()}
               className={styles.retrybutton}
               style={{ backgroundColor: tenantInfo?.primary_color || defaultColors.primary_color }}
             >
-              Tentar Novamente
+              {notFound ? 'Atualizar' : 'Tentar Novamente'}
             </button>
           </div>
         </div>
