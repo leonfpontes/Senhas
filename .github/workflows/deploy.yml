@@ -34,6 +34,10 @@ jobs:
         run: |
           pip install pip-audit --quiet
           pip install . --quiet
+          # setuptools vem no ambiente de build (nao e dependencia de runtime do
+          # app) mas o pip-audit o audita porque esta instalado; sobe pro patch
+          # mais recente pra nao acusar CVE de ferramenta de build (ex. PYSEC-2026-3447).
+          pip install --upgrade pip setuptools --quiet
           # Advisories ignoradas: todas exigem starlette 1.x, um major que o
           # FastAPI atual (0.118) ainda nao suporta e que quebra a API de rotas
           # (regex->pattern, pydantic 2.13). Rastreado na task de upgrade do
