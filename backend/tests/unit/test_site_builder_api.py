@@ -1065,6 +1065,28 @@ class TestSiteRepository:
         assert len(result["upcoming_giras"]) == 1
 
     @pytest.mark.asyncio
+    async def test_get_published_by_slug_mantem_gira_do_dia_no_calendario(self, repo_and_db):
+        """Regressão: gira já iniciada some do calendário do site.
+
+        O filtro não pode ser só `data_inicio >= now` — a gira do próprio dia
+        precisa continuar visível (mesmo dia UTC, data_fim futura ou janela de
+        emissão ainda aberta). Inspeciona a query enviada ao DB.
+        """
+        repo, db = repo_and_db
+        site = _make_site("PUBLISHED")
+        db.execute.side_effect = [
+            self._mock_scalar(site),
+            self._mock_scalars([]),
+        ]
+        await repo.get_published_by_slug("terreiro-test")
+
+        giras_stmt = db.execute.call_args_list[1].args[0]
+        sql = str(giras_stmt.compile(compile_kwargs={"literal_binds": False}))
+        assert "OR" in sql
+        assert "data_fim" in sql
+        assert "release_end_at" in sql
+
+    @pytest.mark.asyncio
     async def test_save_sections_realiza_delete_e_insert(self, repo_and_db):
         repo, db = repo_and_db
         site = _make_site()
