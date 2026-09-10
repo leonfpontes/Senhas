@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, delete, select, text
+from sqlalchemy import and_, delete, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -62,14 +62,22 @@ class SiteRepository(BaseRepository[TenantSite]):
         if site is None:
             return None
 
-        # Fetch upcoming giras for this tenant (server-side, for SEO)
-        now = datetime.utcnow()
+        # Fetch upcoming giras for this tenant (server-side, for SEO).
+        # A gira do próprio dia continua no calendário mesmo depois de
+        # data_inicio passar: ela some só quando o dia (UTC) vira, a gira
+        # termina (data_fim) e a janela de emissão fecha (release_end_at).
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         giras_stmt = (
             select(Gira)
             .where(
                 and_(
                     Gira.tenant_id == site.tenant_id,
-                    Gira.data_inicio >= now,
+                    or_(
+                        Gira.data_inicio >= today_start,
+                        Gira.data_fim >= now,
+                        Gira.release_end_at >= now,
+                    ),
                     Gira.deleted_at.is_(None),
                 )
             )
