@@ -235,6 +235,9 @@ async def set_bonus(
         target_plan = body.plan or PlanType.BASIC
         limits = PLAN_LIMITS.get(target_plan, PLAN_LIMITS[PlanType.BASIC])
         sub.is_bonus = True
+        # Bônus substitui o trial: sem isso o trial_scheduler rebaixaria o
+        # tenant para FREE quando o trial_ends_at antigo chegasse.
+        sub.is_trial = False
         sub.plan = target_plan
         sub.status = SubscriptionStatus.ACTIVE
         sub.max_users = limits["max_users"]

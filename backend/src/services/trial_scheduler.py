@@ -137,6 +137,9 @@ class TrialScheduler:
             stmt = sa_select(Subscription).where(
                 and_(
                     Subscription.is_trial.is_(True),
+                    # Bônus concedido durante o trial: o acesso é do bônus, não do
+                    # teste — não expira nem recebe lembrete de fim de trial.
+                    Subscription.is_bonus.isnot(True),
                     Subscription.stripe_subscription_id.is_(None),
                     Subscription.trial_ends_at.isnot(None),
                 )
