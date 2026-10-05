@@ -6,14 +6,17 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-from sqlalchemy import and_, func, select
+from pydantic import BaseModel, computed_field
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings
 from src.core.database import get_db
 from src.models import User
 from src.models.giras import Gira
 from src.models.senha_controls import SenhaControl
+from src.models.tenants import Tenant
+from src.models.tickets import Ticket
 from src.models.subscriptions import PlanType
 from src.api.dependencies import get_current_user
 from src.core.errors import InsufficientPermissionsError
@@ -95,6 +98,24 @@ class PlanBadge(BaseModel):
     status: str = "active"
 
 
+class OnboardingStatus(BaseModel):
+    """Checklist "primeira gira" do dashboard — derivado só de dados existentes.
+
+    Mede o ciclo que gera valor (análise de 2026-10-05: 88% das senhas vêm do
+    link público e quem usa a Porta é quem paga): criar gira → compartilhar o
+    link → receber senhas pelo link → usar a Porta no dia da gira.
+    """
+    has_gira: bool = False
+    public_tickets: int = 0
+    door_used: bool = False
+    public_link: Optional[str] = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def completed(self) -> bool:
+        return self.has_gira and self.public_tickets > 0 and self.door_used
+
+
 class DashboardSummaryResponse(BaseModel):
     upcoming_giras: List[UpcomingGiraItem] = []
     ticket_stats: TicketStats = TicketStats()
@@ -103,11 +124,50 @@ class DashboardSummaryResponse(BaseModel):
     estoque_alerts: List[EstoqueAlertItem] = []
     estoque_summary: Optional[EstoqueSummary] = None
     plan: PlanBadge = PlanBadge()
+    onboarding: OnboardingStatus = OnboardingStatus()
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+async def _get_onboarding_status(db: AsyncSession, tenant_id: UUID) -> OnboardingStatus:
+    """Estado do checklist em UMA consulta (subqueries escalares, todas
+    filtradas por tenant_id e ignorando soft-deleted).
+
+    - public_tickets: senhas emitidas pelo próprio consulente via link público
+      (`emitido_por_id IS NULL`); walk-in e emissão pela equipe não contam,
+      porque o passo mede se o link chegou aos consulentes.
+    - door_used: alguma senha chamada ou com check-in — sinal de uso da Porta.
+    """
+    has_gira = exists().where(Gira.tenant_id == tenant_id, Gira.deleted_at.is_(None))
+    public_tickets = (
+        select(func.count(Ticket.id))
+        .where(
+            Ticket.tenant_id == tenant_id,
+            Ticket.deleted_at.is_(None),
+            Ticket.emitido_por_id.is_(None),
+        )
+        .scalar_subquery()
+    )
+    door_used = exists().where(
+        Ticket.tenant_id == tenant_id,
+        Ticket.deleted_at.is_(None),
+        or_(Ticket.checkin_em.is_not(None), Ticket.chamado_em.is_not(None)),
+    )
+    slug = select(Tenant.slug).where(Tenant.id == tenant_id).scalar_subquery()
+
+    row = (await db.execute(select(has_gira, public_tickets, door_used, slug))).one()
+    base = settings.FRONTEND_URL.rstrip("/")
+    return OnboardingStatus(
+        has_gira=bool(row[0]),
+        public_tickets=int(row[1] or 0),
+        door_used=bool(row[2]),
+        # Mesmo link de giras_crud.get_unified_links: resolve a próxima gira a
+        # cada visita, então pode ser compartilhado uma vez só.
+        public_link=f"{base}/public/{row[3]}/senha" if row[3] else None,
+    )
+
+
 async def _get_upcoming_giras(
     db: AsyncSession, tenant_id: UUID, limit: int = 3
 ) -> List[UpcomingGiraItem]:
@@ -281,6 +341,9 @@ async def get_dashboard_summary(
         estoque_result = await _get_estoque_data(db, tenant_id, has_estoque)
         estoque_alerts, estoque_summary = estoque_result
 
+        step = "get_onboarding_status"
+        onboarding = await _get_onboarding_status(db, tenant_id)
+
         ticket_stats = TicketStats(
             total_emitted=total_stats["total_emitted"],
             total_used=total_stats["total_used"],
@@ -299,6 +362,7 @@ async def get_dashboard_summary(
             estoque_alerts=estoque_alerts,
             estoque_summary=estoque_summary,
             plan=plan_badge,
+            onboarding=onboarding,
         )
 
     except Exception as exc:

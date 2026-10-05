@@ -44,6 +44,8 @@ import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useTenant } from '@/providers/ThemeProvider';
+import { useProfile } from '@/hooks/useProfile';
+import FirstGiraChecklist, { OnboardingStatus } from '@/components/admin/FirstGiraChecklist';
 import { apiClient } from '../../services/api_client';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -117,6 +119,8 @@ interface DashboardData {
   estoque_alerts: EstoqueAlert[];
   estoque_summary: EstoqueSummary | null;
   plan: { name: string; label: string; status: string };
+  /** Ausente em backends anteriores ao checklist — tratar como opcional. */
+  onboarding?: OnboardingStatus;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -246,6 +250,10 @@ export default function AdminDashboard() {
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
   const canViewPorta = canGroup('porta', 'view');
+  // Checklist de primeira gira: só para quem pode agir sobre giras.
+  const canViewGiras = canGroup('giras', 'view');
+  const canCreateGira = canGroup('giras', 'insert');
+  const { profile } = useProfile();
   const { config: tenantConfig } = useTenant();
   const { tokens, isDark } = useAdminTheme();
   const router = useRouter();
@@ -392,6 +400,18 @@ export default function AdminDashboard() {
         >
           {error}
         </Alert>
+      )}
+
+      {/* ── Checklist de primeira gira (some quando o terreiro está ativado) ── */}
+      {data?.onboarding && canViewGiras && (
+        <FirstGiraChecklist
+          status={data.onboarding}
+          tenantId={profile?.tenant_id}
+          tenantName={profile?.tenant_name}
+          primary={primary}
+          canCreateGira={canCreateGira}
+          canViewPorta={canViewPorta}
+        />
       )}
 
       {/* ── KPIs ── */}
