@@ -210,7 +210,7 @@ export default function FirstGiraChecklist({
       actions: canCreateGira ? (
         <Button
           component={Link}
-          href="/admin/giras"
+          href="/admin/giras?nova=1"
           variant="contained"
           size="small"
           onClick={() => trackEvent('onboarding_cta_create_gira')}

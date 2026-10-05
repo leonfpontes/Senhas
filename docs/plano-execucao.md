@@ -329,6 +329,9 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   (terreiro já ativado) ou quando o admin oculta. Eventos `onboarding_*` vão para GA4 e Clarity.
 - **Aceite de produto**: medir em 30 dias a fração de cadastros novos que chega a 1 senha pelo
   link (base: 5 de 11) e a 10 senhas (base: 1 de 11), pelo funil do Clarity/GA4.
+- **Complemento (2026-10-05)**: empty state em `/admin/giras` (antes: tabela vazia) com o ciclo
+  em 3 passos e "Criar primeira gira"; falha de carregamento agora mostra erro com retry em vez
+  de parecer lista vazia; `?nova=1` abre o formulário de criação direto (usado pelo checklist).
 
 ---
 
