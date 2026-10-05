@@ -10,8 +10,8 @@ from datetime import datetime, timezone
 from src.core.database import get_db
 from src.core.errors import NotFoundError, InvalidInputError
 from src.core.logging import log_security_event
-from src.api.dependencies import get_current_user
-from src.models import User, UserRole, PlanType
+from src.api.dependencies import require_super_admin
+from src.models import User, PlanType
 from src.models.subscriptions import Subscription
 from src.services.tenant_service import TenantService
 from src.services import session_service
@@ -61,16 +61,6 @@ class TenantResponse(BaseModel):
     plan: Optional[str] = None
     subscription_status: Optional[str] = None
     is_bonus: Optional[bool] = None
-
-
-async def require_super_admin(user: User = Depends(get_current_user)) -> User:
-    """Dependency to require SUPER_ADMIN role."""
-    if user.role != UserRole.SUPER_ADMIN or user.tenant_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas SUPER_ADMIN pode acessar esta operação",
-        )
-    return user
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=dict)

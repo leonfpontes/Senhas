@@ -13,9 +13,8 @@ from datetime import datetime
 import logging
 
 from src.core.database import get_db
-from src.models import User, Ticket, Consulente, PlanType, Gira, Tenant, TenantConfig
+from src.models import User, Ticket, Consulente, Gira, Tenant, TenantConfig
 from src.core.config import settings
-from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.email.base import EmailMessage
 from src.services.email.email_queue import email_queue, EmailQueueItem
 from src.services.email.resend_fallback import ResendEmailService
@@ -23,31 +22,19 @@ from src.services.email.templates.ticket_emission import (
     generate_ticket_emission_html,
     generate_plain_text_fallback,
 )
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, require_plan_feature
 from src.core.tz import APP_TZ
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin-email"])
+router = APIRouter(
+    prefix="/api/v1/admin",
+    tags=["admin-email"],
+    # Gate de plano único (P-05): plano com email_transacional E assinatura em dia.
+    dependencies=[Depends(require_plan_feature("email_transacional"))],
+)
 logger = logging.getLogger(__name__)
 
-_PLAN_TIER = {
-    PlanType.FREE: 0,
-    PlanType.BASIC: 1,
-    PlanType.PRO: 2,
-    PlanType.PREMIUM: 3,
-}
 
-
-async def _require_email_transacional(user: User, db: AsyncSession) -> None:
-    """Verifica que o tenant possui plano Pro ou superior (email_transacional)."""
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(user.tenant_id)
-    tier = _PLAN_TIER.get(sub.plan if sub else PlanType.FREE, 0)
-    if tier < 2:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Rastreio de e-mail disponível apenas nos planos Pro e Premium.",
-        )
 
 
 class ResendEmailResponse(BaseModel):
@@ -88,7 +75,6 @@ async def get_ticket_email_status(
     """
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Admin required")
-    await _require_email_transacional(current_user, db)
 
     stmt = select(Ticket).where(
         and_(
@@ -156,7 +142,6 @@ async def resend_ticket_email(
     """
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Admin required")
-    await _require_email_transacional(current_user, db)
 
     stmt = select(Ticket).where(
         and_(

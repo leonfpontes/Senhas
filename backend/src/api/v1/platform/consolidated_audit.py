@@ -8,8 +8,8 @@ from uuid import UUID
 from datetime import datetime
 
 from src.core.database import get_db
-from src.api.dependencies import get_current_user
-from src.models import User, UserRole
+from src.api.dependencies import require_super_admin
+from src.models import User
 from src.models.audit_logs import AuditLog, AuditAction
 from src.models.tenants import Tenant
 from src.models.mediuns import Medium
@@ -38,16 +38,6 @@ class AuditSummaryResponse(BaseModel):
     statistics: dict
     by_tenant_name: Dict[str, str] = {}
     by_tenant_slug: Dict[str, str] = {}
-
-
-async def require_super_admin(user: User = Depends(get_current_user)) -> User:
-    """Dependency to require SUPER_ADMIN role."""
-    if user.role != UserRole.SUPER_ADMIN or user.tenant_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas SUPER_ADMIN pode acessar esta operação",
-        )
-    return user
 
 
 def _parse_datetime(date_str: str) -> datetime:

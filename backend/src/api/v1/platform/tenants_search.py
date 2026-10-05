@@ -5,8 +5,8 @@ from typing import Optional, List
 from pydantic import BaseModel
 
 from src.core.database import get_db
-from src.api.dependencies import get_current_user
-from src.models import User, UserRole, PlanType
+from src.api.dependencies import require_super_admin
+from src.models import User, PlanType
 from src.repositories.tenant_repo import TenantRepository
 
 router = APIRouter(prefix="/api/v1/platform/tenants/search", tags=["platform-search"])
@@ -18,16 +18,6 @@ class TenantSearchResult(BaseModel):
     slug: str
     name: str
     is_active: bool
-
-
-async def require_super_admin(user: User = Depends(get_current_user)) -> User:
-    """Dependency to require SUPER_ADMIN role."""
-    if user.role != UserRole.SUPER_ADMIN or user.tenant_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas SUPER_ADMIN pode acessar esta operação",
-        )
-    return user
 
 
 @router.get("", response_model=dict)

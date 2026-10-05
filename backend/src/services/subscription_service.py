@@ -9,6 +9,7 @@ from ..models import Subscription, PlanType, SubscriptionStatus
 from ..repositories.subscription_repo import SubscriptionRepository
 from ..repositories.billing_repo import BillingRepository
 from ..core.errors import NotFoundError, InvalidInputError
+from .plan_features import plan_tier
 
 
 class SubscriptionService:
@@ -93,14 +94,8 @@ class SubscriptionService:
             raise NotFoundError("Subscrição não encontrada")
         
         # Check if really downgrading
-        plan_hierarchy = {
-            PlanType.FREE: 0,
-            PlanType.BASIC: 1,
-            PlanType.PRO: 2,
-            PlanType.PREMIUM: 3,
-        }
         
-        if plan_hierarchy.get(new_plan, 0) >= plan_hierarchy.get(current.plan, 0):
+        if plan_tier(new_plan) >= plan_tier(current.plan):
             raise InvalidInputError("Downgrade deve ser para um plano inferior")
         
         sub = await self.subscription_repo.upgrade_plan(tenant_id, new_plan)

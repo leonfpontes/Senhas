@@ -299,18 +299,10 @@ async def update_tenant_config(
     # disabling is always allowed regardless of plan.
     if config_update.enable_waitlist is not None:
         if config_update.enable_waitlist:
-            from src.services.plan_features import _get_plan_features
-            from src.repositories.subscription_repo import SubscriptionRepository
-            from src.models.subscriptions import SubscriptionStatus
+            # Gate de plano único (P-05): 403 fora do plano, 402 assinatura irregular.
+            from src.api.dependencies import check_plan_feature
 
-            sub = await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id)
-            plan = sub.plan if sub else None
-            suspended = bool(sub and sub.status == SubscriptionStatus.SUSPENDED)
-            if plan is None or not _get_plan_features(plan, suspended=suspended).fila_espera:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Fila de espera disponível apenas nos planos Pro e Premium",
-                )
+            await check_plan_feature(current_user, db, "fila_espera")
         await repo.toggle_feature(
             tenant_id=current_user.tenant_id,
             feature_flag="enable_waitlist",
@@ -321,18 +313,10 @@ async def update_tenant_config(
     # plan; disabling is always allowed regardless of plan.
     if config_update.enable_time_slot_scheduling is not None:
         if config_update.enable_time_slot_scheduling:
-            from src.services.plan_features import _get_plan_features
-            from src.repositories.subscription_repo import SubscriptionRepository
-            from src.models.subscriptions import SubscriptionStatus
+            # Gate de plano único (P-05): 403 fora do plano, 402 assinatura irregular.
+            from src.api.dependencies import check_plan_feature
 
-            sub = await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id)
-            plan = sub.plan if sub else None
-            suspended = bool(sub and sub.status == SubscriptionStatus.SUSPENDED)
-            if plan is None or not _get_plan_features(plan, suspended=suspended).agendamento_por_horario:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Agendamento por horário disponível apenas nos planos Pro e Premium",
-                )
+            await check_plan_feature(current_user, db, "agendamento_por_horario")
         await repo.toggle_feature(
             tenant_id=current_user.tenant_id,
             feature_flag="enable_time_slot_scheduling",

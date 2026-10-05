@@ -10,8 +10,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.api.dependencies import get_current_user
-from src.models import User, UserRole, SubscriptionStatus
+from src.api.dependencies import require_super_admin
+from src.models import User, SubscriptionStatus
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.repositories.audit_log_repo import AuditLogRepository
 from src.models.audit_logs import AuditAction
@@ -34,15 +34,6 @@ class SyncStripeResponse(BaseModel):
     stripe_customer_id: str
 
 
-async def _require_super_admin(user: User = Depends(get_current_user)) -> User:
-    if user.role != UserRole.SUPER_ADMIN or user.tenant_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas SUPER_ADMIN pode acessar esta operação",
-        )
-    return user
-
-
 @router.post(
     "/{tenant_id}/billing/sync-stripe",
     response_model=SyncStripeResponse,
@@ -51,7 +42,7 @@ async def _require_super_admin(user: User = Depends(get_current_user)) -> User:
 async def sync_stripe_subscription(
     tenant_id: UUID,
     body: SyncStripeRequest,
-    current_user: User = Depends(_require_super_admin),
+    current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> SyncStripeResponse:
     """Força a sincronização de uma subscription Stripe com o plano local do tenant.

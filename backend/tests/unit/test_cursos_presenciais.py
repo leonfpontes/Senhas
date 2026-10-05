@@ -66,7 +66,7 @@ def client(mock_db_session):
 class TestCursosPresenciaisAPI:
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     async def test_create_curso_presencial_success_as_admin(
         self, mock_repo_cls, mock_sub_repo_cls, client, mock_admin_user, mock_subscription
@@ -110,13 +110,16 @@ class TestCursosPresenciaisAPI:
         assert data["id"] == str(CURSO_ID)
 
     @pytest.mark.asyncio
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch(
         "src.services.permission_service.PermissionService.check_permission",
         new_callable=AsyncMock, return_value=True,
     )
     async def test_create_curso_presencial_forbidden_as_operator(
-        self, mock_check_permission, client, mock_operator_user
+        self, mock_check_permission, mock_sub_repo_cls, client, mock_operator_user, mock_subscription
     ):
+        # Gate de plano (router) roda antes do check de cargo do corpo (P-05).
+        mock_sub_repo_cls.return_value.get_by_tenant = AsyncMock(return_value=mock_subscription)
         client.app.dependency_overrides[get_current_user] = lambda: mock_operator_user
 
         response = client.post(
@@ -132,7 +135,7 @@ class TestCursosPresenciaisAPI:
 
     @pytest.mark.asyncio
     @patch("src.services.permission_service.SubscriptionRepository")
-    @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     async def test_list_cursos_presenciais_success(
         self, mock_sub_repo_cls, mock_perm_sub_repo_cls, client, mock_operator_user, mock_subscription, mock_db_session
     ):
@@ -168,7 +171,7 @@ class TestCursosPresenciaisAPI:
         assert data[0]["titulo"] == "Curso de Teologia"
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoParticipanteRepository")
     async def test_create_participante_success(
@@ -223,7 +226,7 @@ class TestCursosPresenciaisAPI:
         assert data["valor_mensalidade"] == "50.00"
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     async def test_create_participante_limit_exceeded(
         self, mock_course_repo_cls, mock_sub_repo_cls, client, mock_admin_user, mock_subscription
@@ -257,7 +260,7 @@ class TestCursosPresenciaisAPI:
         assert "Limite de participantes atingido" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoParticipanteRepository")
     async def test_delete_participante_success(
@@ -292,7 +295,7 @@ class TestCursosPresenciaisAPI:
         "src.services.permission_service.PermissionService.check_permission",
         new_callable=AsyncMock, return_value=True,
     )
-    @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoParticipantePagamentoRepository")
     async def test_list_curso_mensalidades_success(
@@ -338,7 +341,7 @@ class TestCursosPresenciaisAPI:
         assert data[0]["status"] == "pago"
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoParticipanteRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoParticipantePagamentoRepository")
@@ -390,7 +393,7 @@ class TestCursosPresenciaisAPI:
         "src.services.permission_service.PermissionService.check_permission",
         new_callable=AsyncMock, return_value=True,
     )
-    @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoParticipantePagamentoRepository")
     async def test_download_curso_comprovante_success(
@@ -425,7 +428,7 @@ class TestCursosPresenciaisAPI:
         assert response.headers["content-type"] == "image/png"
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoParticipantePagamentoRepository")
     async def test_delete_curso_comprovante_success(
@@ -461,7 +464,7 @@ class TestCursosPresenciaisAPI:
         "src.services.permission_service.PermissionService.check_permission",
         new_callable=AsyncMock, return_value=True,
     )
-    @patch("src.api.v1.admin.cursos_presenciais.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     @patch("src.api.v1.admin.cursos_presenciais.CursoParticipantePagamentoRepository")
     async def test_get_curso_resumo_success(

@@ -7,13 +7,17 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import (
+    effective_limit,
+    get_current_user,
+    require_group_permission,
+    require_plan_feature,
+)
 from src.core.database import get_db
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.models import User, PermissionFeature
 from src.repositories.mediun_repo import MediumRepository
 from src.repositories.subscription_repo import SubscriptionRepository
-from src.models.subscriptions import SubscriptionStatus
 from src.services.audit_service import AuditService
 
 router = APIRouter(prefix="/api/v1/admin/mediuns", tags=["admin-mediuns"])
@@ -108,7 +112,7 @@ class BirthdayMediumResponse(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────────────
 
 
-@router.get("/aniversariantes", response_model=List[BirthdayMediumResponse], dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "view"))])
+@router.get("/aniversariantes", response_model=List[BirthdayMediumResponse], dependencies=[Depends(require_plan_feature("mediuns")), Depends(require_group_permission(PermissionFeature.MEDIUNS, "view"))])
 async def list_aniversariantes(
     dias: int = Query(7, ge=0, le=365, description="Janela de dias (0 = somente hoje)"),
     current_user: User = Depends(get_current_user),
@@ -117,13 +121,6 @@ async def list_aniversariantes(
     """List médiuns whose birthday falls within the next *dias* days."""
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
-    if sub is not None and sub.max_mediuns == 0:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Funcionalidade de médiuns não disponível no plano atual.",
-        )
     repo = MediumRepository(db)
     return await repo.list_aniversariantes(current_user.tenant_id, dias=dias)
 
@@ -164,7 +161,7 @@ async def list_mediuns(
     )
 
 
-@router.post("", response_model=MediumResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "insert"))])
+@router.post("", response_model=MediumResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_plan_feature("mediuns")), Depends(require_group_permission(PermissionFeature.MEDIUNS, "insert"))])
 async def create_medium(
     data: MediumCreate,
     current_user: User = Depends(get_current_user),
@@ -174,31 +171,25 @@ async def create_medium(
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
-    # Check plan limit
+    # Plano sem médiuns (FREE) e status da assinatura já barrados pelo
+    # require_plan_feature("mediuns") do decorator (403 / 402). Aqui só o limite
+    # numérico: max_mediuns -1 = ilimitado, > 0 = limite.
     sub_repo = SubscriptionRepository(db)
     sub = await sub_repo.get_by_tenant(current_user.tenant_id)
     if sub is not None:
-        if sub.status == SubscriptionStatus.SUSPENDED:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="Assinatura suspensa por falta de pagamento. Regularize sua assinatura para adicionar médiuns.",
-            )
-        # max_mediuns: 0 = recurso fora do plano (gratuito), -1 = ilimitado
-        # (bônus), > 0 = limite. Antes só o "> 0" era tratado e o plano
-        # gratuito criava médiuns pela API (a tela bloqueava). Achado em
-        # tests/integration_pg/test_rbac_http.py.
-        if sub.max_mediuns == 0:
+        max_mediuns = effective_limit(sub, "max_mediuns")
+        if max_mediuns == 0:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Funcionalidade de médiuns não disponível no plano atual.",
             )
-        if sub.max_mediuns > 0:
+        if max_mediuns > 0:
             repo_check = MediumRepository(db)
             current_count = await repo_check.count(current_user.tenant_id)
-            if current_count >= sub.max_mediuns:
+            if current_count >= max_mediuns:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Limite de médiuns/cambones atingido ({sub.max_mediuns}). Faça upgrade do plano.",
+                    detail=f"Limite de médiuns/cambones atingido ({max_mediuns}). Faça upgrade do plano.",
                 )
 
     repo = MediumRepository(db)

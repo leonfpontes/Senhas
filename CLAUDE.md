@@ -1,6 +1,6 @@
 # CLAUDE.md — Instruções para Claude Code
 
-Last Updated: 2026-06-27
+Last Updated: 2026-10-05
 Projeto: Senhas — SaaS multi-tenant de emissão de tickets para giras
 
 Este arquivo é lido automaticamente pelo Claude Code em toda sessão. Contém regras não negociáveis
@@ -137,6 +137,7 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 - Cache/Rate limit: Redis com `RedisStorage` no slowapi (distribuído)
 - Monitoramento: Sentry (erros + traces). A pilha Prometheus/Grafana foi removida em
   2026-08-26 (nunca ficou operacional — item I-03 do docs/plano-execucao.md)
+- **Gate de plano**: todo gate novo usa `Depends(require_plan_feature("<campo de PlanFeatures>"))` de `src/api/dependencies.py` (plano + status da assinatura → 403/402; nunca `_require_pro`/tier local — AGENTS.md §3.4).
 
 ### Fluxo padrão backend
 ```

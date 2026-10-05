@@ -10,56 +10,37 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, field_validator
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
 from src.core.database import get_db
 from src.models import User, PermissionFeature
 from src.models.estoque import EstoqueGrupo, EstoqueMovimentacao, EstoqueMovimentacaoTipo
-from src.models.subscriptions import PlanType
 from src.repositories.config_repo import TenantConfigRepository
 from src.repositories.estoque_repo import (
     EstoqueGrupoRepository,
     EstoqueItemRepository,
     EstoqueMovimentacaoRepository,
 )
-from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
 
-router = APIRouter(prefix="/api/v1/admin/estoque", tags=["admin-estoque"])
+router = APIRouter(
+    prefix="/api/v1/admin/estoque",
+    tags=["admin-estoque"],
+    # Gate de plano único (P-05): plano com estoque_controle E assinatura em dia.
+    dependencies=[Depends(require_plan_feature("estoque_controle"))],
+)
 logger = logging.getLogger(__name__)
 
-_PLAN_TIER = {
-    PlanType.FREE: 0,
-    PlanType.BASIC: 1,
-    PlanType.PRO: 2,
-    PlanType.PREMIUM: 3,
-}
 
 ALLOWED_FOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_FOTO_BYTES = 2 * 1024 * 1024  # 2 MB
 UNIDADES_MEDIDA = {"UN", "KG", "G", "L", "ML", "M", "CM", "CX", "PCT", "RO"}
 
-
-async def _require_estoque_plan(user: User, db: AsyncSession) -> None:
-    """Verifica que o tenant possui plano Pro ou superior."""
-    if user.tenant_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Superadmin deve impersonar um tenant para operar o estoque.",
-        )
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(user.tenant_id)
-    tier = _PLAN_TIER.get(sub.plan if sub else PlanType.FREE, 0)
-    if tier < 2:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Controle de Estoque disponível a partir do plano Pro.",
-        )
 
 
 # ──────────────────────────────────────────────────────────────
@@ -361,7 +342,6 @@ async def list_grupos(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     repo = EstoqueGrupoRepository(db)
     grupos = await repo.list_all(current_user.tenant_id)
     return [GrupoResponse.model_validate(g) for g in grupos]
@@ -373,7 +353,6 @@ async def create_grupo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     repo = EstoqueGrupoRepository(db)
     grupo = await repo.create_grupo(
         tenant_id=current_user.tenant_id, nome=body.nome, descricao=body.descricao
@@ -397,7 +376,6 @@ async def get_grupo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     repo = EstoqueGrupoRepository(db)
     grupo = await repo.get_by_id(grupo_id, current_user.tenant_id)
     if not grupo:
@@ -412,7 +390,6 @@ async def update_grupo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     repo = EstoqueGrupoRepository(db)
     grupo = await repo.update_grupo(
         grupo_id=grupo_id,
@@ -441,7 +418,6 @@ async def delete_grupo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     repo = EstoqueGrupoRepository(db)
     item_repo = EstoqueItemRepository(db)
     count = await item_repo.count_by_grupo(grupo_id, current_user.tenant_id)
@@ -475,7 +451,6 @@ async def list_itens(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     item_repo = EstoqueItemRepository(db)
     items = await item_repo.list_all(
         tenant_id=current_user.tenant_id, grupo_id=grupo_id, skip=skip, limit=limit
@@ -491,7 +466,6 @@ async def create_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     await _validar_grupo_do_tenant(db, current_user.tenant_id, body.grupo_id)
     foto_data, foto_ct = _decode_foto(body.foto_base64, body.foto_content_type)
     repo = EstoqueItemRepository(db)
@@ -526,7 +500,6 @@ async def get_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     repo = EstoqueItemRepository(db)
     item = await repo.get_with_grupo(item_id, current_user.tenant_id)
     if not item:
@@ -541,7 +514,6 @@ async def get_item_foto(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     repo = EstoqueItemRepository(db)
     item = await repo.get_by_id(item_id, current_user.tenant_id)
     if not item or not item.foto_data:
@@ -559,7 +531,6 @@ async def update_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     repo = EstoqueItemRepository(db)
     update_kwargs = body.model_dump(exclude_unset=True)
     await _validar_grupo_do_tenant(db, current_user.tenant_id, update_kwargs.get("grupo_id"))
@@ -592,7 +563,6 @@ async def delete_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     repo = EstoqueItemRepository(db)
     deleted = await repo.delete_item(item_id, current_user.tenant_id)
     if not deleted:
@@ -623,7 +593,6 @@ async def list_movimentacoes(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     repo = EstoqueMovimentacaoRepository(db)
     movs = await repo.list_filtered(
         tenant_id=current_user.tenant_id,
@@ -644,7 +613,6 @@ async def create_movimentacao(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
 
     # Valida que o item pertence ao tenant
     item_repo = EstoqueItemRepository(db)
@@ -707,7 +675,6 @@ async def update_movimentacao(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
 
     mov_repo = EstoqueMovimentacaoRepository(db)
     update_kwargs = body.model_dump(exclude_unset=True)
@@ -735,7 +702,6 @@ async def delete_movimentacao(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
 
     mov_repo = EstoqueMovimentacaoRepository(db)
     deleted = await mov_repo.delete_movimentacao(mov_id, current_user.tenant_id)
@@ -756,7 +722,6 @@ async def relatorio_posicao(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_estoque_plan(current_user, db)
     mov_repo = EstoqueMovimentacaoRepository(db)
     posicao = await mov_repo.get_posicao_estoque(
         tenant_id=current_user.tenant_id,
@@ -798,7 +763,6 @@ async def relatorio_posicao_csv(
     db: AsyncSession = Depends(get_db),
 ):
     """Export relatório de posição de estoque como CSV (plano Pro+; botão visível apenas Premium)."""
-    await _require_estoque_plan(current_user, db)
     mov_repo = EstoqueMovimentacaoRepository(db)
     posicao = await mov_repo.get_posicao_estoque(
         tenant_id=current_user.tenant_id, grupo_id=grupo_id

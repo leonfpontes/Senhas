@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import get_db
 from src.models import User
 from src.models.giras import Gira
-from src.models.subscriptions import PlanType, SubscriptionStatus
+from src.models.subscriptions import PlanType
 from src.api.dependencies import get_current_user
 from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
 from src.repositories.mediun_repo import MediumRepository
@@ -19,7 +19,7 @@ from src.repositories.mediun_repo import MediumRepository
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-subscription"])
 logger = logging.getLogger(__name__)
 
-from src.services.plan_features import PlanFeatures, _get_plan_features, _PLAN_TIER
+from src.services.plan_features import PlanFeatures, _get_plan_features, get_effective_plan_features
 
 
 async def _count_active_users(db: AsyncSession, tenant_id) -> int:
@@ -117,5 +117,6 @@ async def get_tenant_subscription(
         auto_renew=sub.auto_renew,
         cancel_at_period_end=sub.cancel_at_period_end,
         current_period_end=sub.current_period_end.isoformat() if sub.current_period_end else None,
-        features=_get_plan_features(sub.plan, suspended=sub.status == SubscriptionStatus.SUSPENDED),
+        # Mesma semântica do require_plan_feature (P-05): a UI esconde o que o backend nega.
+        features=get_effective_plan_features(sub),
     )

@@ -621,14 +621,8 @@ class TestResendTicketEmail:
         result = MagicMock()
         result.scalar_one_or_none.return_value = None
         db.execute.return_value = result
-        sub = MagicMock()
-        sub.plan = PlanType.PREMIUM
-        with patch.object(mod, "SubscriptionRepository") as MockSubRepo:
-            sub_repo_inst = AsyncMock()
-            sub_repo_inst.get_by_tenant.return_value = sub
-            MockSubRepo.return_value = sub_repo_inst
-            with pytest.raises(NotFoundError):
-                await mod.resend_ticket_email(TICKET_ID, _admin_user(), db)
+        with pytest.raises(NotFoundError):
+            await mod.resend_ticket_email(TICKET_ID, _admin_user(), db)
 
     async def _run_resend_success(self, recados):
         """Drives resend_ticket_email through a full success path and returns
@@ -653,17 +647,9 @@ class TestResendTicketEmail:
             ]
         )
 
-        sub = MagicMock()
-        sub.plan = PlanType.PREMIUM
-
         with patch.object(mod, "generate_ticket_emission_html", return_value="<html></html>") as mock_html, \
              patch.object(mod, "generate_plain_text_fallback", return_value="text") as mock_text, \
-             patch.object(mod, "SubscriptionRepository") as MockSubRepo, \
              patch.object(mod.email_queue, "enqueue"):
-            sub_repo_inst = AsyncMock()
-            sub_repo_inst.get_by_tenant.return_value = sub
-            MockSubRepo.return_value = sub_repo_inst
-
             result = await resend_ticket_email(TICKET_ID, _admin_user(), db)
 
         assert result.success is True

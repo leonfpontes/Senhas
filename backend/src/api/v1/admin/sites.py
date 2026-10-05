@@ -34,11 +34,10 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
 from src.core.database import get_db
 from src.models import User, PermissionFeature
 from src.models.site import SiteStatus, SiteSectionType
-from src.models.subscriptions import PlanType, SubscriptionStatus
 from src.repositories.site_repo import SiteRepository
 from src.repositories.site_image_repo import (
     SiteImageRepository,
@@ -47,31 +46,18 @@ from src.repositories.site_image_repo import (
     ALLOWED_MIMETYPES,
 )
 from src.repositories.site_version_repo import SiteVersionRepository
-from src.repositories.subscription_repo import SubscriptionRepository
 from fastapi import Depends
 
 router = APIRouter(
     prefix="/api/v1/admin/sites",
     tags=["admin-site-builder"],
-    dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))]
+    dependencies=[
+        # Gate de plano único (P-05): plano com site_builder E assinatura em dia.
+        Depends(require_plan_feature("site_builder")),
+        Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view")),
+    ],
 )
 logger = logging.getLogger(__name__)
-
-_PRO_OR_PREMIUM = {PlanType.PRO, PlanType.PREMIUM}
-
-
-# ── Plan gate ─────────────────────────────────────────────────────────────────
-
-async def _require_pro(current_user: User, db: AsyncSession) -> None:
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
-    plan = sub.plan if sub else PlanType.FREE
-    is_active = bool(sub and sub.status == SubscriptionStatus.ACTIVE)
-    if plan not in _PRO_OR_PREMIUM or not is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Site Builder está disponível apenas nos planos Pro e Premium.",
-        )
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -228,7 +214,6 @@ async def get_site(
     db: AsyncSession = Depends(get_db),
 ):
     """Get or auto-create the tenant's site."""
-    await _require_pro(current_user, db)
     tenant_id = current_user.tenant_id
     repo = SiteRepository(db)
 
@@ -252,7 +237,6 @@ async def update_site(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro(current_user, db)
     repo = SiteRepository(db)
     site = await repo.get_by_tenant(current_user.tenant_id)
     if not site:
@@ -291,7 +275,6 @@ async def get_sections(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro(current_user, db)
     repo = SiteRepository(db)
     site = await repo.get_by_tenant(current_user.tenant_id)
     if not site:
@@ -315,7 +298,6 @@ async def save_sections(
     Implements optimistic locking via site_version field (Gap #6).
     After save, caller MUST re-fetch /sections to get real DB UUIDs (Gap #12).
     """
-    await _require_pro(current_user, db)
     repo = SiteRepository(db)
     image_repo = SiteImageRepository(db)
     version_repo = SiteVersionRepository(db)
@@ -366,7 +348,6 @@ async def publish_site(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro(current_user, db)
     repo = SiteRepository(db)
     site = await repo.get_by_tenant(current_user.tenant_id)
     if not site:
@@ -381,7 +362,6 @@ async def unpublish_site(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro(current_user, db)
     repo = SiteRepository(db)
     site = await repo.get_by_tenant(current_user.tenant_id)
     if not site:
@@ -398,7 +378,6 @@ async def list_images(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro(current_user, db)
     site_repo = SiteRepository(db)
     image_repo = SiteImageRepository(db)
     site = await site_repo.get_by_tenant(current_user.tenant_id)
@@ -427,7 +406,6 @@ async def upload_image(
     db: AsyncSession = Depends(get_db),
 ):
     """Upload an image for the site builder (max 5MB, max 50/tenant)."""
-    await _require_pro(current_user, db)
 
     # Validate mimetype
     if file.content_type not in ALLOWED_MIMETYPES:
@@ -494,7 +472,6 @@ async def delete_image(
 ):
     """Delete an image. Does not validate JSONB references — callers should
     ensure the image is not in active use before deletion (frontend warns)."""
-    await _require_pro(current_user, db)
     image_repo = SiteImageRepository(db)
     image = await image_repo.get(image_id, current_user.tenant_id)
     if not image:
@@ -510,7 +487,6 @@ async def list_versions(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro(current_user, db)
     site_repo = SiteRepository(db)
     version_repo = SiteVersionRepository(db)
     site = await site_repo.get_by_tenant(current_user.tenant_id)
@@ -536,7 +512,6 @@ async def restore_version(
     db: AsyncSession = Depends(get_db),
 ):
     """Restore a previous version. Frontend must show a confirmation dialog (Gap #15)."""
-    await _require_pro(current_user, db)
     site_repo = SiteRepository(db)
     version_repo = SiteVersionRepository(db)
 

@@ -39,18 +39,16 @@ async def time_slot_scheduling_enabled_for_tenant(session: AsyncSession, tenant_
     if not tc or not tc.enable_time_slot_scheduling:
         return False
 
-    from src.models.subscriptions import SubscriptionStatus
     from src.repositories.subscription_repo import SubscriptionRepository
-    from src.services.plan_features import _get_plan_features
+    from src.services.plan_features import get_effective_plan_features
 
     sub_repo = SubscriptionRepository(session)
     sub = await sub_repo.get_by_tenant(tenant_id)
     if not sub:
         return False
 
-    suspended = sub.status == SubscriptionStatus.SUSPENDED
-    features = _get_plan_features(sub.plan, suspended=suspended)
-    return features.agendamento_por_horario
+    # Plano × status da assinatura (semântica única do P-05).
+    return get_effective_plan_features(sub).agendamento_por_horario
 
 
 def _vagas_disponiveis(slot: GiraTimeSlot) -> int:
