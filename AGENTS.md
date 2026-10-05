@@ -443,6 +443,9 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
 - Frontend: `@sentry/nextjs ^8` — configurado em `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`.
 - DSNs ja configurados no VPS em `/opt/senhas/.env`.
 - Variaveis: `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`.
+- `NEXT_PUBLIC_SENTRY_DSN` e `NEXT_PUBLIC_SENTRY_ENVIRONMENT` sao **build-time** (ARG em `frontend/Dockerfile`,
+  build args em `docker-compose.prod.yml`). Ate 2026-10-05 so existiam no environment do container e o DSN
+  saia vazio do bundle: o Sentry do frontend esteve desligado em producao desde a configuracao inicial.
 - Em producao: `SENTRY_ENVIRONMENT=production`, `SENTRY_TRACES_SAMPLE_RATE=0.1`.
 - MCP do Sentry disponivel via `.claude/settings.json` (url: `https://mcp.sentry.dev/mcp`).
 

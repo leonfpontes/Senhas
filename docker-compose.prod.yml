@@ -180,6 +180,9 @@ services:
         NEXT_PUBLIC_API_BASE_URL: ""
         # Clarity — Project ID público (vai no HTML, como o G-… do GA4); .env da VPS pode sobrescrever
         NEXT_PUBLIC_CLARITY_PROJECT_ID: ${NEXT_PUBLIC_CLARITY_PROJECT_ID:-yszm2l6pqt}
+        # Sentry — NEXT_PUBLIC_* é inlined no build; o environment abaixo não basta
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
     container_name: senhas-frontend
     restart: always
     depends_on:
@@ -193,7 +196,8 @@ services:
       # Internal API URL for getServerSideProps (server-side Node.js cannot use empty NEXT_PUBLIC_API_BASE_URL)
       INTERNAL_API_URL: "http://backend:8000"
 
-      # Sentry
+      # Sentry — valor efetivo vem do build arg acima (inlined no bundle);
+      # mantido aqui só para o runtime Node ler o mesmo valor em process.env.
       NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
       NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
     ports:

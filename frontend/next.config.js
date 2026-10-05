@@ -98,12 +98,13 @@ const nextConfig = {
 };
 
 module.exports = withSentryConfig(nextConfig, {
-  // Desabilita o upload de source maps se SENTRY_DSN não estiver configurado
+  // Logs do plugin só quando há DSN. O SDK é sempre empacotado; sem DSN no
+  // build (NEXT_PUBLIC_SENTRY_DSN é ARG do Dockerfile) ele só não envia nada.
+  // `disableServer/ClientWebpackPlugin` foram removidos: não existem no SDK 8
+  // e eram ignorados — o plugin roda sempre, salvo `sourcemaps.disable`.
   silent: !process.env.NEXT_PUBLIC_SENTRY_DSN,
-  // Não injeta o Sentry no bundle se não houver DSN
-  disableServerWebpackPlugin: !process.env.NEXT_PUBLIC_SENTRY_DSN,
-  disableClientWebpackPlugin: !process.env.NEXT_PUBLIC_SENTRY_DSN,
-  // Upload de source maps — requer SENTRY_AUTH_TOKEN no CI
+  // Upload de source maps — requer SENTRY_AUTH_TOKEN no build; sem token o
+  // plugin pula o upload com aviso, sem quebrar o build.
   authToken: process.env.SENTRY_AUTH_TOKEN,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
