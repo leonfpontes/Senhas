@@ -183,9 +183,14 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   mesmo e-mail fazia `session.rollback()` completo, expirava tenant/gira e derrubava a emissão com
   MissingGreenlet → savepoint (`begin_nested`), também no walk-in; (c) plano gratuito (`max_mediuns`
   0) criava médiuns pela API → 403.
-- **Achado registrado (não corrigido)**: `alembic check` aponta divergência entre modelos e schema
-  migrado (índices únicos e regras de FK que só existem nas migrações, JSON×JSONB). O banco está mais
-  correto que os modelos; alinhar os modelos é item próprio antes de usar `alembic check` como gate.
+- **Achado registrado (corrigido em 2026-10-05)**: `alembic check` apontava 10 divergências entre
+  modelos e schema migrado. Os MODELOS foram alinhados ao banco (fonte da verdade), sem migração:
+  `audit_logs.details` JSONB; ondelete `audit_logs.tenant_id` SET NULL (031),
+  `estoque_movimentacoes.item_id` CASCADE (031), `tickets.emitido_por_id` SET NULL (030);
+  `contas_financeiras.tipo`/`recorrencia` String(10); índices `ix_consulentes_email_normalized`,
+  `ix_tickets_checkin_em` e parciais `uq_consulentes_tenant_email_active` (052) e
+  `uq_users_email_superadmin` (039) declarados em `__table_args__`. `alembic check` virou gate no CI
+  (job `test-backend-integration`) e teste `test_modelos_batem_com_schema_migrado`.
 - **Problema**: 47 dos 56 arquivos de teste mockam o banco; nenhum teste toca Postgres; endpoints
   são chamados como função (Depends nunca roda). A suíte mede execução de linhas, não
   comportamento — todos os incidentes recentes (walk-in, time-slots, consulente duplicado) eram

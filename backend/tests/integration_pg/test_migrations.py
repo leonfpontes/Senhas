@@ -2,7 +2,8 @@
 
 O fixture de sessão `migrated_db` já faz DROP SCHEMA + `alembic upgrade head`
 (o caso que quebrou na 044b em instalação nova). Aqui conferimos o resultado
-e as constraints que existem só nas migrações e seguram incidentes reais.
+e as constraints que seguram incidentes reais. Também garantimos que os
+modelos SQLAlchemy descrevem exatamente o schema migrado (`alembic check`).
 """
 import subprocess
 import sys
@@ -40,7 +41,7 @@ async def test_tabelas_principais_existem(table_names):
 
 
 async def test_constraints_que_seguram_incidentes(migrated_db):
-    """Índices únicos criados por migração (não declarados nos modelos)."""
+    """Índices únicos criados por migração (declarados também nos modelos desde 2026-10-05)."""
     from src.core.database import engine
 
     async with engine.connect() as conn:
@@ -58,6 +59,17 @@ async def test_constraints_que_seguram_incidentes(migrated_db):
     assert "uq_consulentes_tenant_email_active" in indexes
     # Evento Stripe processado uma vez só (idempotência do webhook).
     assert any("event_id" in name or "stripe_events" in name for name in indexes | uniques)
+
+
+def test_modelos_batem_com_schema_migrado(migrated_db):
+    """`alembic check` sem diferenças: o schema migrado (fonte da verdade, é o
+    que existe em produção) e os modelos em src/models/ estão alinhados.
+    Se falhar, ajuste o MODELO para refletir a migração — ou, se o banco
+    estiver errado, crie uma migração nova."""
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "check"], cwd=BACKEND_DIR, capture_output=True, text=True
+    )
+    assert result.returncode == 0, f"alembic check detectou drift:\n{result.stdout}\n{result.stderr}"
 
 
 async def test_app_autenticado_responde_com_banco_real(client, db):

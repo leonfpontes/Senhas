@@ -110,7 +110,8 @@ class EstoqueMovimentacao(TimestampedModel):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     item_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("estoque_itens.id", ondelete="RESTRICT"), nullable=False
+        # CASCADE (migração 031): hard delete do tenant cascateia por estoque_itens
+        UUID(as_uuid=True), ForeignKey("estoque_itens.id", ondelete="CASCADE"), nullable=False
     )
     usuario_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True

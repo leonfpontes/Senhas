@@ -1,5 +1,5 @@
 """Consulente model - person requesting a ticket (T014)."""
-from sqlalchemy import Column, String, ForeignKey, Index, Text
+from sqlalchemy import Column, String, ForeignKey, Index, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -19,6 +19,17 @@ class Consulente(SoftDeleteModel):
         Index("ix_consulentes_tenant_id", "tenant_id"),
         Index("ix_consulentes_email", "email"),
         Index("ix_consulentes_telefone", "telefone"),
+        Index("ix_consulentes_email_normalized", "email_normalized"),
+        # Unicidade de e-mail por tenant só entre consulentes ativos (migração 052).
+        # sqlite_where espelha o predicado para os testes que compilam em SQLite.
+        Index(
+            "uq_consulentes_tenant_email_active",
+            "tenant_id",
+            "email_normalized",
+            unique=True,
+            postgresql_where=text("email_normalized IS NOT NULL AND deleted_at IS NULL"),
+            sqlite_where=text("email_normalized IS NOT NULL AND deleted_at IS NULL"),
+        ),
     )
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

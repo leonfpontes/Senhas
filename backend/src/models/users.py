@@ -1,5 +1,5 @@
 """User model - auth and RBAC (T012)."""
-from sqlalchemy import Column, String, ForeignKey, Boolean, Index, LargeBinary, UniqueConstraint, Enum as SQLEnum, DateTime
+from sqlalchemy import Column, String, ForeignKey, Boolean, Index, LargeBinary, UniqueConstraint, Enum as SQLEnum, DateTime, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
@@ -34,6 +34,15 @@ class User(SoftDeleteModel):
         Index("ix_users_is_active", "is_active"),
         Index("ix_users_email", "email"),
         Index("ix_users_reset_token_hash", "reset_token_hash"),
+        # Super admins (tenant_id NULL) têm e-mail globalmente único (migração 039).
+        # sqlite_where espelha o predicado para os testes que compilam em SQLite.
+        Index(
+            "uq_users_email_superadmin",
+            "email",
+            unique=True,
+            postgresql_where=text("tenant_id IS NULL"),
+            sqlite_where=text("tenant_id IS NULL"),
+        ),
     )
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
