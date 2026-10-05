@@ -4,7 +4,6 @@ import logging
 from fastapi import APIRouter, Request, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from sqlalchemy.exc import IntegrityError
 
 from src.core.database import get_db
 from fastapi import Depends
@@ -147,15 +146,27 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     # handlers below rely on plain-dict semantics, so convert once here.
     data = event["data"]["object"].to_dict()
 
-    # Stripe delivers webhooks at-least-once — the same event id can arrive
-    # more than once (retries, duplicate delivery). Skip reprocessing if we've
-    # already handled it (checked *before* dispatch, marked *after* success —
-    # marking upfront would permanently "poison" an event whose processing
-    # actually failed, since the retry would then be silently skipped too).
-    already_processed = await db.scalar(
-        select(StripeEventProcessed).where(StripeEventProcessed.event_id == event_id)
+    # Stripe entrega webhooks pelo menos uma vez — o mesmo event_id pode chegar
+    # repetido, inclusive em paralelo. Idempotência (item Q-04):
+    # a marca do evento é inserida ANTES de processar, na MESMA transação do
+    # efeito (os handlers fazem commit; o commit leva a marca junto).
+    # - Entrega simultânea: o INSERT da segunda requisição espera o lock do
+    #   índice único até a primeira confirmar; aí o conflito faz o
+    #   ON CONFLICT DO NOTHING não devolver linha e ela pula sem reprocessar.
+    #   (Antes era SELECT → processa → INSERT: as duas passavam pelo SELECT e
+    #   aplicavam o efeito duas vezes — teste em tests/integration_pg.)
+    # - Falha no processamento: o rollback desfaz a marca junto, então o
+    #   reenvio da Stripe é processado normalmente (não "envenena" o evento).
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    claimed = await db.execute(
+        pg_insert(StripeEventProcessed)
+        .values(event_id=event_id, event_type=event_type)
+        .on_conflict_do_nothing(index_elements=[StripeEventProcessed.event_id])
+        .returning(StripeEventProcessed.id)
     )
-    if already_processed:
+    if claimed.scalar_one_or_none() is None:
+        await db.rollback()
         logger.info("Stripe event %s (%s) already processed — skipping", event_id, event_type)
         return {"received": True}
 
@@ -175,7 +186,11 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         else:
             logger.debug("Unhandled Stripe event type: %s", event_type)
 
+        # Handlers que retornam cedo (ex.: tenant não encontrado) não fazem
+        # commit — este commit grava a marca para não reprocessar o evento.
+        await db.commit()
     except Exception as exc:
+        await db.rollback()
         logger.error("Error processing Stripe event %s: %s", event_type, exc, exc_info=True)
         # Re-raise as 500 so Stripe will retry delivery (up to 3 days).
         # Internal logic errors (unknown price_id, tenant not found) are already
@@ -185,14 +200,6 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
             status_code=500,
             detail="Webhook processing failed — will be retried by Stripe",
         )
-
-    try:
-        db.add(StripeEventProcessed(event_id=event_id, event_type=event_type))
-        await db.commit()
-    except IntegrityError:
-        # Race: same event processed concurrently by another request. The
-        # processing above already ran either way — nothing left to do.
-        await db.rollback()
 
     return {"received": True}
 

@@ -257,7 +257,11 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Aceite**: teste de integração de emissão concorrente (Q-01 grupo 1) passa com a constraint.
 - **Esforço**: M. **Custo**: R$ 0. **Dependência**: idealmente depois de Q-01 grupo 1.
 
-### Q-04 — Fechar idempotência do webhook Stripe — `pendente`
+### Q-04 — Fechar idempotência do webhook Stripe — `feito` (2026-10-05)
+- **Feito**: `INSERT ... ON CONFLICT DO NOTHING RETURNING` da marca em `stripe_events_processed`
+  antes de processar, na mesma transação do efeito. Entrega simultânea: a 2ª espera o lock do
+  índice único e pula. Falha no processamento: rollback desfaz a marca e o reenvio é reprocessado.
+  O teste de entrega simultânea do grupo 4 do Q-01 deixou de ser xfail.
 - **Problema**: `webhooks.py` faz SELECT → processa → INSERT; duas entregas concorrentes do mesmo
   `event_id` aplicam o efeito duas vezes (o `except IntegrityError` só evita a linha duplicada).
 - **Entrega**: inverter para `INSERT ... ON CONFLICT DO NOTHING` **antes** de processar; se a

@@ -132,12 +132,8 @@ async def test_falha_de_pagamento_suspende_e_audita_uma_vez(client, db):
     assert audits == 1
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="Q-04 pendente: SELECT → processa → INSERT deixa duas entregas simultâneas aplicarem o efeito "
-    "duas vezes. Não estrito porque a corrida depende de tempo; o Q-04 deve torná-lo determinístico.",
-)
 async def test_entregas_simultaneas_do_mesmo_evento_aplicam_o_efeito_uma_vez(client, db):
+    """Q-04: a marca do evento é inserida antes de processar, na mesma transação."""
     tenant = await _paying_tenant(db, "cus_race")
     event = _event("invoice.payment_failed", {"id": "in_2", "object": "invoice", "customer": "cus_race"})
 
