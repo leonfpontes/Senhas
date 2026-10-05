@@ -72,6 +72,10 @@ class BillingInfoResponse(BaseModel):
     cancel_at_period_end: bool
     monthly_price: float
     currency: str
+    # Trial local (sem assinatura Stripe): o front deixa assinar o próprio
+    # plano do teste, preservando os dias restantes no checkout.
+    is_trial: bool = False
+    trial_ends_at: Optional[str] = None
 
 
 class CreateCheckoutRequest(BaseModel):
@@ -172,6 +176,8 @@ async def get_billing_info(
         cancel_at_period_end=sub.cancel_at_period_end,
         monthly_price=sub.monthly_price,
         currency=sub.currency,
+        is_trial=bool(sub.is_trial),
+        trial_ends_at=sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
     )
 
 

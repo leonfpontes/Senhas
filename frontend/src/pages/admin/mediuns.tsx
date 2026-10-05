@@ -221,9 +221,14 @@ function MediunsContent() {
   const { can, loading: subLoading, subscription, canCreateMedium: canCreateMediumFn } = useSubscription();
   const { can: canGroup } = usePermissions();
   const canView = canGroup('mediuns', 'view');
-  const canInsert = canGroup('mediuns', 'insert');
-  const canEdit = canGroup('mediuns', 'edit');
-  const canDelete = canGroup('mediuns', 'delete');
+  // Fora do plano (gratuito, ou fim do trial) os médiuns já cadastrados
+  // continuam visíveis só para consulta: o fim do teste não esconde o que o
+  // terreiro construiu. Criar, editar e excluir exigem plano.
+  const planAllows = can('mediuns');
+  const readOnlyByPlan = !subLoading && !planAllows;
+  const canInsert = planAllows && canGroup('mediuns', 'insert');
+  const canEdit = planAllows && canGroup('mediuns', 'edit');
+  const canDelete = planAllows && canGroup('mediuns', 'delete');
 
   const [mediuns, setMediuns] = useState<Medium[]>([]);
   const [loading, setLoading] = useState(true);
@@ -498,16 +503,18 @@ function MediunsContent() {
 
   // ── Plan gate ───────────────────────────────────────────────────────
 
-  if (!subLoading && !can('mediuns')) {
-    return <UpgradePrompt feature="Médiuns e Cambones" minPlan="Basic" />;
-  }
-
   if (!canView) {
     return (
       <Alert severity="warning" sx={{ mt: 2 }}>
         Você não tem permissão para visualizar médiuns e cambones. Contate o administrador do sistema.
       </Alert>
     );
+  }
+
+  const hasAnyMedium =
+    mediuns.length > 0 || (subscription?.current_mediuns ?? 0) > 0 || !!debouncedSearch || includeInactive;
+  if (readOnlyByPlan && !loading && !hasAnyMedium) {
+    return <UpgradePrompt feature="Médiuns e Cambones" minPlan="Basic" />;
   }
 
   // canCreate uses server-side current_mediuns count to avoid false allows when search is filtering the list
@@ -589,6 +596,13 @@ function MediunsContent() {
           />
         )}
       </Box>
+
+      {readOnlyByPlan && (
+        <Alert severity="info" data-testid="mediuns-somente-leitura" sx={{ mb: 2, borderRadius: 2 }}>
+          Seus médiuns e cambones continuam aqui para consulta. Para cadastrar, editar ou excluir,{' '}
+          <Link href="/admin/billing" style={{ fontWeight: 700 }}>assine um plano</Link>.
+        </Alert>
+      )}
 
       {/* Médium quota progress bar — only shown when plan has a finite limit */}
       {subscription && (subscription.max_mediuns ?? 0) > 0 && (subscription.max_mediuns ?? 0) < 999999 && (
