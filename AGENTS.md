@@ -50,6 +50,16 @@ Regra critica:
 - Nenhuma leitura/escrita de entidade de tenant sem filtro explicito de tenant_id.
 - Evite bypass de repository para logica de negocio, exceto quando realmente necessario e com filtro de tenant preservado.
 
+Auditor no CI (Q-02): `backend/scripts/audit_tenant_isolation.py` (bloqueante no job `test-backend`)
+varre `backend/src/api/v1/admin/` e falha se um `select()`/`update()`/`delete()`/`exists()` (ou
+`session.get(Modelo, id)`) sobre modelo com coluna `tenant_id` nao tiver filtro de tenant na mesma
+cadeia/variavel/lista de condicoes. Os modelos multi-tenant sao descobertos sozinhos em
+`backend/src/models/`. Heuristica AST com limites documentados no docstring do script (nao olha
+repositories, nao valida o valor comparado nem FKs recebidos no body). Acesso cross-tenant
+legitimo → adicionar `(arquivo, funcao): "justificativa"` em `EXEMPT_QUERIES` no script, apos ler
+o codigo; para reload de objeto recem-criado ou filho de pai ja validado, preferir um filtro de
+tenant redundante (barato) a uma excecao.
+
 ### 3.2 Auth e autorizacao
 
 - Roles principais: SUPER_ADMIN, ADMIN, OPERATOR.

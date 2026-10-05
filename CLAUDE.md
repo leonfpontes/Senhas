@@ -171,7 +171,9 @@ O `access_token` é armazenado como **cookie HttpOnly** (não em `localStorage`)
 
 ## Checklist Rápido Antes de Qualquer PR
 
-- [ ] Tenant isolation em todas as queries
+- [ ] Tenant isolation em todas as queries — `python backend/scripts/audit_tenant_isolation.py`
+      passa (bloqueante no CI). Acesso cross-tenant intencional → `EXEMPT_QUERIES` no script,
+      com justificativa de uma linha; nunca isentar para "fazer passar"
 - [ ] `require_group_permission` em todos os novos endpoints admin
 - [ ] `canGroup` no frontend para view gate e ocultar ações
 - [ ] Sem segredos no diff
@@ -187,7 +189,8 @@ O `access_token` é armazenado como **cookie HttpOnly** (não em `localStorage`)
 **docs/plano-execucao.md** é o backlog priorizado do projeto (criado 2026-08-26 após auditoria
 completa). Regras de trabalho ativas:
 - **R-01**: nenhum módulo/feature novo até Q-01 (testes de integração com Postgres real) e
-  Q-02 (auditor de tenant_id) concluídos — exceto itens do plano e correções de produção.
+  Q-02 (auditor de tenant_id — feito em 2026-10-05) concluídos — exceto itens do plano e
+  correções de produção.
 - **R-02**: documentação divergente do código é bug — corrigir na mesma sessão em que for
   encontrada.
 - **R-03**: abstração frontend com 0 consumidores — adotar ou deletar na próxima sessão que

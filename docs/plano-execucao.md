@@ -192,7 +192,32 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Esforço**: G (o maior item do plano — pode ser fatiado em 5 sessões, uma por grupo).
 - **Custo**: R$ 0. **Dependência**: I-04 (pra rodar em PR).
 
-### Q-02 — Auditor AST de `tenant_id` no CI — `pendente`
+### Q-02 — Auditor AST de `tenant_id` no CI — `feito` (2026-10-05)
+- **Executado**: `backend/scripts/audit_tenant_isolation.py` + step "Audit — isolamento de tenant
+  em queries admin" no job `test-backend` de `tests.yml` (bloqueante, logo após o auditor de RBAC).
+  Descobre sozinho os modelos com coluna `tenant_id` (36 hoje) lendo `src/models/` via AST e, em
+  cada arquivo de `api/v1/admin/`, exige filtro de tenant (`<M>.tenant_id == <valor de tenant>`,
+  `filter_by(tenant_id=...)`, `.tenant_id.in_(...)`) para todo `select/update/delete/exists` — e
+  `session.get(Modelo, id)` — sobre esses modelos, olhando a cadeia do statement, as extensões da
+  variável (`stmt = stmt.where(...)`), listas de condições e, por fluxo de dados, pai carregado
+  por select filtrado na mesma função. 77 queries checadas; 3 exceções justificadas em
+  `EXEMPT_QUERIES` (impersonadores no audit trail, unicidade global de slug de site, ramo
+  super_admin de `list_users`). 7 queries ganharam filtro de tenant redundante em vez de exceção
+  (reloads pós-criação em contas/estoque, lookups de usuário e limpeza de memberships em
+  permission_groups). Testes em `tests/unit/test_audit_tenant_isolation.py`.
+- **Limites** (docstring do script): não audita repositories/services/rotas public e platform;
+  não valida o valor comparado nem FKs recebidos no body; filtro dentro de `if` conta como
+  sempre aplicado; exceção vale para a função inteira.
+- **Aceite verificado**: teste de mutação remove um filtro de tenant de arquivos admin reais
+  (`giras_crud.py`, `contas_financeiras.py`) e o auditor falha; varredura removendo cada um dos
+  73 filtros `<Modelo>.tenant_id == ...` de uma linha: 70 detectados, 3 não detectados por design
+  (query filha de pai já filtrado na mesma função — o acesso segue restrito ao tenant).
+- **Vazamento real encontrado na revisão** (fora do alcance do auditor, corrigido junto):
+  `contas_financeiras.py` (`create_conta`/`update_conta`/`dar_baixa`) aceitava
+  `categoria_id`/`conta_bancaria_id` de outro tenant, e `estoque.py` (`create_item`/`update_item`)
+  aceitava `grupo_id` de outro tenant — o registro passava a apontar para o alheio e a resposta
+  devolvia o nome dele. Exigia conhecer o UUID (v4), então impacto baixo; agora responde 422.
+  Regressão em `tests/unit/test_admin_fk_tenant_validation.py`.
 - **Problema**: isolamento multi-tenant depende de 428 repetições manuais de
   `current_user.tenant_id`; esquecer uma não quebra nada — vaza silenciosamente. Sem RLS, sem
   filtro de sessão.

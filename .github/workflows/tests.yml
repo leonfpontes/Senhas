@@ -40,6 +40,10 @@ jobs:
         working-directory: backend
         run: python scripts/audit_permission_guards.py
 
+      - name: Audit — isolamento de tenant em queries admin
+        working-directory: backend
+        run: python scripts/audit_tenant_isolation.py
+
   # ──────────────────────────────────────────────────────────────────────────
   # Testes frontend (bloqueante) — lint, type-check, jest, audit de RBAC e
   # build. Histórico: lint/tsc já tiveram débito real (334 problemas), zerado
