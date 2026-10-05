@@ -116,4 +116,7 @@ minversion = "7.0"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 asyncio_mode = "auto"
+markers = [
+    "integration_pg: suíte com Postgres real (tests/integration_pg, roda só com INTEGRATION_PG=1)",
+]
 addopts = "--cov=src --cov-report=html --cov-report=term-missing"

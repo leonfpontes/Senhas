@@ -241,13 +241,15 @@ class ConsulenteRepository(BaseRepository[Consulente]):
             telefone=phone,
             phone_normalized=phone_normalized,
         )
-        session.add(consulente)
         try:
-            await session.flush()
+            # SAVEPOINT (ver upsert_consulente): só a inserção perdedora é
+            # desfeita; o resto da transação e os objetos carregados seguem válidos.
+            async with session.begin_nested():
+                session.add(consulente)
+                await session.flush()
         except IntegrityError:
             # Concurrent walk-in/public emission with the same email won the
             # insert race — recover the winner instead of 500ing the door view.
-            await session.rollback()
             if email_normalized:
                 existing = await self.get_by_email(session, tenant_id, email)
                 if existing:
@@ -314,11 +316,16 @@ class ConsulenteRepository(BaseRepository[Consulente]):
         # the unique index from migration 052 (tenant_id, email_normalized
         # among active rows) catches that race at the DB level. The loser
         # re-fetches instead of 500ing the consulente's own request.
+        #
+        # SAVEPOINT, não session.rollback(): o rollback completo desfazia a
+        # transação inteira da emissão e expirava tenant/gira já carregados —
+        # o fluxo seguia lendo atributos expirados (MissingGreenlet) e o
+        # consulente recebia 500 mesmo assim. Achado em tests/integration_pg.
         try:
-            consulente = await self.create_consulente(session, tenant_id, name, email, phone)
+            async with session.begin_nested():
+                consulente = await self.create_consulente(session, tenant_id, name, email, phone)
             return (consulente, True)
         except IntegrityError:
-            await session.rollback()
             existing = await self.get_by_email(session, tenant_id, email)
             if existing:
                 return (existing, False)

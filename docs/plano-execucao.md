@@ -170,7 +170,22 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 
 ## Fase 2 — Rede de segurança de qualidade (ataca a causa dos 213 commits de fix)
 
-### Q-01 — Testes de integração com Postgres real — `pendente`
+### Q-01 — Testes de integração com Postgres real — `feito` (2026-10-05)
+- **Feito**: `backend/tests/integration_pg/` (67 testes + 2 xfail) no job bloqueante "Backend
+  Integration (Postgres)" do CI (service container Postgres 15). App inteiro via httpx.ASGITransport,
+  schema pelas migrações. Grupos: 1) emissão concorrente (7); 2) isolamento de tenant em 13 módulos/rotas
+  com conferência no banco e controle positivo (42); 3) RBAC por HTTP (9 + xfail Q-05); 4) webhook Stripe
+  com assinatura real (4 + xfail não estrito Q-04); 5) migrações em banco zerado (5).
+  `tests/integration/` morta e `tests/fix_quotes.py`/`fix_escaped.py` apagados.
+- **Bugs reais achados e corrigidos na mesma entrega**: (a) primeiras emissões simultâneas numa gira
+  sem contador (senha de associado, 11 giras antigas em produção) davam 500 por UniqueViolation no
+  SenhaControl → `INSERT ... ON CONFLICT DO NOTHING`; (b) o tratamento da corrida de consulente com o
+  mesmo e-mail fazia `session.rollback()` completo, expirava tenant/gira e derrubava a emissão com
+  MissingGreenlet → savepoint (`begin_nested`), também no walk-in; (c) plano gratuito (`max_mediuns`
+  0) criava médiuns pela API → 403.
+- **Achado registrado (não corrigido)**: `alembic check` aponta divergência entre modelos e schema
+  migrado (índices únicos e regras de FK que só existem nas migrações, JSON×JSONB). O banco está mais
+  correto que os modelos; alinhar os modelos é item próprio antes de usar `alembic check` como gate.
 - **Problema**: 47 dos 56 arquivos de teste mockam o banco; nenhum teste toca Postgres; endpoints
   são chamados como função (Depends nunca roda). A suíte mede execução de linhas, não
   comportamento — todos os incidentes recentes (walk-in, time-slots, consulente duplicado) eram

@@ -183,6 +183,15 @@ async def create_medium(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail="Assinatura suspensa por falta de pagamento. Regularize sua assinatura para adicionar médiuns.",
             )
+        # max_mediuns: 0 = recurso fora do plano (gratuito), -1 = ilimitado
+        # (bônus), > 0 = limite. Antes só o "> 0" era tratado e o plano
+        # gratuito criava médiuns pela API (a tela bloqueava). Achado em
+        # tests/integration_pg/test_rbac_http.py.
+        if sub.max_mediuns == 0:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Funcionalidade de médiuns não disponível no plano atual.",
+            )
         if sub.max_mediuns > 0:
             repo_check = MediumRepository(db)
             current_count = await repo_check.count(current_user.tenant_id)
