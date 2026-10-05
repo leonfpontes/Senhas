@@ -1,7 +1,7 @@
 """T065: Admin Users - GET/POST/PUT/DELETE /api/v1/admin/users/{id}"""
 from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone
@@ -52,8 +52,7 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "insert"))])
@@ -140,7 +139,7 @@ async def create_user(
     )
     
     await db.commit()
-    return UserResponse.from_orm(created_user)
+    return UserResponse.model_validate(created_user)
 
 
 @router.get("", response_model=List[UserResponse], dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "view"))])
@@ -175,7 +174,7 @@ async def list_users(
     else:
         users = await repo.list(current_user.tenant_id, skip=skip, limit=limit)
     
-    return [UserResponse.from_orm(u) for u in users]
+    return [UserResponse.model_validate(u) for u in users]
 
 
 @router.get("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "view"))])
@@ -194,7 +193,7 @@ async def get_user(
     if not user:
         raise NotFoundError("Usuário não encontrado")
     
-    return UserResponse.from_orm(user)
+    return UserResponse.model_validate(user)
 
 
 @router.put("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "edit"))])
@@ -215,7 +214,7 @@ async def update_user(
         raise NotFoundError("Usuário não encontrado")
     
     # Update fields
-    update_data = user_update.dict(exclude_unset=True, exclude={"password"})
+    update_data = user_update.model_dump(exclude_unset=True, exclude={"password"})
     
     for key, value in update_data.items():
         if hasattr(existing_user, key):
@@ -245,7 +244,7 @@ async def update_user(
     )
     
     await db.commit()
-    return UserResponse.from_orm(existing_user)
+    return UserResponse.model_validate(existing_user)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.USUARIOS, "delete"))])

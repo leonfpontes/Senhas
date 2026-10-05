@@ -205,7 +205,7 @@ class TestListAuditLogs:
 # ── config.py ────────────────────────────────────────────────────────────────
 
 def _mock_tenant_config():
-    """MagicMock satisfying TenantConfigResponse's from_orm validation — every
+    """MagicMock satisfying TenantConfigResponse.model_validate — every
     Optional[str] field needs an explicit string/None, otherwise pydantic
     rejects the auto-generated MagicMock child for that attribute."""
     config = MagicMock()
@@ -509,7 +509,7 @@ class TestUpdateUser:
         db.refresh = AsyncMock()
 
         result = await update_user(USER_ID, UserUpdate(username="updated_user"), _admin_user(), db)
-        # The function sets attr on existing_user then returns from_orm(existing_user)
+        # The function sets attr on existing_user then returns model_validate(existing_user)
         assert result is not None
 
     @patch("src.api.v1.admin.users.AuditService")

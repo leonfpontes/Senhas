@@ -11,7 +11,7 @@ This is the heart of the product. Handles atomic ticket emission with:
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from sqlalchemy import select, and_
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone
@@ -103,15 +103,16 @@ class EmitTicketRequest(BaseModel):
             )
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "João da Silva",
                 "email": "joao@example.com",
                 "phone": "+5511987654321",
                 "priority_category": "ELDERLY",
             }
-        }
+        },
+    )
 
 
 class AcompanhanteEmitido(BaseModel):

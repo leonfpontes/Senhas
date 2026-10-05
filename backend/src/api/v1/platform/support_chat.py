@@ -8,7 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,8 +31,7 @@ class SupportMessageResponse(BaseModel):
     sender_name_snapshot: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PlatformConversationResponse(BaseModel):
@@ -114,7 +113,7 @@ async def get_conversation_messages(
         raise NotFoundError("Conversa")
 
     messages = await repo.list_messages(db, conversation_id)
-    return [SupportMessageResponse.from_orm(m) for m in messages]
+    return [SupportMessageResponse.model_validate(m) for m in messages]
 
 
 @router.post("/conversations/{conversation_id}/messages", response_model=SupportMessageResponse)
@@ -139,7 +138,7 @@ async def reply_to_conversation(
     )
     await db.commit()
     await db.refresh(message)
-    return SupportMessageResponse.from_orm(message)
+    return SupportMessageResponse.model_validate(message)
 
 
 @router.post("/conversations/{conversation_id}/read", status_code=204)

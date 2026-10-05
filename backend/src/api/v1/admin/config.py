@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from sqlalchemy import select
 from src.core.database import get_db
@@ -52,8 +52,7 @@ class TenantConfigResponse(BaseModel):
     enable_waitlist: bool = False
     enable_time_slot_scheduling: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TenantBrandingResponse(BaseModel):
@@ -178,7 +177,7 @@ async def get_tenant_config(
     )
     tenant_name = tenant_result.scalar_one_or_none()
 
-    resp = TenantConfigResponse.from_orm(config)
+    resp = TenantConfigResponse.model_validate(config)
     resp.logo_url = _build_logo_url(request, config)
     resp.tenant_nome = tenant_name
     return resp
@@ -210,7 +209,7 @@ async def update_tenant_config(
     
     # Get current config
     current_config = await repo.get_by_tenant(current_user.tenant_id)
-    previous_state = TenantConfigResponse.from_orm(current_config).dict()
+    previous_state = TenantConfigResponse.model_validate(current_config).model_dump()
     
     # Update branding if provided
     if {"primary_color", "secondary_color"} & provided_fields:
@@ -325,7 +324,7 @@ async def update_tenant_config(
 
     # Get updated config
     updated_config = await repo.get_by_tenant(current_user.tenant_id)
-    new_state = TenantConfigResponse.from_orm(updated_config).dict()
+    new_state = TenantConfigResponse.model_validate(updated_config).model_dump()
     
     # Log audit
     audit_service = AuditService(db)
@@ -339,7 +338,7 @@ async def update_tenant_config(
     
     await db.commit()
     
-    resp = TenantConfigResponse.from_orm(updated_config)
+    resp = TenantConfigResponse.model_validate(updated_config)
     resp.logo_url = _build_logo_url(request, updated_config)
     return resp
 
@@ -385,7 +384,7 @@ async def upload_tenant_logo(
     await db.commit()
     await db.refresh(config)
 
-    resp = TenantConfigResponse.from_orm(config)
+    resp = TenantConfigResponse.model_validate(config)
     resp.logo_url = _build_logo_url(request, config)
     return resp
 
@@ -417,6 +416,6 @@ async def delete_tenant_logo(
     await db.commit()
     await db.refresh(config)
 
-    resp = TenantConfigResponse.from_orm(config)
+    resp = TenantConfigResponse.model_validate(config)
     resp.logo_url = _build_logo_url(request, config)
     return resp

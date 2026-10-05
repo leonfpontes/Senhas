@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
@@ -39,8 +39,8 @@ class GiraCreate(BaseModel):
     is_active: bool = True
     recados: Optional[str] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "nome": "Gira de Maio",
                 "descricao": "Gira mensal de maio",
@@ -49,7 +49,8 @@ class GiraCreate(BaseModel):
                 "local": "Centro Espírita",
                 "recados": "Investimento sugerido: R$ 20. Trazer uma vela branca.",
             }
-        }
+        },
+    )
 
 
 class GiraUpdate(BaseModel):
@@ -84,8 +85,7 @@ class GiraResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SenhaConfigRequest(BaseModel):
@@ -184,7 +184,7 @@ async def create_gira(
     repo = GiraRepository(db)
     created_gira = await repo.create(
         tenant_id=current_user.tenant_id,
-        **gira.dict(),
+        **gira.model_dump(),
     )
     
     # Log audit
@@ -198,7 +198,7 @@ async def create_gira(
     )
     
     await db.commit()
-    return GiraResponse.from_orm(created_gira)
+    return GiraResponse.model_validate(created_gira)
 
 
 @router.get("", response_model=List[GiraResponse], dependencies=[Depends(require_any_group_permission(PermissionFeature.GIRAS, PermissionFeature.RELATORIO_GIRA, action="view"))])
@@ -240,7 +240,7 @@ async def list_giras(
     result = await db.execute(stmt)
     giras = result.scalars().all()
 
-    return [GiraResponse.from_orm(g) for g in giras]
+    return [GiraResponse.model_validate(g) for g in giras]
 
 
 @router.get("/unified-links", response_model=UnifiedLinksResponse, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "view"))])
@@ -284,7 +284,7 @@ async def get_gira(
     if not gira:
         raise NotFoundError("Gira não encontrado")
     
-    return GiraResponse.from_orm(gira)
+    return GiraResponse.model_validate(gira)
 
 
 @router.put("/{gira_id}", response_model=GiraResponse, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "edit"))])
@@ -310,7 +310,7 @@ async def update_gira(
     updated_gira = await repo.update(
         gira_id,
         current_user.tenant_id,
-        **gira_update.dict(exclude_unset=True),
+        **gira_update.model_dump(exclude_unset=True),
     )
     
     # Log audit
@@ -320,12 +320,12 @@ async def update_gira(
         user_id=current_user.id,
         resource_type="Gira",
         resource_id=gira_id,
-        previous_state=GiraResponse.from_orm(existing_gira).model_dump(mode='json'),
-        new_state=GiraResponse.from_orm(updated_gira).model_dump(mode='json'),
+        previous_state=GiraResponse.model_validate(existing_gira).model_dump(mode='json'),
+        new_state=GiraResponse.model_validate(updated_gira).model_dump(mode='json'),
     )
     
     await db.commit()
-    return GiraResponse.from_orm(updated_gira)
+    return GiraResponse.model_validate(updated_gira)
 
 
 @router.delete("/{gira_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "delete"))])
