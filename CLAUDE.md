@@ -188,9 +188,9 @@ O `access_token` é armazenado como **cookie HttpOnly** (não em `localStorage`)
 
 **docs/plano-execucao.md** é o backlog priorizado do projeto (criado 2026-08-26 após auditoria
 completa). Regras de trabalho ativas:
-- **R-01**: nenhum módulo/feature novo até Q-01 (testes de integração com Postgres real) e
-  Q-02 (auditor de tenant_id — feito em 2026-10-05) concluídos — exceto itens do plano e
-  correções de produção.
+- **R-01** — **cumprida em 2026-10-05**: o congelamento de módulos/features novos valia até
+  Q-01 (suíte `tests/integration_pg` com Postgres real) e Q-02 (auditor de tenant_id), ambos
+  feitos e bloqueantes no CI. Feature nova volta a ser permitida — e passa por esses dois gates.
 - **R-02**: documentação divergente do código é bug — corrigir na mesma sessão em que for
   encontrada.
 - **R-03**: abstração frontend com 0 consumidores — adotar ou deletar na próxima sessão que
