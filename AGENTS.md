@@ -440,7 +440,11 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
 
 **Monitoramento de erros — Sentry (desde 2026-06-27):**
 - Backend: `sentry-sdk[fastapi]>=1.39.0` — inicializado em `main.py` quando `SENTRY_DSN` definido.
-- Frontend: `@sentry/nextjs ^8` — configurado em `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`.
+- Frontend: `@sentry/nextjs ^8` — navegador em `sentry.client.config.ts` (carregado pelo SDK); servidor e edge em
+  `sentry.server.config.ts` / `sentry.edge.config.ts`, que **só rodam porque `frontend/src/instrumentation.ts` os importa**
+  em `register()` (exigência do Next 15; antes de 2026-10-05 o Sentry do lado servidor do frontend não inicializava).
+  O hook fica em `src/` porque o Next o procura na pasta pai de `src/pages` — na raiz de `frontend/` é ignorado.
+  `onRequestError = Sentry.captureRequestError` captura erros de request/renderização no servidor.
 - DSNs ja configurados no VPS em `/opt/senhas/.env`.
 - Variaveis: `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`.
 - `NEXT_PUBLIC_SENTRY_DSN` e `NEXT_PUBLIC_SENTRY_ENVIRONMENT` sao **build-time** (ARG em `frontend/Dockerfile`,

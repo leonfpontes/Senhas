@@ -22,6 +22,9 @@ module.exports = {
   // as chamadas entre os testes.
   captureException: jest.fn(),
   captureMessage: jest.fn(),
+  // Usado como `onRequestError` em src/instrumentation.ts.
+  captureRequestError: jest.fn(),
+  getClient: () => undefined,
   withScope: (callback) => callback({ setTag: noop, setUser: noop, setContext: noop, setExtra: noop }),
   browserTracingIntegration: () => ({}),
   replayIntegration: () => ({}),
