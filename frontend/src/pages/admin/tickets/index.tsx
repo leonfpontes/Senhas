@@ -603,10 +603,14 @@ function AdminTicketsContent() {
         </Box>
       </Collapse>
 
-      {hasBulk && selectedTickets.size > 0 && (
+      {hasBulk && giraId && selectedTickets.size > 0 &&
+        (canGroup('tickets', 'edit') || canGroup('tickets', 'delete')) && (
         <BulkActionsBar
           selectedCount={selectedTickets.size}
           ticketIds={Array.from(selectedTickets)}
+          giraId={giraId}
+          canMarkUsed={canGroup('tickets', 'edit')}
+          canCancel={canGroup('tickets', 'delete')}
           onRefresh={loadTickets}
           onClearSelection={() => setSelectedTickets(new Set())}
         />

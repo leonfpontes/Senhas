@@ -1,5 +1,5 @@
 """T055: SenhaControlRepository Extensions - Bulk operations."""
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Sequence, Tuple
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, and_
@@ -16,12 +16,42 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
     - Bulk ticket status updates
     - Batch operations
     """
+
+    def __init__(self, db: AsyncSession, model=SenhaControl):
+        # Os endpoints instanciam só com a sessão; sem o modelo padrão o
+        # BaseRepository levantava TypeError e todo bulk/validate-bulk dava 500.
+        super().__init__(db, model)
     
+    async def _load_scoped_tickets(
+        self,
+        ticket_ids: Sequence[UUID],
+        tenant_id: UUID,
+        gira_id: Optional[UUID],
+    ) -> Tuple[List[Ticket], int]:
+        """Carrega as senhas pedidas que são do tenant (e da gira, se informada).
+
+        Ids repetidos contam uma vez. Retorna (senhas, quantas não foram
+        encontradas no escopo) — as fora do escopo nunca são alteradas.
+        """
+        unique_ids = list(dict.fromkeys(ticket_ids))
+        conditions = [Ticket.tenant_id == tenant_id, Ticket.id.in_(unique_ids)]
+        if gira_id is not None:
+            conditions.append(Ticket.gira_id == gira_id)
+        result = await self.db.execute(select(Ticket).where(and_(*conditions)))
+        tickets = list(result.scalars().all())
+        return tickets, len(unique_ids) - len(tickets)
+
+    @staticmethod
+    def _missing_error(missing: int, gira_id: Optional[UUID]) -> str:
+        escopo = "nesta gira" if gira_id is not None else "neste terreiro"
+        return f"{missing} senha(s) não encontrada(s) {escopo}"
+
     async def bulk_mark_used(
         self,
         ticket_ids: List[UUID],
         tenant_id: UUID,
         dry_run: bool = False,
+        gira_id: Optional[UUID] = None,
     ) -> Dict[str, Any]:
         """Bulk mark tickets as used/completed.
         
@@ -29,6 +59,8 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
             ticket_ids: List of ticket IDs
             tenant_id: Tenant ID (for verification)
             dry_run: If True, don't commit changes
+            gira_id: If given, only tickets of this gira are touched; the
+                others count as failed
             
         Returns:
             Dict with modified count, failed count, errors
@@ -42,20 +74,10 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
         if not ticket_ids:
             return results
         
-        # Verify all tickets belong to tenant
-        stmt = select(Ticket).where(
-            and_(
-                Ticket.tenant_id == tenant_id,
-                Ticket.id.in_(ticket_ids),
-            )
-        )
-        
-        result = await self.db.execute(stmt)
-        tickets = result.scalars().all()
-        
-        if len(tickets) != len(ticket_ids):
-            results["failed"] += len(ticket_ids) - len(tickets)
-            results["errors"].append("Some tickets not found or belong to different tenant")
+        tickets, missing = await self._load_scoped_tickets(ticket_ids, tenant_id, gira_id)
+        if missing:
+            results["failed"] += missing
+            results["errors"].append(self._missing_error(missing, gira_id))
         
         # Update tickets
         for ticket in tickets:
@@ -80,6 +102,7 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
         ticket_ids: List[UUID],
         tenant_id: UUID,
         dry_run: bool = False,
+        gira_id: Optional[UUID] = None,
     ) -> Dict[str, Any]:
         """Bulk cancel tickets.
         
@@ -87,6 +110,8 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
             ticket_ids: List of ticket IDs
             tenant_id: Tenant ID (for verification)
             dry_run: If True, don't commit changes
+            gira_id: If given, only tickets of this gira are touched; the
+                others count as failed
             
         Returns:
             Dict with modified count, failed count, errors
@@ -101,20 +126,10 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
         if not ticket_ids:
             return results
 
-        # Verify all tickets belong to tenant
-        stmt = select(Ticket).where(
-            and_(
-                Ticket.tenant_id == tenant_id,
-                Ticket.id.in_(ticket_ids),
-            )
-        )
-
-        result = await self.db.execute(stmt)
-        tickets = result.scalars().all()
-
-        if len(tickets) != len(ticket_ids):
-            results["failed"] += len(ticket_ids) - len(ticket_ids)
-            results["errors"].append("Some tickets not found or belong to different tenant")
+        tickets, missing = await self._load_scoped_tickets(ticket_ids, tenant_id, gira_id)
+        if missing:
+            results["failed"] += missing
+            results["errors"].append(self._missing_error(missing, gira_id))
 
         # Update tickets
         for ticket in tickets:

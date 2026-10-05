@@ -124,10 +124,12 @@ async def bulk_mark_used(
         raise InsufficientPermissionsError("Admin required")
 
     repo = SenhaControlRepositoryExtended(db)
+    # Só senhas desta gira: ids de outra gira do terreiro contam como falha.
     result = await repo.bulk_mark_used(
         ticket_ids=body.ticket_ids,
         tenant_id=current_user.tenant_id,
         dry_run=body.dry_run,
+        gira_id=gira_id,
     )
 
     if not body.dry_run:
@@ -163,10 +165,12 @@ async def bulk_cancel(
         raise InsufficientPermissionsError("Admin required")
 
     repo = SenhaControlRepositoryExtended(db)
+    # Só senhas desta gira: ids de outra gira do terreiro contam como falha.
     result = await repo.bulk_cancel(
         ticket_ids=body.ticket_ids,
         tenant_id=current_user.tenant_id,
         dry_run=body.dry_run,
+        gira_id=gira_id,
     )
     cancelled_tickets = result.pop("cancelled_tickets", [])
 

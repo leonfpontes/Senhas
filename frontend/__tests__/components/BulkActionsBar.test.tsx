@@ -75,4 +75,33 @@ describe('BulkActionsBar', () => {
     );
     expect(screen.getByText(/1 selecionado/)).toBeInTheDocument();
   });
+
+  it('esconde as ações que o grupo de permissão não libera', () => {
+    renderWithTheme(<BulkActionsBar {...defaultProps} canMarkUsed={false} />);
+    expect(screen.queryByRole('button', { name: /marcar usado/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancelar/i })).toBeInTheDocument();
+  });
+
+  it('executa na rota da gira selecionada', async () => {
+    const { apiClient } = jest.requireMock('@/services/api_client');
+    apiClient.post.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith('/validate-bulk')
+          ? { valid: true, count: 3, errors: [], warnings: [] }
+          : { modified: 3, failed: 0, errors: [] },
+      })
+    );
+    renderWithTheme(<BulkActionsBar {...defaultProps} canMarkUsed={false} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /dry-run/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Executar' }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/giras/gira-1/tickets/bulk-cancel', {
+        ticket_ids: ['id-1', 'id-2', 'id-3'],
+        dry_run: false,
+      })
+    );
+  });
 });

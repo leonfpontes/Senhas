@@ -38,7 +38,12 @@ interface BulkActionsBarProps {
   ticketIds: string[];
   onRefresh: () => void;
   onClearSelection: () => void;
-  giraId?: string;
+  /** Obrigatório: os endpoints de execução são por gira (`/giras/{giraId}/tickets/bulk-*`). */
+  giraId: string;
+  /** RBAC: `tickets:edit` — sem ele o botão "Marcar Usado" não aparece. */
+  canMarkUsed?: boolean;
+  /** RBAC: `tickets:delete` — sem ele o botão "Cancelar" não aparece. */
+  canCancel?: boolean;
 }
 
 export default function BulkActionsBar({
@@ -47,6 +52,8 @@ export default function BulkActionsBar({
   onRefresh,
   onClearSelection,
   giraId,
+  canMarkUsed = true,
+  canCancel = true,
 }: BulkActionsBarProps) {
   const [actionDialog, setActionDialog] = useState<'mark_used' | 'cancel' | null>(null);
   const [dryRun, setDryRun] = useState(true);
@@ -146,25 +153,29 @@ export default function BulkActionsBar({
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          <Button
-            variant="contained"
-            color="success"
-            size="small"
-            startIcon={<CheckIcon />}
-            onClick={() => setActionDialog('mark_used')}
-          >
-            Marcar Usado
-          </Button>
+          {canMarkUsed && (
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              startIcon={<CheckIcon />}
+              onClick={() => setActionDialog('mark_used')}
+            >
+              Marcar Usado
+            </Button>
+          )}
 
-          <Button
-            variant="outlined"
-            color="error"
-            size="small"
-            startIcon={<CloseIcon />}
-            onClick={() => setActionDialog('cancel')}
-          >
-            Cancelar
-          </Button>
+          {canCancel && (
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              startIcon={<CloseIcon />}
+              onClick={() => setActionDialog('cancel')}
+            >
+              Cancelar
+            </Button>
+          )}
 
           <Button
             variant="text"

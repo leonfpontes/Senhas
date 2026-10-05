@@ -147,7 +147,8 @@ class AuditService:
             details={
                 "operation_type": operation_type,
                 "count": count,
-                "resource_ids": resource_ids or [],
+                # details é JSONB: UUID cru não serializa (o bulk dava 500 aqui).
+                "resource_ids": [str(rid) for rid in (resource_ids or [])],
             },
         )
     
