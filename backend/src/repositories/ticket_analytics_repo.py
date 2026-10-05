@@ -23,6 +23,18 @@ class TicketAnalyticsRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @staticmethod
+    def _gira_nao_apagada():
+        """EXISTS correlacionado a Ticket: exclui tickets de giras soft-deleted. O escopo de
+        tenant vem da query externa (Ticket.tenant_id); aqui só se compara Gira.id com
+        Ticket.gira_id."""
+        return (
+            select(Gira.id)
+            .where(and_(Gira.id == Ticket.gira_id, Gira.deleted_at.is_(None)))
+            .correlate(Ticket)
+            .exists()
+        )
+
     def _build_conditions(
         self,
         tenant_id: Optional[UUID] = None,
@@ -34,10 +46,7 @@ class TicketAnalyticsRepository:
             # Exclude soft-deleted tickets
             Ticket.deleted_at.is_(None),
             # Exclude tickets whose gira was soft-deleted
-            select(Gira.id)
-            .where(and_(Gira.id == Ticket.gira_id, Gira.deleted_at.is_(None)))
-            .correlate(Ticket)
-            .exists(),
+            self._gira_nao_apagada(),
         ]
         if tenant_id is not None:
             conditions.append(Ticket.tenant_id == tenant_id)
@@ -183,10 +192,7 @@ class TicketAnalyticsRepository:
             Ticket.created_at < today_end,
             # Exclude soft-deleted tickets and tickets from deleted giras
             Ticket.deleted_at.is_(None),
-            select(Gira.id)
-            .where(and_(Gira.id == Ticket.gira_id, Gira.deleted_at.is_(None)))
-            .correlate(Ticket)
-            .exists(),
+            self._gira_nao_apagada(),
         ]
         if tenant_id is not None:
             conditions.append(Ticket.tenant_id == tenant_id)

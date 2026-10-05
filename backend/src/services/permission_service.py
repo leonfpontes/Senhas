@@ -97,7 +97,9 @@ class PermissionService:
         Used to feed permissions to the frontend context on mount.
         """
         # Fetch user
-        stmt = sa.select(User).where((User.id == user_id) & (User.deleted_at.is_(None)))
+        stmt = sa.select(User).where(
+            (User.id == user_id) & (User.tenant_id == tenant_id) & (User.deleted_at.is_(None))
+        )
         result = await self.db.execute(stmt)
         user = result.scalar_one_or_none()
         

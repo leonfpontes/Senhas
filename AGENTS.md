@@ -50,14 +50,28 @@ Regra critica:
 - Nenhuma leitura/escrita de entidade de tenant sem filtro explicito de tenant_id.
 - Evite bypass de repository para logica de negocio, exceto quando realmente necessario e com filtro de tenant preservado.
 
-Auditor no CI (Q-02): `backend/scripts/audit_tenant_isolation.py` (bloqueante no job `test-backend`)
-varre `backend/src/api/v1/admin/` e falha se um `select()`/`update()`/`delete()`/`exists()` (ou
-`session.get(Modelo, id)`) sobre modelo com coluna `tenant_id` nao tiver filtro de tenant na mesma
-cadeia/variavel/lista de condicoes. Os modelos multi-tenant sao descobertos sozinhos em
-`backend/src/models/`. Heuristica AST com limites documentados no docstring do script (nao olha
-repositories, nao valida o valor comparado nem FKs recebidos no body). Acesso cross-tenant
-legitimo → adicionar `(arquivo, funcao): "justificativa"` em `EXEMPT_QUERIES` no script, apos ler
-o codigo; para reload de objeto recem-criado ou filho de pai ja validado, preferir um filtro de
+Auditor no CI (Q-02, ampliado em 2026-10-05): `backend/scripts/audit_tenant_isolation.py`
+(bloqueante no job `test-backend`). Modelos multi-tenant e FKs sao descobertos sozinhos em
+`backend/src/models/`. Quatro checagens:
+1. `src/api/v1/admin/`: todo `select()`/`update()`/`delete()`/`exists()` (ou `session.get`) sobre
+   modelo com `tenant_id` filtra por tenant na mesma cadeia/variavel/lista de condicoes.
+2. `src/repositories/` e `src/services/`: metodo que recebe `tenant_id`/`tenant` filtra por valor
+   derivado DESSE parametro (ou delega a chamada que o recebe); metodo sem parametro de tenant
+   precisa de filtro ou de entrada em `EXEMPT_SCOPED_QUERIES` (cross-tenant por design) ou
+   `RESOLVED_ID_QUERIES` (so recebe id ja resolvido no tenant; lista os chamadores e o auditor
+   falha se surgir chamador novo).
+3. `src/api/v1/public/`: filtro de tenant ou "busca raiz" (`Modelo.id`/`slug`/`*token*` == parametro
+   da requisicao); query filha por objeto carregado filtra pelo tenant do pai
+   (`Gira.tenant_id == ticket.tenant_id`). Excecoes em `EXEMPT_PUBLIC_QUERIES`.
+4. FKs da requisicao em rotas admin: campo do body/parametro `*_id` que e coluna FK para tabela
+   multi-tenant e e gravado (construtor, `obj.x_id = ...`, `setattr` do `model_dump()`, chamada
+   `create*`/`update*`/`registrar*`...) precisa de busca escopada no tenant ANTES:
+   `_validar_*_do_tenant(db, current_user.tenant_id, body.x_id)`,
+   `repo.get_by_id(body.x_id, current_user.tenant_id)` ou `select` com tenant comparando `.id`.
+   Excecoes em `EXEMPT_BODY_FKS`.
+Heuristica AST com limites documentados no docstring do script. Acesso cross-tenant legitimo →
+entrada na lista de excecoes certa com justificativa de uma linha, apos ler o codigo e os
+chamadores; para reload de objeto recem-criado ou filho de pai ja validado, preferir um filtro de
 tenant redundante (barato) a uma excecao.
 
 ### 3.2 Auth e autorizacao

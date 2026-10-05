@@ -172,8 +172,10 @@ O `access_token` é armazenado como **cookie HttpOnly** (não em `localStorage`)
 ## Checklist Rápido Antes de Qualquer PR
 
 - [ ] Tenant isolation em todas as queries — `python backend/scripts/audit_tenant_isolation.py`
-      passa (bloqueante no CI). Acesso cross-tenant intencional → `EXEMPT_QUERIES` no script,
-      com justificativa de uma linha; nunca isentar para "fazer passar"
+      passa (bloqueante no CI; cobre admin, repositories/services, public e FKs do body/path).
+      Acesso cross-tenant intencional → `EXEMPT_QUERIES`/`EXEMPT_SCOPED_QUERIES`/
+      `RESOLVED_ID_QUERIES`/`EXEMPT_PUBLIC_QUERIES`/`EXEMPT_BODY_FKS` no script, com
+      justificativa de uma linha; nunca isentar para "fazer passar"
 - [ ] `require_group_permission` em todos os novos endpoints admin
 - [ ] `canGroup` no frontend para view gate e ocultar ações
 - [ ] Sem segredos no diff

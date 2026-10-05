@@ -53,12 +53,14 @@ class SiteVersionRepository:
         # Uses subquery to avoid race condition
         subq = (
             select(SiteVersion.id)
-            .where(SiteVersion.site_id == site.id)
+            .where(SiteVersion.site_id == site.id, SiteVersion.tenant_id == site.tenant_id)
             .order_by(SiteVersion.created_at.desc())
             .offset(MAX_VERSIONS_PER_SITE)
         )
         await self.db.execute(
-            delete(SiteVersion).where(SiteVersion.id.in_(subq))
+            delete(SiteVersion).where(
+                SiteVersion.id.in_(subq), SiteVersion.tenant_id == site.tenant_id
+            )
         )
         await self.db.flush()
         return version

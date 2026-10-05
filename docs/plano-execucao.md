@@ -225,9 +225,49 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   super_admin de `list_users`). 7 queries ganharam filtro de tenant redundante em vez de exceção
   (reloads pós-criação em contas/estoque, lookups de usuário e limpeza de memberships em
   permission_groups). Testes em `tests/unit/test_audit_tenant_isolation.py`.
-- **Limites** (docstring do script): não audita repositories/services/rotas public e platform;
-  não valida o valor comparado nem FKs recebidos no body; filtro dentro de `if` conta como
-  sempre aplicado; exceção vale para a função inteira.
+- **Cobertura ampliada em 2026-10-05** (mesmo script, mesmo step do CI, renomeado para "Audit —
+  isolamento de tenant (admin, repositories/services, public, FKs da requisição)"):
+  - **repositories/services** (190 queries): método que recebe `tenant_id`/`tenant` tem que filtrar
+    por valor DERIVADO desse parâmetro (`Modelo.tenant_id == current_user.tenant_id` num método que
+    ignorou o `tenant_id` recebido não passa) ou delegar a uma chamada que o recebe
+    (`self._build_conditions(tenant_id)`); método sem parâmetro de tenant precisa de filtro ou de
+    entrada em `EXEMPT_SCOPED_QUERIES` (29: plataforma/super_admin, schedulers, site público por
+    slug, sessões por `user_id`, EXISTS correlacionado) ou `RESOLVED_ID_QUERIES` (2: só recebe id já
+    resolvido no tenant — o auditor lista TODOS os chamadores em `src/` e falha com chamador novo).
+    `self.model` de repository genérico é auditado.
+  - **rotas public** (25 queries): filtro de tenant ou "busca raiz" (`Modelo.id`/`slug`/`*token*`
+    comparado direto com parâmetro da requisição — o objeto endereçado por UUID/slug é o recurso
+    público); query filha por objeto carregado (`Gira.id == ticket.gira_id`) exige
+    `Gira.tenant_id == ticket.tenant_id`. 3 exceções (unicidade global de e-mail/username/trial no
+    onboarding).
+  - **FKs da requisição** (29 gravações): em rota admin, campo do body ou parâmetro de path/query
+    cujo nome é coluna FK para tabela multi-tenant (inferido dos `ForeignKey` dos modelos) e chega
+    a um construtor de modelo, `obj.<coluna> = ...`, `setattr` sobre `body.model_dump()` ou chamada
+    de escrita (`create*`/`update*`/`registrar*`/`get_or_create*`...) precisa de busca escopada no
+    tenant antes (`select` com tenant comparando `.id`, `_validar_*_do_tenant(...)`,
+    `repo.get_by_id(id, tenant_id)` — resolvendo o callee para conferir que ele busca PELO id) ou
+    de o callee validar o parâmetro (`PermissionGroupRepository.add_member`). 0 exceções.
+  - **Achados corrigidos**: `PermissionService.get_user_effective_permissions` recebia `tenant_id` e
+    não filtrava o usuário por ele — com usuário de outro tenant caía no ramo "sem grupos = acesso
+    total de operador" (não explorável hoje: o único chamador passa o próprio usuário logado;
+    regressão em `tests/integration_pg/test_fk_cross_tenant.py`). Filtro de tenant redundante em
+    `add_member` (checagem de duplicata), `SiteRepository.save_sections`,
+    `SiteVersionRepository.create`, `waitlist_service.send_confirmed_ticket_email` e
+    `public/waitlist_confirm.py`. Varredura dos FKs de body/path de todas as rotas admin (estoque,
+    mensalidades, cursos, walk-in, bulk de tickets, permission_groups, time slots, associados) não
+    achou vazamento novo além dos já corrigidos no Q-02; regressão HTTP de cada um contra Postgres
+    real em `test_fk_cross_tenant.py`.
+  - Testes: `tests/unit/test_audit_tenant_isolation_ampliado.py` (snippets sintéticos + mutação em
+    arquivos reais: remover validador/filtro de `contas_financeiras`, `estoque`, `mensalidades`,
+    `cursos_presenciais`, `base.py`, `gira_repo`, `permission_service`, `waitlist_confirm` ou do
+    `add_member` do repository faz o auditor falhar).
+- **Limites** (docstring do script): rotas `platform/` e `auth/` não auditadas; não valida o valor
+  comparado no admin/public (no scoped só exige derivação do parâmetro, por fluxo de dados
+  generoso); filtro dentro de `if` conta como sempre aplicado (parâmetro de tenant `Optional`
+  com default `None`, como em `TicketAnalyticsRepository`, não é detectado); delegação confia na
+  função chamada; checagem de FK só em rotas admin, só schemas do próprio arquivo, só campos com o
+  nome exato da coluna, body inteiro passado a service não é seguido, chamada de busca não
+  resolvida é aceita pelo nome; exceção vale para a função inteira.
 - **Aceite verificado**: teste de mutação remove um filtro de tenant de arquivos admin reais
   (`giras_crud.py`, `contas_financeiras.py`) e o auditor falha; varredura removendo cada um dos
   73 filtros `<Modelo>.tenant_id == ...` de uma linha: 70 detectados, 3 não detectados por design
