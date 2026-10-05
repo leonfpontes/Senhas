@@ -105,6 +105,26 @@ async def _get_subscription_by_customer(customer_id: str, db: AsyncSession):
     return result.scalar_one_or_none()
 
 
+def _extract_period_end_ts(stripe_sub: dict) -> int | None:
+    """Timestamp de fim do período corrente da assinatura Stripe.
+
+    A partir da API 2025-03-31 (clover), `current_period_start/end` saíram do
+    objeto Subscription e passaram a viver em cada item
+    (`items.data[].current_period_end`). Versões antigas ainda trazem o campo
+    no topo. Lê o topo primeiro (legado) e cai pro primeiro item — sem isso o
+    campo nunca é atualizado nas renovações e `current_period_end` no banco
+    fica congelado na data do checkout (visto em produção: período real
+    10/09..10/10, banco em 10/06).
+    """
+    ts = stripe_sub.get("current_period_end")
+    if ts:
+        return ts
+    items = (stripe_sub.get("items") or {}).get("data") or []
+    if items:
+        return items[0].get("current_period_end") or None
+    return None
+
+
 @router.post("/stripe")
 async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """Handle Stripe webhook events.
@@ -204,7 +224,7 @@ async def _handle_checkout_completed(session: dict, db: AsyncSession) -> None:
     import stripe
     stripe_sub = (await asyncio.to_thread(stripe.Subscription.retrieve, stripe_subscription_id)).to_dict()
     price_id = stripe_sub["items"]["data"][0]["price"]["id"]
-    current_period_end_ts = stripe_sub.get("current_period_end")
+    current_period_end_ts = _extract_period_end_ts(stripe_sub)
     trial_end_ts = stripe_sub.get("trial_end")
     stripe_status = stripe_sub.get("status")
 
@@ -262,7 +282,7 @@ async def _handle_subscription_updated(stripe_sub: dict, db: AsyncSession) -> No
         return
 
     price_id = stripe_sub["items"]["data"][0]["price"]["id"]
-    current_period_end_ts = stripe_sub.get("current_period_end")
+    current_period_end_ts = _extract_period_end_ts(stripe_sub)
     trial_end_ts = stripe_sub.get("trial_end")
     cancel_at_end = stripe_sub.get("cancel_at_period_end", False)
     stripe_status = stripe_sub.get("status")
