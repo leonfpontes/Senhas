@@ -13,6 +13,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, field_validator
+
+from src.core.onboarding import COMO_CONHECEU_VALUES, PRINCIPAL_DOR_VALUES
 from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -84,6 +86,9 @@ class OnboardingRequest(BaseModel):
     documento: str
     password: str
     como_conheceu: Optional[str] = None
+    # Maior dor que quer resolver — define a trilha do tour de boas-vindas.
+    # Opcional no schema (clientes antigos/integrações); o formulário exige.
+    principal_dor: Optional[str] = None
     aceite_termos: bool
 
     @field_validator("documento")
@@ -134,8 +139,15 @@ class OnboardingRequest(BaseModel):
     @field_validator("como_conheceu")
     @classmethod
     def como_conheceu_enum(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in ("google", "instagram", "indicacao", "outro"):
+        if v is not None and v not in COMO_CONHECEU_VALUES:
             raise ValueError("Valor inválido para 'como nos conheceu'")
+        return v
+
+    @field_validator("principal_dor")
+    @classmethod
+    def principal_dor_enum(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in PRINCIPAL_DOR_VALUES:
+            raise ValueError("Valor inválido para 'o que você mais precisa resolver'")
         return v
 
     @field_validator("aceite_termos")
@@ -144,6 +156,16 @@ class OnboardingRequest(BaseModel):
         if not v:
             raise ValueError("É necessário aceitar os termos de uso")
         return v
+
+
+def _build_custom_settings(body: "OnboardingRequest") -> Optional[dict]:
+    """Respostas opcionais do cadastro gravadas em tenant_configs.custom_settings."""
+    settings: dict = {}
+    if body.como_conheceu:
+        settings["como_conheceu"] = body.como_conheceu
+    if body.principal_dor:
+        settings["principal_dor"] = body.principal_dor
+    return settings or None
 
 
 class OnboardingUserOut(BaseModel):
@@ -292,7 +314,7 @@ async def onboarding(
         config = TenantConfig(
             tenant_id=tenant.id,
             endereco=body.endereco.strip() if body.endereco else None,
-            custom_settings={"como_conheceu": body.como_conheceu} if body.como_conheceu else None,
+            custom_settings=_build_custom_settings(body),
         )
         db.add(config)
 

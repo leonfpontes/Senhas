@@ -333,6 +333,19 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   em 3 passos e "Criar primeira gira"; falha de carregamento agora mostra erro com retry em vez
   de parecer lista vazia; `?nova=1` abre o formulário de criação direto (usado pelo checklist).
 
+### P-07 — Pergunta de dor no cadastro + tour de boas-vindas por trilha — `feito` (2026-10-05)
+- **Mudança de regra do cadastro**, decidida pelo dono do produto: o cadastro self-service passa a
+  **exigir** a resposta "O que você mais precisa resolver?" (select, 6 opções, inclusive "Ainda estou
+  conhecendo"). Mesma exceção à R-01 do P-06 (ativação de novos tenants).
+- **Entrega**: resposta gravada em `tenant_configs.custom_settings.principal_dor` (como o
+  `como_conheceu`, sem migração) e exposta em `onboarding.principal_dor` do `/dashboard-summary`.
+  No primeiro acesso ao dashboard, o admin vê um tour de boas-vindas que abre sozinho uma vez, com
+  a trilha da dor escolhida (senhas, médiuns, financeiro, divulgação, estoque ou essencial). Tenants
+  anteriores à pergunta não veem o tour automático.
+- **Aceite de produto**: em 30 dias, distribuição das respostas (consulta em `custom_settings`) e
+  taxa de clique nos botões da trilha (`welcome_tour_cta` no GA4/Clarity), cruzadas com o funil de
+  ativação do P-06.
+
 ---
 
 ## Regras de trabalho (vigentes a partir de agora)
