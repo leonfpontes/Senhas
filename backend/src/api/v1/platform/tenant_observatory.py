@@ -21,6 +21,7 @@ from src.models.cursos_presenciais import CursoPresencial, CursoParticipante
 from src.models.audit_logs import AuditLog
 from src.services.error_alert_service import error_alert_service
 from src.services.tenant_retention_service import get_at_risk_tenants
+from src.services.activation_service import get_activation
 
 router = APIRouter(
     prefix="/api/v1/platform/tenant-observatory",
@@ -261,6 +262,7 @@ async def get_tenant_observatory(
     upcoming_cursos = await _upcoming_cursos(db)
     top_features = await _top_features(db)
     errors = await _errors_by_tenant(window_minutes=60)
+    activation = await get_activation(db)
 
     retention_summary = {
         "total_at_risk": len(retention),
@@ -273,6 +275,8 @@ async def get_tenant_observatory(
     return {
         "retention": retention,
         "retention_summary": retention_summary,
+        # Cadastros recentes por estágio de ativação (services/activation_service.py)
+        "activation": activation,
         "upcoming_giras": upcoming_giras,
         "upcoming_cursos": upcoming_cursos,
         "top_features_by_tenant": top_features,
