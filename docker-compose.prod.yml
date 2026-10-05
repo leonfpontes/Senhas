@@ -178,8 +178,8 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         NEXT_PUBLIC_API_BASE_URL: ""
-        # Clarity — lido do .env da VPS no `docker compose build frontend` (deploy.yml)
-        NEXT_PUBLIC_CLARITY_PROJECT_ID: ${NEXT_PUBLIC_CLARITY_PROJECT_ID:-}
+        # Clarity — Project ID público (vai no HTML, como o G-… do GA4); .env da VPS pode sobrescrever
+        NEXT_PUBLIC_CLARITY_PROJECT_ID: ${NEXT_PUBLIC_CLARITY_PROJECT_ID:-yszm2l6pqt}
     container_name: senhas-frontend
     restart: always
     depends_on:
