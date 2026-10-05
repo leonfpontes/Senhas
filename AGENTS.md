@@ -397,6 +397,7 @@ Incluir obrigatoriamente:
 - **Visibilidade**: some quando `completed`, quando `public_tickets >= 20` (`ACTIVATED_PUBLIC_TICKETS` — terreiro já ativado, ex.: pagante que não usa a Porta) ou quando o admin oculta. "Ocultar" e "já compartilhei" ficam no `localStorage` por tenant; o passo de compartilhar também se completa sozinho na primeira senha pelo link.
 - **Analytics**: `services/analytics.ts` (`trackEvent`, `setAnalyticsTag`) envia `onboarding_share_whatsapp`, `onboarding_copy_link`, `onboarding_show_qr`, `onboarding_test_link`, `onboarding_cta_create_gira`, `onboarding_cta_porta` e `onboarding_dismiss` para GA4 e Clarity, e marca a sessão do Clarity com a tag `onboarding_step` (1–4).
 - **QR code**: `qrcode.react` (SVG local, sem chamada externa).
+- **Tela de giras**: sem nenhuma gira, `/admin/giras` mostra `components/admin/GirasEmptyState.tsx` (ciclo em 3 passos + "Criar primeira gira" com `giras:insert`; bloqueado pelo plano mostra o motivo e "Ver planos"). Erro ao carregar mostra `Alert` com "Tentar novamente" — nunca o empty state. `/admin/giras?nova=1` abre o formulário de criação direto (respeita permissão e limite do plano) e remove o parâmetro da URL; o botão "Criar gira" do checklist usa esse link. Evento `giras_empty_create`.
 
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).

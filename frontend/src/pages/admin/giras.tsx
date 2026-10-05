@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import {
   Alert,
   Box,
@@ -30,6 +31,7 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { PageHeader, ConfirmDialog } from '@/components/admin';
+import GirasEmptyState from '@/components/admin/GirasEmptyState';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -171,12 +173,22 @@ function AdminGirasContent() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [giras, setGiras] = useState<Gira[]>([]);
   const [loading, setLoading] = useState(true);
+  // Distingue "falhou ao carregar" de "não há giras": sem isso uma falha de
+  // rede mostraria o empty state como se o terreiro não tivesse gira nenhuma.
+  const [loadError, setLoadError] = useState(false);
+  const router = useRouter();
   const [unifiedLinks, setUnifiedLinks] = useState<{ public_link: string; sponsor_public_link: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuGira, setMenuGira] = useState<Gira | null>(null);
 
   const canCreateGira = canCreateGiraFn();
+  const createBlockedReason =
+    !canCreateGira && !subLoading
+      ? subscription?.max_giras_per_month != null && subscription.max_giras_per_month >= 0
+        ? `Limite de ${subscription.max_giras_per_month} gira(s)/mês atingido. Faça upgrade do plano.`
+        : 'Sem assinatura ativa. Faça upgrade do plano.'
+      : '';
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -241,11 +253,13 @@ function AdminGirasContent() {
     if (!canView) { setLoading(false); return; }
     try {
       setLoading(true);
+      setLoadError(false);
       const response = await apiClient.get('/api/v1/admin/giras', { signal });
       setGiras(response.data.items || response.data);
     } catch (error) {
       if (error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError')) return;
       console.error('Error loading giras:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -261,6 +275,17 @@ function AdminGirasContent() {
       console.error('Error loading unified links:', error);
     }
   };
+
+  // ?nova=1 abre o formulário de criação direto (botão "Criar gira" do
+  // checklist do dashboard). Espera a assinatura carregar para respeitar o
+  // limite do plano e remove o parâmetro para não reabrir ao atualizar.
+  useEffect(() => {
+    if (!router.isReady || router.query.nova !== '1' || subLoading) return;
+    if (canInsert && canCreateGira) openCreate();
+    const { nova: _nova, ...rest } = router.query;
+    router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.query.nova, subLoading, canInsert, canCreateGira]);
 
   // --- Drawer helpers ---
   const openCreate = () => {
@@ -627,7 +652,7 @@ function AdminGirasContent() {
               Atualizar
             </Button>
             {canInsert && (
-              <Tooltip title={!canCreateGira && !subLoading ? (subscription?.max_giras_per_month != null && subscription.max_giras_per_month >= 0 ? `Limite de ${subscription.max_giras_per_month} gira(s)/mês atingido. Faça upgrade do plano.` : 'Sem assinatura ativa. Faça upgrade do plano.') : ''}>
+              <Tooltip title={createBlockedReason}>
                 <span>
                   <Button data-tour="giras-nova" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira} size="small">
                     Nova Gira
@@ -686,6 +711,25 @@ function AdminGirasContent() {
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />
           </Box>
+        ) : loadError ? (
+          <Alert
+            severity="error"
+            sx={{ m: 2 }}
+            action={
+              <Button size="small" onClick={() => loadGiras()}>
+                Tentar novamente
+              </Button>
+            }
+          >
+            Não foi possível carregar as giras.
+          </Alert>
+        ) : giras.length === 0 ? (
+          <GirasEmptyState
+            canInsert={canInsert}
+            canCreateGira={canCreateGira}
+            blockedReason={createBlockedReason}
+            onCreate={openCreate}
+          />
         ) : (
           <Table size="small">
             <TableHead>

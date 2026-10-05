@@ -56,7 +56,7 @@ describe('FirstGiraChecklist', () => {
     expect(screen.getByTestId('first-gira-checklist')).toBeInTheDocument();
     expect(screen.getByText('0 de 4')).toBeInTheDocument();
     expect(screen.getByTestId('checklist-step-gira')).toHaveAttribute('aria-current', 'step');
-    expect(screen.getByRole('link', { name: 'Criar gira' })).toHaveAttribute('href', '/admin/giras');
+    expect(screen.getByRole('link', { name: 'Criar gira' })).toHaveAttribute('href', '/admin/giras?nova=1');
   });
 
   it('sem permissão de criar gira, orienta a pedir ao administrador', () => {

@@ -6,13 +6,14 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
-jest.mock('next/router', () => ({
-  useRouter: () => ({
-    push: jest.fn(), replace: jest.fn(), pathname: '/admin/giras',
-    query: {}, asPath: '/admin/giras',
-    events: { on: jest.fn(), off: jest.fn() },
-  }),
-}));
+// Objeto mutável (prefixo `mock` para o jest permitir no factory): cada teste
+// pode ajustar query/isReady.
+const mockRouter: any = {
+  push: jest.fn(), replace: jest.fn(), pathname: '/admin/giras',
+  query: {}, asPath: '/admin/giras', isReady: true,
+  events: { on: jest.fn(), off: jest.fn() },
+};
+jest.mock('next/router', () => ({ useRouter: () => mockRouter }));
 
 jest.mock('next/link', () => ({ children, href }: any) => <a href={href}>{children}</a>);
 
@@ -68,6 +69,7 @@ const MOCK_GIRAS = [
 describe('Admin Giras Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRouter.query = {};
     const { apiClient } = require('@/services/api_client');
     apiClient.get.mockResolvedValue({ data: MOCK_GIRAS });
   });
@@ -92,7 +94,46 @@ describe('Admin Giras Page', () => {
     const AdminGiras = require('@/pages/admin/giras').default;
     wrap(<AdminGiras />);
     await waitFor(() => {
-      expect(screen.queryByText('Gira de Exú')).not.toBeInTheDocument();
+      expect(screen.getByTestId('giras-empty-state')).toBeInTheDocument();
     });
+    expect(screen.queryByText('Gira de Exú')).not.toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Criar primeira gira/ }));
+    expect(screen.getByTestId('crud-drawer')).toBeInTheDocument();
+  });
+
+  it('falha ao carregar mostra erro com retry, não o empty state', async () => {
+    const { apiClient } = require('@/services/api_client');
+    apiClient.get.mockImplementation((url: string) =>
+      url === '/api/v1/admin/giras' ? Promise.reject(new Error('Network Error')) : Promise.resolve({ data: {} }),
+    );
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const AdminGiras = require('@/pages/admin/giras').default;
+    wrap(<AdminGiras />);
+    await waitFor(() => {
+      expect(screen.getByText('Não foi possível carregar as giras.')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('giras-empty-state')).not.toBeInTheDocument();
+
+    apiClient.get.mockResolvedValue({ data: MOCK_GIRAS });
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => {
+      expect(screen.getByText('Gira de Exú')).toBeInTheDocument();
+    });
+    errSpy.mockRestore();
+  });
+
+  it('?nova=1 abre o formulário de criação e limpa o parâmetro', async () => {
+    mockRouter.query = { nova: '1' };
+    const AdminGiras = require('@/pages/admin/giras').default;
+    wrap(<AdminGiras />);
+    await waitFor(() => {
+      expect(screen.getByTestId('crud-drawer')).toBeInTheDocument();
+    });
+    expect(mockRouter.replace).toHaveBeenCalledWith(
+      { pathname: '/admin/giras', query: {} },
+      undefined,
+      { shallow: true },
+    );
   });
 });
