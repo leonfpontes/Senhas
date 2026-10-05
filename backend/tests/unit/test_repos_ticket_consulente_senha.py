@@ -5,12 +5,29 @@ from uuid import uuid4, UUID
 from datetime import datetime
 
 
+class _Savepoint:
+    """Imita AsyncSession.begin_nested(): context manager assíncrono que
+    deixa a exceção passar (o savepoint é desfeito e ela propaga)."""
+
+    def __init__(self):
+        self.entered = 0
+
+    async def __aenter__(self):
+        self.entered += 1
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
 def _mock_db():
     db = AsyncMock()
     db.execute = AsyncMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
     db.add = MagicMock()
+    db.savepoint = _Savepoint()
+    db.begin_nested = MagicMock(return_value=db.savepoint)
     return db
 
 
@@ -410,7 +427,10 @@ class TestConsulenteRepository:
             MockC.return_value = MagicMock()
             result = await r.create_walk_in_consulente(session, 1, "Race", email="race@mail.com")
         assert result is winner
-        session.rollback.assert_awaited_once()
+        # Savepoint, não rollback da sessão inteira (que expirava tenant/gira
+        # já carregados e derrubava a emissão com MissingGreenlet).
+        assert session.savepoint.entered == 1
+        session.rollback.assert_not_awaited()
 
     # list_by_tenant
     @patch("src.repositories.consulente_repo.Consulente", _MockConsulenteModel)

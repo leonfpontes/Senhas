@@ -239,6 +239,23 @@ Antes de concluir implementacao, executar validacoes proporcionais ao impacto:
 Backend:
 - Testes unitarios/integracao afetados.
 - Verificacao de imports, tipagem e lint (quando configurado).
+- **Suite com Postgres real** (`backend/tests/integration_pg/`, item Q-01, bloqueante no CI no job
+  "Backend Integration (Postgres)"): app FastAPI inteiro via httpx (middlewares, JWT, `Depends` de RBAC)
+  contra Postgres 15 com schema criado pelas migracoes. Cobre emissao concorrente, isolamento de tenant
+  por modulo, RBAC por HTTP, webhook Stripe e migracoes em banco zerado. Obrigatoria ao mexer em emissao,
+  contadores, RBAC, filtros de tenant, webhook ou migracoes. Rodar localmente:
+  ```bash
+  docker run -d --rm --name senhas-test-pg -e POSTGRES_USER=senhas_test -e POSTGRES_PASSWORD=senhas_test \
+    -e POSTGRES_DB=senhas_test -p 55432:5432 postgres:15-alpine
+  cd backend && INTEGRATION_PG=1 DEBUG=true STRIPE_WEBHOOK_SECRET=whsec_integration \
+    DATABASE_URL=postgresql+asyncpg://senhas_test:senhas_test@localhost:55432/senhas_test \
+    python -m pytest tests/integration_pg --no-cov
+  ```
+  A suite apaga o schema do banco apontado: so roda com `INTEGRATION_PG=1` e recusa banco cujo nome nao
+  termine em `_test`. Sem a flag, os arquivos nem sao coletados. Ler sempre numa sessao nova
+  (`AsyncSessionLocal()`), nunca reler objetos expirados da sessao do teste (MissingGreenlet).
+  Testes `xfail` estritos marcam furos conhecidos (Q-05): quando o item for feito, o teste passa,
+  o build quebra e o marcador deve ser removido.
 
 Frontend:
 - Testes de componentes/paginas afetadas.

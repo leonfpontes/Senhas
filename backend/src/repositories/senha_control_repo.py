@@ -49,17 +49,39 @@ class SenhaControlRepository(BaseRepository[SenhaControl]):
         )
         result = await session.execute(query)
         senha_control = result.scalar_one_or_none()
+        if senha_control:
+            return senha_control
 
-        if not senha_control:
-            senha_control = SenhaControl(
-                tenant_id=tenant_id,
-                gira_id=gira_id,
-                is_sponsor=is_sponsor,
-                proximo_numero=initial_number,
+        bind = getattr(session, "bind", None)
+        if getattr(getattr(bind, "dialect", None), "name", None) == "postgresql":
+            # Várias primeiras emissões simultâneas numa gira sem contador (senha
+            # de associado, giras antigas) faziam todas tentarem criar o
+            # SenhaControl: uma vencia e as outras caíam com UniqueViolation →
+            # erro 500 para o consulente (achado pela suíte tests/integration_pg).
+            # ON CONFLICT DO NOTHING + releitura: quem perde a corrida usa o
+            # contador que o outro criou.
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+            await session.execute(
+                pg_insert(SenhaControl)
+                .values(
+                    tenant_id=tenant_id,
+                    gira_id=gira_id,
+                    is_sponsor=is_sponsor,
+                    proximo_numero=initial_number,
+                )
+                .on_conflict_do_nothing(constraint="uq_senha_control_tenant_gira_sponsor")
             )
-            session.add(senha_control)
-            await session.flush()
+            return (await session.execute(query)).scalar_one()
 
+        senha_control = SenhaControl(
+            tenant_id=tenant_id,
+            gira_id=gira_id,
+            is_sponsor=is_sponsor,
+            proximo_numero=initial_number,
+        )
+        session.add(senha_control)
+        await session.flush()
         return senha_control
 
     async def increment_atomic(
