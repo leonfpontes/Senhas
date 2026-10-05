@@ -320,7 +320,8 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 ### P-06 — Checklist de primeira gira no dashboard — `feito` (2026-10-05)
 - **Exceção à R-01**, decidida pelo dono do produto em 2026-10-05. Motivo: análise de produção
   do mesmo dia mostrou 11 cadastros self-service desde julho e **zero** convertidos em pagantes;
-  7 criaram gira, só 5 receberam alguma senha, só 1 passou de 10. Nenhum novo tenant era guiado a
+  6 criaram gira, só 4 receberam alguma senha pelo link, só 1 passou de 10 (recontado no banco em
+  2026-10-05; a primeira versão da análise dizia 7 e 5). Nenhum novo tenant era guiado a
   mandar o link de senhas para os consulentes — sem isso não há Porta nem valor percebido.
 - **Entrega**: card "Primeiros passos" no topo de `/admin/dashboard` com 4 passos — criar gira →
   compartilhar o link (WhatsApp com mensagem pronta, copiar, QR code) → receber senhas pelo link →
@@ -328,10 +329,15 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   consulta), sem endpoint novo nem migração. Some ao concluir, ao passar de 20 senhas pelo link
   (terreiro já ativado) ou quando o admin oculta. Eventos `onboarding_*` vão para GA4 e Clarity.
 - **Aceite de produto**: medir em 30 dias a fração de cadastros novos que chega a 1 senha pelo
-  link (base: 5 de 11) e a 10 senhas (base: 1 de 11), pelo funil do Clarity/GA4.
+  link (base: 4 de 11) e a 10 senhas (base: 1 de 11), pelo funil do Clarity/GA4.
 - **Complemento (2026-10-05)**: empty state em `/admin/giras` (antes: tabela vazia) com o ciclo
   em 3 passos e "Criar primeira gira"; falha de carregamento agora mostra erro com retry em vez
   de parecer lista vazia; `?nova=1` abre o formulário de criação direto (usado pelo checklist).
+- **Complemento (2026-10-05, padrões de senhas)**: criar uma gira abre na sequência a configuração
+  de senhas (antes o formulário só fechava e a gira podia ficar sem emissão). Gira sem senhas vem
+  preenchida com a mediana das quantidades do terreiro (30 sem histórico) e liberação de agora até
+  o início da gira; janela menor que 3h mostra aviso com "Usar sugestão". Base: em produção os
+  terreiros ativos têm janela mediana de 5h a 48h, os novos de 1h a 2h.
 
 ### P-07 — Pergunta de dor no cadastro + tour de boas-vindas por trilha — `feito` (2026-10-05)
 - **Mudança de regra do cadastro**, decidida pelo dono do produto: o cadastro self-service passa a
@@ -345,6 +351,21 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Aceite de produto**: em 30 dias, distribuição das respostas (consulta em `custom_settings`) e
   taxa de clique nos botões da trilha (`welcome_tour_cta` no GA4/Clarity), cruzadas com o funil de
   ativação do P-06.
+
+### P-08 — E-mails de onboarding D+1 e D+3 — `feito` (2026-10-05)
+- **Problema**: entre o e-mail de boas-vindas e o lembrete de fim de trial (D-7) não havia nenhum
+  contato; a maioria dos cadastros some no mesmo dia.
+- **Entrega**: `services/onboarding_email_scheduler.py`, todo dia às 10:00 BRT. **D+1** (conta com
+  20h–68h, sem gira) → "sua primeira gira leva 1 minuto", com P.S. para o módulo da trilha
+  (`principal_dor`). **D+3** (conta com 68h–7 dias, nenhuma senha pelo link) → "mande o link para os
+  consulentes", com o link e botão de WhatsApp. Cada e-mail no máximo uma vez por tenant; contas com
+  7+ dias nunca recebem. Links com UTM `utm_campaign=onboarding_d1|d3`.
+- **Anti-duplicação** (o backend roda 2 workers): advisory lock por rodada + marca persistente em
+  `tenant_configs.custom_settings.onboarding_emails`, gravada sob `FOR UPDATE` antes do envio.
+  Desligar: `ONBOARDING_EMAILS_ENABLED=false`. Ver quem receberia:
+  `python -m src.services.onboarding_email_scheduler --dry-run`.
+- **Aceite de produto**: em 30 dias, fração de quem recebeu D+1 e criou gira em até 48h, e de quem
+  recebeu D+3 e recebeu a primeira senha pelo link em até 72h (sessões com `utm_campaign`).
 
 ---
 

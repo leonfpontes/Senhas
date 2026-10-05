@@ -10,15 +10,23 @@ invoice.payment_failed) and are excluded here via the
 Uses asyncio.create_task (same pattern as birthday_scheduler.py). No
 external scheduler dependency required.
 
-Anti-duplicate guard: a per-tenant dict tracks which reminder thresholds
-were already sent. Same multi-worker caveat as birthday_scheduler.py — in a
-single-worker deployment this is sufficient.
+Anti-duplicação (o backend roda 2 workers e cada um inicia este agendador —
+ver services/scheduler_guard.py): advisory lock por rodada (só um worker
+processa) + marca persistente dos lembretes em
+`tenant_configs.custom_settings.trial_reminders`, com escopo na data de fim
+do trial (trial novo = marcas novas). Antes de 2026-10-05 o controle era um
+dict em memória e cada lembrete/aviso saía uma vez por worker.
+
+Prazos: o lembrete usa os dias restantes arredondados para CIMA e o trial só
+expira quando `trial_ends_at` já passou. Antes, `.days` arredondava para
+baixo e o trial podia expirar quase um dia antes do prometido.
 """
 
 import asyncio
 import logging
+import math
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional, Set
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
@@ -27,6 +35,11 @@ _TZ_BRT = ZoneInfo("America/Sao_Paulo")
 
 # Days-remaining thresholds at which we send a reminder e-mail.
 REMINDER_THRESHOLDS = (7, 3)
+
+
+def days_left(remaining: timedelta) -> int:
+    """Dias restantes arredondados para cima (2d01h → 3). `.days` arredondava para baixo."""
+    return math.ceil(remaining.total_seconds() / 86400)
 
 
 def _seconds_until_next_9am_brt() -> float:
@@ -38,13 +51,36 @@ def _seconds_until_next_9am_brt() -> float:
     return (target - now).total_seconds()
 
 
+async def get_tenant_primary_contact(tenant_id):
+    """(email, nome) do contato principal do tenant — o admin mais antigo
+    ativo, ou qualquer usuário ativo se não houver admin. None se não houver.
+
+    Compartilhado com onboarding_email_scheduler.
+    """
+    from sqlalchemy import select as sa_select, and_
+
+    from src.core.database import AsyncSessionLocal
+    from src.models import User, UserRole
+
+    async with AsyncSessionLocal() as db:
+        for role_filter in (User.role == UserRole.ADMIN, None):
+            conditions = [User.tenant_id == tenant_id, User.is_active.is_(True), User.deleted_at.is_(None)]
+            if role_filter is not None:
+                conditions.append(role_filter)
+            result = await db.execute(
+                sa_select(User).where(and_(*conditions)).order_by(User.created_at.asc()).limit(1)
+            )
+            user = result.scalar_one_or_none()
+            if user:
+                return (user.email, user.full_name or user.username)
+    return None
+
+
 class TrialScheduler:
     """Singleton-style scheduler for trial expiration + reminder e-mails."""
 
     def __init__(self) -> None:
         self._task: Optional[asyncio.Task] = None
-        # tenant_id (str) -> set of reminder thresholds (days) already sent
-        self._reminders_sent: Dict[str, Set[int]] = {}
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -82,7 +118,16 @@ class TrialScheduler:
                 logger.exception("Trial scheduler: unexpected error in _process_trials")
 
     async def _process_trials(self) -> None:
-        """Expire past-due local trials and send reminder e-mails."""
+        """Expire past-due local trials and send reminder e-mails (um worker por rodada)."""
+        from src.services.scheduler_guard import TRIAL_LOCK_KEY, advisory_lock
+
+        async with advisory_lock(TRIAL_LOCK_KEY) as acquired:
+            if not acquired:
+                logger.info("Trial scheduler: outra instância está processando — pulando rodada.")
+                return
+            await self._process_trials_locked()
+
+    async def _process_trials_locked(self) -> None:
         from sqlalchemy import select as sa_select, and_
 
         from src.core.database import AsyncSessionLocal
@@ -102,14 +147,17 @@ class TrialScheduler:
         now = datetime.now(timezone.utc)
         for sub in trials:
             tenant_id = sub.tenant_id
-            days_remaining = (sub.trial_ends_at - now).days
+            remaining = sub.trial_ends_at - now
 
             try:
-                if days_remaining <= 0:
+                if remaining <= timedelta(0):
                     await self._expire_trial(tenant_id)
-                    self._reminders_sent.pop(str(tenant_id), None)
-                elif days_remaining in REMINDER_THRESHOLDS:
-                    await self._maybe_send_reminder(tenant_id, days_remaining)
+                else:
+                    days_remaining = days_left(remaining)
+                    if days_remaining in REMINDER_THRESHOLDS:
+                        await self._maybe_send_reminder(
+                            tenant_id, days_remaining, scope=sub.trial_ends_at.isoformat()
+                        )
             except Exception:
                 logger.exception("Trial scheduler: failed to process tenant %s", tenant_id)
 
@@ -128,38 +176,21 @@ class TrialScheduler:
         if contact:
             await self._send_expired_email(contact_email=contact[0], contact_name=contact[1])
 
-    async def _maybe_send_reminder(self, tenant_id, days_remaining: int) -> None:
-        tid_str = str(tenant_id)
-        sent = self._reminders_sent.setdefault(tid_str, set())
-        if days_remaining in sent:
-            return
+    async def _maybe_send_reminder(self, tenant_id, days_remaining: int, scope: Optional[str] = None) -> None:
+        from src.services.scheduler_guard import claim_once
 
         contact = await self._get_primary_contact(tenant_id)
-        if contact:
-            await self._send_reminder_email(
-                contact_email=contact[0], contact_name=contact[1], dias_restantes=days_remaining
-            )
-        sent.add(days_remaining)
+        if not contact:
+            return
+        if not await claim_once(tenant_id, "trial_reminders", str(days_remaining), scope=scope):
+            return
+        await self._send_reminder_email(
+            contact_email=contact[0], contact_name=contact[1], dias_restantes=days_remaining
+        )
 
     async def _get_primary_contact(self, tenant_id):
         """Returns (email, display_name) for the tenant's primary contact, or None."""
-        from sqlalchemy import select as sa_select, and_
-
-        from src.core.database import AsyncSessionLocal
-        from src.models import User, UserRole
-
-        async with AsyncSessionLocal() as db:
-            for role_filter in (User.role == UserRole.ADMIN, None):
-                conditions = [User.tenant_id == tenant_id, User.is_active.is_(True), User.deleted_at.is_(None)]
-                if role_filter is not None:
-                    conditions.append(role_filter)
-                result = await db.execute(
-                    sa_select(User).where(and_(*conditions)).order_by(User.created_at.asc()).limit(1)
-                )
-                user = result.scalar_one_or_none()
-                if user:
-                    return (user.email, user.full_name or user.username)
-        return None
+        return await get_tenant_primary_contact(tenant_id)
 
     async def _send_reminder_email(self, contact_email: str, contact_name: str, dias_restantes: int) -> None:
         from src.core.config import settings

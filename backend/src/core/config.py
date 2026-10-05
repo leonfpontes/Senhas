@@ -54,6 +54,9 @@ class Settings(BaseSettings):
 
     # Frontend URL for building public links
     FRONTEND_URL: str = "http://localhost:3000"
+    # E-mails de onboarding D+1/D+3 (services/onboarding_email_scheduler.py).
+    # Chave de desligar: ONBOARDING_EMAILS_ENABLED=false no .env + restart do backend.
+    ONBOARDING_EMAILS_ENABLED: bool = True
 
     # Stripe
     STRIPE_SECRET_KEY: str = ""

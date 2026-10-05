@@ -397,6 +397,7 @@ Incluir obrigatoriamente:
 - **Visibilidade**: some quando `completed`, quando `public_tickets >= 20` (`ACTIVATED_PUBLIC_TICKETS` — terreiro já ativado, ex.: pagante que não usa a Porta) ou quando o admin oculta. "Ocultar" e "já compartilhei" ficam no `localStorage` por tenant; o passo de compartilhar também se completa sozinho na primeira senha pelo link.
 - **Analytics**: `services/analytics.ts` (`trackEvent`, `setAnalyticsTag`) envia `onboarding_share_whatsapp`, `onboarding_copy_link`, `onboarding_show_qr`, `onboarding_test_link`, `onboarding_cta_create_gira`, `onboarding_cta_porta` e `onboarding_dismiss` para GA4 e Clarity, e marca a sessão do Clarity com a tag `onboarding_step` (1–4).
 - **QR code**: `qrcode.react` (SVG local, sem chamada externa).
+- **Padrões de senhas** (`frontend/src/utils/giraSenhaDefaults.ts`): ao criar uma gira, a tela abre na sequência o drawer "Configurar Senhas" da gira nova. Gira sem configuração (`max_tickets` 0) vem preenchida com a mediana das quantidades do terreiro (`DEFAULT_MAX_TICKETS` = 30 sem histórico) e liberação de agora (próximos 5 min) até o início da gira; o estado "inicial" fica vazio, então salvar fica habilitado e fechar pede confirmação. Janela menor que `SHORT_WINDOW_HOURS` (3h) mostra aviso com "Usar sugestão" — vale para todos os terreiros (os ativos têm janela mediana de 5h a 48h, então o aviso quase nunca aparece para eles).
 - **Tela de giras**: sem nenhuma gira, `/admin/giras` mostra `components/admin/GirasEmptyState.tsx` (ciclo em 3 passos + "Criar primeira gira" com `giras:insert`; bloqueado pelo plano mostra o motivo e "Ver planos"). Erro ao carregar mostra `Alert` com "Tentar novamente" — nunca o empty state. `/admin/giras?nova=1` abre o formulário de criação direto (respeita permissão e limite do plano) e remove o parâmetro da URL; o botão "Criar gira" do checklist usa esse link. Evento `giras_empty_create`.
 
 ### 11.13 Pergunta de dor no cadastro + tour de boas-vindas — item P-07 do plano
@@ -406,6 +407,13 @@ Incluir obrigatoriamente:
 - **Tour** (`frontend/src/tours/welcomeTour.tsx`): `useWelcomeTour` no dashboard abre sozinho **uma vez por usuário** (flag `girahub:welcome-tour:seen:{userId}` no localStorage), só para `role === 'admin'` e só se o tenant tem `principal_dor`; tenants antigos não veem. Trilhas: senhas/outro → checklist + Porta; médiuns, financeiro, divulgação, estoque → passo com botão para o módulo (ou "Ver planos" se a feature do plano não estiver liberada) e um passo lembrando do checklist. Todas terminam no botão "?" (`data-tour="topbar-help"`).
 - **Passos centralizados** usam `CENTER_SELECTOR` (seletor sem elemento) + `position: 'center'` + `padding.mask: 0`: com `body` o reactour não escurece o fundo e rola a página. Não ancorar no menu lateral: muda por plano/permissão e fica escondido no celular.
 - **Analytics**: `signup_completed {principal_dor}` no cadastro, `welcome_tour_open {trilha}`, `welcome_tour_cta {trilha, href}`, e tag de sessão `principal_dor` no Clarity.
+
+### 11.14 E-mails de onboarding D+1/D+3 — item P-08 do plano
+- **Agendador**: `backend/src/services/onboarding_email_scheduler.py`, iniciado no lifespan de `main.py`, roda às 10:00 BRT. Regras em `classify()`: D+1 = conta com 20h–68h e sem gira; D+3 = conta com 68h–7 dias e zero senhas pelo link (`emitido_por_id IS NULL`). Conta com 7+ dias nunca recebe.
+- **Modelos**: `services/email/templates/onboarding_nudge.py` (D+1 com P.S. do módulo da trilha `principal_dor`; D+3 com link público e botão de WhatsApp com o mesmo texto do checklist). Links com UTM `utm_source=email&utm_medium=onboarding&utm_campaign=onboarding_d1|d3`.
+- **Anti-duplicação — obrigatório em agendador novo**: o backend roda `uvicorn --workers 2` e cada worker executa o lifespan, então **estado em memória não evita envio duplicado**. Aqui: `pg_try_advisory_lock(0x6769726168756201)` por rodada (só um worker processa) + marca persistente em `tenant_configs.custom_settings.onboarding_emails` (`{"d1": iso, "d3": iso}`) gravada sob `SELECT ... FOR UPDATE` **antes** do envio (no máximo uma vez; falha de provedor não reenvia). `trial_scheduler` e `birthday_scheduler` usam o mesmo esquema via `services/scheduler_guard.py` desde 2026-10-05 (ver §11.9); este agendador ainda tem o lock e a marca em código próprio e pode migrar para o módulo comum.
+- **Operação**: desligar com `ONBOARDING_EMAILS_ENABLED=false` no `.env` + restart do backend. Listar quem receberia na próxima rodada, sem enviar nem marcar: `docker compose -f docker-compose.prod.yml exec backend python -m src.services.onboarding_email_scheduler --dry-run`.
+- Contato principal do tenant: `get_tenant_primary_contact()` em `trial_scheduler.py` (admin mais antigo ativo), compartilhado pelos dois agendadores.
 
 ### 11.15 Painel de ativação no Observatório (super-admin)
 - **Onde**: primeira seção de `/platform/observatory` (âncora `#ativacao`), componente `frontend/src/components/platform/ActivationSection.tsx`. Dados em `activation` do `GET /api/v1/platform/tenant-observatory` (protegido por `require_super_admin`), calculados por `backend/src/services/activation_service.py`.
@@ -443,6 +451,11 @@ docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml run --rm bac
 docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d backend frontend
 ```
 NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
+
+**Agendadores in-process e múltiplos workers (desde 2026-10-05):**
+- O backend roda `uvicorn --workers 2` e **cada worker executa o lifespan de `main.py`**, então todo agendador asyncio (`trial_scheduler`, `birthday_scheduler`, ...) existe uma vez por worker. Estado em memória não evita envio duplicado nem sobrevive a deploy — até 2026-10-05 os lembretes/avisos de trial e o digest de aniversários saíam uma vez por worker.
+- Regra para agendador que envia algo: usar `backend/src/services/scheduler_guard.py` — `advisory_lock(KEY)` envolvendo a rodada (só um worker processa) e `claim_once(tenant_id, namespace, item, scope)` gravado **antes** do envio (marca em `tenant_configs.custom_settings[namespace]` sob `SELECT ... FOR UPDATE`; `scope` diferente reinicia as marcas). Chaves de lock listadas no docstring do módulo; nova chave = novo número.
+- Trial: marcas em `custom_settings.trial_reminders` (escopo = `trial_ends_at`); dias restantes arredondados para cima e expiração só depois de `trial_ends_at` (antes podia expirar ~1 dia cedo). Aniversário: `custom_settings.birthday_digest` (escopo = data BRT).
 
 **Rate limiter distribuído via Redis (desde 2026-06-27):**
 - `REDIS_URL` adicionado ao `config.py` e ao `docker-compose.prod.yml` (backend environment).

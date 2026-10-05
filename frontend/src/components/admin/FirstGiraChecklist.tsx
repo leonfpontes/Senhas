@@ -4,7 +4,7 @@
  * Guia o terreiro novo pelo ciclo que gera valor no GiraHub (análise de
  * produção de 2026-10-05): criar gira → compartilhar o link de senhas →
  * receber senhas pelo link → usar a Porta no dia da gira. Dos 11 cadastros
- * self-service até ali, 7 criaram gira mas só 5 receberam alguma senha —
+ * self-service até ali, 6 criaram gira mas só 4 receberam alguma senha —
  * ninguém dizia que o link precisa ir para o WhatsApp do terreiro.
  *
  * O estado vem do backend (`onboarding` no /dashboard-summary). Só "já
