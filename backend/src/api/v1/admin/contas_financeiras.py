@@ -573,7 +573,10 @@ async def create_conta(
             selectinload(ContaFinanceira.categoria),
             selectinload(ContaFinanceira.conta_bancaria),
         )
-        .where(ContaFinanceira.id == conta.id)
+        .where(
+            ContaFinanceira.id == conta.id,
+            ContaFinanceira.tenant_id == current_user.tenant_id,
+        )
     )
     result = await db.execute(stmt)
     conta = result.scalar_one()
@@ -653,7 +656,10 @@ async def update_conta(
             selectinload(ContaFinanceira.categoria),
             selectinload(ContaFinanceira.conta_bancaria),
         )
-        .where(ContaFinanceira.id == conta_id)
+        .where(
+            ContaFinanceira.id == conta_id,
+            ContaFinanceira.tenant_id == current_user.tenant_id,
+        )
     )
     result2 = await db.execute(stmt2)
     return _conta_to_out(result2.scalar_one())
@@ -739,7 +745,10 @@ async def dar_baixa(
             selectinload(ContaFinanceira.categoria),
             selectinload(ContaFinanceira.conta_bancaria),
         )
-        .where(ContaFinanceira.id == conta_id)
+        .where(
+            ContaFinanceira.id == conta_id,
+            ContaFinanceira.tenant_id == current_user.tenant_id,
+        )
     )
     result2 = await db.execute(stmt2)
     conta = result2.scalar_one()

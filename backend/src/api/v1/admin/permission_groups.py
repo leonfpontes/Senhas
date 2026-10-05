@@ -357,7 +357,12 @@ async def delete_group(
     # Clean up memberships for this group to avoid leaving orphans
     from ....models import UserGroupMembership
     from sqlalchemy import delete as sql_delete
-    await db.execute(sql_delete(UserGroupMembership).where(UserGroupMembership.group_id == group_id))
+    await db.execute(
+        sql_delete(UserGroupMembership).where(
+            UserGroupMembership.group_id == group_id,
+            UserGroupMembership.tenant_id == current_user.tenant_id,
+        )
+    )
 
     # Perform soft delete on the group
     await repo.delete(group_id, current_user.tenant_id, soft=True)
@@ -494,7 +499,9 @@ async def add_group_member(
     )
 
     # Fetch added user details to return and log
-    user_stmt = select(User).where(User.id == request.user_id)
+    user_stmt = select(User).where(
+        User.id == request.user_id, User.tenant_id == current_user.tenant_id
+    )
     user_res = await db.execute(user_stmt)
     user = user_res.scalar_one()
 
@@ -528,7 +535,9 @@ async def remove_group_member(
         raise NotFoundError("Associação de usuário não encontrada neste grupo")
 
     # Fetch removed user details for logging
-    user_stmt = select(User).where(User.id == user_id)
+    user_stmt = select(User).where(
+        User.id == user_id, User.tenant_id == current_user.tenant_id
+    )
     user_res = await db.execute(user_stmt)
     user = user_res.scalar_one_or_none()
     username = user.username if user else "Deletado"

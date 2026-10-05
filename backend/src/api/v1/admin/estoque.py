@@ -670,7 +670,10 @@ async def create_movimentacao(
     stmt = (
         sa_select(EstoqueMovimentacao)
         .options(selectinload(EstoqueMovimentacao.item))
-        .where(EstoqueMovimentacao.id == mov.id)
+        .where(
+            EstoqueMovimentacao.id == mov.id,
+            EstoqueMovimentacao.tenant_id == current_user.tenant_id,
+        )
     )
     mov = (await db.execute(stmt)).scalar_one()
     return _mov_to_response(mov)
@@ -696,7 +699,10 @@ async def update_movimentacao(
     stmt = (
         sa_select(EstoqueMovimentacao)
         .options(selectinload(EstoqueMovimentacao.item))
-        .where(EstoqueMovimentacao.id == mov.id)
+        .where(
+            EstoqueMovimentacao.id == mov.id,
+            EstoqueMovimentacao.tenant_id == current_user.tenant_id,
+        )
     )
     mov = (await db.execute(stmt)).scalar_one()
     return _mov_to_response(mov)
