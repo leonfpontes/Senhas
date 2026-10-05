@@ -12,22 +12,30 @@
   // mesmo criterio do backend, cujo pip-audit ve so runtime (pip install .).
   "skip-dev": true,
 
-  // Residual apos o upgrade do Next 14 -> 15.5.25 (que limpou os 21 advisories
-  // de PRODUCAO do next: DoS/SSRF/XSS/cache-poisoning). Sobram so ferramentas
-  // de BUILD, que processam entrada confiavel (nosso proprio codigo) e nao vao
-  // pro runtime servido aos usuarios:
-  //   - postcss (4): processador de CSS pinado pelo next@15.5.25 em 8.4.31; as
-  //     advisories dependem de CSS malicioso, que nao existe no build. Sai
-  //     quando o next subir o postcss (previsto num next futuro).
-  //   - rollup (1): bundler usado pelo @sentry/nextjs no build; sai com o
-  //     @sentry/nextjs 8 -> 10.
-  // Novos advisories fora desta lista ainda quebram o build. Rastreado na task
-  // do @sentry/nextjs 8 -> 10; remover cada ID conforme os parents subirem.
+  // Allowlist = so ferramentas de BUILD sem versao corrigida alcancavel. Elas
+  // processam entrada confiavel (nosso proprio codigo/config) e nao vao pro
+  // runtime servido aos usuarios. Revisado em 2026-10-05.
+  //   - postcss 8.4.31 (2 high): pinado pelo next@15.5.25; as advisories
+  //     dependem de CSS malicioso, que nao existe no build. Sai quando o next
+  //     subir o postcss.
+  //       GHSA-6g55-p6wh-862q, GHSA-r28c-9q8g-f849
+  //   - rollup 3.29.5 (1 high): bundler usado pelo @sentry/nextjs 8 no build;
+  //     sai com o @sentry/nextjs 8 -> 10.
+  //       GHSA-mw96-cpmx-2vgc
+  //   - braces 3.0.3 (1 high, SEM versao corrigida — vuln <= 3.0.3): chega via
+  //     @sentry/nextjs > @sentry/webpack-plugin > unplugin > chokidar, ou seja,
+  //     so o watcher do plugin de build; expande globs da nossa config. Sai
+  //     quando houver braces corrigido ou o unplugin largar o chokidar.
+  //       GHSA-vfj7-8cjw-p6xm
+  // Removidos em 2026-10-05: GHSA-qx2v-qp2m-jg93 e GHSA-fxqj-rqcc-2cmp
+  // (postcss, severidade MEDIUM — nunca falhariam com "high": true).
+  // Corrigidos por update em 2026-10-05 (nao allowlistar): axios -> 1.20.0
+  // (7 high) e brace-expansion -> 1.1.21 / 2.1.7 / 5.0.12 (2 high).
+  // Novos advisories fora desta lista ainda quebram o job.
   "allowlist": [
-    "GHSA-qx2v-qp2m-jg93",
     "GHSA-6g55-p6wh-862q",
-    "GHSA-fxqj-rqcc-2cmp",
     "GHSA-r28c-9q8g-f849",
-    "GHSA-mw96-cpmx-2vgc"
+    "GHSA-mw96-cpmx-2vgc",
+    "GHSA-vfj7-8cjw-p6xm"
   ]
 }
