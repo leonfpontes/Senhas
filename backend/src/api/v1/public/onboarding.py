@@ -353,6 +353,11 @@ async def onboarding(
         await db.flush()
         await db.refresh(user)
 
+        # Grupo padrão "Acesso total" (Q-05): operadores criados depois entram nele.
+        from src.repositories.permission_group_repo import PermissionGroupRepository
+
+        await PermissionGroupRepository(db).ensure_default_group(tenant.id)
+
         # 7. Commit transaction
         await db.commit()
 

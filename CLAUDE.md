@@ -113,6 +113,16 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
    ```python
    op.execute("ALTER TYPE permission_feature ADD VALUE 'nova_feature'")
    ```
+   E, numa **segunda migração** (o Postgres só deixa usar o valor novo depois do commit), dar
+   acesso total à feature nos grupos padrão "Acesso total" (Q-05 — operador sem grupo não
+   acessa nada, e os operadores migrados estão nesse grupo):
+   ```python
+   op.execute("""
+       INSERT INTO group_permissions (id, group_id, feature, can_view, can_insert, can_edit, can_delete, created_at, updated_at)
+       SELECT gen_random_uuid(), id, 'nova_feature', true, true, true, true, now(), now()
+         FROM permission_groups WHERE is_default AND deleted_at IS NULL
+   """)
+   ```
 
 3. **Backend** — mapear em `permission_service.py` se houver restrição de plano.
 

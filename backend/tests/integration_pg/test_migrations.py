@@ -59,6 +59,10 @@ async def test_constraints_que_seguram_incidentes(migrated_db):
     assert "uq_consulentes_tenant_email_active" in indexes
     # Evento Stripe processado uma vez só (idempotência do webhook).
     assert any("event_id" in name or "stripe_events" in name for name in indexes | uniques)
+    # Uma senha ativa por consulente/gira/tipo (migração 056, Q-03).
+    assert "uq_tickets_gira_consulente_ativo" in indexes
+    # Um grupo padrão "Acesso total" por tenant (migração 057, Q-05).
+    assert "uq_permission_groups_tenant_default" in indexes
 
 
 def test_modelos_batem_com_schema_migrado(migrated_db):

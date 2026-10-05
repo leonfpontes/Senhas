@@ -188,11 +188,17 @@ async def test_permissoes_efetivas_ignoram_usuario_de_outro_tenant(db, cenario):
     """PermissionService.get_user_effective_permissions recebia tenant_id e não filtrava o
     usuário por ele (achado do auditor em services/). Com o id de um operador de B e o tenant
     de A, o usuário era encontrado, não tinha grupos *em A* e caía no ramo "sem grupos = acesso
-    total de operador" com o plano de A. Hoje o único chamador passa o próprio usuário logado
+    total de operador" com o plano de A (ramo que o Q-05 removeu). Hoje o único chamador passa o próprio usuário logado
     (não explorável), mas o método agora devolve tudo False nesse caso."""
     _admin_a, a, b = cenario
     service = PermissionService(db)
+    # Controle: desde o Q-05 operador sem grupo não acessa nada, então o de B entra
+    # no grupo padrão "Acesso total" do próprio tenant.
+    from src.repositories.permission_group_repo import PermissionGroupRepository
+
+    await PermissionGroupRepository(db).assign_default_group_if_groupless(b["user"])
+    await db.commit()
     proprio = await service.get_user_effective_permissions(b["user"].id, b["user"].tenant_id)
-    assert proprio["giras"]["view"] is True  # controle: operador sem grupos no próprio tenant
+    assert proprio["giras"]["view"] is True
     cruzado = await service.get_user_effective_permissions(b["user"].id, a["user"].tenant_id)
     assert not any(v for feature in cruzado.values() for v in feature.values())

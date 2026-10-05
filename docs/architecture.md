@@ -183,7 +183,7 @@ O sistema conta com um controle de acesso baseado em grupos (Group-Based RBAC) q
 1. **Estrutura**: Admins do tenant definem grupos de usuários (ex: "Operadores da Porta", "Financeiro") e mapeiam permissões (Visualizar, Inserir, Editar, Deletar) para cada funcionalidade (giras, tickets, porta, estoque, financeiro, etc.).
 2. **Consolidação**: Usuários podem pertencer a múltiplos grupos. Suas permissões finais são consolidadas via **lógica OR permissiva** (se pelo menos um grupo do usuário concede a permissão, o acesso é liberado).
 3. **Bypass**: Usuários com a role `ADMIN` ou `SUPER_ADMIN` (e sessões de impersonação ativa) bypassam todas as verificações de grupo, mantendo acesso total.
-4. **Compatibilidade Retroativa**: Um operador que não pertença a nenhum grupo de permissões mantém acesso total de operador por padrão.
+4. **Fail-closed (desde 2026-10-05, Q-05)**: operador sem nenhum grupo não acessa nenhum módulo. Todo tenant tem o grupo padrão "Acesso total" (`permission_groups.is_default`), criado com o tenant, que recebe automaticamente operadores novos e admins rebaixados a operador. Ele pode ser editado, mas não excluído.
 5. **Resiliência e Performance**:
    - As permissões no backend são validadas a cada requisição via injeção de dependência `require_group_permission(feature, action)`.
    - Para evitar N+1 queries no request pipeline, a consolidação OR é computada diretamente no banco de dados usando cláusulas SQL `MAX()` agrupadas.

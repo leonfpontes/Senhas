@@ -10,6 +10,7 @@ import logging
 from src.core.database import get_db
 from src.models import User, UserRole, PermissionFeature
 from src.repositories.user_repo import UserRepository
+from src.repositories.permission_group_repo import PermissionGroupRepository
 from src.security.password import hash_password
 from src.services.audit_service import AuditService
 from src.services import session_service
@@ -125,6 +126,9 @@ async def create_user(
             role=user_data.role,
         )
     
+    # Q-05: sem grupo o operador não acessa nada — entra no grupo padrão.
+    await PermissionGroupRepository(db).assign_default_group_if_groupless(created_user)
+
     # Log audit
     audit_service = AuditService(db)
     await audit_service.log_create(
@@ -226,6 +230,10 @@ async def update_user(
     db.add(existing_user)
     await db.flush()
     await db.refresh(existing_user)
+
+    # Q-05: admin rebaixado a operador sem grupo ficaria sem acesso nenhum.
+    if update_data.get("role") == UserRole.OPERATOR:
+        await PermissionGroupRepository(db).assign_default_group_if_groupless(existing_user)
     
     # Log audit
     audit_service = AuditService(db)

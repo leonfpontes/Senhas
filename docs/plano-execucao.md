@@ -323,15 +323,21 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Aceite**: teste de integração com entrega duplicada simultânea (Q-01 grupo 4).
 - **Esforço**: P–M. **Custo**: R$ 0.
 
-### Q-05 — RBAC fail-open → fail-closed — `pendente`
+### Q-05 — RBAC fail-open → fail-closed — `feito` (2026-10-05)
+- **Feito**: operador sem grupo não acessa nada (`PermissionService.check_permission` e
+  `get_user_effective_permissions`). Migração 057 adiciona `permission_groups.is_default`, cria em
+  todo tenant o grupo "Acesso total" (ver/criar/editar/excluir em todas as features; o plano
+  continua limitando por cima) e põe nele todo operador ativo sem grupo — em produção eram 5
+  operadores em 4 tenants, incluindo 2 do pagante. Operadores já em grupo não mudam. O grupo padrão
+  nasce com o tenant (cadastro e criação pela plataforma), recebe operadores novos e admins
+  rebaixados, pode ser editado e não pode ser excluído. Telas de grupos deixaram de dizer que
+  "sem grupo = acesso total". Testes em `tests/integration_pg/test_rbac_grupo_padrao.py`; o xfail
+  estrito do grupo 3 do Q-01 saiu.
+- **Feature nova no enum**: a migração que acrescenta o valor deve também inserir a linha com
+  acesso total nos grupos `is_default` (senão o grupo padrão não a vê até o próximo operador ser
+  criado, quando `ensure_default_group` completa).
 - **Problema**: operador sem nenhum grupo tem acesso total ("backward compatibility"). Usuário
   novo criado sem grupo = permissão irrestrita no tenant.
-- **Entrega**: decidir a semântica (recomendado: sem grupo = sem acesso, com grupo default
-  "Acesso Total" criado automaticamente no onboarding de tenant e atribuído a operadores novos
-  por padrão — preserva a conveniência sem o furo). Migração de dados: atribuir o grupo default
-  a todos os operadores hoje sem grupo, **antes** de virar a chave.
-- **Aceite**: operador sem grupo → telas bloqueadas; tenants existentes sem mudança visível de
-  comportamento (todos migrados pro grupo default).
 - **Esforço**: M. **Custo**: R$ 0.
 
 ### Q-06 — Atualização de dependências (staged) — `pendente`

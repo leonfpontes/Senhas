@@ -10,6 +10,7 @@ from sqlalchemy import (
     Index,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -40,7 +41,17 @@ class PermissionGroup(SoftDeleteModel):
     """A user group that bundles permissions for a tenant."""
 
     __tablename__ = "permission_groups"
-    __table_args__ = (Index("ix_permission_groups_tenant_id", "tenant_id"),)
+    __table_args__ = (
+        Index("ix_permission_groups_tenant_id", "tenant_id"),
+        # Um grupo padrão ("Acesso total") ativo por tenant (Q-05).
+        Index(
+            "uq_permission_groups_tenant_default",
+            "tenant_id",
+            unique=True,
+            postgresql_where=text("is_default AND deleted_at IS NULL"),
+            sqlite_where=text("is_default AND deleted_at IS NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -55,6 +66,11 @@ class PermissionGroup(SoftDeleteModel):
     version: Mapped[int] = mapped_column(
         default=1, nullable=False, server_default="1"
     )  # for optimistic locking (T3)
+    # Grupo padrão do tenant (Q-05): criado com o tenant, recebe os operadores
+    # novos e não pode ser excluído. Sem grupo, operador não acessa nada.
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
 
     tenant = relationship("Tenant", backref="permission_groups")
 

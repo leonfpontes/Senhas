@@ -59,7 +59,8 @@ class PermissionService:
         - SUPER_ADMIN and ADMIN roles bypass all group permission checks.
         - Impersonation bypasses group checks (T9).
         - Subscription/Plan limitations are enforced first (T4).
-        - Operators with NO groups are granted total access (backward compatibility).
+        - Operators with NO groups have no access (fail-closed, Q-05). Every tenant has a
+          default "Acesso total" group that new operators join automatically.
         - Operators with groups are restricted according to OR-consolidated group permissions.
         """
         # 1. Role bypass
@@ -82,8 +83,8 @@ class PermissionService:
         # 4. User group permissions
         user_groups = await self.permission_group_repo.get_user_groups(user.id, tenant_id)
         if not user_groups:
-            # Backward compatibility: user has no groups, so they retain full operator access
-            return True
+            # Fail-closed (Q-05): operador sem grupo não acessa nada.
+            return False
 
         # Check consolidated group permissions
         perms = await self.permission_group_repo.get_user_permissions(user.id, tenant_id, feature)
@@ -116,18 +117,11 @@ class PermissionService:
                 effective[f] = {"view": True, "insert": True, "edit": True, "delete": True}
             return effective
 
-        # If user has no groups, they have full operator access
+        # Fail-closed (Q-05): operador sem grupo não acessa nada.
         user_groups = await self.permission_group_repo.get_user_groups(user.id, tenant_id)
         if not user_groups:
             for f in all_features:
-                # Still respect feature flag restrictions even with backward compatibility
-                enabled_in_plan = await self.is_feature_enabled_for_plan(tenant_id, PermissionFeature(f))
-                effective[f] = {
-                    "view": enabled_in_plan,
-                    "insert": enabled_in_plan,
-                    "edit": enabled_in_plan,
-                    "delete": enabled_in_plan,
-                }
+                effective[f] = {"view": False, "insert": False, "edit": False, "delete": False}
             return effective
 
         # Operator with groups: fetch OR-consolidated permissions from DB

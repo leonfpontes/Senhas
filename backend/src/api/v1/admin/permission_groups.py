@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 import logging
 
-from fastapi import APIRouter, Depends, Path, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,6 +60,7 @@ class PermissionGroupResponse(BaseModel):
     updated_at: datetime
     members_count: int
     features_configured_count: int
+    is_default: bool = False
 
     class Config:
         from_attributes = True
@@ -124,6 +125,7 @@ async def list_groups(
             PermissionGroupResponse(
                 id=g.id,
                 tenant_id=g.tenant_id,
+                is_default=bool(g.is_default),
                 name=g.name,
                 description=g.description,
                 version=g.version,
@@ -179,6 +181,7 @@ async def create_group(
     return PermissionGroupResponse(
         id=group.id,
         tenant_id=group.tenant_id,
+        is_default=bool(group.is_default),
         name=group.name,
         description=group.description,
         version=group.version,
@@ -238,6 +241,7 @@ async def get_group(
     return PermissionGroupResponse(
         id=group.id,
         tenant_id=group.tenant_id,
+        is_default=bool(group.is_default),
         name=group.name,
         description=group.description,
         version=group.version,
@@ -308,6 +312,7 @@ async def update_group(
     return PermissionGroupResponse(
         id=updated_group.id,
         tenant_id=updated_group.tenant_id,
+        is_default=bool(updated_group.is_default),
         name=updated_group.name,
         description=updated_group.description,
         version=updated_group.version,
@@ -336,6 +341,14 @@ async def delete_group(
     group = await repo.get_by_id(group_id, current_user.tenant_id)
     if not group:
         raise NotFoundError("Grupo de permissão")
+
+    if group.is_default:
+        # Q-05: o grupo padrão recebe os operadores novos; sem ele, operador
+        # criado sem grupo ficaria sem acesso. Pode ser editado, não excluído.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O grupo padrão não pode ser excluído. Ajuste as permissões dele ou mova os operadores para outro grupo.",
+        )
 
     members_count = await repo.get_members_count(group_id, current_user.tenant_id)
     if members_count > 0 and not force:
@@ -448,6 +461,7 @@ async def set_group_permissions(
     return PermissionGroupResponse(
         id=updated_group.id,
         tenant_id=updated_group.tenant_id,
+        is_default=bool(updated_group.is_default),
         name=updated_group.name,
         description=updated_group.description,
         version=updated_group.version,
