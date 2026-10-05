@@ -59,6 +59,45 @@ async def _require_pro_or_premium(current_user: User, db: AsyncSession) -> None:
         )
 
 
+async def _validar_referencias_do_tenant(
+    db: AsyncSession,
+    tenant_id: UUID,
+    categoria_id: Optional[UUID] = None,
+    conta_bancaria_id: Optional[UUID] = None,
+) -> None:
+    """Garante que categoria/conta bancária citadas no body pertencem ao tenant.
+
+    Sem isso um lançamento podia apontar para categoria/conta bancária de OUTRO tenant (bastava
+    conhecer o UUID) e a resposta devolvia o nome dela (categoria_nome/conta_bancaria_nome).
+    Registro soft-deleted do próprio tenant não é barrado de propósito: editar lançamento que já
+    aponta para categoria arquivada continua funcionando.
+    """
+    if categoria_id is not None:
+        found = await db.execute(
+            select(CategoriaFinanceira.id).where(
+                CategoriaFinanceira.id == categoria_id,
+                CategoriaFinanceira.tenant_id == tenant_id,
+            )
+        )
+        if found.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Categoria não encontrada.",
+            )
+    if conta_bancaria_id is not None:
+        found = await db.execute(
+            select(ContaBancaria.id).where(
+                ContaBancaria.id == conta_bancaria_id,
+                ContaBancaria.tenant_id == tenant_id,
+            )
+        )
+        if found.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Conta bancária não encontrada.",
+            )
+
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class CategoriaOut(BaseModel):
@@ -548,6 +587,9 @@ async def create_conta(
     db: AsyncSession = Depends(get_db),
 ):
     await _require_pro_or_premium(current_user, db)
+    await _validar_referencias_do_tenant(
+        db, current_user.tenant_id, body.categoria_id, body.conta_bancaria_id
+    )
     conta = ContaFinanceira(
         id=uuid.uuid4(),
         tenant_id=current_user.tenant_id,
@@ -644,6 +686,9 @@ async def update_conta(
     if not conta:
         raise HTTPException(status_code=404, detail="Lançamento não encontrado.")
 
+    await _validar_referencias_do_tenant(
+        db, current_user.tenant_id, body.categoria_id, body.conta_bancaria_id
+    )
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(conta, field, value)
 
@@ -728,6 +773,9 @@ async def dar_baixa(
     if status_val == "cancelado":
         raise HTTPException(status_code=409, detail="Lançamento cancelado não pode ser baixado.")
 
+    await _validar_referencias_do_tenant(
+        db, current_user.tenant_id, conta_bancaria_id=body.conta_bancaria_id
+    )
     conta.status = "pago"
     conta.data_pagamento = body.data_pagamento
     conta.valor_pago = body.valor_pago

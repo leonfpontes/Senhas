@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from src.api.dependencies import get_current_user, require_group_permission
 from src.core.database import get_db
 from src.models import User, PermissionFeature
-from src.models.estoque import EstoqueMovimentacao, EstoqueMovimentacaoTipo
+from src.models.estoque import EstoqueGrupo, EstoqueMovimentacao, EstoqueMovimentacaoTipo
 from src.models.subscriptions import PlanType
 from src.repositories.config_repo import TenantConfigRepository
 from src.repositories.estoque_repo import (
@@ -293,6 +293,25 @@ def _decode_foto(foto_base64: Optional[str], content_type: Optional[str]) -> tup
     return data, content_type
 
 
+async def _validar_grupo_do_tenant(db: AsyncSession, tenant_id: UUID, grupo_id: UUID | None) -> None:
+    """Garante que o grupo citado no body pertence ao tenant.
+
+    Sem isso um item podia apontar para grupo de OUTRO tenant (bastava conhecer o UUID) e a
+    resposta devolvia o nome dele (grupo_nome). Grupo soft-deleted do próprio tenant não é
+    barrado de propósito: editar item que já aponta para grupo arquivado continua funcionando.
+    """
+    if grupo_id is None:
+        return
+    found = await db.execute(
+        sa_select(EstoqueGrupo.id).where(
+            EstoqueGrupo.id == grupo_id,
+            EstoqueGrupo.tenant_id == tenant_id,
+        )
+    )
+    if found.scalar_one_or_none() is None:
+        raise HTTPException(status_code=422, detail="Grupo não encontrado")
+
+
 def _item_to_response(item, saldo: int = 0) -> ItemWithSaldoResponse:
     return ItemWithSaldoResponse(
         id=item.id,
@@ -473,6 +492,7 @@ async def create_item(
     db: AsyncSession = Depends(get_db),
 ):
     await _require_estoque_plan(current_user, db)
+    await _validar_grupo_do_tenant(db, current_user.tenant_id, body.grupo_id)
     foto_data, foto_ct = _decode_foto(body.foto_base64, body.foto_content_type)
     repo = EstoqueItemRepository(db)
     item = await repo.create_item(
@@ -542,6 +562,7 @@ async def update_item(
     await _require_estoque_plan(current_user, db)
     repo = EstoqueItemRepository(db)
     update_kwargs = body.model_dump(exclude_unset=True)
+    await _validar_grupo_do_tenant(db, current_user.tenant_id, update_kwargs.get("grupo_id"))
     foto_base64 = update_kwargs.pop("foto_base64", None)
     foto_content_type = update_kwargs.pop("foto_content_type", None)
     if foto_base64 is not None:
