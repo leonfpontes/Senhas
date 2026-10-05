@@ -51,6 +51,31 @@ def _seconds_until_next_9am_brt() -> float:
     return (target - now).total_seconds()
 
 
+async def get_tenant_primary_contact(tenant_id):
+    """(email, nome) do contato principal do tenant — o admin mais antigo
+    ativo, ou qualquer usuário ativo se não houver admin. None se não houver.
+
+    Compartilhado com onboarding_email_scheduler.
+    """
+    from sqlalchemy import select as sa_select, and_
+
+    from src.core.database import AsyncSessionLocal
+    from src.models import User, UserRole
+
+    async with AsyncSessionLocal() as db:
+        for role_filter in (User.role == UserRole.ADMIN, None):
+            conditions = [User.tenant_id == tenant_id, User.is_active.is_(True), User.deleted_at.is_(None)]
+            if role_filter is not None:
+                conditions.append(role_filter)
+            result = await db.execute(
+                sa_select(User).where(and_(*conditions)).order_by(User.created_at.asc()).limit(1)
+            )
+            user = result.scalar_one_or_none()
+            if user:
+                return (user.email, user.full_name or user.username)
+    return None
+
+
 class TrialScheduler:
     """Singleton-style scheduler for trial expiration + reminder e-mails."""
 
@@ -165,23 +190,7 @@ class TrialScheduler:
 
     async def _get_primary_contact(self, tenant_id):
         """Returns (email, display_name) for the tenant's primary contact, or None."""
-        from sqlalchemy import select as sa_select, and_
-
-        from src.core.database import AsyncSessionLocal
-        from src.models import User, UserRole
-
-        async with AsyncSessionLocal() as db:
-            for role_filter in (User.role == UserRole.ADMIN, None):
-                conditions = [User.tenant_id == tenant_id, User.is_active.is_(True), User.deleted_at.is_(None)]
-                if role_filter is not None:
-                    conditions.append(role_filter)
-                result = await db.execute(
-                    sa_select(User).where(and_(*conditions)).order_by(User.created_at.asc()).limit(1)
-                )
-                user = result.scalar_one_or_none()
-                if user:
-                    return (user.email, user.full_name or user.username)
-        return None
+        return await get_tenant_primary_contact(tenant_id)
 
     async def _send_reminder_email(self, contact_email: str, contact_name: str, dias_restantes: int) -> None:
         from src.core.config import settings

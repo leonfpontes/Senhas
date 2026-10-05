@@ -407,6 +407,13 @@ Incluir obrigatoriamente:
 - **Passos centralizados** usam `CENTER_SELECTOR` (seletor sem elemento) + `position: 'center'` + `padding.mask: 0`: com `body` o reactour não escurece o fundo e rola a página. Não ancorar no menu lateral: muda por plano/permissão e fica escondido no celular.
 - **Analytics**: `signup_completed {principal_dor}` no cadastro, `welcome_tour_open {trilha}`, `welcome_tour_cta {trilha, href}`, e tag de sessão `principal_dor` no Clarity.
 
+### 11.14 E-mails de onboarding D+1/D+3 — item P-08 do plano
+- **Agendador**: `backend/src/services/onboarding_email_scheduler.py`, iniciado no lifespan de `main.py`, roda às 10:00 BRT. Regras em `classify()`: D+1 = conta com 20h–68h e sem gira; D+3 = conta com 68h–7 dias e zero senhas pelo link (`emitido_por_id IS NULL`). Conta com 7+ dias nunca recebe.
+- **Modelos**: `services/email/templates/onboarding_nudge.py` (D+1 com P.S. do módulo da trilha `principal_dor`; D+3 com link público e botão de WhatsApp com o mesmo texto do checklist). Links com UTM `utm_source=email&utm_medium=onboarding&utm_campaign=onboarding_d1|d3`.
+- **Anti-duplicação — obrigatório em agendador novo**: o backend roda `uvicorn --workers 2` e cada worker executa o lifespan, então **estado em memória não evita envio duplicado**. Aqui: `pg_try_advisory_lock(0x6769726168756201)` por rodada (só um worker processa) + marca persistente em `tenant_configs.custom_settings.onboarding_emails` (`{"d1": iso, "d3": iso}`) gravada sob `SELECT ... FOR UPDATE` **antes** do envio (no máximo uma vez; falha de provedor não reenvia). `trial_scheduler`/`birthday_scheduler` ainda usam estado em memória — pendência conhecida.
+- **Operação**: desligar com `ONBOARDING_EMAILS_ENABLED=false` no `.env` + restart do backend. Listar quem receberia na próxima rodada, sem enviar nem marcar: `docker compose -f docker-compose.prod.yml exec backend python -m src.services.onboarding_email_scheduler --dry-run`.
+- Contato principal do tenant: `get_tenant_primary_contact()` em `trial_scheduler.py` (admin mais antigo ativo), compartilhado pelos dois agendadores.
+
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).
 - VPS: 76.13.231.19 (Hostinger), projeto em /opt/senhas.
