@@ -38,16 +38,16 @@ jobs:
           # app) mas o pip-audit o audita porque esta instalado; sobe pro patch
           # mais recente pra nao acusar CVE de ferramenta de build (ex. PYSEC-2026-3447).
           pip install --upgrade pip setuptools --quiet
-          # Advisories ignoradas: todas exigem starlette 1.x, um major que o
-          # FastAPI atual (0.118) ainda nao suporta e que quebra a API de rotas
-          # (regex->pattern, pydantic 2.13). Rastreado na task de upgrade do
-          # framework. Sem isto o job fica vermelho por vulns que nao da pra
-          # corrigir sem essa migracao maior. Revisar ao subir o FastAPI.
+          # Advisories ignoradas: todas exigem starlette 1.x, um major que fica
+          # fora do Q-06 lote 2 (fastapi 0.136.3 + starlette 0.52.1, 2026-10-05):
+          # a migracao pro 1.x vem junto com o fastapi 0.137+ (refatoracao do
+          # roteamento). Sem isto o job fica vermelho por vulns que nao da pra
+          # corrigir sem essa migracao maior. PYSEC-2026-1942 saiu da lista:
+          # corrigida pelo starlette 0.52.1. Revisar ao subir pro starlette 1.x.
           pip-audit --format=columns \
             --ignore-vuln PYSEC-2026-161 \
             --ignore-vuln PYSEC-2026-248 \
             --ignore-vuln PYSEC-2026-249 \
-            --ignore-vuln PYSEC-2026-1942 \
             --ignore-vuln PYSEC-2026-2280 \
             --ignore-vuln PYSEC-2026-2281
 

@@ -340,7 +340,29 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   novo criado sem grupo = permissão irrestrita no tenant.
 - **Esforço**: M. **Custo**: R$ 0.
 
-### Q-06 — Atualização de dependências (staged) — `pendente`
+### Q-06 — Atualização de dependências (staged) — `em andamento` (lotes 1-2 feitos em 2026-10-05)
+- **Feito (lotes 1-2, 2026-10-05)**:
+  - Lote 1: `passlib` removido (o código já usava `bcrypt` puro; `bcrypt==5.0.0` agora declarado
+    e pinado — antes vinha transitivo e sem pin). A troca `python-jose` → `PyJWT` já tinha entrado
+    em 2026-09-06 (commit 7a93037); agora há prova de compatibilidade:
+    `tests/unit/test_security_jwt_compat_jose.py` decodifica tokens gerados pelo próprio
+    `python-jose==3.3.0` (access, impersonação, super_admin, refresh, expirado) e confirma que o
+    PyJWT emite bytes idênticos para o mesmo payload — sessões abertas antes do deploy seguem válidas.
+  - Lote 2 (antes → depois): fastapi 0.118.3 → **0.136.3**; starlette 0.48.0 → **0.52.1**;
+    sqlalchemy 2.0.23 → **2.0.54** (agora `sqlalchemy[asyncio]`, greenlet explícito); alembic
+    1.12.1 → **1.20.0**; pydantic 2.5.0 → **2.13.5**; pydantic-settings 2.1.0 → **2.15.0**;
+    uvicorn 0.24.0 → **0.54.0**; httpx 0.25.2 → **0.28.1**; asyncpg 0.29.0 → **0.31.0**;
+    pytest-asyncio 0.21.1 → **0.26.0** (exigiu pytest 7.4.3 → **8.4.2**).
+  - Quebras tratadas: override de `event_loop` de sessão em `tests/integration_pg/conftest.py`
+    (depreciado) migrado para `loop_scope="session"`; `asyncio.get_event_loop()` em teste síncrono →
+    `asyncio.run`; `Query(regex=)` → `pattern=`; `HTTP_422_UNPROCESSABLE_ENTITY`/`HTTP_413_REQUEST_ENTITY_TOO_LARGE`
+    → `..._CONTENT`/`HTTP_413_CONTENT_TOO_LARGE` (depreciados no starlette).
+  - Teto deliberado: fastapi parado em 0.136.x — o 0.137 refatora o roteamento (`router.routes`
+    vira árvore, breaking declarado) e o 0.142 liga OpenTelemetry nativo; starlette segue em 0.x.
+    Os dois sobem juntos numa migração própria. O starlette 0.52.1 corrigiu PYSEC-2026-1942 (saiu
+    das exceções do pip-audit no deploy.yml); seguem ignoradas 161/248/249/2280/2281, todas só
+    corrigidas no starlette 1.x — incluindo PYSEC-2026-249 (DoS em `request.form`, CVSS alto).
+- **Pendente**: lote 3 (idioma Pydantic v2) e a migração fastapi 0.137+/starlette 1.x.
 - **Problema**: backend congelado em 2023 (`fastapi==0.104.1`, `sqlalchemy==2.0.23`,
   `pydantic==2.5.0`); `python-jose==3.3.0` com CVE-2024-33663/33664; `passlib` é dependência
   morta (código usa `bcrypt` puro) e incompatível com bcrypt 5; Pydantic rodando em idioma v1

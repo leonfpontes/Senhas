@@ -267,9 +267,9 @@ class TestPlanHierarchy:
         sub.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
         svc.subscription_repo.upgrade_plan = AsyncMock(return_value=sub)
 
-        result = asyncio.get_event_loop().run_until_complete(
-            svc.downgrade_plan("tid", PlanType.PRO)
-        )
+        # asyncio.run: o pytest-asyncio >=0.23 fecha o loop ao fim de cada
+        # teste async, então get_event_loop() num teste síncrono não acha loop.
+        result = asyncio.run(svc.downgrade_plan("tid", PlanType.PRO))
         assert result["plan"] == "pro"
 
     def test_downgrade_basic_to_pro_rejected(self):
@@ -289,6 +289,4 @@ class TestPlanHierarchy:
         svc.subscription_repo.get_by_tenant = AsyncMock(return_value=current)
 
         with pytest.raises(InvalidInputError):
-            asyncio.get_event_loop().run_until_complete(
-                svc.downgrade_plan("tid", PlanType.PRO)
-            )
+            asyncio.run(svc.downgrade_plan("tid", PlanType.PRO))

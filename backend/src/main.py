@@ -206,7 +206,7 @@ def create_app() -> FastAPI:
         não serializável que fazia o próprio handler estourar 500 em vez de 422.
         """
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content={
                 "error_code": "VALIDATION_ERROR",
                 "message": "Erro na validação dos dados",

@@ -157,7 +157,7 @@ def _validate_section_type(section_type: str) -> SiteSectionType:
         return SiteSectionType(section_type)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Tipo de seção inválido: '{section_type}'.",
         )
 
@@ -174,7 +174,7 @@ def _validate_youtube_url(url: str) -> None:
     )
     if not any(url.startswith(p) for p in valid_prefixes):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="URL do YouTube inválida. Use o formato de embed ou link padrão do YouTube.",
         )
 
@@ -189,7 +189,7 @@ def _validate_section(section: SectionPayload) -> None:
     if section.section_type == "HERO":
         if not config.get("title", "").strip():
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Seção Hero requer um título.",
             )
 
@@ -419,7 +419,7 @@ async def upload_image(
     # Validate size
     if len(data) > MAX_IMAGE_SIZE_BYTES:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Imagem muito grande. Máximo: {MAX_IMAGE_SIZE_BYTES // (1024 * 1024)}MB.",
         )
 

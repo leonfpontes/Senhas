@@ -11,12 +11,13 @@ from src.models.permission_groups import PermissionFeature
 from src.models.subscriptions import PlanType
 from src.models.users import UserRole
 
+from .conftest import SESSION_LOOP
 from .factories import create_gira, create_tenant, create_user, grant
 
 GIRA_BODY = {"nome": "Gira de Pretos-Velhos", "data_inicio": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()}
 
 
-@pytest.fixture
+@SESSION_LOOP
 async def tenant(db):
     return await create_tenant(db)
 

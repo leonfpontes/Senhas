@@ -75,7 +75,7 @@ class ValidationError(APIException):
     def __init__(self, message: str, details: Optional[dict] = None):
         super().__init__(
             message,
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             error_code="VALIDATION_ERROR",
             details=details,
         )

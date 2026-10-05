@@ -26,7 +26,7 @@ Sistema SaaS multi-tenant para emissão e gestão de senhas (tickets) para Terre
 
 | Camada | Tecnologia |
 |--------|-----------|
-| **Backend** | FastAPI 0.104, Python 3.11+, SQLAlchemy 2.0 (async), Pydantic v2 |
+| **Backend** | FastAPI 0.136, Python 3.11+, SQLAlchemy 2.0 (async), Pydantic v2 |
 | **Frontend** | Next.js 14, TypeScript 5, Material-UI v5, Recharts |
 | **Banco** | PostgreSQL 15, Alembic migrations |
 | **Auth** | JWT (24h access + 30d refresh), bcrypt |

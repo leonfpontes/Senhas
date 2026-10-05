@@ -84,7 +84,7 @@ async def create_user(
             current_count = result.scalar() or 0
             if current_count >= max_users:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Limite de usuários atingido ({max_users}). Faça upgrade do plano.",
                 )
 

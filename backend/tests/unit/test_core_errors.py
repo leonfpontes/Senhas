@@ -87,7 +87,7 @@ class TestConflictError:
 class TestValidationError:
     def test_message_and_status(self):
         exc = ValidationError("Campo inválido")
-        assert exc.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         assert exc.error_code == "VALIDATION_ERROR"
 
     def test_with_details(self):

@@ -21,6 +21,7 @@ from src.models.permission_groups import PermissionGroup
 from src.models.tickets import Ticket
 from src.models.users import User, UserRole
 
+from .conftest import SESSION_LOOP
 from .factories import create_gira, create_tenant, create_user
 
 NOW = datetime.now(timezone.utc)
@@ -56,7 +57,7 @@ async def _seed_tenant_b(db):
     }
 
 
-@pytest.fixture
+@SESSION_LOOP
 async def cenario(db):
     tenant_a = await create_tenant(db, "Terreiro A")
     admin_a = await create_user(db, tenant_a, UserRole.ADMIN, name="admin-a")
