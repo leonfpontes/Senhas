@@ -3,17 +3,17 @@
 Uses asyncio.create_task (same pattern as email_queue). No external
 scheduler dependency required.
 
-Anti-duplicate guard: a per-tenant dict tracks the BRT date of the last
-successful digest send. In a multi-worker setup each worker has an
-independent guard — emails could be sent up to once per worker per day.
-For production use behind a single worker (gunicorn with 1 sync worker
-or uvicorn), this is sufficient.
+Anti-duplicação (o backend roda 2 workers e cada um inicia este agendador —
+ver services/scheduler_guard.py): advisory lock por rodada + marca diária
+persistente por tenant em `tenant_configs.custom_settings.birthday_digest`
+(escopo = data BRT), gravada logo antes de enfileirar. Antes de 2026-10-05
+era um dict em memória por worker e o digest saía uma vez por worker.
 """
 
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
@@ -35,8 +35,6 @@ class BirthdayScheduler:
 
     def __init__(self) -> None:
         self._task: Optional[asyncio.Task] = None
-        # tenant_id (str) -> "YYYY-MM-DD" of last sent date in BRT
-        self._last_sent_date: Dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -74,6 +72,16 @@ class BirthdayScheduler:
                 logger.exception("Birthday scheduler: unexpected error in _send_all_digests")
 
     async def _send_all_digests(self) -> None:
+        """Envia os digests do dia (um worker por rodada)."""
+        from src.services.scheduler_guard import BIRTHDAY_LOCK_KEY, advisory_lock
+
+        async with advisory_lock(BIRTHDAY_LOCK_KEY) as acquired:
+            if not acquired:
+                logger.info("Birthday scheduler: outra instância está processando — pulando rodada.")
+                return
+            await self._send_all_digests_locked()
+
+    async def _send_all_digests_locked(self) -> None:
         """Iterate all tenants with mediuns feature and send birthday digests."""
         from sqlalchemy import select as sa_select, and_
 
@@ -99,17 +107,11 @@ class BirthdayScheduler:
             tenant_id = sub.tenant_id
             tid_str = str(tenant_id)
 
-            # Anti-duplicate guard: skip if already sent today
-            if self._last_sent_date.get(tid_str) == today_brt_str:
-                logger.debug("Birthday scheduler: already sent for tenant %s today, skipping", tid_str)
-                continue
-
             try:
                 await self._send_digest_for_tenant(
                     tenant_id=tenant_id,
                     today_brt_str=today_brt_str,
                 )
-                self._last_sent_date[tid_str] = today_brt_str
             except Exception:
                 logger.exception(
                     "Birthday scheduler: failed to process tenant %s", tid_str
@@ -168,6 +170,12 @@ class BirthdayScheduler:
             count = len(aniversariantes)
             plural = "aniversariante" if count == 1 else "aniversariantes"
             subject = f"🎂 {count} {plural} esta semana — {tenant_name}"
+
+            from src.services.scheduler_guard import claim_once
+
+            if not await claim_once(tenant_id, "birthday_digest", "sent", scope=today_brt_str):
+                logger.debug("Birthday scheduler: digest de %s já enviado hoje — pulando", tenant_id)
+                return
 
             for admin in recipients:
                 msg = EmailMessage(
