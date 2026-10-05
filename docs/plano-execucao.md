@@ -346,6 +346,21 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   taxa de clique nos botões da trilha (`welcome_tour_cta` no GA4/Clarity), cruzadas com o funil de
   ativação do P-06.
 
+### P-08 — E-mails de onboarding D+1 e D+3 — `feito` (2026-10-05)
+- **Problema**: entre o e-mail de boas-vindas e o lembrete de fim de trial (D-7) não havia nenhum
+  contato; a maioria dos cadastros some no mesmo dia.
+- **Entrega**: `services/onboarding_email_scheduler.py`, todo dia às 10:00 BRT. **D+1** (conta com
+  20h–68h, sem gira) → "sua primeira gira leva 1 minuto", com P.S. para o módulo da trilha
+  (`principal_dor`). **D+3** (conta com 68h–7 dias, nenhuma senha pelo link) → "mande o link para os
+  consulentes", com o link e botão de WhatsApp. Cada e-mail no máximo uma vez por tenant; contas com
+  7+ dias nunca recebem. Links com UTM `utm_campaign=onboarding_d1|d3`.
+- **Anti-duplicação** (o backend roda 2 workers): advisory lock por rodada + marca persistente em
+  `tenant_configs.custom_settings.onboarding_emails`, gravada sob `FOR UPDATE` antes do envio.
+  Desligar: `ONBOARDING_EMAILS_ENABLED=false`. Ver quem receberia:
+  `python -m src.services.onboarding_email_scheduler --dry-run`.
+- **Aceite de produto**: em 30 dias, fração de quem recebeu D+1 e criou gira em até 48h, e de quem
+  recebeu D+3 e recebeu a primeira senha pelo link em até 72h (sessões com `utm_campaign`).
+
 ---
 
 ## Regras de trabalho (vigentes a partir de agora)

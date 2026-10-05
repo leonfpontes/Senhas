@@ -121,6 +121,8 @@ services:
       BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL}
       RESEND_API_KEY: ${RESEND_API_KEY}
       RESEND_SENDER_EMAIL: ${RESEND_SENDER_EMAIL}
+      # E-mails de onboarding D+1/D+3 — false desliga (restart do backend)
+      ONBOARDING_EMAILS_ENABLED: ${ONBOARDING_EMAILS_ENABLED:-true}
 
       # Stripe
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
