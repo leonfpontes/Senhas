@@ -190,6 +190,13 @@ class TicketRepository(BaseRepository[Ticket]):
         result = await session.execute(query)
         return result.scalars().all()
 
+    ACTIVE_TICKET_UNIQUE_INDEX = "uq_tickets_gira_consulente_ativo"
+
+    @classmethod
+    def is_duplicate_active_ticket(cls, exc: Exception) -> bool:
+        """True se o IntegrityError veio do índice único de senha ativa (migração 056)."""
+        return cls.ACTIVE_TICKET_UNIQUE_INDEX in str(getattr(exc, "orig", exc))
+
     async def check_duplicate_in_gira(
         self,
         session: AsyncSession,

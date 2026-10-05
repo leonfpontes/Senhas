@@ -250,7 +250,16 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Nota**: RLS no Postgres ou `with_loader_criteria` global são a solução definitiva, mas são
   refactor de risco — o auditor dá 80% da proteção por 20% do custo. Reavaliar RLS depois de Q-01.
 
-### Q-03 — Constraint de dedup de emissão no banco — `pendente`
+### Q-03 — Constraint de dedup de emissão no banco — `feito` (2026-10-05)
+- **Feito**: migração 056 cria `uq_tickets_gira_consulente_ativo`, índice único parcial em
+  `(gira_id, consulente_id, is_sponsor)` para senhas não canceladas, não soft-deleted e que não
+  são acompanhantes (espelha `check_duplicate_in_gira`). Antes do índice, duplicatas existentes
+  são canceladas mantendo a mais antiga (produção tinha 1 par: walk-in duplo com 92s de
+  diferença). A emissão pública e o walk-in da Porta criam a senha dentro de savepoint e
+  traduzem a violação em 409, a mesma resposta do pré-check (não devolvem o ticket existente,
+  para não mudar o contrato do link público). O walk-in passou a fazer o pré-check também.
+  Testes em `tests/integration_pg/test_ticket_dedup.py`, incluindo rajada de walk-ins e a
+  migração deduplicando dados existentes.
 - **Problema**: o dedup de ticket é check-then-act sem backstop — não existe `UniqueConstraint`
   em `(gira_id, consulente_id)`. Duas requisições simultâneas com o mesmo e-mail passam ambas.
   Mesma família do incidente que gerou a migração 052.
