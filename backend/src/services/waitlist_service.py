@@ -197,7 +197,9 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
 
     ticket_number_formatted = f"P{ticket.numero:03d}" if ticket.is_sponsor else f"{ticket.numero:04d}"
 
-    gira_result = await session.execute(select(Gira).where(Gira.id == ticket.gira_id))
+    gira_result = await session.execute(
+        select(Gira).where(Gira.id == ticket.gira_id, Gira.tenant_id == ticket.tenant_id)
+    )
     gira_obj = gira_result.scalar_one_or_none()
     tenant_result = await session.execute(select(Tenant).where(Tenant.id == ticket.tenant_id))
     tenant = tenant_result.scalar_one_or_none()

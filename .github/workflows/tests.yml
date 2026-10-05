@@ -39,7 +39,7 @@ jobs:
         working-directory: backend
         run: python scripts/audit_permission_guards.py
 
-      - name: Audit — isolamento de tenant em queries admin
+      - name: Audit — isolamento de tenant (admin, repositories/services, public, FKs da requisição)
         working-directory: backend
         run: python scripts/audit_tenant_isolation.py
 

@@ -145,7 +145,10 @@ class SiteRepository(BaseRepository[TenantSite]):
         """
         # Delete existing sections
         await self.db.execute(
-            delete(TenantSiteSection).where(TenantSiteSection.site_id == site.id)
+            delete(TenantSiteSection).where(
+                TenantSiteSection.site_id == site.id,
+                TenantSiteSection.tenant_id == site.tenant_id,
+            )
         )
 
         # Insert new sections with sequential order_index (Gap #27 — renumber)

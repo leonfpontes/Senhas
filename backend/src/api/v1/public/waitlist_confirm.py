@@ -49,7 +49,9 @@ async def confirm_waitlist_ticket(request: Request, ticket_id: str):
                 detail="Esta senha não está aguardando confirmação de fila de espera",
             )
 
-        gira_result = await session.execute(select(Gira).where(Gira.id == ticket.gira_id))
+        gira_result = await session.execute(
+            select(Gira).where(Gira.id == ticket.gira_id, Gira.tenant_id == ticket.tenant_id)
+        )
         gira_obj = gira_result.scalar_one_or_none()
 
         now = datetime.now(timezone.utc)

@@ -188,7 +188,9 @@ class PermissionGroupRepository(BaseRepository[PermissionGroup]):
 
         # Check duplicate membership (T12)
         existing_stmt = select(UserGroupMembership).where(
-            (UserGroupMembership.group_id == group_id) & (UserGroupMembership.user_id == user_id)
+            (UserGroupMembership.group_id == group_id)
+            & (UserGroupMembership.user_id == user_id)
+            & (UserGroupMembership.tenant_id == tenant_id)
         )
         existing_result = await self.db.execute(existing_stmt)
         if existing_result.scalar_one_or_none():
