@@ -42,8 +42,19 @@ class _MockGiraClass:
     deleted_at = _ComparableMock()
 
 
+class _Savepoint:
+    """Imita AsyncSession.begin_nested(): deixa a exceção propagar."""
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
 def _mock_db():
     db = AsyncMock()
+    db.begin_nested = MagicMock(side_effect=lambda: _Savepoint())
     db.execute = AsyncMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()

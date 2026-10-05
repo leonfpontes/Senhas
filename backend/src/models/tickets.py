@@ -1,5 +1,5 @@
 """Ticket model - senha (password/ticket emitted) - CORE (T015)."""
-from sqlalchemy import Column, String, ForeignKey, Integer, Index, Text, DateTime, Enum as SQLEnum, Boolean
+from sqlalchemy import Column, String, ForeignKey, Integer, Index, Text, DateTime, Enum as SQLEnum, Boolean, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
@@ -67,6 +67,17 @@ class Ticket(SoftDeleteModel):
         Index("ix_tickets_time_slot_id", "time_slot_id"),
         Index("ix_tickets_parent_ticket_id", "parent_ticket_id"),
         Index("ix_tickets_checkin_em", "checkin_em"),
+        # Uma senha ativa por consulente/gira/tipo (migração 056, item Q-03).
+        # Mesmo predicado de TicketRepository.check_duplicate_in_gira.
+        Index(
+            "uq_tickets_gira_consulente_ativo",
+            "gira_id",
+            "consulente_id",
+            "is_sponsor",
+            unique=True,
+            postgresql_where=text("is_acompanhante = false AND status <> 'cancelled' AND deleted_at IS NULL"),
+            sqlite_where=text("is_acompanhante = false AND status <> 'cancelled' AND deleted_at IS NULL"),
+        ),
     )
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

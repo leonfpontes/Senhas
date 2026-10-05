@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Path, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, case, func
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, Field, EmailStr, field_validator
 from typing import List, Optional
 from uuid import UUID
@@ -413,6 +414,21 @@ async def create_walk_in_ticket(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
+    # Walk-in com e-mail reaproveita o consulente: se ele já tem senha ativa na
+    # gira (ex.: pegou pelo link, ou clique duplo na Porta), não cria outra.
+    # Produção tinha um par duplicado assim antes da migração 056 (Q-03).
+    if consulente.email_normalized and await ticket_repo.check_duplicate_in_gira(
+        session=db,
+        tenant_id=current_user.tenant_id,
+        gira_id=gira_id,
+        consulente_id=consulente.id,
+        is_sponsor=False,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este consulente já tem uma senha ativa nesta gira.",
+        )
+
     await senha_control_repo.get_or_create_for_gira(
         session=db,
         tenant_id=current_user.tenant_id,
@@ -432,19 +448,29 @@ async def create_walk_in_ticket(
     if walk_in_priority is None and body.preferencial:
         walk_in_priority = PriorityCategory.ELDERLY.value
 
-    ticket = await ticket_repo.create_ticket(
-        session=db,
-        tenant_id=current_user.tenant_id,
-        gira_id=gira_id,
-        consulente_id=consulente.id,
-        numero=next_number,
-        status=TicketStatus.EMITTED,
-        observacoes=_build_observacoes(priority_category=walk_in_priority),
-        priority_category=walk_in_priority,
-        is_walk_in=True,
-        emitido_por_id=current_user.id,
-        checkin_em=datetime.now(timezone.utc),
-    )
+    try:
+        async with db.begin_nested():
+            ticket = await ticket_repo.create_ticket(
+                session=db,
+                tenant_id=current_user.tenant_id,
+                gira_id=gira_id,
+                consulente_id=consulente.id,
+                numero=next_number,
+                status=TicketStatus.EMITTED,
+                observacoes=_build_observacoes(priority_category=walk_in_priority),
+                priority_category=walk_in_priority,
+                is_walk_in=True,
+                emitido_por_id=current_user.id,
+                checkin_em=datetime.now(timezone.utc),
+            )
+    except IntegrityError as exc:
+        # Corrida com outra emissão do mesmo consulente (índice único da 056).
+        if not TicketRepository.is_duplicate_active_ticket(exc):
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este consulente já tem uma senha ativa nesta gira.",
+        )
 
     await db.commit()
     await db.refresh(ticket, ["consulente"])

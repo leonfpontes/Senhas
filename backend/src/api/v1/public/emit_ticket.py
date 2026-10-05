@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select, and_
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone
 import json
 import logging
@@ -675,18 +676,31 @@ async def emit_ticket(
         if priority_category is not None:
             obs_payload["preferencial"] = True
         observacoes = json.dumps(obs_payload) if obs_payload else None
-        ticket = await ticket_repo.create_ticket(
-            session=session,
-            tenant_id=tenant.id,
-            gira_id=gira.id,
-            consulente_id=consulente.id,
-            numero=ticket_number_int,
-            status=TicketStatus.WAITLISTED if waitlisted else TicketStatus.EMITTED,
-            observacoes=observacoes,
-            priority_category=priority_category,
-            is_sponsor=is_sponsor,
-            time_slot_id=time_slot_id_for_ticket,
-        )
+        # Savepoint: se outra requisição do mesmo consulente criou a senha entre
+        # o check do STEP 5 e aqui, o índice único (migração 056, Q-03) barra a
+        # segunda. Vira 409 — a mesma resposta do duplicado — em vez de 500; a
+        # transação não é confirmada, então o número do STEP 7 é devolvido.
+        try:
+            async with session.begin_nested():
+                ticket = await ticket_repo.create_ticket(
+                    session=session,
+                    tenant_id=tenant.id,
+                    gira_id=gira.id,
+                    consulente_id=consulente.id,
+                    numero=ticket_number_int,
+                    status=TicketStatus.WAITLISTED if waitlisted else TicketStatus.EMITTED,
+                    observacoes=observacoes,
+                    priority_category=priority_category,
+                    is_sponsor=is_sponsor,
+                    time_slot_id=time_slot_id_for_ticket,
+                )
+        except IntegrityError as exc:
+            if not TicketRepository.is_duplicate_active_ticket(exc):
+                raise
+            raise HTTPException(
+                status_code=409,
+                detail="Este e-mail já possui uma senha emitida para esta gira",
+            )
 
         # Acompanhantes: cada um vira um consulente próprio (sem e-mail, mesmo
         # padrão do walk-in) com senha vinculada à do titular.
