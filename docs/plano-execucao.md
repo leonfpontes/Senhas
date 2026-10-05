@@ -332,6 +332,11 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Complemento (2026-10-05)**: empty state em `/admin/giras` (antes: tabela vazia) com o ciclo
   em 3 passos e "Criar primeira gira"; falha de carregamento agora mostra erro com retry em vez
   de parecer lista vazia; `?nova=1` abre o formulário de criação direto (usado pelo checklist).
+- **Complemento (2026-10-05, padrões de senhas)**: criar uma gira abre na sequência a configuração
+  de senhas (antes o formulário só fechava e a gira podia ficar sem emissão). Gira sem senhas vem
+  preenchida com a mediana das quantidades do terreiro (30 sem histórico) e liberação de agora até
+  o início da gira; janela menor que 3h mostra aviso com "Usar sugestão". Base: em produção os
+  terreiros ativos têm janela mediana de 5h a 48h, os novos de 1h a 2h.
 
 ### P-07 — Pergunta de dor no cadastro + tour de boas-vindas por trilha — `feito` (2026-10-05)
 - **Mudança de regra do cadastro**, decidida pelo dono do produto: o cadastro self-service passa a
