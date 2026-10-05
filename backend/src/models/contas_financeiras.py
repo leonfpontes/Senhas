@@ -94,7 +94,7 @@ class ContaFinanceira(SoftDeleteModel):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
-    tipo: Mapped[str] = mapped_column(String(20), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(10), nullable=False)  # pagar, receber
     descricao: Mapped[str] = mapped_column(String(255), nullable=False)
     valor: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     data_vencimento: Mapped[str] = mapped_column(Date, nullable=False)
@@ -110,7 +110,7 @@ class ContaFinanceira(SoftDeleteModel):
     conta_bancaria_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("contas_bancarias.id", ondelete="SET NULL"), nullable=True
     )
-    recorrencia: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    recorrencia: Mapped[str | None] = mapped_column(String(10), nullable=True)  # unica, mensal, anual
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
     comprovante_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     external_ref: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)

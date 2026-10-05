@@ -1,7 +1,7 @@
 """AuditLog model - immutable audit trail (T017)."""
 from sqlalchemy import Column, ForeignKey, String, Index, Text, DateTime, Enum as SQLEnum, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID, JSON
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from datetime import datetime
 import uuid
 import enum
@@ -48,7 +48,8 @@ class AuditLog(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
+        # SET NULL (migração 031): logs sobrevivem ao hard delete do tenant (LGPD)
+        ForeignKey("tenants.id", ondelete="SET NULL"),
         nullable=True,  # NULL for platform-level events (super admin logins)
     )
     user_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -64,7 +65,7 @@ class AuditLog(Base):
     )
     resource_type: Mapped[str] = mapped_column(String(100), nullable=False)  # User, Ticket, Gira, etc
     resource_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-    details: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Extra context
+    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # Extra context (JSONB no banco)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.utcnow(),

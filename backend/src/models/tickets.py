@@ -66,13 +66,14 @@ class Ticket(SoftDeleteModel):
         Index("ix_tickets_created_at", "created_at"),
         Index("ix_tickets_time_slot_id", "time_slot_id"),
         Index("ix_tickets_parent_ticket_id", "parent_ticket_id"),
+        Index("ix_tickets_checkin_em", "checkin_em"),
     )
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     gira_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("giras.id", ondelete="CASCADE"), nullable=False)
     consulente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("consulentes.id", ondelete="CASCADE"), nullable=False)
-    emitido_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    emitido_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # SET NULL: migração 030 (LGPD)
     # Horário de atendimento escolhido pelo consulente (agendamento por horário).
     # Nulo quando a gira não usa slots ou o ticket é anterior à feature.
     time_slot_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("gira_time_slots.id", ondelete="SET NULL"), nullable=True)

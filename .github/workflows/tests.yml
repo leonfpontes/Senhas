@@ -80,6 +80,18 @@ jobs:
         working-directory: backend
         run: pip install -e ".[dev]"
 
+      # Drift modelos × migrações: o schema migrado é a fonte da verdade
+      # (é o que existe em produção). O conftest da suíte recria o schema
+      # depois, então rodar as migrações aqui não interfere nos testes.
+      - name: Alembic — schema migrado = modelos
+        working-directory: backend
+        env:
+          INTEGRATION_PG: "1"
+          DEBUG: "true"
+          DATABASE_URL: postgresql+asyncpg://senhas_test:senhas_test@localhost:5432/senhas_test
+          STRIPE_WEBHOOK_SECRET: whsec_integration_ci
+        run: python -m alembic upgrade head && python -m alembic check
+
       - name: Run Postgres integration tests
         working-directory: backend
         env:

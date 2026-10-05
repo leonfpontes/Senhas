@@ -297,6 +297,7 @@ Antes de abrir PR, confirme:
 - [ ] Nao ha segredo hardcoded nos arquivos alterados.
 - [ ] Migracao criada/aplicavel para mudanca de schema.
 - [ ] `alembic heads` retorna exatamente UMA head (sem divergencias).
+- [ ] `alembic check` sem diferencas num banco migrado do zero (modelos = schema migrado; gate no CI). Divergencia: ajustar o MODELO; migracao so se o banco estiver errado.
 - [ ] Testes relevantes executados e passando.
 - [ ] Docs atualizadas (API, comportamento ou operacao).
 - [ ] Frontend funciona em desktop/mobile para a funcionalidade alterada.
