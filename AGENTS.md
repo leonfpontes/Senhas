@@ -399,6 +399,14 @@ Incluir obrigatoriamente:
 - **QR code**: `qrcode.react` (SVG local, sem chamada externa).
 - **Tela de giras**: sem nenhuma gira, `/admin/giras` mostra `components/admin/GirasEmptyState.tsx` (ciclo em 3 passos + "Criar primeira gira" com `giras:insert`; bloqueado pelo plano mostra o motivo e "Ver planos"). Erro ao carregar mostra `Alert` com "Tentar novamente" — nunca o empty state. `/admin/giras?nova=1` abre o formulário de criação direto (respeita permissão e limite do plano) e remove o parâmetro da URL; o botão "Criar gira" do checklist usa esse link. Evento `giras_empty_create`.
 
+### 11.13 Pergunta de dor no cadastro + tour de boas-vindas — item P-07 do plano
+- **Cadastro** (`/cadastro`, passo 1): select obrigatório "O que você mais precisa resolver?". Valores em `backend/src/core/onboarding.py` (`PRINCIPAL_DOR_VALUES`), espelhados em `frontend/src/constants/onboarding.ts` — `test_onboarding_signup.py` falha se as listas divergirem. O schema aceita ausência (compatibilidade), o formulário exige.
+- **Armazenamento**: `tenant_configs.custom_settings.principal_dor` (JSON, junto do `como_conheceu`; sem migração). Leitura sempre via `read_principal_dor()`, que ignora valores fora da lista.
+- **Exposição**: `onboarding.principal_dor` no `GET /api/v1/admin/dashboard-summary`, na mesma consulta do checklist (§11.12).
+- **Tour** (`frontend/src/tours/welcomeTour.tsx`): `useWelcomeTour` no dashboard abre sozinho **uma vez por usuário** (flag `girahub:welcome-tour:seen:{userId}` no localStorage), só para `role === 'admin'` e só se o tenant tem `principal_dor`; tenants antigos não veem. Trilhas: senhas/outro → checklist + Porta; médiuns, financeiro, divulgação, estoque → passo com botão para o módulo (ou "Ver planos" se a feature do plano não estiver liberada) e um passo lembrando do checklist. Todas terminam no botão "?" (`data-tour="topbar-help"`).
+- **Passos centralizados** usam `CENTER_SELECTOR` (seletor sem elemento) + `position: 'center'` + `padding.mask: 0`: com `body` o reactour não escurece o fundo e rola a página. Não ancorar no menu lateral: muda por plano/permissão e fica escondido no celular.
+- **Analytics**: `signup_completed {principal_dor}` no cadastro, `welcome_tour_open {trilha}`, `welcome_tour_cta {trilha, href}`, e tag de sessão `principal_dor` no Clarity.
+
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).
 - VPS: 76.13.231.19 (Hostinger), projeto em /opt/senhas.

@@ -40,6 +40,8 @@ export interface OnboardingStatus {
   door_used: boolean;
   public_link: string | null;
   completed: boolean;
+  /** Resposta do cadastro; define a trilha do tour de boas-vindas. */
+  principal_dor?: string | null;
 }
 
 export interface FirstGiraChecklistProps {
@@ -316,6 +318,7 @@ export default function FirstGiraChecklist({
     <Paper
       elevation={0}
       data-testid="first-gira-checklist"
+      data-tour="first-gira-checklist"
       sx={{ border: '1px solid', borderColor: primary, borderRadius: 3, p: { xs: 2, sm: 3 }, mb: 3 }}
     >
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>

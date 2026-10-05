@@ -37,20 +37,22 @@ def _run(row):
 
 class TestOnboardingQuery:
     def test_every_subquery_is_scoped_to_tenant_and_ignores_soft_deleted(self):
-        _, sql = _run((False, 0, False, "t"))
+        _, sql = _run((False, 0, False, "t", None))
         tid = str(TENANT)
         assert sql.count(f"giras.tenant_id = '{tid}'") == 1
         assert sql.count(f"tickets.tenant_id = '{tid}'") == 2
         assert sql.count(f"tenants.id = '{tid}'") == 1
+        assert sql.count(f"tenant_configs.tenant_id = '{tid}'") == 1
+        assert "tenant_configs.deleted_at IS NULL" in sql
         assert "giras.deleted_at IS NULL" in sql
         assert sql.count("tickets.deleted_at IS NULL") == 2
 
     def test_public_tickets_counts_only_self_service_emission(self):
-        _, sql = _run((False, 0, False, "t"))
+        _, sql = _run((False, 0, False, "t", None))
         assert "tickets.emitido_por_id IS NULL" in sql
 
     def test_door_used_is_checkin_or_called(self):
-        _, sql = _run((False, 0, False, "t"))
+        _, sql = _run((False, 0, False, "t", None))
         assert "tickets.checkin_em IS NOT NULL OR tickets.chamado_em IS NOT NULL" in sql
 
     def test_single_round_trip(self):
@@ -58,7 +60,7 @@ class TestOnboardingQuery:
 
         class _Result:
             def one(self):
-                return (True, 1, True, "t")
+                return (True, 1, True, "t", None)
 
         async def fake_execute(stmt):
             calls.append(stmt)
@@ -72,27 +74,37 @@ class TestOnboardingQuery:
 
 class TestOnboardingStatus:
     def test_new_tenant(self):
-        status, _ = _run((False, 0, False, "casa-nova"))
+        status, _ = _run((False, 0, False, "casa-nova", None))
         dumped = status.model_dump()
         assert dumped == {
             "has_gira": False,
             "public_tickets": 0,
             "door_used": False,
             "public_link": "https://girahub.com.br/public/casa-nova/senha",
+            "principal_dor": None,
             "completed": False,
         }
 
     def test_completed_requires_all_three_signals(self):
-        assert _run((True, 5, True, "t"))[0].completed is True
-        assert _run((True, 5, False, "t"))[0].completed is False
-        assert _run((True, 0, True, "t"))[0].completed is False
-        assert _run((False, 5, True, "t"))[0].completed is False
+        assert _run((True, 5, True, "t", None))[0].completed is True
+        assert _run((True, 5, False, "t", None))[0].completed is False
+        assert _run((True, 0, True, "t", None))[0].completed is False
+        assert _run((False, 5, True, "t", None))[0].completed is False
 
     def test_null_count_and_missing_slug(self):
-        status, _ = _run((None, None, None, None))
+        status, _ = _run((None, None, None, None, None))
         assert status.public_tickets == 0
         assert status.has_gira is False
         assert status.public_link is None
+
+    def test_principal_dor_read_from_custom_settings(self):
+        status, _ = _run((False, 0, False, "t", {"como_conheceu": "google", "principal_dor": "financeiro"}))
+        assert status.principal_dor == "financeiro"
+
+    def test_principal_dor_ignores_unknown_or_missing(self):
+        assert _run((False, 0, False, "t", {"principal_dor": "hackeado"}))[0].principal_dor is None
+        assert _run((False, 0, False, "t", {"como_conheceu": "google"}))[0].principal_dor is None
+        assert _run((False, 0, False, "t", None))[0].principal_dor is None
 
     def test_response_model_exposes_onboarding_with_completed(self):
         resp = ds.DashboardSummaryResponse()

@@ -32,15 +32,10 @@ import Link from 'next/link';
 import { apiClient } from '../services/api_client';
 import { dispatchTenantBrandingUpdated } from '../providers/ThemeProvider';
 import PasswordField from '../components/PasswordField';
+import { COMO_CONHECEU_OPTIONS, PRINCIPAL_DOR_OPTIONS, PrincipalDor } from '../constants/onboarding';
+import { trackEvent } from '../services/analytics';
 
 const STEPS = ['Seu Terreiro', 'Seus Dados'];
-
-const COMO_CONHECEU_OPTIONS = [
-  { value: 'google', label: 'Google' },
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'indicacao', label: 'Indicação' },
-  { value: 'outro', label: 'Outro' },
-];
 
 // Simple WhatsApp mask: (99) 99999-9999
 function maskPhone(value: string): string {
@@ -125,6 +120,8 @@ export default function CadastroPage() {
   const [terreiroNome, setTerreiroNome] = useState('');
   const [endereco, setEndereco] = useState('');
   const [comoConheceu, setComoConheceu] = useState('');
+  // Obrigatória: define a trilha do tour de boas-vindas no primeiro login.
+  const [principalDor, setPrincipalDor] = useState<PrincipalDor | ''>('');
 
   // Step 2
   const [nome, setNome] = useState('');
@@ -136,7 +133,7 @@ export default function CadastroPage() {
   const [aceiteTermos, setAceiteTermos] = useState(false);
 
   // Validation helpers
-  const step1Valid = terreiroNome.trim().length >= 3;
+  const step1Valid = terreiroNome.trim().length >= 3 && principalDor !== '';
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const documentoDigits = documento.replace(/\D/g, '');
   const documentoValid = validarDocumento(documento);
@@ -178,8 +175,11 @@ export default function CadastroPage() {
         documento: documentoDigits,
         password,
         como_conheceu: comoConheceu || undefined,
+        principal_dor: principalDor || undefined,
         aceite_termos: true,
       });
+
+      trackEvent('signup_completed', { principal_dor: principalDor || 'nao_informado' });
 
       const { user } = res.data;
       // access_token agora chega como cookie HttpOnly
@@ -354,6 +354,23 @@ export default function CadastroPage() {
                       inputProps={{ maxLength: 500 }}
                       helperText="Usado no botão 'Como Chegar' dos emails de senha"
                     />
+
+                    <TextField
+                      select
+                      required
+                      label="O que você mais precisa resolver?"
+                      value={principalDor}
+                      onChange={(e) => setPrincipalDor(e.target.value as PrincipalDor)}
+                      fullWidth
+                      helperText="No terreiro, hoje. Vamos montar o seu guia inicial a partir disso."
+                      inputProps={{ 'data-testid': 'principal-dor-select' }}
+                    >
+                      {PRINCIPAL_DOR_OPTIONS.map((o) => (
+                        <MenuItem key={o.value} value={o.value}>
+                          {o.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
 
                     <TextField
                       select

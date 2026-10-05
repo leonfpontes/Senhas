@@ -46,6 +46,9 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { useTenant } from '@/providers/ThemeProvider';
 import { useProfile } from '@/hooks/useProfile';
 import FirstGiraChecklist, { OnboardingStatus } from '@/components/admin/FirstGiraChecklist';
+import { useWelcomeTour } from '@/tours/welcomeTour';
+import { isPrincipalDor } from '@/constants/onboarding';
+import { setAnalyticsTag } from '@/services/analytics';
 import { apiClient } from '../../services/api_client';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -318,6 +321,20 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   };
+
+  // Tour de boas-vindas: abre sozinho uma vez, só para o admin de tenants que
+  // responderam "o que você mais precisa resolver" no cadastro.
+  const principalDor = isPrincipalDor(data?.onboarding?.principal_dor) ? data?.onboarding?.principal_dor : null;
+  useEffect(() => {
+    if (principalDor) setAnalyticsTag('principal_dor', principalDor);
+  }, [principalDor]);
+  useWelcomeTour({
+    enabled: !loading && !!data && profile?.role === 'admin',
+    dor: principalDor,
+    userId: profile?.id,
+    firstName: profile?.full_name?.split(' ')[0],
+    can,
+  });
 
   const stats = data?.ticket_stats;
 

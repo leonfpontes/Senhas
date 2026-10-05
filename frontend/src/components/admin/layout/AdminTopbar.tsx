@@ -159,6 +159,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
             <IconButton
               color="inherit"
               aria-label="Abrir guia da tela"
+              data-tour="topbar-help"
               onClick={handleOpenTour}
               size="small"
               sx={{ opacity: 0.85, '&:hover': { opacity: 1 } }}

@@ -12,9 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.database import get_db
+from src.core.onboarding import read_principal_dor
 from src.models import User
 from src.models.giras import Gira
 from src.models.senha_controls import SenhaControl
+from src.models.tenant_config import TenantConfig
 from src.models.tenants import Tenant
 from src.models.tickets import Ticket
 from src.models.subscriptions import PlanType
@@ -109,6 +111,9 @@ class OnboardingStatus(BaseModel):
     public_tickets: int = 0
     door_used: bool = False
     public_link: Optional[str] = None
+    # Resposta do cadastro ("o que você mais precisa resolver"); define a
+    # trilha do tour de boas-vindas. None para tenants anteriores à pergunta.
+    principal_dor: Optional[str] = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -155,8 +160,16 @@ async def _get_onboarding_status(db: AsyncSession, tenant_id: UUID) -> Onboardin
         or_(Ticket.checkin_em.is_not(None), Ticket.chamado_em.is_not(None)),
     )
     slug = select(Tenant.slug).where(Tenant.id == tenant_id).scalar_subquery()
+    custom_settings = (
+        select(TenantConfig.custom_settings)
+        .where(TenantConfig.tenant_id == tenant_id, TenantConfig.deleted_at.is_(None))
+        .limit(1)
+        .scalar_subquery()
+    )
 
-    row = (await db.execute(select(has_gira, public_tickets, door_used, slug))).one()
+    row = (
+        await db.execute(select(has_gira, public_tickets, door_used, slug, custom_settings))
+    ).one()
     base = settings.FRONTEND_URL.rstrip("/")
     return OnboardingStatus(
         has_gira=bool(row[0]),
@@ -165,6 +178,7 @@ async def _get_onboarding_status(db: AsyncSession, tenant_id: UUID) -> Onboardin
         # Mesmo link de giras_crud.get_unified_links: resolve a próxima gira a
         # cada visita, então pode ser compartilhado uma vez só.
         public_link=f"{base}/public/{row[3]}/senha" if row[3] else None,
+        principal_dor=read_principal_dor(row[4]),
     )
 
 
