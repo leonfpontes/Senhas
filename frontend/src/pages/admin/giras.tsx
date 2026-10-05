@@ -32,6 +32,13 @@ import {
 } from '@mui/material';
 import { PageHeader, ConfirmDialog } from '@/components/admin';
 import GirasEmptyState from '@/components/admin/GirasEmptyState';
+import {
+  formatWindowDuration,
+  isShortWindow,
+  releaseWindowHours,
+  suggestMaxTickets,
+  suggestReleaseWindow,
+} from '@/utils/giraSenhaDefaults';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -204,6 +211,10 @@ function AdminGirasContent() {
   // Senha config drawer
   const [senhaDrawerOpen, setSenhaDrawerOpen] = useState(false);
   const [senhaTarget, setSenhaTarget] = useState<Gira | null>(null);
+  // Sugestão preenchida quando a gira ainda não tem senhas configuradas.
+  const [senhaSuggestion, setSenhaSuggestion] = useState<
+    { fromCreate: boolean; maxTickets: number; hasHistory: boolean; hasWindow: boolean } | null
+  >(null);
   const [senhaForm, setSenhaForm] = useState<typeof EMPTY_SENHA_FORM>(EMPTY_SENHA_FORM);
   const [senhaConfig, setSenhaConfig] = useState<SenhaConfig | null>(null);
   const [senhaInitial, setSenhaInitial] = useState<typeof EMPTY_SENHA_FORM>(EMPTY_SENHA_FORM);
@@ -348,14 +359,19 @@ function AdminGirasContent() {
         ...formData,
         data_inicio: toUtcIso(formData.data_inicio),
       };
+      let created: Gira | null = null;
       if (drawerMode === 'create') {
-        await apiClient.post('/api/v1/admin/giras', payload);
+        const response = await apiClient.post('/api/v1/admin/giras', payload);
+        created = response?.data?.id ? (response.data as Gira) : null;
       } else if (currentGira) {
         await apiClient.put(`/api/v1/admin/giras/${currentGira.id}`, payload);
       }
       closeDrawer();
       loadGiras();
       refreshSubscription();
+      // Sem configuração de senhas a gira não aparece no link público — antes
+      // o formulário só fechava e muitos terreiros novos nunca configuravam.
+      if (created && canEdit) openSenhaDrawer(created, { fromCreate: true });
     } catch (error) {
       console.error('Error saving gira:', error);
     } finally {
@@ -383,17 +399,21 @@ function AdminGirasContent() {
   };
 
   // --- Senha Config Drawer ---
-  const openSenhaDrawer = async (gira: Gira) => {
+  const openSenhaDrawer = async (gira: Gira, opts: { fromCreate?: boolean } = {}) => {
     setSenhaTarget(gira);
+    setSenhaSuggestion(null);
     setSenhaForm(EMPTY_SENHA_FORM);
     setSenhaInitial(EMPTY_SENHA_FORM);
     setSenhaTouched({});
     setSenhaConfig(null);
     setSenhaDrawerOpen(true);
     setSenhaLoading(true);
+    let loadedConfig: SenhaConfig | null = null;
+    let loadedForm = EMPTY_SENHA_FORM;
     try {
       const response = await apiClient.get(`/api/v1/admin/giras/${gira.id}/senhas`);
       const config: SenhaConfig = response.data;
+      loadedConfig = config;
       setSenhaConfig(config);
       const loaded = {
         max_tickets: config.max_tickets ? String(config.max_tickets) : '',
@@ -406,12 +426,32 @@ function AdminGirasContent() {
         sponsor_release_end_at: isoToLocalDatetimeInput(config.sponsor_release_end_at),
         waitlist_confirmation_hours: config.waitlist_confirmation_hours ? String(config.waitlist_confirmation_hours) : '',
       };
+      loadedForm = loaded;
       setSenhaForm(loaded);
       setSenhaInitial(loaded);
     } catch {
       // No config yet — form stays empty
     } finally {
       setSenhaLoading(false);
+    }
+
+    // Gira ainda sem senhas (max_tickets 0): preenche a sugestão. O "inicial"
+    // continua vazio, então salvar fica habilitado e fechar pede confirmação.
+    if (!loadedConfig || !loadedConfig.max_tickets) {
+      const suggestedWindow = suggestReleaseWindow(gira.data_inicio);
+      const maxTickets = suggestMaxTickets(giras, gira.id);
+      setSenhaForm({
+        ...loadedForm,
+        max_tickets: String(maxTickets),
+        release_start_at: suggestedWindow?.start ?? '',
+        release_end_at: suggestedWindow?.end ?? '',
+      });
+      setSenhaSuggestion({
+        fromCreate: !!opts.fromCreate,
+        maxTickets,
+        hasHistory: giras.some((g) => g.id !== gira.id && (g.max_tickets ?? 0) > 0),
+        hasWindow: !!suggestedWindow,
+      });
     }
 
     if (timeSlotSchedulingEnabled) {
@@ -442,6 +482,7 @@ function AdminGirasContent() {
   const closeSenhaDrawer = () => {
     setSenhaDrawerOpen(false);
     setSenhaTarget(null);
+    setSenhaSuggestion(null);
     setSenhaConfig(null);
     setSenhaForm(EMPTY_SENHA_FORM);
     setSenhaTouched({});
@@ -920,6 +961,20 @@ function AdminGirasContent() {
           </Box>
         ) : (
           <>
+            {senhaSuggestion && (
+              <Alert severity={senhaSuggestion.fromCreate ? 'success' : 'info'} sx={{ mb: 1 }} data-testid="senha-suggestion">
+                {senhaSuggestion.fromCreate && (
+                  <strong style={{ display: 'block', marginBottom: 4 }}>Gira criada! Falta liberar as senhas.</strong>
+                )}
+                {senhaSuggestion.fromCreate && 'As senhas só aparecem no link do terreiro depois que você salvar. '}
+                Preenchemos uma sugestão: {senhaSuggestion.maxTickets} senhas
+                {senhaSuggestion.hasHistory ? ' (a média das suas giras)' : ''}
+                {senhaSuggestion.hasWindow
+                  ? ', liberadas a partir de agora até o início da gira, para quem vir o link no grupo pegar na hora.'
+                  : '. A gira já começou, então defina a janela de liberação.'}{' '}
+                Ajuste se precisar.
+              </Alert>
+            )}
             <TextField
               label="Quantidade de Senhas"
               type="number"
@@ -956,6 +1011,36 @@ function AdminGirasContent() {
               error={!!senhaEndError}
               helperText={senhaEndError || 'Quando a emissão será encerrada'}
             />
+            {isShortWindow(senhaForm.release_start_at, senhaForm.release_end_at) && (() => {
+              const hours = releaseWindowHours(senhaForm.release_start_at, senhaForm.release_end_at) ?? 0;
+              const suggested = senhaTarget ? suggestReleaseWindow(senhaTarget.data_inicio) : null;
+              return (
+                <Alert
+                  severity="warning"
+                  data-testid="short-window-warning"
+                  action={
+                    suggested ? (
+                      <Button
+                        color="inherit"
+                        size="small"
+                        onClick={() =>
+                          setSenhaForm((prev) => ({
+                            ...prev,
+                            release_start_at: suggested.start,
+                            release_end_at: suggested.end,
+                          }))
+                        }
+                      >
+                        Usar sugestão
+                      </Button>
+                    ) : undefined
+                  }
+                >
+                  A liberação dura só {formatWindowDuration(hours)}. Quem vir o link fora desse horário não consegue
+                  pegar senha. Os terreiros que mais usam o GiraHub deixam a emissão aberta por horas ou dias.
+                </Alert>
+              );
+            })()}
 
             {can('fila_espera') && (
               <TextField

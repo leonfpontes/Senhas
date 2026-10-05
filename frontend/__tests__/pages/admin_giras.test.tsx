@@ -39,6 +39,7 @@ jest.mock('@/hooks/useSubscription', () => ({
     can: () => true,
     canCreateGira: () => true,
     loading: false,
+    refresh: jest.fn(),
   }),
 }));
 
@@ -48,8 +49,13 @@ jest.mock('@/hooks/usePermissions', () => ({
 
 jest.mock('@/components/CrudDrawer', () => ({
   __esModule: true,
-  default: ({ children, open, title }: any) =>
-    open ? <div data-testid="crud-drawer" aria-label={title}>{children}</div> : null,
+  default: ({ children, open, title, onSave }: any) =>
+    open ? (
+      <div data-testid="crud-drawer" aria-label={title}>
+        {children}
+        <button onClick={onSave}>{`salvar: ${title}`}</button>
+      </div>
+    ) : null,
 }));
 
 const theme = createTheme();
@@ -135,5 +141,71 @@ describe('Admin Giras Page', () => {
       undefined,
       { shallow: true },
     );
+  });
+
+  describe('padrões inteligentes de senhas', () => {
+    const NEW_GIRA = { id: 'nova', nome: 'Gira de Caboclos', data_inicio: '2099-01-10T22:00:00Z', is_active: true };
+
+    function mockApi(giras: any[] = []) {
+      const { apiClient } = require('@/services/api_client');
+      apiClient.get.mockImplementation((url: string) => {
+        if (url === '/api/v1/admin/giras') return Promise.resolve({ data: giras });
+        if (url.endsWith('/senhas')) {
+          return Promise.resolve({
+            data: { max_tickets: 0, release_start_at: NEW_GIRA.data_inicio, release_end_at: NEW_GIRA.data_inicio, current_count: 0 },
+          });
+        }
+        return Promise.resolve({ data: {} });
+      });
+      apiClient.post.mockResolvedValue({ data: NEW_GIRA });
+      return apiClient;
+    }
+
+    async function createGira() {
+      const AdminGiras = require('@/pages/admin/giras').default;
+      wrap(<AdminGiras />);
+      await waitFor(() => expect(screen.getByRole('button', { name: /Nova Gira/ })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: /Nova Gira/ }));
+      fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: NEW_GIRA.nome } });
+      fireEvent.change(screen.getByLabelText(/Data Início/), { target: { value: '2099-01-10T19:00' } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /salvar: Nova Gira/ }));
+      });
+    }
+
+    it('depois de criar, abre a configuração de senhas já com a sugestão', async () => {
+      const api = mockApi([{ ...MOCK_GIRAS[0], max_tickets: 40 }, { ...MOCK_GIRAS[0], id: 'g2', max_tickets: 20 }]);
+      await createGira();
+      await waitFor(() => expect(screen.getByTestId('senha-suggestion')).toBeInTheDocument());
+      expect(api.post).toHaveBeenCalledWith('/api/v1/admin/giras', expect.objectContaining({ nome: NEW_GIRA.nome }));
+      expect(api.get).toHaveBeenCalledWith('/api/v1/admin/giras/nova/senhas');
+      const alert = screen.getByTestId('senha-suggestion');
+      expect(alert).toHaveTextContent('Gira criada! Falta liberar as senhas.');
+      expect(alert).toHaveTextContent('30 senhas (a média das suas giras)');
+      expect(screen.getByLabelText(/^Quantidade de Senhas(\s*\*)?$/)).toHaveValue(30);
+      expect((screen.getByLabelText(/^Início da Liberação(\s*\*)?$/) as HTMLInputElement).value).not.toBe('');
+      const fim = new Date(NEW_GIRA.data_inicio);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      expect(screen.getByLabelText(/^Fim da Liberação(\s*\*)?$/)).toHaveValue(
+        `${fim.getFullYear()}-${pad(fim.getMonth() + 1)}-${pad(fim.getDate())}T${pad(fim.getHours())}:${pad(fim.getMinutes())}`,
+      );
+      expect(screen.queryByTestId('short-window-warning')).not.toBeInTheDocument();
+    });
+
+    it('janela curta mostra aviso e "Usar sugestão" restaura a janela longa', async () => {
+      mockApi([]);
+      await createGira();
+      await waitFor(() => expect(screen.getByTestId('senha-suggestion')).toBeInTheDocument());
+      expect(screen.getByLabelText(/^Quantidade de Senhas(\s*\*)?$/)).toHaveValue(30);
+      const fimSugerido = (screen.getByLabelText(/^Fim da Liberação(\s*\*)?$/) as HTMLInputElement).value;
+
+      fireEvent.change(screen.getByLabelText(/^Início da Liberação(\s*\*)?$/), { target: { value: '2099-01-10T18:00' } });
+      fireEvent.change(screen.getByLabelText(/^Fim da Liberação(\s*\*)?$/), { target: { value: '2099-01-10T19:00' } });
+      expect(screen.getByTestId('short-window-warning')).toHaveTextContent('A liberação dura só 1 hora');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Usar sugestão' }));
+      expect(screen.queryByTestId('short-window-warning')).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/^Fim da Liberação(\s*\*)?$/)).toHaveValue(fimSugerido);
+    });
   });
 });
