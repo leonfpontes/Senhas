@@ -242,14 +242,32 @@ async def test_service_plan_gate_first(db_session, seed_data):
 
 
 @pytest.mark.asyncio
-async def test_service_backward_compatibility(db_session, seed_data):
-    """Test operator with no groups retains full access."""
+async def test_service_operator_without_group_has_no_access(db_session, seed_data):
+    """Q-05: operador sem grupo não acessa nada (fail-closed)."""
     service = PermissionService(db_session)
     op_a = seed_data["op_a"]  # belongs to Tenant A (PREMIUM plan)
 
-    # Check permission for ticketing and mediuns (both enabled in Premium plan)
+    assert await service.check_permission(op_a, PermissionFeature.TICKETS, "view") is False
+    assert await service.check_permission(op_a, PermissionFeature.MEDIUNS, "edit") is False
+    effective = await service.get_user_effective_permissions(op_a.id, seed_data["tenant_a_id"])
+    assert not any(any(acts.values()) for acts in effective.values())
+
+
+@pytest.mark.asyncio
+async def test_service_default_group_grants_full_access(db_session, seed_data):
+    """Q-05: o grupo padrão devolve ao operador o acesso de antes, limitado pelo plano."""
+    repo = PermissionGroupRepository(db_session)
+    service = PermissionService(db_session)
+    op_a = seed_data["op_a"]
+
+    assert await repo.assign_default_group_if_groupless(op_a) is True
+    await db_session.commit()
+    assert await repo.assign_default_group_if_groupless(op_a) is False  # idempotente
+
     assert await service.check_permission(op_a, PermissionFeature.TICKETS, "view") is True
     assert await service.check_permission(op_a, PermissionFeature.MEDIUNS, "edit") is True
+    group = await repo.get_default_group(seed_data["tenant_a_id"])
+    assert group.is_default and group.name == "Acesso total"
 
 
 @pytest.mark.asyncio

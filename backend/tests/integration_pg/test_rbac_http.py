@@ -101,11 +101,6 @@ async def test_plano_gratuito_nao_cria_medium(client, db):
     assert resp.status_code in (402, 403), resp.text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Q-05 pendente: operador sem nenhum grupo tem acesso total (fail-open). "
-    "Quando o Q-05 for feito este teste passa e o xfail estrito quebra o build — remova o marcador.",
-)
 async def test_operador_sem_nenhum_grupo_nao_acessa_modulos(client, db, tenant):
     operador = await create_user(db, tenant, UserRole.OPERATOR, name="sem-grupo")
     assert (await client.get("/api/v1/admin/giras", headers=operador.headers)).status_code == 403

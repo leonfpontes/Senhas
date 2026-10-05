@@ -461,7 +461,7 @@ Incluir obrigatoriamente:
   - Apenas para operadores (`OPERATOR` role). Admins, Super Admins e sessões sob impersonation têm bypass total de grupos.
   - Multi-tenancy isolado estritamente no banco via queries com filtros `tenant_id` em repositório e serviços.
   - Consolidação acumulativa via lógica OR permissiva quando o operador pertence a múltiplos grupos.
-  - Operadores sem grupo atribuído mantêm acesso total (retrocompatibilidade e convenção de onboarding).
+  - **Fail-closed (Q-05, 2026-10-05)**: operador sem grupo não acessa nada. Todo tenant tem o grupo padrão "Acesso total" (`is_default`, um por tenant via índice único parcial), criado no cadastro (`public/onboarding.py`) e na criação pela plataforma (`tenant_service`). `PermissionGroupRepository.assign_default_group_if_groupless` põe nele o operador criado em `POST /admin/users` e o admin rebaixado a operador em `PUT /admin/users/{id}`. O grupo padrão pode ser editado e não pode ser excluído (400). `ensure_default_group` completa com acesso total as features ainda sem linha no grupo.
 - **Endpoints** (prefixo `/api/v1/admin/permission-groups`): CRUD completo de grupos, atribuição em massa de permissões (`/permissions`), associação/remoção de membros (`/members`), e retorno de permissões do usuário autenticado (`/me/permissions`).
 - **Migração Alembic**: `b6d4a9b749d5_create_permission_groups.py` (tabelas e chaves estrangeiras com cascades).
 - **Hooks e Providers**: `usePermissions` / `PermissionsProvider` gerenciando caching local (TTL 5 minutos), revalidação automática em focos de página ou eventos customizados de atualização de tenant.

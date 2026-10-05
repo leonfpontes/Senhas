@@ -34,6 +34,9 @@ import AdminLayout from '../admin_layout';
 import { permissionGroupsService, PermissionGroup } from '../../../services/permissionGroupsService';
 import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import CrudDrawer from '../../../components/CrudDrawer';
+import { FEATURE_LABELS } from '../../../constants/permissionFeatures';
+
+const TOTAL_FEATURES = Object.keys(FEATURE_LABELS).length;
 
 interface UserItem {
   id: string;
@@ -245,7 +248,7 @@ function PermissionGroupsContent() {
             {operatorsWithoutGroup.map((op) => op.username || op.email).join(', ')}
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontWeight: 600 }}>
-            * Operadores sem grupo atribuído possuem acesso total a todas as funcionalidades do sistema (compatibilidade retroativa).
+            * Operadores sem grupo não acessam nenhum módulo. Coloque-os no grupo &quot;Acesso total&quot; ou em outro grupo.
           </Typography>
         </Alert>
       )}
@@ -323,7 +326,14 @@ function PermissionGroupsContent() {
             <TableBody>
               {filteredGroups.map((g) => (
                 <TableRow key={g.id} hover>
-                  <TableCell sx={{ fontWeight: 600 }}>{g.name}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    {g.name}
+                    {g.is_default && (
+                      <Tooltip title="Grupo padrão: operadores novos entram aqui. Pode ser editado, não excluído.">
+                        <Chip label="Padrão" size="small" color="info" variant="outlined" sx={{ ml: 1, height: 20 }} />
+                      </Tooltip>
+                    )}
+                  </TableCell>
                   <TableCell color="text.secondary">{g.description || '—'}</TableCell>
                   <TableCell align="center">
                     <Chip
@@ -336,7 +346,7 @@ function PermissionGroupsContent() {
                   <TableCell align="center">
                     {/* G10 Health indicator */}
                     <Chip
-                      label={g.features_configured_count === 0 ? 'Nenhuma' : `${g.features_configured_count}/13 features`}
+                      label={g.features_configured_count === 0 ? 'Nenhuma' : `${g.features_configured_count}/${TOTAL_FEATURES} features`}
                       color={g.features_configured_count === 0 ? 'error' : 'success'}
                       size="small"
                       variant="outlined"
@@ -355,11 +365,13 @@ function PermissionGroupsContent() {
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Excluir grupo">
-                      <IconButton size="small" color="error" onClick={() => handleDeleteClick(g)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    {!g.is_default && (
+                      <Tooltip title="Excluir grupo">
+                        <IconButton size="small" color="error" onClick={() => handleDeleteClick(g)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -421,8 +433,8 @@ function PermissionGroupsContent() {
                 Atenção: Este grupo possui {groupToDelete.members_count} membro(s) ativo(s)!
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Ao excluir este grupo, estes operadores perderão as restrições e passarão a ter{' '}
-                <strong>acesso total</strong> (compatibilidade retroativa) a todas as telas, a menos que sejam associados a outro grupo de acesso.
+                Ao excluir este grupo, os operadores que não estiverem em nenhum outro grupo ficam{' '}
+                <strong>sem acesso a nenhum módulo</strong> até serem colocados em outro grupo.
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                 Deseja prosseguir com a exclusão forçada?

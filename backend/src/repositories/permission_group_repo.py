@@ -17,6 +17,76 @@ class PermissionGroupRepository(BaseRepository[PermissionGroup]):
     def __init__(self, db: AsyncSession):
         super().__init__(db, PermissionGroup)
 
+    DEFAULT_GROUP_NAME = "Acesso total"
+    DEFAULT_GROUP_DESCRIPTION = "Grupo padrão: acesso a todos os módulos do plano. Operadores novos entram aqui."
+
+    async def get_default_group(self, tenant_id: UUID) -> Optional[PermissionGroup]:
+        stmt = select(self.model).where(
+            (self.model.tenant_id == tenant_id)
+            & (self.model.is_default.is_(True))
+            & (self.model.deleted_at.is_(None))
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def ensure_default_group(self, tenant_id: UUID) -> PermissionGroup:
+        """Garante o grupo padrão "Acesso total" do tenant (Q-05), sem commit.
+
+        Cria o grupo se não existir e completa com acesso total as features que
+        ainda não têm linha (feature nova no enum). Não sobrescreve permissões
+        que o admin já tenha restringido no grupo padrão.
+        """
+        group = await self.get_default_group(tenant_id)
+        if group is None:
+            group = PermissionGroup(
+                tenant_id=tenant_id,
+                name=self.DEFAULT_GROUP_NAME,
+                description=self.DEFAULT_GROUP_DESCRIPTION,
+                is_default=True,
+            )
+            try:
+                async with self.db.begin_nested():
+                    self.db.add(group)
+                    await self.db.flush()
+            except sa.exc.IntegrityError:
+                # Outra requisição criou o grupo padrão ao mesmo tempo.
+                group = await self.get_default_group(tenant_id)
+                if group is None:
+                    raise
+
+        existing = await self.db.execute(
+            select(GroupPermission.feature).where(GroupPermission.group_id == group.id)
+        )
+        have = set(existing.scalars().all())
+        for feature in PermissionFeature:
+            if feature not in have:
+                self.db.add(
+                    GroupPermission(
+                        group_id=group.id,
+                        feature=feature,
+                        can_view=True,
+                        can_insert=True,
+                        can_edit=True,
+                        can_delete=True,
+                    )
+                )
+        await self.db.flush()
+        return group
+
+    async def assign_default_group_if_groupless(self, user: User) -> bool:
+        """Coloca o operador sem grupo ativo no grupo padrão, sem commit.
+
+        Retorna True se o vínculo foi criado. Admins não entram em grupo.
+        """
+        if user.is_admin or user.tenant_id is None:
+            return False
+        if await self.get_user_groups(user.id, user.tenant_id):
+            return False
+        group = await self.ensure_default_group(user.tenant_id)
+        self.db.add(UserGroupMembership(group_id=group.id, user_id=user.id, tenant_id=user.tenant_id))
+        await self.db.flush()
+        return True
+
     async def list(
         self,
         tenant_id: UUID,

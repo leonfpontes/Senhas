@@ -21,6 +21,8 @@ export interface PermissionGroup {
   updated_at: string;
   members_count: number;
   features_configured_count: number;
+  /** Grupo padrão "Acesso total" (Q-05): recebe operadores novos e não pode ser excluído. */
+  is_default?: boolean;
 }
 
 export interface GroupMember {

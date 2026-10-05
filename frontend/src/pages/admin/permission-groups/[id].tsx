@@ -293,15 +293,8 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
       ) as Record<PermissionFeature, Record<string, boolean>>;
 
       allFeatures.forEach((f) => {
-        // If user is in no groups, they have total access (backward compat)
-        if (userGroupIds.length === 0) {
-          effective[f] = {
-            view: true,
-            insert: true,
-            edit: true,
-            delete: true,
-          };
-        } else {
+        // Q-05: sem grupo, sem acesso (fail-closed) — o mapa já começa todo false.
+        if (userGroupIds.length > 0) {
           // OR consolidation logic (G3)
           userGroupIds.forEach((gId) => {
             const groupPerms = allGroupPermissions[gId] || [];
@@ -540,7 +533,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
                   Grupos do usuário:
                 </Typography>
                 {dialogUserEffectiveData.userGroupIds.length === 0 ? (
-                  <Chip label="Sem Grupos (Acesso Total)" color="warning" size="small" />
+                  <Chip label="Sem grupos (sem acesso)" color="warning" size="small" />
                 ) : (
                   dialogUserEffectiveData.userGroupIds.map((gId) => {
                     const gName = allGroups.find((g) => g.id === gId)?.name || 'Grupo';

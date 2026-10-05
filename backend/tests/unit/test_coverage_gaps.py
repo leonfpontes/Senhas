@@ -1322,9 +1322,14 @@ class TestTenantServiceExtended:
         sub.max_users = 5
         sub.max_giras_per_month = 10
         s.subscription_repo.create_for_tenant = AsyncMock(return_value=sub)
-        result = await s.create_tenant("new", "New", "admin@t.com")
+        with patch(
+            "src.repositories.permission_group_repo.PermissionGroupRepository.ensure_default_group",
+            new=AsyncMock(),
+        ) as ensure_default:
+            result = await s.create_tenant("new", "New", "admin@t.com")
         assert result["slug"] == "new"
         db.add.assert_called()
+        ensure_default.assert_awaited_once_with(TENANT_ID)  # Q-05: grupo padrão nasce com o tenant
 
     async def test_update_tenant_not_found(self, svc):
         s, _ = svc

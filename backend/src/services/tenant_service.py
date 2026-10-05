@@ -106,6 +106,11 @@ class TenantService:
             is_trial=is_trial,
             trial_ends_at=trial_ends_at,
         )
+
+        # Grupo padrão "Acesso total" (Q-05): operadores criados depois entram nele.
+        from src.repositories.permission_group_repo import PermissionGroupRepository
+
+        await PermissionGroupRepository(self.db).ensure_default_group(tenant.id)
         
         return {
             "id": str(tenant.id),
