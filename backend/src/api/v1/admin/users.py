@@ -13,13 +13,12 @@ from src.repositories.user_repo import UserRepository
 from src.security.password import hash_password
 from src.services.audit_service import AuditService
 from src.services import session_service
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import effective_limit, get_current_user, require_group_permission
 from src.core.errors import (
     InsufficientPermissionsError,
     NotFoundError,
 )
 from src.repositories.subscription_repo import SubscriptionRepository
-from src.models.subscriptions import SubscriptionStatus
 from sqlalchemy import select, func, and_
 
 router = APIRouter(prefix="/api/v1/admin/users", tags=["admin-users"])
@@ -70,12 +69,9 @@ async def create_user(
     sub_repo = SubscriptionRepository(db)
     sub = await sub_repo.get_by_tenant(current_user.tenant_id)
     if sub is not None:
-        if sub.status == SubscriptionStatus.SUSPENDED:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="Assinatura suspensa por falta de pagamento. Regularize sua assinatura para adicionar usuários.",
-            )
-        if sub.max_users != -1:
+        # SUSPENDED → 402; cancelada/trial vencido → limite do FREE (P-05).
+        max_users = effective_limit(sub, "max_users")
+        if max_users != -1:
             count_stmt = select(func.count()).select_from(User).where(
                 and_(
                     User.tenant_id == current_user.tenant_id,
@@ -85,10 +81,10 @@ async def create_user(
             )
             result = await db.execute(count_stmt)
             current_count = result.scalar() or 0
-            if current_count >= sub.max_users:
+            if current_count >= max_users:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Limite de usuários atingido ({sub.max_users}). Faça upgrade do plano.",
+                    detail=f"Limite de usuários atingido ({max_users}). Faça upgrade do plano.",
                 )
 
     # Check if email already exists

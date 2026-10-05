@@ -44,8 +44,7 @@ def _assert_filtra_por_tenant(stmt, tabela: str):
 # ─── Contas a pagar/receber ─────────────────────────────────────────────────────────
 
 
-@patch.object(cf, "_require_pro_or_premium", new_callable=AsyncMock)
-async def test_create_conta_rejeita_categoria_de_outro_tenant(_plan):
+async def test_create_conta_rejeita_categoria_de_outro_tenant():
     db = AsyncMock()
     db.add = MagicMock()
     db.execute.return_value = _result(None)
@@ -60,8 +59,7 @@ async def test_create_conta_rejeita_categoria_de_outro_tenant(_plan):
     _assert_filtra_por_tenant(db.execute.call_args[0][0], "categorias_financeiras")
 
 
-@patch.object(cf, "_require_pro_or_premium", new_callable=AsyncMock)
-async def test_update_conta_rejeita_conta_bancaria_de_outro_tenant(_plan):
+async def test_update_conta_rejeita_conta_bancaria_de_outro_tenant():
     db = AsyncMock()
     conta = MagicMock()
     conta.conta_bancaria_id = None
@@ -75,8 +73,7 @@ async def test_update_conta_rejeita_conta_bancaria_de_outro_tenant(_plan):
     _assert_filtra_por_tenant(db.execute.call_args[0][0], "contas_bancarias")
 
 
-@patch.object(cf, "_require_pro_or_premium", new_callable=AsyncMock)
-async def test_dar_baixa_rejeita_conta_bancaria_de_outro_tenant(_plan):
+async def test_dar_baixa_rejeita_conta_bancaria_de_outro_tenant():
     db = AsyncMock()
     conta = MagicMock()
     conta.status = "pendente"
@@ -106,8 +103,7 @@ async def test_validacao_aceita_referencias_do_proprio_tenant_e_ignora_none():
 
 
 @patch.object(est, "EstoqueItemRepository")
-@patch.object(est, "_require_estoque_plan", new_callable=AsyncMock)
-async def test_create_item_rejeita_grupo_de_outro_tenant(_plan, MockRepo):
+async def test_create_item_rejeita_grupo_de_outro_tenant(MockRepo):
     db = AsyncMock()
     db.execute.return_value = _result(None)
     body = est.ItemCreate(nome="Vela", grupo_id=FOREIGN_ID)
@@ -119,8 +115,7 @@ async def test_create_item_rejeita_grupo_de_outro_tenant(_plan, MockRepo):
 
 
 @patch.object(est, "EstoqueItemRepository")
-@patch.object(est, "_require_estoque_plan", new_callable=AsyncMock)
-async def test_update_item_rejeita_grupo_de_outro_tenant(_plan, MockRepo):
+async def test_update_item_rejeita_grupo_de_outro_tenant(MockRepo):
     db = AsyncMock()
     db.execute.return_value = _result(None)
     MockRepo.return_value.update_item = AsyncMock()
@@ -132,8 +127,7 @@ async def test_update_item_rejeita_grupo_de_outro_tenant(_plan, MockRepo):
 
 
 @patch.object(est, "EstoqueItemRepository")
-@patch.object(est, "_require_estoque_plan", new_callable=AsyncMock)
-async def test_update_item_sem_grupo_nao_consulta(_plan, MockRepo):
+async def test_update_item_sem_grupo_nao_consulta(MockRepo):
     db = AsyncMock()
     MockRepo.return_value.update_item = AsyncMock(return_value=None)
     with pytest.raises(HTTPException) as exc:

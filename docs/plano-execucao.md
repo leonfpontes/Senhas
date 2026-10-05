@@ -345,7 +345,7 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Esforço**: G (fatiar por seção: uma sessão pra infra + 2 seções, depois lotes).
 - **Custo**: R$ 0.
 
-### P-05 — Gate de plano único no backend — `pendente`
+### P-05 — Gate de plano único no backend — `feito` (2026-10-05)
 - **Problema**: 6 variações de gate de plano (`_require_pro`, `_require_pro_or_premium`,
   `_require_estoque_plan`…) com semânticas divergentes — um checa status da assinatura, outro
   não (tenant PRO cancelado mantém Contas Financeiras); `_PLAN_TIER` copiado 4×;
@@ -356,6 +356,23 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Aceite**: grep por `_PLAN_TIER` retorna 1 arquivo; tenant com assinatura suspensa/cancelada
   perde acesso consistentemente em todos os módulos gated.
 - **Esforço**: M. **Custo**: R$ 0.
+- **Feito (2026-10-05)**: `require_plan_feature(feature)` + `check_plan_feature` (inline) +
+  `effective_limit` (limites numéricos) em `api/dependencies.py`; catálogo, `_PLAN_TIER` e
+  `subscription_block_reason` só em `services/plan_features.py`; `require_super_admin` único em
+  `dependencies.py` (10 cópias removidas, contando `_require_super_admin` do billing_sync).
+  Adotado em estoque, sites, cursos presenciais, contas financeiras, e-mail (rastreio/reenvio),
+  mensalidades (médiuns, associados, config, relatório), médiuns (aniversariantes/criação) e nos
+  toggles de fila de espera/agendamento; `PermissionService`, `/admin/subscription`, dashboard,
+  waitlist e time slots usam `get_effective_plan_features`.
+  **Semântica**: plano inclui a feature (senão 403) **e** status permite uso (senão 402):
+  SUSPENDED bloqueia; CANCELLED/EXPIRED bloqueiam plano pago (CANCELLED+FREE pós-`reset_to_free`
+  segue no FREE); trial local vencido bloqueia antes do scheduler rebaixar; trial Stripe fica com o
+  webhook; `is_bonus` segue o status mas não tem corte de trial; `cancel_at_period_end` mantém
+  acesso até o webhook de exclusão. Limites numéricos: SUSPENDED → 402, cancelado/trial vencido →
+  limites do FREE. Achados corrigidos de passagem: relatório de mensalidades dava NameError
+  (`_PLAN_TIER` sem import → 500) e mensalidade de médiuns exigia PREMIUM no backend embora o
+  catálogo/tela digam PRO+ desde 2026-06-27. Testes: `tests/unit/test_require_plan_feature.py` e
+  `tests/integration_pg/test_plan_gate.py` (402/403 por módulo via HTTP).
 
 ### P-06 — Checklist de primeira gira no dashboard — `feito` (2026-10-05)
 - **Exceção à R-01**, decidida pelo dono do produto em 2026-10-05. Motivo: análise de produção

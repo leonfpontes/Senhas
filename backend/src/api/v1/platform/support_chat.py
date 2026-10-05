@@ -1,7 +1,7 @@
 """Platform (superadmin) endpoints for the support chat inbox — cross-tenant.
 
-Todos os endpoints exigem SUPER_ADMIN (`require_super_admin`, importado do
-canônico em `platform/dashboard.py`, mesmo padrão de `tenant_observatory.py`).
+Todos os endpoints exigem SUPER_ADMIN (`require_super_admin`, cópia única
+em `src/api/dependencies.py` desde o P-05).
 """
 from datetime import datetime
 from typing import List, Optional
@@ -17,7 +17,7 @@ from src.core.errors import NotFoundError
 from src.models import User
 from src.models.support_chat import SupportConversation, SupportConversationStatus
 from src.repositories.support_chat_repo import SupportChatRepository
-from src.api.v1.platform.dashboard import require_super_admin
+from src.api.dependencies import require_super_admin
 
 router = APIRouter(prefix="/api/v1/platform/support-chat", tags=["platform-support-chat"])
 

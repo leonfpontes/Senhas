@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.database import get_db
-from src.api.v1.platform.dashboard import require_super_admin
+from src.api.dependencies import require_super_admin
 from src.models import User, Tenant, Ticket, Subscription
 from src.models.giras import Gira
 from src.models.cursos_presenciais import CursoPresencial, CursoParticipante

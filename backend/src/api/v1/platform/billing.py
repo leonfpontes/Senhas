@@ -9,8 +9,8 @@ from datetime import datetime
 from sqlalchemy import select, and_, func
 
 from src.core.database import get_db
-from src.api.dependencies import get_current_user
-from src.models import User, UserRole, Invoice
+from src.api.dependencies import require_super_admin
+from src.models import User, Invoice
 from src.models.subscriptions import Subscription, PlanType, SubscriptionStatus
 from src.models.tenants import Tenant
 from src.repositories.billing_repo import BillingRepository
@@ -62,16 +62,6 @@ class SubscriptionListItem(BaseModel):
     current_period_end: Optional[str]
     trial_ends_at: Optional[str]
     stripe_customer_id: Optional[str]
-
-
-async def require_super_admin(user: User = Depends(get_current_user)) -> User:
-    """Dependency to require SUPER_ADMIN role."""
-    if user.role != UserRole.SUPER_ADMIN or user.tenant_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas SUPER_ADMIN pode acessar esta operação",
-        )
-    return user
 
 
 @router.get("/{tenant_id}/invoices", response_model=List[InvoiceResponse])

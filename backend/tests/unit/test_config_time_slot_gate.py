@@ -46,7 +46,7 @@ def _mock_tenant_config():
 
 
 class TestEnableTimeSlotSchedulingPlanGate:
-    @patch("src.repositories.subscription_repo.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.config.AuditService")
     @patch("src.api.v1.admin.config.TenantConfigRepository")
     async def test_rejects_on_basic_plan(self, MockRepo, MockAudit, MockSubRepo):
@@ -68,7 +68,7 @@ class TestEnableTimeSlotSchedulingPlanGate:
         assert exc_info.value.status_code == 403
         repo_inst.toggle_feature.assert_not_called()
 
-    @patch("src.repositories.subscription_repo.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.config.AuditService")
     @patch("src.api.v1.admin.config.TenantConfigRepository")
     async def test_rejects_when_no_subscription(self, MockRepo, MockAudit, MockSubRepo):
@@ -86,7 +86,7 @@ class TestEnableTimeSlotSchedulingPlanGate:
             )
         assert exc_info.value.status_code == 403
 
-    @patch("src.repositories.subscription_repo.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.config.AuditService")
     @patch("src.api.v1.admin.config.TenantConfigRepository")
     async def test_allows_on_pro_plan(self, MockRepo, MockAudit, MockSubRepo):
@@ -112,7 +112,7 @@ class TestEnableTimeSlotSchedulingPlanGate:
             tenant_id=TENANT_ID, feature_flag="enable_time_slot_scheduling", enabled=True,
         )
 
-    @patch("src.repositories.subscription_repo.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.config.AuditService")
     @patch("src.api.v1.admin.config.TenantConfigRepository")
     async def test_allows_on_premium_plan(self, MockRepo, MockAudit, MockSubRepo):
@@ -135,7 +135,7 @@ class TestEnableTimeSlotSchedulingPlanGate:
         )
         assert result.enable_time_slot_scheduling is True
 
-    @patch("src.repositories.subscription_repo.SubscriptionRepository")
+    @patch("src.api.dependencies.SubscriptionRepository")
     @patch("src.api.v1.admin.config.AuditService")
     @patch("src.api.v1.admin.config.TenantConfigRepository")
     async def test_disabling_never_checks_plan(self, MockRepo, MockAudit, MockSubRepo):

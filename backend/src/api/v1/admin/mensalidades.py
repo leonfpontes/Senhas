@@ -26,7 +26,7 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
 from src.core.database import get_db
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.models import User, PermissionFeature
@@ -35,7 +35,7 @@ from src.repositories.mensalidade_repo import MensalidadeRepository
 from src.repositories.associado_mensalidade_repo import AssociadoMensalidadeRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.repositories.config_repo import TenantConfigRepository
-from src.models.subscriptions import PlanType
+from src.services.plan_features import get_effective_plan_features
 from src.services.audit_service import AuditService
 
 router = APIRouter(prefix="/api/v1/admin/financeiro", tags=["admin-financeiro"])
@@ -45,9 +45,25 @@ logger = logging.getLogger(__name__)
 MAX_COMPROVANTE_BYTES = 5 * 1024 * 1024  # 5 MB
 ALLOWED_COMPROVANTE_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
 
-# ── Plan tier required ───────────────────────────────────────────────────────
-_PREMIUM_TIERS = {PlanType.PREMIUM}
-_PRO_OR_PREMIUM_TIERS = {PlanType.PRO, PlanType.PREMIUM}
+# ── Gate de plano (P-05) ─────────────────────────────────────────────────────
+# Médiuns: mensalidade_mediun (PRO+ desde 2026-06-27; antes daqui exigia PREMIUM,
+# divergindo do catálogo e da tela). Associados: mensalidade_associado (PRO+).
+# Relatório: qualquer plano com mensalidade (os dois são PRO+). Todos checam
+# também o status da assinatura — ver require_plan_feature.
+_GATE_MEDIUNS = Depends(require_plan_feature("mensalidade_mediun"))
+_GATE_ASSOCIADOS = Depends(require_plan_feature("mensalidade_associado"))
+_GATE_RELATORIO = Depends(
+    require_plan_feature(
+        "mensalidade_associado",
+        detail="Relatório de mensalidades está disponível nos planos Pro e Premium.",
+    )
+)
+_GATE_CONFIG = Depends(
+    require_plan_feature(
+        "mensalidade_associado",
+        detail="Configuração de Mensalidade requer plano Pro ou Premium.",
+    )
+)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -63,36 +79,6 @@ def _parse_mes(mes: str) -> date:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Formato de mês inválido '{mes}'. Use YYYY-MM.",
-        )
-
-
-async def _require_premium(
-    current_user: User,
-    db: AsyncSession,
-) -> None:
-    """Raise 403 if the tenant is not on Premium plan."""
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
-    plan = sub.plan if sub else PlanType.FREE
-    if plan not in _PREMIUM_TIERS:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Controle de Mensalidade de Médiuns está disponível apenas no plano Premium.",
-        )
-
-
-async def _require_pro_or_premium(
-    current_user: User,
-    db: AsyncSession,
-) -> None:
-    """Raise 403 if the tenant is not on PRO or Premium plan."""
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
-    plan = sub.plan if sub else PlanType.FREE
-    if plan not in _PRO_OR_PREMIUM_TIERS:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Controle de Mensalidade de Associados está disponível nos planos Pro e Premium.",
         )
 
 
@@ -181,23 +167,15 @@ class ResumoResponse(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@router.get("/config", response_model=Optional[ConfigResponse], dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
+@router.get("/config", response_model=Optional[ConfigResponse], dependencies=[_GATE_CONFIG, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def get_config(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return the tenant's mensalidade configuration.
     
-    Accessible to PRO+ (for associados fields) and Premium (for mediuns fields).
+    Accessible to PRO+ (gate _GATE_CONFIG no decorator).
     """
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
-    plan = sub.plan if sub else PlanType.FREE
-    if plan not in _PRO_OR_PREMIUM_TIERS:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Configuração de Mensalidade requer plano Pro ou Premium.",
-        )
     repo = MensalidadeRepository(db)
     config = await repo.get_config(current_user.tenant_id)
     if not config:
@@ -218,22 +196,19 @@ async def get_config(
     )
 
 
-@router.put("/config", response_model=ConfigResponse, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "edit"))])
+@router.put("/config", response_model=ConfigResponse, dependencies=[_GATE_CONFIG, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "edit"))])
 async def update_config(
     body: ConfigUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create or update mensalidade config (ADMIN only). PRO+ for associados fields, Premium for mediuns fields."""
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
-    plan = sub.plan if sub else PlanType.FREE
-    if plan not in _PRO_OR_PREMIUM_TIERS:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Configuração de Mensalidade requer plano Pro ou Premium.",
-        )
+    """Create or update mensalidade config (ADMIN only).
+
+    Plano/status já checados por _GATE_CONFIG. Campos de médiuns (valor/dia) só
+    gravam com mensalidade_mediun no plano (PRO+ pelo catálogo; antes PREMIUM).
+    """
     _require_admin(current_user)
+    features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id))
 
     repo = MensalidadeRepository(db)
     audit = AuditService(db)
@@ -251,9 +226,9 @@ async def update_config(
             )
 
     if existing:
-        if body.valor_mensal is not None and plan in _PREMIUM_TIERS:
+        if body.valor_mensal is not None and features.mensalidade_mediun:
             existing.valor_mensal = Decimal(str(body.valor_mensal))
-        if body.dia_vencimento is not None and plan in _PREMIUM_TIERS:
+        if body.dia_vencimento is not None and features.mensalidade_mediun:
             existing.dia_vencimento = body.dia_vencimento
         if body.email_relatorio_ativo is not None:
             existing.email_relatorio_ativo = body.email_relatorio_ativo
@@ -316,14 +291,13 @@ async def update_config(
     )
 
 
-@router.get("/mensalidades", response_model=List[MensalidadeItemResponse], dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
+@router.get("/mensalidades", response_model=List[MensalidadeItemResponse], dependencies=[_GATE_MEDIUNS, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def list_mensalidades(
     mes: str = Query(..., description="Mês no formato YYYY-MM"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List all active médiuns with their payment status for the specified month."""
-    await _require_premium(current_user, db)
     mes_date = _parse_mes(mes)
     repo = MensalidadeRepository(db)
     rows = await repo.list_mes(current_user.tenant_id, mes_date)
@@ -360,7 +334,7 @@ async def list_mensalidades(
 @router.post(
     "/mensalidades/{mediun_id}/{mes}",
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "insert"))],
+    dependencies=[_GATE_MEDIUNS, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "insert"))],
 )
 async def registrar_pagamento(
     mediun_id: UUID = Path(...),
@@ -374,7 +348,6 @@ async def registrar_pagamento(
     db: AsyncSession = Depends(get_db),
 ):
     """Register or update mensalidade for a médium in a given month (ADMIN only)."""
-    await _require_premium(current_user, db)
     _require_admin(current_user)
     mes_date = _parse_mes(mes)
 
@@ -483,7 +456,7 @@ async def registrar_pagamento(
     return {"id": str(pag.id), "status": pag.status.value}
 
 
-@router.get("/mensalidades/{mediun_id}/{mes}/comprovante", dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
+@router.get("/mensalidades/{mediun_id}/{mes}/comprovante", dependencies=[_GATE_MEDIUNS, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def download_comprovante(
     mediun_id: UUID = Path(...),
     mes: str = Path(...),
@@ -491,7 +464,6 @@ async def download_comprovante(
     db: AsyncSession = Depends(get_db),
 ):
     """Download comprovante binary for a specific payment."""
-    await _require_premium(current_user, db)
     mes_date = _parse_mes(mes)
     repo = MensalidadeRepository(db)
     pag = await repo.get_pagamento(current_user.tenant_id, mediun_id, mes_date)
@@ -509,7 +481,7 @@ async def download_comprovante(
 @router.delete(
     "/mensalidades/{pagamento_id}/comprovante",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "delete"))],
+    dependencies=[_GATE_MEDIUNS, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "delete"))],
 )
 async def delete_comprovante(
     pagamento_id: UUID = Path(...),
@@ -517,7 +489,6 @@ async def delete_comprovante(
     db: AsyncSession = Depends(get_db),
 ):
     """Remove comprovante binary from a payment record (ADMIN only)."""
-    await _require_premium(current_user, db)
     _require_admin(current_user)
     repo = MensalidadeRepository(db)
     audit = AuditService(db)
@@ -533,26 +504,24 @@ async def delete_comprovante(
     await db.commit()
 
 
-@router.get("/resumo", response_model=ResumoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
+@router.get("/resumo", response_model=ResumoResponse, dependencies=[_GATE_MEDIUNS, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def get_resumo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return 6-month historical + 3-month projection data for charts."""
-    await _require_premium(current_user, db)
     repo = MensalidadeRepository(db)
     resumo = await repo.get_resumo(current_user.tenant_id)
     return ResumoResponse(**resumo)
 
 
-@router.post("/relatorio/enviar", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "insert"))])
+@router.post("/relatorio/enviar", status_code=status.HTTP_202_ACCEPTED, dependencies=[_GATE_RELATORIO, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "insert"))])
 async def enviar_relatorio(
     mes: str = Query(..., description="Mês no formato YYYY-MM"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Send monthly mensalidade report email to all ADMIN users of the tenant (ADMIN only)."""
-    await _require_pro_or_premium(current_user, db)
     _require_admin(current_user)
     mes_date = _parse_mes(mes)
 
@@ -592,24 +561,22 @@ async def enviar_relatorio(
     admins_result = await db.execute(admins_stmt)
     admins = admins_result.scalars().all()
 
-    # Determine tier and build appropriate report(s)
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
-    plan = sub.plan if sub else PlanType.FREE
-    tier = _PLAN_TIER.get(plan, 0)
+    # Qual(is) relatório(s) o plano libera — catálogo único (P-05). Antes usava
+    # um dict de tiers que nem estava importado (NameError → 500) e só PREMIUM
+    # recebia médiuns.
+    features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id))
 
     from src.services.email.email_queue import email_queue, EmailQueueItem
     from src.services.email.base import EmailMessage
 
-    # Scenario detection:
-    # PRO (tier==2) without assoc_enabled → mediuns only (should not occur for PRO — mediuns are PREMIUM)
-    # PRO + assoc_enabled → associados only
-    # PREMIUM + no assoc_enabled → mediuns only
-    # PREMIUM + assoc_enabled → dual report
+    # Cenários:
+    # mensalidade_mediun sem assoc_enabled → só médiuns
+    # mensalidade_mediun + assoc_enabled   → relatório duplo
+    # só mensalidade_associado + assoc_enabled → só associados
 
     html_parts: dict[str, str] = {}
 
-    if tier >= 3:  # PREMIUM
+    if features.mensalidade_mediun:
         from src.services.email.templates.mensalidade_report import render_mensalidade_report
         rows_m = await repo.list_mes(current_user.tenant_id, mes_date)
         inadimplentes_m = [
@@ -649,7 +616,7 @@ async def enviar_relatorio(
                 primary_color=primary_color,
                 mes_referencia=mes,
             )
-    elif tier == 2 and assoc_enabled:  # PRO + associados enabled
+    elif features.mensalidade_associado and assoc_enabled:
         from src.services.email.templates.mensalidade_report import render_mensalidade_report_associados
         assoc_repo = AssociadoMensalidadeRepository(db)
         rows_a = await assoc_repo.list_mes(current_user.tenant_id, mes_date)
@@ -698,14 +665,13 @@ async def enviar_relatorio(
     return {"mensagem": f"Relatório enviado para {sent} administrador(es).", "mes": mes}
 
 
-@router.get("/relatorio/download", response_class=HTMLResponse, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
+@router.get("/relatorio/download", response_class=HTMLResponse, dependencies=[_GATE_RELATORIO, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def download_relatorio(
     mes: str = Query(..., description="Mês no formato YYYY-MM"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return the mensalidade report as inline HTML for download/preview (ADMIN only)."""
-    await _require_pro_or_premium(current_user, db)
     _require_admin(current_user)
     mes_date = _parse_mes(mes)
 
@@ -724,16 +690,16 @@ async def download_relatorio(
     primary_color = tc.primary_color if tc and tc.primary_color else "#7C3AED"
     assoc_enabled = tc.enable_mensalidade_associado if tc else False
 
-    sub_repo_2 = SubscriptionRepository(db)
-    sub_2 = await sub_repo_2.get_by_tenant(current_user.tenant_id)
-    plan_2 = sub_2.plan if sub_2 else PlanType.FREE
-    tier = _PLAN_TIER.get(plan_2, 0)
+    # Qual(is) relatório(s) o plano libera — catálogo único (P-05). Antes usava
+    # um dict de tiers que nem estava importado (NameError → 500) e só PREMIUM
+    # recebia médiuns.
+    features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id))
 
     repo = MensalidadeRepository(db)
     cfg = await repo.get_config(current_user.tenant_id)
 
     html: str
-    if tier >= 3:  # PREMIUM
+    if features.mensalidade_mediun:
         from src.services.email.templates.mensalidade_report import render_mensalidade_report
         rows_m = await repo.list_mes(current_user.tenant_id, mes_date)
         inadimplentes_m = [
@@ -773,7 +739,7 @@ async def download_relatorio(
                 primary_color=primary_color,
                 mes_referencia=mes,
             )
-    elif tier == 2 and assoc_enabled:  # PRO + associados enabled
+    elif features.mensalidade_associado and assoc_enabled:
         from src.services.email.templates.mensalidade_report import render_mensalidade_report_associados
         assoc_repo = AssociadoMensalidadeRepository(db)
         rows_a = await assoc_repo.list_mes(current_user.tenant_id, mes_date)
@@ -809,14 +775,13 @@ async def download_relatorio(
 # Associados mensalidade endpoints (PRO+)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.get("/associados", response_model=List[AssociadoMensalidadeItemResponse], dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
+@router.get("/associados", response_model=List[AssociadoMensalidadeItemResponse], dependencies=[_GATE_ASSOCIADOS, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def list_associados_mensalidades(
     mes: str = Query(..., description="Mês no formato YYYY-MM"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return all active associados with their payment status for the given month (PRO+)."""
-    await _require_pro_or_premium(current_user, db)
     await _require_assoc_mensalidade_enabled(current_user, db)
     mes_date = _parse_mes(mes)
     repo = AssociadoMensalidadeRepository(db)
@@ -846,7 +811,7 @@ class RegistrarAssociadoPagamentoRequest(BaseModel):
     observacao: Optional[str] = None
 
 
-@router.post("/associados/{associado_id}/{mes}", response_model=AssociadoMensalidadeItemResponse, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "insert"))])
+@router.post("/associados/{associado_id}/{mes}", response_model=AssociadoMensalidadeItemResponse, dependencies=[_GATE_ASSOCIADOS, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "insert"))])
 async def registrar_associado_pagamento(
     associado_id: UUID,
     mes: str,
@@ -859,7 +824,6 @@ async def registrar_associado_pagamento(
     db: AsyncSession = Depends(get_db),
 ):
     """Register or update a payment for an associado for the given month (PRO+, OPERATOR+)."""
-    await _require_pro_or_premium(current_user, db)
     await _require_assoc_mensalidade_enabled(current_user, db)
     mes_date = _parse_mes(mes)
 
@@ -962,7 +926,7 @@ async def registrar_associado_pagamento(
     )
 
 
-@router.get("/associados/{associado_id}/{mes}/comprovante", dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
+@router.get("/associados/{associado_id}/{mes}/comprovante", dependencies=[_GATE_ASSOCIADOS, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def get_associado_comprovante(
     associado_id: UUID,
     mes: str,
@@ -970,7 +934,6 @@ async def get_associado_comprovante(
     db: AsyncSession = Depends(get_db),
 ):
     """Return the comprovante file for an associado payment (PRO+)."""
-    await _require_pro_or_premium(current_user, db)
     await _require_assoc_mensalidade_enabled(current_user, db)
     mes_date = _parse_mes(mes)
     repo = AssociadoMensalidadeRepository(db)
@@ -985,14 +948,13 @@ async def get_associado_comprovante(
     )
 
 
-@router.delete("/associados/{pagamento_id}/comprovante", status_code=status.HTTP_200_OK, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "delete"))])
+@router.delete("/associados/{pagamento_id}/comprovante", status_code=status.HTTP_200_OK, dependencies=[_GATE_ASSOCIADOS, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "delete"))])
 async def delete_associado_comprovante(
     pagamento_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete the comprovante from an associado payment record (PRO+, ADMIN)."""
-    await _require_pro_or_premium(current_user, db)
     await _require_assoc_mensalidade_enabled(current_user, db)
     _require_admin(current_user)
     repo = AssociadoMensalidadeRepository(db)
@@ -1003,13 +965,12 @@ async def delete_associado_comprovante(
     return {"mensagem": "Comprovante removido com sucesso."}
 
 
-@router.get("/associados/resumo", response_model=ResumoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
+@router.get("/associados/resumo", response_model=ResumoResponse, dependencies=[_GATE_ASSOCIADOS, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
 async def get_associados_resumo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return 6-month histórico + 3-month projection for associados mensalidade (PRO+)."""
-    await _require_pro_or_premium(current_user, db)
     await _require_assoc_mensalidade_enabled(current_user, db)
     repo = AssociadoMensalidadeRepository(db)
     data = await repo.get_resumo(current_user.tenant_id)

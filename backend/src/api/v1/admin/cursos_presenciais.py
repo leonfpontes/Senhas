@@ -17,22 +17,26 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 
 from src.core.database import get_db
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
 from src.models import User, CursoPresencial, CursoParticipante, PermissionFeature
-from src.models.subscriptions import PlanType, SubscriptionStatus
 from src.models.mensalidades import MensalidadeStatus
 from src.repositories.curso_presencial_repo import (
     CursoPresencialRepository,
     CursoParticipanteRepository,
     CursoParticipantePagamentoRepository,
 )
-from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
 from src.core.errors import NotFoundError, InsufficientPermissionsError
 
 router = APIRouter(
     prefix="/api/v1/admin/cursos-presenciais",
     tags=["admin-cursos-presenciais"],
+    # Gate de plano único (P-05). Cursos presenciais não têm flag própria no
+    # catálogo: usam site_builder (PRO+), mesma flag que o PermissionService
+    # associa a PermissionFeature.CURSOS_PRESENCIAIS.
+    dependencies=[
+        Depends(require_plan_feature("site_builder", detail="Plano atual não permite cursos presenciais.")),
+    ],
 )
 
 # ---------------------------------------------------------------------------
@@ -260,27 +264,6 @@ class ParticipanteResponse(BaseModel):
         from_attributes = True
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-async def _require_active_pro_or_premium_subscription(
-    user: User, db: AsyncSession
-) -> None:
-    """Garante que o tenant do usuário tem assinatura ativa PRO ou PREMIUM."""
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(user.tenant_id)
-    if sub is None or sub.status != SubscriptionStatus.ACTIVE:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Assinatura suspensa ou inexistente.",
-        )
-    if sub.plan not in (PlanType.PRO, PlanType.PREMIUM):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Plano atual não permite cursos presenciais.",
-        )
-
-# ---------------------------------------------------------------------------
 # Endpoint definitions
 # ---------------------------------------------------------------------------
 
@@ -293,7 +276,6 @@ async def create_curso_presencial(
     """Cria um novo curso presencial. Apenas administradores do tenant podem criar."""
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Requer cargo de administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     repo = CursoPresencialRepository(db)
     curso = await repo.create(
@@ -327,7 +309,6 @@ async def list_cursos_presenciais(
     """Lista cursos presenciais do tenant com filtros opcionais. Disponível para operadores e administradores."""
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     stmt = (
         select(CursoPresencial)
@@ -359,7 +340,6 @@ async def get_curso_presencial(
     """Obtém um curso presencial específico. Disponível para operadores e administradores."""
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     repo = CursoPresencialRepository(db)
     curso = await repo.get_by_id(curso_id, current_user.tenant_id)
@@ -377,7 +357,6 @@ async def update_curso_presencial(
     """Atualiza parcialmente um curso presencial. Apenas administradores do tenant podem atualizar."""
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Requer cargo de administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     repo = CursoPresencialRepository(db)
     existing_curso = await repo.get_by_id(curso_id, current_user.tenant_id)
@@ -413,7 +392,6 @@ async def delete_curso_presencial(
     """Exclui (soft delete) um curso presencial. Apenas administradores do tenant podem excluir."""
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Requer cargo de administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     repo = CursoPresencialRepository(db)
     existing_curso = await repo.get_by_id(curso_id, current_user.tenant_id)
@@ -451,7 +429,6 @@ async def create_participante(
     """Adiciona um participante a um curso presencial. Apenas administradores do tenant podem adicionar."""
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Requer cargo de administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
@@ -514,7 +491,6 @@ async def list_participantes(
     """Lista participantes de um curso presencial. Disponível para operadores e administradores."""
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     # Garante que o curso existe e pertence ao tenant
     curso_repo = CursoPresencialRepository(db)
@@ -542,7 +518,6 @@ async def update_participante(
     """Atualiza informações de um participante. Apenas administradores do tenant podem atualizar."""
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Requer cargo de administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
@@ -594,7 +569,6 @@ async def delete_participante(
     """Exclui (soft delete) um participante de um curso presencial. Apenas administradores do tenant podem excluir."""
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Requer cargo de administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     # Garante que o curso existe e pertence ao tenant
     curso_repo = CursoPresencialRepository(db)
@@ -683,7 +657,6 @@ async def list_curso_mensalidades(
     """Lista todos os participantes ativos com seus status de pagamento para o mês."""
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     # Verifica se o curso existe e pertence ao tenant
     curso_repo = CursoPresencialRepository(db)
@@ -746,7 +719,6 @@ async def registrar_curso_pagamento(
     """Registra ou atualiza o pagamento de mensalidade de um participante (ADMIN only)."""
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Requer cargo de administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
@@ -848,7 +820,6 @@ async def download_curso_comprovante(
     """Download do comprovante binário para o pagamento de um mês específico."""
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
@@ -881,7 +852,6 @@ async def delete_curso_comprovante(
     """Remove o comprovante do pagamento preservando o histórico de pagamento (ADMIN only)."""
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Requer cargo de administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
@@ -914,7 +884,6 @@ async def get_curso_resumo(
     """Retorna dados do gráfico (histórico + projeção) do curso específico."""
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
@@ -937,7 +906,6 @@ async def download_inscricao_comprovante(
     """Download do comprovante binário para a inscrição (matrícula) do participante."""
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
@@ -969,7 +937,6 @@ async def delete_inscricao_comprovante(
     """Remove o comprovante da matrícula do participante (ADMIN only)."""
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Requer cargo de administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
@@ -1004,7 +971,6 @@ async def upload_inscricao_comprovante(
     """Registra ou atualiza o comprovante de inscrição do participante."""
     if not current_user.is_admin:
         raise InsufficientPermissionsError("Requer cargo de administrador.")
-    await _require_active_pro_or_premium_subscription(current_user, db)
 
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)

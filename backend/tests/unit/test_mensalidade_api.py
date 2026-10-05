@@ -78,29 +78,42 @@ def _mock_pro_sub():
 class TestPremiumGate:
     """Verify non-Premium tenants cannot access any mensalidade endpoint."""
 
-    @pytest.mark.asyncio
-    @patch("src.api.v1.admin.mensalidades.SubscriptionRepository")
-    async def test_free_retorna_403(self, MockSubRepo):
-        from fastapi import HTTPException
-        from src.api.v1.admin.mensalidades import get_config
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _mock_free_sub()
-        MockSubRepo.return_value = sub_inst
-        with pytest.raises(HTTPException) as exc:
-            await get_config(_admin_user(), _mock_db())
-        assert exc.value.status_code == 403
+    # Gate de plano único (P-05): Depends(require_plan_feature(...)) no decorator.
+    # Chamar o endpoint como função não passa por ele — testamos a dependency.
+
+    def test_rotas_tem_o_gate_certo(self):
+        from src.api.v1.admin.mensalidades import router
+        from tests.plan_gate_helpers import plan_gate_features
+        assert plan_gate_features(router, "/config") == ["mensalidade_associado"]
+        assert plan_gate_features(router, "/config", "PUT") == ["mensalidade_associado"]
+        assert plan_gate_features(router, "/mensalidades") == ["mensalidade_mediun"]
+        assert plan_gate_features(router, "/resumo") == ["mensalidade_mediun"]
+        assert plan_gate_features(router, "/associados") == ["mensalidade_associado"]
+        assert plan_gate_features(router, "/relatorio/download") == ["mensalidade_associado"]
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.mensalidades.SubscriptionRepository")
-    async def test_basic_retorna_403(self, MockSubRepo):
+    @pytest.mark.parametrize("sub_factory", [_mock_free_sub, _mock_basic_sub])
+    async def test_free_e_basic_retornam_403(self, sub_factory):
         from fastapi import HTTPException
-        from src.api.v1.admin.mensalidades import get_config
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _mock_basic_sub()
-        MockSubRepo.return_value = sub_inst
-        with pytest.raises(HTTPException) as exc:
-            await get_config(_admin_user(), _mock_db())
-        assert exc.value.status_code == 403
+        from src.api.v1.admin.mensalidades import router
+        from tests.plan_gate_helpers import plan_gates, run_gate
+        for path in ("/config", "/mensalidades"):
+            (gate,) = plan_gates(router, path)
+            with pytest.raises(HTTPException) as exc:
+                await run_gate(gate, sub_factory())
+            assert exc.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_pro_acessa_mensalidade_de_mediuns(self):
+        """Catálogo diz PRO+ desde 2026-06-27; o endpoint exigia PREMIUM (corrigido no P-05)."""
+        from src.api.v1.admin.mensalidades import router
+        from src.models.subscriptions import SubscriptionStatus
+        from tests.plan_gate_helpers import plan_gates, run_gate
+        (gate,) = plan_gates(router, "/mensalidades")
+        sub = _mock_pro_sub()
+        sub.status = SubscriptionStatus.ACTIVE
+        sub.is_trial = False
+        await run_gate(gate, sub)
 
     @pytest.mark.asyncio
     @patch("src.api.v1.admin.mensalidades.SubscriptionRepository")

@@ -29,7 +29,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
 from src.core.database import get_db
 from src.models import User, PermissionFeature
 from src.models.contas_financeiras import (
@@ -37,26 +37,15 @@ from src.models.contas_financeiras import (
     ContaBancaria,
     ContaFinanceira,
 )
-from src.models.subscriptions import PlanType
-from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
 
-router = APIRouter(prefix="/api/v1/admin/financeiro", tags=["admin-contas-financeiras"])
-
-_PRO_OR_PREMIUM = {PlanType.PRO, PlanType.PREMIUM}
-
-
-# ── Plan guard ────────────────────────────────────────────────────────────────
-
-async def _require_pro_or_premium(current_user: User, db: AsyncSession) -> None:
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
-    plan = sub.plan if sub else PlanType.FREE
-    if plan not in _PRO_OR_PREMIUM:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Contas a Pagar/Receber está disponível nos planos Pro e Premium.",
-        )
+router = APIRouter(
+    prefix="/api/v1/admin/financeiro",
+    tags=["admin-contas-financeiras"],
+    # Gate de plano único (P-05): plano com contas_financeiras E assinatura em dia.
+    # Antes só o plano era checado: tenant PRO suspenso/cancelado mantinha o módulo.
+    dependencies=[Depends(require_plan_feature("contas_financeiras"))],
+)
 
 
 async def _validar_referencias_do_tenant(
@@ -258,7 +247,6 @@ async def list_categorias(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     stmt = (
         select(CategoriaFinanceira)
         .where(
@@ -283,7 +271,6 @@ async def create_categoria(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     cat = CategoriaFinanceira(
         id=uuid.uuid4(),
         tenant_id=current_user.tenant_id,
@@ -309,7 +296,6 @@ async def update_categoria(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     stmt = select(CategoriaFinanceira).where(
         CategoriaFinanceira.id == categoria_id,
         CategoriaFinanceira.tenant_id == current_user.tenant_id,
@@ -337,7 +323,6 @@ async def delete_categoria(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     stmt = select(CategoriaFinanceira).where(
         CategoriaFinanceira.id == categoria_id,
         CategoriaFinanceira.tenant_id == current_user.tenant_id,
@@ -363,7 +348,6 @@ async def list_contas_bancarias(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     stmt = (
         select(ContaBancaria)
         .where(
@@ -388,7 +372,6 @@ async def create_conta_bancaria(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     conta = ContaBancaria(
         id=uuid.uuid4(),
         tenant_id=current_user.tenant_id,
@@ -414,7 +397,6 @@ async def update_conta_bancaria(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     stmt = select(ContaBancaria).where(
         ContaBancaria.id == conta_id,
         ContaBancaria.tenant_id == current_user.tenant_id,
@@ -442,7 +424,6 @@ async def delete_conta_bancaria(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     stmt = select(ContaBancaria).where(
         ContaBancaria.id == conta_id,
         ContaBancaria.tenant_id == current_user.tenant_id,
@@ -470,7 +451,6 @@ async def get_resumo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     today = date.today()
     tenant_id = current_user.tenant_id
 
@@ -533,7 +513,6 @@ async def list_contas(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     stmt = (
         select(ContaFinanceira)
         .options(
@@ -586,7 +565,6 @@ async def create_conta(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     await _validar_referencias_do_tenant(
         db, current_user.tenant_id, body.categoria_id, body.conta_bancaria_id
     )
@@ -644,7 +622,6 @@ async def get_conta(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     stmt = (
         select(ContaFinanceira)
         .options(
@@ -675,7 +652,6 @@ async def update_conta(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     stmt = select(ContaFinanceira).where(
         ContaFinanceira.id == conta_id,
         ContaFinanceira.tenant_id == current_user.tenant_id,
@@ -720,7 +696,6 @@ async def delete_conta(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _require_pro_or_premium(current_user, db)
     stmt = select(ContaFinanceira).where(
         ContaFinanceira.id == conta_id,
         ContaFinanceira.tenant_id == current_user.tenant_id,
@@ -756,7 +731,6 @@ async def dar_baixa(
     db: AsyncSession = Depends(get_db),
 ):
     """Mark a payable/receivable as paid."""
-    await _require_pro_or_premium(current_user, db)
     stmt = select(ContaFinanceira).where(
         ContaFinanceira.id == conta_id,
         ContaFinanceira.tenant_id == current_user.tenant_id,
@@ -834,7 +808,6 @@ async def get_fluxo_de_caixa(
 
     Aceita data_inicio + data_fim (date range) ou meses (legado, padrão 12)."""
     import calendar
-    await _require_pro_or_premium(current_user, db)
     tenant_id = current_user.tenant_id
     today = date.today()
 

@@ -4,10 +4,10 @@ from uuid import UUID
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import User, PermissionFeature, PlanType, SubscriptionStatus
+from ..models import User, PermissionFeature
 from ..repositories.permission_group_repo import PermissionGroupRepository
 from ..repositories.subscription_repo import SubscriptionRepository
-from src.services.plan_features import _get_plan_features
+from src.services.plan_features import get_effective_plan_features
 
 
 class PermissionService:
@@ -18,17 +18,15 @@ class PermissionService:
         self.permission_group_repo = PermissionGroupRepository(db)
 
     async def is_feature_enabled_for_plan(self, tenant_id: UUID, feature: PermissionFeature) -> bool:
-        """Verify if a feature is enabled under the tenant's active subscription tier (T4)."""
+        """Verify if a feature is enabled under the tenant's active subscription tier (T4).
+
+        Usa a mesma semântica do require_plan_feature (P-05): plano E status da
+        assinatura (suspensa, cancelada/expirada em plano pago ou trial local
+        vencido desligam as features pagas).
+        """
         repo = SubscriptionRepository(self.db)
         sub = await repo.get_by_tenant(tenant_id)
-
-        plan = PlanType.FREE
-        suspended = False
-        if sub:
-            plan = sub.plan
-            suspended = (sub.status == SubscriptionStatus.SUSPENDED)
-
-        features = _get_plan_features(plan, suspended)
+        features = get_effective_plan_features(sub)
 
         # Map our fine-grained features to subscription plan features
         mapping = {

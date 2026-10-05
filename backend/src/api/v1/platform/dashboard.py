@@ -1,28 +1,18 @@
 """Platform API - Dashboard aggregates endpoint."""
 from datetime import datetime, timezone, timedelta
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.api.dependencies import get_current_user
+from src.api.dependencies import require_super_admin
 from src.models import User, UserRole, Tenant, Ticket, Subscription, SubscriptionStatus
 from src.models.giras import Gira
 from src.models.subscriptions import PlanType
 from src.services.tenant_retention_service import get_at_risk_tenants
 
 router = APIRouter(prefix="/api/v1/platform/dashboard", tags=["platform-dashboard"])
-
-
-async def require_super_admin(user: User = Depends(get_current_user)) -> User:
-    """Dependency to require SUPER_ADMIN role."""
-    if user.role != UserRole.SUPER_ADMIN or user.tenant_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas SUPER_ADMIN pode acessar esta operação",
-        )
-    return user
 
 
 async def _tenant_counts(db: AsyncSession) -> dict:

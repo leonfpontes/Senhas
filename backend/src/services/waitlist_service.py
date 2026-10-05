@@ -52,9 +52,8 @@ async def waitlist_enabled_for_tenant(session: AsyncSession, tenant_id: UUID) ->
     plan downgrade after the toggle was enabled disables the feature immediately.
     """
     from src.models.tenant_config import TenantConfig
-    from src.models.subscriptions import SubscriptionStatus
     from src.repositories.subscription_repo import SubscriptionRepository
-    from src.services.plan_features import _get_plan_features
+    from src.services.plan_features import get_effective_plan_features
 
     tc_result = await session.execute(select(TenantConfig).where(TenantConfig.tenant_id == tenant_id))
     tc = tc_result.scalar_one_or_none()
@@ -66,9 +65,8 @@ async def waitlist_enabled_for_tenant(session: AsyncSession, tenant_id: UUID) ->
     if not sub:
         return False
 
-    suspended = sub.status == SubscriptionStatus.SUSPENDED
-    features = _get_plan_features(sub.plan, suspended=suspended)
-    return features.fila_espera
+    # Plano × status da assinatura (semântica única do P-05).
+    return get_effective_plan_features(sub).fila_espera
 
 
 async def _get_next_in_line(

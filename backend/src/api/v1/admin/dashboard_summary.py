@@ -23,22 +23,12 @@ from src.models.subscriptions import PlanType
 from src.api.dependencies import get_current_user
 from src.core.errors import InsufficientPermissionsError
 from src.repositories.ticket_analytics_repo import TicketAnalyticsRepository
+from src.services.plan_features import get_effective_plan_features
 from src.repositories.gira_repo import GiraRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-dashboard"])
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Plan tier — reused from subscription_info
-# ---------------------------------------------------------------------------
-_PLAN_TIER = {
-    PlanType.FREE: 0,
-    PlanType.BASIC: 1,
-    PlanType.PRO: 2,
-    PlanType.PREMIUM: 3,
-}
-
 
 # ---------------------------------------------------------------------------
 # Response schemas
@@ -322,8 +312,9 @@ async def get_dashboard_summary(
         # Determine plan info + feature flags
         sub = await sub_repo.get_by_tenant(tenant_id)
         plan_type = sub.plan if sub else PlanType.FREE
-        tier = _PLAN_TIER.get(plan_type, 0)
-        has_estoque = tier >= 2
+        # Catálogo + status da assinatura (P-05): sem alerta de estoque quando o
+        # módulo está bloqueado (o endpoint de estoque responderia 402/403).
+        has_estoque = get_effective_plan_features(sub).estoque_controle
 
         plan_badge = PlanBadge(
             name=plan_type.value if hasattr(plan_type, "value") else str(plan_type),

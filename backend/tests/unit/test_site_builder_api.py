@@ -150,81 +150,61 @@ def _make_version():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class TestPlanGate:
-    """Endpoints devem retornar 403 para planos FREE e BASIC."""
+    """Gate de plano do router (P-05): site_builder no plano E assinatura em dia.
+
+    O gate é `Depends(require_plan_feature("site_builder"))` no APIRouter, então
+    chamar o endpoint como função não passa por ele — testamos a dependency.
+    """
+
+    def _gate(self):
+        from src.api.v1.admin.sites import router
+        from tests.plan_gate_helpers import plan_gates
+        gates = plan_gates(router)
+        assert [g.plan_feature for g in gates] == ["site_builder"]
+        return gates[0]
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
-    async def test_free_plan_get_site_retorna_403(self, MockSubRepo):
+    async def test_free_plan_retorna_403(self):
         from fastapi import HTTPException
-        from src.api.v1.admin.sites import get_site
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _free_sub()
-        MockSubRepo.return_value = sub_inst
-        request = MagicMock()
+        from tests.plan_gate_helpers import run_gate
         with pytest.raises(HTTPException) as exc:
-            await get_site(request, _admin_user(), _mock_db())
+            await run_gate(self._gate(), _free_sub())
         assert exc.value.status_code == 403
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
-    async def test_basic_plan_get_site_retorna_403(self, MockSubRepo):
+    async def test_basic_plan_retorna_403(self):
         from fastapi import HTTPException
-        from src.api.v1.admin.sites import get_site
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _basic_sub()
-        MockSubRepo.return_value = sub_inst
-        request = MagicMock()
+        from tests.plan_gate_helpers import run_gate
         with pytest.raises(HTTPException) as exc:
-            await get_site(request, _admin_user(), _mock_db())
+            await run_gate(self._gate(), _basic_sub())
         assert exc.value.status_code == 403
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
-    async def test_pro_suspenso_get_site_retorna_403(self, MockSubRepo):
+    async def test_pro_suspenso_retorna_402(self):
+        """Antes era 403; com a semântica única, status irregular → 402."""
         from fastapi import HTTPException
-        from src.api.v1.admin.sites import get_site
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub_suspended()
-        MockSubRepo.return_value = sub_inst
-        request = MagicMock()
+        from tests.plan_gate_helpers import run_gate
         with pytest.raises(HTTPException) as exc:
-            await get_site(request, _admin_user(), _mock_db())
-        assert exc.value.status_code == 403
+            await run_gate(self._gate(), _pro_sub_suspended())
+        assert exc.value.status_code == 402
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
+    async def test_pro_e_premium_passam(self):
+        from tests.plan_gate_helpers import run_gate
+        await run_gate(self._gate(), _pro_sub())
+        await run_gate(self._gate(), _premium_sub())
+
+    @pytest.mark.asyncio
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_pro_plan_get_site_ok(self, MockSiteRepo, MockSubRepo):
+    async def test_get_site_ok(self, MockSiteRepo):
         from src.api.v1.admin.sites import get_site
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = _make_site()
         MockSiteRepo.return_value = site_inst
 
-        request = MagicMock()
-        db = _mock_db()
-        result = await get_site(request, _admin_user(), db)
+        result = await get_site(MagicMock(), _admin_user(), _mock_db())
         assert result.slug == "terreiro-test"
-
-    @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
-    @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_premium_plan_get_site_ok(self, MockSiteRepo, MockSubRepo):
-        from src.api.v1.admin.sites import get_site
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _premium_sub()
-        MockSubRepo.return_value = sub_inst
-
-        site_inst = AsyncMock()
-        site_inst.get_by_tenant.return_value = _make_site()
-        MockSiteRepo.return_value = site_inst
-
-        request = MagicMock()
-        db = _mock_db()
-        result = await get_site(request, _admin_user(), db)
         assert result.id == str(SITE_ID)
 
 
@@ -235,14 +215,10 @@ class TestPlanGate:
 class TestGetSite:
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_auto_create_quando_site_nao_existe(self, MockSiteRepo, MockSubRepo):
+    async def test_auto_create_quando_site_nao_existe(self, MockSiteRepo):
         """Site deve ser criado automaticamente se o tenant não tiver um."""
         from src.api.v1.admin.sites import get_site
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         new_site = _make_site()
         site_inst = AsyncMock()
@@ -259,13 +235,9 @@ class TestGetSite:
         assert result.status == "DRAFT"
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_retorna_site_existente_sem_criar(self, MockSiteRepo, MockSubRepo):
+    async def test_retorna_site_existente_sem_criar(self, MockSiteRepo):
         from src.api.v1.admin.sites import get_site
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         existing_site = _make_site("PUBLISHED")
         site_inst = AsyncMock()
@@ -286,13 +258,9 @@ class TestGetSite:
 class TestUpdateSite:
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_update_meta_title(self, MockSiteRepo, MockSubRepo):
+    async def test_update_meta_title(self, MockSiteRepo):
         from src.api.v1.admin.sites import update_site, SiteUpdateRequest
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         updated_site = _make_site()
         updated_site.meta_title = "Novo Título"
@@ -308,14 +276,10 @@ class TestUpdateSite:
         db.commit.assert_awaited()
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_update_site_nao_encontrado_retorna_404(self, MockSiteRepo, MockSubRepo):
+    async def test_update_site_nao_encontrado_retorna_404(self, MockSiteRepo):
         from fastapi import HTTPException
         from src.api.v1.admin.sites import update_site, SiteUpdateRequest
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = None
@@ -327,15 +291,11 @@ class TestUpdateSite:
         assert exc.value.status_code == 404
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_slug_duplicado_retorna_409(self, MockSiteRepo, MockSubRepo):
+    async def test_slug_duplicado_retorna_409(self, MockSiteRepo):
         """Mudar para slug já em uso por outro site → 409."""
         from fastapi import HTTPException
         from src.api.v1.admin.sites import update_site, SiteUpdateRequest
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         current_site = _make_site()
         site_inst = AsyncMock()
@@ -363,13 +323,9 @@ class TestUpdateSite:
 class TestSections:
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_get_sections_retorna_lista_ordenada(self, MockSiteRepo, MockSubRepo):
+    async def test_get_sections_retorna_lista_ordenada(self, MockSiteRepo):
         from src.api.v1.admin.sites import get_sections
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         s0 = _make_section("HERO", 0)
         s1 = _make_section("ABOUT", 1)
@@ -384,13 +340,9 @@ class TestSections:
         assert result.sections[1].section_type == "ABOUT"
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_get_sections_site_nao_encontrado_retorna_lista_vazia(self, MockSiteRepo, MockSubRepo):
+    async def test_get_sections_site_nao_encontrado_retorna_lista_vazia(self, MockSiteRepo):
         from src.api.v1.admin.sites import get_sections
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = None
@@ -400,14 +352,10 @@ class TestSections:
         assert result.sections == []
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteVersionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_save_sections_sucesso(self, MockSiteRepo, MockVersionRepo, MockSubRepo):
+    async def test_save_sections_sucesso(self, MockSiteRepo, MockVersionRepo):
         from src.api.v1.admin.sites import save_sections, SectionsUpdateRequest, SectionPayload
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site = _make_site()
         updated_site = _make_site()
@@ -433,14 +381,10 @@ class TestSections:
         db.commit.assert_awaited()
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_save_sections_hero_sem_titulo_retorna_422(self, MockSiteRepo, MockSubRepo):
+    async def test_save_sections_hero_sem_titulo_retorna_422(self, MockSiteRepo):
         from fastapi import HTTPException
         from src.api.v1.admin.sites import save_sections, SectionsUpdateRequest, SectionPayload
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site = _make_site()
         site_inst = AsyncMock()
@@ -455,14 +399,10 @@ class TestSections:
         assert exc.value.status_code == 422
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_save_sections_tipo_invalido_retorna_422(self, MockSiteRepo, MockSubRepo):
+    async def test_save_sections_tipo_invalido_retorna_422(self, MockSiteRepo):
         from fastapi import HTTPException
         from src.api.v1.admin.sites import save_sections, SectionsUpdateRequest, SectionPayload
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site = _make_site()
         site_inst = AsyncMock()
@@ -477,16 +417,12 @@ class TestSections:
         assert exc.value.status_code == 422
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteVersionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_save_sections_lock_otimista_409(self, MockSiteRepo, MockVersionRepo, MockSubRepo):
+    async def test_save_sections_lock_otimista_409(self, MockSiteRepo, MockVersionRepo):
         """Se site_version divergir do updated_at atual → 409 Conflict."""
         from fastapi import HTTPException
         from src.api.v1.admin.sites import save_sections, SectionsUpdateRequest, SectionPayload
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site = _make_site()
         site.updated_at = datetime(2026, 4, 14, 10, 0, 0, tzinfo=timezone.utc)
@@ -513,13 +449,9 @@ class TestSections:
 class TestPublishUnpublish:
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_publish_site(self, MockSiteRepo, MockSubRepo):
+    async def test_publish_site(self, MockSiteRepo):
         from src.api.v1.admin.sites import publish_site
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         published_site = _make_site("PUBLISHED")
         site_inst = AsyncMock()
@@ -533,13 +465,9 @@ class TestPublishUnpublish:
         db.commit.assert_awaited()
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_unpublish_site(self, MockSiteRepo, MockSubRepo):
+    async def test_unpublish_site(self, MockSiteRepo):
         from src.api.v1.admin.sites import unpublish_site
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         unpublished_site = _make_site("UNPUBLISHED")
         site_inst = AsyncMock()
@@ -553,14 +481,10 @@ class TestPublishUnpublish:
         db.commit.assert_awaited()
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_publish_site_nao_encontrado_retorna_404(self, MockSiteRepo, MockSubRepo):
+    async def test_publish_site_nao_encontrado_retorna_404(self, MockSiteRepo):
         from fastapi import HTTPException
         from src.api.v1.admin.sites import publish_site
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = None
@@ -578,14 +502,10 @@ class TestPublishUnpublish:
 class TestImages:
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteImageRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_list_images(self, MockSiteRepo, MockImageRepo, MockSubRepo):
+    async def test_list_images(self, MockSiteRepo, MockImageRepo):
         from src.api.v1.admin.sites import list_images
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = _make_site()
@@ -600,14 +520,10 @@ class TestImages:
         assert result[0].filename == "foto.jpg"
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteImageRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_upload_image_sucesso(self, MockSiteRepo, MockImageRepo, MockSubRepo):
+    async def test_upload_image_sucesso(self, MockSiteRepo, MockImageRepo):
         from src.api.v1.admin.sites import upload_image
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = _make_site()
@@ -633,15 +549,11 @@ class TestImages:
         assert db_created is not None
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteImageRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_upload_image_mimetype_invalido_retorna_415(self, MockSiteRepo, MockImageRepo, MockSubRepo):
+    async def test_upload_image_mimetype_invalido_retorna_415(self, MockSiteRepo, MockImageRepo):
         from fastapi import HTTPException
         from src.api.v1.admin.sites import upload_image
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = _make_site()
@@ -659,15 +571,11 @@ class TestImages:
         assert exc.value.status_code == 415
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteImageRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_upload_image_acima_tamanho_retorna_413(self, MockSiteRepo, MockImageRepo, MockSubRepo):
+    async def test_upload_image_acima_tamanho_retorna_413(self, MockSiteRepo, MockImageRepo):
         from fastapi import HTTPException
         from src.api.v1.admin.sites import upload_image, MAX_IMAGE_SIZE_BYTES
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = _make_site()
@@ -685,15 +593,11 @@ class TestImages:
         assert exc.value.status_code == 413
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteImageRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_upload_image_limite_50_retorna_400(self, MockSiteRepo, MockImageRepo, MockSubRepo):
+    async def test_upload_image_limite_50_retorna_400(self, MockSiteRepo, MockImageRepo):
         from fastapi import HTTPException
         from src.api.v1.admin.sites import upload_image, MAX_IMAGES_PER_TENANT
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = _make_site()
@@ -713,14 +617,10 @@ class TestImages:
         assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteImageRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_delete_image_sucesso(self, MockSiteRepo, MockImageRepo, MockSubRepo):
+    async def test_delete_image_sucesso(self, MockSiteRepo, MockImageRepo):
         from src.api.v1.admin.sites import delete_image
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = _make_site()
@@ -738,15 +638,11 @@ class TestImages:
         db.commit.assert_awaited()
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteImageRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_delete_image_nao_encontrada_retorna_404(self, MockSiteRepo, MockImageRepo, MockSubRepo):
+    async def test_delete_image_nao_encontrada_retorna_404(self, MockSiteRepo, MockImageRepo):
         from fastapi import HTTPException
         from src.api.v1.admin.sites import delete_image
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = _make_site()
@@ -768,14 +664,10 @@ class TestImages:
 class TestVersions:
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteVersionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_list_versions(self, MockSiteRepo, MockVersionRepo, MockSubRepo):
+    async def test_list_versions(self, MockSiteRepo, MockVersionRepo):
         from src.api.v1.admin.sites import list_versions
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = _make_site()
@@ -790,14 +682,10 @@ class TestVersions:
         assert result[0].id == str(VERSION_ID)
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteVersionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_restore_version_sucesso(self, MockSiteRepo, MockVersionRepo, MockSubRepo):
+    async def test_restore_version_sucesso(self, MockSiteRepo, MockVersionRepo):
         from src.api.v1.admin.sites import restore_version
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         restored_site = _make_site()
         restored_site.sections = [_make_section("HERO", 0)]
@@ -819,15 +707,11 @@ class TestVersions:
         db.commit.assert_awaited()
 
     @pytest.mark.asyncio
-    @patch("src.api.v1.admin.sites.SubscriptionRepository")
     @patch("src.api.v1.admin.sites.SiteVersionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_restore_version_nao_encontrada_retorna_404(self, MockSiteRepo, MockVersionRepo, MockSubRepo):
+    async def test_restore_version_nao_encontrada_retorna_404(self, MockSiteRepo, MockVersionRepo):
         from fastapi import HTTPException
         from src.api.v1.admin.sites import restore_version
-        sub_inst = AsyncMock()
-        sub_inst.get_by_tenant.return_value = _pro_sub()
-        MockSubRepo.return_value = sub_inst
 
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = _make_site()

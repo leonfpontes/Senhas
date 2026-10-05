@@ -6,8 +6,8 @@ from typing import Optional
 from uuid import UUID
 
 from src.core.database import get_db
-from src.api.dependencies import get_current_user
-from src.models import User, UserRole, PlanType, SubscriptionStatus
+from src.api.dependencies import require_super_admin
+from src.models import User, PlanType, SubscriptionStatus
 from src.services.subscription_service import SubscriptionService
 from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
 from src.repositories.audit_log_repo import AuditLogRepository
@@ -41,16 +41,6 @@ class UpgradePlanRequest(BaseModel):
 class RecordUsageRequest(BaseModel):
     """Request to record usage."""
     current_users: int
-
-
-async def require_super_admin(user: User = Depends(get_current_user)) -> User:
-    """Dependency to require SUPER_ADMIN role."""
-    if user.role != UserRole.SUPER_ADMIN or user.tenant_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas SUPER_ADMIN pode acessar esta operação",
-        )
-    return user
 
 
 @router.get("/{tenant_id}", response_model=SubscriptionResponse)

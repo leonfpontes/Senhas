@@ -118,7 +118,8 @@ Para nova feature sem equivalente existente:
 1. Adicionar valor ao enum `PermissionFeature` em `backend/src/models/permission_groups.py`.
 2. Criar migracao Alembic para adicionar o valor ao tipo ENUM no banco (`ALTER TYPE ... ADD VALUE`).
 3. Adicionar entrada em `frontend/src/constants/permissionFeatures.ts` (type union + FEATURE_LABELS com label e group).
-4. Mapear no `permission_service.py` se a feature requer restricao de plano.
+4. Mapear no `permission_service.py` se a feature requer restricao de plano, e proteger os endpoints com
+   `require_plan_feature` (ver §3.4).
 
 #### Frontend — toda nova tela admin precisa de:
 
@@ -164,6 +165,41 @@ Ao criar ou modificar qualquer funcionalidade:
 
 - Emissao deve permanecer atomica/confiavel sob concorrencia.
 - Em contadores de senha, use padroes com lock transacional (ex.: SELECT FOR UPDATE) ja adotados no projeto.
+
+### 3.4 Gate de plano — `require_plan_feature` (P-05, desde 2026-10-05)
+
+Feature restrita por plano usa SEMPRE o gate unico de `backend/src/api/dependencies.py` — nunca um
+`_require_pro`/`plan in {...}`/tier local:
+
+```python
+from src.api.dependencies import require_plan_feature
+
+# modulo inteiro gated: no APIRouter
+router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoque_controle"))])
+# so algumas rotas: no decorator, junto do require_group_permission
+@router.get("/x", dependencies=[Depends(require_plan_feature("mensalidade_mediun")), Depends(require_group_permission(...))])
+# gate que depende do body (ex.: ligar toggle): await check_plan_feature(current_user, db, "fila_espera")
+```
+
+- `feature` e um campo de `PlanFeatures` em `backend/src/services/plan_features.py` (catalogo unico;
+  nome invalido quebra na importacao). Esse arquivo e o UNICO lugar com a hierarquia de planos
+  (`_PLAN_TIER` / `plan_tier()`); o frontend espelha o catalogo em `frontend/src/hooks/useSubscription.tsx`.
+- Semantica unica: plano inclui a feature (senao **403**, mensagem "disponivel a partir do plano X")
+  **e** status da assinatura permite uso (senao **402**). Super admin sem tenant → 400.
+- Status (`subscription_block_reason`): SUSPENDED bloqueia; CANCELLED/EXPIRED bloqueiam plano pago (com
+  FREE e o estado normal pos-`reset_to_free`); trial local (sem `stripe_subscription_id`) vencido bloqueia
+  mesmo antes do trial_scheduler rebaixar; trial Stripe e decidido pelo webhook; `is_bonus` segue o status
+  normalmente mas nao sofre corte de fim de trial; `cancel_at_period_end` mantem acesso ate o webhook
+  `customer.subscription.deleted`.
+- Limites numericos (usuarios, giras/mes, mediuns) ficam no endpoint, mas leem `effective_limit(sub, campo)`:
+  SUSPENDED → 402; CANCELLED/EXPIRED de plano pago ou trial vencido → limites do FREE.
+- `GET /api/v1/admin/subscription` devolve `features` via `get_effective_plan_features(sub)` — a UI esconde o
+  que o backend nega. `PermissionService.is_feature_enabled_for_plan` (operadores) usa a mesma funcao.
+- Modulos gated hoje: estoque (`estoque_controle`), sites e cursos presenciais (`site_builder`), contas
+  financeiras (`contas_financeiras`), rastreio/reenvio de e-mail (`email_transacional`), mensalidades
+  (`mensalidade_mediun` / `mensalidade_associado`), mediuns (`mediuns`, em aniversariantes e criacao),
+  toggles de fila de espera e agendamento por horario em config.
+- Rotas `/api/v1/platform/*`: `Depends(require_super_admin)` importado de `src.api.dependencies` (copia unica).
 
 ---
 
@@ -394,7 +430,7 @@ Incluir obrigatoriamente:
   unique).
 
 ### 11.10 Financeiro — Controle de Mensalidade de Mediuns (branch 002-financeiro-mensalidade)
-- **Feature Premium**: disponivel apenas para tenants com plano PREMIUM (`mensalidade_mediun` flag via `subscription_info.py`).
+- **Feature PRO+**: `mensalidade_mediun` e PRO+ no catalogo desde 2026-06-27; os endpoints exigiam PREMIUM ate o P-05 (2026-10-05), que passou a usar `require_plan_feature("mensalidade_mediun")`.
 - **Modelos**: `MensalidadeConfig` (valor_mensal, dia_vencimento, 1:1 tenant), `MensalidadePagamento` (UNIQUE mediun_id+mes, BYTEA comprovante), `MensalidadeStatus` enum (PENDENTE/PAGO/ISENTO).
 - **Endpoints** (prefixo `/api/v1/admin/financeiro`): config GET/PUT, mensalidades GET/POST por mes, comprovante GET/DELETE, resumo GET (6 hist + 3 proj), relatorio POST enviar / GET download.
 - **Regras de acesso**: leitura para OPERATOR+ADMIN, escrita (PUT config, POST pagamento, DELETE comprovante, POST relatorio) somente ADMIN/SUPER_ADMIN.

@@ -16,10 +16,9 @@ from src.models.senha_controls import SenhaControl
 from src.repositories.gira_repo import GiraRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
-from src.models.subscriptions import SubscriptionStatus
 
 _BASE = settings.FRONTEND_URL.rstrip("/")
-from src.api.dependencies import get_current_user, require_group_permission, require_any_group_permission
+from src.api.dependencies import effective_limit, get_current_user, require_group_permission, require_any_group_permission
 from src.core.errors import (
     UnauthorizedError,
     InsufficientPermissionsError,
@@ -161,12 +160,8 @@ async def create_gira(
     sub_repo = SubscriptionRepository(db)
     sub = await sub_repo.get_by_tenant(current_user.tenant_id)
     if sub is not None:
-        # Block operations for suspended subscriptions (payment failed)
-        if sub.status == SubscriptionStatus.SUSPENDED:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="Assinatura suspensa por falta de pagamento. Regularize sua assinatura para criar novas giras.",
-            )
+        # SUSPENDED → 402; cancelada/trial vencido → limite do FREE (P-05).
+        max_giras = effective_limit(sub, "max_giras_per_month")
 
         now = datetime.now(timezone.utc)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -179,10 +174,10 @@ async def create_gira(
         )
         result = await db.execute(count_stmt)
         current_month_count = result.scalar() or 0
-        if sub.max_giras_per_month != -1 and current_month_count >= sub.max_giras_per_month:
+        if max_giras != -1 and current_month_count >= max_giras:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Limite mensal de giras atingido ({sub.max_giras_per_month}). Faça upgrade do plano.",
+                detail=f"Limite mensal de giras atingido ({max_giras}). Faça upgrade do plano.",
             )
 
     # Create gira
