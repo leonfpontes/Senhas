@@ -8,6 +8,7 @@ import { ProfileProvider } from '@/hooks/useProfile';
 import { BirthdayProvider } from '@/providers/BirthdayProvider';
 import { PermissionsProvider } from '@/hooks/usePermissions';
 import { SnackbarProvider } from '@/contexts/SnackbarContext';
+import ClarityAnalytics from '@/components/shared/ClarityAnalytics';
 
 /**
  * Estilos do popover do tour — responsivos e compatíveis com MUI.
@@ -51,6 +52,8 @@ function MyApp({ Component, pageProps }: AppProps) {
           <SubscriptionProvider>
             <PermissionsProvider>
               <SnackbarProvider>
+                {/* Microsoft Clarity — só ativo com NEXT_PUBLIC_CLARITY_PROJECT_ID no build */}
+                <ClarityAnalytics />
                 <BirthdayProvider>
                   {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}
                   <TourProvider steps={[]} styles={tourStyles}>

@@ -27,6 +27,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_BASE_URL=""
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 
+# Microsoft Clarity (session replay/heatmaps). Vazio = script não é injetado.
+# NEXT_PUBLIC_* é inlined no bundle no build, por isso entra como ARG e não como env de runtime.
+ARG NEXT_PUBLIC_CLARITY_PROJECT_ID=""
+ENV NEXT_PUBLIC_CLARITY_PROJECT_ID=${NEXT_PUBLIC_CLARITY_PROJECT_ID}
+
 RUN npm run build
 
 # ============================================

@@ -446,6 +446,16 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
 - Em producao: `SENTRY_ENVIRONMENT=production`, `SENTRY_TRACES_SAMPLE_RATE=0.1`.
 - MCP do Sentry disponivel via `.claude/settings.json` (url: `https://mcp.sentry.dev/mcp`).
 
+**Analytics de produto — GA4 + Microsoft Clarity (Clarity desde 2026-10-05):**
+- GA4: tag `G-BF9G0RFCDB` hardcoded em `frontend/src/pages/_app.tsx` (pageviews + evento `click_powered_by_girahub`).
+- Clarity (gravação de sessão, heatmaps, funis — gratuito): `frontend/src/components/shared/ClarityAnalytics.tsx`,
+  montado em `_app.tsx`. Só injeta o script quando `NEXT_PUBLIC_CLARITY_PROJECT_ID` está definido.
+- A variável é **build-time** (ARG em `frontend/Dockerfile`, passada por `docker-compose.prod.yml` a partir do
+  `/opt/senhas/.env`). Trocar o ID exige rebuild do frontend; o deploy.yml já faz `build frontend` a cada push.
+- Cada sessão recebe tags (`scope`, `tenant_id`, `tenant`, `plan`, `trial`, `role`) e `identify` com o UUID do
+  usuário (hash feito pelo SDK). Nunca enviar e-mail/CPF/nome como tag — filtrar por tenant no painel usa `tenant`.
+- CSP do nginx libera `www.clarity.ms` / `scripts.clarity.ms` (script-src) e `*.clarity.ms` (connect-src).
+
 ---
 
 ## 12) Diretriz Final
