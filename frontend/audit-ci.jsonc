@@ -19,23 +19,17 @@
   //     dependem de CSS malicioso, que nao existe no build. Sai quando o next
   //     subir o postcss.
   //       GHSA-6g55-p6wh-862q, GHSA-r28c-9q8g-f849
-  //   - rollup 3.29.5 (1 high): bundler usado pelo @sentry/nextjs 8 no build;
-  //     sai com o @sentry/nextjs 8 -> 10.
-  //       GHSA-mw96-cpmx-2vgc
-  //   - braces 3.0.3 (1 high, SEM versao corrigida — vuln <= 3.0.3): chega via
-  //     @sentry/nextjs > @sentry/webpack-plugin > unplugin > chokidar, ou seja,
-  //     so o watcher do plugin de build; expande globs da nossa config. Sai
-  //     quando houver braces corrigido ou o unplugin largar o chokidar.
-  //       GHSA-vfj7-8cjw-p6xm
   // Removidos em 2026-10-05: GHSA-qx2v-qp2m-jg93 e GHSA-fxqj-rqcc-2cmp
   // (postcss, severidade MEDIUM — nunca falhariam com "high": true).
+  // Removidos em 2026-10-05 com o upgrade @sentry/nextjs 8.55 -> 10.76:
+  // GHSA-mw96-cpmx-2vgc (rollup 3.29.5 — o SDK 10 usa rollup 4.x corrigido) e
+  // GHSA-vfj7-8cjw-p6xm (braces 3.0.3 — o plugin de build do SDK 10 nao puxa
+  // mais unplugin > chokidar; braces so resta em dependencias de dev).
   // Corrigidos por update em 2026-10-05 (nao allowlistar): axios -> 1.20.0
   // (7 high) e brace-expansion -> 1.1.21 / 2.1.7 / 5.0.12 (2 high).
   // Novos advisories fora desta lista ainda quebram o job.
   "allowlist": [
     "GHSA-6g55-p6wh-862q",
-    "GHSA-r28c-9q8g-f849",
-    "GHSA-mw96-cpmx-2vgc",
-    "GHSA-vfj7-8cjw-p6xm"
+    "GHSA-r28c-9q8g-f849"
   ]
 }

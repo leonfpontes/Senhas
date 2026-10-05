@@ -5,8 +5,8 @@
  * `sentry.edge.config.ts` NÃO são mais carregados automaticamente: o
  * `Sentry.init` precisa rodar dentro de `register()`. Até 2026-10-05 o
  * Sentry do lado servidor do frontend (getServerSideProps, API routes do
- * Next) não inicializava — só o do navegador (`sentry.client.config.ts`,
- * que continua sendo carregado normalmente pelo SDK 8).
+ * Next) não inicializava — só o do navegador. O init do navegador fica em
+ * `src/instrumentation-client.ts` (@sentry/nextjs 10).
  *
  * O arquivo fica em `src/` porque o Next procura o hook na pasta pai do
  * diretório de páginas (`src/pages`); na raiz de `frontend/` seria ignorado.

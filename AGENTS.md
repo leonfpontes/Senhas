@@ -501,11 +501,22 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
 
 **Monitoramento de erros — Sentry (desde 2026-06-27):**
 - Backend: `sentry-sdk[fastapi]>=1.39.0` — inicializado em `main.py` quando `SENTRY_DSN` definido.
-- Frontend: `@sentry/nextjs ^8` — navegador em `sentry.client.config.ts` (carregado pelo SDK); servidor e edge em
-  `sentry.server.config.ts` / `sentry.edge.config.ts`, que **só rodam porque `frontend/src/instrumentation.ts` os importa**
-  em `register()` (exigência do Next 15; antes de 2026-10-05 o Sentry do lado servidor do frontend não inicializava).
-  O hook fica em `src/` porque o Next o procura na pasta pai de `src/pages` — na raiz de `frontend/` é ignorado.
-  `onRequestError = Sentry.captureRequestError` captura erros de request/renderização no servidor.
+- Frontend: `@sentry/nextjs ^10` (upgrade 8.55 → 10.76 em 2026-10-05):
+  - Navegador: `frontend/src/instrumentation-client.ts` (convenção `instrumentation-client` do Next 15.3+; substituiu o
+    `sentry.client.config.ts`, deprecado desde o SDK 9). Replay só em erro (`maskAllText`/`blockAllMedia`),
+    `sendDefaultPii: false`, `ignoreErrors`. Exporta `onRouterTransitionStart = Sentry.captureRouterTransitionStart`
+    — só o App Router chama esse hook; no Pages Router as navegações são instrumentadas pelo `browserTracingIntegration`,
+    mas sem o export o build imprime aviso "ACTION REQUIRED".
+  - Servidor e edge: `frontend/sentry.server.config.ts` / `frontend/sentry.edge.config.ts`, que **só rodam porque
+    `frontend/src/instrumentation.ts` os importa** em `register()` (exigência do Next 15; antes de 2026-10-05 o Sentry do
+    lado servidor do frontend não inicializava). `onRequestError = Sentry.captureRequestError` captura erros de
+    request/renderização no servidor.
+  - `instrumentation.ts` e `instrumentation-client.ts` ficam em `src/` porque o Next os procura na pasta pai de
+    `src/pages` — na raiz de `frontend/` são ignorados.
+  - `next.config.js` importa `withSentryConfig` de `@sentry/nextjs/config` (import pela raiz é deprecado no 10 e quebra
+    no 11). `hideSourceMaps` saiu no SDK 9: source maps do cliente são sempre "hidden" e
+    `sourcemaps.deleteSourcemapsAfterUpload: true` os apaga após o upload (que exige `SENTRY_AUTH_TOKEN`).
+  - Mock do Jest em `frontend/__mocks__/sentry-nextjs-mock.js` (mapeado em `jest.config.js`).
 - DSNs ja configurados no VPS em `/opt/senhas/.env`.
 - Variaveis: `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`.
 - `NEXT_PUBLIC_SENTRY_DSN` e `NEXT_PUBLIC_SENTRY_ENVIRONMENT` sao **build-time** (ARG em `frontend/Dockerfile`,
