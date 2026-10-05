@@ -411,8 +411,9 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 
 ## Regras de trabalho (vigentes a partir de agora)
 
-- **R-01 — Congelamento de módulos novos**: nenhum módulo/feature novo até a Fase 2 (Q-01 e
-  Q-02) concluída. Exceção: itens deste plano e correções de produção.
+- **R-01 — Congelamento de módulos novos** — `cumprida` (2026-10-05): nenhum módulo/feature novo
+  até a Fase 2 (Q-01 e Q-02) concluída. Exceção: itens deste plano e correções de produção.
+  Q-01 e Q-02 foram feitos e são bloqueantes no CI; o congelamento deixa de valer.
 - **R-02 — Doc que mente é bug**: encontrou documentação divergente do código → corrigir na
   mesma sessão (AGENTS.md/CLAUDE.md corrigidos em 2026-08-26 nesta primeira aplicação da regra).
 - **R-03 — Adotar ou deletar**: abstração frontend com 0 consumidores (`useCrudDrawer`,
