@@ -317,6 +317,19 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   perde acesso consistentemente em todos os módulos gated.
 - **Esforço**: M. **Custo**: R$ 0.
 
+### P-06 — Checklist de primeira gira no dashboard — `feito` (2026-10-05)
+- **Exceção à R-01**, decidida pelo dono do produto em 2026-10-05. Motivo: análise de produção
+  do mesmo dia mostrou 11 cadastros self-service desde julho e **zero** convertidos em pagantes;
+  7 criaram gira, só 5 receberam alguma senha, só 1 passou de 10. Nenhum novo tenant era guiado a
+  mandar o link de senhas para os consulentes — sem isso não há Porta nem valor percebido.
+- **Entrega**: card "Primeiros passos" no topo de `/admin/dashboard` com 4 passos — criar gira →
+  compartilhar o link (WhatsApp com mensagem pronta, copiar, QR code) → receber senhas pelo link →
+  usar a Porta. Estado derivado de dados existentes (`onboarding` em `GET /dashboard-summary`, uma
+  consulta), sem endpoint novo nem migração. Some ao concluir, ao passar de 20 senhas pelo link
+  (terreiro já ativado) ou quando o admin oculta. Eventos `onboarding_*` vão para GA4 e Clarity.
+- **Aceite de produto**: medir em 30 dias a fração de cadastros novos que chega a 1 senha pelo
+  link (base: 5 de 11) e a 10 senhas (base: 1 de 11), pelo funil do Clarity/GA4.
+
 ---
 
 ## Regras de trabalho (vigentes a partir de agora)

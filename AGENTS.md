@@ -391,6 +391,13 @@ Incluir obrigatoriamente:
   - `/admin/permission-groups`: listagem com filtros, alertas para operadores sem grupos (G1) e exclusão com proteção/força (G2).
   - `/admin/permission-groups/[id]`: detalhes do grupo, matriz de permissões (`PermissionMatrix`) com presets rápidos (G4), autocompletes de operadores e visualizador de permissões consolidadas (G3/G13).
 
+### 11.12 Checklist de primeira gira (Dashboard) — item P-06 do plano
+- **Backend**: `GET /api/v1/admin/dashboard-summary` devolve `onboarding` (`has_gira`, `public_tickets`, `door_used`, `public_link`, `completed`), calculado por `_get_onboarding_status` em `dashboard_summary.py` numa única consulta filtrada por `tenant_id`. `public_tickets` conta só senhas emitidas pelo próprio consulente (`emitido_por_id IS NULL`); `door_used` = alguma senha com check-in ou chamada. Sem endpoint novo, sem migração.
+- **Frontend**: `components/admin/FirstGiraChecklist.tsx`, montado no topo de `/admin/dashboard` para quem tem `giras:view` (botão "Criar gira" só com `giras:insert`, "Abrir a Porta" só com `porta:view`).
+- **Visibilidade**: some quando `completed`, quando `public_tickets >= 20` (`ACTIVATED_PUBLIC_TICKETS` — terreiro já ativado, ex.: pagante que não usa a Porta) ou quando o admin oculta. "Ocultar" e "já compartilhei" ficam no `localStorage` por tenant; o passo de compartilhar também se completa sozinho na primeira senha pelo link.
+- **Analytics**: `services/analytics.ts` (`trackEvent`, `setAnalyticsTag`) envia `onboarding_share_whatsapp`, `onboarding_copy_link`, `onboarding_show_qr`, `onboarding_test_link`, `onboarding_cta_create_gira`, `onboarding_cta_porta` e `onboarding_dismiss` para GA4 e Clarity, e marca a sessão do Clarity com a tag `onboarding_step` (1–4).
+- **QR code**: `qrcode.react` (SVG local, sem chamada externa).
+
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).
 - VPS: 76.13.231.19 (Hostinger), projeto em /opt/senhas.
