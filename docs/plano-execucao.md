@@ -320,7 +320,8 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 ### P-06 — Checklist de primeira gira no dashboard — `feito` (2026-10-05)
 - **Exceção à R-01**, decidida pelo dono do produto em 2026-10-05. Motivo: análise de produção
   do mesmo dia mostrou 11 cadastros self-service desde julho e **zero** convertidos em pagantes;
-  7 criaram gira, só 5 receberam alguma senha, só 1 passou de 10. Nenhum novo tenant era guiado a
+  6 criaram gira, só 4 receberam alguma senha pelo link, só 1 passou de 10 (recontado no banco em
+  2026-10-05; a primeira versão da análise dizia 7 e 5). Nenhum novo tenant era guiado a
   mandar o link de senhas para os consulentes — sem isso não há Porta nem valor percebido.
 - **Entrega**: card "Primeiros passos" no topo de `/admin/dashboard` com 4 passos — criar gira →
   compartilhar o link (WhatsApp com mensagem pronta, copiar, QR code) → receber senhas pelo link →
@@ -328,7 +329,7 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   consulta), sem endpoint novo nem migração. Some ao concluir, ao passar de 20 senhas pelo link
   (terreiro já ativado) ou quando o admin oculta. Eventos `onboarding_*` vão para GA4 e Clarity.
 - **Aceite de produto**: medir em 30 dias a fração de cadastros novos que chega a 1 senha pelo
-  link (base: 5 de 11) e a 10 senhas (base: 1 de 11), pelo funil do Clarity/GA4.
+  link (base: 4 de 11) e a 10 senhas (base: 1 de 11), pelo funil do Clarity/GA4.
 - **Complemento (2026-10-05)**: empty state em `/admin/giras` (antes: tabela vazia) com o ciclo
   em 3 passos e "Criar primeira gira"; falha de carregamento agora mostra erro com retry em vez
   de parecer lista vazia; `?nova=1` abre o formulário de criação direto (usado pelo checklist).
