@@ -1,5 +1,7 @@
 const path = require('path');
-const { withSentryConfig } = require('@sentry/nextjs');
+// SDK 10: importar de `@sentry/nextjs/config` (o import pela raiz do pacote é
+// deprecado, imprime aviso no build e deixa de funcionar no v11).
+const { withSentryConfig } = require('@sentry/nextjs/config');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -100,16 +102,20 @@ const nextConfig = {
 module.exports = withSentryConfig(nextConfig, {
   // Logs do plugin só quando há DSN. O SDK é sempre empacotado; sem DSN no
   // build (NEXT_PUBLIC_SENTRY_DSN é ARG do Dockerfile) ele só não envia nada.
-  // `disableServer/ClientWebpackPlugin` foram removidos: não existem no SDK 8
-  // e eram ignorados — o plugin roda sempre, salvo `sourcemaps.disable`.
+  // O plugin de build roda sempre, salvo `sourcemaps.disable`.
   silent: !process.env.NEXT_PUBLIC_SENTRY_DSN,
   // Upload de source maps — requer SENTRY_AUTH_TOKEN no build; sem token o
   // plugin pula o upload com aviso, sem quebrar o build.
   authToken: process.env.SENTRY_AUTH_TOKEN,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
-  // Apaga source maps do bundle final (não expõe código-fonte em prod)
-  hideSourceMaps: true,
+  // Não expor código-fonte em prod. `hideSourceMaps` foi removido no SDK 9:
+  // agora o SDK sempre gera source maps "hidden" no cliente (sem o comentário
+  // sourceMappingURL) e os apaga do bundle depois do upload. Explícito aqui
+  // pra não depender do default.
+  sourcemaps: {
+    deleteSourcemapsAfterUpload: true,
+  },
   widenClientFileUpload: true,
 });
 

@@ -11,7 +11,9 @@
 const noop = () => {};
 
 module.exports = {
-  init: noop,
+  // jest.fn() para que __tests__/instrumentation-client.test.ts possa assertar
+  // as opções passadas ao init do navegador.
+  init: jest.fn(),
   setUser: noop,
   setTag: noop,
   setTags: noop,
@@ -24,8 +26,10 @@ module.exports = {
   captureMessage: jest.fn(),
   // Usado como `onRequestError` em src/instrumentation.ts.
   captureRequestError: jest.fn(),
+  // Usado como `onRouterTransitionStart` em src/instrumentation-client.ts.
+  captureRouterTransitionStart: jest.fn(),
   getClient: () => undefined,
   withScope: (callback) => callback({ setTag: noop, setUser: noop, setContext: noop, setExtra: noop }),
   browserTracingIntegration: () => ({}),
-  replayIntegration: () => ({}),
+  replayIntegration: (options) => ({ name: 'Replay', options }),
 };

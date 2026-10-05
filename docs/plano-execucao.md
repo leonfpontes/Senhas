@@ -307,6 +307,11 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Aceite**: `pip-audit` sem HIGH conhecidos; suíte verde; lote 3 sem `from_orm`/`class Config`.
 - **Esforço**: lotes 1-2 M, lote 3 G. **Custo**: R$ 0.
 - **Dependência**: Q-01 (não atualizar framework sem teste de integração real como rede).
+- **Frontend (fora dos 3 lotes, feito em 2026-10-05)**: `@sentry/nextjs` 8.55 → 10.76. Init do
+  navegador migrado para `frontend/src/instrumentation-client.ts`, `withSentryConfig` importado de
+  `@sentry/nextjs/config`, `hideSourceMaps` (removido no SDK 9) trocado por
+  `sourcemaps.deleteSourcemapsAfterUpload`. Tirou do allowlist do `audit-ci` o rollup
+  (GHSA-mw96-cpmx-2vgc) e o braces (GHSA-vfj7-8cjw-p6xm).
 
 ---
 
