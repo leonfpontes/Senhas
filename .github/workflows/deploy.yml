@@ -86,6 +86,12 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
+          # Default da action é 10m para o script inteiro. O deploy de 2026-10-05
+          # (run 37318551000) estourou: build do frontend com Next 15 levou 387s
+          # (era 304s no Next 14) e o total passou de 10m — a action matou a sessão
+          # entre as migrations e o swap dos containers. timeout-minutes do job (25)
+          # continua sendo o teto real.
+          command_timeout: 30m
           script: |
             set -euo pipefail
             cd /opt/senhas
