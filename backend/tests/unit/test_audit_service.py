@@ -102,6 +102,18 @@ class TestLogBulkOperation:
         assert call_kwargs["action"] == AuditAction.UPDATE
         assert call_kwargs["details"]["count"] == 3
 
+    async def test_uuid_ids_are_stored_as_strings(self, audit_service):
+        # details é JSONB: UUID cru quebrava a gravação (bulk dava 500).
+        ids = [uuid.uuid4(), uuid.uuid4()]
+        await audit_service.log_bulk_operation(
+            tenant_id=TENANT_ID, user_id=USER_ID, operation_type="bulk_cancel",
+            resource_type="Ticket", count=2, resource_ids=ids,
+        )
+        details = audit_service.repo.create.call_args.kwargs["details"]
+        assert details["resource_ids"] == [str(i) for i in ids]
+        import json
+        json.dumps(details)
+
 
 class TestLogLogin:
     async def test_logs_successful_login(self, audit_service):

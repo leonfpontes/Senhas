@@ -115,6 +115,36 @@ class TestSenhaControlRepositoryExtended:
         assert result["modified"] == 1
         db.flush.assert_not_awaited()
 
+    async def test_bulk_cancel_missing_tickets_counted_as_failed(self, repo):
+        from src.models import TicketStatus
+        r, db = repo
+        ticket = MagicMock()
+        ticket.id = uuid4()
+        ticket.status = TicketStatus.EMITTED
+        db.execute.return_value = _mock_result_scalars([ticket])
+        result = await r.bulk_cancel([ticket.id, uuid4(), uuid4()], uuid4())
+        # Antes era len(ids) - len(ids) = 0, sempre.
+        assert (result["modified"], result["failed"]) == (1, 2)
+        assert result["errors"] == ["2 senha(s) não encontrada(s) neste terreiro"]
+
+    async def test_gira_scope_message_and_duplicate_ids(self, repo):
+        from src.models import TicketStatus
+        r, db = repo
+        ticket = MagicMock()
+        ticket.id = uuid4()
+        ticket.status = TicketStatus.EMITTED
+        db.execute.return_value = _mock_result_scalars([ticket])
+        result = await r.bulk_mark_used([ticket.id, ticket.id, uuid4()], uuid4(), gira_id=uuid4())
+        assert (result["modified"], result["failed"]) == (1, 1)
+        assert result["errors"] == ["1 senha(s) não encontrada(s) nesta gira"]
+        assert "gira_id" in str(db.execute.call_args.args[0])
+
+    def test_constructor_defaults_to_senha_control_model(self):
+        # Os endpoints fazem SenhaControlRepositoryExtended(db); sem modelo padrão era TypeError (500).
+        from src.models import SenhaControl
+        from src.repositories.senha_control_repo_extended import SenhaControlRepositoryExtended
+        assert SenhaControlRepositoryExtended(_mock_db()).model is SenhaControl
+
     # bulk_reset_gira_counter
     async def test_bulk_reset_found(self, repo):
         r, db = repo
