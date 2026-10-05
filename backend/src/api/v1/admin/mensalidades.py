@@ -23,7 +23,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Path, Query, UploadFile, status
 from fastapi.responses import HTMLResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
@@ -119,8 +119,7 @@ class ConfigResponse(BaseModel):
     relatorio_hora_envio: Optional[str] = None  # "HH:MM" string
     enable_mensalidade_associado: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ConfigUpdate(BaseModel):

@@ -340,7 +340,7 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   novo criado sem grupo = permissão irrestrita no tenant.
 - **Esforço**: M. **Custo**: R$ 0.
 
-### Q-06 — Atualização de dependências (staged) — `em andamento` (lotes 1-2 feitos em 2026-10-05)
+### Q-06 — Atualização de dependências (staged) — `em andamento` (lotes 1-3 feitos em 2026-10-05; lotes 1-2 no PR #40, lote 3 em PR próprio, ambos aguardando merge)
 - **Feito (lotes 1-2, 2026-10-05)**:
   - Lote 1: `passlib` removido (o código já usava `bcrypt` puro; `bcrypt==5.0.0` agora declarado
     e pinado — antes vinha transitivo e sem pin). A troca `python-jose` → `PyJWT` já tinha entrado
@@ -362,7 +362,21 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
     Os dois sobem juntos numa migração própria. O starlette 0.52.1 corrigiu PYSEC-2026-1942 (saiu
     das exceções do pip-audit no deploy.yml); seguem ignoradas 161/248/249/2280/2281, todas só
     corrigidas no starlette 1.x — incluindo PYSEC-2026-249 (DoS em `request.form`, CVSS alto).
-- **Pendente**: lote 3 (idioma Pydantic v2) e a migração fastapi 0.137+/starlette 1.x.
+- **Feito (lote 3, 2026-10-05)** — idioma Pydantic v2 em `backend/src`, refactor puro:
+  - 37 `Model.from_orm(x)` → `Model.model_validate(x)` (todos os schemas alvo já tinham
+    `from_attributes`).
+  - 30 `class Config:` → `model_config = ConfigDict(...)` (29 `BaseModel`: 27 `from_attributes`,
+    2 `json_schema_extra`) e `SettingsConfigDict` no `Settings` (`core/config.py`).
+  - 9 `.dict(` → `.model_dump(` — só em objetos Pydantic; os 4 `.json()` restantes são respostas
+    httpx (Resend/Brevo) e ficaram.
+  - Validators já estavam em `@field_validator`/`@model_validator`; não havia `parse_obj`,
+    `.copy(update=)`, `@validator` nem `@root_validator`.
+  - Prova de "zero mudança de contrato": o OpenAPI gerado (`app.openapi()`) é byte a byte igual
+    antes/depois. Suíte unit+api roda com `-W error::pydantic.warnings.PydanticDeprecatedSince20`
+    sem nenhum aviso Pydantic restante.
+  - Os únicos hits de `grep "class Config"` em `src` são `ConfigResponse`/`ConfigUpdate`
+    (nomes de modelo em `mensalidades.py`, não config de classe).
+- **Pendente**: merge dos PRs (#40 e lote 3) e a migração fastapi 0.137+/starlette 1.x.
 - **Problema**: backend congelado em 2023 (`fastapi==0.104.1`, `sqlalchemy==2.0.23`,
   `pydantic==2.5.0`); `python-jose==3.3.0` com CVE-2024-33663/33664; `passlib` é dependência
   morta (código usa `bcrypt` puro) e incompatível com bcrypt 5; Pydantic rodando em idioma v1

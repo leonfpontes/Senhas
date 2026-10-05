@@ -4,7 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import (
@@ -94,8 +94,7 @@ class MediumResponse(BaseModel):
     observacoes: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BirthdayMediumResponse(BaseModel):
@@ -105,8 +104,7 @@ class BirthdayMediumResponse(BaseModel):
     data_nascimento: Optional[date] = None
     dias_ate_aniversario: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────

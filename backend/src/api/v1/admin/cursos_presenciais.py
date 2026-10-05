@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Path, Query, File
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, date, timedelta
@@ -102,8 +102,7 @@ class CursoPresencialResponse(BaseModel):
     def validate_tipo_formulario(cls, v):
         return v if v is not None else "simples"
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ParticipanteCreate(BaseModel):
     """Payload para cadastrar um participante em um curso."""
@@ -260,8 +259,7 @@ class ParticipanteResponse(BaseModel):
     def validate_aceita_uso_imagem(cls, v):
         return v if v is not None else False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ---------------------------------------------------------------------------
 # Endpoint definitions
@@ -294,7 +292,7 @@ async def create_curso_presencial(
     )
 
     await db.commit()
-    return CursoPresencialResponse.from_orm(curso)
+    return CursoPresencialResponse.model_validate(curso)
 
 @router.get("", response_model=List[CursoPresencialResponse], dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def list_cursos_presenciais(
@@ -329,7 +327,7 @@ async def list_cursos_presenciais(
     result = await db.execute(stmt)
     cursos = result.scalars().all()
 
-    return [CursoPresencialResponse.from_orm(c) for c in cursos]
+    return [CursoPresencialResponse.model_validate(c) for c in cursos]
 
 @router.get("/{curso_id}", response_model=CursoPresencialResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def get_curso_presencial(
@@ -345,7 +343,7 @@ async def get_curso_presencial(
     curso = await repo.get_by_id(curso_id, current_user.tenant_id)
     if not curso:
         raise NotFoundError("CursoPresencial")
-    return CursoPresencialResponse.from_orm(curso)
+    return CursoPresencialResponse.model_validate(curso)
 
 @router.put("/{curso_id}", response_model=CursoPresencialResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
 async def update_curso_presencial(
@@ -363,7 +361,7 @@ async def update_curso_presencial(
     if not existing_curso:
         raise NotFoundError("CursoPresencial")
 
-    previous_state = CursoPresencialResponse.from_orm(existing_curso).model_dump(mode="json")
+    previous_state = CursoPresencialResponse.model_validate(existing_curso).model_dump(mode="json")
     updated_curso = await repo.update(
         curso_id,
         current_user.tenant_id,
@@ -377,11 +375,11 @@ async def update_curso_presencial(
         resource_type="CursoPresencial",
         resource_id=curso_id,
         previous_state=previous_state,
-        new_state=CursoPresencialResponse.from_orm(updated_curso).model_dump(mode="json"),
+        new_state=CursoPresencialResponse.model_validate(updated_curso).model_dump(mode="json"),
     )
 
     await db.commit()
-    return CursoPresencialResponse.from_orm(updated_curso)
+    return CursoPresencialResponse.model_validate(updated_curso)
 
 @router.delete("/{curso_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "delete"))])
 async def delete_curso_presencial(
@@ -398,7 +396,7 @@ async def delete_curso_presencial(
     if not existing_curso:
         raise NotFoundError("CursoPresencial")
 
-    previous_state = CursoPresencialResponse.from_orm(existing_curso).model_dump(mode="json")
+    previous_state = CursoPresencialResponse.model_validate(existing_curso).model_dump(mode="json")
     deleted = await repo.delete(curso_id, current_user.tenant_id, soft=True)
     if not deleted:
         raise NotFoundError("CursoPresencial")
@@ -478,7 +476,7 @@ async def create_participante(
     )
 
     await db.commit()
-    return ParticipanteResponse.from_orm(participante)
+    return ParticipanteResponse.model_validate(participante)
 
 @router.get("/{curso_id}/participantes", response_model=List[ParticipanteResponse], dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
 async def list_participantes(
@@ -505,7 +503,7 @@ async def list_participantes(
         skip=skip,
         limit=limit,
     )
-    return [ParticipanteResponse.from_orm(p) for p in participantes]
+    return [ParticipanteResponse.model_validate(p) for p in participantes]
 
 @router.put("/{curso_id}/participantes/{participante_id}", response_model=ParticipanteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
 async def update_participante(
@@ -529,7 +527,7 @@ async def update_participante(
     if not participante or participante.curso_id != curso_id:
         raise NotFoundError("CursoParticipante")
 
-    prev_state = ParticipanteResponse.from_orm(participante).model_dump(mode="json")
+    prev_state = ParticipanteResponse.model_validate(participante).model_dump(mode="json")
 
     data = participante_update.model_dump(exclude_unset=True)
     # Se o pago foi alterado para True ou o valor_pago foi informado, marca como pago e registra data_pagamento
@@ -553,11 +551,11 @@ async def update_participante(
         resource_type="CursoParticipante",
         resource_id=participante_id,
         previous_state=prev_state,
-        new_state=ParticipanteResponse.from_orm(updated).model_dump(mode="json"),
+        new_state=ParticipanteResponse.model_validate(updated).model_dump(mode="json"),
     )
 
     await db.commit()
-    return ParticipanteResponse.from_orm(updated)
+    return ParticipanteResponse.model_validate(updated)
 
 @router.delete("/{curso_id}/participantes/{participante_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "delete"))])
 async def delete_participante(

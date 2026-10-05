@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, case, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
-from pydantic import BaseModel, Field, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, EmailStr, field_validator
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone
@@ -62,8 +62,7 @@ class QueueItemResponse(BaseModel):
     atendimento_descricao: Optional[str] = None
     horario_desejado: Optional[str] = None  # "HH:MM" — agendamento por horário, se a gira usar
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DoorQueueResponse(BaseModel):

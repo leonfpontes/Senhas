@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -64,8 +64,7 @@ class TicketResponse(BaseModel):
     email_sent_at: Optional[datetime] = None
     email_provider: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UpdateAttendInfoRequest(BaseModel):
@@ -639,8 +638,7 @@ class WaitlistItemResponse(BaseModel):
     confirmation_expires_at: Optional[datetime] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.get(

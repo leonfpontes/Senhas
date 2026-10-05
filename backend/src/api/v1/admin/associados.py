@@ -1,7 +1,7 @@
 """Admin Associados - CRUD /api/v1/admin/associados."""
 from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -39,8 +39,7 @@ class AssociadoResponse(BaseModel):
     telefone: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────

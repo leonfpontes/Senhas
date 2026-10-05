@@ -5,7 +5,7 @@ from uuid import UUID
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,8 +62,7 @@ class PermissionGroupResponse(BaseModel):
     features_configured_count: int
     is_default: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GroupPermissionResponse(BaseModel):
@@ -75,8 +74,7 @@ class GroupPermissionResponse(BaseModel):
     can_edit: bool
     can_delete: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GroupMemberResponse(BaseModel):
@@ -84,8 +82,7 @@ class GroupMemberResponse(BaseModel):
     email: str
     username: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Endpoints ---
@@ -269,7 +266,7 @@ async def update_group(
         raise NotFoundError("Grupo de permissão")
 
     previous_state = {"name": group.name, "description": group.description}
-    update_data = request.dict(exclude_unset=True)
+    update_data = request.model_dump(exclude_unset=True)
 
     # Check duplicate name on rename
     if "name" in update_data and update_data["name"] != group.name:
@@ -397,7 +394,7 @@ async def get_group_permissions(
     if not group:
         raise NotFoundError("Grupo de permissão")
 
-    return [GroupPermissionResponse.from_orm(p) for p in group.permissions]
+    return [GroupPermissionResponse.model_validate(p) for p in group.permissions]
 
 
 @router.put("/{group_id}/permissions", response_model=PermissionGroupResponse)
@@ -423,7 +420,7 @@ async def set_group_permissions(
         for p in original_group.permissions
     ]
 
-    new_perms = [p.dict() for p in request.permissions]
+    new_perms = [p.model_dump() for p in request.permissions]
 
     # Save permissions inside repository
     updated_group = await repo.set_group_permissions(
@@ -489,7 +486,7 @@ async def list_group_members(
         raise NotFoundError("Grupo de permissão")
 
     members = await repo.list_members(group_id, current_user.tenant_id)
-    return [GroupMemberResponse.from_orm(m) for m in members]
+    return [GroupMemberResponse.model_validate(m) for m in members]
 
 
 @router.post("/{group_id}/members", response_model=GroupMemberResponse)

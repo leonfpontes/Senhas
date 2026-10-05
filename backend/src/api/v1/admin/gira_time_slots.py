@@ -11,7 +11,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,8 +56,7 @@ class TimeSlotTemplateResponse(TimeSlotItem):
     id: UUID
     ordem: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TimeSlotTemplateUpdateRequest(BaseModel):
@@ -86,7 +85,7 @@ async def list_time_slot_templates(
     )
     result = await db.execute(stmt)
     templates = result.scalars().all()
-    return [TimeSlotTemplateResponse.from_orm(t) for t in templates]
+    return [TimeSlotTemplateResponse.model_validate(t) for t in templates]
 
 
 @router.put(
@@ -127,7 +126,7 @@ async def update_time_slot_templates(
     for t in created:
         await db.refresh(t)
 
-    return [TimeSlotTemplateResponse.from_orm(t) for t in created]
+    return [TimeSlotTemplateResponse.model_validate(t) for t in created]
 
 
 # ========== PER-GIRA SLOTS ==========
@@ -138,8 +137,7 @@ class GiraTimeSlotResponse(TimeSlotItem):
     total_emitido: int
     vagas_disponiveis: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GiraTimeSlotsConfigResponse(BaseModel):

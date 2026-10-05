@@ -24,7 +24,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -96,8 +96,7 @@ class CategoriaOut(BaseModel):
     cor: Optional[str]
     ativo: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CategoriaCreate(BaseModel):
@@ -113,8 +112,7 @@ class ContaBancariaOut(BaseModel):
     saldo_inicial: float
     ativo: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ContaBancariaCreate(BaseModel):
@@ -155,8 +153,7 @@ class ContaFinanceiraOut(BaseModel):
     criado_por: Optional[UUID]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ContaFinanceiraCreate(BaseModel):

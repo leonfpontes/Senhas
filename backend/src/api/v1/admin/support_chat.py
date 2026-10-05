@@ -14,7 +14,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,8 +37,7 @@ class SupportMessageResponse(BaseModel):
     sender_name_snapshot: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SupportConversationResponse(BaseModel):
@@ -48,8 +47,7 @@ class SupportConversationResponse(BaseModel):
     last_message_at: Optional[datetime]
     unread: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SupportConversationSummaryResponse(SupportConversationResponse):
@@ -108,7 +106,7 @@ async def get_my_conversation(
     messages = await repo.list_messages(db, conversation.id)
     return SupportConversationWithMessagesResponse(
         conversation=_to_conversation_response(conversation, as_support=False),
-        messages=[SupportMessageResponse.from_orm(m) for m in messages],
+        messages=[SupportMessageResponse.model_validate(m) for m in messages],
     )
 
 
@@ -135,7 +133,7 @@ async def send_my_message(
     )
     await db.commit()
     await db.refresh(message)
-    return SupportMessageResponse.from_orm(message)
+    return SupportMessageResponse.model_validate(message)
 
 
 @router.post("/me/read", status_code=204)
@@ -193,4 +191,4 @@ async def get_tenant_conversation_messages(
         raise NotFoundError("Conversa")
 
     messages = await repo.list_messages(db, conversation_id)
-    return [SupportMessageResponse.from_orm(m) for m in messages]
+    return [SupportMessageResponse.model_validate(m) for m in messages]
