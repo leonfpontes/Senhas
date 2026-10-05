@@ -416,6 +416,18 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Aceite de produto**: em 30 dias, fração de quem recebeu D+1 e criou gira em até 48h, e de quem
   recebeu D+3 e recebeu a primeira senha pelo link em até 72h (sessões com `utm_campaign`).
 
+### P-09 — Trial que não pune — `feito` (2026-10-05)
+- **Problema**: o fim do trial escondia o que o terreiro construiu (no gratuito `max_mediuns = 0`
+  e a tela inteira de médiuns virava aviso de upgrade; um terreiro cadastrou 16 médiuns e deixou
+  de vê-los). E durante o trial o card do plano em teste aparecia como "Plano atual" desabilitado,
+  sem caminho para assinar.
+- **Entrega**: médiuns fora do plano ficam visíveis só para consulta, com aviso e link para
+  assinar; criar, editar e excluir somem (o aviso de upgrade só aparece quando não há nenhum
+  médium). `GET /admin/billing` passou a devolver `is_trial` e `trial_ends_at`; no trial local
+  (sem assinatura Stripe) o card do plano em teste mostra "Em teste" e "Continuar neste plano",
+  que abre o checkout com os dias restantes do teste grátis (o backend já fazia isso).
+- **Aceite**: `frontend/src/__tests__/ux/trial-nao-pune.test.tsx`.
+
 ---
 
 ## Regras de trabalho (vigentes a partir de agora)

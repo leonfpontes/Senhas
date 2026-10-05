@@ -41,6 +41,8 @@ interface BillingInfo {
   cancel_at_period_end: boolean;
   monthly_price: number;
   currency: string;
+  is_trial?: boolean;
+  trial_ends_at?: string | null;
 }
 
 interface PlanMeta {
@@ -230,6 +232,13 @@ export default function AdminBilling() {
 
   const isFreePlan = !billing?.stripe_subscription_id;
   const currentPlan = billing?.plan || 'free';
+  // Trial local, sem assinatura na Stripe: o plano do teste não é "atual" no
+  // sentido de pago — o card dele precisa oferecer "Assinar" (os dias que
+  // faltam do teste continuam grátis no checkout).
+  const inLocalTrial = !!billing?.is_trial && isFreePlan && !billing?.is_bonus;
+  const trialEndLabel = billing?.trial_ends_at
+    ? new Date(billing.trial_ends_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    : null;
 
   return (
     <AdminLayout title="Assinatura">
@@ -309,6 +318,13 @@ export default function AdminBilling() {
                           color: billing.status === 'active' ? '#16a34a' : '#d97706',
                         }}
                       />
+                      {inLocalTrial && (
+                        <Chip
+                          label={trialEndLabel ? `Teste grátis até ${trialEndLabel}` : 'Teste grátis'}
+                          size="small"
+                          sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: '#ede9fe', color: '#6d28d9' }}
+                        />
+                      )}
                       {billing.is_bonus && (
                         <Chip label="Bonificado" size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: '#dbeafe', color: '#1d4ed8' }} />
                       )}
@@ -383,6 +399,14 @@ export default function AdminBilling() {
                 </>
               )}
 
+              {inLocalTrial && (
+                <Alert severity="info" sx={{ mt: 2.5, borderRadius: 2 }}>
+                  Você está testando o plano {planLabel(currentPlan)}
+                  {trialEndLabel ? ` até ${trialEndLabel}` : ''}. Assine agora para não perder nada no fim do
+                  teste: a cobrança só começa quando o teste acabar.
+                </Alert>
+              )}
+
               {currentPlan === 'free' && !billing.is_bonus && (
                 <Alert severity="info" sx={{ mt: 2.5, borderRadius: 2 }}>
                   Você está no plano gratuito com funcionalidades limitadas. Escolha um plano abaixo para liberar o potencial completo do terreiro.
@@ -405,7 +429,8 @@ export default function AdminBilling() {
 
               <Grid container spacing={3} sx={{ mb: 4 }}>
                 {PLANS.map((plan) => {
-                  const isCurrent = plan.key === currentPlan;
+                  const isCurrent = plan.key === currentPlan && !inLocalTrial;
+                  const isTrialPlan = plan.key === currentPlan && inLocalTrial;
                   const isLoading = actionLoading === plan.key;
 
                   return (
@@ -415,7 +440,7 @@ export default function AdminBilling() {
                         data-tour={`billing-plano-${plan.key}`}
                         sx={{
                           border: '2px solid',
-                          borderColor: isCurrent ? plan.color : plan.popular ? `${plan.color}60` : 'divider',
+                          borderColor: isCurrent || isTrialPlan ? plan.color : plan.popular ? `${plan.color}60` : 'divider',
                           borderRadius: 3,
                           height: '100%',
                           display: 'flex',
@@ -440,6 +465,13 @@ export default function AdminBilling() {
                                 label="Mais popular"
                                 size="small"
                                 sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: plan.color, color: '#fff' }}
+                              />
+                            )}
+                            {isTrialPlan && (
+                              <Chip
+                                label="Em teste"
+                                size="small"
+                                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: `${plan.color}18`, color: plan.color, border: `1px solid ${plan.color}40` }}
                               />
                             )}
                             {isCurrent && (
@@ -494,7 +526,7 @@ export default function AdminBilling() {
                             >
                               {isLoading
                                 ? <CircularProgress size={20} sx={{ color: '#fff' }} />
-                                : 'Assinar agora'}
+                                : isTrialPlan ? 'Continuar neste plano' : 'Assinar agora'}
                             </Button>
                           ) : (
                             <Button
