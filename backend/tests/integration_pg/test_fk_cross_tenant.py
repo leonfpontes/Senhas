@@ -24,12 +24,13 @@ from src.models.tickets import Ticket
 from src.models.users import UserRole
 from src.services.permission_service import PermissionService
 
+from .conftest import SESSION_LOOP
 from .factories import create_gira, create_tenant, create_user
 
 MES = date.today().strftime("%Y-%m")
 
 
-@pytest.fixture
+@SESSION_LOOP
 async def cenario(db):
     tenant_a = await create_tenant(db, "Terreiro A")
     tenant_b = await create_tenant(db, "Terreiro B")

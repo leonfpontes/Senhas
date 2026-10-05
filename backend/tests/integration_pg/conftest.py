@@ -20,7 +20,6 @@ engine do app é criado na importação de `src.core.database`.
 
 from __future__ import annotations
 
-import asyncio
 import os
 import subprocess
 import sys
@@ -28,6 +27,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
+import pytest_asyncio
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -55,19 +55,25 @@ def _guard() -> str:
 DATABASE_URL = _guard()
 
 
+# UM loop para a sessão inteira: o pool do asyncpg fica preso ao loop em que
+# as conexões nasceram, e o engine do app é global. Até o pytest-asyncio 0.21
+# isso era feito sobrescrevendo o fixture `event_loop` com scope="session";
+# a partir do 0.23 essa sobrescrita é depreciada (e some no 1.0). O mecanismo
+# suportado é `loop_scope`: os testes recebem o marcador abaixo e todo fixture
+# async desta suíte usa `SESSION_LOOP` — inclusive os definidos nos arquivos de
+# teste (test_rbac_http.py::tenant, test_tenant_isolation.py::cenario). Fixture
+# async novo aqui sem isso falha com "attached to a different loop".
+# Fica restrito a esta pasta — tests/unit/ continua com um loop por teste.
+SESSION_LOOP = pytest_asyncio.fixture(loop_scope="session")
+
+
 def pytest_collection_modifyitems(items):
+    session_loop = pytest.mark.asyncio(loop_scope="session")
     for item in items:
         if "integration_pg" in str(item.fspath):
             item.add_marker(pytest.mark.integration_pg)
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Um loop para a sessão inteira: o pool do asyncpg fica preso ao loop
-    em que as conexões nasceram, e o engine do app é global."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+            if pytest_asyncio.is_async_test(item):
+                item.add_marker(session_loop, append=False)
 
 
 def _run_migrations() -> None:
@@ -97,7 +103,7 @@ def migrated_db():
     return DATABASE_URL
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def table_names(migrated_db):
     from sqlalchemy import text
 
@@ -112,7 +118,7 @@ async def table_names(migrated_db):
         return [r[0] for r in rows]
 
 
-@pytest.fixture(autouse=True)
+@pytest_asyncio.fixture(autouse=True, loop_scope="session")
 async def clean_db(table_names):
     """Cada teste começa com o banco vazio (schema preservado)."""
     yield
@@ -136,7 +142,7 @@ def app(migrated_db):
     return create_app()
 
 
-@pytest.fixture
+@SESSION_LOOP
 async def client(app):
     import httpx
 
@@ -145,7 +151,7 @@ async def client(app):
         yield c
 
 
-@pytest.fixture
+@SESSION_LOOP
 async def db():
     from src.core.database import AsyncSessionLocal
 

@@ -51,7 +51,7 @@
 
 ### 2. API Layer (Backend)
 
-**FastAPI 0.104** com Python async, OpenAPI automático.
+**FastAPI 0.136** com Python async, OpenAPI automático.
 
 ```
 Request → Nginx → FastAPI
@@ -195,7 +195,7 @@ O sistema conta com um controle de acesso baseado em grupos (Group-Based RBAC) q
 
 | Controle | Implementação |
 |----------|---------------|
-| Autenticação | JWT HS256, 24h access + 30d refresh |
+| Autenticação | JWT HS256 (PyJWT), 24h access + 30d refresh |
 | Autorização | RBAC (SUPER_ADMIN, ADMIN, OPERATOR) |
 | Senhas | bcrypt 12 rounds |
 | Transport | HTTPS TLS 1.3 (Let's Encrypt) |

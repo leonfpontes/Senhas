@@ -245,19 +245,19 @@ async def inscricao_publica(
         body = InscricaoPublicaRequest.model_validate_json(data)
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Dados de inscrição inválidos: {str(e)}",
         )
 
     # === Validar consentimentos obrigatórios ===
     if not body.aceita_uso_dados:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="É obrigatório aceitar o uso dos dados pessoais (LGPD).",
         )
     if not body.aceita_uso_imagem:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="É obrigatório aceitar o uso de imagem e gravações.",
         )
 
@@ -267,7 +267,7 @@ async def inscricao_publica(
     # Validar consentimento de saúde para formulários completos
     if curso.tipo_formulario == "completo" and not body.aceita_uso_dados_saude:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="É obrigatório aceitar o processamento de dados de saúde para formulários completos.",
         )
 
@@ -352,7 +352,7 @@ async def inscricao_publica(
 
         if missing_fields:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Os seguintes campos são obrigatórios: {', '.join(missing_fields)}.",
             )
 
@@ -366,13 +366,13 @@ async def inscricao_publica(
         content_type = comprovante.content_type or ""
         if content_type not in ALLOWED_COMPROVANTE_TYPES:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Tipo de arquivo não permitido para comprovante: {content_type}. Use JPEG, PNG, WebP ou PDF.",
             )
         comp_data = await comprovante.read()
         if len(comp_data) > MAX_COMPROVANTE_BYTES:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Comprovante muito grande (máx. {MAX_COMPROVANTE_BYTES // (1024*1024)}MB).",
             )
         comp_filename = comprovante.filename
@@ -380,7 +380,7 @@ async def inscricao_publica(
 
     if curso.chave_pix and not comp_data:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="O comprovante de pagamento da matrícula via PIX é obrigatório.",
         )
 

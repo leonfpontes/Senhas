@@ -77,7 +77,7 @@ def _parse_mes(mes: str) -> date:
         return date(int(parts[0]), int(parts[1]), 1)
     except (ValueError, TypeError):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Formato de mês inválido '{mes}'. Use YYYY-MM.",
         )
 
@@ -221,7 +221,7 @@ async def update_config(
             hora_obj = _dt.time.fromisoformat(body.relatorio_hora_envio)
         except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Formato de hora inválido. Use HH:MM.",
             )
 
@@ -355,7 +355,7 @@ async def registrar_pagamento(
         parsed_status = MensalidadeStatus(pagamento_status.upper())
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Status inválido: '{pagamento_status}'. Use PAGO, PENDENTE ou ISENTO.",
         )
 
@@ -381,7 +381,7 @@ async def registrar_pagamento(
             parsed_data_pag = datetime.fromisoformat(data_pagamento)
         except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Formato de data_pagamento inválido. Use ISO 8601.",
             )
 
@@ -398,13 +398,13 @@ async def registrar_pagamento(
         content_type = comprovante.content_type or ""
         if content_type not in ALLOWED_COMPROVANTE_TYPES:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Tipo de arquivo não permitido: {content_type}. Use JPEG, PNG, WebP ou PDF.",
             )
         comp_data = await comprovante.read()
         if len(comp_data) > MAX_COMPROVANTE_BYTES:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Comprovante muito grande (máx. {MAX_COMPROVANTE_BYTES // (1024*1024)}MB).",
             )
         comp_filename = comprovante.filename

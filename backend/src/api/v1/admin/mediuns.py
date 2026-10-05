@@ -188,7 +188,7 @@ async def create_medium(
             current_count = await repo_check.count(current_user.tenant_id)
             if current_count >= max_mediuns:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Limite de médiuns/cambones atingido ({max_mediuns}). Faça upgrade do plano.",
                 )
 

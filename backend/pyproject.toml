@@ -13,28 +13,37 @@ authors = [
 license = {text = "MIT"}
 
 dependencies = [
-    # fastapi 0.118.3 corrige PYSEC-2024-38 e puxa starlette >=0.40 (fix de
-    # varios advisories); mantido abaixo de 0.120/starlette 1.x que exigiria
-    # migracao (regex->pattern, API de rotas, pydantic 2.13) — ver docs.
-    "fastapi==0.118.3",
-    "starlette>=0.48.0,<0.49.0",
-    "uvicorn[standard]==0.24.0",
+    # Q-06 lote 2 (2026-10-05): bump dentro das majors. fastapi parado em
+    # 0.136.x de proposito: o 0.137 refatorou o roteamento (router.routes vira
+    # arvore — breaking declarado no changelog) e o 0.142 liga OpenTelemetry
+    # nativo; ambos ficam pra migracao junto com starlette 1.x. starlette segue
+    # explicitamente na serie 0.x (o fastapi aceita 1.x, mas e outro major).
+    "fastapi==0.136.3",
+    "starlette==0.52.1",
+    "uvicorn[standard]==0.54.0",
     "python-multipart==0.0.31",  # corrige PYSEC-2026-185x/303x (DoS no parser)
     "websockets>=12.0",
-    "sqlalchemy==2.0.23",
-    "asyncpg==0.29.0",
+    # [asyncio] declara o greenlet explicitamente: o marcador de plataforma do
+    # SQLAlchemy 2.0 nao cobre "arm64" (macOS Apple Silicon) e o engine async
+    # quebrava na importacao em dev local.
+    "sqlalchemy[asyncio]==2.0.54",
+    "asyncpg==0.31.0",
     "psycopg2-binary==2.9.11",
-    "alembic==1.12.1",
-    "pydantic==2.5.0",
-    "pydantic-settings==2.1.0",
+    "alembic==1.20.0",
+    "pydantic==2.13.5",
+    "pydantic-settings==2.15.0",
     "python-dotenv==1.2.2",  # corrige PYSEC-2026-2270
     # PyJWT no lugar de python-jose: elimina de vez o ecdsa (PYSEC-2026-1325,
     # sem correcao) e o pyasn1<0.5 que o jose forcava. HS256 no PyJWT usa
     # hmac/hashlib — nao precisa de cryptography. Ver src/security/jwt.py.
     "PyJWT>=2.10.1",
-    "passlib[bcrypt]==1.7.4",
+    # bcrypt direto (src/security/password.py) — passlib era dependencia morta
+    # removida no Q-06 lote 1. Antes vinha transitiva e sem pin pelo
+    # passlib[bcrypt] (resolvia pra ultima release, 5.0.0); agora pinada na
+    # mesma versao pra manter hash/verificacao identicos.
+    "bcrypt==5.0.0",
     "email-validator>=2.2.0,<3.0.0",
-    "httpx==0.25.2",
+    "httpx==0.28.1",
     "stripe==15.4.0",
     "python-dateutil>=2.8.2",
     "slowapi>=0.1.9",
@@ -47,8 +56,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest==7.4.3",
-    "pytest-asyncio==0.21.1",
+    "pytest==8.4.2",  # pytest-asyncio 0.26 exige pytest>=8.2
+    "pytest-asyncio==0.26.0",
     "pytest-cov==4.1.0",
     "aiosqlite>=0.19.0",
     "black==23.12.0",
@@ -116,6 +125,10 @@ minversion = "7.0"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 asyncio_mode = "auto"
+# Explícito desde o pytest-asyncio 0.24 (sem isso ele avisa a cada sessão).
+# Um loop por teste/fixture; a suíte tests/integration_pg sobe para "session"
+# via loop_scope no próprio conftest.
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "integration_pg: suíte com Postgres real (tests/integration_pg, roda só com INTEGRATION_PG=1)",
 ]

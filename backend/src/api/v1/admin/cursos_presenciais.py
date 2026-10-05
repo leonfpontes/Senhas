@@ -439,7 +439,7 @@ async def create_participante(
     total_participantes = await curso_repo.get_participant_count(curso_id, current_user.tenant_id)
     if curso.max_participantes is not None and total_participantes >= curso.max_participantes:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Limite de participantes atingido para este curso.",
         )
 
@@ -620,7 +620,7 @@ def _parse_mes(mes: str) -> date:
         return date(int(parts[0]), int(parts[1]), 1)
     except (ValueError, TypeError):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Formato de mês inválido '{mes}'. Use YYYY-MM.",
         )
 
@@ -744,7 +744,7 @@ async def registrar_curso_pagamento(
         parsed_status = MensalidadeStatus(pagamento_status.upper())
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Status inválido: '{pagamento_status}'. Use PAGO, PENDENTE ou ISENTO.",
         )
 
@@ -754,7 +754,7 @@ async def registrar_curso_pagamento(
             parsed_data_pag = datetime.fromisoformat(data_pagamento)
         except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Formato de data_pagamento inválido. Use ISO 8601.",
             )
 
@@ -769,13 +769,13 @@ async def registrar_curso_pagamento(
         content_type = comprovante.content_type or ""
         if content_type not in ALLOWED_COMPROVANTE_TYPES:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Tipo de arquivo não permitido: {content_type}. Use JPEG, PNG, WebP ou PDF.",
             )
         comp_data = await comprovante.read()
         if len(comp_data) > MAX_COMPROVANTE_BYTES:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Comprovante muito grande (máx. {MAX_COMPROVANTE_BYTES // (1024*1024)}MB).",
             )
         comp_filename = comprovante.filename
@@ -985,13 +985,13 @@ async def upload_inscricao_comprovante(
     content_type = comprovante.content_type or ""
     if content_type not in ALLOWED_COMPROVANTE_TYPES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Tipo de arquivo não permitido: {content_type}. Use JPEG, PNG, WebP ou PDF.",
         )
     comp_data = await comprovante.read()
     if len(comp_data) > MAX_COMPROVANTE_BYTES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Comprovante muito grande (máx. {MAX_COMPROVANTE_BYTES // (1024*1024)}MB).",
         )
 

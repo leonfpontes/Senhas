@@ -176,7 +176,7 @@ async def create_gira(
         current_month_count = result.scalar() or 0
         if max_giras != -1 and current_month_count >= max_giras:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Limite mensal de giras atingido ({max_giras}). Faça upgrade do plano.",
             )
 

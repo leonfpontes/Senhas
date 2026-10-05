@@ -399,7 +399,7 @@ async def get_tenant_trends(
 async def export_audit_logs(
     start_date: str = Query(..., description="Start date (ISO format: YYYY-MM-DD)"),
     end_date: str = Query(..., description="End date (ISO format: YYYY-MM-DD)"),
-    format_type: str = Query("json", regex="^(json|csv)$"),
+    format_type: str = Query("json", pattern="^(json|csv)$"),
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> List[dict]:

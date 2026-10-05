@@ -88,7 +88,7 @@ async def sync_stripe_subscription(
     limits = plan_map.get(price_id)
     if not limits:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"price_id '{price_id}' retornado pelo Stripe não está mapeado no sistema. "
                 "Verifique STRIPE_PRICE_PRO/BASIC/PREMIUM no .env do servidor."
