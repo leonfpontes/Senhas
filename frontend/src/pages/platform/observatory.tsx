@@ -1,6 +1,7 @@
 /**
  * Observatório de Tenants — visão cross-tenant para o super-admin.
- * Mostra próximas giras, cursos, features mais usadas e erros por tenant.
+ * Mostra a ativação dos terreiros novos, retenção, próximas giras, cursos,
+ * features mais usadas e erros por tenant.
  */
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -41,6 +42,7 @@ import TrendingFlatRoundedIcon from "@mui/icons-material/TrendingFlatRounded";
 
 import PlatformLayout from "./layout";
 import { KpiCard, SectionLabel } from "../../components/platform";
+import ActivationSection, { type ActivationData } from "../../components/platform/ActivationSection";
 import { ACCENT } from "../../styles/platformTheme";
 import { usePlatformTheme } from "../../providers/PlatformThemeProvider";
 import { apiClient } from "../../services/api_client";
@@ -118,6 +120,8 @@ interface TenantErrors {
 }
 
 interface ObservatoryData {
+  /** Ausente em backends anteriores ao painel de ativação. */
+  activation?: ActivationData;
   retention: RetentionTenant[];
   retention_summary: RetentionSummary;
   upcoming_giras: UpcomingGira[];
@@ -536,8 +540,9 @@ export default function ObservatoryPage() {
   // it once the section is actually rendered (data arrives async).
   useEffect(() => {
     if (!data || typeof window === "undefined") return;
-    if (window.location.hash === "#retencao") {
-      document.getElementById("retencao")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const hash = window.location.hash;
+    if (hash === "#retencao" || hash === "#ativacao") {
+      document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [data]);
 
@@ -626,6 +631,16 @@ export default function ObservatoryPage() {
                 </Grid>
               ))}
             </Grid>
+
+            {/* Ativação — cadastros recentes por estágio */}
+            {data.activation && (
+              <Box id="ativacao">
+                <SectionLabel sub={`Cadastros dos últimos ${data.activation.window_days} dias, do mais recente ao mais antigo — quem está travado e como falar com o responsável`}>
+                  Ativação — Terreiros novos
+                </SectionLabel>
+                <ActivationSection data={data.activation} />
+              </Box>
+            )}
 
             {/* Retenção — tenants em risco de churn */}
             <Box id="retencao">

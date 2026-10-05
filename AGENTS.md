@@ -407,6 +407,11 @@ Incluir obrigatoriamente:
 - **Passos centralizados** usam `CENTER_SELECTOR` (seletor sem elemento) + `position: 'center'` + `padding.mask: 0`: com `body` o reactour não escurece o fundo e rola a página. Não ancorar no menu lateral: muda por plano/permissão e fica escondido no celular.
 - **Analytics**: `signup_completed {principal_dor}` no cadastro, `welcome_tour_open {trilha}`, `welcome_tour_cta {trilha, href}`, e tag de sessão `principal_dor` no Clarity.
 
+### 11.15 Painel de ativação no Observatório (super-admin)
+- **Onde**: primeira seção de `/platform/observatory` (âncora `#ativacao`), componente `frontend/src/components/platform/ActivationSection.tsx`. Dados em `activation` do `GET /api/v1/platform/tenant-observatory` (protegido por `require_super_admin`), calculados por `backend/src/services/activation_service.py`.
+- **Conteúdo**: cadastros dos últimos 60 dias (`WINDOW_DAYS`), do mais recente ao mais antigo, cada um num estágio — `sem_gira` → `sem_senhas` (gira criada sem `max_tickets`, nada aparece no link) → `aguardando_senha` → `recebendo` → `usou_porta` → `ativado` (20+ senhas pelo link, mesmo limiar do checklist). Mostra também giras configuradas/total e próxima gira, senhas pelo link, trial (dias restantes) ou pagante, e-mails de onboarding enviados (D+1/D+3, de `custom_settings.onboarding_emails`), dor do cadastro, última atividade (sessão ou ação auditada) e contato do admin mais antigo com links de WhatsApp (`wa.me`, DDI 55 acrescentado) e e-mail.
+- **Consulta**: uma ida ao banco com subconsultas correlacionadas por tenant + uma para os contatos. Visão cross-tenant por desenho (super-admin), sem filtro de tenant.
+
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).
 - VPS: 76.13.231.19 (Hostinger), projeto em /opt/senhas.
