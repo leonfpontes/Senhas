@@ -80,8 +80,7 @@ export function CommandPalette({
       onOpenChange={onOpenChange}
       title="Buscar ações e páginas"
       description="Digite para encontrar uma página ou uma ação rápida."
-      className="z-[1300]"
-    >
+          >
       <CommandInput placeholder="O que você quer fazer?" />
       <CommandList>
         <CommandEmpty>Nada encontrado.</CommandEmpty>

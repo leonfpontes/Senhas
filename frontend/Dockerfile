@@ -11,13 +11,12 @@ COPY package.json package-lock.json* ./
 COPY packages ./packages
 COPY frontend ./frontend
 
-# Install all dependencies (workspace resolves shared-types / shared-ui)
+# Install all dependencies (workspace resolves shared-types)
 RUN --mount=type=cache,target=/root/.npm \
     npm ci
 
 # Build shared packages first, then frontend
-RUN npm run build --workspace=packages/shared-types && \
-    npm run build --workspace=packages/shared-ui
+RUN npm run build --workspace=packages/shared-types
 
 WORKDIR /app/frontend
 ENV NEXT_TELEMETRY_DISABLED=1

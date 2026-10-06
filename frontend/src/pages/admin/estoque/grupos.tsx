@@ -8,8 +8,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Alert from '@mui/material/Alert';
-import TextField from '@mui/material/TextField';
+import { TextField } from '@/components/fields';
+import { PermissionDenied } from '@/components/gates';
 import { Boxes, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '../../../hooks/useSubscription';
@@ -175,9 +175,10 @@ function AdminEstoqueGruposContent() {
   if (!can('estoque_controle')) return <UpgradePrompt feature="controle de estoque" minPlan="Pro" />;
   if (!canView) {
     return (
-      <Alert severity="warning" className="mt-4">
-        Você não tem permissão para visualizar grupos de material. Contate o administrador do sistema.
-      </Alert>
+      <PermissionDenied
+        className="mt-4"
+        message="Você não tem permissão para visualizar grupos de material. Contate o administrador do sistema."
+      />
     );
   }
 
@@ -275,7 +276,8 @@ function AdminEstoqueGruposContent() {
         saving={saving}
       >
         <TextField
-          label="Nome do grupo *"
+          label="Nome do grupo"
+          required
           fullWidth
           value={formData.nome}
           onChange={(e) => setFormData({ ...formData, nome: e.target.value })}

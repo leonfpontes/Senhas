@@ -15,8 +15,6 @@ import React, {
   useState,
   ReactNode,
 } from 'react';
-import { ThemeProvider as MuiThemeProvider, createTheme, responsiveFontSizes } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
 
 import { apiClient } from '@/services/api_client';
 import { applyBrand } from '@/lib/brand';
@@ -150,7 +148,7 @@ const buildTenantThemeConfig = (config: AdminTenantConfigResponse): TenantThemeC
 
 /**
  * T089: TenantAwareThemeProvider
- * Combines theme provider with tenant context
+ * Contexto do terreiro (cores, logo, nome) + cores aplicadas como variáveis CSS (applyBrand).
  */
 export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
   ({ children }) => {
@@ -208,23 +206,6 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
       });
     }, [tenantConfig]);
 
-    const theme = useMemo(
-      () =>
-        responsiveFontSizes(
-          createTheme({
-            palette: {
-              mode: 'light',
-              primary: { main: tenantConfig?.colors?.primary || DEFAULT_PRIMARY },
-              secondary: { main: tenantConfig?.colors?.secondary || DEFAULT_SECONDARY },
-            },
-            shape: {
-              borderRadius: 16,
-            },
-          })
-        ),
-      [tenantConfig]
-    );
-
     const tenantContextValue = useMemo<TenantContextType>(
       () => ({
         tenantId: tenantConfig?.tenantId,
@@ -239,10 +220,7 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
 
     return (
       <TenantContext.Provider value={tenantContextValue}>
-        <MuiThemeProvider theme={theme}>
-          <CssBaseline />
-          {children}
-        </MuiThemeProvider>
+        {children}
       </TenantContext.Provider>
     );
   };

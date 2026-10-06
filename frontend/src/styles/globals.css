@@ -1,22 +1,23 @@
 /*
- * Folha global do frontend — Tailwind v4 + shadcn/ui convivendo com o MUI v5.
+ * Folha global do frontend — Tailwind v4 + shadcn/ui (o MUI saiu na fase 9 da M-01).
  * Importada uma única vez, em src/pages/_app.tsx.
  *
  * Ordem das camadas (quem vem depois vence, independente de especificidade):
  *
- *   theme < base < mui < components < utilities
+ *   theme < base < components < utilities
  *
  * - `theme`     : tokens do Tailwind (cores, fontes, breakpoints) — tailwindcss/theme.css.
- * - `base`      : reset MÍNIMO, escopado aos componentes shadcn (`[data-slot]`). O preflight
- *                 completo do Tailwind NÃO é importado: ele brigaria com o CssBaseline do MUI.
- *                 Vira global só na fase final da migração (M-01 no docs/plano-execucao.md).
- * - `mui`       : toda regra gerada pelo Emotion/MUI é envolvida em `@layer mui` pelo plugin
- *                 em src/lib/emotionLayerCache.ts. O MUI vence o reset e perde para utilities.
- * - `utilities` : classes Tailwind — vencem o MUI (ex.: `className="mb-4"` num TextField).
+ * - `base`      : preflight completo do Tailwind + o reset escopado a `[data-slot]` abaixo
+ *                 (redundante agora, mantido porque é inofensivo) + `body` com os tokens.
+ * - `utilities` : classes Tailwind.
+ *
+ * Os PDFs (components/pdf, financeiro/RelatorioFluxoCaixaPDF) usam só estilo inline; o
+ * `box-sizing: border-box` global já vinha do CssBaseline do MUI, então o resultado não muda.
  */
-@layer theme, base, mui, components, utilities;
+@layer theme, base, components, utilities;
 
 @import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
 @import 'tailwindcss/utilities.css' layer(utilities);
 @import 'tw-animate-css';
 
@@ -184,8 +185,20 @@
  * Reset mínimo, ESCOPADO: só componentes shadcn (`data-slot`) e seus descendentes.
  * Cobre o que os utilitários Tailwind pressupõem do preflight (borda 0 sólida,
  * botões sem estilo nativo, títulos sem margem/tamanho) sem tocar no resto da página,
- * que continua sob o CssBaseline do MUI. `:where()` zera a especificidade.
+ * `:where()` zera a especificidade.
  * ─────────────────────────────────────────────────────────────────────────── */
+/* Fundo, cor e fonte da página (antes vinham do CssBaseline do MUI). Páginas públicas
+   ficam claras porque só o admin e a plataforma aplicam a classe `dark`. */
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
 @layer base {
   :where([data-slot], [data-slot] *, [data-slot]::before, [data-slot]::after, [data-slot] *::before, [data-slot] *::after) {
     box-sizing: border-box;

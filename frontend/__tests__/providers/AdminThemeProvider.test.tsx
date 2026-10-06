@@ -20,12 +20,11 @@ jest.mock('@/services/api_client', () => ({
 // ── Helper component that reads context values ──────────────────────────────
 
 function ThemeConsumer() {
-  const { mode, isDark, tokens, toggleMode } = useAdminTheme();
+  const { mode, isDark, toggleMode } = useAdminTheme();
   return (
     <div>
       <span data-testid="mode">{mode}</span>
       <span data-testid="is-dark">{String(isDark)}</span>
-      <span data-testid="page-bg">{tokens.pageBg}</span>
       <button data-testid="toggle" onClick={toggleMode}>Toggle</button>
     </div>
   );
@@ -60,11 +59,6 @@ describe('AdminThemeProvider', () => {
     expect(screen.getByTestId('is-dark')).toHaveTextContent('false');
   });
 
-  it('light tokens have correct pageBg', () => {
-    render(<WrappedConsumer />);
-    expect(screen.getByTestId('page-bg')).toHaveTextContent('#F8FAFC');
-  });
-
   it('toggles to dark mode on button click', () => {
     render(<WrappedConsumer />);
     act(() => {
@@ -72,17 +66,6 @@ describe('AdminThemeProvider', () => {
     });
     expect(screen.getByTestId('mode')).toHaveTextContent('dark');
     expect(screen.getByTestId('is-dark')).toHaveTextContent('true');
-  });
-
-  it('dark tokens differ from light tokens (pageBg)', () => {
-    render(<WrappedConsumer />);
-    // Start light
-    expect(screen.getByTestId('page-bg')).toHaveTextContent('#F8FAFC');
-    act(() => {
-      screen.getByTestId('toggle').click();
-    });
-    // Dark pageBg
-    expect(screen.getByTestId('page-bg')).toHaveTextContent('#0F172A');
   });
 
   it('persists mode to localStorage on toggle', () => {

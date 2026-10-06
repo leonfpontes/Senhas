@@ -45,7 +45,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       if (!next && !loading) onCancel();
     }}
   >
-    <AlertDialogContent size="sm" className="z-[1300]">
+    <AlertDialogContent size="sm">
       <AlertDialogHeader>
         <AlertDialogTitle className="font-bold">{title}</AlertDialogTitle>
         {typeof message === 'string' ? (

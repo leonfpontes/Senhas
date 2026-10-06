@@ -59,7 +59,7 @@ export function SettingsSheet({ open, onOpenChange, site, onSave }: SettingsShee
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="z-[1300] w-full gap-0 sm:max-w-[480px]">
+      <SheetContent side="right" className="w-full gap-0 sm:max-w-[480px]">
         <SheetHeader className="border-b border-border">
           <SheetTitle>Configurações do site</SheetTitle>
           <SheetDescription>Endereço, estilo e textos para o Google.</SheetDescription>
@@ -86,7 +86,7 @@ export function SettingsSheet({ open, onOpenChange, site, onSave }: SettingsShee
               <SelectTrigger id={templateId} className="w-full bg-input-bg">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="z-[1400]">
+              <SelectContent>
                 {SITE_TEMPLATES.map((t) => (
                   <SelectItem key={t.value} value={t.value}>
                     {t.label}

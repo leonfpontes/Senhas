@@ -140,7 +140,7 @@ export default function BulkActionsBar({
         aria-label="Ações em lote"
         data-slot="bulk-actions-bar"
         className={cn(
-          'fixed bottom-4 left-1/2 z-[1250] flex w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2',
+          'fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2',
           'flex-col gap-2 rounded-xl border border-primary/30 bg-card p-3 text-card-foreground shadow-lg',
           'sm:flex-row sm:items-center sm:justify-between',
           'pb-[max(0.75rem,env(safe-area-inset-bottom))]',
@@ -193,7 +193,7 @@ export default function BulkActionsBar({
           if (!open && !loading) handleClose();
         }}
       >
-        <AlertDialogContent className="z-[1300]">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{dialogTitle}</AlertDialogTitle>
             <AlertDialogDescription>

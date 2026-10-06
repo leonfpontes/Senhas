@@ -46,7 +46,7 @@ export const ImpersonationBanner: React.FC<ImpersonationBannerProps> = ({ userLa
       </Button>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent size="sm" className="z-[1400]">
+        <AlertDialogContent size="sm">
           <AlertDialogHeader>
             <AlertDialogTitle>Encerrar a sessão como {userLabel}?</AlertDialogTitle>
             <AlertDialogDescription>

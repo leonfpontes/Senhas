@@ -1,5 +1,5 @@
 /**
- * icons — tabela de-para MUI (`@mui/icons-material`) → lucide-react e nomes semânticos do produto.
+ * icons — tabela de-para dos ícones antigos (Material Icons) → lucide-react e nomes semânticos do produto.
  *
  * Objetivo: as frentes da migração trocarem ícones sem cada uma escolher um desenho diferente.
  * Use o nome semântico quando existir (`IconGira`, `IconPorta`, `IconSenha`...); para o resto,

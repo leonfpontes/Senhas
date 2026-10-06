@@ -4,7 +4,6 @@
  */
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { ProfileProvider } from '@/hooks/useProfile';
 import { PermissionsProvider } from '@/hooks/usePermissions';
 
@@ -52,10 +51,8 @@ jest.mock('recharts', () => ({
   Legend: () => <div />,
 }));
 
-const theme = createTheme();
-
 function renderWithTheme(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+  return render(ui);
 }
 
 describe('Admin Dashboard', () => {

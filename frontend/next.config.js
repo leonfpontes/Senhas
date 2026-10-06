@@ -10,7 +10,7 @@ const nextConfig = {
   // outputFileTracingRoot saiu de experimental para top-level no Next 15.
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../'),
-  transpilePackages: ['shared-types', 'shared-ui'],
+  transpilePackages: ['shared-types'],
   generateBuildId: async () => {
     const { execSync } = require('child_process');
     try {
@@ -18,14 +18,6 @@ const nextConfig = {
     } catch {
       return `build-${Date.now()}`;
     }
-  },
-  modularizeImports: {
-    '@mui/icons-material': {
-      transform: '@mui/icons-material/{{member}}',
-    },
-    '@mui/material': {
-      transform: '@mui/material/{{member}}',
-    },
   },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',

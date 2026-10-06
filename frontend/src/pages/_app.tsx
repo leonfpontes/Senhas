@@ -1,11 +1,9 @@
 import '@/styles/globals.css';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { AppProps } from 'next/app';
 import Script from 'next/script';
-import { CacheProvider } from '@emotion/react';
 import { TourProvider } from '@reactour/tour';
-import { createLayeredEmotionCache } from '@/lib/emotionLayerCache';
 import TenantAwareThemeProvider from '@/providers/ThemeProvider';
 import { SubscriptionProvider } from '@/hooks/useSubscription';
 import { ProfileProvider } from '@/hooks/useProfile';
@@ -16,7 +14,7 @@ import { Toaster } from '@/components/ui/sonner';
 import ClarityAnalytics from '@/components/shared/ClarityAnalytics';
 
 /**
- * Estilos do popover do tour — responsivos e compatíveis com MUI.
+ * Estilos do popover do tour — responsivos.
  * maxWidth usa min() para não transbordar em telas pequenas.
  */
 const tourStyles = {
@@ -39,19 +37,9 @@ const tourStyles = {
   }),
 };
 
-/**
- * Cache do Emotion com `@layer mui` (convivência MUI ↔ Tailwind/shadcn).
- * Cliente: um cache por aba. Servidor: um por render (= por request), como o Emotion
- * faz por padrão — um cache compartilhado entre requests deixaria de emitir os <style>
- * do SSR a partir da segunda página servida.
- */
-const clientSideEmotionCache = typeof document !== 'undefined' ? createLayeredEmotionCache() : null;
-
 function MyApp({ Component, pageProps }: AppProps) {
-  const [emotionCache] = useState(() => clientSideEmotionCache ?? createLayeredEmotionCache());
-
   return (
-    <CacheProvider value={emotionCache}>
+    <>
       {/* Google Analytics 4 */}
       <Script strategy="afterInteractive" src="https://www.googletagmanager.com/gtag/js?id=G-BF9G0RFCDB" />
       <Script id="ga4-init" strategy="afterInteractive">
@@ -82,7 +70,7 @@ function MyApp({ Component, pageProps }: AppProps) {
           </SubscriptionProvider>
         </ProfileProvider>
       </TenantAwareThemeProvider>
-    </CacheProvider>
+    </>
   );
 }
 

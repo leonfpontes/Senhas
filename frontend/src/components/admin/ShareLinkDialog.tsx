@@ -196,7 +196,7 @@ export function ShareLinkDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="z-[1300] sm:max-w-xl" data-testid="share-link-dialog">
+      <DialogContent className="sm:max-w-xl" data-testid="share-link-dialog">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

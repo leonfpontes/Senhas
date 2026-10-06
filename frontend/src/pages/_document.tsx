@@ -9,13 +9,10 @@ export default function Document() {
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="apple-touch-icon" href="/favicon.svg" />
         <meta name="theme-color" content="#4f46e5" />
-        {/* Roboto font */}
+        {/* Fonte da interface: pilha do sistema (--font-sans em globals.css). As fontes do
+            site do terreiro são carregadas pela própria página. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
-          rel="stylesheet"
-        />
       </Head>
       <body>
         <Main />

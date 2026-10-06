@@ -92,7 +92,7 @@ export default function CrudDrawer({
           showCloseButton={false}
           // z-index acima do Drawer do MUI (1200) enquanto as duas bibliotecas convivem.
           className={cn(
-            'z-[1300] flex w-full max-w-full flex-col gap-0 p-0',
+            'flex w-full max-w-full flex-col gap-0 p-0',
             'min-[640px]:w-[480px] min-[640px]:max-w-[480px]',
           )}
           onInteractOutside={(e) => {
@@ -160,7 +160,7 @@ export default function CrudDrawer({
 
       {/* Confirmação de alterações não salvas */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent size="sm" className="z-[1400]">
+        <AlertDialogContent size="sm">
           <AlertDialogHeader>
             <AlertDialogTitle>Descartar alterações?</AlertDialogTitle>
             <AlertDialogDescription>

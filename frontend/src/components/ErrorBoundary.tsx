@@ -1,8 +1,6 @@
+import { TriangleAlert } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import React from 'react';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Typography from '@mui/material/Typography';
-import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 
 interface Props {
   children: React.ReactNode;
@@ -36,48 +34,25 @@ export class ErrorBoundary extends React.Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
 
       return (
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: 240,
-            gap: 2,
-            p: 4,
-            textAlign: 'center',
-          }}
+        <div
+          role="alert"
+          data-slot="error-boundary"
+          className="flex min-h-60 flex-col items-center justify-center gap-4 p-8 text-center"
         >
-          <WarningAmberRoundedIcon sx={{ fontSize: 48, color: 'warning.main', opacity: 0.7 }} />
-          <Typography variant="h6" fontWeight={700}>
-            Algo deu errado
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 360 }}>
+          <TriangleAlert aria-hidden className="size-12 text-warning opacity-70" />
+          <h2 className="text-lg font-bold">Algo deu errado</h2>
+          <p className="max-w-90 text-sm text-muted-foreground">
             Ocorreu um erro inesperado nesta seção. Tente recarregar ou entre em contato com o suporte.
-          </Typography>
+          </p>
           {process.env.NODE_ENV === 'development' && this.state.error && (
-            <Typography
-              variant="caption"
-              component="pre"
-              sx={{
-                background: 'rgba(239,68,68,0.08)',
-                border: '1px solid rgba(239,68,68,0.2)',
-                borderRadius: 2,
-                p: 1.5,
-                maxWidth: '100%',
-                overflow: 'auto',
-                textAlign: 'left',
-                color: 'error.main',
-                fontSize: '0.7rem',
-              }}
-            >
+            <pre className="max-w-full overflow-auto rounded-md border border-destructive/20 bg-destructive/10 p-3 text-left text-xs text-destructive">
               {this.state.error.message}
-            </Typography>
+            </pre>
           )}
-          <Button variant="outlined" size="small" onClick={this.handleRetry}>
+          <Button variant="outline" size="sm" onClick={this.handleRetry}>
             Tentar novamente
           </Button>
-        </Box>
+        </div>
       );
     }
 

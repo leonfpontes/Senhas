@@ -107,7 +107,7 @@ export function MobileTabBar({ canGiras, canPorta, canCreateGira, canWalkIn, onS
       </nav>
 
       <Sheet open={plusOpen} onOpenChange={setPlusOpen}>
-        <SheetContent side="bottom" className="z-[1300] rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <SheetContent side="bottom" className="rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <SheetHeader className="pb-0">
             <SheetTitle>O que você quer fazer?</SheetTitle>
             <SheetDescription>Ações rápidas do dia.</SheetDescription>

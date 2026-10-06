@@ -15,7 +15,6 @@ import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
 import { routeLabel } from '@/constants/routes';
 import { APP_VERSION_LABEL } from '@/lib/version';
-import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -147,7 +146,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
           >
             <SelectValue placeholder="Escolher gira" />
           </SelectTrigger>
-          <SelectContent align="end" className="z-[1300]">
+          <SelectContent align="end">
             {selectableGiras.map((g) => (
               <SelectItem key={g.id} value={g.id}>
                 {giraLabel(g)}
@@ -229,7 +228,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className={cn('z-[1300] min-w-56')}>
+        <DropdownMenuContent align="end" className="min-w-56">
           <DropdownMenuLabel className="flex flex-col">
             <span className="truncate text-sm font-semibold">{profile?.full_name || profile?.username || 'Usuário'}</span>
             {profile?.email && <span className="truncate text-xs font-normal text-muted-foreground">{profile.email}</span>}

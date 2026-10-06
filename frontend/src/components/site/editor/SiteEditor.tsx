@@ -252,7 +252,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
                   <MoreHorizontal />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="z-[1400]">
+              <DropdownMenuContent align="end">
                 {editor.isPublished && editor.site && (
                   <DropdownMenuItem asChild className="sm:hidden">
                     <a href={editor.publicUrl} target="_blank" rel="noopener noreferrer">
@@ -369,10 +369,9 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
         </div>
       )}
 
-      {/* Editor no celular (Sheet). Sheets do editor em z-[1300] (acima do AppBar/Drawer do MUI,
-          como o CrudDrawer) e Select/Dropdown/Popover dentro deles em z-[1400]. */}
+      {/* Editor no celular (Sheet). */}
       <Sheet open={isMobile && editor.selected !== null} onOpenChange={(o) => !o && editor.setSelectedId(null)}>
-        <SheetContent side="right" className="@container z-[1300] w-full gap-0 sm:max-w-[520px]">
+        <SheetContent side="right" className="@container w-full gap-0 sm:max-w-[520px]">
           <SheetHeader className="border-b border-border">
             <SheetTitle className="flex items-center gap-2">
               {editor.selected && <SectionIcon type={editor.selected.section_type} className="text-muted-foreground" />}
@@ -385,7 +384,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
 
       {/* Prévia em Sheet (< 1200) */}
       <Sheet open={previewOpen && !hasPreviewPane} onOpenChange={setPreviewOpen}>
-        <SheetContent side="right" className="z-[1300] w-full gap-0 p-0 sm:max-w-[min(100vw,900px)]">
+        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[min(100vw,900px)]">
           <SheetTitle className="sr-only">Prévia do site</SheetTitle>
           {previewSite && <SitePreview site={previewSite} viewport={viewport} onViewportChange={setViewport} className="pt-10" />}
         </SheetContent>

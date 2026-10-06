@@ -795,7 +795,7 @@ function AdminTicketsContent() {
               <SelectTrigger id="edit-prioridade" className="w-full">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="z-[1400]">
+              <SelectContent>
                 <SelectItem value="none">Sem prioridade</SelectItem>
                 {PRIORITY_ORDER.map((cat) => (
                   <SelectItem key={cat} value={cat}>
