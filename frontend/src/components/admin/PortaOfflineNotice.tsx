@@ -46,7 +46,7 @@ export default function PortaOfflineNotice({ failures, onOnline }: Props) {
       role="status"
       aria-live="polite"
       data-testid="porta-sem-conexao"
-      className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/15 px-3 py-1.5 text-sm text-warning-foreground"
+      className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/15 px-3 py-1.5 text-sm text-warning-strong"
     >
       <WifiOff className="size-4 shrink-0" aria-hidden />
       <span>Sem conexão — mostrando a última fila carregada</span>
