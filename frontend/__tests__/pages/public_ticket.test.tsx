@@ -18,7 +18,8 @@ jest.mock('@/services/api_client', () => ({
   extractApiErrorMessage: (_err: unknown, fallback: string) => fallback,
 }));
 
-import Page, { buildIcs, formatGiraDate, type PublicTicket } from '@/pages/public/[tenant]/ticket/[ticketId]';
+import Page from '@/pages/public/[tenant]/ticket/[ticketId]';
+import { buildIcs, formatGiraDate, type PublicTicket } from '@/components/public';
 
 const { apiClient } = jest.requireMock('@/services/api_client');
 

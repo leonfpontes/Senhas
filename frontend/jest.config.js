@@ -2,8 +2,6 @@
  * Jest Configuration for Frontend Testing
  */
 
-const fs = require('fs');
-const path = require('path');
 const nextJest = require('next/jest');
 
 const createJestConfig = nextJest({
@@ -11,35 +9,13 @@ const createJestConfig = nextJest({
   dir: './',
 });
 
-// @mui/material lives in frontend/node_modules in the Docker build, but npm workspaces
-// hoisting puts it in the repo-root node_modules in local dev. Pick whichever exists.
-const muiMaterialRoot = fs.existsSync(path.join(__dirname, 'node_modules/@mui/material'))
-  ? '<rootDir>/node_modules/@mui/material'
-  : '<rootDir>/../node_modules/@mui/material';
-
 // Add any custom config to be passed to Jest
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    '^shared-ui/(.*)$': '<rootDir>/../packages/shared-ui/src/$1',
-    '^shared-ui$': '<rootDir>/../packages/shared-ui/src/index.ts',
     '^shared-types$': '<rootDir>/../packages/shared-types/src/index.ts',
-    // pnpm workspaces: @mui/icons-material is in frontend/node_modules/@mui/,
-    // but @mui/material is only at the root. Icon files internally import
-    // @mui/material/useTheme via the package.json exports map — a subpath Jest
-    // can't resolve across workspace boundaries. Mocking all icon subpath imports
-    // with a lightweight SVG stub is the standard approach for MUI testing.
-    '^@mui/icons-material/(.*)$': '<rootDir>/__mocks__/mui-icon-mock.js',
-    // next.config.js `modularizeImports` converts named imports like
-    // `import { useTheme } from '@mui/material'` into subpath imports like
-    // `import useTheme from '@mui/material/useTheme'`. Most subpaths have their
-    // own directory in the package (Button/, AppBar/, useMediaQuery/, etc.),
-    // but @mui/material v5.18 does not include a useTheme/ directory.
-    // Map it to the CJS entry in the node/ build so Jest can load it.
-    '^@mui/material/useTheme$': `${muiMaterialRoot}/node/styles/useTheme`,
-    '^@mui/material/useMediaQuery$': `${muiMaterialRoot}/node/useMediaQuery`,
     // @sentry/nextjs reads next/router's `.events` at import time (browserTracingIntegration),
     // which doesn't exist in jsdom — crashes any test that imports a page using Sentry.setUser().
     '^@sentry/nextjs$': '<rootDir>/__mocks__/sentry-nextjs-mock.js',

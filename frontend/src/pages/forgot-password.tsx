@@ -1,22 +1,15 @@
 /**
- * Forgot Password Page - Request password reset link
+ * /forgot-password — pede o link de redefinição por e-mail.
+ * Nunca revela se o e-mail existe: a tela de sucesso é sempre a mesma.
  */
 import React, { useState } from 'react';
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  TextField,
-  Typography,
-  Alert,
-  CircularProgress,
-  Container,
-} from '@mui/material';
 import Link from 'next/link';
-import Head from 'next/head';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { apiClient } from '../services/api_client';
+import { ArrowLeft, CircleCheck, Loader2 } from 'lucide-react';
+import { AuthShell } from '@/components/auth';
+import { TextField } from '@/components/fields';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { apiClient } from '@/services/api_client';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -26,11 +19,10 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       await apiClient.post('/api/v1/auth/forgot-password', { email });
     } catch {
-      // Never reveal whether the email exists — always show success state
+      // resposta igual para e-mail existente ou não
     } finally {
       setLoading(false);
       setSubmitted(true);
@@ -38,95 +30,48 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <>
-      <Head>
-        <title>Esqueci minha senha — GiraHub</title>
-        <meta name="robots" content="noindex, nofollow" />
-      </Head>
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: 'background.default',
-        }}
-      >
-        <Container maxWidth="xs">
-          <Card elevation={4}>
-            <CardContent sx={{ p: 4 }}>
-              <Box sx={{ textAlign: 'center', mb: 3 }}>
-                <Typography variant="h4" fontWeight={700} color="primary.main">
-                  GiraHub
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Recuperar acesso
-                </Typography>
-              </Box>
-
-              {submitted ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Alert severity="success">
-                    Se o e-mail estiver cadastrado, você receberá um link para redefinir sua senha em breve.
-                    Verifique também a caixa de spam.
-                  </Alert>
-                  <Link href="/login" passHref legacyBehavior>
-                    <Button
-                      component="a"
-                      variant="outlined"
-                      fullWidth
-                      startIcon={<ArrowBackIcon />}
-                    >
-                      Voltar ao login
-                    </Button>
-                  </Link>
-                </Box>
-              ) : (
-                <form onSubmit={handleSubmit}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Informe o e-mail da sua conta e enviaremos um link para redefinir sua senha.
-                    </Typography>
-
-                    <TextField
-                      label="E-mail"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      fullWidth
-                      required
-                      autoComplete="email"
-                      autoFocus
-                    />
-
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      size="large"
-                      fullWidth
-                      disabled={loading || !email}
-                      sx={{ mt: 1 }}
-                    >
-                      {loading ? <CircularProgress size={24} color="inherit" /> : 'Enviar link'}
-                    </Button>
-
-                    <Link href="/login" passHref legacyBehavior>
-                      <Button
-                        component="a"
-                        variant="text"
-                        fullWidth
-                        startIcon={<ArrowBackIcon />}
-                      >
-                        Voltar ao login
-                      </Button>
-                    </Link>
-                  </Box>
-                </form>
-              )}
-            </CardContent>
-          </Card>
-        </Container>
-      </Box>
-    </>
+    <AuthShell headTitle="Esqueci minha senha — GiraHub" title="Recuperar acesso">
+      {submitted ? (
+        <div className="flex flex-col gap-4">
+          <Alert variant="success" role="status">
+            <CircleCheck aria-hidden />
+            <AlertDescription>
+              Se o e-mail estiver cadastrado, você receberá um link para redefinir sua senha em breve.
+              Confira também a caixa de spam.
+            </AlertDescription>
+          </Alert>
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/login">
+              <ArrowLeft aria-hidden /> Voltar para entrar
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+          <p className="text-sm text-muted-foreground">
+            Informe o e-mail da sua conta e enviaremos um link para redefinir a senha.
+          </p>
+          <TextField
+            label="E-mail"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            inputMode="email"
+            autoFocus
+          />
+          <Button type="submit" size="lg" className="w-full" disabled={loading || !email}>
+            {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {loading ? 'Enviando…' : 'Enviar link'}
+          </Button>
+          <Button asChild variant="ghost" className="w-full">
+            <Link href="/login">
+              <ArrowLeft aria-hidden /> Voltar para entrar
+            </Link>
+          </Button>
+        </form>
+      )}
+    </AuthShell>
   );
 }

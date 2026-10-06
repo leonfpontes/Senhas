@@ -1,68 +1,87 @@
 /**
- * Visão da Porta — Mobile-first real-time gira queue management
- * Route: /admin/porta
+ * Porta — modo operação do dia da gira (rota /admin/porta).
+ *
+ * Feita para quem está em pé na entrada, com o celular na mão:
+ * - Topo fixo com a gira e o botão grande **"Chamar próximo"** (primeiro da fila na ordem da
+ *   API — quem já chegou tem a vez; sem ninguém marcado como chegou, o primeiro da fila) e
+ *   **"Sem senha"** (também na barra inferior do celular).
+ * - "Em atendimento" em cartões grandes com **Atendido** como ação primária; o resto no menu.
+ * - Fila compacta com menu por senha: Chegou · Chamar · Não veio · Editar.
+ * - Desfazer pelo toast logo depois de cada ação.
+ * - Indicadores numa linha ("8 aguardando · 12 atendidos · 1 não veio") abrindo um Sheet com o
+ *   resumo e os finalizados.
+ * - Aviso sonoro quando entra alguém na fila, com botão de mudo; atualização a cada 8s.
+ * Vocabulário: Walk-in→Sem senha, Check-in→Chegou, Atender→Chamar, Finalizar→Atendido,
+ * Ausente→Não veio. Alvos de toque de 48px (`size="touch"` / `"icon-touch"`).
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { toast } from 'sonner';
 import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Collapse,
-  Fab,
-  FormControl,
-  IconButton,
-  InputAdornment,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Snackbar,
-  Stack,
-  TextField,
-  Tooltip,
-  Typography,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material';
-import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
-import EditRoundedIcon from '@mui/icons-material/EditRounded';
-import ExpandLessRoundedIcon from '@mui/icons-material/ExpandLessRounded';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
-import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
-import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
-import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
-import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import StarRoundedIcon from '@mui/icons-material/StarRounded';
-import TvRoundedIcon from '@mui/icons-material/TvRounded';
-import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
+  CheckCircle2,
+  Clock,
+  EllipsisVertical,
+  LogIn,
+  LogOut,
+  Megaphone,
+  Pencil,
+  Search,
+  Star,
+  Tv,
+  Undo2,
+  UserPlus,
+  UserX,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 
 import AdminLayout from './admin_layout';
-import AttendModal from '../../components/AttendModal';
-import WalkInModal from '../../components/WalkInModal';
-import { apiClient, extractApiErrorMessage } from '../../services/api_client';
-import { useAdminTheme } from '@/providers/AdminThemeProvider';
-import { usePermissions } from '../../hooks/usePermissions';
+import AttendModal from '@/components/AttendModal';
+import WalkInModal from '@/components/WalkInModal';
+import { PermissionDenied } from '@/components/gates';
+import { TextField } from '@/components/fields';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
-  PRIORITY_CATEGORY_LABELS,
-  PriorityCategoryType,
-} from 'shared-types';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Toggle } from '@/components/ui/toggle';
+import { cn } from '@/lib/utils';
+import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import { usePermissions } from '@/hooks/usePermissions';
+import { giraLabel, pickTodayGira, useGiraContext } from '@/components/admin/GiraContext';
+import { PORTA_WALK_IN_EVENT } from '@/components/admin/MobileTabBar';
+import { numeroDaSenha, senhaStatusLabel } from '@/components/admin/senhaFormat';
+import { PRIORITY_CATEGORY_LABELS, PriorityCategoryType } from 'shared-types';
 
 const POLLING_INTERVAL_MS = 8000;
+const MUTE_STORAGE_KEY = 'girahub:porta-som-mudo';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Tipos ─────────────────────────────────────────────────────────────────────
 
-interface MediumOption { id: string; nome: string; is_atendimento: boolean; }
-interface Gira         { id: string; nome: string; data_inicio: string; is_active: boolean; }
-interface TenantConfig { enable_walk_in: boolean; }
+interface MediumOption {
+  id: string;
+  nome: string;
+  is_atendimento: boolean;
+}
+interface Gira {
+  id: string;
+  nome: string;
+  data_inicio: string;
+  is_active: boolean;
+}
+interface TenantConfig {
+  enable_walk_in: boolean;
+}
 
 interface DoorStats {
   total: number;
@@ -99,565 +118,335 @@ interface QueueItem {
   horario_desejado?: string | null;
 }
 
+type AttendData = { medium_nome: string; cambone_nome?: string; atendimento_descricao?: string };
+type WalkInData = { nome: string; email?: string; telefone?: string; priority_category: string | null };
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-const statusLabel: Record<string, string> = {
-  emitted: 'Emitido',
-  called: 'Em Atendimento',
-  completed: 'Atendido',
-  cancelled: 'Cancelado',
-  no_show: 'Não Compareceu',
-};
-
-const statusColor: Record<string, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'> = {
-  emitted: 'default',
-  called: 'info',
-  completed: 'success',
-  cancelled: 'error',
-  no_show: 'warning',
-};
 
 function priorityLabel(item: QueueItem): string {
   if (!item.priority_category) return 'Preferencial';
   return PRIORITY_CATEGORY_LABELS[item.priority_category as PriorityCategoryType] ?? 'Preferencial';
 }
 
-// ── Stat cell ─────────────────────────────────────────────────────────────────
+const isDone = (t: QueueItem) => t.status === 'completed' || t.status === 'no_show' || t.status === 'cancelled';
 
-function StatCell({ label, value, color, accent }: { label: string; value: number; color?: string; accent?: string }) {
+/** Próximo a chamar: quem já chegou, na ordem da API; sem ninguém marcado, o primeiro da fila. */
+function nextToCall(queue: QueueItem[]): QueueItem | null {
+  const waiting = queue.filter((t) => t.status === 'emitted');
+  return waiting.find((t) => !!t.checkin_em) ?? waiting[0] ?? null;
+}
+
+function normalize(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+/** Busca por nome ou número ("42", "0042", "#42"). */
+function filterQueue(queue: QueueItem[], search: string): QueueItem[] {
+  const q = search.trim();
+  if (!q) return queue;
+  const needle = q.replace(/^#/, '').toLowerCase();
+  const isNumeric = /^\d+$/.test(needle);
+  return queue.filter((t) => {
+    if (isNumeric) {
+      if (String(t.numero) === needle) return true;
+      if (t.numero_formatado?.replace(/^#?0*/, '') === needle.replace(/^0*/, '')) return true;
+    }
+    return normalize(t.consulente_nome ?? '').includes(normalize(needle));
+  });
+}
+
+function readMuted(): boolean {
+  try {
+    return window.localStorage.getItem(MUTE_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeMuted(muted: boolean): void {
+  try {
+    if (muted) window.localStorage.setItem(MUTE_STORAGE_KEY, '1');
+    else window.localStorage.removeItem(MUTE_STORAGE_KEY);
+  } catch {
+    /* storage bloqueado — vale só nesta aba */
+  }
+}
+
+// ── Peças visuais ─────────────────────────────────────────────────────────────
+
+function Tags({ item }: { item: QueueItem }) {
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        py: 1.5,
-        px: 0.5,
-        position: 'relative',
-        overflow: 'hidden',
-        '&::after': accent
-          ? { content: '""', position: 'absolute', bottom: 0, left: '15%', right: '15%', height: 3, borderRadius: '3px 3px 0 0', bgcolor: accent }
-          : {},
-      }}
-    >
-      <Typography
-        sx={{
-          fontSize: '1.5rem',
-          fontWeight: 800,
-          lineHeight: 1,
-          color: color || 'text.primary',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {value}
-      </Typography>
-      <Typography
-        sx={{
-          fontSize: '0.65rem',
-          fontWeight: 500,
-          color: 'text.secondary',
-          mt: 0.25,
-          textAlign: 'center',
-          lineHeight: 1.2,
-        }}
-      >
-        {label}
-      </Typography>
-    </Box>
+    <>
+      {item.is_sponsor && (
+        <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-foreground">
+          <Star aria-hidden /> Associado
+        </Badge>
+      )}
+      {item.is_walk_in && (
+        <Badge variant="outline" className="border-info/30 bg-info/10 text-info">
+          Sem senha
+        </Badge>
+      )}
+      {item.is_acompanhante && <Badge variant="outline">Acompanhante</Badge>}
+      {item.preferencial && (
+        <Badge variant="outline" className="border-warning/40 text-warning-foreground">
+          <Star aria-hidden /> {priorityLabel(item)}
+        </Badge>
+      )}
+      {item.horario_desejado && (
+        <Badge variant="outline">
+          <Clock aria-hidden /> {item.horario_desejado}
+        </Badge>
+      )}
+    </>
   );
 }
 
-// ── Tag chips (dark-mode aware) ───────────────────────────────────────────────
-
-function SponsorChip({ isDark }: { isDark: boolean }) {
+function SectionTitle({ children, count }: { children: React.ReactNode; count: number }) {
   return (
-    <Chip
-      icon={<StarRoundedIcon sx={{ fontSize: '14px !important', color: isDark ? '#fbbf24 !important' : '#d97706 !important' }} />}
-      label="Associado"
-      size="small"
-      sx={{
-        height: 22, fontSize: '0.68rem', fontWeight: 700,
-        bgcolor: isDark ? '#451a03' : '#fef3c7',
-        color: isDark ? '#fbbf24' : '#92400e',
-      }}
-    />
+    <h2 className="mb-2 flex items-baseline gap-2 text-base font-semibold">
+      {children}
+      <span className="text-sm font-normal text-muted-foreground">({count})</span>
+    </h2>
   );
 }
 
-function WalkInChip({ isDark }: { isDark: boolean }) {
-  return (
-    <Chip
-      label="Walk-in"
-      size="small"
-      sx={{
-        height: 22, fontSize: '0.68rem', fontWeight: 700,
-        bgcolor: isDark ? '#0c4a6e' : '#e0f2fe',
-        color: isDark ? '#7dd3fc' : '#0369a1',
-      }}
-    />
-  );
+interface ItemActions {
+  canEdit: boolean;
+  busy: boolean;
+  onCheckin: (t: QueueItem) => void;
+  onUndoCheckin: (t: QueueItem) => void;
+  onCall: (t: QueueItem) => void;
+  onComplete: (t: QueueItem) => void;
+  onNoShow: (t: QueueItem) => void;
+  onUndo: (t: QueueItem) => void;
+  onEditAttend: (t: QueueItem) => void;
+  onEditWalkIn: (t: QueueItem) => void;
 }
 
-function AcompanhanteChip({ isDark }: { isDark: boolean }) {
-  return (
-    <Chip
-      label="Acompanhante"
-      size="small"
-      sx={{
-        height: 22, fontSize: '0.68rem', fontWeight: 700,
-        bgcolor: isDark ? '#312e81' : '#e0e7ff',
-        color: isDark ? '#a5b4fc' : '#4338ca',
-      }}
-    />
-  );
-}
-
-function TimeSlotChip({ horario, isDark }: { horario: string; isDark: boolean }) {
-  return (
-    <Chip
-      icon={<AccessTimeRoundedIcon sx={{ fontSize: '14px !important' }} />}
-      label={horario}
-      size="small"
-      variant="outlined"
-      sx={{
-        height: 22, fontSize: '0.68rem', fontWeight: 700,
-        borderColor: isDark ? '#475569' : '#cbd5e1',
-        color: isDark ? '#cbd5e1' : '#475569',
-      }}
-    />
-  );
-}
-
-function PresentChip() {
-  return (
-    <Chip
-      label="✓ Presente"
-      size="small"
-      color="success"
-      variant="outlined"
-      sx={{ height: 22, fontSize: '0.68rem', fontWeight: 700 }}
-    />
-  );
-}
-
-// ── Action buttons ────────────────────────────────────────────────────────────
-
-interface ActionBtnProps {
-  item: QueueItem;
-  isLoading: boolean;
-  size?: 'small' | 'medium';
-  variant?: 'icon' | 'button';
-  onCheckin?: (id: string) => void;
-  onUndoCheckin?: (id: string) => void;
-  onAttend?: (item: QueueItem) => void;
-  onComplete?: (id: string) => void;
-  onNoShow?: (id: string) => void;
-  onUndo?: (id: string) => void;
-  onEditAttend?: (item: QueueItem) => void;
-  onEditWalkIn?: (item: QueueItem) => void;
-}
-
-function ActionButtons({
-  item, isLoading, size = 'small', variant = 'icon',
-  onCheckin, onUndoCheckin, onAttend, onComplete, onNoShow, onUndo, onEditAttend, onEditWalkIn,
-}: ActionBtnProps) {
-  const isDone       = item.status === 'completed' || item.status === 'no_show' || item.status === 'cancelled';
-  const isInProgress = item.status === 'called';
-  const isEmitted    = item.status === 'emitted';
-  const hasCheckin   = !!item.checkin_em;
-
-  if (variant === 'button') {
-    return (
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        {isEmitted && !hasCheckin && onCheckin && (
-          <Button size={size} variant="outlined" color="info" startIcon={<LoginRoundedIcon />} onClick={() => onCheckin(item.id)} disabled={isLoading}>
-            Check-in
-          </Button>
-        )}
-        {isEmitted && hasCheckin && onUndoCheckin && (
-          <Button size={size} variant="outlined" color="inherit" startIcon={<LogoutRoundedIcon />} onClick={() => onUndoCheckin(item.id)} disabled={isLoading}>
-            Desfazer check-in
-          </Button>
-        )}
-        {isEmitted && hasCheckin && onAttend && (
-          <Button size={size} variant="contained" color="primary" disableElevation startIcon={<PersonRoundedIcon />} onClick={() => onAttend(item)} disabled={isLoading}>
-            Atender
-          </Button>
-        )}
-        {isEmitted && onNoShow && (
-          <Button size={size} variant="outlined" color="error" startIcon={<CancelRoundedIcon />} onClick={() => onNoShow(item.id)} disabled={isLoading}>
-            Ausente
-          </Button>
-        )}
-        {isInProgress && onComplete && (
-          <Button size={size} variant="contained" color="success" disableElevation startIcon={<CheckCircleRoundedIcon />} onClick={() => onComplete(item.id)} disabled={isLoading}>
-            Concluir
-          </Button>
-        )}
-        {isInProgress && onNoShow && (
-          <Button size={size} variant="outlined" color="error" startIcon={<CancelRoundedIcon />} onClick={() => onNoShow(item.id)} disabled={isLoading}>
-            Ausente
-          </Button>
-        )}
-        {(isDone || isInProgress) && onUndo && (
-          <Button size={size} variant="outlined" color="inherit" startIcon={<UndoRoundedIcon />} onClick={() => onUndo(item.id)} disabled={isLoading}>
-            Desfazer
-          </Button>
-        )}
-        {isDone && item.status === 'completed' && onEditAttend && (
-          <Button size={size} variant="outlined" color="primary" startIcon={<EditRoundedIcon />} onClick={() => onEditAttend(item)} disabled={isLoading}>
-            Editar atendimento
-          </Button>
-        )}
-        {item.is_walk_in && onEditWalkIn && (
-          <Button size={size} variant="outlined" color="info" startIcon={<EditRoundedIcon />} onClick={() => onEditWalkIn(item)} disabled={isLoading}>
-            Editar walk-in
-          </Button>
-        )}
-      </Box>
+/** Menu de ações de uma senha (o que cabe em cada status). */
+function ItemMenu({ item, a }: { item: QueueItem; a: ItemActions }) {
+  const numero = numeroDaSenha(item);
+  const entries: React.ReactNode[] = [];
+  if (item.status === 'emitted') {
+    entries.push(
+      item.checkin_em ? (
+        <DropdownMenuItem key="undo-checkin" onSelect={() => a.onUndoCheckin(item)}>
+          <LogOut aria-hidden /> Desfazer chegada
+        </DropdownMenuItem>
+      ) : (
+        <DropdownMenuItem key="checkin" onSelect={() => a.onCheckin(item)}>
+          <LogIn aria-hidden /> Chegou
+        </DropdownMenuItem>
+      ),
+      <DropdownMenuItem key="call" onSelect={() => a.onCall(item)}>
+        <Megaphone aria-hidden /> Chamar
+      </DropdownMenuItem>,
+      <DropdownMenuItem key="noshow" onSelect={() => a.onNoShow(item)}>
+        <UserX aria-hidden /> Não veio
+      </DropdownMenuItem>,
     );
   }
-
+  if (item.status === 'called') {
+    entries.push(
+      <DropdownMenuItem key="noshow" onSelect={() => a.onNoShow(item)}>
+        <UserX aria-hidden /> Não veio
+      </DropdownMenuItem>,
+      <DropdownMenuItem key="undo" onSelect={() => a.onUndo(item)}>
+        <Undo2 aria-hidden /> Voltar para a fila
+      </DropdownMenuItem>,
+    );
+  }
+  if (item.status === 'completed' || item.status === 'no_show') {
+    entries.push(
+      <DropdownMenuItem key="undo" onSelect={() => a.onUndo(item)}>
+        <Undo2 aria-hidden /> Desfazer
+      </DropdownMenuItem>,
+    );
+  }
+  if (item.status === 'completed') {
+    entries.push(
+      <DropdownMenuItem key="edit-attend" onSelect={() => a.onEditAttend(item)}>
+        <Pencil aria-hidden /> Editar atendimento
+      </DropdownMenuItem>,
+    );
+  }
+  if (item.is_walk_in && item.status !== 'cancelled') {
+    if (entries.length > 0) entries.push(<DropdownMenuSeparator key="sep" />);
+    entries.push(
+      <DropdownMenuItem key="edit-walkin" onSelect={() => a.onEditWalkIn(item)}>
+        <Pencil aria-hidden /> Editar
+      </DropdownMenuItem>,
+    );
+  }
+  if (!a.canEdit || entries.length === 0) return null;
   return (
-    <Box sx={{ display: 'flex', gap: 0.25, flexShrink: 0 }}>
-      {isEmitted && !hasCheckin && onCheckin && (
-        <Tooltip title="Check-in (chegou)">
-          <IconButton size={size} color="info" onClick={() => onCheckin(item.id)} disabled={isLoading}>
-            <LoginRoundedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-      {isEmitted && hasCheckin && onUndoCheckin && (
-        <Tooltip title="Desfazer check-in">
-          <IconButton size={size} onClick={() => onUndoCheckin(item.id)} disabled={isLoading}>
-            <LogoutRoundedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-      {isEmitted && hasCheckin && onAttend && (
-        <Tooltip title="Iniciar atendimento">
-          <IconButton size={size} color="primary" onClick={() => onAttend(item)} disabled={isLoading}>
-            <PersonRoundedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-      {isEmitted && onNoShow && (
-        <Tooltip title="Não compareceu">
-          <IconButton size={size} color="error" onClick={() => onNoShow(item.id)} disabled={isLoading}>
-            <CancelRoundedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-      {isInProgress && onComplete && (
-        <Tooltip title="Concluir atendimento">
-          <IconButton size={size} color="success" onClick={() => onComplete(item.id)} disabled={isLoading}>
-            <CheckCircleRoundedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-      {isInProgress && onNoShow && (
-        <Tooltip title="Não compareceu">
-          <IconButton size={size} color="error" onClick={() => onNoShow(item.id)} disabled={isLoading}>
-            <CancelRoundedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-      {(isDone || isInProgress) && onUndo && (
-        <Tooltip title="Desfazer">
-          <IconButton size={size} onClick={() => onUndo(item.id)} disabled={isLoading}>
-            <UndoRoundedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-      {isDone && item.status === 'completed' && onEditAttend && (
-        <Tooltip title="Editar informações do atendimento">
-          <IconButton size={size} color="primary" onClick={() => onEditAttend(item)} disabled={isLoading}>
-            <EditRoundedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-      {item.is_walk_in && onEditWalkIn && (
-        <Tooltip title="Editar dados do walk-in">
-          <IconButton size={size} color="info" onClick={() => onEditWalkIn(item)} disabled={isLoading}>
-            <EditRoundedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-    </Box>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-touch"
+          disabled={a.busy}
+          aria-label={`Ações da senha ${numero}`}
+          className="shrink-0"
+        >
+          <EllipsisVertical aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-48">
+        {entries}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
-// ── Queue card ────────────────────────────────────────────────────────────────
-
-interface QueueCardProps {
-  item: QueueItem;
-  isNext: boolean;
-  isMobile: boolean;
-  isDark: boolean;
-  actionLoading: string | null;
-  onCheckin?: (id: string) => void;
-  onUndoCheckin?: (id: string) => void;
-  onAttend?: (item: QueueItem) => void;
-  onComplete?: (id: string) => void;
-  onNoShow?: (id: string) => void;
-  onUndo?: (id: string) => void;
-  onEditAttend?: (item: QueueItem) => void;
-  onEditWalkIn?: (item: QueueItem) => void;
-}
-
-function QueueCard({
-  item, isNext, isMobile, isDark, actionLoading,
-  onCheckin, onUndoCheckin, onAttend, onComplete, onNoShow, onUndo, onEditAttend, onEditWalkIn,
-}: QueueCardProps) {
-  const isLoading    = actionLoading === item.id;
-  const isDone       = item.status === 'completed' || item.status === 'no_show' || item.status === 'cancelled';
-  const isInProgress = item.status === 'called';
-  const isEmitted    = item.status === 'emitted';
-  const hasCheckin   = !!item.checkin_em;
-
-  // Left border color conveys state at a glance
-  const borderLeftColor = isNext
-    ? 'primary.main'
-    : hasCheckin && isEmitted
-    ? 'success.main'
-    : isInProgress
-    ? 'info.main'
-    : isDone
-    ? 'divider'
-    : 'transparent';
-
-  const cardSx = {
-    opacity: isDone ? 0.55 : 1,
-    border: '1px solid',
-    borderColor: 'divider',
-    borderLeft: '4px solid',
-    borderLeftColor,
-    borderRadius: 2,
-    transition: 'opacity 0.2s',
-  };
-
-  if (isMobile) {
-    return (
-      <Card elevation={0} sx={cardSx}>
-        <CardContent sx={{ p: 1.75, '&:last-child': { pb: 1.75 } }}>
-          {/* Row 1: number + tags + status chip */}
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 0.75 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-              <Typography
-                variant="h5"
-                fontWeight={800}
-                sx={{ color: isDone ? 'text.disabled' : item.is_sponsor ? (isDark ? '#fbbf24' : '#b8860b') : 'text.primary', fontFamily: 'monospace', lineHeight: 1 }}
-              >
-                {item.numero_formatado || `#${item.numero}`}
-              </Typography>
-              {item.is_sponsor  && <SponsorChip isDark={isDark} />}
-              {item.is_walk_in  && <WalkInChip  isDark={isDark} />}
-              {item.is_acompanhante && <AcompanhanteChip isDark={isDark} />}
-              {item.preferencial && (
-                <Chip icon={<StarRoundedIcon sx={{ fontSize: '14px !important' }} />} label={priorityLabel(item)} color="warning" size="small" sx={{ height: 22, fontSize: '0.68rem', fontWeight: 700 }} />
-              )}
-              {item.horario_desejado && <TimeSlotChip horario={item.horario_desejado} isDark={isDark} />}
-              {hasCheckin && isEmitted && <PresentChip />}
-            </Box>
-            <Chip
-              label={statusLabel[item.status] || item.status}
-              color={statusColor[item.status] || 'default'}
-              size="small"
-              variant={isDone ? 'outlined' : 'filled'}
-              sx={{ flexShrink: 0 }}
-            />
-          </Box>
-
-          {/* Row 2: name */}
-          <Typography variant="body1" fontWeight={600} sx={{ color: isDone ? 'text.disabled' : 'text.primary', mb: 0.25 }}>
-            {item.consulente_nome || '—'}
-          </Typography>
-
-          {/* Row 3: contato (telefone + email) — sempre visível, inclusive mobile */}
-          {item.consulente_telefone && (
-            <Typography variant="body2" color="text.secondary">{item.consulente_telefone}</Typography>
-          )}
-          {item.consulente_email && (
-            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
-              {item.consulente_email}
-            </Typography>
-          )}
-          {(isInProgress || isDone) && item.medium_nome && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-              {item.medium_nome}{item.cambone_nome && ` · ${item.cambone_nome}`}
-            </Typography>
-          )}
-
-          {/* Row 4: actions */}
-          {!isDone && (
-            <Box sx={{ mt: 1.25 }}>
-              <ActionButtons
-                item={item} isLoading={isLoading} size="small" variant="button"
-                onCheckin={onCheckin} onUndoCheckin={onUndoCheckin}
-                onAttend={onAttend} onComplete={onComplete}
-                onNoShow={onNoShow} onUndo={onUndo}
-                onEditAttend={onEditAttend} onEditWalkIn={onEditWalkIn}
-              />
-            </Box>
-          )}
-          {isDone && (onEditAttend || onEditWalkIn || onUndo) && (
-            <Box sx={{ mt: 1 }}>
-              <ActionButtons
-                item={item} isLoading={isLoading} size="small" variant="button"
-                onUndo={onUndo} onEditAttend={onEditAttend} onEditWalkIn={onEditWalkIn}
-              />
-            </Box>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Desktop: compact horizontal row
+function InProgressCard({ item, a }: { item: QueueItem; a: ItemActions }) {
   return (
-    <Card elevation={0} sx={cardSx}>
-      <CardContent sx={{ py: 1.25, px: 2, '&:last-child': { pb: 1.25 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Typography
-            variant="h6"
-            fontWeight={800}
-            sx={{ minWidth: 56, fontFamily: 'monospace', color: isDone ? 'text.disabled' : item.is_sponsor ? (isDark ? '#fbbf24' : '#b8860b') : 'text.primary' }}
-          >
-            {item.numero_formatado || `#${item.numero}`}
-          </Typography>
-
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-              <Typography variant="body2" fontWeight={600} noWrap sx={{ color: isDone ? 'text.disabled' : 'text.primary' }}>
-                {item.consulente_nome || '—'}
-              </Typography>
-              {item.is_sponsor   && <SponsorChip isDark={isDark} />}
-              {item.is_walk_in   && <WalkInChip  isDark={isDark} />}
-              {item.is_acompanhante && <AcompanhanteChip isDark={isDark} />}
-              {item.preferencial && (
-                <Tooltip title={priorityLabel(item)}>
-                  <StarRoundedIcon sx={{ fontSize: 16, color: 'warning.main' }} />
-                </Tooltip>
-              )}
-              {item.horario_desejado && <TimeSlotChip horario={item.horario_desejado} isDark={isDark} />}
-              {hasCheckin && isEmitted && <PresentChip />}
-            </Box>
-            {item.consulente_telefone && (
-              <Typography variant="caption" color="text.secondary" display="block">{item.consulente_telefone}</Typography>
-            )}
-            {item.consulente_email && (
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ wordBreak: 'break-all' }}>
-                {item.consulente_email}
-              </Typography>
-            )}
-            {(isInProgress || isDone) && item.medium_nome && (
-              <Typography variant="caption" color="text.secondary" display="block">
-                {item.medium_nome}{item.cambone_nome && ` · ${item.cambone_nome}`}
-              </Typography>
-            )}
-          </Box>
-
-          <Chip
-            label={statusLabel[item.status] || item.status}
-            color={statusColor[item.status] || 'default'}
-            size="small"
-            variant={isDone ? 'outlined' : 'filled'}
-          />
-
-          <ActionButtons
-            item={item} isLoading={isLoading} size="small" variant="icon"
-            onCheckin={onCheckin} onUndoCheckin={onUndoCheckin}
-            onAttend={onAttend} onComplete={onComplete}
-            onNoShow={onNoShow} onUndo={onUndo}
-            onEditAttend={onEditAttend} onEditWalkIn={onEditWalkIn}
-          />
-        </Box>
-      </CardContent>
+    <Card className="gap-3 border-info/50 px-4 py-4" data-testid="em-atendimento-card">
+      <div className="flex items-start gap-3">
+        <span className="font-mono text-4xl leading-none font-black tabular-nums">{numeroDaSenha(item)}</span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-lg font-semibold">{item.consulente_nome || '—'}</p>
+          {item.medium_nome && (
+            <p className="truncate text-sm text-muted-foreground">
+              {item.medium_nome}
+              {item.cambone_nome ? ` · ${item.cambone_nome}` : ''}
+            </p>
+          )}
+          <div className="mt-1 flex flex-wrap gap-1">
+            <Tags item={item} />
+          </div>
+        </div>
+        <ItemMenu item={item} a={a} />
+      </div>
+      {a.canEdit && (
+        <Button type="button" size="touch" className="w-full" disabled={a.busy} onClick={() => a.onComplete(item)}>
+          <CheckCircle2 aria-hidden /> Atendido
+        </Button>
+      )}
     </Card>
   );
 }
 
-// ── Section header ─────────────────────────────────────────────────────────────
-
-function SectionHeader({
-  label, count, accentColor, action,
-}: { label: string; count: number; accentColor?: string; action?: React.ReactNode }) {
+function QueueRow({ item, a, isNext }: { item: QueueItem; a: ItemActions; isNext: boolean }) {
+  const arrived = !!item.checkin_em;
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-      {accentColor && (
-        <Box sx={{ width: 4, height: 20, borderRadius: 2, bgcolor: accentColor, flexShrink: 0 }} />
+    <li
+      className={cn(
+        'flex min-h-14 items-center gap-3 border-b px-3 py-1.5 last:border-b-0',
+        isNext && 'bg-primary/5',
+        isDone(item) && 'opacity-60',
       )}
-      <Typography variant="subtitle1" fontWeight={700} sx={{ flex: 1 }}>
-        {label}
-        <Typography component="span" variant="subtitle1" color="text.secondary" sx={{ ml: 0.75, fontWeight: 400 }}>
-          ({count})
-        </Typography>
-      </Typography>
-      {action}
-    </Box>
+      data-testid="fila-item"
+    >
+      <span className="w-14 shrink-0 font-mono text-lg font-bold tabular-nums">{numeroDaSenha(item)}</span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{item.consulente_nome || '—'}</p>
+        <div className="flex flex-wrap items-center gap-1">
+          {item.status === 'emitted' ? (
+            arrived ? (
+              <Badge variant="outline" className="border-success/30 bg-success/15 text-success">
+                Chegou
+              </Badge>
+            ) : null
+          ) : (
+            <Badge variant="outline">{senhaStatusLabel(item.status)}</Badge>
+          )}
+          {isNext && <Badge>Próximo</Badge>}
+          <Tags item={item} />
+        </div>
+      </div>
+      <ItemMenu item={item} a={a} />
+    </li>
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+function StatBox({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex flex-col items-center rounded-lg border px-2 py-3">
+      <span className="text-2xl font-extrabold tabular-nums">{value}</span>
+      <span className="text-center text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+// ── Página ────────────────────────────────────────────────────────────────────
 
 export default function PortaPage() {
-  const theme   = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const router = useRouter();
-  const { isDark } = useAdminTheme();
   const { can: canGroup } = usePermissions();
   const canView = canGroup('porta', 'view');
+  return (
+    <AdminLayout title="Porta" maxWidth="md">
+      {canView ? <PortaContent /> : <PermissionDenied />}
+    </AdminLayout>
+  );
+}
+
+function PortaContent() {
+  const router = useRouter();
+  const { can: canGroup } = usePermissions();
   const canInsert = canGroup('porta', 'insert');
   const canEdit = canGroup('porta', 'edit');
+  const giraCtx = useGiraContext({ load: false });
+  const { selectedGiraId: ctxGiraId, setSelectedGiraId: setCtxGiraId } = giraCtx;
 
-  const [giras, setGiras]                   = useState<Gira[]>([]);
-  const [selectedGiraId, setSelectedGiraId] = useState<string>('');
-  const [stats, setStats]                   = useState<DoorStats | null>(null);
-  const [queue, setQueue]                   = useState<QueueItem[]>([]);
-  const [search, setSearch]                 = useState('');
-  const [loading, setLoading]               = useState(false);
-  const [actionLoading, setActionLoading]   = useState<string | null>(null);
-  const [config, setConfig]                 = useState<TenantConfig | null>(null);
-  const [mediumOptions, setMediumOptions]   = useState<MediumOption[]>([]);
+  const [giras, setGiras] = useState<Gira[]>([]);
+  const [selectedGiraId, setSelectedGiraIdState] = useState<string>('');
+  const [stats, setStats] = useState<DoorStats | null>(null);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [queueLoaded, setQueueLoaded] = useState(false);
+  const [search, setSearch] = useState('');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [config, setConfig] = useState<TenantConfig | null>(null);
+  const [mediumOptions, setMediumOptions] = useState<MediumOption[]>([]);
   const [camboneOptions, setCamboneOptions] = useState<MediumOption[]>([]);
-  const [attendTarget, setAttendTarget]     = useState<QueueItem | null>(null);
-  const [editTarget, setEditTarget]         = useState<QueueItem | null>(null);
-  const [walkInCreateOpen, setWalkInCreateOpen]   = useState(false);
-  const [walkInEditTarget, setWalkInEditTarget]   = useState<QueueItem | null>(null);
-  const [doneExpanded, setDoneExpanded]     = useState(false);
-  const [lastUpdated, setLastUpdated]       = useState<Date | null>(null);
+  const [attendTarget, setAttendTarget] = useState<QueueItem | null>(null);
+  const [editTarget, setEditTarget] = useState<QueueItem | null>(null);
+  const [walkInCreateOpen, setWalkInCreateOpen] = useState(false);
+  const [walkInEditTarget, setWalkInEditTarget] = useState<QueueItem | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
-    open: false, message: '', severity: 'success',
-  });
+  useEffect(() => {
+    setMuted(readMuted());
+  }, []);
 
-  // ── Data fetching ────────────────────────────────────────────────────────────
+  const selectGira = useCallback(
+    (id: string) => {
+      setSelectedGiraIdState(id);
+      setQueueLoaded(false);
+      setQueue([]);
+      setStats(null);
+      setCtxGiraId(id);
+    },
+    [setCtxGiraId],
+  );
 
+  // ── Carga ────────────────────────────────────────────────────────────────────
   const loadGiras = async () => {
     try {
       const res = await apiClient.get('/api/v1/admin/giras');
-      const all: Gira[] = Array.isArray(res.data) ? res.data : res.data.items || [];
-      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const all: Gira[] = Array.isArray(res?.data) ? res.data : res?.data?.items || [];
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
       const data = all
-        .filter((g) => new Date(g.data_inicio) >= cutoff)
-        // Soonest first — the door screen defaults to the next gira, not the furthest-future one.
+        .filter((g) => new Date(g.data_inicio).getTime() >= cutoff)
+        // A mais próxima primeiro: a Porta abre na próxima gira, não na mais distante.
         .sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
       setGiras(data);
-      if (data.length > 0 && !selectedGiraId) {
-        const active = data.find((g: Gira) => g.is_active);
-        setSelectedGiraId(active?.id || data[0].id);
-      }
-    } catch { showSnackbar('Erro ao carregar giras', 'error'); }
+    } catch {
+      toast.error('Erro ao carregar as giras.');
+    }
   };
 
   const loadConfig = async () => {
     try {
       const res = await apiClient.get('/api/v1/admin/door/config');
-      setConfig(res.data);
+      setConfig(res?.data ?? null);
     } catch (err) {
       console.error('Erro ao carregar config da porta:', err);
-      showSnackbar('Não foi possível carregar configurações da porta (walk-in pode ficar indisponível)', 'error');
+      toast.error('Não foi possível carregar as configurações da Porta ("Sem senha" pode ficar indisponível).');
     }
   };
 
@@ -667,502 +456,474 @@ export default function PortaPage() {
         apiClient.get<MediumOption[]>('/api/v1/admin/mediuns/options?only_atendimento=true'),
         apiClient.get<MediumOption[]>('/api/v1/admin/mediuns/options'),
       ]);
-      setMediumOptions(Array.isArray(mRes.data) ? mRes.data : []);
-      setCamboneOptions(Array.isArray(cRes.data) ? cRes.data : []);
-    } catch { /* optional */ }
+      setMediumOptions(Array.isArray(mRes?.data) ? mRes.data : []);
+      setCamboneOptions(Array.isArray(cRes?.data) ? cRes.data : []);
+    } catch {
+      /* opcional */
+    }
   };
 
   const loadStats = useCallback(async () => {
-    if (!selectedGiraId || !canView) return;
+    if (!selectedGiraId) return;
     try {
       const res = await apiClient.get(`/api/v1/admin/giras/${selectedGiraId}/door/stats`);
-      setStats(res.data);
-    } catch { /* retry on next poll */ }
-  }, [selectedGiraId, canView]);
+      setStats(res?.data ?? null);
+    } catch {
+      /* tenta de novo no próximo ciclo */
+    }
+  }, [selectedGiraId]);
 
   const loadQueue = useCallback(async () => {
-    if (!selectedGiraId || !canView) return;
+    if (!selectedGiraId) return;
     try {
-      setLoading(true);
-      // Fetch full queue — filtering is done client-side so we can search by name AND number
+      // Fila completa — a busca por nome e número é feita aqui no navegador.
       const res = await apiClient.get(`/api/v1/admin/giras/${selectedGiraId}/door/queue`);
-      setQueue(res.data.items || []);
+      setQueue(Array.isArray(res?.data?.items) ? res.data.items : []);
       setLastUpdated(new Date());
-    } catch { showSnackbar('Erro ao carregar fila', 'error'); }
-    finally { setLoading(false); }
-  }, [selectedGiraId, canView]);
+    } catch {
+      toast.error('Erro ao carregar a fila.');
+    } finally {
+      setQueueLoaded(true);
+    }
+  }, [selectedGiraId]);
 
-  const refreshAll = useCallback(() => { loadStats(); loadQueue(); }, [loadStats, loadQueue]);
+  const refreshAll = useCallback(() => {
+    void loadStats();
+    void loadQueue();
+  }, [loadStats, loadQueue]);
 
-  // loadGiras/loadConfig/loadMediunOptions aren't memoized — this effect only runs once on mount.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadGiras(); loadConfig(); loadMediunOptions(); }, []);
-  // Deep link support: ?gira=<id> from the giras list / dashboard overrides the auto-selected gira.
   useEffect(() => {
-    if (!router.isReady) return;
+    void loadGiras();
+    void loadConfig();
+    void loadMediunOptions();
+    // Só na montagem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Escolha da gira: ?gira= (link da lista de giras / modo TV) > gira do contexto > gira de hoje.
+  useEffect(() => {
+    if (!router.isReady || giras.length === 0) return;
     const queryGiraId = typeof router.query.gira === 'string' ? router.query.gira : '';
     if (queryGiraId && giras.some((g) => g.id === queryGiraId)) {
-      setSelectedGiraId(queryGiraId);
+      if (queryGiraId !== selectedGiraId) selectGira(queryGiraId);
+      return;
     }
+    if (selectedGiraId && giras.some((g) => g.id === selectedGiraId)) return;
+    const fromCtx = ctxGiraId && giras.some((g) => g.id === ctxGiraId) ? ctxGiraId : null;
+    const today = pickTodayGira(giras);
+    const fallback = giras.find((g) => g.is_active) ?? giras[0];
+    const chosen = fromCtx ?? today?.id ?? fallback?.id;
+    if (chosen) selectGira(chosen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady, router.query.gira, giras]);
-  useEffect(() => { if (selectedGiraId) refreshAll(); }, [selectedGiraId, refreshAll]);
+
+  // Troca feita em outra tela/no topo (seletor da gira de hoje) → segue aqui também.
+  useEffect(() => {
+    if (ctxGiraId && ctxGiraId !== selectedGiraId && giras.some((g) => g.id === ctxGiraId)) {
+      setSelectedGiraIdState(ctxGiraId);
+      setQueueLoaded(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctxGiraId]);
+
+  useEffect(() => {
+    if (selectedGiraId) refreshAll();
+  }, [selectedGiraId, refreshAll]);
+
   useEffect(() => {
     if (!selectedGiraId) return;
     const t = setInterval(refreshAll, POLLING_INTERVAL_MS);
     return () => clearInterval(t);
   }, [selectedGiraId, refreshAll]);
 
-  // ── Actions ──────────────────────────────────────────────────────────────────
+  const walkInEnabled = !!selectedGiraId && !!config?.enable_walk_in && canInsert;
 
-  const showSnackbar = (message: string, severity: 'success' | 'error' | 'info') =>
-    setSnackbar({ open: true, message, severity });
+  // "Sem senha" pela barra inferior do celular.
+  useEffect(() => {
+    const open = () => {
+      if (walkInEnabled) setWalkInCreateOpen(true);
+      else toast.info('"Sem senha" não está disponível para esta gira.');
+    };
+    window.addEventListener(PORTA_WALK_IN_EVENT, open);
+    return () => window.removeEventListener(PORTA_WALK_IN_EVENT, open);
+  }, [walkInEnabled]);
 
-  const doAction = async (url: string, method: 'patch' | 'delete', ticketId: string, body?: Record<string, unknown>, successMsg?: string) => {
+  // ── Ações ────────────────────────────────────────────────────────────────────
+  const runAction = async (
+    ticketId: string,
+    request: () => Promise<unknown>,
+    successMsg: string,
+    undo?: { label?: string; run: () => Promise<unknown>; done: string },
+  ) => {
     if (!canEdit) return;
     try {
       setActionLoading(ticketId);
-      if (method === 'patch') await apiClient.patch(url, body);
-      else await apiClient.delete(url);
-      showSnackbar(successMsg || 'Ação realizada', 'success');
+      await request();
+      if (undo) {
+        toast.success(successMsg, {
+          action: {
+            label: undo.label ?? 'Desfazer',
+            onClick: async () => {
+              try {
+                await undo.run();
+                toast.success(undo.done);
+              } catch (err) {
+                toast.error(extractApiErrorMessage(err, 'Não foi possível desfazer.'));
+              } finally {
+                refreshAll();
+              }
+            },
+          },
+        });
+      } else {
+        toast.success(successMsg);
+      }
       refreshAll();
     } catch (err) {
-      showSnackbar(extractApiErrorMessage(err, 'Erro ao realizar ação'), 'error');
-    } finally { setActionLoading(null); }
+      toast.error(extractApiErrorMessage(err, 'Erro ao realizar a ação.'));
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleCheckin      = (id: string) => doAction(`/api/v1/admin/door/tickets/${id}/checkin`, 'patch',  id, undefined, 'Check-in realizado');
-  const handleUndoCheckin  = (id: string) => doAction(`/api/v1/admin/door/tickets/${id}/checkin`, 'delete', id, undefined, 'Check-in desfeito');
-  const handleNoShow       = (id: string) => doAction(`/api/v1/admin/door/tickets/${id}/no-show`, 'patch',  id, undefined, 'Marcado como ausente');
-  const handleUndo         = (id: string) => doAction(`/api/v1/admin/door/tickets/${id}/undo`,    'patch',  id, undefined, 'Ação desfeita');
+  const undoTo = (id: string) => () => apiClient.patch(`/api/v1/admin/door/tickets/${id}/undo`);
 
-  const handleAttendConfirm = (data: { medium_nome: string; cambone_nome?: string; atendimento_descricao?: string }) => {
-    if (!attendTarget) return;
-    doAction(`/api/v1/admin/door/tickets/${attendTarget.id}/attend`, 'patch', attendTarget.id, data, 'Atendimento concluído');
+  const handleCheckin = (t: QueueItem) =>
+    runAction(t.id, () => apiClient.patch(`/api/v1/admin/door/tickets/${t.id}/checkin`), `${numeroDaSenha(t)} chegou`, {
+      run: () => apiClient.delete(`/api/v1/admin/door/tickets/${t.id}/checkin`),
+      done: 'Chegada desfeita',
+    });
+  const handleUndoCheckin = (t: QueueItem) =>
+    runAction(t.id, () => apiClient.delete(`/api/v1/admin/door/tickets/${t.id}/checkin`), 'Chegada desfeita');
+  const handleNoShow = (t: QueueItem) =>
+    runAction(t.id, () => apiClient.patch(`/api/v1/admin/door/tickets/${t.id}/no-show`), `${numeroDaSenha(t)}: não veio`, {
+      run: undoTo(t.id),
+      done: 'Senha voltou para a fila',
+    });
+  const handleUndo = (t: QueueItem) =>
+    runAction(t.id, () => apiClient.patch(`/api/v1/admin/door/tickets/${t.id}/undo`), 'Senha voltou para a fila');
+  const handleComplete = (t: QueueItem) =>
+    runAction(t.id, () => apiClient.patch(`/api/v1/admin/door/tickets/${t.id}/complete`), `${numeroDaSenha(t)} atendido`, {
+      run: undoTo(t.id),
+      done: 'Senha voltou para a fila',
+    });
+
+  const handleAttendConfirm = (data: AttendData) => {
+    const target = attendTarget;
+    if (!target) return;
     setAttendTarget(null);
+    void runAction(
+      target.id,
+      () => apiClient.patch(`/api/v1/admin/door/tickets/${target.id}/attend`, data),
+      `${numeroDaSenha(target)} atendido`,
+      { run: undoTo(target.id), done: 'Senha voltou para a fila' },
+    );
   };
 
-  const handleEditAttendInfo = (data: { medium_nome: string; cambone_nome?: string; atendimento_descricao?: string }) => {
-    if (!editTarget) return;
-    doAction(`/api/v1/admin/door/tickets/${editTarget.id}/attend-info`, 'patch', editTarget.id, data, 'Informações atualizadas');
+  const handleEditAttendInfo = (data: AttendData) => {
+    const target = editTarget;
+    if (!target) return;
     setEditTarget(null);
+    void runAction(
+      target.id,
+      () => apiClient.patch(`/api/v1/admin/door/tickets/${target.id}/attend-info`, data),
+      'Atendimento atualizado',
+    );
   };
 
-  const handleCreateWalkIn = async (data: { nome: string; email?: string; telefone?: string; priority_category: string | null }) => {
+  const handleCreateWalkIn = async (data: WalkInData) => {
     if (!selectedGiraId || !canInsert) return;
     try {
       setActionLoading('__walkin_create__');
       const res = await apiClient.post(`/api/v1/admin/giras/${selectedGiraId}/door/walk-in`, data);
-      showSnackbar(`Walk-in ${res.data.numero_formatado} criado`, 'success');
+      const numero = res?.data ? numeroDaSenha(res.data) : '';
+      toast.success(numero ? `Senha ${numero} criada para quem chegou sem senha` : 'Senha criada');
       setWalkInCreateOpen(false);
       refreshAll();
     } catch (err) {
-      showSnackbar(extractApiErrorMessage(err, 'Erro ao criar walk-in'), 'error');
-    } finally { setActionLoading(null); }
+      toast.error(extractApiErrorMessage(err, 'Erro ao criar a senha.'));
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleEditWalkIn = async (data: { nome: string; email?: string; telefone?: string; priority_category: string | null }) => {
+  const handleEditWalkIn = async (data: WalkInData) => {
     if (!walkInEditTarget || !canEdit) return;
     try {
       setActionLoading(walkInEditTarget.id);
       await apiClient.patch(`/api/v1/admin/door/tickets/${walkInEditTarget.id}/walk-in`, data);
-      showSnackbar('Walk-in atualizado', 'success');
+      toast.success('Dados atualizados');
       setWalkInEditTarget(null);
       refreshAll();
     } catch (err) {
-      showSnackbar(extractApiErrorMessage(err, 'Erro ao editar walk-in'), 'error');
-    } finally { setActionLoading(null); }
+      toast.error(extractApiErrorMessage(err, 'Erro ao editar.'));
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  // ── Derived ───────────────────────────────────────────────────────────────────
+  // ── Derivados ────────────────────────────────────────────────────────────────
+  const filtered = useMemo(() => filterQueue(queue, search), [queue, search]);
+  const next = useMemo(() => nextToCall(queue), [queue]);
+  const inProgress = filtered.filter((t) => t.status === 'called');
+  const waiting = filtered.filter((t) => t.status === 'emitted');
+  const done = queue.filter(isDone);
 
-  // Client-side search: matches by name OR ticket number (strips leading # or zeros)
-  const filteredQueue = (() => {
-    const q = search.trim();
-    if (!q) return queue;
-    const needle = q.replace(/^#/, '').toLowerCase();
-    const isNumeric = /^\d+$/.test(needle);
-    return queue.filter((t) => {
-      if (isNumeric) {
-        // Match by numero (e.g. "42") or numero_formatado (e.g. "0042")
-        if (String(t.numero) === needle) return true;
-        if (t.numero_formatado?.replace(/^#?0*/, '') === needle.replace(/^0*/, '')) return true;
-      }
-      // Match by name (case-insensitive, accent-insensitive)
-      const name = (t.consulente_nome ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-      return name.includes(needle.normalize('NFD').replace(/[̀-ͯ]/g, ''));
-    });
-  })();
+  const counts = {
+    aguardando: queue.filter((t) => t.status === 'emitted').length,
+    atendidos: queue.filter((t) => t.status === 'completed').length,
+    naoVeio: queue.filter((t) => t.status === 'no_show').length,
+  };
 
-  const nextInLine      = filteredQueue.find((t) => t.status === 'emitted' && t.checkin_em);
-  const waitingQueue    = filteredQueue.filter((t) => t.status === 'emitted');
-  const inProgressQueue = filteredQueue.filter((t) => t.status === 'called');
-  const doneQueue       = filteredQueue.filter((t) => t.status === 'completed' || t.status === 'no_show' || t.status === 'cancelled');
-
-  const selectedGiraName = giras.find((g) => g.id === selectedGiraId)?.nome ?? '';
-
-  // ── Notificação sonora + badge no título quando entra novo na fila ──────────────
-  // Usa a fila completa (não filtrada) para detectar mudanças reais.
-  const awaitingCount = queue.filter((t) => t.status === 'emitted').length;
+  // ── Aviso sonoro + contagem no título da aba ─────────────────────────────────
   const prevAwaitingIdsRef = useRef<Set<string> | null>(null);
-
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
   useEffect(() => {
     const currentIds = new Set(queue.filter((t) => t.status === 'emitted').map((t) => t.id));
     const prev = prevAwaitingIdsRef.current;
-    // Detecta IDs novos em relação ao snapshot anterior (ignora primeira carga)
-    if (prev) {
-      const hasNew = Array.from(currentIds).some((id) => !prev.has(id));
-      if (hasNew) {
-        try {
-          const audio = new Audio('/sounds/notification.mp3');
-          audio.play().catch(() => { /* autoplay pode estar bloqueado */ });
-        } catch { /* ambiente sem Audio */ }
+    // Só toca quando aparece alguém novo (a primeira carga não conta).
+    if (prev && !mutedRef.current && Array.from(currentIds).some((id) => !prev.has(id))) {
+      try {
+        const audio = new Audio('/sounds/notification.mp3');
+        audio.play().catch(() => {
+          /* autoplay bloqueado */
+        });
+      } catch {
+        /* ambiente sem Audio */
       }
     }
     prevAwaitingIdsRef.current = currentIds;
   }, [queue]);
 
-  // Badge numérico no título da aba do navegador
   useEffect(() => {
-    const base = 'GiraHub — Porta';
-    document.title = awaitingCount > 0 ? `(${awaitingCount}) ${base}` : base;
-    return () => { document.title = base; };
-  }, [awaitingCount]);
+    const base = 'Porta | GiraHub';
+    document.title = counts.aguardando > 0 ? `(${counts.aguardando}) ${base}` : base;
+    return () => {
+      document.title = base;
+    };
+  }, [counts.aguardando]);
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  const toggleMuted = (value: boolean) => {
+    setMuted(value);
+    writeMuted(value);
+  };
 
-  if (!canView) {
-    return (
-      <AdminLayout title="Visão da Porta" maxWidth="md">
-        <Alert severity="warning" sx={{ mt: 2 }}>
-          Você não tem permissão para visualizar a porta. Contate o administrador do sistema.
-        </Alert>
-      </AdminLayout>
-    );
-  }
+  const actions: ItemActions = {
+    canEdit,
+    busy: false,
+    onCheckin: handleCheckin,
+    onUndoCheckin: handleUndoCheckin,
+    onCall: (t) => setAttendTarget(t),
+    onComplete: handleComplete,
+    onNoShow: handleNoShow,
+    onUndo: handleUndo,
+    onEditAttend: (t) => setEditTarget(t),
+    onEditWalkIn: (t) => setWalkInEditTarget(t),
+  };
+  const actionsFor = (t: QueueItem): ItemActions => ({ ...actions, busy: actionLoading === t.id });
+
+  const selectedGira = giras.find((g) => g.id === selectedGiraId) ?? null;
 
   return (
-    <AdminLayout title="Visão da Porta" maxWidth="md">
-      <Box sx={{ pb: 6 }}>
-
-        {/* ── Header: gira selector + polling badge ── */}
-        <Box data-tour="porta-header" sx={{ mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
-            <Box>
-              <Typography variant="h5" fontWeight={700}>Visão da porta</Typography>
-              {selectedGiraName && (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>{selectedGiraName}</Typography>
-              )}
-            </Box>
-            <Tooltip title={lastUpdated ? `Atualizado às ${lastUpdated.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : 'Atualização automática a cada 8s'}>
-              <Box data-tour="porta-ws-status" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'default' }}>
-                <FiberManualRecordIcon sx={{ fontSize: 10, color: selectedGiraId ? 'success.main' : 'text.disabled', animation: selectedGiraId ? 'pulse 2s infinite' : 'none',
-                  '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.4 } } }} />
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                  {lastUpdated ? lastUpdated.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Aguardando…'}
-                </Typography>
-              </Box>
-            </Tooltip>
-          </Box>
-
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 2, alignItems: 'center' }}>
-            <FormControl
-              data-tour="porta-gira-select"
-              size="small"
-              sx={{ minWidth: 240, maxWidth: { xs: '100%', sm: 320 }, flex: { xs: '1 1 100%', sm: '0 1 auto' } }}
-            >
-              <InputLabel>Selecione a gira</InputLabel>
-              <Select value={selectedGiraId} onChange={(e) => setSelectedGiraId(e.target.value)} label="Selecione a gira">
-                {giras.map((g) => (
-                  <MenuItem key={g.id} value={g.id}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {g.is_active && <FiberManualRecordIcon sx={{ fontSize: 8, color: 'success.main' }} />}
-                      {g.nome}
-                      {!g.is_active && <Chip label="inativa" size="small" sx={{ height: 18, fontSize: '0.65rem' }} />}
-                    </Box>
-                  </MenuItem>
-                ))}
+    <div className="flex flex-col gap-4">
+      {/* ── Topo fixo: gira + Chamar próximo ── */}
+      <div
+        data-tour="porta-header"
+        className="sticky top-14 z-20 -mx-4 -mt-6 flex flex-col gap-3 border-b bg-background/95 px-4 pt-4 pb-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:-mx-6 sm:px-6"
+      >
+        <div className="flex items-center gap-2">
+          <h1 className="sr-only">Porta</h1>
+          <div className="min-w-0 flex-1" data-tour="porta-gira-select">
+            {giras.length > 0 ? (
+              <Select value={selectedGiraId || undefined} onValueChange={selectGira}>
+                <SelectTrigger className="h-12 w-full text-base" aria-label="Gira">
+                  <SelectValue placeholder="Escolha a gira" />
+                </SelectTrigger>
+                <SelectContent>
+                  {giras.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {giraLabel(g)}
+                      {!g.is_active ? ' (desativada)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
-            </FormControl>
+            ) : (
+              <p className="text-sm text-muted-foreground">Nenhuma gira nas próximas horas.</p>
+            )}
+          </div>
+          <Toggle
+            pressed={muted}
+            onPressedChange={toggleMuted}
+            aria-label={muted ? 'Ligar o aviso sonoro' : 'Silenciar o aviso sonoro'}
+            title={muted ? 'Som desligado' : 'Som ligado'}
+            className="size-12 shrink-0"
+          >
+            {muted ? <VolumeX className="size-5" aria-hidden /> : <Volume2 className="size-5" aria-hidden />}
+          </Toggle>
+          {selectedGiraId && (
+            <Button asChild variant="ghost" size="icon-touch" aria-label="Abrir modo TV" title="Modo TV">
+              <a href={`/admin/porta/kiosk?gira=${encodeURIComponent(selectedGiraId)}`} target="_blank" rel="noopener noreferrer">
+                <Tv aria-hidden />
+              </a>
+            </Button>
+          )}
+        </div>
 
-            {selectedGiraId && (
+        {selectedGiraId && (
+          <div className="flex gap-2">
+            {canEdit && (
               <Button
-                variant="text"
-                size="small"
-                startIcon={<TvRoundedIcon />}
-                onClick={() => window.open(`/admin/porta/kiosk?gira=${selectedGiraId}`, '_blank')}
-                sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                type="button"
+                size="touch"
+                className="flex-1 text-lg font-bold"
+                disabled={!next || actionLoading === next?.id}
+                onClick={() => next && setAttendTarget(next)}
               >
-                Modo TV
+                <Megaphone aria-hidden />
+                {next ? `Chamar próximo · ${numeroDaSenha(next)}` : 'Ninguém na fila'}
               </Button>
             )}
-          </Box>
-        </Box>
-
-        {/* ── Stats strip ── */}
-        {stats && (
-          <Paper
-            data-tour="porta-stats"
-            elevation={0}
-            sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, mb: 3, overflow: 'hidden' }}
-          >
-            {/* 4 cols on mobile/tablet, 8 cols on desktop */}
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: 'repeat(4, 1fr)', md: 'repeat(8, 1fr)' },
-                '& > *': {
-                  borderRight: '1px solid',
-                  borderBottom: { xs: '1px solid', md: 'none' },
-                  borderColor: 'divider',
-                  // Remove border on last of each row
-                  '&:nth-of-type(4n)': { borderRight: { xs: 'none', md: '1px solid' } },
-                  '&:nth-of-type(8n)': { borderRight: 'none' },
-                  // Remove bottom border on last row (rows 5-8 on mobile)
-                  '&:nth-of-type(n+5)': { borderBottom: { xs: 'none', md: 'none' } },
-                },
-              }}
-            >
-              <StatCell label="Total"        value={stats.total}          />
-              <StatCell label="Atendidos"    value={stats.completed}      color={theme.palette.success.main} accent={theme.palette.success.main} />
-              <StatCell label="Em atend."    value={stats.in_progress}    color={theme.palette.info.main}    />
-              <StatCell label="Aguardando"   value={stats.awaiting}       />
-              <StatCell label="Walk-in"      value={stats.walk_in}        color="#0ea5e9"                    />
-              <StatCell label="Preferenciais" value={stats.preferenciais} color={theme.palette.warning.main} />
-              <StatCell label="Ausentes"     value={stats.no_show}        color={theme.palette.error.main}   accent={stats.no_show > 0 ? theme.palette.error.main : undefined} />
-              <StatCell label="Check-in"     value={stats.checked_in}     color="#8b5cf6"                    />
-            </Box>
-          </Paper>
-        )}
-
-        {/* ── Search ── */}
-        <TextField
-          data-tour="porta-busca"
-          placeholder="Buscar por nome…"
-          size="small"
-          fullWidth
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          sx={{ mb: 3 }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchRoundedIcon fontSize="small" color={search ? 'primary' : 'disabled'} />
-              </InputAdornment>
-            ),
-          }}
-        />
-
-        {loading && !queue.length ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-            <CircularProgress />
-          </Box>
-        ) : !selectedGiraId ? (
-          <Box sx={{ py: 8, textAlign: 'center' }}>
-            <Typography color="text.secondary">Selecione uma gira para ver a fila.</Typography>
-          </Box>
-        ) : (
-          <>
-            {/* ── Próximo na fila (HERO CARD) ── */}
-            {nextInLine && (
-              <Paper
-                elevation={0}
-                sx={{
-                  p: { xs: 2, sm: 3 },
-                  mb: 3,
-                  border: '2px solid',
-                  borderColor: 'primary.main',
-                  borderRadius: 3,
-                  bgcolor: isDark
-                    ? 'rgba(99,102,241,0.08)'
-                    : 'rgba(99,102,241,0.04)',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0, left: 0, right: 0,
-                    height: 3,
-                    bgcolor: 'primary.main',
-                  },
-                }}
+            {walkInEnabled && (
+              <Button
+                type="button"
+                size="touch"
+                variant="outline"
+                className={cn(!canEdit && 'flex-1')}
+                data-tour="porta-walkin"
+                onClick={() => setWalkInCreateOpen(true)}
               >
-                <Typography
-                  variant="overline"
-                  color="primary.main"
-                  fontWeight={700}
-                  sx={{ letterSpacing: '0.12em', fontSize: '0.65rem' }}
-                >
-                  Próximo na fila
-                </Typography>
-
-                <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2, mt: 0.75, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  {/* Número grande */}
-                  <Box
-                    sx={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      width: { xs: 72, sm: 88 }, height: { xs: 72, sm: 88 }, flexShrink: 0,
-                      borderRadius: 3,
-                      bgcolor: 'primary.main',
-                    }}
-                  >
-                    <Typography
-                      variant="h3"
-                      fontWeight={900}
-                      sx={{ color: '#fff', fontFamily: 'monospace', fontSize: { xs: '1.75rem', sm: '2rem' } }}
-                    >
-                      {nextInLine.numero_formatado || `#${nextInLine.numero}`}
-                    </Typography>
-                  </Box>
-
-                  {/* Info */}
-                  <Box sx={{ flex: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
-                      {nextInLine.is_sponsor   && <SponsorChip isDark={isDark} />}
-                      {nextInLine.is_walk_in   && <WalkInChip  isDark={isDark} />}
-                      {nextInLine.is_acompanhante && <AcompanhanteChip isDark={isDark} />}
-                      {nextInLine.preferencial && (
-                        <Chip icon={<StarRoundedIcon sx={{ fontSize: '14px !important' }} />} label={priorityLabel(nextInLine)} color="warning" size="small" sx={{ height: 22, fontSize: '0.68rem', fontWeight: 700 }} />
-                      )}
-                    </Box>
-                    <Typography variant={isMobile ? 'h6' : 'h5'} fontWeight={700} sx={{ lineHeight: 1.2 }}>
-                      {nextInLine.consulente_nome || '—'}
-                    </Typography>
-                    {nextInLine.consulente_telefone && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                        {nextInLine.consulente_telefone}
-                      </Typography>
-                    )}
-                  </Box>
-
-                  {/* Primary CTA — large */}
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
-                    <Button
-                      variant="contained"
-                      size="large"
-                      disableElevation
-                      startIcon={<PersonRoundedIcon />}
-                      onClick={() => setAttendTarget(nextInLine)}
-                      disabled={actionLoading === nextInLine.id}
-                      fullWidth={isMobile}
-                      sx={{ fontWeight: 700, px: 3 }}
-                    >
-                      Atender
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      color="error"
-                      startIcon={<CancelRoundedIcon />}
-                      onClick={() => handleNoShow(nextInLine.id)}
-                      disabled={actionLoading === nextInLine.id}
-                      fullWidth={isMobile}
-                    >
-                      Não compareceu
-                    </Button>
-                  </Box>
-                </Box>
-              </Paper>
+                <UserPlus aria-hidden /> Sem senha
+              </Button>
             )}
-
-            {/* ── Em Atendimento ── */}
-            {inProgressQueue.length > 0 && (
-              <Box sx={{ mb: 3 }} data-tour="porta-em-atendimento">
-                <SectionHeader label="Em atendimento" count={inProgressQueue.length} accentColor={theme.palette.info.main} />
-                <Stack spacing={1}>
-                  {inProgressQueue.map((item) => (
-                    <QueueCard
-                      key={item.id} item={item} isNext={false} isMobile={isMobile} isDark={isDark}
-                      actionLoading={actionLoading}
-                      onNoShow={handleNoShow} onUndo={handleUndo}
-                      onEditWalkIn={(t) => setWalkInEditTarget(t)}
-                    />
-                  ))}
-                </Stack>
-              </Box>
-            )}
-
-            {/* ── Fila de Espera ── */}
-            <Box data-tour="porta-fila" sx={{ mb: 3 }}>
-              <SectionHeader
-                label="Fila de espera"
-                count={waitingQueue.length}
-                accentColor={theme.palette.primary.main}
-              />
-              {waitingQueue.length === 0 ? (
-                <Paper elevation={0} sx={{ border: '1px dashed', borderColor: 'divider', borderRadius: 2, py: 4, textAlign: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">Fila vazia</Typography>
-                </Paper>
-              ) : (
-                <Stack spacing={1}>
-                  {waitingQueue.map((item) => (
-                    <QueueCard
-                      key={item.id} item={item} isNext={nextInLine?.id === item.id} isMobile={isMobile} isDark={isDark}
-                      actionLoading={actionLoading}
-                      onCheckin={handleCheckin} onUndoCheckin={handleUndoCheckin}
-                      onAttend={(t) => setAttendTarget(t)}
-                      onNoShow={handleNoShow} onUndo={handleUndo}
-                      onEditWalkIn={(t) => setWalkInEditTarget(t)}
-                    />
-                  ))}
-                </Stack>
-              )}
-            </Box>
-
-            {/* ── Finalizados (colapsável) ── */}
-            {doneQueue.length > 0 && (
-              <Box>
-                <SectionHeader
-                  label="Finalizados"
-                  count={doneQueue.length}
-                  accentColor="text.disabled"
-                  action={
-                    <Button
-                      size="small"
-                      variant="text"
-                      color="inherit"
-                      endIcon={doneExpanded ? <ExpandLessRoundedIcon /> : <ExpandMoreRoundedIcon />}
-                      onClick={() => setDoneExpanded((p) => !p)}
-                      sx={{ color: 'text.secondary', fontSize: '0.78rem' }}
-                    >
-                      {doneExpanded ? 'Ocultar' : 'Ver todos'}
-                    </Button>
-                  }
-                />
-                <Collapse in={doneExpanded}>
-                  <Stack spacing={1}>
-                    {doneQueue.map((item) => (
-                      <QueueCard
-                        key={item.id} item={item} isNext={false} isMobile={isMobile} isDark={isDark}
-                        actionLoading={actionLoading}
-                        onUndo={handleUndo}
-                        onEditAttend={(t) => setEditTarget(t)}
-                        onEditWalkIn={(t) => setWalkInEditTarget(t)}
-                      />
-                    ))}
-                  </Stack>
-                </Collapse>
-                {!doneExpanded && (
-                  <Paper
-                    elevation={0}
-                    onClick={() => setDoneExpanded(true)}
-                    sx={{
-                      border: '1px dashed', borderColor: 'divider', borderRadius: 2,
-                      py: 2, textAlign: 'center', cursor: 'pointer',
-                      '&:hover': { bgcolor: 'action.hover' },
-                    }}
-                  >
-                    <Typography variant="body2" color="text.secondary">
-                      {doneQueue.length} finalizado{doneQueue.length !== 1 ? 's' : ''} — clique para expandir
-                    </Typography>
-                  </Paper>
-                )}
-              </Box>
-            )}
-          </>
+          </div>
         )}
-      </Box>
+      </div>
 
-      {/* ── Modals ── */}
+      {!selectedGiraId ? (
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <p className="text-muted-foreground">
+            {giras.length === 0 ? 'Não há gira hoje nem nas próximas horas.' : 'Escolha uma gira para ver a fila.'}
+          </p>
+          <Button asChild variant="outline">
+            <Link href="/admin/giras">Ver giras</Link>
+          </Button>
+        </div>
+      ) : (
+        <>
+          {/* ── Indicadores numa linha ── */}
+          <button
+            type="button"
+            data-tour="porta-stats"
+            onClick={() => setSummaryOpen(true)}
+            className="flex min-h-12 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+            aria-label={`${counts.aguardando} aguardando, ${counts.atendidos} atendidos, ${counts.naoVeio} não veio. Ver resumo`}
+          >
+            <span data-testid="porta-indicadores">
+              <strong className="tabular-nums">{counts.aguardando}</strong> aguardando ·{' '}
+              <strong className="tabular-nums">{counts.atendidos}</strong> atendidos ·{' '}
+              <strong className="tabular-nums">{counts.naoVeio}</strong> não veio
+            </span>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {lastUpdated
+                ? `atualizado ${lastUpdated.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                : 'carregando…'}
+            </span>
+          </button>
+
+          <TextField
+            data-tour="porta-busca"
+            aria-label="Buscar senha por nome ou número"
+            placeholder="Buscar por nome ou número…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            startAdornment={<Search aria-hidden />}
+            inputClassName="h-12 text-base"
+          />
+
+          {!queueLoaded ? (
+            <div className="flex flex-col gap-2" role="status" aria-label="Carregando a fila">
+              <Skeleton className="h-28 rounded-xl" />
+              <Skeleton className="h-14 rounded-xl" />
+              <Skeleton className="h-14 rounded-xl" />
+            </div>
+          ) : (
+            <>
+              {inProgress.length > 0 && (
+                <section data-tour="porta-em-atendimento" aria-label="Em atendimento">
+                  <SectionTitle count={inProgress.length}>Em atendimento</SectionTitle>
+                  <div className="flex flex-col gap-2">
+                    {inProgress.map((t) => (
+                      <InProgressCard key={t.id} item={t} a={actionsFor(t)} />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section data-tour="porta-fila" aria-label="Fila">
+                <SectionTitle count={waiting.length}>Fila</SectionTitle>
+                {waiting.length === 0 ? (
+                  <p className="rounded-xl border border-dashed py-8 text-center text-sm text-muted-foreground">
+                    {search ? 'Nenhuma senha encontrada.' : 'Fila vazia.'}
+                  </p>
+                ) : (
+                  <ul className="m-0 list-none overflow-hidden rounded-xl border p-0">
+                    {waiting.map((t) => (
+                      <QueueRow key={t.id} item={t} a={actionsFor(t)} isNext={next?.id === t.id} />
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              {done.length > 0 && (
+                <Button type="button" variant="ghost" className="self-center" onClick={() => setSummaryOpen(true)}>
+                  Ver {done.length} finalizada{done.length !== 1 ? 's' : ''}
+                </Button>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── Resumo do dia ── */}
+      <Sheet open={summaryOpen} onOpenChange={setSummaryOpen}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Resumo da gira</SheetTitle>
+            <SheetDescription>{selectedGira ? selectedGira.nome : ''}</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-col gap-5 px-4 pb-6">
+            {stats && (
+              <div className="grid grid-cols-3 gap-2" data-testid="porta-resumo">
+                <StatBox label="Total" value={stats.total} />
+                <StatBox label="Chegaram" value={stats.checked_in} />
+                <StatBox label="Atendidos" value={stats.completed} />
+                <StatBox label="Em atendimento" value={stats.in_progress} />
+                <StatBox label="Não veio" value={stats.no_show} />
+                <StatBox label="Sem senha" value={stats.walk_in} />
+                <StatBox label="Preferenciais" value={stats.preferenciais} />
+                <StatBox label="Associados" value={stats.patrocinados} />
+                <StatBox label="Ainda não chegaram" value={stats.awaiting} />
+              </div>
+            )}
+            <div>
+              <SectionTitle count={done.length}>Finalizadas</SectionTitle>
+              {done.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma senha finalizada ainda.</p>
+              ) : (
+                <ul className="m-0 list-none overflow-hidden rounded-xl border p-0">
+                  {done.map((t) => (
+                    <QueueRow key={t.id} item={t} a={actionsFor(t)} isNext={false} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* ── Diálogos ── */}
       <AttendModal
         open={!!attendTarget}
         ticketNumero={attendTarget?.numero || 0}
@@ -1183,7 +944,11 @@ export default function PortaPage() {
         editMode
         mediumOptions={mediumOptions}
         camboneOptions={camboneOptions}
-        initialValues={{ medium_nome: editTarget?.medium_nome || '', cambone_nome: editTarget?.cambone_nome || '', atendimento_descricao: editTarget?.atendimento_descricao || '' }}
+        initialValues={{
+          medium_nome: editTarget?.medium_nome || '',
+          cambone_nome: editTarget?.cambone_nome || '',
+          atendimento_descricao: editTarget?.atendimento_descricao || '',
+        }}
       />
       <WalkInModal
         open={walkInCreateOpen}
@@ -1194,43 +959,17 @@ export default function PortaPage() {
       <WalkInModal
         open={!!walkInEditTarget}
         mode="edit"
-        ticketNumero={walkInEditTarget?.numero_formatado}
-        initialValues={{ nome: walkInEditTarget?.consulente_nome || '', email: walkInEditTarget?.consulente_email || '', telefone: walkInEditTarget?.consulente_telefone || '', priority_category: walkInEditTarget?.priority_category ?? null }}
+        ticketNumero={walkInEditTarget ? numeroDaSenha(walkInEditTarget) : undefined}
+        initialValues={{
+          nome: walkInEditTarget?.consulente_nome || '',
+          email: walkInEditTarget?.consulente_email || '',
+          telefone: walkInEditTarget?.consulente_telefone || '',
+          priority_category: walkInEditTarget?.priority_category ?? null,
+        }}
         onConfirm={handleEditWalkIn}
         onClose={() => setWalkInEditTarget(null)}
         loading={actionLoading === walkInEditTarget?.id}
       />
-
-      {/* ── Walk-in FAB: fixed position so it's never hidden by header wrapping/overflow on any viewport ── */}
-      {selectedGiraId && config?.enable_walk_in && canInsert && (
-        <Fab
-          data-tour="porta-walkin"
-          variant="extended"
-          color="primary"
-          onClick={() => setWalkInCreateOpen(true)}
-          sx={{
-            position: 'fixed',
-            bottom: 'calc(24px + env(safe-area-inset-bottom))',
-            right: 'calc(24px + env(safe-area-inset-right))',
-            zIndex: (theme) => theme.zIndex.speedDial,
-          }}
-        >
-          <AddRoundedIcon sx={{ mr: 1 }} />
-          Walk-in
-        </Fab>
-      )}
-
-      {/* ── Snackbar ── */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setSnackbar((s) => ({ ...s, open: false }))} severity={snackbar.severity} variant="filled">
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </AdminLayout>
+    </div>
   );
 }

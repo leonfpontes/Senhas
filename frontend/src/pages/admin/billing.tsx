@@ -1,35 +1,39 @@
+/**
+ * /admin/billing — plano e assinatura num lugar só (o antigo /admin/plano redireciona para cá).
+ * Abas "Assinatura" (status, uso, teste do Premium, ações da Stripe) e "Comparar planos"
+ * (cards + comparativo). Planos, limites e rótulos vêm de `constants/plans.ts`.
+ * Tela de conta (sem feature de grupo): exceção registrada em scripts/audit-permission-guards.js.
+ */
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  Grid,
-  Paper,
-  Typography,
-} from '@mui/material';
-import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
-import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import CreditCardRoundedIcon from '@mui/icons-material/CreditCardRounded';
-import StarRoundedIcon from '@mui/icons-material/StarRounded';
-import WhatsAppIcon from '@mui/icons-material/WhatsApp';
-
-import AdminLayout from './admin_layout';
-import { apiClient, extractApiErrorMessage } from '../../services/api_client';
-import { useSubscription } from '../../hooks/useSubscription';
-import { useAdminTheme } from '@/providers/AdminThemeProvider';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { CircleAlert, CircleCheck, CreditCard, Info, MessageCircle, RefreshCw, Star, XCircle } from 'lucide-react';
+import AdminLayout from './admin_layout';
+import { PageHeader, ConfirmDialog } from '@/components/admin';
+import { PlanCard, PlanComparison, TrialSummaryCard, UsageBar } from '@/components/billing';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import { useSubscription } from '@/hooks/useSubscription';
+import {
+  PLAN_LIST,
+  PLANS,
+  getPlan,
+  normalizePlanKey,
+  planLabel,
+  recommendPlan,
+  subscriptionStatusLabel,
+  type PlanDef,
+  type PlanKey,
+} from '@/constants/plans';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface BillingInfo {
   plan: string;
@@ -45,154 +49,160 @@ interface BillingInfo {
   trial_ends_at?: string | null;
 }
 
-interface PlanMeta {
-  key: string;
-  label: string;
-  monthlyPrice: number;
-  priceLabel: string;
-  color: string;
-  popular: boolean;
-  features: string[];
+interface DashboardSummaryLite {
+  ticket_stats?: { total_emitted?: number };
 }
 
-// ─── Static data ──────────────────────────────────────────────────────────────
+const SUPPORT_WHATSAPP = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? '').replace(/\D/g, '');
 
-const PLANS: PlanMeta[] = [
-  {
-    key: 'basic',
-    label: 'Basic',
-    monthlyPrice: 49,
-    priceLabel: 'R$ 49',
-    color: '#3b82f6',
-    popular: false,
-    features: [
-      '5 usuários administradores',
-      '10 giras por mês',
-      '15 médiuns cadastrados',
-      'Relatório de gira',
-      'Personalização de tema',
-      'Módulo de associados',
-    ],
-  },
-  {
-    key: 'pro',
-    label: 'Pro',
-    monthlyPrice: 79,
-    priceLabel: 'R$ 79',
-    color: '#8b5cf6',
-    popular: true,
-    features: [
-      '20 usuários administradores',
-      '50 giras por mês',
-      '30 médiuns cadastrados',
-      'Envio de e-mail transacional',
-      'Analytics avançado',
-      'Export CSV',
-      'Controle de estoque',
-      'Mensalidade de médiuns',
-    ],
-  },
-  {
-    key: 'premium',
-    label: 'Premium',
-    monthlyPrice: 99,
-    priceLabel: 'R$ 99',
-    color: '#f59e0b',
-    popular: false,
-    features: [
-      'Usuários ilimitados',
-      'Giras ilimitadas',
-      'Médiuns ilimitados',
-      'Tudo do Pro',
-      'Acesso à API',
-      'Suporte prioritário',
-    ],
-  },
-];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string | null): string {
+function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function planLabel(key: string): string {
-  return PLANS.find((p) => p.key === key)?.label ?? (key.charAt(0).toUpperCase() + key.slice(1));
+// Classes estáticas: o Tailwind não enxerga nomes montados em tempo de execução.
+function statusToneClass(status: string): string {
+  if (status === 'active') return 'border-success/40 text-success';
+  if (status === 'suspended') return 'border-destructive/40 text-destructive';
+  return 'border-warning/50 text-warning';
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function AdminBilling() {
+  return (
+    <AdminLayout title="Plano e assinatura">
+      <BillingContent />
+    </AdminLayout>
+  );
+}
+
+function BillingContent() {
   const router = useRouter();
-  const { refresh: refreshSubscription } = useSubscription();
-  const { isDark } = useAdminTheme();
+  const { subscription, refresh: refreshSubscription } = useSubscription();
 
   const [billing, setBilling] = useState<BillingInfo | null>(null);
+  const [summary, setSummary] = useState<DashboardSummaryLite | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [cancelDialog, setCancelDialog] = useState(false);
   const [reactivateDialog, setReactivateDialog] = useState(false);
-  const [changePlanTarget, setChangePlanTarget] = useState<string | null>(null);
+  const [changePlanTarget, setChangePlanTarget] = useState<PlanKey | null>(null);
+  const [tab, setTab] = useState<'assinatura' | 'planos'>('assinatura');
+  const highlightedRef = useRef<HTMLDivElement | null>(null);
+
+  const queryPlan = normalizePlanKey(router.query.plan);
 
   const fetchBilling = useCallback(async () => {
     try {
-      const res = await apiClient.get('/api/v1/admin/billing');
+      const res = await apiClient.get<BillingInfo>('/api/v1/admin/billing');
       setBilling(res.data);
     } catch {
-      setError('Erro ao carregar informações de cobrança.');
+      setError('Não foi possível carregar os dados da assinatura.');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchBilling(); }, [fetchBilling]);
+  useEffect(() => {
+    fetchBilling();
+  }, [fetchBilling]);
 
-  // Handle Stripe return
+  // `?plan=` abre a aba de comparação e destaca o card.
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (queryPlan) setTab('planos');
+  }, [router.isReady, queryPlan]);
+
+  // Depende de `loading`: enquanto carrega, as abas nem estão montadas e o ref fica vazio.
+  useEffect(() => {
+    if (!loading && tab === 'planos' && queryPlan && highlightedRef.current) {
+      highlightedRef.current.scrollIntoView({ block: 'center' });
+    }
+  }, [loading, tab, queryPlan]);
+
+  // Volta da Stripe
   useEffect(() => {
     const { status } = router.query;
     if (status === 'success') {
-      setSuccess('Assinatura realizada com sucesso! Seu plano será atualizado em instantes.');
-      // O webhook do Stripe chega em paralelo ao redirect do navegador, não
-      // antes — um único refetch em 3s pode acontecer antes do webhook ser
-      // processado, mostrando o plano antigo por engano. Tenta algumas vezes
-      // com backoff em vez de confiar em um timing fixo.
-      const delays = [2000, 4000, 8000];
-      delays.forEach((delay) => {
-        setTimeout(() => { fetchBilling(); refreshSubscription(); }, delay);
+      setSuccess('Assinatura confirmada! Seu plano é atualizado em instantes.');
+      // O webhook da Stripe chega em paralelo ao redirect: tenta algumas vezes.
+      [2000, 4000, 8000].forEach((delay) => {
+        setTimeout(() => {
+          fetchBilling();
+          refreshSubscription();
+        }, delay);
       });
     } else if (status === 'cancelled') {
-      setError('Checkout cancelado. Nenhuma cobrança foi realizada.');
+      setError('Pagamento cancelado. Nenhuma cobrança foi feita.');
     } else if (status === 'checkout_error') {
-      setError('Não foi possível iniciar o checkout automaticamente. Escolha seu plano abaixo para tentar novamente.');
+      setError('Não conseguimos abrir o pagamento automaticamente. Escolha o plano abaixo para tentar de novo.');
     }
     if (status) router.replace('/admin/billing', undefined, { shallow: true });
   }, [router.query.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleCheckout = async (plan: string) => {
+  const isFreePlan = !billing?.stripe_subscription_id;
+  const currentPlanKey = normalizePlanKey(billing?.plan) ?? 'free';
+  const currentPlan = PLANS[currentPlanKey];
+  // Teste local, sem assinatura na Stripe: o plano do teste ainda não é "atual" no sentido pago.
+  const inLocalTrial = !!billing?.is_trial && isFreePlan && !billing?.is_bonus;
+  const trialEndShort = billing?.trial_ends_at
+    ? new Date(billing.trial_ends_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    : null;
+
+  // Resumo do painel só importa no teste (senhas emitidas); se falhar, omite.
+  useEffect(() => {
+    if (!inLocalTrial) return;
+    let cancelled = false;
+    apiClient
+      .get<DashboardSummaryLite>('/api/v1/admin/dashboard-summary')
+      .then((res) => {
+        if (!cancelled && res.data && typeof res.data === 'object') setSummary(res.data);
+      })
+      .catch(() => {
+        /* opcional */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inLocalTrial]);
+
+  const usage = useMemo(
+    () => ({
+      mediuns: subscription?.current_mediuns ?? 0,
+      girasPerMonth: subscription?.current_giras_this_month ?? 0,
+      users: subscription?.current_users ?? 1,
+      senhas: typeof summary?.ticket_stats?.total_emitted === 'number' ? summary.ticket_stats.total_emitted : null,
+    }),
+    [subscription, summary],
+  );
+  const recommended = PLANS[recommendPlan(usage)];
+
+  // ── ações ──
+  const handleCheckout = async (plan: PlanKey) => {
     setActionLoading(plan);
     setError(null);
     try {
       const res = await apiClient.post('/api/v1/admin/billing/checkout', { plan });
       window.location.href = res.data.checkout_url;
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao iniciar checkout.'));
+      setError(extractApiErrorMessage(err, 'Não foi possível abrir o pagamento.'));
       setActionLoading(null);
     }
   };
 
-  const handleChangePlan = async (plan: string) => {
+  const handleChangePlan = async (plan: PlanKey) => {
     setActionLoading(plan);
     setError(null);
     try {
       await apiClient.post('/api/v1/admin/billing/change-plan', { plan });
-      setSuccess(`Plano alterado para ${planLabel(plan)} com sucesso!`);
+      setSuccess(`Plano alterado para ${planLabel(plan)}.`);
       await fetchBilling();
       refreshSubscription();
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao alterar plano.'));
+      setError(extractApiErrorMessage(err, 'Não foi possível trocar o plano.'));
     } finally {
       setActionLoading(null);
     }
@@ -204,11 +214,11 @@ export default function AdminBilling() {
     setError(null);
     try {
       await apiClient.post('/api/v1/admin/billing/cancel');
-      setSuccess('Assinatura será cancelada ao final do período atual. Você continuará com acesso até lá.');
+      setSuccess('A assinatura será encerrada no fim do período atual. Até lá, tudo continua liberado.');
       await fetchBilling();
       refreshSubscription();
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao cancelar assinatura.'));
+      setError(extractApiErrorMessage(err, 'Não foi possível cancelar a assinatura.'));
     } finally {
       setActionLoading(null);
     }
@@ -220,438 +230,346 @@ export default function AdminBilling() {
     setError(null);
     try {
       await apiClient.post('/api/v1/admin/billing/reactivate');
-      setSuccess('Assinatura reativada com sucesso! As cobranças continuarão normalmente.');
+      setSuccess('Assinatura reativada. As cobranças seguem normalmente.');
       await fetchBilling();
       refreshSubscription();
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao reativar assinatura.'));
+      setError(extractApiErrorMessage(err, 'Não foi possível reativar a assinatura.'));
     } finally {
       setActionLoading(null);
     }
   };
 
-  const isFreePlan = !billing?.stripe_subscription_id;
-  const currentPlan = billing?.plan || 'free';
-  // Trial local, sem assinatura na Stripe: o plano do teste não é "atual" no
-  // sentido de pago — o card dele precisa oferecer "Assinar" (os dias que
-  // faltam do teste continuam grátis no checkout).
-  const inLocalTrial = !!billing?.is_trial && isFreePlan && !billing?.is_bonus;
-  const trialEndLabel = billing?.trial_ends_at
-    ? new Date(billing.trial_ends_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-    : null;
+  /** Ação do card de um plano na aba de comparação. */
+  const actionFor = (plan: PlanDef) => {
+    const isCurrent = plan.key === currentPlanKey && !inLocalTrial;
+    const isTrialPlan = plan.key === currentPlanKey && inLocalTrial;
+    const isLoading = actionLoading === plan.key;
+    if (plan.price === 0) {
+      return isCurrent ? { label: 'Plano atual', disabled: true, variant: 'outline' as const } : null;
+    }
+    if (isCurrent) return { label: 'Plano atual', disabled: true, variant: 'outline' as const };
+    if (isFreePlan) {
+      return {
+        label: isTrialPlan ? 'Continuar neste plano' : 'Assinar agora',
+        onClick: () => handleCheckout(plan.key),
+        disabled: !!actionLoading && !isLoading,
+        loading: isLoading,
+      };
+    }
+    return {
+      label: 'Mudar para este plano',
+      onClick: () => setChangePlanTarget(plan.key),
+      disabled: (!!actionLoading && !isLoading) || !!billing?.cancel_at_period_end,
+      loading: isLoading,
+      variant: plan.popular ? ('default' as const) : ('outline' as const),
+    };
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4" aria-busy="true" aria-label="Carregando assinatura">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   return (
-    <AdminLayout title="Assinatura">
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 320 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <Box>
-          {/* ── Page header ── */}
-          <Box data-tour="billing-header" sx={{ mb: 3 }}>
-            <Typography variant="h5" fontWeight={700}>Assinatura</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-              Gerencie seu plano e informações de cobrança
-            </Typography>
-          </Box>
+    <div data-slot="page" className="flex flex-col gap-5">
+      <PageHeader title="Plano e assinatura" subtitle="Seu plano, o uso do mês e a cobrança, num lugar só." />
 
-          {/* ── Alerts ── */}
-          {success && (
-            <Alert severity="success" onClose={() => setSuccess(null)} sx={{ mb: 3, borderRadius: 2 }}>
-              {success}
-            </Alert>
-          )}
-          {error && (
-            <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3, borderRadius: 2 }}>
-              {error}
-            </Alert>
-          )}
-
-          {/* ── Bonus banner ── */}
-          {billing?.is_bonus && (
-            <Alert
-              severity="info"
-              icon={<StarRoundedIcon />}
-              sx={{ mb: 3, borderRadius: 2, fontWeight: 500 }}
-            >
-              Seu acesso é <strong>bonificado</strong> — você tem o plano{' '}
-              <strong>{planLabel(currentPlan)}</strong> sem custo. Para alterações, entre em contato com o suporte.
-            </Alert>
-          )}
-
-          {/* ── Current plan status card ── */}
-          {billing && (
-            <Paper
-              data-tour="billing-status"
-              elevation={0}
-              sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3, mb: 4 }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-                {/* Left: plan info */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 2,
-                      bgcolor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <CreditCardRoundedIcon sx={{ color: 'primary.main', fontSize: 24 }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle1" fontWeight={700}>
-                      Plano {planLabel(currentPlan)}
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
-                      <Chip
-                        label={billing.status === 'active' ? 'Ativo' : billing.status}
-                        size="small"
-                        sx={{
-                          height: 20, fontSize: '0.7rem', fontWeight: 700,
-                          bgcolor: billing.status === 'active' ? '#dcfce7' : '#fef3c7',
-                          color: billing.status === 'active' ? '#16a34a' : '#d97706',
-                        }}
-                      />
-                      {inLocalTrial && (
-                        <Chip
-                          label={trialEndLabel ? `Teste grátis até ${trialEndLabel}` : 'Teste grátis'}
-                          size="small"
-                          sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: '#ede9fe', color: '#6d28d9' }}
-                        />
-                      )}
-                      {billing.is_bonus && (
-                        <Chip label="Bonificado" size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: '#dbeafe', color: '#1d4ed8' }} />
-                      )}
-                      {billing.cancel_at_period_end && (
-                        <Chip label="Cancelamento agendado" size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: '#fee2e2', color: '#dc2626' }} />
-                      )}
-                    </Box>
-                  </Box>
-                </Box>
-
-                {/* Right: actions */}
-                {!billing.is_bonus && billing.stripe_subscription_id && (
-                  <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-                    {!billing.cancel_at_period_end ? (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="error"
-                        startIcon={<CancelRoundedIcon />}
-                        disabled={actionLoading === 'cancel'}
-                        onClick={() => setCancelDialog(true)}
-                      >
-                        {actionLoading === 'cancel' ? 'Cancelando…' : 'Cancelar assinatura'}
-                      </Button>
-                    ) : (
-                      <Button
-                        size="small"
-                        variant="contained"
-                        color="success"
-                        disableElevation
-                        startIcon={<AutorenewRoundedIcon />}
-                        disabled={actionLoading === 'reactivate'}
-                        onClick={() => setReactivateDialog(true)}
-                      >
-                        {actionLoading === 'reactivate' ? 'Reativando…' : 'Reativar assinatura'}
-                      </Button>
-                    )}
-                  </Box>
-                )}
-              </Box>
-
-              {/* Billing details */}
-              {billing.stripe_subscription_id && (
-                <>
-                  <Divider sx={{ my: 2.5 }} />
-                  <Grid container spacing={3}>
-                    <Grid item xs={6} sm={4}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        Valor mensal
-                      </Typography>
-                      <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 0.5 }}>
-                        {billing.monthly_price === 0 ? 'Grátis' : `R$ ${billing.monthly_price.toFixed(2)}`}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={6} sm={4}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        {billing.cancel_at_period_end ? 'Acesso até' : 'Próxima cobrança'}
-                      </Typography>
-                      <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 0.5 }}>
-                        {formatDate(billing.current_period_end)}
-                      </Typography>
-                    </Grid>
-                    {billing.cancel_at_period_end && (
-                      <Grid item xs={12}>
-                        <Alert severity="warning" sx={{ borderRadius: 2, py: 0.75 }}>
-                          Seu acesso ao plano {planLabel(currentPlan)} será encerrado em{' '}
-                          <strong>{formatDate(billing.current_period_end)}</strong>. Reative para continuar usando.
-                        </Alert>
-                      </Grid>
-                    )}
-                  </Grid>
-                </>
-              )}
-
-              {inLocalTrial && (
-                <Alert severity="info" sx={{ mt: 2.5, borderRadius: 2 }}>
-                  Você está testando o plano {planLabel(currentPlan)}
-                  {trialEndLabel ? ` até ${trialEndLabel}` : ''}. Assine agora para não perder nada no fim do
-                  teste: a cobrança só começa quando o teste acabar.
-                </Alert>
-              )}
-
-              {currentPlan === 'free' && !billing.is_bonus && (
-                <Alert severity="info" sx={{ mt: 2.5, borderRadius: 2 }}>
-                  Você está no plano gratuito com funcionalidades limitadas. Escolha um plano abaixo para liberar o potencial completo do terreiro.
-                </Alert>
-              )}
-            </Paper>
-          )}
-
-          {/* ── Plan comparison ── */}
-          {!billing?.is_bonus && (
-            <>
-              <Box data-tour="billing-planos" sx={{ mb: 2 }}>
-                <Typography variant="subtitle1" fontWeight={700}>
-                  {isFreePlan ? 'Escolha seu plano' : 'Alterar plano'}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Todos os planos incluem emissão de senhas, Porta de atendimento e acesso ao painel.
-                </Typography>
-              </Box>
-
-              <Grid container spacing={3} sx={{ mb: 4 }}>
-                {PLANS.map((plan) => {
-                  const isCurrent = plan.key === currentPlan && !inLocalTrial;
-                  const isTrialPlan = plan.key === currentPlan && inLocalTrial;
-                  const isLoading = actionLoading === plan.key;
-
-                  return (
-                    <Grid item xs={12} sm={6} md={4} key={plan.key}>
-                      <Paper
-                        elevation={0}
-                        data-tour={`billing-plano-${plan.key}`}
-                        sx={{
-                          border: '2px solid',
-                          borderColor: isCurrent || isTrialPlan ? plan.color : plan.popular ? `${plan.color}60` : 'divider',
-                          borderRadius: 3,
-                          height: '100%',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          position: 'relative',
-                          overflow: 'hidden',
-                          transition: 'border-color .15s, box-shadow .15s',
-                          '&:hover': !isCurrent ? { borderColor: plan.color, boxShadow: `0 0 0 1px ${plan.color}30` } : {},
-                        }}
-                      >
-                        {/* Top color accent bar */}
-                        <Box sx={{ height: 4, bgcolor: plan.color, width: '100%' }} />
-
-                        <Box sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                          {/* Plan header */}
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                            <Typography variant="subtitle1" fontWeight={800} sx={{ color: plan.color }}>
-                              {plan.label}
-                            </Typography>
-                            {plan.popular && (
-                              <Chip
-                                label="Mais popular"
-                                size="small"
-                                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: plan.color, color: '#fff' }}
-                              />
-                            )}
-                            {isTrialPlan && (
-                              <Chip
-                                label="Em teste"
-                                size="small"
-                                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: `${plan.color}18`, color: plan.color, border: `1px solid ${plan.color}40` }}
-                              />
-                            )}
-                            {isCurrent && (
-                              <Chip
-                                label="Atual"
-                                size="small"
-                                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: `${plan.color}18`, color: plan.color, border: `1px solid ${plan.color}40` }}
-                              />
-                            )}
-                          </Box>
-
-                          {/* Price */}
-                          <Box sx={{ mb: 2.5 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                              <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1 }}>
-                                {plan.priceLabel}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">/mês</Typography>
-                            </Box>
-                          </Box>
-
-                          {/* Features */}
-                          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1, mb: 3 }}>
-                            {plan.features.map((f) => (
-                              <Box key={f} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                <CheckRoundedIcon sx={{ fontSize: 16, color: plan.color, mt: 0.15, flexShrink: 0 }} />
-                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem', lineHeight: 1.5 }}>
-                                  {f}
-                                </Typography>
-                              </Box>
-                            ))}
-                          </Box>
-
-                          {/* CTA */}
-                          {isCurrent ? (
-                            <Button
-                              fullWidth
-                              variant="outlined"
-                              disabled
-                              sx={{ borderColor: plan.color, color: plan.color, '&.Mui-disabled': { borderColor: `${plan.color}50`, color: `${plan.color}80` } }}
-                            >
-                              Plano atual
-                            </Button>
-                          ) : isFreePlan ? (
-                            <Button
-                              fullWidth
-                              variant="contained"
-                              disableElevation
-                              disabled={!!actionLoading}
-                              sx={{ bgcolor: plan.color, '&:hover': { bgcolor: plan.color, filter: 'brightness(0.9)' }, fontWeight: 700 }}
-                              onClick={() => handleCheckout(plan.key)}
-                            >
-                              {isLoading
-                                ? <CircularProgress size={20} sx={{ color: '#fff' }} />
-                                : isTrialPlan ? 'Continuar neste plano' : 'Assinar agora'}
-                            </Button>
-                          ) : (
-                            <Button
-                              fullWidth
-                              variant={plan.popular ? 'contained' : 'outlined'}
-                              disableElevation
-                              disabled={!!actionLoading || !!billing?.cancel_at_period_end}
-                              sx={
-                                plan.popular
-                                  ? { bgcolor: plan.color, '&:hover': { bgcolor: plan.color, filter: 'brightness(0.9)' }, fontWeight: 700 }
-                                  : { borderColor: plan.color, color: plan.color }
-                              }
-                              onClick={() => setChangePlanTarget(plan.key)}
-                            >
-                              {isLoading
-                                ? <CircularProgress size={20} sx={{ color: plan.popular ? '#fff' : plan.color }} />
-                                : 'Selecionar plano'}
-                            </Button>
-                          )}
-                        </Box>
-                      </Paper>
-                    </Grid>
-                  );
-                })}
-              </Grid>
-
-              {/* ── Contact / support note ── */}
-              <Paper
-                data-tour="billing-suporte"
-                elevation={0}
-                sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3 }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="subtitle2" fontWeight={700}>Dúvidas sobre os planos?</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                      Entre em contato pelo WhatsApp ou e-mail — respondemos rapidamente.
-                    </Typography>
-                  </Box>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<WhatsAppIcon />}
-                    href="https://wa.me/5511999999999"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={{ borderColor: '#22c55e', color: '#16a34a', '&:hover': { borderColor: '#16a34a', bgcolor: '#f0fdf4' }, flexShrink: 0 }}
-                  >
-                    Falar no WhatsApp
-                  </Button>
-                </Box>
-              </Paper>
-            </>
-          )}
-
-          {/* ── Cancel confirm dialog ── */}
-          <Dialog open={cancelDialog} onClose={() => setCancelDialog(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-            <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Cancelar assinatura?</DialogTitle>
-            <DialogContent>
-              <Typography variant="body2" color="text.secondary">
-                Sua assinatura será encerrada ao final do período atual —{' '}
-                <strong>{formatDate(billing?.current_period_end || null)}</strong>. Você continuará com acesso
-                ao plano <strong>{planLabel(currentPlan)}</strong> até essa data e depois retornará ao plano gratuito.
-              </Typography>
-            </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-              <Button onClick={() => setCancelDialog(false)} variant="outlined">
-                Manter assinatura
-              </Button>
-              <Button color="error" variant="contained" disableElevation onClick={handleCancel}>
-                Confirmar cancelamento
-              </Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* ── Reactivate confirm dialog ── */}
-          <Dialog open={reactivateDialog} onClose={() => setReactivateDialog(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-            <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Reativar assinatura?</DialogTitle>
-            <DialogContent>
-              <Typography variant="body2" color="text.secondary">
-                O cancelamento agendado será removido e as cobranças continuarão normalmente a partir de{' '}
-                <strong>{formatDate(billing?.current_period_end || null)}</strong>.
-              </Typography>
-            </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-              <Button onClick={() => setReactivateDialog(false)} variant="outlined">
-                Voltar
-              </Button>
-              <Button color="success" variant="contained" disableElevation onClick={handleReactivate}>
-                Confirmar reativação
-              </Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* ── Change-plan confirm dialog ── */}
-          <Dialog open={!!changePlanTarget} onClose={() => setChangePlanTarget(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-            <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
-              Trocar para o plano {changePlanTarget ? planLabel(changePlanTarget) : ''}?
-            </DialogTitle>
-            <DialogContent>
-              <Typography variant="body2" color="text.secondary">
-                A troca de plano é aplicada imediatamente. A diferença entre o plano atual e o novo plano
-                é cobrada ou estornada na sua próxima fatura, de forma proporcional aos dias restantes do
-                período atual, conforme a política de cobrança da Stripe.
-              </Typography>
-            </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-              <Button onClick={() => setChangePlanTarget(null)} variant="outlined">
-                Cancelar
-              </Button>
-              <Button
-                variant="contained"
-                disableElevation
-                onClick={() => {
-                  const plan = changePlanTarget!;
-                  setChangePlanTarget(null);
-                  handleChangePlan(plan);
-                }}
-              >
-                Confirmar troca
-              </Button>
-            </DialogActions>
-          </Dialog>
-        </Box>
+      {success && (
+        <Alert variant="success" role="status">
+          <CircleCheck aria-hidden />
+          <AlertDescription className="flex items-start justify-between gap-3">
+            <span>{success}</span>
+            <button type="button" className="text-xs font-semibold underline" onClick={() => setSuccess(null)}>
+              Fechar
+            </button>
+          </AlertDescription>
+        </Alert>
       )}
-    </AdminLayout>
+      {error && (
+        <Alert variant="destructive" role="alert">
+          <CircleAlert aria-hidden />
+          <AlertDescription className="flex items-start justify-between gap-3">
+            <span>{error}</span>
+            <button type="button" className="text-xs font-semibold underline" onClick={() => setError(null)}>
+              Fechar
+            </button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {billing?.is_bonus && (
+        <Alert variant="info">
+          <Star aria-hidden />
+          <AlertDescription className="block">
+            Seu acesso é <strong>cortesia</strong>: você tem o plano <strong>{currentPlan.label}</strong> sem custo. Para
+            mudar algo, fale com o suporte.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as 'assinatura' | 'planos')}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="assinatura">Assinatura</TabsTrigger>
+          <TabsTrigger value="planos" disabled={billing?.is_bonus}>
+            Comparar planos
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ══ Assinatura ══ */}
+        <TabsContent value="assinatura" className="mt-4 flex flex-col gap-5">
+          {billing && (
+            <Card data-tour="billing-status">
+              <CardContent className="flex flex-col gap-5 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <CreditCard className="size-6" aria-hidden />
+                    </span>
+                    <div>
+                      <p className="text-base font-bold">Plano {currentPlan.label}</p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        <Badge variant="outline" className={statusToneClass(billing.status)}>
+                          {subscriptionStatusLabel(billing.status)}
+                        </Badge>
+                        {inLocalTrial && <Badge variant="outline">{trialEndShort ? `Teste grátis até ${trialEndShort}` : 'Teste grátis'}</Badge>}
+                        {billing.is_bonus && <Badge variant="outline">Cortesia</Badge>}
+                        {billing.cancel_at_period_end && <Badge variant="destructive">Cancelamento agendado</Badge>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {!billing.is_bonus && billing.stripe_subscription_id && (
+                    <div className="flex shrink-0 gap-2">
+                      {!billing.cancel_at_period_end ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          disabled={actionLoading === 'cancel'}
+                          onClick={() => setCancelDialog(true)}
+                        >
+                          <XCircle aria-hidden /> {actionLoading === 'cancel' ? 'Cancelando…' : 'Cancelar assinatura'}
+                        </Button>
+                      ) : (
+                        <Button size="sm" disabled={actionLoading === 'reactivate'} onClick={() => setReactivateDialog(true)}>
+                          <RefreshCw aria-hidden /> {actionLoading === 'reactivate' ? 'Reativando…' : 'Reativar assinatura'}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {billing.stripe_subscription_id && (
+                  <div className="grid gap-4 border-t pt-4 sm:grid-cols-3">
+                    <div>
+                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Valor mensal</p>
+                      <p className="mt-0.5 text-sm font-bold">{billing.monthly_price === 0 ? 'Grátis' : `R$ ${billing.monthly_price.toFixed(2)}`}</p>
+                    </div>
+                    <div>
+                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                        {billing.cancel_at_period_end ? 'Acesso até' : 'Próxima cobrança'}
+                      </p>
+                      <p className="mt-0.5 text-sm font-bold">{formatDate(billing.current_period_end)}</p>
+                    </div>
+                    {billing.cancel_at_period_end && (
+                      <Alert variant="warning" className="sm:col-span-3">
+                        <Info aria-hidden />
+                        <AlertDescription className="block">
+                          Seu acesso ao plano {currentPlan.label} termina em <strong>{formatDate(billing.current_period_end)}</strong>.
+                          Reative para continuar.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                )}
+
+                {subscription && (
+                  <div className="grid gap-4 border-t pt-4 sm:grid-cols-3">
+                    <UsageBar label="Usuários no painel" current={subscription.current_users} max={subscription.max_users} />
+                    <UsageBar label="Giras este mês" current={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
+                    <UsageBar label="Médiuns cadastrados" current={subscription.current_mediuns} max={subscription.max_mediuns} />
+                  </div>
+                )}
+
+                {currentPlanKey === 'free' && !billing.is_bonus && !inLocalTrial && (
+                  <Alert variant="info">
+                    <Info aria-hidden />
+                    <AlertDescription className="block">
+                      Você está no plano gratuito.{' '}
+                      <button type="button" className="font-semibold underline underline-offset-4" onClick={() => setTab('planos')}>
+                        Compare os planos
+                      </button>{' '}
+                      para liberar médiuns, relatório da gira e os outros módulos.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {inLocalTrial && billing && (
+            <TrialSummaryCard
+              data-tour="billing-trial"
+              plan={currentPlan}
+              trialEndsAt={billing.trial_ends_at ?? null}
+              usage={usage}
+              recommended={recommended}
+              onKeep={(p) => handleCheckout(p.key)}
+              loading={actionLoading === recommended.key}
+              disabled={!!actionLoading}
+            />
+          )}
+
+          {!billing?.is_bonus && (
+            <div className="grid gap-4 md:grid-cols-[minmax(0,320px)_1fr]">
+              <PlanCard
+                data-tour={`billing-plano-${currentPlan.key}`}
+                plan={currentPlan}
+                state={inLocalTrial ? 'trial' : 'current'}
+                action={
+                  inLocalTrial
+                    ? {
+                        label: 'Continuar neste plano',
+                        onClick: () => handleCheckout(currentPlan.key),
+                        disabled: !!actionLoading && actionLoading !== currentPlan.key,
+                        loading: actionLoading === currentPlan.key,
+                      }
+                    : { label: 'Plano atual', disabled: true, variant: 'outline' }
+                }
+              />
+              <Card className="flex items-center">
+                <CardContent className="flex flex-col gap-3 p-5">
+                  <p className="text-base font-bold">Quer mais ou menos?</p>
+                  <p className="text-sm text-muted-foreground">
+                    Veja lado a lado o que cada plano libera e troque quando quiser. A diferença é cobrada ou devolvida de
+                    forma proporcional na próxima fatura.
+                  </p>
+                  <Button variant="outline" className="w-fit" onClick={() => setTab('planos')}>
+                    Comparar planos
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          <SupportCard />
+        </TabsContent>
+
+        {/* ══ Comparar planos ══ */}
+        <TabsContent value="planos" className="mt-4 flex flex-col gap-6">
+          <div data-tour="billing-planos">
+            <p className="text-base font-bold">{isFreePlan ? 'Escolha seu plano' : 'Trocar de plano'}</p>
+            <p className="text-sm text-muted-foreground">
+              Todos os planos incluem senha pelo WhatsApp, Porta e painel.
+              {inLocalTrial ? ' Durante o teste, os dias que faltam continuam grátis depois de assinar.' : ''}
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {PLAN_LIST.map((plan) => {
+              const isHighlight = plan.key === queryPlan;
+              const state = plan.key === currentPlanKey ? (inLocalTrial ? 'trial' : 'current') : 'none';
+              return (
+                <div key={plan.key} ref={isHighlight ? highlightedRef : undefined}>
+                  <PlanCard
+                    data-tour={`billing-plano-${plan.key}`}
+                    plan={plan}
+                    state={state}
+                    highlighted={isHighlight}
+                    recommended={inLocalTrial && plan.key === recommended.key && plan.price > 0}
+                    action={actionFor(plan)}
+                    note={plan.price === 0 && state === 'none' ? 'Para voltar ao gratuito, cancele a assinatura.' : undefined}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div data-tour="billing-comparativo">
+            <p className="mb-3 text-base font-bold">Comparativo completo</p>
+            <PlanComparison currentPlan={currentPlanKey} highlightPlan={queryPlan} />
+          </div>
+
+          <SupportCard />
+        </TabsContent>
+      </Tabs>
+
+      <ConfirmDialog
+        open={cancelDialog}
+        title="Cancelar assinatura?"
+        message={
+          <>
+            Sua assinatura termina no fim do período atual — <strong>{formatDate(billing?.current_period_end)}</strong>. Até lá
+            você continua no plano <strong>{currentPlan.label}</strong>; depois a conta volta ao gratuito.
+          </>
+        }
+        confirmText="Confirmar cancelamento"
+        cancelText="Manter assinatura"
+        destructive
+        onConfirm={handleCancel}
+        onCancel={() => setCancelDialog(false)}
+      />
+
+      <ConfirmDialog
+        open={reactivateDialog}
+        title="Reativar assinatura?"
+        message={
+          <>
+            O cancelamento agendado é desfeito e as cobranças seguem normalmente a partir de{' '}
+            <strong>{formatDate(billing?.current_period_end)}</strong>.
+          </>
+        }
+        confirmText="Confirmar reativação"
+        cancelText="Voltar"
+        onConfirm={handleReactivate}
+        onCancel={() => setReactivateDialog(false)}
+      />
+
+      <ConfirmDialog
+        open={!!changePlanTarget}
+        title={`Trocar para o plano ${changePlanTarget ? getPlan(changePlanTarget).label : ''}?`}
+        message="A troca vale na hora. A diferença entre os planos é cobrada ou devolvida na próxima fatura, proporcional aos dias que faltam do período atual."
+        confirmText="Confirmar troca"
+        onConfirm={() => {
+          const plan = changePlanTarget!;
+          setChangePlanTarget(null);
+          handleChangePlan(plan);
+        }}
+        onCancel={() => setChangePlanTarget(null)}
+      />
+    </div>
+  );
+}
+
+function SupportCard() {
+  return (
+    <Card data-tour="billing-suporte">
+      <CardContent className="flex flex-wrap items-center gap-4 p-5">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold">Dúvida sobre os planos?</p>
+          <p className="text-sm text-muted-foreground">
+            {SUPPORT_WHATSAPP
+              ? 'Chame no WhatsApp ou use o chat de suporte aqui no painel.'
+              : 'Use o botão "Ajuda" aqui no painel — a conversa fica salva.'}
+          </p>
+        </div>
+        {SUPPORT_WHATSAPP && (
+          <Button asChild variant="outline" size="sm" className="shrink-0">
+            <a href={`https://wa.me/${SUPPORT_WHATSAPP}`} target="_blank" rel="noopener noreferrer">
+              <MessageCircle aria-hidden /> Falar no WhatsApp
+            </a>
+          </Button>
+        )}
+        <Button asChild variant="ghost" size="sm" className="shrink-0">
+          <Link href="/admin/suporte">Ver conversas de suporte</Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

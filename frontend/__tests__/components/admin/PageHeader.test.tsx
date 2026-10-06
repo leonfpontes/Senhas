@@ -1,50 +1,41 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { PageHeader } from '@/components/admin/PageHeader';
 
-const theme = createTheme();
-
-function wrap(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
-}
-
 describe('PageHeader', () => {
-  it('renders the title', () => {
-    wrap(<PageHeader title="Usuários" />);
-    expect(screen.getByText('Usuários')).toBeInTheDocument();
+  it('renders the title as the page heading', () => {
+    render(<PageHeader title="Usuários" />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Usuários' })).toBeInTheDocument();
   });
 
   it('renders subtitle when provided', () => {
-    wrap(<PageHeader title="Usuários" subtitle="Gerencie todos os usuários" />);
+    render(<PageHeader title="Usuários" subtitle="Gerencie todos os usuários" />);
     expect(screen.getByText('Gerencie todos os usuários')).toBeInTheDocument();
   });
 
   it('does not render subtitle element when omitted', () => {
-    wrap(<PageHeader title="Usuários" />);
+    render(<PageHeader title="Usuários" />);
     expect(screen.queryByText(/Gerencie/)).not.toBeInTheDocument();
   });
 
   it('renders actions slot when provided', () => {
-    wrap(
+    render(
       <PageHeader
         title="Giras"
         actions={<button data-testid="add-btn">Nova Gira</button>}
       />
     );
     expect(screen.getByTestId('add-btn')).toBeInTheDocument();
-    expect(screen.getByText('Nova Gira')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nova Gira' })).toBeInTheDocument();
   });
 
   it('does not render actions container when actions prop is absent', () => {
-    const { container } = wrap(<PageHeader title="Giras" />);
-    // No buttons in the header
-    expect(container.querySelector('button')).toBeNull();
+    render(<PageHeader title="Giras" />);
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('renders title as h5 variant', () => {
-    wrap(<PageHeader title="Dashboard" />);
-    const heading = screen.getByText('Dashboard');
-    expect(heading.tagName).toBe('H5');
+  it('renders inside a <header> landmark', () => {
+    render(<PageHeader title="Dashboard" />);
+    expect(screen.getByRole('banner')).toContainElement(screen.getByRole('heading', { name: 'Dashboard' }));
   });
 });

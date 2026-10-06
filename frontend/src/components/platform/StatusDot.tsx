@@ -1,36 +1,22 @@
-import React from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
+import React from 'react';
+import { cn } from '@/lib/utils';
 
 interface StatusDotProps {
-  ok:    boolean;
+  ok: boolean;
   label: string;
+  className?: string;
 }
 
-/**
- * Animated status indicator used in the system health bar.
- * Green = ok (pulsing), red = error (static).
- */
-export const StatusDot: React.FC<StatusDotProps> = ({ ok, label }) => (
-  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-    <Box
-      sx={{
-        width: 7,
-        height: 7,
-        borderRadius: "50%",
-        bgcolor:   ok ? "#10B981" : "#EF4444",
-        boxShadow: ok
-          ? "0 0 6px rgba(16,185,129,0.7)"
-          : "0 0 6px rgba(239,68,68,0.7)",
-        animation: ok ? "platformPulse 2s ease-in-out infinite" : "none",
-        "@keyframes platformPulse": {
-          "0%,100%": { opacity: 1 },
-          "50%":     { opacity: 0.45 },
-        },
-      }}
+/** Indicador de saúde (verde = ok, vermelho = erro) com rótulo. Cores dos tokens do tema. */
+export const StatusDot: React.FC<StatusDotProps> = ({ ok, label, className }) => (
+  <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground', className)}>
+    <span
+      aria-hidden
+      className={cn('size-2 rounded-full', ok ? 'bg-success' : 'bg-destructive')}
     />
-    <Typography sx={{ fontSize: "0.7rem", fontWeight: 600, color: "text.secondary" }}>
-      {label}
-    </Typography>
-  </Box>
+    <span className="sr-only">{ok ? 'Operacional:' : 'Com problema:'}</span>
+    {label}
+  </span>
 );
+
+export default StatusDot;

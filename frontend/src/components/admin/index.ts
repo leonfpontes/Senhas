@@ -1,8 +1,13 @@
 export { KpiCard }      from './KpiCard';
+export type { KpiCardProps } from './KpiCard';
 export { PageHeader }   from './PageHeader';
+export type { PageHeaderProps } from './PageHeader';
 export { ConfirmDialog } from './ConfirmDialog';
-export { DataTable }    from './DataTable';
-export type { Column }  from './DataTable';
+export type { ConfirmDialogProps } from './ConfirmDialog';
+export { DataTable, pageRangeLabel } from './DataTable';
+export type { DataTableProps, ColumnDef, SortingState, PaginationState, RowSelectionState } from './DataTable';
+export { EmptyState }   from '../EmptyState';
+export type { EmptyStateProps } from '../EmptyState';
 export { ChartTooltip } from './ChartTooltip';
 
 export { BrandHeader }        from './layout/BrandHeader';

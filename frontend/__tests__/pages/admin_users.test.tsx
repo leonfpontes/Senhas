@@ -4,7 +4,6 @@
  */
 import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 
 jest.mock('next/router', () => ({
   useRouter: () => ({
@@ -44,21 +43,13 @@ jest.mock('@/hooks/usePermissions', () => ({
   usePermissions: () => ({ can: () => true, permissions: null, loading: false, refresh: jest.fn() }),
 }));
 
-// CrudDrawer and PasswordField use @mui/material/useTheme subpath not found in the test container.
-jest.mock('@/components/CrudDrawer', () => ({
-  __esModule: true,
-  default: ({ children, open, title }: any) =>
-    open ? <div data-testid="crud-drawer" aria-label={title}>{children}</div> : null,
+const mockProfile: { role?: string } = { role: 'operator' };
+jest.mock('@/hooks/useProfile', () => ({
+  useProfile: () => ({ profile: mockProfile, loading: false, refresh: jest.fn() }),
 }));
 
-jest.mock('@/components/PasswordField', () => ({
-  __esModule: true,
-  default: (props: any) => <input type="password" placeholder={props.label} />,
-}));
-
-const theme = createTheme();
 function wrap(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+  return render(ui);
 }
 
 const MOCK_USERS = [
@@ -79,12 +70,13 @@ describe('Admin Users Page', () => {
     expect(container).toBeTruthy();
   });
 
-  it('shows loading spinner initially', () => {
+  it('does not show users while loading', () => {
     const { apiClient } = require('@/services/api_client');
     apiClient.get.mockReturnValue(new Promise(() => {})); // never resolves
     const AdminUsers = require('@/pages/admin/users').default;
     wrap(<AdminUsers />);
-    expect(document.querySelector('.MuiCircularProgress-root')).toBeInTheDocument();
+    expect(screen.queryByText('alice@test.com')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Atualizar/ })).toBeDisabled();
   });
 
   it('renders users after load', async () => {
@@ -100,9 +92,10 @@ describe('Admin Users Page', () => {
     const AdminUsers = require('@/pages/admin/users').default;
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
-    // Role chips display 'Admin' (capitalized) and 'Operador' (translated)
-    expect(screen.getByText('Admin')).toBeInTheDocument();
+    // "Perfil de acesso" em português, sem "role"
+    expect(screen.getByText('Administrador')).toBeInTheDocument();
     expect(screen.getByText('Operador')).toBeInTheDocument();
+    expect(screen.queryByText(/role/i)).not.toBeInTheDocument();
   });
 
   it('opens ConfirmDialog when delete button is clicked', async () => {
@@ -110,11 +103,10 @@ describe('Admin Users Page', () => {
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
 
-    // Delete buttons are error-colored IconButtons without tooltip
-    const deleteButtons = document.querySelectorAll('.MuiIconButton-colorError');
+    const deleteButtons = screen.getAllByRole('button', { name: 'Excluir usuário' });
     act(() => { fireEvent.click(deleteButtons[0]); });
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
   });
 
   it('calls DELETE API and closes dialog on confirm', async () => {
@@ -123,14 +115,14 @@ describe('Admin Users Page', () => {
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
 
-    const deleteButtons = document.querySelectorAll('.MuiIconButton-colorError');
+    const deleteButtons = screen.getAllByRole('button', { name: 'Excluir usuário' });
     act(() => { fireEvent.click(deleteButtons[0]); });
 
-    await waitFor(() => screen.getByRole('dialog'));
-    await act(async () => { fireEvent.click(screen.getByText('Excluir')); });
+    await waitFor(() => screen.getByRole('alertdialog'));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Excluir' })); });
 
     expect(apiClient.delete).toHaveBeenCalledWith(expect.stringContaining('/users/'));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
   });
 
   it('closes dialog without deleting on cancel', async () => {
@@ -139,22 +131,78 @@ describe('Admin Users Page', () => {
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
 
-    const deleteButtons = document.querySelectorAll('.MuiIconButton-colorError');
+    const deleteButtons = screen.getAllByRole('button', { name: 'Excluir usuário' });
     act(() => { fireEvent.click(deleteButtons[0]); });
 
-    await waitFor(() => screen.getByRole('dialog'));
-    await act(async () => { fireEvent.click(screen.getByText('Cancelar')); });
+    await waitFor(() => screen.getByRole('alertdialog'));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Cancelar' })); });
 
     expect(apiClient.delete).not.toHaveBeenCalled();
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
   });
 
   it('shows PageHeader with title', async () => {
     const AdminUsers = require('@/pages/admin/users').default;
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
-    // PageHeader renders an h5
-    const h5 = document.querySelector('h5');
-    expect(h5).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Pessoas e acessos' })).toBeInTheDocument();
+  });
+
+  it('validates the password with the backend rule', async () => {
+    const AdminUsers = require('@/pages/admin/users').default;
+    wrap(<AdminUsers />);
+    await waitFor(() => screen.getByText('alice@test.com'));
+    fireEvent.click(screen.getByRole('button', { name: /Nova pessoa/ }));
+    const senha = await screen.findByLabelText(/^Senha/);
+    fireEvent.change(senha, { target: { value: 'curta' } });
+    fireEvent.blur(senha);
+    expect(await screen.findByText(/Falta: pelo menos 12 caracteres/)).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Regras da senha' })).toBeInTheDocument();
+  });
+
+  it('moves a new operator into the chosen group and out of the default one', async () => {
+    mockProfile.role = 'admin';
+    const { apiClient } = require('@/services/api_client');
+    apiClient.get.mockImplementation((url: string) => {
+      if (url.startsWith('/api/v1/admin/permission-groups')) {
+        return Promise.resolve({
+          data: [
+            { id: 'g-default', name: 'Acesso total', is_default: true, members_count: 1 },
+            { id: 'g-porta', name: 'Porta', is_default: false, members_count: 0 },
+          ],
+        });
+      }
+      return Promise.resolve({ data: MOCK_USERS });
+    });
+    apiClient.post.mockImplementation((url: string) =>
+      Promise.resolve({ data: url === '/api/v1/admin/users' ? { id: 'new-user' } : {} }),
+    );
+
+    const AdminUsers = require('@/pages/admin/users').default;
+    wrap(<AdminUsers />);
+    await waitFor(() => screen.getByText('alice@test.com'));
+    fireEvent.click(screen.getByRole('button', { name: /Nova pessoa/ }));
+
+    fireEvent.change(await screen.findByLabelText(/^E-mail/), { target: { value: 'nova@test.com' } });
+    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'Nova' } });
+    fireEvent.change(screen.getByLabelText(/^Senha/), { target: { value: 'SenhaForte#2026' } });
+
+    // "Pode fazer:" com "Acesso total" como padrão
+    const select = await screen.findByRole('combobox', { name: 'Pode fazer:' });
+    expect(select).toHaveTextContent('Acesso total');
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByRole('option', { name: 'Porta' }));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
+    });
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/permission-groups/g-porta/members', {
+        user_id: 'new-user',
+      }),
+    );
+    expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/admin/permission-groups/g-default/members/new-user');
+    mockProfile.role = 'operator';
   });
 });

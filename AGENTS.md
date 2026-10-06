@@ -27,9 +27,8 @@ Principais modulos:
 ## 2) Mapa Rapido do Monorepo
 
 - backend/: FastAPI + SQLAlchemy async + Alembic + testes Pytest.
-- frontend/: Next.js + TypeScript + Material UI + Jest/RTL.
+- frontend/: Next.js (Pages Router) + TypeScript + Tailwind v4 + shadcn/ui + Jest/RTL.
 - packages/shared-types: contratos tipados compartilhados.
-- packages/shared-ui: componentes e tema compartilhado.
 - docs/: arquitetura, API, auth, multi-tenancy, deploy e testes.
 - e2e/: cenarios E2E.
 - load_tests/: testes de carga.
@@ -233,7 +232,7 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
 
 ### 4.2 Frontend
 
-- Stack alvo: Next.js + TypeScript + MUI.
+- Stack: Next.js + TypeScript + Tailwind v4 + shadcn/ui (kit em `frontend/src/components/README.md`, ver §11.16).
 - Preferir componentes reutilizaveis e hooks existentes.
 - Evitar duplicacao de chamadas API; centralizar em services/client.
 - Garantir estado de loading, erro e sucesso em telas administrativas.
@@ -493,10 +492,51 @@ Incluir obrigatoriamente:
 - **Operação**: desligar com `ONBOARDING_EMAILS_ENABLED=false` no `.env` + restart do backend. Listar quem receberia na próxima rodada, sem enviar nem marcar: `docker compose -f docker-compose.prod.yml exec backend python -m src.services.onboarding_email_scheduler --dry-run`.
 - Contato principal do tenant: `get_tenant_primary_contact()` em `trial_scheduler.py` (admin mais antigo ativo), compartilhado pelos dois agendadores.
 
-### 11.15 Painel de ativação no Observatório (super-admin)
-- **Onde**: primeira seção de `/platform/observatory` (âncora `#ativacao`), componente `frontend/src/components/platform/ActivationSection.tsx`. Dados em `activation` do `GET /api/v1/platform/tenant-observatory` (protegido por `require_super_admin`), calculados por `backend/src/services/activation_service.py`.
+### 11.15 Painel de ativação na tela Hoje (super-admin)
+- **Onde**: tela "Hoje" de `/platform` (o antigo `/platform/observatory` redireciona para ela, mantendo a âncora), componente `frontend/src/components/platform/ActivationSection.tsx`. Dados em `activation` do `GET /api/v1/platform/tenant-observatory` (protegido por `require_super_admin`), calculados por `backend/src/services/activation_service.py`.
 - **Conteúdo**: cadastros dos últimos 60 dias (`WINDOW_DAYS`), do mais recente ao mais antigo, cada um num estágio — `sem_gira` → `sem_senhas` (gira criada sem `max_tickets`, nada aparece no link) → `aguardando_senha` → `recebendo` → `usou_porta` → `ativado` (20+ senhas pelo link, mesmo limiar do checklist). Mostra também giras configuradas/total e próxima gira, senhas pelo link, trial (dias restantes) ou pagante, e-mails de onboarding enviados (D+1/D+3, de `custom_settings.onboarding_emails`), dor do cadastro, última atividade (sessão ou ação auditada) e contato do admin mais antigo com links de WhatsApp (`wa.me`, DDI 55 acrescentado) e e-mail.
 - **Consulta**: uma ida ao banco com subconsultas correlacionadas por tenant + uma para os contatos. Visão cross-tenant por desenho (super-admin), sem filtro de tenant.
+
+### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
+- **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
+  usa Tailwind v4 + shadcn/ui (Radix, estilo new-york, `data-slot`). **Não criar `sx` nem reintroduzir MUI.**
+- **CSS global** (`src/styles/globals.css`, importado só no `_app.tsx`): camadas `theme < base < components < utilities`,
+  preflight completo do Tailwind, `body` com `--background/--foreground/--font-sans`. Breakpoints iguais aos antigos do
+  MUI (`sm 600 / md 900 / lg 1200 / xl 1536`, sem `2xl`). Tokens shadcn em `:root`/`.dark`, mais `--success`, `--warning`,
+  `--info` (com `-foreground`) e `--chart-grid`/`--chart-tick`. Fonte da interface: pilha do sistema (sem Roboto global).
+- **Cores do terreiro**: `src/lib/brand.ts` → `applyBrand(document.documentElement, {primary, secondary, font})`, chamado
+  pelo `TenantAwareThemeProvider` a cada mudança de branding; escreve `--primary`, `--primary-foreground`, `--secondary`,
+  `--secondary-foreground`, `--ring`, `--sidebar-primary`. Texto sobre a marca: a cor de fonte do terreiro se o contraste
+  for ≥ 4,5, senão preto/branco. Default `#4f46e5` (= backend). Telas públicas: texto na cor da marca usa
+  `text-(color:--brand-text)` (primária escurecida até AA, definida pelo `PublicShell`), nunca `text-primary`.
+- **Claro/escuro**: classe `dark` em `<html>` (não no layout — Radix porta overlays para o `<body>`), aplicada por
+  `AdminThemeProvider`/`PlatformThemeProvider` (chaves `admin_theme_mode`/`platform_theme_mode`); páginas públicas sempre claras.
+- **Overlays**: Sheet/Dialog/AlertDialog/Select/Popover/DropdownMenu usam o z-index padrão do Radix (`z-50`); quem abre por
+  último fica por cima, então calendário e Combobox dentro do `CrudDrawer` funcionam. Barras fixas: topbar `z-30`,
+  `MobileTabBar` e `BulkActionsBar` `z-40`. Não usar `z-[1300]`/`z-[1400]` (eram para ficar acima do AppBar do MUI).
+- **Kit** (`frontend/src/components/README.md`): `components/ui/*`, `fields/*` (`TextField`, `PasswordField`, `MoneyInput`,
+  `MaskedInput` + `maskTelefone/maskCpf/unmask`, `DateField`, `DateTimeField`, `Combobox`), `CrudDrawer`, `ConfirmDialog`,
+  `DataTable` (TanStack v8, `renderCard` no celular), `EmptyState`, `PageHeader`, `KpiCard` (único), `Stepper`,
+  `gates/{PermissionDenied,ReadOnlyNotice,PlanLocked}`, `charts/ChartCard` + `lib/chartTokens.ts`, `lib/icons.ts`,
+  `lib/dateBr.ts` (datas no fuso de Brasília), `useSnackbar()` → Sonner. `TooltipProvider` não é global: quem usa `Tooltip`
+  monta um. `TabsContent` com `flex` precisa de `data-[state=inactive]:hidden`.
+- **Por área** (compostos próprios): público `components/public/*` (`PublicShell`, `Bilhete` + `bilhete-utils`,
+  `public-errors`); operação `components/admin/{GiraCard,ShareLinkDialog,GiraContext,CommandPalette,MobileTabBar,
+  TicketDetailSheet,TicketEmailPanel,senhaFormat}` e `layout/navConfig.ts` (menu por trabalho: Hoje · Giras e senhas ·
+  Corrente · Casa · Conta); casa `components/financeiro/{CobrancaMensal,MonthNavigator}`, `components/estoque/MovimentacaoDrawer`;
+  conta `constants/plans.ts` (fonte única de planos, testada contra o backend), `constants/passwordPolicy.ts`,
+  `components/{auth,billing}/*`; site `components/site/{sections,editor}/*` (mesmas seções no site público e na prévia);
+  plataforma `components/platform/{planMeta,format,impersonate,passwordPolicy,CommandPalette,...}`.
+- **Rotas que viraram redirecionamento**: `/admin/plano` → `/admin/billing`; `/admin/financeiro/contas-pagar|contas-receber`
+  → `/admin/financeiro/lancamentos?tipo=`; `/admin/estoque/relatorio` → `/admin/estoque/itens`; `/platform/observatory` →
+  `/platform`; `/platform/billing` → aba Assinaturas de `/platform/tenants`; `/platform/users_global` e `/platform/profile`
+  → abas de `/platform/settings`. Parâmetros: `?nova=1`/`?compartilhar=1` em Giras, `?passos=1` no Início, `?gira=` em
+  Porta/Senhas/modo TV, `?plan=` no billing e no cadastro. Impersonação aceita `#token=` (e ainda a query string).
+- **Versão**: `frontend/package.json` `version` → `NEXT_PUBLIC_UI_VERSION` (`next.config.js`) → `src/lib/version.ts`
+  (`APP_VERSION`, "GiraHub v2.0.0" no rodapé da sidebar, menu do usuário e plataforma). Backend `APP_VERSION` 2.0.0;
+  a tag das imagens Docker vem de `APP_VERSION` no `.env` do servidor.
+- **Testes**: por papel/texto (nunca classes). `jest.setup.js` tem polyfills do Radix (`hasPointerCapture`,
+  `scrollIntoView`, `ResizeObserver`, `matchMedia`). Bundle antes/depois em `docs/bundle-baseline.md`.
 
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).

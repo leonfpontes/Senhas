@@ -1,610 +1,328 @@
 /**
- * Platform Layout
+ * Layout da plataforma (super admin) — casca de todas as páginas /platform.
  *
- * Shell for all /platform pages.  Responsibilities:
- *   1. Auth guard — redirects non-super_admin users
- *   2. Wraps children in PlatformThemeProvider (scoped dark/light theme)
- *   3. Renders collapsible sidebar + sticky top-bar
+ *   1. Guarda de acesso: só `role === "super_admin"` (localStorage `user`); os demais são
+ *      redirecionados para /admin/dashboard ou /login.
+ *   2. `PlatformThemeProvider` (claro/escuro pela classe `dark` na raiz).
+ *   3. Bloco `Sidebar` do kit (recolhível em ícones), cabeçalho com Breadcrumb, busca de
+ *      comandos (⌘K) e alternância de tema. O padding do conteúdo é aplicado uma vez aqui.
  *
- * Every visual sub-piece lives in components/platform/ or providers/.
- * This file only composes them — no inline business logic.
+ * Páginas aninhadas passam `breadcrumbs` para o cabeçalho (ex.: Terreiros › Casa de Pai João).
  */
-
-import React, { useState, useEffect } from "react";
-import Avatar          from "@mui/material/Avatar";
-import Box             from "@mui/material/Box";
-import CircularProgress from "@mui/material/CircularProgress";
-import Divider         from "@mui/material/Divider";
-import Drawer          from "@mui/material/Drawer";
-import IconButton      from "@mui/material/IconButton";
-import List            from "@mui/material/List";
-import ListItem        from "@mui/material/ListItem";
-import ListItemButton  from "@mui/material/ListItemButton";
-import ListItemIcon    from "@mui/material/ListItemIcon";
-import Tooltip         from "@mui/material/Tooltip";
-import Typography      from "@mui/material/Typography";
-import useMediaQuery   from "@mui/material/useMediaQuery";
-
-import DashboardRoundedIcon          from "@mui/icons-material/DashboardRounded";
-import BusinessRoundedIcon           from "@mui/icons-material/BusinessRounded";
-import PeopleAltRoundedIcon          from "@mui/icons-material/PeopleAltRounded";
-import ReceiptLongRoundedIcon        from "@mui/icons-material/ReceiptLongRounded";
-import ManageSearchRoundedIcon       from "@mui/icons-material/ManageSearchRounded";
-import TuneRoundedIcon               from "@mui/icons-material/TuneRounded";
-import TravelExploreRoundedIcon      from "@mui/icons-material/TravelExploreRounded";
-import SupportAgentRoundedIcon       from "@mui/icons-material/SupportAgentRounded";
-import Badge                         from "@mui/material/Badge";
-import LogoutRoundedIcon             from "@mui/icons-material/LogoutRounded";
-import MenuOpenRoundedIcon           from "@mui/icons-material/MenuOpenRounded";
-import MenuRoundedIcon               from "@mui/icons-material/MenuRounded";
-import DarkModeRoundedIcon           from "@mui/icons-material/DarkModeRounded";
-import LightModeRoundedIcon          from "@mui/icons-material/LightModeRounded";
-
-import Head   from "next/head";
-import Link   from "next/link";
-import { useRouter } from "next/router";
-import { ErrorBoundary } from "../../components/ErrorBoundary";
-
-import {
-  PlatformThemeProvider,
-  usePlatformTheme,
-} from "../../providers/PlatformThemeProvider";
-import { ACCENT, ACCENT_GLOW } from "../../styles/platformTheme";
-import { LiveClock } from "../../components/platform";
-import { usePlatformSupportUnread } from "../../components/support/usePlatformSupportUnread";
+import React, { useEffect, useState } from 'react';
+import Head from 'next/head';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import * as Sentry from '@sentry/nextjs';
-import { apiClient } from "../../services/api_client";
+import { Building2, LayoutDashboard, LifeBuoy, Loader2, LogOut, Moon, ScrollText, Search, Settings, Sun } from 'lucide-react';
+import { apiClient } from '@/services/api_client';
+import { APP_VERSION } from '@/lib/version';
+import { cn } from '@/lib/utils';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { PlatformThemeProvider, usePlatformTheme } from '@/providers/PlatformThemeProvider';
+import { useProfile } from '@/hooks/useProfile';
+import { usePlatformSupportUnread } from '@/components/support/usePlatformSupportUnread';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarSeparator,
+  SidebarTrigger,
+  useSidebar,
+} from '@/components/ui/sidebar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { CommandPalette, useCommandPalette } from '@/components/platform/CommandPalette';
+import { initials } from '@/components/platform/format';
 
-// ─── Navigation items — single source of truth ────────────────────────────────
+// ─── Navegação — fonte única ─────────────────────────────────────────────────
 
-const NAV_ITEMS = [
-  { label: "Dashboard",        icon: <DashboardRoundedIcon />,    href: "/platform" },
-  { label: "Suporte",          icon: <SupportAgentRoundedIcon />, href: "/platform/suporte" },
-  { label: "Tenants",          icon: <BusinessRoundedIcon />,     href: "/platform/tenants" },
-  { label: "Usuários Globais", icon: <PeopleAltRoundedIcon />,    href: "/platform/users_global" },
-  { label: "Observatório",      icon: <TravelExploreRoundedIcon />, href: "/platform/observatory" },
-  { label: "Audit Logs",       icon: <ManageSearchRoundedIcon />, href: "/platform/audit_consolidated" },
-  { label: "Billing",          icon: <ReceiptLongRoundedIcon />,  href: "/platform/billing" },
-  { label: "Configurações",    icon: <TuneRoundedIcon />,         href: "/platform/settings" },
+export const PLATFORM_NAV = [
+  { label: 'Hoje', href: '/platform', icon: LayoutDashboard, exact: true },
+  { label: 'Terreiros', href: '/platform/tenants', icon: Building2, exact: false },
+  { label: 'Suporte', href: '/platform/suporte', icon: LifeBuoy, exact: false },
+  { label: 'Auditoria', href: '/platform/audit_consolidated', icon: ScrollText, exact: false },
+  { label: 'Configurações', href: '/platform/settings', icon: Settings, exact: false },
 ] as const;
 
-// ─── Sizing ───────────────────────────────────────────────────────────────────
-
-const SIDEBAR_EXPANDED  = 240;
-const SIDEBAR_COLLAPSED = 72;
-const TOPBAR_HEIGHT     = 60;
-
-// ─── NavItem ──────────────────────────────────────────────────────────────────
-
-interface NavItemProps {
-  label:    string;
-  icon:     React.ReactNode;
-  href:     string;
-  active:   boolean;
-  expanded: boolean;
-  onClick?: () => void;
-  badge?:   number;
+export function isNavActive(pathname: string, item: { href: string; exact: boolean }): boolean {
+  if (item.exact) return pathname === item.href;
+  return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-const NavItem: React.FC<NavItemProps> = ({
-  label, icon, href, active, expanded, onClick, badge,
-}) => {
-  const { tokens } = usePlatformTheme();
-
-  const button = (
-    <Link href={href} passHref legacyBehavior>
-      <ListItemButton
-        selected={active}
-        onClick={onClick}
-        sx={{
-          borderRadius: "10px",
-          mb: 0.5,
-          minHeight: 42,
-          justifyContent: expanded ? "flex-start" : "center",
-          px: expanded ? 1.5 : 0,
-          gap: 1.5,
-          transition: "all 0.15s ease",
-          position: "relative",
-          color: active ? tokens.textPrimary : tokens.textSecondary,
-          "&.Mui-selected": {
-            background: "rgba(99,102,241,0.12)",
-            "&::before": {
-              content: '""',
-              position: "absolute",
-              left: 0, top: "18%",
-              height: "64%", width: 3,
-              borderRadius: "0 3px 3px 0",
-              background: `linear-gradient(180deg, ${ACCENT} 0%, #8B5CF6 100%)`,
-              boxShadow: `0 0 10px ${ACCENT_GLOW}`,
-            },
-          },
-          "&.Mui-selected:hover": { background: "rgba(99,102,241,0.18)" },
-          "&:not(.Mui-selected):hover": {
-            background: "rgba(99,102,241,0.06)",
-            color: tokens.textPrimary,
-          },
-        }}
-      >
-        <ListItemIcon
-          sx={{
-            minWidth: 0,
-            color: active ? ACCENT : "inherit",
-            "& svg": {
-              fontSize: "1.2rem",
-              filter: active ? `drop-shadow(0 0 6px ${ACCENT_GLOW})` : "none",
-              transition: "filter 0.15s ease",
-            },
-          }}
-        >
-          <Badge
-            badgeContent={badge}
-            color="error"
-            max={9}
-            invisible={!badge}
-            overlap="circular"
-          >
-            {icon}
-          </Badge>
-        </ListItemIcon>
-        {expanded && (
-          <Typography
-            sx={{
-              fontSize: "0.82rem",
-              fontWeight: active ? 600 : 500,
-              color: active ? tokens.textPrimary : tokens.textSecondary,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {label}
-          </Typography>
-        )}
-      </ListItemButton>
-    </Link>
-  );
-
-  if (expanded) return <ListItem disablePadding>{button}</ListItem>;
-
-  return (
-    <ListItem disablePadding>
-      <Tooltip title={label} placement="right" arrow>
-        <Box sx={{ width: "100%" }}>{button}</Box>
-      </Tooltip>
-    </ListItem>
-  );
-};
-
-// ─── SidebarContent ───────────────────────────────────────────────────────────
-
-interface SidebarContentProps {
-  expanded:  boolean;
-  isMobile?: boolean;
-  onToggle:  () => void;
-  onClose?:  () => void;
+export interface BreadcrumbEntry {
+  label: string;
+  href?: string;
 }
 
-const SidebarContent: React.FC<SidebarContentProps> = ({
-  expanded, isMobile = false, onToggle, onClose,
-}) => {
+// ─── Sidebar ─────────────────────────────────────────────────────────────────
+
+function PlatformSidebar() {
   const router = useRouter();
-  const { tokens } = usePlatformTheme();
-  const unreadSupportCount = usePlatformSupportUnread();
+  const { isMobile, setOpenMobile } = useSidebar();
+  const { profile } = useProfile();
+  const unread = usePlatformSupportUnread();
+
+  const displayName = profile?.full_name || profile?.username || 'Super admin';
+  const email = profile?.email ?? '';
+
+  const closeOnMobile = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   const handleLogout = async () => {
-    try { await apiClient.post("/api/v1/auth/logout"); } catch { /* non-critical */ }
-    localStorage.removeItem("user");
+    try {
+      await apiClient.post('/api/v1/auth/logout');
+    } catch {
+      /* não crítico */
+    }
+    localStorage.removeItem('user');
     Sentry.setUser(null);
-    router.push("/login");
+    router.push('/login');
   };
 
   return (
-    <Box sx={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* ── Brand header ── */}
-      <Box
-        sx={{
-          height: TOPBAR_HEIGHT,
-          display: "flex",
-          alignItems: "center",
-          px: expanded ? 2 : 0,
-          justifyContent: expanded ? "space-between" : "center",
-          borderBottom: `1px solid ${tokens.border}`,
-          flexShrink: 0,
-        }}
-      >
-        {expanded ? (
-          <>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-              <BrandLogo size={34} />
-              <Box>
-                <Typography sx={{ fontSize: "0.82rem", fontWeight: 700, color: tokens.textPrimary, lineHeight: 1.2 }}>
-                  Senhas
-                </Typography>
-                <Typography
-                  sx={{
-                    fontSize: "0.58rem", fontWeight: 700, color: ACCENT,
-                    letterSpacing: "0.2em", textTransform: "uppercase", lineHeight: 1,
-                  }}
-                >
-                  Platform
-                </Typography>
-              </Box>
-            </Box>
-            <IconButton
-              size="small"
-              onClick={isMobile ? onClose : onToggle}
-              sx={{ color: tokens.textSecondary, "&:hover": { color: tokens.textPrimary } }}
-            >
-              <MenuOpenRoundedIcon fontSize="small" />
-            </IconButton>
-          </>
-        ) : (
-          <Tooltip title="Expandir menu" placement="right">
-            <Box onClick={onToggle} sx={{ cursor: "pointer" }}>
-              <BrandLogo size={36} />
-            </Box>
-          </Tooltip>
-        )}
-      </Box>
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border">
+        <Link
+          href="/platform"
+          onClick={closeOnMobile}
+          className="flex items-center gap-2.5 rounded-md px-1 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+          aria-label="GiraHub — Hoje"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/favicon.svg" alt="" width={28} height={28} className="size-7 shrink-0 rounded-md" />
+          <span className="truncate text-sm font-bold tracking-tight group-data-[collapsible=icon]:hidden">
+            GiraHub
+            <span className="ml-1.5 text-[0.6rem] font-bold tracking-[0.18em] text-sidebar-primary uppercase">Plataforma</span>
+          </span>
+        </Link>
+      </SidebarHeader>
 
-      {/* ── Nav ── */}
-      <List sx={{ flex: 1, py: 1.5, px: expanded ? 1 : 0.75 }}>
-        {NAV_ITEMS.map((item) => (
-          <NavItem
-            key={item.href}
-            {...item}
-            active={router.pathname === item.href}
-            expanded={expanded}
-            onClick={isMobile ? onClose : undefined}
-            badge={item.href === "/platform/suporte" ? unreadSupportCount : undefined}
-          />
-        ))}
-      </List>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {PLATFORM_NAV.map((item) => {
+                const active = isNavActive(router.pathname, item);
+                const badge = item.href === '/platform/suporte' && unread > 0 ? unread : 0;
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                      <Link href={item.href} onClick={closeOnMobile} aria-current={active ? 'page' : undefined}>
+                        <item.icon aria-hidden />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {badge > 0 && (
+                      <SidebarMenuBadge
+                        className="bg-destructive text-destructive-foreground"
+                        aria-label={`${badge} conversas não lidas`}
+                      >
+                        {badge > 9 ? '9+' : badge}
+                      </SidebarMenuBadge>
+                    )}
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
 
-      <Divider />
+      <SidebarSeparator />
 
-      {/* ── Footer ── */}
-      <Box sx={{ py: 1.5, px: expanded ? 1 : 0.75 }}>
-        {/* Profile */}
-        <Tooltip title={expanded ? "" : "Perfil"} placement="right" arrow>
-          <ListItemButton
-            onClick={() => {
-              router.push("/platform/profile");
-              if (isMobile && onClose) onClose();
-            }}
-            sx={{
-              borderRadius: "10px", mb: 0.5,
-              justifyContent: expanded ? "flex-start" : "center",
-              px: expanded ? 1.5 : 0, gap: 1.5,
-              color: tokens.textSecondary,
-              "&:hover": { background: "rgba(99,102,241,0.06)", color: tokens.textPrimary },
-            }}
-          >
-            <Avatar
-              sx={{
-                width: 28, height: 28, fontSize: "0.68rem", fontWeight: 700,
-                background: `linear-gradient(135deg, ${ACCENT} 0%, #8B5CF6 100%)`,
-                flexShrink: 0, boxShadow: `0 0 10px ${ACCENT_GLOW}`,
-              }}
-            >
-              SA
-            </Avatar>
-            {expanded && (
-              <Box sx={{ minWidth: 0 }}>
-                <Typography sx={{ fontSize: "0.78rem", fontWeight: 600, color: tokens.textPrimary, lineHeight: 1.3 }}>
-                  Super Admin
-                </Typography>
-                <Typography sx={{ fontSize: "0.64rem", color: tokens.textSecondary }} noWrap>
-                  superadmin@senhas.app
-                </Typography>
-              </Box>
-            )}
-          </ListItemButton>
-        </Tooltip>
-
-        {/* Logout */}
-        <Tooltip title={expanded ? "" : "Sair"} placement="right" arrow>
-          <ListItemButton
-            onClick={handleLogout}
-            sx={{
-              borderRadius: "10px",
-              justifyContent: expanded ? "flex-start" : "center",
-              px: expanded ? 1.5 : 0, gap: 1.5,
-              color: tokens.textSecondary,
-              transition: "all 0.15s ease",
-              "&:hover": { background: "rgba(239,68,68,0.08)", color: "#EF4444" },
-            }}
-          >
-            <LogoutRoundedIcon sx={{ fontSize: "1.1rem", flexShrink: 0 }} />
-            {expanded && (
-              <Typography sx={{ fontSize: "0.82rem", fontWeight: 500 }}>Sair</Typography>
-            )}
-          </ListItemButton>
-        </Tooltip>
-
-        {expanded && (
-          <Typography
-            sx={{
-              fontSize: "0.58rem", color: tokens.textGhost, fontWeight: 600,
-              textAlign: "center", mt: 1.5, letterSpacing: "0.08em",
-            }}
-          >
-            SENHAS PLATFORM v1.1
-          </Typography>
-        )}
-      </Box>
-    </Box>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild size="lg" tooltip={displayName}>
+              <Link href="/platform/settings?tab=conta" onClick={closeOnMobile}>
+                <Avatar className="size-7">
+                  {profile?.profile_photo_url && <AvatarImage src={profile.profile_photo_url} alt="" />}
+                  <AvatarFallback className="bg-sidebar-primary text-[0.65rem] font-bold text-sidebar-primary-foreground">
+                    {initials(displayName, 'SA')}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="flex min-w-0 flex-col leading-tight">
+                  <span className="truncate text-xs font-semibold">{displayName}</span>
+                  {email && <span className="truncate text-[0.68rem] text-muted-foreground">{email}</span>}
+                </span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={handleLogout} tooltip="Sair" className="text-muted-foreground hover:text-destructive">
+              <LogOut aria-hidden />
+              <span>Sair</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        <p className="px-2 pb-1 text-center text-[0.62rem] font-semibold tracking-[0.08em] text-muted-foreground group-data-[collapsible=icon]:hidden">
+          GiraHub v{APP_VERSION}
+        </p>
+      </SidebarFooter>
+    </Sidebar>
   );
-};
+}
 
-// ─── BrandLogo ────────────────────────────────────────────────────────────────
+// ─── Cabeçalho ───────────────────────────────────────────────────────────────
 
-const BrandLogo: React.FC<{ size: number }> = ({ size }) => (
-  <Box
-    component="img"
-    src="/favicon.svg"
-    alt="Senhas Platform"
-    sx={{
-      width: size,
-      height: size,
-      borderRadius: `${size * 0.22}px`,
-      boxShadow: `0 0 ${size * 0.5}px ${ACCENT_GLOW}`,
-      transition: "box-shadow 0.15s ease",
-      display: "block",
-      flexShrink: 0,
-      "&:hover": { boxShadow: `0 0 ${size * 0.75}px ${ACCENT_GLOW}` },
-    }}
-  />
-);
-
-// ─── ThemeToggle ──────────────────────────────────────────────────────────────
-
-const ThemeToggle: React.FC = () => {
-  const { isDark, toggleMode, tokens } = usePlatformTheme();
-
+function ThemeToggle() {
+  const { isDark, toggleMode } = usePlatformTheme();
+  const label = isDark ? 'Modo claro' : 'Modo escuro';
   return (
-    <Tooltip title={isDark ? "Modo claro" : "Modo escuro"}>
-      <IconButton
-        onClick={toggleMode}
-        size="small"
-        sx={{
-          color: tokens.textSecondary,
-          border: `1px solid ${tokens.border}`,
-          borderRadius: "8px",
-          p: 0.75,
-          bgcolor: "rgba(99,102,241,0.05)",
-          "&:hover": {
-            color: ACCENT,
-            bgcolor: "rgba(99,102,241,0.1)",
-            borderColor: ACCENT,
-          },
-          transition: "all 0.15s ease",
-        }}
-      >
-        {isDark
-          ? <LightModeRoundedIcon sx={{ fontSize: "1rem" }} />
-          : <DarkModeRoundedIcon  sx={{ fontSize: "1rem" }} />
-        }
-      </IconButton>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="outline" size="icon-sm" onClick={toggleMode} aria-label={label} aria-pressed={isDark}>
+          {isDark ? <Sun aria-hidden /> : <Moon aria-hidden />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
-};
+}
 
-// ─── PlatformShell — the actual layout (runs inside PlatformThemeProvider) ────
+function HeaderBreadcrumb({ entries }: { entries: BreadcrumbEntry[] }) {
+  return (
+    <Breadcrumb>
+      <BreadcrumbList className="flex-nowrap">
+        {entries.map((entry, i) => {
+          const last = i === entries.length - 1;
+          return (
+            <React.Fragment key={`${entry.label}-${i}`}>
+              <BreadcrumbItem className={cn(!last && 'hidden sm:inline-flex')}>
+                {last || !entry.href ? (
+                  <BreadcrumbPage className="max-w-[40vw] truncate font-semibold">{entry.label}</BreadcrumbPage>
+                ) : (
+                  <BreadcrumbLink asChild>
+                    <Link href={entry.href}>{entry.label}</Link>
+                  </BreadcrumbLink>
+                )}
+              </BreadcrumbItem>
+              {!last && <BreadcrumbSeparator className="hidden sm:block" />}
+            </React.Fragment>
+          );
+        })}
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
+
+function defaultBreadcrumbs(pathname: string): BreadcrumbEntry[] {
+  const item = PLATFORM_NAV.find((n) => isNavActive(pathname, n));
+  if (!item) return [{ label: 'Plataforma' }];
+  const nested = pathname !== item.href;
+  return nested ? [{ label: item.label, href: item.href }, { label: 'Detalhe' }] : [{ label: item.label }];
+}
+
+// ─── Casca ───────────────────────────────────────────────────────────────────
 
 interface PlatformShellProps {
   children: React.ReactNode;
+  breadcrumbs?: BreadcrumbEntry[];
 }
 
-const PlatformShell: React.FC<PlatformShellProps> = ({ children }) => {
-  const router    = useRouter();
-  const isMobile  = useMediaQuery("(max-width: 900px)");
-  const { tokens, isDark } = usePlatformTheme();
-
-  const [expanded,   setExpanded]   = useState(true);
-  const [mobileOpen, setMobileOpen] = useState(false);
+function PlatformShell({ children, breadcrumbs }: PlatformShellProps) {
+  const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useCommandPalette();
 
   useEffect(() => {
     try {
-      const raw  = localStorage.getItem("user");
+      const raw = localStorage.getItem('user');
       const user = raw ? JSON.parse(raw) : null;
-      if (!user || user.role !== "super_admin") {
-        const dest = user ? "/admin/dashboard" : "/login";
-        window.location.replace(dest);
+      if (!user || user.role !== 'super_admin') {
+        window.location.replace(user ? '/admin/dashboard' : '/login');
         return;
       }
       setAuthorized(true);
     } catch {
-      window.location.replace("/login");
+      window.location.replace('/login');
     }
-  // router não é dependência estável no Pages Router — rodar só na montagem
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!authorized) {
     return (
-      <Box
-        sx={{
-          display: "flex", justifyContent: "center", alignItems: "center",
-          minHeight: "100vh", bgcolor: "background.default",
-        }}
-      >
-        <Box sx={{ textAlign: "center" }}>
-          <BrandLogo size={48} />
-          <CircularProgress size={24} sx={{ color: ACCENT, mt: 2 }} />
-        </Box>
-      </Box>
+      <div className="flex min-h-svh items-center justify-center bg-background" role="status" aria-live="polite">
+        <Loader2 className="size-6 animate-spin text-primary" aria-hidden />
+        <span className="sr-only">Verificando acesso…</span>
+      </div>
     );
   }
 
-  const sidebarWidth = isMobile ? 0 : (expanded ? SIDEBAR_EXPANDED : SIDEBAR_COLLAPSED);
-  const currentLabel = NAV_ITEMS.find((i) => i.href === router.pathname)?.label ?? "Administration";
+  const entries = breadcrumbs ?? defaultBreadcrumbs(router.pathname);
 
   return (
-    <>
-      {/* Ambient glow — decorative only, positioned fixed */}
-      <Box
-        aria-hidden
-        sx={{
-          position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden",
-          "&::before": {
-            content: '""', position: "absolute",
-            top: "-15%", right: "-8%", width: "55vw", height: "55vh",
-            background: tokens.glowTR,
-          },
-          "&::after": {
-            content: '""', position: "absolute",
-            bottom: "-10%", left: "-5%", width: "40vw", height: "40vh",
-            background: tokens.glowBL,
-          },
-        }}
-      />
-
-      <Box
-        sx={{
-          display: "flex", minHeight: "100vh",
-          bgcolor: "background.default",
-          position: "relative", zIndex: 1,
-        }}
-      >
-        {/* ── Desktop sidebar ── */}
-        {!isMobile && (
-          <Box
-            component="nav"
-            sx={{
-              width: sidebarWidth,
-              flexShrink: 0,
-              transition: "width 0.25s cubic-bezier(0.4,0,0.2,1)",
-              position: "fixed", left: 0, top: 0, bottom: 0,
-              bgcolor: tokens.sidebarBg,
-              borderRight: `1px solid ${tokens.border}`,
-              backdropFilter: "blur(24px)",
-              boxShadow: isDark
-                ? "none"
-                : "2px 0 20px rgba(99,102,241,0.07)",
-              zIndex: 100, overflow: "hidden",
-            }}
+    <SidebarProvider>
+      <PlatformSidebar />
+      <SidebarInset className="min-w-0">
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-4">
+          <SidebarTrigger className="-ml-1" aria-label="Abrir ou recolher o menu" />
+          <Separator orientation="vertical" className="mr-1 data-[orientation=vertical]:h-4" />
+          <div className="min-w-0 flex-1">
+            <HeaderBreadcrumb entries={entries} />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-muted-foreground"
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Buscar terreiro ou comando (⌘K)"
+            aria-keyshortcuts="Meta+K Control+K"
           >
-            <SidebarContent
-              expanded={expanded}
-              onToggle={() => setExpanded((v) => !v)}
-            />
-          </Box>
-        )}
+            <Search aria-hidden />
+            <span className="hidden sm:inline">Buscar…</span>
+            <kbd className="pointer-events-none hidden h-5 items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[0.65rem] font-medium sm:inline-flex">
+              ⌘K
+            </kbd>
+          </Button>
+          <ThemeToggle />
+        </header>
 
-        {/* ── Mobile drawer ── */}
-        {isMobile && (
-          <Drawer
-            variant="temporary"
-            open={mobileOpen}
-            onClose={() => setMobileOpen(false)}
-            PaperProps={{
-              sx: {
-                width: SIDEBAR_EXPANDED,
-                bgcolor: tokens.sidebarBg,
-                borderRight: `1px solid ${tokens.border}`,
-                backdropFilter: "blur(24px)",
-              },
-            }}
-          >
-            <SidebarContent
-              expanded
-              isMobile
-              onToggle={() => {}}
-              onClose={() => setMobileOpen(false)}
-            />
-          </Drawer>
-        )}
-
-        {/* ── Main ── */}
-        <Box
-          component="main"
-          sx={{
-            flex: 1,
-            ml: isMobile ? 0 : `${sidebarWidth}px`,
-            transition: "margin-left 0.25s cubic-bezier(0.4,0,0.2,1)",
-            display: "flex", flexDirection: "column", minHeight: "100vh",
-          }}
-        >
-          {/* Top bar */}
-          <Box
-            component="header"
-            sx={{
-              height: TOPBAR_HEIGHT,
-              display: "flex", alignItems: "center",
-              px: { xs: 2, sm: 3 }, gap: 2,
-              position: "sticky", top: 0, zIndex: 50,
-              bgcolor: tokens.topbarBg,
-              backdropFilter: "blur(20px)",
-              borderBottom: `1px solid ${tokens.border}`,
-              flexShrink: 0,
-            }}
-          >
-            {isMobile && (
-              <IconButton
-                onClick={() => setMobileOpen(true)}
-                sx={{ color: tokens.textSecondary, mr: -0.5 }}
-              >
-                <MenuRoundedIcon />
-              </IconButton>
-            )}
-
-            <Box sx={{ flex: 1 }}>
-              <Typography
-                sx={{
-                  fontSize: "0.58rem", fontWeight: 700, color: ACCENT,
-                  letterSpacing: "0.2em", textTransform: "uppercase", lineHeight: 1,
-                }}
-              >
-                Platform
-              </Typography>
-              <Typography
-                sx={{ fontSize: "0.88rem", fontWeight: 600, color: tokens.textPrimary, lineHeight: 1.3 }}
-              >
-                {currentLabel}
-              </Typography>
-            </Box>
-
-            <LiveClock />
-            <ThemeToggle />
-
-            <Avatar
-              onClick={() => router.push("/platform/profile")}
-              sx={{
-                width: 32, height: 32, fontSize: "0.68rem", fontWeight: 700,
-                background: `linear-gradient(135deg, ${ACCENT} 0%, #8B5CF6 100%)`,
-                cursor: "pointer",
-                boxShadow: `0 0 12px ${ACCENT_GLOW}`,
-                transition: "transform 0.15s ease, box-shadow 0.15s ease",
-                "&:hover": {
-                  transform: "scale(1.08)",
-                  boxShadow: `0 0 20px ${ACCENT_GLOW}`,
-                },
-              }}
-            >
-              SA
-            </Avatar>
-          </Box>
-
-          {/* Page content */}
-          <Box sx={{ flex: 1, p: { xs: 2, sm: 3, md: 4 } }}>
-            <ErrorBoundary>{children}</ErrorBoundary>
-          </Box>
-        </Box>
-      </Box>
-    </>
+        <div className="flex-1 p-4 sm:p-6 lg:p-8">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </div>
+      </SidebarInset>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+    </SidebarProvider>
   );
-};
-
-// ─── Public export — wraps shell in provider ──────────────────────────────────
-
-interface PlatformLayoutProps {
-  children: React.ReactNode;
 }
 
-export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children }) => (
+// ─── Exportação pública ──────────────────────────────────────────────────────
+
+export interface PlatformLayoutProps {
+  children: React.ReactNode;
+  /** Título da aba do navegador (prefixo "GiraHub ·"). */
+  title?: string;
+  /** Trilha do cabeçalho; padrão: item de navegação ativo. */
+  breadcrumbs?: BreadcrumbEntry[];
+}
+
+export const PlatformLayout: React.FC<PlatformLayoutProps> = ({ children, title, breadcrumbs }) => (
   <PlatformThemeProvider>
-    <Head><title>Senhas · Platform</title></Head>
-    <PlatformShell>{children}</PlatformShell>
+    <Head>
+      <title>{title ? `GiraHub · ${title}` : 'GiraHub · Plataforma'}</title>
+    </Head>
+    <PlatformShell breadcrumbs={breadcrumbs}>{children}</PlatformShell>
   </PlatformThemeProvider>
 );
 

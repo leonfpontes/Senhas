@@ -10,7 +10,7 @@ const nextConfig = {
   // outputFileTracingRoot saiu de experimental para top-level no Next 15.
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../'),
-  transpilePackages: ['shared-types', 'shared-ui'],
+  transpilePackages: ['shared-types'],
   generateBuildId: async () => {
     const { execSync } = require('child_process');
     try {
@@ -19,16 +19,10 @@ const nextConfig = {
       return `build-${Date.now()}`;
     }
   },
-  modularizeImports: {
-    '@mui/icons-material': {
-      transform: '@mui/icons-material/{{member}}',
-    },
-    '@mui/material': {
-      transform: '@mui/material/{{member}}',
-    },
-  },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
+    // Versão da UI (rodapé da sidebar e menu do usuário) — lida do package.json, ver src/lib/version.ts.
+    NEXT_PUBLIC_UI_VERSION: require('./package.json').version,
   },
   // Production: immutable cache for hashed assets.
   // In development, never force immutable caching on /_next/static because it breaks HMR.

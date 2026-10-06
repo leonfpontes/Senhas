@@ -9,19 +9,22 @@ type TourStepMap = Record<string, StepType[]>;
 export const platformTourSteps: TourStepMap = {
   '/platform': [
     {
-      selector: '[data-tour="platform-header"]',
+      selector: '[data-tour="platform-kpis"]',
       content:
-        'Bem-vindo ao painel da plataforma GiraHub! Aqui você tem uma visão geral de todos os terreiros cadastrados.',
+        'Bem-vindo à tela Hoje. Os quatro números resumem o negócio: receita mensal, pagantes, terreiros em teste e quantos ativaram no último mês.',
     },
     {
-      selector: '[data-tour="platform-stats"]',
+      selector: '#contatar',
       content:
-        'Acompanhe os números gerais: total de terreiros, terreiros ativos e receita da plataforma.',
+        'Contatar: trials acabando, ativação travada e risco de churn, por urgência. Cada linha tem WhatsApp, mensagem e "Entrar como admin".',
     },
     {
-      selector: '[data-tour="platform-quick-links"]',
-      content:
-        'Atalhos rápidos para as principais seções: gerenciar terreiros, usuários globais, auditoria e faturamento.',
+      selector: '#mudou',
+      content: 'Venceu ou mudou: cancelamentos, suspensões, trials vencidos e bônus concedidos.',
+    },
+    {
+      selector: '#quebrou',
+      content: 'Quebrou: saúde dos serviços, erros por terreiro e conversas de suporte sem resposta.',
     },
   ],
 
@@ -43,72 +46,11 @@ export const platformTourSteps: TourStepMap = {
     },
   ],
 
-  '/platform/users_global': [
-    {
-      selector: '[data-tour="global-users-header"]',
-      content:
-        'Gerencie os super administradores da plataforma GiraHub.',
-    },
-    {
-      selector: '[data-tour="global-users-novo"]',
-      content:
-        'Crie um novo super administrador informando e-mail, nome de usuário e senha.',
-    },
-    {
-      selector: '[data-tour="global-users-tabela"]',
-      content:
-        'Lista de todos os super admins. Você pode editar ou remover um usuário por aqui.',
-    },
-  ],
-
-  '/platform/billing': [
-    {
-      selector: '[data-tour="billing-header"]',
-      content:
-        'Gerencie o faturamento de todos os terreiros da plataforma.',
-    },
-    {
-      selector: '[data-tour="billing-stats"]',
-      content:
-        'Resumo financeiro: total de faturas, faturas pagas, receita total e valor médio por fatura.',
-    },
-    {
-      selector: '[data-tour="billing-tenant-select"]',
-      content:
-        'Selecione um terreiro para visualizar suas faturas específicas.',
-    },
-    {
-      selector: '[data-tour="billing-tabela"]',
-      content:
-        'Histórico de faturas com número, período, valor, status (pago, pendente, atrasado) e data de pagamento.',
-    },
-  ],
-
   '/platform/settings': [
     {
-      selector: '[data-tour="settings-header"]',
+      selector: '[data-tour="settings-tabs"]',
       content:
-        'Gerencie as configurações de plano e funcionalidades de cada terreiro.',
-    },
-    {
-      selector: '[data-tour="settings-tenant-select"]',
-      content:
-        'Selecione o terreiro que deseja configurar.',
-    },
-    {
-      selector: '[data-tour="settings-subscription"]',
-      content:
-        'Veja e altere o plano do terreiro selecionado, ajustando limites de usuários, giras e médiuns.',
-    },
-    {
-      selector: '[data-tour="settings-flags"]',
-      content:
-        'Gerencie as feature flags deste terreiro — habilite ou desabilite funcionalidades individualmente.',
-    },
-    {
-      selector: '[data-tour="settings-add-flag"]',
-      content:
-        'Adicione uma nova feature flag para liberar uma funcionalidade específica para este terreiro.',
+        'Configurações em quatro abas: sua conta, os administradores da plataforma, as feature flags por terreiro e a tabela de planos.',
     },
   ],
 

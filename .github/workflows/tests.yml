@@ -125,7 +125,6 @@ jobs:
       - name: Build shared packages
         run: |
           npm run build --workspace=packages/shared-types
-          npm run build --workspace=packages/shared-ui
 
       - name: Lint
         working-directory: frontend

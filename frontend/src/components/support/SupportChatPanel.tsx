@@ -1,37 +1,76 @@
 /**
- * SupportChatPanel — painel flutuante de mensagens do chat de suporte.
- * Renderizado pelo SupportChatWidget, ancorado perto do FAB (canto inferior
- * esquerdo, deslocado da largura do drawer em desktop — ver SupportChatWidget).
- * Não é modal full-screen — fecha ao clicar fora ou no X.
+ * SupportChatPanel — painel flutuante da conversa do usuário com o suporte.
+ * Renderizado pelo SupportChatWidget, ancorado acima do balão "Ajuda" (canto inferior direito).
+ * Não é modal: fecha no X ou com Esc. Rola até a última mensagem; cada mensagem mostra a hora.
+ *
+ * Mesma API de props de antes (`messages`, `loading`, `sending`, `onSend`, `onClose`).
  */
-import React, { useEffect, useRef } from 'react';
-import Box from '@mui/material/Box';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
-import TextField from '@mui/material/TextField';
-import CircularProgress from '@mui/material/CircularProgress';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
-import { DRAWER_WIDTH } from '@/components/admin/layout/AdminSidebar';
+import React, { useEffect, useRef, useState } from 'react';
+import { Loader2, MessageCircle, SendHorizontal, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import type { SupportMessage } from './useSupportChat';
 
-interface SupportChatPanelProps {
+export interface SupportChatPanelProps {
   messages: SupportMessage[];
   loading: boolean;
   sending: boolean;
   onSend: (body: string) => Promise<void>;
   onClose: () => void;
+  className?: string;
 }
 
-export function SupportChatPanel({ messages, loading, sending, onSend, onClose }: SupportChatPanelProps) {
-  const [draft, setDraft] = React.useState('');
+/** "14:05" hoje; "12/09 14:05" em outro dia. */
+export function formatMessageTime(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const sameDay =
+    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  if (sameDay) return time;
+  return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${time}`;
+}
+
+/** Balão de mensagem (usado no painel e na visão do administrador em /admin/suporte). */
+export function SupportMessageBubble({ message, showSender = false }: { message: SupportMessage; showSender?: boolean }) {
+  const fromSupport = message.is_from_support;
+  return (
+    <div
+      className={cn(
+        'max-w-[82%] rounded-2xl px-3 py-2 text-sm',
+        fromSupport ? 'self-start rounded-bl-sm bg-muted text-foreground' : 'self-end rounded-br-sm bg-primary text-primary-foreground',
+      )}
+    >
+      {showSender && <div className="mb-0.5 text-xs font-medium opacity-80">{message.sender_name_snapshot}</div>}
+      <p className="break-words whitespace-pre-wrap">{message.body}</p>
+      <time
+        dateTime={message.created_at}
+        className={cn('mt-1 block text-right text-[11px]', fromSupport ? 'text-muted-foreground' : 'opacity-75')}
+      >
+        {formatMessageTime(message.created_at)}
+      </time>
+    </div>
+  );
+}
+
+export function SupportChatPanel({ messages, loading, sending, onSend, onClose, className }: SupportChatPanelProps) {
+  const [draft, setDraft] = useState('');
   const listEndRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ block: 'end' });
   }, [messages.length]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   const handleSend = async () => {
     const body = draft.trim();
@@ -41,82 +80,58 @@ export function SupportChatPanel({ messages, loading, sending, onSend, onClose }
   };
 
   return (
-    <Paper
-      elevation={8}
-      sx={{
-        position: 'fixed',
-        bottom: 'calc(84px + env(safe-area-inset-bottom))',
-        left: {
-          xs: 'calc(16px + env(safe-area-inset-left))',
-          md: `calc(${DRAWER_WIDTH}px + 16px + env(safe-area-inset-left))`,
-        },
-        width: { xs: 'calc(100vw - 32px)', sm: 360 },
-        maxWidth: 360,
-        height: 480,
-        maxHeight: 'calc(100vh - 120px)',
-        display: 'flex',
-        flexDirection: 'column',
-        borderRadius: 3,
-        overflow: 'hidden',
-        zIndex: (theme) => theme.zIndex.speedDial,
-      }}
+    <section
+      data-slot="support-chat"
+      role="dialog"
+      aria-label="Ajuda — conversa com o suporte"
+      className={cn(
+        'fixed z-50 flex flex-col overflow-hidden rounded-xl border bg-card text-card-foreground shadow-2xl',
+        // celular: largura toda, acima do balão (que fica a 72px do rodapé)
+        'inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+128px)] h-[480px] max-h-[calc(100dvh-180px)]',
+        // a partir de 900px: cartão de 360px no canto direito
+        'md:inset-x-auto md:right-6 md:bottom-20 md:w-[360px] md:max-h-[calc(100dvh-120px)]',
+        className,
+      )}
     >
-      <Box
-        sx={{
-          px: 2, py: 1.5,
-          display: 'flex', alignItems: 'center', gap: 1,
-          bgcolor: 'primary.main', color: 'primary.contrastText',
-        }}
-      >
-        <AutoAwesomeRoundedIcon fontSize="small" />
-        <Typography variant="subtitle2" fontWeight={700} sx={{ flex: 1 }}>
-          Suporte
-        </Typography>
-        <IconButton size="small" onClick={onClose} sx={{ color: 'inherit' }} aria-label="Fechar chat de suporte">
-          <CloseRoundedIcon fontSize="small" />
-        </IconButton>
-      </Box>
+      <header className="flex items-center gap-2 bg-primary px-4 py-3 text-primary-foreground">
+        <MessageCircle className="size-4" aria-hidden />
+        <div className="flex-1">
+          <h2 className="text-sm font-semibold">Ajuda</h2>
+          <p className="text-xs opacity-80">O suporte responde por aqui.</p>
+        </div>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          className="text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
+          onClick={onClose}
+          aria-label="Fechar chat de suporte"
+        >
+          <X />
+        </Button>
+      </header>
 
-      <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
         {loading && messages.length === 0 ? (
-          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <CircularProgress size={28} />
-          </Box>
+          <div className="flex flex-1 items-center justify-center">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" aria-label="Carregando" />
+          </div>
         ) : messages.length === 0 ? (
-          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', px: 2 }}>
-            <Typography variant="body2" color="text.secondary" textAlign="center">
-              Manda sua dúvida ou problema aqui — o suporte responde por esse chat.
-            </Typography>
-          </Box>
+          <p className="m-auto max-w-[16rem] text-center text-sm text-muted-foreground">
+            Escreva sua dúvida ou problema aqui. O suporte responde nesta conversa.
+          </p>
         ) : (
-          messages.map((m) => (
-            <Box
-              key={m.id}
-              sx={{
-                alignSelf: m.is_from_support ? 'flex-start' : 'flex-end',
-                maxWidth: '82%',
-                bgcolor: m.is_from_support ? 'action.selected' : 'primary.main',
-                color: m.is_from_support ? 'text.primary' : 'primary.contrastText',
-                borderRadius: 2,
-                px: 1.5, py: 1,
-              }}
-            >
-              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {m.body}
-              </Typography>
-            </Box>
-          ))
+          messages.map((m) => <SupportMessageBubble key={m.id} message={m} />)
         )}
         <div ref={listEndRef} />
-      </Box>
+      </div>
 
-      <Box sx={{ p: 1.25, borderTop: '1px solid', borderColor: 'divider', display: 'flex', gap: 1 }}>
-        <TextField
-          size="small"
-          fullWidth
-          multiline
-          maxRows={4}
+      <div className="flex items-end gap-2 border-t p-2">
+        <Textarea
+          ref={inputRef}
+          rows={1}
+          aria-label="Mensagem para o suporte"
           placeholder="Escreva sua mensagem…"
+          className="max-h-28 min-h-9 resize-none"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -127,15 +142,12 @@ export function SupportChatPanel({ messages, loading, sending, onSend, onClose }
           }}
           disabled={sending}
         />
-        <IconButton
-          color="primary"
-          onClick={handleSend}
-          disabled={sending || !draft.trim()}
-          aria-label="Enviar mensagem"
-        >
-          <SendRoundedIcon />
-        </IconButton>
-      </Box>
-    </Paper>
+        <Button size="icon" onClick={handleSend} disabled={sending || !draft.trim()} aria-label="Enviar mensagem">
+          {sending ? <Loader2 className="animate-spin" /> : <SendHorizontal />}
+        </Button>
+      </div>
+    </section>
   );
 }
+
+export default SupportChatPanel;

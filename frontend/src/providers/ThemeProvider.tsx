@@ -15,13 +15,14 @@ import React, {
   useState,
   ReactNode,
 } from 'react';
-import { ThemeProvider as MuiThemeProvider, createTheme, responsiveFontSizes } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
 
 import { apiClient } from '@/services/api_client';
+import { applyBrand } from '@/lib/brand';
 
-const DEFAULT_PRIMARY = '#6366f1';
+// Igual ao default do backend (TenantConfig.primary_color) e ao theme-color do _document.
+const DEFAULT_PRIMARY = '#4f46e5';
 const DEFAULT_SECONDARY = '#ec4899';
+const DEFAULT_FONT = '#FFFFFF';
 const TENANT_BRANDING_UPDATED_EVENT = 'tenant-branding-updated';
 
 /**
@@ -131,7 +132,7 @@ const getStoredTenantName = (): string | undefined => {
 
 const buildTenantThemeConfig = (config: AdminTenantConfigResponse): TenantThemeConfig => {
   const user = getStoredUser();
-  const fontColor = typeof config.font_color === 'string' ? config.font_color : '#FFFFFF';
+  const fontColor = typeof config.font_color === 'string' ? config.font_color : DEFAULT_FONT;
 
   return {
     tenantId: user?.tenant_id || 'tenant',
@@ -147,7 +148,7 @@ const buildTenantThemeConfig = (config: AdminTenantConfigResponse): TenantThemeC
 
 /**
  * T089: TenantAwareThemeProvider
- * Combines theme provider with tenant context
+ * Contexto do terreiro (cores, logo, nome) + cores aplicadas como variáveis CSS (applyBrand).
  */
 export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
   ({ children }) => {
@@ -195,22 +196,15 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
       };
     }, [refreshBranding]);
 
-    const theme = useMemo(
-      () =>
-        responsiveFontSizes(
-          createTheme({
-            palette: {
-              mode: 'light',
-              primary: { main: tenantConfig?.colors?.primary || DEFAULT_PRIMARY },
-              secondary: { main: tenantConfig?.colors?.secondary || DEFAULT_SECONDARY },
-            },
-            shape: {
-              borderRadius: 16,
-            },
-          })
-        ),
-      [tenantConfig]
-    );
+    // Cores do terreiro → tokens CSS do shadcn/Tailwind (--primary, --secondary, ...).
+    // Roda a cada mudança de branding (login, troca de tenant, evento tenant-branding-updated).
+    useEffect(() => {
+      applyBrand(document.documentElement, {
+        primary: tenantConfig?.colors?.primary || DEFAULT_PRIMARY,
+        secondary: tenantConfig?.colors?.secondary || DEFAULT_SECONDARY,
+        font: tenantConfig?.colors?.font || DEFAULT_FONT,
+      });
+    }, [tenantConfig]);
 
     const tenantContextValue = useMemo<TenantContextType>(
       () => ({
@@ -226,10 +220,7 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
 
     return (
       <TenantContext.Provider value={tenantContextValue}>
-        <MuiThemeProvider theme={theme}>
-          <CssBaseline />
-          {children}
-        </MuiThemeProvider>
+        {children}
       </TenantContext.Provider>
     );
   };

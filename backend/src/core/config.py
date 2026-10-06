@@ -49,7 +49,7 @@ class Settings(BaseSettings):
 
     # App
     APP_NAME: str = "Senhas API"
-    APP_VERSION: str = "1.1.0"
+    APP_VERSION: str = "2.0.0"
     DEBUG: bool = False
 
     # Frontend URL for building public links

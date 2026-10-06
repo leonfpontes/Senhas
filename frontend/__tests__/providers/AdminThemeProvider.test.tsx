@@ -20,12 +20,11 @@ jest.mock('@/services/api_client', () => ({
 // ── Helper component that reads context values ──────────────────────────────
 
 function ThemeConsumer() {
-  const { mode, isDark, tokens, toggleMode } = useAdminTheme();
+  const { mode, isDark, toggleMode } = useAdminTheme();
   return (
     <div>
       <span data-testid="mode">{mode}</span>
       <span data-testid="is-dark">{String(isDark)}</span>
-      <span data-testid="page-bg">{tokens.pageBg}</span>
       <button data-testid="toggle" onClick={toggleMode}>Toggle</button>
     </div>
   );
@@ -60,11 +59,6 @@ describe('AdminThemeProvider', () => {
     expect(screen.getByTestId('is-dark')).toHaveTextContent('false');
   });
 
-  it('light tokens have correct pageBg', () => {
-    render(<WrappedConsumer />);
-    expect(screen.getByTestId('page-bg')).toHaveTextContent('#F8FAFC');
-  });
-
   it('toggles to dark mode on button click', () => {
     render(<WrappedConsumer />);
     act(() => {
@@ -72,17 +66,6 @@ describe('AdminThemeProvider', () => {
     });
     expect(screen.getByTestId('mode')).toHaveTextContent('dark');
     expect(screen.getByTestId('is-dark')).toHaveTextContent('true');
-  });
-
-  it('dark tokens differ from light tokens (pageBg)', () => {
-    render(<WrappedConsumer />);
-    // Start light
-    expect(screen.getByTestId('page-bg')).toHaveTextContent('#F8FAFC');
-    act(() => {
-      screen.getByTestId('toggle').click();
-    });
-    // Dark pageBg
-    expect(screen.getByTestId('page-bg')).toHaveTextContent('#0F172A');
   });
 
   it('persists mode to localStorage on toggle', () => {
@@ -111,6 +94,29 @@ describe('AdminThemeProvider', () => {
     localStorage.setItem('admin_theme_mode', 'invalid');
     render(<WrappedConsumer />);
     expect(screen.getByTestId('mode')).toHaveTextContent('light');
+  });
+
+  describe('classe `dark` em <html> (tokens shadcn/Tailwind)', () => {
+    afterEach(() => {
+      document.documentElement.classList.remove('dark');
+    });
+
+    it('alterna a classe na raiz junto com o modo', () => {
+      render(<WrappedConsumer />);
+      expect(document.documentElement.classList.contains('dark')).toBe(false);
+      act(() => { screen.getByTestId('toggle').click(); });
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+      act(() => { screen.getByTestId('toggle').click(); });
+      expect(document.documentElement.classList.contains('dark')).toBe(false);
+    });
+
+    it('aplica no mount a partir do localStorage e remove no unmount (páginas públicas claras)', () => {
+      localStorage.setItem('admin_theme_mode', 'dark');
+      const { unmount } = render(<WrappedConsumer />);
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+      unmount();
+      expect(document.documentElement.classList.contains('dark')).toBe(false);
+    });
   });
 });
 

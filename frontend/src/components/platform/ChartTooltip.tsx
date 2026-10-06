@@ -1,62 +1,42 @@
-import React from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import type { TooltipProps } from "recharts";
-import { usePlatformTheme } from "../../providers/PlatformThemeProvider";
+import React from 'react';
+import { chartTooltipStyle } from '@/lib/chartTokens';
 
-/**
- * Shadcn-inspired recharts tooltip that adapts to the current platform theme.
- * Drop-in replacement for recharts' default Tooltip content prop.
- *
- * Usage:
- *   <RechartsTooltip content={<ChartTooltip />} />
- */
-export const ChartTooltip: React.FC<TooltipProps<number, string>> = ({
-  active, payload, label,
-}) => {
-  const { tokens, isDark } = usePlatformTheme();
+interface TooltipPayloadItem {
+  name?: string;
+  value?: number | string;
+  color?: string;
+  dataKey?: string | number;
+}
 
+interface ChartTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadItem[];
+  label?: string | number;
+  /** Formata o valor (ex.: moeda). */
+  formatter?: (value: number | string, name: string) => string;
+}
+
+/** Tooltip do Recharts coerente com o Popover do kit (tokens, sem cor fixa). */
+export const ChartTooltip: React.FC<ChartTooltipProps> = ({ active, payload, label, formatter }) => {
   if (!active || !payload?.length) return null;
-
   return (
-    <Box
-      sx={{
-        bgcolor: tokens.tooltipBg,
-        border: `1px solid ${tokens.borderStrong}`,
-        borderRadius: "10px",
-        px: 1.5,
-        py: 1,
-        backdropFilter: "blur(12px)",
-        boxShadow: isDark
-          ? "0 8px 32px rgba(0,0,0,0.5)"
-          : "0 8px 24px rgba(99,102,241,0.12)",
-      }}
-    >
-      <Typography sx={{ fontSize: "0.65rem", color: "text.secondary", mb: 0.5 }}>
-        {label}
-      </Typography>
-      {payload.map((entry) => (
-        <Box
-          key={entry.name}
-          sx={{ display: "flex", alignItems: "center", gap: 0.75 }}
-        >
-          <Box
-            sx={{
-              width: 8, height: 8, borderRadius: "50%",
-              bgcolor: entry.color ?? "#6366F1",
-              boxShadow: `0 0 6px ${entry.color ?? "#6366F1"}`,
-            }}
-          />
-          <Typography
-            sx={{ fontSize: "0.75rem", fontWeight: 600, color: "text.primary" }}
-          >
-            {entry.value?.toLocaleString("pt-BR")}
-          </Typography>
-          <Typography sx={{ fontSize: "0.68rem", color: "text.secondary" }}>
-            {entry.name}
-          </Typography>
-        </Box>
-      ))}
-    </Box>
+    <div style={chartTooltipStyle} className="px-3 py-2">
+      {label !== undefined && <p className="mb-1 text-xs font-semibold text-muted-foreground">{String(label)}</p>}
+      <ul className="m-0 list-none space-y-0.5 p-0">
+        {payload.map((item, i) => {
+          const name = item.name ?? String(item.dataKey ?? '');
+          const value = item.value ?? '';
+          return (
+            <li key={`${name}-${i}`} className="flex items-center gap-2 text-xs">
+              <span aria-hidden className="size-2 rounded-full" style={{ background: item.color ?? 'var(--primary)' }} />
+              <span className="text-muted-foreground">{name}</span>
+              <span className="ml-auto font-semibold tabular-nums">{formatter ? formatter(value, name) : value}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 };
+
+export default ChartTooltip;

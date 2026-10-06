@@ -1,70 +1,60 @@
 /**
- * Admin Estoque — Itens (CRUD + saldo colorido)
+ * Admin Estoque — Itens: cadastro, saldo com status, filtro "Críticos", exportação CSV
+ * (absorveu `/admin/estoque/relatorio`) e ação "Movimentar" na linha.
  */
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
+import type { ColumnDef } from '@tanstack/react-table';
 import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Snackbar,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import { ConfirmDialog } from '@/components/admin';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import Inventory2Icon from '@mui/icons-material/Inventory2';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
+  AlertTriangle,
+  Boxes,
+  Camera,
+  CheckCircle2,
+  Download,
+  Loader2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  ArrowUpDown,
+  Trash2,
+  XCircle,
+} from 'lucide-react';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
-import UpgradePrompt from '../../../components/UpgradePrompt';
+import { useSnackbar } from '../../../contexts/SnackbarContext';
 import { apiClient } from '../../../services/api_client';
 import CrudDrawer from '../../../components/CrudDrawer';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { DataTable } from '@/components/admin/DataTable';
+import { KpiCard } from '@/components/admin/KpiCard';
+import { PageHeader } from '@/components/admin/PageHeader';
+import { PermissionDenied, PlanLocked } from '@/components/gates';
+import { MoneyInput, TextField } from '@/components/fields';
+import { MovimentacaoDrawer } from '@/components/estoque/MovimentacaoDrawer';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Toggle } from '@/components/ui/toggle';
+import { formatBRL, todayBr } from '@/lib/dateBr';
 
 const UNIDADES = ['UN', 'KG', 'G', 'L', 'ML', 'M', 'CM', 'CX', 'PCT', 'RO'] as const;
-type Unidade = typeof UNIDADES[number];
+type Unidade = (typeof UNIDADES)[number];
 
-/** Small helper to render images that require Authorization header. */
-function AuthImage({ src, sx }: { src: string; sx?: object }) {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const urlRef = useRef<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    apiClient.get(src, { responseType: 'blob' }).then((res) => {
-      if (!cancelled) {
-        const url = URL.createObjectURL(res.data);
-        urlRef.current = url;
-        setBlobUrl(url);
-      }
-    }).catch(() => {});
-    return () => { cancelled = true; if (urlRef.current) URL.revokeObjectURL(urlRef.current); };
-  }, [src]);
-  if (!blobUrl) return null;
-  return <Box component="img" src={blobUrl} sx={sx} />;
-}
-
-interface Grupo { id: string; nome: string; }
-
+interface Grupo { id: string; nome: string }
 interface Item {
   id: string;
   nome: string;
@@ -85,25 +75,56 @@ interface FormData {
   descricao: string;
   unidade_medida: Unidade;
   estoque_minimo: string;
-  custo_unitario: string;
+  custo_unitario: number;
   observacoes: string;
   foto_base64: string | null;
   foto_content_type: string | null;
 }
 
 const EMPTY_FORM: FormData = {
-  nome: '', grupo_id: '', descricao: '',
-  unidade_medida: 'UN', estoque_minimo: '0',
-  custo_unitario: '', observacoes: '',
-  foto_base64: null, foto_content_type: null,
+  nome: '', grupo_id: '', descricao: '', unidade_medida: 'UN', estoque_minimo: '0',
+  custo_unitario: 0, observacoes: '', foto_base64: null, foto_content_type: null,
 };
 
-function SaldoChip({ saldo, minimo, unidade }: { saldo: number; minimo: number; unidade: string }) {
-  const isCrit = saldo < 0 || (minimo > 0 && saldo === 0);
-  const isLow = !isCrit && minimo > 0 && saldo < minimo;
-  const color = isCrit ? 'error' : isLow ? 'warning' : 'success';
-  const label = `${saldo} ${unidade}`;
-  return <Chip label={label} color={color} size="small" variant="outlined" />;
+export type SaldoStatus = 'ok' | 'atencao' | 'critico';
+
+/** Mesma regra do relatório de posição: crítico = negativo ou zerado com mínimo; atenção = abaixo do mínimo. */
+export function saldoStatus(saldo: number, minimo: number): SaldoStatus {
+  if (saldo < 0 || (minimo > 0 && saldo === 0)) return 'critico';
+  if (minimo > 0 && saldo < minimo) return 'atencao';
+  return 'ok';
+}
+
+function SaldoBadge({ item }: { item: Item }) {
+  const status = saldoStatus(item.saldo, item.estoque_minimo);
+  const label = `${item.saldo} ${item.unidade_medida}`;
+  if (status === 'critico') return <Badge variant="destructive">{label}</Badge>;
+  if (status === 'atencao') return <Badge className="border-transparent bg-warning text-warning-foreground">{label}</Badge>;
+  return <Badge className="border-transparent bg-success text-success-foreground">{label}</Badge>;
+}
+
+/** Imagem que exige cookie de sessão (não dá para usar <img src> direto). */
+function AuthImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    let url: string | null = null;
+    apiClient
+      .get(src, { responseType: 'blob' })
+      .then((res) => {
+        if (cancelled) return;
+        url = URL.createObjectURL(res.data);
+        setBlobUrl(url);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [src]);
+  if (!blobUrl) return <div className={`${className ?? ''} bg-muted`} aria-hidden />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={blobUrl} alt={alt} className={className} />;
 }
 
 export default function AdminEstoqueItensPage() {
@@ -115,17 +136,28 @@ export default function AdminEstoqueItensPage() {
 }
 
 function AdminEstoqueItensContent() {
+  const router = useRouter();
   const { can, loading: subLoading } = useSubscription();
   const { can: canGroup } = usePermissions();
+  const { showSuccess, showError } = useSnackbar();
   const canView = canGroup('estoque', 'view');
   const canInsert = canGroup('estoque', 'insert');
   const canEdit = canGroup('estoque', 'edit');
   const canDelete = canGroup('estoque', 'delete');
+
   const [items, setItems] = useState<Item[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [filterGrupo, setFilterGrupo] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [filterGrupo, setFilterGrupo] = useState('all');
+  const [search, setSearch] = useState('');
+  const [somenteCriticos, setSomenteCriticos] = useState(false);
+
+  // Aceita `?criticos=1` (vindo do antigo relatório).
+  useEffect(() => {
+    if (router.isReady && router.query.criticos === '1') setSomenteCriticos(true);
+  }, [router.isReady, router.query.criticos]);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
@@ -135,48 +167,55 @@ function AdminEstoqueItensContent() {
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [movItem, setMovItem] = useState<Item | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Item | null>(null);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
-    open: false, message: '', severity: 'success',
-  });
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    loadGrupos();
-    // loadGrupos isn't memoized — including it would refetch every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canView]);
-
-  // loadItems isn't memoized — including it would refetch every render.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadItems(); }, [filterGrupo, canView]);
-
-  const loadGrupos = async () => {
+  const loadGrupos = useCallback(async () => {
     if (!canView) return;
     try {
       const res = await apiClient.get('/api/v1/admin/estoque/grupos');
       setGrupos(res.data);
-    } catch { /* silencioso */ }
-  };
+    } catch {
+      /* silencioso */
+    }
+  }, [canView]);
 
-  const loadItems = async () => {
-    if (!canView) { setLoading(false); return; }
+  const loadItems = useCallback(async () => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const params: Record<string, string> = {};
-      if (filterGrupo) params.grupo_id = filterGrupo;
+      if (filterGrupo !== 'all') params.grupo_id = filterGrupo;
       const res = await apiClient.get('/api/v1/admin/estoque/itens', { params });
       setItems(res.data);
     } catch {
-      setSnackbar({ open: true, message: 'Erro ao carregar itens', severity: 'error' });
+      showError('Erro ao carregar itens');
     } finally {
       setLoading(false);
     }
+  }, [canView, filterGrupo, showError]);
+
+  useEffect(() => {
+    loadGrupos();
+  }, [loadGrupos]);
+  useEffect(() => {
+    loadItems();
+  }, [loadItems]);
+
+  // ── Sheet ───────────────────────────────────────────────────────────
+
+  const resetFoto = () => {
+    if (fotoPreview?.startsWith('blob:')) URL.revokeObjectURL(fotoPreview);
+    setFotoPreview(null);
   };
 
   const openCreate = () => {
     setFormData(EMPTY_FORM);
-    setFotoPreview(null);
+    resetFoto();
     setTouched({});
     setCurrentItem(null);
     setDrawerMode('create');
@@ -191,56 +230,57 @@ function AdminEstoqueItensContent() {
       descricao: item.descricao || '',
       unidade_medida: item.unidade_medida,
       estoque_minimo: String(item.estoque_minimo),
-      custo_unitario: item.custo_unitario != null ? String(item.custo_unitario) : '',
+      custo_unitario: item.custo_unitario ?? 0,
       observacoes: item.observacoes || '',
       foto_base64: null,
       foto_content_type: null,
     });
-    if (item.tem_foto) {
-      try {
-        const res = await apiClient.get(`/api/v1/admin/estoque/itens/${item.id}/foto`, { responseType: 'blob' });
-        const url = URL.createObjectURL(res.data);
-        setFotoPreview(url);
-      } catch {
-        setFotoPreview(null);
-      }
-    } else {
-      setFotoPreview(null);
-    }
+    resetFoto();
     setTouched({});
     setDrawerMode('edit');
     setDrawerOpen(true);
+    if (item.tem_foto) {
+      try {
+        const res = await apiClient.get(`/api/v1/admin/estoque/itens/${item.id}/foto`, { responseType: 'blob' });
+        setFotoPreview(URL.createObjectURL(res.data));
+      } catch {
+        setFotoPreview(null);
+      }
+    }
+  };
+
+  const closeDrawer = () => {
+    resetFoto();
+    setDrawerOpen(false);
+    setCurrentItem(null);
   };
 
   const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showError('A foto deve ter no máximo 2 MB.');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const dataUri = reader.result as string;
       setFotoPreview(dataUri);
-      setFormData((prev) => ({
-        ...prev,
-        foto_base64: dataUri,
-        foto_content_type: file.type,
-      }));
+      setFormData((prev) => ({ ...prev, foto_base64: dataUri, foto_content_type: file.type }));
     };
     reader.readAsDataURL(file);
   };
 
   const handleSave = async () => {
-    setTouched({ nome: true });
+    setTouched({ nome: true, estoque_minimo: true });
     if (!formData.nome.trim()) return;
     if (drawerMode === 'create' && !canInsert) return;
     if (drawerMode === 'edit' && !canEdit) return;
-
     const minimo = parseInt(formData.estoque_minimo, 10);
-    if (isNaN(minimo) || minimo < 0) {
-      setSnackbar({ open: true, message: 'Estoque mínimo inválido', severity: 'error' });
+    if (Number.isNaN(minimo) || minimo < 0) {
+      showError('Estoque mínimo inválido');
       return;
     }
-    const custo = formData.custo_unitario ? parseFloat(formData.custo_unitario) : null;
-
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -249,23 +289,22 @@ function AdminEstoqueItensContent() {
         descricao: formData.descricao.trim() || null,
         unidade_medida: formData.unidade_medida,
         estoque_minimo: minimo,
-        custo_unitario: custo,
+        custo_unitario: formData.custo_unitario > 0 ? formData.custo_unitario : null,
         observacoes: formData.observacoes.trim() || null,
         foto_base64: formData.foto_base64,
         foto_content_type: formData.foto_content_type,
       };
-
       if (drawerMode === 'create') {
         await apiClient.post('/api/v1/admin/estoque/itens', payload);
-        setSnackbar({ open: true, message: 'Item criado com sucesso!', severity: 'success' });
-      } else {
-        await apiClient.put(`/api/v1/admin/estoque/itens/${currentItem!.id}`, payload);
-        setSnackbar({ open: true, message: 'Item atualizado!', severity: 'success' });
+        showSuccess('Item criado com sucesso!');
+      } else if (currentItem) {
+        await apiClient.put(`/api/v1/admin/estoque/itens/${currentItem.id}`, payload);
+        showSuccess('Item atualizado!');
       }
-      setDrawerOpen(false);
+      closeDrawer();
       loadItems();
     } catch {
-      setSnackbar({ open: true, message: 'Erro ao salvar item', severity: 'error' });
+      showError('Erro ao salvar item');
     } finally {
       setSaving(false);
     }
@@ -273,216 +312,347 @@ function AdminEstoqueItensContent() {
 
   const handleDelete = async () => {
     if (!deleteTarget || !canDelete) return;
+    setDeleting(true);
     try {
       await apiClient.delete(`/api/v1/admin/estoque/itens/${deleteTarget.id}`);
-      setSnackbar({ open: true, message: 'Item excluído.', severity: 'success' });
+      showSuccess('Item excluído.');
       loadItems();
     } catch {
-      setSnackbar({ open: true, message: 'Erro ao excluir item', severity: 'error' });
+      showError('Erro ao excluir item');
     } finally {
-      setDeleteOpen(false);
+      setDeleting(false);
       setDeleteTarget(null);
     }
   };
 
-  if (subLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
-  if (!can('estoque_controle')) return <UpgradePrompt feature="controle de estoque" minPlan="Pro" />;
-  if (!canView) {
+  // ── Exportar CSV (do antigo relatório) ─────────────────────────────
+
+  const handleExportCsv = async () => {
+    if (!canView) return;
+    if (!can('export_csv')) {
+      showError('Exportação CSV disponível a partir do plano Premium.');
+      return;
+    }
+    setExporting(true);
+    try {
+      const params: Record<string, string> = {};
+      if (filterGrupo !== 'all') params.grupo_id = filterGrupo;
+      const res = await apiClient.get('/api/v1/admin/estoque/relatorio/posicao/csv', { params, responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `estoque_posicao_${todayBr()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showSuccess('CSV exportado.');
+    } catch {
+      showError('Erro ao exportar CSV');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // ── Derivados ───────────────────────────────────────────────────────
+
+  const counts = useMemo(() => {
+    const c = { ok: 0, atencao: 0, critico: 0 };
+    for (const i of items) c[saldoStatus(i.saldo, i.estoque_minimo)] += 1;
+    return c;
+  }, [items]);
+
+  const rows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return items.filter((i) => {
+      if (somenteCriticos && saldoStatus(i.saldo, i.estoque_minimo) === 'ok') return false;
+      if (term && !i.nome.toLowerCase().includes(term) && !(i.grupo_nome ?? '').toLowerCase().includes(term)) return false;
+      return true;
+    });
+  }, [items, search, somenteCriticos]);
+
+  const showActions = canEdit || canDelete || canInsert;
+
+  const RowActions = ({ item }: { item: Item }) => (
+    <div className="flex items-center justify-end gap-1">
+      {canInsert && (
+        <Button variant="outline" size="sm" onClick={() => setMovItem(item)} aria-label={`Movimentar ${item.nome}`}>
+          <ArrowUpDown />
+          Movimentar
+        </Button>
+      )}
+      {(canEdit || canDelete) && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" aria-label={`Mais ações de ${item.nome}`}>
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {canEdit && (
+              <DropdownMenuItem onSelect={() => openEdit(item)}>
+                <Pencil />
+                Editar
+              </DropdownMenuItem>
+            )}
+            {canEdit && canDelete && <DropdownMenuSeparator />}
+            {canDelete && (
+              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(item)}>
+                <Trash2 />
+                Excluir
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  );
+
+  const columns = useMemo<ColumnDef<Item>[]>(() => {
+    const cols: ColumnDef<Item>[] = [
+      {
+        accessorKey: 'nome',
+        header: 'Item',
+        cell: ({ row }) => {
+          const i = row.original;
+          return (
+            <div className="flex items-center gap-3">
+              {i.tem_foto && (
+                <AuthImage src={`/api/v1/admin/estoque/itens/${i.id}/foto`} alt="" className="size-9 shrink-0 rounded-md object-cover" />
+              )}
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate font-medium">{i.nome}</span>
+                {i.descricao && <span className="truncate text-xs text-muted-foreground">{i.descricao}</span>}
+              </div>
+            </div>
+          );
+        },
+      },
+      { accessorKey: 'grupo_nome', header: 'Grupo', cell: ({ getValue }) => <span className="text-muted-foreground">{getValue<string | null>() || '—'}</span> },
+      { accessorKey: 'saldo', header: 'Saldo', cell: ({ row }) => <SaldoBadge item={row.original} /> },
+      { accessorKey: 'estoque_minimo', header: 'Mínimo', cell: ({ row }) => <span className="text-muted-foreground">{row.original.estoque_minimo} {row.original.unidade_medida}</span> },
+      { accessorKey: 'custo_unitario', header: 'Custo unit.', meta: { align: 'right' }, cell: ({ getValue }) => <span className="text-muted-foreground">{formatBRL(getValue<number | null>())}</span> },
+    ];
+    if (showActions) {
+      cols.push({ id: 'acoes', header: '', enableSorting: false, meta: { align: 'right' }, cell: ({ row }) => <RowActions item={row.original} /> });
+    }
+    return cols;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showActions, canInsert, canEdit, canDelete]);
+
+  const renderCard = (i: Item) => (
+    <div className="flex flex-col gap-2 p-3">
+      <div className="flex items-start gap-3">
+        {i.tem_foto && <AuthImage src={`/api/v1/admin/estoque/itens/${i.id}/foto`} alt="" className="size-12 shrink-0 rounded-md object-cover" />}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-medium">{i.nome}</span>
+          <span className="truncate text-xs text-muted-foreground">{i.grupo_nome || 'Sem grupo'}{i.descricao ? ` · ${i.descricao}` : ''}</span>
+        </div>
+        <SaldoBadge item={i} />
+      </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>Mínimo {i.estoque_minimo} {i.unidade_medida}</span>
+        <span>{formatBRL(i.custo_unitario)}</span>
+      </div>
+      {showActions && <RowActions item={i} />}
+    </div>
+  );
+
+  // ── Gates ───────────────────────────────────────────────────────────
+
+  if (subLoading) {
     return (
-      <Alert severity="warning" sx={{ mt: 2 }}>
-        Você não tem permissão para visualizar itens de estoque. Contate o administrador do sistema.
-      </Alert>
+      <div className="mt-8 flex flex-col gap-3" aria-busy="true">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-40 w-full" />
+      </div>
     );
   }
+  if (!can('estoque_controle')) return <PlanLocked feature="Controle de estoque" minPlan="Pro" />;
+  if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar itens de estoque." />;
 
   return (
-    <Box>
-      <Box data-tour="estoque-itens-header" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Inventory2Icon color="primary" />
-          <Typography variant="h5" fontWeight={700}>Itens de Estoque</Typography>
-          <Chip label={`${items.length}`} size="small" variant="outlined" />
-        </Box>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-          <FormControl data-tour="estoque-itens-filtro" size="small" sx={{ minWidth: 180 }}>
-            <Select value={filterGrupo} label="Filtrar por grupo" onChange={(e) => setFilterGrupo(e.target.value)}>
-              <MenuItem value="">Todos</MenuItem>
-              {grupos.map((g) => <MenuItem key={g.id} value={g.id}>{g.nome}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <Tooltip title="Atualizar"><IconButton onClick={loadItems}><RefreshIcon /></IconButton></Tooltip>
-          {canInsert && (
-            <Button data-tour="estoque-itens-novo" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Novo Item</Button>
-          )}
-        </Box>
-      </Box>
+    <div className="flex flex-col gap-4">
+      <div data-tour="estoque-itens-header">
+        <PageHeader
+          title="Itens de Estoque"
+          subtitle={`${items.length} ${items.length === 1 ? 'item cadastrado' : 'itens cadastrados'}`}
+          actions={
+            <>
+              <Button variant="outline" onClick={loadItems} disabled={loading} aria-label="Atualizar">
+                <RefreshCw className={loading ? 'animate-spin' : undefined} />
+                <span className="hidden sm:inline">Atualizar</span>
+              </Button>
+              <Button data-tour="estoque-rel-export" variant="outline" onClick={handleExportCsv} disabled={exporting || loading || items.length === 0}>
+                {exporting ? <Loader2 className="animate-spin" /> : <Download />}
+                <span className="hidden sm:inline">Exportar CSV</span>
+                <span className="sm:hidden">CSV</span>
+              </Button>
+              {canInsert && (
+                <Button data-tour="estoque-itens-novo" onClick={openCreate}>
+                  <Plus />
+                  Novo item
+                </Button>
+              )}
+            </>
+          }
+        />
+      </div>
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>
-      ) : items.length === 0 ? (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Inventory2Icon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-          <Typography color="text.secondary">Nenhum item cadastrado.</Typography>
-        </Paper>
-      ) : (
-        <TableContainer data-tour="estoque-itens-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell><strong>Nome</strong></TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Grupo</strong></TableCell>
-                <TableCell><strong>Saldo</strong></TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Mínimo</strong></TableCell>
-                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Custo Unit.</strong></TableCell>
-                {(canEdit || canDelete) && <TableCell align="right"><strong>Ações</strong></TableCell>}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id} hover>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {item.tem_foto && (
-                        <AuthImage
-                          src={`/api/v1/admin/estoque/itens/${item.id}/foto`}
-                          sx={{ width: 32, height: 32, borderRadius: 1, objectFit: 'cover' }}
-                        />
-                      )}
-                      <Box>
-                        <Typography variant="body2" fontWeight={600}>{item.nome}</Typography>
-                        {item.descricao && <Typography variant="caption" color="text.secondary">{item.descricao}</Typography>}
-                      </Box>
-                    </Box>
-                  </TableCell>
-                  <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{item.grupo_nome || '—'}</TableCell>
-                  <TableCell><SaldoChip saldo={item.saldo} minimo={item.estoque_minimo} unidade={item.unidade_medida} /></TableCell>
-                  <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{item.estoque_minimo} {item.unidade_medida}</TableCell>
-                  <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', md: 'table-cell' } }}>{item.custo_unitario != null ? `R$ ${item.custo_unitario.toFixed(2)}` : '—'}</TableCell>
-                  {(canEdit || canDelete) && (
-                    <TableCell align="right">
-                      {canEdit && <Tooltip title="Editar"><IconButton size="small" onClick={() => openEdit(item)}><EditIcon fontSize="small" /></IconButton></Tooltip>}
-                      {canDelete && <Tooltip title="Excluir"><IconButton size="small" color="error" onClick={() => { setDeleteTarget(item); setDeleteOpen(true); }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>}
-                    </TableCell>
-                  )}
-                </TableRow>
+      <div className="grid grid-cols-3 gap-3" data-tour="estoque-rel-kpis">
+        <KpiCard label="Em dia" value={counts.ok} icon={<CheckCircle2 />} color="var(--success)" loading={loading} />
+        <KpiCard label="Atenção" value={counts.atencao} icon={<AlertTriangle />} color="var(--warning)" loading={loading} subtitle="abaixo do mínimo" />
+        <KpiCard label="Críticos" value={counts.critico} icon={<XCircle />} color="var(--destructive)" loading={loading} subtitle="zerados ou negativos" />
+      </div>
+
+      <div data-tour="estoque-itens-filtro" className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+        <TextField
+          aria-label="Buscar item"
+          placeholder="Buscar por nome ou grupo..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          startAdornment={<Search />}
+          size="small"
+          className="sm:max-w-xs"
+        />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="filtro-grupo" className="sr-only">Grupo</Label>
+          <Select value={filterGrupo} onValueChange={setFilterGrupo}>
+            <SelectTrigger id="filtro-grupo" size="sm" className="w-full sm:w-48" aria-label="Filtrar por grupo">
+              <SelectValue placeholder="Grupo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os grupos</SelectItem>
+              {grupos.map((g) => (
+                <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+            </SelectContent>
+          </Select>
+        </div>
+        <Toggle
+          variant="outline"
+          size="sm"
+          pressed={somenteCriticos}
+          onPressedChange={setSomenteCriticos}
+          aria-label="Mostrar só itens críticos ou em atenção"
+          className="data-[state=on]:bg-destructive/10 data-[state=on]:text-destructive"
+        >
+          <AlertTriangle />
+          Críticos
+        </Toggle>
+      </div>
 
-      {/* Create/Edit Drawer */}
+      <div data-tour="estoque-itens-tabela">
+        <DataTable
+          columns={columns}
+          data={rows}
+          getRowId={(i) => i.id}
+          loading={loading}
+          pageSize={25}
+          renderCard={renderCard}
+          emptyIcon={<Boxes className="size-10 text-ghost" aria-hidden />}
+          emptyMessage={somenteCriticos ? 'Nenhum item crítico — estoque em dia.' : search ? 'Nenhum item encontrado.' : 'Nenhum item cadastrado.'}
+          emptyDescription={!search && !somenteCriticos && canInsert ? 'Use "Novo item" para começar.' : undefined}
+        />
+      </div>
+
       <CrudDrawer
         open={drawerOpen}
-        title={drawerMode === 'create' ? 'Novo Item' : 'Editar Item'}
-        onClose={() => {
-          if (fotoPreview && fotoPreview.startsWith('blob:')) URL.revokeObjectURL(fotoPreview);
-          setDrawerOpen(false);
-          setCurrentItem(null);
-          setFotoPreview(null);
-        }}
+        title={drawerMode === 'create' ? 'Novo item' : 'Editar item'}
+        onClose={closeDrawer}
         onSave={handleSave}
         saving={saving}
+        saveDisabled={!formData.nome.trim()}
       >
-        <TextField
-          label="Nome do item *"
-          fullWidth
-          value={formData.nome}
-          onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-          onBlur={() => setTouched({ ...touched, nome: true })}
-          error={touched.nome && !formData.nome.trim()}
-          helperText={touched.nome && !formData.nome.trim() ? 'Nome obrigatório' : ''}
-          sx={{ mb: 2 }}
-        />
-        <FormControl fullWidth sx={{ mb: 2 }}>
-          <InputLabel>Grupo</InputLabel>
-          <Select value={formData.grupo_id} label="Grupo" onChange={(e) => setFormData({ ...formData, grupo_id: e.target.value })}>
-            <MenuItem value="">Sem grupo</MenuItem>
-            {grupos.map((g) => <MenuItem key={g.id} value={g.id}>{g.nome}</MenuItem>)}
-          </Select>
-        </FormControl>
-        <TextField
-          label="Descrição"
-          fullWidth
-          multiline
-          rows={2}
-          value={formData.descricao}
-          onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-          sx={{ mb: 2 }}
-        />
-        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-          <FormControl fullWidth>
-            <InputLabel>Unidade de medida</InputLabel>
-            <Select value={formData.unidade_medida} label="Unidade de medida" onChange={(e) => setFormData({ ...formData, unidade_medida: e.target.value as Unidade })}>
-              {UNIDADES.map((u) => <MenuItem key={u} value={u}>{u}</MenuItem>)}
-            </Select>
-          </FormControl>
+        <div className="flex flex-col gap-4">
           <TextField
-            label="Estoque mínimo"
-            fullWidth
-            type="number"
-            inputProps={{ min: 0 }}
-            value={formData.estoque_minimo}
-            onChange={(e) => setFormData({ ...formData, estoque_minimo: e.target.value })}
+            label="Nome do item"
+            value={formData.nome}
+            onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+            onBlur={() => setTouched({ ...touched, nome: true })}
+            required
+            error={touched.nome && !formData.nome.trim() && 'Nome obrigatório'}
+            autoFocus
           />
-        </Box>
-        <TextField
-          label="Custo unitário (R$)"
-          fullWidth
-          type="number"
-          inputProps={{ min: 0, step: '0.01' }}
-          value={formData.custo_unitario}
-          onChange={(e) => setFormData({ ...formData, custo_unitario: e.target.value })}
-          sx={{ mb: 2 }}
-        />
-        <TextField
-          label="Observações"
-          fullWidth
-          multiline
-          rows={2}
-          value={formData.observacoes}
-          onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
-          sx={{ mb: 2 }}
-        />
-
-        {/* Foto */}
-        <Box sx={{ mb: 1 }}>
-          <Typography variant="caption" color="text.secondary">Foto (JPG/PNG/WEBP, máx. 2 MB)</Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
-            {fotoPreview && (
-              <Box
-                component="img"
-                src={fotoPreview}
-                sx={{ width: 56, height: 56, borderRadius: 1, objectFit: 'cover', border: 1, borderColor: 'divider' }}
-              />
-            )}
-            <Button variant="outlined" size="small" startIcon={<PhotoCameraIcon />} onClick={() => fileInputRef.current?.click()}>
-              {fotoPreview ? 'Trocar foto' : 'Adicionar foto'}
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              style={{ display: 'none' }}
-              onChange={handleFotoChange}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="item-grupo">Grupo</Label>
+            <Select value={formData.grupo_id || 'none'} onValueChange={(v) => setFormData({ ...formData, grupo_id: v === 'none' ? '' : v })}>
+              <SelectTrigger id="item-grupo" className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sem grupo</SelectItem>
+                {grupos.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <TextField label="Descrição" multiline rows={2} value={formData.descricao} onChange={(e) => setFormData({ ...formData, descricao: e.target.value })} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="item-unidade">Unidade</Label>
+              <Select value={formData.unidade_medida} onValueChange={(v) => setFormData({ ...formData, unidade_medida: v as Unidade })}>
+                <SelectTrigger id="item-unidade" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {UNIDADES.map((u) => (
+                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <TextField
+              label="Estoque mínimo"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={formData.estoque_minimo}
+              onChange={(e) => setFormData({ ...formData, estoque_minimo: e.target.value })}
+              error={touched.estoque_minimo && (Number.isNaN(parseInt(formData.estoque_minimo, 10)) || parseInt(formData.estoque_minimo, 10) < 0) && 'Inválido'}
             />
-          </Box>
-        </Box>
+          </div>
+          <MoneyInput label="Custo unitário" value={formData.custo_unitario} onChange={(v) => setFormData({ ...formData, custo_unitario: v })} helperText="Opcional" />
+          <TextField label="Observações" multiline rows={2} value={formData.observacoes} onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })} />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Foto</span>
+            <div className="flex items-center gap-3">
+              {fotoPreview && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={fotoPreview} alt="Pré-visualização da foto" className="size-16 rounded-md border object-cover" />
+              )}
+              <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                <Camera />
+                {fotoPreview ? 'Trocar foto' : 'Adicionar foto'}
+              </Button>
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFotoChange} aria-label="Selecionar foto" />
+            </div>
+            <p className="text-xs text-muted-foreground">JPG, PNG ou WebP, máx. 2 MB.</p>
+          </div>
+        </div>
       </CrudDrawer>
 
-      <ConfirmDialog
-        open={deleteOpen}
-        title="Excluir Item"
-        message={<><Typography component="span">Tem certeza que deseja excluir <strong>{deleteTarget?.nome}</strong>?</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>O histórico de movimentações será mantido.</Typography></>}
-        confirmText="Excluir"
-        destructive
-        onConfirm={handleDelete}
-        onCancel={() => { setDeleteOpen(false); setDeleteTarget(null); }}
+      <MovimentacaoDrawer
+        open={movItem !== null}
+        onClose={() => setMovItem(null)}
+        items={items}
+        initial={movItem ? { item_id: movItem.id, tipo: 'saida' } : undefined}
+        onSaved={() => {
+          showSuccess('Movimentação registrada!');
+          loadItems();
+        }}
       />
 
-      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })} sx={{ width: '100%' }}>{snackbar.message}</Alert>
-      </Snackbar>
-    </Box>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Excluir item"
+        message={
+          <>
+            Tem certeza que deseja excluir <strong>{deleteTarget?.nome}</strong>?
+            <span className="mt-1 block text-muted-foreground">O histórico de movimentações será mantido.</span>
+          </>
+        }
+        confirmText="Excluir"
+        destructive
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </div>
   );
 }

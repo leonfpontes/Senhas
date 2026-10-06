@@ -65,11 +65,14 @@ describe('FirstGiraChecklist', () => {
     expect(screen.getByText(/Peça a um administrador/)).toBeInTheDocument();
   });
 
+  const openShare = () => fireEvent.click(screen.getByRole('button', { name: /Compartilhar link/ }));
+
   it('com gira criada, o passo atual é compartilhar o link', () => {
     renderChecklist({ has_gira: true });
     expect(stepDone('gira')).toBe('true');
     expect(screen.getByTestId('checklist-step-share')).toHaveAttribute('aria-current', 'step');
     expect(screen.getByText(LINK)).toBeInTheDocument();
+    openShare();
     const wa = screen.getByRole('link', { name: /Enviar no WhatsApp/ });
     expect(wa).toHaveAttribute('href', buildWhatsAppShareUrl(LINK, 'Casa Nova'));
     expect(wa).toHaveAttribute('target', '_blank');
@@ -77,6 +80,7 @@ describe('FirstGiraChecklist', () => {
 
   it('clicar no WhatsApp marca o passo como feito, persiste e registra evento', () => {
     renderChecklist({ has_gira: true });
+    openShare();
     fireEvent.click(screen.getByRole('link', { name: /Enviar no WhatsApp/ }));
     expect(stepDone('share')).toBe('true');
     expect(window.localStorage.getItem('girahub:first-gira-checklist:shared:tenant-1')).toBe('1');
@@ -89,24 +93,33 @@ describe('FirstGiraChecklist', () => {
     Object.assign(navigator, { clipboard: { writeText } });
     Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
     renderChecklist({ has_gira: true });
+    openShare();
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Copiar link/ }));
     });
     expect(writeText).toHaveBeenCalledWith(LINK);
     expect(stepDone('share')).toBe('true');
-    // Durante a transição do Collapse os dois passos ficam montados por um
-    // instante, cada um com seu botão de copiar — basta o feedback aparecer.
     expect(screen.getAllByText('Link copiado!').length).toBeGreaterThan(0);
     expect(trackEvent).toHaveBeenCalledWith('onboarding_copy_link');
   });
 
-  it('QR code aponta para o link público e não avança o passo (senão sumiria)', () => {
+  it('o QR code do diálogo aponta para o link público e não avança o passo (senão sumiria)', () => {
     renderChecklist({ has_gira: true });
-    fireEvent.click(screen.getByRole('button', { name: /QR code/ }));
+    openShare();
     expect(screen.getByTestId('checklist-qr')).toHaveAttribute('data-value', LINK);
     expect(stepDone('share')).toBe('false');
     expect(screen.getByTestId('checklist-step-share')).toHaveAttribute('aria-current', 'step');
-    expect(trackEvent).toHaveBeenCalledWith('onboarding_show_qr');
+  });
+
+  it('testar o link oferece "Já compartilhei", que marca o passo ao confirmar', () => {
+    renderChecklist({ has_gira: true });
+    expect(screen.queryByRole('button', { name: /Já compartilhei/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: /Testar o link/ }));
+    expect(trackEvent).toHaveBeenCalledWith('onboarding_test_link');
+    expect(stepDone('share')).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: /Já compartilhei/ }));
+    expect(stepDone('share')).toBe('true');
+    expect(trackEvent).toHaveBeenCalledWith('onboarding_confirm_shared');
   });
 
   it('esperando a primeira senha, oferece testar o link e as ações de compartilhar', () => {
@@ -114,8 +127,8 @@ describe('FirstGiraChecklist', () => {
     renderChecklist({ has_gira: true });
     expect(screen.getByTestId('checklist-step-tickets')).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('link', { name: /Testar o link/ })).toHaveAttribute('href', LINK);
+    openShare();
     expect(screen.getByRole('link', { name: /Enviar no WhatsApp/ })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /QR code/ }));
     expect(screen.getByTestId('checklist-qr')).toHaveAttribute('data-value', LINK);
   });
 
@@ -153,7 +166,8 @@ describe('FirstGiraChecklist', () => {
 
   it('sem link público, não mostra ações de compartilhar', () => {
     renderChecklist({ has_gira: true, public_link: null });
-    expect(screen.queryByRole('link', { name: /Enviar no WhatsApp/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Compartilhar link/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Testar o link/ })).not.toBeInTheDocument();
   });
 });
 

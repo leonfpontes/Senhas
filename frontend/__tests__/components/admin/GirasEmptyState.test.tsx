@@ -33,7 +33,7 @@ describe('GirasEmptyState', () => {
     );
     expect(screen.queryByRole('button', { name: /Criar primeira gira/ })).not.toBeInTheDocument();
     expect(screen.getByText('Sem assinatura ativa. Faça upgrade do plano.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Ver planos' })).toHaveAttribute('href', '/admin/plano');
+    expect(screen.getByRole('link', { name: 'Ver planos' })).toHaveAttribute('href', '/admin/billing');
   });
 
   it('sem permissão de grupo: orienta a pedir ao administrador', () => {

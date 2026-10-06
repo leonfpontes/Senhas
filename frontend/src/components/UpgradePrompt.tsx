@@ -1,44 +1,40 @@
 /**
- * UpgradePrompt — shown when a feature is locked by the current plan.
+ * UpgradePrompt — exibido quando um recurso está bloqueado pelo plano atual.
+ * Mesma API da versão MUI; o CTA leva para `/admin/billing?plan=<minPlan em minúsculas>`.
  */
 import React from 'react';
-import { Box, Typography, Button, Card, CardContent } from '@mui/material';
-import LockIcon from '@mui/icons-material/Lock';
-import { useRouter } from 'next/router';
-import { useSubscription } from '../hooks/useSubscription';
+import Link from 'next/link';
+import { Lock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { useSubscription } from '@/hooks/useSubscription';
 
-interface UpgradePromptProps {
+export interface UpgradePromptProps {
   feature: string;
   minPlan: string;
 }
 
 export default function UpgradePrompt({ feature, minPlan }: UpgradePromptProps) {
-  const router = useRouter();
   const { planLabel } = useSubscription();
+  const href = `/admin/billing?plan=${encodeURIComponent(minPlan.trim().toLowerCase())}`;
 
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-      <Card elevation={0} sx={{ maxWidth: 480, textAlign: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
-        <CardContent sx={{ p: 5 }}>
-          <LockIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 2 }} />
-          <Typography variant="h5" fontWeight={700} gutterBottom>
-            Recurso indisponível
-          </Typography>
-          <Typography color="text.secondary" sx={{ mb: 1 }}>
+    <div className="flex min-h-[400px] items-center justify-center">
+      <Card className="max-w-[480px] text-center">
+        <CardContent className="flex flex-col items-center px-10 py-10">
+          <Lock className="mb-4 size-14 text-ghost" aria-hidden />
+          <h2 className="mb-2 text-2xl font-bold tracking-tight">Recurso indisponível</h2>
+          <p className="mb-1 text-muted-foreground">
             <strong>{feature}</strong> não está incluso no plano <strong>{planLabel}</strong>.
-          </Typography>
-          <Typography color="text.secondary" sx={{ mb: 3 }}>
+          </p>
+          <p className="mb-6 text-muted-foreground">
             Disponível a partir do plano <strong>{minPlan}</strong>.
-          </Typography>
-          <Button
-            variant="contained"
-            onClick={() => router.push('/admin/plano')}
-            sx={{ textTransform: 'none', fontWeight: 600, px: 4 }}
-          >
-            Ver Planos
+          </p>
+          <Button asChild size="lg" className="px-8 font-semibold">
+            <Link href={href}>Ver Planos</Link>
           </Button>
         </CardContent>
       </Card>
-    </Box>
+    </div>
   );
 }

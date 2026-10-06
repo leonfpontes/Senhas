@@ -1,32 +1,31 @@
+/**
+ * PageHeader — cabeçalho de página: título (h1), subtítulo e slot de ações.
+ * Empilha no celular; título e ações lado a lado a partir de `sm` (600px).
+ */
 import React from 'react';
-import Box       from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
+import { cn } from '@/lib/utils';
 
-interface PageHeaderProps {
+export interface PageHeaderProps {
   title:     string;
   subtitle?: string;
   actions?:  React.ReactNode;
+  className?: string;
 }
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, actions }) => (
-  <Box
-    sx={{
-      display: 'flex',
-      alignItems: { xs: 'flex-start', sm: 'center' },
-      justifyContent: 'space-between',
-      flexDirection: { xs: 'column', sm: 'row' },
-      gap: 2,
-      mb: 3,
-    }}
+export const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, actions, className }) => (
+  <header
+    data-slot="page-header"
+    className={cn(
+      'mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center',
+      className,
+    )}
   >
-    <Box>
-      <Typography variant="h5">{title}</Typography>
-      {subtitle && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-          {subtitle}
-        </Typography>
-      )}
-    </Box>
-    {actions && <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>{actions}</Box>}
-  </Box>
+    <div className="min-w-0">
+      <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
+      {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
+    </div>
+    {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+  </header>
 );
+
+export default PageHeader;

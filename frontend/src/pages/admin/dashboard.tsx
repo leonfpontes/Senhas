@@ -1,59 +1,66 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+/**
+ * Início do painel.
+ *
+ * - Terreiro ainda não ativado (checklist de primeiros passos pendente): a tela é **só** o
+ *   checklist, em destaque — sem números que ainda não dizem nada.
+ * - Depois de ativado: cartão "Gira de hoje" (com Abrir Porta / Ver senhas / Compartilhar
+ *   link), KpiCards, gráfico dos últimos 7 dias (ChartCard + chartTokens), horários de pico,
+ *   próximas giras, aniversariantes e alertas de estoque.
+ * - `?passos=1` (item "Primeiros passos" do menu / "Mostrar primeiros passos") reabre o
+ *   checklist que tinha sido ocultado.
+ */
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Divider,
-  Grid,
-  IconButton,
-  LinearProgress,
-  Paper,
-  Skeleton,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import CakeRoundedIcon from '@mui/icons-material/CakeRounded';
-import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
-import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
-import MeetingRoomRoundedIcon from '@mui/icons-material/MeetingRoomRounded';
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import TodayRoundedIcon from '@mui/icons-material/TodayRounded';
-import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
-import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-
+  Cake,
+  CalendarDays,
+  Check,
+  CircleAlert,
+  DoorOpen,
+  Download,
+  Package,
+  RefreshCw,
+  Send,
+  Share2,
+  Ticket,
+  TrendingUp,
+  TriangleAlert,
+  UserPlus,
+} from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
 import AdminLayout from './admin_layout';
 import { KpiCard } from '@/components/admin';
-import { useAdminTheme } from '@/providers/AdminThemeProvider';
-import { useSubscription } from '../../hooks/useSubscription';
-import { usePermissions } from '../../hooks/usePermissions';
-import { useTenant } from '@/providers/ThemeProvider';
+import { ChartTooltip } from '@/components/admin/ChartTooltip';
+import { ChartCard } from '@/components/charts/ChartCard';
+import FirstGiraChecklist, {
+  isTenantActivated,
+  readChecklistDismissed,
+  resetChecklistDismissed,
+  type OnboardingStatus,
+} from '@/components/admin/FirstGiraChecklist';
+import { ShareLinkDialog, fetchUnifiedLinks, type UnifiedLinks } from '@/components/admin/ShareLinkDialog';
+import { pickTodayGira, useGiraContext } from '@/components/admin/GiraContext';
+import { whenLabel } from '@/components/admin/GiraCard';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardAction } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { chartTokens } from '@/lib/chartTokens';
+import { cn } from '@/lib/utils';
+import { useSubscription } from '@/hooks/useSubscription';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useProfile } from '@/hooks/useProfile';
-import FirstGiraChecklist, { OnboardingStatus } from '@/components/admin/FirstGiraChecklist';
 import { useWelcomeTour } from '@/tours/welcomeTour';
 import { isPrincipalDor } from '@/constants/onboarding';
 import { setAnalyticsTag } from '@/services/analytics';
-import { apiClient } from '../../services/api_client';
-import { useRouter } from 'next/router';
-import Link from 'next/link';
+import { apiClient } from '@/services/api_client';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface UpcomingGira {
   id: string;
@@ -135,10 +142,6 @@ function getGreeting(): string {
   return 'Boa noite';
 }
 
-function formatShortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
-}
-
 function formatChartDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
@@ -147,133 +150,229 @@ function formatTodayLong(): string {
   return new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
+function SectionCard({
+  title,
+  action,
+  children,
+  className,
+  ...rest
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+  'data-tour'?: string;
+}) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-      <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-        {title}
-      </Typography>
-      {action}
-    </Box>
+    <Card className={cn('gap-4', className)} {...rest}>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+        {action && <CardAction>{action}</CardAction>}
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   );
 }
 
-function GiraCard({ gira, primary, canOpenPorta }: { gira: UpcomingGira; primary: string; canOpenPorta: boolean }) {
-  const pct = gira.max_tickets ? Math.min((gira.current_count / gira.max_tickets) * 100, 100) : null;
-  const isFull = pct !== null && pct >= 100;
+function Empty({ label }: { label: string }) {
+  return <p className="py-6 text-center text-sm text-muted-foreground">{label}</p>;
+}
 
+// ─── Gira de hoje ─────────────────────────────────────────────────────────────
+
+function TodayGiraCard({
+  gira,
+  loading,
+  canViewPorta,
+  canViewTickets,
+  canShare,
+  onShare,
+}: {
+  gira: UpcomingGira | null;
+  loading: boolean;
+  canViewPorta: boolean;
+  canViewTickets: boolean;
+  canShare: boolean;
+  onShare: () => void;
+}) {
+  if (loading) return <Skeleton className="mb-6 h-36 rounded-xl" />;
+  if (!gira) {
+    return (
+      <Card className="mb-6 flex-row items-center gap-3 px-6 py-4" data-testid="gira-de-hoje">
+        <CalendarDays className="size-5 text-muted-foreground" aria-hidden />
+        <p className="flex-1 text-sm text-muted-foreground">Nenhuma gira marcada para hoje ou para os próximos dias.</p>
+        <Button asChild size="sm" variant="outline">
+          <Link href="/admin/giras">Ver giras</Link>
+        </Button>
+      </Card>
+    );
+  }
+  const start = new Date(gira.data_inicio);
+  const isToday = start.toDateString() === new Date().toDateString();
+  const pct = gira.max_tickets ? Math.min(100, (gira.current_count / gira.max_tickets) * 100) : null;
   return (
-    <Box
-      sx={{
-        p: 1.75,
-        borderRadius: 2,
-        border: '1px solid',
-        borderColor: gira.is_open ? `${primary}40` : 'divider',
-        bgcolor: gira.is_open ? `${primary}06` : 'transparent',
-        transition: 'border-color .15s',
-      }}
-    >
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.75 }}>
-        <Typography variant="body2" fontWeight={600} noWrap sx={{ flex: 1, mr: 1 }}>
-          {gira.nome}
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-          <Chip
-            label={gira.is_open ? 'Aberta' : 'Fechada'}
-            size="small"
-            sx={{
-              height: 20,
-              fontSize: '0.65rem',
-              fontWeight: 700,
-              bgcolor: gira.is_open ? '#dcfce7' : 'action.selected',
-              color: gira.is_open ? '#16a34a' : 'text.secondary',
-            }}
-          />
-          {canOpenPorta && !!gira.max_tickets && (
-            <Tooltip title="Abrir na Porta">
-              <IconButton size="small" component={Link} href={`/admin/porta?gira=${gira.id}`} sx={{ p: 0.5 }}>
-                <MeetingRoomRoundedIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
+    <Card className="mb-6 gap-4 border-primary/50 py-5" data-testid="gira-de-hoje">
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-wide text-primary uppercase">
+              {isToday ? 'Gira de hoje' : 'Próxima gira'}
+            </p>
+            <h2 className="truncate text-xl font-bold">{gira.nome}</h2>
+            <p className="text-sm text-muted-foreground first-letter:uppercase">{whenLabel(start)}</p>
+          </div>
+          <Badge
+            variant="outline"
+            className={gira.is_open ? 'border-success/30 bg-success/15 text-success' : 'text-muted-foreground'}
+          >
+            {gira.is_open ? 'Senhas abertas no link' : 'Senhas fechadas'}
+          </Badge>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm">
+            <strong className="tabular-nums">{gira.current_count}</strong>
+            {gira.max_tickets ? ` de ${gira.max_tickets} senhas` : ' senhas'}
+            {gira.sponsor_count > 0 ? ` · ${gira.sponsor_count} de associados` : ''}
+          </p>
+          {pct !== null && <Progress value={pct} className="h-2" aria-label="Senhas emitidas" />}
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {canViewPorta && (
+            <Button asChild className="sm:flex-1" variant={isToday ? 'default' : 'outline'}>
+              <Link href={`/admin/porta?gira=${encodeURIComponent(gira.id)}`}>
+                <DoorOpen aria-hidden /> Abrir Porta
+              </Link>
+            </Button>
           )}
-        </Box>
-      </Box>
-
-      <Typography variant="caption" color="text.secondary">
-        {formatShortDate(gira.data_inicio)}
-        {gira.max_tickets ? ` · ${gira.current_count} / ${gira.max_tickets} tickets` : ` · ${gira.current_count} tickets`}
-      </Typography>
-
-      {pct !== null && (
-        <Box sx={{ mt: 1 }}>
-          <LinearProgress
-            variant="determinate"
-            value={pct}
-            sx={{
-              height: 5,
-              borderRadius: 3,
-              bgcolor: `${primary}18`,
-              '& .MuiLinearProgress-bar': {
-                borderRadius: 3,
-                bgcolor: isFull ? '#ef4444' : primary,
-              },
-            }}
-          />
-          {isFull && (
-            <Typography variant="caption" color="error" sx={{ mt: 0.25, display: 'block' }}>
-              Lotada
-            </Typography>
+          {canViewTickets && (
+            <Button asChild variant="outline" className="sm:flex-1">
+              <Link href={`/admin/tickets?gira=${encodeURIComponent(gira.id)}`}>
+                <Ticket aria-hidden /> Ver senhas
+              </Link>
+            </Button>
           )}
-        </Box>
-      )}
-    </Box>
+          {canShare && (
+            <Button type="button" variant={isToday ? 'outline' : 'default'} className="sm:flex-1" onClick={onShare}>
+              <Share2 aria-hidden /> Compartilhar link
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
-function EmptyState({ label }: { label: string }) {
-  return (
-    <Box sx={{ py: 4, textAlign: 'center' }}>
-      <Typography variant="body2" color="text.disabled">{label}</Typography>
-    </Box>
-  );
-}
-
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
+  return (
+    <AdminLayout title="Início">
+      <DashboardContent />
+    </AdminLayout>
+  );
+}
+
+function DashboardContent() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aniversariantes, setAniversariantes] = useState<AniversarianteItem[]>([]);
   const [greeting, setGreeting] = useState('');
   const [todayLabel, setTodayLabel] = useState('');
+  const [checklistDismissed, setChecklistDismissed] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareLinks, setShareLinks] = useState<UnifiedLinks | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
 
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
   const canViewPorta = canGroup('porta', 'view');
-  // Checklist de primeira gira: só para quem pode agir sobre giras.
+  const canViewTickets = canGroup('tickets', 'view');
+  // Checklist e compartilhar link: só para quem pode agir sobre giras.
   const canViewGiras = canGroup('giras', 'view');
   const canCreateGira = canGroup('giras', 'insert');
   const { profile } = useProfile();
-  const { config: tenantConfig } = useTenant();
-  const { tokens, isDark } = useAdminTheme();
   const router = useRouter();
+  const giraCtx = useGiraContext({ load: false });
+  const tenantId = profile?.tenant_id;
 
-  // Exportação do gráfico como PNG (html2canvas, com fallback para impressão)
   const chartRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setGreeting(getGreeting());
+    setTodayLabel(formatTodayLong());
+  }, []);
+
+  useEffect(() => {
+    setChecklistDismissed(readChecklistDismissed(tenantId));
+  }, [tenantId]);
+
+  // ?passos=1 reabre os primeiros passos.
+  useEffect(() => {
+    if (!router.isReady || router.query.passos !== '1') return;
+    resetChecklistDismissed(tenantId);
+    setChecklistDismissed(false);
+    const { passos: _p, ...rest } = router.query;
+    router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.query.passos]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadDashboard(controller.signal);
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!can('mediuns')) return;
+    const controller = new AbortController();
+    apiClient
+      .get<AniversarianteItem[]>('/api/v1/admin/mediuns/aniversariantes?dias=7', { signal: controller.signal })
+      .then((res) => setAniversariantes(Array.isArray(res?.data) ? res.data : []))
+      .catch(() => {});
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadDashboard = async (signal?: AbortSignal) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await apiClient.get('/api/v1/admin/dashboard-summary', { signal });
+      setData(res?.data ?? null);
+    } catch (err) {
+      if (err instanceof Error && (err.name === 'CanceledError' || err.name === 'AbortError')) return;
+      setError('Não foi possível carregar o resumo do terreiro.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Tour de boas-vindas: abre sozinho uma vez, só para o admin de terreiros que responderam
+  // "o que você mais precisa resolver" no cadastro.
+  const principalDor = isPrincipalDor(data?.onboarding?.principal_dor) ? data?.onboarding?.principal_dor : null;
+  useEffect(() => {
+    if (principalDor) setAnalyticsTag('principal_dor', principalDor);
+  }, [principalDor]);
+
+  useWelcomeTour({
+    enabled: !loading && !!data && profile?.role === 'admin',
+    dor: principalDor,
+    userId: profile?.id,
+    firstName: profile?.full_name?.split(' ')[0],
+    can,
+  });
+
   const handleExportChart = async () => {
     const today = new Date().toISOString().slice(0, 10);
     try {
       const html2canvas = (await import('html2canvas')).default;
       if (chartRef.current) {
-        const canvas = await html2canvas(chartRef.current, {
-          backgroundColor: isDark ? '#0f172a' : '#ffffff',
-          scale: 2,
-        });
+        const bg = getComputedStyle(document.body).backgroundColor || '#ffffff';
+        const canvas = await html2canvas(chartRef.current, { backgroundColor: bg, scale: 2 });
         const link = document.createElement('a');
-        link.download = `dashboard-${today}.png`;
+        link.download = `inicio-${today}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
         return;
@@ -284,410 +383,366 @@ export default function AdminDashboard() {
     window.print();
   };
 
-  const primary = tenantConfig?.colors?.primary || '#6366f1';
-
-  useEffect(() => {
-    setGreeting(getGreeting());
-    setTodayLabel(formatTodayLong());
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    loadDashboard(controller.signal);
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    if (!can('mediuns')) return;
-    const controller = new AbortController();
-    apiClient
-      .get<AniversarianteItem[]>('/api/v1/admin/mediuns/aniversariantes?dias=7', { signal: controller.signal })
-      .then((res) => setAniversariantes(Array.isArray(res.data) ? res.data : []))
-      .catch(() => {});
-    return () => controller.abort();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadDashboard = async (signal?: AbortSignal) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await apiClient.get('/api/v1/admin/dashboard-summary', { signal });
-      setData(res.data);
-    } catch (err) {
-      if (err instanceof Error && (err.name === 'CanceledError' || err.name === 'AbortError')) return;
-      setError('Não foi possível carregar os dados do dashboard.');
-    } finally {
-      setLoading(false);
-    }
+  const openShare = () => {
+    setShareOpen(true);
+    if (shareLinks) return;
+    setShareLoading(true);
+    fetchUnifiedLinks()
+      .then((links) => setShareLinks(links))
+      .finally(() => setShareLoading(false));
   };
 
-  // Tour de boas-vindas: abre sozinho uma vez, só para o admin de tenants que
-  // responderam "o que você mais precisa resolver" no cadastro.
-  const principalDor = isPrincipalDor(data?.onboarding?.principal_dor) ? data?.onboarding?.principal_dor : null;
-  useEffect(() => {
-    if (principalDor) setAnalyticsTag('principal_dor', principalDor);
-  }, [principalDor]);
-  useWelcomeTour({
-    enabled: !loading && !!data && profile?.role === 'admin',
-    dor: principalDor,
-    userId: profile?.id,
-    firstName: profile?.full_name?.split(' ')[0],
-    can,
-  });
+  const onboarding = data?.onboarding;
+  const onboardingOnly = !!onboarding && canViewGiras && !isTenantActivated(onboarding) && !checklistDismissed;
+
+  const upcomingGiras = useMemo(() => data?.upcoming_giras ?? [], [data]);
+  const todayGira = useMemo(() => {
+    if (upcomingGiras.length === 0) return null;
+    const fromCtx = giraCtx.selectedGiraId ? upcomingGiras.find((g) => g.id === giraCtx.selectedGiraId) : null;
+    if (fromCtx) return fromCtx;
+    const picked = pickTodayGira(upcomingGiras.map((g) => ({ ...g, is_active: true })));
+    return upcomingGiras.find((g) => g.id === picked?.id) ?? upcomingGiras[0];
+  }, [upcomingGiras, giraCtx.selectedGiraId]);
 
   const stats = data?.ticket_stats;
-
-  const kpis = [
-    {
-      label: 'Total emitidos',
-      value: String(stats?.total_emitted ?? 0),
-      icon: <SendRoundedIcon />,
-      color: primary,
-      subtitle: stats?.emitted_today != null ? `${stats.emitted_today} hoje` : undefined,
-      loading,
-    },
-    {
-      label: 'Total utilizados',
-      value: String(stats?.total_used ?? 0),
-      icon: <CheckRoundedIcon />,
-      color: '#22c55e',
-      subtitle: stats?.used_today != null ? `${stats.used_today} hoje` : undefined,
-      loading,
-    },
-    {
-      label: 'Taxa de uso',
-      value: `${Number(stats?.usage_rate ?? 0).toFixed(1)}%`,
-      icon: <TrendingUpRoundedIcon />,
-      color: '#f59e0b',
-      loading,
-    },
-    {
-      label: 'Walk-in',
-      value: String(stats?.walk_in_total ?? 0),
-      icon: <TodayRoundedIcon />,
-      color: '#ec4899',
-      loading,
-    },
-  ];
-
   const chartData = (data?.daily_distribution ?? []).map((d) => ({
     date: formatChartDate(d.date),
     Comum: d.common,
     Associado: d.sponsor,
-    'Walk-in': d.walk_in,
+    'Sem senha': d.walk_in,
   }));
-
   const peakHours = data?.peak_hours ?? [];
   const maxPeak = peakHours[0]?.count || 1;
-
-  const estoqueCriticos = (data?.estoque_alerts ?? []).filter((a) => a.status === 'critico');
-  const estoqueAtencao  = (data?.estoque_alerts ?? []).filter((a) => a.status !== 'critico');
-  const hasEstoqueIssues = data?.estoque_alerts && data.estoque_alerts.length > 0;
-
-  const upcomingGiras = data?.upcoming_giras ?? [];
+  const estoqueAlerts = data?.estoque_alerts ?? [];
+  const estoqueOrdenado = [
+    ...estoqueAlerts.filter((a) => a.status === 'critico'),
+    ...estoqueAlerts.filter((a) => a.status !== 'critico'),
+  ];
   const hasAniversariantes = can('mediuns') && aniversariantes.length > 0;
 
-  return (
-    <AdminLayout title="Dashboard">
-      {/* ── Greeting header ── */}
-      <Box data-tour="dashboard-greeting" sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3, gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700}>
-            {greeting || ' '}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, textTransform: 'capitalize' }}>
-            {todayLabel || ' '}
-          </Typography>
-        </Box>
-        <Tooltip title="Atualizar dados">
-          <span>
-            <IconButton onClick={() => loadDashboard()} disabled={loading} size="small">
-              {loading ? <CircularProgress size={18} /> : <RefreshRoundedIcon />}
-            </IconButton>
-          </span>
-        </Tooltip>
-      </Box>
+  const header = (
+    <div data-tour="dashboard-greeting" className="mb-6 flex items-start justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">{greeting || ' '}</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground first-letter:uppercase">{todayLabel || ' '}</p>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={() => loadDashboard()}
+        disabled={loading}
+        aria-label="Atualizar"
+        title="Atualizar"
+      >
+        <RefreshCw aria-hidden className={cn(loading && 'animate-spin')} />
+      </Button>
+    </div>
+  );
 
-      {error && (
-        <Alert
-          severity="error"
-          sx={{ mb: 3, borderRadius: 2 }}
-          action={<Button size="small" onClick={() => loadDashboard()}>Tentar novamente</Button>}
-        >
-          {error}
-        </Alert>
-      )}
+  const errorAlert = error && (
+    <Alert variant="destructive" className="mb-6">
+      <CircleAlert aria-hidden />
+      <AlertTitle>{error}</AlertTitle>
+      <AlertDescription>
+        <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => loadDashboard()}>
+          Tentar novamente
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
 
-      {/* ── Checklist de primeira gira (some quando o terreiro está ativado) ── */}
-      {data?.onboarding && canViewGiras && (
+  // ── Terreiro ainda não ativado: só os primeiros passos ──
+  if (onboardingOnly && onboarding) {
+    return (
+      <>
+        {header}
+        {errorAlert}
         <FirstGiraChecklist
-          status={data.onboarding}
-          tenantId={profile?.tenant_id}
+          status={onboarding}
+          tenantId={tenantId}
           tenantName={profile?.tenant_name}
-          primary={primary}
           canCreateGira={canCreateGira}
           canViewPorta={canViewPorta}
+          fullscreen
+          onDismiss={() => setChecklistDismissed(true)}
         />
-      )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {header}
+      {errorAlert}
+
+      <TodayGiraCard
+        gira={todayGira}
+        loading={loading}
+        canViewPorta={canViewPorta}
+        canViewTickets={canViewTickets}
+        canShare={canViewGiras}
+        onShare={openShare}
+      />
 
       {/* ── KPIs ── */}
-      <Grid data-tour="dashboard-kpis" container spacing={2} sx={{ mb: 3 }}>
-        {kpis.map((kpi) => (
-          <Grid item xs={6} md={3} key={kpi.label}>
-            <KpiCard
-              label={kpi.label}
-              value={kpi.value}
-              icon={kpi.icon}
-              color={kpi.color}
-              subtitle={kpi.subtitle}
-              loading={kpi.loading}
-            />
-          </Grid>
-        ))}
-      </Grid>
+      <div data-tour="dashboard-kpis" className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <KpiCard
+          label="Senhas emitidas"
+          value={String(stats?.total_emitted ?? 0)}
+          icon={<Send />}
+          subtitle={stats?.emitted_today != null ? `${stats.emitted_today} hoje` : undefined}
+          loading={loading}
+        />
+        <KpiCard
+          label="Atendidas"
+          value={String(stats?.total_used ?? 0)}
+          icon={<Check />}
+          color="var(--success)"
+          subtitle={stats?.used_today != null ? `${stats.used_today} hoje` : undefined}
+          loading={loading}
+        />
+        <KpiCard
+          label="Comparecimento"
+          value={`${Number(stats?.usage_rate ?? 0).toFixed(1).replace('.', ',')}%`}
+          icon={<TrendingUp />}
+          color="var(--warning)"
+          loading={loading}
+        />
+        <KpiCard
+          label="Chegaram sem senha"
+          value={String(stats?.walk_in_total ?? 0)}
+          icon={<UserPlus />}
+          color="var(--info)"
+          loading={loading}
+        />
+      </div>
 
-      {/* ── Main: chart + peak hours  |  giras + aniversariantes ── */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        {/* Left column */}
-        <Grid item xs={12} lg={7}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <div className="mb-6 grid gap-6 lg:grid-cols-12">
+        {/* Coluna da esquerda */}
+        <div className="flex flex-col gap-6 lg:col-span-7">
+          <div ref={chartRef} data-tour="dashboard-chart">
+            <ChartCard
+              title="Senhas nos últimos 7 dias"
+              loading={loading}
+              empty={chartData.length === 0}
+              emptyMessage="Nenhuma senha no período"
+              height={240}
+              actions={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handleExportChart}
+                  aria-label="Baixar gráfico (PNG)"
+                  title="Baixar gráfico (PNG)"
+                  data-no-export
+                >
+                  <Download aria-hidden />
+                </Button>
+              }
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} vertical={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: chartTokens.tick }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: chartTokens.tick }} axisLine={false} tickLine={false} />
+                  <RechartsTooltip cursor={{ fill: 'var(--accent)' }} content={<ChartTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} iconSize={10} />
+                  <Bar dataKey="Comum" stackId="a" fill={chartTokens.primary} maxBarSize={36} />
+                  <Bar dataKey="Associado" stackId="a" fill={chartTokens.warning} maxBarSize={36} />
+                  <Bar dataKey="Sem senha" stackId="a" fill={chartTokens.info} radius={[4, 4, 0, 0]} maxBarSize={36} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
 
-            {/* Bar chart */}
-            <Paper ref={chartRef} data-tour="dashboard-chart" elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3 }}>
-              <SectionHeader
-                title="Tickets — últimos 7 dias"
-                action={
-                  <Tooltip title="Baixar gráfico (PNG)">
-                    <IconButton size="small" onClick={handleExportChart} data-no-export>
-                      <DownloadRoundedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                }
-              />
-              {loading ? (
-                <Skeleton variant="rounded" height={220} />
-              ) : chartData.length > 0 ? (
-                <Box sx={{ height: 220 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={tokens.chartGrid} vertical={false} />
-                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: tokens.chartTick }} axisLine={false} tickLine={false} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: tokens.chartTick }} axisLine={false} tickLine={false} />
-                      <RechartsTooltip
-                        cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }}
-                        contentStyle={{
-                          background: tokens.tooltipBg,
-                          border: `1px solid ${tokens.border}`,
-                          borderRadius: 10,
-                          fontSize: 12,
-                          color: tokens.textPrimary,
-                          boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                        }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} iconSize={10} />
-                      <Bar dataKey="Comum"    stackId="a" fill="#8b5cf6" radius={[0, 0, 0, 0]} maxBarSize={36} />
-                      <Bar dataKey="Associado" stackId="a" fill="#f59e0b" radius={[0, 0, 0, 0]} maxBarSize={36} />
-                      <Bar dataKey="Walk-in"  stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]}  maxBarSize={36} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
-              ) : (
-                <EmptyState label="Sem emissões no período" />
-              )}
-            </Paper>
-
-            {/* Peak hours */}
-            <Paper data-tour="dashboard-peak-hours" elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3 }}>
-              <SectionHeader title="Horários de pico" />
-              {loading ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                  {[...Array(4)].map((_, i) => <Skeleton key={i} variant="rounded" height={20} />)}
-                </Box>
-              ) : peakHours.length > 0 ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                  {peakHours.map((ph) => {
-                    const pct = (ph.count / maxPeak) * 100;
-                    return (
-                      <Box key={ph.hour} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Typography variant="caption" fontWeight={600} sx={{ width: 36, flexShrink: 0, fontFamily: 'monospace', color: 'text.secondary' }}>
-                          {String(ph.hour).padStart(2, '0')}h
-                        </Typography>
-                        <LinearProgress
-                          variant="determinate"
-                          value={pct}
-                          sx={{
-                            flex: 1,
-                            height: 8,
-                            borderRadius: 4,
-                            bgcolor: `${primary}14`,
-                            '& .MuiLinearProgress-bar': {
-                              borderRadius: 4,
-                              background: `linear-gradient(90deg, ${primary}cc, ${primary})`,
-                            },
-                          }}
-                        />
-                        <Typography variant="caption" color="text.secondary" sx={{ width: 50, flexShrink: 0, textAlign: 'right' }}>
-                          {ph.count} emis.
-                        </Typography>
-                      </Box>
-                    );
-                  })}
-                </Box>
-              ) : (
-                <EmptyState label="Sem dados de horário" />
-              )}
-            </Paper>
-          </Box>
-        </Grid>
-
-        {/* Right column */}
-        <Grid item xs={12} lg={5}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-
-            {/* Próximas giras */}
-            <Paper data-tour="dashboard-giras" elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3 }}>
-              <SectionHeader
-                title="Próximas giras"
-                action={
-                  <Button size="small" onClick={() => router.push('/admin/giras')} sx={{ fontWeight: 600 }}>
-                    Ver todas
-                  </Button>
-                }
-              />
-              {loading ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                  {[...Array(3)].map((_, i) => <Skeleton key={i} variant="rounded" height={72} />)}
-                </Box>
-              ) : upcomingGiras.length > 0 ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                  {upcomingGiras.map((g) => (
-                    <GiraCard key={g.id} gira={g} primary={primary} canOpenPorta={canViewPorta} />
-                  ))}
-                </Box>
-              ) : (
-                <EmptyState label="Nenhuma gira agendada" />
-              )}
-            </Paper>
-
-            {/* Aniversariantes (feature-gated) */}
-            {hasAniversariantes && (
-              <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 3 }}>
-                <SectionHeader
-                  title="Aniversariantes da semana"
-                  action={
-                    <Button size="small" onClick={() => router.push('/admin/mediuns')} sx={{ fontWeight: 600 }}>
-                      Ver médiuns
-                    </Button>
-                  }
-                />
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  {aniversariantes.slice(0, 7).map((m, idx, arr) => (
-                    <React.Fragment key={m.id}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
-                          <CakeRoundedIcon sx={{ fontSize: 15, color: m.dias_ate_aniversario === 0 ? 'error.main' : 'text.disabled', flexShrink: 0 }} />
-                          <Typography variant="body2" fontWeight={m.dias_ate_aniversario === 0 ? 700 : 400} noWrap>
-                            {m.nome}
-                          </Typography>
-                        </Box>
-                        <Chip
-                          label={
-                            m.dias_ate_aniversario === 0 ? 'Hoje!'
-                              : m.dias_ate_aniversario === 1 ? 'Amanhã'
-                              : `Em ${m.dias_ate_aniversario}d`
-                          }
-                          size="small"
-                          color={m.dias_ate_aniversario === 0 ? 'error' : 'default'}
-                          variant={m.dias_ate_aniversario === 0 ? 'filled' : 'outlined'}
-                          sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, flexShrink: 0 }}
-                        />
-                      </Box>
-                      {idx < arr.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </Box>
-              </Paper>
+          <SectionCard title="Horários de pico" data-tour="dashboard-peak-hours">
+            {loading ? (
+              <div className="flex flex-col gap-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-5" />
+                ))}
+              </div>
+            ) : peakHours.length > 0 ? (
+              <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+                {peakHours.map((ph) => (
+                  <li key={ph.hour} className="flex items-center gap-3">
+                    <span className="w-9 shrink-0 font-mono text-xs font-semibold text-muted-foreground">
+                      {String(ph.hour).padStart(2, '0')}h
+                    </span>
+                    <Progress value={(ph.count / maxPeak) * 100} className="h-2 flex-1" aria-label={`${ph.hour}h`} />
+                    <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
+                      {ph.count} {ph.count === 1 ? 'senha' : 'senhas'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Empty label="Ainda sem dados de horário." />
             )}
-          </Box>
-        </Grid>
-      </Grid>
+          </SectionCard>
+        </div>
 
-      {/* ── Estoque (feature-gated) ── */}
-      {can('estoque_controle') && !loading && hasEstoqueIssues && (
-        <Paper data-tour="dashboard-estoque" elevation={0} sx={{ border: '1px solid', borderColor: 'warning.light', borderRadius: 3, p: 3 }}>
-          <SectionHeader
-            title="Alertas de estoque"
+        {/* Coluna da direita */}
+        <div className="flex flex-col gap-6 lg:col-span-5">
+          <SectionCard
+            title="Próximas giras"
+            data-tour="dashboard-giras"
             action={
-              <Button
-                size="small"
-                startIcon={<Inventory2RoundedIcon sx={{ fontSize: 16 }} />}
-                onClick={() => router.push('/admin/estoque/relatorio')}
-                sx={{ fontWeight: 600 }}
-              >
-                Ver relatório
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/admin/giras">Ver todas</Link>
               </Button>
             }
-          />
+          >
+            {loading ? (
+              <div className="flex flex-col gap-2">
+                {[0, 1, 2].map((i) => (
+                  <Skeleton key={i} className="h-16" />
+                ))}
+              </div>
+            ) : upcomingGiras.length > 0 ? (
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {upcomingGiras.map((g) => {
+                  const full = !!g.max_tickets && g.current_count >= g.max_tickets;
+                  return (
+                    <li key={g.id} className="flex items-center gap-3 rounded-lg border p-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{g.nome}</p>
+                        <p className="text-xs text-muted-foreground first-letter:uppercase">
+                          {whenLabel(new Date(g.data_inicio))} ·{' '}
+                          {g.max_tickets ? `${g.current_count} de ${g.max_tickets} senhas` : `${g.current_count} senhas`}
+                          {full ? ' · lotada' : ''}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={g.is_open ? 'border-success/30 bg-success/15 text-success' : 'text-muted-foreground'}
+                      >
+                        {g.is_open ? 'Abertas' : 'Fechadas'}
+                      </Badge>
+                      {canViewPorta && !!g.max_tickets && (
+                        <Button asChild size="icon-sm" variant="ghost">
+                          <Link href={`/admin/porta?gira=${encodeURIComponent(g.id)}`} aria-label={`Abrir Porta: ${g.nome}`}>
+                            <DoorOpen aria-hidden />
+                          </Link>
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <Empty label="Nenhuma gira marcada." />
+            )}
+          </SectionCard>
 
-          <Box sx={{ display: 'flex', gap: 1, mb: 2.5, flexWrap: 'wrap' }}>
-            {data?.estoque_summary?.itens_ok != null && data.estoque_summary.itens_ok > 0 && (
-              <Chip icon={<CheckRoundedIcon sx={{ fontSize: 13 }} />} label={`${data.estoque_summary.itens_ok} OK`} size="small"
-                sx={{ bgcolor: '#dcfce7', color: '#16a34a', fontWeight: 600, height: 22 }} />
-            )}
-            {data?.estoque_summary?.itens_atencao != null && data.estoque_summary.itens_atencao > 0 && (
-              <Chip icon={<WarningAmberRoundedIcon sx={{ fontSize: 13 }} />} label={`${data.estoque_summary.itens_atencao} Atenção`} size="small"
-                sx={{ bgcolor: '#fef3c7', color: '#d97706', fontWeight: 600, height: 22 }} />
-            )}
-            {data?.estoque_summary?.itens_critico != null && data.estoque_summary.itens_critico > 0 && (
-              <Chip icon={<ErrorOutlineRoundedIcon sx={{ fontSize: 13 }} />} label={`${data.estoque_summary.itens_critico} Crítico`} size="small"
-                sx={{ bgcolor: '#fee2e2', color: '#dc2626', fontWeight: 600, height: 22 }} />
-            )}
-          </Box>
+          {hasAniversariantes && (
+            <SectionCard
+              title="Aniversariantes da semana"
+              action={
+                <Button asChild size="sm" variant="ghost">
+                  <Link href="/admin/mediuns">Ver médiuns</Link>
+                </Button>
+              }
+            >
+              <ul className="m-0 flex list-none flex-col p-0">
+                {aniversariantes.slice(0, 7).map((m) => (
+                  <li key={m.id} className="flex items-center justify-between gap-3 border-b py-2 last:border-b-0">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Cake
+                        className={cn('size-4 shrink-0', m.dias_ate_aniversario === 0 ? 'text-destructive' : 'text-muted-foreground')}
+                        aria-hidden
+                      />
+                      <span className={cn('truncate text-sm', m.dias_ate_aniversario === 0 && 'font-bold')}>{m.nome}</span>
+                    </span>
+                    <Badge variant={m.dias_ate_aniversario === 0 ? 'destructive' : 'outline'}>
+                      {m.dias_ate_aniversario === 0
+                        ? 'Hoje!'
+                        : m.dias_ate_aniversario === 1
+                          ? 'Amanhã'
+                          : `Em ${m.dias_ate_aniversario} dias`}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
+          )}
+        </div>
+      </div>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-            {[...estoqueCriticos, ...estoqueAtencao].slice(0, 6).map((item, idx, arr) => (
-              <React.Fragment key={item.item_id}>
-                <Box sx={{ display: 'flex', alignItems: 'center', py: 1.25, gap: 2 }}>
-                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: item.status === 'critico' ? 'error.main' : 'warning.main', flexShrink: 0 }} />
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" fontWeight={600} noWrap>{item.item_nome}</Typography>
-                    {item.grupo_nome && <Typography variant="caption" color="text.secondary">{item.grupo_nome}</Typography>}
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
-                    {item.saldo} / {item.estoque_minimo} {item.unidade_medida}
-                  </Typography>
-                  <Chip
-                    label={item.status === 'critico' ? 'Crítico' : 'Atenção'}
-                    size="small"
-                    sx={{
-                      height: 20, fontSize: '0.65rem', fontWeight: 700, flexShrink: 0,
-                      bgcolor: item.status === 'critico' ? '#fee2e2' : '#fef3c7',
-                      color: item.status === 'critico' ? '#dc2626' : '#d97706',
-                    }}
+      {/* ── Estoque ── */}
+      {can('estoque_controle') && !loading && data && (
+        estoqueAlerts.length > 0 ? (
+          <SectionCard
+            title="Alertas de estoque"
+            data-tour="dashboard-estoque"
+            className="border-warning/50"
+            action={
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/admin/estoque/relatorio">
+                  <Package aria-hidden /> Ver relatório
+                </Link>
+              </Button>
+            }
+          >
+            <div className="mb-3 flex flex-wrap gap-2">
+              {!!data.estoque_summary?.itens_ok && (
+                <Badge variant="outline" className="border-success/30 bg-success/15 text-success">
+                  <Check aria-hidden /> {data.estoque_summary.itens_ok} em dia
+                </Badge>
+              )}
+              {!!data.estoque_summary?.itens_atencao && (
+                <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-foreground">
+                  <TriangleAlert aria-hidden /> {data.estoque_summary.itens_atencao} atenção
+                </Badge>
+              )}
+              {!!data.estoque_summary?.itens_critico && (
+                <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
+                  <CircleAlert aria-hidden /> {data.estoque_summary.itens_critico} crítico
+                </Badge>
+              )}
+            </div>
+            <ul className="m-0 flex list-none flex-col p-0">
+              {estoqueOrdenado.slice(0, 6).map((item) => (
+                <li key={item.item_id} className="flex items-center gap-3 border-b py-2.5 last:border-b-0">
+                  <span
+                    aria-hidden
+                    className={cn('size-1.5 shrink-0 rounded-full', item.status === 'critico' ? 'bg-destructive' : 'bg-warning')}
                   />
-                </Box>
-                {idx < arr.length - 1 && <Divider />}
-              </React.Fragment>
-            ))}
-          </Box>
-        </Paper>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{item.item_nome}</p>
+                    {item.grupo_nome && <p className="text-xs text-muted-foreground">{item.grupo_nome}</p>}
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {item.saldo} / {item.estoque_minimo} {item.unidade_medida}
+                  </span>
+                  <Badge variant="outline" className={item.status === 'critico' ? 'text-destructive' : 'text-warning-foreground'}>
+                    {item.status === 'critico' ? 'Crítico' : 'Atenção'}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </SectionCard>
+        ) : (
+          <Card className="flex-row items-center gap-3 px-6 py-3">
+            <Check className="size-4 text-success" aria-hidden />
+            <p className="flex-1 text-sm text-muted-foreground">Estoque em dia — nenhum item abaixo do mínimo.</p>
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/admin/estoque/relatorio">Relatório</Link>
+            </Button>
+          </Card>
+        )
       )}
 
-      {can('estoque_controle') && !loading && !hasEstoqueIssues && data && (
-        <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, px: 3, py: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <CheckRoundedIcon sx={{ fontSize: 18, color: 'success.main' }} />
-            <Typography variant="body2" color="text.secondary">
-              Estoque em dia — nenhum item abaixo do mínimo.
-            </Typography>
-            <Box sx={{ flex: 1 }} />
-            <Button size="small" onClick={() => router.push('/admin/estoque/relatorio')} sx={{ fontWeight: 600 }}>
-              Relatório
-            </Button>
-          </Box>
-        </Paper>
-      )}
-    </AdminLayout>
+      <ShareLinkDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        link={shareLinks?.public_link ?? onboarding?.public_link}
+        sponsorLink={can('associados') ? shareLinks?.sponsor_public_link : null}
+        tenantName={profile?.tenant_name}
+        loading={shareLoading}
+      />
+    </>
   );
 }

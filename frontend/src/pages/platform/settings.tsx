@@ -1,57 +1,351 @@
 /**
- * Platform Settings Page
+ * /platform/settings — Configurações da plataforma, em abas (`?tab=`):
+ *   conta   — dados do super admin logado (GET /api/v1/auth/me) e troca de senha
+ *   admins  — administradores da plataforma (CRUD em /api/v1/platform/users); a edição envia o
+ *             `is_active` escolhido (antes ia sempre `true`)
+ *   flags   — feature flags por terreiro (/api/v1/platform/feature-flags), Switch + AlertDialog
+ *   planos  — tabela de referência dos planos (constante única `PLAN_META`)
  *
- * Tabs:
- *   0 - Feature Flags: per-tenant feature overrides
- *   1 - Status do Sistema: real-time health from /api/v1/platform/status
- *   2 - Tiers e Limites: plan comparison reference table
+ * Absorveu /platform/users_global e /platform/profile (que viraram redirecionamento).
  */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
+import { Check, Flag, KeyRound, Minus, Pencil, Plus, RefreshCw, Shield, Table2, Trash2, UserCog } from 'lucide-react';
+import { toast } from 'sonner';
+import { apiClient, extractApiErrorMessage, type ApiRequestConfig } from '@/services/api_client';
+import PlatformLayout from './layout';
+import CrudDrawer from '@/components/CrudDrawer';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { DataTable, type ColumnDef } from '@/components/admin/DataTable';
+import { PageHeader } from '@/components/admin/PageHeader';
+import { EmptyState } from '@/components/EmptyState';
+import { Combobox, PasswordField, TextField } from '@/components/fields';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { PlanBadge, TenantActiveBadge, ToneBadge, PLAN_META, PLAN_ORDER, fmtDate, fmtMoney, roleLabel } from '@/components/platform';
+import { PASSWORD_RULE_HINT, isPasswordValid, passwordHelp } from '@/components/platform/passwordPolicy';
 
-import React, { useState, useEffect } from "react";
-import {
-  Alert,
-  Box,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Divider,
-  Grid,
-  IconButton,
-  Stack,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tabs,
-  TextField,
-  Tooltip,
-  Typography,
-  Paper,
-  Button,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-} from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
-import FlagIcon from "@mui/icons-material/Flag";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import CancelIcon from "@mui/icons-material/Cancel";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
-import TableChartIcon from "@mui/icons-material/TableChart";
-import { apiClient, extractApiErrorMessage } from "../../services/api_client";
-import PlatformLayout from "./layout";
-import CrudDrawer from "../../components/CrudDrawer";
+const TABS = ['conta', 'admins', 'flags', 'planos'] as const;
+type TabKey = (typeof TABS)[number];
+const parseTab = (v: unknown): TabKey => (typeof v === 'string' && (TABS as readonly string[]).includes(v) ? (v as TabKey) : 'conta');
 
-// ─── Tipos ───────────────────────────────────────────────────────────────────
+// ─── Conta ───────────────────────────────────────────────────────────────────
 
-interface Tenant {
+interface Me {
+  id: string;
+  email: string;
+  username: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  full_name?: string | null;
+}
+
+function ContaTab() {
+  const [me, setMe] = useState<Me | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiClient
+      .get<Me>('/api/v1/auth/me')
+      .then((r) => setMe(r.data))
+      .catch((err) => setError(extractApiErrorMessage(err, 'Erro ao carregar a conta')))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const canSubmit = current.length > 0 && isPasswordValid(next) && next === confirm && !saving;
+
+  const changePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+    setSaving(true);
+    try {
+      await apiClient.post(
+        '/api/v1/auth/change-password',
+        { current_password: current, new_password: next },
+        // Senha atual errada volta 401 — sem isso o interceptor deslogaria.
+        { skipAutoLogout: true } as ApiRequestConfig,
+      );
+      toast.success('Senha alterada com sucesso.');
+      setCurrent('');
+      setNext('');
+      setConfirm('');
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Falha ao alterar a senha'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <Card className="gap-3 py-4">
+        <CardHeader className="px-4">
+          <CardTitle className="text-base">Dados da conta</CardTitle>
+          <CardDescription>Sua conta de super admin da plataforma.</CardDescription>
+        </CardHeader>
+        <CardContent className="px-4">
+          {error && <Alert variant="destructive" className="mb-3"><AlertDescription>{error}</AlertDescription></Alert>}
+          {loading ? (
+            <Skeleton className="h-28 w-full" />
+          ) : me ? (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">Nome</dt><dd className="font-medium">{me.full_name || me.username}</dd>
+              <dt className="text-muted-foreground">E-mail</dt><dd>{me.email}</dd>
+              <dt className="text-muted-foreground">Usuário</dt><dd>{me.username}</dd>
+              <dt className="text-muted-foreground">Papel</dt><dd><ToneBadge tone="primary">{roleLabel(me.role)}</ToneBadge></dd>
+              <dt className="text-muted-foreground">Conta criada em</dt><dd>{fmtDate(me.created_at)}</dd>
+            </dl>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="gap-3 py-4">
+        <CardHeader className="px-4">
+          <CardTitle className="text-base">Alterar senha</CardTitle>
+          <CardDescription>{PASSWORD_RULE_HINT}.</CardDescription>
+        </CardHeader>
+        <CardContent className="px-4">
+          <form className="flex max-w-sm flex-col gap-3" onSubmit={changePassword}>
+            <PasswordField label="Senha atual" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" required />
+            <PasswordField label="Nova senha" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" required error={passwordHelp(next) || undefined} />
+            <PasswordField
+              label="Confirmar nova senha"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              autoComplete="new-password"
+              required
+              error={confirm.length > 0 && next !== confirm ? 'As senhas não coincidem' : undefined}
+            />
+            <Button type="submit" className="self-start" disabled={!canSubmit}>
+              <KeyRound /> {saving ? 'Salvando…' : 'Alterar senha'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Admins da plataforma ────────────────────────────────────────────────────
+
+interface PlatformUser {
+  id: string;
+  email: string;
+  username: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function AdminsTab() {
+  const [users, setUsers] = useState<PlatformUser[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [drawer, setDrawer] = useState<{ mode: 'create' } | { mode: 'edit'; user: PlatformUser } | null>(null);
+  const [form, setForm] = useState({ email: '', username: '', password: '', is_active: true });
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PlatformUser | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await apiClient.get<PlatformUser[]>('/api/v1/platform/users', { params: { skip: 0, limit: 1000 } });
+      setUsers(Array.isArray(res.data) ? res.data : []);
+      setError(null);
+    } catch (err) {
+      setUsers([]);
+      setError(extractApiErrorMessage(err, 'Erro ao carregar administradores'));
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const openCreate = () => {
+    setForm({ email: '', username: '', password: '', is_active: true });
+    setTouched({});
+    setSaveError(null);
+    setDrawer({ mode: 'create' });
+  };
+  const openEdit = (user: PlatformUser) => {
+    setForm({ email: user.email, username: user.username, password: '', is_active: user.is_active });
+    setTouched({});
+    setSaveError(null);
+    setDrawer({ mode: 'edit', user });
+  };
+
+  const isEdit = drawer?.mode === 'edit';
+  const original = drawer?.mode === 'edit' ? drawer.user : null;
+  const isDirty = isEdit
+    ? form.username !== original?.username || form.is_active !== original?.is_active
+    : form.email !== '' || form.username !== '' || form.password !== '';
+  const emailError = touched.email && !EMAIL_RE.test(form.email) ? 'E-mail inválido' : undefined;
+  const usernameError = touched.username && !form.username.trim() ? 'Usuário obrigatório' : undefined;
+  const passwordError = !isEdit && form.password ? passwordHelp(form.password) || undefined : undefined;
+  const isValid = form.username.trim().length > 0 && (isEdit || (EMAIL_RE.test(form.email) && isPasswordValid(form.password)));
+
+  const save = async () => {
+    if (!drawer) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      if (drawer.mode === 'create') {
+        await apiClient.post('/api/v1/platform/users', { email: form.email, username: form.username, password: form.password });
+        toast.success('Administrador criado.');
+      } else {
+        // Envia o is_active escolhido (a versão anterior mandava sempre true).
+        await apiClient.put(`/api/v1/platform/users/${drawer.user.id}`, { username: form.username, is_active: form.is_active });
+        toast.success('Administrador atualizado.');
+      }
+      setDrawer(null);
+      load();
+    } catch (err) {
+      setSaveError(extractApiErrorMessage(err, 'Erro ao salvar administrador'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/api/v1/platform/users/${deleteTarget.id}`);
+      toast.success('Administrador removido.');
+      setDeleteTarget(null);
+      load();
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Erro ao remover administrador'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const columns = useMemo<ColumnDef<PlatformUser>[]>(
+    () => [
+      { id: 'email', accessorKey: 'email', header: 'E-mail', meta: { mobile: true }, cell: ({ row }) => <span className="font-medium">{row.original.email}</span> },
+      { id: 'username', accessorKey: 'username', header: 'Usuário', meta: { mobile: true } },
+      { id: 'role', accessorKey: 'role', header: 'Papel', cell: ({ row }) => <ToneBadge tone="primary">{roleLabel(row.original.role)}</ToneBadge> },
+      { id: 'is_active', accessorKey: 'is_active', header: 'Status', meta: { mobile: true }, cell: ({ row }) => <TenantActiveBadge active={row.original.is_active} /> },
+      { id: 'created_at', accessorKey: 'created_at', header: 'Criado em', meta: { cellClassName: 'whitespace-nowrap text-muted-foreground' }, cell: ({ row }) => fmtDate(row.original.created_at) },
+      {
+        id: 'actions',
+        header: '',
+        enableSorting: false,
+        meta: { align: 'right' },
+        cell: ({ row }) => (
+          <span className="inline-flex">
+            <Button variant="ghost" size="icon-sm" onClick={() => openEdit(row.original)} aria-label={`Editar ${row.original.email}`}><Pencil /></Button>
+            <Button variant="ghost" size="icon-sm" className="text-destructive" onClick={() => setDeleteTarget(row.original)} aria-label={`Remover ${row.original.email}`}><Trash2 /></Button>
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
+
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">Quem acessa esta área da plataforma.</p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={load}><RefreshCw /> Atualizar</Button>
+          <Button size="sm" onClick={openCreate}><Plus /> Novo admin</Button>
+        </div>
+      </div>
+      {error && <Alert variant="destructive" className="mb-3"><AlertDescription>{error}</AlertDescription></Alert>}
+      <div className="rounded-xl border bg-card">
+        <DataTable columns={columns} data={users ?? []} getRowId={(u) => u.id} loading={users === null} emptyMessage="Nenhum administrador." emptyIcon={<Shield />} data-testid="admins-table" />
+      </div>
+
+      <CrudDrawer
+        open={drawer !== null}
+        onClose={() => setDrawer(null)}
+        title={isEdit ? 'Editar administrador' : 'Novo administrador'}
+        subtitle={isEdit ? original?.email : 'Cria um super admin da plataforma.'}
+        icon={<UserCog />}
+        onSave={save}
+        saveLabel={isEdit ? 'Salvar' : 'Criar'}
+        saving={saving}
+        saveDisabled={!isValid || (isEdit && !isDirty)}
+        isDirty={isDirty}
+        error={saveError}
+      >
+        <TextField
+          label="E-mail"
+          type="email"
+          required
+          disabled={isEdit}
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          onBlur={() => setTouched((p) => ({ ...p, email: true }))}
+          error={emailError}
+        />
+        <TextField
+          label="Usuário"
+          required
+          value={form.username}
+          onChange={(e) => setForm({ ...form, username: e.target.value })}
+          onBlur={() => setTouched((p) => ({ ...p, username: true }))}
+          error={usernameError}
+        />
+        {!isEdit && (
+          <PasswordField
+            label="Senha"
+            required
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            onBlur={() => setTouched((p) => ({ ...p, password: true }))}
+            autoComplete="new-password"
+            helperText={PASSWORD_RULE_HINT}
+            error={passwordError}
+          />
+        )}
+        {isEdit && (
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <Label htmlFor="admin-active" className="flex flex-col gap-0.5">
+              <span>Conta ativa</span>
+              <span className="text-xs font-normal text-muted-foreground">Desativada, não consegue entrar na plataforma.</span>
+            </Label>
+            <Switch id="admin-active" checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
+          </div>
+        )}
+      </CrudDrawer>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Remover administrador"
+        message={<>Remover <strong>{deleteTarget?.email}</strong> da plataforma? Ele perde o acesso imediatamente.</>}
+        destructive
+        confirmText="Remover"
+        loading={deleting}
+        onConfirm={remove}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </>
+  );
+}
+
+// ─── Flags ───────────────────────────────────────────────────────────────────
+
+interface TenantLite {
   id: string;
   name: string;
   slug: string;
@@ -67,229 +361,141 @@ interface FeatureFlag {
   created_at: string;
 }
 
-interface SystemComponent {
-  name: string;
-  description: string;
-  status: "operational" | "degraded" | "outage" | string;
-  uptime_30d: number;
-  uptime_90d: number;
-  latency_ms?: number | null;
-}
+function FlagsTab() {
+  const [tenants, setTenants] = useState<TenantLite[]>([]);
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [flags, setFlags] = useState<FeatureFlag[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [newFlag, setNewFlag] = useState({ feature: '', description: '' });
+  const [touched, setTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FeatureFlag | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
 
-interface SystemStatusResponse {
-  components: SystemComponent[];
-}
-
-// ─── Dados estáticos dos planos ──────────────────────────────────────────────
-
-const PLAN_COLORS: Record<string, string> = {
-  FREE:    "#94a3b8",
-  BASIC:   "#3b82f6",
-  PRO:     "#8b5cf6",
-  PREMIUM: "#f59e0b",
-};
-
-interface PlanRow {
-  label: string;
-  FREE:    string | boolean;
-  BASIC:   string | boolean;
-  PRO:     string | boolean;
-  PREMIUM: string | boolean;
-}
-
-const PLAN_ROWS: PlanRow[] = [
-  { label: "Preço mensal",                 FREE: "Grátis",    BASIC: "R$49",    PRO: "R$79",    PREMIUM: "R$99"      },
-  { label: "Usuários",                     FREE: "1",         BASIC: "5",       PRO: "20",      PREMIUM: "Ilimitado" },
-  { label: "Giras por mês",               FREE: "2",         BASIC: "10",      PRO: "50",      PREMIUM: "Ilimitado" },
-  { label: "Médiuns/cambones",             FREE: "—",         BASIC: "15",      PRO: "30",      PREMIUM: "Ilimitado" },
-  { label: "Emissão de senhas",            FREE: true,        BASIC: true,      PRO: true,      PREMIUM: true        },
-  { label: "Porta (fila em tempo real)",   FREE: true,        BASIC: true,      PRO: true,      PREMIUM: true        },
-  { label: "Relatório de Gira",            FREE: false,       BASIC: true,      PRO: true,      PREMIUM: true        },
-  { label: "Envio de senha por e-mail",    FREE: false,       BASIC: false,     PRO: true,      PREMIUM: true        },
-  { label: "Tema personalizado",           FREE: false,       BASIC: false,     PRO: true,      PREMIUM: true        },
-  { label: "Analytics avançado",           FREE: false,       BASIC: false,     PRO: true,      PREMIUM: true        },
-  { label: "Gestão de Associados",         FREE: false,       BASIC: false,     PRO: true,      PREMIUM: true        },
-  { label: "Controle de Estoque",          FREE: false,       BASIC: false,     PRO: true,      PREMIUM: true        },
-  { label: "Site do Terreiro",             FREE: false,       BASIC: false,     PRO: true,      PREMIUM: true        },
-  { label: "Export CSV",                   FREE: false,       BASIC: false,     PRO: true,      PREMIUM: true        },
-  { label: "Auditoria completa",           FREE: false,       BASIC: false,     PRO: true,      PREMIUM: true        },
-  { label: "Mensalidade de Médiuns",       FREE: false,       BASIC: false,     PRO: false,     PREMIUM: true        },
-  { label: "Suporte prioritário",          FREE: false,       BASIC: false,     PRO: false,     PREMIUM: true        },
-  { label: "API Access",                   FREE: false,       BASIC: false,     PRO: false,     PREMIUM: true        },
-];
-
-// ─── Sub-componentes ──────────────────────────────────────────────────────────
-
-function PlanCell({ value }: { value: string | boolean }) {
-  if (value === true)  return <CheckCircleIcon sx={{ color: "success.main", fontSize: 18 }} />;
-  if (value === false) return <CancelIcon     sx={{ color: "text.disabled", fontSize: 18 }} />;
-  return <Typography variant="body2" fontWeight={600}>{value}</Typography>;
-}
-
-function StatusChip({ status }: { status: string }) {
-  const map: Record<string, { label: string; color: "success" | "warning" | "error" | "default" }> = {
-    operational: { label: "Operacional",  color: "success" },
-    degraded:    { label: "Degradado",    color: "warning" },
-    outage:      { label: "Fora do ar",   color: "error"   },
-    unknown:     { label: "Desconhecido", color: "default" },
-  };
-  const { label, color } = map[status] ?? map.unknown;
-  return <Chip label={label} color={color} size="small" />;
-}
-
-// ─── Tab 0: Feature Flags ─────────────────────────────────────────────────────
-
-function FeatureFlagsTab() {
-  const [tenants, setTenants]               = useState<Tenant[]>([]);
-  const [selectedTenant, setSelectedTenant] = useState<string>("");
-  const [flags, setFlags]                   = useState<FeatureFlag[]>([]);
-  const [error, setError]                   = useState<string | null>(null);
-  const [success, setSuccess]               = useState<string | null>(null);
-  const [drawerOpen, setDrawerOpen]         = useState(false);
-  const [newFlag, setNewFlag]               = useState({ feature: "", description: "" });
-  const [touched, setTouched]               = useState<Record<string, boolean>>({});
-  const [saving, setSaving]                 = useState(false);
-
-  useEffect(() => { fetchTenants(); }, []);
   useEffect(() => {
-    if (selectedTenant) fetchFlags(selectedTenant);
-    else setFlags([]);
-  }, [selectedTenant]);
+    apiClient
+      .get<TenantLite[]>('/api/v1/platform/tenants', { params: { limit: 1000 } })
+      .then((r) => setTenants(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setTenants([]));
+  }, []);
 
-  const fetchTenants = async () => {
+  const loadFlags = useCallback(async (id: string) => {
     try {
-      const res = await apiClient.get("/api/v1/platform/tenants");
-      setTenants(res.data);
-    } catch { /* silent */ }
-  };
-
-  const fetchFlags = async (tenantId: string) => {
-    try {
-      const res = await apiClient.get(`/api/v1/platform/feature-flags/${tenantId}`);
-      setFlags(res.data);
-    } catch { setFlags([]); }
-  };
-
-  const openAddFlag = () => {
-    setNewFlag({ feature: "", description: "" });
-    setTouched({});
-    setDrawerOpen(true);
-  };
-
-  const flagIsDirty  = newFlag.feature.length > 0 || newFlag.description.length > 0;
-  const featureError = touched.feature && !newFlag.feature.trim() ? "Nome da feature obrigatório" : "";
-  const flagValid    = newFlag.feature.trim().length > 0;
-
-  const handleAddFlag = async () => {
-    if (!selectedTenant || !newFlag.feature) return;
-    setSaving(true);
-    try {
-      await apiClient.post(`/api/v1/platform/feature-flags/${selectedTenant}`, {
-        feature:     newFlag.feature,
-        enabled:     true,
-        description: newFlag.description || null,
-      });
-      setDrawerOpen(false);
-      setSuccess("Feature flag adicionada com sucesso!");
-      setTimeout(() => setSuccess(null), 3000);
-      fetchFlags(selectedTenant);
+      const res = await apiClient.get<FeatureFlag[]>(`/api/v1/platform/feature-flags/${id}`);
+      setFlags(Array.isArray(res.data) ? res.data : []);
+      setError(null);
     } catch (err) {
-      setError(extractApiErrorMessage(err, "Erro ao adicionar feature flag"));
+      setFlags([]);
+      setError(extractApiErrorMessage(err, 'Erro ao carregar as flags'));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tenantId) {
+      setFlags(null);
+      loadFlags(tenantId);
+    } else {
+      setFlags(null);
+    }
+  }, [tenantId, loadFlags]);
+
+  const addFlag = async () => {
+    if (!tenantId || !newFlag.feature.trim()) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await apiClient.post(`/api/v1/platform/feature-flags/${tenantId}`, { feature: newFlag.feature.trim(), enabled: true, description: newFlag.description || null });
+      toast.success('Flag adicionada.');
+      setDrawerOpen(false);
+      loadFlags(tenantId);
+    } catch (err) {
+      setSaveError(extractApiErrorMessage(err, 'Erro ao adicionar a flag'));
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteFlag = async (feature: string) => {
-    if (!selectedTenant) return;
-    if (!window.confirm(`Remover feature flag "${feature}"?`)) return;
+  const toggleFlag = async (flag: FeatureFlag, enabled: boolean) => {
+    if (!tenantId) return;
+    setToggling(flag.id);
     try {
-      await apiClient.delete(`/api/v1/platform/feature-flags/${selectedTenant}/${feature}`);
-      fetchFlags(selectedTenant);
+      await apiClient.post(`/api/v1/platform/feature-flags/${tenantId}`, { feature: flag.feature, enabled, description: flag.description, expires_at: flag.expires_at });
+      setFlags((prev) => (prev ?? []).map((f) => (f.id === flag.id ? { ...f, enabled } : f)));
+      toast.success(`Flag "${flag.feature}" ${enabled ? 'ativada' : 'desativada'}.`);
     } catch (err) {
-      setError(extractApiErrorMessage(err, "Erro ao remover feature flag"));
+      toast.error(extractApiErrorMessage(err, 'Erro ao alterar a flag'));
+    } finally {
+      setToggling(null);
     }
   };
 
-  const formatDate = (iso: string) => new Date(iso).toLocaleDateString("pt-BR");
+  const removeFlag = async () => {
+    if (!tenantId || !deleteTarget) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/api/v1/platform/feature-flags/${tenantId}/${deleteTarget.feature}`);
+      toast.success(`Flag "${deleteTarget.feature}" removida.`);
+      setDeleteTarget(null);
+      loadFlags(tenantId);
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Erro ao remover a flag'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const tenantOptions = useMemo(() => tenants.map((t) => ({ value: t.id, label: t.name, description: t.slug, keywords: [t.slug] })), [tenants]);
+  const selectedTenant = tenants.find((t) => t.id === tenantId) ?? null;
 
   return (
-    <Box>
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <FormControl sx={{ minWidth: { xs: "100%", sm: 320 } }} size="small">
-            <InputLabel>Tenant</InputLabel>
-            <Select
-              value={selectedTenant}
-              onChange={(e) => setSelectedTenant(e.target.value)}
-              label="Tenant"
-            >
-              <MenuItem value=""><em>— Selecione um tenant —</em></MenuItem>
-              {tenants.map((t) => (
-                <MenuItem key={t.id} value={t.id}>{t.name} ({t.slug})</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </CardContent>
-      </Card>
+    <>
+      <div className="mb-4 max-w-md">
+        <Combobox label="Terreiro" options={tenantOptions} value={tenantId} onChange={setTenantId} placeholder="Selecione um terreiro" searchPlaceholder="Nome ou slug…" emptyText="Nenhum terreiro" clearable />
+      </div>
 
-      {error   && <Alert severity="error"   sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+      {error && <Alert variant="destructive" className="mb-3"><AlertDescription>{error}</AlertDescription></Alert>}
 
-      {!selectedTenant ? (
-        <Alert severity="info">Selecione um tenant acima para gerenciar suas feature flags.</Alert>
+      {!tenantId ? (
+        <Alert variant="info"><AlertDescription>Selecione um terreiro para gerenciar as feature flags dele.</AlertDescription></Alert>
       ) : (
-        <Card>
-          <CardContent>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-              <Typography fontWeight={700} fontSize="1.05rem">Feature Flags</Typography>
-              <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={openAddFlag}>
-                Adicionar Flag
+        <Card className="gap-3 py-4">
+          <CardHeader className="px-4">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span>Flags de {selectedTenant?.name ?? 'terreiro'}</span>
+              <Button size="sm" onClick={() => { setNewFlag({ feature: '', description: '' }); setTouched(false); setSaveError(null); setDrawerOpen(true); }}>
+                <Plus /> Adicionar flag
               </Button>
-            </Box>
-
-            {flags.length === 0 ? (
-              <Alert severity="info">Nenhuma feature flag para este tenant.</Alert>
+            </CardTitle>
+            <CardDescription>Liberações pontuais por terreiro, fora do plano.</CardDescription>
+          </CardHeader>
+          <CardContent className="px-4">
+            {flags === null ? (
+              <Skeleton className="h-20 w-full" />
+            ) : flags.length === 0 ? (
+              <EmptyState compact icon={<Flag />} title="Nenhuma flag para este terreiro." />
             ) : (
-              <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Feature</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Expira em</TableCell>
-                      <TableCell />
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {flags.map((flag) => (
-                      <TableRow key={flag.id}>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={600}>{flag.feature}</Typography>
-                          {flag.description && (
-                            <Typography variant="caption" color="text.secondary">{flag.description}</Typography>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={flag.enabled ? "ON" : "OFF"}
-                            color={flag.enabled ? "success" : "default"}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>{flag.expires_at ? formatDate(flag.expires_at) : "—"}</TableCell>
-                        <TableCell align="right">
-                          <Tooltip title="Remover">
-                            <IconButton size="small" color="error" onClick={() => handleDeleteFlag(flag.feature)}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <ul className="m-0 list-none divide-y p-0">
+                {flags.map((flag) => (
+                  <li key={flag.id} className="flex items-center gap-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-sm font-semibold">{flag.feature}</p>
+                      {flag.description && <p className="text-xs text-muted-foreground">{flag.description}</p>}
+                      <p className="text-xs text-muted-foreground">{flag.expires_at ? `Expira em ${fmtDate(flag.expires_at)}` : 'Sem expiração'}</p>
+                    </div>
+                    <Label htmlFor={`flag-${flag.id}`} className="sr-only">{flag.enabled ? 'Desativar' : 'Ativar'} {flag.feature}</Label>
+                    <Switch id={`flag-${flag.id}`} checked={flag.enabled} disabled={toggling === flag.id} onCheckedChange={(v) => toggleFlag(flag, v)} />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" className="text-destructive" onClick={() => setDeleteTarget(flag)} aria-label={`Remover flag ${flag.feature}`}><Trash2 /></Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Remover</TooltipContent>
+                    </Tooltip>
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
@@ -298,220 +504,138 @@ function FeatureFlagsTab() {
       <CrudDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title="Nova Feature Flag"
-        subtitle="Adicione uma feature flag para o tenant selecionado."
-        icon={<FlagIcon />}
-        onSave={handleAddFlag}
+        title="Nova feature flag"
+        subtitle={selectedTenant?.name}
+        icon={<Flag />}
+        onSave={addFlag}
         saveLabel="Adicionar"
         saving={saving}
-        saveDisabled={!flagValid}
-        isDirty={flagIsDirty}
+        saveDisabled={!newFlag.feature.trim()}
+        isDirty={newFlag.feature.length > 0 || newFlag.description.length > 0}
+        error={saveError}
       >
         <TextField
-          label="Nome da Feature"
-          fullWidth
+          label="Nome da feature"
+          required
           value={newFlag.feature}
           onChange={(e) => setNewFlag({ ...newFlag, feature: e.target.value })}
-          onBlur={() => setTouched((p) => ({ ...p, feature: true }))}
-          required
-          error={!!featureError}
-          helperText={featureError}
+          onBlur={() => setTouched(true)}
+          error={touched && !newFlag.feature.trim() ? 'Nome obrigatório' : undefined}
+          helperText="Identificador usado no código (ex.: sites_beta)"
         />
-        <TextField
-          label="Descrição"
-          fullWidth
-          value={newFlag.description}
-          onChange={(e) => setNewFlag({ ...newFlag, description: e.target.value })}
-          multiline
-          rows={3}
-        />
+        <TextField label="Descrição" multiline rows={3} value={newFlag.description} onChange={(e) => setNewFlag({ ...newFlag, description: e.target.value })} />
       </CrudDrawer>
-    </Box>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Remover feature flag"
+        message={<>Remover a flag <strong>{deleteTarget?.feature}</strong> de {selectedTenant?.name}? O terreiro volta ao comportamento do plano.</>}
+        destructive
+        confirmText="Remover"
+        loading={deleting}
+        onConfirm={removeFlag}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </>
   );
 }
 
-// ─── Tab 1: Status do Sistema ─────────────────────────────────────────────────
+// ─── Planos ──────────────────────────────────────────────────────────────────
 
-function SystemStatusTab() {
-  const [data, setData]           = useState<SystemStatusResponse | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
-  const [checkedAt, setCheckedAt] = useState<Date | null>(null);
-
-  const fetchStatus = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await apiClient.get("/api/v1/platform/status");
-      setData(res.data);
-      setCheckedAt(new Date());
-    } catch (err) {
-      setError(extractApiErrorMessage(err, "Erro ao buscar status do sistema"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchStatus(); }, []);
-
-  if (loading) return (
-    <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-      <CircularProgress />
-    </Box>
-  );
-
-  if (error) return <Alert severity="error">{error}</Alert>;
-
-  const allOperational = data?.components.every((c) => c.status === "operational");
-
-  return (
-    <Box>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Chip
-            icon={<HealthAndSafetyIcon />}
-            label={allOperational ? "Todos os sistemas operacionais" : "Atenção: degradação detectada"}
-            color={allOperational ? "success" : "warning"}
-            variant="outlined"
-            sx={{ fontWeight: 600 }}
-          />
-          {checkedAt && (
-            <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-              Verificado às {checkedAt.toLocaleTimeString("pt-BR")}
-            </Typography>
-          )}
-        </Box>
-        <Tooltip title="Atualizar">
-          <IconButton onClick={fetchStatus} size="small">
-            <RefreshIcon />
-          </IconButton>
-        </Tooltip>
-      </Box>
-
-      <Grid container spacing={2}>
-        {data?.components.map((comp) => (
-          <Grid item xs={12} sm={6} md={4} key={comp.name}>
-            <Card variant="outlined" sx={{ height: "100%" }}>
-              <CardContent>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1.5 }}>
-                  <Typography fontWeight={700} fontSize="0.95rem">{comp.name}</Typography>
-                  <StatusChip status={comp.status} />
-                </Box>
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
-                  {comp.description}
-                </Typography>
-                <Divider sx={{ mb: 1.5 }} />
-                <Stack spacing={0.5}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                    <Typography variant="caption" color="text.secondary">Uptime 30d</Typography>
-                    <Typography variant="caption" fontWeight={600}>
-                      {comp.uptime_30d.toFixed(1)}%
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                    <Typography variant="caption" color="text.secondary">Uptime 90d</Typography>
-                    <Typography variant="caption" fontWeight={600}>
-                      {comp.uptime_90d.toFixed(1)}%
-                    </Typography>
-                  </Box>
-                  {comp.latency_ms != null && (
-                    <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                      <Typography variant="caption" color="text.secondary">Latência DB</Typography>
-                      <Typography
-                        variant="caption"
-                        fontWeight={600}
-                        color={comp.latency_ms > 200 ? "warning.main" : "success.main"}
-                      >
-                        {comp.latency_ms} ms
-                      </Typography>
-                    </Box>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-    </Box>
-  );
+type PlanCell = string | boolean;
+interface PlanRow {
+  label: string;
+  cells: Record<string, PlanCell>;
 }
 
-// ─── Tab 2: Tiers & Limites ───────────────────────────────────────────────────
+const limitText = (n: number | null) => (n === null ? 'Ilimitado' : n === 0 ? '—' : String(n));
 
-const PLAN_KEYS = ["FREE", "BASIC", "PRO", "PREMIUM"] as const;
+const PLAN_FEATURE_ROWS: PlanRow[] = [
+  { label: 'Emissão de senhas', cells: { free: true, basic: true, pro: true, premium: true } },
+  { label: 'Porta (fila em tempo real)', cells: { free: true, basic: true, pro: true, premium: true } },
+  { label: 'Relatório de gira', cells: { free: false, basic: true, pro: true, premium: true } },
+  { label: 'Envio de senha por e-mail', cells: { free: false, basic: false, pro: true, premium: true } },
+  { label: 'Tema personalizado', cells: { free: false, basic: false, pro: true, premium: true } },
+  { label: 'Analytics avançado', cells: { free: false, basic: false, pro: true, premium: true } },
+  { label: 'Gestão de associados', cells: { free: false, basic: false, pro: true, premium: true } },
+  { label: 'Controle de estoque', cells: { free: false, basic: false, pro: true, premium: true } },
+  { label: 'Site do terreiro', cells: { free: false, basic: false, pro: true, premium: true } },
+  { label: 'Exportação CSV', cells: { free: false, basic: false, pro: true, premium: true } },
+  { label: 'Auditoria completa', cells: { free: false, basic: false, pro: true, premium: true } },
+  { label: 'Mensalidade de médiuns', cells: { free: false, basic: false, pro: false, premium: true } },
+  { label: 'Suporte prioritário', cells: { free: false, basic: false, pro: false, premium: true } },
+  { label: 'Acesso à API', cells: { free: false, basic: false, pro: false, premium: true } },
+];
 
-function TiersTab() {
+function PlanCellView({ value }: { value: PlanCell }) {
+  if (value === true) return <Check className="mx-auto size-4 text-success" aria-label="Incluído" />;
+  if (value === false) return <Minus className="mx-auto size-4 text-muted-foreground/60" aria-label="Não incluído" />;
+  return <span className="text-sm font-semibold">{value}</span>;
+}
+
+function PlanosTab() {
+  const rows: PlanRow[] = [
+    { label: 'Preço mensal', cells: Object.fromEntries(PLAN_ORDER.map((k) => [k, PLAN_META[k].price === 0 ? 'Grátis' : fmtMoney(PLAN_META[k].price)])) },
+    { label: 'Usuários', cells: Object.fromEntries(PLAN_ORDER.map((k) => [k, limitText(PLAN_META[k].limits.users)])) },
+    { label: 'Giras por mês', cells: Object.fromEntries(PLAN_ORDER.map((k) => [k, limitText(PLAN_META[k].limits.girasPerMonth)])) },
+    { label: 'Médiuns / cambones', cells: Object.fromEntries(PLAN_ORDER.map((k) => [k, limitText(PLAN_META[k].limits.mediuns)])) },
+    ...PLAN_FEATURE_ROWS,
+  ];
   return (
-    <Box>
-      <Alert severity="info" sx={{ mb: 3 }}>
-        Tabela de referência dos planos da plataforma. Os limites refletem os valores padrão
-        definidos no backend — tenants com Stripe podem ter valores customizados via assinatura.
+    <>
+      <Alert variant="info" className="mb-4">
+        <AlertDescription>
+          Tabela de referência. Preços e limites vêm da constante única <code>PLAN_META</code> (espelho de <code>PLAN_LIMITS</code> do backend); o valor cobrado de cada terreiro é o da assinatura.
+        </AlertDescription>
       </Alert>
-
-      <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 700, minWidth: 220 }}>Recurso / Feature</TableCell>
-              {PLAN_KEYS.map((plan) => (
-                <TableCell
-                  key={plan}
-                  align="center"
-                  sx={{
-                    fontWeight: 700,
-                    color: PLAN_COLORS[plan],
-                    minWidth: 110,
-                    borderBottom: `3px solid ${PLAN_COLORS[plan]}`,
-                  }}
-                >
-                  {plan}
-                </TableCell>
+      <div className="overflow-x-auto rounded-xl border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="min-w-[200px]">Recurso</TableHead>
+              {PLAN_ORDER.map((k) => (
+                <TableHead key={k} className="min-w-[110px] text-center"><PlanBadge plan={k} /></TableHead>
               ))}
             </TableRow>
-          </TableHead>
+          </TableHeader>
           <TableBody>
-            {PLAN_ROWS.map((row, idx) => (
-              <TableRow key={row.label} sx={{ bgcolor: idx % 2 === 0 ? "action.hover" : "transparent" }}>
-                <TableCell sx={{ fontSize: "0.85rem" }}>{row.label}</TableCell>
-                {PLAN_KEYS.map((plan) => (
-                  <TableCell key={plan} align="center">
-                    <PlanCell value={row[plan]} />
-                  </TableCell>
+            {rows.map((row) => (
+              <TableRow key={row.label}>
+                <TableCell className="text-sm">{row.label}</TableCell>
+                {PLAN_ORDER.map((k) => (
+                  <TableCell key={k} className="text-center"><PlanCellView value={row.cells[k]} /></TableCell>
                 ))}
               </TableRow>
             ))}
           </TableBody>
         </Table>
-      </TableContainer>
-    </Box>
+      </div>
+    </>
   );
 }
 
-// ─── Página principal ─────────────────────────────────────────────────────────
+// ─── Página ──────────────────────────────────────────────────────────────────
 
 const SettingsPage: React.FC = () => {
-  const [tab, setTab] = useState(0);
+  const router = useRouter();
+  const tab = parseTab(router.query.tab);
+  const setTab = (next: string) => router.replace({ pathname: '/platform/settings', query: next === 'conta' ? {} : { tab: next } }, undefined, { shallow: true });
 
   return (
-    <PlatformLayout>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" fontWeight={700}>Configurações da Plataforma</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Feature flags por tenant, saúde do sistema e referência de planos
-        </Typography>
-      </Box>
-
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-          <Tab icon={<FlagIcon />}            iconPosition="start" label="Feature Flags"     />
-          <Tab icon={<HealthAndSafetyIcon />} iconPosition="start" label="Status do Sistema" />
-          <Tab icon={<TableChartIcon />}      iconPosition="start" label="Tiers & Limites"   />
-        </Tabs>
-      </Box>
-
-      {tab === 0 && <FeatureFlagsTab />}
-      {tab === 1 && <SystemStatusTab />}
-      {tab === 2 && <TiersTab />}
+    <PlatformLayout title="Configurações">
+      <PageHeader title="Configurações" subtitle="Sua conta, administradores da plataforma, feature flags e planos." />
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList data-tour="settings-tabs" className="mb-4 flex h-auto w-full flex-wrap justify-start">
+          <TabsTrigger value="conta"><UserCog /> Conta</TabsTrigger>
+          <TabsTrigger value="admins"><Shield /> Admins da plataforma</TabsTrigger>
+          <TabsTrigger value="flags"><Flag /> Flags</TabsTrigger>
+          <TabsTrigger value="planos"><Table2 /> Planos</TabsTrigger>
+        </TabsList>
+        <TabsContent value="conta"><ContaTab /></TabsContent>
+        <TabsContent value="admins"><AdminsTab /></TabsContent>
+        <TabsContent value="flags"><FlagsTab /></TabsContent>
+        <TabsContent value="planos"><PlanosTab /></TabsContent>
+      </Tabs>
     </PlatformLayout>
   );
 };

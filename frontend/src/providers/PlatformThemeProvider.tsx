@@ -1,90 +1,71 @@
 /**
- * PlatformThemeProvider
+ * PlatformThemeProvider — modo claro/escuro da área /platform.
  *
- * Scoped MUI ThemeProvider + context for the /platform area.
- * Default mode is "light". Persists the chosen mode to localStorage across sessions.
+ * Só alterna a classe `dark` em <html> (tokens shadcn/Tailwind de globals.css) e persiste a
+ * escolha em localStorage. Sem ThemeProvider do MUI: a plataforma é toda shadcn.
  *
- * Usage (in layout.tsx):
- *   <PlatformThemeProvider>...</PlatformThemeProvider>
- *
- * Usage (in any child):
- *   const { mode, isDark, toggleMode, tokens } = usePlatformTheme();
+ *   const { mode, isDark, toggleMode } = usePlatformTheme();
  */
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
-import CssBaseline from "@mui/material/CssBaseline";
-import { ThemeProvider } from "@mui/material/styles";
-import {
-  PlatformThemeMode,
-  PlatformTokens,
-  getTokens,
-  platformThemes,
-} from "../styles/platformTheme";
-
-// ─── Context ──────────────────────────────────────────────────────────────────
+export type PlatformThemeMode = 'dark' | 'light';
 
 interface PlatformThemeContextValue {
-  mode:       PlatformThemeMode;
-  isDark:     boolean;
-  tokens:     PlatformTokens;
+  mode: PlatformThemeMode;
+  isDark: boolean;
   toggleMode: () => void;
 }
 
 const PlatformThemeContext = createContext<PlatformThemeContextValue>({
-  mode:       "light",
-  isDark:     false,
-  tokens:     getTokens("light"),
+  mode: 'light',
+  isDark: false,
   toggleMode: () => {},
 });
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+export const usePlatformTheme = (): PlatformThemeContextValue => useContext(PlatformThemeContext);
 
-export const usePlatformTheme = (): PlatformThemeContextValue =>
-  useContext(PlatformThemeContext);
+export const PLATFORM_THEME_STORAGE_KEY = 'platform_theme_mode';
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
+export const PlatformThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [mode, setMode] = useState<PlatformThemeMode>('light');
 
-const STORAGE_KEY = "platform_theme_mode";
-
-export const PlatformThemeProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
-  const [mode, setMode] = useState<PlatformThemeMode>("light");
-
-  // Rehydrate from localStorage (client-side only).
-  // Sessions saved with the old default "dark" are migrated to "light".
+  // Reidrata do localStorage (só no cliente).
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY) as PlatformThemeMode | null;
-    if (saved === "dark" || saved === "light") setMode(saved);
+    try {
+      const saved = localStorage.getItem(PLATFORM_THEME_STORAGE_KEY);
+      if (saved === 'dark' || saved === 'light') setMode(saved);
+    } catch {
+      /* storage indisponível */
+    }
   }, []);
 
   const toggleMode = useCallback(() => {
     setMode((prev) => {
-      const next: PlatformThemeMode = prev === "dark" ? "light" : "dark";
-      localStorage.setItem(STORAGE_KEY, next);
+      const next: PlatformThemeMode = prev === 'dark' ? 'light' : 'dark';
+      try {
+        localStorage.setItem(PLATFORM_THEME_STORAGE_KEY, next);
+      } catch {
+        /* storage indisponível */
+      }
       return next;
     });
   }, []);
 
-  const value: PlatformThemeContextValue = {
-    mode,
-    isDark:     mode === "dark",
-    tokens:     getTokens(mode),
-    toggleMode,
-  };
+  // Classe `dark` na raiz (Dialog/Popover/Select do Radix são portados para o <body>).
+  // Removida no unmount: páginas públicas continuam claras.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('dark', mode === 'dark');
+    return () => {
+      root.classList.remove('dark');
+    };
+  }, [mode]);
 
   return (
-    <PlatformThemeContext.Provider value={value}>
-      <ThemeProvider theme={platformThemes[mode]}>
-        <CssBaseline />
-        {children}
-      </ThemeProvider>
+    <PlatformThemeContext.Provider value={{ mode, isDark: mode === 'dark', toggleMode }}>
+      {children}
     </PlatformThemeContext.Provider>
   );
 };
+
+export default PlatformThemeProvider;

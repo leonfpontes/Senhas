@@ -439,7 +439,7 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   interna.
 - **Esforço**: P. **Custo**: R$ 0.
 
-### P-04 — Unificar renderers do Site Builder — `pendente`
+### P-04 — Unificar renderers do Site Builder — `feito` (2026-10-06, fase 7 da M-01: `frontend/src/components/site/sections/*`)
 - **Problema**: ~2.500 linhas duplicadas entre `admin/meu-site.tsx` (previews) e
   `[tenantSlug]/index.tsx` (site público) — 8 seções paralelas + 5 helpers byte-a-byte idênticos.
   Toda mudança visual precisa ser feita duas vezes ou o preview mente.
@@ -543,6 +543,34 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 
 ---
 
+## Fase 4 — Frontend
+
+### M-01 — Migração MUI → shadcn/ui — `feito` (2026-10-06, interface v2.0.0)
+
+- **Por quê**: o admin tinha 244 objetos responsivos `{ xs, sm, md }` e ~2.900 `sx`; o MUI v5 estava parado
+  (sem `enableCssLayer`) e cada tela carregava o runtime do Emotion. Junto com a troca, as telas foram
+  redesenhadas pela análise de UX de 2026-10-05 (artefato "Redesenho GiraHub").
+- **Como**: fases 0 e 1 (fundação e kit) em sequência; fases 2 a 8 em seis frentes paralelas sobre o mesmo
+  branch, integradas e seguidas da fase 9 (remoção). Estado final e regras em AGENTS.md §11.16; kit em
+  `frontend/src/components/README.md`; bundle antes/depois em `docs/bundle-baseline.md`.
+- **Fases** (todas `feito`):
+  - **0 — Fundação** (2026-10-05): Tailwind v4 + shadcn convivendo com o MUI, `applyBrand`, classe `dark` na raiz, piloto.
+  - **1 — Primitivas e compartilhados** (2026-10-05): ~30 primitivas, compostos com a mesma API, `DataTable`, `fields/*`, gates, Sonner.
+  - **2 — Público e bilhete** (2026-10-06): `PublicShell`, `Bilhete`, emissão com 3 campos acima da dobra, fila com decisão explícita, cancelar, inscrição em etapas, status e 404.
+  - **3 — Layout e navegação** (2026-10-06): Sidebar por trabalho, barra inferior no celular, ⌘K, versão 2.0.0.
+  - **4 — Operação** (2026-10-06): Giras em cartões com um botão por estado, Senhas com detalhe em Sheet, Porta em modo operação ("Chamar próximo"), modo TV.
+  - **5 — Aquisição e conta** (2026-10-06): landing de um trabalho, cadastro em uma tela → primeira gira, plano e assinatura unificados com `constants/plans.ts`, pessoas e acessos, suporte, tour convergente.
+  - **6 — Gestão da casa** (2026-10-06): `CobrancaMensal`, Lançamentos (pagar + receber), estoque em duas telas, cursos, relatórios, analytics, auditoria.
+  - **7 — Meu Site** (2026-10-06): seções compartilhadas (fecha o P-04), assistente, prévia, "Publicar alterações", salvar automático.
+  - **8 — Plataforma** (2026-10-06): Hoje, Tenant 360, terreiros + assinaturas com paginação no servidor, suporte, auditoria, configurações.
+  - **9 — Remoção** (2026-10-06): sem `@mui/*`, `@emotion/*`, `packages/shared-ui`; preflight completo; overlays no z-index do Radix.
+- **Pendências registradas**: a busca de terreiros da plataforma é feita no navegador; a rota
+  `/platform/tenants/search` estava sombreada por `/tenants/{tenant_id}` (corrigido no PR #47) e, para a tela
+  usá-la, precisa devolver plano, status e fim do trial; "Nova conversa" no suporte da plataforma depende de endpoint
+  de criação; isenção de mensalidade em médiuns depende de campo no backend; páginas públicas ficaram mais
+  pesadas que antes (ver `docs/bundle-baseline.md`) e merecem uma rodada de corte (import de ícones, zod/RHF só
+  onde há formulário).
+
 ## Regras de trabalho (vigentes a partir de agora)
 
 - **R-01 — Congelamento de módulos novos** — `cumprida` (2026-10-05): nenhum módulo/feature novo
@@ -550,10 +578,10 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   Q-01 e Q-02 foram feitos e são bloqueantes no CI; o congelamento deixa de valer.
 - **R-02 — Doc que mente é bug**: encontrou documentação divergente do código → corrigir na
   mesma sessão (AGENTS.md/CLAUDE.md corrigidos em 2026-08-26 nesta primeira aplicação da regra).
-- **R-03 — Adotar ou deletar**: abstração frontend com 0 consumidores (`useCrudDrawer`,
-  `useFetch`, `usePaginatedFetch`, `useResponsive`, `DataTable`, `ResponsiveTable`,
-  `ResponsiveFilterBar`, `SnackbarContext`, `packages/shared-ui`) — na próxima sessão que tocar
-  uma tela relacionada, ou a abstração é adotada ali, ou é deletada. Sem terceira opção.
+- **R-03 — Adotar ou deletar**: abstração frontend com 0 consumidores — na próxima sessão que tocar
+  uma tela relacionada, ou a abstração é adotada ali, ou é deletada. Sem terceira opção. Aplicada na
+  M-01 (2026-10-06): `DataTable` e `SnackbarContext` adotados; `useCrudDrawer`, `useFetch`,
+  `usePaginatedFetch`, `useResponsive`, `ResponsiveTable`, `ResponsiveFilterBar` e `packages/shared-ui` apagados.
 - **R-04 — Migração nova só com `alembic heads` única** (já era regra; reafirmada porque a
   numeração já colidiu 3× e gerou 4 merges).
 

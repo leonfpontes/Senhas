@@ -59,6 +59,9 @@ async def get_published_site(
             "descricao": getattr(g, "descricao", None),
             "has_tickets": g.max_tickets is not None,
             "has_sponsor_tickets": g.sponsor_max_tickets is not None,
+            # Janela de emissão: o site mostra "Senhas abrem qui 12h" / "Senhas abertas".
+            "release_start_at": g.release_start_at.isoformat() if g.release_start_at else None,
+            "release_end_at": g.release_end_at.isoformat() if g.release_end_at else None,
         }
         for g in upcoming_giras
     ]

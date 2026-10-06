@@ -1,26 +1,17 @@
 /**
  * AdminThemeProvider
  *
- * Scoped MUI ThemeProvider for the /admin area.
- * Manages structural tokens (dark/light) independently of the tenant's brand colors.
- * Brand colors (primary_color, secondary_color) are read from TenantContext and
- * passed into the MUI theme so they survive dark mode toggling.
+ * Modo claro/escuro da área /admin. Aplica a classe `dark` em <html> para os tokens
+ * shadcn/Tailwind de `styles/globals.css` e guarda a escolha em localStorage.
+ * As cores do terreiro vêm do TenantAwareThemeProvider (applyBrand) e não mudam com o modo.
  *
- * Usage (in admin_layout.tsx):
- *   <AdminThemeProvider>...</AdminThemeProvider>
- *
- * Usage (in any /admin component):
- *   const { mode, isDark, tokens, toggleMode } = useAdminTheme();
+ * Uso: const { mode, isDark, toggleMode } = useAdminTheme();
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import CssBaseline from '@mui/material/CssBaseline';
-import { ThemeProvider } from '@mui/material/styles';
-import { AdminThemeMode, AdminTokens, buildAdminTheme, getAdminTokens } from '../styles/adminTheme';
-import { useTenant } from './ThemeProvider';
 
-const DEFAULT_PRIMARY   = '#6366F1';
-const DEFAULT_SECONDARY = '#EC4899';
+export type AdminThemeMode = 'light' | 'dark';
+
 const STORAGE_KEY       = 'admin_theme_mode';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -28,14 +19,12 @@ const STORAGE_KEY       = 'admin_theme_mode';
 interface AdminThemeContextValue {
   mode:       AdminThemeMode;
   isDark:     boolean;
-  tokens:     AdminTokens;
   toggleMode: () => void;
 }
 
 const AdminThemeContext = createContext<AdminThemeContextValue>({
   mode:       'light',
   isDark:     false,
-  tokens:     getAdminTokens('light'),
   toggleMode: () => {},
 });
 
@@ -44,10 +33,6 @@ export const useAdminTheme = (): AdminThemeContextValue => useContext(AdminTheme
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export const AdminThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { config } = useTenant();
-  const brandPrimary   = config?.colors?.primary   ?? DEFAULT_PRIMARY;
-  const brandSecondary = config?.colors?.secondary ?? DEFAULT_SECONDARY;
-
   const [mode, setMode] = useState<AdminThemeMode>('light');
 
   useEffect(() => {
@@ -65,26 +50,24 @@ export const AdminThemeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   }, []);
 
-  // Rebuild theme whenever mode or brand colors change.
-  // Brand colors change when TenantContext resolves after login.
-  const theme = React.useMemo(
-    () => buildAdminTheme(mode, brandPrimary, brandSecondary),
-    [mode, brandPrimary, brandSecondary],
-  );
+  // Classe `dark` em <html> para os tokens shadcn/Tailwind (globals.css). Na raiz, e não
+  // no div do layout, porque Dialog/Popover/Select do Radix são portados para o <body>.
+  // Removida no unmount: páginas públicas continuam claras.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('dark', mode === 'dark');
+    return () => { root.classList.remove('dark'); };
+  }, [mode]);
 
   const value: AdminThemeContextValue = {
     mode,
     isDark: mode === 'dark',
-    tokens: getAdminTokens(mode),
     toggleMode,
   };
 
   return (
     <AdminThemeContext.Provider value={value}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        {children}
-      </ThemeProvider>
+      {children}
     </AdminThemeContext.Provider>
   );
 };

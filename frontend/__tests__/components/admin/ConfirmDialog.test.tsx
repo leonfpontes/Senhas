@@ -1,37 +1,30 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
-
-const theme = createTheme();
-
-function wrap(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
-}
 
 const noop = jest.fn();
 
 beforeEach(() => jest.clearAllMocks());
 
-describe('ConfirmDialog', () => {
+describe('ConfirmDialog (AlertDialog, mesma API)', () => {
   it('is not visible when open=false', () => {
-    wrap(
+    render(
       <ConfirmDialog open={false} title="Excluir" message="Tem certeza?" onConfirm={noop} onCancel={noop} />
     );
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
   it('renders title and message when open', () => {
-    wrap(
+    render(
       <ConfirmDialog open title="Excluir Item" message="Deseja excluir?" onConfirm={noop} onCancel={noop} />
     );
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     expect(screen.getByText('Excluir Item')).toBeInTheDocument();
     expect(screen.getByText('Deseja excluir?')).toBeInTheDocument();
   });
 
   it('renders JSX message', () => {
-    wrap(
+    render(
       <ConfirmDialog
         open
         title="Excluir"
@@ -43,58 +36,70 @@ describe('ConfirmDialog', () => {
     expect(screen.getByTestId('rich-msg')).toBeInTheDocument();
   });
 
-  it('calls onConfirm when confirm button clicked', () => {
+  it('calls onConfirm when confirm button clicked (and does not close by itself)', () => {
     const onConfirm = jest.fn();
-    wrap(
-      <ConfirmDialog open title="Test" message="msg" onConfirm={onConfirm} onCancel={noop} />
+    const onCancel = jest.fn();
+    render(
+      <ConfirmDialog open title="Test" message="msg" onConfirm={onConfirm} onCancel={onCancel} />
     );
-    fireEvent.click(screen.getByText('Confirmar'));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onCancel).not.toHaveBeenCalled();
   });
 
   it('calls onCancel when cancel button clicked', () => {
     const onCancel = jest.fn();
-    wrap(
+    render(
       <ConfirmDialog open title="Test" message="msg" onConfirm={noop} onCancel={onCancel} />
     );
-    fireEvent.click(screen.getByText('Cancelar'));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onCancel on Escape', () => {
+    const onCancel = jest.fn();
+    render(
+      <ConfirmDialog open title="Test" message="msg" onConfirm={noop} onCancel={onCancel} />
+    );
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' });
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it('uses custom confirmText and cancelText', () => {
-    wrap(
+    render(
       <ConfirmDialog
         open title="Test" message="msg"
         confirmText="Sim, excluir" cancelText="Não"
         onConfirm={noop} onCancel={noop}
       />
     );
-    expect(screen.getByText('Sim, excluir')).toBeInTheDocument();
-    expect(screen.getByText('Não')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sim, excluir' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Não' })).toBeInTheDocument();
   });
 
   it('shows Aguarde... and disables buttons when loading', () => {
-    wrap(
+    render(
       <ConfirmDialog open title="Test" message="msg" loading onConfirm={noop} onCancel={noop} />
     );
     expect(screen.getByText('Aguarde...')).toBeInTheDocument();
-    const buttons = screen.getAllByRole('button');
-    buttons.forEach((btn) => expect(btn).toBeDisabled());
+    screen.getAllByRole('button').forEach((btn) => expect(btn).toBeDisabled());
   });
 
-  it('confirm button has error color when destructive', () => {
-    wrap(
+  it('confirm button uses the destructive variant when destructive', () => {
+    render(
       <ConfirmDialog open title="Test" message="msg" destructive onConfirm={noop} onCancel={noop} />
     );
-    const confirmBtn = screen.getByText('Confirmar').closest('button');
-    expect(confirmBtn).toHaveClass('MuiButton-containedError');
+    const confirmBtn = screen.getByRole('button', { name: 'Confirmar' });
+    expect(confirmBtn).toHaveAttribute('data-variant', 'destructive');
+    expect(confirmBtn.className).toMatch(/bg-destructive/);
   });
 
-  it('confirm button has primary color when not destructive', () => {
-    wrap(
+  it('confirm button uses the primary variant when not destructive', () => {
+    render(
       <ConfirmDialog open title="Test" message="msg" onConfirm={noop} onCancel={noop} />
     );
-    const confirmBtn = screen.getByText('Confirmar').closest('button');
-    expect(confirmBtn).toHaveClass('MuiButton-containedPrimary');
+    const confirmBtn = screen.getByRole('button', { name: 'Confirmar' });
+    expect(confirmBtn).toHaveAttribute('data-variant', 'default');
+    expect(confirmBtn.className).toMatch(/bg-primary/);
   });
 });

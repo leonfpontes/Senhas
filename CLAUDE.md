@@ -81,12 +81,10 @@ const { can }           = useSubscription();   // feature flag de plano (se apli
 const { can: canGroup } = usePermissions();    // RBAC de grupo — SEMPRE necessário
 
 // 1. Gate de plano (se a feature tem restrição de plano)
-if (!can('feature_subscription_name')) return <UpgradePrompt />;
+if (!can('feature_subscription_name')) return <PlanLocked feature="Nome" minPlan="Pro" />;
 
-// 2. Gate de grupo — OBRIGATÓRIO
-if (!canGroup('feature_enum_value', 'view')) {
-  return <Alert severity="warning">Você não tem permissão para visualizar este módulo.</Alert>;
-}
+// 2. Gate de grupo — OBRIGATÓRIO (Alert amarelo: "Você não tem permissão para visualizar este módulo.")
+if (!canGroup('feature_enum_value', 'view')) return <PermissionDenied />;
 
 // 3. Guards de ação — ocultar botões, não apenas desabilitar
 const canInsert = canGroup('feature_enum_value', 'insert');
@@ -98,7 +96,8 @@ Regras de UI:
 - Botões de criar/editar/excluir: renderizar condicionalmente (`{canInsert && <Button>}`), nunca apenas `disabled`.
 - Fetchers: checar `canGroup(..., 'view')` antes de chamar a API.
 - Coluna de ações em tabelas: omitir quando todas as ações são proibidas.
-- Mensagem de "sem permissão": usar `<Alert severity="warning">`, nunca deixar erro 403 exposto.
+- Mensagem de "sem permissão": usar `<PermissionDenied />` de `@/components/gates` (Alert amarelo do kit),
+  nunca deixar erro 403 exposto.
 
 ### Adicionando nova feature ao sistema de permissões
 
@@ -142,7 +141,7 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 
 ### Stack
 - Backend: Python 3.11, FastAPI, SQLAlchemy 2 async, Pydantic v2, Alembic
-- Frontend: Next.js, TypeScript, Material UI (v5), Recharts
+- Frontend: Next.js (Pages Router), TypeScript, Tailwind v4 + shadcn/ui, Recharts 2.x
 - DB: PostgreSQL com limit de 8G (Docker local / Hostinger VPS em prod)
 - Cache/Rate limit: Redis com `RedisStorage` no slowapi (distribuído)
 - Monitoramento: Sentry (erros + traces). A pilha Prometheus/Grafana foi removida em
@@ -154,15 +153,23 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 model (src/models/) → repository (src/repositories/) → endpoint (src/api/v1/admin/) → migration (alembic/versions/)
 ```
 
-### Componentes frontend reutilizáveis
-- `CrudDrawer` — formulários em drawer lateral (480px). **Nunca usar modais para formulários CRUD.**
-- `KpiCard` — cards de KPI nas páginas financeiras
-- `PageHeader` — cabeçalho de página com título, subtítulo e actions slot
-- `UpgradePrompt` — bloqueio de feature por plano
+### UI do frontend — shadcn/ui + Tailwind (sem MUI desde a v2.0.0)
+- **Toda tela usa shadcn/Tailwind (`src/components/ui/*`, `cn()`); nunca reintroduzir MUI nem `sx`.**
+  Tokens, `applyBrand` (cores do terreiro), classe `dark`, regra de z-index dos overlays, rotas que viraram
+  redirecionamento e versão da UI em AGENTS.md §11.16.
+
+### Componentes frontend reutilizáveis (kit — `frontend/src/components/README.md`)
+- `CrudDrawer` — formulários em drawer lateral (Sheet 480px). **Nunca usar modais para formulários CRUD.**
+- `ConfirmDialog` — confirmação (AlertDialog); `destructive` para excluir
+- `DataTable` — tabelas (TanStack Table v8; modo cartão no celular)
+- `fields/*` — `TextField`, `PasswordField`, `MoneyInput`, `MaskedInput`, `DateField`, `DateTimeField`, `Combobox`
+- `KpiCard`, `PageHeader`, `EmptyState`, `Stepper`, `charts/ChartCard`
+- `gates/*` — `PermissionDenied`, `ReadOnlyNotice`, `PlanLocked` (envolve `UpgradePrompt`)
+- Toasts: `useSnackbar()` ou `toast()` do Sonner — nunca Snackbar local
 
 ### Drawers vs Modais
 - Formulários CRUD → `CrudDrawer` (obrigatório)
-- Confirmações de exclusão → `Dialog` do MUI (aceitável)
+- Confirmações de exclusão → `ConfirmDialog` / `AlertDialog` do shadcn
 - Nunca criar novos modais para formulários
 
 ---

@@ -1,61 +1,49 @@
 /**
- * T074: Admin Tickets Page - Pagination, filtering, bulk actions
+ * Senhas — as senhas de uma gira: busca no topo, filtros num Popover, tabela que vira cartão
+ * no celular, detalhe (com rastreio do e-mail) em Sheet, ações em lote e fila de espera.
+ *
+ * A gira de hoje vem pré-selecionada (GiraContext / `?gira=`). Guards por
+ * `canGroup('tickets', …)`: sem `view` a tela mostra PermissionDenied; editar/excluir/lote só
+ * aparecem com a permissão correspondente. Mesmas rotas de API de antes.
  */
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import { toast } from 'sonner';
 import {
-  Box,
-  Badge,
-  Button,
-  Collapse,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Checkbox,
-  Chip,
-  Pagination,
-  TextField,
-  CircularProgress,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  IconButton,
-  Tooltip,
-  Alert,
-  Snackbar,
-  InputAdornment,
-} from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
-import CheckIcon from '@mui/icons-material/Check';
-import StarIcon from '@mui/icons-material/Star';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
-import MedicalServicesIcon from '@mui/icons-material/MedicalServices';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import FlashOnIcon from '@mui/icons-material/FlashOn';
+  Check,
+  ChevronDown,
+  Hourglass,
+  Search,
+  SlidersHorizontal,
+  Star,
+  Trash2,
+  Zap,
+} from 'lucide-react';
 import AdminLayout from '../admin_layout';
-import BulkActionsBar from '../../../components/admin/BulkActionsBar';
-import CrudDrawer from '../../../components/CrudDrawer';
-import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
-import { useSubscription } from '../../../hooks/useSubscription';
-import { usePermissions } from '../../../hooks/usePermissions';
-import { PRIORITY_ORDER, PRIORITY_CATEGORY_LABELS } from 'shared-types';
+import BulkActionsBar from '@/components/admin/BulkActionsBar';
+import CrudDrawer from '@/components/CrudDrawer';
+import { ConfirmDialog, PageHeader } from '@/components/admin';
+import { DataTable, type ColumnDef, type PaginationState, type RowSelectionState } from '@/components/admin/DataTable';
+import { ContactActions, TicketDetailSheet } from '@/components/admin/TicketDetailSheet';
+import { numeroDaSenha, senhaStatusLabel } from '@/components/admin/senhaFormat';
+import { giraLabel, pickTodayGira, useGiraContext } from '@/components/admin/GiraContext';
+import { PermissionDenied } from '@/components/gates';
+import { DateField, TextField } from '@/components/fields';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import { useSubscription } from '@/hooks/useSubscription';
+import { usePermissions } from '@/hooks/usePermissions';
+import { PRIORITY_ORDER, PRIORITY_CATEGORY_LABELS, PriorityCategoryType } from 'shared-types';
 
 interface Ticket {
   id: string;
@@ -80,6 +68,13 @@ interface Ticket {
   email_provider?: string;
 }
 
+interface GiraOption {
+  id: string;
+  nome: string;
+  is_active: boolean;
+  data_inicio: string;
+}
+
 type GiraFilter = 'all' | 'active' | 'inactive';
 
 interface WaitlistItem {
@@ -96,9 +91,83 @@ interface WaitlistItem {
   created_at: string;
 }
 
+const PAGE_SIZE = 50;
+
+const STATUS_FILTERS: { value: string; label: string }[] = [
+  { value: 'emitted', label: 'Aguardando' },
+  { value: 'called', label: 'Em atendimento' },
+  { value: 'completed', label: 'Atendidas' },
+  { value: 'cancelled', label: 'Canceladas' },
+];
+
+const STATUS_TONE: Record<string, string> = {
+  emitted: '',
+  called: 'border-info/30 bg-info/10 text-info',
+  completed: 'border-success/30 bg-success/15 text-success',
+  cancelled: 'border-destructive/30 bg-destructive/10 text-destructive',
+  no_show: 'border-warning/40 bg-warning/15 text-warning-foreground',
+};
+
+const WAITLIST_STATUS_LABEL: Record<WaitlistItem['status'], string> = {
+  aguardando: 'Aguardando',
+  aguardando_confirmacao: 'Aguardando confirmação',
+  expirado: 'Expirado',
+  emitido: 'Liberada',
+};
+
+function priorityName(category?: string | null): string | null {
+  if (!category) return null;
+  return PRIORITY_CATEGORY_LABELS[category as PriorityCategoryType] ?? 'Preferencial';
+}
+
+const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** Busca livre na página carregada: número ("42", "0042", "#42"), nome ou e-mail. */
+function filterTickets(tickets: Ticket[], search: string): Ticket[] {
+  const q = search.trim();
+  if (!q) return tickets;
+  const needle = normalize(q.replace(/^#/, ''));
+  return tickets.filter((t) => {
+    const numStr = String(t.numero);
+    const numPadded = String(t.numero).padStart(4, '0');
+    return (
+      numStr.includes(needle) ||
+      numPadded.includes(needle) ||
+      normalize(t.consulente_nome ?? '').includes(needle) ||
+      normalize(t.consulente_email ?? '').includes(needle)
+    );
+  });
+}
+
+function StatusBadge({ status }: { status: string }) {
+  return (
+    <Badge variant="outline" className={cn('whitespace-nowrap', STATUS_TONE[status])}>
+      {senhaStatusLabel(status)}
+    </Badge>
+  );
+}
+
+function TicketTags({ t }: { t: Ticket }) {
+  return (
+    <span className="flex flex-wrap gap-1">
+      {t.is_sponsor && (
+        <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-foreground">
+          <Star aria-hidden /> Associado
+        </Badge>
+      )}
+      {t.preferencial && (
+        <Badge variant="outline" className="border-warning/40 text-warning-foreground">
+          <Star aria-hidden /> {priorityName(t.priority_category) ?? 'Preferencial'}
+        </Badge>
+      )}
+      {t.is_acompanhante && <Badge variant="outline">Acompanhante</Badge>}
+    </span>
+  );
+}
+
 export default function AdminTicketsPage() {
   return (
-    <AdminLayout title="Tickets">
+    <AdminLayout title="Senhas">
       <AdminTicketsContent />
     </AdminLayout>
   );
@@ -107,25 +176,28 @@ export default function AdminTicketsPage() {
 function AdminTicketsContent() {
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
-  const hasBulk = true;
+  const canView = canGroup('tickets', 'view');
+  const canEdit = canGroup('tickets', 'edit');
+  const canDelete = canGroup('tickets', 'delete');
+  const canBulk = canEdit || canDelete;
   const router = useRouter();
+  const giraCtx = useGiraContext({ load: false });
+
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(0);
-  const [limit] = useState(50);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: PAGE_SIZE });
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState<string>('');
-  const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set());
-  const [giraId, setGiraId] = useState<string>('');
-  const [giras, setGiras] = useState<{ id: string; nome: string; is_active: boolean; data_inicio: string }[]>([]);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [giraId, setGiraIdState] = useState<string>('');
+  const [giras, setGiras] = useState<GiraOption[]>([]);
+  const [girasLoaded, setGirasLoaded] = useState(false);
   const [giraFilter, setGiraFilter] = useState<GiraFilter>('all');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
-  // Free-text search (debounced). Filters the current page client-side by
-  // ticket number, consulente name or email. The /tickets endpoint does not
-  // accept a `search`/`q` param, so filtering is done locally.
+  // Busca livre (com atraso): filtra a página atual por número, nome ou e-mail — o endpoint
+  // /tickets não aceita busca, então o filtro é local.
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   useEffect(() => {
@@ -133,41 +205,35 @@ function AdminTicketsContent() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // Drawer state for attend info editing
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editTicketId, setEditTicketId] = useState<string | null>(null);
-  const [editTicketNumero, setEditTicketNumero] = useState<number>(0);
-  const [formData, setFormData] = useState({ medium_nome: '', cambone_nome: '', atendimento_descricao: '', priority_category: 'none' });
-  const [originalData, setOriginalData] = useState({ medium_nome: '', cambone_nome: '', atendimento_descricao: '', priority_category: 'none' });
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState('');
-  const [error, setError] = useState('');
+  // Detalhe
+  const [detail, setDetail] = useState<Ticket | null>(null);
 
-  // Delete dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // Edição do atendimento
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editTicket, setEditTicket] = useState<Ticket | null>(null);
+  const EMPTY_EDIT = { medium_nome: '', cambone_nome: '', atendimento_descricao: '', priority_category: 'none' };
+  const [formData, setFormData] = useState(EMPTY_EDIT);
+  const [originalData, setOriginalData] = useState(EMPTY_EDIT);
+  const [saving, setSaving] = useState(false);
+
+  // Exclusão
   const [deleteTarget, setDeleteTarget] = useState<{ ticket: Ticket; giraId: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const openDeleteDialog = (ticket: Ticket) => {
-    if (!giraId) return;
-    setDeleteTarget({ ticket, giraId });
-    setDeleteDialogOpen(true);
-  };
+  // Fila de espera
+  const [waitlist, setWaitlist] = useState<WaitlistItem[]>([]);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
+  const [waitlistActionId, setWaitlistActionId] = useState<string | null>(null);
+  const [releaseConfirmTarget, setReleaseConfirmTarget] = useState<WaitlistItem | null>(null);
 
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await apiClient.delete(`/api/v1/admin/giras/${deleteTarget.giraId}/tickets/${deleteTarget.ticket.id}`);
-      setSuccess(`Senha #${String(deleteTarget.ticket.numero).padStart(4, '0')} excluída com sucesso. A vaga foi devolvida à gira.`);
-      setDeleteDialogOpen(false);
-      setDeleteTarget(null);
-      loadTickets();
-    } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao excluir a senha.'));
-    } finally {
-      setDeleting(false);
-    }
+  const page = pagination.pageIndex;
+
+  const setGiraId = (id: string) => {
+    setGiraIdState(id);
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+    setRowSelection({});
+    if (id) giraCtx.setSelectedGiraId(id);
   };
 
   const loadGiras = async () => {
@@ -178,21 +244,16 @@ function AdminTicketsContent() {
       if (dateFrom) params.append('date_from', dateFrom);
       if (dateTo) params.append('date_to', dateTo);
       const response = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`);
-      const data = Array.isArray(response.data) ? response.data : response.data.items || [];
+      const data: GiraOption[] = Array.isArray(response?.data) ? response.data : response?.data?.items || [];
       setGiras(data);
-      // If current selected gira is not in filtered results, clear it
-      if (giraId && !data.some((g: { id: string }) => g.id === giraId)) {
-        setGiraId('');
-      }
+      // Gira selecionada fora do filtro → limpa.
+      if (giraId && !data.some((g) => g.id === giraId)) setGiraIdState('');
     } catch (error) {
       console.error('Error loading giras:', error);
+    } finally {
+      setGirasLoaded(true);
     }
   };
-
-  const [waitlist, setWaitlist] = useState<WaitlistItem[]>([]);
-  const [waitlistLoading, setWaitlistLoading] = useState(false);
-  const [waitlistExpanded, setWaitlistExpanded] = useState(false);
-  const [waitlistActionId, setWaitlistActionId] = useState<string | null>(null);
 
   const loadWaitlist = async () => {
     if (!giraId || !can('fila_espera')) {
@@ -202,7 +263,7 @@ function AdminTicketsContent() {
     try {
       setWaitlistLoading(true);
       const response = await apiClient.get(`/api/v1/admin/giras/${giraId}/waitlist`);
-      setWaitlist(response.data);
+      setWaitlist(Array.isArray(response?.data) ? response.data : []);
     } catch (error) {
       console.error('Error loading waitlist:', error);
     } finally {
@@ -217,58 +278,46 @@ function AdminTicketsContent() {
       await apiClient.post(`/api/v1/admin/giras/${giraId}/waitlist/${item.id}/promote`, {
         require_confirmation: requireConfirmation,
       });
-      setSuccess(
+      toast.success(
         requireConfirmation
-          ? `Senha #${item.numero} promovida — e-mail de confirmação enviado.`
-          : `Senha #${item.numero} liberada diretamente, sem precisar de confirmação.`,
+          ? `Senha ${numeroDaSenha(item)} promovida — e-mail de confirmação enviado.`
+          : `Senha ${numeroDaSenha(item)} liberada direto, sem precisar de confirmação.`,
       );
       await loadWaitlist();
     } catch (error) {
-      setError(extractApiErrorMessage(error, 'Erro ao promover senha da fila.'));
+      toast.error(extractApiErrorMessage(error, 'Erro ao promover a senha da fila.'));
     } finally {
       setWaitlistActionId(null);
     }
   };
-
-  const [releaseConfirmTarget, setReleaseConfirmTarget] = useState<WaitlistItem | null>(null);
 
   const handleRemoveWaitlist = async (item: WaitlistItem) => {
     if (!giraId) return;
     setWaitlistActionId(item.id);
     try {
       await apiClient.delete(`/api/v1/admin/giras/${giraId}/waitlist/${item.id}`);
-      setSuccess(`Senha #${item.numero} removida da fila de espera.`);
+      toast.success(`Senha ${numeroDaSenha(item)} removida da fila de espera.`);
       await loadWaitlist();
     } catch (error) {
-      setError(extractApiErrorMessage(error, 'Erro ao remover senha da fila.'));
+      toast.error(extractApiErrorMessage(error, 'Erro ao remover a senha da fila.'));
     } finally {
       setWaitlistActionId(null);
     }
   };
 
-  const waitlistStatusLabel: Record<WaitlistItem['status'], string> = {
-    aguardando: 'Aguardando',
-    aguardando_confirmacao: 'Aguardando confirmação',
-    expirado: 'Expirado',
-    emitido: 'Liberada',
-  };
-
   const loadTickets = async () => {
     try {
       setLoading(true);
-      if (!giraId) {
+      if (!giraId || !canView) {
         setTickets([]);
+        setTotal(0);
         return;
       }
-
-      let url = `/api/v1/admin/giras/${giraId}/tickets?skip=${page * limit}&limit=${limit}`;
-      if (statusFilter) {
-        url += `&status_filter=${statusFilter}`;
-      }
-
+      let url = `/api/v1/admin/giras/${giraId}/tickets?skip=${page * PAGE_SIZE}&limit=${PAGE_SIZE}`;
+      if (statusFilter) url += `&status_filter=${statusFilter}`;
       const response = await apiClient.get(url);
-      setTickets(response.data.items);
-      setTotal(response.data.total);
+      setTickets(Array.isArray(response?.data?.items) ? response.data.items : []);
+      setTotal(typeof response?.data?.total === 'number' ? response.data.total : 0);
     } catch (error) {
       console.error('Error loading tickets:', error);
     } finally {
@@ -277,11 +326,8 @@ function AdminTicketsContent() {
   };
 
   useEffect(() => {
-    // Auth is cookie-based (HttpOnly access_token) for normal sessions — it's
-    // never in sessionStorage/localStorage except during impersonation. A
-    // check against those two alone is always false for a regular login and
-    // would bounce every visit straight back to /login before the page even
-    // gets a chance to call the API.
+    if (!canView) return;
+    // Sessão normal usa cookie HttpOnly (nunca está no storage, exceto na impersonação).
     const hasAuthToken =
       Boolean(typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
       Boolean(typeof document !== 'undefined' && document.cookie.includes('auth_state=1'));
@@ -290,62 +336,36 @@ function AdminTicketsContent() {
       return;
     }
     loadGiras();
-    // loadGiras isn't memoized and router is a stable Next.js reference — safe to omit both.
+    // loadGiras não é memoizada e o router é estável.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [giraFilter, dateFrom, dateTo]);
+  }, [giraFilter, dateFrom, dateTo, canView]);
+
+  // Pré-seleção: ?gira= > gira do contexto > gira de hoje (só na primeira carga da lista).
+  const [preselected, setPreselected] = useState(false);
+  useEffect(() => {
+    if (preselected || !girasLoaded || !router.isReady) return;
+    setPreselected(true);
+    const fromQuery = typeof router.query.gira === 'string' ? router.query.gira : '';
+    const pick =
+      (fromQuery && giras.some((g) => g.id === fromQuery) && fromQuery) ||
+      (giraCtx.selectedGiraId && giras.some((g) => g.id === giraCtx.selectedGiraId) && giraCtx.selectedGiraId) ||
+      pickTodayGira(giras)?.id ||
+      '';
+    if (pick) setGiraIdState(pick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [girasLoaded, router.isReady, giras]);
 
   useEffect(() => {
     loadTickets();
-    // loadTickets isn't memoized — including it would refetch every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, statusFilter, giraId]);
+  }, [page, statusFilter, giraId, canView]);
 
   useEffect(() => {
     loadWaitlist();
-    // loadWaitlist isn't memoized — including it would refetch every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [giraId]);
 
-  const handleSelectTicket = (id: string) => {
-    const newSelected = new Set(selectedTickets);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedTickets(newSelected);
-  };
-
-  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
-      const newSelected = new Set(tickets.map((t) => t.id));
-      setSelectedTickets(newSelected);
-    } else {
-      setSelectedTickets(new Set());
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, 'default' | 'success' | 'warning' | 'error'> = {
-      emitted: 'default',
-      called: 'warning',
-      completed: 'success',
-      cancelled: 'error',
-    };
-    return colors[status] || 'default';
-  };
-
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      emitted: 'Emitido',
-      called: 'Chamado',
-      completed: 'Concluído',
-      cancelled: 'Cancelado',
-      no_show: 'Não compareceu',
-    };
-    return labels[status] || status;
-  };
-
+  // ── Edição / exclusão ───────────────────────────────────────────────────────
   const openAttendEdit = (ticket: Ticket) => {
     const data = {
       medium_nome: ticket.medium_nome || '',
@@ -355,629 +375,480 @@ function AdminTicketsContent() {
     };
     setFormData(data);
     setOriginalData(data);
-    setEditTicketId(ticket.id);
-    setEditTicketNumero(ticket.numero);
+    setEditTicket(ticket);
     setDrawerOpen(true);
   };
 
   const handleSaveAttendInfo = async () => {
-    if (!editTicketId) return;
+    if (!editTicket || !canEdit) return;
     setSaving(true);
     try {
-      await apiClient.patch(`/api/v1/admin/tickets/${editTicketId}/attend-info`, {
+      await apiClient.patch(`/api/v1/admin/tickets/${editTicket.id}/attend-info`, {
         medium_nome: formData.medium_nome.trim() || null,
         cambone_nome: formData.cambone_nome.trim() || null,
         atendimento_descricao: formData.atendimento_descricao.trim() || null,
       });
       const priorityChanged = formData.priority_category !== originalData.priority_category;
       if (priorityChanged) {
-        await apiClient.patch(`/api/v1/admin/tickets/${editTicketId}/priority`, {
+        await apiClient.patch(`/api/v1/admin/tickets/${editTicket.id}/priority`, {
           priority_category: formData.priority_category === 'none' ? null : formData.priority_category,
         });
       }
       setDrawerOpen(false);
-      setSuccess(
+      setDetail(null);
+      toast.success(
         priorityChanged
-          ? 'Dados salvos. A prioridade foi atualizada — use o botão de e-mail da senha para reenviar a confirmação ao consulente.'
-          : 'Informações de atendimento salvas com sucesso!'
+          ? 'Dados salvos. A prioridade mudou — reenvie o e-mail da senha para o consulente receber a confirmação.'
+          : 'Atendimento salvo!',
       );
       loadTickets();
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao salvar informações de atendimento'));
+      toast.error(extractApiErrorMessage(err, 'Erro ao salvar o atendimento.'));
     } finally {
       setSaving(false);
     }
   };
 
-  const isDirty =
-    formData.medium_nome !== originalData.medium_nome ||
-    formData.cambone_nome !== originalData.cambone_nome ||
-    formData.atendimento_descricao !== originalData.atendimento_descricao ||
-    formData.priority_category !== originalData.priority_category;
+  const isDirty = JSON.stringify(formData) !== JSON.stringify(originalData);
 
-  const activeFilterCount = [dateFrom, dateTo, statusFilter, giraFilter !== 'all' ? 'giraFilter' : ''].filter(Boolean).length;
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget || !canDelete) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/api/v1/admin/giras/${deleteTarget.giraId}/tickets/${deleteTarget.ticket.id}`);
+      toast.success(`Senha ${numeroDaSenha(deleteTarget.ticket)} excluída. A vaga voltou para a gira.`);
+      setDeleteTarget(null);
+      setDetail(null);
+      loadTickets();
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Erro ao excluir a senha.'));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
-  // Apply free-text search over the loaded page
-  const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const displayedTickets = (() => {
-    const q = search.trim();
-    if (!q) return tickets;
-    const needle = normalize(q.replace(/^#/, ''));
-    return tickets.filter((t) => {
-      const numStr = String(t.numero);
-      const numPadded = String(t.numero).padStart(4, '0');
-      return (
-        numStr.includes(needle) ||
-        numPadded.includes(needle) ||
-        normalize(t.consulente_nome ?? '').includes(needle) ||
-        normalize(t.consulente_email ?? '').includes(needle)
-      );
-    });
-  })();
+  // ── Derivados ───────────────────────────────────────────────────────────────
+  const displayedTickets = useMemo(() => filterTickets(tickets, search), [tickets, search]);
+  const selectedIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
+  const activeFilterCount = [dateFrom, dateTo, statusFilter, giraFilter !== 'all' ? 'g' : ''].filter(Boolean).length;
+  const showEmailFor = (t: Ticket) => !!t.consulente_email && can('email_transacional');
+
+  const clearFilters = () => {
+    setGiraFilter('all');
+    setDateFrom('');
+    setDateTo('');
+    setStatusFilter('');
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  };
+
+  const columns = useMemo<ColumnDef<Ticket, unknown>[]>(
+    () => [
+      {
+        id: 'numero',
+        header: 'Senha',
+        accessorFn: (t) => t.numero,
+        cell: ({ row }) => <span className="font-mono font-bold tabular-nums">{numeroDaSenha(row.original)}</span>,
+        meta: { width: 80 },
+      },
+      {
+        id: 'nome',
+        header: 'Nome',
+        accessorFn: (t) => t.consulente_nome ?? '',
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="truncate font-medium">{row.original.consulente_nome || '—'}</p>
+            {row.original.consulente_email && (
+              <p className="truncate text-xs text-muted-foreground">{row.original.consulente_email}</p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'telefone',
+        header: 'Telefone',
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.consulente_telefone ? (
+            <span className="flex items-center gap-2 whitespace-nowrap">
+              {row.original.consulente_telefone}
+              <ContactActions telefone={row.original.consulente_telefone} nome={row.original.consulente_nome} />
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: 'tags',
+        header: 'Prioridade',
+        enableSorting: false,
+        cell: ({ row }) => <TicketTags t={row.original} />,
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        accessorFn: (t) => t.status,
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      },
+      {
+        id: 'emissao',
+        header: 'Emitida',
+        accessorFn: (t) => t.created_at,
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap text-muted-foreground">
+            {new Date(row.original.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const renderCard = (t: Ticket, ctx: { selected: boolean; toggleSelected: () => void }) => (
+    <div className="flex items-start gap-3" data-testid="ticket-card">
+      {canBulk && (
+        <Checkbox
+          aria-label={`Selecionar senha ${numeroDaSenha(t)}`}
+          checked={ctx.selected}
+          onCheckedChange={() => ctx.toggleSelected()}
+          onClick={(e) => e.stopPropagation()}
+          className="mt-2"
+        />
+      )}
+      <span className="font-mono text-3xl leading-none font-black tabular-nums">{numeroDaSenha(t)}</span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold">{t.consulente_nome || '—'}</p>
+        {t.consulente_telefone && (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="truncate">{t.consulente_telefone}</span>
+            <ContactActions telefone={t.consulente_telefone} nome={t.consulente_nome} />
+          </p>
+        )}
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          <StatusBadge status={t.status} />
+          <TicketTags t={t} />
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!canView) return <PermissionDenied />;
+
+  const selectedGira = giras.find((g) => g.id === giraId);
 
   return (
-    <>
-      {/* ── Busca livre por número, nome ou email ── */}
-      <TextField
-        size="small"
-        fullWidth
-        placeholder="Buscar por número, nome ou email…"
-        value={searchInput}
-        onChange={(e) => setSearchInput(e.target.value)}
-        sx={{ mb: 1.5 }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon fontSize="small" color={searchInput ? 'primary' : 'disabled'} />
-            </InputAdornment>
-          ),
-        }}
-      />
+    <div className={cn(selectedIds.length > 0 && 'pb-20')}>
+      <div data-tour="tickets-header">
+        <PageHeader title="Senhas" subtitle={selectedGira ? giraLabel(selectedGira) : 'Escolha a gira para ver as senhas.'} />
+      </div>
 
-      {/* ── Seletor de Gira — sempre visível ── */}
-      <Box data-tour="tickets-header" sx={{ mb: 1.5, display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 }, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
-        <FormControl data-tour="tickets-gira-select" size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
-          <InputLabel>Selecione uma Gira</InputLabel>
-          <Select
-            value={giraId}
-            onChange={(e) => {
-              setGiraId(e.target.value);
-              setPage(0);
-              setSelectedTickets(new Set());
-            }}
-            label="Selecione uma Gira"
-          >
-            <MenuItem value="">Nenhuma</MenuItem>
+      {/* ── Busca + filtros ── */}
+      <div className="mb-3 flex gap-2">
+        <TextField
+          aria-label="Buscar senha"
+          placeholder="Buscar por número, nome ou e-mail…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          startAdornment={<Search aria-hidden />}
+          className="flex-1"
+        />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button type="button" variant="outline" data-tour="tickets-filtros" aria-label="Filtros">
+              <SlidersHorizontal aria-hidden />
+              <span className="hidden sm:inline">Filtros</span>
+              {activeFilterCount > 0 && (
+                <Badge className="ml-0.5 h-5 min-w-5 justify-center rounded-full px-1">{activeFilterCount}</Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="filtro-status">Status</Label>
+              <Select
+                value={statusFilter || 'all'}
+                onValueChange={(v) => {
+                  setStatusFilter(v === 'all' ? '' : v);
+                  setPagination((p) => ({ ...p, pageIndex: 0 }));
+                }}
+              >
+                <SelectTrigger id="filtro-status" className="w-full">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {STATUS_FILTERS.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="filtro-giras">Giras na lista</Label>
+              <Select value={giraFilter} onValueChange={(v) => setGiraFilter(v as GiraFilter)}>
+                <SelectTrigger id="filtro-giras" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="active">Ativas</SelectItem>
+                  <SelectItem value="inactive">Desativadas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DateField label="Giras a partir de" value={dateFrom} onChange={(v) => setDateFrom(v ?? '')} />
+            <DateField label="Giras até" value={dateTo} onChange={(v) => setDateTo(v ?? '')} />
+            {activeFilterCount > 0 && (
+              <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+                Limpar filtros
+              </Button>
+            )}
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      <div className="mb-4" data-tour="tickets-gira-select">
+        <Select value={giraId || undefined} onValueChange={setGiraId}>
+          <SelectTrigger className="w-full sm:w-96" aria-label="Gira">
+            <SelectValue placeholder={girasLoaded && giras.length === 0 ? 'Nenhuma gira encontrada' : 'Escolha a gira'} />
+          </SelectTrigger>
+          <SelectContent>
             {giras.map((g) => (
-              <MenuItem key={g.id} value={g.id}>
-                {g.nome}
-                {!g.is_active && (
-                  <Chip label="inativa" size="small" color="default" sx={{ ml: 1, height: 20 }} />
-                )}
-              </MenuItem>
+              <SelectItem key={g.id} value={g.id}>
+                {giraLabel(g)}
+                {!g.is_active ? ' (desativada)' : ''}
+              </SelectItem>
             ))}
-          </Select>
-        </FormControl>
+          </SelectContent>
+        </Select>
+      </div>
 
-        {/* Botão toggle de filtros — apenas mobile */}
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<FilterListIcon />}
-          endIcon={filtersExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          onClick={() => setFiltersExpanded((p) => !p)}
-          sx={{ display: { xs: 'flex', sm: 'none' }, width: '100%', justifyContent: 'space-between' }}
+      {/* ── Fila de espera ── */}
+      {can('fila_espera') && giraId && (
+        <Collapsible
+          open={waitlistOpen}
+          onOpenChange={setWaitlistOpen}
+          className="mb-4 rounded-xl border"
+          data-tour="tickets-fila-espera"
         >
-          <Badge badgeContent={activeFilterCount} color="primary" sx={{ flexGrow: 1, textAlign: 'left' }}>
-            Filtros avançados
-          </Badge>
-        </Button>
-
-        {/* Filtros avançados — colapsam no mobile, sempre visíveis no desktop */}
-        <Box
-          data-tour="tickets-filtros"
-          sx={{
-            display: { xs: 'none', sm: 'flex' },
-            flexWrap: 'wrap',
-            gap: 2,
-            alignItems: 'center',
-            flexGrow: 1,
-          }}
-        >
-          <FormControl size="small" sx={{ minWidth: 130 }}>
-            <InputLabel>Tipo de Gira</InputLabel>
-            <Select
-              value={giraFilter}
-              onChange={(e) => {
-                setGiraFilter(e.target.value as GiraFilter);
-                setGiraId('');
-                setPage(0);
-              }}
-              label="Tipo de Gira"
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex min-h-12 w-full items-center gap-2 px-3 text-left font-semibold hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
             >
-              <MenuItem value="all">Todas</MenuItem>
-              <MenuItem value="active">Ativas</MenuItem>
-              <MenuItem value="inactive">Inativas</MenuItem>
-            </Select>
-          </FormControl>
+              <Hourglass className="size-4 text-muted-foreground" aria-hidden />
+              <span className="flex-1">Fila de espera</span>
+              {waitlist.length > 0 && <Badge variant="secondary">{waitlist.length}</Badge>}
+              <ChevronDown className={cn('size-4 transition-transform', waitlistOpen && 'rotate-180')} aria-hidden />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="border-t px-3 py-2">
+            {waitlistLoading ? (
+              <Skeleton className="h-10" />
+            ) : waitlist.length === 0 ? (
+              <p className="py-2 text-sm text-muted-foreground">Ninguém na fila de espera desta gira.</p>
+            ) : (
+              <ul className="m-0 flex list-none flex-col p-0">
+                {waitlist.map((item) => (
+                  <li key={item.id} className="flex items-center gap-3 border-b py-2 last:border-b-0">
+                    <span className="font-mono font-bold tabular-nums">
+                      {item.is_sponsor ? 'P' : ''}
+                      {String(item.numero).padStart(4, '0')}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{item.consulente_nome || '—'}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {item.position ? `${item.position}º na fila · ` : ''}
+                        {WAITLIST_STATUS_LABEL[item.status]}
+                      </p>
+                    </div>
+                    {item.status === 'aguardando' && canEdit && (
+                      <>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="outline"
+                          disabled={waitlistActionId === item.id}
+                          onClick={() => handlePromoteWaitlist(item, true)}
+                          aria-label="Promover (envia e-mail de confirmação, com prazo)"
+                          title="Promover (envia e-mail de confirmação, com prazo)"
+                        >
+                          <Check aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="outline"
+                          disabled={waitlistActionId === item.id}
+                          onClick={() => setReleaseConfirmTarget(item)}
+                          aria-label="Liberar direto, sem confirmação"
+                          title="Liberar direto, sem confirmação"
+                        >
+                          <Zap aria-hidden />
+                        </Button>
+                      </>
+                    )}
+                    {item.status !== 'expirado' && canDelete && (
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        disabled={waitlistActionId === item.id}
+                        onClick={() => handleRemoveWaitlist(item)}
+                        aria-label="Remover da fila"
+                        title="Remover da fila"
+                      >
+                        <Trash2 aria-hidden />
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
-          <TextField
-            size="small"
-            label="Data de"
-            type="date"
-            value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setGiraId(''); setPage(0); }}
-            InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: 160 }}
-          />
+      {/* ── Lista ── */}
+      <div data-tour="tickets-tabela">
+        <DataTable<Ticket>
+          columns={columns}
+          data={displayedTickets}
+          getRowId={(t) => t.id}
+          loading={loading}
+          emptyMessage={giraId ? 'Nenhuma senha encontrada.' : 'Escolha uma gira.'}
+          emptyDescription={giraId ? (search ? 'Tente outro número ou nome.' : undefined) : 'As senhas aparecem aqui.'}
+          manualPagination
+          pagination={pagination}
+          onPaginationChange={setPagination}
+          rowCount={total}
+          enableRowSelection={canBulk && !!giraId}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          renderCard={renderCard}
+          onRowClick={(t) => setDetail(t)}
+          data-testid="tickets-table"
+        />
+      </div>
 
-          <TextField
-            size="small"
-            label="Data até"
-            type="date"
-            value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setGiraId(''); setPage(0); }}
-            InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: 160 }}
-          />
-
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-              label="Status"
-            >
-              <MenuItem value="">Todos</MenuItem>
-              <MenuItem value="emitted">Emitidos</MenuItem>
-              <MenuItem value="called">Chamados</MenuItem>
-              <MenuItem value="completed">Concluídos</MenuItem>
-              <MenuItem value="cancelled">Cancelados</MenuItem>
-            </Select>
-          </FormControl>
-
-          {(dateFrom || dateTo || giraFilter !== 'all' || statusFilter) && (
-            <Button size="small" onClick={() => { setGiraFilter('all'); setDateFrom(''); setDateTo(''); setStatusFilter(''); setGiraId(''); setPage(0); }}>
-              Limpar filtros
-            </Button>
-          )}
-        </Box>
-      </Box>
-
-      {/* Painel colapsável de filtros — apenas mobile */}
-      <Collapse in={filtersExpanded} sx={{ display: { xs: 'block', sm: 'none' }, mb: filtersExpanded ? 1.5 : 0 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pb: 1 }}>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Tipo de Gira</InputLabel>
-            <Select
-              value={giraFilter}
-              onChange={(e) => { setGiraFilter(e.target.value as GiraFilter); setGiraId(''); setPage(0); }}
-              label="Tipo de Gira"
-            >
-              <MenuItem value="all">Todas</MenuItem>
-              <MenuItem value="active">Ativas</MenuItem>
-              <MenuItem value="inactive">Inativas</MenuItem>
-            </Select>
-          </FormControl>
-
-          <TextField
-            size="small"
-            label="Data de"
-            type="date"
-            value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setGiraId(''); setPage(0); }}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-
-          <TextField
-            size="small"
-            label="Data até"
-            type="date"
-            value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setGiraId(''); setPage(0); }}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-
-          <FormControl size="small" fullWidth>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-              label="Status"
-            >
-              <MenuItem value="">Todos</MenuItem>
-              <MenuItem value="emitted">Emitidos</MenuItem>
-              <MenuItem value="called">Chamados</MenuItem>
-              <MenuItem value="completed">Concluídos</MenuItem>
-              <MenuItem value="cancelled">Cancelados</MenuItem>
-            </Select>
-          </FormControl>
-
-          {(dateFrom || dateTo || giraFilter !== 'all' || statusFilter) && (
-            <Button size="small" variant="text" onClick={() => { setGiraFilter('all'); setDateFrom(''); setDateTo(''); setStatusFilter(''); setGiraId(''); setPage(0); }}>
-              Limpar filtros
-            </Button>
-          )}
-        </Box>
-      </Collapse>
-
-      {hasBulk && giraId && selectedTickets.size > 0 &&
-        (canGroup('tickets', 'edit') || canGroup('tickets', 'delete')) && (
+      {giraId && selectedIds.length > 0 && canBulk && (
         <BulkActionsBar
-          selectedCount={selectedTickets.size}
-          ticketIds={Array.from(selectedTickets)}
+          selectedCount={selectedIds.length}
+          ticketIds={selectedIds}
           giraId={giraId}
-          canMarkUsed={canGroup('tickets', 'edit')}
-          canCancel={canGroup('tickets', 'delete')}
+          canMarkUsed={canEdit}
+          canCancel={canDelete}
           onRefresh={loadTickets}
-          onClearSelection={() => setSelectedTickets(new Set())}
+          onClearSelection={() => setRowSelection({})}
         />
       )}
 
-      {can('fila_espera') && giraId && (
-        <Paper data-tour="tickets-fila-espera" variant="outlined" sx={{ mt: 2, p: 1.5 }}>
-          <Box
-            sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
-            onClick={() => setWaitlistExpanded((v) => !v)}
-          >
-            <HourglassEmptyIcon fontSize="small" color="action" />
-            <Box sx={{ fontWeight: 600, flex: 1 }}>Fila de espera</Box>
-            {waitlist.length > 0 && (
-              <Badge badgeContent={waitlist.length} color="warning" sx={{ mr: 2 }} />
-            )}
-            <IconButton size="small">
-              {waitlistExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            </IconButton>
-          </Box>
-          <Collapse in={waitlistExpanded}>
-            <Box sx={{ mt: 1.5 }}>
-              {waitlistLoading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-                  <CircularProgress size={24} />
-                </Box>
-              ) : waitlist.length === 0 ? (
-                <Box sx={{ color: 'text.secondary', fontSize: 14, p: 1 }}>
-                  Ninguém na fila de espera para esta gira no momento.
-                </Box>
-              ) : (
-                <TableContainer sx={{ overflowX: 'auto' }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Número</TableCell>
-                        <TableCell>Nome</TableCell>
-                        <TableCell>Email</TableCell>
-                        <TableCell>Posição</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell align="center">Ações</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {waitlist.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{item.is_sponsor ? 'P' : ''}{String(item.numero).padStart(4, '0')}</TableCell>
-                          <TableCell>{item.consulente_nome || '—'}</TableCell>
-                          <TableCell>{item.consulente_email || '—'}</TableCell>
-                          <TableCell>{item.position ? `${item.position}º` : '—'}</TableCell>
-                          <TableCell>
-                            <Chip
-                              size="small"
-                              label={waitlistStatusLabel[item.status]}
-                              color={item.status === 'aguardando_confirmacao' ? 'info' : item.status === 'expirado' ? 'default' : 'warning'}
-                            />
-                          </TableCell>
-                          <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
-                            {item.status === 'aguardando' && canGroup('tickets', 'edit') && (
-                              <Tooltip title="Promover fora da ordem (envia e-mail de confirmação, com prazo)">
-                                <span>
-                                  <IconButton
-                                    size="small"
-                                    disabled={waitlistActionId === item.id}
-                                    onClick={() => handlePromoteWaitlist(item, true)}
-                                  >
-                                    <CheckIcon fontSize="small" />
-                                  </IconButton>
-                                </span>
-                              </Tooltip>
-                            )}
-                            {item.status === 'aguardando' && canGroup('tickets', 'edit') && (
-                              <Tooltip title="Liberar senha direto, sem exigir confirmação do consulente">
-                                <span>
-                                  <IconButton
-                                    size="small"
-                                    disabled={waitlistActionId === item.id}
-                                    onClick={() => setReleaseConfirmTarget(item)}
-                                  >
-                                    <FlashOnIcon fontSize="small" />
-                                  </IconButton>
-                                </span>
-                              </Tooltip>
-                            )}
-                            {item.status !== 'expirado' && canGroup('tickets', 'delete') && (
-                              <Tooltip title="Remover da fila">
-                                <span>
-                                  <IconButton
-                                    size="small"
-                                    disabled={waitlistActionId === item.id}
-                                    onClick={() => handleRemoveWaitlist(item)}
-                                  >
-                                    <DeleteOutlineIcon fontSize="small" />
-                                  </IconButton>
-                                </span>
-                              </Tooltip>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </Box>
-          </Collapse>
-        </Paper>
-      )}
-
-      <TableContainer data-tour="tickets-tabela" component={Paper} sx={{ mt: 2, overflowX: 'auto' }}>
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <>
-            <Table size="small" sx={{ minWidth: 650 }}>
-              <TableHead>
-                <TableRow>
-                  {hasBulk && (
-                    <TableCell padding="checkbox">
-                      <Checkbox
-                        checked={selectedTickets.size === tickets.length && tickets.length > 0}
-                        onChange={handleSelectAll}
-                      />
-                    </TableCell>
-                  )}
-                  <TableCell>Número</TableCell>
-                  <TableCell>Nome</TableCell>
-                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Email</TableCell>
-                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Telefone</TableCell>
-                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Tag</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Data Emissão</TableCell>
-                  <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>Ações</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {displayedTickets.length > 0 ? (
-                  displayedTickets.map((ticket) => (
-                    <TableRow key={ticket.id}>
-                      {hasBulk && (
-                        <TableCell padding="checkbox">
-                          <Checkbox
-                            checked={selectedTickets.has(ticket.id)}
-                            onChange={() => handleSelectTicket(ticket.id)}
-                          />
-                        </TableCell>
-                      )}
-                      <TableCell sx={{ fontWeight: 600 }}>#{String(ticket.numero).padStart(4, '0')}</TableCell>
-                      <TableCell>{ticket.consulente_nome || '-'}</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{ticket.consulente_email || '-'}</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{ticket.consulente_telefone || '-'}</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                          {ticket.is_sponsor && (
-                            <Chip icon={<StarIcon />} label="Associado" size="small" sx={{ bgcolor: '#fef9e7', color: '#b8860b', '& .MuiChip-icon': { color: '#daa520' } }} />
-                          )}
-                          {ticket.preferencial && (
-                            <Chip icon={<StarIcon />} label="Preferencial" color="warning" size="small" variant="outlined" />
-                          )}
-                          {ticket.is_acompanhante && (
-                            <Chip label="Acompanhante" color="info" size="small" variant="outlined" />
-                          )}
-                          {!ticket.is_sponsor && !ticket.preferencial && !ticket.is_acompanhante && (
-                            <Chip label="Comum" size="small" variant="outlined" />
-                          )}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={getStatusLabel(ticket.status)}
-                          color={getStatusColor(ticket.status)}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                        {new Date(ticket.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
-                      </TableCell>
-                      <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
-                        {canGroup('tickets', 'edit') && (
-                          <Tooltip title="Editar atendimento e prioridade">
-                            <IconButton size="small" onClick={() => openAttendEdit(ticket)}>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        {ticket.consulente_email && can('email_transacional') && (
-                          <Tooltip title={ticket.email_sent_at ? 'Ver rastreio de e-mail' : 'E-mail não enviado'}>
-                            <IconButton
-                              size="small"
-                              onClick={() => router.push(`/admin/tickets/${ticket.id}/email`)}
-                            >
-                              <EmailOutlinedIcon
-                                fontSize="small"
-                                color={
-                                  ticket.email_provider === 'failed'
-                                    ? 'error'
-                                    : ticket.email_sent_at
-                                    ? 'primary'
-                                    : 'disabled'
-                                }
-                              />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        {(ticket.status === 'emitted' || ticket.status === 'called') && canGroup('tickets', 'delete') && (
-                          <Tooltip title="Excluir senha e devolver vaga">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => openDeleteDialog(ticket)}
-                            >
-                              <DeleteOutlineIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={9} align="center">
-                      Nenhum ticket encontrado
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-
-            {total > limit && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-                <Pagination
-                  count={Math.ceil(total / limit)}
-                  page={page + 1}
-                  onChange={(_, p) => setPage(p - 1)}
-                />
-              </Box>
-            )}
-          </>
-        )}
-      </TableContainer>
+      <TicketDetailSheet
+        ticket={detail}
+        onOpenChange={(open) => !open && setDetail(null)}
+        priorityLabel={priorityName(detail?.priority_category)}
+        showEmail={!!detail && showEmailFor(detail)}
+        onEdit={canEdit && detail ? () => openAttendEdit(detail) : undefined}
+        onDelete={
+          canDelete && detail && giraId && (detail.status === 'emitted' || detail.status === 'called')
+            ? () => setDeleteTarget({ ticket: detail, giraId })
+            : undefined
+        }
+      />
 
       <CrudDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title={`Atendimento — Senha #${String(editTicketNumero).padStart(4, '0')}`}
-        subtitle="Edite médium, cambone, observações e o atendimento preferencial da senha."
-        icon={<MedicalServicesIcon />}
+        title={`Atendimento — senha ${editTicket ? numeroDaSenha(editTicket) : ''}`}
+        subtitle="Médium, cambone, observações e atendimento preferencial."
+        icon={<Star />}
         onSave={handleSaveAttendInfo}
         saveLabel="Salvar"
         saving={saving}
         isDirty={isDirty}
       >
-        <TextField
-          label="Médium"
-          value={formData.medium_nome}
-          onChange={(e) => setFormData((p) => ({ ...p, medium_nome: e.target.value }))}
-          fullWidth
-          sx={{ mb: 2 }}
-        />
-        <TextField
-          label="Cambone"
-          value={formData.cambone_nome}
-          onChange={(e) => setFormData((p) => ({ ...p, cambone_nome: e.target.value }))}
-          fullWidth
-          sx={{ mb: 2 }}
-        />
-        <TextField
-          label="Observações do Atendimento"
-          value={formData.atendimento_descricao}
-          onChange={(e) => setFormData((p) => ({ ...p, atendimento_descricao: e.target.value }))}
-          fullWidth
-          multiline
-          minRows={3}
-          sx={{ mb: 2 }}
-        />
-        <TextField
-          select
-          label="Atendimento preferencial"
-          value={formData.priority_category}
-          onChange={(e) => setFormData((p) => ({ ...p, priority_category: e.target.value }))}
-          fullWidth
-          helperText="Ao alterar, reenvie o e-mail de confirmação pelo botão de e-mail da senha."
-        >
-          <MenuItem value="none">Sem prioridade</MenuItem>
-          {PRIORITY_ORDER.map((cat) => (
-            <MenuItem key={cat} value={cat}>
-              {PRIORITY_CATEGORY_LABELS[cat]}
-            </MenuItem>
-          ))}
-        </TextField>
+        <div className="flex flex-col gap-4">
+          <TextField
+            label="Médium"
+            value={formData.medium_nome}
+            onChange={(e) => setFormData((p) => ({ ...p, medium_nome: e.target.value }))}
+          />
+          <TextField
+            label="Cambone"
+            value={formData.cambone_nome}
+            onChange={(e) => setFormData((p) => ({ ...p, cambone_nome: e.target.value }))}
+          />
+          <TextField
+            label="Observações do atendimento"
+            multiline
+            rows={3}
+            value={formData.atendimento_descricao}
+            onChange={(e) => setFormData((p) => ({ ...p, atendimento_descricao: e.target.value }))}
+          />
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="edit-prioridade">Atendimento preferencial</Label>
+            <Select
+              value={formData.priority_category}
+              onValueChange={(v) => setFormData((p) => ({ ...p, priority_category: v }))}
+            >
+              <SelectTrigger id="edit-prioridade" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sem prioridade</SelectItem>
+                {PRIORITY_ORDER.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {PRIORITY_CATEGORY_LABELS[cat]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Ao mudar, reenvie o e-mail da senha para o consulente receber a confirmação.
+            </p>
+          </div>
+        </div>
       </CrudDrawer>
 
-      {/* Delete confirmation dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => !deleting && setDeleteDialogOpen(false)}>
-        <DialogTitle>Excluir senha</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Deseja excluir a senha{' '}
-            <strong>#{deleteTarget ? String(deleteTarget.ticket.numero).padStart(4, '0') : ''}</strong>
-            {deleteTarget?.ticket.consulente_nome ? ` de ${deleteTarget.ticket.consulente_nome}` : ''}?
-            <br /><br />
-            O consulente poderá emitir uma nova senha e a vaga será devolvida ao range da gira.
-            {deleteTarget && !deleteTarget.ticket.is_acompanhante && (
-              <>
-                <br /><br />
-                Se esta senha tiver acompanhantes vinculados, as senhas deles também serão
-                canceladas e as vagas devolvidas.
-              </>
-            )}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleDeleteConfirm}
-            color="error"
-            variant="contained"
-            disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={16} color="inherit" /> : <DeleteOutlineIcon />}
-          >
-            {deleting ? 'Excluindo...' : 'Excluir senha'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Excluir senha"
+        message={
+          <>
+            Excluir a senha <strong>{deleteTarget ? numeroDaSenha(deleteTarget.ticket) : ''}</strong>
+            {deleteTarget?.ticket.consulente_nome ? ` de ${deleteTarget.ticket.consulente_nome}` : ''}? O consulente
+            poderá pegar outra senha e a vaga volta para a gira.
+            {deleteTarget && !deleteTarget.ticket.is_acompanhante
+              ? ' Se a senha tiver acompanhantes, as senhas deles também são canceladas.'
+              : ''}
+          </>
+        }
+        confirmText="Excluir senha"
+        destructive
+        loading={deleting}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
-      {/* Waitlist: release-without-confirmation dialog */}
-      <Dialog open={!!releaseConfirmTarget} onClose={() => setReleaseConfirmTarget(null)}>
-        <DialogTitle>Liberar senha sem confirmação</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Deseja liberar a senha{' '}
-            <strong>#{releaseConfirmTarget ? String(releaseConfirmTarget.numero).padStart(4, '0') : ''}</strong>
-            {releaseConfirmTarget?.consulente_nome ? ` de ${releaseConfirmTarget.consulente_nome}` : ''} diretamente?
-            <br /><br />
-            A senha vira oficial imediatamente — o consulente não precisa clicar em nenhum link de confirmação.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setReleaseConfirmTarget(null)} disabled={!!waitlistActionId}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={() => {
-              const target = releaseConfirmTarget;
-              setReleaseConfirmTarget(null);
-              if (target) handlePromoteWaitlist(target, false);
-            }}
-            color="warning"
-            variant="contained"
-            disabled={!!waitlistActionId}
-            startIcon={<FlashOnIcon />}
-          >
-            Liberar sem confirmação
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Snackbar open={!!success} autoHideDuration={4000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>
-      </Snackbar>
-      <Snackbar open={!!error} autoHideDuration={4000} onClose={() => setError('')} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
-      </Snackbar>
-    </>
+      <ConfirmDialog
+        open={!!releaseConfirmTarget}
+        title="Liberar senha sem confirmação"
+        message={
+          <>
+            Liberar a senha <strong>{releaseConfirmTarget ? String(releaseConfirmTarget.numero).padStart(4, '0') : ''}</strong>
+            {releaseConfirmTarget?.consulente_nome ? ` de ${releaseConfirmTarget.consulente_nome}` : ''} direto? Ela vale
+            na hora — o consulente não precisa confirmar pelo e-mail.
+          </>
+        }
+        confirmText="Liberar sem confirmação"
+        onConfirm={() => {
+          const target = releaseConfirmTarget;
+          setReleaseConfirmTarget(null);
+          if (target) handlePromoteWaitlist(target, false);
+        }}
+        onCancel={() => setReleaseConfirmTarget(null)}
+      />
+    </div>
   );
 }

@@ -856,6 +856,38 @@ class TestPublicEndpoints:
         assert result["upcoming_giras"][0]["nome"] == "Gira de Oxalá"
 
     @pytest.mark.asyncio
+    @patch("src.api.v1.public.sites.SiteRepository")
+    async def test_get_published_site_expoe_janela_de_senhas(self, MockSiteRepo):
+        """O site mostra "Senhas abrem qui 12h": a janela de emissão vai no payload."""
+        from src.api.v1.public.sites import get_published_site
+        from datetime import timedelta
+
+        site = _make_site("PUBLISHED")
+        site.sections = []
+        aberta, fechada = MagicMock(), MagicMock()
+        for g, nome in ((aberta, "Com janela"), (fechada, "Sem janela")):
+            g.id = uuid4()
+            g.nome = nome
+            g.data_inicio = NOW + timedelta(days=3)
+            g.descricao = None
+            g.max_tickets = 50
+            g.sponsor_max_tickets = None
+        aberta.release_start_at = NOW + timedelta(days=1)
+        aberta.release_end_at = NOW + timedelta(days=3)
+        fechada.release_start_at = None
+        fechada.release_end_at = None
+
+        repo_inst = AsyncMock()
+        repo_inst.get_published_by_slug.return_value = {"site": site, "upcoming_giras": [aberta, fechada]}
+        MockSiteRepo.return_value = repo_inst
+
+        result = await get_published_site("terreiro-test", _mock_db())
+        com, sem = result["upcoming_giras"]
+        assert com["release_start_at"] == aberta.release_start_at.isoformat()
+        assert com["release_end_at"] == aberta.release_end_at.isoformat()
+        assert sem["release_start_at"] is None and sem["release_end_at"] is None
+
+    @pytest.mark.asyncio
     @patch("src.api.v1.public.sites.SiteImageRepository")
     async def test_get_site_image_sucesso(self, MockImageRepo):
         from fastapi import Request

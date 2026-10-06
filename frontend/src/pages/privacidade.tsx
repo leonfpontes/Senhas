@@ -1,50 +1,8 @@
 /**
  * Girahub — Política de Privacidade
  */
-'use client';
-
-import React, { useState } from 'react';
-import Head from 'next/head';
-import Link from 'next/link';
-import {
-  AppBar,
-  Toolbar,
-  Box,
-  Button,
-  Container,
-  Typography,
-  IconButton,
-  Drawer,
-  List,
-  ListItem,
-  ListItemText,
-  Divider,
-  useMediaQuery,
-  useTheme,
-  Grid,
-} from '@mui/material';
-import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
-import MenuIcon from '@mui/icons-material/Menu';
-
-// ─── Tokens (same as homepage) ───────────────────────────────────
-const T = {
-  primary: '#4f46e5',
-  accent: '#f59e0b',
-  accentHover: '#d97706',
-  dark: '#0f0d2e',
-  deep: '#1e1b4b',
-  gray: '#f8fafc',
-  muted: '#94a3b8',
-  body: '#475569',
-  heroGradient: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4f46e5 100%)',
-  headerBg: 'rgba(15,13,46,0.92)',
-};
-
-const NAV = [
-  { label: 'Funcionalidades', href: '/#funcionalidades' },
-  { label: 'Como Funciona', href: '/#como-funciona' },
-  { label: 'Contato', href: '/#contato' },
-];
+import React from 'react';
+import { LegalPageLayout } from '@/components/public/LegalPageLayout';
 
 // ─── Legal sections ──────────────────────────────────────────────
 const SECTIONS = [
@@ -148,156 +106,21 @@ Responderemos sua solicitação em até 15 dias úteis, conforme previsto pela L
 
 // ═════════════════════════════════════════════════════════════════
 export default function PrivacidadePage() {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
-  // ─── Header ──────────────────────────────────────────────────
-  const header = (
-    <AppBar position="fixed" elevation={0} sx={{ background: T.headerBg, backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-      <Container maxWidth="lg">
-        <Toolbar disableGutters sx={{ minHeight: 72 }}>
-          <Link href="/" passHref legacyBehavior>
-            <Box component="a" sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 'auto', textDecoration: 'none' }}>
-              <ConfirmationNumberIcon sx={{ color: T.accent, fontSize: 32 }} />
-              <Typography variant="h6" sx={{ color: '#fff', fontWeight: 700, letterSpacing: '-0.02em' }}>Girahub</Typography>
-            </Box>
-          </Link>
-          {isMobile ? (
-            <>
-              <IconButton onClick={() => setDrawerOpen(true)} sx={{ color: '#fff' }}><MenuIcon /></IconButton>
-              <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-                <Box sx={{ width: 260, pt: 2 }}>
-                  <Box sx={{ px: 2, pb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <ConfirmationNumberIcon sx={{ color: T.accent }} />
-                    <Typography fontWeight={700}>Girahub</Typography>
-                  </Box>
-                  <Divider />
-                  <List>
-                    {NAV.map((n) => (
-                      <ListItem key={n.href} component="a" href={n.href} sx={{ cursor: 'pointer' }}>
-                        <ListItemText primary={n.label} />
-                      </ListItem>
-                    ))}
-                    <Divider sx={{ my: 1 }} />
-                    <ListItem>
-                      <Link href="/login" passHref legacyBehavior>
-                        <Button variant="contained" fullWidth sx={{ bgcolor: T.accent, color: '#000', fontWeight: 600, '&:hover': { bgcolor: T.accentHover } }}>Entrar</Button>
-                      </Link>
-                    </ListItem>
-                  </List>
-                </Box>
-              </Drawer>
-            </>
-          ) : (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              {NAV.map((n) => (
-                <Typography key={n.href} component="a" href={n.href} sx={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: '0.95rem', fontWeight: 500, '&:hover': { color: '#fff' } }}>
-                  {n.label}
-                </Typography>
-              ))}
-              <Link href="/login" passHref legacyBehavior>
-                <Button variant="contained" sx={{ bgcolor: T.accent, color: '#000', fontWeight: 600, px: 3, borderRadius: 2, textTransform: 'none', '&:hover': { bgcolor: T.accentHover } }}>Entrar</Button>
-              </Link>
-            </Box>
-          )}
-        </Toolbar>
-      </Container>
-    </AppBar>
-  );
-
-  // ─── Footer ──────────────────────────────────────────────────
-  const footer = (
-    <Box component="footer" sx={{ bgcolor: T.dark, color: '#fff', pt: 8, pb: 4 }}>
-      <Container maxWidth="lg">
-        <Grid container spacing={4}>
-          <Grid item xs={12} md={4}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <ConfirmationNumberIcon sx={{ color: T.accent }} />
-              <Typography variant="h6" fontWeight={700}>Girahub</Typography>
-            </Box>
-            <Typography sx={{ color: T.muted, fontSize: '0.9rem', lineHeight: 1.7 }}>
-              Plataforma moderna para gestão de senhas e giras em terreiros de Umbanda.
-            </Typography>
-          </Grid>
-          <Grid item xs={6} md={2}>
-            <Typography fontWeight={600} sx={{ mb: 2, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: T.muted }}>Plataforma</Typography>
-            {NAV.map((n) => (
-              <Typography key={n.href} component="a" href={n.href} sx={{ display: 'block', color: 'rgba(255,255,255,0.7)', textDecoration: 'none', mb: 1, fontSize: '0.9rem', '&:hover': { color: '#fff' } }}>
-                {n.label}
-              </Typography>
-            ))}
-          </Grid>
-          <Grid item xs={6} md={2}>
-            <Typography fontWeight={600} sx={{ mb: 2, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: T.muted }}>Legal</Typography>
-            <Link href="/privacidade" passHref legacyBehavior>
-              <Typography component="a" sx={{ display: 'block', color: 'rgba(255,255,255,0.7)', textDecoration: 'none', mb: 1, fontSize: '0.9rem', '&:hover': { color: '#fff' } }}>Política de Privacidade</Typography>
-            </Link>
-            <Link href="/termos" passHref legacyBehavior>
-              <Typography component="a" sx={{ display: 'block', color: 'rgba(255,255,255,0.7)', textDecoration: 'none', mb: 1, fontSize: '0.9rem', '&:hover': { color: '#fff' } }}>Termos de Uso</Typography>
-            </Link>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Typography fontWeight={600} sx={{ mb: 2, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: T.muted }}>Contato</Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', mb: 1 }}>leonfpontes@gmail.com</Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>(16) 99109-1234</Typography>
-          </Grid>
-        </Grid>
-        <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)', my: 4 }} />
-        <Typography sx={{ color: T.muted, fontSize: '0.8rem', textAlign: 'center' }}>
-          © {new Date().getFullYear()} Girahub. Todos os direitos reservados.
-        </Typography>
-      </Container>
-    </Box>
-  );
-
   return (
-    <>
-      <Head>
-        <title>Política de Privacidade — Girahub</title>
-        <meta name="description" content="Política de Privacidade da plataforma Girahub. Saiba como tratamos seus dados pessoais em conformidade com a LGPD." />
-      </Head>
-
-      {header}
-
-      {/* Hero banner */}
-      <Box sx={{ background: T.heroGradient, pt: 16, pb: 8 }}>
-        <Container maxWidth="md">
-          <Typography variant="h2" sx={{ color: '#fff', fontWeight: 800, mb: 2, fontSize: { xs: '2rem', md: '2.8rem' } }}>
-            Política de Privacidade
-          </Typography>
-          <Typography sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>
-            Última atualização: Março de 2026
-          </Typography>
-        </Container>
-      </Box>
-
-      {/* Content */}
-      <Box sx={{ py: { xs: 6, md: 10 }, bgcolor: '#fff' }}>
-        <Container maxWidth="md">
-          <Typography sx={{ color: T.body, lineHeight: 1.8, mb: 5, fontSize: '1.05rem' }}>
-            A Girahub (&quot;nós&quot;, &quot;nosso&quot;) tem o compromisso de proteger a privacidade e os dados pessoais
-            de nossos usuários. Esta Política de Privacidade descreve como coletamos, usamos, armazenamos e
-            protegemos suas informações ao utilizar nossa plataforma, em conformidade com a Lei Geral de Proteção
-            de Dados (LGPD — Lei nº 13.709/2018).
-          </Typography>
-
-          {SECTIONS.map((s) => (
-            <Box key={s.title} sx={{ mb: 5 }}>
-              <Typography variant="h5" sx={{ fontWeight: 700, color: T.dark, mb: 2, fontSize: '1.3rem' }}>
-                {s.title}
-              </Typography>
-              <Typography
-                sx={{ color: T.body, lineHeight: 1.8, whiteSpace: 'pre-line', fontSize: '0.98rem' }}
-              >
-                {s.body}
-              </Typography>
-            </Box>
-          ))}
-        </Container>
-      </Box>
-
-      {footer}
-    </>
+    <LegalPageLayout
+      pageTitle="Política de Privacidade — Girahub"
+      description="Política de Privacidade da plataforma Girahub. Saiba como tratamos seus dados pessoais em conformidade com a LGPD."
+      heading="Política de Privacidade"
+      updatedAt="Março de 2026"
+      intro={
+        <>
+          A Girahub (&quot;nós&quot;, &quot;nosso&quot;) tem o compromisso de proteger a privacidade e os dados pessoais de
+          nossos usuários. Esta Política de Privacidade descreve como coletamos, usamos, armazenamos e protegemos suas
+          informações ao utilizar nossa plataforma, em conformidade com a Lei Geral de Proteção de Dados (LGPD — Lei nº
+          13.709/2018).
+        </>
+      }
+      sections={SECTIONS}
+    />
   );
 }

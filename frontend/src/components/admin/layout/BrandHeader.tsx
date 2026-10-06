@@ -1,108 +1,59 @@
+/**
+ * BrandHeader — cabeçalho da sidebar com a marca do terreiro (logo, nome) sobre o gradiente
+ * das cores do terreiro (`useTenant`). No modo recolhido (ícones) mostra só o avatar.
+ */
 import React from 'react';
-import Avatar    from '@mui/material/Avatar';
-import Box       from '@mui/material/Box';
-import IconButton from '@mui/material/IconButton';
-import Typography from '@mui/material/Typography';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import { useTenant } from '@/providers/ThemeProvider';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { APP_VERSION_SHORT } from '@/lib/version';
 
-interface BrandHeaderProps {
-  showClose?: boolean;
-  onClose?:   () => void;
+const DEFAULT_PRIMARY = '#4F46E5';
+const DEFAULT_SECONDARY = '#EC4899';
+
+export interface BrandHeaderProps {
+  /** Compacto (sidebar recolhida em ícones). */
+  collapsed?: boolean;
 }
 
-export const BrandHeader: React.FC<BrandHeaderProps> = ({ showClose, onClose }) => {
+export const BrandHeader: React.FC<BrandHeaderProps> = ({ collapsed = false }) => {
   const { tenantName, logoUrl, config } = useTenant();
-  const brandPrimary   = config?.colors?.primary   ?? '#6366F1';
-  const brandSecondary = config?.colors?.secondary ?? '#EC4899';
-  const brandFont      = config?.colors?.font      ?? '#FFFFFF';
-
+  const brandPrimary = config?.colors?.primary ?? DEFAULT_PRIMARY;
+  const brandSecondary = config?.colors?.secondary ?? DEFAULT_SECONDARY;
+  const brandFont = config?.colors?.font ?? '#FFFFFF';
   const [logoFailed, setLogoFailed] = React.useState(false);
 
-  React.useEffect(() => { setLogoFailed(false); }, [logoUrl]);
+  React.useEffect(() => {
+    setLogoFailed(false);
+  }, [logoUrl]);
+
+  const initial = (tenantName || 'T').charAt(0).toUpperCase();
 
   return (
-    <Box
-      sx={(theme) => ({
-        ...theme.mixins.toolbar,
-        px: 2,
-        display: 'flex',
-        alignItems: 'center',
-        // 'to left' places brandPrimary at the right edge, where this block
-        // meets AdminTopbar's own gradient (which starts at brandPrimary on
-        // its left edge) — keeps the color continuous across the seam.
-        background: `linear-gradient(to left, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
-        position: 'relative',
-        flexShrink: 0,
-      })}
+    <div
+      data-slot="brand-header"
+      className="flex min-h-16 items-center gap-3 px-3 py-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-1"
+      style={{ background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`, color: brandFont }}
     >
-      {showClose && (
-        <IconButton
-          onClick={onClose}
-          size="small"
-          aria-label="Fechar menu"
-          sx={{
-            position: 'absolute',
-            top: 8, right: 8,
-            color: brandFont, opacity: 0.8,
-            '&:hover': { opacity: 1, bgcolor: 'rgba(255,255,255,0.15)' },
-          }}
-        >
-          <ChevronLeftIcon />
-        </IconButton>
-      )}
-
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        {logoUrl && !logoFailed ? (
-          <Box
-            component="img"
-            src={logoUrl}
-            alt="Logo do terreiro"
-            onError={() => setLogoFailed(true)}
-            sx={{
-              width: 48, height: 48,
-              borderRadius: '50%',
-              objectFit: 'cover',
-              border: '2px solid rgba(255,255,255,0.5)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-              flexShrink: 0,
-            }}
-          />
-        ) : (
-          <Avatar
-            sx={{
-              width: 48, height: 48,
-              bgcolor: 'rgba(255,255,255,0.2)',
-              color: brandFont,
-              fontWeight: 700,
-              fontSize: '1.2rem',
-              border: '2px solid rgba(255,255,255,0.5)',
-            }}
-          >
-            {(tenantName || 'T').charAt(0).toUpperCase()}
-          </Avatar>
+      <Avatar className="size-10 shrink-0 border-2 border-white/50 shadow-sm">
+        {logoUrl && !logoFailed && (
+          <AvatarImage src={logoUrl} alt="Logo do terreiro" onError={() => setLogoFailed(true)} className="object-cover" />
         )}
-
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography
-            sx={{
-              fontWeight: 700,
-              color: brandFont,
-              fontSize: '0.9rem',
-              lineHeight: 1.3,
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}
-          >
+        <AvatarFallback className="bg-white/20 text-base font-bold" style={{ color: brandFont }}>
+          {initial}
+        </AvatarFallback>
+      </Avatar>
+      {!collapsed && (
+        <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+          <p className="line-clamp-2 text-sm leading-tight font-bold" style={{ color: brandFont }}>
             {tenantName || 'Meu Terreiro'}
-          </Typography>
-          <Typography sx={{ color: brandFont, opacity: 0.75, fontSize: '0.72rem', fontWeight: 500 }}>
-            Senhas Admin
-          </Typography>
-        </Box>
-      </Box>
-    </Box>
+          </p>
+          <p className="text-[0.7rem] font-medium opacity-80" style={{ color: brandFont }}>
+            GiraHub {APP_VERSION_SHORT}
+          </p>
+        </div>
+      )}
+    </div>
   );
 };
+
+export default BrandHeader;
