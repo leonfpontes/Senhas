@@ -104,7 +104,9 @@ export default function BulkActionsBar({
           setTimeout(() => {
             onRefresh();
             onClearSelection();
-            setActionDialog(null);
+            // handleClose também zera o resultado e volta para "simular" — senão a próxima
+            // ação em lote abria com o resultado anterior e o dry-run desligado.
+            handleClose();
           }, 1000);
         }
       } else {

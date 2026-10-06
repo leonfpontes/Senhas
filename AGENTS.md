@@ -114,7 +114,7 @@ Acoes mapeadas por tipo de endpoint:
 
 Rotas existentes e suas features:
 - Giras, Porta (door_control) → `PermissionFeature.GIRAS` / `PermissionFeature.PORTA`
-- Tickets, tickets_bulk, validate_bulk, email_resend → `PermissionFeature.TICKETS`
+- Tickets, tickets_bulk, validate_bulk → `PermissionFeature.TICKETS` (email_resend e so admin — isento do guard de grupo)
 - Mediuns → `PermissionFeature.MEDIUNS`
 - Associados → `PermissionFeature.ASSOCIADOS`
 - Usuarios → `PermissionFeature.USUARIOS`
@@ -124,7 +124,7 @@ Rotas existentes e suas features:
 - Configuracoes do Tenant → `PermissionFeature.CONFIGURACOES`
 - Auditoria → `PermissionFeature.AUDITORIA`
 - Analytics → `PermissionFeature.ANALYTICS`
-- Relatorio de Gira / exports CSV → `PermissionFeature.RELATORIO_GIRA`
+- Relatorio de Gira → `PermissionFeature.RELATORIO_GIRA`; export CSV de senhas (`exports.py`) → TICKETS ou RELATORIO_GIRA (+ plano `export_csv`)
 - Cursos Presenciais / Sites → `PermissionFeature.CURSOS_PRESENCIAIS`
 
 Para nova feature sem equivalente existente:
@@ -408,14 +408,47 @@ Incluir obrigatoriamente:
 - **Feature flags**: habilitacao de walk-in, patrocinadores, etc.
 
 ### 11.3 Giras
-- Campo "Local" removido do formulario de criacao/edicao e da tabela — endereco agora vem da config do tenant.
+- Campo "Local" opcional no criar/editar ("Local (se diferente do endereco do terreiro)"). Vazio →
+  vale `TenantConfig.endereco` no cartao da gira e nos e-mails (templates: `gira_location` tem
+  precedencia sobre `tenant_address`).
+- `GET /api/v1/admin/giras` (lista, so leitura) aceita GIRAS, RELATORIO_GIRA, PORTA ou TICKETS
+  (`require_any_group_permission`) — Porta, modo TV, Senhas e o GiraProvider escolhem a gira por ela.
+  Detalhe/criar/editar/excluir e `/senhas` continuam so com GIRAS. `date_from`/`date_to` sao dias
+  de Brasilia (America/Sao_Paulo), nao dias UTC.
+- `GET /api/v1/admin/giras/settings` (GIRAS:view): `enable_time_slot_scheduling` + `endereco` para a
+  tela de Giras de quem nao tem CONFIGURACOES; `GET /config/time-slot-templates` aceita GIRAS:view
+  (o PUT segue so com CONFIGURACOES:edit).
+- Compartilhar no cartao/drawer da gira usa o `public_link` DA GIRA (`/public/gira/{id}`); o link
+  unico do terreiro (`/giras/unified-links`, resolve a gira aberta mais antiga) fica em "Link e QR".
+- Criar gira sem `giras:edit` pula o passo "Senhas" (o PUT `/senhas` exige edit) e avisa.
+- "Gira de hoje": `GiraRepository.get_upcoming_giras` inclui gira que comecou ha ate 12h (mesma
+  janela do GiraCard e de `pickTodayGira`). O seletor do topo vale para Dashboard, Senhas e Porta
+  (`GIRA_CONTEXT_ROUTES`); a tela de Giras nao usa.
 
 ### 11.4 Porta (Visao da Porta)
 - Gestao da fila de atendimento via **polling HTTP a cada 8s** (`POLLING_INTERVAL_MS`) — NAO ha
-  WebSocket no codigo atual (zero `@router.websocket` no backend; o hook `useWebSocket` foi
-  removido). A location de proxy WebSocket no nginx e legado sem efeito.
-- Modo TV/Kiosk fullscreen em `porta/kiosk.tsx` (mesmo polling).
-- Modais: AttendModal, WalkInModal.
+  WebSocket no codigo atual (zero `@router.websocket` no backend, nenhuma rota `/door/ws`; o hook
+  `useWebSocket` foi removido). A location `/ws/` do nginx e legado sem efeito.
+- **Fluxo de um passo**: "Chamar" abre o AttendModal e `PATCH /door/tickets/{id}/attend` grava
+  EMITTED → COMPLETED (chamado/atendido/finalizado no mesmo instante). O app nao grava mais
+  `called`: a interface nao tem "Em atendimento" (cartao, contador, filtro). `called` legado e
+  tratado como aguardando (front: `normalizeLegacyStatus`; back: `_WAITING_STATUSES` em checkin,
+  desfazer chegada, attend e no contador `awaiting`). `/complete` e `in_progress` ficam no backend
+  por compatibilidade, sem uso na interface.
+- Modo TV/Kiosk fullscreen em `porta/kiosk.tsx` (mesmo polling). Sem `?gira=` usa `pickTodayGira`.
+  Privacidade: mostra so primeiro nome + inicial do sobrenome (`nomeParaTv`).
+- Aviso sonoro: base = primeira fila carregada de cada gira (nao toca ao abrir nem ao trocar de gira).
+- Modais: AttendModal, WalkInModal. Editar "sem senha" com `priority_category: null` tira a prioridade
+  (campo omitido mantem a atual).
+
+### 11.4.1 Senhas (tickets)
+- Busca no servidor: `GET /giras/{id}/tickets?search=` (numero exato "42"/"0042"/"#42", "P001" =
+  associado, ou trecho de nome/e-mail). Resposta traz `numero_formatado` (P001/0001).
+- Rastreio/reenvio de e-mail so para admin (`email_resend.py` exige `is_admin`).
+- "Exportar CSV": `GET /giras/{id}/export-csv` com `require_plan_feature("export_csv")` +
+  TICKETS ou RELATORIO_GIRA (view); o botao segue o mesmo plano.
+- Cancelamento em lote cancela em cascata os acompanhantes do titular e devolve as vagas (igual a
+  exclusao individual).
 
 ### 11.5 Layout Admin (Sidebar)
 - Header redesenhado: fundo gradiente com cores do tenant, logo circular 52px (ou avatar fallback com inicial), nome do terreiro como texto principal (ate 2 linhas), "Senhas Admin" como label secundario.
@@ -568,7 +601,7 @@ Incluir obrigatoriamente:
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).
 - VPS: 76.13.231.19 (Hostinger), projeto em /opt/senhas.
 - Dominio: girahub.com.br com SSL (Let's Encrypt).
-- nginx: proxy reverso, terminacao SSL, WebSocket proxy para /door/ws.
+- nginx: proxy reverso, terminacao SSL. (A location `/ws/` e legado sem efeito: nao existe WebSocket no backend — a Porta usa polling, ver §11.4.)
 
 **Deploy automatizado via GitHub Actions (`.github/workflows/deploy.yml`):**
 1. Job `security-audit` (paralelo, nao-bloqueante): `pip-audit` + `npm audit --audit-level=high`.

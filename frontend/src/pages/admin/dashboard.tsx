@@ -142,7 +142,10 @@ function getGreeting(): string {
   return 'Boa noite';
 }
 
-function formatChartDate(iso: string): string {
+/** "2026-03-09" → "09/03". Sem `new Date()`: a data pura vira meia-noite UTC e no Brasil caía no dia anterior. */
+export function formatChartDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (m) return `${m[3]}/${m[2]}`;
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 

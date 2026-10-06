@@ -41,8 +41,11 @@ import { ReleaseNotesDialog, clearReleaseNotesSession, useReleaseNotesAutoOpen }
 import { giraLabel, useGiraContext } from '@/components/admin/GiraContext';
 import { resetChecklistDismissed } from '@/components/admin/FirstGiraChecklist';
 
-/** Rotas em que a gira de hoje faz sentido como contexto compartilhado. */
-export const GIRA_CONTEXT_ROUTES = ['/admin/dashboard', '/admin/giras', '/admin/tickets', '/admin/porta'];
+/**
+ * Rotas em que a gira de hoje faz sentido como contexto compartilhado — e que seguem o seletor
+ * do topo. Giras lista a agenda inteira, então não mostra o seletor (não teria efeito).
+ */
+export const GIRA_CONTEXT_ROUTES = ['/admin/dashboard', '/admin/tickets', '/admin/porta'];
 
 export interface AdminTopbarProps {
   title: string;

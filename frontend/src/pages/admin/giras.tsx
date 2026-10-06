@@ -7,7 +7,11 @@
  *   `giraSenhaDefaults`) → Recados. Ao criar, as senhas já são salvas e o link é oferecido.
  * - "Configurar senhas" (gira existente) mantém o drawer completo, com o avançado
  *   (acompanhantes, fila de espera, horários, associados) em Accordion.
- * - Um único ShareLinkDialog (link, QR, WhatsApp, copiar) para todo compartilhamento.
+ * - Um único ShareLinkDialog (link, QR, WhatsApp, copiar) para todo compartilhamento: no cartão
+ *   e no drawer da gira vai o link DA GIRA (`public_link`, /public/gira/{id}); "Link e QR" no
+ *   topo é o link único do terreiro (resolve a próxima gira com senhas abertas).
+ * - Sem `giras:edit` a criação pula o passo "Senhas" (PUT /senhas exige edit) e avisa.
+ * - "Local" opcional na gira; em branco vale o endereço do terreiro (`/giras/settings`).
  * - `?nova=1` abre a criação; `?compartilhar=1` abre o link do terreiro.
  */
 'use client';
@@ -100,7 +104,7 @@ interface UnifiedLinks {
 const timeToInputValue = (horario: string): string => horario.slice(0, 5);
 const emptySlotRow = (): TimeSlotRow => ({ horario: '', capacidade_maxima: '' });
 
-const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '', recados: '' };
+const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '', recados: '', local: '' };
 const EMPTY_SENHA_FORM = {
   max_tickets: '',
   release_start_at: '',
@@ -115,6 +119,11 @@ const EMPTY_SENHA_FORM = {
 type SenhaForm = typeof EMPTY_SENHA_FORM;
 
 const CREATE_STEPS = [{ label: 'A gira' }, { label: 'Senhas' }, { label: 'Recados', optional: true }];
+// Sem `giras:edit` não dá para salvar as senhas (PUT /senhas exige edit): a criação pula o passo.
+const CREATE_STEPS_SEM_SENHAS = [{ label: 'A gira' }, { label: 'Recados', optional: true }];
+
+/** Status que não ocupam vaga da gira (não contam em "X de Y senhas"). */
+const NAO_OCUPA_VAGA = new Set(['cancelled', 'waitlisted', 'waitlist_expired']);
 
 /** UTC ISO da API → "YYYY-MM-DDTHH:mm" local (inverso de `new Date(local).toISOString()`). */
 const isoToLocalDatetimeInput = (isoStr: string | null | undefined): string => {
@@ -315,9 +324,14 @@ function AdminGirasContent() {
   // Liberar agora
   const [releaseTarget, setReleaseTarget] = useState<Gira | null>(null);
 
-  // Compartilhar
+  // Compartilhar — sem `shareGira` é o link único do terreiro; com ela, o link da própria gira.
   const [shareOpen, setShareOpen] = useState(false);
   const [shareTitle, setShareTitle] = useState<string | undefined>(undefined);
+  const [shareGira, setShareGira] = useState<{ nome: string; link: string; sponsorLink: string } | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+
+  // Endereço do terreiro (padrão quando a gira não tem local próprio).
+  const [tenantEndereco, setTenantEndereco] = useState<string | null>(null);
 
   // Horários de atendimento
   const [timeSlotSchedulingEnabled, setTimeSlotSchedulingEnabled] = useState(false);
@@ -330,20 +344,22 @@ function AdminGirasContent() {
     const controller = new AbortController();
     loadGiras(controller.signal);
     loadUnifiedLinks(controller.signal);
-    loadTimeSlotSchedulingToggle(controller.signal);
+    loadGiraSettings(controller.signal);
     return () => controller.abort();
     // As funções de carga não são memoizadas — incluí-las refaria a busca a cada render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView]);
 
-  const loadTimeSlotSchedulingToggle = async (signal?: AbortSignal) => {
+  // `/giras/settings` (GIRAS:view): horários ligados + endereço do terreiro. Antes vinha de
+  // `/tenant/config` (CONFIGURACOES:view) e quem só tinha GIRAS ficava sem os horários.
+  const loadGiraSettings = async (signal?: AbortSignal) => {
     if (!canView) return;
     try {
-      const response = await apiClient.get('/api/v1/admin/tenant/config', { signal });
+      const response = await apiClient.get('/api/v1/admin/giras/settings', { signal });
       setTimeSlotSchedulingEnabled(!!response?.data?.enable_time_slot_scheduling);
+      setTenantEndereco(typeof response?.data?.endereco === 'string' ? response.data.endereco : null);
     } catch (error) {
       if (isAbort(error)) return;
-      // Sem permissão de CONFIGURACOES ou outro erro — mantém a seção oculta.
       setTimeSlotSchedulingEnabled(false);
     }
   };
@@ -399,7 +415,8 @@ function AdminGirasContent() {
           setCounts((prev) => ({
             ...prev,
             [g.id]: {
-              issued: items.filter((t) => t.status !== 'cancelled').length,
+              // Fila de espera não ocupa vaga — só as senhas emitidas de verdade.
+              issued: items.filter((t) => !NAO_OCUPA_VAGA.has(t.status)).length,
               waiting: items.filter((t) => t.status === 'emitted').length,
             },
           }));
@@ -437,9 +454,40 @@ function AdminGirasContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady, router.query.compartilhar]);
 
+  /** Link único do terreiro (resolve a próxima gira a cada visita). */
   const openShare = (title?: string) => {
+    setShareGira(null);
+    setShareLoading(false);
     setShareTitle(title);
     setShareOpen(true);
+  };
+
+  /**
+   * Link da PRÓPRIA gira (`public_link` de /giras/{id}/senhas). O link do terreiro sempre abre a
+   * gira com emissão aberta mais antiga — compartilhar pelo cartão de outra gira mandava o
+   * consulente para a gira errada.
+   */
+  const openGiraShare = async (gira: Gira, config?: SenhaConfig | null) => {
+    setShareTitle(`Link de senhas — ${gira.nome}`);
+    setShareOpen(true);
+    const fill = (c: SenhaConfig) =>
+      setShareGira({ nome: gira.nome, link: c.public_link, sponsorLink: c.sponsor_public_link || '' });
+    if (config?.public_link) {
+      fill(config);
+      setShareLoading(false);
+      return;
+    }
+    setShareGira(null);
+    setShareLoading(true);
+    try {
+      const response = await apiClient.get(`/api/v1/admin/giras/${gira.id}/senhas`);
+      if (response?.data?.public_link) fill(response.data as SenhaConfig);
+    } catch (error) {
+      toast.error(extractApiErrorMessage(error, 'Não foi possível carregar o link da gira.'));
+      setShareOpen(false);
+    } finally {
+      setShareLoading(false);
+    }
   };
 
   // ── Criação ──────────────────────────────────────────────────────────────────
@@ -493,6 +541,11 @@ function AdminGirasContent() {
   const goToSenhas = () => {
     setCreateTouched((p) => ({ ...p, nome: true, data_inicio: true }));
     if (!step0Valid) return;
+    if (!canEdit) {
+      // Sem permissão de editar giras as senhas não podem ser salvas: vai direto aos recados.
+      setCreateStep(2);
+      return;
+    }
     // Preenche a sugestão na primeira vez (ou quando a data da gira mudou).
     if (suggestedFor !== createForm.data_inicio) {
       const window = suggestReleaseWindow(new Date(createForm.data_inicio).toISOString());
@@ -517,13 +570,14 @@ function AdminGirasContent() {
       if (step1Valid) setCreateStep(2);
       return;
     }
-    if (!canInsert || !step0Valid || !step1Valid) return;
+    if (!canInsert || !step0Valid || (canEdit && !step1Valid)) return;
     setSaving(true);
     try {
       const payload = {
         nome: createForm.nome,
         descricao: createForm.descricao,
         recados: createForm.recados,
+        local: createForm.local.trim() || null,
         data_inicio: toUtcIso(createForm.data_inicio),
       };
       const response = await apiClient.post('/api/v1/admin/giras', payload);
@@ -548,7 +602,11 @@ function AdminGirasContent() {
           openSenhaDrawer(created, { fromCreate: true });
         }
       } else {
-        toast.success('Gira criada!');
+        toast.success(
+          canEdit
+            ? 'Gira criada!'
+            : 'Gira criada! As senhas ainda não estão liberadas — peça a quem pode editar giras para configurá-las.',
+        );
       }
       loadGiras();
       void giraCtx.refresh();
@@ -567,6 +625,7 @@ function AdminGirasContent() {
       descricao: gira.descricao || '',
       data_inicio: isoToLocalDatetimeInput(gira.data_inicio),
       recados: gira.recados || '',
+      local: gira.local || '',
     });
     setTouched({});
     setEditOpen(true);
@@ -589,6 +648,7 @@ function AdminGirasContent() {
     (formData.nome !== currentGira.nome ||
       formData.descricao !== (currentGira.descricao || '') ||
       formData.recados !== (currentGira.recados || '') ||
+      formData.local !== (currentGira.local || '') ||
       formData.data_inicio !== isoToLocalDatetimeInput(currentGira.data_inicio));
   const nomeError = touched.nome && !formData.nome.trim() ? 'Nome é obrigatório' : '';
   const dataError = touched.data_inicio && !formData.data_inicio ? 'Informe o dia e a hora da gira' : '';
@@ -601,6 +661,7 @@ function AdminGirasContent() {
     try {
       await apiClient.put(`/api/v1/admin/giras/${currentGira.id}`, {
         ...formData,
+        local: formData.local.trim() || null,
         data_inicio: toUtcIso(formData.data_inicio),
       });
       closeEdit();
@@ -742,6 +803,13 @@ function AdminGirasContent() {
       timeSlots.every((s) => s.horario && Number(s.capacidade_maxima) >= 1) &&
       new Set(timeSlots.map((s) => s.horario)).size === timeSlots.length);
 
+  // Vagas por horário e quantidade de senhas são limites independentes: só avisamos quando
+  // não batem (o backend aceita os dois, para não quebrar giras existentes).
+  const slotCapacitySum = useTimeSlots
+    ? timeSlots.reduce((acc, s) => acc + (Number(s.capacidade_maxima) > 0 ? Number(s.capacidade_maxima) : 0), 0)
+    : 0;
+  const senhaMaxTickets = Number(senhaForm.max_tickets) || 0;
+
   const timeSlotsDirty =
     useTimeSlots !== useTimeSlotsInitial ||
     JSON.stringify(timeSlots.map((s) => ({ horario: s.horario, capacidade_maxima: s.capacidade_maxima }))) !==
@@ -844,9 +912,17 @@ function AdminGirasContent() {
       const response = await apiClient.post(`/api/v1/admin/giras/${target.id}/release-now`);
       if (senhaTarget?.id === target.id) {
         setSenhaConfig(response.data);
+        // Só a janela de liberação mudou: aplica esses campos e preserva o resto do formulário
+        // (edições ainda não salvas e o prazo da fila de espera).
         const released = configToForm(response.data);
-        setSenhaForm(released);
-        setSenhaInitial(released);
+        const releaseFields = {
+          release_start_at: released.release_start_at,
+          release_end_at: released.release_end_at,
+          sponsor_release_start_at: released.sponsor_release_start_at,
+          sponsor_release_end_at: released.sponsor_release_end_at,
+        };
+        setSenhaForm((prev) => ({ ...prev, ...releaseFields }));
+        setSenhaInitial((prev) => ({ ...prev, ...releaseFields }));
       }
       toast.success('Senhas liberadas agora!');
       loadGiras();
@@ -886,7 +962,8 @@ function AdminGirasContent() {
       issued={counts[gira.id]?.issued}
       waiting={counts[gira.id]?.waiting}
       permissions={cardPermissions}
-      onShare={() => openShare()}
+      onShare={(g) => void openGiraShare(g as Gira)}
+      fallbackLocal={tenantEndereco}
       onConfigure={(g) => openSenhaDrawer(g as Gira)}
       onRelease={(g) => setReleaseTarget(g as Gira)}
       onEdit={(g) => openEdit(g as Gira)}
@@ -895,6 +972,10 @@ function AdminGirasContent() {
   );
 
   const createGiraStartIso = createForm.data_inicio ? new Date(createForm.data_inicio).toISOString() : null;
+  // Vazio = endereço do terreiro (Configurações), usado no e-mail da senha e no cartão da gira.
+  const localHelperText = tenantEndereco
+    ? `Opcional. Em branco, vale o endereço do terreiro (${tenantEndereco}). Aparece no e-mail da senha.`
+    : 'Opcional. Aparece no e-mail da senha, com o botão “Como chegar”.';
 
   return (
     <div className="pb-6">
@@ -1000,7 +1081,17 @@ function AdminGirasContent() {
         saving={saving}
         isDirty={createDirty}
       >
-        <Stepper steps={CREATE_STEPS} active={createStep} onStepClick={(i) => i < createStep && setCreateStep(i)} className="mb-2" />
+        {canEdit ? (
+          <Stepper steps={CREATE_STEPS} active={createStep} onStepClick={(i) => i < createStep && setCreateStep(i)} className="mb-2" />
+        ) : (
+          // Sem o passo "Senhas": índices visuais 0 (A gira) e 1 (Recados = passo interno 2).
+          <Stepper
+            steps={CREATE_STEPS_SEM_SENHAS}
+            active={createStep === 0 ? 0 : 1}
+            onStepClick={(i) => i === 0 && setCreateStep(0)}
+            className="mb-2"
+          />
+        )}
 
         {createStep === 0 && (
           <div className="flex flex-col gap-4">
@@ -1020,6 +1111,13 @@ function AdminGirasContent() {
               onChange={(v) => setCreateField('data_inicio', v ?? '')}
               required
               error={createDataError}
+            />
+            <TextField
+              label="Local (se diferente do endereço do terreiro)"
+              value={createForm.local}
+              onChange={(e) => setCreateField('local', e.target.value)}
+              placeholder={tenantEndereco ?? 'Ex.: Cachoeira do Parque, entrada 2'}
+              helperText={localHelperText}
             />
           </div>
         )}
@@ -1109,12 +1207,23 @@ function AdminGirasContent() {
                 {createForm.data_inicio &&
                   new Date(createForm.data_inicio).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' })}
               </p>
-              <p className="mt-1">
-                {createSenha.max_tickets} senhas · abrem{' '}
-                {createSenha.release_start_at &&
-                  new Date(createSenha.release_start_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
-              </p>
+              {canEdit ? (
+                <p className="mt-1">
+                  {createSenha.max_tickets} senhas · abrem{' '}
+                  {createSenha.release_start_at &&
+                    new Date(createSenha.release_start_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                </p>
+              ) : null}
             </div>
+            {!canEdit && (
+              <Alert variant="info" data-testid="create-sem-senhas">
+                <Ticket aria-hidden />
+                <AlertDescription>
+                  A gira será criada <strong>sem senhas liberadas</strong>: configurar as senhas precisa da permissão de
+                  editar giras. Depois de criar, peça a quem tem essa permissão para abrir “Configurar senhas” na gira.
+                </AlertDescription>
+              </Alert>
+            )}
             <TextField
               label="Descrição"
               multiline
@@ -1134,7 +1243,13 @@ function AdminGirasContent() {
         )}
 
         {createStep > 0 && (
-          <Button type="button" variant="ghost" size="sm" className="self-start" onClick={() => setCreateStep((s) => s - 1)}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="self-start"
+            onClick={() => setCreateStep((s) => (!canEdit && s === 2 ? 0 : s - 1))}
+          >
             Voltar
           </Button>
         )}
@@ -1168,6 +1283,13 @@ function AdminGirasContent() {
             onChange={(v) => handleChange('data_inicio', v ?? '')}
             required
             error={dataError}
+          />
+          <TextField
+            label="Local (se diferente do endereço do terreiro)"
+            value={formData.local}
+            onChange={(e) => handleChange('local', e.target.value)}
+            placeholder={tenantEndereco ?? 'Ex.: Cachoeira do Parque, entrada 2'}
+            helperText={localHelperText}
           />
           <TextField
             label="Descrição"
@@ -1274,7 +1396,7 @@ function AdminGirasContent() {
 
             <div className="flex flex-col gap-2 sm:flex-row">
               {senhaConfig?.public_link && (
-                <Button type="button" variant="outline" className="flex-1" onClick={() => openShare()}>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => senhaTarget && void openGiraShare(senhaTarget, senhaConfig)}>
                   <QrCode aria-hidden /> Compartilhar link
                 </Button>
               )}
@@ -1364,7 +1486,7 @@ function AdminGirasContent() {
                         checked={useTimeSlots}
                         onCheckedChange={handleToggleUseTimeSlots}
                         label="Consulente escolhe um horário ao pegar a senha"
-                        description={`Divide as ${senhaForm.max_tickets || 'X'} senhas em horários (ex.: 20h, 20h30, 21h) para não juntar gente na porta.`}
+                        description="Cada horário (ex.: 20h, 20h30, 21h) tem as próprias vagas, para não juntar gente na porta. A quantidade de senhas da gira continua valendo como limite geral."
                       />
                       {useTimeSlots && (
                         <div className="flex flex-col gap-2">
@@ -1409,6 +1531,21 @@ function AdminGirasContent() {
                             <p className="text-xs text-destructive">
                               Preencha todos os horários com vagas ≥ 1 e sem horários repetidos.
                             </p>
+                          )}
+                          {slotCapacitySum > 0 && (
+                            <p className="text-xs text-muted-foreground" data-testid="soma-vagas-horarios">
+                              Soma das vagas dos horários: <strong className="tabular-nums">{slotCapacitySum}</strong>
+                              {senhaMaxTickets > 0 ? ` · senhas da gira: ${senhaMaxTickets}` : ''}
+                            </p>
+                          )}
+                          {slotCapacitySum > 0 && senhaMaxTickets > 0 && slotCapacitySum !== senhaMaxTickets && (
+                            <Alert variant="warning" data-testid="aviso-vagas-horarios">
+                              <AlertDescription>
+                                {slotCapacitySum > senhaMaxTickets
+                                  ? `Os horários somam ${slotCapacitySum} vagas, mas a gira tem ${senhaMaxTickets} senhas: quando as senhas acabarem, sobram vagas nos horários que ninguém consegue usar.`
+                                  : `Os horários somam só ${slotCapacitySum} vagas para ${senhaMaxTickets} senhas: quando os horários lotarem, ninguém mais consegue pegar senha, mesmo sobrando.`}
+                              </AlertDescription>
+                            </Alert>
                           )}
                         </div>
                       )}
@@ -1500,10 +1637,19 @@ function AdminGirasContent() {
       <ShareLinkDialog
         open={shareOpen}
         onOpenChange={setShareOpen}
-        link={unifiedLinks?.public_link}
-        sponsorLink={can('associados') ? unifiedLinks?.sponsor_public_link : null}
+        link={shareGira ? shareGira.link : unifiedLinks?.public_link}
+        sponsorLink={
+          can('associados') ? (shareGira ? shareGira.sponsorLink || null : unifiedLinks?.sponsor_public_link) : null
+        }
         tenantName={profile?.tenant_name}
         title={shareTitle}
+        giraName={shareGira?.nome}
+        loading={shareLoading}
+        description={
+          shareGira
+            ? 'Por este link os consulentes pegam a senha desta gira pelo celular.'
+            : 'Por este link os consulentes pegam a senha pelo celular.'
+        }
       />
     </div>
   );
