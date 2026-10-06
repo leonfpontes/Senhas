@@ -39,6 +39,10 @@ ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
 ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT="production"
 ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${NEXT_PUBLIC_SENTRY_ENVIRONMENT}
 
+# O `next build` passou do limite padrão de heap do Node (~2 GB) no deploy de
+# 2026-10-07 ("JavaScript heap out of memory"). A VPS tem ~6 GB livres e o
+# limite vale só para este estágio de build (o runner não é afetado).
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN npm run build
 
 # ============================================
