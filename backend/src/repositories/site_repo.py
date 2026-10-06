@@ -10,6 +10,7 @@ from sqlalchemy import and_, delete, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.core.tz import APP_TZ
 from src.models.giras import Gira
 from src.models.site import SiteStatus, TenantSite, TenantSiteSection
 from src.repositories.base import BaseRepository
@@ -63,16 +64,30 @@ class SiteRepository(BaseRepository[TenantSite]):
             return None
 
         # Fetch upcoming giras for this tenant (server-side, for SEO).
-        # A gira do próprio dia continua no calendário mesmo depois de
-        # data_inicio passar: ela some só quando o dia (UTC) vira, a gira
-        # termina (data_fim) e a janela de emissão fecha (release_end_at).
+        upcoming_giras = await self.list_upcoming_giras(site.tenant_id, limit=limit_giras)
+
+        return {
+            "site": site,
+            "upcoming_giras": upcoming_giras,
+        }
+
+    async def list_upcoming_giras(self, tenant_id: UUID, limit: int = 10) -> list[Gira]:
+        """Próximas giras ativas do terreiro — calendário do site e agenda pública.
+
+        A gira do próprio dia continua na lista mesmo depois de data_inicio
+        passar: ela some só quando o dia vira em Brasília (não em UTC — às 21h
+        de Brasília o dia UTC já virou e a gira da noite sumia), a gira termina
+        (data_fim) e a janela de emissão fecha (release_end_at). Gira inativa
+        (is_active=False, "desativada" pelo admin) não aparece.
+        """
         now = datetime.now(timezone.utc)
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        giras_stmt = (
+        today_start = datetime.now(APP_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
+        stmt = (
             select(Gira)
             .where(
                 and_(
-                    Gira.tenant_id == site.tenant_id,
+                    Gira.tenant_id == tenant_id,
+                    Gira.is_active.is_(True),
                     or_(
                         Gira.data_inicio >= today_start,
                         Gira.data_fim >= now,
@@ -82,15 +97,10 @@ class SiteRepository(BaseRepository[TenantSite]):
                 )
             )
             .order_by(Gira.data_inicio)
-            .limit(limit_giras)
+            .limit(limit)
         )
-        giras_result = await self.db.execute(giras_stmt)
-        upcoming_giras = giras_result.scalars().all()
-
-        return {
-            "site": site,
-            "upcoming_giras": upcoming_giras,
-        }
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
 
     # ------------------------------------------------------------------
     # Write

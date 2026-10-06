@@ -18,6 +18,8 @@ import logging
 from src.core.database import get_db
 from src.core.limiter import limiter
 from src.core.config import settings
+from src.core.public_links import public_tenant_logo_url
+from src.core.tz import APP_TZ
 from src.models import CursoPresencial, CursoParticipante
 from src.models.tenants import Tenant
 from src.models.tenant_config import TenantConfig
@@ -25,6 +27,9 @@ from src.repositories.curso_presencial_repo import (
     CursoPresencialRepository,
     CursoParticipanteRepository,
 )
+from src.services.email.base import EmailMessage
+from src.services.email.email_queue import email_queue, EmailQueueItem
+from src.services.email.templates.curso_inscricao import generate_curso_inscricao_html
 
 router = APIRouter(prefix="/api/v1/public", tags=["public-cursos"])
 logger = logging.getLogger(__name__)
@@ -320,7 +325,11 @@ async def inscricao_publica(
             missing_fields.append("Tem interesse em algum aprendizado específico?")
         if body.ja_conhece_terreiro is None:
             missing_fields.append("Já conhece o Terreiro")
-        if not body.como_conheceu_terreiro or not body.como_conheceu_terreiro.strip():
+        # "Como conheceu" só faz sentido para quem já conhece o terreiro — o
+        # formulário só mostra a pergunta quando a resposta acima é "Sim".
+        elif body.ja_conhece_terreiro is True and (
+            not body.como_conheceu_terreiro or not body.como_conheceu_terreiro.strip()
+        ):
             missing_fields.append("Como conheceu o terreiro")
             
         # Ficha Médica / Saúde
@@ -430,8 +439,15 @@ async def inscricao_publica(
     await db.commit()
 
     logger.info(
-        f"Inscrição pública: {body.email} → curso '{curso.titulo}' (tenant={tenant.slug})"
+        f"Inscrição pública: participante {participante.id} → curso '{curso.titulo}' (tenant={tenant.slug})"
     )
+
+    # E-mail de confirmação (a tela de sucesso promete): fila em memória, não
+    # bloqueia a resposta nem derruba a inscrição se o envio falhar.
+    try:
+        _enqueue_confirmation_email(curso, tenant, cfg, participante)
+    except Exception as exc:  # pragma: no cover — defensivo, a inscrição já foi gravada
+        logger.warning("Falha ao enfileirar e-mail de inscrição do participante %s: %s", participante.id, exc)
 
     return InscricaoPublicaResponse(
         id=participante.id,
@@ -439,9 +455,61 @@ async def inscricao_publica(
         email=participante.email,
         curso_titulo=curso.titulo,
         data_inicio=curso.data_inicio,
-        valor_mensalidade=participante.valor_mensalidade,
+        # Só há mensalidade quando o curso gera cobrança mensal.
+        valor_mensalidade=participante.valor_mensalidade if curso.gerar_mensalidade else None,
         mensagem=(
             f"Inscrição realizada com sucesso! Bem-vindo(a) ao curso '{curso.titulo}'. "
-            "Em breve você receberá informações por e-mail."
+            "Enviamos a confirmação para o seu e-mail."
         ),
+    )
+
+
+def _enqueue_confirmation_email(
+    curso: CursoPresencial,
+    tenant: Tenant,
+    cfg: TenantConfig | None,
+    participante: CursoParticipante,
+) -> None:
+    """Enfileira o e-mail "Inscrição confirmada" (Resend primário, Brevo fallback
+    — mesmo email_queue dos e-mails de senha).
+
+    Minimização (LGPD): o e-mail leva só os dados do curso e de contato. CPF,
+    RG, endereço e a ficha de saúde ficam fora — e-mail não é canal seguro para
+    dado sensível, e a pessoa acabou de digitá-los.
+    """
+    html_body = generate_curso_inscricao_html(
+        participante_nome=participante.nome,
+        participante_email=participante.email,
+        curso_titulo=curso.titulo,
+        tenant_name=tenant.name,
+        primary_color=(cfg.primary_color if cfg else None) or "#4f46e5",
+        secondary_color=(cfg.secondary_color if cfg else None) or "#818cf8",
+        tenant_logo_url=public_tenant_logo_url(settings.FRONTEND_URL, cfg),
+        data_inicio=curso.data_inicio.isoformat() if curso.data_inicio else None,
+        data_fim=curso.data_fim.isoformat() if curso.data_fim else None,
+        local=curso.local or (cfg.endereco if cfg else None),
+        valor_mensalidade=(
+            float(participante.valor_mensalidade)
+            if curso.gerar_mensalidade and participante.valor_mensalidade is not None
+            else None
+        ),
+        celular=participante.celular,
+    )
+    data_str = curso.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y") if curso.data_inicio else ""
+    text_body = (
+        f"Olá {participante.nome},\n\n"
+        f"Sua inscrição no curso \"{curso.titulo}\" ({tenant.name}) foi registrada.\n"
+        + (f"Início: {data_str}\n" if data_str else "")
+        + (f"Local: {curso.local}\n" if curso.local else "")
+        + "\nQualquer dúvida, fale com o terreiro.\n"
+    )
+    email_queue.enqueue(
+        EmailQueueItem(
+            message=EmailMessage(
+                to_email=participante.email,
+                subject=f"Inscrição confirmada — {curso.titulo} - {tenant.name}",
+                html_body=html_body,
+                text_body=text_body,
+            )
+        )
     )

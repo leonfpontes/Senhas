@@ -243,6 +243,21 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
         for acomp in acomp_result.scalars().all()
     ]
 
+    # Horário escolhido (agendamento por horário) — o e-mail original da
+    # emissão traz "Horário desejado"; o reenvio precisa trazer também.
+    horario_desejado: str | None = None
+    if ticket.time_slot_id:
+        from src.models.gira_time_slots import GiraTimeSlot
+
+        slot_result = await session.execute(
+            select(GiraTimeSlot).where(
+                and_(GiraTimeSlot.id == ticket.time_slot_id, GiraTimeSlot.tenant_id == ticket.tenant_id)
+            )
+        )
+        slot = slot_result.scalar_one_or_none()
+        if slot is not None and slot.horario is not None:
+            horario_desejado = slot.horario.strftime("%H:%M")
+
     html_body = generate_ticket_emission_html(
         ticket_number=ticket_number_formatted,
         consulente_name=ticket.consulente.nome,
@@ -261,6 +276,7 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
         consulente_phone=ticket.consulente.telefone or "",
         priority_category=ticket.priority_category,
         recados=gira_obj.recados,
+        horario_desejado=horario_desejado,
         cancel_link=cancel_link,
         acompanhantes=acompanhantes or None,
     )
@@ -278,12 +294,14 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
         consulente_phone=ticket.consulente.telefone or "",
         priority_category=ticket.priority_category,
         recados=gira_obj.recados,
+        horario_desejado=horario_desejado,
         cancel_link=cancel_link,
         acompanhantes=acompanhantes or None,
     )
+    subject_prefix = "✦ Associado — " if ticket.is_sponsor else ""
     message = EmailMessage(
         to_email=ticket.consulente.email,
-        subject=f"Sua Senha #{ticket_number_formatted} - {tenant.name}",
+        subject=f"{subject_prefix}Sua Senha #{ticket_number_formatted} - {tenant.name}",
         html_body=html_body,
         text_body=text_body,
     )
