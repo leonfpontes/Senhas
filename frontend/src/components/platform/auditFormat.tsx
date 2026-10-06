@@ -183,6 +183,26 @@ export function ActionBadge({ action }: { action: string }) {
 export function FormatDetails({ action, details, className }: { action: string; details?: Record<string, unknown> | null; className?: string }) {
   if (!details) return <span className={cn('text-sm text-muted-foreground', className)}>—</span>;
 
+  // Ação do super-admin (backend/src/services/platform_audit.py): frase pronta + o que mudou.
+  if (typeof details.platform_action === 'string' && typeof details.description === 'string') {
+    const prev = details.previous_values as Record<string, unknown> | undefined;
+    const next = details.new_values as Record<string, unknown> | undefined;
+    const changes = prev && next ? diffObjects(prev, next) : [];
+    return (
+      <span className={cn('flex flex-col gap-0.5', className)}>
+        <span className="flex flex-wrap items-center gap-1.5 text-sm">
+          <ToneBadge tone="info">Plataforma</ToneBadge>
+          {details.description}
+        </span>
+        {changes.map(({ field, from, to }) => (
+          <span key={field} className="text-xs text-muted-foreground">
+            {fieldLabel(field)}: {formatValue(from)} → {formatValue(to)}
+          </span>
+        ))}
+      </span>
+    );
+  }
+
   if (action === 'login' || action === 'logout') {
     const success = details.success !== false;
     const ip = details.ip_address as string | undefined;

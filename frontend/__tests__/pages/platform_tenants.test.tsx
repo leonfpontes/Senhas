@@ -1,5 +1,6 @@
 /**
- * /platform/tenants — paginação no servidor (skip/limit), facetas no cliente e aba Assinaturas.
+ * /platform/tenants — paginação no servidor (skip/limit), facetas no cliente, aba Assinaturas e
+ * "Novo terreiro" mostrando a senha provisória do admin uma única vez.
  */
 import React from 'react';
 import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
@@ -16,8 +17,9 @@ const mockRouter = {
 jest.mock('next/router', () => ({ useRouter: () => mockRouter }));
 
 const mockGet = jest.fn();
+const mockPost = jest.fn();
 jest.mock('@/services/api_client', () => ({
-  apiClient: { get: (...a: unknown[]) => mockGet(...a), post: jest.fn(), put: jest.fn(), patch: jest.fn(), delete: jest.fn() },
+  apiClient: { get: (...a: unknown[]) => mockGet(...a), post: (...a: unknown[]) => mockPost(...a), put: jest.fn(), patch: jest.fn(), delete: jest.fn() },
   extractApiErrorMessage: (_e: unknown, fb: string) => fb,
 }));
 jest.mock('@/hooks/useProfile', () => ({ useProfile: () => ({ profile: null, loading: false, refresh: jest.fn() }) }));
@@ -146,5 +148,29 @@ describe('Platform — Terreiros', () => {
     fireEvent.click(screen.getByLabelText(/Mostrar excluídos/));
     fireEvent.click(await screen.findByRole('button', { name: /Excluído/ }));
     expect(table.getByText('Casa 5')).toBeInTheDocument();
+  });
+
+  it('"Novo terreiro" mostra a senha provisória do admin uma vez, com botão de copiar', async () => {
+    mockPost.mockResolvedValue({
+      data: { id: 'tn', slug: 'casa-nova', name: 'Casa Nova', admin_user: { id: 'u', email: 'mae@casa.com', username: 'mae', role: 'admin' }, temp_password: 'Prov-Abc123xyz' },
+    });
+    const writeText = jest.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<TenantsPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Novo terreiro/ }));
+    fireEvent.change(await screen.findByLabelText(/Slug/), { target: { value: 'casa-nova' } });
+    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'Casa Nova' } });
+    fireEvent.change(screen.getByLabelText(/E-mail do admin/), { target: { value: 'mae@casa.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Criar' }));
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/api/v1/platform/tenants', { slug: 'casa-nova', name: 'Casa Nova', email_admin: 'mae@casa.com', plan: 'basic' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('Terreiro criado')).toBeInTheDocument();
+    expect(within(dialog).getByTestId('temp-password')).toHaveTextContent('Prov-Abc123xyz');
+    expect(within(dialog).getByText('mae@casa.com')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copiar senha provisória' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('Prov-Abc123xyz'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Já anotei' }));
+    await waitFor(() => expect(screen.queryByTestId('temp-password')).not.toBeInTheDocument());
   });
 });

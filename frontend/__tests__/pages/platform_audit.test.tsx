@@ -29,6 +29,8 @@ const TENANTS = [
 const FEED = [
   { id: 'e1', tenant_id: 't1', tenant_name: 'Casa Alfa', tenant_slug: 'casa-alfa', user_id: 'u1', user_email: 'adm@casa.com', user_username: 'adm', action: 'update', resource_type: 'Gira', resource_id: 'g1', details: { previous_state: { nome: 'Gira A' }, new_state: { nome: 'Gira B' } }, created_at: '2026-10-05T12:00:00Z' },
   { id: 'e2', tenant_id: null, tenant_name: 'Platform', tenant_slug: '', user_id: null, user_email: null, user_username: null, action: 'login', resource_type: 'User', resource_id: null, details: { success: false, ip_address: '1.2.3.4' }, created_at: '2026-10-05T11:00:00Z' },
+  { id: 'e3', tenant_id: 't3', tenant_name: 'Casa Gama', tenant_slug: 'casa-gama', user_id: 'root', user_email: 'root@girahub.com.br', user_username: 'root', action: 'login', resource_type: 'User', resource_id: 'u1', details: { platform_action: 'impersonation_start', description: 'Super-admin root@girahub.com.br entrou como adm@casa.com (impersonação, 1h)' }, created_at: '2026-10-05T10:00:00Z' },
+  { id: 'e4', tenant_id: 't3', tenant_name: 'Casa Gama', tenant_slug: 'casa-gama', user_id: 'root', user_email: 'root@girahub.com.br', user_username: 'root', action: 'update', resource_type: 'subscription', resource_id: null, details: { platform_action: 'subscription_plan_change', description: 'Plano alterado pela plataforma: basic → pro', previous_values: { plan: 'basic' }, new_values: { plan: 'pro' } }, created_at: '2026-10-05T09:00:00Z' },
 ];
 const SUMMARY = {
   total: 2,
@@ -58,8 +60,11 @@ describe('Platform — Auditoria consolidada', () => {
     render(<AuditPage />);
     expect(await screen.findByRole('link', { name: 'Casa Alfa' })).toHaveAttribute('href', '/platform/tenants/t1');
     expect(screen.getAllByText('Atualização').length).toBeGreaterThan(0);
-    expect(screen.getByText('FALHA')).toBeInTheDocument();
     expect(screen.getByText('Gira B')).toBeInTheDocument();
+    // Ações do super-admin (platform_audit.py) aparecem com a frase pronta, não como login comum.
+    expect(screen.getByText(/entrou como adm@casa.com \(impersonação, 1h\)/)).toBeInTheDocument();
+    expect(screen.getAllByText('FALHA')).toHaveLength(1);
+    expect(screen.getByText('Plano: basic → pro')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('combobox', { name: /Terreiro/ }));
     expect(await screen.findByText('Casa Beta')).toBeInTheDocument();
@@ -80,7 +85,7 @@ describe('Platform — Auditoria consolidada', () => {
     render(<AuditPage />);
     await screen.findByRole('link', { name: 'Casa Alfa' });
     fireEvent.click(screen.getByRole('button', { name: /Exportar JSON/ }));
-    await waitFor(() => expect(mockToast.success).toHaveBeenCalledWith('Exportação concluída: 2 eventos.'));
+    await waitFor(() => expect(mockToast.success).toHaveBeenCalledWith('Exportação concluída: 4 eventos.'));
     expect(click).toHaveBeenCalled();
     click.mockRestore();
   });

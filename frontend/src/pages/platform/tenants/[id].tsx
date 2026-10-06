@@ -2,9 +2,13 @@
  * /platform/tenants/[id] — Tenant 360.
  *
  * Cabeçalho com nome, plano/status, trial restante, MRR e ações (WhatsApp, Mensagem, Entrar como
- * admin, Assinatura). Abas: Visão geral, Usuários (redefinir senha, impersonar), Giras (próximas,
- * do observatório), Suporte (conversas do terreiro), Auditoria (feed consolidado filtrado) e
- * Assinatura (plano/bônus/suspender). `?tab=` controla a aba; `?bonus=1` abre o drawer já em bônus.
+ * admin, Assinatura, Excluir permanentemente). Abas: Visão geral, Usuários (redefinir senha,
+ * impersonar), Giras (próximos 30 dias DESTE terreiro — `GET /tenant-observatory/tenants/{id}/giras`),
+ * Suporte (conversas do terreiro), Auditoria (feed consolidado filtrado) e Assinatura
+ * (plano/bônus/suspender). `?tab=` controla a aba; `?bonus=1` abre o drawer já em bônus.
+ *
+ * Terreiro excluído (soft delete — `deleted_at`, ex.: desativado pelo próprio terreiro) também
+ * abre: aviso no topo, ações de operação desligadas e a exclusão definitiva (LGPD) disponível.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -21,6 +25,7 @@ import {
   MessageSquare,
   Pencil,
   ScrollText,
+  Trash2,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -62,6 +67,7 @@ import {
   BillingCategoryBadge,
 } from '@/components/platform';
 import { SubscriptionDrawer, type SubscriptionDetail } from '@/components/platform/SubscriptionDrawer';
+import { DeleteTenantDialog } from '@/components/platform/DeleteTenantDialog';
 import { AuditFeedTable } from '@/components/platform/AuditFeedTable';
 import { ACTION_OPTIONS, actionLabel, type FeedEntry } from '@/components/platform/auditFormat';
 import { PASSWORD_RULE_HINT, isPasswordValid, passwordHelp } from '@/components/platform/passwordPolicy';
@@ -79,6 +85,9 @@ interface TenantInfo {
   plan: string | null;
   subscription_status: string | null;
   is_bonus: boolean | null;
+  /** Excluído logicamente; com `self_deactivated_at`, foi o próprio terreiro que se desativou. */
+  deleted_at?: string | null;
+  self_deactivated_at?: string | null;
 }
 
 interface TenantUser {
@@ -113,7 +122,6 @@ interface RetentionTenant {
 
 interface ObservatorySlice {
   activation: { tenants: ActivationTenant[] };
-  upcoming_giras: UpcomingGira[];
   retention: RetentionTenant[];
   errors_by_tenant: { tenant_id: string | null; total_erros: number; top_endpoints: { endpoint: string; count: number }[] }[];
 }
@@ -148,6 +156,7 @@ export default function TenantDetailPage() {
   const [subscription, setSubscription] = useState<SubscriptionDetail | null>(null);
   const [observatory, setObservatory] = useState<ObservatorySlice | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
+  const [giras, setGiras] = useState<UpcomingGira[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -175,6 +184,10 @@ export default function TenantDetailPage() {
     apiClient.get<SubscriptionDetail>(`/api/v1/platform/subscriptions/${id}`).then((r) => setSubscription(r.data)).catch(() => setSubscription(null));
     apiClient.get<ObservatorySlice>('/api/v1/platform/tenant-observatory').then((r) => setObservatory(r.data)).catch(() => setObservatory(null));
     apiClient
+      .get<UpcomingGira[]>(`/api/v1/platform/tenant-observatory/tenants/${id}/giras`)
+      .then((r) => setGiras(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setGiras([]));
+    apiClient
       .get<ConversationSummary[]>('/api/v1/platform/support-chat/conversations', { params: { tenant_id: id, limit: 50 } })
       .then((r) => setConversations(Array.isArray(r.data) ? r.data : []))
       .catch(() => setConversations([]));
@@ -192,7 +205,6 @@ export default function TenantDetailPage() {
 
   const activation = useMemo(() => observatory?.activation.tenants.find((t) => t.tenant_id === id) ?? null, [observatory, id]);
   const retention = useMemo(() => observatory?.retention.find((t) => t.tenant_id === id) ?? null, [observatory, id]);
-  const giras = useMemo(() => (observatory?.upcoming_giras ?? []).filter((g) => g.tenant_id === id), [observatory, id]);
   const errors = useMemo(() => observatory?.errors_by_tenant.find((e) => e.tenant_id === id) ?? null, [observatory, id]);
   const admin = useMemo(() => pickTenantAdmin(users), [users]);
   const phone = activation?.contact?.phone ?? null;
@@ -200,6 +212,16 @@ export default function TenantDetailPage() {
   const trialDays = subscription?.is_trial ? daysUntil(subscription.trial_ends_at) : null;
   const mrr = subscription?.mrr ?? 0;
   const potentialMrr = subscription?.potential_mrr ?? 0;
+  const isDeleted = !!tenant?.deleted_at;
+
+  // ── Excluir permanentemente (LGPD) ──
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  // Objeto estável: o drawer refaz o fetch quando `tenant` muda de identidade, e um literal novo a
+  // cada render zerava a seleção de plano/bônus enquanto o super-admin editava.
+  const drawerTenant = useMemo(
+    () => (tenant ? { id: tenant.id, name: tenant.name, plan: tenant.plan, is_bonus: tenant.is_bonus } : null),
+    [tenant],
+  );
 
   // ── Ações do cabeçalho ──
   const [impersonating, setImpersonating] = useState(false);
@@ -420,7 +442,11 @@ export default function TenantDetailPage() {
               <h1 className="truncate text-2xl font-bold tracking-tight">{tenant.name}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span className="font-mono text-xs text-muted-foreground">{tenant.slug}</span>
-                <TenantActiveBadge active={tenant.is_active} />
+                {isDeleted ? (
+                  <ToneBadge tone="destructive">{tenant.self_deactivated_at ? 'Desativado pelo terreiro' : 'Excluído'}</ToneBadge>
+                ) : (
+                  <TenantActiveBadge active={tenant.is_active} />
+                )}
                 <PlanBadge plan={tenant.plan} bonus={tenant.is_bonus} />
                 {tenant.subscription_status && <SubscriptionStatusBadge status={tenant.subscription_status} />}
                 {trialDays !== null && (
@@ -453,14 +479,31 @@ export default function TenantDetailPage() {
           <Button asChild variant="outline" size="sm">
             <Link href={`/platform/suporte?tenant=${id}`}><MessageSquare /> Mensagem</Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={enterAsAdmin} disabled={impersonating || loading}>
+          <Button variant="outline" size="sm" onClick={enterAsAdmin} disabled={impersonating || loading || isDeleted}>
             <LogIn /> Entrar como admin
           </Button>
           <Button size="sm" onClick={() => { setPresetBonus(false); setSubOpen(true); }} disabled={loading}>
             <CreditCard /> Assinatura
           </Button>
+          <Button variant="outline" size="sm" className="text-destructive" onClick={() => setDeleteOpen(true)} disabled={loading || !tenant}>
+            <Trash2 /> Excluir permanentemente
+          </Button>
         </div>
       </header>
+
+      {tenant && isDeleted && (
+        <Alert variant="warning" className="mb-4" data-testid="tenant-deleted-alert">
+          <AlertTitle>
+            {tenant.self_deactivated_at
+              ? `Desativado pelo próprio terreiro em ${fmtDate(tenant.self_deactivated_at)}`
+              : `Terreiro excluído em ${fmtDate(tenant.deleted_at)}`}
+          </AlertTitle>
+          <AlertDescription>
+            Os dados continuam guardados{tenant.self_deactivated_at ? ' e o terreiro pode se reativar pela tela de login' : ''}. Se o
+            terreiro pediu a exclusão dos dados (LGPD), use &quot;Excluir permanentemente&quot;.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {error && (
         <Alert variant="destructive" className="mb-4"><AlertDescription>{error}</AlertDescription></Alert>
@@ -482,7 +525,7 @@ export default function TenantDetailPage() {
             <CardHeader className="px-4">
               <CardTitle className="flex items-center justify-between text-base">
                 Dados do terreiro
-                <Button variant="ghost" size="sm" onClick={openEdit} disabled={!tenant}><Pencil /> Editar</Button>
+                <Button variant="ghost" size="sm" onClick={openEdit} disabled={!tenant || isDeleted}><Pencil /> Editar</Button>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4">
@@ -521,7 +564,7 @@ export default function TenantDetailPage() {
                     )}
                   </dd>
                   <dt className="text-muted-foreground">Giras</dt>
-                  <dd>{activation ? `${activation.giras_configuradas}/${activation.giras} com senhas configuradas` : `${plural(giras.length, 'gira')} nos próximos 30 dias`}</dd>
+                  <dd>{activation ? `${activation.giras_configuradas}/${activation.giras} com senhas configuradas` : giras === null ? '…' : `${plural(giras.length, 'gira')} nos próximos 30 dias`}</dd>
                   <dt className="text-muted-foreground">Senhas pelo link</dt>
                   <dd>{activation ? activation.public_tickets : retention ? retention.tickets_30d + ' nos últimos 30 dias' : '—'}</dd>
                   <dt className="text-muted-foreground">Última atividade</dt>
@@ -575,7 +618,7 @@ export default function TenantDetailPage() {
 
         {/* Giras */}
         <TabsContent value="giras">
-          {observatory === null ? (
+          {giras === null ? (
             <Skeleton className="h-32 w-full" />
           ) : giras.length === 0 ? (
             <EmptyState compact icon={<Calendar />} title="Nenhuma gira nos próximos 30 dias." />
@@ -693,13 +736,23 @@ export default function TenantDetailPage() {
       {/* Drawers e diálogos */}
       <SubscriptionDrawer
         open={subOpen}
-        tenant={tenant ? { id: tenant.id, name: tenant.name, plan: tenant.plan, is_bonus: tenant.is_bonus } : null}
+        tenant={drawerTenant}
         presetBonus={presetBonus}
         onClose={() => {
           setSubOpen(false);
           if (router.query.bonus) setTab(tab);
         }}
         onSaved={(msg) => { toast.success(msg); load(); }}
+      />
+
+      <DeleteTenantDialog
+        tenant={deleteOpen && tenant ? tenant : null}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={(t) => {
+          setDeleteOpen(false);
+          toast.success(`Terreiro "${t.name}" excluído permanentemente.`);
+          router.push('/platform/tenants');
+        }}
       />
 
       <CrudDrawer

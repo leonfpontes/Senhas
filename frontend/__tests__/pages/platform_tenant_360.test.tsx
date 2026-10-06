@@ -1,8 +1,10 @@
 /**
- * /platform/tenants/[id] — Tenant 360: cabeçalho, abas por query e estado 404.
+ * /platform/tenants/[id] — Tenant 360: cabeçalho, abas por query, estado 404, terreiro excluído
+ * (desativado pelo próprio) com exclusão definitiva, giras do próprio terreiro, limpar descrição e
+ * drawer de assinatura sem refetch a cada render.
  */
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 const mockRouter = {
   push: jest.fn(),
@@ -16,8 +18,16 @@ const mockRouter = {
 jest.mock('next/router', () => ({ useRouter: () => mockRouter }));
 
 const mockGet = jest.fn();
+const mockPut = jest.fn();
+const mockDelete = jest.fn();
 jest.mock('@/services/api_client', () => ({
-  apiClient: { get: (...a: unknown[]) => mockGet(...a), post: jest.fn(), put: jest.fn(), patch: jest.fn(), delete: jest.fn() },
+  apiClient: {
+    get: (...a: unknown[]) => mockGet(...a),
+    post: jest.fn(),
+    put: (...a: unknown[]) => mockPut(...a),
+    patch: jest.fn(),
+    delete: (...a: unknown[]) => mockDelete(...a),
+  },
   extractApiErrorMessage: (_e: unknown, fb: string) => fb,
 }));
 jest.mock('@/hooks/useProfile', () => ({ useProfile: () => ({ profile: null, loading: false, refresh: jest.fn() }) }));
@@ -33,11 +43,14 @@ const USERS = [
 ];
 const SUB = { plan: 'pro', status: 'active', max_users: 10, max_giras_per_month: 15, current_users: 2, monthly_price: 79, is_trial: true, trial_ends_at: new Date(Date.now() + 5 * 86_400_000).toISOString(), is_bonus: true, billing_category: 'bonificado', mrr: 0, potential_mrr: 0 };
 
-function install(notFound = false) {
+const GIRA = { id: 'g1', nome: 'Gira de Pretos Velhos', data_inicio: '2026-10-10T22:00:00Z', max_tickets: 40, tickets_emitidos: 10, ocupacao_pct: 25, is_active: true, tenant_id: 't1', public_link: 'https://girahub.test/public/gira/g1' };
+
+function install(notFound = false, tenant: Record<string, unknown> = TENANT) {
   mockGet.mockImplementation((url: string) => {
     if (url === '/api/v1/platform/tenants/t1') {
-      return notFound ? Promise.reject({ response: { status: 404 } }) : Promise.resolve({ data: TENANT });
+      return notFound ? Promise.reject({ response: { status: 404 } }) : Promise.resolve({ data: tenant });
     }
+    if (url === '/api/v1/platform/tenant-observatory/tenants/t1/giras') return Promise.resolve({ data: [GIRA] });
     if (url === '/api/v1/platform/tenants/t1/users') return Promise.resolve({ data: USERS });
     if (url === '/api/v1/platform/subscriptions/t1') return Promise.resolve({ data: SUB });
     if (url.endsWith('/tenant-observatory')) return Promise.resolve({ data: { activation: { tenants: [] }, upcoming_giras: [], retention: [], errors_by_tenant: [] } });
@@ -92,6 +105,57 @@ describe('Platform — Tenant 360', () => {
     await waitFor(() =>
       expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/platform/tenants/[id]', query: { id: 't1', tab: 'auditoria' } }, undefined, { shallow: true }),
     );
+  });
+
+  it('aba Giras busca as giras do próprio terreiro (não o top 50 global)', async () => {
+    mockRouter.query = { id: 't1', tab: 'giras' };
+    render(<TenantDetailPage />);
+    expect(await screen.findByText('Gira de Pretos Velhos')).toBeInTheDocument();
+    expect(mockGet).toHaveBeenCalledWith('/api/v1/platform/tenant-observatory/tenants/t1/giras');
+  });
+
+  it('terreiro desativado pelo próprio abre com aviso e permite a exclusão definitiva', async () => {
+    install(false, { ...TENANT, is_active: false, deleted_at: '2026-10-01T12:00:00Z', self_deactivated_at: '2026-10-01T12:00:00Z' });
+    mockDelete.mockResolvedValue({});
+    render(<TenantDetailPage />);
+    const alert = await screen.findByTestId('tenant-deleted-alert');
+    expect(alert).toHaveTextContent('Desativado pelo próprio terreiro em 01/10/2026');
+    expect(screen.getByText('Desativado pelo terreiro')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Entrar como admin/ })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Excluir permanentemente/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.change(within(dialog).getByLabelText(/Digite o slug/), { target: { value: 'casa-alfa' } });
+    fireEvent.click(within(dialog).getByRole('checkbox'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Excluir permanentemente' }));
+    await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('/api/v1/platform/tenants/t1', { data: { confirm_slug: 'casa-alfa' } }));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith('/platform/tenants'));
+  });
+
+  it('limpar a descrição envia null (o backend agora aplica)', async () => {
+    mockPut.mockResolvedValue({ data: {} });
+    render(<TenantDetailPage />);
+    await screen.findByText('Terreiro de teste');
+    fireEvent.click(screen.getByRole('button', { name: /Editar/ }));
+    const desc = await screen.findByLabelText('Descrição');
+    fireEvent.change(desc, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar/ }));
+    await waitFor(() =>
+      expect(mockPut).toHaveBeenCalledWith('/api/v1/platform/tenants/t1', { name: 'Casa Alfa', description: null, is_active: true }),
+    );
+  });
+
+  it('drawer de assinatura não refaz o fetch quando a página re-renderiza', async () => {
+    const { rerender } = render(<TenantDetailPage />);
+    await screen.findByRole('heading', { level: 1, name: 'Casa Alfa' });
+    const subCalls = () => mockGet.mock.calls.filter(([u]) => u === '/api/v1/platform/subscriptions/t1').length;
+    await waitFor(() => expect(subCalls()).toBe(1)); // carga da página
+    fireEvent.click(screen.getAllByRole('button', { name: /Assinatura/ })[0]);
+    await waitFor(() => expect(subCalls()).toBe(2)); // o drawer abriu e buscou uma vez
+    rerender(<TenantDetailPage />);
+    rerender(<TenantDetailPage />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(subCalls()).toBe(2);
   });
 
   it('404 mostra "Terreiro não encontrado" com volta para a lista', async () => {
