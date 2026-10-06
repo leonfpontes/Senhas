@@ -56,8 +56,8 @@ const GIRA = {
 };
 
 async function fillAndPickSlot() {
-  await screen.findByText('Gira de Caboclos');
-  fireEvent.click(screen.getByRole('radio', { name: /19:00/ }));
+  // O formulário aparece depois que a contagem regressiva calcula "aberta".
+  fireEvent.click(await screen.findByRole('radio', { name: /19:00/ }, { timeout: 5000 }));
   expect(screen.getByText(/Horário escolhido: 19:00/)).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText(/Nome completo/i), { target: { value: 'Maria da Silva' } });
   fireEvent.change(screen.getByLabelText(/^E-mail/i), { target: { value: 'maria@example.com' } });
@@ -127,8 +127,10 @@ describe('Emissão pública — jornadas', () => {
 
   it('mostra o aviso de privacidade com link para /privacidade', async () => {
     render(<PublicGiraPage />);
-    await screen.findByText('Gira de Caboclos');
-    expect(screen.getByRole('link', { name: /Política de privacidade/i })).toHaveAttribute('href', '/privacidade');
+    expect(await screen.findByRole('link', { name: /Política de privacidade/i }, { timeout: 5000 })).toHaveAttribute(
+      'href',
+      '/privacidade',
+    );
   });
 
   it('sucesso: WhatsApp leva o link do bilhete e "Ver próximas giras" vai para a agenda', async () => {
