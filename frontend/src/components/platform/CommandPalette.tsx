@@ -6,7 +6,7 @@
  * na primeira abertura (`GET /api/v1/platform/tenants?limit=1000`) e filtrados no cliente — o
  * endpoint `/tenants/search` existe no backend, mas fica à sombra de `/tenants/{tenant_id}`.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Building2, Gift, LayoutDashboard, LifeBuoy, LogIn, MessageSquare, ScrollText, Settings } from 'lucide-react';
 import { toast } from 'sonner';
@@ -72,25 +72,32 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Carrega uma vez, na primeira abertura. `loading` fica fora das dependências de propósito:
+  // incluí-lo fazia o `setLoading(true)` re-executar o efeito e cancelar a própria requisição.
+  const requested = useRef(false);
+  const mounted = useRef(true);
   useEffect(() => {
-    if (!open || tenants !== null || loading) return;
-    let cancelled = false;
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!open || requested.current) return;
+    requested.current = true;
     setLoading(true);
     apiClient
       .get<CommandTenant[]>('/api/v1/platform/tenants', { params: { limit: 1000 } })
       .then((res) => {
-        if (!cancelled) setTenants(Array.isArray(res.data) ? res.data : []);
+        if (mounted.current) setTenants(Array.isArray(res.data) ? res.data : []);
       })
       .catch(() => {
-        if (!cancelled) setTenants([]);
+        if (mounted.current) setTenants([]);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (mounted.current) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, tenants, loading]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) setQuery('');
@@ -130,7 +137,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           <DialogDescription>Pule para um terreiro ou execute uma ação</DialogDescription>
         </DialogHeader>
         {/* Filtro próprio (nome/slug sem acento) — por isso `shouldFilter={false}`. */}
-        <Command shouldFilter={false} className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]]:px-2 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3">
+        <Command label="Buscar terreiro" shouldFilter={false} className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]]:px-2 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3">
       <CommandInput
         placeholder="Buscar terreiro por nome ou slug…"
         value={query}
@@ -165,9 +172,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             {results.map((t) => (
               <CommandItem key={t.id} value={`tenant-${t.id}`} onSelect={() => go(`/platform/tenants/${t.id}`)}>
                 <Building2 aria-hidden />
-                <span className="min-w-0 flex-1 truncate">
-                  {t.name}
-                  <span className="ml-2 text-xs text-muted-foreground">{t.slug}</span>
+                <span className="flex min-w-0 flex-1 items-baseline gap-2 truncate">
+                  <span>{t.name}</span>
+                  <span className="text-xs text-muted-foreground">{t.slug}</span>
                 </span>
                 {t.plan !== undefined && <PlanBadge plan={t.plan} bonus={t.is_bonus} />}
               </CommandItem>

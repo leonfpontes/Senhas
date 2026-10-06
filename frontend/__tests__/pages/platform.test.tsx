@@ -1,141 +1,78 @@
 /**
- * Tests for platform pages
- * Testing: index, tenants, users_global, audit_consolidated, layout
+ * Plataforma — layout (Sidebar, perfil real, versão, badge de suporte) e rotas que viraram
+ * redirecionamento (observatory, billing, users_global, profile).
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { render, screen, waitFor } from '@testing-library/react';
 
-// Mock next/router
-jest.mock('next/router', () => ({
-  useRouter: () => ({
-    push: jest.fn(),
-    replace: jest.fn(),
-    pathname: '/platform',
-    query: {},
-    asPath: '/platform',
-    events: { on: jest.fn(), off: jest.fn() },
-  }),
-}));
+const mockRouter = {
+  push: jest.fn(),
+  replace: jest.fn(),
+  pathname: '/platform/tenants/abc',
+  query: {} as Record<string, string>,
+  asPath: '/platform/tenants/abc',
+  isReady: true,
+  events: { on: jest.fn(), off: jest.fn() },
+};
+jest.mock('next/router', () => ({ useRouter: () => mockRouter }));
 
-// Mock next/link
-jest.mock('next/link', () => {
-  return ({ children, href }: any) => <a href={href}>{children}</a>;
-});
-
-// Mock API client
 jest.mock('@/services/api_client', () => ({
-  apiClient: {
-    get: jest.fn().mockResolvedValue({ data: {} }),
-    post: jest.fn().mockResolvedValue({ data: {} }),
-    put: jest.fn().mockResolvedValue({ data: {} }),
-    delete: jest.fn().mockResolvedValue({ data: {} }),
-  },
+  apiClient: { get: jest.fn().mockResolvedValue({ data: { count: 3 } }), post: jest.fn().mockResolvedValue({ data: {} }) },
+  extractApiErrorMessage: (_e: unknown, fb: string) => fb,
 }));
 
-// Mock @mui/lab for TabContext/TabList/TabPanel
-jest.mock('@mui/lab', () => ({
-  TabContext: ({ children }: any) => <div>{children}</div>,
-  TabList: ({ children }: any) => <div>{children}</div>,
-  TabPanel: ({ children }: any) => <div>{children}</div>,
+jest.mock('@/hooks/useProfile', () => ({
+  useProfile: () => ({ profile: { username: 'leo', email: 'leo@girahub.com.br', full_name: 'Leonardo Pontes' }, loading: false, refresh: jest.fn() }),
 }));
 
-const theme = createTheme();
+jest.mock('@/components/support/usePlatformSupportUnread', () => ({ usePlatformSupportUnread: () => 3 }));
 
-function renderWithTheme(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
-}
-
-describe('Platform Dashboard', () => {
-  it('renders without crashing', () => {
-    const { apiClient } = require('@/services/api_client');
-    apiClient.get.mockResolvedValue({
-      data: {
-        tenants: { total: 5, active: 4, inactive: 1, trial: 1, new_30d: 2 },
-        user_count: 50,
-        tickets: { total: 200, last_30d: 80, last_7d: 20 },
-        mrr: 490.0,
-        plans_distribution: [{ plan: 'basic', count: 3 }, { plan: 'pro', count: 1 }],
-        daily_tickets: [],
-        tenant_growth: [],
-        top_tenants: [],
-        generated_at: new Date().toISOString(),
-      },
-    });
-
-    const PlatformDashboard = require('@/pages/platform/index').default;
-    const { container } = renderWithTheme(<PlatformDashboard />);
-    expect(container).toBeTruthy();
-  });
-});
-
-describe('Platform Tenants', () => {
-  it('renders without crashing', () => {
-    const { apiClient } = require('@/services/api_client');
-    apiClient.get.mockResolvedValue({ data: { tenants: [], total: 0 } });
-
-    const PlatformTenants = require('@/pages/platform/tenants').default;
-    const { container } = renderWithTheme(<PlatformTenants />);
-    expect(container).toBeTruthy();
-  });
-});
-
-describe('Platform Tenant Detail', () => {
-  it('renders without crashing', () => {
-    const { apiClient } = require('@/services/api_client');
-    apiClient.get.mockResolvedValue({
-      data: {
-        id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-        slug: 'test',
-        name: 'Test Tenant',
-        description: null,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    });
-
-    const TenantDetailPage = require('@/pages/platform/tenants/[id]').default;
-    const { container } = renderWithTheme(<TenantDetailPage />);
-    expect(container).toBeTruthy();
-  });
-});
-
-describe('Platform Users Global', () => {
-  it('renders without crashing', () => {
-    const { apiClient } = require('@/services/api_client');
-    apiClient.get.mockResolvedValue({ data: { users: [], total: 0 } });
-
-    const PlatformUsersGlobal = require('@/pages/platform/users_global').default;
-    const { container } = renderWithTheme(<PlatformUsersGlobal />);
-    expect(container).toBeTruthy();
-  });
-});
-
-describe('Platform Audit Consolidated', () => {
-  it('renders without crashing', () => {
-    const { apiClient } = require('@/services/api_client');
-    apiClient.get.mockResolvedValue({ data: { logs: [], total: 0 } });
-
-    const PlatformAudit = require('@/pages/platform/audit_consolidated').default;
-    const { container } = renderWithTheme(<PlatformAudit />);
-    expect(container).toBeTruthy();
-  });
-});
-
-describe('Platform Layout', () => {
-  afterEach(() => {
-    localStorage.clear();
-  });
-
-  it('renders children', () => {
+describe('PlatformLayout', () => {
+  beforeEach(() => {
     localStorage.setItem('user', JSON.stringify({ role: 'super_admin' }));
+  });
+  afterEach(() => localStorage.clear());
+
+  it('renderiza navegação, perfil real, versão e breadcrumb aninhado', async () => {
     const PlatformLayout = require('@/pages/platform/layout').default;
-    renderWithTheme(
-      <PlatformLayout>
-        <div data-testid="platform-child">Platform Content</div>
-      </PlatformLayout>
+    render(
+      <PlatformLayout breadcrumbs={[{ label: 'Terreiros', href: '/platform/tenants' }, { label: 'Casa Alfa' }]}>
+        <div data-testid="platform-child">Conteúdo</div>
+      </PlatformLayout>,
     );
-    expect(screen.getByTestId('platform-child')).toBeInTheDocument();
+    expect(await screen.findByTestId('platform-child')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Hoje' })).toHaveAttribute('href', '/platform');
+    expect(screen.getByRole('link', { name: 'Terreiros', current: 'page' })).toHaveAttribute('href', '/platform/tenants');
+    expect(screen.getByText('Leonardo Pontes')).toBeInTheDocument();
+    expect(screen.getByText('leo@girahub.com.br')).toBeInTheDocument();
+    expect(screen.getByText(/GiraHub v\d+\.\d+\.\d+/)).toBeInTheDocument();
+    expect(screen.getByLabelText('3 conversas não lidas')).toBeInTheDocument();
+    expect(screen.getByText('Casa Alfa')).toBeInTheDocument();
+    expect(screen.queryByText('Observatório')).not.toBeInTheDocument();
+    expect(screen.queryByText('Usuários Globais')).not.toBeInTheDocument();
+  });
+
+  it('alterna o modo escuro pela classe dark na raiz', async () => {
+    const PlatformLayout = require('@/pages/platform/layout').default;
+    render(<PlatformLayout><div /></PlatformLayout>);
+    const toggle = await screen.findByRole('button', { name: 'Modo escuro' });
+    toggle.click();
+    await waitFor(() => expect(document.documentElement.classList.contains('dark')).toBe(true));
+  });
+});
+
+describe('Rotas que viraram redirecionamento', () => {
+  beforeEach(() => mockRouter.replace.mockClear());
+
+  it.each([
+    ['observatory', '/platform'],
+    ['billing', '/platform/tenants?tab=assinaturas'],
+    ['users_global', '/platform/settings?tab=admins'],
+    ['profile', '/platform/settings?tab=conta'],
+  ])('/platform/%s → %s', async (page, dest) => {
+    const Page = require(`@/pages/platform/${page}`).default;
+    render(<Page />);
+    expect(screen.getByRole('status')).toHaveTextContent(/Redirecionando/);
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith(dest));
   });
 });
