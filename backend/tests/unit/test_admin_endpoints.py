@@ -49,17 +49,17 @@ class TestListGiraTickets:
     async def test_non_admin_raises(self):
         from src.api.v1.admin.tickets_list import list_gira_tickets
         with pytest.raises(InsufficientPermissionsError):
-            await list_gira_tickets(GIRA_ID, 0, 50, None, _operator_user(), AsyncMock())
+            await list_gira_tickets(GIRA_ID, 0, 50, None, None, _operator_user(), AsyncMock())
 
     async def test_success(self):
         from src.api.v1.admin.tickets_list import list_gira_tickets
         db = AsyncMock()
         count_result = MagicMock()
-        count_result.scalars.return_value.all.return_value = []
+        count_result.scalar_one.return_value = 0
         items_result = MagicMock()
         items_result.scalars.return_value.all.return_value = []
         db.execute = AsyncMock(side_effect=[count_result, items_result])
-        result = await list_gira_tickets(GIRA_ID, 0, 50, None, _admin_user(), db)
+        result = await list_gira_tickets(GIRA_ID, 0, 50, None, None, _admin_user(), db)
         assert result.total == 0
         assert result.items == []
 
@@ -387,7 +387,7 @@ class TestExportsCSV:
         result_mock.scalars.return_value.all.return_value = [ticket]
         db.execute.return_value = result_mock
         resp = await export_tickets_csv(GIRA_ID, _admin_user(), db)
-        assert resp.media_type == "text/csv"
+        assert resp.media_type.startswith("text/csv")
 
 
 # ── health.py ────────────────────────────────────────────────────────────────

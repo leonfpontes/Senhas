@@ -114,8 +114,8 @@ class WalkInRequest(BaseModel):
 class WalkInUpdateRequest(BaseModel):
     """Edit walk-in basic information from the door view.
 
-    priority_category=None means "do not change" (preserve existing value).
-    To explicitly clear priority, this is not currently supported by design.
+    priority_category: enviado (inclusive null) → vale o que veio; null tira a
+    prioridade. Omitido → mantém a atual (ou usa o legado preferencial=True).
     """
     nome: str = Field(..., min_length=1, max_length=255)
     email: Optional[EmailStr] = None
@@ -197,6 +197,12 @@ def _ticket_to_queue_item(t: Ticket) -> QueueItemResponse:
     )
 
 
+# Status de quem ainda está na fila. A Porta tem fluxo de um passo ("Chamar" =
+# atender: EMITTED → COMPLETED); CALLED nunca é gravado pelo app, mas um CALLED
+# legado continua tratável como "aguardando" (chegou, chamar, não veio).
+_WAITING_STATUSES = (TicketStatus.EMITTED, TicketStatus.CALLED)
+
+
 async def _get_ticket(db: AsyncSession, ticket_id: UUID, tenant_id: UUID) -> Ticket:
     """Fetch a ticket ensuring tenant isolation."""
     stmt = (
@@ -246,7 +252,12 @@ async def get_door_stats(
     stmt = select(
         func.count(Ticket.id).label("total"),
         func.count(Ticket.id).filter(Ticket.checkin_em.isnot(None)).label("checked_in"),
-        func.count(Ticket.id).filter(Ticket.checkin_em.is_(None), Ticket.status == TicketStatus.EMITTED).label("awaiting"),
+        # "Chamar" já atende (EMITTED → COMPLETED num passo só) e nada grava CALLED;
+        # um CALLED legado conta como quem ainda espera na fila.
+        func.count(Ticket.id).filter(
+            Ticket.checkin_em.is_(None), Ticket.status.in_(_WAITING_STATUSES)
+        ).label("awaiting"),
+        # Mantido no contrato por compatibilidade; a interface não mostra mais.
         func.count(Ticket.id).filter(Ticket.status == TicketStatus.CALLED).label("in_progress"),
         func.count(Ticket.id).filter(Ticket.status == TicketStatus.COMPLETED).label("completed"),
         func.count(Ticket.id).filter(Ticket.status == TicketStatus.NO_SHOW).label("no_show"),
@@ -515,15 +526,15 @@ async def update_walk_in_ticket(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
-    # priority_category=None in body means "do not change" — preserve existing value
-    update_priority = body.priority_category
-    if update_priority is None and body.preferencial:
+    # priority_category presente no body (mesmo null) é a escolha do operador:
+    # null tira a prioridade. Antes null era lido como "não mudar" e não havia
+    # como desmarcar a prioridade de quem chegou sem senha.
+    if "priority_category" in body.model_fields_set:
+        update_priority = body.priority_category
+    elif body.preferencial:
         # Deprecated preferencial=True: map to ELDERLY if no category currently set
-        if ticket.priority_category is None:
-            update_priority = PriorityCategory.ELDERLY.value
-        else:
-            update_priority = ticket.priority_category
-    elif update_priority is None:
+        update_priority = ticket.priority_category or PriorityCategory.ELDERLY.value
+    else:
         # Neither new field nor deprecated field sent: preserve existing
         update_priority = ticket.priority_category
 
@@ -551,7 +562,7 @@ async def checkin_ticket(
 
     ticket = await _get_ticket(db, ticket_id, current_user.tenant_id)
 
-    if ticket.status != TicketStatus.EMITTED:
+    if ticket.status not in _WAITING_STATUSES:
         raise NotFoundError("Ticket precisa estar no status 'emitido' para check-in")
 
     ticket.checkin_em = datetime.now(timezone.utc)
@@ -573,7 +584,7 @@ async def undo_checkin(
 
     ticket = await _get_ticket(db, ticket_id, current_user.tenant_id)
 
-    if ticket.status != TicketStatus.EMITTED or ticket.checkin_em is None:
+    if ticket.status not in _WAITING_STATUSES or ticket.checkin_em is None:
         raise NotFoundError("Ticket precisa estar com check-in para desfazer")
 
     ticket.checkin_em = None
@@ -596,7 +607,7 @@ async def attend_ticket(
 
     ticket = await _get_ticket(db, ticket_id, current_user.tenant_id)
 
-    if ticket.status != TicketStatus.EMITTED:
+    if ticket.status not in _WAITING_STATUSES:
         raise NotFoundError("Ticket precisa estar no status 'emitido' para iniciar atendimento")
 
     now = datetime.now(timezone.utc)
