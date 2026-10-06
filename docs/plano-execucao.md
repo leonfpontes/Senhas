@@ -437,10 +437,41 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 
 ## Fase 3 — Produto
 
-### P-01 — PWA da Visão da Porta — `pendente`
+### P-01 — PWA da Visão da Porta — `feito` (2026-10-06)
 - **Racional**: a Porta é usada em pé, em tablet, durante a gira — o caso perfeito de PWA
-  (ícone na home, fullscreen, sobrevive a oscilação de rede). Hoje não há manifest nem service
-  worker (e o `favicon.ico` tem 0 bytes).
+  (ícone na home, fullscreen, sobrevive a oscilação de rede). Antes não havia manifest nem
+  service worker (e o `favicon.ico` tinha 0 bytes).
+- **O que entrou**:
+  - Ícones gerados de `frontend/public/favicon.svg` por `frontend/scripts/generate-icons.mjs`
+    (`node frontend/scripts/generate-icons.mjs`; usa o `sharp` que já vem com o `next`, sem
+    dependência nova): `favicon.ico` 16/32/48, `icons/icon-192.png`, `icons/icon-512.png`,
+    `icons/icon-maskable-512.png` (bilhete a 78% dentro do círculo seguro), `apple-touch-icon.png`
+    180 (fundo até a borda). O `generate_favicons.py` da raiz foi apagado (desenhava outro ícone e
+    apontava para um caminho do Windows).
+  - `frontend/public/manifest.webmanifest`: `start_url` `/admin/porta?source=pwa`, `scope` `/`,
+    `display` `standalone` (mantém a barra de status com relógio, bateria e sinal — útil na gira;
+    o iOS não tem `fullscreen` e o Android esconderia as barras do sistema), `orientation` `any`,
+    atalhos Porta/Giras/Senhas. Linkado no `_document.tsx` com as meta tags do iOS.
+  - `frontend/public/sw.js` escrito à mão: `/_next/static/*` cache-first, ícones/manifest
+    stale-while-revalidate, navegação sempre pela rede com fallback para `/offline`
+    (`src/pages/offline.tsx`). **Nunca** cacheia `/api/*`, `/ws/*`, `/_next/data/*`, POST, outra
+    origem, requisição com `Authorization` nem resposta `no-store`/`private`; HTML não é guardado.
+    Cache `girahub-shell-<buildId>` (registro com `?v=<buildId>`), versões antigas apagadas no
+    `activate`. Registro em `components/shared/ServiceWorkerRegistrar` (no `_app`), só em produção
+    e contexto seguro; em dev desregistra. `next.config.js`: `Cache-Control: no-cache` +
+    `Service-Worker-Allowed: /` no `sw.js`.
+  - Porta: aviso fixo "Sem conexão — mostrando a última fila carregada" (`navigator.onLine` falso
+    ou 2 falhas seguidas da atualização; um toast de erro só), toast "Conexão de volta" e
+    atualização imediata ao voltar a rede; dica "Instalar a Porta na tela inicial"
+    (`beforeinstallprompt` no Android/Chrome, Popover com Compartilhar → Adicionar à Tela de
+    Início no iOS), escondida no app instalado e dispensável (`localStorage`).
+  - Lighthouse 11.7 (última versão com a categoria PWA; o 12 a removeu) em `next start`:
+    PWA 100 — installable-manifest, maskable-icon, splash-screen, themed-omnibox, viewport e
+    content-width passam. Conferido também em Chrome headless: SW ativo controlando a página,
+    nenhuma entrada `/api/*` no cache, navegação offline para `/admin/porta` mostra `/offline`
+    com estilo.
+- **Fora desta fase**: emissão/ações offline com sincronização; cache da última fila em
+  armazenamento (a fila "mostrada" é a que está na memória da aba); push notifications.
 - **Entrega**: `manifest.json` + ícones reais (o `generate_favicons.py` da raiz nunca rodou —
   consertar ou substituir), service worker mínimo (cache de shell + fallback offline com aviso
   "sem conexão" na Porta; **sem** tentar sincronização offline de emissão nesta fase), meta tags

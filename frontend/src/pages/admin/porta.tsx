@@ -11,6 +11,8 @@
  * - Indicadores numa linha ("8 aguardando · 12 atendidos · 1 não veio") abrindo um Sheet com o
  *   resumo e os finalizados.
  * - Aviso sonoro quando entra alguém na fila, com botão de mudo; atualização a cada 8s.
+ * - PWA (P-01): aviso "Sem conexão" no topo (offline ou 2 falhas seguidas da fila; a última fila
+ *   fica na tela) + toast "Conexão de volta"; dica "Instalar a Porta na tela inicial".
  * Vocabulário: Walk-in→Sem senha, Check-in→Chegou, Atender→Chamar, Finalizar→Atendido,
  * Ausente→Não veio. Alvos de toque de 48px (`size="touch"` / `"icon-touch"`).
  */
@@ -60,6 +62,8 @@ import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { usePermissions } from '@/hooks/usePermissions';
 import { giraLabel, pickTodayGira, useGiraContext } from '@/components/admin/GiraContext';
 import { PORTA_WALK_IN_EVENT } from '@/components/admin/MobileTabBar';
+import PortaOfflineNotice from '@/components/admin/PortaOfflineNotice';
+import InstallPortaHint from '@/components/admin/InstallPortaHint';
 import { numeroDaSenha, senhaStatusLabel } from '@/components/admin/senhaFormat';
 import { PRIORITY_CATEGORY_LABELS, PriorityCategoryType } from 'shared-types';
 
@@ -408,6 +412,9 @@ function PortaContent() {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  // Falhas seguidas da atualização da fila → aviso "Sem conexão" (PortaOfflineNotice).
+  const [queueFailures, setQueueFailures] = useState(0);
+  const queueFailuresRef = useRef(0);
 
   useEffect(() => {
     setMuted(readMuted());
@@ -480,8 +487,15 @@ function PortaContent() {
       const res = await apiClient.get(`/api/v1/admin/giras/${selectedGiraId}/door/queue`);
       setQueue(Array.isArray(res?.data?.items) ? res.data.items : []);
       setLastUpdated(new Date());
+      queueFailuresRef.current = 0;
+      setQueueFailures(0);
     } catch {
-      toast.error('Erro ao carregar a fila.');
+      // Sem rede a atualização falha a cada ciclo: um toast só na primeira falha (com rede);
+      // daí em diante quem avisa é o PortaOfflineNotice, e a última fila carregada fica na tela.
+      const failures = queueFailuresRef.current + 1;
+      queueFailuresRef.current = failures;
+      setQueueFailures(failures);
+      if (failures === 1 && navigator.onLine !== false) toast.error('Erro ao carregar a fila.');
     } finally {
       setQueueLoaded(true);
     }
@@ -804,7 +818,12 @@ function PortaContent() {
             )}
           </div>
         )}
+
+        {/* Fica no topo fixo: quem está na porta vê na hora que a fila parou de atualizar. */}
+        <PortaOfflineNotice failures={queueFailures} onOnline={refreshAll} />
       </div>
+
+      <InstallPortaHint />
 
       {!selectedGiraId ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
