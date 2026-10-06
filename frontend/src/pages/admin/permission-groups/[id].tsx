@@ -1,121 +1,106 @@
+/**
+ * /admin/permission-groups/[id] — um grupo: o que pode fazer, quem faz parte e nome/descrição.
+ *
+ * Só administradores (endpoints de grupos exigem admin). `?aba=permissoes|pessoas|dados` abre
+ * direto na aba (a lista manda para `permissoes` logo depois de criar).
+ * "Ver acesso" soma os grupos da pessoa (basta um grupo liberar); sem grupo, nenhum acesso.
+ */
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CircularProgress,
-  Alert,
-  Typography,
-  Tabs,
-  Tab,
-  TextField,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-  Autocomplete,
-  Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Chip,
-} from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import DeleteIcon from '@mui/icons-material/Delete';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CancelIcon from '@mui/icons-material/Cancel';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import { ArrowLeft, Check, Minus, Save, Trash2, UserPlus } from 'lucide-react';
 import AdminLayout from '../admin_layout';
 import {
   permissionGroupsService,
-  PermissionGroup,
-  GroupPermission,
-  GroupMember,
-} from '../../../services/permissionGroupsService';
-import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
-import PermissionMatrix from '../../../components/PermissionMatrix';
-import { PermissionFeature, FEATURE_LABELS } from '../../../constants/permissionFeatures';
+  type GroupMember,
+  type GroupPermission,
+  type PermissionGroup,
+} from '@/services/permissionGroupsService';
+import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import PermissionMatrix, { ACTION_LABELS, PERMISSION_ACTIONS, normalizePermissions } from '@/components/PermissionMatrix';
+import { Combobox, TextField } from '@/components/fields';
+import { PermissionDenied } from '@/components/gates';
+import { EmptyState } from '@/components/admin';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useProfile } from '@/hooks/useProfile';
+import { useSnackbar } from '@/contexts/SnackbarContext';
+import { FEATURE_LABELS, type PermissionFeature } from '@/constants/permissionFeatures';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
+type TabKey = 'permissoes' | 'pessoas' | 'dados';
+const TABS: TabKey[] = ['permissoes', 'pessoas', 'dados'];
+
+interface UserItem extends GroupMember {
+  role?: string;
 }
 
-function CustomTabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`simple-tabpanel-${index}`}
-      aria-labelledby={`simple-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
-    </div>
-  );
-}
+const samePermissions = (a: GroupPermission[], b: GroupPermission[]) => {
+  const na = normalizePermissions(a);
+  const nb = normalizePermissions(b);
+  return na.every((p, i) => PERMISSION_ACTIONS.every((act) => p[act] === nb[i][act]));
+};
 
 export default function PermissionGroupDetailPage() {
   const router = useRouter();
   const { id } = router.query;
+  const { profile, loading } = useProfile();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
 
   return (
-    <AdminLayout title="Detalhes do Grupo">
-      {id ? <PermissionGroupDetailContent groupId={id as string} /> : <CircularProgress />}
+    <AdminLayout title="Grupo de permissão">
+      {(loading && !profile) || !router.isReady ? (
+        <Skeleton className="h-40 w-full" />
+      ) : !isAdmin ? (
+        <PermissionDenied message="Só administradores mudam os grupos de permissão." />
+      ) : id ? (
+        <PermissionGroupDetailContent groupId={id as string} />
+      ) : null}
     </AdminLayout>
   );
 }
 
 function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
   const router = useRouter();
-  const [tabValue, setTabValue] = useState(0);
+  const { showSuccess, showError } = useSnackbar();
+  const initialTab = TABS.includes(router.query.aba as TabKey) ? (router.query.aba as TabKey) : 'permissoes';
+  const [tab, setTab] = useState<TabKey>(initialTab);
 
-  // Core data
   const [group, setGroup] = useState<PermissionGroup | null>(null);
   const [permissions, setPermissions] = useState<GroupPermission[]>([]);
+  const [savedPermissions, setSavedPermissions] = useState<GroupPermission[]>([]);
   const [members, setMembers] = useState<GroupMember[]>([]);
-  
-  // All system groups and users (needed for client-side effective permissions consolidation)
+
+  // Para somar o acesso de cada pessoa em todos os grupos.
   const [allGroups, setAllGroups] = useState<PermissionGroup[]>([]);
   const [allGroupPermissions, setAllGroupPermissions] = useState<Record<string, GroupPermission[]>>({});
-  const [allGroupMembers, setAllGroupMembers] = useState<Record<string, string[]>>({}); // groupId -> userIds
-  const [allUsers, setAllUsers] = useState<GroupMember[]>([]);
+  const [allGroupMembers, setAllGroupMembers] = useState<Record<string, string[]>>({});
+  const [allUsers, setAllUsers] = useState<UserItem[]>([]);
 
-  // Loading & States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
-  // Forms state
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
   const [savingInfo, setSavingInfo] = useState(false);
   const [savingPermissions, setSavingPermissions] = useState(false);
 
-  // Add Member state
-  const [selectedUser, setSelectedUser] = useState<GroupMember | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [addingMember, setAddingMember] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
-  // Effective Permissions Dialog
-  const [effectiveDialogOpen, setEffectiveDialogOpen] = useState(false);
-  const [dialogUser, setDialogUser] = useState<GroupMember | null>(null);
+  const [accessUser, setAccessUser] = useState<GroupMember | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. Fetch current group details, configured permissions, and members list
       const groupData = await permissionGroupsService.getGroup(groupId);
       setGroup(groupData);
       setGroupName(groupData.name);
@@ -123,44 +108,36 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
 
       const perms = await permissionGroupsService.getGroupPermissions(groupId);
       setPermissions(perms);
+      setSavedPermissions(perms);
 
-      const mems = await permissionGroupsService.getGroupMembers(groupId);
-      setMembers(mems);
+      setMembers(await permissionGroupsService.getGroupMembers(groupId));
 
-      // 2. Fetch all groups, users, and mapping to consolidate permissions on the client side (G3/G13)
       const groupsList = await permissionGroupsService.listGroups();
       setAllGroups(groupsList);
 
-      const usersRes = await apiClient.get('/api/v1/admin/users?limit=100');
-      const usersList = Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.items || [];
-      setAllUsers(usersList);
+      const usersRes = await apiClient.get('/api/v1/admin/users?limit=500');
+      setAllUsers(Array.isArray(usersRes.data) ? usersRes.data : usersRes.data?.items || []);
 
-      const allMembersMap: Record<string, string[]> = {};
-      const allPermsMap: Record<string, GroupPermission[]> = {};
-
+      const membersMap: Record<string, string[]> = {};
+      const permsMap: Record<string, GroupPermission[]> = {};
       await Promise.all(
         groupsList.map(async (g) => {
           try {
-            const m = await permissionGroupsService.getGroupMembers(g.id);
-            allMembersMap[g.id] = m.map((u) => u.id);
+            membersMap[g.id] = (await permissionGroupsService.getGroupMembers(g.id)).map((u) => u.id);
           } catch {
-            allMembersMap[g.id] = [];
+            membersMap[g.id] = [];
           }
-
           try {
-            const p = await permissionGroupsService.getGroupPermissions(g.id);
-            allPermsMap[g.id] = p;
+            permsMap[g.id] = await permissionGroupsService.getGroupPermissions(g.id);
           } catch {
-            allPermsMap[g.id] = [];
+            permsMap[g.id] = [];
           }
-        })
+        }),
       );
-
-      setAllGroupMembers(allMembersMap);
-      setAllGroupPermissions(allPermsMap);
-
+      setAllGroupMembers(membersMap);
+      setAllGroupPermissions(permsMap);
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao carregar dados do grupo'));
+      setError(extractApiErrorMessage(err, 'Não foi possível carregar o grupo.'));
     } finally {
       setLoading(false);
     }
@@ -170,445 +147,312 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
     loadData();
   }, [loadData]);
 
-  // Tab control
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-    setError(null);
-    setSuccess(null);
-  };
+  const permissionsDirty = !samePermissions(permissions, savedPermissions);
 
-  // 1. Informações Save
   const handleSaveInfo = async () => {
     if (!groupName.trim() || !group) return;
     setSavingInfo(true);
-    setError(null);
     try {
       const updated = await permissionGroupsService.updateGroup(group.id, {
-        name: groupName,
+        name: groupName.trim(),
         description: groupDescription,
       });
       setGroup(updated);
-      setSuccess('Informações básicas atualizadas com sucesso!');
-      setTimeout(() => setSuccess(null), 3000);
+      showSuccess('Nome e descrição salvos.');
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao atualizar grupo'));
+      showError(extractApiErrorMessage(err, 'Não foi possível salvar.'));
     } finally {
       setSavingInfo(false);
     }
   };
 
-  // 2. Permissões Save (incorporates optimistic locking version)
   const handleSavePermissions = async () => {
     if (!group) return;
     setSavingPermissions(true);
-    setError(null);
     try {
-      const formattedPerms = permissions.map((p) => ({
-        feature: p.feature,
-        can_view: p.can_view,
-        can_insert: p.can_insert,
-        can_edit: p.can_edit,
-        can_delete: p.can_delete,
-      }));
-
       const updated = await permissionGroupsService.setGroupPermissions(group.id, {
-        permissions: formattedPerms,
-        version: group.version, // Optimistic locking (T3)
+        permissions: normalizePermissions(permissions).map((p) => ({
+          feature: p.feature,
+          can_view: p.can_view,
+          can_insert: p.can_insert,
+          can_edit: p.can_edit,
+          can_delete: p.can_delete,
+        })),
+        version: group.version, // trava otimista
       });
       setGroup(updated);
-      setSuccess('Permissões do grupo atualizadas com sucesso!');
-      setTimeout(() => setSuccess(null), 3000);
+      setSavedPermissions(permissions);
+      setAllGroupPermissions((prev) => ({ ...prev, [group.id]: permissions }));
+      showSuccess('Permissões salvas.');
     } catch (err) {
       const status = err && typeof err === 'object' ? (err as { status?: number }).status : undefined;
       if (status === 409) {
-        setError(
-          'Conflito de Concorrência: As permissões deste grupo foram alteradas por outro administrador. Recarregando dados...'
-        );
-        setTimeout(() => loadData(), 3000);
+        showError('Outra pessoa mudou este grupo agora há pouco. Carregamos a versão mais nova; revise e salve de novo.');
+        loadData();
       } else {
-        setError(extractApiErrorMessage(err, 'Erro ao salvar permissões do grupo'));
+        showError(extractApiErrorMessage(err, 'Não foi possível salvar as permissões.'));
       }
     } finally {
       setSavingPermissions(false);
     }
   };
 
-  // 3. Membros Add
   const handleAddMember = async () => {
-    if (!selectedUser || !group) return;
+    if (!selectedUserId || !group) return;
+    const user = allUsers.find((u) => u.id === selectedUserId);
     setAddingMember(true);
-    setError(null);
     try {
-      await permissionGroupsService.addMember(group.id, selectedUser.id);
-      setSuccess(`Usuário ${selectedUser.username} adicionado ao grupo!`);
-      setSelectedUser(null);
-      loadData(); // Reload groups, memberships map
-      setTimeout(() => setSuccess(null), 3000);
+      await permissionGroupsService.addMember(group.id, selectedUserId);
+      showSuccess(`${user?.username ?? 'Pessoa'} entrou no grupo.`);
+      setSelectedUserId(null);
+      loadData();
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao adicionar membro'));
+      showError(extractApiErrorMessage(err, 'Não foi possível adicionar.'));
     } finally {
       setAddingMember(false);
     }
   };
 
-  // 3. Membros Remove
   const handleRemoveMember = async (userId: string) => {
     if (!group) return;
-    setError(null);
+    setRemovingId(userId);
     try {
       await permissionGroupsService.removeMember(group.id, userId);
-      setSuccess('Membro removido do grupo.');
-      loadData(); // Reload
-      setTimeout(() => setSuccess(null), 3000);
+      showSuccess('Pessoa saiu do grupo.');
+      loadData();
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao remover membro'));
+      showError(extractApiErrorMessage(err, 'Não foi possível remover.'));
+    } finally {
+      setRemovingId(null);
     }
   };
 
-  // Filter users that are not already members of this group (G7 autocomplete optimization)
-  const nonGroupUsers = useMemo(() => {
+  // Só operadores entram em grupo (administradores fazem tudo).
+  const candidateOptions = useMemo(() => {
     const memberIds = new Set(members.map((m) => m.id));
-    return allUsers.filter((u) => !memberIds.has(u.id) && u.role === 'operator');
+    return allUsers
+      .filter((u) => !memberIds.has(u.id) && u.role === 'operator')
+      .map((u) => ({ value: u.id, label: u.username, description: u.email, keywords: [u.email] }));
   }, [allUsers, members]);
 
-  // Client-side consolidated permissions calculation (G3/G13)
-  const calculateEffectivePermissions = useCallback(
-    (userId: string) => {
-      // Find all group ids this user belongs to (cross-reference maps)
-      const userGroupIds: string[] = [];
-      Object.entries(allGroupMembers).forEach(([gId, userIds]) => {
-        if (userIds.includes(userId)) {
-          userGroupIds.push(gId);
-        }
+  const effectiveAccess = useMemo(() => {
+    if (!accessUser) return null;
+    const groupIds = Object.entries(allGroupMembers)
+      .filter(([, ids]) => ids.includes(accessUser.id))
+      .map(([gId]) => gId);
+    const features = Object.keys(FEATURE_LABELS) as PermissionFeature[];
+    const rows = features.map((f) => {
+      const acc = { feature: f, can_view: false, can_insert: false, can_edit: false, can_delete: false };
+      groupIds.forEach((gId) => {
+        const perm = (allGroupPermissions[gId] || []).find((p) => p.feature === f);
+        if (perm) PERMISSION_ACTIONS.forEach((a) => (acc[a] = acc[a] || perm[a]));
       });
-
-      const allFeatures = Object.keys(FEATURE_LABELS) as PermissionFeature[];
-      const effective = Object.fromEntries(
-        allFeatures.map(
-          (f): [PermissionFeature, Record<string, boolean>] => [
-            f,
-            { view: false, insert: false, edit: false, delete: false },
-          ]
-        )
-      ) as Record<PermissionFeature, Record<string, boolean>>;
-
-      allFeatures.forEach((f) => {
-        // Q-05: sem grupo, sem acesso (fail-closed) — o mapa já começa todo false.
-        if (userGroupIds.length > 0) {
-          // OR consolidation logic (G3)
-          userGroupIds.forEach((gId) => {
-            const groupPerms = allGroupPermissions[gId] || [];
-            const perm = groupPerms.find((p) => p.feature === f);
-            if (perm) {
-              if (perm.can_view) effective[f].view = true;
-              if (perm.can_insert) effective[f].insert = true;
-              if (perm.can_edit) effective[f].edit = true;
-              if (perm.can_delete) effective[f].delete = true;
-            }
-          });
-        }
-      });
-
-      return { userGroupIds, effective };
-    },
-    [allGroupMembers, allGroupPermissions]
-  );
-
-  const handleViewEffectivePermissions = (user: GroupMember) => {
-    setDialogUser(user);
-    setEffectiveDialogOpen(true);
-  };
-
-  const dialogUserEffectiveData = useMemo(() => {
-    if (!dialogUser) return null;
-    return calculateEffectivePermissions(dialogUser.id);
-  }, [dialogUser, calculateEffectivePermissions]);
+      return acc;
+    });
+    return { groupIds, rows };
+  }, [accessUser, allGroupMembers, allGroupPermissions]);
 
   if (loading && !group) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', my: 5 }}>
-        <CircularProgress />
-      </Box>
+      <div className="space-y-3">
+        <Skeleton className="h-8 w-60" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (!group) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error ?? 'Grupo não encontrado.'}</AlertDescription>
+      </Alert>
     );
   }
 
   return (
-    <Box>
-      {/* Voltar e Cabeçalho */}
-      <Box sx={{ mb: 3 }}>
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => router.push('/admin/permission-groups')}
-          sx={{ mb: 2, textTransform: 'none' }}
-          variant="text"
-          size="small"
-        >
-          Voltar para grupos
+    <div data-slot="page" className="space-y-4 pb-20">
+      <div>
+        <Button variant="ghost" size="sm" className="-ml-2 mb-2" onClick={() => router.push('/admin/permission-groups')}>
+          <ArrowLeft /> Grupos de permissão
         </Button>
-        <Typography variant="h5" fontWeight={700} gutterBottom>
-          {group?.name}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {group?.description || 'Sem descrição'}
-        </Typography>
-      </Box>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight">{group.name}</h1>
+          {group.is_default && <Badge variant="secondary">Padrão</Badge>}
+        </div>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {group.is_default
+            ? 'Operadores novos entram aqui. Pode ser editado, não excluído.'
+            : group.description || 'Sem descrição.'}
+        </p>
+      </div>
 
-      {success && (
-        <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
-          {success}
-        </Alert>
-      )}
       {error && (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError(null)}>
-          {error}
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {/* Tabs Menu */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={handleTabChange} aria-label="abas do grupo">
-          <Tab label="Informações" />
-          <Tab label="Permissões" />
-          <Tab label="Membros" />
-        </Tabs>
-      </Box>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="permissoes">O que pode fazer</TabsTrigger>
+          <TabsTrigger value="pessoas">Pessoas ({members.length})</TabsTrigger>
+          <TabsTrigger value="dados">Nome</TabsTrigger>
+        </TabsList>
 
-      {/* Tab 1: Informações básicas */}
-      <CustomTabPanel value={tabValue} index={0}>
-        <Card variant="outlined">
-          <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, p: 3 }}>
-            <Typography variant="h6" fontWeight={700}>
-              Informações do Grupo
-            </Typography>
-            <TextField
-              label="Nome do Grupo"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              fullWidth
-              required
-            />
-            <TextField
-              label="Descrição"
-              value={groupDescription}
-              onChange={(e) => setGroupDescription(e.target.value)}
-              fullWidth
-              multiline
-              rows={4}
-            />
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-              <Button
-                variant="contained"
-                onClick={handleSaveInfo}
-                disabled={savingInfo || !groupName.trim()}
-                sx={{ textTransform: 'none' }}
-              >
-                {savingInfo ? 'Salvando...' : 'Salvar Alterações'}
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
-      </CustomTabPanel>
-
-      {/* Tab 2: Permissões Matriz */}
-      <CustomTabPanel value={tabValue} index={1}>
-        <Card variant="outlined">
-          <CardContent sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-              <Box>
-                <Typography variant="h6" fontWeight={700}>
-                  Matriz de Permissões
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Marque o que operadores deste grupo podem realizar em cada área do sistema.
-                </Typography>
-              </Box>
-              <Button
-                variant="contained"
-                onClick={handleSavePermissions}
-                disabled={savingPermissions}
-                sx={{ textTransform: 'none' }}
-              >
-                {savingPermissions ? 'Salvando...' : 'Salvar Permissões'}
-              </Button>
-            </Box>
-            <PermissionMatrix value={permissions} onChange={setPermissions} />
-          </CardContent>
-        </Card>
-      </CustomTabPanel>
-
-      {/* Tab 3: Membros */}
-      <CustomTabPanel value={tabValue} index={2}>
-        {/* Action bar to add member */}
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 3, flexWrap: 'wrap' }}>
-          <Autocomplete
-            options={nonGroupUsers}
-            getOptionLabel={(option) => `${option.username} (${option.email})`}
-            value={selectedUser}
-            onChange={(_, newValue) => setSelectedUser(newValue)}
-            renderInput={(params) => (
-              <TextField {...params} label="Pesquisar Operador para adicionar ao grupo..." size="small" placeholder="Selecione..." />
-            )}
-            sx={{ width: 350 }}
-          />
-          <Button
-            variant="contained"
-            onClick={handleAddMember}
-            disabled={addingMember || !selectedUser}
-            sx={{ textTransform: 'none' }}
-          >
-            {addingMember ? 'Adicionando...' : 'Adicionar ao Grupo'}
-          </Button>
-        </Box>
-
-        {/* Members list Table */}
-        <TableContainer component={Paper}>
-          <Table size="small">
-            <TableHead>
-              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                <TableCell sx={{ fontWeight: 600, py: 1.5 }}>Operador</TableCell>
-                <TableCell sx={{ fontWeight: 600, py: 1.5 }}>Email</TableCell>
-                <TableCell sx={{ fontWeight: 600, py: 1.5 }} align="center">Ações</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {members.map((user) => {
-                return (
-                  <TableRow key={user.id} hover>
-                    <TableCell sx={{ fontWeight: 600 }}>{user.username}</TableCell>
-                    <TableCell sx={{ color: 'text.secondary' }}>{user.email}</TableCell>
-                    <TableCell align="center">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => handleViewEffectivePermissions(user)}
-                        sx={{ mr: 1, textTransform: 'none', borderRadius: 2 }}
-                      >
-                        Permissões Efetivas
-                      </Button>
-                      <Tooltip title="Remover do grupo">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleRemoveMember(user.id)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {members.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={3} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                    Nenhum membro adicionado a este grupo ainda.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </CustomTabPanel>
-
-      {/* G3/G13 Dialog for Consolidated Effective Permissions */}
-      <Dialog
-        open={effectiveDialogOpen}
-        onClose={() => setEffectiveDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
-          Permissões Consolidadas — {dialogUser?.username}
-        </DialogTitle>
-        <DialogContent dividers>
-          {dialogUserEffectiveData && (
-            <Box>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                As permissões efetivas são resultantes da consolidação de todos os grupos deste usuário via lógica OR permissiva (basta um grupo permitir para ter o acesso).
-              </Typography>
-
-              {/* Display groups */}
-              <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
-                <Typography variant="body2" fontWeight={600}>
-                  Grupos do usuário:
-                </Typography>
-                {dialogUserEffectiveData.userGroupIds.length === 0 ? (
-                  <Chip label="Sem grupos (sem acesso)" color="warning" size="small" />
-                ) : (
-                  dialogUserEffectiveData.userGroupIds.map((gId) => {
-                    const gName = allGroups.find((g) => g.id === gId)?.name || 'Grupo';
-                    return <Chip key={gId} label={gName} color="primary" size="small" variant="outlined" />;
-                  })
-                )}
-              </Box>
-
-              {/* Effective permissions matrix list (non-editable grid) */}
-              <TableContainer component={Paper}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                      <TableCell sx={{ fontWeight: 600 }}>Funcionalidade</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Visualizar</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Inserir</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Editar</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Deletar</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {Object.entries(FEATURE_LABELS).map(([featureKey, meta]) => {
-                      const fPerm = dialogUserEffectiveData.effective[featureKey as PermissionFeature] || {
-                        view: false,
-                        insert: false,
-                        edit: false,
-                        delete: false,
-                      };
-
-                      return (
-                        <TableRow key={featureKey} hover>
-                          <TableCell sx={{ fontWeight: 600 }}>{meta.label}</TableCell>
-                          <TableCell align="center">
-                            {fPerm.view ? (
-                              <CheckCircleIcon color="success" fontSize="small" />
-                            ) : (
-                              <CancelIcon color="disabled" fontSize="small" />
-                            )}
-                          </TableCell>
-                          <TableCell align="center">
-                            {fPerm.insert ? (
-                              <CheckCircleIcon color="success" fontSize="small" />
-                            ) : (
-                              <CancelIcon color="disabled" fontSize="small" />
-                            )}
-                          </TableCell>
-                          <TableCell align="center">
-                            {fPerm.edit ? (
-                              <CheckCircleIcon color="success" fontSize="small" />
-                            ) : (
-                              <CancelIcon color="disabled" fontSize="small" />
-                            )}
-                          </TableCell>
-                          <TableCell align="center">
-                            {fPerm.delete ? (
-                              <CheckCircleIcon color="success" fontSize="small" />
-                            ) : (
-                              <CancelIcon color="disabled" fontSize="small" />
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
+        <TabsContent value="permissoes" className="mt-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Marque o que as pessoas deste grupo podem fazer em cada módulo.
+          </p>
+          <PermissionMatrix value={permissions} onChange={setPermissions} disabled={savingPermissions} />
+          {permissionsDirty && (
+            <div
+              role="region"
+              aria-label="Alterações não salvas"
+              className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:left-[280px] md:pr-36"
+            >
+              <div className="mx-auto flex max-w-5xl items-center justify-end gap-2">
+                <span className="mr-auto text-sm text-muted-foreground">Alterações não salvas</span>
+                <Button variant="ghost" onClick={() => setPermissions(savedPermissions)} disabled={savingPermissions}>
+                  Desfazer
+                </Button>
+                <Button onClick={handleSavePermissions} disabled={savingPermissions}>
+                  <Save /> {savingPermissions ? 'Salvando…' : 'Salvar permissões'}
+                </Button>
+              </div>
+            </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="pessoas" className="mt-4 space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="w-full sm:max-w-sm">
+              <Combobox
+                label="Adicionar operador"
+                options={candidateOptions}
+                value={selectedUserId}
+                onChange={setSelectedUserId}
+                placeholder="Escolha uma pessoa"
+                searchPlaceholder="Buscar por nome ou e-mail"
+                emptyText="Nenhum operador fora deste grupo."
+              />
+            </div>
+            <Button onClick={handleAddMember} disabled={addingMember || !selectedUserId}>
+              <UserPlus /> {addingMember ? 'Adicionando…' : 'Adicionar'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Administradores não entram em grupo: eles já podem fazer tudo.
+          </p>
+
+          {members.length === 0 ? (
+            <EmptyState compact title="Ninguém neste grupo ainda" description="Adicione operadores acima." />
+          ) : (
+            <ul className="divide-y rounded-lg border">
+              {members.map((user) => (
+                <li key={user.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{user.username}</div>
+                    <div className="truncate text-xs text-muted-foreground">{user.email}</div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => setAccessUser(user)}>
+                    Ver acesso
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    aria-label={`Tirar ${user.username} do grupo`}
+                    disabled={removingId === user.id}
+                    onClick={() => handleRemoveMember(user.id)}
+                  >
+                    <Trash2 />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </TabsContent>
+
+        <TabsContent value="dados" className="mt-4">
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+              <TextField label="Nome do grupo" value={groupName} onChange={(e) => setGroupName(e.target.value)} required />
+              <TextField
+                label="Descrição"
+                value={groupDescription}
+                onChange={(e) => setGroupDescription(e.target.value)}
+                multiline
+                rows={4}
+              />
+              <div className="flex justify-end">
+                <Button onClick={handleSaveInfo} disabled={savingInfo || !groupName.trim()}>
+                  <Save /> {savingInfo ? 'Salvando…' : 'Salvar'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={!!accessUser} onOpenChange={(o) => !o && setAccessUser(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>O que {accessUser?.username} pode fazer</DialogTitle>
+            <DialogDescription>
+              Somando todos os grupos da pessoa: basta um grupo liberar para valer.
+            </DialogDescription>
+          </DialogHeader>
+          {effectiveAccess && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-medium">Grupos:</span>
+                {effectiveAccess.groupIds.length === 0 ? (
+                  <Badge variant="outline" className="border-warning/50 text-warning">
+                    Nenhum (sem acesso)
+                  </Badge>
+                ) : (
+                  effectiveAccess.groupIds.map((gId) => (
+                    <Badge key={gId} variant="outline">
+                      {allGroups.find((g) => g.id === gId)?.name ?? 'Grupo'}
+                    </Badge>
+                  ))
+                )}
+              </div>
+              <Table className="table-fixed">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Módulo</TableHead>
+                    {PERMISSION_ACTIONS.map((a) => (
+                      <TableHead key={a} className="w-12 px-1 text-center sm:w-20">
+                        {ACTION_LABELS[a]}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {effectiveAccess.rows.map((row) => (
+                    <TableRow key={row.feature}>
+                      <TableCell className="whitespace-normal font-medium">{FEATURE_LABELS[row.feature].label}</TableCell>
+                      {PERMISSION_ACTIONS.map((a) => (
+                        <TableCell key={a} className="px-1 text-center">
+                          {row[a] ? (
+                            <Check className="mx-auto size-4 text-success" aria-label="Sim" />
+                          ) : (
+                            <Minus className="mx-auto size-4 text-muted-foreground/50" aria-label="Não" />
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setAccessUser(null)}>Fechar</Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEffectiveDialogOpen(false)} variant="contained" sx={{ textTransform: 'none' }}>
-            Fechar
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Box>
+    </div>
   );
 }

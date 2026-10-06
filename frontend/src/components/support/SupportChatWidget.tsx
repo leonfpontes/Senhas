@@ -1,37 +1,21 @@
 /**
- * SupportChatWidget — FAB global de suporte, montado no AdminLayout (aparece
- * em toda página /admin/*, inclusive /admin/porta). Fica no canto inferior
- * ESQUERDO de propósito: o FAB "Walk-in" de /admin/porta é fixed no canto
- * inferior direito (ver porta.tsx) — cantos opostos, zero sobreposição.
+ * SupportChatWidget — balão "Ajuda" global, montado no AdminLayout (toda página /admin/*).
  *
- * Em telas >= md o AdminSidebar é um drawer permanente (DRAWER_WIDTH) com seu
- * próprio rodapé (chip de plano + versão) plantado nesse mesmo canto — sem
- * compensar a largura do drawer, o FAB fica por cima/atrás desse rodapé. Em
- * mobile o drawer é temporary (fechado por padrão), então ali basta o
- * respiro padrão de 24px.
+ * Canto inferior DIREITO. Abaixo de 900px fica a 72px do rodapé
+ * (`bottom: calc(env(safe-area-inset-bottom) + 72px)`) para não cobrir barras fixas de
+ * "Salvar"; a partir de 900px, a 24px. Em /admin/porta o FAB "Walk-in" ocupa o canto direito
+ * (24px + 48px de altura), então ali o balão sobe para 88px em qualquer largura.
+ *
+ * Sem animação contínua: mensagem nova acende um ponto (pulsa só sem reduced-motion), muda o
+ * título da aba e toca o som.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import Badge from '@mui/material/Badge';
-import Fab from '@mui/material/Fab';
-import { keyframes } from '@mui/material/styles';
-import useMediaQuery from '@mui/material/useMediaQuery';
 import { useRouter } from 'next/router';
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
-import { DRAWER_WIDTH } from '@/components/admin/layout/AdminSidebar';
+import { MessageCircle, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { useSupportChat } from './useSupportChat';
 import { SupportChatPanel } from './SupportChatPanel';
-
-const glowIdle = keyframes`
-  0%   { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.35); }
-  70%  { box-shadow: 0 0 0 12px rgba(99, 102, 241, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
-`;
-
-const glowUnread = keyframes`
-  0%   { box-shadow: 0 0 0 0 rgba(245, 184, 65, 0.55); }
-  70%  { box-shadow: 0 0 0 14px rgba(245, 184, 65, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(245, 184, 65, 0); }
-`;
 
 interface SupportChatWidgetProps {
   enabled: boolean;
@@ -40,14 +24,12 @@ interface SupportChatWidgetProps {
 export function SupportChatWidget({ enabled }: SupportChatWidgetProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const { messages, loading, sending, unread, hasNewSupportMessage, send, markRead } = useSupportChat(enabled);
   const baseTitleRef = useRef<string | null>(null);
 
-  // Título da aba + som — mesmo padrão de admin/porta.tsx, mas essa página já
-  // controla o próprio document.title (fila de espera), então o widget não
-  // disputa o título ali pra não ter duas fontes de verdade.
-  const ownsTitle = router.pathname !== '/admin/porta';
+  // /admin/porta controla o próprio document.title (fila), então o widget não disputa ali.
+  const onPorta = router.pathname === '/admin/porta';
+  const ownsTitle = !onPorta;
 
   useEffect(() => {
     if (!ownsTitle) return;
@@ -64,7 +46,7 @@ export function SupportChatWidget({ enabled }: SupportChatWidgetProps) {
     try {
       new Audio('/sounds/notification.mp3').play().catch(() => {});
     } catch {
-      /* autoplay blocked or unsupported — non-critical */
+      /* autoplay bloqueado ou sem suporte — não é crítico */
     }
   }, [hasNewSupportMessage]);
 
@@ -77,28 +59,28 @@ export function SupportChatWidget({ enabled }: SupportChatWidgetProps) {
 
   return (
     <>
-      <Fab
-        size="small"
-        color={unread ? 'warning' : 'primary'}
+      <Button
         onClick={() => (open ? setOpen(false) : handleOpen())}
-        aria-label="Falar com o suporte"
-        sx={{
-          position: 'fixed',
-          bottom: 'calc(24px + env(safe-area-inset-bottom))',
-          left: {
-            xs: 'calc(24px + env(safe-area-inset-left))',
-            md: `calc(${DRAWER_WIDTH}px + 24px + env(safe-area-inset-left))`,
-          },
-          zIndex: (theme) => theme.zIndex.speedDial,
-          animation: prefersReducedMotion
-            ? 'none'
-            : `${unread ? glowUnread : glowIdle} ${unread ? '1.2s' : '2.8s'} ease-in-out infinite`,
-        }}
+        aria-label={open ? 'Fechar ajuda' : unread ? 'Ajuda — nova resposta do suporte' : 'Falar com o suporte'}
+        aria-expanded={open}
+        className={cn(
+          'fixed right-[calc(16px+env(safe-area-inset-right))] z-50 h-11 rounded-full pr-4 pl-3 shadow-lg md:right-6',
+          onPorta
+            ? 'bottom-[calc(env(safe-area-inset-bottom)+88px)]'
+            : 'bottom-[calc(env(safe-area-inset-bottom)+72px)] md:bottom-6',
+        )}
       >
-        <Badge variant="dot" color="error" invisible={!unread} overlap="circular">
-          <AutoAwesomeRoundedIcon fontSize="small" />
-        </Badge>
-      </Fab>
+        <span className="relative">
+          {open ? <X className="size-5" /> : <MessageCircle className="size-5" />}
+          {unread && !open && (
+            <span className="absolute -top-1 -right-1 flex size-2.5" aria-hidden>
+              <span className="absolute inline-flex size-full rounded-full bg-warning opacity-75 motion-safe:animate-ping" />
+              <span className="relative inline-flex size-2.5 rounded-full bg-warning ring-2 ring-primary" />
+            </span>
+          )}
+        </span>
+        Ajuda
+      </Button>
 
       {open && (
         <SupportChatPanel
@@ -107,6 +89,7 @@ export function SupportChatWidget({ enabled }: SupportChatWidgetProps) {
           sending={sending}
           onSend={send}
           onClose={() => setOpen(false)}
+          className={onPorta ? 'bottom-[calc(env(safe-area-inset-bottom)+144px)] md:bottom-[144px]' : undefined}
         />
       )}
     </>

@@ -1,50 +1,44 @@
 /**
- * Reactivate Account Page - Restore a tenant + account previously deactivated
- * via the self-service "Desativar conta" flow (admin/profile.tsx).
+ * /reactivate-account — volta com um terreiro desativado pelo próprio admin
+ * (fluxo "Desativar conta" em /admin/profile). O e-mail pode vir na query (`?email=`),
+ * lido só depois de `router.isReady`.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  TextField,
-  Typography,
-  Alert,
-  CircularProgress,
-  Container,
-} from '@mui/material';
-import PasswordField from '../components/PasswordField';
 import Link from 'next/link';
-import Head from 'next/head';
-import { apiClient, extractApiErrorMessage, ApiRequestConfig } from '../services/api_client';
+import { CircleAlert, CircleCheck, Loader2 } from 'lucide-react';
+import { AuthShell } from '@/components/auth';
+import { TextField, PasswordField } from '@/components/fields';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { apiClient, extractApiErrorMessage, ApiRequestConfig } from '@/services/api_client';
 
 export default function ReactivateAccountPage() {
   const router = useRouter();
-  const [email, setEmail] = useState(typeof router.query.email === 'string' ? router.query.email : '');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  useEffect(() => {
+    if (!router.isReady) return;
+    const q = router.query.email;
+    if (typeof q === 'string' && q) setEmail((prev) => prev || q);
+  }, [router.isReady, router.query.email]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
     try {
       await apiClient.post(
         '/api/v1/auth/reactivate-account',
         { email, password },
-        // Resposta é sempre a mesma mensagem genérica, mesmo em falha —
-        // não é um 401 de sessão, então não faz sentido tratar como tal.
+        // A resposta é sempre a mesma mensagem genérica — não é 401 de sessão.
         { skipAutoLogout: true } as ApiRequestConfig,
       );
       setSuccess(true);
-      setTimeout(() => {
-        router.push('/login?reactivated=1');
-      }, 2500);
     } catch (err) {
       setError(extractApiErrorMessage(err, 'Não foi possível processar a solicitação. Tente novamente.'));
     } finally {
@@ -53,94 +47,61 @@ export default function ReactivateAccountPage() {
   };
 
   return (
-    <>
-      <Head>
-        <title>Reativar conta — GiraHub</title>
-        <meta name="robots" content="noindex, nofollow" />
-      </Head>
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: 'background.default',
-        }}
-      >
-        <Container maxWidth="xs">
-          <Card elevation={4}>
-            <CardContent sx={{ p: 4 }}>
-              <Box sx={{ textAlign: 'center', mb: 3 }}>
-                <Typography variant="h4" fontWeight={700} color="primary.main">
-                  GiraHub
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Reativar conta e terreiro
-                </Typography>
-              </Box>
+    <AuthShell headTitle="Reativar conta — GiraHub" title="Reativar conta e terreiro">
+      {success ? (
+        <div className="flex flex-col gap-4">
+          <Alert variant="success" role="status">
+            <CircleCheck aria-hidden />
+            <AlertDescription>
+              Se o e-mail e a senha estiverem corretos, sua conta foi reativada. Entre para continuar.
+            </AlertDescription>
+          </Alert>
+          <Button asChild size="lg" className="w-full">
+            <Link href="/login?reactivated=1">Entrar</Link>
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+          <p className="text-sm text-muted-foreground">
+            Informe o e-mail e a senha da conta que você desativou. Giras, senhas, médiuns e associados
+            foram preservados; a assinatura volta no plano gratuito.
+          </p>
 
-              {success ? (
-                <Alert severity="success">
-                  Se as credenciais estiverem corretas, sua conta foi reativada. Redirecionando
-                  para o login…
-                </Alert>
-              ) : (
-                <form onSubmit={handleSubmit}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Informe o e-mail e a senha da conta que você desativou. Seus dados
-                      (giras, tickets, médiuns, associados) foram preservados e a assinatura
-                      volta no plano gratuito.
-                    </Typography>
+          {error && (
+            <Alert variant="destructive" role="alert">
+              <CircleAlert aria-hidden />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-                    {error && (
-                      <Alert severity="error" onClose={() => setError(null)}>
-                        {error}
-                      </Alert>
-                    )}
+          <TextField
+            label="E-mail"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            inputMode="email"
+          />
 
-                    <TextField
-                      label="E-mail"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      fullWidth
-                      required
-                      autoComplete="email"
-                    />
+          <PasswordField
+            label="Senha"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+          />
 
-                    <PasswordField
-                      label="Senha"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      fullWidth
-                      required
-                      autoComplete="current-password"
-                    />
+          <Button type="submit" size="lg" className="w-full" disabled={loading || !email || !password}>
+            {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {loading ? 'Reativando…' : 'Reativar conta'}
+          </Button>
 
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      size="large"
-                      fullWidth
-                      disabled={loading || !email || !password}
-                      sx={{ mt: 1 }}
-                    >
-                      {loading ? <CircularProgress size={24} color="inherit" /> : 'Reativar conta'}
-                    </Button>
-
-                    <Link href="/login" passHref legacyBehavior>
-                      <Button component="a" variant="text" fullWidth>
-                        Voltar ao login
-                      </Button>
-                    </Link>
-                  </Box>
-                </form>
-              )}
-            </CardContent>
-          </Card>
-        </Container>
-      </Box>
-    </>
+          <Button asChild variant="ghost" className="w-full">
+            <Link href="/login">Voltar para entrar</Link>
+          </Button>
+        </form>
+      )}
+    </AuthShell>
   );
 }

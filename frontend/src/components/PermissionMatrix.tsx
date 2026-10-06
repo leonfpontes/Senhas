@@ -1,451 +1,237 @@
-import React, { useMemo } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Checkbox,
-  Typography,
-  Box,
-  Chip,
-  Card,
-  CardContent,
-  Grid,
-  useTheme,
-  useMediaQuery,
-} from '@mui/material';
-import {
-  PermissionFeature,
-  FEATURE_LABELS,
-  FeatureMeta,
-} from '../constants/permissionFeatures';
-import { GroupPermission } from '../services/permissionGroupsService';
+/**
+ * PermissionMatrix — o que um grupo pode fazer em cada módulo (Ver / Criar / Editar / Excluir).
+ *
+ * - Uma tabela por área (Operacional, Cadastros...) dentro de um `Collapsible`; cabe em 375px
+ *   sem rolagem lateral (rótulo quebra linha, 4 colunas de checkbox estreitas).
+ * - Marcar Criar/Editar/Excluir liga Ver; desligar Ver desliga o resto (o backend exige ver para
+ *   fazer qualquer outra coisa).
+ * - Atalhos: Nada, Só ver, Operação do dia, Tudo.
+ *
+ * Mesma API de antes: `value`, `onChange`, `disabled`.
+ */
+import React, { useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { FEATURE_LABELS, type FeatureMeta, type PermissionFeature } from '@/constants/permissionFeatures';
+import type { GroupPermission } from '@/services/permissionGroupsService';
 
-interface PermissionMatrixProps {
+export interface PermissionMatrixProps {
   value: GroupPermission[];
   onChange: (newValue: GroupPermission[]) => void;
   disabled?: boolean;
 }
 
-const ACTIONS: ('can_view' | 'can_insert' | 'can_edit' | 'can_delete')[] = [
-  'can_view',
-  'can_insert',
-  'can_edit',
-  'can_delete',
-];
+export type PermissionAction = 'can_view' | 'can_insert' | 'can_edit' | 'can_delete';
 
-const ACTION_LABELS: Record<string, string> = {
-  can_view: 'Visualizar',
-  can_insert: 'Inserir',
+export const PERMISSION_ACTIONS: readonly PermissionAction[] = ['can_view', 'can_insert', 'can_edit', 'can_delete'];
+
+export const ACTION_LABELS: Record<PermissionAction, string> = {
+  can_view: 'Ver',
+  can_insert: 'Criar',
   can_edit: 'Editar',
-  can_delete: 'Deletar',
+  can_delete: 'Excluir',
 };
 
-// Groups defined in implementation plan G5
-const GROUPS = ['Operacional', 'Cadastros', 'Financeiro', 'Administração', 'Relatórios'];
+const AREAS = ['Operacional', 'Cadastros', 'Financeiro', 'Administração', 'Relatórios'];
+
+// Módulos do dia a dia de uma gira: no atalho "Operação do dia" ganham Criar.
+const DAY_TO_DAY: PermissionFeature[] = ['giras', 'tickets', 'porta', 'estoque'];
+
+export type PresetKey = 'nenhum' | 'leitura' | 'operacional' | 'completo';
+
+export const PRESETS: { key: PresetKey; label: string }[] = [
+  { key: 'nenhum', label: 'Nada' },
+  { key: 'leitura', label: 'Só ver' },
+  { key: 'operacional', label: 'Operação do dia' },
+  { key: 'completo', label: 'Tudo' },
+];
+
+const emptyPermission = (feature: PermissionFeature): GroupPermission => ({
+  feature,
+  can_view: false,
+  can_insert: false,
+  can_edit: false,
+  can_delete: false,
+});
+
+/** Lista completa (todos os módulos), na ordem de `FEATURE_LABELS`. */
+export function normalizePermissions(value: GroupPermission[]): GroupPermission[] {
+  const byFeature = new Map(value.map((p) => [p.feature, p]));
+  return (Object.keys(FEATURE_LABELS) as PermissionFeature[]).map((f) => byFeature.get(f) ?? emptyPermission(f));
+}
+
+/** Aplica uma marcação respeitando "fazer qualquer coisa exige ver". */
+export function togglePermission(perm: GroupPermission, action: PermissionAction, checked: boolean): GroupPermission {
+  const next = { ...perm, [action]: checked };
+  if (checked && action !== 'can_view') next.can_view = true;
+  if (!checked && action === 'can_view') {
+    next.can_insert = false;
+    next.can_edit = false;
+    next.can_delete = false;
+  }
+  return next;
+}
+
+export function applyPreset(value: GroupPermission[], preset: PresetKey): GroupPermission[] {
+  return normalizePermissions(value).map((p) => {
+    switch (preset) {
+      case 'nenhum':
+        return emptyPermission(p.feature);
+      case 'completo':
+        return { feature: p.feature, can_view: true, can_insert: true, can_edit: true, can_delete: true };
+      case 'leitura':
+        return { feature: p.feature, can_view: true, can_insert: false, can_edit: false, can_delete: false };
+      case 'operacional':
+        return {
+          feature: p.feature,
+          can_view: true,
+          can_insert: DAY_TO_DAY.includes(p.feature),
+          can_edit: false,
+          can_delete: false,
+        };
+      default:
+        return p;
+    }
+  });
+}
 
 export default function PermissionMatrix({ value, onChange, disabled = false }: PermissionMatrixProps) {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const permissions = useMemo(() => normalizePermissions(value), [value]);
+  const byFeature = useMemo(() => new Map(permissions.map((p) => [p.feature, p])), [permissions]);
 
-  // Ensure all features exist in value array
-  const permissionsMap = useMemo(() => {
-    const map = new Map<PermissionFeature, GroupPermission>();
-    value.forEach((p) => {
-      map.set(p.feature, p);
+  const areas = useMemo(() => {
+    const out: Record<string, { feature: PermissionFeature; meta: FeatureMeta }[]> = {};
+    AREAS.forEach((a) => (out[a] = []));
+    (Object.entries(FEATURE_LABELS) as [PermissionFeature, FeatureMeta][]).forEach(([feature, meta]) => {
+      (out[meta.group] ??= []).push({ feature, meta });
     });
-
-    const allFeatures = Object.keys(FEATURE_LABELS) as PermissionFeature[];
-    allFeatures.forEach((f) => {
-      if (!map.has(f)) {
-        map.set(f, {
-          feature: f,
-          can_view: false,
-          can_insert: false,
-          can_edit: false,
-          can_delete: false,
-        });
-      }
-    });
-
-    return map;
-  }, [value]);
-
-  const updatePermission = (
-    feature: PermissionFeature,
-    action: 'can_view' | 'can_insert' | 'can_edit' | 'can_delete',
-    checked: boolean
-  ) => {
-    if (disabled) return;
-    const current = permissionsMap.get(feature)!;
-    const updated = { ...current, [action]: checked };
-    
-    // Auto-enable view if inserting, editing, or deleting
-    if (checked && action !== 'can_view') {
-      updated.can_view = true;
-    }
-    // Auto-disable other actions if view is disabled
-    if (!checked && action === 'can_view') {
-      updated.can_insert = false;
-      updated.can_edit = false;
-      updated.can_delete = false;
-    }
-
-    const nextValue = Array.from(permissionsMap.values()).map((p) =>
-      p.feature === feature ? updated : p
-    );
-    onChange(nextValue);
-  };
-
-  // Group features
-  const groupedFeatures = useMemo(() => {
-    const groups: Record<string, { feature: PermissionFeature; meta: FeatureMeta }[]> = {};
-    GROUPS.forEach((g) => {
-      groups[g] = [];
-    });
-
-    Object.entries(FEATURE_LABELS).forEach(([f, meta]) => {
-      if (groups[meta.group]) {
-        groups[meta.group].push({ feature: f as PermissionFeature, meta });
-      }
-    });
-
-    return groups;
+    return out;
   }, []);
 
-  // Row header checkbox (Toggle All for a single feature)
-  const isRowAllChecked = (feature: PermissionFeature) => {
-    const perm = permissionsMap.get(feature)!;
-    return ACTIONS.every((act) => perm[act]);
+  const [open, setOpen] = useState<Record<string, boolean>>(() => Object.fromEntries(AREAS.map((a) => [a, true])));
+
+  const replace = (feature: PermissionFeature, next: GroupPermission) => {
+    onChange(permissions.map((p) => (p.feature === feature ? next : p)));
   };
 
-  const handleRowToggle = (feature: PermissionFeature, checked: boolean) => {
+  const setAction = (feature: PermissionFeature, action: PermissionAction, checked: boolean) => {
     if (disabled) return;
-    const nextValue = Array.from(permissionsMap.values()).map((p) => {
-      if (p.feature === feature) {
-        return {
-          ...p,
-          can_view: checked,
-          can_insert: checked,
-          can_edit: checked,
-          can_delete: checked,
-        };
-      }
-      return p;
-    });
-    onChange(nextValue);
+    replace(feature, togglePermission(byFeature.get(feature)!, action, checked));
   };
 
-  // Column header checkbox (Toggle All for a single action)
-  const isColumnAllChecked = (action: typeof ACTIONS[number]) => {
-    return Array.from(permissionsMap.values()).every((p) => p[action]);
-  };
-
-  const handleColumnToggle = (action: typeof ACTIONS[number], checked: boolean) => {
+  const setArea = (area: string, checked: boolean) => {
     if (disabled) return;
-    const nextValue = Array.from(permissionsMap.values()).map((p) => {
-      const updated = { ...p, [action]: checked };
-      if (checked && action !== 'can_view') {
-        updated.can_view = true;
-      }
-      if (!checked && action === 'can_view') {
-        updated.can_insert = false;
-        updated.can_edit = false;
-        updated.can_delete = false;
-      }
-      return updated;
-    });
-    onChange(nextValue);
-  };
-
-  // Preset Handlers (G5)
-  const applyPreset = (preset: 'leitura' | 'operacional' | 'completo' | 'nenhum') => {
-    if (disabled) return;
-    const nextValue = Array.from(permissionsMap.values()).map((p) => {
-      if (preset === 'nenhum') {
-        return {
-          feature: p.feature,
-          can_view: false,
-          can_insert: false,
-          can_edit: false,
-          can_delete: false,
-        };
-      }
-      if (preset === 'completo') {
-        return {
-          feature: p.feature,
-          can_view: true,
-          can_insert: true,
-          can_edit: true,
-          can_delete: true,
-        };
-      }
-      if (preset === 'leitura') {
-        return {
-          feature: p.feature,
-          can_view: true,
-          can_insert: false,
-          can_edit: false,
-          can_delete: false,
-        };
-      }
-      if (preset === 'operacional') {
-        // Operational: view + insert on transactional features, view only on others
-        const opFeatures: PermissionFeature[] = ['giras', 'tickets', 'porta', 'estoque'];
-        const isOp = opFeatures.includes(p.feature);
-        return {
-          feature: p.feature,
-          can_view: true,
-          can_insert: isOp,
-          can_edit: false,
-          can_delete: false,
-        };
-      }
-      return p;
-    });
-    onChange(nextValue);
-  };
-
-  // Render presets bar
-  const presetsBar = (
-    <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
-      <Typography variant="body2" color="text.secondary" sx={{ mr: 1, fontWeight: 500 }}>
-        Configurações rápidas:
-      </Typography>
-      <Chip
-        label="Nenhuma"
-        onClick={() => applyPreset('nenhum')}
-        disabled={disabled}
-        variant="outlined"
-        clickable
-        sx={{ borderRadius: 2 }}
-      />
-      <Chip
-        label="Somente Leitura"
-        onClick={() => applyPreset('leitura')}
-        disabled={disabled}
-        color="info"
-        variant="outlined"
-        clickable
-        sx={{ borderRadius: 2 }}
-      />
-      <Chip
-        label="Operacional"
-        onClick={() => applyPreset('operacional')}
-        disabled={disabled}
-        color="warning"
-        variant="outlined"
-        clickable
-        sx={{ borderRadius: 2 }}
-      />
-      <Chip
-        label="Completo (Administrador)"
-        onClick={() => applyPreset('completo')}
-        disabled={disabled}
-        color="success"
-        variant="outlined"
-        clickable
-        sx={{ borderRadius: 2 }}
-      />
-    </Box>
-  );
-
-  if (isMobile) {
-    // Mobile layouts using cards per feature (G15)
-    return (
-      <Box>
-        {presetsBar}
-        {GROUPS.map((groupName) => {
-          const groupFeatures = groupedFeatures[groupName];
-          if (groupFeatures.length === 0) return null;
-
-          return (
-            <Box key={groupName} sx={{ mb: 4 }}>
-              <Typography
-                variant="subtitle2"
-                color="primary"
-                sx={{ mb: 2, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}
-              >
-                {groupName}
-              </Typography>
-              <Grid container spacing={2}>
-                {groupFeatures.map(({ feature, meta }) => {
-                  const perm = permissionsMap.get(feature)!;
-                  const isAll = isRowAllChecked(feature);
-
-                  return (
-                    <Grid item xs={12} key={feature}>
-                      <Card
-                        variant="outlined"
-                        sx={{
-                          borderRadius: 3,
-                          borderColor: isAll ? 'success.light' : 'divider',
-                          backgroundColor: isAll ? 'rgba(76, 175, 80, 0.04)' : 'background.paper',
-                        }}
-                      >
-                        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                          <Box
-                            sx={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              mb: 2,
-                            }}
-                          >
-                            <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                              {meta.label}
-                            </Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Typography variant="caption" color="text.secondary">
-                                Todos
-                              </Typography>
-                              <Checkbox
-                                size="small"
-                                checked={isAll}
-                                disabled={disabled}
-                                onChange={(e) => handleRowToggle(feature, e.target.checked)}
-                              />
-                            </Box>
-                          </Box>
-                          <Grid container spacing={1}>
-                            {ACTIONS.map((act) => (
-                              <Grid item xs={6} key={act}>
-                                <Box
-                                  sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    p: 1,
-                                    borderRadius: 2,
-                                    border: '1px solid',
-                                    borderColor: perm[act] ? 'primary.light' : 'grey.200',
-                                    backgroundColor: perm[act]
-                                      ? 'rgba(25, 118, 210, 0.04)'
-                                      : 'transparent',
-                                  }}
-                                >
-                                  <Checkbox
-                                    size="small"
-                                    checked={perm[act]}
-                                    disabled={disabled}
-                                    onChange={(e) => updatePermission(feature, act, e.target.checked)}
-                                  />
-                                  <Typography variant="caption" sx={{ fontWeight: perm[act] ? 600 : 400 }}>
-                                    {ACTION_LABELS[act]}
-                                  </Typography>
-                                </Box>
-                              </Grid>
-                            ))}
-                          </Grid>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  );
-                })}
-              </Grid>
-            </Box>
-          );
-        })}
-      </Box>
+    const features = new Set(areas[area].map((f) => f.feature));
+    onChange(
+      permissions.map((p) =>
+        features.has(p.feature)
+          ? { feature: p.feature, can_view: checked, can_insert: checked, can_edit: checked, can_delete: checked }
+          : p,
+      ),
     );
-  }
+  };
 
-  // Desktop layout using styled tables (G5)
   return (
-    <Box>
-      {presetsBar}
-      <TableContainer component={Paper} sx={{ overflow: 'hidden' }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-              <TableCell sx={{ fontWeight: 600, width: '30%', py: 1.5 }}>Funcionalidade</TableCell>
-              {ACTIONS.map((act) => (
-                <TableCell key={act} align="center" sx={{ fontWeight: 600, py: 1.5 }}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {ACTION_LABELS[act]}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                        Marcar todos
-                      </Typography>
-                      <Checkbox
-                        size="small"
-                        checked={isColumnAllChecked(act)}
-                        disabled={disabled}
-                        onChange={(e) => handleColumnToggle(act, e.target.checked)}
-                        sx={{ p: 0.5 }}
-                      />
-                    </Box>
-                  </Box>
-                </TableCell>
-              ))}
-              <TableCell align="center" sx={{ fontWeight: 600, width: '12%', py: 1.5 }}>
-                Marcar Linha
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {GROUPS.map((groupName) => {
-              const groupFeatures = groupedFeatures[groupName];
-              if (groupFeatures.length === 0) return null;
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Atalhos:</span>
+        {PRESETS.map((p) => (
+          <Button
+            key={p.key}
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={disabled}
+            onClick={() => onChange(applyPreset(permissions, p.key))}
+          >
+            {p.label}
+          </Button>
+        ))}
+      </div>
 
-              return (
-                <React.Fragment key={groupName}>
-                  {/* Category Separator Line (G5) */}
-                  <TableRow sx={{ backgroundColor: 'rgba(25, 118, 210, 0.05)' }}>
-                    <TableCell colSpan={6} sx={{ fontWeight: 700, color: 'primary.main', py: 1 }}>
-                      {groupName}
-                    </TableCell>
+      {AREAS.map((area) => {
+        const items = areas[area];
+        if (!items?.length) return null;
+        const withAccess = items.filter(({ feature }) => byFeature.get(feature)?.can_view).length;
+        const allChecked = items.every(({ feature }) =>
+          PERMISSION_ACTIONS.every((a) => byFeature.get(feature)?.[a]),
+        );
+        const someChecked = items.some(({ feature }) => PERMISSION_ACTIONS.some((a) => byFeature.get(feature)?.[a]));
+
+        return (
+          <Collapsible
+            key={area}
+            open={open[area]}
+            onOpenChange={(o) => setOpen((prev) => ({ ...prev, [area]: o }))}
+            className="rounded-lg border"
+          >
+            <div className="flex items-center gap-2 px-3 py-2">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
+                  <ChevronDown
+                    className={cn('size-4 shrink-0 transition-transform motion-reduce:transition-none', !open[area] && '-rotate-90')}
+                    aria-hidden
+                  />
+                  <span className="font-semibold">{area}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {withAccess} de {items.length} com acesso
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+              <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={allChecked ? true : someChecked ? 'indeterminate' : false}
+                  disabled={disabled}
+                  onCheckedChange={(c) => setArea(area, c === true)}
+                  aria-label={`Tudo em ${area}`}
+                />
+                Tudo
+              </label>
+            </div>
+            <CollapsibleContent>
+              <Table className="table-fixed">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-3">Módulo</TableHead>
+                    {PERMISSION_ACTIONS.map((a) => (
+                      <TableHead key={a} className="w-12 px-1 text-center sm:w-20">
+                        {ACTION_LABELS[a]}
+                      </TableHead>
+                    ))}
                   </TableRow>
-                  {groupFeatures.map(({ feature, meta }) => {
-                    const perm = permissionsMap.get(feature)!;
-                    const isAll = isRowAllChecked(feature);
-
+                </TableHeader>
+                <TableBody>
+                  {items.map(({ feature, meta }) => {
+                    const perm = byFeature.get(feature)!;
                     return (
-                      <TableRow
-                        key={feature}
-                        sx={{
-                          transition: 'background-color 0.2s',
-                          backgroundColor: isAll ? 'rgba(76, 175, 80, 0.04)' : 'transparent',
-                          '&:hover': {
-                            backgroundColor: isAll ? 'rgba(76, 175, 80, 0.07)' : 'rgba(0, 0, 0, 0.02)',
-                          },
-                        }}
-                      >
-                        <TableCell sx={{ pl: 3, fontWeight: 500 }}>
-                          {meta.label}
-                        </TableCell>
-                        {ACTIONS.map((act) => (
-                          <TableCell key={act} align="center">
+                      <TableRow key={feature} data-state={perm.can_view ? 'selected' : undefined}>
+                        <TableCell className="pl-3 whitespace-normal font-medium">{meta.label}</TableCell>
+                        {PERMISSION_ACTIONS.map((a) => (
+                          <TableCell key={a} className="px-1 text-center">
                             <Checkbox
-                              checked={perm[act]}
+                              checked={perm[a]}
                               disabled={disabled}
-                              onChange={(e) => updatePermission(feature, act, e.target.checked)}
-                              size="small"
+                              onCheckedChange={(c) => setAction(feature, a, c === true)}
+                              aria-label={`${meta.label}: ${ACTION_LABELS[a]}`}
                             />
                           </TableCell>
                         ))}
-                        <TableCell align="center">
-                          <Checkbox
-                            checked={isAll}
-                            disabled={disabled}
-                            onChange={(e) => handleRowToggle(feature, e.target.checked)}
-                            size="small"
-                            color="success"
-                          />
-                        </TableCell>
                       </TableRow>
                     );
                   })}
-                </React.Fragment>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+                </TableBody>
+              </Table>
+            </CollapsibleContent>
+          </Collapsible>
+        );
+      })}
+    </div>
   );
 }

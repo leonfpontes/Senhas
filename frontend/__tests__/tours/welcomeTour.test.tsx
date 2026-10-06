@@ -10,6 +10,7 @@ import {
   buildWelcomeTourSteps,
   CENTER_SELECTOR,
   CHECKLIST_SELECTOR,
+  CREATE_GIRA_HREF,
   HELP_BUTTON_SELECTOR,
   useWelcomeTour,
   welcomeTourSeenKey,
@@ -53,7 +54,7 @@ function texts(steps: StepType[]): string[] {
 }
 
 describe('buildWelcomeTourSteps', () => {
-  it('trilha senhas: boas-vindas citando a dor, checklist, Porta e ajuda', () => {
+  it('trilha senhas: boas-vindas citando a dor, checklist, Porta, ajuda e Criar gira por último', () => {
     const steps = buildWelcomeTourSteps(ctx());
     const t = texts(steps);
     expect(t[0]).toContain('Bem-vindo ao GiraHub, Romário!');
@@ -62,7 +63,8 @@ describe('buildWelcomeTourSteps', () => {
     expect(t[1]).toContain('Seu roteiro de primeiros passos');
     expect(t[2]).toContain('use a Porta');
     expect(steps[3].selector).toBe(HELP_BUTTON_SELECTOR);
-    expect(steps).toHaveLength(4);
+    expect(t[4]).toContain('Agora, sua primeira gira');
+    expect(steps).toHaveLength(5);
   });
 
   it('passos centralizados apontam para seletor sem elemento e posição center', () => {
@@ -72,33 +74,49 @@ describe('buildWelcomeTourSteps', () => {
     expect(document.querySelector(CENTER_SELECTOR)).toBeNull();
   });
 
+  it.each(['senhas', 'mediuns', 'financeiro', 'divulgacao', 'estoque', 'outro'] as const)(
+    'trilha %s termina em "Criar gira" e nenhum passo leva para fora da gira',
+    (dor) => {
+      const steps = buildWelcomeTourSteps(ctx({ dor }));
+      steps.forEach((step, i) => {
+        const { unmount } = render(<>{step.content as React.ReactElement}</>);
+        const links = screen.queryAllByRole('link');
+        if (i === steps.length - 1) {
+          expect(links).toHaveLength(1);
+          expect(links[0]).toHaveTextContent('Criar gira');
+          expect(links[0]).toHaveAttribute('href', CREATE_GIRA_HREF);
+        } else {
+          expect(links).toHaveLength(0);
+        }
+        unmount();
+      });
+    },
+  );
+
   it.each([
-    ['mediuns', 'Comece pelos médiuns', '/admin/mediuns'],
-    ['financeiro', 'Comece pelo financeiro', '/admin/financeiro/mensalidades'],
-    ['divulgacao', 'Comece pelo site do terreiro', '/admin/meu-site'],
-    ['estoque', 'Comece pelo estoque', '/admin/estoque/itens'],
-  ] as const)('trilha %s leva ao módulo e ainda lembra das senhas', (dor, title, href) => {
-    const steps = buildWelcomeTourSteps(ctx({ dor }));
-    const t = texts(steps);
-    expect(t[1]).toContain(title);
-    render(<>{steps[1].content as React.ReactElement}</>);
-    expect(screen.getByRole('link')).toHaveAttribute('href', href);
-    expect(steps[2].selector).toBe(CHECKLIST_SELECTOR);
-    expect(t[2]).toContain('E as senhas das giras?');
-    expect(t.some((x) => x.includes('use a Porta'))).toBe(false);
+    ['mediuns', 'Médiuns'],
+    ['financeiro', 'Mensalidades'],
+    ['divulgacao', 'Meu Site'],
+    ['estoque', 'Estoque'],
+  ] as const)('trilha %s cita o módulo só como "depois", no último passo', (dor, modulo) => {
+    const t = texts(buildWelcomeTourSteps(ctx({ dor })));
+    const last = t[t.length - 1];
+    expect(last).toContain('Depois, quando quiser');
+    expect(last).toContain(modulo);
+    expect(t.slice(0, -1).some((x) => x.includes('Depois, quando quiser'))).toBe(false);
   });
 
-  it('recurso fora do plano: avisa e leva aos planos em vez do módulo', () => {
-    const steps = buildWelcomeTourSteps(ctx({ dor: 'mediuns', can: () => false }));
-    render(<>{steps[1].content as React.ReactElement}</>);
-    expect(screen.getByText(/não está no seu plano atual/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Ver planos' })).toHaveAttribute('href', '/admin/plano');
+  it('módulo fora do plano: diz a partir de qual plano, sem link', () => {
+    const steps = buildWelcomeTourSteps(ctx({ dor: 'estoque', can: () => false }));
+    const last = steps[steps.length - 1];
+    render(<>{last.content as React.ReactElement}</>);
+    expect(screen.getByText(/disponível a partir do plano/)).toBeInTheDocument();
+    expect(screen.getAllByRole('link')).toHaveLength(1);
   });
 
   it('financeiro basta uma das features (mensalidade OU contas)', () => {
-    const steps = buildWelcomeTourSteps(ctx({ dor: 'financeiro', can: (f) => f === 'contas_financeiras' }));
-    render(<>{steps[1].content as React.ReactElement}</>);
-    expect(screen.getByRole('link', { name: 'Abrir mensalidades' })).toBeInTheDocument();
+    const t = texts(buildWelcomeTourSteps(ctx({ dor: 'financeiro', can: (f) => f === 'contas_financeiras' })));
+    expect(t[t.length - 1]).not.toContain('disponível a partir');
   });
 
   it('"outro" usa o essencial sem citar dor', () => {
@@ -107,26 +125,19 @@ describe('buildWelcomeTourSteps', () => {
     expect(t[0]).not.toContain('Você contou');
   });
 
-  it('sem checklist na tela, trilha senhas oferece criar gira direto', () => {
-    const steps = buildWelcomeTourSteps(ctx({ hasChecklist: false }));
-    render(<>{steps[1].content as React.ReactElement}</>);
-    expect(screen.getByRole('link', { name: 'Criar gira' })).toHaveAttribute('href', '/admin/giras?nova=1');
+  it('sem checklist nem botão de ajuda, os passos são centralizados e ainda terminam em Criar gira', () => {
+    const steps = buildWelcomeTourSteps(ctx({ hasChecklist: false, hasHelpButton: false }));
+    expect(steps.every((s) => s.selector === CENTER_SELECTOR)).toBe(true);
+    expect(texts([steps[steps.length - 1]])[0]).toContain('Criar gira');
   });
 
-  it('sem botão de ajuda, último passo é centralizado', () => {
-    const steps = buildWelcomeTourSteps(ctx({ hasHelpButton: false }));
-    const last = steps[steps.length - 1];
-    expect(last.selector).toBe(CENTER_SELECTOR);
-    expect(texts([last])[0]).toContain('Pronto!');
-  });
-
-  it('botão de ação fecha o tour e registra evento', () => {
+  it('botão Criar gira fecha o tour e registra evento', () => {
     const close = jest.fn();
     const steps = buildWelcomeTourSteps(ctx({ dor: 'estoque', close }));
-    render(<>{steps[1].content as React.ReactElement}</>);
-    fireEvent.click(screen.getByRole('link', { name: 'Cadastrar itens' }));
+    render(<>{steps[steps.length - 1].content as React.ReactElement}</>);
+    fireEvent.click(screen.getByRole('link', { name: 'Criar gira' }));
     expect(close).toHaveBeenCalled();
-    expect(trackEvent).toHaveBeenCalledWith('welcome_tour_cta', { trilha: 'estoque', href: '/admin/estoque/itens' });
+    expect(trackEvent).toHaveBeenCalledWith('welcome_tour_cta', { trilha: 'estoque', href: CREATE_GIRA_HREF });
   });
 });
 
