@@ -157,6 +157,10 @@ model (src/models/) → repository (src/repositories/) → endpoint (src/api/v1/
 - **Toda tela usa shadcn/Tailwind (`src/components/ui/*`, `cn()`); nunca reintroduzir MUI nem `sx`.**
   Tokens, `applyBrand` (cores do terreiro), classe `dark`, regra de z-index dos overlays, rotas que viraram
   redirecionamento e versão da UI em AGENTS.md §11.16.
+- **Cor de texto**: marca → `text-brand` (nunca `text-primary`); fundo suave `bg-X/NN` → `text-X-strong`;
+  `text-X-foreground` só sobre `bg-X` sólido. Testes de contraste travam isso (AGENTS.md §11.16).
+- **Subiu a versão no `frontend/package.json`?** Acrescente a entrada no topo de `frontend/src/constants/releaseNotes.ts`
+  (modal "Novidades da versão"), em linguagem de quem usa o terreiro.
 
 ### Componentes frontend reutilizáveis (kit — `frontend/src/components/README.md`)
 - `CrudDrawer` — formulários em drawer lateral (Sheet 480px). **Nunca usar modais para formulários CRUD.**

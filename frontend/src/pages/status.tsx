@@ -44,9 +44,9 @@ const STATUS_BAR_CLASS: Record<StatusKey, string> = {
 };
 
 const STATUS_BADGE_CLASS: Record<StatusKey, string> = {
-  operational: 'bg-success/15 text-success',
-  degraded: 'bg-warning/15 text-warning',
-  outage: 'bg-destructive/15 text-destructive',
+  operational: 'bg-success/15 text-success-strong',
+  degraded: 'bg-warning/15 text-warning-strong',
+  outage: 'bg-destructive/15 text-destructive-strong',
   unknown: 'bg-muted text-muted-foreground',
 };
 
@@ -234,7 +234,7 @@ const StatusPage: React.FC = () => {
         <header className="border-b">
           <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
             <Link href="/" className="flex items-center gap-2 font-bold text-foreground no-underline">
-              <Ticket aria-hidden className="size-6 text-primary" />
+              <Ticket aria-hidden className="size-6 text-brand" />
               GiraHub
             </Link>
             <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">

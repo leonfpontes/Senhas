@@ -105,12 +105,12 @@ export function TicketDetailSheet({ ticket, onOpenChange, priorityLabel, showEma
               </SheetDescription>
               <div className="flex flex-wrap gap-1 pt-1">
                 {ticket.is_sponsor && (
-                  <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-foreground">
+                  <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-strong">
                     <Star aria-hidden /> Associado
                   </Badge>
                 )}
                 {ticket.preferencial && (
-                  <Badge variant="outline" className="border-warning/40 text-warning-foreground">
+                  <Badge variant="outline" className="border-warning/40 text-warning-strong">
                     <Star aria-hidden /> {priorityLabel || 'Preferencial'}
                   </Badge>
                 )}
@@ -130,7 +130,7 @@ export function TicketDetailSheet({ ticket, onOpenChange, priorityLabel, showEma
                 )}
                 {ticket.consulente_email && (
                   <Row label="E-mail">
-                    <a href={`mailto:${ticket.consulente_email}`} className="inline-flex items-center gap-1.5 break-all text-primary">
+                    <a href={`mailto:${ticket.consulente_email}`} className="inline-flex items-center gap-1.5 break-all text-brand">
                       <Mail className="size-4 shrink-0" aria-hidden /> {ticket.consulente_email}
                     </a>
                   </Row>

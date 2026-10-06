@@ -564,7 +564,6 @@ const PLAN_FEATURE_ROWS: PlanRow[] = [
   { label: 'Auditoria completa', cells: { free: false, basic: false, pro: true, premium: true } },
   { label: 'Mensalidade de médiuns', cells: { free: false, basic: false, pro: false, premium: true } },
   { label: 'Suporte prioritário', cells: { free: false, basic: false, pro: false, premium: true } },
-  { label: 'Acesso à API', cells: { free: false, basic: false, pro: false, premium: true } },
 ];
 
 function PlanCellView({ value }: { value: PlanCell }) {

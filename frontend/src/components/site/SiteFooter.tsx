@@ -24,7 +24,7 @@ export function SiteFooter({ inert = false }: { inert?: boolean }) {
       </a>
       <p className="text-xs text-muted-foreground">
         Powered by{' '}
-        <a href={GIRAHUB_URL} {...linkProps} className="font-semibold text-primary no-underline hover:underline">
+        <a href={GIRAHUB_URL} {...linkProps} className="font-semibold text-brand no-underline hover:underline">
           GiraHub
         </a>{' '}
         — a plataforma digital para centros de umbanda e candomblé

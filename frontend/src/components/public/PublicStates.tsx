@@ -50,10 +50,10 @@ const TONE_ICON: Record<PublicNoticeTone, React.ReactNode> = {
 };
 
 const TONE_CLASS: Record<PublicNoticeTone, string> = {
-  info: 'bg-info/10 text-info',
-  success: 'bg-success/10 text-success',
-  warning: 'bg-warning/10 text-warning',
-  error: 'bg-destructive/10 text-destructive',
+  info: 'bg-info/10 text-info-strong',
+  success: 'bg-success/10 text-success-strong',
+  warning: 'bg-warning/10 text-warning-strong',
+  error: 'bg-destructive/10 text-destructive-strong',
 };
 
 export function PublicNotice({ tone = 'info', icon, title, description, actions, children, className }: PublicNoticeProps) {

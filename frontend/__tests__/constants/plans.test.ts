@@ -32,12 +32,12 @@ describe('plans — espelho do backend', () => {
 
   it('plano mínimo de cada recurso igual aos tiers de plan_features.py', () => {
     const tier1 = ['bulk_operations', 'mediuns', 'relatorio_gira'];
-    const tier3 = ['api_access', 'suporte_prioritario'];
+    const tier3 = ['suporte_prioritario'];
     Object.entries(FEATURE_MIN_PLAN).forEach(([feature, plan]) => {
       const expected = tier1.includes(feature) ? 'basic' : tier3.includes(feature) ? 'premium' : 'pro';
       expect([feature, plan]).toEqual([feature, expected]);
     });
-    expect(Object.keys(FEATURE_MIN_PLAN)).toHaveLength(19);
+    expect(Object.keys(FEATURE_MIN_PLAN)).toHaveLength(18);
   });
 
   it('todo recurso tem rótulo no catálogo', () => {

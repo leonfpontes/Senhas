@@ -9,14 +9,14 @@ const alertVariants = cva(
       variant: {
         default: "bg-card text-card-foreground",
         destructive:
-          "border-destructive/30 bg-destructive/5 text-destructive *:data-[slot=alert-description]:text-destructive/90 [&>svg]:text-current",
+          "border-destructive/30 bg-destructive/5 text-destructive-strong *:data-[slot=alert-description]:text-destructive-strong/90 [&>svg]:text-current",
         // Variantes do kit (fase 1): cores dos tokens --success/--warning/--info (globals.css),
         // no mesmo desenho "soft" do Alert severity do MUI.
         success:
-          "border-success/30 bg-success/5 text-success *:data-[slot=alert-description]:text-success/90 [&>svg]:text-current",
+          "border-success/30 bg-success/5 text-success-strong *:data-[slot=alert-description]:text-success-strong/90 [&>svg]:text-current",
         warning:
-          "border-warning/40 bg-warning/5 text-warning *:data-[slot=alert-description]:text-warning/90 [&>svg]:text-current",
-        info: "border-info/30 bg-info/5 text-info *:data-[slot=alert-description]:text-info/90 [&>svg]:text-current",
+          "border-warning/40 bg-warning/5 text-warning-strong *:data-[slot=alert-description]:text-warning-strong/90 [&>svg]:text-current",
+        info: "border-info/30 bg-info/5 text-info-strong *:data-[slot=alert-description]:text-info-strong/90 [&>svg]:text-current",
       },
     },
     defaultVariants: {

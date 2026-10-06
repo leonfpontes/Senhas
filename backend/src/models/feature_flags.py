@@ -13,7 +13,6 @@ class FeatureFlag(TimestampedModel):
     
     Enables/disables features per tenant:
     - advanced_analytics
-    - api_access
     - sso_integration
     - custom_branding
     - white_label

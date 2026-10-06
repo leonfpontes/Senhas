@@ -120,7 +120,7 @@ export function SetupWizard({ template: initialTemplate, canEdit, onCreate, onSk
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
-            <Sparkles className="size-5 text-primary" aria-hidden />
+            <Sparkles className="size-5 text-brand" aria-hidden />
             Vamos montar seu site em um minuto
           </CardTitle>
           <CardDescription>
@@ -167,7 +167,7 @@ export function SetupWizard({ template: initialTemplate, canEdit, onCreate, onSk
                   >
                     <span className="flex items-center justify-between text-sm font-semibold">
                       {t.label}
-                      {selected && <Check className="size-4 text-primary" aria-hidden />}
+                      {selected && <Check className="size-4 text-brand" aria-hidden />}
                     </span>
                     <span className="text-xs text-muted-foreground">{t.description}</span>
                   </button>

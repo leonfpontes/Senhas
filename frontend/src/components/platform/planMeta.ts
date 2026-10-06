@@ -38,7 +38,7 @@ export const PLAN_META: Record<PlanKey, PlanMeta> = {
     label: 'Basic',
     price: 49,
     limits: { users: 3, girasPerMonth: 10, mediuns: 50 },
-    badgeClass: 'border-transparent bg-info/15 text-info',
+    badgeClass: 'border-transparent bg-info/15 text-info-strong',
     chartColor: 'var(--info)',
   },
   pro: {
@@ -46,7 +46,7 @@ export const PLAN_META: Record<PlanKey, PlanMeta> = {
     label: 'Pro',
     price: 79,
     limits: { users: 10, girasPerMonth: 15, mediuns: 150 },
-    badgeClass: 'border-transparent bg-primary/15 text-primary',
+    badgeClass: 'border-transparent bg-primary/15 text-brand',
     chartColor: 'var(--primary)',
   },
   premium: {
@@ -54,7 +54,7 @@ export const PLAN_META: Record<PlanKey, PlanMeta> = {
     label: 'Premium',
     price: 99,
     limits: { users: null, girasPerMonth: null, mediuns: null },
-    badgeClass: 'border-transparent bg-warning/15 text-warning',
+    badgeClass: 'border-transparent bg-warning/15 text-warning-strong',
     chartColor: 'var(--warning)',
   },
 };
@@ -83,10 +83,10 @@ export interface StatusMeta {
 }
 
 export const STATUS_META: Record<SubscriptionStatusKey, StatusMeta> = {
-  active: { label: 'Ativa', badgeClass: 'border-transparent bg-success/15 text-success' },
-  suspended: { label: 'Suspensa', badgeClass: 'border-transparent bg-warning/15 text-warning' },
-  cancelled: { label: 'Cancelada', badgeClass: 'border-transparent bg-destructive/10 text-destructive' },
-  expired: { label: 'Expirada', badgeClass: 'border-transparent bg-destructive/10 text-destructive' },
+  active: { label: 'Ativa', badgeClass: 'border-transparent bg-success/15 text-success-strong' },
+  suspended: { label: 'Suspensa', badgeClass: 'border-transparent bg-warning/15 text-warning-strong' },
+  cancelled: { label: 'Cancelada', badgeClass: 'border-transparent bg-destructive/10 text-destructive-strong' },
+  expired: { label: 'Expirada', badgeClass: 'border-transparent bg-destructive/10 text-destructive-strong' },
 };
 
 export function statusMeta(status: string | null | undefined): StatusMeta {
@@ -96,8 +96,8 @@ export function statusMeta(status: string | null | undefined): StatusMeta {
 
 /** Estado do terreiro (`is_active`) — separado do status da assinatura. */
 export const TENANT_ACTIVE_META: Record<'active' | 'inactive', StatusMeta> = {
-  active: { label: 'Ativo', badgeClass: 'border-transparent bg-success/15 text-success' },
-  inactive: { label: 'Desativado', badgeClass: 'border-transparent bg-destructive/10 text-destructive' },
+  active: { label: 'Ativo', badgeClass: 'border-transparent bg-success/15 text-success-strong' },
+  inactive: { label: 'Desativado', badgeClass: 'border-transparent bg-destructive/10 text-destructive-strong' },
 };
 
 /** Papéis de usuário do terreiro (valores do enum `UserRole`). */

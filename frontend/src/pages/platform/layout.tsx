@@ -113,7 +113,7 @@ function PlatformSidebar() {
           <img src="/favicon.svg" alt="" width={28} height={28} className="size-7 shrink-0 rounded-md" />
           <span className="truncate text-sm font-bold tracking-tight group-data-[collapsible=icon]:hidden">
             GiraHub
-            <span className="ml-1.5 text-[0.6rem] font-bold tracking-[0.18em] text-sidebar-primary uppercase">Plataforma</span>
+            <span className="ml-1.5 text-[0.6rem] font-bold tracking-[0.18em] text-brand uppercase">Plataforma</span>
           </span>
         </Link>
       </SidebarHeader>
@@ -263,7 +263,7 @@ function PlatformShell({ children, breadcrumbs }: PlatformShellProps) {
   if (!authorized) {
     return (
       <div className="flex min-h-svh items-center justify-center bg-background" role="status" aria-live="polite">
-        <Loader2 className="size-6 animate-spin text-primary" aria-hidden />
+        <Loader2 className="size-6 animate-spin text-brand" aria-hidden />
         <span className="sr-only">Verificando acesso…</span>
       </div>
     );

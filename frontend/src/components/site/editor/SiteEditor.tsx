@@ -144,13 +144,13 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
     switch (editor.status) {
       case 'published':
         return (
-          <Badge className="gap-1 border-success/30 bg-success/15 text-success" data-testid="site-status">
+          <Badge className="gap-1 border-success/30 bg-success/15 text-success-strong" data-testid="site-status">
             <Check /> Publicado e atualizado
           </Badge>
         );
       case 'published-dirty':
         return (
-          <Badge className="gap-1 border-warning/30 bg-warning/15 text-warning" data-testid="site-status">
+          <Badge className="gap-1 border-warning/30 bg-warning/15 text-warning-strong" data-testid="site-status">
             <AlertCircle /> Rascunho com alterações não publicadas
           </Badge>
         );

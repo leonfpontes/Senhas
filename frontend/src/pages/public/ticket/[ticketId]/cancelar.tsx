@@ -157,7 +157,7 @@ export default function CancelTicketPage() {
         <Card className="gap-4 py-5">
           <CardContent className="flex flex-col gap-4 px-5">
             <div className="text-center">
-              <span aria-hidden className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-warning/10 text-warning [&_svg]:size-7">
+              <span aria-hidden className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-warning/10 text-warning-strong [&_svg]:size-7">
                 <CalendarX2 />
               </span>
               <h1 className="text-2xl font-bold leading-tight">

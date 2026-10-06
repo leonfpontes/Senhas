@@ -1,29 +1,27 @@
 /**
- * SupportChatWidget — balão "Ajuda" global, montado no AdminLayout (toda página /admin/*).
+ * SupportChatWidget — conversa do usuário com o suporte, aberta pelo item "Falar com o
+ * suporte" do menu do perfil (AdminTopbar).
  *
- * Canto inferior DIREITO. Abaixo de 900px fica a 72px do rodapé
- * (`bottom: calc(env(safe-area-inset-bottom) + 72px)`) para não cobrir barras fixas de
- * "Salvar"; a partir de 900px, a 24px. Em /admin/porta o FAB "Walk-in" ocupa o canto direito
- * (24px + 48px de altura), então ali o balão sobe para 88px em qualquer largura.
- *
- * Sem animação contínua: mensagem nova acende um ponto (pulsa só sem reduced-motion), muda o
- * título da aba e toca o som.
+ * Até 2026-10-06 era um balão "Ajuda" flutuante no canto inferior direito e cobria
+ * conteúdo e ações das telas. Agora não há nada fixo na tela: o componente só cuida do
+ * painel (aberto/fechado pelo menu), do som, do título da aba e avisa o menu quando há
+ * resposta não lida (`onUnreadChange`), que acende um ponto no avatar.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { MessageCircle, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { useSupportChat } from './useSupportChat';
 import { SupportChatPanel } from './SupportChatPanel';
 
 interface SupportChatWidgetProps {
   enabled: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Avisado quando muda o estado de "resposta do suporte não lida". */
+  onUnreadChange?: (unread: boolean) => void;
 }
 
-export function SupportChatWidget({ enabled }: SupportChatWidgetProps) {
+export function SupportChatWidget({ enabled, open, onOpenChange, onUnreadChange }: SupportChatWidgetProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const { messages, loading, sending, unread, hasNewSupportMessage, send, markRead } = useSupportChat(enabled);
   const baseTitleRef = useRef<string | null>(null);
 
@@ -50,48 +48,25 @@ export function SupportChatWidget({ enabled }: SupportChatWidgetProps) {
     }
   }, [hasNewSupportMessage]);
 
-  if (!enabled) return null;
+  useEffect(() => {
+    onUnreadChange?.(enabled && unread);
+  }, [enabled, unread, onUnreadChange]);
 
-  const handleOpen = () => {
-    setOpen(true);
-    markRead();
-  };
+  // Abrir a conversa marca as respostas como lidas.
+  useEffect(() => {
+    if (open && enabled) markRead();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, enabled]);
+
+  if (!enabled || !open) return null;
 
   return (
-    <>
-      <Button
-        onClick={() => (open ? setOpen(false) : handleOpen())}
-        aria-label={open ? 'Fechar ajuda' : unread ? 'Ajuda — nova resposta do suporte' : 'Falar com o suporte'}
-        aria-expanded={open}
-        className={cn(
-          'fixed right-[calc(16px+env(safe-area-inset-right))] z-50 h-11 rounded-full pr-4 pl-3 shadow-lg md:right-6',
-          onPorta
-            ? 'bottom-[calc(env(safe-area-inset-bottom)+88px)]'
-            : 'bottom-[calc(env(safe-area-inset-bottom)+72px)] md:bottom-6',
-        )}
-      >
-        <span className="relative">
-          {open ? <X className="size-5" /> : <MessageCircle className="size-5" />}
-          {unread && !open && (
-            <span className="absolute -top-1 -right-1 flex size-2.5" aria-hidden>
-              <span className="absolute inline-flex size-full rounded-full bg-warning opacity-75 motion-safe:animate-ping" />
-              <span className="relative inline-flex size-2.5 rounded-full bg-warning ring-2 ring-primary" />
-            </span>
-          )}
-        </span>
-        Ajuda
-      </Button>
-
-      {open && (
-        <SupportChatPanel
-          messages={messages}
-          loading={loading}
-          sending={sending}
-          onSend={send}
-          onClose={() => setOpen(false)}
-          className={onPorta ? 'bottom-[calc(env(safe-area-inset-bottom)+144px)] md:bottom-[144px]' : undefined}
-        />
-      )}
-    </>
+    <SupportChatPanel
+      messages={messages}
+      loading={loading}
+      sending={sending}
+      onSend={send}
+      onClose={() => onOpenChange(false)}
+    />
   );
 }

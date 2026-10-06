@@ -331,7 +331,7 @@ function AdminAnalyticsContent() {
 
       {/* KPIs — 2 / 3 / 6 colunas: nunca sobra um card sozinho na linha */}
       <div data-tour="analytics-kpis" className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Total emitido" value={analytics?.total_emitted ?? '—'} icon={<Send />} color={chartTokens.primary} loading={showSkeleton} />
+        <KpiCard label="Total emitido" value={analytics?.total_emitted ?? '—'} icon={<Send />} color="var(--primary-text)" loading={showSkeleton} />
         <KpiCard label="Total utilizado" value={analytics?.total_used ?? '—'} icon={<CheckCheck />} color={chartTokens.success} loading={showSkeleton} />
         <KpiCard label="Taxa de uso" value={analytics ? `${analytics.usage_rate}%` : '—'} icon={<TrendingUp />} color={chartTokens.warning} loading={showSkeleton} />
         <KpiCard label="Cancelados" value={analytics?.total_cancelled ?? '—'} icon={<XCircle />} color={chartTokens.destructive} loading={showSkeleton} />

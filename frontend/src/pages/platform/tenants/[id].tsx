@@ -59,6 +59,7 @@ import {
   isoDate,
   isoDaysAgo,
   type ActivationTenant,
+  BillingCategoryBadge,
 } from '@/components/platform';
 import { SubscriptionDrawer, type SubscriptionDetail } from '@/components/platform/SubscriptionDrawer';
 import { AuditFeedTable } from '@/components/platform/AuditFeedTable';
@@ -197,7 +198,8 @@ export default function TenantDetailPage() {
   const phone = activation?.contact?.phone ?? null;
   const wa = whatsappLink(phone);
   const trialDays = subscription?.is_trial ? daysUntil(subscription.trial_ends_at) : null;
-  const mrr = subscription?.status === 'active' ? subscription.monthly_price : 0;
+  const mrr = subscription?.mrr ?? 0;
+  const potentialMrr = subscription?.potential_mrr ?? 0;
 
   // ── Ações do cabeçalho ──
   const [impersonating, setImpersonating] = useState(false);
@@ -427,7 +429,9 @@ export default function TenantDetailPage() {
                   </ToneBadge>
                 )}
                 <span className="text-xs text-muted-foreground">
-                  MRR <strong className="text-foreground">{fmtMoney(mrr)}</strong> · desde {fmtDate(tenant.created_at)}
+                  {subscription?.billing_category && <BillingCategoryBadge category={subscription.billing_category} />}{' '}
+                  MRR <strong className="text-foreground">{fmtMoney(mrr)}</strong>
+                  {potentialMrr > 0 && ` (${fmtMoney(potentialMrr)} se assinar)`} · desde {fmtDate(tenant.created_at)}
                 </span>
               </div>
             </>
@@ -593,7 +597,7 @@ export default function TenantDetailPage() {
                         {g.max_tickets ? ` de ${g.max_tickets}` : ' (sem limite configurado)'}
                         {g.ocupacao_pct !== null && ` · ${g.ocupacao_pct}%`}
                       </p>
-                      <a href={g.public_link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-primary underline-offset-4 hover:underline">
+                      <a href={g.public_link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-brand underline-offset-4 hover:underline">
                         Link público
                       </a>
                     </CardContent>

@@ -13,7 +13,14 @@ from src.api.dependencies import require_super_admin
 from src.models import User, Invoice
 from src.models.subscriptions import Subscription, PlanType, SubscriptionStatus
 from src.models.tenants import Tenant
+from src.models.users import User as UserModel
 from src.repositories.billing_repo import BillingRepository
+from src.services.billing_metrics import (
+    BillingCategory,
+    billing_category,
+    effective_mrr,
+    potential_mrr,
+)
 
 router = APIRouter(prefix="/api/v1/platform/billing", tags=["platform-billing"])
 
@@ -38,12 +45,21 @@ class InvoiceResponse(BaseModel):
 
 
 class BillingStatisticsResponse(BaseModel):
-    """Billing statistics response."""
-    active_tenants: int
+    """Números de cobrança da plataforma (regra em services/billing_metrics.py).
+
+    Terreiros excluídos não entram em nenhuma contagem além de `deleted_tenants`.
+    """
+    mrr: float  # só pagantes
+    paying_tenants: int
     trial_tenants: int
-    suspended_tenants: int
-    mrr: float
-    plan_distribution: Dict[str, int]
+    trial_potential_mrr: float  # quanto os terreiros em teste gerariam se assinassem
+    bonus_tenants: int
+    free_tenants: int
+    suspended_tenants: int  # suspensas + canceladas
+    unbilled_tenants: int  # plano pago ativo sem cobrança no Stripe
+    deleted_tenants: int
+    active_tenants: int  # assinaturas com status ativo em terreiros não excluídos (compatibilidade)
+    plan_distribution: Dict[str, int]  # terreiros não excluídos
 
 
 class SubscriptionListItem(BaseModel):
@@ -54,7 +70,11 @@ class SubscriptionListItem(BaseModel):
     plan: str
     status: str
     monthly_price: float
-    current_users: int
+    mrr: float  # receita real: o preço só para pagantes
+    potential_mrr: float  # preço do plano em teste (só para quem está em teste)
+    category: BillingCategory
+    tenant_deleted: bool
+    current_users: int  # usuários ativos de verdade (o contador da tabela subscriptions não é mantido)
     max_users: int
     is_trial: bool
     is_bonus: bool
@@ -163,25 +183,40 @@ async def get_billing_statistics(
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Get platform-wide billing statistics from subscriptions table."""
+    """Números de cobrança da plataforma: MRR só de pagantes; teste, bônus e excluídos à parte."""
     try:
-        result = await db.execute(select(Subscription))
-        subs = result.scalars().all()
+        result = await db.execute(
+            select(Subscription, Tenant.deleted_at).join(Tenant, Subscription.tenant_id == Tenant.id)
+        )
+        rows = result.all()
 
-        active = [s for s in subs if s.status == SubscriptionStatus.ACTIVE]
-        trial = [s for s in subs if s.is_trial and s.status == SubscriptionStatus.ACTIVE]
-        suspended = [s for s in subs if s.status in (SubscriptionStatus.SUSPENDED, SubscriptionStatus.EXPIRED, SubscriptionStatus.CANCELLED)]
-        mrr = sum(s.monthly_price for s in active)
+        counts = {c: 0 for c in BillingCategory}
+        mrr = 0.0
+        trial_potential = 0.0
+        live = []
+        for sub, deleted_at in rows:
+            cat = billing_category(sub, deleted_at is not None)
+            counts[cat] += 1
+            mrr += effective_mrr(sub, cat)
+            trial_potential += potential_mrr(sub, cat)
+            if cat != BillingCategory.EXCLUIDO:
+                live.append(sub)
 
         distribution: Dict[str, int] = {p.value: 0 for p in PlanType}
-        for s in subs:
-            distribution[s.plan.value] = distribution.get(s.plan.value, 0) + 1
+        for sub in live:
+            distribution[sub.plan.value] = distribution.get(sub.plan.value, 0) + 1
 
         return BillingStatisticsResponse(
-            active_tenants=len(active),
-            trial_tenants=len(trial),
-            suspended_tenants=len(suspended),
-            mrr=mrr,
+            mrr=round(mrr, 2),
+            paying_tenants=counts[BillingCategory.PAGANTE],
+            trial_tenants=counts[BillingCategory.EM_TESTE],
+            trial_potential_mrr=round(trial_potential, 2),
+            bonus_tenants=counts[BillingCategory.BONIFICADO],
+            free_tenants=counts[BillingCategory.GRATUITO],
+            suspended_tenants=counts[BillingCategory.SUSPENSA] + counts[BillingCategory.CANCELADA],
+            unbilled_tenants=counts[BillingCategory.SEM_COBRANCA],
+            deleted_tenants=counts[BillingCategory.EXCLUIDO],
+            active_tenants=sum(1 for sub in live if sub.status == SubscriptionStatus.ACTIVE),
             plan_distribution=distribution,
         )
     except Exception as e:
@@ -195,18 +230,28 @@ async def get_billing_statistics(
 async def list_billing_subscriptions(
     skip: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=1000),
+    include_deleted: bool = Query(False, description="Incluir terreiros excluídos (categoria 'excluido')"),
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> List[dict]:
     """List all tenant subscriptions for billing overview."""
     try:
+        users_count = (
+            select(UserModel.tenant_id, func.count().label("n"))
+            .where(UserModel.deleted_at.is_(None), UserModel.is_active.is_(True))
+            .group_by(UserModel.tenant_id)
+            .subquery()
+        )
         stmt = (
-            select(Subscription, Tenant.name, Tenant.slug)
+            select(Subscription, Tenant.name, Tenant.slug, Tenant.deleted_at, func.coalesce(users_count.c.n, 0))
             .join(Tenant, Subscription.tenant_id == Tenant.id)
+            .outerjoin(users_count, users_count.c.tenant_id == Subscription.tenant_id)
+            .order_by(Subscription.monthly_price.desc(), Tenant.name)
             .offset(skip)
             .limit(limit)
-            .order_by(Subscription.monthly_price.desc())
         )
+        if not include_deleted:
+            stmt = stmt.where(Tenant.deleted_at.is_(None))
         result = await db.execute(stmt)
         rows = result.all()
 
@@ -218,7 +263,11 @@ async def list_billing_subscriptions(
                 plan=sub.plan.value,
                 status=sub.status.value,
                 monthly_price=sub.monthly_price,
-                current_users=sub.current_users,
+                mrr=effective_mrr(sub, cat),
+                potential_mrr=potential_mrr(sub, cat),
+                category=cat,
+                tenant_deleted=deleted_at is not None,
+                current_users=int(users or 0),
                 max_users=sub.max_users,
                 is_trial=sub.is_trial,
                 is_bonus=sub.is_bonus,
@@ -227,7 +276,8 @@ async def list_billing_subscriptions(
                 trial_ends_at=sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
                 stripe_customer_id=sub.stripe_customer_id,
             )
-            for sub, name, slug in rows
+            for sub, name, slug, deleted_at, users in rows
+            for cat in (billing_category(sub, deleted_at is not None),)
         ]
     except Exception as e:
         raise HTTPException(

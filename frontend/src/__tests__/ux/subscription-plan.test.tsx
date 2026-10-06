@@ -19,7 +19,6 @@ function makeFeatures(overrides: Partial<PlanFeatures> = {}): PlanFeatures {
     export_csv: false,
     bulk_operations: false,
     auditoria: false,
-    api_access: false,
     suporte_prioritario: false,
     mensalidade_mediun: false,
     mensalidade_associado: false,

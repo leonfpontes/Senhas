@@ -308,10 +308,10 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
             <div
               role="region"
               aria-label="Alterações não salvas"
-              className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:left-[280px] md:pr-36"
+              className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+56px)] z-30 border-t bg-card/95 px-4 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:bottom-0 md:left-64 md:pb-[calc(env(safe-area-inset-bottom)+0.75rem)]"
             >
               <div className="mx-auto flex max-w-5xl items-center justify-end gap-2">
-                <span className="mr-auto text-sm text-muted-foreground">Alterações não salvas</span>
+                <span className="mr-auto text-sm text-muted-foreground max-sm:sr-only">Alterações não salvas</span>
                 <Button variant="ghost" onClick={() => setPermissions(savedPermissions)} disabled={savingPermissions}>
                   Desfazer
                 </Button>

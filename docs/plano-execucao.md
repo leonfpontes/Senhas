@@ -466,7 +466,13 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   limites do free tier — só então virar item de implementação.
 - **Esforço**: decisão P; implementação M–G. **Custo**: R$ 0 na decisão; validar na implementação.
 
-### P-03 — API Premium: remover ou implementar — `pendente` (decisão)
+### P-03 — API Premium: remover ou implementar — `feito` (2026-10-06, removida)
+- **Feito**: decisão do dono do produto pela recomendação (remover). `api_access` saiu de `PlanFeatures`
+  (`backend/src/services/plan_features.py`), da fonte única de planos do frontend (`constants/plans.ts`,
+  que alimenta landing, assinatura e comparativo), do tipo `PlanFeatures` do `useSubscription` e da tabela
+  de planos da plataforma. A chave gerada em `TenantService.create_tenant`, que nunca era persistida nem
+  validada, deixou de ser gerada e devolvida. Para recolocar: projeto deliberado com chave persistida
+  (hash), escopo read-only primeiro e documentação.
 - **Problema**: o plano Premium anuncia `api_access` que não existe — a flag não tem consumidor,
   a chave gerada nunca é persistida, `/docs` é desabilitado em produção. Vender o que não existe
   é passivo comercial.

@@ -1,6 +1,7 @@
 /**
  * SupportChatPanel — painel flutuante da conversa do usuário com o suporte.
- * Renderizado pelo SupportChatWidget, ancorado acima do balão "Ajuda" (canto inferior direito).
+ * Aberto pelo item "Falar com o suporte" do menu do perfil (SupportChatWidget); o cartão fica
+ * no canto inferior direito, acima da barra de abas no celular.
  * Não é modal: fecha no X ou com Esc. Rola até a última mensagem; cada mensagem mostra a hora.
  *
  * Mesma API de props de antes (`messages`, `loading`, `sending`, `onSend`, `onClose`).
@@ -86,10 +87,11 @@ export function SupportChatPanel({ messages, loading, sending, onSend, onClose, 
       aria-label="Ajuda — conversa com o suporte"
       className={cn(
         'fixed z-50 flex flex-col overflow-hidden rounded-xl border bg-card text-card-foreground shadow-2xl',
-        // celular: largura toda, acima do balão (que fica a 72px do rodapé)
-        'inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+128px)] h-[480px] max-h-[calc(100dvh-180px)]',
+        // Ancorado embaixo (não em cima): a faixa de impersonação muda a altura do topo.
+        // celular: largura toda, acima da barra de abas (64px)
+        'inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+72px)] h-[480px] max-h-[calc(100dvh-140px)]',
         // a partir de 900px: cartão de 360px no canto direito
-        'md:inset-x-auto md:right-6 md:bottom-20 md:w-[360px] md:max-h-[calc(100dvh-120px)]',
+        'md:inset-x-auto md:right-4 md:bottom-4 md:w-[360px] md:max-h-[calc(100dvh-88px)]',
         className,
       )}
     >
