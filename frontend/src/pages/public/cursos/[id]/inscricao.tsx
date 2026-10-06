@@ -647,7 +647,7 @@ export default function InscricaoCursoPage() {
         <Card className="gap-5 py-6">
           <CardContent className="flex flex-col gap-5 px-5">
             <div className="text-center">
-              <span aria-hidden className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-success/10 text-success [&_svg]:size-7">
+              <span aria-hidden className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-success/10 text-success-strong [&_svg]:size-7">
                 <CircleCheck />
               </span>
               <h1 className="text-2xl font-bold leading-tight">Inscrição confirmada!</h1>
@@ -737,7 +737,7 @@ export default function InscricaoCursoPage() {
       <section aria-labelledby="curso-titulo" className="px-1 pt-1">
         <Badge
           variant="secondary"
-          className={cn('mb-2 gap-1 text-sm', isLotado ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success')}
+          className={cn('mb-2 gap-1 text-sm', isLotado ? 'bg-destructive/10 text-destructive-strong' : 'bg-success/10 text-success-strong')}
         >
           {isLotado ? <Lock /> : <CircleCheck />}
           {isLotado ? 'Vagas esgotadas' : 'Inscrições abertas'}

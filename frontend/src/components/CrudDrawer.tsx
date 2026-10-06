@@ -108,7 +108,7 @@ export default function CrudDrawer({
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 {icon && (
-                  <span className="flex shrink-0 items-center text-primary [&_svg]:size-6">
+                  <span className="flex shrink-0 items-center text-brand [&_svg]:size-6">
                     {icon}
                   </span>
                 )}

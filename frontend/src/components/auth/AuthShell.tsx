@@ -37,7 +37,7 @@ export function AuthShell({ headTitle, title, subtitle, size = 'xs', footer, chi
             <div className="mb-6 text-center">
               <Link
                 href="/"
-                className="inline-block rounded-md text-3xl font-extrabold tracking-tight text-primary outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="inline-block rounded-md text-3xl font-extrabold tracking-tight text-brand outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 GiraHub
               </Link>

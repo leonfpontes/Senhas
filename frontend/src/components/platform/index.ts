@@ -11,6 +11,8 @@ export { SectionLabel } from './SectionLabel';
 export { StatusDot } from './StatusDot';
 export { PlanBadge, BonusStar, SubscriptionStatusBadge, TenantActiveBadge, ToneBadge } from './PlanBadge';
 export type { Tone } from './PlanBadge';
+export { BillingCategoryBadge, BILLING_CATEGORY_META, BILLING_CATEGORY_ORDER } from './BillingCategory';
+export type { BillingCategoryKey } from './BillingCategory';
 export { default as ActivationSection, STAGE_META, STAGE_ORDER } from './ActivationSection';
 export type { ActivationData, ActivationTenant, ActivationStage } from './ActivationSection';
 

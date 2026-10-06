@@ -102,10 +102,10 @@ const STATUS_FILTERS: { value: string; label: string }[] = [
 
 const STATUS_TONE: Record<string, string> = {
   emitted: '',
-  called: 'border-info/30 bg-info/10 text-info',
-  completed: 'border-success/30 bg-success/15 text-success',
-  cancelled: 'border-destructive/30 bg-destructive/10 text-destructive',
-  no_show: 'border-warning/40 bg-warning/15 text-warning-foreground',
+  called: 'border-info/30 bg-info/10 text-info-strong',
+  completed: 'border-success/30 bg-success/15 text-success-strong',
+  cancelled: 'border-destructive/30 bg-destructive/10 text-destructive-strong',
+  no_show: 'border-warning/40 bg-warning/15 text-warning-strong',
 };
 
 const WAITLIST_STATUS_LABEL: Record<WaitlistItem['status'], string> = {
@@ -151,12 +151,12 @@ function TicketTags({ t }: { t: Ticket }) {
   return (
     <span className="flex flex-wrap gap-1">
       {t.is_sponsor && (
-        <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-foreground">
+        <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-strong">
           <Star aria-hidden /> Associado
         </Badge>
       )}
       {t.preferencial && (
-        <Badge variant="outline" className="border-warning/40 text-warning-foreground">
+        <Badge variant="outline" className="border-warning/40 text-warning-strong">
           <Star aria-hidden /> {priorityName(t.priority_category) ?? 'Preferencial'}
         </Badge>
       )}

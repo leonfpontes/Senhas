@@ -227,14 +227,14 @@ const AuditConsolidatedPage: React.FC = () => {
 
       {/* KPIs */}
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard label="Total de eventos" value={(summary?.total ?? 0).toLocaleString('pt-BR')} icon={<ShieldCheck />} color="var(--primary)" loading={loading && !summary} />
+        <KpiCard label="Total de eventos" value={(summary?.total ?? 0).toLocaleString('pt-BR')} icon={<ShieldCheck />} color="var(--primary-text)" loading={loading && !summary} />
         <KpiCard label="Terreiros ativos" value={activeTenantsCount} icon={<Building2 />} color="var(--info)" loading={loading && !summary} />
         <KpiCard label="Ação mais comum" value={mostCommonAction ? actionLabel(mostCommonAction) : '—'} icon={<Zap />} color="var(--warning)" loading={loading && !summary} />
         <KpiCard label="Terreiro mais ativo" value={mostActiveTenantName ?? '—'} icon={<Activity />} color="var(--success)" loading={loading && !summary} />
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList data-tour="audit-cons-tabs" className="mb-3">
+        <TabsList data-tour="audit-cons-tabs" className="mb-3 h-auto w-full flex-wrap justify-start">
           <TabsTrigger value="feed"><ScrollText /> Atividade recente</TabsTrigger>
           <TabsTrigger value="tenant"><Building2 /> Por terreiro</TabsTrigger>
           <TabsTrigger value="action"><Zap /> Por ação</TabsTrigger>

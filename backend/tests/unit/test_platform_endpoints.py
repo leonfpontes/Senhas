@@ -261,26 +261,38 @@ class TestBilling:
         assert isinstance(result, list)
 
     async def test_get_billing_statistics(self):
-        """get_billing_statistics queries Subscription directly (no repository) —
-        db.execute(select(Subscription)).scalars().all() must return real-ish
-        subscription mocks, not an unconfigured AsyncMock chain."""
+        """MRR conta só pagantes; teste, bônus e terreiro excluído ficam de fora."""
         from src.api.v1.platform.billing import get_billing_statistics
         from src.models.subscriptions import SubscriptionStatus, PlanType
 
-        sub = MagicMock()
-        sub.status = SubscriptionStatus.ACTIVE
-        sub.is_trial = False
-        sub.monthly_price = 50.0
-        sub.plan = PlanType.PRO
+        def sub(plan, price, *, trial=False, bonus=False, stripe=None, status=SubscriptionStatus.ACTIVE):
+            m = MagicMock()
+            m.status, m.plan, m.monthly_price = status, plan, price
+            m.is_trial, m.is_bonus, m.stripe_subscription_id = trial, bonus, stripe
+            return m
 
+        rows = [
+            (sub(PlanType.PRO, 79.0, stripe="sub_1"), None),          # pagante
+            (sub(PlanType.PREMIUM, 99.0, trial=True), None),          # em teste
+            (sub(PlanType.PREMIUM, 99.0, bonus=True), None),          # bonificado
+            (sub(PlanType.PREMIUM, 99.0, stripe="sub_2"), datetime.now(timezone.utc)),  # excluído
+            (sub(PlanType.FREE, 0.0), None),                          # gratuito
+        ]
         db = AsyncMock()
         result_mock = MagicMock()
-        result_mock.scalars.return_value.all.return_value = [sub]
+        result_mock.all.return_value = rows
         db.execute.return_value = result_mock
 
         result = await get_billing_statistics(_super_admin(), db)
-        assert result.active_tenants == 1
-        assert result.mrr == 50.0
+        assert result.mrr == 79.0
+        assert result.paying_tenants == 1
+        assert result.trial_tenants == 1
+        assert result.trial_potential_mrr == 99.0
+        assert result.bonus_tenants == 1
+        assert result.free_tenants == 1
+        assert result.deleted_tenants == 1
+        assert result.active_tenants == 4  # excluído não conta
+        assert result.plan_distribution["premium"] == 2
 
 
 # ── subscriptions.py ─────────────────────────────────────────────────────────

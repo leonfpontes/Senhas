@@ -1,6 +1,6 @@
 # Kit de componentes — frontend
 
-Última atualização: 2026-10-06 (migração MUI → shadcn/ui concluída, interface v2.0.0; ver AGENTS.md §11.16 e
+Última atualização: 2026-10-06 (migração MUI → shadcn/ui concluída, interface v2.1.0 com regras de contraste; ver AGENTS.md §11.16 e
 `docs/plano-execucao.md` M-01).
 
 Este é o kit que **todas as telas** usam. O MUI não existe mais no projeto. Regras:
@@ -58,6 +58,9 @@ Este é o kit que **todas as telas** usam. O MUI não existe mais no projeto. Re
   validação de verdade; para formulários de 2–3 campos, `useState` + `TextField` com `error` basta.
 - **Modo escuro**: classe `dark` em `<html>` (os providers já fazem). Use só tokens (`bg-card`,
   `text-muted-foreground`, `border`), nunca cor literal.
+- **Contraste**: texto na cor da marca = `text-brand` (nunca `text-primary`); em fundo suave
+  (`bg-warning/15`) use `text-warning-strong`; `text-*-foreground` só sobre o fundo sólido. Ver
+  AGENTS.md §11.16 e `__tests__/styles/`.
 - **Breakpoints**: `sm` 600 / `md` 900 / `lg` 1200 / `xl` 1536 (mantidos do MUI). O modo cartão da
   `DataTable` e o `CrudDrawer` em tela cheia usam 640px (`min-[640px]:`).
 

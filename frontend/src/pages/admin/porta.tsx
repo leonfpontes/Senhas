@@ -178,18 +178,18 @@ function Tags({ item }: { item: QueueItem }) {
   return (
     <>
       {item.is_sponsor && (
-        <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-foreground">
+        <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-strong">
           <Star aria-hidden /> Associado
         </Badge>
       )}
       {item.is_walk_in && (
-        <Badge variant="outline" className="border-info/30 bg-info/10 text-info">
+        <Badge variant="outline" className="border-info/30 bg-info/10 text-info-strong">
           Sem senha
         </Badge>
       )}
       {item.is_acompanhante && <Badge variant="outline">Acompanhante</Badge>}
       {item.preferencial && (
-        <Badge variant="outline" className="border-warning/40 text-warning-foreground">
+        <Badge variant="outline" className="border-warning/40 text-warning-strong">
           <Star aria-hidden /> {priorityLabel(item)}
         </Badge>
       )}
@@ -346,7 +346,7 @@ function QueueRow({ item, a, isNext }: { item: QueueItem; a: ItemActions; isNext
         <div className="flex flex-wrap items-center gap-1">
           {item.status === 'emitted' ? (
             arrived ? (
-              <Badge variant="outline" className="border-success/30 bg-success/15 text-success">
+              <Badge variant="outline" className="border-success/30 bg-success/15 text-success-strong">
                 Chegou
               </Badge>
             ) : null
@@ -777,7 +777,9 @@ function PortaContent() {
               <Button
                 type="button"
                 size="touch"
-                className="flex-1 text-lg font-bold"
+                // min-w-0 + quebra de linha: no celular estreito o texto quebra dentro do botão
+                // em vez de vazar para fora (antes "Chamar próximo · P008" saía pela esquerda).
+                className="h-auto min-h-12 min-w-0 flex-1 py-2 text-base leading-tight font-bold whitespace-normal sm:text-lg"
                 disabled={!next || actionLoading === next?.id}
                 onClick={() => next && setAttendTarget(next)}
               >
@@ -790,11 +792,14 @@ function PortaContent() {
                 type="button"
                 size="touch"
                 variant="outline"
-                className={cn(!canEdit && 'flex-1')}
+                // No celular, só o ícone (com rótulo acessível) para o "Chamar próximo" caber.
+                className={cn(canEdit ? 'max-sm:w-12 max-sm:px-0' : 'flex-1')}
+                aria-label="Sem senha"
+                title="Atender alguém sem senha"
                 data-tour="porta-walkin"
                 onClick={() => setWalkInCreateOpen(true)}
               >
-                <UserPlus aria-hidden /> Sem senha
+                <UserPlus aria-hidden /> <span className={cn(canEdit && 'max-sm:sr-only')}>Sem senha</span>
               </Button>
             )}
           </div>

@@ -131,10 +131,10 @@ export function giraStatusLabel(gira: GiraCardData, now: Date = new Date()): { l
 }
 
 const TONE_CLASS: Record<Tone, string> = {
-  success: 'border-success/30 bg-success/15 text-success',
-  info: 'border-info/30 bg-info/15 text-info',
-  warning: 'border-warning/40 bg-warning/20 text-warning-foreground',
-  primary: 'border-primary/30 bg-primary/10 text-primary',
+  success: 'border-success/30 bg-success/15 text-success-strong',
+  info: 'border-info/30 bg-info/15 text-info-strong',
+  warning: 'border-warning/40 bg-warning/20 text-warning-strong',
+  primary: 'border-primary/30 bg-primary/10 text-brand',
   muted: 'text-muted-foreground',
 };
 

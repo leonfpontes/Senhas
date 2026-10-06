@@ -33,7 +33,7 @@ export default function GirasEmptyState({ canInsert, canCreateGira, blockedReaso
       role="status"
       className="flex flex-col items-center px-6 py-10 text-center sm:py-14"
     >
-      <span className="mb-3 flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary" aria-hidden>
+      <span className="mb-3 flex size-14 items-center justify-center rounded-full bg-primary/10 text-brand" aria-hidden>
         <CalendarDays className="size-7" />
       </span>
       <h2 className="text-lg font-bold">Nenhuma gira cadastrada ainda</h2>
