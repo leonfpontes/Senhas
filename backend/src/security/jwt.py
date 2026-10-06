@@ -25,6 +25,8 @@ class TokenPayload(BaseModel):
     session_id: Optional[str] = None
     jti: Optional[str] = None
     orig_iat: Optional[datetime] = None
+    # "Lembrar-me" (só refresh tokens): False → cookies de sessão no refresh.
+    persistent: bool = True
 
 
 class AccessToken(BaseModel):
@@ -95,6 +97,7 @@ def create_refresh_token(
     session_id: uuid.UUID,
     jti: uuid.UUID,
     expires_delta: Optional[timedelta] = None,
+    persistent: bool = True,
 ) -> str:
     """Create JWT refresh token.
 
@@ -109,6 +112,10 @@ def create_refresh_token(
             persists it as UserSession.current_jti so the next refresh can
             detect whether a stale/stolen token is being replayed.
         expires_delta: Custom expiration delta (default 30 days)
+        persistent: "Lembrar-me". False grava o claim `persist: false`, que o
+            /auth/refresh lê para continuar emitindo cookies de sessão (sem
+            max_age). True (padrão) não grava claim nenhum — tokens antigos,
+            sem o claim, seguem persistentes.
 
     Returns:
         Encoded JWT token
@@ -129,6 +136,8 @@ def create_refresh_token(
         "session_id": str(session_id),
         "jti": str(jti),
     }
+    if not persistent:
+        payload["persist"] = False
 
     encoded = jwt.encode(
         payload,
@@ -221,6 +230,7 @@ def decode_refresh_token(token: str) -> TokenPayload:
             # as a legacy token to transparently upgrade.
             session_id=payload.get("session_id"),
             jti=payload.get("jti"),
+            persistent=payload.get("persist", True) is not False,
         )
     except jwt.PyJWTError as e:
         raise InvalidTokenError(f"Refresh token inválido: {str(e)}")

@@ -25,7 +25,8 @@ from src.security import (
 from src.core.limiter import limiter
 from src.core.logging import log_security_event
 from src.services import session_service
-from sqlalchemy import select
+from src.core.auth_cookies import set_auth_cookies
+from sqlalchemy import func, select
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +35,65 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 class LoginRequest(BaseModel):
     """Login request payload."""
-    
+
     email: EmailStr
     password: str
+    # "Lembrar-me": False → cookies de sessão (somem ao fechar o navegador).
+    remember_me: bool = True
+
+
+def normalize_login_email(email: str) -> str:
+    """E-mail de login comparado sem diferença de maiúsculas.
+
+    EmailStr só baixa o domínio; "Maria@x.com" e "maria@x.com" eram contas
+    diferentes no login/esqueci a senha/cadastro. Gravação nova vai em
+    minúsculas e as buscas usam func.lower(User.email) — cobre também as
+    linhas antigas gravadas com maiúsculas, sem migração.
+    """
+    return email.strip().lower()
+
+
+def user_by_login_email_stmt(email: str):
+    """SELECT do usuário pelo e-mail de login: ignora maiúsculas e, se o mesmo
+    e-mail existir em mais de um terreiro, fica com a conta mais antiga (regra
+    do login — o /forgot-password e a reativação seguem a mesma)."""
+    return (
+        select(User)
+        .where((func.lower(User.email) == normalize_login_email(email)) & (User.deleted_at.is_(None)))
+        .order_by(User.created_at.asc())
+        .limit(1)
+    )
+
+
+def login_user_payload(user: User) -> dict:
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "username": user.username,
+        "role": user.role.value,
+        "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+    }
+
+
+async def issue_session(
+    db: AsyncSession,
+    user: User,
+    request: Request | None,
+    response: Response,
+    persistent: bool = True,
+) -> str:
+    """Abre a sessão do usuário: UserSession (rotação/revogação do refresh),
+    tokens e os 3 cookies. Usado por login, cadastro e reativação. Faz commit.
+    Retorna o access_token (também devolvido no corpo, por compatibilidade)."""
+    user_agent = request.headers.get("user-agent") if request is not None else None
+    session_id, jti = await session_service.start_session(db, user, user_agent=user_agent)
+    access_token = create_access_token(user.id, user.tenant_id, user.role.value)
+    refresh_token = create_refresh_token(
+        user.id, user.tenant_id, user.role.value, session_id, jti, persistent=persistent
+    )
+    await db.commit()
+    set_auth_cookies(response, access_token, refresh_token, persistent=persistent)
+    return access_token
 
 
 class LoginResponse(BaseModel):
@@ -76,12 +133,8 @@ async def login(
     """
     # Email may exist in multiple tenants — pick the oldest active record.
     # If a user belongs to multiple tenants, the first-created account wins.
-    stmt = (
-        select(User)
-        .where((User.email == credentials.email) & (User.deleted_at.is_(None)))
-        .order_by(User.created_at.asc())
-        .limit(1)
-    )
+    # Case-insensitive (see normalize_login_email).
+    stmt = user_by_login_email_stmt(credentials.email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
@@ -135,43 +188,9 @@ async def login(
     
     # Create tokens. The refresh token is bound to a new UserSession row so it
     # can be rotated/revoked server-side (see src/services/session_service.py).
-    session_id, jti = await session_service.start_session(
-        db, user, user_agent=request.headers.get("user-agent")
-    )
-    access_token = create_access_token(user.id, user.tenant_id, user.role.value)
-    refresh_token = create_refresh_token(user.id, user.tenant_id, user.role.value, session_id, jti)
-    await db.commit()
-
-    # Access token em cookie HttpOnly — não fica exposto no localStorage
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=not settings.DEBUG,
-        samesite="strict",
-        max_age=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
-    )
-
-    # Refresh token em cookie HttpOnly
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=not settings.DEBUG,
-        samesite="strict",
-        max_age=30 * 24 * 60 * 60,
-    )
-
-    # Cookie legível pelo JS só para o frontend saber que está autenticado
-    # sem precisar guardar o JWT em localStorage
-    response.set_cookie(
-        key="auth_state",
-        value="1",
-        httponly=False,
-        secure=not settings.DEBUG,
-        samesite="strict",
-        max_age=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
-    )
+    # Access/refresh em cookies HttpOnly + auth_state legível pelo JS; com
+    # "Lembrar-me" desmarcado viram cookies de sessão (src/core/auth_cookies.py).
+    access_token = await issue_session(db, user, request, response, persistent=credentials.remember_me)
 
     log_security_event(
         "login",
@@ -179,18 +198,12 @@ async def login(
         tenant_id=user.tenant_id,
         success=True,
     )
-    
+
     return LoginResponse(
         access_token=access_token,
         token_type="bearer",
         expires_in=24 * 60 * 60,  # 24 hours
-        user={
-            "id": str(user.id),
-            "email": user.email,
-            "username": user.username,
-            "role": user.role.value,
-            "tenant_id": str(user.tenant_id) if user.tenant_id else None,
-        },
+        user=login_user_payload(user),
     )
 
 
@@ -261,20 +274,15 @@ async def refresh_token(
             db, user, user_agent=request_obj.headers.get("user-agent")
         )
 
-    # Emite novos tokens
+    # Emite novos tokens — no mesmo modo ("Lembrar-me") do login original.
+    persistent = getattr(payload, "persistent", True) is not False
     new_access = create_access_token(user.id, user.tenant_id, user.role.value)
-    new_refresh = create_refresh_token(user.id, user.tenant_id, user.role.value, session_id, new_jti)
+    new_refresh = create_refresh_token(
+        user.id, user.tenant_id, user.role.value, session_id, new_jti, persistent=persistent
+    )
     await db.commit()
 
-    response.set_cookie(key="access_token", value=new_access, httponly=True,
-                        secure=not settings.DEBUG, samesite="strict",
-                        max_age=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600)
-    response.set_cookie(key="refresh_token", value=new_refresh, httponly=True,
-                        secure=not settings.DEBUG, samesite="strict",
-                        max_age=30 * 24 * 60 * 60)
-    response.set_cookie(key="auth_state", value="1", httponly=False,
-                        secure=not settings.DEBUG, samesite="strict",
-                        max_age=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600)
+    set_auth_cookies(response, new_access, new_refresh, persistent=persistent)
 
     log_security_event("token_refresh", user_id=user.id, tenant_id=user.tenant_id, success=True)
 
@@ -396,11 +404,15 @@ async def forgot_password(
     from src.services.email.base import EmailMessage
     from src.services.email.templates.password_reset import render_password_reset_email
 
-    stmt = select(User).where(
-        (User.email == body.email) & (User.deleted_at.is_(None)) & (User.is_active.is_(True))
-    )
+    # Mesma regra do login: e-mail sem diferença de maiúsculas e, se o e-mail
+    # existir em mais de um terreiro, a conta mais antiga — a mesma que o login
+    # autentica. Antes, e-mail repetido entre terreiros estourava
+    # MultipleResultsFound (500) e o link nunca saía.
+    stmt = user_by_login_email_stmt(body.email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
+    if user is not None and not user.is_active:
+        user = None
 
     if user:
         raw_token = secrets.token_urlsafe(32)
