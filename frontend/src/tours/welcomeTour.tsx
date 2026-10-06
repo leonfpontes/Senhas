@@ -7,17 +7,22 @@
  * responderam a pergunta (cadastros a partir de 2026-10-05) — clientes
  * antigos não são afetados.
  *
+ * Toda trilha leva à primeira gira: boas-vindas → roteiro (checklist) → Porta →
+ * ajuda → "Criar gira". Nenhum passo leva para fora da gira; o módulo da dor
+ * (médiuns, financeiro, site, estoque) aparece só como "depois, quando quiser",
+ * em texto, no último passo.
+ *
  * Os passos não apontam para o menu lateral: ele muda por plano/permissão e
  * fica escondido numa gaveta no celular, onde está a maioria dos admins.
- * Passos centralizados levam à tela certa por botão; os ancorados usam só
- * elementos do dashboard (checklist, botão "?") e caem para o centro se o
- * elemento não estiver na tela.
+ * Os ancorados usam só elementos do dashboard (checklist, botão "?") e caem
+ * para o centro se o elemento não estiver na tela.
  */
 import React, { useEffect } from 'react';
-import { Box, Button, Typography } from '@mui/material';
 import Link from 'next/link';
 import { useTour, type StepType } from '@reactour/tour';
+import { Button } from '@/components/ui/button';
 import { PRINCIPAL_DOR_OPTIONS, type PrincipalDor } from '@/constants/onboarding';
+import { minPlanFor } from '@/constants/plans';
 import { trackEvent } from '@/services/analytics';
 import type { PlanFeatures } from '@/hooks/useSubscription';
 
@@ -33,40 +38,33 @@ export const CENTER_SELECTOR = '[data-tour="welcome-tour-center"]';
 // aparecia como um quadradinho claro no canto superior esquerdo.
 const CENTER_STEP = { selector: CENTER_SELECTOR, padding: { mask: 0 } } as const;
 
+export const CREATE_GIRA_HREF = '/admin/giras?nova=1';
+
 export const welcomeTourSeenKey = (userId: string) => `girahub:welcome-tour:seen:${userId}`;
 
-interface Trail {
-  title: string;
-  body: string;
-  cta?: { label: string; href: string };
-  /** Feature de plano (useSubscription.can) exigida pela trilha — basta uma. */
+interface ModuleHint {
+  /** Onde fica, em texto (sem link: o tour não sai da gira). */
+  text: string;
+  /** Feature de plano (useSubscription.can) exigida — basta uma. */
   features?: (keyof PlanFeatures)[];
 }
 
-/** Trilhas que levam a um módulo específico. "senhas" e "outro" usam o checklist. */
-const MODULE_TRAILS: Partial<Record<PrincipalDor, Trail>> = {
+/** O módulo da dor, sugerido para depois da primeira gira. "senhas" e "outro" não têm. */
+export const MODULE_HINTS: Partial<Record<PrincipalDor, ModuleHint>> = {
   mediuns: {
-    title: 'Comece pelos médiuns',
-    body: 'Em Médiuns você cadastra a corrente com telefone e data de nascimento. O painel avisa os aniversários da semana e você controla quem está ativo.',
-    cta: { label: 'Cadastrar médiuns', href: '/admin/mediuns' },
+    text: 'cadastre a corrente em Médiuns: o painel avisa os aniversários da semana.',
     features: ['mediuns'],
   },
   financeiro: {
-    title: 'Comece pelo financeiro',
-    body: 'Em Mensalidades você define o valor e registra o pagamento de cada médium. Contas a pagar, a receber e o fluxo de caixa mostram para onde vai o dinheiro do terreiro.',
-    cta: { label: 'Abrir mensalidades', href: '/admin/financeiro/mensalidades' },
+    text: 'em Mensalidades você registra o pagamento de cada médium e acompanha o caixa.',
     features: ['mensalidade_mediun', 'contas_financeiras'],
   },
   divulgacao: {
-    title: 'Comece pelo site do terreiro',
-    body: 'Em Meu Site você publica a página do terreiro com endereço, próximas giras e contato, sem precisar de programador. Em Cursos Presenciais você abre inscrições.',
-    cta: { label: 'Montar meu site', href: '/admin/meu-site' },
+    text: 'em Meu Site você publica a página do terreiro com as próximas giras.',
     features: ['site_builder'],
   },
   estoque: {
-    title: 'Comece pelo estoque',
-    body: 'Em Estoque você cadastra os materiais por grupo (velas, ervas, bebidas) com um mínimo de cada um. O painel avisa quando algo está acabando.',
-    cta: { label: 'Cadastrar itens', href: '/admin/estoque/itens' },
+    text: 'em Estoque você cadastra velas, ervas e bebidas e é avisado quando algo está acabando.',
     features: ['estoque_controle'],
   },
 };
@@ -84,35 +82,36 @@ export interface WelcomeTourContext {
 
 function StepBody({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <Box>
-      {title && (
-        <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.75 }}>
-          {title}
-        </Typography>
-      )}
-      <Typography variant="body2" component="div" sx={{ lineHeight: 1.55 }}>
-        {children}
-      </Typography>
-    </Box>
+    <div className="text-sm leading-relaxed">
+      {title && <p className="mb-1.5 text-base font-bold">{title}</p>}
+      <div className="space-y-2">{children}</div>
+    </div>
   );
 }
 
-function CtaButton({ label, href, ctx, variant = 'contained' }: { label: string; href: string; ctx: WelcomeTourContext; variant?: 'contained' | 'outlined' }) {
+function CreateGiraButton({ ctx }: { ctx: WelcomeTourContext }) {
   return (
-    <Button
-      component={Link}
-      href={href}
-      variant={variant}
-      size="small"
-      sx={{ mt: 1.5 }}
-      onClick={() => {
-        trackEvent('welcome_tour_cta', { trilha: ctx.dor, href });
-        ctx.close();
-      }}
-    >
-      {label}
+    <Button asChild size="sm" className="mt-1">
+      <Link
+        href={CREATE_GIRA_HREF}
+        onClick={() => {
+          trackEvent('welcome_tour_cta', { trilha: ctx.dor, href: CREATE_GIRA_HREF });
+          ctx.close();
+        }}
+      >
+        Criar gira
+      </Link>
     </Button>
   );
+}
+
+function moduleHintText(ctx: WelcomeTourContext): string | null {
+  const hint = MODULE_HINTS[ctx.dor];
+  if (!hint) return null;
+  const available = !hint.features || hint.features.some((f) => ctx.can(f));
+  if (available) return `Depois, quando quiser: ${hint.text}`;
+  const plan = hint.features?.length ? minPlanFor(hint.features[0]) : null;
+  return `Depois, quando quiser: ${hint.text}${plan ? ` (disponível a partir do plano ${plan.label})` : ''}`;
 }
 
 export function buildWelcomeTourSteps(ctx: WelcomeTourContext): StepType[] {
@@ -126,98 +125,58 @@ export function buildWelcomeTourSteps(ctx: WelcomeTourContext): StepType[] {
     content: (
       <StepBody title={name ? `Bem-vindo ao GiraHub, ${name}!` : 'Bem-vindo ao GiraHub!'}>
         {ctx.dor === 'outro'
-          ? 'Preparamos um guia rápido com o essencial para você começar.'
-          : `Você contou que quer ${option?.phrase ?? 'organizar o terreiro'}. Preparamos um guia rápido para começar por aí.`}
+          ? 'Preparamos um guia rápido com o essencial: sua primeira gira com senhas pelo WhatsApp.'
+          : `Você contou que quer ${option?.phrase ?? 'organizar o terreiro'}. Começamos pela primeira gira, que é onde tudo se junta.`}
       </StepBody>
     ),
   });
 
-  const trail = MODULE_TRAILS[ctx.dor];
-  if (trail) {
-    const available = !trail.features || trail.features.some((f) => ctx.can(f));
-    steps.push({
-      ...CENTER_STEP,
-      position: 'center',
-      content: (
-        <StepBody title={trail.title}>
-          {trail.body}
-          {available ? (
-            trail.cta && (
-              <Box>
-                <CtaButton label={trail.cta.label} href={trail.cta.href} ctx={ctx} />
-              </Box>
-            )
-          ) : (
-            <>
-              <Box sx={{ mt: 1 }}>Esse recurso não está no seu plano atual.</Box>
-              <Box>
-                <CtaButton label="Ver planos" href="/admin/plano" ctx={ctx} variant="outlined" />
-              </Box>
-            </>
-          )}
-        </StepBody>
-      ),
-    });
-  }
-
-  // Senhas é o núcleo do produto: toda trilha mostra o caminho da primeira gira.
-  const isSenhasTrail = ctx.dor === 'senhas' || ctx.dor === 'outro';
   if (ctx.hasChecklist) {
     steps.push({
       selector: CHECKLIST_SELECTOR,
       content: (
-        <StepBody title={isSenhasTrail ? 'Seu roteiro de primeiros passos' : 'E as senhas das giras?'}>
-          {isSenhasTrail
-            ? 'Crie a gira, mande o link de senhas no grupo de WhatsApp do terreiro e, no dia, use a Porta. Cada passo se completa sozinho.'
-            : 'Quando for organizar as senhas das giras, siga estes passos: criar a gira, mandar o link no WhatsApp e usar a Porta no dia.'}
-        </StepBody>
-      ),
-    });
-  } else if (isSenhasTrail) {
-    steps.push({
-      ...CENTER_STEP,
-      position: 'center',
-      content: (
-        <StepBody title="Comece pela primeira gira">
-          Crie a gira, mande o link de senhas no grupo de WhatsApp do terreiro e, no dia, use a Porta.
-          <Box>
-            <CtaButton label="Criar gira" href="/admin/giras?nova=1" ctx={ctx} />
-          </Box>
+        <StepBody title="Seu roteiro de primeiros passos">
+          Crie a gira, mande o link de senhas no grupo de WhatsApp do terreiro e, no dia, use a Porta. Cada passo se
+          completa sozinho.
         </StepBody>
       ),
     });
   }
 
-  if (isSenhasTrail) {
+  steps.push({
+    ...CENTER_STEP,
+    position: 'center',
+    content: (
+      <StepBody title="No dia da gira, use a Porta">
+        Abra a Porta no celular: ela mostra quem já pegou senha, faz o check-in na entrada e chama as senhas na ordem.
+      </StepBody>
+    ),
+  });
+
+  if (ctx.hasHelpButton) {
     steps.push({
-      ...CENTER_STEP,
-      position: 'center',
+      selector: HELP_BUTTON_SELECTOR,
       content: (
-        <StepBody title="No dia da gira, use a Porta">
-          Abra a Porta no celular: ela mostra quem já pegou senha, faz o check-in na entrada e chama as senhas na ordem.
+        <StepBody title="Dúvida? Toque aqui">
+          Cada tela tem o seu próprio guia. Sempre que precisar, é só tocar neste botão.
         </StepBody>
       ),
     });
   }
 
-  steps.push(
-    ctx.hasHelpButton
-      ? {
-          selector: HELP_BUTTON_SELECTOR,
-          content: (
-            <StepBody title="Dúvida? Toque aqui">
-              Cada tela tem o seu próprio guia. Sempre que precisar, é só tocar neste botão.
-            </StepBody>
-          ),
-        }
-      : {
-          ...CENTER_STEP,
-          position: 'center',
-          content: (
-            <StepBody title="Pronto!">Cada tela tem o seu próprio guia no botão de ajuda do topo.</StepBody>
-          ),
-        },
-  );
+  // Último passo de toda trilha: criar a gira.
+  const hint = moduleHintText(ctx);
+  steps.push({
+    ...CENTER_STEP,
+    position: 'center',
+    content: (
+      <StepBody title="Agora, sua primeira gira">
+        <p>Leva uns 3 minutos: data, horário e quantas senhas. O link para o WhatsApp sai pronto.</p>
+        {hint && <p className="text-muted-foreground">{hint}</p>}
+        <CreateGiraButton ctx={ctx} />
+      </StepBody>
+    ),
+  });
 
   return steps;
 }
