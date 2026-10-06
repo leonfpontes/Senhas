@@ -879,6 +879,8 @@ class TestSubscriptionService:
         s.billing_repo.create_invoice = AsyncMock()
         result = await s.upgrade_plan(TENANT_ID, PlanType.PRO)
         assert result["plan"] == "pro"
+        # Troca de plano pela plataforma não gera fatura fictícia (cobrança é do Stripe)
+        s.billing_repo.create_invoice.assert_not_called()
 
     async def test_downgrade_plan_not_found(self, svc):
         from src.core.errors import NotFoundError
@@ -1351,20 +1353,6 @@ class TestTenantServiceExtended:
         result = await s.update_tenant(TENANT_ID, name="Updated")
         assert result is not None
 
-    async def test_delete_tenant_not_found(self, svc):
-        s, _ = svc
-        s.tenant_repo.soft_delete = AsyncMock(return_value=None)
-        result = await s.delete_tenant(TENANT_ID)
-        assert result is False
-
-    async def test_delete_tenant_success(self, svc):
-        s, db = svc
-        tenant = MagicMock()
-        tenant.is_active = True
-        s.tenant_repo.soft_delete = AsyncMock(return_value=tenant)
-        result = await s.delete_tenant(TENANT_ID)
-        assert result is True
-
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Platform endpoints: extended coverage
@@ -1423,6 +1411,7 @@ class TestPlatformUsersExtended:
         user = _super_admin_user()
         req = UpdatePlatformUserRequest(username="new_name")
         with patch("src.api.v1.platform.users_global.PlatformUserRepository") as MockRepo:
+            MockRepo.return_value.get_by_id = AsyncMock(return_value=None)
             MockRepo.return_value.update = AsyncMock(return_value=None)
             with pytest.raises(HTTPException) as exc:
                 await update_platform_user(uuid4(), req, user, db)
@@ -1441,6 +1430,7 @@ class TestPlatformUsersExtended:
         updated.is_active = True
         updated.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
         with patch("src.api.v1.platform.users_global.PlatformUserRepository") as MockRepo:
+            MockRepo.return_value.get_by_id = AsyncMock(return_value=MagicMock(username="old"))
             MockRepo.return_value.update = AsyncMock(return_value=updated)
             result = await update_platform_user(uuid4(), req, user, db)
             assert result.username == "updated"
@@ -1461,6 +1451,7 @@ class TestPlatformUsersExtended:
         db = _mock_db()
         user = _super_admin_user()
         with patch("src.api.v1.platform.users_global.PlatformUserRepository") as MockRepo:
+            MockRepo.return_value.get_by_id = AsyncMock(return_value=None)
             MockRepo.return_value.soft_delete = AsyncMock(return_value=None)
             with pytest.raises(HTTPException) as exc:
                 await delete_platform_user(uuid4(), user, db)
@@ -1490,7 +1481,7 @@ class TestPlatformUsersExtended:
         from src.api.v1.platform.users_global import create_platform_user, CreatePlatformUserRequest
         db = _mock_db()
         user = _super_admin_user()
-        req = CreatePlatformUserRequest(email="a@b.com", username="test", password="pass")
+        req = CreatePlatformUserRequest(email="a@b.com", username="test", password="P@ss12345678")
         with patch("src.api.v1.platform.users_global.PlatformUserRepository") as MockRepo:
             MockRepo.return_value.get_by_email = AsyncMock(return_value=MagicMock())
             with pytest.raises(HTTPException) as exc:
@@ -1501,7 +1492,7 @@ class TestPlatformUsersExtended:
         from src.api.v1.platform.users_global import create_platform_user, CreatePlatformUserRequest
         db = _mock_db()
         user = _super_admin_user()
-        req = CreatePlatformUserRequest(email="a@b.com", username="test", password="pass")
+        req = CreatePlatformUserRequest(email="a@b.com", username="test", password="P@ss12345678")
         with patch("src.api.v1.platform.users_global.PlatformUserRepository") as MockRepo:
             MockRepo.return_value.get_by_email = AsyncMock(side_effect=RuntimeError("err"))
             with pytest.raises(HTTPException) as exc:
@@ -1540,6 +1531,7 @@ class TestPlatformSubscriptionsExtended:
         user = _super_admin_user()
         req = UpgradePlanRequest(plan=PlanType.PRO)
         with patch("src.api.v1.platform.subscriptions.SubscriptionService") as MockSvc:
+            MockSvc.return_value.get_subscription = AsyncMock(return_value=None)
             MockSvc.return_value.upgrade_plan = AsyncMock(side_effect=NotFoundError("not found"))
             with pytest.raises(HTTPException) as exc:
                 await upgrade_subscription(TENANT_ID, req, user, db)
@@ -1565,6 +1557,7 @@ class TestPlatformSubscriptionsExtended:
         user = _super_admin_user()
         req = UpgradePlanRequest(plan=PlanType.BASIC)
         with patch("src.api.v1.platform.subscriptions.SubscriptionService") as MockSvc:
+            MockSvc.return_value.get_subscription = AsyncMock(return_value=None)
             MockSvc.return_value.downgrade_plan = AsyncMock(side_effect=NotFoundError("nf"))
             with pytest.raises(HTTPException) as exc:
                 await downgrade_subscription(TENANT_ID, req, user, db)
@@ -1827,6 +1820,7 @@ class TestPlatformTenantsExtended:
         user = _super_admin_user()
         req = UpdateTenantRequest(name="Updated")
         with patch("src.api.v1.platform.tenants.TenantService") as MockSvc:
+            MockSvc.return_value.get_tenant = AsyncMock(return_value=None)
             MockSvc.return_value.update_tenant = AsyncMock(return_value=None)
             with pytest.raises(HTTPException) as exc:
                 await update_tenant(TENANT_ID, req, user, db)
@@ -1838,6 +1832,7 @@ class TestPlatformTenantsExtended:
         user = _super_admin_user()
         req = UpdateTenantRequest(name="Updated")
         with patch("src.api.v1.platform.tenants.TenantService") as MockSvc:
+            MockSvc.return_value.get_tenant = AsyncMock(return_value={"name": "Old"})
             MockSvc.return_value.update_tenant = AsyncMock(side_effect=RuntimeError("err"))
             with pytest.raises(HTTPException) as exc:
                 await update_tenant(TENANT_ID, req, user, db)

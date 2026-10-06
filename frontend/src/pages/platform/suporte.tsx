@@ -5,9 +5,13 @@
  * impersonação). Celular: lista → conversa num `Sheet`. Polling de 8s, badge no título da aba e som
  * em mensagem nova (mesmo padrão de admin/porta.tsx).
  *
- * `?conversation=<id>` seleciona uma conversa; `?tenant=<id>` seleciona a conversa do terreiro
+ * `?conversation=<id>` seleciona uma conversa (fora da lista carregada, busca por id em
+ * `GET /support-chat/conversations/{id}`); `?tenant=<id>` seleciona a conversa do terreiro
  * (buscada com `tenant_id` se não estiver na lista filtrada). Não há endpoint para a plataforma
  * abrir conversa nova — a conversa nasce no chat do terreiro.
+ *
+ * A conversa aberta é marcada como lida ao abrir e de novo a cada mensagem nova do terreiro que
+ * chega enquanto ela está na tela. A prévia da lista vem pronta do backend (sem buscar mensagens).
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -102,6 +106,13 @@ function SuportePageContent() {
     }
   }, [statusFilter]);
 
+  // Marca a conversa aberta como lida no servidor e na lista local (o badge some sem esperar o poll).
+  const markRead = useCallback((conversationId: string) => {
+    apiClient.post(`/api/v1/platform/support-chat/conversations/${conversationId}/read`).catch(() => {});
+    setConversations((cs) => cs.map((c) => (c.id === conversationId && c.unread ? { ...c, unread: false } : c)));
+    setExtra((e) => (e && e.id === conversationId && e.unread ? { ...e, unread: false } : e));
+  }, []);
+
   const loadMessages = useCallback(async (conversationId: string) => {
     try {
       const res = await apiClient.get<Message[]>(`/api/v1/platform/support-chat/conversations/${conversationId}/messages`);
@@ -110,6 +121,8 @@ function SuportePageContent() {
         const genuinelyNew = incoming.some((m) => !m.is_from_support && !seenMessageIds.current.has(m.id));
         if (genuinelyNew) {
           try { new Audio('/sounds/notification.mp3').play().catch(() => {}); } catch { /* não crítico */ }
+          // Chegou mensagem com a conversa aberta na tela: já foi lida.
+          markRead(conversationId);
         }
       }
       incoming.forEach((m) => seenMessageIds.current.add(m.id));
@@ -118,7 +131,7 @@ function SuportePageContent() {
     } catch {
       /* tenta no próximo poll */
     }
-  }, []);
+  }, [markRead]);
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
   useEffect(() => {
@@ -137,10 +150,11 @@ function SuportePageContent() {
       appliedQuery.current = true;
       setSelectedId(conversation);
       if (!conversations.some((c) => c.id === conversation)) {
+        // Fora da lista carregada (outro status ou além das 200 mais recentes): busca por id.
         apiClient
-          .get<ConversationSummary[]>('/api/v1/platform/support-chat/conversations', { params: { limit: 200 } })
-          .then((r) => setExtra((Array.isArray(r.data) ? r.data : []).find((c) => c.id === conversation) ?? null))
-          .catch(() => {});
+          .get<ConversationSummary>(`/api/v1/platform/support-chat/conversations/${conversation}`)
+          .then((r) => setExtra(r.data))
+          .catch(() => toast.error('Conversa não encontrada.'));
       }
       if (isMobile) setSheetOpen(true);
     } else if (typeof tenant === 'string') {
@@ -173,12 +187,12 @@ function SuportePageContent() {
     seenMessageIds.current = new Set();
     setLoadingMessages(true);
     loadMessages(selectedId).finally(() => setLoadingMessages(false));
-    apiClient.post(`/api/v1/platform/support-chat/conversations/${selectedId}/read`).catch(() => {});
+    markRead(selectedId);
     const t = setInterval(() => {
       if (document.visibilityState === 'visible') loadMessages(selectedId);
     }, POLLING_INTERVAL_MS);
     return () => clearInterval(t);
-  }, [selectedId, loadMessages]);
+  }, [selectedId, loadMessages, markRead]);
 
   // Rolagem automática para a última mensagem.
   useEffect(() => {

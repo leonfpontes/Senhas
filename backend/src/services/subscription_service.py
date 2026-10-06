@@ -1,7 +1,6 @@
 """SubscriptionService - Plan management and upgrades/downgrades (T102)."""
 from typing import Optional
 from uuid import UUID
-from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,8 +49,11 @@ class SubscriptionService:
         tenant_id: UUID,
         new_plan: PlanType,
     ) -> dict:
-        """Upgrade tenant subscription plan.
-        
+        """Change tenant subscription plan (platform drawer — any plan).
+
+        Só troca plano e limites. Não cria fatura: a cobrança real vem do Stripe
+        (webhook). Antes criava uma fatura fictícia com proração fixa de 50%.
+
         Args:
             tenant_id: Tenant ID
             new_plan: New plan type
@@ -66,10 +68,7 @@ class SubscriptionService:
         
         if not sub:
             raise NotFoundError("Subscrição não encontrada")
-        
-        # Create invoice for the upgrade
-        await self._create_upgrade_invoice(tenant_id, sub)
-        
+
         return self._subscription_to_dict(sub)
     
     async def downgrade_plan(
@@ -210,31 +209,3 @@ class SubscriptionService:
             "created_at": sub.created_at.isoformat(),
             **billing_fields(sub, tenant_deleted=False),
         }
-    
-    async def _create_upgrade_invoice(
-        self,
-        tenant_id: UUID,
-        subscription: Subscription,
-    ) -> None:
-        """Create invoice for plan upgrade (prorated).
-        
-        Args:
-            tenant_id: Tenant ID
-            subscription: Updated subscription
-        """
-        now = datetime.now(timezone.utc)
-        invoice_number = f"INV-{tenant_id.hex}-{int(now.timestamp())}"
-        
-        # Prorated amount (simplified)
-        prorate_factor = 0.5  # Example: 50% of month remaining
-        amount = subscription.monthly_price * prorate_factor
-        
-        await self.billing_repo.create_invoice(
-            tenant_id=tenant_id,
-            invoice_number=invoice_number,
-            period_start=now,
-            period_end=now + timedelta(days=30),
-            subtotal=amount,
-            tax_amount=0,
-            discount_amount=0,
-        )

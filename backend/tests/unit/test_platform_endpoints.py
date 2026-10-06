@@ -82,6 +82,8 @@ class TestPlatformTenants:
         tenant.is_active = True
         tenant.created_at = datetime.now(timezone.utc)
         tenant.updated_at = datetime.now(timezone.utc)
+        tenant.deleted_at = None
+        tenant.self_deactivated_at = None
         repo.get_by_id.return_value = tenant
         MockRepo.return_value = repo
 
@@ -240,6 +242,7 @@ class TestPlatformUsers:
         db = AsyncMock()
         repo = AsyncMock()
         repo.get_by_id.return_value = MagicMock()
+        repo.count_active.return_value = 2
         repo.delete.return_value = True
         MockRepo.return_value = repo
 

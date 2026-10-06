@@ -160,6 +160,26 @@ class SupportChatRepository:
         result = await session.execute(stmt)
         return result.scalars().all()
 
+    async def last_message_previews(
+        self, session: AsyncSession, conversation_ids: Sequence[UUID], max_len: int = 140
+    ) -> dict[UUID, str]:
+        """Prévia (até ``max_len`` caracteres) da última mensagem de cada conversa.
+
+        Uma consulta só (``DISTINCT ON``) para a lista da inbox — antes cada
+        conversa carregava TODAS as mensagens só para pegar a última (N+1).
+        Recebe ids de conversas já carregadas pelo chamador.
+        """
+        if not conversation_ids:
+            return {}
+        stmt = (
+            select(SupportMessage.conversation_id, func.left(SupportMessage.body, max_len))
+            .where(SupportMessage.conversation_id.in_(list(conversation_ids)))
+            .distinct(SupportMessage.conversation_id)
+            .order_by(SupportMessage.conversation_id, SupportMessage.created_at.desc())
+        )
+        result = await session.execute(stmt)
+        return {row[0]: row[1] for row in result.all()}
+
     async def add_message(
         self,
         session: AsyncSession,

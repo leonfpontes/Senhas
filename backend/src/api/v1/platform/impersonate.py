@@ -9,7 +9,9 @@ from uuid import UUID
 from src.core.database import get_db
 from src.api.dependencies import require_super_admin
 from src.models import User, UserRole, Tenant
+from src.models.audit_logs import AuditAction
 from src.security.jwt import create_access_token
+from src.services.platform_audit import log_platform_action
 
 router = APIRouter(prefix="/api/v1/platform/impersonate", tags=["platform-impersonate"])
 
@@ -87,6 +89,23 @@ async def impersonate_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tenant do usuário não encontrado",
         )
+
+    # Auditoria (item 9 das jornadas): o middleware só audita /api/v1/admin. O log
+    # entra na auditoria do terreiro e é commitado ANTES de devolver o token —
+    # impersonação sem rastro não sai daqui.
+    log_platform_action(
+        db,
+        actor_id=current_user.id,
+        action=AuditAction.LOGIN,
+        platform_action="impersonation_start",
+        description=f"Super-admin {current_user.email} entrou como {target_user.email} (impersonação, 1h)",
+        tenant_id=tenant.id,
+        resource_type="User",
+        resource_id=target_user.id,
+        impersonated_user_email=target_user.email,
+        impersonator_email=current_user.email,
+    )
+    await db.commit()
 
     # Mint 1h impersonation token
     access_token = create_access_token(

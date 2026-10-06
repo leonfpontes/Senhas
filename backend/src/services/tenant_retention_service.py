@@ -1,8 +1,10 @@
 """Single source of truth for "tenants at risk of churn" (super-admin views).
 
-Used by both the platform dashboard alert badge and the Tenant Observatory
-retention list — kept in one place so the two screens never disagree on
-which tenants count as at risk.
+Computed once per Hoje load, by ``GET /platform/tenant-observatory``
+(``retention`` + ``retention_summary``); the Hoje alert, the "Contatar" list,
+the Terreiros table and Tenant 360 all read that payload, so they never disagree
+on which tenants count as at risk. ``GRACE_DAYS`` goes out as
+``retention_grace_days`` for the alert copy.
 """
 from __future__ import annotations
 

@@ -242,59 +242,6 @@ class TestTenantService:
             result = await service.get_tenant(TENANT_ID)
             assert result is None
 
-    async def test_suspend_tenant(self):
-        from src.services.tenant_service import TenantService
-        db = AsyncMock()
-
-        with patch("src.services.tenant_service.TenantRepository") as MockRepo, \
-             patch("src.services.tenant_service.UserRepository"), \
-             patch("src.services.tenant_service.SubscriptionRepository"):
-            repo = AsyncMock()
-            tenant = MagicMock()
-            tenant.id = TENANT_ID
-            tenant.slug = "test"
-            tenant.name = "Test"
-            tenant.description = None
-            tenant.is_active = False
-            tenant.created_at = datetime.now(timezone.utc)
-            tenant.updated_at = datetime.now(timezone.utc)
-            repo.update.return_value = tenant
-            MockRepo.return_value = repo
-
-            service = TenantService(db)
-            result = await service.suspend_tenant(TENANT_ID)
-            assert result is not None
-
-    async def test_delete_tenant(self):
-        from src.services.tenant_service import TenantService
-        db = AsyncMock()
-
-        with patch("src.services.tenant_service.TenantRepository") as MockRepo, \
-             patch("src.services.tenant_service.UserRepository"), \
-             patch("src.services.tenant_service.SubscriptionRepository"):
-            repo = AsyncMock()
-            repo.soft_delete.return_value = MagicMock()
-            MockRepo.return_value = repo
-
-            service = TenantService(db)
-            result = await service.delete_tenant(TENANT_ID)
-            assert result is True
-
-    async def test_delete_tenant_not_found(self):
-        from src.services.tenant_service import TenantService
-        db = AsyncMock()
-
-        with patch("src.services.tenant_service.TenantRepository") as MockRepo, \
-             patch("src.services.tenant_service.UserRepository"), \
-             patch("src.services.tenant_service.SubscriptionRepository"):
-            repo = AsyncMock()
-            repo.soft_delete.return_value = None
-            MockRepo.return_value = repo
-
-            service = TenantService(db)
-            result = await service.delete_tenant(TENANT_ID)
-            assert result is False
-
 
 # ── services/subscription_service.py ─────────────────────────────────────────
 

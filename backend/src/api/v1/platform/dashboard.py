@@ -10,7 +10,6 @@ from src.api.dependencies import require_super_admin
 from src.models import User, UserRole, Tenant, Ticket, Subscription, SubscriptionStatus
 from src.models.giras import Gira
 from src.models.subscriptions import PlanType
-from src.services.tenant_retention_service import get_at_risk_tenants
 from src.services.billing_metrics import paying_clause
 
 router = APIRouter(prefix="/api/v1/platform/dashboard", tags=["platform-dashboard"])
@@ -148,15 +147,12 @@ async def _alerts(db: AsyncSession) -> dict:
     )
     inactive_tenants = inactive_result.scalar() or 0
 
-    # Same definition of "at risk of churn" used by the Tenant Observatory's
-    # retention list, so the dashboard badge count always matches what
-    # clicking through to the observatory actually shows.
-    at_risk_tenants = await get_at_risk_tenants(db)
-    no_activity_30d = len(at_risk_tenants)
-
+    # Terreiros em risco de churn NÃO são contados aqui: a tela Hoje já busca
+    # /tenant-observatory, que traz a lista (`retention`) e o total
+    # (`retention_summary.total_at_risk`) de services/tenant_retention_service.py.
+    # Contar aqui também rodava a mesma consulta pesada duas vezes por carga.
     return {
         "inactive_tenants": inactive_tenants,
-        "no_activity_30d": no_activity_30d,
     }
 
 

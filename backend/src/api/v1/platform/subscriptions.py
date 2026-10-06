@@ -18,6 +18,7 @@ from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMI
 from src.repositories.audit_log_repo import AuditLogRepository
 from src.models.audit_logs import AuditAction
 from src.core.errors import NotFoundError
+from src.services.platform_audit import log_platform_action
 
 router = APIRouter(prefix="/api/v1/platform/subscriptions", tags=["platform-subscriptions"])
 
@@ -50,6 +51,30 @@ class UpgradePlanRequest(BaseModel):
 class RecordUsageRequest(BaseModel):
     """Request to record usage."""
     current_users: int
+
+
+def _log_subscription_action(
+    db: AsyncSession,
+    actor: User,
+    tenant_id: UUID,
+    result: dict,
+    *,
+    platform_action: str,
+    description: str,
+    **details,
+) -> None:
+    """Log da ação de assinatura na auditoria do terreiro (antes do commit)."""
+    log_platform_action(
+        db,
+        actor_id=actor.id,
+        action=AuditAction.UPDATE,
+        platform_action=platform_action,
+        description=description,
+        tenant_id=tenant_id,
+        resource_type="subscription",
+        resource_id=UUID(result["id"]) if result.get("id") else None,
+        **details,
+    )
 
 
 @router.get("/{tenant_id}", response_model=SubscriptionResponse)
@@ -91,11 +116,25 @@ async def upgrade_subscription(
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Upgrade tenant subscription plan."""
+    """Troca o plano do terreiro (usado pelo SubscriptionDrawer da plataforma).
+
+    Apesar do nome, aceita qualquer plano (inclusive inferior): só muda plano e
+    limites. Não gera fatura — a cobrança real é do Stripe (webhook).
+    """
     service = SubscriptionService(db)
     
     try:
+        previous = await service.get_subscription(tenant_id)
         result = await service.upgrade_plan(tenant_id, request.plan)
+        _log_subscription_action(
+            db, current_user, tenant_id, result,
+            platform_action="subscription_plan_change",
+            description=(
+                f"Plano alterado pela plataforma: {(previous or {}).get('plan', '?')} → {result['plan']}"
+            ),
+            previous_values={"plan": (previous or {}).get("plan")},
+            new_values={"plan": result["plan"]},
+        )
         await db.commit()
         
         return SubscriptionResponse(**result)
@@ -123,7 +162,17 @@ async def downgrade_subscription(
     service = SubscriptionService(db)
     
     try:
+        previous = await service.get_subscription(tenant_id)
         result = await service.downgrade_plan(tenant_id, request.plan)
+        _log_subscription_action(
+            db, current_user, tenant_id, result,
+            platform_action="subscription_downgrade",
+            description=(
+                f"Plano rebaixado pela plataforma: {(previous or {}).get('plan', '?')} → {result['plan']}"
+            ),
+            previous_values={"plan": (previous or {}).get("plan")},
+            new_values={"plan": result["plan"]},
+        )
         await db.commit()
         
         return SubscriptionResponse(**result)
@@ -151,6 +200,11 @@ async def suspend_subscription(
     
     try:
         result = await service.suspend_subscription(tenant_id)
+        _log_subscription_action(
+            db, current_user, tenant_id, result,
+            platform_action="subscription_suspend",
+            description="Assinatura suspensa pela plataforma",
+        )
         await db.commit()
         
         return SubscriptionResponse(**result)
@@ -178,6 +232,11 @@ async def reactivate_subscription(
     
     try:
         result = await service.reactivate_subscription(tenant_id)
+        _log_subscription_action(
+            db, current_user, tenant_id, result,
+            platform_action="subscription_reactivate",
+            description="Assinatura reativada pela plataforma",
+        )
         await db.commit()
         
         return SubscriptionResponse(**result)
@@ -213,8 +272,8 @@ async def set_bonus(
 ):
     """Grant or revoke bonus access for a tenant.
 
-    - Enabling bonus (is_bonus=True): sets is_bonus flag, upgrades to given plan (free if omitted),
-      cancels any active Stripe subscription immediately.
+    - Enabling bonus (is_bonus=True): sets is_bonus flag, grants the given plan (BASIC if
+      omitted), cancels any active Stripe subscription immediately.
     - Disabling bonus (is_bonus=False): removes is_bonus flag; plan stays as-is (tenant must
       subscribe manually to keep paid features).
     """

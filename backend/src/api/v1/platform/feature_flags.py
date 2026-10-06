@@ -85,6 +85,39 @@ async def set_feature_flag(
         )
 
 
+# Rota fixa "/{tenant_id}/enabled" ANTES de "/{tenant_id}/{feature}": o Starlette casa
+# na ordem de registro e "enabled" viraria o nome da feature (tests/unit/test_route_shadowing.py).
+@router.get("/{tenant_id}/enabled", response_model=List[FeatureFlagResponse])
+async def list_enabled_features(
+    tenant_id: UUID,
+    current_user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> List[dict]:
+    """List only enabled feature flags for tenant."""
+    repo = FeatureFlagsRepository(db)
+    
+    try:
+        flags = await repo.list_enabled(tenant_id)
+        
+        return [
+            FeatureFlagResponse(
+                id=str(f.id),
+                tenant_id=str(f.tenant_id),
+                feature=f.feature,
+                enabled=f.enabled,
+                expires_at=f.expires_at.isoformat() if f.expires_at else None,
+                description=f.description,
+                created_at=f.created_at.isoformat(),
+            )
+            for f in flags
+        ]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao listar features ativadas: {str(e)}",
+        )
+
+
 @router.get("/{tenant_id}/{feature}", response_model=FeatureFlagResponse)
 async def get_feature_flag(
     tenant_id: UUID,
@@ -180,35 +213,4 @@ async def delete_feature_flag(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao deletar feature flag: {str(e)}",
-        )
-
-
-@router.get("/{tenant_id}/enabled", response_model=List[FeatureFlagResponse])
-async def list_enabled_features(
-    tenant_id: UUID,
-    current_user: User = Depends(require_super_admin),
-    db: AsyncSession = Depends(get_db),
-) -> List[dict]:
-    """List only enabled feature flags for tenant."""
-    repo = FeatureFlagsRepository(db)
-    
-    try:
-        flags = await repo.list_enabled(tenant_id)
-        
-        return [
-            FeatureFlagResponse(
-                id=str(f.id),
-                tenant_id=str(f.tenant_id),
-                feature=f.feature,
-                enabled=f.enabled,
-                expires_at=f.expires_at.isoformat() if f.expires_at else None,
-                description=f.description,
-                created_at=f.created_at.isoformat(),
-            )
-            for f in flags
-        ]
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao listar features ativadas: {str(e)}",
         )

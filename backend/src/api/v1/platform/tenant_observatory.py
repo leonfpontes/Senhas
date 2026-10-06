@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select, func, and_, desc
@@ -20,7 +21,7 @@ from src.models.giras import Gira
 from src.models.cursos_presenciais import CursoPresencial, CursoParticipante
 from src.models.audit_logs import AuditLog
 from src.services.error_alert_service import error_alert_service
-from src.services.tenant_retention_service import get_at_risk_tenants
+from src.services.tenant_retention_service import GRACE_DAYS, get_at_risk_tenants
 from src.services.activation_service import get_activation
 
 router = APIRouter(
@@ -45,9 +46,27 @@ _FEATURE_LABELS: dict[str, str] = {
 }
 
 
-async def _upcoming_giras(db: AsyncSession) -> list[dict]:
+async def _upcoming_giras(
+    db: AsyncSession, tenant_id: UUID | None = None, limit: int = 50
+) -> list[dict]:
+    """Giras dos próximos 30 dias.
+
+    Sem ``tenant_id``: as ``limit`` mais próximas da plataforma inteira (painel
+    Hoje), só de terreiros não excluídos. Com ``tenant_id``: só as daquele
+    terreiro (aba Giras do Tenant 360 — antes filtrava o top 50 global no
+    navegador e sumia com as giras de quem não estava entre as 50 mais próximas).
+    """
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(days=30)
+    conditions = [
+        Gira.deleted_at.is_(None),
+        Gira.data_inicio >= now,
+        Gira.data_inicio <= horizon,
+    ]
+    if tenant_id is None:
+        conditions.append(Tenant.deleted_at.is_(None))
+    else:
+        conditions.append(Gira.tenant_id == tenant_id)
 
     rows = await db.execute(
         select(
@@ -67,21 +86,14 @@ async def _upcoming_giras(db: AsyncSession) -> list[dict]:
         .select_from(Gira)
         .join(Tenant, Tenant.id == Gira.tenant_id)
         .outerjoin(Ticket, and_(Ticket.gira_id == Gira.id, Ticket.deleted_at.is_(None)))
-        .where(
-            and_(
-                Gira.deleted_at.is_(None),
-                Tenant.deleted_at.is_(None),
-                Gira.data_inicio >= now,
-                Gira.data_inicio <= horizon,
-            )
-        )
+        .where(and_(*conditions))
         .group_by(
             Gira.id, Gira.nome, Gira.data_inicio, Gira.data_fim,
             Gira.max_tickets, Gira.release_start_at, Gira.release_end_at,
             Gira.is_active, Tenant.id, Tenant.name, Tenant.slug,
         )
         .order_by(Gira.data_inicio.asc())
-        .limit(50)
+        .limit(limit)
     )
 
     result = []
@@ -252,6 +264,16 @@ async def _errors_by_tenant(window_minutes: int) -> list[dict]:
     return sorted(result, key=lambda x: x["total_erros"], reverse=True)
 
 
+@router.get("/tenants/{tenant_id}/giras")
+async def get_tenant_upcoming_giras(
+    tenant_id: UUID,
+    current_user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Giras dos próximos 30 dias de UM terreiro (aba Giras do Tenant 360)."""
+    return await _upcoming_giras(db, tenant_id=tenant_id, limit=200)
+
+
 @router.get("")
 async def get_tenant_observatory(
     current_user: User = Depends(require_super_admin),
@@ -275,6 +297,9 @@ async def get_tenant_observatory(
     return {
         "retention": retention,
         "retention_summary": retention_summary,
+        # Carência da retenção: só entra quem está há GRACE_DAYS ou mais dias sem
+        # emitir senha (a tela Hoje usa no texto do alerta, em vez de número fixo).
+        "retention_grace_days": GRACE_DAYS,
         # Cadastros recentes por estágio de ativação (services/activation_service.py)
         "activation": activation,
         "upcoming_giras": upcoming_giras,

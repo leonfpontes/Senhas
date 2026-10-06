@@ -15,8 +15,10 @@ from src.models import User, PlanType
 from src.models.subscriptions import Subscription
 from src.services.tenant_service import TenantService
 from src.services import session_service
+from src.models.audit_logs import AuditAction
 from src.repositories.tenant_repo import TenantRepository
 from src.security.password import hash_password, validate_password_policy
+from src.services.platform_audit import log_platform_action
 
 router = APIRouter(prefix="/api/v1/platform/tenants", tags=["platform-tenants"])
 
@@ -28,11 +30,15 @@ class CreateTenantRequest(BaseModel):
     email_admin: EmailStr
     plan: PlanType = PlanType.BASIC
     is_trial: bool = False
-    data_retention_days: int = 12
 
 
 class UpdateTenantRequest(BaseModel):
-    """Request to update tenant."""
+    """Request to update tenant.
+
+    Só os campos ENVIADOS são aplicados (``model_fields_set``): ``description: null``
+    limpa a descrição; campo ausente fica como está. ``name``/``is_active`` não
+    aceitam null (colunas NOT NULL).
+    """
     name: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
@@ -61,6 +67,10 @@ class TenantResponse(BaseModel):
     plan: Optional[str] = None
     subscription_status: Optional[str] = None
     is_bonus: Optional[bool] = None
+    # Terreiro excluído (soft delete). Com self_deactivated_at preenchido, foi o
+    # próprio terreiro que se desativou pelo painel (/auth/deactivate-account).
+    deleted_at: Optional[str] = None
+    self_deactivated_at: Optional[str] = None
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=dict)
@@ -73,9 +83,9 @@ async def create_tenant(
     
     This endpoint is SUPER_ADMIN only and creates:
     - New tenant
-    - Initial admin user
+    - Initial admin user (``temp_password`` volta UMA vez na resposta para o
+      super-admin repassar; não é enviada por e-mail nem registrada em log)
     - Subscription
-    - API key
     """
     service = TenantService(db)
     
@@ -86,9 +96,20 @@ async def create_tenant(
             email_admin=request.email_admin,
             plan=request.plan,
             is_trial=request.is_trial,
-            data_retention_days=request.data_retention_days,
         )
-        
+        log_platform_action(
+            db,
+            actor_id=current_user.id,
+            action=AuditAction.CREATE,
+            platform_action="tenant_create",
+            description=f"Terreiro criado pela plataforma (admin {request.email_admin})",
+            tenant_id=UUID(result["id"]),
+            resource_type="Tenant",
+            resource_id=UUID(result["id"]),
+            slug=request.slug,
+            plan=request.plan.value,
+        )
+
         await db.commit()
         return result
     except InvalidInputError as e:
@@ -111,11 +132,15 @@ async def get_tenant(
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Get tenant by ID."""
+    """Get tenant by ID.
+
+    Inclui terreiros excluídos (soft delete) — a aba Assinaturas lista quem se
+    desativou e o Tenant 360 precisa abrir para a exclusão definitiva (LGPD).
+    """
     repo = TenantRepository(db)
     
     try:
-        tenant = await repo.get_by_id(tenant_id, None)
+        tenant = await repo.get_by_id(tenant_id, None, include_deleted=True)
         if not tenant:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -138,6 +163,10 @@ async def get_tenant(
             plan=sub.plan.value.lower() if sub else None,
             subscription_status=sub.status.value.lower() if sub else None,
             is_bonus=sub.is_bonus if sub else None,
+            deleted_at=tenant.deleted_at.isoformat() if tenant.deleted_at else None,
+            self_deactivated_at=(
+                tenant.self_deactivated_at.isoformat() if tenant.self_deactivated_at else None
+            ),
         )
     except HTTPException:
         raise
@@ -155,28 +184,54 @@ async def update_tenant(
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Update tenant."""
+    """Update tenant (só os campos enviados; ``description: null`` limpa)."""
     service = TenantService(db)
     
     try:
-        update_data = {
-            k: v for k, v in request.model_dump().items() if v is not None
-        }
-        
+        update_data = request.model_dump(exclude_unset=True)
+        for field in ("name", "is_active"):
+            if field in update_data and update_data[field] is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"Campo '{field}' não pode ser nulo",
+                )
+        if "name" in update_data and not update_data["name"].strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Nome não pode ficar vazio",
+            )
+        if update_data.get("description") is not None and not update_data["description"].strip():
+            update_data["description"] = None
+
         if not update_data:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Nenhum campo para atualizar",
             )
-        
-        result = await service.update_tenant(tenant_id, **update_data)
-        
+
+        before = await service.get_tenant(tenant_id)
+        result = await service.update_tenant(tenant_id, **update_data) if before else None
+
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Tenant não encontrado",
             )
-        
+
+        changed = [k for k in update_data if before.get(k) != result.get(k)]
+        log_platform_action(
+            db,
+            actor_id=current_user.id,
+            action=AuditAction.UPDATE,
+            platform_action="tenant_update",
+            description="Dados do terreiro alterados pela plataforma",
+            tenant_id=tenant_id,
+            resource_type="Tenant",
+            resource_id=tenant_id,
+            previous_values={k: before.get(k) for k in changed},
+            new_values={k: result.get(k) for k in changed},
+        )
+
         await db.commit()
         
         return TenantResponse(**result)
@@ -307,10 +362,10 @@ async def list_tenant_users(
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> List[TenantUserResponse]:
-    """List all users for a specific tenant."""
-    # Verify tenant exists
+    """List all users for a specific tenant (também de terreiro excluído)."""
+    # Verify tenant exists — inclui soft-deleted para o Tenant 360 de quem se desativou
     repo = TenantRepository(db)
-    tenant = await repo.get_by_id(tenant_id, None)
+    tenant = await repo.get_by_id(tenant_id, None, include_deleted=True)
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -396,6 +451,16 @@ async def reset_tenant_user_password(
     user.sessions_revoked_at = datetime.now(timezone.utc)
     db.add(user)
     await session_service.end_all_sessions(db, user.id)
+    log_platform_action(
+        db,
+        actor_id=current_user.id,
+        action=AuditAction.UPDATE,
+        platform_action="user_password_reset",
+        description=f"Senha de {user.email} redefinida pela plataforma (sessões encerradas)",
+        tenant_id=tenant_id,
+        resource_type="User",
+        resource_id=user.id,
+    )
     await db.commit()
 
     log_security_event(

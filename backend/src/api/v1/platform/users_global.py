@@ -1,7 +1,7 @@
 """Platform API - Global SUPER_ADMIN users endpoint (T106)."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
 from uuid import UUID
 
@@ -10,9 +10,10 @@ from sqlalchemy.exc import IntegrityError
 from src.core.database import get_db
 from src.api.dependencies import require_super_admin
 from src.models import User
+from src.models.audit_logs import AuditAction
 from src.repositories.platform_user_repo import PlatformUserRepository
-from src.security.password import hash_password
-from src.core.errors import InvalidInputError
+from src.security.password import hash_password, validate_password_policy
+from src.services.platform_audit import log_platform_action
 
 router = APIRouter(prefix="/api/v1/platform/users", tags=["platform-users"])
 
@@ -23,11 +24,39 @@ class CreatePlatformUserRequest(BaseModel):
     username: str
     password: str
 
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        # Mesma política do resto do sistema (antes aceitava qualquer senha aqui).
+        if len(v.encode("utf-8")) > 72:  # bcrypt trunca em silêncio depois de 72 bytes
+            raise ValueError("Senha deve ter no máximo 72 caracteres")
+        try:
+            validate_password_policy(v)
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
+        return v
+
 
 class UpdatePlatformUserRequest(BaseModel):
     """Request to update SUPER_ADMIN user."""
     username: Optional[str] = None
     is_active: Optional[bool] = None
+
+
+async def _guard_last_active_super_admin(
+    repo: PlatformUserRepository, target: User, acting: User, verb: str
+) -> None:
+    """Bloqueia desativar/excluir a si mesmo ou o último super-admin ativo."""
+    if target.id == acting.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Você não pode {verb} a sua própria conta de super-admin.",
+        )
+    if target.is_active and await repo.count_active() <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Não é possível {verb} o último super-admin ativo da plataforma.",
+        )
 
 
 class PlatformUserResponse(BaseModel):
@@ -68,7 +97,17 @@ async def create_platform_user(
             password_hash=password_hash,
             is_active=True,
         )
-        
+        log_platform_action(
+            db,
+            actor_id=current_user.id,
+            action=AuditAction.CREATE,
+            platform_action="super_admin_create",
+            description=f"Super-admin {user.email} criado",
+            tenant_id=None,
+            resource_type="User",
+            resource_id=user.id,
+        )
+
         await db.commit()
         
         return PlatformUserResponse(
@@ -150,7 +189,17 @@ async def update_platform_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Nenhum campo para atualizar",
             )
-        
+
+        target = await repo.get_by_id(user_id)
+        if not target:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuário não encontrado",
+            )
+        if update_data.get("is_active") is False:
+            await _guard_last_active_super_admin(repo, target, current_user, "desativar")
+        previous = {k: getattr(target, k) for k in update_data}
+
         user = await repo.update(user_id, **update_data)
         
         if not user:
@@ -158,7 +207,20 @@ async def update_platform_user(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Usuário não encontrado",
             )
-        
+
+        log_platform_action(
+            db,
+            actor_id=current_user.id,
+            action=AuditAction.UPDATE,
+            platform_action="super_admin_update",
+            description=f"Super-admin {user.email} alterado",
+            tenant_id=None,
+            resource_type="User",
+            resource_id=user.id,
+            previous_values=previous,
+            new_values={k: getattr(user, k) for k in update_data},
+        )
+
         await db.commit()
         
         return PlatformUserResponse(
@@ -185,10 +247,18 @@ async def delete_platform_user(
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Soft delete platform user."""
+    """Soft delete platform user (nunca a si mesmo nem o último super-admin ativo)."""
     repo = PlatformUserRepository(db)
     
     try:
+        target = await repo.get_by_id(user_id)
+        if not target:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuário não encontrado",
+            )
+        await _guard_last_active_super_admin(repo, target, current_user, "excluir")
+
         user = await repo.soft_delete(user_id)
         
         if not user:
@@ -196,7 +266,18 @@ async def delete_platform_user(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Usuário não encontrado",
             )
-        
+
+        log_platform_action(
+            db,
+            actor_id=current_user.id,
+            action=AuditAction.DELETE,
+            platform_action="super_admin_delete",
+            description=f"Super-admin {user.email} excluído",
+            tenant_id=None,
+            resource_type="User",
+            resource_id=user.id,
+        )
+
         await db.commit()
     except HTTPException:
         raise

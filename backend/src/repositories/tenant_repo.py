@@ -176,31 +176,34 @@ class TenantRepository(BaseRepository[Tenant]):
         await self.db.refresh(tenant)
         return tenant
 
-    async def get_by_id_with_subscription(self, tenant_id: UUID) -> Optional[Tenant]:
+    async def get_by_id_with_subscription(
+        self, tenant_id: UUID, include_deleted: bool = False
+    ) -> Optional[Tenant]:
         """Get tenant by ID eagerly loading its subscription.
 
         Used before hard delete to retrieve stripe IDs before the row vanishes.
 
         Args:
             tenant_id: Tenant UUID
+            include_deleted: Also return soft-deleted tenants (LGPD hard delete of
+                a terreiro that deactivated itself — ``self_deactivated_at``).
 
         Returns:
-            Tenant with .subscription populated, or None if not found / soft-deleted.
+            Tenant with .subscription populated, or None if not found (or
+            soft-deleted, unless ``include_deleted``).
         """
+        conditions = [Tenant.id == tenant_id]
+        if not include_deleted:
+            conditions.append(Tenant.deleted_at.is_(None))
         stmt = (
             select(Tenant)
             .options(selectinload(Tenant.subscription))
-            .where(
-                and_(
-                    Tenant.id == tenant_id,
-                    Tenant.deleted_at.is_(None),
-                )
-            )
+            .where(and_(*conditions))
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def hard_delete(self, tenant_id: UUID) -> Optional[Tenant]:
+    async def hard_delete(self, tenant_id: UUID, include_deleted: bool = False) -> Optional[Tenant]:
         """Permanently delete a tenant and all cascaded children.
 
         Relies on SQLAlchemy ORM cascade ("all, delete-orphan") on the Tenant
@@ -212,16 +215,15 @@ class TenantRepository(BaseRepository[Tenant]):
 
         Args:
             tenant_id: Tenant UUID
+            include_deleted: Also delete a soft-deleted tenant (self-deactivated).
 
         Returns:
             The Tenant object that was deleted, or None if not found.
         """
-        stmt = select(Tenant).where(
-            and_(
-                Tenant.id == tenant_id,
-                Tenant.deleted_at.is_(None),
-            )
-        )
+        conditions = [Tenant.id == tenant_id]
+        if not include_deleted:
+            conditions.append(Tenant.deleted_at.is_(None))
+        stmt = select(Tenant).where(and_(*conditions))
         result = await self.db.execute(stmt)
         tenant = result.scalar_one_or_none()
 
