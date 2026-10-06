@@ -3,14 +3,18 @@
  *   conta   — dados do super admin logado (GET /api/v1/auth/me) e troca de senha
  *   admins  — administradores da plataforma (CRUD em /api/v1/platform/users); a edição envia o
  *             `is_active` escolhido (antes ia sempre `true`)
- *   flags   — feature flags por terreiro (/api/v1/platform/feature-flags), Switch + AlertDialog
- *   planos  — tabela de referência dos planos (constante única `PLAN_META`)
+ *   planos  — tabela de referência dos planos (preço/limites de `PLAN_META`, recursos do
+ *             `FEATURE_CATALOG` de constants/plans.ts — a mesma fonte das telas do terreiro)
+ *
+ * A aba "Flags" (feature flags por terreiro) saiu em 2026-10-06: nada no backend lê a tabela
+ * `feature_flags`, então ligar/desligar não mudava nada. A API /api/v1/platform/feature-flags e
+ * a tabela continuam (AGENTS.md §11.9).
  *
  * Absorveu /platform/users_global e /platform/profile (que viraram redirecionamento).
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Check, Flag, KeyRound, Minus, Pencil, Plus, RefreshCw, Shield, Table2, Trash2, UserCog } from 'lucide-react';
+import { Check, KeyRound, Minus, Pencil, Plus, RefreshCw, Shield, Table2, Trash2, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient, extractApiErrorMessage, type ApiRequestConfig } from '@/services/api_client';
 import PlatformLayout from './layout';
@@ -18,8 +22,7 @@ import CrudDrawer from '@/components/CrudDrawer';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { DataTable, type ColumnDef } from '@/components/admin/DataTable';
 import { PageHeader } from '@/components/admin/PageHeader';
-import { EmptyState } from '@/components/EmptyState';
-import { Combobox, PasswordField, TextField } from '@/components/fields';
+import { PasswordField, TextField } from '@/components/fields';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,11 +31,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { PlanBadge, TenantActiveBadge, ToneBadge, PLAN_META, PLAN_ORDER, fmtDate, fmtMoney, roleLabel } from '@/components/platform';
 import { PASSWORD_RULE_HINT, isPasswordValid, passwordHelp } from '@/components/platform/passwordPolicy';
+import { BASE_FEATURES, FEATURE_CATALOG, planIncludes } from '@/constants/plans';
 
-const TABS = ['conta', 'admins', 'flags', 'planos'] as const;
+const TABS = ['conta', 'admins', 'planos'] as const;
 type TabKey = (typeof TABS)[number];
 const parseTab = (v: unknown): TabKey => (typeof v === 'string' && (TABS as readonly string[]).includes(v) ? (v as TabKey) : 'conta');
 
@@ -343,203 +346,6 @@ function AdminsTab() {
   );
 }
 
-// ─── Flags ───────────────────────────────────────────────────────────────────
-
-interface TenantLite {
-  id: string;
-  name: string;
-  slug: string;
-}
-
-interface FeatureFlag {
-  id: string;
-  tenant_id: string;
-  feature: string;
-  enabled: boolean;
-  expires_at: string | null;
-  description: string | null;
-  created_at: string;
-}
-
-function FlagsTab() {
-  const [tenants, setTenants] = useState<TenantLite[]>([]);
-  const [tenantId, setTenantId] = useState<string | null>(null);
-  const [flags, setFlags] = useState<FeatureFlag[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [newFlag, setNewFlag] = useState({ feature: '', description: '' });
-  const [touched, setTouched] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<FeatureFlag | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [toggling, setToggling] = useState<string | null>(null);
-
-  useEffect(() => {
-    apiClient
-      .get<TenantLite[]>('/api/v1/platform/tenants', { params: { limit: 1000 } })
-      .then((r) => setTenants(Array.isArray(r.data) ? r.data : []))
-      .catch(() => setTenants([]));
-  }, []);
-
-  const loadFlags = useCallback(async (id: string) => {
-    try {
-      const res = await apiClient.get<FeatureFlag[]>(`/api/v1/platform/feature-flags/${id}`);
-      setFlags(Array.isArray(res.data) ? res.data : []);
-      setError(null);
-    } catch (err) {
-      setFlags([]);
-      setError(extractApiErrorMessage(err, 'Erro ao carregar as flags'));
-    }
-  }, []);
-
-  useEffect(() => {
-    if (tenantId) {
-      setFlags(null);
-      loadFlags(tenantId);
-    } else {
-      setFlags(null);
-    }
-  }, [tenantId, loadFlags]);
-
-  const addFlag = async () => {
-    if (!tenantId || !newFlag.feature.trim()) return;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      await apiClient.post(`/api/v1/platform/feature-flags/${tenantId}`, { feature: newFlag.feature.trim(), enabled: true, description: newFlag.description || null });
-      toast.success('Flag adicionada.');
-      setDrawerOpen(false);
-      loadFlags(tenantId);
-    } catch (err) {
-      setSaveError(extractApiErrorMessage(err, 'Erro ao adicionar a flag'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleFlag = async (flag: FeatureFlag, enabled: boolean) => {
-    if (!tenantId) return;
-    setToggling(flag.id);
-    try {
-      await apiClient.post(`/api/v1/platform/feature-flags/${tenantId}`, { feature: flag.feature, enabled, description: flag.description, expires_at: flag.expires_at });
-      setFlags((prev) => (prev ?? []).map((f) => (f.id === flag.id ? { ...f, enabled } : f)));
-      toast.success(`Flag "${flag.feature}" ${enabled ? 'ativada' : 'desativada'}.`);
-    } catch (err) {
-      toast.error(extractApiErrorMessage(err, 'Erro ao alterar a flag'));
-    } finally {
-      setToggling(null);
-    }
-  };
-
-  const removeFlag = async () => {
-    if (!tenantId || !deleteTarget) return;
-    setDeleting(true);
-    try {
-      await apiClient.delete(`/api/v1/platform/feature-flags/${tenantId}/${deleteTarget.feature}`);
-      toast.success(`Flag "${deleteTarget.feature}" removida.`);
-      setDeleteTarget(null);
-      loadFlags(tenantId);
-    } catch (err) {
-      toast.error(extractApiErrorMessage(err, 'Erro ao remover a flag'));
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const tenantOptions = useMemo(() => tenants.map((t) => ({ value: t.id, label: t.name, description: t.slug, keywords: [t.slug] })), [tenants]);
-  const selectedTenant = tenants.find((t) => t.id === tenantId) ?? null;
-
-  return (
-    <>
-      <div className="mb-4 max-w-md">
-        <Combobox label="Terreiro" options={tenantOptions} value={tenantId} onChange={setTenantId} placeholder="Selecione um terreiro" searchPlaceholder="Nome ou slug…" emptyText="Nenhum terreiro" clearable />
-      </div>
-
-      {error && <Alert variant="destructive" className="mb-3"><AlertDescription>{error}</AlertDescription></Alert>}
-
-      {!tenantId ? (
-        <Alert variant="info"><AlertDescription>Selecione um terreiro para gerenciar as feature flags dele.</AlertDescription></Alert>
-      ) : (
-        <Card className="gap-3 py-4">
-          <CardHeader className="px-4">
-            <CardTitle className="flex items-center justify-between text-base">
-              <span>Flags de {selectedTenant?.name ?? 'terreiro'}</span>
-              <Button size="sm" onClick={() => { setNewFlag({ feature: '', description: '' }); setTouched(false); setSaveError(null); setDrawerOpen(true); }}>
-                <Plus /> Adicionar flag
-              </Button>
-            </CardTitle>
-            <CardDescription>Liberações pontuais por terreiro, fora do plano.</CardDescription>
-          </CardHeader>
-          <CardContent className="px-4">
-            {flags === null ? (
-              <Skeleton className="h-20 w-full" />
-            ) : flags.length === 0 ? (
-              <EmptyState compact icon={<Flag />} title="Nenhuma flag para este terreiro." />
-            ) : (
-              <ul className="m-0 list-none divide-y p-0">
-                {flags.map((flag) => (
-                  <li key={flag.id} className="flex items-center gap-3 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-mono text-sm font-semibold">{flag.feature}</p>
-                      {flag.description && <p className="text-xs text-muted-foreground">{flag.description}</p>}
-                      <p className="text-xs text-muted-foreground">{flag.expires_at ? `Expira em ${fmtDate(flag.expires_at)}` : 'Sem expiração'}</p>
-                    </div>
-                    <Label htmlFor={`flag-${flag.id}`} className="sr-only">{flag.enabled ? 'Desativar' : 'Ativar'} {flag.feature}</Label>
-                    <Switch id={`flag-${flag.id}`} checked={flag.enabled} disabled={toggling === flag.id} onCheckedChange={(v) => toggleFlag(flag, v)} />
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" className="text-destructive" onClick={() => setDeleteTarget(flag)} aria-label={`Remover flag ${flag.feature}`}><Trash2 /></Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Remover</TooltipContent>
-                    </Tooltip>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <CrudDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        title="Nova feature flag"
-        subtitle={selectedTenant?.name}
-        icon={<Flag />}
-        onSave={addFlag}
-        saveLabel="Adicionar"
-        saving={saving}
-        saveDisabled={!newFlag.feature.trim()}
-        isDirty={newFlag.feature.length > 0 || newFlag.description.length > 0}
-        error={saveError}
-      >
-        <TextField
-          label="Nome da feature"
-          required
-          value={newFlag.feature}
-          onChange={(e) => setNewFlag({ ...newFlag, feature: e.target.value })}
-          onBlur={() => setTouched(true)}
-          error={touched && !newFlag.feature.trim() ? 'Nome obrigatório' : undefined}
-          helperText="Identificador usado no código (ex.: sites_beta)"
-        />
-        <TextField label="Descrição" multiline rows={3} value={newFlag.description} onChange={(e) => setNewFlag({ ...newFlag, description: e.target.value })} />
-      </CrudDrawer>
-
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        title="Remover feature flag"
-        message={<>Remover a flag <strong>{deleteTarget?.feature}</strong> de {selectedTenant?.name}? O terreiro volta ao comportamento do plano.</>}
-        destructive
-        confirmText="Remover"
-        loading={deleting}
-        onConfirm={removeFlag}
-        onCancel={() => setDeleteTarget(null)}
-      />
-    </>
-  );
-}
-
 // ─── Planos ──────────────────────────────────────────────────────────────────
 
 type PlanCell = string | boolean;
@@ -550,20 +356,13 @@ interface PlanRow {
 
 const limitText = (n: number | null) => (n === null ? 'Ilimitado' : n === 0 ? '—' : String(n));
 
+// Recursos: base de todos os planos + o comparativo vendido (constants/plans.ts).
 const PLAN_FEATURE_ROWS: PlanRow[] = [
-  { label: 'Emissão de senhas', cells: { free: true, basic: true, pro: true, premium: true } },
-  { label: 'Porta (fila em tempo real)', cells: { free: true, basic: true, pro: true, premium: true } },
-  { label: 'Relatório de gira', cells: { free: false, basic: true, pro: true, premium: true } },
-  { label: 'Envio de senha por e-mail', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Tema personalizado', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Analytics avançado', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Gestão de associados', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Controle de estoque', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Site do terreiro', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Exportação CSV', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Auditoria completa', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Mensalidade de médiuns', cells: { free: false, basic: false, pro: false, premium: true } },
-  { label: 'Suporte prioritário', cells: { free: false, basic: false, pro: false, premium: true } },
+  ...BASE_FEATURES.map((label) => ({ label, cells: Object.fromEntries(PLAN_ORDER.map((k) => [k, true])) })),
+  ...FEATURE_CATALOG.map((f) => ({
+    label: f.label,
+    cells: Object.fromEntries(PLAN_ORDER.map((k) => [k, planIncludes(k, f.key)])),
+  })),
 ];
 
 function PlanCellView({ value }: { value: PlanCell }) {
@@ -622,17 +421,15 @@ const SettingsPage: React.FC = () => {
 
   return (
     <PlatformLayout title="Configurações">
-      <PageHeader title="Configurações" subtitle="Sua conta, administradores da plataforma, feature flags e planos." />
+      <PageHeader title="Configurações" subtitle="Sua conta, administradores da plataforma e planos." />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList data-tour="settings-tabs" className="mb-4 flex h-auto w-full flex-wrap justify-start">
           <TabsTrigger value="conta"><UserCog /> Conta</TabsTrigger>
           <TabsTrigger value="admins"><Shield /> Admins da plataforma</TabsTrigger>
-          <TabsTrigger value="flags"><Flag /> Flags</TabsTrigger>
           <TabsTrigger value="planos"><Table2 /> Planos</TabsTrigger>
         </TabsList>
         <TabsContent value="conta"><ContaTab /></TabsContent>
         <TabsContent value="admins"><AdminsTab /></TabsContent>
-        <TabsContent value="flags"><FlagsTab /></TabsContent>
         <TabsContent value="planos"><PlanosTab /></TabsContent>
       </Tabs>
     </PlatformLayout>

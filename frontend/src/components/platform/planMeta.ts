@@ -2,12 +2,13 @@
  * planMeta — mapa único de plano e status de assinatura usado em todas as telas da plataforma
  * (Hoje, Terreiros, Tenant 360, Auditoria, Configurações).
  *
- * Cores saem dos tokens do tema (nunca hex fixo), para seguir claro/escuro. `price` e `limits`
- * espelham `PLAN_LIMITS` de `backend/src/repositories/subscription_repo.py` — tabela de
- * referência; o valor cobrado de verdade vem da assinatura (`monthly_price`).
+ * Cores saem dos tokens do tema (nunca hex fixo), para seguir claro/escuro. Rótulo, `price` e
+ * `limits` vêm de `constants/plans.ts` (fonte única, espelho de `PLAN_LIMITS` do backend) —
+ * tabela de referência; o valor cobrado de verdade vem da assinatura (`monthly_price`).
  */
+import { PLANS, PLAN_ORDER as PLAN_KEYS, isUnlimited, type PlanKey } from '@/constants/plans';
 
-export type PlanKey = 'free' | 'basic' | 'pro' | 'premium';
+export type { PlanKey };
 export type SubscriptionStatusKey = 'active' | 'suspended' | 'cancelled' | 'expired';
 
 export interface PlanMeta {
@@ -15,6 +16,7 @@ export interface PlanMeta {
   label: string;
   /** Preço de tabela (R$/mês). */
   price: number;
+  /** `null` = ilimitado. */
   limits: { users: number | null; girasPerMonth: number | null; mediuns: number | null };
   /** Classes Tailwind do Badge (tokens do tema). */
   badgeClass: string;
@@ -22,42 +24,36 @@ export interface PlanMeta {
   chartColor: string;
 }
 
-export const PLAN_ORDER: PlanKey[] = ['free', 'basic', 'pro', 'premium'];
+export const PLAN_ORDER: PlanKey[] = [...PLAN_KEYS];
 
-export const PLAN_META: Record<PlanKey, PlanMeta> = {
-  free: {
-    key: 'free',
-    label: 'Free',
-    price: 0,
-    limits: { users: 1, girasPerMonth: 4, mediuns: 0 },
-    badgeClass: 'border-transparent bg-muted text-muted-foreground',
-    chartColor: 'var(--muted-foreground)',
-  },
-  basic: {
-    key: 'basic',
-    label: 'Basic',
-    price: 49,
-    limits: { users: 3, girasPerMonth: 10, mediuns: 50 },
-    badgeClass: 'border-transparent bg-info/15 text-info-strong',
-    chartColor: 'var(--info)',
-  },
-  pro: {
-    key: 'pro',
-    label: 'Pro',
-    price: 79,
-    limits: { users: 10, girasPerMonth: 15, mediuns: 150 },
-    badgeClass: 'border-transparent bg-primary/15 text-brand',
-    chartColor: 'var(--primary)',
-  },
-  premium: {
-    key: 'premium',
-    label: 'Premium',
-    price: 99,
-    limits: { users: null, girasPerMonth: null, mediuns: null },
-    badgeClass: 'border-transparent bg-warning/15 text-warning-strong',
-    chartColor: 'var(--warning)',
-  },
+const STYLE: Record<PlanKey, Pick<PlanMeta, 'badgeClass' | 'chartColor'>> = {
+  free: { badgeClass: 'border-transparent bg-muted text-muted-foreground', chartColor: 'var(--muted-foreground)' },
+  basic: { badgeClass: 'border-transparent bg-info/15 text-info-strong', chartColor: 'var(--info)' },
+  pro: { badgeClass: 'border-transparent bg-primary/15 text-brand', chartColor: 'var(--primary)' },
+  premium: { badgeClass: 'border-transparent bg-warning/15 text-warning-strong', chartColor: 'var(--warning)' },
 };
+
+const limit = (n: number) => (isUnlimited(n) ? null : n);
+
+export const PLAN_META: Record<PlanKey, PlanMeta> = Object.fromEntries(
+  PLAN_ORDER.map((key) => {
+    const plan = PLANS[key];
+    return [
+      key,
+      {
+        key,
+        label: plan.label,
+        price: plan.price,
+        limits: {
+          users: limit(plan.limits.users),
+          girasPerMonth: limit(plan.limits.girasPerMonth),
+          mediuns: limit(plan.limits.mediuns),
+        },
+        ...STYLE[key],
+      },
+    ];
+  }),
+) as Record<PlanKey, PlanMeta>;
 
 export const DEFAULT_PLAN_META: PlanMeta = {
   key: 'free',

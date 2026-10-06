@@ -91,6 +91,24 @@ describe('AdminSidebar', () => {
     expect(within(nav).queryByText('Plano e assinatura')).not.toBeInTheDocument();
   });
 
+  it('operador com o grupo configuracoes vê Configurações (a tela gateia por grupo)', () => {
+    mockGroupCan.mockImplementation((feature: string, action: string) => feature === 'configuracoes' && action === 'view');
+    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
+    withSidebar(<AdminSidebar isOperator />);
+    const nav = screen.getByTestId('admin-sidebar');
+    expect(within(nav).getByRole('link', { name: /Configurações/ })).toHaveAttribute('href', '/admin/config');
+    expect(within(nav).queryByText('Perfis de acesso')).not.toBeInTheDocument();
+  });
+
+  it('sem o plano do site, Cursos some (a tela é bloqueada por plano)', () => {
+    mockPlanCan.mockImplementation((f: string) => f !== 'site_builder');
+    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
+    withSidebar(<AdminSidebar isOperator={false} />);
+    const nav = screen.getByTestId('admin-sidebar');
+    expect(within(nav).queryByRole('link', { name: /^Cursos$/ })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /Site do terreiro/ })).not.toBeInTheDocument();
+  });
+
   it('sem o plano de estoque, o Estoque some mesmo com permissão de grupo', () => {
     mockPlanCan.mockImplementation((f: string) => f !== 'estoque_controle');
     const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
