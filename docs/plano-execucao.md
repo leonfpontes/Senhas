@@ -545,7 +545,7 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 
 ## Fase 4 — Frontend
 
-### M-01 — Migração MUI → shadcn/ui — `em andamento` (fase 0 feita em 2026-10-05)
+### M-01 — Migração MUI → shadcn/ui — `em andamento` (fases 0 e 1 feitas em 2026-10-05)
 
 - **Por quê**: o admin tem 244 objetos responsivos `{ xs, sm, md }` e centenas de `sx` espalhados; o MUI v5
   está parado na versão 5 (sem `enableCssLayer`) e cada tela carrega o runtime do Emotion. shadcn/ui +
@@ -559,9 +559,10 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   - **0 — Fundação** — `feito` (2026-10-05): Tailwind v4 + shadcn, camada `mui` no Emotion, tokens dos
     `AdminTokens`, `applyBrand` com contraste WCAG, classe `dark` na raiz, 7 primitivas, piloto
     `admin/estoque/grupos.tsx`, gates verdes.
-  - **1 — Primitivas e compartilhados** — `em andamento`: restantes do shadcn (input, select, dialog, drawer/sheet,
-    tooltip, dropdown, tabs, toast) e reescrita de `CrudDrawer`, `PageHeader`, `KpiCard`, `UpgradePrompt`,
-    `ConfirmDialog`, snackbar.
+  - **1 — Primitivas e compartilhados** — `feito` (2026-10-05): 30 primitivas shadcn, `CrudDrawer`/`ConfirmDialog`/
+    `UpgradePrompt`/`BulkActionsBar`/`SubscriptionWarningBanner` reescritos com a mesma API, `DataTable` (TanStack),
+    `fields/*`, gates, `Stepper`, `ChartCard`, toasts (Sonner) e `lib/icons.ts`; kit documentado em
+    `frontend/src/components/README.md` (AGENTS.md §11.16).
   - **2 — Público e bilhete** — `em andamento`: emissão pública, bilhete, cancelar, waitlist, cursos (telas de
     maior tráfego, sem sessão).
   - **3 — Layout e navegação** — `em andamento`: `admin_layout`, sidebar, topbar, dark mode, layout da plataforma.

@@ -81,12 +81,10 @@ const { can }           = useSubscription();   // feature flag de plano (se apli
 const { can: canGroup } = usePermissions();    // RBAC de grupo — SEMPRE necessário
 
 // 1. Gate de plano (se a feature tem restrição de plano)
-if (!can('feature_subscription_name')) return <UpgradePrompt />;
+if (!can('feature_subscription_name')) return <PlanLocked feature="Nome" minPlan="Pro" />;
 
-// 2. Gate de grupo — OBRIGATÓRIO
-if (!canGroup('feature_enum_value', 'view')) {
-  return <Alert severity="warning">Você não tem permissão para visualizar este módulo.</Alert>;
-}
+// 2. Gate de grupo — OBRIGATÓRIO (Alert amarelo: "Você não tem permissão para visualizar este módulo.")
+if (!canGroup('feature_enum_value', 'view')) return <PermissionDenied />;
 
 // 3. Guards de ação — ocultar botões, não apenas desabilitar
 const canInsert = canGroup('feature_enum_value', 'insert');
@@ -98,7 +96,8 @@ Regras de UI:
 - Botões de criar/editar/excluir: renderizar condicionalmente (`{canInsert && <Button>}`), nunca apenas `disabled`.
 - Fetchers: checar `canGroup(..., 'view')` antes de chamar a API.
 - Coluna de ações em tabelas: omitir quando todas as ações são proibidas.
-- Mensagem de "sem permissão": usar `<Alert severity="warning">`, nunca deixar erro 403 exposto.
+- Mensagem de "sem permissão": usar `<PermissionDenied />` de `@/components/gates` (Alert amarelo do kit;
+  telas MUI antigas ainda têm `<Alert severity="warning">` com o mesmo texto), nunca deixar erro 403 exposto.
 
 ### Adicionando nova feature ao sistema de permissões
 
@@ -159,15 +158,18 @@ model (src/models/) → repository (src/repositories/) → endpoint (src/api/v1/
   MUI e Tailwind convivem via camada `@layer mui` (Tailwind vence o MUI) — detalhes, tokens, `applyBrand`
   e classe `dark` em AGENTS.md §11.16. Piloto: `src/pages/admin/estoque/grupos.tsx`.
 
-### Componentes frontend reutilizáveis
-- `CrudDrawer` — formulários em drawer lateral (480px). **Nunca usar modais para formulários CRUD.**
-- `KpiCard` — cards de KPI nas páginas financeiras
-- `PageHeader` — cabeçalho de página com título, subtítulo e actions slot
-- `UpgradePrompt` — bloqueio de feature por plano
+### Componentes frontend reutilizáveis (kit da fase 1 — `frontend/src/components/README.md`)
+- `CrudDrawer` — formulários em drawer lateral (Sheet 480px). **Nunca usar modais para formulários CRUD.**
+- `ConfirmDialog` — confirmação (AlertDialog); `destructive` para excluir
+- `DataTable` — tabelas (TanStack Table v8; modo cartão no celular)
+- `fields/*` — `TextField`, `PasswordField`, `MoneyInput`, `MaskedInput`, `DateField`, `DateTimeField`, `Combobox`
+- `KpiCard`, `PageHeader`, `EmptyState`, `Stepper`, `charts/ChartCard`
+- `gates/*` — `PermissionDenied`, `ReadOnlyNotice`, `PlanLocked` (envolve `UpgradePrompt`)
+- Toasts: `useSnackbar()` ou `toast()` do Sonner — nunca Snackbar local
 
 ### Drawers vs Modais
 - Formulários CRUD → `CrudDrawer` (obrigatório)
-- Confirmações de exclusão → `Dialog` do MUI (aceitável)
+- Confirmações de exclusão → `ConfirmDialog` / `AlertDialog` do shadcn
 - Nunca criar novos modais para formulários
 
 ---

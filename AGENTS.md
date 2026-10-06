@@ -498,10 +498,10 @@ Incluir obrigatoriamente:
 - **Conteúdo**: cadastros dos últimos 60 dias (`WINDOW_DAYS`), do mais recente ao mais antigo, cada um num estágio — `sem_gira` → `sem_senhas` (gira criada sem `max_tickets`, nada aparece no link) → `aguardando_senha` → `recebendo` → `usou_porta` → `ativado` (20+ senhas pelo link, mesmo limiar do checklist). Mostra também giras configuradas/total e próxima gira, senhas pelo link, trial (dias restantes) ou pagante, e-mails de onboarding enviados (D+1/D+3, de `custom_settings.onboarding_emails`), dor do cadastro, última atividade (sessão ou ação auditada) e contato do admin mais antigo com links de WhatsApp (`wa.me`, DDI 55 acrescentado) e e-mail.
 - **Consulta**: uma ida ao banco com subconsultas correlacionadas por tenant + uma para os contatos. Visão cross-tenant por desenho (super-admin), sem filtro de tenant.
 
-### 11.16 Frontend — migração MUI → shadcn/ui (item M-01 do plano; fase 0 em 2026-10-05)
+### 11.16 Frontend — migração MUI → shadcn/ui (item M-01 do plano; fases 0 e 1 em 2026-10-05)
 - **Regra**: tela nova ou tela tocada usa shadcn/Tailwind; **não criar `sx` novo**. Espaçamento/layout em
   componente MUI que ainda não migrou vai por `className` Tailwind (ex.: `className="mb-4"` num TextField), que
-  vence o MUI pela ordem das camadas abaixo. `CrudDrawer` (MUI) continua sendo o padrão de formulário até a fase 1.
+  vence o MUI pela ordem das camadas abaixo. Desde a fase 1 o `CrudDrawer` é shadcn (Sheet) com a mesma API.
 - **Convivência (as duas bibliotecas no mesmo app)** — `frontend/src/styles/globals.css`, importado só em `_app.tsx`:
   - `@layer theme, base, mui, components, utilities;` — importa `tailwindcss/theme.css` e `tailwindcss/utilities.css`
     (**não** o `tailwindcss` inteiro: o preflight brigaria com o `CssBaseline`). O reset é mínimo e escopado a
@@ -520,7 +520,9 @@ Incluir obrigatoriamente:
   `--primary-foreground` = `font_color` se o contraste WCAG com a primária for ≥ 4,5; senão `#000`/`#fff`, o que
   contrastar mais (a secundária não tem fonte configurada: mesma regra sem preferência). Chamado pelo
   `TenantAwareThemeProvider` a cada mudança de branding (login, `tenant-branding-updated`). O tema MUI não mudou.
-  Atenção: o indigo padrão `#6366f1` com branco dá 4,47 — pela regra cai para preto, enquanto o MUI usa branco.
+  Default sem branding: `#4f46e5` (fase 1; = `TenantConfig.primary_color` do backend e ao `theme-color` do
+  `_document`) — com branco dá 6,3, então mantém o branco como o MUI. O default antigo do frontend (`#6366f1`)
+  dava 4,47 e caía para preto; foi alinhado em `ThemeProvider.tsx`, `AdminThemeProvider.tsx` e `globals.css`.
 - **Modo escuro**: `AdminThemeProvider` e `PlatformThemeProvider` alternam a classe `dark` em `<html>` (não no div do
   layout — Dialog/Popover/Select do Radix são portados para o `<body>`), aplicando no mount e removendo no unmount.
   Páginas públicas continuam claras. `@custom-variant dark (&:is(.dark *))`.
@@ -528,9 +530,37 @@ Incluir obrigatoriamente:
   `cn()` em `src/lib/utils.ts`, `components.json` na raiz do frontend. Ajustes locais sobre o que o CLI gera:
   `Skeleton` usa `bg-muted` (= `skeletonBase`; o `bg-accent` padrão mapeia no `rowHover` quase transparente) e
   `AlertDialogOverlay` tem `forwardRef` (React 18; o shadcn v4 assume ref-como-prop do React 19).
-- **Piloto**: `src/pages/admin/estoque/grupos.tsx` — Card/Table/Button/Badge/Skeleton/AlertDialog + `CrudDrawer` MUI,
+- **Piloto**: `src/pages/admin/estoque/grupos.tsx` — Card/Table/Button/Badge/Skeleton/AlertDialog + `CrudDrawer`,
   guards `canGroup('estoque', ...)` ocultando botões, snackbar global (`useSnackbar`, R-03 adotado).
   Teste: `__tests__/pages/admin_estoque_grupos.test.tsx`. Linha de base do bundle: `docs/bundle-baseline.md`.
+- **Fase 1 — kit de componentes (2026-10-05, branch `feat/shadcn-migracao`)**. Documentação de uso em
+  `frontend/src/components/README.md` (exemplo por composto, lista do que não usar mais, sentinela `"all"` do
+  Select, regra dos 48px). As frentes das fases 2–8 **não editam `globals.css` nem reescrevem `ui/*`**.
+  - Primitivas shadcn completas em `src/components/ui/` (input, textarea, label, form, select, checkbox, switch,
+    radio-group, dialog, sheet, tooltip, popover, dropdown-menu, tabs, progress, alert, sonner, command, calendar,
+    collapsible, accordion, avatar, scroll-area, toggle-group, breadcrumb, pagination, sidebar, chart, slider).
+    Ajustes locais: `forwardRef` (React 18) em `Button`/`Input`/`Textarea`/`DialogOverlay`/`SheetOverlay`;
+    `Alert` com variantes `success`/`warning`/`info` (tokens `--success/--warning/--info` + `-foreground`, light e
+    dark, = `palette.success/warning/info.main` do MUI); `Button` com `size="touch"`/`"icon-touch"` (48px);
+    `calendar.tsx` em pt-BR; `sonner.tsx` lê a classe `dark` (sem `next-themes`); `chart.tsx` tipado para o
+    **Recharts 2.x** (o CLI do shadcn gera para o 3 e tentou subir a dependência — mantido no 2 de propósito);
+    `hooks/use-mobile.ts` com limiar 900 (= `md`). Dependências novas: `@tanstack/react-table`, `cmdk`,
+    `react-day-picker`, `react-hook-form`, `@hookform/resolvers`, `zod`, `sonner`.
+  - Compostos (mesma API das versões MUI): `CrudDrawer` (Sheet 480px / tela cheia < 640px, guarda de não salvo em
+    `AlertDialog`), `admin/ConfirmDialog`, `UpgradePrompt` (CTA → `/admin/billing?plan=<minPlan minúsculo>`),
+    `admin/BulkActionsBar` (barra fixa inferior + AlertDialog + toast), `admin/SubscriptionWarningBanner` (Alert).
+    Novos: `gates/` (`PermissionDenied`, `ReadOnlyNotice`, `PlanLocked`), `admin/PageHeader` (h1), `admin/KpiCard`
+    (único; `platform/KpiCard` reexporta), `EmptyState`, `admin/DataTable` (TanStack Table v8: ordenação, paginação
+    cliente/servidor, seleção, skeleton, vazio, modo cartão < 640px via `renderCard` ou `meta.mobile`),
+    `fields/` (`TextField`, `PasswordField`, `MoneyInput`, `MaskedInput`, `DateField`, `DateTimeField`, `Combobox`),
+    `Stepper`, `charts/ChartCard` + `lib/chartTokens.ts`, `lib/icons.ts` (de-para MUI → lucide + nomes semânticos).
+    `CurrencyInput.tsx` virou reexport deprecado do `MoneyInput`; `ResponsiveTable`/`ResponsiveFilterBar` apagados.
+  - Toasts: `<Toaster />` do Sonner em `_app.tsx`; `contexts/SnackbarContext.tsx` é fachada sobre `toast()` mantendo
+    `useSnackbar()` (`showSuccess/showError/showInfo/showWarning/showSnackbar(msg, severity)`); o provider fica
+    só por compatibilidade.
+  - Jest: `jest.setup.js` ganhou polyfills `hasPointerCapture`/`setPointerCapture`/`releasePointerCapture`,
+    `scrollIntoView`, `ResizeObserver` e `matchMedia` (Radix Select/Command, Recharts, `useMediaQuery`). Testes de
+    componente consultam papel/texto, nunca classe `.Mui*`/Tailwind.
 
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).
