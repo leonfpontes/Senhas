@@ -5,4 +5,12 @@ export type { PublicLoadingProps, PublicNoticeProps, PublicNoticeTone } from './
 export { Bilhete } from './Bilhete';
 export type { BilheteProps } from './Bilhete';
 export * from './bilhete-utils';
-export { errorStatus, isNetworkOrServerError, publicErrorMessage, NETWORK_MESSAGE } from './public-errors';
+export {
+  errorCode,
+  errorStatus,
+  isNetworkOrServerError,
+  isTimeSlotError,
+  publicErrorMessage,
+  NETWORK_MESSAGE,
+  TIME_SLOT_ERROR_CODES,
+} from './public-errors';

@@ -170,7 +170,7 @@ describe('Emissão pública — formulário', () => {
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenLastCalledWith(
         '/api/v1/public/resend-ticket-email?tenant_slug=terreiro-teste',
-        { email: 'maria@example.com', phone: null },
+        { email: 'maria@example.com', gira_id: 'gira-1' },
       ),
     );
     expect(toast.success).toHaveBeenCalled();
@@ -262,7 +262,7 @@ describe('Emissão pública — estados da gira', () => {
 
     expect(await screen.findByText('Senhas esgotadas')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Nome completo/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /ver próximas giras do terreiro/i })).toHaveAttribute('href', '/public/terreiro-teste');
+    expect(screen.getByRole('link', { name: /ver próximas giras do terreiro/i })).toHaveAttribute('href', '/terreiro-teste');
   });
 
   it('emissão ainda não aberta mostra a contagem regressiva', async () => {

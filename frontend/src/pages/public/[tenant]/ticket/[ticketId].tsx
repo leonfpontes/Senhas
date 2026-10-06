@@ -21,6 +21,7 @@ import {
   PublicShell,
   publicErrorMessage,
   formatGiraDateShort,
+  tenantAgendaPath,
   type PublicTicket,
 } from '@/components/public';
 
@@ -78,7 +79,7 @@ export default function PublicTicketPage() {
           actions={
             tenant && (
               <Button asChild size="touch" className="w-full">
-                <Link href={`/public/${tenant}`}>Ver próximas giras do terreiro</Link>
+                <Link href={tenantAgendaPath(tenant)}>Ver próximas giras do terreiro</Link>
               </Button>
             )
           }
