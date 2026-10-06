@@ -68,7 +68,7 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     label: 'Premium',
     price: 99,
     limits: { users: UNLIMITED_THRESHOLD, girasPerMonth: 999999, mediuns: 9999999 },
-    tagline: 'Sem limites, com suporte prioritário.',
+    tagline: 'Sem limite de usuários, giras e médiuns.',
     popular: false,
     color: '#f59e0b',
   },
@@ -82,11 +82,13 @@ export const BASE_FEATURES: readonly string[] = [
   'Senha pelo WhatsApp (link público)',
   'Porta: chamada da fila ao vivo',
   'Painel com as próximas giras',
+  'Ações em lote nas senhas',
 ];
 
 /** Plano mínimo de cada recurso (= `tier >= n` em plan_features.py). */
 export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
-  bulk_operations: 'basic',
+  // Ações em lote valem em todos os planos (não é recurso vendido — fica em BASE_FEATURES).
+  bulk_operations: 'free',
   mediuns: 'basic',
   relatorio_gira: 'basic',
   email_transacional: 'pro',
@@ -112,10 +114,16 @@ export interface FeatureCatalogItem {
   group: string;
 }
 
+/**
+ * Recursos de `PlanFeatures` que NÃO entram no comparativo vendido: `bulk_operations` vale em
+ * todos os planos (está em BASE_FEATURES); `analytics_avancado` e `suporte_prioritario` não têm
+ * nada implementado por trás. Os campos continuam no backend (catálogo de `PlanFeatures`).
+ */
+export const UNSOLD_FEATURES: readonly PlanFeatureKey[] = ['bulk_operations', 'analytics_avancado', 'suporte_prioritario'];
+
 /** Ordem e rótulos (sem jargão) do comparativo e dos cards. */
 export const FEATURE_CATALOG: readonly FeatureCatalogItem[] = [
   { key: 'relatorio_gira', label: 'Relatório da gira (PDF)', group: 'Giras e senhas' },
-  { key: 'bulk_operations', label: 'Ações em lote nas senhas', group: 'Giras e senhas' },
   { key: 'fila_espera', label: 'Fila de espera quando a gira lota', group: 'Giras e senhas' },
   { key: 'agendamento_por_horario', label: 'Senha com horário marcado', group: 'Giras e senhas' },
   { key: 'mediuns', label: 'Cadastro de médiuns e cambones', group: 'Pessoas' },
@@ -128,10 +136,8 @@ export const FEATURE_CATALOG: readonly FeatureCatalogItem[] = [
   { key: 'tema_personalizado', label: 'Cores e logo do terreiro', group: 'Comunicação e site' },
   { key: 'site_builder', label: 'Site do terreiro e cursos', group: 'Comunicação e site' },
   { key: 'analytics_basico', label: 'Relatórios de atendimento', group: 'Relatórios' },
-  { key: 'analytics_avancado', label: 'Relatórios avançados', group: 'Relatórios' },
   { key: 'export_csv', label: 'Exportar planilhas (CSV)', group: 'Relatórios' },
   { key: 'auditoria', label: 'Histórico de alterações', group: 'Relatórios' },
-  { key: 'suporte_prioritario', label: 'Suporte prioritário', group: 'Suporte' },
 ];
 
 export const FEATURE_GROUPS: readonly string[] = Array.from(new Set(FEATURE_CATALOG.map((f) => f.group)));

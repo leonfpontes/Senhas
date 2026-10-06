@@ -753,13 +753,13 @@ def _safe_csv(value: object) -> str:
     return s
 
 
-@router.get("/relatorio/posicao/csv", dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "view"))])
+@router.get("/relatorio/posicao/csv", dependencies=[Depends(require_plan_feature("export_csv")), Depends(require_group_permission(PermissionFeature.ESTOQUE, "view"))])
 async def relatorio_posicao_csv(
     grupo_id: Optional[UUID] = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Export relatório de posição de estoque como CSV (plano Pro+; botão visível apenas Premium)."""
+    """Export relatório de posição de estoque como CSV (plano com `export_csv`, Pro+)."""
     mov_repo = EstoqueMovimentacaoRepository(db)
     posicao = await mov_repo.get_posicao_estoque(
         tenant_id=current_user.tenant_id, grupo_id=grupo_id
