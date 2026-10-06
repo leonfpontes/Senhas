@@ -58,22 +58,28 @@ class GiraRepository(BaseRepository[Gira]):
         result = await self.db.execute(stmt)
         return result.scalars().all()
     
+    # Uma gira que já começou continua "a gira de hoje" por até 12h — mesma janela
+    # do GiraCard (ENDED_AFTER_MS) no frontend. Antes ela sumia do dashboard no
+    # minuto em que começava, justo quando a Porta está em uso.
+    IN_PROGRESS_WINDOW_HOURS = 12
+
     async def get_upcoming_giras(self, tenant_id: UUID, limit: int = 5) -> List[Gira]:
-        """Get upcoming giras.
-        
+        """Giras ativas em andamento (começaram há até 12h) ou futuras, por data.
+
         Args:
             tenant_id: Tenant ID
             limit: Max results
-            
+
         Returns:
-            List of upcoming Gira objects sorted by date
+            List of Gira objects sorted by date (in-progress first)
         """
-        from datetime import datetime, timezone
-        
+        from datetime import datetime, timedelta, timezone
+
+        since = datetime.now(timezone.utc) - timedelta(hours=self.IN_PROGRESS_WINDOW_HOURS)
         stmt = select(Gira).where(
             and_(
                 Gira.tenant_id == tenant_id,
-                Gira.data_inicio >= datetime.now(timezone.utc),
+                Gira.data_inicio >= since,
                 Gira.is_active == True,
                 Gira.deleted_at.is_(None),
             )

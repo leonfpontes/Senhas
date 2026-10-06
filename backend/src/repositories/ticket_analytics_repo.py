@@ -218,13 +218,21 @@ class TicketAnalyticsRepository:
         result_emitted = await self.db.execute(stmt_emitted)
         emitted_today = result_emitted.scalar_one() or 0
         
-        # Count used today
-        stmt_used = select(func.count(Ticket.id)).where(
-            and_(
-                where_clause,
-                Ticket.status == TicketStatus.COMPLETED,
-            )
-        )
+        # Atendidas hoje: finalizadas hoje (horário de Brasília), qualquer que seja
+        # o dia em que a senha foi emitida — a maioria é emitida dias antes da gira,
+        # e o filtro por created_at deixava esse número quase sempre em zero.
+        used_conditions = [
+            Ticket.status == TicketStatus.COMPLETED,
+            Ticket.finalizado_em >= today_start,
+            Ticket.finalizado_em < today_end,
+            Ticket.deleted_at.is_(None),
+            self._gira_nao_apagada(),
+        ]
+        if tenant_id is not None:
+            used_conditions.append(Ticket.tenant_id == tenant_id)
+        if gira_id:
+            used_conditions.append(Ticket.gira_id == gira_id)
+        stmt_used = select(func.count(Ticket.id)).where(and_(*used_conditions))
         result_used = await self.db.execute(stmt_used)
         used_today = result_used.scalar_one() or 0
         

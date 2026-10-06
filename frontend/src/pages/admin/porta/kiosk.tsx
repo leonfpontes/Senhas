@@ -2,14 +2,18 @@
  * Modo TV — exibição em tela cheia da fila da porta, para a televisão da sala de espera.
  * Fonte enorme, alto contraste, o número atual e os três próximos; o título da aba mostra o
  * número chamado. Continua exigindo login (chamadas via apiClient → 401 leva ao /login).
- * Rota: /admin/porta/kiosk?gira=<id>  (gira opcional; usa a ativa por padrão)
+ * Rota: /admin/porta/kiosk?gira=<id>  (gira opcional; sem ela usa a gira de hoje, pela mesma
+ * regra do GiraContext — `pickTodayGira`).
+ * Privacidade: a TV é pública na sala de espera — mostra só o primeiro nome e a inicial do
+ * sobrenome ("Maria S."), nunca o nome completo.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Loader2 } from 'lucide-react';
 import { apiClient } from '@/services/api_client';
-import { numeroDaSenha } from '@/components/admin/senhaFormat';
+import { pickTodayGira } from '@/components/admin/GiraContext';
+import { nomeParaTv, normalizeLegacyStatus, numeroDaSenha } from '@/components/admin/senhaFormat';
 
 const POLLING_INTERVAL_MS = 8000;
 
@@ -44,7 +48,9 @@ export default function PortaKioskPage() {
       const res = await apiClient.get('/api/v1/admin/giras');
       const all: Gira[] = Array.isArray(res.data) ? res.data : res.data.items || [];
       const queryGira = typeof router.query.gira === 'string' ? router.query.gira : '';
-      const chosen = queryGira ? all.find((g) => g.id === queryGira) : all.find((g) => g.is_active) || all[0];
+      // Sem ?gira: a gira de hoje (antes pegava a primeira ativa da lista, que vem da mais
+      // distante no futuro para a mais antiga).
+      const chosen = queryGira ? all.find((g) => g.id === queryGira) : pickTodayGira(all);
       if (chosen) {
         setGiraId(chosen.id);
         setGiraNome(chosen.nome);
@@ -60,7 +66,7 @@ export default function PortaKioskPage() {
     if (!giraId) return;
     try {
       const res = await apiClient.get(`/api/v1/admin/giras/${giraId}/door/queue`);
-      setQueue(res.data.items || []);
+      setQueue(Array.isArray(res.data?.items) ? res.data.items.map(normalizeLegacyStatus) : []);
     } catch {
       /* tenta de novo no próximo ciclo */
     } finally {
@@ -128,7 +134,7 @@ export default function PortaKioskPage() {
         {loading ? (
           <Loader2 className="size-12 animate-spin text-white/80" aria-label="Carregando" />
         ) : !giraId ? (
-          <p className="text-3xl text-white/70">Nenhuma gira ativa.</p>
+          <p className="text-3xl text-white/70">Nenhuma gira hoje.</p>
         ) : (
           <>
             <p className="mb-2 text-xl tracking-[0.35em] text-white/70 uppercase md:text-3xl">Senha</p>
@@ -140,7 +146,9 @@ export default function PortaKioskPage() {
               {numeroAtual ?? '—'}
             </p>
             {nextInLine?.consulente_nome && (
-              <p className="mt-4 max-w-[90vw] truncate text-3xl font-bold md:text-6xl">{nextInLine.consulente_nome}</p>
+              <p className="mt-4 max-w-[90vw] truncate text-3xl font-bold md:text-6xl" data-testid="kiosk-nome">
+                {nomeParaTv(nextInLine.consulente_nome)}
+              </p>
             )}
             {!nextInLine && (
               <p className="mt-4 text-2xl text-white/60 md:text-4xl">Aguardando a próxima pessoa chegar</p>

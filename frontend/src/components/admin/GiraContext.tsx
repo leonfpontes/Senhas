@@ -1,5 +1,6 @@
 /**
- * GiraContext — a "gira de hoje" compartilhada por Dashboard, Giras, Senhas e Porta.
+ * GiraContext — a "gira de hoje" compartilhada por Dashboard, Senhas e Porta (o seletor do
+ * topo troca a gira nessas três; a tela de Giras lista todas e não depende dele).
  *
  * Antes cada tela tinha o próprio select de gira e começava vazia. Agora o layout admin
  * monta um `GiraProvider` que carrega a lista uma vez (quando alguma tela pede), escolhe a
@@ -58,8 +59,15 @@ function sameLocalDay(a: Date, b: Date): boolean {
 }
 
 /**
+ * Uma gira que já começou segue "em andamento" por até 12h — mesma janela do backend
+ * (`GiraRepository.get_upcoming_giras`) e do GiraCard.
+ */
+export const IN_PROGRESS_MS = 12 * 60 * 60 * 1000;
+
+/**
  * Gira "de hoje": entre as ativas, a que acontece hoje (em andamento ou a próxima do dia);
- * senão a próxima no futuro; senão a mais recente das últimas 24h.
+ * senão uma em andamento que começou ontem (ex.: começou 22h, agora é 1h); senão a próxima no
+ * futuro; senão a mais recente das últimas 24h.
  */
 export function pickTodayGira(giras: GiraSummary[], now: Date = new Date()): GiraSummary | null {
   const active = giras
@@ -73,6 +81,12 @@ export function pickTodayGira(giras: GiraSummary[], now: Date = new Date()): Gir
     const current = today.find((g) => new Date(g.data_inicio).getTime() >= now.getTime() - 6 * 60 * 60 * 1000);
     return current ?? today[today.length - 1];
   }
+
+  const inProgress = [...active].reverse().find((g) => {
+    const start = new Date(g.data_inicio).getTime();
+    return start <= now.getTime() && now.getTime() - start <= IN_PROGRESS_MS;
+  });
+  if (inProgress) return inProgress;
 
   const upcoming = active.find((g) => new Date(g.data_inicio).getTime() > now.getTime());
   if (upcoming) return upcoming;

@@ -5,7 +5,9 @@
  * - Topo fixo com a gira e o botão grande **"Chamar próximo"** (primeiro da fila na ordem da
  *   API — quem já chegou tem a vez; sem ninguém marcado como chegou, o primeiro da fila) e
  *   **"Sem senha"** (também na barra inferior do celular).
- * - "Em atendimento" em cartões grandes com **Atendido** como ação primária; o resto no menu.
+ * - Fluxo de um passo: **Chamar** abre o AttendModal (médium/cambone) e já registra o
+ *   atendimento (`/attend`: aguardando → atendido). Não existe etapa "Em atendimento"; um
+ *   `called` antigo vindo da API é tratado como aguardando (`normalizeLegacyStatus`).
  * - Fila compacta com menu por senha: Chegou · Chamar · Não veio · Editar.
  * - Desfazer pelo toast logo depois de cada ação.
  * - Indicadores numa linha ("8 aguardando · 12 atendidos · 1 não veio") abrindo um Sheet com o
@@ -21,7 +23,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'sonner';
 import {
-  CheckCircle2,
   Clock,
   EllipsisVertical,
   LogIn,
@@ -45,7 +46,6 @@ import { PermissionDenied } from '@/components/gates';
 import { TextField } from '@/components/fields';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,7 +64,7 @@ import { giraLabel, pickTodayGira, useGiraContext } from '@/components/admin/Gir
 import { PORTA_WALK_IN_EVENT } from '@/components/admin/MobileTabBar';
 import PortaOfflineNotice from '@/components/admin/PortaOfflineNotice';
 import InstallPortaHint from '@/components/admin/InstallPortaHint';
-import { numeroDaSenha, senhaStatusLabel } from '@/components/admin/senhaFormat';
+import { normalizeLegacyStatus, numeroDaSenha, senhaStatusLabel } from '@/components/admin/senhaFormat';
 import { PRIORITY_CATEGORY_LABELS, PriorityCategoryType } from 'shared-types';
 
 const POLLING_INTERVAL_MS = 8000;
@@ -221,7 +221,6 @@ interface ItemActions {
   onCheckin: (t: QueueItem) => void;
   onUndoCheckin: (t: QueueItem) => void;
   onCall: (t: QueueItem) => void;
-  onComplete: (t: QueueItem) => void;
   onNoShow: (t: QueueItem) => void;
   onUndo: (t: QueueItem) => void;
   onEditAttend: (t: QueueItem) => void;
@@ -248,16 +247,6 @@ function ItemMenu({ item, a }: { item: QueueItem; a: ItemActions }) {
       </DropdownMenuItem>,
       <DropdownMenuItem key="noshow" onSelect={() => a.onNoShow(item)}>
         <UserX aria-hidden /> Não veio
-      </DropdownMenuItem>,
-    );
-  }
-  if (item.status === 'called') {
-    entries.push(
-      <DropdownMenuItem key="noshow" onSelect={() => a.onNoShow(item)}>
-        <UserX aria-hidden /> Não veio
-      </DropdownMenuItem>,
-      <DropdownMenuItem key="undo" onSelect={() => a.onUndo(item)}>
-        <Undo2 aria-hidden /> Voltar para a fila
       </DropdownMenuItem>,
     );
   }
@@ -302,34 +291,6 @@ function ItemMenu({ item, a }: { item: QueueItem; a: ItemActions }) {
         {entries}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-function InProgressCard({ item, a }: { item: QueueItem; a: ItemActions }) {
-  return (
-    <Card className="gap-3 border-info/50 px-4 py-4" data-testid="em-atendimento-card">
-      <div className="flex items-start gap-3">
-        <span className="font-mono text-4xl leading-none font-black tabular-nums">{numeroDaSenha(item)}</span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-semibold">{item.consulente_nome || '—'}</p>
-          {item.medium_nome && (
-            <p className="truncate text-sm text-muted-foreground">
-              {item.medium_nome}
-              {item.cambone_nome ? ` · ${item.cambone_nome}` : ''}
-            </p>
-          )}
-          <div className="mt-1 flex flex-wrap gap-1">
-            <Tags item={item} />
-          </div>
-        </div>
-        <ItemMenu item={item} a={a} />
-      </div>
-      {a.canEdit && (
-        <Button type="button" size="touch" className="w-full" disabled={a.busy} onClick={() => a.onComplete(item)}>
-          <CheckCircle2 aria-hidden /> Atendido
-        </Button>
-      )}
-    </Card>
   );
 }
 
@@ -400,6 +361,8 @@ function PortaContent() {
   const [stats, setStats] = useState<DoorStats | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [queueLoaded, setQueueLoaded] = useState(false);
+  // Gira a que a `queue` atual pertence (base do aviso sonoro).
+  const [queueGiraId, setQueueGiraId] = useState('');
   const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [config, setConfig] = useState<TenantConfig | null>(null);
@@ -485,7 +448,8 @@ function PortaContent() {
     try {
       // Fila completa — a busca por nome e número é feita aqui no navegador.
       const res = await apiClient.get(`/api/v1/admin/giras/${selectedGiraId}/door/queue`);
-      setQueue(Array.isArray(res?.data?.items) ? res.data.items : []);
+      setQueue(Array.isArray(res?.data?.items) ? res.data.items.map(normalizeLegacyStatus) : []);
+      setQueueGiraId(selectedGiraId);
       setLastUpdated(new Date());
       queueFailuresRef.current = 0;
       setQueueFailures(0);
@@ -616,11 +580,6 @@ function PortaContent() {
     });
   const handleUndo = (t: QueueItem) =>
     runAction(t.id, () => apiClient.patch(`/api/v1/admin/door/tickets/${t.id}/undo`), 'Senha voltou para a fila');
-  const handleComplete = (t: QueueItem) =>
-    runAction(t.id, () => apiClient.patch(`/api/v1/admin/door/tickets/${t.id}/complete`), `${numeroDaSenha(t)} atendido`, {
-      run: undoTo(t.id),
-      done: 'Senha voltou para a fila',
-    });
 
   const handleAttendConfirm = (data: AttendData) => {
     const target = attendTarget;
@@ -679,7 +638,6 @@ function PortaContent() {
   // ── Derivados ────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => filterQueue(queue, search), [queue, search]);
   const next = useMemo(() => nextToCall(queue), [queue]);
-  const inProgress = filtered.filter((t) => t.status === 'called');
   const waiting = filtered.filter((t) => t.status === 'emitted');
   const done = queue.filter(isDone);
 
@@ -690,13 +648,17 @@ function PortaContent() {
   };
 
   // ── Aviso sonoro + contagem no título da aba ─────────────────────────────────
-  const prevAwaitingIdsRef = useRef<Set<string> | null>(null);
+  // A base de comparação é a primeira fila carregada DE CADA GIRA: abrir a Porta ou trocar de
+  // gira não toca (antes a fila vazia inicial fazia todo mundo parecer "novo").
+  const soundBaselineRef = useRef<{ giraId: string; ids: Set<string> } | null>(null);
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
   useEffect(() => {
+    if (!queueGiraId) return;
     const currentIds = new Set(queue.filter((t) => t.status === 'emitted').map((t) => t.id));
-    const prev = prevAwaitingIdsRef.current;
-    // Só toca quando aparece alguém novo (a primeira carga não conta).
+    const baseline = soundBaselineRef.current;
+    const prev = baseline && baseline.giraId === queueGiraId ? baseline.ids : null;
+    soundBaselineRef.current = { giraId: queueGiraId, ids: currentIds };
     if (prev && !mutedRef.current && Array.from(currentIds).some((id) => !prev.has(id))) {
       try {
         const audio = new Audio('/sounds/notification.mp3');
@@ -707,8 +669,7 @@ function PortaContent() {
         /* ambiente sem Audio */
       }
     }
-    prevAwaitingIdsRef.current = currentIds;
-  }, [queue]);
+  }, [queue, queueGiraId]);
 
   useEffect(() => {
     const base = 'Porta | GiraHub';
@@ -729,7 +690,6 @@ function PortaContent() {
     onCheckin: handleCheckin,
     onUndoCheckin: handleUndoCheckin,
     onCall: (t) => setAttendTarget(t),
-    onComplete: handleComplete,
     onNoShow: handleNoShow,
     onUndo: handleUndo,
     onEditAttend: (t) => setEditTarget(t),
@@ -758,7 +718,6 @@ function PortaContent() {
                   {giras.map((g) => (
                     <SelectItem key={g.id} value={g.id}>
                       {giraLabel(g)}
-                      {!g.is_active ? ' (desativada)' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -874,17 +833,6 @@ function PortaContent() {
             </div>
           ) : (
             <>
-              {inProgress.length > 0 && (
-                <section data-tour="porta-em-atendimento" aria-label="Em atendimento">
-                  <SectionTitle count={inProgress.length}>Em atendimento</SectionTitle>
-                  <div className="flex flex-col gap-2">
-                    {inProgress.map((t) => (
-                      <InProgressCard key={t.id} item={t} a={actionsFor(t)} />
-                    ))}
-                  </div>
-                </section>
-              )}
-
               <section data-tour="porta-fila" aria-label="Fila">
                 <SectionTitle count={waiting.length}>Fila</SectionTitle>
                 {waiting.length === 0 ? (
@@ -923,7 +871,6 @@ function PortaContent() {
                 <StatBox label="Total" value={stats.total} />
                 <StatBox label="Chegaram" value={stats.checked_in} />
                 <StatBox label="Atendidos" value={stats.completed} />
-                <StatBox label="Em atendimento" value={stats.in_progress} />
                 <StatBox label="Não veio" value={stats.no_show} />
                 <StatBox label="Sem senha" value={stats.walk_in} />
                 <StatBox label="Preferenciais" value={stats.preferenciais} />
