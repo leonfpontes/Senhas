@@ -15,6 +15,7 @@ import logging
 from src.core.database import get_db
 from src.models import User, Ticket, Consulente, Gira, Tenant, TenantConfig
 from src.core.config import settings
+from src.core.public_links import public_cancel_link, public_ticket_link
 from src.services.email.base import EmailMessage
 from src.services.email.email_queue import email_queue, EmailQueueItem
 from src.services.email.resend_fallback import ResendEmailService
@@ -205,12 +206,8 @@ async def resend_ticket_email(
     elif tenant_config and tenant_config.logo_url:
         tenant_logo_url = tenant_config.logo_url
 
-    rescue_link = (
-        f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{ticket.id}"
-        if tenant
-        else ""
-    )
-    cancel_link = f"{settings.FRONTEND_URL.rstrip('/')}/public/ticket/{ticket.id}/cancelar"
+    rescue_link = public_ticket_link(settings.FRONTEND_URL, tenant.slug, ticket.id) if tenant else ""
+    cancel_link = public_cancel_link(settings.FRONTEND_URL, ticket.id)
 
     ticket_numero_str = str(ticket.numero).zfill(4)
     html_body = generate_ticket_emission_html(

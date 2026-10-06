@@ -14,6 +14,7 @@ from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 
 from src.core.config import settings
+from src.core.public_links import public_cancel_link, public_ticket_link
 from src.core.database import get_db
 from src.core.limiter import limiter
 from src.core.tz import APP_TZ
@@ -178,12 +179,8 @@ async def resend_ticket_email(
             gira_location = (gira.local or "") if gira else ""
             consulente_name = consulente.nome if consulente else ""
             consulente_phone = (consulente.telefone or "") if consulente else ""
-            rescue_link = (
-                f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{ticket.id}"
-            )
-            cancel_link = (
-                f"{settings.FRONTEND_URL.rstrip('/')}/public/ticket/{ticket.id}/cancelar"
-            )
+            rescue_link = public_ticket_link(settings.FRONTEND_URL, tenant.slug, ticket.id)
+            cancel_link = public_cancel_link(settings.FRONTEND_URL, ticket.id)
 
             html_body = generate_ticket_emission_html(
                 ticket_number=ticket_number,

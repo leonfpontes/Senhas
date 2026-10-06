@@ -23,6 +23,7 @@ import sentry_sdk
 from src.core.tz import APP_TZ
 
 from src.core.config import settings
+from src.core.public_links import public_cancel_link, public_ticket_link
 from src.core.database import get_db
 from src.core.errors import APIException
 from src.models.tenants import Tenant
@@ -207,9 +208,7 @@ async def _upgrade_duplicate_priority(
     ticket_number_formatted = (
         f"P{existing.numero:03d}" if existing.is_sponsor else f"{existing.numero:04d}"
     )
-    rescue_link = (
-        f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{existing.id}"
-    )
+    rescue_link = public_ticket_link(settings.FRONTEND_URL, tenant.slug, existing.id)
 
     logger.info(
         f"Ticket {ticket_number_formatted} priority upgraded to {priority_category} "
@@ -737,12 +736,8 @@ async def emit_ticket(
         )
 
         # === STEP 9: Send Email in Background ===
-        rescue_link = (
-            f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{ticket.id}"
-        )
-        cancel_link = (
-            f"{settings.FRONTEND_URL.rstrip('/')}/public/ticket/{ticket.id}/cancelar"
-        )
+        rescue_link = public_ticket_link(settings.FRONTEND_URL, tenant.slug, ticket.id)
+        cancel_link = public_cancel_link(settings.FRONTEND_URL, ticket.id)
 
         gira_date_str = gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if gira.data_inicio else ""
 
