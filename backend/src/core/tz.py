@@ -90,3 +90,23 @@ def today_utc_range() -> tuple[datetime, datetime]:
     end_utc = end_local.astimezone(timezone.utc)
 
     return start_utc, end_utc
+
+
+def today_local() -> date:
+    """Data de hoje no fuso do terreiro (America/Sao_Paulo).
+
+    Use no lugar de ``date.today()`` (fuso do servidor, UTC em produção) sempre que a
+    regra depender do "dia de hoje" do usuário — ex.: lançamento vencido, mês corrente.
+    Entre 21h e meia-noite de Brasília, ``date.today()`` em UTC já é o dia seguinte.
+    """
+    return datetime.now(tz=APP_TZ).date()
+
+
+def local_day_bounds_utc(start: date, end: date) -> tuple[datetime, datetime]:
+    """(início, fim) em UTC cobrindo os dias ``start``..``end`` inteiros de Brasília.
+
+    Fim exclusivo (meia-noite do dia seguinte a ``end``): use ``col >= ini`` e ``col < fim``.
+    """
+    ini = datetime.combine(start, datetime.min.time(), tzinfo=APP_TZ).astimezone(timezone.utc)
+    fim = datetime.combine(end + timedelta(days=1), datetime.min.time(), tzinfo=APP_TZ).astimezone(timezone.utc)
+    return ini, fim

@@ -27,11 +27,19 @@ jest.mock('@/pages/admin/admin_layout', () => ({
   __esModule: true,
   default: ({ children }: any) => <div data-testid="admin-layout">{children}</div>,
 }));
+const mockGroupCan = jest.fn((_f: string, _a: string) => true);
 jest.mock('@/hooks/usePermissions', () => ({
-  usePermissions: () => ({ can: () => true, permissions: null, loading: false, refresh: jest.fn() }),
+  usePermissions: () => ({ can: mockGroupCan, permissions: null, loading: false, refresh: jest.fn() }),
 }));
+const mockSub = { loading: false };
 jest.mock('@/hooks/useSubscription', () => ({
-  useSubscription: () => ({ can: () => true, subscription: null, loading: false, canCreateGira: () => true, refresh: jest.fn() }),
+  useSubscription: () => ({
+    can: () => !mockSub.loading,
+    subscription: null,
+    loading: mockSub.loading,
+    canCreateGira: () => true,
+    refresh: jest.fn(),
+  }),
 }));
 jest.mock('@/tours/welcomeTour', () => ({ useWelcomeTour: jest.fn() }));
 jest.mock('@/services/analytics', () => ({ trackEvent: jest.fn(), setAnalyticsTag: jest.fn() }));
@@ -81,6 +89,36 @@ describe('Início', () => {
     jest.clearAllMocks();
     window.localStorage.clear();
     mockRouter.query = {};
+    mockSub.loading = false;
+    mockGroupCan.mockImplementation(() => true);
+  });
+
+  const ANIVERSARIANTES = '/api/v1/admin/mediuns/aniversariantes?dias=7';
+  const chamouAniversariantes = () => {
+    const { apiClient } = require('@/services/api_client');
+    return apiClient.get.mock.calls.some(([url]: [string]) => url === ANIVERSARIANTES);
+  };
+
+  it('reload direto: busca aniversariantes quando a assinatura termina de carregar', async () => {
+    mockApi(summary({ public_tickets: 30, door_used: true, completed: true }));
+    mockSub.loading = true; // no primeiro render can('mediuns') ainda é false
+    const Page = require('@/pages/admin/dashboard').default;
+    const { rerender } = render(<Page />);
+    await waitFor(() => expect(screen.getByTestId('gira-de-hoje')).toBeInTheDocument());
+    expect(chamouAniversariantes()).toBe(false);
+
+    mockSub.loading = false;
+    rerender(<Page />);
+    await waitFor(() => expect(chamouAniversariantes()).toBe(true));
+  });
+
+  it('operador sem Médiuns:view não chama aniversariantes', async () => {
+    mockGroupCan.mockImplementation((f: string) => f !== 'mediuns');
+    mockApi(summary({ public_tickets: 30, door_used: true, completed: true }));
+    const Page = require('@/pages/admin/dashboard').default;
+    render(<Page />);
+    await waitFor(() => expect(screen.getByTestId('gira-de-hoje')).toBeInTheDocument());
+    expect(chamouAniversariantes()).toBe(false);
   });
 
   it('terreiro ainda não ativado: só os primeiros passos, sem números', async () => {

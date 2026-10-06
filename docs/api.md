@@ -364,6 +364,8 @@ All admin endpoints require:
 
 **Endpoint**: `GET /admin/audit-logs`
 
+**Acesso**: plano com `auditoria` (Pro+) e grupo de permissão AUDITORIA:view (admin faz bypass do grupo).
+
 **Query Parameters**:
 - `action`: Filter by action type (TICKET_EMITTED, TICKET_MARKED_USED, GIRA_CREATED, etc.)
 - `resource_type`: Filter by resource type

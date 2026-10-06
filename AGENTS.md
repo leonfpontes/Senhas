@@ -213,7 +213,9 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   financeiras (`contas_financeiras`), rastreio/reenvio de e-mail (`email_transacional`), mensalidades
   (`mensalidade_mediun` / `mensalidade_associado`), mediuns (`mediuns`, em aniversariantes, criacao,
   edicao e exclusao — listar/consultar fica livre: modo somente leitura P-09), associados
-  (`associados`, router inteiro), toggles de fila de espera e agendamento por horario em config.
+  (`associados`, router inteiro), analytics (`analytics_basico`) e auditoria (`auditoria`) — ambos no
+  router desde 2026-10-06 (antes so a tela checava o plano), toggles de fila de espera e agendamento
+  por horario em config.
 - Excecao no gate de plano para operadores: `view` de `MEDIUNS` NAO passa por
   `is_feature_enabled_for_plan` (`_VIEW_SEM_GATE_DE_PLANO` em `permission_service.py`) — fora do plano o
   operador com o grupo continua consultando os mediuns; insert/edit/delete seguem zerados.
@@ -424,7 +426,14 @@ Incluir obrigatoriamente:
 
 ### 11.5 Layout Admin (Sidebar)
 - Header redesenhado: fundo gradiente com cores do tenant, logo circular 52px (ou avatar fallback com inicial), nome do terreiro como texto principal (ate 2 linhas), "Senhas Admin" como label secundario.
-- Navegacao: Dashboard, Giras, Tickets, Porta, Usuarios, Analytics, Auditoria, Configuracoes.
+- Navegacao "por trabalho a fazer" em `frontend/src/components/admin/layout/navConfig.ts` (grupos Hoje,
+  Giras e senhas, Corrente, Casa, Conta), usada pela Sidebar, pela busca de acoes (⌘K) e pela barra do
+  celular. Todo item checa plano (`can`) E grupo da mesma feature da tela (`view(...)`); nada de
+  `!isOperator` para tela que tem feature de grupo. Analytics fica em "Giras e senhas" e Auditoria em
+  "Conta" (voltaram ao menu em 2026-10-06).
+- `getFeatureForPath` (admin_layout) tem de usar a MESMA feature da tela/backend: Lancamentos, Fluxo e
+  contas-pagar/receber → `contas_financeiras`; Mensalidades → `financeiro`; Configuracao financeira sem
+  feature no layout (cada aba se protege).
 - Item selecionado com gradiente do tenant.
 - Footer: "Senhas v1.1 — Admin Edition".
 - Responsivo: drawer temporario no mobile, permanente no desktop.
@@ -517,6 +526,32 @@ Incluir obrigatoriamente:
   `_mrr` do `/platform/dashboard` (`paying_clause()`) e o MRR em risco da retenção.
 - Nunca somar `monthly_price` direto para falar de receita: use `effective_mrr`/`paying_clause`.
   O contador `subscriptions.current_users` não é mantido; conte usuários ativos na tabela `users`.
+
+### 11.18 Lancamentos, fluxo de caixa, analytics e auditoria (2026-10-06)
+- **Auditoria antes do commit**: `AuditLogRepository.create` so faz flush e `get_db` fecha a sessao sem
+  commit. Log gravado depois do ultimo commit e descartado — grave o log antes do commit, ou comite de novo
+  depois dele (repositorios que comitam sozinhos, ex. `PermissionGroupRepository`). Corrigido em
+  contas_financeiras, permission_groups e no envio do relatorio de mensalidade.
+- **Status vencido e derivado** (`contas_financeiras.py`): em aberto (pendente/vencido gravado) com
+  vencimento antes de hoje em Brasilia (`core.tz.today_local()`) aparece como vencido na listagem, no
+  filtro `?status=` e no resumo. Nenhum GET grava status.
+- **PUT parcial**: lancamento, categoria e conta bancaria usam `model_dump(exclude_unset=True)` — null
+  explicito limpa campo opcional; null em campo obrigatorio → 422. `ativo` e editavel e as listagens
+  aceitam `?incluir_inativos=true` (a tela de configuracao usa; o formulario de lancamento nao).
+- **Recorrencia mensal/anual**: dar baixa gera a proxima ocorrencia uma unica vez, com
+  `external_ref = "recorrencia:{id_origem}:d{dia}"` (checado por prefixo, inclusive soft-deleted). O dia
+  original da serie e preservado (31/jan → 28/fev → 31/mar). Cancelar nao gera; estornar e dar baixa de
+  novo nao duplica.
+- **Cancelar / reabrir**: `POST /contas/{id}/cancelar` (so em aberto) e `POST /contas/{id}/reabrir`
+  (estorna baixa ou reabre cancelado), ambos `edit` e auditados; recusados (409) para espelho de
+  mensalidade (`external_ref mensalidade:*`).
+- **Fluxo de caixa**: com `data_inicio`/`data_fim`, o primeiro e o ultimo mes sao recortados pelas datas
+  exatas. `saldo_acumulado` parte do saldo de abertura = soma do `saldo_inicial` das contas bancarias
+  ativas + realizado (pago) antes do inicio do intervalo.
+- **Analytics**: `total_cancelled` conta status CANCELLED (era emitidos − usados) e ha `total_no_show`;
+  limites de data em dias inteiros de Brasilia (`core.tz.local_day_bounds_utc`). O toggle
+  `enable_analytics` saiu da tela de configuracao (era salvo e lido por ninguem; coluna mantida).
+- **Auditoria**: `GET /admin/audit-logs` = plano `auditoria` + grupo AUDITORIA:view (sem `is_admin` extra).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

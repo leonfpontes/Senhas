@@ -106,12 +106,7 @@ const FEATURE_ITEMS: { field: BoolField; title: string; description: string; gat
     description: 'Guarda cada entrada e saída de material.',
     gate: 'estoque_controle',
   },
-  {
-    field: 'enable_analytics',
-    title: 'Relatórios de atendimento',
-    description: 'Gráficos de senhas por período e horários de pico.',
-    gate: 'analytics_basico',
-  },
+  // enable_analytics saiu daqui: era salvo mas nada lia (o Analytics segue o plano e o grupo).
 ];
 
 const PRIORITY_OPTIONS = [

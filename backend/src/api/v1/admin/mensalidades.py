@@ -669,6 +669,7 @@ async def enviar_relatorio(
         resource_id=current_user.tenant_id,
         details={"mes": mes, "enviado_para": sent},
     )
+    await db.commit()  # sem commit o log de auditoria era descartado ao fechar a sessão
     return {"mensagem": f"Relatório enviado para {sent} administrador(es).", "mes": mes}
 
 

@@ -4,15 +4,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from uuid import UUID
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from src.core.database import get_db
+from src.core.tz import local_day_bounds_utc, today_local
 from src.models import User, PermissionFeature
 from src.repositories.ticket_analytics_repo import TicketAnalyticsRepository
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
 from src.core.errors import InsufficientPermissionsError
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin-analytics"])
+router = APIRouter(
+    prefix="/api/v1/admin",
+    tags=["admin-analytics"],
+    # Gate de plano único (P-05): a tela já pedia can('analytics_basico'), o endpoint não checava.
+    dependencies=[Depends(require_plan_feature("analytics_basico"))],
+)
 
 
 class AnalyticsDayData(BaseModel):
@@ -36,6 +42,7 @@ class AnalyticsResponse(BaseModel):
     total_emitted: int
     total_used: int
     total_cancelled: int
+    total_no_show: int = 0
     usage_rate: float
     emitted_today: int
     used_today: int
@@ -67,14 +74,16 @@ async def get_analytics(
     
     repo = TicketAnalyticsRepository(db)
     
-    # Default to last 30 days
+    # Default to last 30 days ("hoje" em Brasília)
     if date_to is None:
-        date_to = date.today()
+        date_to = today_local()
     if date_from is None:
         date_from = date_to - timedelta(days=30)
-    
-    dt_from = datetime.combine(date_from, datetime.min.time())
-    dt_to = datetime.combine(date_to, datetime.max.time())
+
+    # Dias inteiros de Brasília convertidos para UTC (antes: meia-noite UTC, ou seja, o
+    # período começava/terminava às 21h do dia anterior em Brasília).
+    dt_from, dt_fim_exclusivo = local_day_bounds_utc(date_from, date_to)
+    dt_to = dt_fim_exclusivo - timedelta(microseconds=1)
     
     # Get statistics
     total_stats = await repo.get_total_stats(
@@ -114,6 +123,7 @@ async def get_analytics(
         total_emitted=total_stats["total_emitted"],
         total_used=total_stats["total_used"],
         total_cancelled=total_stats["total_cancelled"],
+        total_no_show=total_stats.get("total_no_show", 0),
         usage_rate=total_stats["usage_rate"],
         emitted_today=today_stats["emitted_today"],
         used_today=today_stats["used_today"],
