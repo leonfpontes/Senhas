@@ -262,7 +262,6 @@ export default function PublicGiraPage() {
   const preferencial = useWatch({ control, name: 'preferencial' });
   const levarAcompanhantes = useWatch({ control, name: 'levarAcompanhantes' });
   const acompanhantes = useWatch({ control, name: 'acompanhantes' });
-  const telefone = useWatch({ control, name: 'telefone' });
   const timeSlotId = useWatch({ control, name: 'timeSlotId' });
 
   const setQtdAcompanhantes = (qtd: number) => {
