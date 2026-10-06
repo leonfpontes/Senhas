@@ -27,12 +27,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiClient } from '@/services/api_client';
 import { dispatchTenantBrandingUpdated } from '@/providers/ThemeProvider';
 import { COMO_CONHECEU_OPTIONS, PRINCIPAL_DOR_OPTIONS } from '@/constants/onboarding';
 import { trackEvent } from '@/services/analytics';
 import { PLANS, formatPricePerMonth, normalizePlanKey } from '@/constants/plans';
+
+// Chip de escolha opcional (ToggleGroup): quebra linha no celular, destaque na cor do tema.
+const CHIP_CLASS =
+  'h-auto min-h-8 whitespace-normal rounded-full px-3 py-1.5 text-left text-xs data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary';
 
 export default function CadastroPage() {
   const router = useRouter();
@@ -195,22 +198,24 @@ export default function CadastroPage() {
             control={control}
             name="comoConheceu"
             render={({ field }) => (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="como-conheceu">Como nos conheceu? (opcional)</Label>
-                <Select value={field.value || 'none'} onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}>
-                  <SelectTrigger id="como-conheceu" className="w-full bg-input-bg">
-                    <SelectValue placeholder="Escolha uma opção" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Prefiro não dizer</SelectItem>
-                    {COMO_CONHECEU_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="text-sm font-medium">Como nos conheceu? (opcional)</legend>
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  spacing={2}
+                  value={field.value || ''}
+                  onValueChange={(v) => field.onChange(v ?? '')}
+                  aria-label="Como nos conheceu?"
+                  className="flex-wrap justify-start"
+                >
+                  {COMO_CONHECEU_OPTIONS.map((o) => (
+                    <ToggleGroupItem key={o.value} value={o.value} size="sm" className={CHIP_CLASS}>
+                      {o.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </fieldset>
             )}
           />
 
@@ -235,7 +240,7 @@ export default function CadastroPage() {
                       key={o.value}
                       value={o.value}
                       size="sm"
-                      className="h-auto min-h-8 whitespace-normal rounded-full px-3 py-1.5 text-left text-xs data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+                      className={CHIP_CLASS}
                     >
                       {o.label}
                     </ToggleGroupItem>

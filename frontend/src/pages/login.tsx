@@ -180,7 +180,6 @@ export default function LoginPage() {
             id="remember-me"
             checked={rememberMe}
             onCheckedChange={(v) => setRememberMe(v === true)}
-            aria-label="Lembrar-me"
           />
           <Label htmlFor="remember-me" className="cursor-pointer font-normal">
             Lembrar-me
