@@ -38,6 +38,7 @@ from src.models.contas_financeiras import (
     ContaFinanceira,
 )
 from src.services.audit_service import AuditService
+from src.services.mensalidade_contas_service import MSG_CONTA_ESPELHO, is_conta_espelho_mensalidade
 
 router = APIRouter(
     prefix="/api/v1/admin/financeiro",
@@ -152,6 +153,8 @@ class ContaFinanceiraOut(BaseModel):
     comprovante_url: Optional[str]
     criado_por: Optional[UUID]
     created_at: datetime
+    # Espelho de Mensalidade (external_ref "mensalidade:*"): somente leitura aqui.
+    origem_mensalidade: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -230,7 +233,19 @@ def _conta_to_out(c: ContaFinanceira) -> ContaFinanceiraOut:
         comprovante_url=c.comprovante_url,
         criado_por=c.criado_por,
         created_at=c.created_at,
+        origem_mensalidade=is_conta_espelho_mensalidade(c.external_ref),
     )
+
+
+def _bloquear_espelho_mensalidade(conta: ContaFinanceira) -> None:
+    """Conta gerada pela Mensalidade não muda pelos Lançamentos (409).
+
+    Editar/baixar/excluir aqui não volta para a Mensalidade e as duas telas
+    divergiam; a mudança tem de ser feita em Financeiro → Mensalidades, que
+    atualiza este espelho.
+    """
+    if is_conta_espelho_mensalidade(conta.external_ref):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=MSG_CONTA_ESPELHO)
 
 
 # ── Categorias ────────────────────────────────────────────────────────────────
@@ -658,6 +673,7 @@ async def update_conta(
     conta = result.scalar_one_or_none()
     if not conta:
         raise HTTPException(status_code=404, detail="Lançamento não encontrado.")
+    _bloquear_espelho_mensalidade(conta)
 
     await _validar_referencias_do_tenant(
         db, current_user.tenant_id, body.categoria_id, body.conta_bancaria_id
@@ -702,6 +718,7 @@ async def delete_conta(
     conta = result.scalar_one_or_none()
     if not conta:
         raise HTTPException(status_code=404, detail="Lançamento não encontrado.")
+    _bloquear_espelho_mensalidade(conta)
     conta.deleted_at = datetime.now(timezone.utc)
     await db.flush()
     await db.commit()
@@ -737,6 +754,7 @@ async def dar_baixa(
     conta = result.scalar_one_or_none()
     if not conta:
         raise HTTPException(status_code=404, detail="Lançamento não encontrado.")
+    _bloquear_espelho_mensalidade(conta)
 
     status_val = conta.status.value if hasattr(conta.status, "value") else conta.status
     if status_val == "pago":

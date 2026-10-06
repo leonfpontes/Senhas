@@ -66,7 +66,6 @@ type BoolField =
   | 'enable_walk_in'
   | 'validate_associado_on_emit'
   | 'enable_estoque_log'
-  | 'enable_mensalidade_associado'
   | 'enable_waitlist'
   | 'enable_time_slot_scheduling';
 
@@ -75,6 +74,8 @@ type BoolField =
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 const isValidHex = (v: string) => HEX_COLOR_RE.test(v.trim());
 
+// "Mensalidade dos associados" (enable_mensalidade_associado) não fica aqui: é ligada só em
+// Financeiro → Configuração → Mensalidade, junto do valor e do vencimento.
 const FEATURE_ITEMS: { field: BoolField; title: string; description: string; gate?: keyof PlanFeatures }[] = [
   {
     field: 'enable_walk_in',
@@ -98,12 +99,6 @@ const FEATURE_ITEMS: { field: BoolField; title: string; description: string; gat
     title: 'Só associado pega senha',
     description: 'Exige que a pessoa seja associada do terreiro para tirar senha pelo link.',
     gate: 'associados',
-  },
-  {
-    field: 'enable_mensalidade_associado',
-    title: 'Mensalidade dos associados',
-    description: 'Liga a cobrança mensal dos associados no financeiro.',
-    gate: 'mensalidade_associado',
   },
   {
     field: 'enable_estoque_log',
@@ -494,7 +489,6 @@ function AdminConfigContent() {
         enable_walk_in: config.enable_walk_in,
         validate_associado_on_emit: config.validate_associado_on_emit,
         enable_estoque_log: config.enable_estoque_log,
-        enable_mensalidade_associado: config.enable_mensalidade_associado,
         enable_waitlist: config.enable_waitlist,
         enable_time_slot_scheduling: config.enable_time_slot_scheduling,
         sponsor_priority_mode: config.sponsor_priority_mode || 'first',

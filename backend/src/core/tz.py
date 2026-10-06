@@ -21,7 +21,7 @@ Usage::
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import Integer, func
@@ -59,6 +59,15 @@ def local_date(col: ColumnElement) -> ColumnElement:
         DATE(col AT TIME ZONE 'America/Sao_Paulo')
     """
     return func.date(func.timezone(_TZ_LITERAL, col))
+
+
+def today_local() -> date:
+    """Data de hoje no fuso da aplicação (São Paulo).
+
+    Use no lugar de ``date.today()`` — o servidor roda em UTC, então entre
+    21h e 0h (horário de Brasília) ``date.today()`` já devolve o dia seguinte.
+    """
+    return datetime.now(tz=APP_TZ).date()
 
 
 def today_utc_range() -> tuple[datetime, datetime]:

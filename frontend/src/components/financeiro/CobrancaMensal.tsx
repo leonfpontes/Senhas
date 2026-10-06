@@ -4,21 +4,22 @@
  *
  * - busca por nome + filtro de status;
  * - `DataTable` (cartões no celular) com status efetivo (Pago / Isento / Pendente / Inadimplente);
- * - seleção em lote com barra "Marcar como pago" (confirmação em `ConfirmDialog`);
+ * - seleção em lote com barra "Marcar como pago" (confirmação em `ConfirmDialog`) — só linhas
+ *   pendentes/inadimplentes são selecionáveis (pago/isento não podem ser sobrescritos pelo lote);
  * - Sheet (`CrudDrawer`) de registro de pagamento com comprovante e observação;
  * - download do comprovante.
  *
  * A tela dona dos dados faz as chamadas de API (`onRegistrar`) e recarrega em `onChanged`.
  *
  *   <CobrancaMensal mes={mes} items={items} loading={loading} diaVencimento={10}
- *                   valorPadrao={config.valor_mensal} canEdit={canInsertEdit}
+ *                   valorPadrao={config.valor_mensal} canEdit={canRegistrar}
  *                   entidade="médium" onRegistrar={registrar} onChanged={reload}
  *                   onDownloadComprovante={baixar} />
  */
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
+import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
 import { CheckCircle2, Download, Paperclip, Pencil, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -86,7 +87,7 @@ export interface CobrancaMensalProps {
   diaVencimento?: number | null;
   /** Valor sugerido no registro e usado no lote (cai para `valor_vigente` do item). */
   valorPadrao?: number | null;
-  /** Pode registrar/editar pagamentos (insert ou edit no grupo). */
+  /** Pode registrar/editar pagamentos (o POST de registro exige "insert" no grupo). */
   canEdit: boolean;
   /** Nome singular da pessoa cobrada: "médium", "associado", "participante". */
   entidade: string;
@@ -119,9 +120,24 @@ export function cobrancaStatusEfetivo(
   return hoje > vencimento ? 'INADIMPLENTE' : 'PENDENTE';
 }
 
-/** KPIs do mês a partir dos itens carregados. Só chame com todas as listas já carregadas. */
+/** Linha que o lote "Marcar como pago" pode registrar: só pendente/inadimplente. */
+export function cobrancaSelecionavelNoLote(
+  item: Pick<CobrancaItem, 'status' | 'isentoPermanente'>,
+  mes: string,
+  diaVencimento: number | null | undefined,
+  hoje: string = todayBr(),
+): boolean {
+  const efetivo = cobrancaStatusEfetivo(item, mes, diaVencimento, hoje);
+  return efetivo === 'PENDENTE' || efetivo === 'INADIMPLENTE';
+}
+
+/**
+ * KPIs do mês a partir dos itens carregados. Só chame com todas as listas já carregadas.
+ * Cada grupo pode ter o próprio dia de vencimento (médiuns e associados vencem em dias
+ * diferentes); sem ele vale o `diaVencimento` geral.
+ */
 export function computeCobrancaKpis(
-  grupos: Array<{ items: CobrancaItem[]; valor: number | null | undefined }>,
+  grupos: Array<{ items: CobrancaItem[]; valor: number | null | undefined; diaVencimento?: number | null }>,
   mes: string,
   diaVencimento?: number | null,
   hoje: string = todayBr(),
@@ -129,13 +145,15 @@ export function computeCobrancaKpis(
   let esperado = 0;
   let arrecadado = 0;
   let inadimplentes = 0;
-  for (const { items, valor } of grupos) {
+  for (const { items, valor, diaVencimento: diaGrupo } of grupos) {
     for (const item of items) {
-      const efetivo = cobrancaStatusEfetivo(item, mes, diaVencimento, hoje);
+      const efetivo = cobrancaStatusEfetivo(item, mes, diaGrupo ?? diaVencimento, hoje);
       if (efetivo === 'ISENTO') continue;
       esperado += item.valor_vigente ?? valor ?? 0;
       if (efetivo === 'PAGO') arrecadado += item.valor_pago ?? 0;
-      else inadimplentes += 1;
+      // Só conta como inadimplente depois do vencimento DO GRUPO; antes disso o valor
+      // segue em "Em aberto" (antes todo pendente virava inadimplente e o dia não importava).
+      else if (efetivo === 'INADIMPLENTE') inadimplentes += 1;
     }
   }
   return { esperado, arrecadado, inadimplentes, emAberto: Math.max(0, esperado - arrecadado) };
@@ -233,6 +251,14 @@ export function CobrancaMensal({
 
   const selectedIds = useMemo(() => Object.keys(rowSelection).filter((k) => rowSelection[k]), [rowSelection]);
   const bulkEnabled = canEdit && enableBulk;
+  const podeSelecionar = (i: CobrancaItem) => cobrancaSelecionavelNoLote(i, mes, diaVencimento, hoje);
+  const enableRowSelection = useMemo(
+    () =>
+      bulkEnabled
+        ? (row: Row<CobrancaItem>) => cobrancaSelecionavelNoLote(row.original, mes, diaVencimento, hoje)
+        : false,
+    [bulkEnabled, mes, diaVencimento, hoje],
+  );
 
   const openDrawer = (item: CobrancaItem) => {
     setDrawerItem(item);
@@ -272,7 +298,8 @@ export function CobrancaMensal({
     const byId = new Map(items.map((i) => [i.id, i]));
     for (const id of selectedIds) {
       const item = byId.get(id);
-      if (!item) continue;
+      // Pago/isento nunca entram no lote (não sobrescreve valor, data nem isenção).
+      if (!item || !podeSelecionar(item)) continue;
       try {
         await onRegistrar(item, {
           status: 'PAGO',
@@ -395,6 +422,7 @@ export function CobrancaMensal({
             <Checkbox
               checked={ctx.selected}
               onCheckedChange={ctx.toggleSelected}
+              disabled={!podeSelecionar(item)}
               aria-label={`Selecionar ${item.nome}`}
               className="mt-1"
             />
@@ -480,7 +508,7 @@ export function CobrancaMensal({
         getRowId={(i) => i.id}
         loading={loading}
         pageSize={25}
-        enableRowSelection={bulkEnabled}
+        enableRowSelection={enableRowSelection}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         renderCard={renderCard}

@@ -2,7 +2,7 @@
 
 from typing import Optional, List
 from uuid import UUID
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 import re
 
@@ -55,12 +55,21 @@ class AssociadoRepository(BaseRepository[Associado]):
         result = await self.db.execute(stmt)
         return (result.scalar() or 0) > 0
 
+    @staticmethod
+    def normalize_telefone(telefone: Optional[str]) -> Optional[str]:
+        """Telefone só com dígitos (igual aos médiuns; a tela aplica a máscara)."""
+        if not telefone:
+            return None
+        digits = re.sub(r"\D", "", telefone)
+        return digits or None
+
     async def create_associado(
         self,
         tenant_id: UUID,
         nome: str,
         email: str,
         telefone: Optional[str] = None,
+        mensalidade_isento: bool = False,
     ) -> Associado:
         """Create a new associado with email normalization."""
         normalized = self.normalize_email(email)
@@ -69,7 +78,8 @@ class AssociadoRepository(BaseRepository[Associado]):
             nome=nome.strip(),
             email=email.strip(),
             email_normalized=normalized,
-            telefone=telefone.strip() if telefone else None,
+            telefone=self.normalize_telefone(telefone),
+            mensalidade_isento=mensalidade_isento,
         )
         self.db.add(associado)
         await self.db.flush()
@@ -82,6 +92,7 @@ class AssociadoRepository(BaseRepository[Associado]):
         nome: Optional[str] = None,
         email: Optional[str] = None,
         telefone: Optional[str] = ...,
+        mensalidade_isento: Optional[bool] = None,
     ) -> Associado:
         """Update associado fields. Pass telefone=None explicitly to clear it."""
         if nome is not None:
@@ -90,7 +101,9 @@ class AssociadoRepository(BaseRepository[Associado]):
             associado.email = email.strip()
             associado.email_normalized = self.normalize_email(email)
         if telefone is not ...:
-            associado.telefone = telefone.strip() if telefone else None
+            associado.telefone = self.normalize_telefone(telefone)
+        if mensalidade_isento is not None:
+            associado.mensalidade_isento = mensalidade_isento
         await self.db.flush()
         await self.db.refresh(associado)
         return associado
@@ -100,17 +113,28 @@ class AssociadoRepository(BaseRepository[Associado]):
         tenant_id: UUID,
         skip: int = 0,
         limit: int = 100,
+        search: Optional[str] = None,
     ) -> List[Associado]:
-        """List non-deleted associados for a tenant, ordered by name."""
+        """List non-deleted associados for a tenant, ordered by name.
+
+        ``search`` filtra por nome/e-mail (ILIKE) ou dígitos do telefone.
+        """
+        conditions = [
+            Associado.tenant_id == tenant_id,
+            Associado.deleted_at.is_(None),
+        ]
+        term = (search or "").strip()
+        if term:
+            like = f"%{term}%"
+            filtros = [Associado.nome.ilike(like), Associado.email.ilike(like)]
+            digits = re.sub(r"\D", "", term)
+            if digits:
+                filtros.append(Associado.telefone.ilike(f"%{digits}%"))
+            conditions.append(or_(*filtros))
         stmt = (
             select(Associado)
-            .where(
-                and_(
-                    Associado.tenant_id == tenant_id,
-                    Associado.deleted_at.is_(None),
-                )
-            )
-            .order_by(Associado.nome.asc())
+            .where(and_(*conditions))
+            .order_by(Associado.nome.asc(), Associado.id.asc())
             .offset(skip)
             .limit(limit)
         )

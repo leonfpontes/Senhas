@@ -205,13 +205,18 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   normalmente mas nao sofre corte de fim de trial; `cancel_at_period_end` mantem acesso ate o webhook
   `customer.subscription.deleted`.
 - Limites numericos (usuarios, giras/mes, mediuns) ficam no endpoint, mas leem `effective_limit(sub, campo)`:
-  SUSPENDED → 402; CANCELLED/EXPIRED de plano pago ou trial vencido → limites do FREE.
+  SUSPENDED → 402; CANCELLED/EXPIRED de plano pago ou trial vencido → limites do FREE. `max_mediuns` vale
+  na criacao E na reativacao (`PATCH is_active=true`) de medium.
 - `GET /api/v1/admin/subscription` devolve `features` via `get_effective_plan_features(sub)` — a UI esconde o
   que o backend nega. `PermissionService.is_feature_enabled_for_plan` (operadores) usa a mesma funcao.
 - Modulos gated hoje: estoque (`estoque_controle`), sites e cursos presenciais (`site_builder`), contas
   financeiras (`contas_financeiras`), rastreio/reenvio de e-mail (`email_transacional`), mensalidades
-  (`mensalidade_mediun` / `mensalidade_associado`), mediuns (`mediuns`, em aniversariantes e criacao),
-  toggles de fila de espera e agendamento por horario em config.
+  (`mensalidade_mediun` / `mensalidade_associado`), mediuns (`mediuns`, em aniversariantes, criacao,
+  edicao e exclusao — listar/consultar fica livre: modo somente leitura P-09), associados
+  (`associados`, router inteiro), toggles de fila de espera e agendamento por horario em config.
+- Excecao no gate de plano para operadores: `view` de `MEDIUNS` NAO passa por
+  `is_feature_enabled_for_plan` (`_VIEW_SEM_GATE_DE_PLANO` em `permission_service.py`) — fora do plano o
+  operador com o grupo continua consultando os mediuns; insert/edit/delete seguem zerados.
 - Rotas `/api/v1/platform/*`: `Depends(require_super_admin)` importado de `src.api.dependencies` (copia unica).
 
 ---
@@ -434,23 +439,28 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- 64 migracoes; head atual: `054_purge_soft_deleted_gira_time_slots` (2026-08-26).
+- Head atual: `058_associados_email_unique_ativo` (2026-10-06).
 - Historico com 4 merge revisions (010, 030, 037, d9fafadd9261) — prefixos numericos ja
   colidiram 3x (009, 028, 030). Por isso a regra do §4.3: `alembic heads` ANTES de criar
   qualquer migracao nova.
 - Migracoes corretivas notaveis (post-mortems nos docstrings): 044b (largura de
   alembic_version.version_num — banco zerado quebrava no upgrade), 052 (dedup de consulentes +
   unique parcial por tenant+email), 054 (purga de time slots soft-deletados que colidiam na
-  unique).
+  unique), 058 (e-mail de associado unico so entre ativos — recadastrar excluido dava 500).
 
 ### 11.10 Financeiro — Controle de Mensalidade de Mediuns (branch 002-financeiro-mensalidade)
 - **Feature PRO+**: `mensalidade_mediun` e PRO+ no catalogo desde 2026-06-27; os endpoints exigiam PREMIUM ate o P-05 (2026-10-05), que passou a usar `require_plan_feature("mensalidade_mediun")`.
 - **Modelos**: `MensalidadeConfig` (valor_mensal, dia_vencimento, 1:1 tenant), `MensalidadePagamento` (UNIQUE mediun_id+mes, BYTEA comprovante), `MensalidadeStatus` enum (PENDENTE/PAGO/ISENTO).
-- **Endpoints** (prefixo `/api/v1/admin/financeiro`): config GET/PUT, mensalidades GET/POST por mes, comprovante GET/DELETE, resumo GET (6 hist + 3 proj), relatorio POST enviar / GET download.
-- **Regras de acesso**: leitura para OPERATOR+ADMIN, escrita (PUT config, POST pagamento, DELETE comprovante, POST relatorio) somente ADMIN/SUPER_ADMIN.
+- **Endpoints** (prefixo `/api/v1/admin/financeiro`): config GET/PUT, mensalidades GET/POST por mes, comprovante GET/DELETE, resumo GET (6 hist + 3 proj), relatorio POST enviar / GET download. Associados espelham em `/associados*`.
+- **Regras de acesso** (desde 2026-10-06): so `require_group_permission(FINANCEIRO, ...)` + gate de plano — nao ha mais checagem de perfil ADMIN (`_require_admin` removido; contradizia o grupo). Registrar/editar pagamento e POST (upsert) → acao `insert`; a tela mostra "Registrar"/lote so com `canGroup('financeiro','insert')`. PUT config → `edit`.
+- **Mes de referencia (mediuns)**: entra quem estava na casa em algum dia do mes (`data_entrada` <= fim do mes ou nula E ativo ou `data_saida` >= inicio do mes) e quem ja tem registro de pagamento no mes. Associados nao tem datas: todos os nao excluidos.
+- **Registro**: `valor_vigente` e capturado no PRIMEIRO registro do mes e nao muda em edicoes; `observacao` so muda quando o formulario envia o campo (vazio limpa; o lote "Marcar como pago" nao envia). O lote so seleciona linhas pendentes/inadimplentes.
+- **Espelho em contas a receber** (`services/mensalidade_contas_service.py`, `external_ref = mensalidade:{mediun|associado}:{id}:{YYYY-MM}`): PAGO grava `valor_pago` informado (sem ele, o vigente); PENDENTE → pendente/vencido; ISENTO cancela a conta do mes. Cadastro de medium/associado (nao isento) cria a conta do mes seguinte; inativar (referencia = `data_saida`), excluir ou marcar `mensalidade_isento` cancela as contas pendentes dos meses seguintes. Datas de "hoje" via `core.tz.today_local()` (Brasilia). Nos Lancamentos essas contas sao somente leitura: PUT/baixa/DELETE → 409 e a listagem traz `origem_mensalidade: true` (a tela mostra "Editar em Mensalidades").
+- **Isencao permanente**: `mensalidade_isento` em Medium/Associado e editavel nos dois cadastros (switch "Isento de mensalidade"); isento nao gera conta e nao entra no esperado/inadimplentes.
+- **Config**: `enable_mensalidade_associado` e ligado so em Financeiro → Configuracao → Mensalidade (saiu de Configuracoes). `email_relatorio_ativo` nao tem mais toggle na tela (nenhum job lia e nao havia botao de envio); a coluna continua e `POST /relatorio/enviar` nao depende mais dela.
 - **Comprovante**: BYTEA no banco, limite 5MB, tipos aceitos: jpeg/png/webp/pdf.
 - **Relatorio**: email HTML gerado por `render_mensalidade_report()` com KPI cards + tabela inadimplentes.
-- **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns + Grafico com Recharts) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`).
+- **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns / Associados / Historico; KPIs com o dia de vencimento de cada grupo, "Inadimplentes" so apos o vencimento) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`). `/admin/associados` carrega todas as paginas da API (limit 200) para a busca local.
 - **Migration 027**: ENUM `mensalidade_status`, tabelas `mensalidade_configs` + `mensalidade_pagamentos`, coluna `mediuns.mensalidade_isento BOOLEAN DEFAULT false`.
 - **Dependencia**: `python-dateutil` (usado em `mensalidade_repo.get_resumo` via `dateutil.relativedelta`).
 

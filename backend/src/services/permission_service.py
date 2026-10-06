@@ -10,6 +10,16 @@ from ..repositories.subscription_repo import SubscriptionRepository
 from src.services.plan_features import get_effective_plan_features
 
 
+# Consulta liberada fora do plano (P-09): quem já cadastrou médiuns continua
+# vendo a lista depois do fim do plano/trial. O gate de plano vale só para
+# criar/editar/excluir (require_plan_feature("mediuns") nas rotas de escrita).
+_VIEW_SEM_GATE_DE_PLANO = frozenset({PermissionFeature.MEDIUNS})
+
+
+def _plan_gate_applies(feature: PermissionFeature, action: str) -> bool:
+    return not (action == "view" and feature in _VIEW_SEM_GATE_DE_PLANO)
+
+
 class PermissionService:
     """Service to check and consolidate group-based permissions for users."""
 
@@ -76,9 +86,10 @@ class PermissionService:
         if not tenant_id:
             return False
 
-        plan_enabled = await self.is_feature_enabled_for_plan(tenant_id, feature)
-        if not plan_enabled:
-            return False
+        if _plan_gate_applies(feature, action):
+            plan_enabled = await self.is_feature_enabled_for_plan(tenant_id, feature)
+            if not plan_enabled:
+                return False
 
         # 4. User group permissions
         user_groups = await self.permission_group_repo.get_user_groups(user.id, tenant_id)
@@ -132,7 +143,15 @@ class PermissionService:
             enabled_in_plan = await self.is_feature_enabled_for_plan(tenant_id, feature_enum)
             
             if not enabled_in_plan:
-                effective[f] = {"view": False, "insert": False, "edit": False, "delete": False}
+                # Fora do plano só sobra a consulta das features em
+                # _VIEW_SEM_GATE_DE_PLANO (modo somente leitura, P-09).
+                f_perms = db_perms.get(feature_enum, {})
+                effective[f] = {
+                    "view": bool(f_perms.get("view", False)) and not _plan_gate_applies(feature_enum, "view"),
+                    "insert": False,
+                    "edit": False,
+                    "delete": False,
+                }
             else:
                 # Retrieve from DB consolidated query, default to False
                 f_perms = db_perms.get(feature_enum, {"view": False, "insert": False, "edit": False, "delete": False})

@@ -53,6 +53,7 @@ interface Medium {
   nome: string;
   is_atendimento: boolean;
   is_active: boolean;
+  mensalidade_isento?: boolean;
   data_entrada?: string | null;
   data_saida?: string | null;
   telefone?: string | null;
@@ -71,6 +72,7 @@ interface FormData {
   nome: string;
   is_atendimento: boolean;
   is_active: boolean;
+  mensalidade_isento: boolean;
   data_entrada: string;
   data_saida: string;
   telefone: string;
@@ -88,6 +90,7 @@ const EMPTY_FORM: FormData = {
   nome: '',
   is_atendimento: false,
   is_active: true,
+  mensalidade_isento: false,
   data_entrada: '',
   data_saida: '',
   telefone: '',
@@ -191,7 +194,13 @@ export default function AdminMediunsPage() {
 // ── Content ────────────────────────────────────────────────────────────
 
 function MediunsContent() {
-  const { can, loading: subLoading, subscription, canCreateMedium: canCreateMediumFn } = useSubscription();
+  const {
+    can,
+    loading: subLoading,
+    subscription,
+    canCreateMedium: canCreateMediumFn,
+    refresh: refreshSubscription,
+  } = useSubscription();
   const { can: canGroup } = usePermissions();
   const { showSuccess, showError } = useSnackbar();
   const canView = canGroup('mediuns', 'view');
@@ -311,6 +320,7 @@ function MediunsContent() {
     nome: m.nome,
     is_atendimento: m.is_atendimento,
     is_active: m.is_active,
+    mensalidade_isento: !!m.mensalidade_isento,
     data_entrada: m.data_entrada ?? '',
     data_saida: m.data_saida ?? '',
     telefone: m.telefone ? maskTelefone(m.telefone) : '',
@@ -383,6 +393,7 @@ function MediunsContent() {
       const payload: Record<string, unknown> = {
         nome: formData.nome.trim(),
         is_atendimento: formData.is_atendimento,
+        mensalidade_isento: formData.mensalidade_isento,
         data_entrada: formData.data_entrada || null,
         telefone: unmask(formData.telefone) || null,
         email: formData.email.trim() || null,
@@ -408,6 +419,8 @@ function MediunsContent() {
       }
       closeDrawer();
       load();
+      // A cota (current_mediuns) conta os ativos: criar, inativar e reativar mudam a barra.
+      refreshSubscription();
     } catch (error: unknown) {
       const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
       showError(typeof detail === 'string' ? detail : 'Erro ao salvar médium');
@@ -424,6 +437,7 @@ function MediunsContent() {
       setDeleteTarget(null);
       showSuccess('Médium removido com sucesso!');
       load();
+      refreshSubscription();
     } catch (error: unknown) {
       const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
       showError(typeof detail === 'string' ? detail : 'Erro ao remover médium');
@@ -748,6 +762,22 @@ function MediunsContent() {
               </Label>
             </RadioGroup>
           </fieldset>
+
+          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="medium-isento" className="font-medium">
+                Isento de mensalidade
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Não entra na cobrança mensal nem gera conta a receber.
+              </p>
+            </div>
+            <Switch
+              id="medium-isento"
+              checked={formData.mensalidade_isento}
+              onCheckedChange={(v) => handleChange('mensalidade_isento', v)}
+            />
+          </div>
 
           {drawerMode === 'edit' && (
             <div className="flex items-center justify-between rounded-md border p-3">
