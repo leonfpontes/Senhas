@@ -41,7 +41,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { addDaysIso, addMonthsYm, brDateParts, currentMonthBr, formatBRL, formatDateBr, formatDateTimeBr, monthRangeIso, todayBr } from '@/lib/dateBr';
+import { addDaysIso, addMonthsYm, brDateParts, formatBRL, formatDateBr, formatDateTimeBr, monthRangeIso, todayBr } from '@/lib/dateBr';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
