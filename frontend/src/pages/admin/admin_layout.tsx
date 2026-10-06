@@ -85,7 +85,7 @@ function AdminLayoutInner({ children, title, maxWidth = 'lg', noPadding = false 
   const pathname = router.pathname;
   const { profile } = useProfile();
   const { can: canGroup, loading: permissionsLoading } = usePermissions();
-  const { canCreateGira: canCreateGiraFn } = useSubscription();
+  const { canCreateGira: canCreateGiraFn, can: canPlan } = useSubscription();
 
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [impersonateUser, setImpersonateUser] = useState<{ email?: string; username?: string } | null>(null);
@@ -223,7 +223,7 @@ function AdminLayoutInner({ children, title, maxWidth = 'lg', noPadding = false 
         open={shareOpen}
         onOpenChange={setShareOpen}
         link={shareLinks?.public_link}
-        sponsorLink={shareLinks?.sponsor_public_link}
+        sponsorLink={canPlan('associados') ? shareLinks?.sponsor_public_link : null}
         tenantName={profile?.tenant_name}
         loading={shareLoading}
       />

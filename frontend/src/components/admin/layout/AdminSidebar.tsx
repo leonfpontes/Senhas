@@ -71,7 +71,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction
             )}
           >
             <Link href="/admin/billing" aria-label={`Plano ${planLabel} — ver assinatura`}>
-              {planLabel}
+              {subscription?.is_trial ? `${planLabel} · mês grátis` : planLabel}
             </Link>
           </Badge>
         )}
