@@ -1,94 +1,174 @@
 /**
- * Public Gira Page — Direct link to a specific gira for ticket emission.
+ * Public Gira Page — link direto de uma gira para emissão de senha.
  * Route: /public/gira/[id]
  *
- * 3 states:
- *  1. Waiting — countdown until release_start_at
- *  2. Open — emit form
- *  3. Exhausted — all tickets taken or window closed
+ * Estados: carregando · gira não encontrada · emissão ainda não configurada ·
+ * aguardando (contagem regressiva) · aberta (formulário / fila de espera) ·
+ * esgotada ou encerrada · sucesso (Bilhete).
+ *
+ * Formulário com react-hook-form + zod (erro inline no blur), botão fixo no rodapé
+ * sempre ativo — ao enviar com campo pendente, o foco vai para ele. Erros acionáveis:
+ * 409 (já tem senha) oferece "Reenviar meu e-mail" (POST /api/v1/public/resend-ticket-email);
+ * rede/5xx oferece "Tentar de novo"; 410 (lotou) e 400/404 (horário, acompanhantes, associado)
+ * mostram a mensagem do backend e recarregam a gira.
  */
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
-import {
-  Alert,
-  Box,
-  Button,
-  Checkbox,
-  Chip,
-  CircularProgress,
-  Container,
-  FormControl,
-  FormControlLabel,
-  FormLabel,
-  MenuItem,
-  Paper,
-  Radio,
-  RadioGroup,
-  Snackbar,
-  TextField,
-  Typography,
-} from '@mui/material';
-import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
-import EventIcon from '@mui/icons-material/Event';
-import PlaceIcon from '@mui/icons-material/Place';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import BlockIcon from '@mui/icons-material/Block';
-import StarIcon from '@mui/icons-material/Star';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import GroupsIcon from '@mui/icons-material/Groups';
-import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
-import PoweredByGiraHubFooter from '../../../components/shared/PoweredByGiraHubFooter';
-import { useGiraCountdown, parseCountdownParts } from '../../../hooks/useGiraCountdown';
-import {
-  PRIORITY_CATEGORY_LABELS,
-  PRIORITY_ORDER,
-} from 'shared-types';
+import { Controller, useForm, useWatch } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { toast } from 'sonner';
+import { CalendarClock, CalendarX2, Clock, Hourglass, Loader2, MapPin, SearchX, Star, Ticket, Users } from 'lucide-react';
+import { PRIORITY_CATEGORY_LABELS, PRIORITY_ORDER } from 'shared-types';
 import type { GiraPublic } from 'shared-types';
+import { apiClient } from '@/services/api_client';
+import { useGiraCountdown, parseCountdownParts } from '@/hooks/useGiraCountdown';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TextField, MaskedInput } from '@/components/fields';
+import {
+  Bilhete,
+  PublicLoading,
+  PublicNotice,
+  PublicShell,
+  errorStatus,
+  formatGiraDate,
+  formatGiraDateShort,
+  publicErrorMessage,
+  ticketIdFromLink,
+  type PublicTicket,
+} from '@/components/public';
 
-type GiraPublicData = GiraPublic;
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface AcompanhanteEmitido {
   name: string;
   ticket_number: string;
 }
 
+interface EmitResponse {
+  ticket_number?: string;
+  numero?: number | string;
+  email_sent?: boolean;
+  rescue_link?: string;
+  message?: string;
+  waitlisted?: boolean;
+  waitlist_position?: number | null;
+  priority_upgraded?: boolean;
+  acompanhantes?: AcompanhanteEmitido[];
+}
+
+interface EmitSuccess {
+  ticket: PublicTicket;
+  ticketId: string | null;
+  email: string;
+  waitlisted: boolean;
+  waitlistPosition: number | null;
+  priorityUpgraded: boolean;
+}
+
+type SubmitErrorKind = 'conflict' | 'gone' | 'network' | 'generic';
+interface SubmitError {
+  kind: SubmitErrorKind;
+  message: string;
+}
+
+type LoadError = 'notfound' | 'network';
+
+// ─── Schema ───────────────────────────────────────────────────────────────────
+
+const PRIORITY_VALUES = PRIORITY_ORDER as readonly string[];
+
+function buildSchema(opts: { requiresSlot: boolean; acompanhantesAtivos: boolean }) {
+  return z
+    .object({
+      nome: z.string().trim().min(3, 'Digite seu nome completo'),
+      email: z.string().trim().min(1, 'Digite seu e-mail').email('Digite um e-mail válido'),
+      telefone: z.string().refine((v) => {
+        const d = v.replace(/\D/g, '');
+        return d.length === 0 || d.length >= 10;
+      }, 'Celular incompleto — use DDD + número'),
+      preferencial: z.enum(['nao', 'sim']),
+      priorityCategory: z.string().nullable(),
+      timeSlotId: z.string().nullable(),
+      levarAcompanhantes: z.boolean(),
+      acompanhantes: z.array(z.object({ nome: z.string() })),
+    })
+    .superRefine((v, ctx) => {
+      if (v.preferencial === 'sim' && !(v.priorityCategory && PRIORITY_VALUES.includes(v.priorityCategory))) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['priorityCategory'], message: 'Escolha o tipo de atendimento preferencial' });
+      }
+      if (opts.requiresSlot && !v.timeSlotId) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['timeSlotId'], message: 'Escolha um horário de atendimento' });
+      }
+      if (opts.acompanhantesAtivos && v.levarAcompanhantes) {
+        v.acompanhantes.forEach((a, i) => {
+          if (a.nome.trim().length < 2) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['acompanhantes', i, 'nome'], message: 'Digite o nome do acompanhante' });
+          }
+        });
+      }
+    });
+}
+
+type FormValues = z.infer<ReturnType<typeof buildSchema>>;
+
+const LEGAL_TEXT =
+  'O atendimento preferencial obedece à Lei nº 10.048/2000 (idosos, gestantes, lactantes, pessoas com deficiência e mobilidade reduzida) e à Lei nº 13.146/2015 (Estatuto da Pessoa com Deficiência). Informe só se você se encaixa em um desses grupos: a equipe do terreiro pode pedir comprovação na entrada.';
+
+// ─── Subcomponentes ───────────────────────────────────────────────────────────
+
 function CountdownBlock({ seconds }: { seconds: number }) {
   const parts = parseCountdownParts(seconds);
   const blocks = [
-    { label: 'Dias', value: parts.days },
-    { label: 'Horas', value: parts.hours },
-    { label: 'Min', value: parts.minutes },
-    { label: 'Seg', value: parts.seconds },
+    { label: 'dias', value: parts.days },
+    { label: 'horas', value: parts.hours },
+    { label: 'min', value: parts.minutes },
+    { label: 'seg', value: parts.seconds },
   ];
-  // Hide days block if 0
   const visible = parts.days > 0 ? blocks : blocks.slice(1);
 
   return (
-    <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', my: 3 }}>
+    <div className="my-4 flex justify-center gap-2" role="timer" aria-live="off">
       {visible.map((b) => (
-        <Box
-          key={b.label}
-          sx={{
-            textAlign: 'center',
-            minWidth: 64,
-            p: 1.5,
-            borderRadius: 2,
-            bgcolor: 'primary.main',
-            color: 'primary.contrastText',
-          }}
-        >
-          <Typography variant="h4" fontWeight={700}>
-            {String(b.value).padStart(2, '0')}
-          </Typography>
-          <Typography variant="caption">{b.label}</Typography>
-        </Box>
+        <div key={b.label} className="min-w-16 rounded-lg bg-primary px-2 py-3 text-center text-primary-foreground">
+          <p className="text-3xl font-bold tabular-nums leading-none">{String(b.value).padStart(2, '0')}</p>
+          <p className="mt-1 text-sm">{b.label}</p>
+        </div>
       ))}
-    </Box>
+    </div>
   );
 }
+
+function formatLongDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo',
+  }).format(d);
+}
+
+function formatMinutes(seconds: number): string {
+  const min = Math.max(0, Math.floor(seconds / 60));
+  if (min >= 120) return `${Math.floor(min / 60)} horas`;
+  if (min >= 60) return `1 hora e ${min - 60} min`;
+  return `${min} min`;
+}
+
+// ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function PublicGiraPage() {
   const router = useRouter();
@@ -96,491 +176,743 @@ export default function PublicGiraPage() {
   const tipo = (router.query.tipo as string) || 'comum';
   const isSponsor = tipo === 'associado' || tipo === 'patrocinador';
 
-  const [gira, setGira] = useState<GiraPublicData | null>(null);
+  const [gira, setGira] = useState<GiraPublic | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<LoadError | null>(null);
+  const [loadMessage, setLoadMessage] = useState('');
 
-  // Form
-  const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [priorityCategory, setPriorityCategory] = useState<string>('none');
-  const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string | null>(null);
-  const [levarAcompanhantes, setLevarAcompanhantes] = useState(false);
-  const [acompanhantes, setAcompanhantes] = useState<string[]>(['']);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<SubmitError | null>(null);
+  const [resending, setResending] = useState(false);
+  const [success, setSuccess] = useState<EmitSuccess | null>(null);
 
-  // Success
-  const [success, setSuccess] = useState(false);
-  const [ticketNumber, setTicketNumber] = useState<number | null>(null);
-  const [acompanhantesEmitidos, setAcompanhantesEmitidos] = useState<AcompanhanteEmitido[]>([]);
-  const [waitlisted, setWaitlisted] = useState(false);
-  const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null);
-  const [priorityUpgraded, setPriorityUpgraded] = useState(false);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const slotsRef = useRef<HTMLFieldSetElement>(null);
+  const priorityRef = useRef<HTMLFieldSetElement>(null);
 
-  // Snackbar
-  const [snack, setSnack] = useState<{ open: boolean; msg: string; sev: 'success' | 'error' }>({
-    open: false, msg: '', sev: 'success',
-  });
-
-  const fetchGira = useCallback(async () => {
+  const fetchGira = useCallback(async (opts: { silent?: boolean } = {}) => {
     if (!giraId) return;
     try {
-      setLoading(true);
-      const res = await apiClient.get(`/api/v1/public/gira/${giraId}?tipo=${tipo}`);
+      if (!opts.silent) setLoading(true);
+      const res = await apiClient.get<GiraPublic>(`/api/v1/public/gira/${giraId}?tipo=${tipo}`);
       setGira(res.data);
-      setError(null);
+      setLoadError(null);
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Gira não encontrada'));
+      // Recarga silenciosa (contagem zerou, pós-envio): mantém o que já está na tela.
+      if (opts.silent) return;
+      const status = errorStatus(err);
+      setLoadError(status === 404 ? 'notfound' : 'network');
+      setLoadMessage(status === 404 ? '' : publicErrorMessage(err, 'Não foi possível carregar a gira.'));
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   }, [giraId, tipo]);
 
   useEffect(() => { fetchGira(); }, [fetchGira]);
 
   // Countdown hook — safe defaults when gira hasn't loaded
-  const countdown = useGiraCountdown(
-    gira?.release_start_at || '',
-    gira?.release_end_at || '',
-  );
+  const countdown = useGiraCountdown(gira?.release_start_at || '', gira?.release_end_at || '');
 
-  // Determine state
-  const hasRelease = gira?.release_start_at && gira?.release_end_at;
+  // Quando a contagem zera (abre ou encerra), recarrega a gira: vagas e estado podem ter mudado.
+  const prevStatus = useRef(countdown.status);
+  useEffect(() => {
+    const prev = prevStatus.current;
+    prevStatus.current = countdown.status;
+    if (!gira) return;
+    if ((prev === 'upcoming' && countdown.status === 'open') || (prev === 'open' && countdown.status === 'closed')) {
+      fetchGira({ silent: true });
+    }
+  }, [countdown.status, fetchGira, gira]);
+
+  // Estado da gira
+  const hasRelease = Boolean(gira?.release_start_at && gira?.release_end_at);
   const isWaiting = hasRelease && countdown.status === 'upcoming';
   const waitlistMode = Boolean(gira?.is_exhausted && gira?.waitlist_available);
   const isOpen = hasRelease && countdown.status === 'open' && (!gira?.is_exhausted || waitlistMode);
-  const isExhausted = (gira?.is_exhausted && !waitlistMode) || (hasRelease && countdown.status === 'closed');
-  const notConfigured = gira && !hasRelease;
+  const isExhausted = Boolean((gira?.is_exhausted && !waitlistMode) || (hasRelease && countdown.status === 'closed'));
+  const notConfigured = Boolean(gira && !hasRelease);
 
   // Acompanhantes: só fora da fila de espera e limitado tanto pela config da
   // gira quanto pelas senhas ainda disponíveis (o titular ocupa uma).
   const maxAcompanhantesSelecionavel = gira?.allow_acompanhantes
     ? Math.min(gira.max_acompanhantes, Math.max(0, gira.tickets_available - 1))
     : 0;
-  const acompanhantesAtivos = levarAcompanhantes && !waitlistMode && maxAcompanhantesSelecionavel > 0;
-  const acompanhantesInvalidos = acompanhantesAtivos && acompanhantes.some((n) => n.trim().length < 2);
+  const acompanhantesDisponiveis = !waitlistMode && maxAcompanhantesSelecionavel > 0;
+  const requiresSlot = Boolean(gira?.use_time_slots && !waitlistMode);
+
+  const schema = useMemo(
+    () => buildSchema({ requiresSlot, acompanhantesAtivos: acompanhantesDisponiveis }),
+    [requiresSlot, acompanhantesDisponiveis],
+  );
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
+    defaultValues: {
+      nome: '',
+      email: '',
+      telefone: '',
+      preferencial: 'nao',
+      priorityCategory: null,
+      timeSlotId: null,
+      levarAcompanhantes: false,
+      acompanhantes: [{ nome: '' }],
+    },
+  });
+  const { register, control, handleSubmit, setValue, getValues, formState: { errors } } = form;
+
+  const preferencial = useWatch({ control, name: 'preferencial' });
+  const levarAcompanhantes = useWatch({ control, name: 'levarAcompanhantes' });
+  const acompanhantes = useWatch({ control, name: 'acompanhantes' });
+  const timeSlotId = useWatch({ control, name: 'timeSlotId' });
 
   const setQtdAcompanhantes = (qtd: number) => {
-    setAcompanhantes((prev) => {
-      const next = prev.slice(0, qtd);
-      while (next.length < qtd) next.push('');
-      return next;
-    });
+    const prev = getValues('acompanhantes');
+    const next = prev.slice(0, qtd);
+    while (next.length < qtd) next.push({ nome: '' });
+    setValue('acompanhantes', next, { shouldDirty: true });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const scrollToError = () => {
+    requestAnimationFrame(() => errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  };
+
+  const onInvalid = (errs: typeof errors) => {
+    // Campos sem input nativo: leva o foco até o grupo pendente.
+    if (errs.timeSlotId) {
+      slotsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      slotsRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
+    } else if (errs.priorityCategory && !errs.nome && !errs.email && !errs.telefone) {
+      priorityRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      priorityRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    }
+  };
+
+  const localTicketFromResponse = (values: FormValues, data: EmitResponse): PublicTicket => {
+    const g = gira as GiraPublic;
+    const numero = data.ticket_number ?? (data.numero != null ? String(data.numero) : '');
+    const waitlisted = Boolean(data.waitlisted);
+    const slot = g.time_slots.find((s) => s.id === values.timeSlotId);
+    return {
+      ticket_number: numero,
+      status: waitlisted ? 'waitlisted' : 'emitted',
+      status_label: waitlisted ? 'Na fila de espera' : 'Confirmada',
+      waitlisted,
+      cancellable: false,
+      cancel_reason: null,
+      gira_name: g.nome,
+      gira_date: formatGiraDate(g.data_inicio, ''),
+      gira_date_iso: g.data_inicio,
+      gira_local: g.local ?? null,
+      horario: slot?.horario ?? null,
+      recados: null,
+      tenant_name: g.tenant_name,
+      tenant_slug: g.tenant_slug,
+      tenant_address: null,
+      maps_url: null,
+      tenant_logo_url: g.logo_url ?? null,
+      primary_color: g.primary_color ?? null,
+      secondary_color: g.secondary_color ?? null,
+      consulente_name: values.nome.trim(),
+      acompanhantes: (data.acompanhantes ?? []).map((a) => ({ ticket_number: a.ticket_number, name: a.name })),
+    };
+  };
+
+  const onSubmit = async (values: FormValues) => {
     if (!gira) return;
-    if (gira.use_time_slots && !selectedTimeSlotId) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
-      const res = await apiClient.post(`/api/v1/public/emit-ticket?tenant_slug=${gira.tenant_slug}&tipo=${tipo}&gira_id=${gira.id}`, {
-        name: nome,
-        email,
-        phone: telefone,
-        priority_category: priorityCategory === 'none' ? null : priorityCategory,
-        time_slot_id: gira.use_time_slots ? selectedTimeSlotId : null,
-        acompanhantes: acompanhantesAtivos ? acompanhantes.slice(0, maxAcompanhantesSelecionavel).map((n) => n.trim()) : [],
-      });
-      setSuccess(true);
-      setTicketNumber(res.data.numero ?? res.data.ticket_number ?? null);
-      setAcompanhantesEmitidos(res.data.acompanhantes ?? []);
-      setWaitlisted(Boolean(res.data.waitlisted));
-      setWaitlistPosition(res.data.waitlist_position ?? null);
-      setPriorityUpgraded(Boolean(res.data.priority_upgraded));
-      // Refresh gira data to update counts
-      fetchGira();
-    } catch (err) {
-      const msg = extractApiErrorMessage(err, 'Erro ao emitir senha');
-      setSnack({ open: true, msg, sev: 'error' });
-      // Horário pode ter lotado entre a seleção e o envio — atualiza as vagas.
-      if (gira.use_time_slots) {
-        setSelectedTimeSlotId(null);
-        fetchGira();
+      const res = await apiClient.post<EmitResponse>(
+        `/api/v1/public/emit-ticket?tenant_slug=${gira.tenant_slug}&tipo=${tipo}&gira_id=${gira.id}`,
+        {
+          name: values.nome.trim(),
+          email: values.email.trim(),
+          phone: values.telefone,
+          priority_category: values.preferencial === 'sim' ? values.priorityCategory : null,
+          time_slot_id: requiresSlot ? values.timeSlotId : null,
+          acompanhantes:
+            acompanhantesDisponiveis && values.levarAcompanhantes
+              ? values.acompanhantes.slice(0, maxAcompanhantesSelecionavel).map((a) => a.nome.trim())
+              : [],
+        },
+      );
+      const data = res.data ?? {};
+      const ticketId = ticketIdFromLink(data.rescue_link);
+      let ticket = localTicketFromResponse(values, data);
+      if (ticketId) {
+        // Enriquecer com o bilhete real (endereço, recados, cancelável); se falhar, fica o local.
+        try {
+          const full = await apiClient.get<PublicTicket>(`/api/v1/public/${gira.tenant_slug}/ticket/${ticketId}`);
+          if (full?.data?.ticket_number) ticket = full.data;
+        } catch {
+          /* mantém o bilhete montado localmente */
+        }
       }
+      setSuccess({
+        ticket,
+        ticketId,
+        email: values.email.trim(),
+        waitlisted: Boolean(data.waitlisted),
+        waitlistPosition: data.waitlist_position ?? null,
+        priorityUpgraded: Boolean(data.priority_upgraded),
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      fetchGira({ silent: true });
+    } catch (err) {
+      const status = errorStatus(err);
+      const message = publicErrorMessage(err, 'Não foi possível emitir sua senha.');
+      if (status === 409) {
+        setSubmitError({ kind: 'conflict', message });
+      } else if (status === 410) {
+        // Lotou entre abrir a página e enviar.
+        setSubmitError({ kind: 'gone', message });
+        fetchGira({ silent: true });
+      } else if (!status || status >= 500) {
+        setSubmitError({ kind: 'network', message });
+      } else {
+        // 400/404: horário lotado/inválido, limite de acompanhantes, e-mail de associado não
+        // encontrado… — a mensagem do backend explica; vagas e horários são recarregados.
+        setSubmitError({ kind: 'generic', message });
+        if (status === 400 || status === 404) {
+          if (requiresSlot) setValue('timeSlotId', null);
+          fetchGira({ silent: true });
+        }
+      }
+      scrollToError();
     } finally {
       setSubmitting(false);
     }
   };
 
-  // --- Render ---
+  const submit = handleSubmit(onSubmit, onInvalid);
+
+  const handleResend = async () => {
+    if (!gira) return;
+    const email = getValues('email').trim();
+    const phone = getValues('telefone').replace(/\D/g, '');
+    setResending(true);
+    try {
+      await apiClient.post(`/api/v1/public/resend-ticket-email?tenant_slug=${encodeURIComponent(gira.tenant_slug)}`, {
+        email,
+        phone: phone || null,
+      });
+      toast.success(`Reenviamos sua senha para ${email}. Confira também a caixa de spam.`);
+    } catch (err) {
+      toast.error(publicErrorMessage(err, 'Não foi possível reenviar o e-mail.'));
+    } finally {
+      setResending(false);
+    }
+  };
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
+  const brand = { primary: gira?.primary_color, secondary: gira?.secondary_color };
+  const subtitle = gira ? [formatGiraDateShort(gira.data_inicio), gira.local].filter(Boolean).join(' · ') : undefined;
+  const pageTitle = gira ? `${gira.nome} · ${gira.tenant_name}` : 'Pegar minha senha';
+
   if (loading) {
     return (
-      <Container maxWidth="sm" sx={{ py: 8, textAlign: 'center' }}>
-        <CircularProgress />
-      </Container>
+      <PublicShell title="Carregando a gira…" hideHeader>
+        <PublicLoading label="Carregando a gira…" />
+      </PublicShell>
     );
   }
 
-  if (error || !gira) {
+  if (loadError || !gira) {
     return (
-      <Container maxWidth="sm" sx={{ py: 8, textAlign: 'center' }}>
-        <BlockIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
-        <Typography variant="h5" gutterBottom>Gira não encontrada</Typography>
-        <Typography color="text.secondary">{error || 'Verifique o link e tente novamente.'}</Typography>
-      </Container>
-    );
-  }
-
-  const brandPrimary = gira.primary_color || '#2E7D32';
-  const brandSecondary = gira.secondary_color || '#1565C0';
-
-  return (
-    <Container maxWidth="sm" sx={{ py: 4 }}>
-      {/* Header */}
-      <Paper elevation={0} sx={{ p: 3, mb: 3, textAlign: 'center', borderRadius: 3, ...(isSponsor ? { background: 'linear-gradient(135deg, #daa520 0%, #f5c842 50%, #b8860b 100%)', color: '#3e2723' } : { background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`, color: '#fff' }) }}>
-        {gira.logo_url && !isSponsor && (
-          <Box
-            component="img"
-            src={gira.logo_url}
-            alt={gira.tenant_name}
-            sx={{
-              width: 72,
-              height: 72,
-              objectFit: 'cover',
-              borderRadius: 2.5,
-              mb: 2,
-              border: '1px solid rgba(255,255,255,0.28)',
-              backgroundColor: 'rgba(255,255,255,0.18)',
-            }}
+      <PublicShell title={loadError === 'notfound' ? 'Gira não encontrada' : 'Não foi possível carregar'} hideHeader>
+        {loadError === 'notfound' ? (
+          <PublicNotice
+            tone="warning"
+            icon={<SearchX />}
+            title="Gira não encontrada"
+            description={loadMessage || 'Verifique o link e tente novamente, ou peça o link atualizado ao terreiro.'}
+          />
+        ) : (
+          <PublicNotice
+            tone="error"
+            title="Não foi possível carregar"
+            description={loadMessage || 'Verifique sua conexão e tente de novo.'}
+            actions={
+              <Button type="button" size="touch" className="w-full" onClick={() => fetchGira()}>
+                Tentar de novo
+              </Button>
+            }
           />
         )}
-        <Typography variant="overline" sx={isSponsor ? { color: '#4e342e' } : {}}>{gira.tenant_name}</Typography>
-        <Typography variant="h4" fontWeight={700} sx={{ mt: 0.5, ...(isSponsor && { color: '#3e2723' }) }}>{gira.nome}</Typography>
-        {isSponsor && (
-          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, mt: 1, px: 2, py: 0.5, borderRadius: 2, bgcolor: 'rgba(62,39,35,0.15)' }}>
-            <StarIcon sx={{ fontSize: 18, color: '#3e2723' }} />
-            <Typography variant="body2" fontWeight={600} sx={{ color: '#3e2723' }}>Senha Associado</Typography>
-          </Box>
-        )}
-        {gira.descricao && (
-          <Typography variant="body1" sx={{ mt: 1, opacity: 0.9, ...(isSponsor && { color: '#4e342e' }) }}>{gira.descricao}</Typography>
-        )}
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 2, flexWrap: 'wrap', ...(isSponsor && { color: '#4e342e' }) }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <EventIcon fontSize="small" />
-            <Typography variant="body2">
-              {new Date(gira.data_inicio).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
-            </Typography>
-          </Box>
-          {gira.local && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <PlaceIcon fontSize="small" />
-              <Typography variant="body2">{gira.local}</Typography>
-            </Box>
-          )}
-        </Box>
-      </Paper>
+      </PublicShell>
+    );
+  }
 
-      {/* Not configured */}
+  const nextGirasButton = (
+    <Button asChild size="touch" className="w-full">
+      <Link href={`/public/${gira.tenant_slug}`}>Ver próximas giras do terreiro</Link>
+    </Button>
+  );
+
+  const showForm = isOpen && !success;
+
+  const submitLabel = submitting
+    ? 'Enviando…'
+    : waitlistMode
+      ? 'Entrar na fila de espera'
+      : 'Pegar minha senha';
+
+  const footer = showForm ? (
+    <div className="flex flex-col gap-1.5">
+      <Button type="submit" form="emit-form" size="touch" className="w-full" disabled={submitting} aria-busy={submitting}>
+        {submitting ? <Loader2 className="animate-spin" /> : waitlistMode ? <Hourglass /> : <Ticket />}
+        {submitLabel}
+      </Button>
+      <p className="text-center text-sm text-muted-foreground">Emissão encerra em {formatMinutes(countdown.timeRemaining)}</p>
+    </div>
+  ) : undefined;
+
+  return (
+    <PublicShell
+      title={pageTitle}
+      description={gira.descricao || `Pegue sua senha para ${gira.nome} — ${gira.tenant_name}`}
+      tenantName={gira.tenant_name}
+      logoUrl={gira.logo_url}
+      subtitle={subtitle}
+      brand={brand}
+      footer={footer}
+      headerExtra={
+        isSponsor ? (
+          <Badge className="gap-1 bg-amber-400 text-amber-950">
+            <Star aria-hidden /> Associado
+          </Badge>
+        ) : undefined
+      }
+    >
+      {/* Cabeçalho da gira */}
+      {!success && (
+        <section aria-labelledby="gira-titulo" className="px-1 pt-1">
+          <h1 id="gira-titulo" className="text-2xl font-bold leading-tight [text-wrap:balance]">{gira.nome}</h1>
+          {gira.descricao && <p className="mt-1 text-base text-muted-foreground">{gira.descricao}</p>}
+          <ul className="mt-2 flex flex-col gap-1 text-base">
+            <li className="flex items-center gap-2">
+              <CalendarClock aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              <span>{formatGiraDate(gira.data_inicio, '')}</span>
+            </li>
+            {gira.local && (
+              <li className="flex items-center gap-2">
+                <MapPin aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                <span>{gira.local}</span>
+              </li>
+            )}
+          </ul>
+        </section>
+      )}
+
+      {/* Ainda não configurada */}
       {notConfigured && (
-        <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-          <BlockIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
-          <Typography variant="h6">Emissão de senhas ainda não configurada</Typography>
-          <Typography color="text.secondary" sx={{ mt: 1 }}>
-            Aguarde o terreiro configurar a liberação de senhas para esta gira.
-          </Typography>
-        </Paper>
+        <PublicNotice
+          tone="info"
+          icon={<CalendarX2 />}
+          title="Emissão de senhas ainda não configurada"
+          description="Aguarde o terreiro liberar as senhas desta gira."
+          actions={nextGirasButton}
+        />
       )}
 
-      {/* State 1: Waiting — countdown */}
+      {/* Aguardando — contagem regressiva */}
       {isWaiting && (
-        <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-          <Typography variant="h6" gutterBottom>Emissão abre em</Typography>
-          <CountdownBlock seconds={countdown.timeRemaining} />
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            As senhas serão liberadas em{' '}
-            {new Date(gira.release_start_at!).toLocaleDateString('pt-BR', {
-              day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit',
-            })}
-          </Typography>
-          {gira.max_tickets && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              {gira.max_tickets} senhas disponíveis
-            </Typography>
-          )}
-        </Paper>
+        <Card className="py-5">
+          <CardContent className="px-5 text-center">
+            <h2 className="text-lg font-bold">Emissão abre em</h2>
+            <CountdownBlock seconds={countdown.timeRemaining} />
+            <p className="text-base text-muted-foreground">
+              As senhas serão liberadas em {formatLongDate(gira.release_start_at as string)}
+            </p>
+            {gira.max_tickets && (
+              <p className="mt-1 text-sm text-muted-foreground">{gira.max_tickets} senhas disponíveis</p>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      {/* State 2: Open — form (or fila de espera, quando lotado mas com fila habilitada) */}
-      {isOpen && !success && (
-        <Paper sx={{ p: 3, borderRadius: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            {waitlistMode ? 'Entrar na fila de espera' : (isSponsor ? 'Emitir Senha Associado' : 'Emitir Senha')}
-          </Typography>
+      {/* Aberta — formulário (ou fila de espera, quando lotado mas com fila habilitada) */}
+      {showForm && (
+        <Card className="py-5">
+          <CardContent className="px-5">
+            <h2 className="text-lg font-bold">
+              {waitlistMode ? 'Entrar na fila de espera' : isSponsor ? 'Sua senha de associado' : 'Seus dados'}
+            </h2>
 
-          {waitlistMode && (
-            <Alert severity="info" icon={<HourglassEmptyIcon />} sx={{ mb: 2 }}>
-              As senhas desta gira já foram todas emitidas. Preencha seus dados para entrar
-              na fila de espera — se alguma senha for cancelada, avisaremos por e-mail.
-            </Alert>
-          )}
+            {waitlistMode && (
+              <Alert variant="info" className="mt-3">
+                <Hourglass />
+                <AlertDescription>
+                  As senhas desta gira já foram todas emitidas. Preencha seus dados para entrar na fila de espera —
+                  se alguma senha for cancelada, avisamos por e-mail.
+                </AlertDescription>
+              </Alert>
+            )}
 
-          {gira.use_time_slots && !waitlistMode && (
-            <Box sx={{ mb: 3 }}>
-              <FormLabel component="legend" sx={{ fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <AccessTimeIcon fontSize="small" /> Escolha o horário que pretende ser atendido
-              </FormLabel>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {gira.time_slots.map((slot) => {
-                  const full = slot.vagas_disponiveis <= 0;
-                  const selected = selectedTimeSlotId === slot.id;
-                  return (
-                    <Button
-                      key={slot.id}
-                      variant={selected ? 'contained' : 'outlined'}
-                      disabled={full}
-                      onClick={() => setSelectedTimeSlotId(slot.id)}
-                      sx={{ flexDirection: 'column', minWidth: 84, lineHeight: 1.2, py: 1 }}
-                    >
-                      <Typography variant="body2" fontWeight={700}>{slot.horario}</Typography>
-                      <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                        {full ? 'Esgotado' : `${slot.vagas_disponiveis} vaga${slot.vagas_disponiveis === 1 ? '' : 's'}`}
-                      </Typography>
-                    </Button>
-                  );
-                })}
-              </Box>
-              {gira.time_slots.length === 0 && (
-                <Typography variant="body2" color="text.secondary">
-                  Nenhum horário disponível no momento.
-                </Typography>
-              )}
-            </Box>
-          )}
+            {submitError && (
+              <div ref={errorRef} className="mt-3">
+                {submitError.kind === 'conflict' && (
+                  <Alert variant="warning">
+                    <Ticket />
+                    <AlertTitle>Você já tem senha para esta gira</AlertTitle>
+                    <AlertDescription>
+                      <p>{submitError.message}</p>
+                      <p>Não achou o e-mail? Reenviamos para o endereço informado acima.</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="touch"
+                        className="mt-1 w-full"
+                        onClick={handleResend}
+                        disabled={resending}
+                      >
+                        {resending && <Loader2 className="animate-spin" />}
+                        Reenviar meu e-mail
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {submitError.kind === 'gone' && (
+                  <Alert variant="warning">
+                    <AlertTitle>As vagas acabaram enquanto você preenchia</AlertTitle>
+                    <AlertDescription>
+                      <p>{submitError.message}</p>
+                      <p>Atualizamos a página com a situação atual da gira.</p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {submitError.kind === 'network' && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Não foi possível enviar</AlertTitle>
+                    <AlertDescription>
+                      <p>{submitError.message}</p>
+                      <Button type="button" variant="outline" size="touch" className="mt-1 w-full" onClick={() => submit()} disabled={submitting}>
+                        Tentar de novo
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {submitError.kind === 'generic' && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Não foi possível emitir sua senha</AlertTitle>
+                    <AlertDescription>{submitError.message}</AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
 
-          <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField
-              label="Nome completo"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              required
-              fullWidth
-            />
-            <TextField
-              label="E-mail"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Telefone (WhatsApp)"
-              value={telefone}
-              onChange={(e) => setTelefone(e.target.value)}
-              fullWidth
-              placeholder="(11) 99999-9999"
-            />
-            <FormControl component="fieldset" sx={{ mt: 1 }}>
-              <FormLabel
-                component="legend"
-                sx={{ fontSize: 14, mb: 0.5 }}
-                id="priority-category-label"
-              >
-                Atendimento preferencial
-              </FormLabel>
-              <RadioGroup
-                aria-labelledby="priority-category-label"
-                value={priorityCategory}
-                onChange={(e) => setPriorityCategory(e.target.value)}
-              >
-                <FormControlLabel
-                  value="none"
-                  control={<Radio size="small" />}
-                  label={<Typography variant="body2">Não sou de grupo prioritário</Typography>}
-                />
-                {PRIORITY_ORDER.map((cat) => (
-                  <FormControlLabel
-                    key={cat}
-                    value={cat}
-                    control={<Radio size="small" />}
-                    label={<Typography variant="body2">{PRIORITY_CATEGORY_LABELS[cat]}</Typography>}
-                  />
-                ))}
-              </RadioGroup>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', lineHeight: 1.4 }}>
-                O atendimento preferencial obedece à Lei nº 10.048/2000 (idosos, gestantes, lactantes, pessoas com deficiência e mobilidade reduzida) e à Lei nº 13.146/2015 (Estatuto da Pessoa com Deficiência).
-              </Typography>
-            </FormControl>
-
-            {gira.allow_acompanhantes && !waitlistMode && (
-              <Box sx={{ mt: 1 }}>
-                <FormLabel component="legend" sx={{ fontSize: 14, mb: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <GroupsIcon fontSize="small" /> Acompanhantes
-                </FormLabel>
-                {maxAcompanhantesSelecionavel > 0 ? (
-                  <>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={levarAcompanhantes}
-                          onChange={(e) => {
-                            setLevarAcompanhantes(e.target.checked);
-                            if (e.target.checked && acompanhantes.length === 0) setAcompanhantes(['']);
-                          }}
-                        />
-                      }
-                      label={<Typography variant="body2">Levarei acompanhante(s)</Typography>}
-                    />
-                    {levarAcompanhantes && (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-                        <TextField
-                          select
-                          label="Quantidade de acompanhantes"
-                          value={Math.min(acompanhantes.length, maxAcompanhantesSelecionavel) || 1}
-                          onChange={(e) => setQtdAcompanhantes(Number(e.target.value))}
-                          fullWidth
+            <form id="emit-form" onSubmit={submit} noValidate className="mt-4 flex flex-col gap-5">
+              {/* Horários */}
+              {requiresSlot && (
+                <fieldset ref={slotsRef} className="m-0 min-w-0 border-0 p-0 flex flex-col gap-2">
+                  <legend className="p-0 mb-2 flex items-center gap-2 text-base font-medium">
+                    <Clock aria-hidden className="size-4 text-muted-foreground" /> Escolha o horário que pretende ser atendido
+                  </legend>
+                  {gira.time_slots.length === 0 ? (
+                    <p className="text-base text-muted-foreground">Nenhum horário disponível no momento.</p>
+                  ) : (
+                    <Controller
+                      control={control}
+                      name="timeSlotId"
+                      render={({ field }) => (
+                        <ToggleGroup
+                          type="single"
+                          variant="outline"
+                          spacing={2}
+                          value={field.value ?? ''}
+                          onValueChange={(v) => field.onChange(v || null)}
+                          aria-label="Horário de atendimento"
+                          aria-invalid={Boolean(errors.timeSlotId) || undefined}
+                          className="flex-wrap"
                         >
-                          {Array.from({ length: maxAcompanhantesSelecionavel }, (_, i) => i + 1).map((qtd) => (
-                            <MenuItem key={qtd} value={qtd}>{qtd}</MenuItem>
-                          ))}
-                        </TextField>
-                        {acompanhantes.map((nomeAcomp, index) => (
+                          {gira.time_slots.map((slot) => {
+                            const full = slot.vagas_disponiveis <= 0;
+                            return (
+                              <ToggleGroupItem
+                                key={slot.id}
+                                value={slot.id}
+                                disabled={full}
+                                className="h-auto min-w-[5.5rem] flex-col items-center gap-0.5 rounded-md px-3 py-2 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                              >
+                                <span className="text-base font-bold">{slot.horario}</span>
+                                <span className="text-sm opacity-80">
+                                  {full ? 'Esgotado' : `${slot.vagas_disponiveis} vaga${slot.vagas_disponiveis === 1 ? '' : 's'}`}
+                                </span>
+                              </ToggleGroupItem>
+                            );
+                          })}
+                        </ToggleGroup>
+                      )}
+                    />
+                  )}
+                  {errors.timeSlotId && (
+                    <p role="alert" className="text-sm text-destructive">{errors.timeSlotId.message}</p>
+                  )}
+                  {timeSlotId && !errors.timeSlotId && (
+                    <p className="text-sm text-muted-foreground">
+                      Horário escolhido: {gira.time_slots.find((s) => s.id === timeSlotId)?.horario}
+                    </p>
+                  )}
+                </fieldset>
+              )}
+
+              {/* Três campos acima da dobra */}
+              <TextField
+                label="Nome completo"
+                required
+                autoComplete="name"
+                autoCapitalize="words"
+                error={errors.nome?.message}
+                inputClassName="h-12"
+                {...register('nome')}
+              />
+              <TextField
+                label="E-mail"
+                type="email"
+                required
+                autoComplete="email"
+                inputMode="email"
+                helperText="A senha chega aqui"
+                error={errors.email?.message}
+                inputClassName="h-12"
+                {...register('email')}
+              />
+              <Controller
+                control={control}
+                name="telefone"
+                render={({ field }) => (
+                  <MaskedInput
+                    mask="telefone"
+                    label="Celular (WhatsApp)"
+                    placeholder="(11) 99999-9999"
+                    autoComplete="tel-national"
+                    inputMode="tel"
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                    error={errors.telefone?.message}
+                    helperText={errors.telefone ? undefined : 'Opcional'}
+                    inputClassName="h-12"
+                  />
+                )}
+              />
+
+              {/* Atendimento preferencial */}
+              <fieldset ref={priorityRef} className="m-0 min-w-0 border-0 p-0 flex flex-col gap-2">
+                <legend className="p-0 mb-2 flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 text-base font-medium">
+                  <span>Precisa de atendimento preferencial?</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="link" size="sm" className="h-auto min-h-6 px-0 text-sm text-(color:--brand-text)">
+                        Saiba mais
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-80 text-sm leading-relaxed">
+                      {LEGAL_TEXT}
+                    </PopoverContent>
+                  </Popover>
+                </legend>
+                <Controller
+                  control={control}
+                  name="preferencial"
+                  render={({ field }) => (
+                    <ToggleGroup
+                      type="single"
+                      variant="outline"
+                      spacing={2}
+                      value={field.value}
+                      onValueChange={(v) => {
+                        if (!v) return; // não deixa desmarcar
+                        field.onChange(v);
+                        if (v === 'nao') setValue('priorityCategory', null, { shouldValidate: true });
+                      }}
+                      aria-label="Atendimento preferencial"
+                      className="w-full"
+                    >
+                      <ToggleGroupItem
+                        value="nao"
+                        className="h-12 flex-1 text-base data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                      >
+                        Não
+                      </ToggleGroupItem>
+                      <ToggleGroupItem
+                        value="sim"
+                        className="h-12 flex-1 text-base data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                      >
+                        Sim
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                  )}
+                />
+                <Collapsible open={preferencial === 'sim'}>
+                  <CollapsibleContent className="pt-2">
+                    <Controller
+                      control={control}
+                      name="priorityCategory"
+                      render={({ field }) => (
+                        <RadioGroup
+                          value={field.value ?? ''}
+                          onValueChange={(v) => field.onChange(v)}
+                          aria-label="Tipo de atendimento preferencial"
+                          aria-invalid={Boolean(errors.priorityCategory) || undefined}
+                          className="gap-2"
+                        >
+                          {PRIORITY_ORDER.map((cat) => {
+                            const id = `prio-${cat}`;
+                            return (
+                              <Label
+                                key={cat}
+                                htmlFor={id}
+                                className={cn(
+                                  'flex min-h-12 cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-base font-normal',
+                                  field.value === cat && 'border-primary bg-primary/5',
+                                )}
+                              >
+                                <RadioGroupItem id={id} value={cat} className="size-5" />
+                                {PRIORITY_CATEGORY_LABELS[cat]}
+                              </Label>
+                            );
+                          })}
+                        </RadioGroup>
+                      )}
+                    />
+                    {errors.priorityCategory && (
+                      <p role="alert" className="mt-2 text-sm text-destructive">{errors.priorityCategory.message}</p>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              </fieldset>
+
+              {/* Acompanhantes */}
+              {gira.allow_acompanhantes && !waitlistMode && (
+                <fieldset className="m-0 min-w-0 border-0 p-0 flex flex-col gap-2">
+                  <legend className="p-0 mb-2 flex items-center gap-2 text-base font-medium">
+                    <Users aria-hidden className="size-4 text-muted-foreground" /> Acompanhantes
+                  </legend>
+                  {acompanhantesDisponiveis ? (
+                    <Collapsible open={levarAcompanhantes}>
+                      <Label
+                        htmlFor="levar-acompanhantes"
+                        className="flex min-h-12 cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-base font-normal"
+                      >
+                        <Controller
+                          control={control}
+                          name="levarAcompanhantes"
+                          render={({ field }) => (
+                            <Checkbox
+                              id="levar-acompanhantes"
+                              className="size-5"
+                              checked={field.value}
+                              onCheckedChange={(c) => {
+                                const checked = c === true;
+                                field.onChange(checked);
+                                if (checked && getValues('acompanhantes').length === 0) setQtdAcompanhantes(1);
+                              }}
+                            />
+                          )}
+                        />
+                        Vou levar acompanhante(s)
+                      </Label>
+                      <CollapsibleContent className="flex flex-col gap-4 pt-3">
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor="qtd-acompanhantes">Quantos acompanhantes?</Label>
+                          <Select
+                            value={String(Math.min(acompanhantes.length, maxAcompanhantesSelecionavel) || 1)}
+                            onValueChange={(v) => setQtdAcompanhantes(Number(v))}
+                          >
+                            <SelectTrigger id="qtd-acompanhantes" className="h-12 w-full text-base">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: maxAcompanhantesSelecionavel }, (_, i) => i + 1).map((qtd) => (
+                                <SelectItem key={qtd} value={String(qtd)}>{qtd}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {acompanhantes.slice(0, maxAcompanhantesSelecionavel).map((_, index) => (
                           <TextField
                             key={index}
                             label={`Nome do acompanhante ${index + 1}`}
-                            value={nomeAcomp}
-                            onChange={(e) =>
-                              setAcompanhantes((prev) => prev.map((n, i) => (i === index ? e.target.value : n)))
-                            }
                             required
-                            fullWidth
+                            autoComplete="off"
+                            autoCapitalize="words"
+                            error={errors.acompanhantes?.[index]?.nome?.message}
+                            inputClassName="h-12"
+                            {...register(`acompanhantes.${index}.nome` as const)}
                           />
                         ))}
-                        <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4 }}>
-                          Cada acompanhante receberá uma senha própria, enviada no mesmo e-mail.
-                        </Typography>
-                      </Box>
-                    )}
-                  </>
-                ) : (
-                  <Typography variant="caption" color="text.secondary">
-                    Não há senhas suficientes para levar acompanhantes.
-                  </Typography>
-                )}
-              </Box>
-            )}
-            <Button
-              type="submit"
-              variant="contained"
-              size="large"
-              disabled={submitting || !nome.trim() || !email.trim() || (gira.use_time_slots && !waitlistMode && !selectedTimeSlotId) || acompanhantesInvalidos}
-              startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : (waitlistMode ? <HourglassEmptyIcon /> : <ConfirmationNumberIcon />)}
-              sx={isSponsor ? { bgcolor: '#daa520', color: '#3e2723', fontWeight: 700, '&:hover': { bgcolor: '#b8860b' }, '&.Mui-disabled': { bgcolor: '#daa52080', color: '#3e2723' } } : {}}
-            >
-              {submitting ? 'Enviando...' : (waitlistMode ? 'Entrar na fila de espera' : 'Emitir Senha')}
-            </Button>
-          </Box>
-
-          {/* Countdown to close */}
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 2 }}>
-            Emissão encerra em {Math.floor(countdown.timeRemaining / 60)} minutos
-          </Typography>
-        </Paper>
+                        <p className="text-sm text-muted-foreground">
+                          Cada acompanhante recebe uma senha própria, enviada no mesmo e-mail.
+                        </p>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Não há senhas suficientes para levar acompanhantes.</p>
+                  )}
+                </fieldset>
+              )}
+            </form>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Success state */}
-      {success && !waitlisted && (
-        <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-          <CheckCircleIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
-          <Typography variant="h5" fontWeight={700} gutterBottom>
-            {priorityUpgraded ? 'Prioridade registrada!' : 'Senha emitida!'}
-          </Typography>
-          {priorityUpgraded && (
-            <Alert severity="info" sx={{ mb: 2, textAlign: 'left' }}>
-              Você já tinha uma senha para esta gira — registramos seu atendimento
-              preferencial nela e reenviamos o e-mail de confirmação.
-            </Alert>
-          )}
-          {ticketNumber && (
-            <Typography variant="h3" fontWeight={700} color="primary" sx={{ my: 2 }}>
-              #{ticketNumber}
-            </Typography>
-          )}
-          {acompanhantesEmitidos.length > 0 && (
-            <Box sx={{ my: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-                Senhas dos acompanhantes
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
-                {acompanhantesEmitidos.map((acomp) => (
-                  <Chip
-                    key={acomp.ticket_number}
-                    icon={<GroupsIcon />}
-                    label={`#${acomp.ticket_number} — ${acomp.name}`}
-                    variant="outlined"
-                    color="primary"
-                  />
-                ))}
-              </Box>
-            </Box>
-          )}
-          <Typography color="text.secondary">
-            Enviamos os detalhes para <strong>{email}</strong>.
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            {acompanhantesEmitidos.length > 0
-              ? 'Guarde estes números. Cada pessoa apresenta o próprio número no dia da gira.'
-              : 'Guarde este número. Apresente-o no dia da gira.'}
-          </Typography>
-        </Paper>
+      {/* Sucesso — Bilhete */}
+      {success && (
+        <Bilhete
+          ticket={success.ticket}
+          ticketId={success.ticketId}
+          heading={
+            success.waitlisted
+              ? 'Você está na fila de espera!'
+              : success.priorityUpgraded
+                ? 'Prioridade registrada!'
+                : 'Senha emitida!'
+          }
+          intro={
+            <>
+              Enviamos os detalhes para <strong className="text-foreground">{success.email}</strong>.
+            </>
+          }
+          notice={
+            <>
+              {success.waitlisted && success.waitlistPosition != null && (
+                <p className="text-center text-base">
+                  Sua posição na fila: <strong className="text-lg">{success.waitlistPosition}º</strong>
+                </p>
+              )}
+              {success.priorityUpgraded && (
+                <Alert variant="info">
+                  <AlertDescription>
+                    {success.waitlisted
+                      ? 'Você já estava na fila desta gira — registramos seu atendimento preferencial e sua posição foi atualizada.'
+                      : 'Você já tinha uma senha para esta gira — registramos seu atendimento preferencial nela e reenviamos o e-mail de confirmação.'}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </>
+          }
+        />
       )}
 
-      {/* Success state — entrou na fila de espera */}
-      {success && waitlisted && (
-        <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-          <HourglassEmptyIcon sx={{ fontSize: 64, color: 'warning.main', mb: 2 }} />
-          <Typography variant="h5" fontWeight={700} gutterBottom>Você está na fila de espera!</Typography>
-          {priorityUpgraded && (
-            <Alert severity="info" sx={{ mb: 2, textAlign: 'left' }}>
-              Você já estava na fila desta gira — registramos seu atendimento
-              preferencial e sua posição foi atualizada.
-            </Alert>
-          )}
-          {waitlistPosition && (
-            <Typography variant="h3" fontWeight={700} color="warning.main" sx={{ my: 2 }}>
-              {waitlistPosition}º
-            </Typography>
-          )}
-          <Typography color="text.secondary">
-            Enviamos os detalhes para <strong>{email}</strong>.
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Se uma senha oficial for cancelada, você será avisado por e-mail para confirmar a sua.
-          </Typography>
-        </Paper>
-      )}
-
-      {/* State 3: Exhausted / Closed */}
+      {/* Esgotada / encerrada */}
       {isExhausted && !success && (
-        <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-          <BlockIcon sx={{ fontSize: 48, color: 'error.main', mb: 2 }} />
-          <Typography variant="h6" gutterBottom>
-            {gira.is_exhausted ? 'Senhas esgotadas' : 'Emissão encerrada'}
-          </Typography>
-          <Typography color="text.secondary">
-            {gira.is_exhausted
+        <PublicNotice
+          tone="warning"
+          icon={<CalendarX2 />}
+          title={gira.is_exhausted ? 'Senhas esgotadas' : 'Emissão encerrada'}
+          description={
+            gira.is_exhausted
               ? 'Todas as senhas para esta gira já foram emitidas.'
-              : 'O período de emissão de senhas para esta gira já foi encerrado.'}
-          </Typography>
-        </Paper>
+              : 'O período de emissão de senhas para esta gira já foi encerrado.'
+          }
+          actions={nextGirasButton}
+        />
       )}
-
-      <PoweredByGiraHubFooter />
-
-      {/* Snackbar */}
-      <Snackbar
-        open={snack.open}
-        autoHideDuration={5000}
-        onClose={() => setSnack((prev) => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity={snack.sev} variant="filled" onClose={() => setSnack((prev) => ({ ...prev, open: false }))}>
-          {snack.msg}
-        </Alert>
-      </Snackbar>
-    </Container>
+    </PublicShell>
   );
 }
