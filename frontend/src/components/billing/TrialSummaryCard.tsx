@@ -6,7 +6,6 @@ import React from 'react';
 import { CalendarDays, Flower2, Loader2, Lock, Sparkles, Ticket, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { formatPricePerMonth, lostOnFree, planHighlights, type PlanDef, type UsageSnapshot } from '@/constants/plans';
 
 export interface TrialUsage extends UsageSnapshot {
@@ -64,11 +63,6 @@ export function TrialSummaryCard({ plan, trialEndsAt, usage, recommended, onKeep
                   : `Faltam ${dias === 1 ? '1 dia' : `${dias} dias`} de teste, sem cobrança.`}
             </p>
           </div>
-          {trialEndsAt && (
-            <Badge variant="outline">
-              Teste grátis até {new Date(trialEndsAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-            </Badge>
-          )}
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
