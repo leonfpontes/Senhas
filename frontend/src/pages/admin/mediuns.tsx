@@ -43,7 +43,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
-import { maskTelefone } from '@/components/shared/MaskedInput';
+import { maskTelefone } from '@/components/fields/MaskedInput';
 import { todayBr } from '@/lib/dateBr';
 
 // ── Types ─────────────────────────────────────────────────────────────

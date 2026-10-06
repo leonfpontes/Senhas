@@ -24,7 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { maskTelefone } from '@/components/shared/MaskedInput';
+import { maskTelefone } from '@/components/fields/MaskedInput';
 
 interface Associado {
   id: string;

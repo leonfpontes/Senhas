@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MoneyInput, formatBRL, parseBRL, centsFromDigits } from '@/components/fields/MoneyInput';
-import CurrencyInput from '@/components/CurrencyInput';
 
 function Harness({ initial = 0, onChange }: { initial?: number; onChange?: (v: number) => void }) {
   const [value, setValue] = useState(initial);
@@ -78,15 +77,6 @@ describe('MoneyInput', () => {
     const input = screen.getByLabelText('Valor');
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByText('Obrigatório')).toBeInTheDocument();
-  });
-
-  it('CurrencyInput (deprecado) traduz onValueChange para o MoneyInput', () => {
-    const onValueChange = jest.fn();
-    render(<CurrencyInput label="Valor pago" value={0} onValueChange={onValueChange} fullWidth size="small" />);
-    const input = screen.getByLabelText('Valor pago') as HTMLInputElement;
-    expect(input.value).toBe('R$ 0,00');
-    fireEvent.change(input, { target: { value: 'R$ 0,007' } });
-    expect(onValueChange).toHaveBeenCalledWith(0.07);
   });
 });
 
