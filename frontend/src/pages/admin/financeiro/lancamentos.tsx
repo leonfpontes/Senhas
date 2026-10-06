@@ -15,10 +15,12 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   CheckCircle2,
+  Ban,
   MoreHorizontal,
   Pencil,
   Plus,
   RefreshCw,
+  RotateCcw,
   Trash2,
 } from 'lucide-react';
 import AdminLayout from '../admin_layout';
@@ -107,7 +109,7 @@ const TEXTO: Record<TipoLancamento, {
     aba: 'Saídas',
     subtitulo: 'Contas a pagar: despesas, vencimentos e baixas',
     kpiPendente: 'A pagar',
-    kpiPago: 'Pago este mês',
+    kpiPago: 'Pago no mês',
     statusPago: 'Pago',
     drawerSubtitulo: 'Conta a pagar (saída)',
     placeholder: 'Ex.: Aluguel do salão, energia elétrica...',
@@ -116,7 +118,7 @@ const TEXTO: Record<TipoLancamento, {
     aba: 'Entradas',
     subtitulo: 'Contas a receber: doações, aluguéis e recebimentos',
     kpiPendente: 'A receber',
-    kpiPago: 'Recebido este mês',
+    kpiPago: 'Recebido no mês',
     statusPago: 'Recebido',
     drawerSubtitulo: 'Conta a receber (entrada)',
     placeholder: 'Ex.: Doação mensal, aluguel do espaço...',
@@ -134,6 +136,12 @@ function StatusBadge({ status, tipo }: { status: ContaFinanceira['status']; tipo
     default:
       return <Badge className="border-transparent bg-warning text-warning-foreground">Pendente</Badge>;
   }
+}
+
+/** Rótulo do mês filtrado ("outubro de 2026") — os KPIs seguem o filtro, não o mês corrente. */
+export function rotuloMes(mes: string | number, ano: string | number): string {
+  const nome = MESES[Number(mes) - 1] ?? '';
+  return `${nome.toLowerCase()} de ${ano}`;
 }
 
 export function parseTipo(raw: unknown): TipoLancamento {
@@ -196,6 +204,10 @@ function LancamentosContent() {
 
   const [deleteTarget, setDeleteTarget] = useState<ContaFinanceira | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Cancelar / estornar baixa / reabrir
+  const [statusTarget, setStatusTarget] = useState<{ conta: ContaFinanceira; acao: 'cancelar' | 'reabrir' } | null>(null);
+  const [changingStatus, setChangingStatus] = useState(false);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -369,6 +381,24 @@ function LancamentosContent() {
     }
   };
 
+  const handleStatusChange = async () => {
+    if (!statusTarget || !canEdit) return;
+    const { conta, acao } = statusTarget;
+    setChangingStatus(true);
+    try {
+      await apiClient.post(`/api/v1/admin/financeiro/contas/${conta.id}/${acao}`);
+      showSuccess(
+        acao === 'cancelar' ? 'Lançamento cancelado.' : conta.status === 'pago' ? 'Baixa estornada.' : 'Lançamento reaberto.',
+      );
+      setStatusTarget(null);
+      fetchAll();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, 'Erro ao atualizar o lançamento.'));
+    } finally {
+      setChangingStatus(false);
+    }
+  };
+
   // ── KPIs ───────────────────────────────────────────────────────────────────
 
   const kpi = useMemo(() => {
@@ -395,6 +425,24 @@ function LancamentosContent() {
           <DropdownMenuItem onSelect={() => openEdit(c)}>
             <Pencil />
             Editar
+          </DropdownMenuItem>
+        )}
+        {canEdit && (c.status === 'pendente' || c.status === 'vencido') && (
+          <DropdownMenuItem onSelect={() => setStatusTarget({ conta: c, acao: 'cancelar' })}>
+            <Ban />
+            Cancelar lançamento
+          </DropdownMenuItem>
+        )}
+        {canEdit && c.status === 'pago' && (
+          <DropdownMenuItem onSelect={() => setStatusTarget({ conta: c, acao: 'reabrir' })}>
+            <RotateCcw />
+            Estornar baixa
+          </DropdownMenuItem>
+        )}
+        {canEdit && c.status === 'cancelado' && (
+          <DropdownMenuItem onSelect={() => setStatusTarget({ conta: c, acao: 'reabrir' })}>
+            <RotateCcw />
+            Reabrir lançamento
           </DropdownMenuItem>
         )}
         {canDelete && (
@@ -506,6 +554,7 @@ function LancamentosContent() {
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar os lançamentos financeiros." />;
 
   const anos = Array.from({ length: 5 }, (_, i) => hojeParts.year - 2 + i);
+  const mesRotulo = rotuloMes(mesFilter, anoFilter);
 
   return (
     <div className="flex flex-col gap-4">
@@ -547,9 +596,9 @@ function LancamentosContent() {
       </ToggleGroup>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KpiCard label={texto.kpiPendente} value={formatBRL(kpi.pendente)} icon={tipo === 'pagar' ? <ArrowUpFromLine /> : <ArrowDownToLine />} color="var(--warning)" subtitle="pendente no mês" loading={loading} />
-        <KpiCard label="Vencido" value={formatBRL(kpi.vencido)} icon={<AlertTriangle />} color="var(--destructive)" subtitle="em atraso" loading={loading} />
-        <KpiCard label={texto.kpiPago} value={formatBRL(kpi.pago)} icon={<CheckCircle2 />} color="var(--success)" subtitle="mês corrente" loading={loading} />
+        <KpiCard label={texto.kpiPendente} value={formatBRL(kpi.pendente)} icon={tipo === 'pagar' ? <ArrowUpFromLine /> : <ArrowDownToLine />} color="var(--warning)" subtitle={`pendente em ${mesRotulo}`} loading={loading} />
+        <KpiCard label="Vencido" value={formatBRL(kpi.vencido)} icon={<AlertTriangle />} color="var(--destructive)" subtitle={`em atraso, vencimento em ${mesRotulo}`} loading={loading} />
+        <KpiCard label={texto.kpiPago} value={formatBRL(kpi.pago)} icon={<CheckCircle2 />} color="var(--success)" subtitle={mesRotulo} loading={loading} />
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
@@ -729,6 +778,12 @@ function LancamentosContent() {
                 <SelectItem value="anual">Anual</SelectItem>
               </SelectContent>
             </Select>
+            {form.recorrencia !== 'unica' && (
+              <p className="text-xs text-muted-foreground">
+                Ao dar baixa, o próximo lançamento ({form.recorrencia === 'mensal' ? 'mês seguinte' : 'ano seguinte'}) é
+                criado automaticamente, no mesmo dia do vencimento.
+              </p>
+            )}
           </div>
           <TextField
             label="Observações"
@@ -789,6 +844,39 @@ function LancamentosContent() {
           </div>
         </div>
       </CrudDrawer>
+
+      <ConfirmDialog
+        open={statusTarget !== null}
+        title={
+          statusTarget?.acao === 'cancelar'
+            ? 'Cancelar lançamento'
+            : statusTarget?.conta.status === 'pago'
+              ? 'Estornar baixa'
+              : 'Reabrir lançamento'
+        }
+        message={
+          statusTarget?.acao === 'cancelar' ? (
+            <>
+              <strong>{statusTarget?.conta.descricao}</strong> fica como cancelado e sai dos totais a pagar/receber. Dá para
+              reabrir depois.
+            </>
+          ) : statusTarget?.conta.status === 'pago' ? (
+            <>
+              A baixa de <strong>{statusTarget?.conta.descricao}</strong> é desfeita e o lançamento volta a ficar em aberto.
+            </>
+          ) : (
+            <>
+              <strong>{statusTarget?.conta.descricao}</strong> volta a ficar em aberto.
+            </>
+          )
+        }
+        confirmText={statusTarget?.acao === 'cancelar' ? 'Cancelar lançamento' : 'Confirmar'}
+        cancelText="Voltar"
+        destructive={statusTarget?.acao === 'cancelar'}
+        loading={changingStatus}
+        onConfirm={handleStatusChange}
+        onCancel={() => setStatusTarget(null)}
+      />
 
       <ConfirmDialog
         open={deleteTarget !== null}

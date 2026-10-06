@@ -3,7 +3,7 @@
  * gate de permissão e redirecionamentos de contas-pagar / contas-receber.
  */
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 let mockQuery: Record<string, string> = {};
 const mockReplace = jest.fn();
@@ -48,7 +48,8 @@ jest.mock('@/contexts/SnackbarContext', () => ({
   useSnackbar: () => ({ showSuccess: mockShowSuccess, showError: mockShowError, showInfo: jest.fn() }),
 }));
 
-import LancamentosPage, { parseTipo } from '@/pages/admin/financeiro/lancamentos';
+import LancamentosPage, { parseTipo, rotuloMes } from '@/pages/admin/financeiro/lancamentos';
+import { apiClient } from '@/services/api_client';
 import ContasPagarRedirectPage from '@/pages/admin/financeiro/contas-pagar';
 import ContasReceberRedirectPage from '@/pages/admin/financeiro/contas-receber';
 
@@ -124,6 +125,41 @@ describe('Lançamentos', () => {
     render(<LancamentosPage />);
     expect(await screen.findByText('Sem permissão')).toBeInTheDocument();
     expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  it('KPIs rotulados pelo mês filtrado, não "mês corrente"', async () => {
+    expect(rotuloMes('3', '2027')).toBe('março de 2027');
+    render(<LancamentosPage />);
+    await screen.findByText('Doação mensal');
+    expect(screen.queryByText('mês corrente')).not.toBeInTheDocument();
+    expect(screen.getByText('Recebido no mês')).toBeInTheDocument();
+  });
+
+  async function abrirMenu(descricao: string) {
+    fireEvent.keyDown(screen.getAllByRole('button', { name: `Mais ações de ${descricao}` })[0], { key: 'Enter' });
+    return screen.findByRole('menu');
+  }
+
+  it('"Cancelar lançamento" pede confirmação e chama /cancelar', async () => {
+    render(<LancamentosPage />);
+    await screen.findByText('Doação mensal');
+    const menu = await abrirMenu('Doação mensal');
+    expect(within(menu).queryByRole('menuitem', { name: /Estornar baixa/ })).not.toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Cancelar lançamento/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar lançamento' }));
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/financeiro/contas/c1/cancelar'));
+  });
+
+  it('lançamento pago oferece "Estornar baixa" (chama /reabrir), não "Cancelar"', async () => {
+    render(<LancamentosPage />);
+    await screen.findByText('Aluguel do espaço');
+    const menu = await abrirMenu('Aluguel do espaço');
+    expect(within(menu).queryByRole('menuitem', { name: /Cancelar lançamento/ })).not.toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Estornar baixa/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar' }));
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/financeiro/contas/c2/reabrir'));
   });
 
   it('contas-pagar e contas-receber redirecionam com ?tipo=', async () => {

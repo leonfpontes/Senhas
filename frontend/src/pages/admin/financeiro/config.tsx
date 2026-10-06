@@ -5,7 +5,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Landmark, MoreHorizontal, Pencil, Plus, Save, Settings2, Tags, Trash2, Loader2 } from 'lucide-react';
+import { Landmark, MoreHorizontal, Pencil, Plus, Power, PowerOff, Save, Settings2, Tags, Trash2, Loader2 } from 'lucide-react';
 import AdminLayout from '../admin_layout';
 import CrudDrawer from '../../../components/CrudDrawer';
 import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
@@ -17,6 +17,7 @@ import { PageHeader } from '@/components/admin/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { PermissionDenied, PlanLocked, ReadOnlyNotice } from '@/components/gates';
 import { MoneyInput, TextField } from '@/components/fields';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,6 +52,15 @@ function TipoBadge({ tipo }: { tipo: string }) {
   return <Badge variant="outline">{TIPO_LABEL[tipo] ?? tipo}</Badge>;
 }
 
+/** Desativado: some das listas de escolha dos lançamentos, mas continua aqui para reativar. */
+function InativoBadge() {
+  return (
+    <Badge variant="outline" className="text-muted-foreground">
+      Inativa
+    </Badge>
+  );
+}
+
 function ListSkeleton() {
   return (
     <Card className="gap-0 py-0">
@@ -63,8 +73,20 @@ function ListSkeleton() {
   );
 }
 
-function RowMenu({ nome, onEdit, onDelete }: { nome: string; onEdit?: () => void; onDelete?: () => void }) {
-  if (!onEdit && !onDelete) return null;
+function RowMenu({
+  nome,
+  ativo,
+  onEdit,
+  onToggleAtivo,
+  onDelete,
+}: {
+  nome: string;
+  ativo?: boolean;
+  onEdit?: () => void;
+  onToggleAtivo?: () => void;
+  onDelete?: () => void;
+}) {
+  if (!onEdit && !onDelete && !onToggleAtivo) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -77,6 +99,12 @@ function RowMenu({ nome, onEdit, onDelete }: { nome: string; onEdit?: () => void
           <DropdownMenuItem onSelect={onEdit}>
             <Pencil />
             Editar
+          </DropdownMenuItem>
+        )}
+        {onToggleAtivo && (
+          <DropdownMenuItem onSelect={onToggleAtivo}>
+            {ativo ? <PowerOff /> : <Power />}
+            {ativo ? 'Desativar' : 'Reativar'}
           </DropdownMenuItem>
         )}
         {onDelete && (
@@ -121,7 +149,7 @@ function CategoriasTab() {
       return;
     }
     try {
-      const res = await apiClient.get<Categoria[]>('/api/v1/admin/financeiro/categorias');
+      const res = await apiClient.get<Categoria[]>('/api/v1/admin/financeiro/categorias', { params: { incluir_inativos: true } });
       setItems(res.data);
     } catch {
       showError('Erro ao carregar categorias.');
@@ -174,6 +202,17 @@ function CategoriasTab() {
     }
   };
 
+  const toggleAtivo = async (cat: Categoria) => {
+    if (!canEdit) return;
+    try {
+      await apiClient.put(`/api/v1/admin/financeiro/categorias/${cat.id}`, { ativo: !cat.ativo });
+      showSuccess(cat.ativo ? 'Categoria desativada.' : 'Categoria reativada.');
+      load();
+    } catch (err) {
+      showError(extractApiErrorMessage(err, 'Erro ao atualizar a categoria.'));
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget || !canDelete) return;
     setDeleting(true);
@@ -218,13 +257,16 @@ function CategoriasTab() {
         <Card className="gap-0 overflow-hidden py-0">
           <ul className="divide-y">
             {items.map((cat) => (
-              <li key={cat.id} className="flex items-center gap-3 px-4 py-3">
+              <li key={cat.id} className={`flex items-center gap-3 px-4 py-3 ${cat.ativo ? '' : 'opacity-60'}`}>
                 <span className="size-3.5 shrink-0 rounded-full" style={{ backgroundColor: cat.cor ?? '#888' }} aria-hidden />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{cat.nome}</span>
+                {!cat.ativo && <InativoBadge />}
                 <TipoBadge tipo={cat.tipo} />
                 <RowMenu
                   nome={cat.nome}
+                  ativo={cat.ativo}
                   onEdit={canEdit ? () => openEdit(cat) : undefined}
+                  onToggleAtivo={canEdit ? () => toggleAtivo(cat) : undefined}
                   onDelete={canDelete ? () => setDeleteTarget(cat) : undefined}
                 />
               </li>
@@ -297,8 +339,9 @@ function CategoriasTab() {
         title="Excluir categoria"
         message={
           <>
-            A categoria <strong>{deleteTarget?.nome}</strong> será excluída permanentemente. Lançamentos vinculados a ela
-            ficarão sem categoria.
+            A categoria <strong>{deleteTarget?.nome}</strong> sai da lista e não pode mais ser escolhida em novos
+            lançamentos. Os lançamentos que já usam essa categoria continuam com ela. Para só escondê-la por um tempo,
+            use &quot;Desativar&quot;.
           </>
         }
         confirmText="Excluir"
@@ -342,7 +385,7 @@ function ContasBancariasTab() {
       return;
     }
     try {
-      const res = await apiClient.get<ContaBancaria[]>('/api/v1/admin/financeiro/contas-bancarias');
+      const res = await apiClient.get<ContaBancaria[]>('/api/v1/admin/financeiro/contas-bancarias', { params: { incluir_inativos: true } });
       setItems(res.data);
     } catch {
       showError('Erro ao carregar contas bancárias.');
@@ -396,6 +439,17 @@ function ContasBancariasTab() {
     }
   };
 
+  const toggleAtivo = async (conta: ContaBancaria) => {
+    if (!canEdit) return;
+    try {
+      await apiClient.put(`/api/v1/admin/financeiro/contas-bancarias/${conta.id}`, { ativo: !conta.ativo });
+      showSuccess(conta.ativo ? 'Conta desativada.' : 'Conta reativada.');
+      load();
+    } catch (err) {
+      showError(extractApiErrorMessage(err, 'Erro ao atualizar a conta.'));
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget || !canDelete) return;
     setDeleting(true);
@@ -438,7 +492,7 @@ function ContasBancariasTab() {
         <Card className="gap-0 overflow-hidden py-0">
           <ul className="divide-y">
             {items.map((conta) => (
-              <li key={conta.id} className="flex items-center gap-3 px-4 py-3">
+              <li key={conta.id} className={`flex items-center gap-3 px-4 py-3 ${conta.ativo ? '' : 'opacity-60'}`}>
                 <Landmark className="size-5 shrink-0 text-muted-foreground" aria-hidden />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{conta.nome}</p>
@@ -446,9 +500,12 @@ function ContasBancariasTab() {
                     {conta.banco ? `${conta.banco} · ` : ''}Saldo inicial {formatBRL(conta.saldo_inicial)}
                   </p>
                 </div>
+                {!conta.ativo && <InativoBadge />}
                 <RowMenu
                   nome={conta.nome}
+                  ativo={conta.ativo}
                   onEdit={canEdit ? () => openEdit(conta) : undefined}
+                  onToggleAtivo={canEdit ? () => toggleAtivo(conta) : undefined}
                   onDelete={canDelete ? () => setDeleteTarget(conta) : undefined}
                 />
               </li>
@@ -489,7 +546,7 @@ function ContasBancariasTab() {
             label="Saldo inicial"
             value={form.saldo_inicial}
             onChange={(v) => setForm((f) => ({ ...f, saldo_inicial: v }))}
-            helperText="Saldo da conta no momento do cadastro"
+            helperText="Saldo da conta no momento do cadastro — é o ponto de partida do saldo acumulado no Fluxo de caixa"
           />
         </div>
       </CrudDrawer>
@@ -499,8 +556,8 @@ function ContasBancariasTab() {
         title="Excluir conta bancária"
         message={
           <>
-            A conta <strong>{deleteTarget?.nome}</strong> será excluída. Lançamentos vinculados a ela perderão a
-            referência bancária.
+            A conta <strong>{deleteTarget?.nome}</strong> sai da lista e não pode mais ser escolhida em novos
+            lançamentos. Os lançamentos que já usam essa conta continuam com ela.
           </>
         }
         confirmText="Excluir"
@@ -562,12 +619,17 @@ function MensalidadeTab() {
   );
   const [form, setForm] = useState<MensalidadeForm>(EMPTY);
   const [saved, setSaved] = useState<MensalidadeForm>(EMPTY);
+  // Falha ao carregar: o formulário mostraria os padrões e salvar sobrescreveria a config real.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!canView) {
       setLoading(false);
       return;
     }
+    setLoading(true);
+    setLoadError(false);
     apiClient
       .get('/api/v1/admin/financeiro/config')
       .then((res) => {
@@ -583,15 +645,15 @@ function MensalidadeTab() {
         setForm(next);
         setSaved(next);
       })
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [canView]);
+  }, [canView, reloadKey]);
 
   const set = <K extends keyof MensalidadeForm>(k: K, v: MensalidadeForm[K]) => setForm((f) => ({ ...f, [k]: v }));
   const isDirty = JSON.stringify(form) !== JSON.stringify(saved);
 
   const handleSave = async () => {
-    if (!canEdit) return;
+    if (!canEdit || loadError) return;
     if (planMediuns && form.valorMensal < 0) {
       showError('Informe um valor mensal válido (≥ 0).');
       return;
@@ -621,6 +683,19 @@ function MensalidadeTab() {
 
   if (loading) return <ListSkeleton />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar a configuração de mensalidade." />;
+  if (loadError) {
+    return (
+      <Alert variant="destructive" role="alert">
+        <AlertTitle>Não foi possível carregar a configuração de mensalidade.</AlertTitle>
+        <AlertDescription className="flex flex-col items-start gap-2">
+          Para não sobrescrever a configuração atual, o formulário fica bloqueado até carregar.
+          <Button size="sm" variant="outline" onClick={() => setReloadKey((k) => k + 1)}>
+            Tentar novamente
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 pb-20">
@@ -726,7 +801,7 @@ function FinanceiroConfigContent() {
   const { can: canGroup } = usePermissions();
   const [tab, setTab] = useState('categorias');
 
-  if (!can('mensalidade_mediun') && !can('mensalidade_associado')) {
+  if (!can('mensalidade_mediun') && !can('mensalidade_associado') && !can('contas_financeiras')) {
     return <PlanLocked feature="Configuração Financeira" minPlan="Pro" />;
   }
   if (!canGroup('contas_financeiras', 'view') && !canGroup('financeiro', 'view')) {
