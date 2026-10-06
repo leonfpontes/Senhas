@@ -532,6 +532,12 @@ Incluir obrigatoriamente:
   `/platform`; `/platform/billing` → aba Assinaturas de `/platform/tenants`; `/platform/users_global` e `/platform/profile`
   → abas de `/platform/settings`. Parâmetros: `?nova=1`/`?compartilhar=1` em Giras, `?passos=1` no Início, `?gira=` em
   Porta/Senhas/modo TV, `?plan=` no billing e no cadastro. Impersonação aceita `#token=` (e ainda a query string).
+- **PWA (P-01)**: `public/manifest.webmanifest` (`start_url` `/admin/porta?source=pwa`, `standalone`), ícones gerados
+  de `public/favicon.svg` por `scripts/generate-icons.mjs`, `public/sw.js` escrito à mão (sem workbox/next-pwa) registrado por
+  `components/shared/ServiceWorkerRegistrar` só em produção + contexto seguro (`?v=<buildId>`; caches antigos apagados no
+  `activate`), `/offline` como fallback de navegação. **Regra: o SW nunca cacheia `/api/*`** (nem `/ws/*`, `/_next/data/*`,
+  POST, outra origem, `Authorization` ou HTML de página) — testado em `__tests__/pwa/sw.test.ts`. Na Porta: `PortaOfflineNotice`
+  (offline ou 2 falhas seguidas da fila) e `InstallPortaHint`. Sem sincronização offline de emissão.
 - **Versão**: `frontend/package.json` `version` → `NEXT_PUBLIC_UI_VERSION` (`next.config.js`) → `src/lib/version.ts`
   (`APP_VERSION`, "GiraHub v2.0.0" no rodapé da sidebar, menu do usuário e plataforma). Backend `APP_VERSION` 2.0.0;
   a tag das imagens Docker vem de `APP_VERSION` no `.env` do servidor.
