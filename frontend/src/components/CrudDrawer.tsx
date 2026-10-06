@@ -8,7 +8,7 @@
  *  - Guarda de alteração não salva ao fechar (AlertDialog)
  *
  * Largura: 480px no desktop; tela cheia abaixo de 640px. Mesma API de props da versão MUI —
- * as telas que já usam `CrudDrawer` + `useCrudDrawer` não mudam.
+ * as telas que já usam `CrudDrawer` não mudam.
  */
 'use client';
 

@@ -556,7 +556,7 @@ const PlatformHoje: React.FC = () => {
       )}
 
       {/* KPIs */}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div data-tour="platform-kpis" className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard label="MRR" value={fmtMoney(mrr)} subtitle={mrrDeltaLabel} icon={<Wallet />} color="var(--primary)" loading={loading} />
         <KpiCard label="Pagantes" value={paying} subtitle="Assinaturas ativas pagas" icon={<Users />} color="var(--success)" loading={loading} />
         <KpiCard label="Em teste" value={dashboard?.tenants.trial ?? 0} subtitle="Trials ativos" icon={<FlaskConical />} color="var(--warning)" loading={loading} />

@@ -27,9 +27,8 @@ Principais modulos:
 ## 2) Mapa Rapido do Monorepo
 
 - backend/: FastAPI + SQLAlchemy async + Alembic + testes Pytest.
-- frontend/: Next.js + TypeScript + Material UI + Jest/RTL.
+- frontend/: Next.js (Pages Router) + TypeScript + Tailwind v4 + shadcn/ui + Jest/RTL.
 - packages/shared-types: contratos tipados compartilhados.
-- packages/shared-ui: componentes e tema compartilhado.
 - docs/: arquitetura, API, auth, multi-tenancy, deploy e testes.
 - e2e/: cenarios E2E.
 - load_tests/: testes de carga.
@@ -233,7 +232,7 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
 
 ### 4.2 Frontend
 
-- Stack alvo: Next.js + TypeScript + MUI.
+- Stack: Next.js + TypeScript + Tailwind v4 + shadcn/ui (kit em `frontend/src/components/README.md`, ver §11.16).
 - Preferir componentes reutilizaveis e hooks existentes.
 - Evitar duplicacao de chamadas API; centralizar em services/client.
 - Garantir estado de loading, erro e sucesso em telas administrativas.
@@ -493,74 +492,51 @@ Incluir obrigatoriamente:
 - **Operação**: desligar com `ONBOARDING_EMAILS_ENABLED=false` no `.env` + restart do backend. Listar quem receberia na próxima rodada, sem enviar nem marcar: `docker compose -f docker-compose.prod.yml exec backend python -m src.services.onboarding_email_scheduler --dry-run`.
 - Contato principal do tenant: `get_tenant_primary_contact()` em `trial_scheduler.py` (admin mais antigo ativo), compartilhado pelos dois agendadores.
 
-### 11.15 Painel de ativação no Observatório (super-admin)
-- **Onde**: primeira seção de `/platform/observatory` (âncora `#ativacao`), componente `frontend/src/components/platform/ActivationSection.tsx`. Dados em `activation` do `GET /api/v1/platform/tenant-observatory` (protegido por `require_super_admin`), calculados por `backend/src/services/activation_service.py`.
+### 11.15 Painel de ativação na tela Hoje (super-admin)
+- **Onde**: tela "Hoje" de `/platform` (o antigo `/platform/observatory` redireciona para ela, mantendo a âncora), componente `frontend/src/components/platform/ActivationSection.tsx`. Dados em `activation` do `GET /api/v1/platform/tenant-observatory` (protegido por `require_super_admin`), calculados por `backend/src/services/activation_service.py`.
 - **Conteúdo**: cadastros dos últimos 60 dias (`WINDOW_DAYS`), do mais recente ao mais antigo, cada um num estágio — `sem_gira` → `sem_senhas` (gira criada sem `max_tickets`, nada aparece no link) → `aguardando_senha` → `recebendo` → `usou_porta` → `ativado` (20+ senhas pelo link, mesmo limiar do checklist). Mostra também giras configuradas/total e próxima gira, senhas pelo link, trial (dias restantes) ou pagante, e-mails de onboarding enviados (D+1/D+3, de `custom_settings.onboarding_emails`), dor do cadastro, última atividade (sessão ou ação auditada) e contato do admin mais antigo com links de WhatsApp (`wa.me`, DDI 55 acrescentado) e e-mail.
 - **Consulta**: uma ida ao banco com subconsultas correlacionadas por tenant + uma para os contatos. Visão cross-tenant por desenho (super-admin), sem filtro de tenant.
 
-### 11.16 Frontend — migração MUI → shadcn/ui (item M-01 do plano; fases 0 e 1 em 2026-10-05)
-- **Regra**: tela nova ou tela tocada usa shadcn/Tailwind; **não criar `sx` novo**. Espaçamento/layout em
-  componente MUI que ainda não migrou vai por `className` Tailwind (ex.: `className="mb-4"` num TextField), que
-  vence o MUI pela ordem das camadas abaixo. Desde a fase 1 o `CrudDrawer` é shadcn (Sheet) com a mesma API.
-- **Convivência (as duas bibliotecas no mesmo app)** — `frontend/src/styles/globals.css`, importado só em `_app.tsx`:
-  - `@layer theme, base, mui, components, utilities;` — importa `tailwindcss/theme.css` e `tailwindcss/utilities.css`
-    (**não** o `tailwindcss` inteiro: o preflight brigaria com o `CssBaseline`). O reset é mínimo e escopado a
-    `[data-slot]` (todo componente shadcn carrega esse atributo); vira global só na fase 9.
-  - Camada `mui`: `frontend/src/lib/emotionLayerCache.ts` — plugin stylis que envolve cada regra raiz do Emotion em
-    `@layer mui{...}`; o cache vai num `<CacheProvider>` em `_app.tsx` (cliente: um cache por aba; servidor: um por
-    render, senão o SSR para de emitir `<style>` a partir do 2º request). Resultado: MUI vence o reset, Tailwind vence o MUI.
-  - Breakpoints redefinidos em `@theme` para os do MUI (`sm 600 / md 900 / lg 1200 / xl 1536`, sem `2xl`), para que
-    `sm:`/`md:` batam com os objetos `{ xs, sm, md }` existentes.
-- **Tokens**: `:root`/`.dark` em `globals.css` mapeiam os 14 `AdminTokens` de `src/styles/adminTheme.ts`
-  (`pageBg→--background`, `cardBg→--card`, `border→--border`, `borderStrong→--input`, `textSecondary→--muted-foreground`,
-  `skeletonBase→--muted`, `rowHover→--accent`, `sidebarBg→--sidebar`, `chartGrid/chartTick→--chart-*`; extras
-  `--ghost`, `--input-bg`). `--radius: 0.75rem` (= `shape.borderRadius` 12).
-- **Cores do terreiro**: `frontend/src/lib/brand.ts` — `applyBrand(document.documentElement, {primary, secondary, font})`
-  escreve `--primary`, `--primary-foreground`, `--secondary`, `--secondary-foreground`, `--ring`, `--sidebar-primary*`.
-  `--primary-foreground` = `font_color` se o contraste WCAG com a primária for ≥ 4,5; senão `#000`/`#fff`, o que
-  contrastar mais (a secundária não tem fonte configurada: mesma regra sem preferência). Chamado pelo
-  `TenantAwareThemeProvider` a cada mudança de branding (login, `tenant-branding-updated`). O tema MUI não mudou.
-  Default sem branding: `#4f46e5` (fase 1; = `TenantConfig.primary_color` do backend e ao `theme-color` do
-  `_document`) — com branco dá 6,3, então mantém o branco como o MUI. O default antigo do frontend (`#6366f1`)
-  dava 4,47 e caía para preto; foi alinhado em `ThemeProvider.tsx`, `AdminThemeProvider.tsx` e `globals.css`.
-- **Modo escuro**: `AdminThemeProvider` e `PlatformThemeProvider` alternam a classe `dark` em `<html>` (não no div do
-  layout — Dialog/Popover/Select do Radix são portados para o `<body>`), aplicando no mount e removendo no unmount.
-  Páginas públicas continuam claras. `@custom-variant dark (&:is(.dark *))`.
-- **Primitivas**: `frontend/src/components/ui/*` (shadcn v4, estilo `new-york`, `radix-ui`, ícones `lucide-react`),
-  `cn()` em `src/lib/utils.ts`, `components.json` na raiz do frontend. Ajustes locais sobre o que o CLI gera:
-  `Skeleton` usa `bg-muted` (= `skeletonBase`; o `bg-accent` padrão mapeia no `rowHover` quase transparente) e
-  `AlertDialogOverlay` tem `forwardRef` (React 18; o shadcn v4 assume ref-como-prop do React 19).
-- **Piloto**: `src/pages/admin/estoque/grupos.tsx` — Card/Table/Button/Badge/Skeleton/AlertDialog + `CrudDrawer`,
-  guards `canGroup('estoque', ...)` ocultando botões, snackbar global (`useSnackbar`, R-03 adotado).
-  Teste: `__tests__/pages/admin_estoque_grupos.test.tsx`. Linha de base do bundle: `docs/bundle-baseline.md`.
-- **Fase 1 — kit de componentes (2026-10-05, branch `feat/shadcn-migracao`)**. Documentação de uso em
-  `frontend/src/components/README.md` (exemplo por composto, lista do que não usar mais, sentinela `"all"` do
-  Select, regra dos 48px). As frentes das fases 2–8 **não editam `globals.css` nem reescrevem `ui/*`**.
-  - Primitivas shadcn completas em `src/components/ui/` (input, textarea, label, form, select, checkbox, switch,
-    radio-group, dialog, sheet, tooltip, popover, dropdown-menu, tabs, progress, alert, sonner, command, calendar,
-    collapsible, accordion, avatar, scroll-area, toggle-group, breadcrumb, pagination, sidebar, chart, slider).
-    Ajustes locais: `forwardRef` (React 18) em `Button`/`Input`/`Textarea`/`DialogOverlay`/`SheetOverlay`;
-    `Alert` com variantes `success`/`warning`/`info` (tokens `--success/--warning/--info` + `-foreground`, light e
-    dark, = `palette.success/warning/info.main` do MUI); `Button` com `size="touch"`/`"icon-touch"` (48px);
-    `calendar.tsx` em pt-BR; `sonner.tsx` lê a classe `dark` (sem `next-themes`); `chart.tsx` tipado para o
-    **Recharts 2.x** (o CLI do shadcn gera para o 3 e tentou subir a dependência — mantido no 2 de propósito);
-    `hooks/use-mobile.ts` com limiar 900 (= `md`). Dependências novas: `@tanstack/react-table`, `cmdk`,
-    `react-day-picker`, `react-hook-form`, `@hookform/resolvers`, `zod`, `sonner`.
-  - Compostos (mesma API das versões MUI): `CrudDrawer` (Sheet 480px / tela cheia < 640px, guarda de não salvo em
-    `AlertDialog`), `admin/ConfirmDialog`, `UpgradePrompt` (CTA → `/admin/billing?plan=<minPlan minúsculo>`),
-    `admin/BulkActionsBar` (barra fixa inferior + AlertDialog + toast), `admin/SubscriptionWarningBanner` (Alert).
-    Novos: `gates/` (`PermissionDenied`, `ReadOnlyNotice`, `PlanLocked`), `admin/PageHeader` (h1), `admin/KpiCard`
-    (único; `platform/KpiCard` reexporta), `EmptyState`, `admin/DataTable` (TanStack Table v8: ordenação, paginação
-    cliente/servidor, seleção, skeleton, vazio, modo cartão < 640px via `renderCard` ou `meta.mobile`),
-    `fields/` (`TextField`, `PasswordField`, `MoneyInput`, `MaskedInput`, `DateField`, `DateTimeField`, `Combobox`),
-    `Stepper`, `charts/ChartCard` + `lib/chartTokens.ts`, `lib/icons.ts` (de-para MUI → lucide + nomes semânticos).
-    `CurrencyInput.tsx` virou reexport deprecado do `MoneyInput`; `ResponsiveTable`/`ResponsiveFilterBar` apagados.
-  - Toasts: `<Toaster />` do Sonner em `_app.tsx`; `contexts/SnackbarContext.tsx` é fachada sobre `toast()` mantendo
-    `useSnackbar()` (`showSuccess/showError/showInfo/showWarning/showSnackbar(msg, severity)`); o provider fica
-    só por compatibilidade.
-  - Jest: `jest.setup.js` ganhou polyfills `hasPointerCapture`/`setPointerCapture`/`releasePointerCapture`,
-    `scrollIntoView`, `ResizeObserver` e `matchMedia` (Radix Select/Command, Recharts, `useMediaQuery`). Testes de
-    componente consultam papel/texto, nunca classe `.Mui*`/Tailwind.
+### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
+- **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
+  usa Tailwind v4 + shadcn/ui (Radix, estilo new-york, `data-slot`). **Não criar `sx` nem reintroduzir MUI.**
+- **CSS global** (`src/styles/globals.css`, importado só no `_app.tsx`): camadas `theme < base < components < utilities`,
+  preflight completo do Tailwind, `body` com `--background/--foreground/--font-sans`. Breakpoints iguais aos antigos do
+  MUI (`sm 600 / md 900 / lg 1200 / xl 1536`, sem `2xl`). Tokens shadcn em `:root`/`.dark`, mais `--success`, `--warning`,
+  `--info` (com `-foreground`) e `--chart-grid`/`--chart-tick`. Fonte da interface: pilha do sistema (sem Roboto global).
+- **Cores do terreiro**: `src/lib/brand.ts` → `applyBrand(document.documentElement, {primary, secondary, font})`, chamado
+  pelo `TenantAwareThemeProvider` a cada mudança de branding; escreve `--primary`, `--primary-foreground`, `--secondary`,
+  `--secondary-foreground`, `--ring`, `--sidebar-primary`. Texto sobre a marca: a cor de fonte do terreiro se o contraste
+  for ≥ 4,5, senão preto/branco. Default `#4f46e5` (= backend). Telas públicas: texto na cor da marca usa
+  `text-(color:--brand-text)` (primária escurecida até AA, definida pelo `PublicShell`), nunca `text-primary`.
+- **Claro/escuro**: classe `dark` em `<html>` (não no layout — Radix porta overlays para o `<body>`), aplicada por
+  `AdminThemeProvider`/`PlatformThemeProvider` (chaves `admin_theme_mode`/`platform_theme_mode`); páginas públicas sempre claras.
+- **Overlays**: Sheet/Dialog/AlertDialog/Select/Popover/DropdownMenu usam o z-index padrão do Radix (`z-50`); quem abre por
+  último fica por cima, então calendário e Combobox dentro do `CrudDrawer` funcionam. Barras fixas: topbar `z-30`,
+  `MobileTabBar` e `BulkActionsBar` `z-40`. Não usar `z-[1300]`/`z-[1400]` (eram para ficar acima do AppBar do MUI).
+- **Kit** (`frontend/src/components/README.md`): `components/ui/*`, `fields/*` (`TextField`, `PasswordField`, `MoneyInput`,
+  `MaskedInput` + `maskTelefone/maskCpf/unmask`, `DateField`, `DateTimeField`, `Combobox`), `CrudDrawer`, `ConfirmDialog`,
+  `DataTable` (TanStack v8, `renderCard` no celular), `EmptyState`, `PageHeader`, `KpiCard` (único), `Stepper`,
+  `gates/{PermissionDenied,ReadOnlyNotice,PlanLocked}`, `charts/ChartCard` + `lib/chartTokens.ts`, `lib/icons.ts`,
+  `lib/dateBr.ts` (datas no fuso de Brasília), `useSnackbar()` → Sonner. `TooltipProvider` não é global: quem usa `Tooltip`
+  monta um. `TabsContent` com `flex` precisa de `data-[state=inactive]:hidden`.
+- **Por área** (compostos próprios): público `components/public/*` (`PublicShell`, `Bilhete` + `bilhete-utils`,
+  `public-errors`); operação `components/admin/{GiraCard,ShareLinkDialog,GiraContext,CommandPalette,MobileTabBar,
+  TicketDetailSheet,TicketEmailPanel,senhaFormat}` e `layout/navConfig.ts` (menu por trabalho: Hoje · Giras e senhas ·
+  Corrente · Casa · Conta); casa `components/financeiro/{CobrancaMensal,MonthNavigator}`, `components/estoque/MovimentacaoDrawer`;
+  conta `constants/plans.ts` (fonte única de planos, testada contra o backend), `constants/passwordPolicy.ts`,
+  `components/{auth,billing}/*`; site `components/site/{sections,editor}/*` (mesmas seções no site público e na prévia);
+  plataforma `components/platform/{planMeta,format,impersonate,passwordPolicy,CommandPalette,...}`.
+- **Rotas que viraram redirecionamento**: `/admin/plano` → `/admin/billing`; `/admin/financeiro/contas-pagar|contas-receber`
+  → `/admin/financeiro/lancamentos?tipo=`; `/admin/estoque/relatorio` → `/admin/estoque/itens`; `/platform/observatory` →
+  `/platform`; `/platform/billing` → aba Assinaturas de `/platform/tenants`; `/platform/users_global` e `/platform/profile`
+  → abas de `/platform/settings`. Parâmetros: `?nova=1`/`?compartilhar=1` em Giras, `?passos=1` no Início, `?gira=` em
+  Porta/Senhas/modo TV, `?plan=` no billing e no cadastro. Impersonação aceita `#token=` (e ainda a query string).
+- **Versão**: `frontend/package.json` `version` → `NEXT_PUBLIC_UI_VERSION` (`next.config.js`) → `src/lib/version.ts`
+  (`APP_VERSION`, "GiraHub v2.0.0" no rodapé da sidebar, menu do usuário e plataforma). Backend `APP_VERSION` 2.0.0;
+  a tag das imagens Docker vem de `APP_VERSION` no `.env` do servidor.
+- **Testes**: por papel/texto (nunca classes). `jest.setup.js` tem polyfills do Radix (`hasPointerCapture`,
+  `scrollIntoView`, `ResizeObserver`, `matchMedia`). Bundle antes/depois em `docs/bundle-baseline.md`.
 
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).

@@ -90,11 +90,6 @@ export const adminTourSteps: TourStepMap = {
         'Esta tabela mostra todos os consulentes que retiraram senha: nome, contato, tipo de senha, status e o médium que realizou o atendimento.',
     },
     {
-      selector: '[data-tour="tickets-export"]',
-      content:
-        'Exporte a lista de senhas para uma planilha (CSV) para análise ou arquivo da gira.',
-    },
-    {
       selector: '[data-tour="tickets-fila-espera"]',
       content:
         'Se a fila de espera estiver habilitada nas Configurações (plano Pro ou Premium), este painel aparece aqui quando houver alguém aguardando vaga. Ao cancelar uma senha oficial, o próximo da fila é promovido automaticamente e avisado por e-mail. Você também pode agir manualmente: o ✓ promove fora da ordem exigindo confirmação do consulente, e o ⚡ libera a senha na hora, sem precisar de confirmação — total autonomia para o operador decidir.',
@@ -317,11 +312,6 @@ export const adminTourSteps: TourStepMap = {
 
   '/admin/billing': [
     {
-      selector: '[data-tour="billing-header"]',
-      content:
-        'Esta é a página de Assinatura — aqui você acompanha seu plano atual, data de cobrança e pode fazer upgrade, downgrade ou cancelar quando precisar.',
-    },
-    {
       selector: '[data-tour="billing-status"]',
       content:
         'O cartão de status mostra seu plano ativo, a data da próxima cobrança e o valor mensal. Se você quiser cancelar a assinatura ou reativar um cancelamento agendado, os botões ficam aqui.',
@@ -329,35 +319,12 @@ export const adminTourSteps: TourStepMap = {
     {
       selector: '[data-tour="billing-planos"]',
       content:
-        'Abaixo você encontra a comparação entre os planos disponíveis: Basic, Pro e Premium. Cada cartão lista as funcionalidades incluídas e o botão de contratação. O plano atual fica destacado e desabilitado.',
+        'Os planos disponíveis: Basic, Pro e Premium, com o que cada um inclui. Durante o mês grátis, o plano em teste mostra “Continuar neste plano” — a cobrança só começa quando o teste acabar.',
     },
     {
       selector: '[data-tour="billing-suporte"]',
       content:
         'Ficou com dúvida sobre qual plano escolher? Entre em contato direto pelo WhatsApp — nossa equipe responde rapidamente.',
-    },
-  ],
-
-  '/admin/plano': [
-    {
-      selector: '[data-tour="plano-header"]',
-      content:
-        'Esta página mostra seu plano atual, o quanto você já usou dos limites e uma tabela comparativa com todos os planos disponíveis.',
-    },
-    {
-      selector: '[data-tour="plano-status"]',
-      content:
-        'O cartão de status exibe seu plano ativo e as barras de uso para usuários, giras do mês e médiuns. As barras ficam amarelas quando você está próximo do limite e vermelhas ao atingir 90%.',
-    },
-    {
-      selector: '[data-tour="plano-comparativo"]',
-      content:
-        'A tabela comparativa mostra todas as funcionalidades agrupadas por categoria — base, capacidade, comunicação, relatórios, módulos e enterprise. A coluna do seu plano atual fica destacada.',
-    },
-    {
-      selector: '[data-tour="plano-contato"]',
-      content:
-        'Para fazer upgrade ou tirar dúvidas, entre em contato pelo WhatsApp ou e-mail. Nossa equipe cuida da alteração de forma rápida e segura.',
     },
   ],
 
@@ -443,33 +410,6 @@ export const adminTourSteps: TourStepMap = {
     },
   ],
 
-  '/admin/estoque/relatorio': [
-    {
-      selector: '[data-tour="estoque-rel-header"]',
-      content:
-        'Relatório geral do estoque do terreiro.',
-    },
-    {
-      selector: '[data-tour="estoque-rel-kpis"]',
-      content:
-        'Resumo rápido: quantos itens estão em situação OK, quantos precisam de atenção e quantos estão em nível crítico.',
-    },
-    {
-      selector: '[data-tour="estoque-rel-filtros"]',
-      content:
-        'Filtre por nome ou grupo para encontrar um item específico.',
-    },
-    {
-      selector: '[data-tour="estoque-rel-tabela"]',
-      content:
-        'Lista de todos os itens com saldo atual, mínimo, unidade e última movimentação.',
-    },
-    {
-      selector: '[data-tour="estoque-rel-export"]',
-      content:
-        'Exporte o relatório de estoque para planilha (CSV).',
-    },
-  ],
 };
 
 /**

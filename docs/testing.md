@@ -171,7 +171,7 @@ frontend/__tests__/
 │   ├── platform.test.tsx           # Página platform
 │   └── public.test.tsx             # Página pública
 ├── providers/
-│   └── ThemeProvider.test.tsx      # Theme provider MUI
+│   └── ThemeProvider.test.tsx      # Contexto do terreiro e applyBrand (cores em variáveis CSS)
 └── services/
     └── api_client.test.ts          # Axios client
 ```

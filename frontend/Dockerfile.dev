@@ -12,7 +12,7 @@ COPY frontend/tsconfig.json .
 COPY frontend/.eslintrc.json .
 
 # Converter workspace:* para file:*
-RUN jq '.dependencies["shared-types"] = "file:../packages/shared-types" | .dependencies["shared-ui"] = "file:../packages/shared-ui"' package.json > package.json.tmp && mv package.json.tmp package.json
+RUN jq '.dependencies["shared-types"] = "file:../packages/shared-types"' package.json > package.json.tmp && mv package.json.tmp package.json
 
 # Instalar com Babel, sem cache
 RUN npm install --legacy-peer-deps --no-cache --no-save --loglevel=error 2>&1 | grep -v "^npm info"

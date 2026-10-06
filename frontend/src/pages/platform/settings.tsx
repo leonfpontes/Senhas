@@ -625,7 +625,7 @@ const SettingsPage: React.FC = () => {
     <PlatformLayout title="Configurações">
       <PageHeader title="Configurações" subtitle="Sua conta, administradores da plataforma, feature flags e planos." />
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="mb-4 flex h-auto w-full flex-wrap justify-start">
+        <TabsList data-tour="settings-tabs" className="mb-4 flex h-auto w-full flex-wrap justify-start">
           <TabsTrigger value="conta"><UserCog /> Conta</TabsTrigger>
           <TabsTrigger value="admins"><Shield /> Admins da plataforma</TabsTrigger>
           <TabsTrigger value="flags"><Flag /> Flags</TabsTrigger>

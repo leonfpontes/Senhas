@@ -252,3 +252,102 @@ Route (pages)                                         Size  First Load JS
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
 ```
+
+## Depois da fase 9 — migração concluída (2026-10-06, branch `feat/shadcn-migracao`)
+
+Mesmo comando, sem nenhum `@mui/*` ou `@emotion/*` no bundle. Resultado misto:
+
+| Rota | Antes (MUI) | Depois | Diferença |
+|---|---|---|---|
+| Comum a todas | 254 kB | 251 kB | −3 kB (agora inclui 25 kB de CSS do Tailwind; `_app` 71,9 → 43,9 kB) |
+| `/platform` | 421 kB | 403 kB | −18 kB |
+| `/admin/financeiro/fluxo-de-caixa` | 515 kB | 509 kB | −6 kB (sai o DatePicker do MUI X) |
+| `/admin/dashboard` | 471 kB | 470 kB | −1 kB |
+| `/[tenantSlug]` | 278 kB | 280 kB | +2 kB |
+| `/admin/porta` | 372 kB | 378 kB | +6 kB |
+| `/admin/meu-site` | 384 kB | 407 kB | +23 kB |
+| `/login` | 296 kB | 321 kB | +25 kB |
+| `/admin/giras` | 368 kB | 405 kB | +37 kB |
+| `/cadastro` | 307 kB | 345 kB | +38 kB |
+| `/public/gira/[id]` | 303 kB | 362 kB | +59 kB |
+
+A estimativa de 60–120 kB a menos não se confirmou. O runtime do Emotion saiu do comum, mas cada página com
+formulário passou a carregar Radix + react-hook-form + zod + lucide, e as telas ganharam funções novas (Bilhete,
+.ics, máscaras, Stepper). A emissão pública é a mais afetada e é o próximo alvo de corte: carregar zod/RHF só
+no formulário, importar ícones por caminho e adiar o Bilhete com `next/dynamic`.
+
+```
+Route (pages)                                                 Size  First Load JS
+┌ ○ / (328 ms)                                             53.8 kB         307 kB
+├   /_app                                                      0 B         226 kB
+├ ƒ /[tenantSlug]                                          7.25 kB         280 kB
+├ ○ /404 (5937 ms)                                         3.53 kB         243 kB
+├ ○ /admin/admin_layout (5932 ms)                            408 B         335 kB
+├ ○ /admin/analytics                                       9.19 kB         488 kB
+├ ○ /admin/associados                                      5.23 kB         389 kB
+├ ○ /admin/audit-trail (6062 ms)                           7.62 kB         392 kB
+├ ○ /admin/billing (5931 ms)                               10.9 kB         364 kB
+├ ○ /admin/config (5931 ms)                                15.6 kB         400 kB
+├ ○ /admin/cursos-presenciais                              9.24 kB         396 kB
+├ ○ /admin/cursos-presenciais/[id]/participantes (328 ms)  14.4 kB         511 kB
+├ ○ /admin/dashboard                                       10.7 kB         470 kB
+├ ○ /admin/estoque/grupos                                  4.84 kB         370 kB
+├ ○ /admin/estoque/itens (5931 ms)                         6.53 kB         398 kB
+├ ○ /admin/estoque/movimentacoes (6062 ms)                 3.86 kB         395 kB
+├ ○ /admin/estoque/relatorio (5932 ms)                     1.66 kB         336 kB
+├ ○ /admin/financeiro/config                               10.4 kB         376 kB
+├ ○ /admin/financeiro/contas-pagar (5931 ms)               1.65 kB         336 kB
+├ ○ /admin/financeiro/contas-receber (5931 ms)             1.66 kB         336 kB
+├ ○ /admin/financeiro/fluxo-de-caixa (6383 ms)             18.8 kB         509 kB
+├ ○ /admin/financeiro/lancamentos                            11 kB         395 kB
+├ ○ /admin/financeiro/mensalidades                         3.92 kB         498 kB
+├ ○ /admin/giras                                           16.5 kB         405 kB
+├ ○ /admin/impersonate                                     2.27 kB         237 kB
+├ ○ /admin/mediuns                                         14.8 kB         399 kB
+├ ○ /admin/meu-site                                        29.5 kB         407 kB
+├ ○ /admin/permission-groups                               4.43 kB         392 kB
+├ ○ /admin/permission-groups/[id]                          5.54 kB         393 kB
+├ ○ /admin/plano                                             851 B         236 kB
+├ ○ /admin/porta                                           12.7 kB         378 kB
+├ ○ /admin/porta/kiosk                                     2.03 kB         228 kB
+├ ○ /admin/profile                                         9.69 kB         407 kB
+├ ○ /admin/relatorio-gira (6382 ms)                        11.6 kB         511 kB
+├ ○ /admin/suporte                                         4.69 kB         358 kB
+├ ○ /admin/tickets (6061 ms)                               11.6 kB         399 kB
+├ ○ /admin/tickets/[ticketId]/email (6066 ms)              1.07 kB         339 kB
+├ ○ /admin/users (6061 ms)                                 11.5 kB         409 kB
+├ ○ /cadastro (6061 ms)                                    11.6 kB         345 kB
+├ ○ /forgot-password (6062 ms)                             2.72 kB         318 kB
+├ ○ /login (6061 ms)                                        5.5 kB         321 kB
+├ ○ /platform (331 ms)                                     13.1 kB         403 kB
+├ ○ /platform/audit_consolidated                           7.45 kB         367 kB
+├ ○ /platform/billing                                        758 B         227 kB
+├ ○ /platform/layout                                       3.56 kB         289 kB
+├ ○ /platform/observatory                                    784 B         227 kB
+├ ○ /platform/profile                                        765 B         227 kB
+├ ○ /platform/settings                                     13.2 kB         361 kB
+├ ○ /platform/suporte                                      10.3 kB         336 kB
+├ ○ /platform/tenants (6384 ms)                            7.71 kB         374 kB
+├ ○ /platform/tenants/[id]                                 8.22 kB         374 kB
+├ ○ /platform/users_global                                   774 B         227 kB
+├ ○ /privacidade                                           3.07 kB         259 kB
+├ ○ /public/[tenant]                                         459 B         248 kB
+├ ○ /public/[tenant]/associado                               463 B         248 kB
+├ ○ /public/[tenant]/senha                                   465 B         248 kB
+├ ○ /public/[tenant]/ticket/[ticketId]                     3.45 kB         248 kB
+├ ○ /public/cursos/[id]/inscricao                          20.5 kB         367 kB
+├ ○ /public/gira/[id]                                      15.1 kB         362 kB
+├ ○ /public/ticket/[ticketId]/cancelar (6387 ms)            4.7 kB         249 kB
+├ ○ /public/waitlist/[ticketId]/confirm (6384 ms)          5.05 kB         249 kB
+├ ○ /reactivate-account (6383 ms)                          3.02 kB         318 kB
+├ ○ /reset-password (6383 ms)                              3.32 kB         318 kB
+├ ○ /status (6383 ms)                                      7.57 kB         268 kB
+└ ○ /termos                                                3.42 kB         260 kB
++ First Load JS shared by all                               251 kB
+  ├ chunks/framework-24d07d5ca7069da8.js                     45 kB
+  ├ chunks/main-d0c16b46c0f34f97.js                         135 kB
+  ├ chunks/pages/_app-9c2918a16c5a9bcf.js                  43.9 kB
+  ├ css/27d7c56f27fd8d5c.css                                 25 kB
+  └ other shared chunks (total)                            2.08 kB
+```
+

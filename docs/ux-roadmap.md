@@ -1,5 +1,10 @@
 # UX/UI Roadmap — GiraHub
 
+> **Histórico.** Esta auditoria é de 2026-06-27, da interface em MUI. Ela foi substituída pela análise de
+> 2026-10-05 (artefato "Redesenho GiraHub") e pela migração M-01 para shadcn/ui (`docs/plano-execucao.md`).
+> Os padrões de UI vigentes estão em `CLAUDE.md` e `frontend/src/components/README.md`; as regras abaixo que
+> citam `sx`, `Snackbar` ou componentes do MUI não valem mais.
+
 Auditoria realizada em: 2026-06-27  
 Nota geral: **7,8 / 10**
 

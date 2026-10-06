@@ -1,15 +1,19 @@
-# Kit de componentes — frontend (M-01, fase 1)
+# Kit de componentes — frontend
 
-Última atualização: 2026-10-05 (fase 1 da migração MUI → shadcn/ui; ver AGENTS.md §11.16 e
+Última atualização: 2026-10-06 (migração MUI → shadcn/ui concluída, interface v2.0.0; ver AGENTS.md §11.16 e
 `docs/plano-execucao.md` M-01).
 
-Este é o kit que **todas as telas** usam a partir da fase 1. Regras:
+Este é o kit que **todas as telas** usam. O MUI não existe mais no projeto. Regras:
 
-- Tela nova ou tela tocada usa shadcn/Tailwind; **não criar `sx` novo**, nem `Grid` do MUI.
-- Primitivas em `src/components/ui/*` (shadcn, estilo `new-york`, `data-slot`). **Não reescrever**
-  essas primitivas nas frentes; precisa de algo novo → abre PR pequeno contra o kit.
-- `src/styles/globals.css` é **congelado** para as frentes: tokens novos entram pelo kit.
+- Toda tela usa shadcn/Tailwind; **nunca reintroduzir MUI nem `sx`**.
+- Primitivas em `src/components/ui/*` (shadcn, estilo `new-york`, `data-slot`). Mudança numa primitiva
+  afeta o produto inteiro: faça num PR próprio, com teste.
+- Tokens novos entram em `src/styles/globals.css` (`:root` e `.dark`), nunca cor literal nas telas.
 - Ícones: `lucide-react`, pelos nomes semânticos de `src/lib/icons.ts` quando existirem.
+- **Overlays** (Sheet, Dialog, AlertDialog, Select, Popover, DropdownMenu) usam o z-index padrão do
+  Radix; quem abre por último fica por cima. Não usar `z-[1300]`/`z-[1400]`. Barras fixas: `z-30`/`z-40`.
+- `Tooltip` exige um `TooltipProvider` montado pela tela (não é global). `TabsContent` com `flex`
+  precisa de `data-[state=inactive]:hidden`.
 
 ## O que **não** usar mais
 
@@ -19,10 +23,11 @@ Este é o kit que **todas as telas** usam a partir da fase 1. Regras:
 | `Snackbar`/`Alert` locais para feedback          | `useSnackbar()` (fachada) ou `toast()` de `sonner`           |
 | `Dialog` do MUI para formulário CRUD             | `CrudDrawer` (Sheet). Modais só para confirmação: `ConfirmDialog` |
 | `Grid`/`Box`/`Stack` com `sx`                    | `div` + classes Tailwind (`grid`, `flex`, `gap-*`)           |
-| `sx={{ ... }}` novo (mesmo em componente MUI)    | `className` Tailwind (vence o MUI pela ordem das camadas)    |
-| `CurrencyInput`                                 | `MoneyInput` (`CurrencyInput.tsx` é só reexport deprecado)   |
-| `components/PasswordField.tsx` (MUI)             | `PasswordField` de `@/components/fields`                     |
-| `shared/MaskedInput.tsx` (componente MUI)        | `MaskedInput` de `@/components/fields` (as funções `maskTelefone`/`maskCpf` continuam lá) |
+| `sx={{ ... }}`                                   | `className` Tailwind                                         |
+| `CurrencyInput` (apagado)                        | `MoneyInput` de `@/components/fields`                        |
+| `components/PasswordField.tsx` (apagado)         | `PasswordField` de `@/components/fields`                     |
+| `shared/MaskedInput.tsx` (apagado)               | `MaskedInput`, `maskTelefone`, `maskCpf`, `unmask` de `@/components/fields` |
+| `useCrudDrawer`, `useFetch`, `usePaginatedFetch` | apagados (0 usos, regra R-03)                                |
 | `components/platform/KpiCard.tsx` próprio        | reexporta o `KpiCard` único de `components/admin/KpiCard`    |
 | `ResponsiveTable`, `ResponsiveFilterBar`         | apagados (0 usos) — use `DataTable`                          |
 | `tokens.chartGrid` / `tokens.chartTick`          | `chartTokens.grid` / `chartTokens.tick` (`src/lib/chartTokens.ts`) |
@@ -53,7 +58,7 @@ Este é o kit que **todas as telas** usam a partir da fase 1. Regras:
   validação de verdade; para formulários de 2–3 campos, `useState` + `TextField` com `error` basta.
 - **Modo escuro**: classe `dark` em `<html>` (os providers já fazem). Use só tokens (`bg-card`,
   `text-muted-foreground`, `border`), nunca cor literal.
-- **Breakpoints**: `sm` 600 / `md` 900 / `lg` 1200 / `xl` 1536 (iguais ao MUI). O modo cartão da
+- **Breakpoints**: `sm` 600 / `md` 900 / `lg` 1200 / `xl` 1536 (mantidos do MUI). O modo cartão da
   `DataTable` e o `CrudDrawer` em tela cheia usam 640px (`min-[640px]:`).
 
 ## Primitivas (`src/components/ui/`)
@@ -75,7 +80,7 @@ Ajustes locais sobre o que o CLI gera (React 18): `forwardRef` em `Button`, `Inp
 
 ### `CrudDrawer` — `src/components/CrudDrawer.tsx`
 Sheet à direita (480px; tela cheia < 640px) com cabeçalho, corpo rolável, rodapé fixo e guarda de
-alteração não salva (`AlertDialog`). **Mesma API** de antes; `useCrudDrawer` mantido.
+alteração não salva (`AlertDialog`). **Mesma API** de antes.
 ```tsx
 <CrudDrawer open={crud.open} onClose={crud.close} title="Novo médium" icon={<IconMedium />}
             onSave={crud.handleSave} saving={crud.saving} isDirty={dirty} error={crud.saveError}>
@@ -148,8 +153,7 @@ Barra fixa inferior (flutuante) + `AlertDialog` + toast. Mesma API e mesmas cham
 
 ### Toasts — `src/contexts/SnackbarContext.tsx` + `src/components/ui/sonner.tsx`
 `useSnackbar()` continua: `showSuccess/showError/showInfo/showWarning` e `showSnackbar(msg, severity)`,
-todos viram `toast.*` do Sonner. O `SnackbarProvider` segue em `_app.tsx` só por compatibilidade
-(não renderiza Snackbar MUI). Código novo pode usar `toast` de `'sonner'` direto.
+todos viram `toast.*` do Sonner. Código novo pode usar `toast` de `'sonner'` direto.
 
 ### Gráficos — `src/components/charts/ChartCard.tsx` + `src/lib/chartTokens.ts`
 ```tsx

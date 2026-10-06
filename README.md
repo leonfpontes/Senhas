@@ -18,7 +18,7 @@ Sistema SaaS multi-tenant para emissão e gestão de senhas (tickets) para Terre
 - **E-mail dual-provider** — Brevo (primário) + Resend (fallback)
 - **RBAC** — 3 papéis: `SUPER_ADMIN`, `ADMIN`, `OPERATOR`
 - **Auditoria LGPD** — Trail imutável de todas as operações
-- **Design responsivo** — Material-UI, mobile-first, WCAG AA
+- **Design responsivo** — Tailwind + shadcn/ui, mobile-first, WCAG AA
 
 ---
 
@@ -27,7 +27,7 @@ Sistema SaaS multi-tenant para emissão e gestão de senhas (tickets) para Terre
 | Camada | Tecnologia |
 |--------|-----------|
 | **Backend** | FastAPI 0.136, Python 3.11+, SQLAlchemy 2.0 (async), Pydantic v2 |
-| **Frontend** | Next.js 14, TypeScript 5, Material-UI v5, Recharts |
+| **Frontend** | Next.js 15, TypeScript 5, Tailwind v4 + shadcn/ui, Recharts |
 | **Banco** | PostgreSQL 15, Alembic migrations |
 | **Auth** | JWT (24h access + 30d refresh), bcrypt |
 | **E-mail** | Brevo + Resend |
@@ -67,8 +67,7 @@ senhas/
 │   └── package.json
 │
 ├── packages/
-│   ├── shared-types/          # Contratos TypeScript
-│   └── shared-ui/             # Tema Material-UI + componentes
+│   └── shared-types/          # Contratos TypeScript
 │
 ├── devops/                    # VPS setup automation
 ├── e2e/                       # Cypress E2E tests

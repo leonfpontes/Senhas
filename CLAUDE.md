@@ -96,8 +96,8 @@ Regras de UI:
 - Botões de criar/editar/excluir: renderizar condicionalmente (`{canInsert && <Button>}`), nunca apenas `disabled`.
 - Fetchers: checar `canGroup(..., 'view')` antes de chamar a API.
 - Coluna de ações em tabelas: omitir quando todas as ações são proibidas.
-- Mensagem de "sem permissão": usar `<PermissionDenied />` de `@/components/gates` (Alert amarelo do kit;
-  telas MUI antigas ainda têm `<Alert severity="warning">` com o mesmo texto), nunca deixar erro 403 exposto.
+- Mensagem de "sem permissão": usar `<PermissionDenied />` de `@/components/gates` (Alert amarelo do kit),
+  nunca deixar erro 403 exposto.
 
 ### Adicionando nova feature ao sistema de permissões
 
@@ -141,7 +141,7 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 
 ### Stack
 - Backend: Python 3.11, FastAPI, SQLAlchemy 2 async, Pydantic v2, Alembic
-- Frontend: Next.js, TypeScript, Material UI (v5), Recharts
+- Frontend: Next.js (Pages Router), TypeScript, Tailwind v4 + shadcn/ui, Recharts 2.x
 - DB: PostgreSQL com limit de 8G (Docker local / Hostinger VPS em prod)
 - Cache/Rate limit: Redis com `RedisStorage` no slowapi (distribuído)
 - Monitoramento: Sentry (erros + traces). A pilha Prometheus/Grafana foi removida em
@@ -153,12 +153,12 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 model (src/models/) → repository (src/repositories/) → endpoint (src/api/v1/admin/) → migration (alembic/versions/)
 ```
 
-### UI do frontend — shadcn/ui + Tailwind (migração M-01 em andamento)
-- **Tela nova ou tela tocada usa shadcn/Tailwind (`src/components/ui/*`, `cn()`); não criar `sx` novo.**
-  MUI e Tailwind convivem via camada `@layer mui` (Tailwind vence o MUI) — detalhes, tokens, `applyBrand`
-  e classe `dark` em AGENTS.md §11.16. Piloto: `src/pages/admin/estoque/grupos.tsx`.
+### UI do frontend — shadcn/ui + Tailwind (sem MUI desde a v2.0.0)
+- **Toda tela usa shadcn/Tailwind (`src/components/ui/*`, `cn()`); nunca reintroduzir MUI nem `sx`.**
+  Tokens, `applyBrand` (cores do terreiro), classe `dark`, regra de z-index dos overlays, rotas que viraram
+  redirecionamento e versão da UI em AGENTS.md §11.16.
 
-### Componentes frontend reutilizáveis (kit da fase 1 — `frontend/src/components/README.md`)
+### Componentes frontend reutilizáveis (kit — `frontend/src/components/README.md`)
 - `CrudDrawer` — formulários em drawer lateral (Sheet 480px). **Nunca usar modais para formulários CRUD.**
 - `ConfirmDialog` — confirmação (AlertDialog); `destructive` para excluir
 - `DataTable` — tabelas (TanStack Table v8; modo cartão no celular)
