@@ -15,7 +15,9 @@ from uuid import UUID
 import logging
 import sentry_sdk
 
+from src.core.config import settings
 from src.core.database import get_db
+from src.core.public_links import public_tenant_logo_url
 from src.models.giras import Gira
 from src.models.tenants import Tenant
 from src.models.senha_controls import SenhaControl
@@ -101,7 +103,7 @@ def _build_gira_response(
         "is_sponsor": is_sponsor,
         "tenant_slug": tenant.slug,
         "tenant_name": tenant.name,
-        "logo_url": tenant.config.logo_url if tenant.config else None,
+        "logo_url": public_tenant_logo_url(settings.FRONTEND_URL, tenant.config),
         "primary_color": tenant.config.primary_color if tenant.config else None,
         "secondary_color": tenant.config.secondary_color if tenant.config else None,
         "allow_acompanhantes": bool(gira.allow_acompanhantes and (gira.max_acompanhantes or 0) > 0),
@@ -270,3 +272,55 @@ async def get_gira_by_id(
         logger.exception(f"get_gira_by_id error: {e}")
         sentry_sdk.capture_exception(e)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/agenda/{tenant_slug}")
+async def get_tenant_agenda(
+    tenant_slug: str,
+    session: AsyncSession = Depends(get_db),
+):
+    """Agenda pública do terreiro (próximas giras), sem depender do site.
+
+    Destino de "Ver próximas giras" nas telas do consulente (bilhete,
+    cancelamento, fila de espera): a página /{slug} mostra o site publicado
+    e, quando o terreiro ainda não publicou o site, cai nesta agenda em vez do
+    "Site em preparação" sem saída. Mesmo filtro do calendário do site
+    (SiteRepository.list_upcoming_giras) e mesmo formato de gira.
+    """
+    from src.repositories.site_repo import SiteRepository
+
+    tenant_result = await session.execute(
+        select(Tenant).options(selectinload(Tenant.config)).where(
+            and_(
+                Tenant.slug == tenant_slug.lower().strip(),
+                Tenant.is_active.is_(True),
+                Tenant.deleted_at.is_(None),
+            )
+        )
+    )
+    tenant = tenant_result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Terreiro não encontrado")
+
+    giras = await SiteRepository(session).list_upcoming_giras(tenant.id, limit=20)
+    cfg = tenant.config
+    return {
+        "tenant_name": tenant.name,
+        "tenant_slug": tenant.slug,
+        "logo_url": public_tenant_logo_url(settings.FRONTEND_URL, cfg),
+        "primary_color": cfg.primary_color if cfg else None,
+        "secondary_color": cfg.secondary_color if cfg else None,
+        "upcoming_giras": [
+            {
+                "id": str(g.id),
+                "nome": g.nome,
+                "data_hora": g.data_inicio.isoformat() if g.data_inicio else None,
+                "descricao": g.descricao,
+                "has_tickets": g.max_tickets is not None,
+                "has_sponsor_tickets": g.sponsor_max_tickets is not None,
+                "release_start_at": g.release_start_at.isoformat() if g.release_start_at else None,
+                "release_end_at": g.release_end_at.isoformat() if g.release_end_at else None,
+            }
+            for g in giras
+        ],
+    }

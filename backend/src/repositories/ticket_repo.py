@@ -4,7 +4,7 @@ Handles creation, retrieval, and filtering of emitted tickets
 """
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Sequence
 from uuid import UUID
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -167,19 +167,38 @@ class TicketRepository(BaseRepository[Ticket]):
         tenant_id: int,
         email: str,
         limit: int = 50,
+        statuses: Optional[Sequence[TicketStatus]] = None,
+        gira_id: Optional[UUID] = None,
+        gira_from: Optional[datetime] = None,
     ) -> List[Ticket]:
-        """Fetch tickets by consulente email (for resend email functionality)"""
+        """Fetch tickets by consulente email (for resend email functionality).
+
+        statuses: só senhas nesses status (o reenvio público usa EMITTED/WAITLISTED).
+        gira_id: só desta gira (do mesmo tenant).
+        gira_from: só giras com data_inicio a partir deste instante.
+        """
         from src.models.consulentes import Consulente
+        from src.models.giras import Gira
+
+        conditions = [
+            Ticket.tenant_id == tenant_id,
+            Consulente.email_normalized == email.lower().strip(),
+        ]
+        if statuses:
+            conditions.append(Ticket.status.in_(list(statuses)))
+        if gira_id is not None:
+            conditions.append(Ticket.gira_id == gira_id)
+        if gira_from is not None:
+            conditions.append(
+                Ticket.gira_id.in_(
+                    select(Gira.id).where(and_(Gira.tenant_id == tenant_id, Gira.data_inicio >= gira_from))
+                )
+            )
 
         query = (
             select(Ticket)
             .join(Consulente, Ticket.consulente_id == Consulente.id)
-            .where(
-                and_(
-                    Ticket.tenant_id == tenant_id,
-                    Consulente.email_normalized == email.lower().strip(),
-                )
-            )
+            .where(and_(*conditions))
             .options(
                 selectinload(Ticket.gira),
                 selectinload(Ticket.consulente),

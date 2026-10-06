@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from uuid import uuid4, UUID
 from datetime import datetime, timezone, timedelta, time
 from fastapi import HTTPException
+from src.core.errors import APIException
 
 
 TENANT_ID = uuid4()
@@ -452,7 +453,7 @@ class TestEmitTicketEndpoint:
         with patch("src.api.v1.public.emit_ticket.email_queue") as mock_queue:
             result = await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert result.ticket_number == "0042"
-        assert result.email_sent is True
+        assert not hasattr(result, "email_sent")
         mock_queue.enqueue.assert_called_once()
 
     # ── agendamento por horário (time slots) ────────────────────────────────
@@ -482,9 +483,10 @@ class TestEmitTicketEndpoint:
         MockSenhaRepo.return_value.increment_atomic = AsyncMock(return_value=1)
         MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
         req = EmitTicketRequest(name="Test", email="t@t.com")  # no time_slot_id
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(APIException) as exc:
             await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 400
+        assert exc.value.error_code == "TIME_SLOT_REQUIRED"
         db.rollback.assert_awaited()
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -567,9 +569,10 @@ class TestEmitTicketEndpoint:
         MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
         MockSlotRepo.return_value.get_by_id_for_gira = AsyncMock(return_value=None)
         req = EmitTicketRequest(name="Test", email="t@t.com", time_slot_id=uuid4())
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(APIException) as exc:
             await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 404
+        assert exc.value.error_code == "TIME_SLOT_INVALID"
         db.rollback.assert_awaited()
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -603,9 +606,10 @@ class TestEmitTicketEndpoint:
         MockSlotRepo.return_value.get_by_id_for_gira = AsyncMock(return_value=slot)
         MockSlotRepo.return_value.increment_atomic = AsyncMock(side_effect=TimeSlotFullError("full"))
         req = EmitTicketRequest(name="Test", email="t@t.com", time_slot_id=slot.id)
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(APIException) as exc:
             await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 410
+        assert exc.value.error_code == "TIME_SLOT_FULL"
         db.rollback.assert_awaited()
         MockTicketRepo.return_value.create_ticket.assert_not_called()
 
@@ -643,9 +647,10 @@ class TestEmitTicketEndpoint:
         MockSlotRepo.return_value.get_by_id_for_gira = AsyncMock(return_value=slot)
         MockSlotRepo.return_value.increment_atomic = AsyncMock(side_effect=ValueError("slot not found"))
         req = EmitTicketRequest(name="Test", email="t@t.com", time_slot_id=slot.id)
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(APIException) as exc:
             await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 409
+        assert exc.value.error_code == "TIME_SLOT_UNAVAILABLE"
         db.rollback.assert_awaited()
         MockTicketRepo.return_value.create_ticket.assert_not_called()
 

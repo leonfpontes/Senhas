@@ -116,89 +116,82 @@ curl -X GET \
 
 ### 2. Emit Ticket
 
-**Endpoint**: `POST /public/{tenant_id}/emit-ticket`
-
-**Parameters**:
-- `tenant_id` (path, required): Tenant UUID
+**Endpoint**: `POST /public/emit-ticket?tenant_slug={slug}&gira_id={gira_uuid}&tipo=comum|associado`
 
 **Request Body**:
 ```json
 {
-  "gira_id": "gira-uuid",
-  "consulente_nome": "João Silva",
-  "consulente_email": "joao@example.com",
-  "consulente_phone": "(11) 99999-9999"
+  "name": "João Silva",
+  "email": "joao@example.com",
+  "phone": "11999999999",
+  "priority_category": null,
+  "time_slot_id": "slot-uuid",
+  "acompanhantes": []
 }
 ```
 
-**Validation**:
-- `consulente_nome`: 3-255 characters
-- `consulente_email`: Valid email format, unique per gira
-- `consulente_phone`: Valid phone format
+- `time_slot_id`: exigido só quando a gira usa agendamento por horário **e** a senha tem vaga; com a
+  gira lotada e fila de espera ligada, a pessoa entra na fila sem horário.
 
-**Response** (201 Created):
+**Response** (200 OK):
 ```json
 {
-  "ticket": {
-    "id": "ticket-uuid",
-    "number": 46,
-    "gira_id": "gira-uuid",
-    "consulente_nome": "João Silva",
-    "consulente_email": "joao@example.com",
-    "status": "PENDING",
-    "created_at": "2026-03-05T14:30:00Z",
-    "email_sent": true,
-    "email_provider": "brevo",
-    "qr_code_url": "https://..."
-  }
+  "ticket_number": "0042",
+  "rescue_link": "https://app.example.com/public/{slug}/ticket/{ticket_uuid}",
+  "message": "...",
+  "waitlisted": false,
+  "waitlist_position": null,
+  "priority_upgraded": false,
+  "acompanhantes": []
 }
 ```
 
 **Error Responses**:
-- `400 Bad Request`: Invalid input (validation error)
-- `404 Not Found`: Gira not found
-- `409 Conflict`: Gira limit reached / duplicate email
-- `429 Too Many Requests`: Rate limit exceeded
-
-**cURL Example**:
-```bash
-curl -X POST \
-  "https://api.senhas.com/api/v1/public/uuid-123/emit-ticket" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "gira_id": "gira-uuid",
-    "consulente_nome": "João Silva",
-    "consulente_email": "joao@example.com",
-    "consulente_phone": "(11) 99999-9999"
-  }'
-```
+- `409 Conflict`: e-mail já tem senha nesta gira (`{"detail": "..."}`)
+- `410 Gone`: senhas esgotadas (sem fila de espera)
+- Horário — corpo `{"error_code": "...", "message": "..."}`: `400 TIME_SLOT_REQUIRED`,
+  `404 TIME_SLOT_INVALID`, `410 TIME_SLOT_FULL`, `409 TIME_SLOT_UNAVAILABLE`
+- `429 Too Many Requests`: rate limit (30/min por IP)
 
 ---
 
 ### 3. Resend Ticket Email
 
-**Endpoint**: `POST /public/{tenant_id}/resend-ticket-email`
+**Endpoint**: `POST /public/resend-ticket-email?tenant_slug={slug}`
 
 **Request Body**:
 ```json
 {
-  "email": "joao@example.com"
+  "email": "joao@example.com",
+  "gira_id": "gira-uuid"
 }
 ```
+
+Reenvia o e-mail original (emissão, fila de espera ou promoção) só das senhas ativas (emitida ou na
+fila) — da gira informada; sem `gira_id`, das giras de hoje em diante. O e-mail vai para o endereço
+gravado na senha.
 
 **Response** (200 OK):
 ```json
 {
-  "status": "success",
-  "message": "Email resent",
-  "email_provider": "brevo",
-  "sent_at": "2026-03-05T14:35:00Z"
+  "tickets_count": 1,
+  "email_sent": true,
+  "message": "Reenviamos o e-mail da sua senha."
 }
 ```
 
 **Error Responses**:
-- `404 Not Found`: Ticket not found
-- `429 Too Many Requests`: Max resend attempts exceeded
+- `404 Not Found`: terreiro inexistente ou nenhuma senha ativa para o e-mail
+- `429 Too Many Requests`: rate limit (15/hora por IP)
+
+---
+
+### 4. Agenda pública do terreiro
+
+**Endpoint**: `GET /public/agenda/{tenant_slug}`
+
+Próximas giras ativas (mesmo filtro do calendário do site). Usada por `/{slug}` quando o terreiro
+ainda não publicou o site.
 
 ---
 

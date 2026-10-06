@@ -8,9 +8,10 @@
  *
  * Formulário com react-hook-form + zod (erro inline no blur), botão fixo no rodapé
  * sempre ativo — ao enviar com campo pendente, o foco vai para ele. Erros acionáveis:
- * 409 (já tem senha) oferece "Reenviar meu e-mail" (POST /api/v1/public/resend-ticket-email);
- * rede/5xx oferece "Tentar de novo"; 410 (lotou) e 400/404 (horário, acompanhantes, associado)
- * mostram a mensagem do backend e recarregam a gira.
+ * recusa por horário (error_code TIME_SLOT_*: lotado, removido, inválido, obrigatório) limpa o
+ * horário escolhido e recarrega a lista; 409 (já tem senha) oferece "Reenviar meu e-mail"
+ * (POST /api/v1/public/resend-ticket-email, só desta gira); rede/5xx oferece "Tentar de novo";
+ * 410 (lotou) e 400/404 (acompanhantes, associado) mostram a mensagem do backend e recarregam a gira.
  */
 'use client';
 
@@ -47,7 +48,9 @@ import {
   errorStatus,
   formatGiraDate,
   formatGiraDateShort,
+  isTimeSlotError,
   publicErrorMessage,
+  tenantAgendaPath,
   ticketIdFromLink,
   type PublicTicket,
 } from '@/components/public';
@@ -62,7 +65,6 @@ interface AcompanhanteEmitido {
 interface EmitResponse {
   ticket_number?: string;
   numero?: number | string;
-  email_sent?: boolean;
   rescue_link?: string;
   message?: string;
   waitlisted?: boolean;
@@ -74,13 +76,15 @@ interface EmitResponse {
 interface EmitSuccess {
   ticket: PublicTicket;
   ticketId: string | null;
+  /** Link do bilhete (rescue_link) — vai na mensagem do WhatsApp. */
+  shareLink: string | null;
   email: string;
   waitlisted: boolean;
   waitlistPosition: number | null;
   priorityUpgraded: boolean;
 }
 
-type SubmitErrorKind = 'conflict' | 'gone' | 'network' | 'generic';
+type SubmitErrorKind = 'conflict' | 'gone' | 'slot' | 'network' | 'generic';
 interface SubmitError {
   kind: SubmitErrorKind;
   message: string;
@@ -353,6 +357,7 @@ export default function PublicGiraPage() {
       setSuccess({
         ticket,
         ticketId,
+        shareLink: data.rescue_link ?? null,
         email: values.email.trim(),
         waitlisted: Boolean(data.waitlisted),
         waitlistPosition: data.waitlist_position ?? null,
@@ -363,7 +368,14 @@ export default function PublicGiraPage() {
     } catch (err) {
       const status = errorStatus(err);
       const message = publicErrorMessage(err, 'Não foi possível emitir sua senha.');
-      if (status === 409) {
+      if (isTimeSlotError(err)) {
+        // Horário lotado (410), removido (409), inválido (404) ou não escolhido (400): o
+        // status sozinho confundiria com "gira lotada" / "já tem senha". Limpa a escolha e
+        // recarrega as vagas por horário.
+        setSubmitError({ kind: 'slot', message });
+        setValue('timeSlotId', null);
+        fetchGira({ silent: true });
+      } else if (status === 409) {
         setSubmitError({ kind: 'conflict', message });
       } else if (status === 410) {
         // Lotou entre abrir a página e enviar.
@@ -372,11 +384,10 @@ export default function PublicGiraPage() {
       } else if (!status || status >= 500) {
         setSubmitError({ kind: 'network', message });
       } else {
-        // 400/404: horário lotado/inválido, limite de acompanhantes, e-mail de associado não
-        // encontrado… — a mensagem do backend explica; vagas e horários são recarregados.
+        // 400/404: limite de acompanhantes, e-mail de associado não encontrado… — a mensagem
+        // do backend explica; vagas são recarregadas (o horário escolhido continua valendo).
         setSubmitError({ kind: 'generic', message });
         if (status === 400 || status === 404) {
-          if (requiresSlot) setValue('timeSlotId', null);
           fetchGira({ silent: true });
         }
       }
@@ -391,12 +402,11 @@ export default function PublicGiraPage() {
   const handleResend = async () => {
     if (!gira) return;
     const email = getValues('email').trim();
-    const phone = getValues('telefone').replace(/\D/g, '');
     setResending(true);
     try {
       await apiClient.post(`/api/v1/public/resend-ticket-email?tenant_slug=${encodeURIComponent(gira.tenant_slug)}`, {
         email,
-        phone: phone || null,
+        gira_id: gira.id,
       });
       toast.success(`Reenviamos sua senha para ${email}. Confira também a caixa de spam.`);
     } catch (err) {
@@ -448,7 +458,7 @@ export default function PublicGiraPage() {
 
   const nextGirasButton = (
     <Button asChild size="touch" className="w-full">
-      <Link href={`/public/${gira.tenant_slug}`}>Ver próximas giras do terreiro</Link>
+      <Link href={tenantAgendaPath(gira.tenant_slug)}>Ver próximas giras do terreiro</Link>
     </Button>
   );
 
@@ -467,6 +477,12 @@ export default function PublicGiraPage() {
         {submitLabel}
       </Button>
       <p className="text-center text-sm text-muted-foreground">Emissão encerra em {formatMinutes(countdown.timeRemaining)}</p>
+      <p className="text-center text-xs text-muted-foreground">
+        Seus dados são usados para emitir sua senha e enviar avisos sobre ela.{' '}
+        <Link href="/privacidade" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+          Política de privacidade
+        </Link>
+      </p>
     </div>
   ) : undefined;
 
@@ -572,6 +588,16 @@ export default function PublicGiraPage() {
                         {resending && <Loader2 className="animate-spin" />}
                         Reenviar meu e-mail
                       </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {submitError.kind === 'slot' && (
+                  <Alert variant="warning">
+                    <Clock />
+                    <AlertTitle>Escolha outro horário</AlertTitle>
+                    <AlertDescription>
+                      <p>{submitError.message}</p>
+                      <p>Atualizamos as vagas de cada horário.</p>
                     </AlertDescription>
                   </Alert>
                 )}
@@ -866,6 +892,7 @@ export default function PublicGiraPage() {
         <Bilhete
           ticket={success.ticket}
           ticketId={success.ticketId}
+          shareLink={success.shareLink ?? undefined}
           heading={
             success.waitlisted
               ? 'Você está na fila de espera!'

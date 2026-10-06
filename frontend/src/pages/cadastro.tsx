@@ -63,7 +63,8 @@ export default function CadastroPage() {
       trackEvent('signup_completed', { principal_dor: payload.principal_dor ?? 'nao_informado' });
 
       const { user } = res.data;
-      // access_token chega como cookie HttpOnly
+      // A sessão chega nos mesmos 3 cookies do login (access_token e refresh_token HttpOnly +
+      // auth_state legível) — aqui só o `user` vai para o localStorage.
       localStorage.setItem('user', JSON.stringify(user));
       dispatchTenantBrandingUpdated();
 

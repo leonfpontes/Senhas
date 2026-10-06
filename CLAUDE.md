@@ -193,7 +193,7 @@ O `access_token` é armazenado como **cookie HttpOnly** (não em `localStorage`)
 - **Impersonação**: token fica em `sessionStorage` e vai como `Authorization: Bearer` (fluxo separado preservado).
 - **hasAuthToken()**: checa `sessionStorage.getItem('access_token')` (impersonação) OU `document.cookie.includes('auth_state=1')` OU `localStorage.getItem('user')`.
 - **Logout**: sempre chamar `POST /api/v1/auth/logout` para limpar cookies HttpOnly no servidor, depois remover `user` do localStorage.
-- **Apagar cookies no backend**: sempre `clear_auth_cookies(response)` (`src/security/auth_cookies.py`) — os 3 cookies com os atributos do login.
+- **Apagar cookies no backend**: sempre `clear_auth_cookies(response)` (`src/core/auth_cookies.py` (junto com `set_auth_cookies`)) — os 3 cookies com os atributos do login.
 - **Impersonação × sessão**: os cookies do navegador são do super-admin. Endpoint que revoga sessão/apaga cookie recusa token com `impersonated_by` (403); no front, "Sair" impersonando = `endImpersonation()`, e nada grava o usuário impersonado em `localStorage['user']`.
 
 ---

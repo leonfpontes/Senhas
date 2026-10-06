@@ -51,6 +51,16 @@ from src.core.limiter import limiter
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 logger = logging.getLogger(__name__)
 
+# error_code das recusas por horário (agendamento por horário). O formulário
+# público (pages/public/gira/[id].tsx) usa esses códigos para limpar o horário
+# escolhido e recarregar a lista — o status HTTP sozinho não distingue "horário
+# lotado" (410) de "gira lotada" (também 410) nem "horário removido" (409) de
+# "você já tem senha" (também 409).
+TIME_SLOT_REQUIRED = "TIME_SLOT_REQUIRED"
+TIME_SLOT_INVALID = "TIME_SLOT_INVALID"
+TIME_SLOT_FULL = "TIME_SLOT_FULL"
+TIME_SLOT_UNAVAILABLE = "TIME_SLOT_UNAVAILABLE"
+
 
 class EmitTicketRequest(BaseModel):
     """Request body for ticket emission
@@ -128,13 +138,11 @@ class EmitTicketResponse(BaseModel):
     
     Fields:
         ticket_number: Formatted ticket number (e.g., "0042")
-        email_sent: Whether email was sent successfully
         rescue_link: URL to redeem ticket (frontend will fill tenant)
         message: Human-readable confirmation message
     """
 
     ticket_number: str
-    email_sent: bool
     rescue_link: str
     message: str
     waitlisted: bool = False
@@ -219,7 +227,6 @@ async def _upgrade_duplicate_priority(
         await waitlist_service.send_confirmed_ticket_email(session, existing)
         return EmitTicketResponse(
             ticket_number=ticket_number_formatted,
-            email_sent=True,
             rescue_link=rescue_link,
             message=(
                 f"Você já tinha a senha {ticket_number_formatted} para esta gira — "
@@ -232,7 +239,6 @@ async def _upgrade_duplicate_priority(
     # WAITLISTED: the priority changes the queue ordering. When still in the
     # queue (not promoted), recompute the position and resend the entry email.
     waitlist_position: int | None = None
-    email_sent = False
     if existing.promoted_at is None:
         waitlist_position = await waitlist_service.compute_queue_position(
             session=session,
@@ -270,7 +276,6 @@ async def _upgrade_duplicate_priority(
             text_body=text_body,
         )
         email_queue.enqueue(EmailQueueItem(message=message, ticket_id=str(existing.id)))
-        email_sent = True
         response_message = (
             "Você já estava na fila de espera desta gira — registramos seu "
             f"atendimento preferencial e sua posição agora é {waitlist_position or 1}."
@@ -283,7 +288,6 @@ async def _upgrade_duplicate_priority(
 
     return EmitTicketResponse(
         ticket_number=ticket_number_formatted,
-        email_sent=email_sent,
         rescue_link=rescue_link,
         message=response_message,
         waitlisted=True,
@@ -333,7 +337,6 @@ async def emit_ticket(
     Response:
         {
             "ticket_number": "0042",
-            "email_sent": true,
             "rescue_link": "https://app.example.com/public/espiritismo-sp/ticket/0042",
             "message": "Ticket emitted successfully! Check your email."
         }
@@ -343,7 +346,11 @@ async def emit_ticket(
         404 Not Found: Tenant or gira not found
         400 Bad Request: Invalid email, name too short, etc
         409 Conflict: Consulente already has ticket in this gira
-        429 Too Many Requests: Gira capacity reached or rate limited
+        410 Gone: Gira capacity reached (no waitlist)
+        Horário (agendamento por horário) — body {error_code, message}:
+            400 TIME_SLOT_REQUIRED, 404 TIME_SLOT_INVALID,
+            410 TIME_SLOT_FULL, 409 TIME_SLOT_UNAVAILABLE
+        429 Too Many Requests: rate limited
         500 Internal Server Error: Database/email service failure
 
     Error Examples:
@@ -577,54 +584,62 @@ async def emit_ticket(
 
         # === STEP 7b: Claim Time Slot (agendamento por horário, if enabled) ===
         # A full slot has no waitlist fallback (product decision — the UI just
-        # hides/disables it), so this is a hard reject unless the gira-level
-        # capacity above already routed the ticket to the waitlist, in which
-        # case there's no fixed horário to hold and the claimed slot (if any)
-        # is given back.
+        # hides/disables it), so this is a hard reject. The horário is only
+        # required when the ticket is actually getting a seat: when the gira-level
+        # capacity above routed it to the waitlist there's no fixed horário to
+        # hold (the waitlist form doesn't even show the picker), so a missing or
+        # stale time_slot_id is ignored instead of blocking the queue entry.
+        # Slot errors carry a stable error_code so the form can clear the chosen
+        # horário and reload the list instead of guessing from the status code.
         time_slot_id_for_ticket = None
         horario_desejado_str: str | None = None
         gira_uses_time_slots = gira.use_time_slots and await time_slot_scheduling_enabled_for_tenant(
             session, tenant.id
         )
-        if gira_uses_time_slots:
+        if gira_uses_time_slots and not waitlisted:
             if not body.time_slot_id:
                 await session.rollback()
-                raise HTTPException(status_code=400, detail="Selecione um horário de atendimento")
+                raise APIException(
+                    "Selecione um horário de atendimento",
+                    status_code=400,
+                    error_code=TIME_SLOT_REQUIRED,
+                )
 
             slot_repo = GiraTimeSlotRepository(session)
             slot = await slot_repo.get_by_id_for_gira(session, tenant.id, gira.id, body.time_slot_id)
             if not slot:
                 await session.rollback()
-                raise HTTPException(status_code=404, detail="Horário inválido para esta gira")
+                raise APIException(
+                    "Horário inválido para esta gira. Escolha outro horário.",
+                    status_code=404,
+                    error_code=TIME_SLOT_INVALID,
+                )
 
-            if waitlisted:
-                # Ticket is going to the general waitlist (gira-level capacity
-                # exhausted) — it has no fixed horário in this MVP.
-                time_slot_id_for_ticket = None
-            else:
-                try:
-                    await slot_repo.increment_atomic(session, tenant.id, gira.id, slot.id)
-                    time_slot_id_for_ticket = slot.id
-                    horario_desejado_str = slot.horario.strftime("%H:%M")
-                except TimeSlotFullError:
-                    # Nothing has been committed yet — rollback undoes the
-                    # STEP 7 SenhaControl.increment_atomic too, so gira
-                    # capacity accounting stays correct without extra bookkeeping.
-                    await session.rollback()
-                    raise HTTPException(
-                        status_code=410,
-                        detail="Este horário não tem mais vagas disponíveis. Escolha outro horário.",
-                    )
-                except ValueError:
-                    # The slot was deleted between get_by_id_for_gira above and
-                    # the SELECT FOR UPDATE in increment_atomic — e.g. an admin
-                    # edited/removed the horário while this consulente had the
-                    # form open. Same rollback rationale as above.
-                    await session.rollback()
-                    raise HTTPException(
-                        status_code=409,
-                        detail="Este horário deixou de estar disponível. Atualize a página e escolha outro horário.",
-                    )
+            try:
+                await slot_repo.increment_atomic(session, tenant.id, gira.id, slot.id)
+                time_slot_id_for_ticket = slot.id
+                horario_desejado_str = slot.horario.strftime("%H:%M")
+            except TimeSlotFullError:
+                # Nothing has been committed yet — rollback undoes the
+                # STEP 7 SenhaControl.increment_atomic too, so gira
+                # capacity accounting stays correct without extra bookkeeping.
+                await session.rollback()
+                raise APIException(
+                    "Este horário não tem mais vagas disponíveis. Escolha outro horário.",
+                    status_code=410,
+                    error_code=TIME_SLOT_FULL,
+                )
+            except ValueError:
+                # The slot was deleted between get_by_id_for_gira above and
+                # the SELECT FOR UPDATE in increment_atomic — e.g. an admin
+                # edited/removed the horário while this consulente had the
+                # form open. Same rollback rationale as above.
+                await session.rollback()
+                raise APIException(
+                    "Este horário deixou de estar disponível. Escolha outro horário.",
+                    status_code=409,
+                    error_code=TIME_SLOT_UNAVAILABLE,
+                )
 
         # === STEP 7c: Allocate Acompanhante Numbers (same sequence) ===
         # O grupo inteiro precisa caber na capacidade — se não couber, a emissão
@@ -659,12 +674,11 @@ async def emit_ticket(
                         await slot_repo.increment_atomic(session, tenant.id, gira.id, time_slot_id_for_ticket)
                     except (TimeSlotFullError, ValueError):
                         await session.rollback()
-                        raise HTTPException(
+                        raise APIException(
+                            "Este horário não tem vagas suficientes para você e seus "
+                            "acompanhantes. Escolha outro horário.",
                             status_code=410,
-                            detail=(
-                                "Este horário não tem vagas suficientes para você e seus "
-                                "acompanhantes. Escolha outro horário."
-                            ),
+                            error_code=TIME_SLOT_FULL,
                         )
 
         # === STEP 8: Create Ticket Record ===
@@ -831,7 +845,6 @@ async def emit_ticket(
         if waitlisted:
             return EmitTicketResponse(
                 ticket_number=ticket_number_formatted,
-                email_sent=True,
                 rescue_link=rescue_link,
                 message=f"Gira lotada — você entrou na fila de espera (posição {waitlist_position or 1}).",
                 waitlisted=True,
@@ -840,7 +853,6 @@ async def emit_ticket(
 
         return EmitTicketResponse(
             ticket_number=ticket_number_formatted,
-            email_sent=True,  # Will be true if sent successfully
             rescue_link=rescue_link,
             message="Ticket emitted successfully! Check your email for confirmation.",
             acompanhantes=[
@@ -849,7 +861,7 @@ async def emit_ticket(
             ],
         )
 
-    except HTTPException:
+    except (HTTPException, APIException):
         raise
     except Exception as e:
         logger.error(f"Unexpected error in emit_ticket: {e}", exc_info=True)

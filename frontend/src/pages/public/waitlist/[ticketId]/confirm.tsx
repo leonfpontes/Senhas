@@ -25,6 +25,7 @@ import {
   PublicShell,
   publicErrorMessage,
   formatGiraDate,
+  tenantAgendaPath,
   formatGiraDateShort,
   type PublicTicket,
 } from '@/components/public';
@@ -129,7 +130,7 @@ export default function WaitlistConfirmPage() {
 
   const nextGiras = tenantSlug ? (
     <Button asChild variant="outline" size="touch" className="w-full">
-      <Link href={`/public/${tenantSlug}`}>Ver próximas giras</Link>
+      <Link href={tenantAgendaPath(tenantSlug)}>Ver próximas giras</Link>
     </Button>
   ) : null;
 

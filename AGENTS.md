@@ -81,7 +81,7 @@ tenant redundante (barato) a uma excecao.
 - Endpoints platform so para super admin (escopo global).
 
 **Fluxo de autenticacao via cookie HttpOnly (desde 2026-06-27):**
-- Login seta 3 cookies: `access_token` (HttpOnly, Secure, SameSite=Strict), `refresh_token` (HttpOnly), `auth_state=1` (nao-HttpOnly — legivel por JS para verificar login).
+- Login seta 3 cookies: `access_token` (HttpOnly, Secure, SameSite=Strict), `refresh_token` (HttpOnly), `auth_state=1` (nao-HttpOnly — legivel por JS para verificar login). Cadastro (`/public/onboarding`) e reativacao de conta setam os mesmos 3 (helper unico `core/auth_cookies.set_auth_cookies`). `remember_me=false` no login → cookies de sessao (sem max_age), mantido no `/auth/refresh` (ver §11.18).
 - `/auth/refresh` implementado: le `refresh_token` do cookie, valida com `decode_refresh_token` (requer `type=refresh`), emite novo access + rotaciona refresh.
 - `jwt_middleware` extrai token do header `Authorization: Bearer` primeiro (impersonacao via sessionStorage), depois fallback para cookie `access_token`.
 - `jwt_middleware` public_paths inclui `/auth/refresh`, `/auth/forgot-password`, `/auth/reset-password`.
@@ -89,7 +89,7 @@ tenant redundante (barato) a uma excecao.
 - Impersonacao usa sessionStorage e header Bearer — fluxo preservado separado.
 - `hasAuthToken()` checa: `sessionStorage.getItem('access_token')` OR `document.cookie.includes('auth_state=1')` OR `localStorage.getItem('user')`.
 - Logout DEVE chamar `POST /api/v1/auth/logout` para limpar cookies no servidor.
-- Apagar os cookies de auth: SEMPRE `clear_auth_cookies(response)` de `src/security/auth_cookies.py`
+- Apagar os cookies de auth: SEMPRE `clear_auth_cookies(response)` de `src/core/auth_cookies.py` (junto com `set_auth_cookies`)
   (os 3 cookies, com os mesmos atributos do login — `secure` depende de DEBUG). Usado por logout,
   logout-all, change-password, delete account e deactivate account.
 - Impersonacao: os cookies do navegador sao do SUPER-ADMIN. Endpoint que revoga sessoes ou apaga
@@ -667,6 +667,36 @@ Incluir obrigatoriamente:
 - **Rotas**: `tests/unit/test_route_shadowing.py` também testa rota com segmento fixo depois de parâmetro
   (pegou `/feature-flags/{tenant_id}/enabled` engolida por `/{tenant_id}/{feature}`).
 - `PUT /platform/subscriptions/{id}/upgrade` (usado pelo drawer para qualquer troca de plano) não cria mais fatura.
+
+### 11.18 Jornadas públicas e de conta (2026-10-06)
+- **Emissão com horário + fila**: o horário (`time_slot_id`) só é exigido quando a senha tem vaga; com a
+  gira lotada e fila de espera ligada, a pessoa entra na fila sem horário. Recusas por horário saem como
+  `APIException` (`{error_code, message}`): 400 `TIME_SLOT_REQUIRED`, 404 `TIME_SLOT_INVALID`,
+  410 `TIME_SLOT_FULL`, 409 `TIME_SLOT_UNAVAILABLE` — o formulário limpa o horário e recarrega as vagas
+  (`isTimeSlotError` em `components/public/public-errors.ts`). `email_sent` saiu da resposta do emit.
+- **Reenvio de e-mail** (`POST /public/resend-ticket-email`, body `{email, gira_id}`; `phone` removido):
+  só senhas EMITTED/WAITLISTED, da gira informada (sem `gira_id`, giras de hoje em diante). Reenvia o
+  e-mail original: emitida → `waitlist_service.send_confirmed_ticket_email` (número com P do associado,
+  horário, acompanhantes); fila promovida → e-mail da promoção; fila → e-mail da fila com a posição.
+- **Logo**: URL pública da logo vem de `core/public_links.public_tenant_logo_url` (prefere `logo_data`,
+  que o upload grava, ao `logo_url` legado) — usada no `GET /public/gira/{id}` e `/next-gira`.
+- **Agenda pública**: `GET /public/agenda/{tenant_slug}` (próximas giras ativas, mesmo filtro do
+  calendário do site — `SiteRepository.list_upcoming_giras`, "hoje" em Brasília, sem gira inativa).
+  `/{slug}` mostra o site publicado e, sem site, essa agenda; "Ver próximas giras" (bilhete, cancelar,
+  fila, emissão) aponta para `/{slug}` (`tenantAgendaPath`), nunca para `/public/{slug}` (que redireciona
+  à próxima gira). O WhatsApp do bilhete leva a página do bilhete (`rescue_link`/`ticketPagePath`).
+- **Curso**: a inscrição pública enfileira o e-mail "Inscrição confirmada" (`email_queue`, sem CPF/RG/
+  endereço/saúde — minimização). `valor_mensalidade` só volta quando `gerar_mensalidade`. "Como
+  conheceu" só é exigido quando "Já conhece o terreiro" = Sim; perguntas de saúde começam sem resposta.
+- **Conta**: e-mail de login sem diferença de maiúsculas (`func.lower(User.email)`; cadastro e
+  `UserRepository.create` gravam minúsculo — sem migração, linhas antigas cobertas pela comparação).
+  Login, esqueci a senha e reativação usam `login.user_by_login_email_stmt` (conta mais antiga se o
+  e-mail existir em mais de um terreiro). Cadastro valida a senha com `validate_password_policy`.
+  Sessão aberta por `login.issue_session` + `core/auth_cookies.set_auth_cookies` em login, cadastro e
+  reativação (3 cookies, `secure=not DEBUG`). "Lembrar-me" desmarcado (`remember_me=false`) → cookies
+  sem `max_age`; o refresh token carrega `persist: false` e o `/auth/refresh` renova no mesmo modo.
+  Reativação: 401 se credenciais inválidas, 409 `NOT_DEACTIVATED` se a conta não está desativada,
+  200 já logado; no `/login`, o alerta de conta desativada tem "Reativar e entrar" (senha digitada uma vez).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

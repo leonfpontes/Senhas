@@ -2,51 +2,59 @@
 T039: Resend Ticket Email Endpoint
 POST /api/v1/public/resend-ticket-email - Resend email for a ticket
 
-Handles scenarios where:
-- Original email was lost/spam filtered
-- User provides another email address
-- Resend all recent tickets for a consulente
+Usado no formulário público de emissão quando a pessoa recebe "você já tem
+senha para esta gira" e não achou o e-mail. Reenvia o MESMO e-mail da emissão
+(número com o prefixo P do associado, horário escolhido, acompanhantes,
+link do bilhete e de cancelamento) — só das senhas ativas (emitida ou na fila
+de espera), e só da gira informada quando o formulário manda `gira_id`.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+import logging
+import uuid
+from datetime import datetime
+
+import sentry_sdk
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
-from src.core.public_links import public_cancel_link, public_ticket_link
 from src.core.database import get_db
 from src.core.limiter import limiter
+from src.core.public_links import public_tenant_logo_url
 from src.core.tz import APP_TZ
-from src.repositories.ticket_repo import TicketRepository
+from src.models.giras import Gira
+from src.models.tenant_config import TenantConfig
+from src.models.tenants import Tenant
+from src.models.tickets import Ticket, TicketStatus
 from src.repositories.consulente_repo import ConsulenteRepository
+from src.repositories.ticket_repo import TicketRepository
+from src.services import waitlist_service
 from src.services.email.base import EmailMessage
 from src.services.email.email_queue import email_queue, EmailQueueItem
-from src.services.email.templates.ticket_emission import (
-    generate_ticket_emission_html,
-    generate_plain_text_fallback,
+from src.services.email.templates.waitlist import (
+    generate_waitlist_entry_html,
+    generate_waitlist_entry_text,
 )
-from src.models.tenants import Tenant
-from src.models.tenant_config import TenantConfig
-from src.models.tickets import Ticket
-
-import logging
-import sentry_sdk
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 logger = logging.getLogger(__name__)
 
+# Só senha ativa recebe reenvio: cancelada/atendida/expirada não tem o que
+# "reenviar" (e reenviar o e-mail de emissão de uma senha cancelada confunde).
+RESENDABLE_STATUSES = (TicketStatus.EMITTED, TicketStatus.WAITLISTED)
+
 
 class ResendTicketEmailRequest(BaseModel):
-    """Request to resend ticket email
+    """Request to resend ticket email.
 
-    Can be used to:
-    - Resend to original email
-    - Send to different email (for same name)
+    `gira_id` (opcional, mas o formulário sempre manda) restringe o reenvio à
+    gira da tela; sem ele, vão as senhas ativas de giras de hoje em diante.
     """
 
     email: EmailStr
-    phone: str | None = None
+    gira_id: uuid.UUID | None = None
 
 
 class ResendTicketEmailResponse(BaseModel):
@@ -54,13 +62,83 @@ class ResendTicketEmailResponse(BaseModel):
 
     Fields:
         tickets_count: Number of tickets found and email resent for
-        email_sent: Whether email was sent successfully
+        email_sent: Whether email was queued
         message: Human-readable message
     """
 
     tickets_count: int
     email_sent: bool
     message: str
+
+
+async def _enqueue_waitlist_entry_email(session: AsyncSession, tenant: Tenant, ticket: Ticket, gira: Gira) -> None:
+    """Reenvia o e-mail "você está na fila de espera" com a posição atual."""
+    position = await waitlist_service.compute_queue_position(
+        session=session,
+        tenant_id=tenant.id,
+        gira_id=gira.id,
+        is_sponsor=ticket.is_sponsor,
+        ticket=ticket,
+    )
+    tc_result = await session.execute(select(TenantConfig).where(TenantConfig.tenant_id == tenant.id))
+    tenant_config = tc_result.scalar_one_or_none()
+    primary_color = (tenant_config.primary_color or "#2E7D32") if tenant_config else "#2E7D32"
+    secondary_color = (tenant_config.secondary_color or primary_color) if tenant_config else primary_color
+    gira_date_str = gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if gira.data_inicio else ""
+    consulente_name = ticket.consulente.nome if ticket.consulente else ""
+
+    html_body = generate_waitlist_entry_html(
+        consulente_name=consulente_name,
+        gira_name=gira.nome,
+        gira_date=gira_date_str,
+        position=position or 1,
+        tenant_name=tenant.name,
+        tenant_logo_url=public_tenant_logo_url(settings.FRONTEND_URL, tenant_config) or "",
+        primary_color=primary_color,
+        secondary_color=secondary_color,
+    )
+    text_body = generate_waitlist_entry_text(
+        consulente_name=consulente_name,
+        gira_name=gira.nome,
+        gira_date=gira_date_str,
+        position=position or 1,
+        tenant_name=tenant.name,
+    )
+    email_queue.enqueue(
+        EmailQueueItem(
+            message=EmailMessage(
+                to_email=ticket.consulente.email,
+                subject=f"Você está na fila de espera - {gira.nome} - {tenant.name}",
+                html_body=html_body,
+                text_body=text_body,
+            ),
+            ticket_id=str(ticket.id),
+        )
+    )
+
+
+async def _enqueue_original_email(session: AsyncSession, tenant: Tenant, ticket: Ticket) -> None:
+    """Reenvia o e-mail que a pessoa recebeu para esta senha, conforme o status:
+    emitida → e-mail de emissão; na fila e promovida → "a vaga é sua" (com o
+    link de confirmação); na fila sem promoção → "você está na fila"."""
+    status = ticket.status if isinstance(ticket.status, TicketStatus) else TicketStatus(ticket.status)
+    if status == TicketStatus.EMITTED:
+        await waitlist_service.send_confirmed_ticket_email(session, ticket)
+        return
+
+    gira_result = await session.execute(
+        select(Gira).where(Gira.id == ticket.gira_id, Gira.tenant_id == ticket.tenant_id)
+    )
+    gira = gira_result.scalar_one_or_none()
+    if gira is None:
+        return
+    if ticket.promoted_at is not None:
+        # Mesmo e-mail da promoção (admin / cancelamento público).
+        from src.api.v1.admin.tickets_list import _send_waitlist_promotion_email
+
+        await _send_waitlist_promotion_email(session, tenant.id, ticket, gira)
+        return
+    await _enqueue_waitlist_entry_email(session, tenant, ticket, gira)
 
 
 @router.post("/resend-ticket-email", response_model=ResendTicketEmailResponse)
@@ -71,56 +149,30 @@ async def resend_ticket_email(
     payload: ResendTicketEmailRequest,
     session: AsyncSession = Depends(get_db),
 ):
-    """Resend ticket emission email
+    """Resend the ticket email for the consulente's active tickets.
 
     Rate-limited per client IP (15/hour) — public endpoint that triggers
     outbound e-mail; without a limit it can be abused to bomb a victim's
-    inbox with up to 10 ticket e-mails per request. The quota is generous
-    enough for several consulentes sharing one NAT/Wi-Fi at an event.
-
-    This endpoint resends the ticket confirmation email for recent tickets.
-    Supports:
-    - Resending to original email (typical use case)
-    - Resending to different email (account recovery)
-
-    Public endpoint: No authentication required!
-
-    Path Parameters:
-        tenant_slug: Tenant identifier
+    inbox. The e-mail always goes to the address stored on the ticket (the
+    one that received it originally), never to an arbitrary address.
 
     Body:
-        {
-            "email": "joao@example.com",
-            "phone": "+5511987654321"  # Optional, helps identify if multiple
-        }
-
-    Response:
-        {
-            "tickets_count": 1,
-            "email_sent": true,
-            "message": "Email resent to joao@example.com (1 ticket)"
-        }
+        {"email": "joao@example.com", "gira_id": "<uuid da gira>"}
 
     Status Codes:
-        200 OK: Email resent successfully
-        404 Not Found: Tenant not found or no tickets found for email
+        200 OK: Email(s) queued
+        404 Not Found: Tenant not found or no active ticket for this e-mail
         400 Bad Request: Invalid email format
-        500 Internal Server Error: Email service failure
     """
 
     try:
         # === STEP 1: Get Tenant ===
-        tenant_query = select(Tenant).where(
-            Tenant.slug == tenant_slug.lower().strip()
-        )
+        tenant_query = select(Tenant).where(Tenant.slug == tenant_slug.lower().strip())
         tenant_result = await session.execute(tenant_query)
         tenant = tenant_result.scalar_one_or_none()
 
         if not tenant:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Tenant '{tenant_slug}' not found",
-            )
+            raise HTTPException(status_code=404, detail="Terreiro não encontrado")
 
         # === STEP 2: Normalize Email ===
         try:
@@ -128,111 +180,42 @@ async def resend_ticket_email(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        # === STEP 3: Find Recent Tickets ===
+        # === STEP 3: Find active tickets (this gira, or upcoming giras) ===
+        upcoming_from = None
+        if payload.gira_id is None:
+            upcoming_from = datetime.now(APP_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
         ticket_repo = TicketRepository(session, Ticket)
         tickets = await ticket_repo.list_by_consulente_email(
             session=session,
             tenant_id=tenant.id,
             email=normalized_email,
-            limit=10,  # Last 10 tickets
+            limit=10,
+            statuses=RESENDABLE_STATUSES,
+            gira_id=payload.gira_id,
+            gira_from=upcoming_from,
         )
 
         if not tickets:
             raise HTTPException(
                 status_code=404,
-                detail=f"No tickets found for email '{payload.email}' in this tenant",
+                detail=(
+                    "Não encontramos senha ativa para este e-mail"
+                    + (" nesta gira." if payload.gira_id else ".")
+                ),
             )
 
-        # === STEP 4: Load Tenant Branding ===
-        tc_query = select(TenantConfig).where(TenantConfig.tenant_id == tenant.id)
-        tc_result = await session.execute(tc_query)
-        tenant_config = tc_result.scalar_one_or_none()
-
-        tenant_address = (tenant_config.endereco or "") if tenant_config else ""
-        primary_color = (
-            (tenant_config.primary_color or "#2E7D32") if tenant_config else "#2E7D32"
-        )
-        secondary_color = (
-            (tenant_config.secondary_color or primary_color)
-            if tenant_config
-            else primary_color
-        )
-        tenant_logo_url = ""
-        if tenant_config and tenant_config.logo_data:
-            tenant_logo_url = (
-                f"{settings.FRONTEND_URL.rstrip('/')}/api/v1/public/tenant/{tenant.id}/logo"
-            )
-        elif tenant_config and tenant_config.logo_url:
-            tenant_logo_url = tenant_config.logo_url
-
-        # === STEP 5: Queue Email Resends ===
+        # === STEP 4: Queue the original e-mails ===
         for ticket in tickets:
-            gira = ticket.gira
-            consulente = ticket.consulente
-            ticket_number = str(ticket.numero).zfill(4)
-            gira_name = gira.nome if gira else ""
-            gira_date = (
-                gira.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M")
-                if gira and gira.data_inicio
-                else ""
-            )
-            gira_location = (gira.local or "") if gira else ""
-            consulente_name = consulente.nome if consulente else ""
-            consulente_phone = (consulente.telefone or "") if consulente else ""
-            rescue_link = public_ticket_link(settings.FRONTEND_URL, tenant.slug, ticket.id)
-            cancel_link = public_cancel_link(settings.FRONTEND_URL, ticket.id)
+            await _enqueue_original_email(session, tenant, ticket)
 
-            html_body = generate_ticket_emission_html(
-                ticket_number=ticket_number,
-                consulente_name=consulente_name,
-                gira_name=gira_name,
-                gira_date=gira_date,
-                gira_location=gira_location,
-                rescue_link=rescue_link,
-                tenant_name=tenant.name,
-                tenant_logo_url=tenant_logo_url,
-                tenant_color=primary_color,
-                is_sponsor=ticket.is_sponsor,
-                tenant_address=tenant_address,
-                primary_color=primary_color,
-                secondary_color=secondary_color,
-                consulente_email=payload.email,
-                consulente_phone=consulente_phone,
-                priority_category=getattr(ticket, "priority_category", None),
-                recados=gira.recados if gira else None,
-                cancel_link=cancel_link,
-            )
-            text_body = generate_plain_text_fallback(
-                ticket_number=ticket_number,
-                consulente_name=consulente_name,
-                gira_name=gira_name,
-                gira_date=gira_date,
-                gira_location=gira_location,
-                rescue_link=rescue_link,
-                is_sponsor=ticket.is_sponsor,
-                tenant_address=tenant_address,
-                tenant_name=tenant.name,
-                consulente_email=payload.email,
-                consulente_phone=consulente_phone,
-                priority_category=getattr(ticket, "priority_category", None),
-                recados=gira.recados if gira else None,
-                cancel_link=cancel_link,
-            )
-            subject_prefix = "✦ Associado — " if ticket.is_sponsor else ""
-            message = EmailMessage(
-                to_email=payload.email,  # Use requested email
-                subject=f"{subject_prefix}[REENVIADO] Sua Senha #{ticket_number} - {tenant.name}",
-                html_body=html_body,
-                text_body=text_body,
-            )
-            email_queue.enqueue(EmailQueueItem(message=message, ticket_id=str(ticket.id)))
-
-        # === STEP 6: Return Response ===
+        # === STEP 5: Return Response ===
         ticket_count = len(tickets)
         return ResendTicketEmailResponse(
             tickets_count=ticket_count,
             email_sent=True,
-            message=f"Email resent to {payload.email} ({ticket_count} ticket{'s' if ticket_count > 1 else ''})",
+            message=(
+                f"Reenviamos {'o e-mail da sua senha' if ticket_count == 1 else f'os e-mails das suas {ticket_count} senhas'}."
+            ),
         )
 
     except HTTPException:

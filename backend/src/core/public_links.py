@@ -37,3 +37,18 @@ def public_cancel_link(frontend_url: str, ticket_id: UUID | str) -> str:
 
 def public_tenant_link(frontend_url: str, tenant_slug: str) -> str:
     return _base(frontend_url) + PUBLIC_TENANT_ROUTE.format(tenant_slug=tenant_slug)
+
+
+def public_tenant_logo_url(frontend_url: str, tenant_config) -> str | None:
+    """URL pública da logo do terreiro.
+
+    O upload grava a imagem em `tenant_configs.logo_data` (BYTEA) e limpa o
+    `logo_url` legado (admin/config.py) — por isso quem só lia `logo_url` nunca
+    mostrava a logo enviada. Ordem: binário servido por
+    GET /api/v1/public/tenant/{tenant_id}/logo; senão a URL legada; senão None.
+    """
+    if tenant_config is None:
+        return None
+    if tenant_config.logo_data:
+        return f"{_base(frontend_url)}/api/v1/public/tenant/{tenant_config.tenant_id}/logo"
+    return tenant_config.logo_url or None

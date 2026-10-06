@@ -5,9 +5,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 const mockPost = jest.fn();
 jest.mock('../../services/api_client', () => ({
   apiClient: { post: (...args: unknown[]) => mockPost(...args) },
+  extractApiErrorMessage: (err: unknown, fallback: string) => {
+    const d = (err as { response?: { data?: { message?: unknown } } })?.response?.data;
+    return typeof d?.message === 'string' ? d.message : fallback;
+  },
 }));
-jest.mock('../../providers/ThemeProvider', () => ({
-  dispatchTenantBrandingUpdated: jest.fn(),
+const mockCompleteLogin = jest.fn();
+jest.mock('../../services/authSession', () => ({
+  completeLogin: (...args: unknown[]) => mockCompleteLogin(...args),
 }));
 jest.mock('next/router', () => ({
   useRouter: () => ({ query: {}, push: jest.fn(), replace: jest.fn() }),
@@ -15,13 +20,21 @@ jest.mock('next/router', () => ({
 
 import LoginPage from '../../pages/login';
 
+function fillAndSubmit(password = 'secret123') {
+  fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: 'a@b.com' } });
+  fireEvent.change(screen.getByLabelText(/^senha/i), { target: { value: password } });
+  fireEvent.click(screen.getByRole('button', { name: /^entrar$/i }));
+}
+
+const DEACTIVATED = {
+  response: { data: { detail: { error_code: 'TENANT_DEACTIVATED', message: 'Esta conta está desativada. Deseja reativá-la?' } } },
+};
+
 describe('Login — Lembrar-me', () => {
   beforeEach(() => {
     mockPost.mockReset();
-    mockPost.mockResolvedValue({ data: { user: { role: 'admin' } } });
-    // jsdom não implementa navigation; evita erro ao redirecionar
-    delete (window as unknown as { location?: unknown }).location;
-    (window as unknown as { location: { href: string } }).location = { href: '' };
+    mockCompleteLogin.mockReset();
+    mockPost.mockResolvedValue({ data: { user: { id: 'u1', role: 'admin' } } });
   });
 
   it('exibe o checkbox "Lembrar-me" marcado por padrão', () => {
@@ -31,41 +44,47 @@ describe('Login — Lembrar-me', () => {
     expect(checkbox).toBeChecked();
   });
 
-  it('envia remember_me=false quando desmarcado', async () => {
+  it('envia remember_me=false quando desmarcado e conclui o login', async () => {
     render(<LoginPage />);
-    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: 'a@b.com' } });
-    fireEvent.change(screen.getByLabelText(/^senha/i), { target: { value: 'secret123' } });
     fireEvent.click(screen.getByRole('checkbox', { name: /lembrar-me/i }));
+    fillAndSubmit();
 
-    fireEvent.click(screen.getByRole('button', { name: /entrar/i }));
+    await waitFor(() => expect(mockCompleteLogin).toHaveBeenCalledWith({ id: 'u1', role: 'admin' }));
+    expect(mockPost).toHaveBeenCalledWith('/api/v1/auth/login', expect.objectContaining({ remember_me: false }));
+  });
 
-    await waitFor(() => expect(mockPost).toHaveBeenCalled());
-    expect(mockPost).toHaveBeenCalledWith(
-      '/api/v1/auth/login',
-      expect.objectContaining({ remember_me: false }),
+  it('conta desativada: "Reativar e entrar" usa a senha já digitada e entra direto', async () => {
+    mockPost.mockRejectedValueOnce(DEACTIVATED);
+    mockPost.mockResolvedValueOnce({ data: { user: { id: 'u1', role: 'admin' } } });
+    render(<LoginPage />);
+    expect(screen.queryByRole('button', { name: /reativar e entrar/i })).not.toBeInTheDocument();
+    fillAndSubmit();
+
+    fireEvent.click(await screen.findByRole('button', { name: /reativar e entrar/i }));
+    await waitFor(() => expect(mockCompleteLogin).toHaveBeenCalled());
+    expect(mockPost).toHaveBeenLastCalledWith(
+      '/api/v1/auth/reactivate-account',
+      { email: 'a@b.com', password: 'secret123', remember_me: true },
+      expect.objectContaining({ skipAutoLogout: true }),
     );
   });
 
-  it('"Reative aqui" só aparece no erro TENANT_DEACTIVATED', async () => {
-    mockPost.mockRejectedValueOnce({
-      response: { data: { detail: { error_code: 'TENANT_DEACTIVATED', message: 'Terreiro desativado.' } } },
-    });
+  it('reativação recusada mostra o motivo real', async () => {
+    mockPost.mockRejectedValueOnce(DEACTIVATED);
+    mockPost.mockRejectedValueOnce({ response: { data: { message: 'Credenciais inválidas' } } });
     render(<LoginPage />);
-    expect(screen.queryByRole('link', { name: /reative aqui/i })).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: 'a@b.com' } });
-    fireEvent.change(screen.getByLabelText(/^senha/i), { target: { value: 'secret123' } });
-    fireEvent.click(screen.getByRole('button', { name: /entrar/i }));
-    const link = await screen.findByRole('link', { name: /reative aqui/i });
-    expect(link.getAttribute('href')).toContain('/reactivate-account');
+    fillAndSubmit();
+
+    fireEvent.click(await screen.findByRole('button', { name: /reativar e entrar/i }));
+    expect(await screen.findByText('Credenciais inválidas')).toBeInTheDocument();
+    expect(mockCompleteLogin).not.toHaveBeenCalled();
   });
 
   it('erro comum não oferece reativação', async () => {
     mockPost.mockRejectedValueOnce({ response: { data: { detail: 'E-mail ou senha incorretos.' } } });
     render(<LoginPage />);
-    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: 'a@b.com' } });
-    fireEvent.change(screen.getByLabelText(/^senha/i), { target: { value: 'x' } });
-    fireEvent.click(screen.getByRole('button', { name: /entrar/i }));
+    fillAndSubmit('x');
     expect(await screen.findByText('E-mail ou senha incorretos.')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /reative aqui/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /reativar e entrar/i })).not.toBeInTheDocument();
   });
 });

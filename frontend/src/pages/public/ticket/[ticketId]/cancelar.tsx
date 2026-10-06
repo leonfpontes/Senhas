@@ -26,6 +26,8 @@ import {
   PublicShell,
   publicErrorMessage,
   formatGiraDate,
+  tenantAgendaPath,
+  ticketPagePath,
   type PublicTicket,
 } from '@/components/public';
 
@@ -135,7 +137,7 @@ export default function CancelTicketPage() {
   const tenantSlug = info?.tenant_slug;
   const nextGiras = tenantSlug ? (
     <Button asChild variant="outline" size="touch" className="w-full">
-      <Link href={`/public/${tenantSlug}`}>Ver próximas giras</Link>
+      <Link href={tenantAgendaPath(tenantSlug)}>Ver próximas giras</Link>
     </Button>
   ) : null;
 
@@ -216,7 +218,12 @@ export default function CancelTicketPage() {
 
       {state === 'keep' && ticket && (
         // Sem ticketId: o link "Cancelar minha senha" do Bilhete apontaria para esta mesma rota.
-        <Bilhete ticket={ticket} heading="Sua senha continua valendo" intro="Nada foi cancelado." />
+        <Bilhete
+          ticket={ticket}
+          heading="Sua senha continua valendo"
+          intro="Nada foi cancelado."
+          shareLink={ticketId ? `${window.location.origin}${ticketPagePath(ticket.tenant_slug, ticketId)}` : undefined}
+        />
       )}
       {state === 'keep' && !ticket && info && (
         <PublicNotice

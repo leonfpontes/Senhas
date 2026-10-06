@@ -19,7 +19,7 @@ from src.core.limiter import limiter
 from src.models import User, UserRole
 from src.models.audit_logs import AuditLog, AuditAction
 from src.security.password import verify_password, hash_password, validate_password_policy
-from src.security.auth_cookies import clear_auth_cookies, is_impersonated_request
+from src.core.auth_cookies import clear_auth_cookies, is_impersonated_request
 from src.services import session_service
 from src.services.email.base import EmailMessage
 from src.services.email.resend_fallback import ResendEmailService
