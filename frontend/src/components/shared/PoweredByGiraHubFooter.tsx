@@ -5,7 +5,7 @@
  */
 'use client';
 
-import { Box, Typography } from '@mui/material';
+import React from 'react';
 
 const GIRAHUB_URL = 'https://girahub.com.br';
 
@@ -24,32 +24,19 @@ export default function PoweredByGiraHubFooter() {
   };
 
   return (
-    <Box
-      component="a"
+    <a
       href={`${GIRAHUB_URL}?utm_source=senha&utm_medium=footer&utm_campaign=organic_referral`}
       target="_blank"
       rel="noopener noreferrer"
       onClick={handleClick}
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 0.75,
-        mt: 4,
-        py: 2,
-        textDecoration: 'none',
-        opacity: 0.65,
-        transition: 'opacity 0.15s',
-        '&:hover': { opacity: 1 },
-      }}
+      data-slot="powered-by"
+      className="mt-6 flex items-center justify-center gap-1.5 py-4 text-sm text-muted-foreground no-underline opacity-80 transition-opacity hover:opacity-100 focus-visible:rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
     >
-      <Box component="img" src="/favicon.svg" alt="" sx={{ width: 16, height: 16 }} />
-      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 12 }}>
-        Powered by{' '}
-        <Box component="span" sx={{ fontWeight: 700, color: 'primary.main' }}>
-          GiraHub
-        </Box>
-      </Typography>
-    </Box>
+      {/* eslint-disable-next-line @next/next/no-img-element -- ícone estático local de 16px */}
+      <img src="/favicon.svg" alt="" width={16} height={16} className="size-4" />
+      <span>
+        Powered by <span className="font-bold text-foreground">GiraHub</span>
+      </span>
+    </a>
   );
 }

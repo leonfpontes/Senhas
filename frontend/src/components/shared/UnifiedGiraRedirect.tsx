@@ -8,10 +8,13 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { Box, Button, CircularProgress, Container, Paper, Typography } from '@mui/material';
+import { CalendarX2, SearchX } from 'lucide-react';
 import * as Sentry from '@sentry/nextjs';
 import { apiClient } from '@/services/api_client';
+import { Button } from '@/components/ui/button';
+import { PublicShell, PublicLoading, PublicNotice } from '@/components/public';
 
 interface UnifiedGiraRedirectProps {
   tipo: 'comum' | 'associado';
@@ -27,6 +30,16 @@ interface UnifiedGiraRedirectProps {
 // seguro (não afirma que o terreiro não existe).
 const TENANT_MISSING_RE = /not found/i;
 type ErrorKind = 'tenant-missing' | 'no-gira' | 'error';
+
+/** "tenda-pai-joaquim" → "Tenda Pai Joaquim" — só para o texto de carregamento, antes de conhecer o nome real. */
+export function humanizeSlug(slug: string | undefined): string {
+  if (!slug) return 'terreiro';
+  return slug
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(' ');
+}
 
 export default function UnifiedGiraRedirect({ tipo }: UnifiedGiraRedirectProps) {
   const router = useRouter();
@@ -70,52 +83,64 @@ export default function UnifiedGiraRedirect({ tipo }: UnifiedGiraRedirectProps) 
 
   useEffect(() => { resolveNextGira(); }, [resolveNextGira]);
 
-  if (errorKind) {
-    const content =
-      errorKind === 'tenant-missing'
-        ? {
-            emoji: '🔍',
-            title: 'Terreiro não encontrado',
-            body: 'Não encontramos nenhum terreiro neste endereço. Confira se o link está correto ou fale com quem o enviou.',
-            action: null,
-          }
-        : errorKind === 'no-gira'
-          ? {
-              emoji: '🕯️',
-              title: 'Nenhuma gira com emissão aberta',
-              body: `No momento não há emissão de senhas${tipo === 'associado' ? ' de associado' : ''} disponível. Entre em contato com o terreiro para saber a data da próxima gira.`,
-              action: 'Atualizar',
-            }
-          : {
-              emoji: '❌',
-              title: 'Erro ao carregar',
-              body: 'Não foi possível carregar as informações. Verifique sua conexão e tente novamente.',
-              action: 'Tentar novamente',
-            };
+  const nome = humanizeSlug(tenantSlug);
 
+  if (errorKind === 'tenant-missing') {
     return (
-      <Container maxWidth="sm" sx={{ py: 8, textAlign: 'center' }}>
-        <Paper sx={{ p: 4, borderRadius: 2 }}>
-          <Typography sx={{ fontSize: 48, lineHeight: 1, mb: 2 }} component="div">
-            {content.emoji}
-          </Typography>
-          <Typography variant="h6" gutterBottom>{content.title}</Typography>
-          <Typography color="text.secondary">{content.body}</Typography>
-          {content.action && (
-            <Button variant="contained" sx={{ mt: 3 }} onClick={resolveNextGira}>
-              {content.action}
+      <PublicShell title="Terreiro não encontrado" hideHeader noindex>
+        <PublicNotice
+          tone="warning"
+          icon={<SearchX />}
+          title="Terreiro não encontrado"
+          description="Não encontramos nenhum terreiro neste endereço. Confira se o link está correto ou fale com quem o enviou."
+        />
+      </PublicShell>
+    );
+  }
+
+  if (errorKind === 'no-gira') {
+    return (
+      <PublicShell title={`Sem emissão aberta · ${nome}`} hideHeader>
+        <PublicNotice
+          tone="info"
+          icon={<CalendarX2 />}
+          title="Nenhuma gira com emissão aberta"
+          description={`No momento não há emissão de senhas${tipo === 'associado' ? ' de associado' : ''} disponível. A agenda do terreiro mostra as próximas datas.`}
+          actions={
+            <>
+              <Button asChild size="touch" className="w-full">
+                <Link href={`/${encodeURIComponent(tenantSlug)}`}>Ver agenda do terreiro</Link>
+              </Button>
+              <Button type="button" variant="outline" size="touch" className="w-full" onClick={resolveNextGira}>
+                Atualizar
+              </Button>
+            </>
+          }
+        />
+      </PublicShell>
+    );
+  }
+
+  if (errorKind === 'error') {
+    return (
+      <PublicShell title="Erro ao carregar" hideHeader>
+        <PublicNotice
+          tone="error"
+          title="Erro ao carregar"
+          description="Não foi possível carregar as informações. Verifique sua conexão e tente novamente."
+          actions={
+            <Button type="button" size="touch" className="w-full" onClick={resolveNextGira}>
+              Tentar novamente
             </Button>
-          )}
-        </Paper>
-      </Container>
+          }
+        />
+      </PublicShell>
     );
   }
 
   return (
-    <Container maxWidth="sm" sx={{ py: 8, textAlign: 'center' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-        <CircularProgress />
-      </Box>
-    </Container>
+    <PublicShell title={`Buscando a próxima gira · ${nome}`} hideHeader>
+      <PublicLoading label={`Buscando a próxima gira de ${nome}…`} />
+    </PublicShell>
   );
 }
