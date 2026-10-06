@@ -64,12 +64,18 @@ describe('participantes do curso', () => {
       profissao: '', experiencia_umbanda: '', contato_contexto_espiritual: '', motivo_busca_desenvolvimento: '',
       interesse_aprendizado: '', ja_conhece_terreiro: null, como_conheceu_terreiro: '', tratamento_psiquiatrico: false,
       tratamento_psiquiatrico_detalhes: '', restricoes_saude: '', aceita_uso_dados: true, aceita_uso_imagem: false,
-      comprovante_inscricao_filename: null,
+      aceita_uso_dados_saude: false, comprovante_inscricao_filename: null,
     };
     const create = formToPayload(form, 'create');
     expect(create).toMatchObject({ nome: 'Ana', valor_mensalidade: null, plano_saude_nome: null, aceita_uso_dados: true });
+    // Consentimento de saúde é o checkbox, explícito — nunca inferido das respostas.
+    expect(create).toMatchObject({ aceita_uso_dados_saude: false });
     expect(create).not.toHaveProperty('pago');
-    expect(formToPayload(form, 'edit')).toMatchObject({ pago: true, valor_pago: 80 });
+    const edit = formToPayload(form, 'edit');
+    expect(edit).toMatchObject({ pago: true, valor_pago: 80 });
+    // Data pura → meio-dia de Brasília: continua 05/10 em UTC (meia-noite UTC virava 04/10 21h em Brasília).
+    expect(edit.data_pagamento).toBe('2026-10-05T12:00:00-03:00');
+    expect(new Date(edit.data_pagamento as string).toISOString().slice(0, 10)).toBe('2026-10-05');
   });
 });
 

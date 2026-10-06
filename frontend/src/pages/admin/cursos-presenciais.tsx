@@ -13,6 +13,7 @@ import { Link2, MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react
 import AdminLayout from './admin_layout';
 import CrudDrawer from '../../components/CrudDrawer';
 import { apiClient } from '../../services/api_client';
+import { fetchAllPages } from '../../services/fetchAllPages';
 import { useSubscription } from '../../hooks/useSubscription';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useSnackbar } from '../../contexts/SnackbarContext';
@@ -34,7 +35,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { formatBRL, formatDateTimeBr } from '@/lib/dateBr';
+import { formatBRL, formatDateTimeBr, toNum } from '@/lib/dateBr';
 import { IconCurso } from '@/lib/icons';
 
 interface CursoPresencial {
@@ -45,7 +46,8 @@ interface CursoPresencial {
   data_inicio: string; // ISO
   data_fim?: string | null;
   max_participantes?: number | null;
-  valor_mensalidade_padrao?: number | null;
+  /** Decimal serializado como string pela API ("120.00") — sempre ler via `toNum`. */
+  valor_mensalidade_padrao?: number | string | null;
   local?: string | null;
   observacoes?: string | null;
   is_active: boolean;
@@ -141,8 +143,8 @@ function CursosPresenciaisContent() {
     }
     setLoading(true);
     try {
-      const res = await apiClient.get<CursoPresencial[]>(API_PREFIX);
-      setCursos(res.data);
+      // Backend corta em 50 por padrão (máx. 100/página): busca todas as páginas.
+      setCursos(await fetchAllPages<CursoPresencial>(API_PREFIX, { pageSize: 100 }));
     } catch {
       showError('Erro ao carregar os cursos.');
     } finally {
@@ -178,7 +180,7 @@ function CursosPresenciaisContent() {
       data_inicio: isoToLocalDatetime(curso.data_inicio),
       data_fim: isoToLocalDatetime(curso.data_fim),
       max_participantes: curso.max_participantes != null ? String(curso.max_participantes) : '',
-      valor_mensalidade_padrao: curso.valor_mensalidade_padrao ?? 0,
+      valor_mensalidade_padrao: toNum(curso.valor_mensalidade_padrao) ?? 0,
       local: curso.local ?? '',
       observacoes: curso.observacoes ?? '',
       is_active: curso.is_active,
@@ -329,7 +331,7 @@ function CursosPresenciaisContent() {
         header: 'Mensalidade',
         meta: { align: 'right' },
         cell: ({ row }) =>
-          row.original.gerar_mensalidade ? formatBRL(row.original.valor_mensalidade_padrao) : <span className="text-muted-foreground">Sem cobrança</span>,
+          row.original.gerar_mensalidade ? formatBRL(toNum(row.original.valor_mensalidade_padrao)) : <span className="text-muted-foreground">Sem cobrança</span>,
       },
       {
         accessorKey: 'tipo_formulario',
@@ -372,7 +374,7 @@ function CursosPresenciaisContent() {
         </span>
         <span className="text-xs text-muted-foreground">
           {curso.max_participantes ? `${curso.max_participantes} vagas` : 'Vagas ilimitadas'}
-          {curso.gerar_mensalidade ? ` · ${formatBRL(curso.valor_mensalidade_padrao)}/mês` : ''}
+          {curso.gerar_mensalidade ? ` · ${formatBRL(toNum(curso.valor_mensalidade_padrao))}/mês` : ''}
         </span>
         <Button variant="outline" size="sm" className="mt-1 self-start" onClick={() => goParticipantes(curso)}>
           <Users />

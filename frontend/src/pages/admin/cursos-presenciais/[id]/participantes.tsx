@@ -64,13 +64,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { fetchAllPages } from '@/services/fetchAllPages';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSnackbar } from '@/contexts/SnackbarContext';
 import { useTenant } from '@/providers/ThemeProvider';
 import { chartTokens, chartTooltipStyle } from '@/lib/chartTokens';
-import { currentMonthBr, formatBRL, formatDateBr, formatDateTimeBr, monthLabelShort, todayBr } from '@/lib/dateBr';
+import { currentMonthBr, formatBRL, formatDateBr, formatDateTimeBr, monthLabelShort, toNum, todayBr } from '@/lib/dateBr';
 import { IconCurso } from '@/lib/icons';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -137,6 +138,7 @@ interface Participante {
   restricoes_saude?: string | null;
   aceita_uso_dados?: boolean;
   aceita_uso_imagem?: boolean;
+  aceita_uso_dados_saude?: boolean;
   comprovante_inscricao_filename?: string | null;
   created_at: string;
   updated_at: string;
@@ -185,6 +187,8 @@ export interface ParticipanteForm {
   restricoes_saude: string;
   aceita_uso_dados: boolean;
   aceita_uso_imagem: boolean;
+  /** Consentimento LGPD explícito para dados de saúde (art. 11) — nunca inferido. */
+  aceita_uso_dados_saude: boolean;
   comprovante_inscricao_filename: string | null;
 }
 
@@ -214,11 +218,7 @@ interface ResumoFinanceiro {
 /** Dia de vencimento das mensalidades de curso (o backend não tem configuração própria). */
 const DIA_VENCIMENTO_CURSO = 10;
 
-export const toNum = (v: number | string | null | undefined): number | null => {
-  if (v == null || v === '') return null;
-  const n = typeof v === 'string' ? parseFloat(v) : v;
-  return Number.isFinite(n) ? n : null;
-};
+export { toNum };
 
 export function mensalidadeToCobranca(i: MensalidadeItem): CobrancaItem {
   return {
@@ -286,6 +286,7 @@ function emptyForm(valorPadrao: number | null): ParticipanteForm {
     restricoes_saude: '',
     aceita_uso_dados: false,
     aceita_uso_imagem: false,
+    aceita_uso_dados_saude: false,
     comprovante_inscricao_filename: null,
   };
 }
@@ -335,6 +336,7 @@ function participanteToForm(p: Participante): ParticipanteForm {
     restricoes_saude: p.restricoes_saude || '',
     aceita_uso_dados: !!p.aceita_uso_dados,
     aceita_uso_imagem: !!p.aceita_uso_imagem,
+    aceita_uso_dados_saude: !!p.aceita_uso_dados_saude,
     comprovante_inscricao_filename: p.comprovante_inscricao_filename || null,
   };
 }
@@ -381,12 +383,15 @@ export function formToPayload(f: ParticipanteForm, mode: 'create' | 'edit'): Rec
     restricoes_saude: f.restricoes_saude || null,
     aceita_uso_dados: f.aceita_uso_dados,
     aceita_uso_imagem: f.aceita_uso_imagem,
+    aceita_uso_dados_saude: f.aceita_uso_dados_saude,
   };
   if (mode === 'edit') {
     payload.pago = f.pago;
     if (f.pago) {
       payload.valor_pago = f.valor_pago > 0 ? f.valor_pago : null;
-      payload.data_pagamento = f.data_pagamento ? new Date(f.data_pagamento).toISOString() : null;
+      // Data pura (sem hora): meio-dia de Brasília cai no MESMO dia em UTC. `new Date('YYYY-MM-DD')`
+      // virava meia-noite UTC = 21h do dia anterior em Brasília (exibia um dia antes).
+      payload.data_pagamento = f.data_pagamento ? `${f.data_pagamento}T12:00:00-03:00` : null;
     }
   }
   return payload;
@@ -500,8 +505,9 @@ function ParticipantesContent() {
   const fetchParticipantes = useCallback(async () => {
     if (!id || !canView) return;
     try {
-      const res = await apiClient.get<Participante[]>(`/api/v1/admin/cursos-presenciais/${id}/participantes`);
-      setParticipantes(res.data);
+      // Backend corta em 100 por padrão: busca todas as páginas (máx. 1000/página).
+      const lista = await fetchAllPages<Participante>(`/api/v1/admin/cursos-presenciais/${id}/participantes`, { pageSize: 1000 });
+      setParticipantes(lista);
     } catch {
       showError('Não foi possível carregar a lista de participantes.');
     }
@@ -827,7 +833,7 @@ function ParticipantesContent() {
             <div className="flex flex-col">
               <Badge className="w-fit border-transparent bg-success text-success-foreground">Pago</Badge>
               <span className="mt-0.5 text-xs text-muted-foreground">
-                {formatBRL(toNum(row.original.valor_pago) ?? 0)} · {formatDateTimeBr(row.original.data_pagamento)}
+                {formatBRL(toNum(row.original.valor_pago) ?? 0)} · {formatDateBr(row.original.data_pagamento)}
               </span>
             </div>
           ) : (
@@ -1318,6 +1324,12 @@ function ParticipantesContent() {
                     label="Autoriza o uso de imagem e voz"
                     checked={form.aceita_uso_imagem}
                     onChange={(v) => setField('aceita_uso_imagem', v)}
+                  />
+                  <CheckField
+                    id="part-lgpd-saude"
+                    label="Autoriza o tratamento dos dados de saúde informados (LGPD, art. 11)"
+                    checked={form.aceita_uso_dados_saude}
+                    onChange={(v) => setField('aceita_uso_dados_saude', v)}
                   />
                 </AccordionContent>
               </AccordionItem>
