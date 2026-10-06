@@ -103,7 +103,6 @@ export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   contas_financeiras: 'pro',
   fila_espera: 'pro',
   agendamento_por_horario: 'pro',
-  api_access: 'premium',
   suporte_prioritario: 'premium',
 };
 
@@ -132,7 +131,6 @@ export const FEATURE_CATALOG: readonly FeatureCatalogItem[] = [
   { key: 'analytics_avancado', label: 'Relatórios avançados', group: 'Relatórios' },
   { key: 'export_csv', label: 'Exportar planilhas (CSV)', group: 'Relatórios' },
   { key: 'auditoria', label: 'Histórico de alterações', group: 'Relatórios' },
-  { key: 'api_access', label: 'Acesso à API', group: 'Suporte' },
   { key: 'suporte_prioritario', label: 'Suporte prioritário', group: 'Suporte' },
 ];
 

@@ -51,7 +51,7 @@
 
 ### 2. API Layer (Backend)
 
-**FastAPI 0.136** com Python async, OpenAPI automático.
+**FastAPI 0.142** (Starlette 1.x) com Python async, OpenAPI automático.
 
 ```
 Request → Nginx → FastAPI

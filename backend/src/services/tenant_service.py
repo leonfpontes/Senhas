@@ -75,9 +75,6 @@ class TenantService:
             is_active=True,
         )
         
-        # Generate API key for tenant
-        api_key = self._generate_api_key()
-        
         # Create admin user for tenant
         password = secrets.token_urlsafe(16)
         password_hash = hash_password(password)
@@ -128,7 +125,6 @@ class TenantService:
                 "is_trial": subscription.is_trial,
                 "max_users": subscription.max_users,
             },
-            "api_key": api_key,
             "temp_password": password,  # Should be sent securely
         }
     
@@ -307,13 +303,4 @@ class TenantService:
         self.db.add(audit)
 
         return snapshot
-    
-    def _generate_api_key(self) -> str:
-        """Generate unique API key for tenant.
-        
-        Returns:
-            Base62-encoded API key
-        """
-        import base64
-        raw_key = secrets.token_bytes(32)
-        return base64.b64encode(raw_key).decode("utf-8").rstrip("=")
+

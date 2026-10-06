@@ -118,6 +118,17 @@ def create_app() -> FastAPI:
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,
         openapi_url="/openapi.json" if settings.DEBUG else None,
+        # OpenTelemetry nativo do FastAPI (>=0.142) desligado de proposito:
+        # tracing/erros ficam no Sentry e nao ha coletor OTLP na infra. Sem
+        # isto, o FastAPI instrumentaria sozinho se algum provider global de
+        # OTel fosse registrado (ex. por outra lib) ou se OTEL_EXPORTER_OTLP_*
+        # aparecesse no ambiente. Ver Q-06 em docs/plano-execucao.md.
+        telemetry={
+            "tracing": False,
+            "metrics": False,
+            "logs": False,
+            "auto_configure": False,
+        },
     )
 
     # Attach rate limiter state and 429 handler

@@ -49,7 +49,7 @@ class TestPlatformTenants:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "admin_user": {"id": "x", "email": "a@b.com", "username": "admin", "role": "admin"},
             "subscription": {"plan": "basic", "is_trial": False, "max_users": 10},
-            "api_key": "key123", "temp_password": "pass123",
+            "temp_password": "pass123",
         }
         MockService.return_value = service
         db = AsyncMock()
