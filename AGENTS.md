@@ -617,7 +617,7 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   um item novo — feito de verdade, com `/metrics` exposto e alertas.
 
 **Monitoramento de erros — Sentry (desde 2026-06-27):**
-- Backend: `sentry-sdk[fastapi]>=1.39.0` — inicializado em `main.py` quando `SENTRY_DSN` definido.
+- Backend: `sentry-sdk[fastapi]>=2.63.0` (piso exigido pelo roteamento do fastapi ≥ 0.137) — inicializado em `main.py` quando `SENTRY_DSN` definido. O OpenTelemetry nativo do fastapi 0.142 fica desligado (`telemetry=` em `create_app`).
 - Frontend: `@sentry/nextjs ^10` (upgrade 8.55 → 10.76 em 2026-10-05):
   - Navegador: `frontend/src/instrumentation-client.ts` (convenção `instrumentation-client` do Next 15.3+; substituiu o
     `sentry.client.config.ts`, deprecado desde o SDK 9). Replay só em erro (`maskAllText`/`blockAllMedia`),

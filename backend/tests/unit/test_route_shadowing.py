@@ -7,7 +7,8 @@ a busca da plataforma respondia 422 (UUID inválido) — nunca chegava no handle
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi.routing import APIRoute
+from fastapi import APIRouter, FastAPI
+from fastapi.routing import APIRoute, iter_route_contexts
 from fastapi.testclient import TestClient
 from starlette.routing import Match
 
@@ -21,8 +22,24 @@ def app():
     return create_app()
 
 
+def _api_routes(app):
+    """Rotas da API na ordem em que o roteador as testa.
+
+    Desde o fastapi 0.137 `app.routes` é uma árvore: cada `include_router` vira
+    um nó `_IncludedRouter` em vez de copiar as rotas. `iter_route_contexts`
+    achata a árvore em profundidade — a mesma ordem do despacho — e cada contexto
+    já carrega o path efetivo (com prefixos) e o `matches()` da rota incluída.
+    Iterar `app.routes` direto passaria a ver só as 2 rotas do próprio app e o
+    teste ficaria verde sem checar nada.
+    """
+    return [
+        ctx for ctx in iter_route_contexts(app.routes)
+        if isinstance(ctx.original_route, APIRoute)
+    ]
+
+
 def _shadowed_routes(app):
-    routes = [r for r in app.routes if isinstance(r, APIRoute)]
+    routes = _api_routes(app)
     found = []
     for i, route in enumerate(routes):
         if "{" in route.path:
@@ -40,7 +57,34 @@ def _shadowed_routes(app):
 
 
 def test_nenhuma_rota_fixa_sombreada(app):
+    # Guarda contra o teste ficar vazio: o app tem ~240 rotas de API.
+    assert len(_api_routes(app)) > 200
     assert _shadowed_routes(app) == []
+
+
+def test_detector_acha_sombreamento_em_routers_aninhados():
+    """O detector enxerga rotas dentro de routers incluídos em routers incluídos."""
+    inner = APIRouter(prefix="/tenants")
+
+    @inner.get("/{tenant_id}")
+    async def detalhe(tenant_id: str):
+        return {"handler": "detalhe"}
+
+    @inner.get("/search")
+    async def busca():
+        return {"handler": "busca"}
+
+    outer = APIRouter(prefix="/api/v1/platform")
+    outer.include_router(inner)
+    fake = FastAPI()
+    fake.include_router(outer)
+
+    assert _shadowed_routes(fake) == [
+        "GET /api/v1/platform/tenants/search engolida por /api/v1/platform/tenants/{tenant_id}"
+    ]
+    # E o despacho real concorda com o detector: "search" cai no handler de detalhe.
+    resp = TestClient(fake).get("/api/v1/platform/tenants/search")
+    assert resp.json() == {"handler": "detalhe"}
 
 
 def test_busca_de_terreiros_chega_no_handler(app):

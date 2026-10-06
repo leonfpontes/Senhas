@@ -38,18 +38,12 @@ jobs:
           # app) mas o pip-audit o audita porque esta instalado; sobe pro patch
           # mais recente pra nao acusar CVE de ferramenta de build (ex. PYSEC-2026-3447).
           pip install --upgrade pip setuptools --quiet
-          # Advisories ignoradas: todas exigem starlette 1.x, um major que fica
-          # fora do Q-06 lote 2 (fastapi 0.136.3 + starlette 0.52.1, 2026-10-05):
-          # a migracao pro 1.x vem junto com o fastapi 0.137+ (refatoracao do
-          # roteamento). Sem isto o job fica vermelho por vulns que nao da pra
-          # corrigir sem essa migracao maior. PYSEC-2026-1942 saiu da lista:
-          # corrigida pelo starlette 0.52.1. Revisar ao subir pro starlette 1.x.
-          pip-audit --format=columns \
-            --ignore-vuln PYSEC-2026-161 \
-            --ignore-vuln PYSEC-2026-248 \
-            --ignore-vuln PYSEC-2026-249 \
-            --ignore-vuln PYSEC-2026-2280 \
-            --ignore-vuln PYSEC-2026-2281
+          # Sem advisories ignoradas: as 5 que ficavam aqui (PYSEC-2026-161, 248,
+          # 249, 2280, 2281 — todas do starlette 0.x, a 249 e DoS em request.form)
+          # foram corrigidas na migracao pra fastapi 0.142.2 + starlette 1.7.0
+          # (Q-06 etapa final, 2026-10-06). Advisory nova sem correcao entra
+          # com --ignore-vuln e justificativa, nunca em silencio.
+          pip-audit --format=columns
 
       - name: Node.js dependency audit
         working-directory: frontend

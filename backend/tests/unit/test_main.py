@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
 from fastapi import FastAPI
+from fastapi.routing import iter_route_contexts
 from fastapi.testclient import TestClient
 
 
@@ -30,7 +31,9 @@ class TestCreateApp:
 
         from src.main import create_app
         app = create_app()
-        routes = [r.path for r in app.routes]
+        # fastapi>=0.137: app.routes e uma arvore (_IncludedRouter);
+        # iter_route_contexts achata na ordem de despacho.
+        routes = [r.path for r in iter_route_contexts(app.routes)]
         assert "/health" in routes
 
     @patch("src.main.engine")
@@ -43,7 +46,9 @@ class TestCreateApp:
 
         from src.main import create_app
         app = create_app()
-        routes = [r.path for r in app.routes]
+        # fastapi>=0.137: app.routes e uma arvore (_IncludedRouter);
+        # iter_route_contexts achata na ordem de despacho.
+        routes = [r.path for r in iter_route_contexts(app.routes)]
         assert "/api/v1" in routes
 
 
