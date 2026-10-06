@@ -184,10 +184,18 @@ class TestGetAnalytics:
 # ── audit_trail.py ───────────────────────────────────────────────────────────
 
 class TestListAuditLogs:
-    async def test_non_admin_raises(self):
+    @patch("src.api.v1.admin.audit_trail.AuditLogRepository")
+    async def test_operador_com_grupo_nao_e_barrado_por_is_admin(self, MockRepo):
+        """O acesso é decidido por require_group_permission(AUDITORIA, 'view') + plano (Depends);
+        antes um `is_admin` extra barrava o operador a quem o grupo liberou a auditoria."""
+        repo_inst = AsyncMock()
+        repo_inst.list_filtered.return_value = []
+        repo_inst.count_filtered.return_value = 0
+        MockRepo.return_value = repo_inst
+
         from src.api.v1.admin.audit_trail import list_audit_logs
-        with pytest.raises(InsufficientPermissionsError):
-            await list_audit_logs(0, 50, None, None, None, _operator_user(), AsyncMock())
+        result = await list_audit_logs(0, 50, None, None, None, _operator_user(), AsyncMock())
+        assert result.total == 0
 
     @patch("src.api.v1.admin.audit_trail.AuditLogRepository")
     async def test_success(self, MockRepo):

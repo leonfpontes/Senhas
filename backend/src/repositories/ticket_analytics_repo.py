@@ -87,14 +87,27 @@ class TicketAnalyticsRepository:
         )
         result_used = await self.db.execute(stmt_used)
         total_used = result_used.scalar_one() or 0
-        
+
+        # Cancelados de verdade (status CANCELLED). Antes era emitidos − usados, o que somava
+        # as senhas ainda pendentes e os não comparecimentos aos "cancelados".
+        stmt_cancelled = select(func.count(Ticket.id)).where(
+            and_(where_clause, Ticket.status == TicketStatus.CANCELLED)
+        )
+        total_cancelled = (await self.db.execute(stmt_cancelled)).scalar_one() or 0
+
+        stmt_no_show = select(func.count(Ticket.id)).where(
+            and_(where_clause, Ticket.status == TicketStatus.NO_SHOW)
+        )
+        total_no_show = (await self.db.execute(stmt_no_show)).scalar_one() or 0
+
         # Calculate usage rate
         usage_rate = (total_used / total_emitted * 100) if total_emitted > 0 else 0
-        
+
         return {
             "total_emitted": total_emitted,
             "total_used": total_used,
-            "total_cancelled": total_emitted - total_used,
+            "total_cancelled": total_cancelled,
+            "total_no_show": total_no_show,
             "usage_rate": round(usage_rate, 2),
         }
 

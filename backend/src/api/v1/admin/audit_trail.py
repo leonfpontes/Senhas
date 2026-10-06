@@ -10,10 +10,14 @@ from datetime import datetime
 from src.core.database import get_db
 from src.models import User, AuditLog, AuditAction, PermissionFeature
 from src.repositories.audit_log_repo import AuditLogRepository
-from src.api.dependencies import get_current_user, require_group_permission
-from src.core.errors import InsufficientPermissionsError
+from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin-audit"])
+router = APIRouter(
+    prefix="/api/v1/admin",
+    tags=["admin-audit"],
+    # Gate de plano único (P-05): a tela já pedia can('auditoria'), o endpoint não checava.
+    dependencies=[Depends(require_plan_feature("auditoria"))],
+)
 
 
 class AuditLogResponse(BaseModel):
@@ -49,8 +53,9 @@ async def list_audit_logs(
     db: AsyncSession = Depends(get_db),
 ) -> AuditLogListResponse:
     """List audit logs for tenant.
-    
-    Requires admin role.
+
+    Acesso: plano com `auditoria` + grupo AUDITORIA:view (admin faz bypass do grupo). Antes
+    havia também um `is_admin` aqui, que barrava o operador a quem o grupo liberou a auditoria.
     
     Query parameters:
     - skip: Pagination offset
@@ -59,9 +64,6 @@ async def list_audit_logs(
     - resource_type_filter: Filter by resource type
     - user_id_filter: Filter by actor user ID
     """
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Admin required")
-    
     repo = AuditLogRepository(db)
 
     # Parse action filter

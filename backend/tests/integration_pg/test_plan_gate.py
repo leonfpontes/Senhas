@@ -30,6 +30,8 @@ MODULOS = {
     "mensalidade_associado": ("GET", f"/api/v1/admin/financeiro/associados?mes={MES}", PlanType.BASIC),
     "mensalidade_config": ("GET", "/api/v1/admin/financeiro/config", PlanType.BASIC),
     "mediuns": ("GET", "/api/v1/admin/mediuns/aniversariantes", PlanType.FREE),
+    "analytics_basico": ("GET", "/api/v1/admin/analytics", PlanType.BASIC),
+    "auditoria": ("GET", "/api/v1/admin/audit-logs", PlanType.BASIC),
 }
 
 

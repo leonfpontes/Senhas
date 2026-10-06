@@ -175,23 +175,24 @@ class TestTicketAnalyticsRepository:
 
     async def test_get_total_stats(self, repo):
         r, db = repo
-        # Two execute calls: total_emitted, total_used
+        # Quatro contagens: emitidos, usados, cancelados (status CANCELLED) e não comparecimentos
         db.execute.side_effect = [
             _mock_result_scalar(100),  # total_emitted
             _mock_result_scalar(80),   # total_used
+            _mock_result_scalar(5),    # total_cancelled
+            _mock_result_scalar(3),    # total_no_show
         ]
         result = await r.get_total_stats(uuid4())
         assert result["total_emitted"] == 100
         assert result["total_used"] == 80
-        assert result["total_cancelled"] == 20
+        # Antes: emitidos − usados (= 20, somando pendentes e não comparecimentos)
+        assert result["total_cancelled"] == 5
+        assert result["total_no_show"] == 3
         assert result["usage_rate"] == 80.0
 
     async def test_get_total_stats_zero(self, repo):
         r, db = repo
-        db.execute.side_effect = [
-            _mock_result_scalar(0),
-            _mock_result_scalar(0),
-        ]
+        db.execute.side_effect = [_mock_result_scalar(0)] * 4
         result = await r.get_total_stats(uuid4())
         assert result["usage_rate"] == 0
 
@@ -200,6 +201,8 @@ class TestTicketAnalyticsRepository:
         db.execute.side_effect = [
             _mock_result_scalar(50),
             _mock_result_scalar(25),
+            _mock_result_scalar(0),
+            _mock_result_scalar(0),
         ]
         result = await r.get_total_stats(uuid4(), gira_id=uuid4())
         assert result["total_emitted"] == 50
