@@ -48,9 +48,11 @@ describe('TenantAwareThemeProvider — applyBrand', () => {
       </TenantAwareThemeProvider>,
     );
 
-    await waitFor(() => expect(token('--primary')).toBe('#4f46e5'));
+    // O primário do terreiro é igual ao padrão: espera pelo secundário, que só muda quando
+    // as cores do terreiro chegam (senão o teste passa adiante com as cores padrão sob carga).
+    await waitFor(() => expect(token('--secondary')).toBe('#0f766e'));
+    expect(token('--primary')).toBe('#4f46e5');
     expect(token('--primary-foreground').toLowerCase()).toBe('#ffffff');
-    expect(token('--secondary')).toBe('#0f766e');
     expect(token('--secondary-foreground')).toBe('#ffffff');
     expect(token('--ring')).toBe('#4f46e5');
     expect(token('--sidebar-primary')).toBe('#4f46e5');
