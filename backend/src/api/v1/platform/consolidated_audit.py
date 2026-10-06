@@ -5,9 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 
 from src.core.database import get_db
+from src.core.tz import APP_TZ
 from src.api.dependencies import require_super_admin
 from src.models import User
 from src.models.audit_logs import AuditLog, AuditAction
@@ -40,13 +41,27 @@ class AuditSummaryResponse(BaseModel):
     by_tenant_slug: Dict[str, str] = {}
 
 
-def _parse_datetime(date_str: str) -> datetime:
-    """Parse datetime string."""
+def _parse_datetime(date_str: str, end_of_day: bool = False) -> datetime:
+    """Converte a data do filtro em datetime com fuso.
+
+    Data sem hora ("YYYY-MM-DD", o que o painel manda) é um dia do calendário de
+    Brasília (``APP_TZ``): no início do período vira 00:00 local; no fim
+    (``end_of_day=True``) vira o último instante do dia local, para que o filtro
+    ``created_at <= end`` inclua o dia inteiro — antes virava 00:00Z e o último
+    dia nunca aparecia. Data com hora é usada como veio (ISO 8601).
+    """
     try:
-        # Support ISO format with or without time
         if "T" not in date_str:
-            date_str += "T00:00:00Z"
-        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            day = date.fromisoformat(date_str)
+            start_local = datetime.combine(day, time.min, tzinfo=APP_TZ)
+            if end_of_day:
+                next_day = datetime.combine(day + timedelta(days=1), time.min, tzinfo=APP_TZ)
+                return next_day - timedelta(microseconds=1)
+            return start_local
+        parsed = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=APP_TZ)
+        return parsed
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -74,7 +89,7 @@ async def get_audit_logs(
     
     try:
         start = _parse_datetime(start_date)
-        end = _parse_datetime(end_date)
+        end = _parse_datetime(end_date, end_of_day=True)
         
         if start > end:
             raise HTTPException(
@@ -144,7 +159,7 @@ async def get_audit_feed(
     """
     try:
         start = _parse_datetime(start_date)
-        end = _parse_datetime(end_date)
+        end = _parse_datetime(end_date, end_of_day=True)
 
         filters = [
             AuditLog.created_at >= start,
@@ -296,7 +311,7 @@ async def get_tenant_audit_logs(
     
     try:
         start = _parse_datetime(start_date)
-        end = _parse_datetime(end_date)
+        end = _parse_datetime(end_date, end_of_day=True)
         
         result = await service.get_tenant_activity(
             tenant_id, start, end, skip, limit
@@ -327,7 +342,7 @@ async def get_user_audit_logs(
     
     try:
         start = _parse_datetime(start_date)
-        end = _parse_datetime(end_date)
+        end = _parse_datetime(end_date, end_of_day=True)
         
         result = await service.get_user_activity(
             user_id, start, end, skip, limit
@@ -355,7 +370,7 @@ async def get_action_trends(
     
     try:
         start = _parse_datetime(start_date)
-        end = _parse_datetime(end_date)
+        end = _parse_datetime(end_date, end_of_day=True)
         
         result = await service.get_action_trends(start, end)
         
@@ -381,7 +396,7 @@ async def get_tenant_trends(
     
     try:
         start = _parse_datetime(start_date)
-        end = _parse_datetime(end_date)
+        end = _parse_datetime(end_date, end_of_day=True)
         
         result = await service.get_tenant_trends(start, end)
         
@@ -408,7 +423,7 @@ async def export_audit_logs(
     
     try:
         start = _parse_datetime(start_date)
-        end = _parse_datetime(end_date)
+        end = _parse_datetime(end_date, end_of_day=True)
         
         result = await service.export_audit_logs(start, end, format_type)
         
