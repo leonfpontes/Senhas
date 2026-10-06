@@ -20,7 +20,8 @@ Senhas e um SaaS multi-tenant para emissao e gestao de tickets (senhas) para ate
 Principais modulos:
 - API publica de emissao e reenvio de senha.
 - Painel admin do tenant (giras, porta, tickets, analytics, config, auditoria).
-- Painel platform (super admin) para gestao de tenants, usuarios globais, billing e feature flags.
+- Painel platform (super admin) para gestao de tenants, usuarios globais e billing (a aba de
+  feature flags saiu em 2026-10-06 — ver §11.18).
 
 ---
 
@@ -88,6 +89,14 @@ tenant redundante (barato) a uma excecao.
 - Impersonacao usa sessionStorage e header Bearer — fluxo preservado separado.
 - `hasAuthToken()` checa: `sessionStorage.getItem('access_token')` OR `document.cookie.includes('auth_state=1')` OR `localStorage.getItem('user')`.
 - Logout DEVE chamar `POST /api/v1/auth/logout` para limpar cookies no servidor.
+- Apagar os cookies de auth: SEMPRE `clear_auth_cookies(response)` de `src/security/auth_cookies.py`
+  (os 3 cookies, com os mesmos atributos do login — `secure` depende de DEBUG). Usado por logout,
+  logout-all, change-password, delete account e deactivate account.
+- Impersonacao: os cookies do navegador sao do SUPER-ADMIN. Endpoint que revoga sessoes ou apaga
+  cookies recusa token com `impersonated_by` (403, `is_impersonated_request(request)`): logout-all,
+  change-password, delete account, deactivate account. No front, o "Sair" do topo chama
+  `endImpersonation()` (nunca `/auth/logout`) e o perfil nao grava o usuario impersonado no
+  `localStorage['user']` (so no `sessionStorage` da aba).
 
 ### 3.3 Grupos de Permissao — OBRIGATORIO em toda funcionalidade
 
@@ -126,6 +135,12 @@ Rotas existentes e suas features:
 - Analytics → `PermissionFeature.ANALYTICS`
 - Relatorio de Gira / exports CSV → `PermissionFeature.RELATORIO_GIRA`
 - Cursos Presenciais / Sites → `PermissionFeature.CURSOS_PRESENCIAIS`
+
+Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
+leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
+pode virar escalada de privilegio, escreva a protecao especifica — ex.: `users.py` (operador com
+USUARIOS nao cria/promove/edita/remove administrador; SUPER_ADMIN nunca e atribuivel; ninguem se
+exclui/desativa/rebaixa; o ultimo admin ativo fica) e `config.py` (cores/logo exigem plano).
 
 Para nova feature sem equivalente existente:
 1. Adicionar valor ao enum `PermissionFeature` em `backend/src/models/permission_groups.py`.
@@ -211,7 +226,14 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
 - Modulos gated hoje: estoque (`estoque_controle`), sites e cursos presenciais (`site_builder`), contas
   financeiras (`contas_financeiras`), rastreio/reenvio de e-mail (`email_transacional`), mensalidades
   (`mensalidade_mediun` / `mensalidade_associado`), mediuns (`mediuns`, em aniversariantes e criacao),
-  toggles de fila de espera e agendamento por horario em config.
+  toggles de fila de espera e agendamento por horario em config, marca do terreiro
+  (`tema_personalizado`: so quando o PUT /tenant/config MUDA cor principal/de apoio/cor do texto, e
+  no POST /tenant/logo; remover logo e os demais campos salvam em qualquer plano) e exportacao CSV
+  (`export_csv`: CSV da gira e da posicao de estoque).
+- `bulk_operations` vale em TODOS os planos (always-on desde 88dbc25; `plan_features.py` devolve
+  True): nao e vendido — fica fora do comparativo (`UNSOLD_FEATURES` em `constants/plans.ts`), junto
+  com `analytics_avancado` e `suporte_prioritario`, que nao tem nada implementado. Os campos seguem
+  no catalogo `PlanFeatures`.
 - Rotas `/api/v1/platform/*`: `Depends(require_super_admin)` importado de `src.api.dependencies` (copia unica).
 
 ---
@@ -406,6 +428,12 @@ Incluir obrigatoriamente:
 - **Campos de branding**: nome, slug, logo (upload de imagem como BYTEA), cores (primary, secondary, font).
 - **Endereco**: campo `endereco` em tenant_configs (migracao 011) — usado nos emails para o botao "Como chegar".
 - **Feature flags**: habilitacao de walk-in, patrocinadores, etc.
+- **Marca**: mudar cores/logo exige `tema_personalizado` (Pro+); quem ja tinha marca propria
+  continua exibindo. As respostas de PUT /tenant/config e POST/DELETE /tenant/logo trazem
+  `tenant_nome`. A previa da tela usa `pickForeground` (mesma regra do `applyBrand`).
+- **"Conferir e-mail de associado"** (`validate_associado_on_emit`): na emissao publica, quem se
+  DECLARA associado precisa usar um e-mail cadastrado em Associados; quem nao se declara pega senha
+  normalmente (nao restringe a emissao a associados).
 
 ### 11.3 Giras
 - Campo "Local" removido do formulario de criacao/edicao e da tabela — endereco agora vem da config do tenant.
@@ -427,7 +455,12 @@ Incluir obrigatoriamente:
 
 ### 11.6 Perfil do Usuario
 - Upload de foto como BYTEA (armazenado no banco).
-- Avatar exibido no AppBar e no sidebar.
+- Avatar exibido no AppBar e no sidebar; salvar dados/foto chama `useProfile().refresh()` (o topo
+  atualiza na hora).
+- Trocar senha, excluir e desativar conta encerram a sessao (backend apaga os 3 cookies; o front
+  chama `/auth/logout` com `skipAutoLogout`). "Desativar conta e terreiro" so aparece para admin.
+- Impersonando, a tela esconde trocar senha, sair de todos os aparelhos, desativar e excluir (o
+  backend recusa com 403).
 
 ### 11.7 Homepage Publica
 - Favicon personalizado.
@@ -507,6 +540,27 @@ Incluir obrigatoriamente:
   `_mrr` do `/platform/dashboard` (`paying_clause()`) e o MRR em risco da retenção.
 - Nunca somar `monthly_price` direto para falar de receita: use `effective_mrr`/`paying_clause`.
   O contador `subscriptions.current_users` não é mantido; conte usuários ativos na tabela `users`.
+  `GET/PUT/POST /platform/subscriptions/{id}*` já devolvem `current_users` contado e `is_bonus`.
+
+### 11.18 Jornadas de conta, plano e plataforma (2026-10-06)
+- **Pessoas e acessos** (`users.py` + `users.tsx`): gate só por grupo USUARIOS (sem `is_admin`
+  extra), com as proteções do §3.3; senha de criar/editar passa por `validate_password_policy`;
+  reativar respeita o limite de usuários ATIVOS; a tela conta só ativos e busca a lista completa
+  (o filtro de perfil é visual).
+- **Configurações** (`config.py`): gate só por grupo CONFIGURACOES; marca gated por plano (§3.4).
+- **`GET /admin/subscription`** traz `has_stripe_subscription` e `is_bonus`; o aviso de trial no topo
+  usa a mesma regra do `inLocalTrial` de billing.tsx (trial local, sem Stripe e sem bônus), mostra o
+  plano real e não aparece para operador.
+- **Billing**: `/billing/cancel` com cancelamento já agendado → 409 (sem reenviar e-mail);
+  `/billing/reactivate` converte erro da Stripe (`_reraise_stripe_error`). Se `GET /admin/billing`
+  falha, a tela mostra erro com "Tentar de novo" (nunca "Assinar agora"); `?plan=` é ignorado para
+  cortesia.
+- **Rótulos de plano**: fonte única `constants/plans.ts` ("Gratuito"); `useSubscription().planLabel`
+  e `platform/planMeta.ts` (rótulo, preço e limites) derivam dela; a tabela de planos da plataforma
+  usa `BASE_FEATURES` + `FEATURE_CATALOG`.
+- **Feature flags da plataforma**: a aba saiu de `/platform/settings` porque NADA no backend lê a
+  tabela `feature_flags` (ligar/desligar não mudava nada). A API `/api/v1/platform/feature-flags` e a
+  tabela continuam; se um dia forem usadas, ligar a leitura antes de devolver a aba.
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

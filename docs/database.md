@@ -370,6 +370,9 @@ Registro de faturamento vinculado ao tenant.
 
 Feature flags por tenant. Permite ativar/desativar capacidades específicas com expiração opcional.
 
+> **Não lida por nenhum código** (2026-10-06): só a API `/api/v1/platform/feature-flags` grava e
+> lista. A aba "Flags" de `/platform/settings` foi removida por isso (AGENTS.md §11.18).
+
 | Coluna | Tipo SA | Nullable | Default | Notas |
 |---|---|---|---|---|
 | `id` | `UUID` | Não | `uuid4` | PK |
