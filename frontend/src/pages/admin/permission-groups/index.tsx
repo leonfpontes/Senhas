@@ -1,42 +1,31 @@
+/**
+ * /admin/permission-groups — grupos de permissão: o que cada operador pode fazer.
+ *
+ * Só administradores (os endpoints de grupos exigem admin; a tela fica fora do
+ * `usePermissions` — ver `scripts/audit-permission-guards.js`). O grupo padrão "Acesso total"
+ * recebe operadores novos e não pode ser excluído.
+ */
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Box,
-  Button,
-  IconButton,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  TextField,
-  Chip,
-  CircularProgress,
-  Alert,
-  Typography,
-  Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-} from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
-import AddIcon from '@mui/icons-material/Add';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SecurityIcon from '@mui/icons-material/Security';
-import SearchIcon from '@mui/icons-material/Search';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import { ChevronRight, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react';
 import AdminLayout from '../admin_layout';
-import { permissionGroupsService, PermissionGroup } from '../../../services/permissionGroupsService';
-import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
-import CrudDrawer from '../../../components/CrudDrawer';
-import { FEATURE_LABELS } from '../../../constants/permissionFeatures';
+import { permissionGroupsService, type PermissionGroup } from '@/services/permissionGroupsService';
+import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import CrudDrawer from '@/components/CrudDrawer';
+import { TextField } from '@/components/fields';
+import { PermissionDenied } from '@/components/gates';
+import { ConfirmDialog, DataTable, EmptyState, PageHeader, type ColumnDef } from '@/components/admin';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useProfile } from '@/hooks/useProfile';
+import { useSnackbar } from '@/contexts/SnackbarContext';
+import { FEATURE_LABELS } from '@/constants/permissionFeatures';
 
-const TOTAL_FEATURES = Object.keys(FEATURE_LABELS).length;
+const TOTAL_MODULES = Object.keys(FEATURE_LABELS).length;
 
 interface UserItem {
   id: string;
@@ -45,65 +34,55 @@ interface UserItem {
   role: string;
 }
 
-interface GroupFormData {
-  name: string;
-  description: string;
-}
-
-const EMPTY_FORM: GroupFormData = {
-  name: '',
-  description: '',
-};
-
 export default function PermissionGroupsPage() {
   return (
-    <AdminLayout title="Grupos de Permissão">
-      <PermissionGroupsContent />
+    <AdminLayout title="Grupos de permissão">
+      <PermissionGroupsGate />
     </AdminLayout>
   );
 }
 
+function PermissionGroupsGate() {
+  const { profile, loading } = useProfile();
+  if (loading && !profile) return <Skeleton className="h-40 w-full" />;
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+  if (!isAdmin) return <PermissionDenied message="Só administradores mudam os grupos de permissão." />;
+  return <PermissionGroupsContent />;
+}
+
 function PermissionGroupsContent() {
   const router = useRouter();
+  const { showSuccess, showError } = useSnackbar();
   const [groups, setGroups] = useState<PermissionGroup[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [groupMembersMap, setGroupMembersMap] = useState<Record<string, string[]>>({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
-  // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
 
-  // CrudDrawer state for Creation
+  // Novo grupo
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [formData, setFormData] = useState<GroupFormData>(EMPTY_FORM);
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [nameTouched, setNameTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [drawerError, setDrawerError] = useState<string | null>(null);
 
-  // Delete Dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // Exclusão
   const [groupToDelete, setGroupToDelete] = useState<PermissionGroup | null>(null);
-  const [deleteForce, setDeleteForce] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch groups and users
       const groupsData = await permissionGroupsService.listGroups();
       setGroups(groupsData);
 
-      const usersRes = await apiClient.get('/api/v1/admin/users?limit=100');
-      const usersList = Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.items || [];
-      setUsers(usersList);
+      const usersRes = await apiClient.get('/api/v1/admin/users?limit=500');
+      setUsers(Array.isArray(usersRes.data) ? usersRes.data : usersRes.data?.items || []);
 
-      // Fetch members for each group to calculate operators with no group
+      // Membros de cada grupo, para achar operadores sem grupo.
       const membersMap: Record<string, string[]> = {};
       await Promise.all(
         groupsData.map(async (g) => {
@@ -113,348 +92,293 @@ function PermissionGroupsContent() {
           } catch {
             membersMap[g.id] = [];
           }
-        })
+        }),
       );
       setGroupMembersMap(membersMap);
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao carregar dados dos grupos de permissão'));
+      setError(extractApiErrorMessage(err, 'Não foi possível carregar os grupos.'));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // G1: Calculate operators without any group (possess total access)
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
   const operatorsWithoutGroup = useMemo(() => {
-    const operators = users.filter((u) => u.role === 'operator');
-    const groupedUserIds = new Set<string>();
-    Object.values(groupMembersMap).forEach((userIds) => {
-      userIds.forEach((uid) => groupedUserIds.add(uid));
-    });
-    return operators.filter((op) => !groupedUserIds.has(op.id));
+    const grouped = new Set(Object.values(groupMembersMap).flat());
+    return users.filter((u) => u.role === 'operator' && !grouped.has(u.id));
   }, [users, groupMembersMap]);
 
-  // Client side filtering (G14)
   const filteredGroups = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return groups;
     return groups.filter(
-      (g) =>
-        g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (g.description || '').toLowerCase().includes(searchQuery.toLowerCase())
+      (g) => g.name.toLowerCase().includes(q) || (g.description || '').toLowerCase().includes(q),
     );
   }, [groups, searchQuery]);
 
-  const handleCreateOpen = () => {
-    setFormData(EMPTY_FORM);
-    setTouched({});
+  const openCreate = () => {
+    setName('');
+    setDescription('');
+    setNameTouched(false);
     setDrawerError(null);
     setDrawerOpen(true);
   };
 
-  const handleDrawerChange = (field: keyof GroupFormData, val: string) => {
-    setFormData((prev) => ({ ...prev, [field]: val }));
-  };
-
-  const nameError = touched.name && !formData.name.trim() ? 'Nome do grupo é obrigatório' : '';
-  const isValid = formData.name.trim().length > 0;
-  const isDirty = formData.name !== '' || formData.description !== '';
-
-  const handleSaveGroup = async () => {
+  const handleCreate = async () => {
     setSaving(true);
     setDrawerError(null);
     try {
-      await permissionGroupsService.createGroup({
-        name: formData.name,
-        description: formData.description,
-      });
-      setSuccess('Grupo de permissão criado com sucesso!');
+      const created = await permissionGroupsService.createGroup({ name: name.trim(), description });
+      showSuccess('Grupo criado. Agora marque o que ele pode fazer.');
       setDrawerOpen(false);
-      fetchData();
-      setTimeout(() => setSuccess(null), 3000);
+      if (created?.id) {
+        router.push(`/admin/permission-groups/${created.id}?aba=permissoes`);
+      } else {
+        fetchData();
+      }
     } catch (err) {
-      setDrawerError(extractApiErrorMessage(err, 'Erro ao criar grupo de permissão'));
+      setDrawerError(extractApiErrorMessage(err, 'Não foi possível criar o grupo.'));
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteClick = (group: PermissionGroup) => {
-    setGroupToDelete(group);
-    const hasMembers = group.members_count > 0;
-    setDeleteForce(hasMembers);
-    setDeleteDialogOpen(true);
-  };
-
   const handleConfirmDelete = async () => {
     if (!groupToDelete) return;
-    setLoading(true);
-    setError(null);
+    setDeleting(true);
     try {
-      await permissionGroupsService.deleteGroup(groupToDelete.id, deleteForce);
-      setSuccess('Grupo excluído com sucesso!');
-      setDeleteDialogOpen(false);
+      await permissionGroupsService.deleteGroup(groupToDelete.id, groupToDelete.members_count > 0);
+      showSuccess('Grupo excluído.');
       setGroupToDelete(null);
       fetchData();
-      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      setError(extractApiErrorMessage(err, 'Erro ao excluir grupo de permissão'));
+      showError(extractApiErrorMessage(err, 'Não foi possível excluir o grupo.'));
     } finally {
-      setLoading(false);
+      setDeleting(false);
     }
   };
 
-  return (
-    <Box sx={{ mb: 3 }}>
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: { xs: 'flex-start', sm: 'center' },
-          mb: 3,
-          flexDirection: { xs: 'column', sm: 'row' },
-          gap: { xs: 1.5, sm: 0 },
-        }}
-      >
-        <Typography variant="h5" fontWeight={700}>
-          Grupos de Permissão (RBAC)
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={fetchData}
-            disabled={loading}
-            sx={{ textTransform: 'none' }}
-          >
-            Atualizar
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateOpen}
-            disabled={loading}
-            sx={{ textTransform: 'none' }}
-          >
-            Novo Grupo
-          </Button>
-        </Box>
-      </Box>
+  const columns = useMemo<ColumnDef<PermissionGroup>[]>(
+    () => [
+      {
+        accessorKey: 'name',
+        header: 'Grupo',
+        meta: { mobile: true },
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 font-medium">
+              {row.original.name}
+              {row.original.is_default && (
+                <Badge variant="secondary" title="Operadores novos entram aqui. Pode ser editado, não excluído.">
+                  Padrão
+                </Badge>
+              )}
+            </div>
+            {row.original.description && (
+              <div className="line-clamp-2 text-xs text-muted-foreground">{row.original.description}</div>
+            )}
+          </div>
+        ),
+      },
+      {
+        accessorKey: 'members_count',
+        header: 'Pessoas',
+        meta: { mobile: true },
+        cell: ({ row }) => {
+          const n = row.original.members_count;
+          return n === 1 ? '1 pessoa' : `${n} pessoas`;
+        },
+      },
+      {
+        accessorKey: 'features_configured_count',
+        header: 'Módulos com acesso',
+        meta: { mobile: true },
+        cell: ({ row }) => {
+          const n = row.original.features_configured_count;
+          return n === 0 ? (
+            <Badge variant="outline" className="border-warning/50 text-warning">
+              Nenhum
+            </Badge>
+          ) : (
+            `${n} de ${TOTAL_MODULES}`
+          );
+        },
+      },
+      {
+        accessorKey: 'updated_at',
+        header: 'Atualizado em',
+        cell: ({ row }) => new Date(row.original.updated_at).toLocaleDateString('pt-BR'),
+      },
+      {
+        id: 'acoes',
+        header: '',
+        enableSorting: false,
+        meta: { align: 'right', mobile: true },
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            {!row.original.is_default && (
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                aria-label={`Excluir grupo ${row.original.name}`}
+                onClick={() => setGroupToDelete(row.original)}
+              >
+                <Trash2 />
+              </Button>
+            )}
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Abrir grupo ${row.original.name}`}
+              onClick={() => router.push(`/admin/permission-groups/${row.original.id}`)}
+            >
+              <ChevronRight />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [router],
+  );
 
-      {/* G1 Contextual Alert Banner */}
+  const nameError = nameTouched && !name.trim() ? 'Dê um nome ao grupo.' : undefined;
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title="Grupos de permissão"
+        subtitle="Cada grupo diz o que os operadores podem fazer. Administradores fazem tudo."
+        actions={
+          <>
+            <Button variant="outline" onClick={fetchData} disabled={loading}>
+              <RefreshCw /> Atualizar
+            </Button>
+            <Button onClick={openCreate} disabled={loading}>
+              <Plus /> Novo grupo
+            </Button>
+          </>
+        }
+      />
+
+      <Alert variant="info">
+        <ShieldCheck aria-hidden />
+        <AlertDescription>
+          Operadores sem grupo não acessam nenhum módulo. Quem está em mais de um grupo pode fazer tudo o que
+          qualquer um deles libera.
+        </AlertDescription>
+      </Alert>
+
       {!loading && operatorsWithoutGroup.length > 0 && (
-        <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {operatorsWithoutGroup.length} operador(es) sem grupo atribuído:
-          </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-            {operatorsWithoutGroup.map((op) => op.username || op.email).join(', ')}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontWeight: 600 }}>
-            * Operadores sem grupo não acessam nenhum módulo. Coloque-os no grupo &quot;Acesso total&quot; ou em outro grupo.
-          </Typography>
+        <Alert variant="warning">
+          <AlertTitle>
+            {operatorsWithoutGroup.length === 1
+              ? '1 operador sem grupo'
+              : `${operatorsWithoutGroup.length} operadores sem grupo`}
+          </AlertTitle>
+          <AlertDescription>
+            <p>{operatorsWithoutGroup.map((op) => op.username || op.email).join(', ')}</p>
+            <p>Coloque cada um no grupo &quot;Acesso total&quot; ou em outro grupo para liberar o acesso.</p>
+          </AlertDescription>
         </Alert>
       )}
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-      {success && (
-        <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
-          {success}
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {/* Search Bar (G14) */}
-      <Box sx={{ mb: 3 }}>
-        <TextField
-          placeholder="Buscar grupos por nome ou descrição..."
-          variant="outlined"
-          size="small"
-          fullWidth
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          InputProps={{
-            startAdornment: <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />,
-          }}
-          sx={{ maxWidth: { sm: 400 } }}
+      {!loading && groups.length === 0 && !error ? (
+        <EmptyState
+          icon={<ShieldCheck />}
+          title="Nenhum grupo ainda"
+          description="Crie um grupo para liberar só alguns módulos (por exemplo, só a Porta e as Senhas) para parte da equipe."
+          action={
+            <Button onClick={openCreate}>
+              <Plus /> Criar primeiro grupo
+            </Button>
+          }
         />
-      </Box>
-
-      {/* Main Content Area */}
-      {loading && groups.length === 0 ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 5 }}>
-          <CircularProgress />
-        </Box>
-      ) : groups.length === 0 ? (
-        // G12 empty state
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 5,
-            textAlign: 'center',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 2,
-            backgroundColor: 'rgba(0,0,0,0.01)',
-          }}
-        >
-          <SecurityIcon sx={{ fontSize: 64, color: 'text.secondary', opacity: 0.6 }} />
-          <Typography variant="h6" fontWeight={700}>
-            Nenhum grupo de permissão criado ainda
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 450 }}>
-            Crie grupos de permissão para restringir ou liberar funcionalidades específicas (como giras, tickets, financeiro) para os seus operadores.
-          </Typography>
-          <Button variant="contained" onClick={handleCreateOpen} sx={{ textTransform: 'none' }}>
-            Criar Primeiro Grupo
-          </Button>
-        </Paper>
       ) : (
-        <TableContainer component={Paper}>
-          <Table size="small">
-            <TableHead>
-              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                <TableCell sx={{ fontWeight: 600, py: 1.5 }}>Nome</TableCell>
-                <TableCell sx={{ fontWeight: 600, py: 1.5 }}>Descrição</TableCell>
-                <TableCell sx={{ fontWeight: 600, py: 1.5 }} align="center">Membros Ativos</TableCell>
-                <TableCell sx={{ fontWeight: 600, py: 1.5 }} align="center">Funcionalidades Configuradas</TableCell>
-                <TableCell sx={{ fontWeight: 600, py: 1.5 }}>Última Atualização</TableCell>
-                <TableCell sx={{ fontWeight: 600, py: 1.5 }} align="right">Ações</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredGroups.map((g) => (
-                <TableRow key={g.id} hover>
-                  <TableCell sx={{ fontWeight: 600 }}>
-                    {g.name}
-                    {g.is_default && (
-                      <Tooltip title="Grupo padrão: operadores novos entram aqui. Pode ser editado, não excluído.">
-                        <Chip label="Padrão" size="small" color="info" variant="outlined" sx={{ ml: 1, height: 20 }} />
-                      </Tooltip>
-                    )}
-                  </TableCell>
-                  <TableCell color="text.secondary">{g.description || '—'}</TableCell>
-                  <TableCell align="center">
-                    <Chip
-                      label={`${g.members_count} usuário(s)`}
-                      variant="outlined"
-                      size="small"
-                      color={g.members_count > 0 ? 'primary' : 'default'}
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    {/* G10 Health indicator */}
-                    <Chip
-                      label={g.features_configured_count === 0 ? 'Nenhuma' : `${g.features_configured_count}/${TOTAL_FEATURES} features`}
-                      color={g.features_configured_count === 0 ? 'error' : 'success'}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell sx={{ fontSize: '0.85rem' }}>
-                    {new Date(g.updated_at).toLocaleDateString('pt-BR')} às{' '}
-                    {new Date(g.updated_at).toLocaleTimeString('pt-BR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </TableCell>
-                  <TableCell align="right">
-                    <Tooltip title="Editar permissões e membros">
-                      <IconButton size="small" onClick={() => router.push(`/admin/permission-groups/${g.id}`)}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    {!g.is_default && (
-                      <Tooltip title="Excluir grupo">
-                        <IconButton size="small" color="error" onClick={() => handleDeleteClick(g)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filteredGroups.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3, color: 'text.secondary' }}>
-                    Nenhum grupo correspondente à busca.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <>
+          <div className="max-w-sm">
+            <TextField
+              aria-label="Buscar grupos"
+              placeholder="Buscar por nome ou descrição"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              startAdornment={<Search className="size-4 text-muted-foreground" aria-hidden />}
+            />
+          </div>
+          <DataTable
+            columns={columns}
+            data={filteredGroups}
+            getRowId={(g) => g.id}
+            loading={loading}
+            onRowClick={(g) => router.push(`/admin/permission-groups/${g.id}`)}
+            emptyMessage="Nenhum grupo encontrado na busca."
+          />
+        </>
       )}
 
-      {/* CrudDrawer for creation */}
       <CrudDrawer
         open={drawerOpen}
-        onClose={() => { setDrawerOpen(false); setDrawerError(null); }}
-        title="Novo Grupo de Permissão"
-        subtitle="Defina o nome e a descrição do grupo. Na próxima tela, você configurará as permissões de acesso e associará usuários."
-        icon={<SecurityIcon />}
-        onSave={handleSaveGroup}
-        saveLabel="Criar Grupo"
+        onClose={() => setDrawerOpen(false)}
+        title="Novo grupo"
+        subtitle="Depois de criar, você marca o que o grupo pode fazer e quem faz parte dele."
+        icon={<ShieldCheck />}
+        onSave={handleCreate}
+        saveLabel="Criar grupo"
         saving={saving}
-        saveDisabled={!isValid}
-        isDirty={isDirty}
+        saveDisabled={!name.trim()}
+        isDirty={name !== '' || description !== ''}
         error={drawerError}
       >
         <TextField
-          label="Nome do Grupo"
-          placeholder="Ex: Operadores de Tickets, Secretaria"
-          value={formData.name}
-          onChange={(e) => handleDrawerChange('name', e.target.value)}
-          onBlur={() => setTouched((p) => ({ ...p, name: true }))}
-          fullWidth
+          label="Nome do grupo"
+          placeholder="Ex.: Porta, Secretaria"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => setNameTouched(true)}
           required
-          error={!!nameError}
-          helperText={nameError}
+          error={nameError}
         />
         <TextField
           label="Descrição"
-          placeholder="Descreva brevemente o propósito deste grupo de acesso..."
-          value={formData.description}
-          onChange={(e) => handleDrawerChange('description', e.target.value)}
-          fullWidth
+          placeholder="Para que serve este grupo?"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
           multiline
           rows={3}
         />
       </CrudDrawer>
 
-      {/* G2 Dialog: Delete confirmation displaying member list warnings */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle sx={{ fontWeight: 700 }}>Confirmar Exclusão de Grupo</DialogTitle>
-        <DialogContent>
-          {groupToDelete && groupToDelete.members_count > 0 ? (
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="body1" color="error" fontWeight={600} sx={{ mb: 2 }}>
-                Atenção: Este grupo possui {groupToDelete.members_count} membro(s) ativo(s)!
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Ao excluir este grupo, os operadores que não estiverem em nenhum outro grupo ficam{' '}
-                <strong>sem acesso a nenhum módulo</strong> até serem colocados em outro grupo.
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                Deseja prosseguir com a exclusão forçada?
-              </Typography>
-            </Box>
+      <ConfirmDialog
+        open={!!groupToDelete}
+        title="Excluir grupo"
+        message={
+          groupToDelete && groupToDelete.members_count > 0 ? (
+            <>
+              <strong>{groupToDelete.name}</strong> tem {groupToDelete.members_count}{' '}
+              {groupToDelete.members_count === 1 ? 'pessoa' : 'pessoas'}. Quem não estiver em outro grupo fica sem
+              acesso a nenhum módulo até ser colocado em outro grupo.
+            </>
           ) : (
-            <Typography variant="body1" sx={{ mt: 1 }}>
-              Tem certeza que deseja excluir o grupo &quot;{groupToDelete?.name}&quot;? Esta ação é irreversível.
-            </Typography>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: 2, pt: 0 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)} color="inherit" sx={{ textTransform: 'none' }}>
-            Cancelar
-          </Button>
-          <Button onClick={handleConfirmDelete} color="error" variant="contained" sx={{ textTransform: 'none' }}>
-            Confirmar Exclusão
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+            <>
+              Excluir o grupo <strong>{groupToDelete?.name}</strong>? Não dá para desfazer.
+            </>
+          )
+        }
+        confirmText="Excluir"
+        destructive
+        loading={deleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setGroupToDelete(null)}
+      />
+    </div>
   );
 }
