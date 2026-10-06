@@ -247,7 +247,9 @@ export default function HomePage() {
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       </Head>
 
-      <div className="min-h-screen bg-white text-slate-900 [scroll-behavior:smooth] motion-reduce:[scroll-behavior:auto]">
+      {/* Links fora de componentes do kit ficam com o estilo do navegador (o reset de globals.css
+          só vale dentro de [data-slot]); este reset tem especificidade 0,0,1 e perde para qualquer classe. */}
+      <div className="min-h-screen bg-white text-slate-900 [scroll-behavior:smooth] motion-reduce:[scroll-behavior:auto] [:where(&)_a]:[color:inherit] [:where(&)_a]:[text-decoration:inherit]">
         {/* ── Cabeçalho ── */}
         <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0f0d2e]/95 text-white backdrop-blur">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">

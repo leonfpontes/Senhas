@@ -470,8 +470,8 @@ function AdminUsersContent() {
           {(drawerMode === 'create' || formData.password) && <PasswordRules value={formData.password} />}
         </div>
 
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">Perfil de acesso</legend>
+        <fieldset className="m-0 min-w-0 space-y-2 border-0 p-0">
+          <legend className="mb-2 p-0 text-sm font-medium">Perfil de acesso</legend>
           <RadioGroup
             value={formData.role}
             onValueChange={(v) => setField('role', v as Role)}
@@ -521,7 +521,7 @@ function AdminUsersContent() {
 
         {drawerMode === 'edit' && (
           <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-            <Label htmlFor="user-active" className="font-normal">
+            <Label htmlFor="user-active" className="block font-normal">
               <span className="block text-sm font-medium">Ativo</span>
               <span className="block text-xs text-muted-foreground">Desligado, a pessoa não consegue entrar.</span>
             </Label>

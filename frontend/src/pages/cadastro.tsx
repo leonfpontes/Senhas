@@ -198,8 +198,8 @@ export default function CadastroPage() {
             control={control}
             name="comoConheceu"
             render={({ field }) => (
-              <fieldset className="flex flex-col gap-2">
-                <legend className="text-sm font-medium">Como nos conheceu? (opcional)</legend>
+              <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+                <legend className="mb-2 p-0 text-sm font-medium">Como nos conheceu? (opcional)</legend>
                 <ToggleGroup
                   type="single"
                   variant="outline"
@@ -223,8 +223,8 @@ export default function CadastroPage() {
             control={control}
             name="principalDor"
             render={({ field }) => (
-              <fieldset className="flex flex-col gap-2">
-                <legend className="text-sm font-medium">O que você mais precisa resolver? (opcional)</legend>
+              <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+                <legend className="mb-2 p-0 text-sm font-medium">O que você mais precisa resolver? (opcional)</legend>
                 <p className="text-xs text-muted-foreground">Montamos seu guia inicial a partir disso.</p>
                 <ToggleGroup
                   type="single"
@@ -300,7 +300,7 @@ export default function CadastroPage() {
                     aria-describedby={errors.aceiteTermos ? 'aceite-termos-erro' : undefined}
                     className="mt-0.5"
                   />
-                  <Label htmlFor="aceite-termos" className="cursor-pointer font-normal leading-snug">
+                  <Label htmlFor="aceite-termos" className="block cursor-pointer font-normal leading-snug">
                     Li e aceito os{' '}
                     <a href="/termos" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">
                       Termos de Uso

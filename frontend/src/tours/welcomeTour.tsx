@@ -91,7 +91,7 @@ function StepBody({ title, children }: { title?: string; children: React.ReactNo
 
 function CreateGiraButton({ ctx }: { ctx: WelcomeTourContext }) {
   return (
-    <Button asChild size="sm" className="mt-1">
+    <Button asChild size="sm" className="mt-1 no-underline">
       <Link
         href={CREATE_GIRA_HREF}
         onClick={() => {

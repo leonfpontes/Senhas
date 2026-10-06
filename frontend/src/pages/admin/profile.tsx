@@ -136,7 +136,7 @@ function DangerDialog({
         />
         <div className="flex items-start gap-2">
           <Checkbox id={acceptId} checked={accepted} onCheckedChange={(v) => setAccepted(v === true)} disabled={loading} className="mt-0.5" />
-          <Label htmlFor={acceptId} className="cursor-pointer font-normal leading-snug">
+          <Label htmlFor={acceptId} className="block cursor-pointer font-normal leading-snug">
             {acceptLabel}
           </Label>
         </div>
