@@ -655,7 +655,7 @@ const TenantsPage: React.FC = () => {
 
         <TabsContent value="assinaturas">
           <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <KpiCard label="MRR" value={stats ? fmtMoney(stats.mrr) : '—'} subtitle="Receita mensal recorrente" icon={<TrendingUp />} color="var(--primary)" loading={stats === null && subs === null} />
+            <KpiCard label="MRR" value={stats ? fmtMoney(stats.mrr) : '—'} subtitle="Receita mensal recorrente" icon={<TrendingUp />} color="var(--primary-text)" loading={stats === null && subs === null} />
             <KpiCard label="Assinaturas ativas" value={stats?.active_tenants ?? '—'} icon={<Users />} color="var(--success)" loading={stats === null && subs === null} />
             <KpiCard label="Em trial" value={stats?.trial_tenants ?? '—'} icon={<FlaskConical />} color="var(--warning)" loading={stats === null && subs === null} />
             <KpiCard label="Suspensas / canceladas" value={stats?.suspended_tenants ?? '—'} icon={<Wallet />} color="var(--destructive)" loading={stats === null && subs === null} />

@@ -57,6 +57,10 @@ describe.each([
     expect(contrastRatio(solid(t[`${c}-foreground`], t[c]), t[c])).toBeGreaterThanOrEqual(4.5);
   });
 
+  it('números dos eixos dos gráficos (chart-tick) leem sobre o card', () => {
+    surfaces.forEach((bg) => expect(contrastRatio(t['chart-tick'].slice(0, 7), bg)).toBeGreaterThanOrEqual(4.5));
+  });
+
   it('texto secundário (muted-foreground) lê sobre o fundo e o card', () => {
     surfaces.forEach((bg) => expect(contrastRatio(t['muted-foreground'], bg)).toBeGreaterThanOrEqual(4.5));
   });

@@ -34,6 +34,10 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     fixes: [
       'No celular, a barra de "Alterações não salvas" e as ações em lote não ficam mais escondidas atrás da barra de navegação de baixo.',
       'No celular, o texto dos botões não sai mais para fora do botão, como no "Chamar próximo" da Porta.',
+      'Janelas de confirmação com botões de texto longo (como "Continuar editando" e "Confirmar cancelamento") não cortam mais o texto.',
+      'Cartões de números no celular mostram o rótulo e o valor inteiros.',
+      'Números dos eixos e legendas dos gráficos ficaram legíveis nos dois modos.',
+      'Nomes dos planos legíveis na página de assinatura.',
     ],
   },
   {

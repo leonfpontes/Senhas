@@ -141,7 +141,7 @@ export default function BulkActionsBar({
         data-slot="bulk-actions-bar"
         className={cn(
           // celular: acima da barra de abas (56px + safe area)
-          'fixed bottom-[calc(env(safe-area-inset-bottom)+64px)] left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 md:bottom-4',
+          'fixed bottom-[calc(env(safe-area-inset-bottom)+64px)] left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 md:bottom-4 md:left-[calc(50%+8rem)] md:w-[calc(100%-16rem-2rem)]',
           'flex-col gap-2 rounded-xl border border-primary/30 bg-card p-3 text-card-foreground shadow-lg',
           'sm:flex-row sm:items-center sm:justify-between',
         )}

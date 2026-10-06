@@ -612,7 +612,8 @@ function AdminConfigContent() {
             <SlidersHorizontal aria-hidden /> Funções
           </TabsTrigger>
           <TabsTrigger value="atendimento" disabled={!can('associados')}>
-            <DoorOpen aria-hidden /> Atendimento
+            <DoorOpen aria-hidden /> <span className="hidden sm:inline">Atendimento</span>
+            <span className="sm:hidden">Regras</span>
           </TabsTrigger>
         </TabsList>
 
@@ -669,7 +670,7 @@ function AdminConfigContent() {
                   >
                     <CloudUpload className="size-8 text-muted-foreground" aria-hidden />
                     <span className="text-sm text-muted-foreground">{uploadingLogo ? 'Enviando…' : 'Clique ou arraste para enviar o logo'}</span>
-                    <span className="text-xs text-ghost">JPG, PNG ou WEBP · até 2 MB · 200×200 px</span>
+                    <span className="text-xs text-muted-foreground">JPG, PNG ou WEBP · até 2 MB · 200×200 px</span>
                   </button>
                 ) : (
                   <p className="text-sm text-muted-foreground">Sem logo cadastrado.</p>

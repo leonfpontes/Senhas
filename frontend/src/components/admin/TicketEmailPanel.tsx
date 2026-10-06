@@ -69,7 +69,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1.5 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      {typeof value === 'string' || typeof value === 'number' ? <span className="text-right">{value}</span> : value}
+      {typeof value === 'string' || typeof value === 'number' ? <span className="min-w-0 text-right break-all">{value}</span> : value}
     </div>
   );
 }

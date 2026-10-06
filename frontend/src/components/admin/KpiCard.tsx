@@ -48,20 +48,21 @@ export const KpiCard: React.FC<KpiCardProps> = ({
           style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }}
         />
       )}
-      <div className="flex items-start justify-between gap-2 px-5">
+      <div className="flex items-start justify-between gap-2 px-4 sm:px-5">
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-[0.05em] text-muted-foreground uppercase">{label}</p>
+          <p className="text-xs font-semibold tracking-[0.05em] [overflow-wrap:anywhere] text-muted-foreground uppercase">{label}</p>
           {loading ? (
             <Skeleton data-testid="kpi-skeleton" className="mt-1.5 h-8 w-20" />
           ) : (
-            <p className="mt-1 text-2xl leading-none font-extrabold tracking-tight text-foreground">{value}</p>
+            <p className="mt-1 text-xl leading-none font-extrabold tracking-tight [overflow-wrap:anywhere] text-foreground sm:text-2xl">{value}</p>
           )}
           {caption && <p className="mt-1.5 text-xs text-muted-foreground">{caption}</p>}
         </div>
         {icon && (
+          // Ícone some no celular: em grade de 2 colunas ele roubava o espaço do rótulo e do valor.
           <span
             aria-hidden
-            className="flex size-11 shrink-0 items-center justify-center rounded-lg [&_svg]:size-[1.4rem]"
+            className="hidden size-11 shrink-0 items-center justify-center rounded-lg sm:flex [&_svg]:size-[1.4rem]"
             style={{ color: accent, backgroundColor: `color-mix(in srgb, ${accent} 13%, transparent)` }}
           >
             {icon}

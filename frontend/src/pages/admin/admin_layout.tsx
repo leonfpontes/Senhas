@@ -185,7 +185,7 @@ function AdminLayoutInner({ children, title, maxWidth = 'lg', noPadding = false 
             </Card>
           </div>
         ) : noPadding ? (
-          <div className="flex flex-1 flex-col overflow-hidden pb-16 md:pb-0">
+          <div className="flex flex-1 flex-col overflow-hidden pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0">
             <ErrorBoundary>{children}</ErrorBoundary>
           </div>
         ) : (

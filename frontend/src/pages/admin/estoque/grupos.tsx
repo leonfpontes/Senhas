@@ -186,10 +186,10 @@ function AdminEstoqueGruposContent() {
 
   return (
     <div>
-      <div data-tour="estoque-grupos-header" className="mb-6 flex items-center justify-between gap-3">
+      <div data-tour="estoque-grupos-header" className="mb-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-2">
           <Boxes className="size-6 shrink-0 text-brand" aria-hidden />
-          <h1 className="m-0 truncate text-2xl font-bold tracking-tight text-foreground">Grupos de Material</h1>
+          <h1 className="m-0 text-2xl font-bold tracking-tight text-foreground">Grupos de Material</h1>
           <Badge variant="outline" className="shrink-0">
             {grupos.length} grupo{grupos.length !== 1 ? 's' : ''}
           </Badge>

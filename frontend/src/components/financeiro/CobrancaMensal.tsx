@@ -494,7 +494,7 @@ export function CobrancaMensal({
         <div
           role="toolbar"
           aria-label="Ações em lote"
-          className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+64px)] z-40 mx-auto md:bottom-3 flex max-w-2xl flex-wrap items-center gap-2 rounded-lg border bg-card p-3 shadow-lg sm:inset-x-6"
+          className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+64px)] z-40 mx-auto md:bottom-3 md:left-[calc(16rem+1.5rem)] flex max-w-2xl flex-wrap items-center gap-2 rounded-lg border bg-card p-3 shadow-lg sm:inset-x-6"
         >
           <span className="flex-1 text-sm font-medium">
             {selectedIds.length} selecionado{selectedIds.length === 1 ? '' : 's'}

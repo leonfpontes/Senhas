@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   BASE_FEATURES,
+  PLAN_TEXT_CLASS,
   FEATURE_CATALOG,
   FEATURE_GROUPS,
   PLAN_LIST,
@@ -100,7 +101,7 @@ export function PlanComparison({ currentPlan, highlightPlan, className }: PlanCo
           <TabsContent key={p.key} value={p.key} className="rounded-xl border bg-card p-4">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <p className="text-base font-extrabold" style={{ color: p.color }}>
+                <p className={cn('text-base font-extrabold', PLAN_TEXT_CLASS[p.key])}>
                   {p.label}
                 </p>
                 <p className="text-sm text-muted-foreground">{formatPricePerMonth(p.price)}</p>
@@ -115,7 +116,7 @@ export function PlanComparison({ currentPlan, highlightPlan, className }: PlanCo
                     const v = r.cells[p.key];
                     const included = typeof v === 'string' ? v !== '—' : v;
                     return (
-                      <li key={r.label} className={cn('flex items-center justify-between gap-2 text-sm', !included && 'text-ghost')}>
+                      <li key={r.label} className={cn('flex items-center justify-between gap-2 text-sm', !included && 'text-muted-foreground line-through')}>
                         <span className="flex items-center gap-2">
                           {typeof v === 'boolean' ? (
                             v ? <Check className="size-4 text-success" aria-hidden /> : <X className="size-4" aria-hidden />
@@ -149,7 +150,7 @@ export function PlanComparison({ currentPlan, highlightPlan, className }: PlanCo
                   className={cn('min-w-24 text-center align-bottom', isCurrent && 'border-t-2')}
                   style={isCurrent ? { borderTopColor: p.color } : undefined}
                 >
-                  <span className="block text-sm font-extrabold" style={{ color: p.color }}>
+                  <span className={cn('block text-sm font-extrabold', PLAN_TEXT_CLASS[p.key])}>
                     {p.label}
                   </span>
                   <span className="block text-xs font-normal text-muted-foreground">{formatPricePerMonth(p.price)}</span>
