@@ -24,10 +24,13 @@ const buttonVariants = cva(
         xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
         lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
+        // Alvo de toque de 48px — obrigatório em botões de ação nas telas públicas e na Porta.
+        touch: "h-12 min-w-12 rounded-md px-6 text-base has-[>svg]:px-5 [&_svg:not([class*='size-'])]:size-5",
         icon: "size-9",
         "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
+        "icon-touch": "size-12 [&_svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: {
@@ -37,20 +40,22 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
+type ButtonProps = React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
-  }) {
+  }
+
+// forwardRef (ajuste para React 18): Calendar, Popover/Dialog `asChild` e react-hook-form passam
+// `ref` ao botão; o shadcn v4 assume ref-como-prop do React 19.
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { className, variant = "default", size = "default", asChild = false, ...props },
+  ref
+) {
   const Comp = asChild ? Slot.Root : "button"
 
   return (
     <Comp
+      ref={ref}
       data-slot="button"
       data-variant={variant}
       data-size={size}
@@ -58,6 +63,7 @@ function Button({
       {...props}
     />
   )
-}
+})
 
 export { Button, buttonVariants }
+export type { ButtonProps }
