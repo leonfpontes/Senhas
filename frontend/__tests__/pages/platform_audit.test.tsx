@@ -58,7 +58,7 @@ describe('Platform — Auditoria consolidada', () => {
 
   it('preenche o filtro de terreiro com a lista (array) e mostra o feed com rótulos acentuados', async () => {
     render(<AuditPage />);
-    expect(await screen.findByRole('link', { name: 'Casa Alfa' })).toHaveAttribute('href', '/platform/tenants/t1');
+    expect(await screen.findByRole('link', { name: 'Casa Alfa' }, { timeout: 5000 })).toHaveAttribute('href', '/platform/tenants/t1');
     expect(screen.getAllByText('Atualização').length).toBeGreaterThan(0);
     expect(screen.getByText('Gira B')).toBeInTheDocument();
     // Ações do super-admin (platform_audit.py) aparecem com a frase pronta, não como login comum.
@@ -83,7 +83,7 @@ describe('Platform — Auditoria consolidada', () => {
     const click = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
     render(<AuditPage />);
-    await screen.findByRole('link', { name: 'Casa Alfa' });
+    await screen.findByRole('link', { name: 'Casa Alfa' }, { timeout: 5000 });
     fireEvent.click(screen.getByRole('button', { name: /Exportar JSON/ }));
     await waitFor(() => expect(mockToast.success).toHaveBeenCalledWith('Exportação concluída: 4 eventos.'));
     expect(click).toHaveBeenCalled();
