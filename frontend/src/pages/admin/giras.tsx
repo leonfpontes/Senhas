@@ -1,37 +1,51 @@
 /**
- * T073: Admin Giras Page - Giras table with create/edit drawers, delete confirm, and senha config drawer
+ * Giras — agenda do terreiro em cartões (GiraCard), criação em 3 passos e configuração de senhas.
+ *
+ * - Cada gira vira um GiraCard com o estado em palavras do terreiro e um botão primário por
+ *   estado (Compartilhar link / Abrir Porta / Liberar agora / Configurar senhas).
+ * - "Nova gira" abre um CrudDrawer com Stepper: A gira → Senhas (padrões de
+ *   `giraSenhaDefaults`) → Recados. Ao criar, as senhas já são salvas e o link é oferecido.
+ * - "Configurar senhas" (gira existente) mantém o drawer completo, com o avançado
+ *   (acompanhantes, fila de espera, horários, associados) em Accordion.
+ * - Um único ShareLinkDialog (link, QR, WhatsApp, copiar) para todo compartilhamento.
+ * - `?nova=1` abre a criação; `?compartilhar=1` abre o link do terreiro.
  */
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { toast } from 'sonner';
 import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  Menu,
-  MenuItem as MuiMenuItem,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  TextField,
-  CircularProgress,
-  IconButton,
-  LinearProgress,
-  Snackbar,
-  Tooltip,
-  Typography,
-  useTheme,
-  useMediaQuery,
-} from '@mui/material';
+  Clock,
+  Lock,
+  Plus,
+  QrCode,
+  RefreshCw,
+  Rocket,
+  Star,
+  Ticket,
+  Trash2,
+  Users,
+} from 'lucide-react';
+import AdminLayout from './admin_layout';
 import { PageHeader, ConfirmDialog } from '@/components/admin';
 import GirasEmptyState from '@/components/admin/GirasEmptyState';
+import { GiraCard, giraPhase, type GiraCardData } from '@/components/admin/GiraCard';
+import { ShareLinkDialog } from '@/components/admin/ShareLinkDialog';
+import { PermissionDenied } from '@/components/gates';
+import { Stepper } from '@/components/Stepper';
+import CrudDrawer from '@/components/CrudDrawer';
+import { DateTimeField, TextField } from '@/components/fields';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 import {
   formatWindowDuration,
   isShortWindow,
@@ -39,40 +53,16 @@ import {
   suggestMaxTickets,
   suggestReleaseWindow,
 } from '@/utils/giraSenhaDefaults';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import AddIcon from '@mui/icons-material/Add';
-import EventIcon from '@mui/icons-material/Event';
-import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
-import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
-import StarIcon from '@mui/icons-material/Star';
-import LockIcon from '@mui/icons-material/Lock';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import GroupsIcon from '@mui/icons-material/Groups';
-import Switch from '@mui/material/Switch';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import AdminLayout from './admin_layout';
-import { apiClient, extractApiErrorMessage } from '../../services/api_client';
-import CrudDrawer from '../../components/CrudDrawer';
-import { useSubscription } from '../../hooks/useSubscription';
-import { usePermissions } from '../../hooks/usePermissions';
+import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import { useSubscription } from '@/hooks/useSubscription';
+import { usePermissions } from '@/hooks/usePermissions';
+import { useGiraContext } from '@/components/admin/GiraContext';
+import { useProfile } from '@/hooks/useProfile';
 
-interface Gira {
-  id: string;
-  nome: string;
+interface Gira extends GiraCardData {
   descricao?: string;
-  data_inicio: string;
   data_fim?: string;
   local?: string;
-  is_active: boolean;
-  max_tickets?: number | null;
-  release_start_at?: string | null;
-  release_end_at?: string | null;
   recados?: string;
   allow_acompanhantes?: boolean;
   max_acompanhantes?: number | null;
@@ -102,140 +92,239 @@ interface TimeSlotRow {
   vagas_disponiveis?: number;
 }
 
-const timeToInputValue = (horario: string): string => horario.slice(0, 5);
+interface UnifiedLinks {
+  public_link: string;
+  sponsor_public_link: string;
+}
 
+const timeToInputValue = (horario: string): string => horario.slice(0, 5);
 const emptySlotRow = (): TimeSlotRow => ({ horario: '', capacidade_maxima: '' });
 
 const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '', recados: '' };
 const EMPTY_SENHA_FORM = {
-  max_tickets: '', release_start_at: '', release_end_at: '',
-  allow_acompanhantes: false, max_acompanhantes: '',
-  sponsor_max_tickets: '', sponsor_release_start_at: '', sponsor_release_end_at: '',
+  max_tickets: '',
+  release_start_at: '',
+  release_end_at: '',
+  allow_acompanhantes: false,
+  max_acompanhantes: '',
+  sponsor_max_tickets: '',
+  sponsor_release_start_at: '',
+  sponsor_release_end_at: '',
   waitlist_confirmation_hours: '',
 };
+type SenhaForm = typeof EMPTY_SENHA_FORM;
 
-// Convert a UTC ISO string from the API (e.g. "2026-03-31T15:00:00+00:00") to
-// the browser's local time in YYYY-MM-DDTHH:mm format for datetime-local inputs.
-// This is the inverse of `new Date(localStr).toISOString()` used when sending.
+const CREATE_STEPS = [{ label: 'A gira' }, { label: 'Senhas' }, { label: 'Recados', optional: true }];
+
+/** UTC ISO da API → "YYYY-MM-DDTHH:mm" local (inverso de `new Date(local).toISOString()`). */
 const isoToLocalDatetimeInput = (isoStr: string | null | undefined): string => {
   if (!isoStr) return '';
   const d = new Date(isoStr);
+  if (Number.isNaN(d.getTime())) return '';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
+const toUtcIso = (localStr: string) => (localStr ? new Date(localStr).toISOString() : localStr);
+
+function configToForm(config: Partial<SenhaConfig>): SenhaForm {
+  return {
+    max_tickets: config.max_tickets ? String(config.max_tickets) : '',
+    release_start_at: isoToLocalDatetimeInput(config.release_start_at),
+    release_end_at: isoToLocalDatetimeInput(config.release_end_at),
+    allow_acompanhantes: !!config.allow_acompanhantes,
+    max_acompanhantes: config.max_acompanhantes ? String(config.max_acompanhantes) : '',
+    sponsor_max_tickets: config.sponsor_max_tickets ? String(config.sponsor_max_tickets) : '',
+    sponsor_release_start_at: isoToLocalDatetimeInput(config.sponsor_release_start_at),
+    sponsor_release_end_at: isoToLocalDatetimeInput(config.sponsor_release_end_at),
+    waitlist_confirmation_hours: config.waitlist_confirmation_hours ? String(config.waitlist_confirmation_hours) : '',
+  };
+}
+
+function isAbort(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError');
+}
+
 function GiraUsageBar({ used, max }: { used: number; max: number }) {
-  const isUnlimited = max < 0;
-  const pct = !isUnlimited && max > 0 ? Math.min((used / max) * 100, 100) : 0;
-  const atLimit = !isUnlimited && used >= max;
+  const pct = max > 0 ? Math.min((used / max) * 100, 100) : 0;
+  const atLimit = used >= max;
   return (
-    <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: atLimit ? 'warning.main' : 'divider' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
-        <Typography variant="body2" fontWeight={600} color="text.secondary">
-          Giras criadas este mês
-        </Typography>
-        <Typography variant="body2" fontWeight={700} color={atLimit ? 'warning.main' : 'text.primary'}>
-          {used} / {max}
-        </Typography>
-      </Box>
-      <LinearProgress
-        variant="determinate"
-        value={pct}
-        sx={{
-          height: 8,
-          borderRadius: 4,
-          bgcolor: 'grey.200',
-          '& .MuiLinearProgress-bar': {
-            borderRadius: 4,
-            bgcolor: atLimit ? 'warning.main' : pct >= 80 ? 'warning.light' : 'primary.main',
-          },
-        }}
-      />
+    <Card className={cn('gap-2 px-4 py-3', atLimit && 'border-warning')}>
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-medium text-muted-foreground">Giras criadas este mês</span>
+        <span className={cn('font-bold tabular-nums', atLimit && 'text-warning-foreground')}>
+          {used} de {max}
+        </span>
+      </div>
+      <Progress value={pct} className="h-2" aria-label="Giras criadas este mês" />
       {atLimit && (
-        <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
-          Limite mensal atingido. <Link href="/admin/plano" style={{ fontWeight: 600, color: 'inherit' }}>Faça upgrade</Link> para criar mais giras.
-        </Typography>
+        <p className="text-xs text-muted-foreground">
+          Limite do plano atingido.{' '}
+          <Link href="/admin/billing" className="font-semibold text-primary underline-offset-4 hover:underline">
+            Ver planos
+          </Link>{' '}
+          para criar mais giras.
+        </p>
       )}
-    </Box>
+    </Card>
+  );
+}
+
+function PlanLockedInline({ text }: { text: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3">
+      <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+      <div className="flex flex-col gap-1.5">
+        <p className="text-sm font-semibold text-muted-foreground">Disponível a partir do plano Pro</p>
+        <p className="text-xs text-muted-foreground">{text}</p>
+        <Button asChild size="sm" variant="outline" className="self-start">
+          <Link href="/admin/billing?plan=pro">Ver planos</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SwitchRow({
+  id,
+  checked,
+  onCheckedChange,
+  label,
+  description,
+}: {
+  id: string;
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
+  label: string;
+  description?: string;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} className="mt-0.5" />
+      <div className="flex flex-col gap-0.5">
+        <Label htmlFor={id} className="leading-snug">
+          {label}
+        </Label>
+        {description && <p className="text-xs text-muted-foreground">{description}</p>}
+      </div>
+    </div>
+  );
+}
+
+function ShortWindowWarning({
+  start,
+  end,
+  giraStart,
+  onUseSuggestion,
+}: {
+  start: string;
+  end: string;
+  giraStart: string | null;
+  onUseSuggestion: (s: { start: string; end: string }) => void;
+}) {
+  if (!isShortWindow(start, end)) return null;
+  const hours = releaseWindowHours(start, end) ?? 0;
+  const suggested = giraStart ? suggestReleaseWindow(giraStart) : null;
+  return (
+    <Alert variant="warning" data-testid="short-window-warning">
+      <Clock aria-hidden />
+      <AlertDescription>
+        <p>
+          A liberação dura só {formatWindowDuration(hours)}. Quem vir o link fora desse horário não consegue pegar
+          senha. Os terreiros que mais usam o GiraHub deixam a emissão aberta por horas ou dias.
+        </p>
+        {suggested && (
+          <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => onUseSuggestion(suggested)}>
+            Usar sugestão
+          </Button>
+        )}
+      </AlertDescription>
+    </Alert>
   );
 }
 
 export default function AdminGirasPage() {
   return (
-    <AdminLayout title="Gerenciar Giras">
+    <AdminLayout title="Giras">
       <AdminGirasContent />
     </AdminLayout>
   );
 }
 
 function AdminGirasContent() {
-  const { subscription, can, loading: subLoading, canCreateGira: canCreateGiraFn, refresh: refreshSubscription } = useSubscription();
+  const { subscription, can, loading: subLoading, canCreateGira: canCreateGiraFn, refresh: refreshSubscription } =
+    useSubscription();
   const { can: canGroup } = usePermissions();
   const canView = canGroup('giras', 'view');
   const canInsert = canGroup('giras', 'insert');
   const canEdit = canGroup('giras', 'edit');
   const canDelete = canGroup('giras', 'delete');
   const canViewPorta = canGroup('porta', 'view');
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const canViewTickets = canGroup('tickets', 'view');
+  const router = useRouter();
+  const giraCtx = useGiraContext({ load: false });
+  const { profile } = useProfile();
+
   const [giras, setGiras] = useState<Gira[]>([]);
   const [loading, setLoading] = useState(true);
-  // Distingue "falhou ao carregar" de "não há giras": sem isso uma falha de
-  // rede mostraria o empty state como se o terreiro não tivesse gira nenhuma.
+  // Distingue "falhou ao carregar" de "não há giras" (senão o empty state mentiria).
   const [loadError, setLoadError] = useState(false);
-  const router = useRouter();
-  const [unifiedLinks, setUnifiedLinks] = useState<{ public_link: string; sponsor_public_link: string } | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
-  const [menuGira, setMenuGira] = useState<Gira | null>(null);
+  const [unifiedLinks, setUnifiedLinks] = useState<UnifiedLinks | null>(null);
+  const [counts, setCounts] = useState<Record<string, { issued?: number; waiting?: number }>>({});
+  const [showPast, setShowPast] = useState<boolean | null>(null);
 
   const canCreateGira = canCreateGiraFn();
   const createBlockedReason =
     !canCreateGira && !subLoading
       ? subscription?.max_giras_per_month != null && subscription.max_giras_per_month >= 0
-        ? `Limite de ${subscription.max_giras_per_month} gira(s)/mês atingido. Faça upgrade do plano.`
+        ? `Limite de ${subscription.max_giras_per_month} gira(s) por mês atingido. Veja os planos para criar mais.`
         : 'Sem assinatura ativa. Faça upgrade do plano.'
       : '';
 
-  // Drawer state
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
+  // Criação (stepper)
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createStep, setCreateStep] = useState(0);
+  const [createForm, setCreateForm] = useState(EMPTY_FORM);
+  const [createSenha, setCreateSenha] = useState<SenhaForm>(EMPTY_SENHA_FORM);
+  const [createTouched, setCreateTouched] = useState<Record<string, boolean>>({});
+  const [suggestedFor, setSuggestedFor] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Edição
+  const [editOpen, setEditOpen] = useState(false);
   const [currentGira, setCurrentGira] = useState<Gira | null>(null);
-  const [formData, setFormData] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
+  const [formData, setFormData] = useState(EMPTY_FORM);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
-  // Delete dialog
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  // Exclusão
   const [deleteTarget, setDeleteTarget] = useState<Gira | null>(null);
 
-  // Senha config drawer
+  // Configuração de senhas
   const [senhaDrawerOpen, setSenhaDrawerOpen] = useState(false);
   const [senhaTarget, setSenhaTarget] = useState<Gira | null>(null);
-  // Sugestão preenchida quando a gira ainda não tem senhas configuradas.
   const [senhaSuggestion, setSenhaSuggestion] = useState<
     { fromCreate: boolean; maxTickets: number; hasHistory: boolean; hasWindow: boolean } | null
   >(null);
-  const [senhaForm, setSenhaForm] = useState<typeof EMPTY_SENHA_FORM>(EMPTY_SENHA_FORM);
+  const [senhaForm, setSenhaForm] = useState<SenhaForm>(EMPTY_SENHA_FORM);
   const [senhaConfig, setSenhaConfig] = useState<SenhaConfig | null>(null);
-  const [senhaInitial, setSenhaInitial] = useState<typeof EMPTY_SENHA_FORM>(EMPTY_SENHA_FORM);
+  const [senhaInitial, setSenhaInitial] = useState<SenhaForm>(EMPTY_SENHA_FORM);
   const [senhaSaving, setSenhaSaving] = useState(false);
   const [senhaLoading, setSenhaLoading] = useState(false);
   const [senhaTouched, setSenhaTouched] = useState<Record<string, boolean>>({});
 
-  // Release confirm dialog
-  const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false);
+  // Liberar agora
+  const [releaseTarget, setReleaseTarget] = useState<Gira | null>(null);
 
-  // Horários de atendimento (agendamento por horário)
+  // Compartilhar
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareTitle, setShareTitle] = useState<string | undefined>(undefined);
+
+  // Horários de atendimento
   const [timeSlotSchedulingEnabled, setTimeSlotSchedulingEnabled] = useState(false);
   const [useTimeSlots, setUseTimeSlots] = useState(false);
   const [useTimeSlotsInitial, setUseTimeSlotsInitial] = useState(false);
   const [timeSlots, setTimeSlots] = useState<TimeSlotRow[]>([]);
   const [timeSlotsInitial, setTimeSlotsInitial] = useState<TimeSlotRow[]>([]);
-
-  // Snackbar
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
-    open: false, message: '', severity: 'success',
-  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -243,8 +332,7 @@ function AdminGirasContent() {
     loadUnifiedLinks(controller.signal);
     loadTimeSlotSchedulingToggle(controller.signal);
     return () => controller.abort();
-    // loadGiras/loadUnifiedLinks/loadTimeSlotSchedulingToggle aren't memoized —
-    // including them would refetch every render.
+    // As funções de carga não são memoizadas — incluí-las refaria a busca a cada render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView]);
 
@@ -252,23 +340,27 @@ function AdminGirasContent() {
     if (!canView) return;
     try {
       const response = await apiClient.get('/api/v1/admin/tenant/config', { signal });
-      setTimeSlotSchedulingEnabled(!!response.data.enable_time_slot_scheduling);
+      setTimeSlotSchedulingEnabled(!!response?.data?.enable_time_slot_scheduling);
     } catch (error) {
-      if (error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError')) return;
+      if (isAbort(error)) return;
       // Sem permissão de CONFIGURACOES ou outro erro — mantém a seção oculta.
       setTimeSlotSchedulingEnabled(false);
     }
   };
 
   const loadGiras = async (signal?: AbortSignal) => {
-    if (!canView) { setLoading(false); return; }
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setLoadError(false);
       const response = await apiClient.get('/api/v1/admin/giras', { signal });
-      setGiras(response.data.items || response.data);
+      const data = response?.data;
+      setGiras(Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []);
     } catch (error) {
-      if (error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError')) return;
+      if (isAbort(error)) return;
       console.error('Error loading giras:', error);
       setLoadError(true);
     } finally {
@@ -280,16 +372,54 @@ function AdminGirasContent() {
     if (!canView) return;
     try {
       const response = await apiClient.get('/api/v1/admin/giras/unified-links', { signal });
-      setUnifiedLinks(response.data);
+      if (response?.data && typeof response.data.public_link === 'string') setUnifiedLinks(response.data);
     } catch (error) {
-      if (error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError')) return;
+      if (isAbort(error)) return;
       console.error('Error loading unified links:', error);
     }
   };
 
-  // ?nova=1 abre o formulário de criação direto (botão "Criar gira" do
-  // checklist do dashboard). Espera a assinatura carregar para respeitar o
-  // limite do plano e remove o parâmetro para não reabrir ao atualizar.
+  // Contagem "12 de 50 senhas · 3 na fila" para as giras do momento (no máximo 4 chamadas).
+  useEffect(() => {
+    if (!canView || giras.length === 0) return;
+    let cancelled = false;
+    const now = new Date();
+    const live = giras
+      .filter((g) => {
+        const phase = giraPhase(g, now);
+        return phase === 'hoje' || phase === 'aberta';
+      })
+      .slice(0, 4);
+    live.forEach(async (g) => {
+      try {
+        if (giraPhase(g, now) === 'hoje' && canViewPorta) {
+          const res = await apiClient.get(`/api/v1/admin/giras/${g.id}/door/queue`);
+          const items: { status: string }[] = Array.isArray(res?.data?.items) ? res.data.items : [];
+          if (cancelled || !Array.isArray(res?.data?.items)) return;
+          setCounts((prev) => ({
+            ...prev,
+            [g.id]: {
+              issued: items.filter((t) => t.status !== 'cancelled').length,
+              waiting: items.filter((t) => t.status === 'emitted').length,
+            },
+          }));
+        } else {
+          const res = await apiClient.get(`/api/v1/admin/giras/${g.id}/senhas`);
+          const current = res?.data?.current_count;
+          if (cancelled || typeof current !== 'number') return;
+          setCounts((prev) => ({ ...prev, [g.id]: { issued: current } }));
+        }
+      } catch {
+        /* contagem é informativa — o cartão funciona sem ela */
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [giras, canView, canViewPorta]);
+
+  // ?nova=1 abre a criação (botão "Criar gira" do checklist / barra inferior); espera a
+  // assinatura carregar para respeitar o limite do plano e remove o parâmetro.
   useEffect(() => {
     if (!router.isReady || router.query.nova !== '1' || subLoading) return;
     if (canInsert && canCreateGira) openCreate();
@@ -298,15 +428,138 @@ function AdminGirasContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady, router.query.nova, subLoading, canInsert, canCreateGira]);
 
-  // --- Drawer helpers ---
-  const openCreate = () => {
-    setFormData(EMPTY_FORM);
-    setTouched({});
-    setCurrentGira(null);
-    setDrawerMode('create');
-    setDrawerOpen(true);
+  // ?compartilhar=1 (item "Link e QR do terreiro" sem JS do layout) abre o link do terreiro.
+  useEffect(() => {
+    if (!router.isReady || router.query.compartilhar !== '1') return;
+    openShare();
+    const { compartilhar: _c, ...rest } = router.query;
+    router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.query.compartilhar]);
+
+  const openShare = (title?: string) => {
+    setShareTitle(title);
+    setShareOpen(true);
   };
 
+  // ── Criação ──────────────────────────────────────────────────────────────────
+  const openCreate = () => {
+    setCreateForm(EMPTY_FORM);
+    setCreateSenha(EMPTY_SENHA_FORM);
+    setCreateTouched({});
+    setSuggestedFor(null);
+    setCreateStep(0);
+    setCreateOpen(true);
+  };
+
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setCreateStep(0);
+  };
+
+  const setCreateField = (field: keyof typeof EMPTY_FORM, value: string) => {
+    setCreateForm((prev) => ({ ...prev, [field]: value }));
+    setCreateTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const setCreateSenhaField = (field: keyof SenhaForm, value: string | boolean) => {
+    setCreateSenha((prev) => ({ ...prev, [field]: value }));
+    setCreateTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const createNomeError = createTouched.nome && !createForm.nome.trim() ? 'Dê um nome para a gira' : '';
+  const createDataError = createTouched.data_inicio && !createForm.data_inicio ? 'Informe o dia e a hora da gira' : '';
+  const createMaxError =
+    createTouched.max_tickets && (!createSenha.max_tickets || Number(createSenha.max_tickets) < 1)
+      ? 'Mínimo 1 senha'
+      : '';
+  const createWindowError =
+    createTouched.release_end_at && createSenha.release_start_at && createSenha.release_end_at &&
+    releaseWindowHours(createSenha.release_start_at, createSenha.release_end_at) === null
+      ? 'O fim precisa ser depois do início'
+      : '';
+  const step0Valid = !!createForm.nome.trim() && !!createForm.data_inicio;
+  const step1Valid =
+    !!createSenha.max_tickets &&
+    Number(createSenha.max_tickets) >= 1 &&
+    !!createSenha.release_start_at &&
+    !!createSenha.release_end_at &&
+    releaseWindowHours(createSenha.release_start_at, createSenha.release_end_at) !== null &&
+    (!createSenha.allow_acompanhantes || Number(createSenha.max_acompanhantes) >= 1);
+
+  const createDirty =
+    Object.values(createForm).some((v) => v !== '') || JSON.stringify(createSenha) !== JSON.stringify(EMPTY_SENHA_FORM);
+
+  const goToSenhas = () => {
+    setCreateTouched((p) => ({ ...p, nome: true, data_inicio: true }));
+    if (!step0Valid) return;
+    // Preenche a sugestão na primeira vez (ou quando a data da gira mudou).
+    if (suggestedFor !== createForm.data_inicio) {
+      const window = suggestReleaseWindow(new Date(createForm.data_inicio).toISOString());
+      setCreateSenha((prev) => ({
+        ...prev,
+        max_tickets: prev.max_tickets || String(suggestMaxTickets(giras)),
+        release_start_at: window?.start ?? prev.release_start_at,
+        release_end_at: window?.end ?? prev.release_end_at,
+      }));
+      setSuggestedFor(createForm.data_inicio);
+    }
+    setCreateStep(1);
+  };
+
+  const handleCreateSave = async () => {
+    if (createStep === 0) {
+      goToSenhas();
+      return;
+    }
+    if (createStep === 1) {
+      setCreateTouched((p) => ({ ...p, max_tickets: true, release_start_at: true, release_end_at: true }));
+      if (step1Valid) setCreateStep(2);
+      return;
+    }
+    if (!canInsert || !step0Valid || !step1Valid) return;
+    setSaving(true);
+    try {
+      const payload = {
+        nome: createForm.nome,
+        descricao: createForm.descricao,
+        recados: createForm.recados,
+        data_inicio: toUtcIso(createForm.data_inicio),
+      };
+      const response = await apiClient.post('/api/v1/admin/giras', payload);
+      const created: Gira | null = response?.data?.id ? (response.data as Gira) : null;
+      closeCreate();
+      refreshSubscription();
+      if (created && canEdit) {
+        try {
+          await apiClient.put(`/api/v1/admin/giras/${created.id}/senhas`, {
+            max_tickets: Number(createSenha.max_tickets),
+            release_start_at: toUtcIso(createSenha.release_start_at),
+            release_end_at: toUtcIso(createSenha.release_end_at),
+            allow_acompanhantes: createSenha.allow_acompanhantes,
+            max_acompanhantes:
+              createSenha.allow_acompanhantes && createSenha.max_acompanhantes ? Number(createSenha.max_acompanhantes) : null,
+          });
+          toast.success('Gira criada e senhas configuradas!');
+          await loadUnifiedLinks();
+          openShare('Gira criada! Compartilhe o link de senhas');
+        } catch (error) {
+          toast.error(extractApiErrorMessage(error, 'A gira foi criada, mas as senhas não foram salvas.'));
+          openSenhaDrawer(created, { fromCreate: true });
+        }
+      } else {
+        toast.success('Gira criada!');
+      }
+      loadGiras();
+      void giraCtx.refresh();
+    } catch (error) {
+      toast.error(extractApiErrorMessage(error, 'Erro ao criar a gira'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Edição ───────────────────────────────────────────────────────────────────
   const openEdit = (gira: Gira) => {
     setCurrentGira(gira);
     setFormData({
@@ -316,89 +569,67 @@ function AdminGirasContent() {
       recados: gira.recados || '',
     });
     setTouched({});
-    setDrawerMode('edit');
-    setDrawerOpen(true);
+    setEditOpen(true);
   };
 
-  const closeDrawer = () => {
-    setDrawerOpen(false);
+  const closeEdit = () => {
+    setEditOpen(false);
     setCurrentGira(null);
     setFormData(EMPTY_FORM);
     setTouched({});
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: keyof typeof EMPTY_FORM, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
-  const isDirty =
-    drawerMode === 'create'
-      ? Object.values(formData).some((v) => v !== '')
-      : currentGira != null &&
-        (formData.nome !== currentGira.nome ||
-          formData.descricao !== (currentGira.descricao || '') ||
-          formData.recados !== (currentGira.recados || ''));
-
+  const editDirty =
+    currentGira != null &&
+    (formData.nome !== currentGira.nome ||
+      formData.descricao !== (currentGira.descricao || '') ||
+      formData.recados !== (currentGira.recados || '') ||
+      formData.data_inicio !== isoToLocalDatetimeInput(currentGira.data_inicio));
   const nomeError = touched.nome && !formData.nome.trim() ? 'Nome é obrigatório' : '';
-  const dataError = touched.data_inicio && !formData.data_inicio ? 'Data de início é obrigatória' : '';
-  const saveDisabled = !formData.nome.trim() || !formData.data_inicio;
+  const dataError = touched.data_inicio && !formData.data_inicio ? 'Informe o dia e a hora da gira' : '';
+  const editSaveDisabled = !formData.nome.trim() || !formData.data_inicio;
 
-  const handleSave = async () => {
+  const handleEditSave = async () => {
     setTouched({ nome: true, data_inicio: true });
-    if (saveDisabled) return;
-    if (drawerMode === 'create' && !canInsert) return;
-    if (drawerMode === 'edit' && !canEdit) return;
+    if (editSaveDisabled || !canEdit || !currentGira) return;
     setSaving(true);
     try {
-      // Convert datetime-local string ("2026-04-19T10:00") to UTC ISO string
-      // so the backend stores the correct moment in time.
-      const toUtcIso = (localStr: string) =>
-        localStr ? new Date(localStr).toISOString() : localStr;
-      const payload = {
+      await apiClient.put(`/api/v1/admin/giras/${currentGira.id}`, {
         ...formData,
         data_inicio: toUtcIso(formData.data_inicio),
-      };
-      let created: Gira | null = null;
-      if (drawerMode === 'create') {
-        const response = await apiClient.post('/api/v1/admin/giras', payload);
-        created = response?.data?.id ? (response.data as Gira) : null;
-      } else if (currentGira) {
-        await apiClient.put(`/api/v1/admin/giras/${currentGira.id}`, payload);
-      }
-      closeDrawer();
+      });
+      closeEdit();
+      toast.success('Gira atualizada!');
       loadGiras();
-      refreshSubscription();
-      // Sem configuração de senhas a gira não aparece no link público — antes
-      // o formulário só fechava e muitos terreiros novos nunca configuravam.
-      if (created && canEdit) openSenhaDrawer(created, { fromCreate: true });
+      void giraCtx.refresh();
     } catch (error) {
-      console.error('Error saving gira:', error);
+      toast.error(extractApiErrorMessage(error, 'Erro ao salvar a gira'));
     } finally {
       setSaving(false);
     }
   };
 
-  // --- Delete ---
-  const handleDeleteClick = (gira: Gira) => {
-    setDeleteTarget(gira);
-    setDeleteOpen(true);
-  };
-
+  // ── Exclusão ─────────────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!deleteTarget || !canDelete) return;
     try {
       await apiClient.delete(`/api/v1/admin/giras/${deleteTarget.id}`);
-      setDeleteOpen(false);
       setDeleteTarget(null);
+      toast.success('Gira excluída.');
       loadGiras();
       refreshSubscription();
+      void giraCtx.refresh();
     } catch (error) {
-      console.error('Error deleting gira:', error);
+      toast.error(extractApiErrorMessage(error, 'Erro ao excluir a gira'));
     }
   };
 
-  // --- Senha Config Drawer ---
+  // ── Configuração de senhas ───────────────────────────────────────────────────
   const openSenhaDrawer = async (gira: Gira, opts: { fromCreate?: boolean } = {}) => {
     setSenhaTarget(gira);
     setSenhaSuggestion(null);
@@ -415,28 +646,17 @@ function AdminGirasContent() {
       const config: SenhaConfig = response.data;
       loadedConfig = config;
       setSenhaConfig(config);
-      const loaded = {
-        max_tickets: config.max_tickets ? String(config.max_tickets) : '',
-        release_start_at: isoToLocalDatetimeInput(config.release_start_at),
-        release_end_at: isoToLocalDatetimeInput(config.release_end_at),
-        allow_acompanhantes: !!config.allow_acompanhantes,
-        max_acompanhantes: config.max_acompanhantes ? String(config.max_acompanhantes) : '',
-        sponsor_max_tickets: config.sponsor_max_tickets ? String(config.sponsor_max_tickets) : '',
-        sponsor_release_start_at: isoToLocalDatetimeInput(config.sponsor_release_start_at),
-        sponsor_release_end_at: isoToLocalDatetimeInput(config.sponsor_release_end_at),
-        waitlist_confirmation_hours: config.waitlist_confirmation_hours ? String(config.waitlist_confirmation_hours) : '',
-      };
-      loadedForm = loaded;
-      setSenhaForm(loaded);
-      setSenhaInitial(loaded);
+      loadedForm = configToForm(config);
+      setSenhaForm(loadedForm);
+      setSenhaInitial(loadedForm);
     } catch {
-      // No config yet — form stays empty
+      // Ainda sem configuração — o formulário fica vazio.
     } finally {
       setSenhaLoading(false);
     }
 
-    // Gira ainda sem senhas (max_tickets 0): preenche a sugestão. O "inicial"
-    // continua vazio, então salvar fica habilitado e fechar pede confirmação.
+    // Gira sem senhas (max_tickets 0): preenche a sugestão. O "inicial" continua vazio, então
+    // salvar fica habilitado e fechar pede confirmação.
     if (!loadedConfig || !loadedConfig.max_tickets) {
       const suggestedWindow = suggestReleaseWindow(gira.data_inicio);
       const maxTickets = suggestMaxTickets(giras, gira.id);
@@ -457,15 +677,15 @@ function AdminGirasContent() {
     if (timeSlotSchedulingEnabled) {
       try {
         const response = await apiClient.get(`/api/v1/admin/giras/${gira.id}/time-slots`);
-        const loadedSlots: TimeSlotRow[] = (response.data.slots || []).map((s: {
-          id: string; horario: string; capacidade_maxima: number; total_emitido: number; vagas_disponiveis: number;
-        }) => ({
-          id: s.id,
-          horario: timeToInputValue(s.horario),
-          capacidade_maxima: String(s.capacidade_maxima),
-          total_emitido: s.total_emitido,
-          vagas_disponiveis: s.vagas_disponiveis,
-        }));
+        const loadedSlots: TimeSlotRow[] = (response.data.slots || []).map(
+          (s: { id: string; horario: string; capacidade_maxima: number; total_emitido: number; vagas_disponiveis: number }) => ({
+            id: s.id,
+            horario: timeToInputValue(s.horario),
+            capacidade_maxima: String(s.capacidade_maxima),
+            total_emitido: s.total_emitido,
+            vagas_disponiveis: s.vagas_disponiveis,
+          }),
+        );
         setUseTimeSlots(!!response.data.use_time_slots);
         setUseTimeSlotsInitial(!!response.data.use_time_slots);
         setTimeSlots(loadedSlots);
@@ -492,16 +712,17 @@ function AdminGirasContent() {
     setTimeSlotsInitial([]);
   };
 
-  // --- Horários de atendimento ---
   const handleToggleUseTimeSlots = async (checked: boolean) => {
     setUseTimeSlots(checked);
     if (checked && timeSlots.length === 0) {
       try {
         const response = await apiClient.get('/api/v1/admin/config/time-slot-templates');
-        const templateSlots: TimeSlotRow[] = (response.data || []).map((t: { horario: string; capacidade_maxima: number }) => ({
-          horario: timeToInputValue(t.horario),
-          capacidade_maxima: String(t.capacidade_maxima),
-        }));
+        const templateSlots: TimeSlotRow[] = (response.data || []).map(
+          (t: { horario: string; capacidade_maxima: number }) => ({
+            horario: timeToInputValue(t.horario),
+            capacidade_maxima: String(t.capacidade_maxima),
+          }),
+        );
         setTimeSlots(templateSlots.length > 0 ? templateSlots : [emptySlotRow()]);
       } catch {
         setTimeSlots([emptySlotRow()]);
@@ -512,40 +733,42 @@ function AdminGirasContent() {
   const updateSlotRow = (index: number, field: 'horario' | 'capacidade_maxima', value: string) => {
     setTimeSlots((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
   };
-
   const addSlotRow = () => setTimeSlots((prev) => [...prev, emptySlotRow()]);
-
   const removeSlotRow = (index: number) => setTimeSlots((prev) => prev.filter((_, i) => i !== index));
 
-  const timeSlotsValid = !useTimeSlots || (
-    timeSlots.length > 0 &&
-    timeSlots.every((s) => s.horario && Number(s.capacidade_maxima) >= 1) &&
-    new Set(timeSlots.map((s) => s.horario)).size === timeSlots.length
-  );
+  const timeSlotsValid =
+    !useTimeSlots ||
+    (timeSlots.length > 0 &&
+      timeSlots.every((s) => s.horario && Number(s.capacidade_maxima) >= 1) &&
+      new Set(timeSlots.map((s) => s.horario)).size === timeSlots.length);
 
-  const timeSlotsDirty = useTimeSlots !== useTimeSlotsInitial ||
+  const timeSlotsDirty =
+    useTimeSlots !== useTimeSlotsInitial ||
     JSON.stringify(timeSlots.map((s) => ({ horario: s.horario, capacidade_maxima: s.capacidade_maxima }))) !==
-    JSON.stringify(timeSlotsInitial.map((s) => ({ horario: s.horario, capacidade_maxima: s.capacidade_maxima })));
+      JSON.stringify(timeSlotsInitial.map((s) => ({ horario: s.horario, capacidade_maxima: s.capacidade_maxima })));
 
-  const handleSenhaChange = (field: string, value: string) => {
+  const handleSenhaChange = (field: keyof SenhaForm, value: string) => {
     setSenhaForm((prev) => ({ ...prev, [field]: value }));
     setSenhaTouched((prev) => ({ ...prev, [field]: true }));
   };
 
-  const senhaMaxError = senhaTouched.max_tickets && (!senhaForm.max_tickets || Number(senhaForm.max_tickets) < 1)
-    ? 'Mínimo 1 senha' : '';
-  const senhaStartError = senhaTouched.release_start_at && !senhaForm.release_start_at
-    ? 'Início é obrigatório' : '';
-  const senhaEndError = senhaTouched.release_end_at && !senhaForm.release_end_at
-    ? 'Fim é obrigatório' : '';
+  const senhaMaxError =
+    senhaTouched.max_tickets && (!senhaForm.max_tickets || Number(senhaForm.max_tickets) < 1) ? 'Mínimo 1 senha' : '';
+  const senhaStartError = senhaTouched.release_start_at && !senhaForm.release_start_at ? 'Início é obrigatório' : '';
+  const senhaEndError = senhaTouched.release_end_at && !senhaForm.release_end_at ? 'Fim é obrigatório' : '';
   const maxAcompanhantesError =
-    senhaForm.allow_acompanhantes && senhaTouched.max_acompanhantes &&
+    senhaForm.allow_acompanhantes &&
+    senhaTouched.max_acompanhantes &&
     (!senhaForm.max_acompanhantes || Number(senhaForm.max_acompanhantes) < 1)
-      ? 'Informe o máximo de acompanhantes (mínimo 1)' : '';
-  const senhaSaveDisabled = !senhaForm.max_tickets || Number(senhaForm.max_tickets) < 1
-    || !senhaForm.release_start_at || !senhaForm.release_end_at
-    || (senhaForm.allow_acompanhantes && (!senhaForm.max_acompanhantes || Number(senhaForm.max_acompanhantes) < 1))
-    || !timeSlotsValid;
+      ? 'Informe o máximo de acompanhantes (mínimo 1)'
+      : '';
+  const senhaSaveDisabled =
+    !senhaForm.max_tickets ||
+    Number(senhaForm.max_tickets) < 1 ||
+    !senhaForm.release_start_at ||
+    !senhaForm.release_end_at ||
+    (senhaForm.allow_acompanhantes && (!senhaForm.max_acompanhantes || Number(senhaForm.max_acompanhantes) < 1)) ||
+    !timeSlotsValid;
 
   const senhaDirty = JSON.stringify(senhaForm) !== JSON.stringify(senhaInitial) || timeSlotsDirty;
 
@@ -556,20 +779,19 @@ function AdminGirasContent() {
     try {
       const payload: Record<string, unknown> = {
         max_tickets: Number(senhaForm.max_tickets),
-        release_start_at: new Date(senhaForm.release_start_at).toISOString(),
-        release_end_at: new Date(senhaForm.release_end_at).toISOString(),
+        release_start_at: toUtcIso(senhaForm.release_start_at),
+        release_end_at: toUtcIso(senhaForm.release_end_at),
         allow_acompanhantes: senhaForm.allow_acompanhantes,
-        max_acompanhantes: senhaForm.allow_acompanhantes && senhaForm.max_acompanhantes
-          ? Number(senhaForm.max_acompanhantes)
-          : null,
+        max_acompanhantes:
+          senhaForm.allow_acompanhantes && senhaForm.max_acompanhantes ? Number(senhaForm.max_acompanhantes) : null,
       };
       if (senhaForm.sponsor_max_tickets && Number(senhaForm.sponsor_max_tickets) > 0) {
         payload.sponsor_max_tickets = Number(senhaForm.sponsor_max_tickets);
         payload.sponsor_release_start_at = senhaForm.sponsor_release_start_at
-          ? new Date(senhaForm.sponsor_release_start_at).toISOString()
+          ? toUtcIso(senhaForm.sponsor_release_start_at)
           : payload.release_start_at;
         payload.sponsor_release_end_at = senhaForm.sponsor_release_end_at
-          ? new Date(senhaForm.sponsor_release_end_at).toISOString()
+          ? toUtcIso(senhaForm.sponsor_release_end_at)
           : payload.release_end_at;
       }
       if (can('fila_espera') && senhaForm.waitlist_confirmation_hours) {
@@ -577,10 +799,9 @@ function AdminGirasContent() {
       }
       const response = await apiClient.put(`/api/v1/admin/giras/${senhaTarget.id}/senhas`, payload);
       setSenhaConfig(response.data);
-      // Sync senhaInitial with current form so senhaDirty resets to false
-      // after saving. Without this, the "Descartar alterações?" dialog would
-      // appear even though the form was just successfully saved.
+      // Sincroniza o "inicial" para o aviso de alteração não salva não aparecer depois de salvar.
       setSenhaInitial({ ...senhaForm });
+      setSenhaSuggestion(null);
 
       if (timeSlotSchedulingEnabled) {
         const slotsResponse = await apiClient.put(`/api/v1/admin/giras/${senhaTarget.id}/time-slots`, {
@@ -589,537 +810,493 @@ function AdminGirasContent() {
             ? timeSlots.map((s) => ({ horario: s.horario, capacidade_maxima: Number(s.capacidade_maxima) }))
             : [],
         });
-        const savedSlots: TimeSlotRow[] = (slotsResponse.data.slots || []).map((s: {
-          id: string; horario: string; capacidade_maxima: number; total_emitido: number; vagas_disponiveis: number;
-        }) => ({
-          id: s.id,
-          horario: timeToInputValue(s.horario),
-          capacidade_maxima: String(s.capacidade_maxima),
-          total_emitido: s.total_emitido,
-          vagas_disponiveis: s.vagas_disponiveis,
-        }));
+        const savedSlots: TimeSlotRow[] = (slotsResponse.data.slots || []).map(
+          (s: { id: string; horario: string; capacidade_maxima: number; total_emitido: number; vagas_disponiveis: number }) => ({
+            id: s.id,
+            horario: timeToInputValue(s.horario),
+            capacidade_maxima: String(s.capacidade_maxima),
+            total_emitido: s.total_emitido,
+            vagas_disponiveis: s.vagas_disponiveis,
+          }),
+        );
         setUseTimeSlots(!!slotsResponse.data.use_time_slots);
         setUseTimeSlotsInitial(!!slotsResponse.data.use_time_slots);
         setTimeSlots(savedSlots);
         setTimeSlotsInitial(savedSlots);
       }
 
-      setSnackbar({ open: true, message: 'Configuração de senhas salva!', severity: 'success' });
+      toast.success('Configuração de senhas salva!');
       loadGiras();
+      void giraCtx.refresh();
     } catch (error) {
-      const msg = extractApiErrorMessage(error, 'Erro ao salvar configuração');
-      setSnackbar({ open: true, message: msg, severity: 'error' });
+      toast.error(extractApiErrorMessage(error, 'Erro ao salvar configuração'));
     } finally {
       setSenhaSaving(false);
     }
   };
 
   const handleReleaseNow = async () => {
-    if (!senhaTarget || !canEdit) return;
-    setReleaseConfirmOpen(false);
+    const target = releaseTarget;
+    setReleaseTarget(null);
+    if (!target || !canEdit) return;
     setSenhaSaving(true);
     try {
-      const response = await apiClient.post(`/api/v1/admin/giras/${senhaTarget.id}/release-now`);
-      setSenhaConfig(response.data);
-      const released = {
-        max_tickets: response.data.max_tickets ? String(response.data.max_tickets) : '',
-        release_start_at: isoToLocalDatetimeInput(response.data.release_start_at),
-        release_end_at: isoToLocalDatetimeInput(response.data.release_end_at),
-        allow_acompanhantes: !!response.data.allow_acompanhantes,
-        max_acompanhantes: response.data.max_acompanhantes ? String(response.data.max_acompanhantes) : '',
-        sponsor_max_tickets: response.data.sponsor_max_tickets ? String(response.data.sponsor_max_tickets) : '',
-        sponsor_release_start_at: isoToLocalDatetimeInput(response.data.sponsor_release_start_at),
-        sponsor_release_end_at: isoToLocalDatetimeInput(response.data.sponsor_release_end_at),
-        waitlist_confirmation_hours: response.data.waitlist_confirmation_hours ? String(response.data.waitlist_confirmation_hours) : '',
-      };
-      setSenhaForm(released);
-      setSenhaInitial(released);
-      setSnackbar({ open: true, message: 'Senhas liberadas agora!', severity: 'success' });
+      const response = await apiClient.post(`/api/v1/admin/giras/${target.id}/release-now`);
+      if (senhaTarget?.id === target.id) {
+        setSenhaConfig(response.data);
+        const released = configToForm(response.data);
+        setSenhaForm(released);
+        setSenhaInitial(released);
+      }
+      toast.success('Senhas liberadas agora!');
       loadGiras();
+      void giraCtx.refresh();
     } catch (error) {
-      const msg = extractApiErrorMessage(error, 'Erro ao liberar senhas');
-      setSnackbar({ open: true, message: msg, severity: 'error' });
+      toast.error(extractApiErrorMessage(error, 'Erro ao liberar senhas'));
     } finally {
       setSenhaSaving(false);
     }
   };
 
-  const copyPublicLink = async (link: string) => {
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(link);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = link;
-        textarea.style.position = 'fixed';
-        textarea.style.left = '-9999px';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-      }
-      setSnackbar({ open: true, message: 'Link copiado!', severity: 'success' });
-    } catch {
-      setSnackbar({ open: true, message: 'Não foi possível copiar o link', severity: 'error' });
-    }
-  };
-
-  const getSenhaChip = (gira: Gira) => {
-    if (!gira.max_tickets) return <Chip label="Não configurado" size="small" variant="outlined" />;
+  // ── Lista ────────────────────────────────────────────────────────────────────
+  const { upcoming, past } = useMemo(() => {
     const now = new Date();
-    const end = gira.release_end_at ? new Date(gira.release_end_at) : null;
-    const start = gira.release_start_at ? new Date(gira.release_start_at) : null;
-    if (end && now > end) return <Chip label="Encerrado" size="small" color="default" />;
-    if (start && now >= start && end && now < end) return <Chip label="Aberto" size="small" color="success" />;
-    if (start && now < start) return <Chip label="Agendado" size="small" color="info" />;
-    return <Chip label="Configurado" size="small" color="warning" />;
-  };
+    const up: Gira[] = [];
+    const old: Gira[] = [];
+    for (const g of giras) {
+      const phase = giraPhase(g, now);
+      if (phase === 'encerrada' || phase === 'inativa') old.push(g);
+      else up.push(g);
+    }
+    up.sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
+    old.sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
+    return { upcoming: up, past: old };
+  }, [giras]);
 
-  if (!canView) {
-    return (
-      <Alert severity="warning" sx={{ mt: 2 }}>
-        Você não tem permissão para visualizar giras. Contate o administrador do sistema.
-      </Alert>
-    );
-  }
+  if (!canView) return <PermissionDenied />;
+
+  // Sem giras futuras, as anteriores já aparecem abertas.
+  const pastVisible = showPast ?? upcoming.length === 0;
+
+  const cardPermissions = { canEdit, canDelete, canViewPorta, canViewTickets };
+  const renderCard = (gira: Gira) => (
+    <GiraCard
+      key={gira.id}
+      gira={gira}
+      issued={counts[gira.id]?.issued}
+      waiting={counts[gira.id]?.waiting}
+      permissions={cardPermissions}
+      onShare={() => openShare()}
+      onConfigure={(g) => openSenhaDrawer(g as Gira)}
+      onRelease={(g) => setReleaseTarget(g as Gira)}
+      onEdit={(g) => openEdit(g as Gira)}
+      onDelete={(g) => setDeleteTarget(g as Gira)}
+    />
+  );
+
+  const createGiraStartIso = createForm.data_inicio ? new Date(createForm.data_inicio).toISOString() : null;
 
   return (
-    <>
-      <PageHeader
-        title="Gestão de Giras"
-        actions={
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => loadGiras()} disabled={loading} size="small">
-              Atualizar
-            </Button>
-            {canInsert && (
-              <Tooltip title={createBlockedReason}>
-                <span>
-                  <Button data-tour="giras-nova" variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!canCreateGira} size="small">
-                    Nova Gira
-                  </Button>
-                </span>
-              </Tooltip>
-            )}
-          </Box>
-        }
-      />
+    <div className="pb-6">
+      <div data-tour="giras-header">
+        <PageHeader
+          title="Giras"
+          subtitle="A agenda do terreiro e as senhas de cada gira."
+          actions={
+            <>
+              <Button type="button" variant="outline" size="sm" onClick={() => loadGiras()} disabled={loading}>
+                <RefreshCw aria-hidden className={cn(loading && 'animate-spin')} /> Atualizar
+              </Button>
+              {unifiedLinks && (
+                <Button type="button" variant="outline" size="sm" onClick={() => openShare()}>
+                  <QrCode aria-hidden /> Link e QR
+                </Button>
+              )}
+              {canInsert && (
+                <Button
+                  type="button"
+                  size="sm"
+                  data-tour="giras-nova"
+                  onClick={openCreate}
+                  disabled={!canCreateGira}
+                  title={createBlockedReason || undefined}
+                >
+                  <Plus aria-hidden /> Nova gira
+                </Button>
+              )}
+            </>
+          }
+        />
+      </div>
 
-      {/* Gira usage progress bar — only for plans with finite limits */}
+      {canInsert && createBlockedReason && giras.length > 0 && (
+        <p className="-mt-3 mb-4 text-sm text-muted-foreground">{createBlockedReason}</p>
+      )}
+
       {subscription && subscription.max_giras_per_month >= 0 && (
-        <Box data-tour="giras-usage" sx={{ mb: 3 }}>
+        <div data-tour="giras-usage" className="mb-4">
           <GiraUsageBar used={subscription.current_giras_this_month} max={subscription.max_giras_per_month} />
-        </Box>
+        </div>
       )}
 
-      {unifiedLinks && (
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-            Links únicos do terreiro
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            Sempre apontam para a próxima gira (ou a que estiver aberta). Compartilhe uma vez só — não precisa trocar o link a cada gira.
-          </Typography>
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
-              <Typography variant="body2" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Senha comum: {unifiedLinks.public_link}
-              </Typography>
-              <IconButton size="small" onClick={() => copyPublicLink(unifiedLinks.public_link)}>
-                <ContentCopyIcon fontSize="small" />
-              </IconButton>
-              <IconButton size="small" component="a" href={unifiedLinks.public_link} target="_blank" rel="noopener noreferrer">
-                <OpenInNewIcon fontSize="small" />
-              </IconButton>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
-              <Typography variant="body2" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Senha associado: {unifiedLinks.sponsor_public_link}
-              </Typography>
-              <IconButton size="small" onClick={() => copyPublicLink(unifiedLinks.sponsor_public_link)}>
-                <ContentCopyIcon fontSize="small" />
-              </IconButton>
-              <IconButton size="small" component="a" href={unifiedLinks.sponsor_public_link} target="_blank" rel="noopener noreferrer">
-                <OpenInNewIcon fontSize="small" />
-              </IconButton>
-            </Box>
-          </Box>
-        </Paper>
-      )}
-
-      <TableContainer data-tour="giras-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
+      <section data-tour="giras-tabela" aria-label="Giras do terreiro">
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-            <CircularProgress />
-          </Box>
+          <div className="grid gap-3 md:grid-cols-2">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-44 rounded-xl" />
+            ))}
+          </div>
         ) : loadError ? (
-          <Alert
-            severity="error"
-            sx={{ m: 2 }}
-            action={
-              <Button size="small" onClick={() => loadGiras()}>
+          <Alert variant="destructive">
+            <AlertTitle>Não foi possível carregar as giras.</AlertTitle>
+            <AlertDescription>
+              <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => loadGiras()}>
                 Tentar novamente
               </Button>
-            }
-          >
-            Não foi possível carregar as giras.
+            </AlertDescription>
           </Alert>
         ) : giras.length === 0 ? (
-          <GirasEmptyState
-            canInsert={canInsert}
-            canCreateGira={canCreateGira}
-            blockedReason={createBlockedReason}
-            onCreate={openCreate}
-          />
+          <Card className="py-0">
+            <GirasEmptyState
+              canInsert={canInsert}
+              canCreateGira={canCreateGira}
+              blockedReason={createBlockedReason}
+              onCreate={openCreate}
+            />
+          </Card>
         ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Nome</TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Data Início</TableCell>
-                <TableCell>Senhas</TableCell>
-                <TableCell>Status</TableCell>
-                {(canEdit || canDelete || canViewPorta) && <TableCell align="right">Ações</TableCell>}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {giras.map((gira) => (
-                <TableRow key={gira.id}>
-                  <TableCell>{gira.nome}</TableCell>
-                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                    {new Date(gira.data_inicio).toLocaleString('pt-BR', {
-                      dateStyle: 'short',
-                      timeStyle: 'short',
-                    })}
-                  </TableCell>
-                  <TableCell>{getSenhaChip(gira)}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={gira.is_active ? 'Ativa' : 'Inativa'}
-                      size="small"
-                      color={gira.is_active ? 'success' : 'default'}
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  {(canEdit || canDelete || canViewPorta) && (
-                    <TableCell align="right">
-                      {isMobile ? (
-                        <>
-                          <IconButton
-                            data-tour="giras-acoes"
-                            size="small"
-                            onClick={(e) => { setMenuAnchor(e.currentTarget); setMenuGira(gira); }}
-                          >
-                            <MoreVertIcon />
-                          </IconButton>
-                          <Menu
-                            anchorEl={menuAnchor}
-                            open={Boolean(menuAnchor) && menuGira?.id === gira.id}
-                            onClose={() => { setMenuAnchor(null); setMenuGira(null); }}
-                          >
-                            {canViewPorta && !!gira.max_tickets && (
-                              <MuiMenuItem
-                                component={Link}
-                                href={`/admin/porta?gira=${gira.id}`}
-                                onClick={() => { setMenuAnchor(null); setMenuGira(null); }}
-                              >
-                                <MeetingRoomIcon fontSize="small" sx={{ mr: 1 }} /> Abrir na Porta
-                              </MuiMenuItem>
-                            )}
-                            {canEdit && (
-                              <MuiMenuItem onClick={() => { openSenhaDrawer(gira); setMenuAnchor(null); setMenuGira(null); }}>
-                                <ConfirmationNumberIcon fontSize="small" sx={{ mr: 1 }} /> Configurar Senhas
-                              </MuiMenuItem>
-                            )}
-                            {canEdit && (
-                              <MuiMenuItem onClick={() => { openEdit(gira); setMenuAnchor(null); setMenuGira(null); }}>
-                                <EditIcon fontSize="small" sx={{ mr: 1 }} /> Editar
-                              </MuiMenuItem>
-                            )}
-                            {canDelete && (
-                              <MuiMenuItem onClick={() => { handleDeleteClick(gira); setMenuAnchor(null); setMenuGira(null); }} sx={{ color: 'error.main' }}>
-                                <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Deletar
-                              </MuiMenuItem>
-                            )}
-                          </Menu>
-                        </>
-                      ) : (
-                        <>
-                          {canViewPorta && !!gira.max_tickets && (
-                            <Tooltip title="Abrir na Porta">
-                              <IconButton size="small" component={Link} href={`/admin/porta?gira=${gira.id}`}>
-                                <MeetingRoomIcon />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                          {canEdit && (
-                            <Tooltip title="Configurar Senhas">
-                              <IconButton size="small" onClick={() => openSenhaDrawer(gira)}>
-                                <ConfirmationNumberIcon />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                          {canEdit && (
-                            <Tooltip title="Editar">
-                              <IconButton size="small" onClick={() => openEdit(gira)}>
-                                <EditIcon />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                          {canDelete && (
-                            <Tooltip title="Deletar">
-                              <IconButton size="small" onClick={() => handleDeleteClick(gira)}>
-                                <DeleteIcon />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </>
-                      )}
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="flex flex-col gap-6">
+            {upcoming.length > 0 ? (
+              <div className="grid gap-3 md:grid-cols-2">{upcoming.map(renderCard)}</div>
+            ) : (
+              <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                Nenhuma gira marcada daqui para frente.
+              </p>
+            )}
+            {past.length > 0 && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-muted-foreground">Giras anteriores ({past.length})</h2>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowPast(!pastVisible)} aria-expanded={pastVisible}>
+                    {pastVisible ? 'Ocultar' : 'Mostrar'}
+                  </Button>
+                </div>
+                {pastVisible && <div className="grid gap-3 md:grid-cols-2">{past.map(renderCard)}</div>}
+              </div>
+            )}
+          </div>
         )}
-      </TableContainer>
+      </section>
 
-      {/* Create / Edit Drawer */}
+      {/* Nova gira — 3 passos */}
       <CrudDrawer
-        open={drawerOpen}
-        onClose={closeDrawer}
-        title={drawerMode === 'create' ? 'Nova Gira' : 'Editar Gira'}
-        subtitle={
-          drawerMode === 'create'
-            ? 'Cadastre uma nova gira (sessão espiritual) para o seu terreiro.'
-            : 'Altere as informações da gira selecionada.'
-        }
-        icon={<EventIcon />}
-        onSave={handleSave}
-        saveLabel={drawerMode === 'create' ? 'Criar' : 'Salvar'}
+        open={createOpen}
+        onClose={closeCreate}
+        title="Nova gira"
+        subtitle="Em três passos a gira fica pronta para os consulentes pegarem senha."
+        icon={<Plus />}
+        onSave={handleCreateSave}
+        saveLabel={createStep < 2 ? 'Continuar' : 'Criar gira'}
         saving={saving}
-        saveDisabled={saveDisabled}
-        isDirty={isDirty}
+        isDirty={createDirty}
       >
-        <TextField
-          label="Nome"
-          value={formData.nome}
-          onChange={(e) => handleChange('nome', e.target.value)}
-          onBlur={() => setTouched((p) => ({ ...p, nome: true }))}
-          fullWidth
-          required
-          error={!!nomeError}
-          helperText={nomeError}
-        />
-        <TextField
-          label="Descrição"
-          value={formData.descricao}
-          onChange={(e) => handleChange('descricao', e.target.value)}
-          fullWidth
-          multiline
-          rows={2}
-        />
-        <TextField
-          label="Recados"
-          value={formData.recados}
-          onChange={(e) => handleChange('recados', e.target.value)}
-          fullWidth
-          multiline
-          rows={3}
-          helperText="Opcional. Aparece no email da senha — investimento, itens de doação, avisos etc."
-        />
-        <TextField
-          label="Data Início"
-          type="datetime-local"
-          value={formData.data_inicio}
-          onChange={(e) => handleChange('data_inicio', e.target.value)}
-          onBlur={() => setTouched((p) => ({ ...p, data_inicio: true }))}
-          fullWidth
-          required
-          InputLabelProps={{ shrink: true }}
-          error={!!dataError}
-          helperText={dataError}
-        />
+        <Stepper steps={CREATE_STEPS} active={createStep} onStepClick={(i) => i < createStep && setCreateStep(i)} className="mb-2" />
+
+        {createStep === 0 && (
+          <div className="flex flex-col gap-4">
+            <TextField
+              label="Nome da gira"
+              placeholder="Ex.: Gira de Caboclos"
+              value={createForm.nome}
+              onChange={(e) => setCreateField('nome', e.target.value)}
+              onBlur={() => setCreateTouched((p) => ({ ...p, nome: true }))}
+              required
+              error={createNomeError}
+              autoFocus
+            />
+            <DateTimeField
+              label="Dia e hora da gira"
+              value={createForm.data_inicio}
+              onChange={(v) => setCreateField('data_inicio', v ?? '')}
+              required
+              error={createDataError}
+            />
+          </div>
+        )}
+
+        {createStep === 1 && (
+          <div className="flex flex-col gap-4">
+            <Alert variant="info" data-testid="create-senha-suggestion">
+              <Ticket aria-hidden />
+              <AlertDescription>
+                Preenchemos uma sugestão: senhas liberadas a partir de agora até o início da gira, para quem vir o link
+                no grupo pegar na hora. Ajuste se precisar.
+              </AlertDescription>
+            </Alert>
+            <TextField
+              label="Quantas senhas"
+              type="number"
+              min={1}
+              value={createSenha.max_tickets}
+              onChange={(e) => setCreateSenhaField('max_tickets', e.target.value)}
+              required
+              error={createMaxError}
+              helperText="Total de senhas disponíveis no link para esta gira."
+            />
+            <DateTimeField
+              label="Senhas abrem em"
+              value={createSenha.release_start_at}
+              onChange={(v) => setCreateSenhaField('release_start_at', v ?? '')}
+              required
+            />
+            <DateTimeField
+              label="Senhas fecham em"
+              value={createSenha.release_end_at}
+              onChange={(v) => setCreateSenhaField('release_end_at', v ?? '')}
+              required
+              error={createWindowError}
+            />
+            <ShortWindowWarning
+              start={createSenha.release_start_at}
+              end={createSenha.release_end_at}
+              giraStart={createGiraStartIso}
+              onUseSuggestion={(s) =>
+                setCreateSenha((prev) => ({ ...prev, release_start_at: s.start, release_end_at: s.end }))
+              }
+            />
+            <Accordion type="single" collapsible>
+              <AccordionItem value="avancado">
+                <AccordionTrigger>Mais opções</AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3">
+                  <SwitchRow
+                    id="create-acompanhantes"
+                    checked={createSenha.allow_acompanhantes}
+                    onCheckedChange={(checked) =>
+                      setCreateSenha((prev) => ({
+                        ...prev,
+                        allow_acompanhantes: checked,
+                        max_acompanhantes: checked && !prev.max_acompanhantes ? '1' : prev.max_acompanhantes,
+                      }))
+                    }
+                    label="Consulente pode levar acompanhantes"
+                    description="Cada acompanhante recebe uma senha própria, que conta na quantidade da gira."
+                  />
+                  {createSenha.allow_acompanhantes && (
+                    <TextField
+                      label="Máximo de acompanhantes por senha"
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={createSenha.max_acompanhantes}
+                      onChange={(e) => setCreateSenhaField('max_acompanhantes', e.target.value)}
+                    />
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Senhas de associados, horários de atendimento e fila de espera ficam em “Configurar senhas”, no menu
+                    da gira.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
+        )}
+
+        {createStep === 2 && (
+          <div className="flex flex-col gap-4">
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm" data-testid="create-review">
+              <p className="font-semibold">{createForm.nome}</p>
+              <p className="text-muted-foreground">
+                {createForm.data_inicio &&
+                  new Date(createForm.data_inicio).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' })}
+              </p>
+              <p className="mt-1">
+                {createSenha.max_tickets} senhas · abrem{' '}
+                {createSenha.release_start_at &&
+                  new Date(createSenha.release_start_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+              </p>
+            </div>
+            <TextField
+              label="Descrição"
+              multiline
+              rows={2}
+              value={createForm.descricao}
+              onChange={(e) => setCreateField('descricao', e.target.value)}
+            />
+            <TextField
+              label="Recados"
+              multiline
+              rows={3}
+              value={createForm.recados}
+              onChange={(e) => setCreateField('recados', e.target.value)}
+              helperText="Opcional. Vai no e-mail da senha — investimento, itens de doação, avisos."
+            />
+          </div>
+        )}
+
+        {createStep > 0 && (
+          <Button type="button" variant="ghost" size="sm" className="self-start" onClick={() => setCreateStep((s) => s - 1)}>
+            Voltar
+          </Button>
+        )}
       </CrudDrawer>
 
-      {/* Senha Config Drawer */}
+      {/* Editar gira */}
+      <CrudDrawer
+        open={editOpen}
+        onClose={closeEdit}
+        title="Editar gira"
+        subtitle="Altere as informações da gira."
+        icon={<Ticket />}
+        onSave={handleEditSave}
+        saveLabel="Salvar"
+        saving={saving}
+        saveDisabled={editSaveDisabled}
+        isDirty={editDirty}
+      >
+        <div className="flex flex-col gap-4">
+          <TextField
+            label="Nome"
+            value={formData.nome}
+            onChange={(e) => handleChange('nome', e.target.value)}
+            onBlur={() => setTouched((p) => ({ ...p, nome: true }))}
+            required
+            error={nomeError}
+          />
+          <DateTimeField
+            label="Dia e hora da gira"
+            value={formData.data_inicio}
+            onChange={(v) => handleChange('data_inicio', v ?? '')}
+            required
+            error={dataError}
+          />
+          <TextField
+            label="Descrição"
+            multiline
+            rows={2}
+            value={formData.descricao}
+            onChange={(e) => handleChange('descricao', e.target.value)}
+          />
+          <TextField
+            label="Recados"
+            multiline
+            rows={3}
+            value={formData.recados}
+            onChange={(e) => handleChange('recados', e.target.value)}
+            helperText="Opcional. Vai no e-mail da senha — investimento, itens de doação, avisos."
+          />
+        </div>
+      </CrudDrawer>
+
+      {/* Configurar senhas */}
       <CrudDrawer
         open={senhaDrawerOpen}
         onClose={closeSenhaDrawer}
-        title="Configurar Senhas"
-        subtitle={senhaTarget ? `Defina a quantidade e janela de emissão para "${senhaTarget.nome}".` : ''}
-        icon={<ConfirmationNumberIcon />}
+        title="Configurar senhas"
+        subtitle={senhaTarget ? `Quantidade e horário das senhas de “${senhaTarget.nome}”.` : ''}
+        icon={<Ticket />}
         onSave={handleSenhaSave}
-        saveLabel="Salvar Configuração"
+        saveLabel="Salvar"
         saving={senhaSaving}
         saveDisabled={senhaSaveDisabled}
         isDirty={senhaDirty}
       >
         {senhaLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-            <CircularProgress />
-          </Box>
+          <div className="flex flex-col gap-3" role="status" aria-label="Carregando configuração">
+            <Skeleton className="h-10" />
+            <Skeleton className="h-10" />
+            <Skeleton className="h-10" />
+          </div>
         ) : (
-          <>
+          <div className="flex flex-col gap-4">
             {senhaSuggestion && (
-              <Alert severity={senhaSuggestion.fromCreate ? 'success' : 'info'} sx={{ mb: 1 }} data-testid="senha-suggestion">
-                {senhaSuggestion.fromCreate && (
-                  <strong style={{ display: 'block', marginBottom: 4 }}>Gira criada! Falta liberar as senhas.</strong>
-                )}
-                {senhaSuggestion.fromCreate && 'As senhas só aparecem no link do terreiro depois que você salvar. '}
-                Preenchemos uma sugestão: {senhaSuggestion.maxTickets} senhas
-                {senhaSuggestion.hasHistory ? ' (a média das suas giras)' : ''}
-                {senhaSuggestion.hasWindow
-                  ? ', liberadas a partir de agora até o início da gira, para quem vir o link no grupo pegar na hora.'
-                  : '. A gira já começou, então defina a janela de liberação.'}{' '}
-                Ajuste se precisar.
+              <Alert variant={senhaSuggestion.fromCreate ? 'success' : 'info'} data-testid="senha-suggestion">
+                <Ticket aria-hidden />
+                <AlertDescription>
+                  {senhaSuggestion.fromCreate && (
+                    <strong className="block">Gira criada! Falta liberar as senhas.</strong>
+                  )}
+                  {senhaSuggestion.fromCreate && 'As senhas só aparecem no link do terreiro depois que você salvar. '}
+                  Preenchemos uma sugestão: {senhaSuggestion.maxTickets} senhas
+                  {senhaSuggestion.hasHistory ? ' (a média das suas giras)' : ''}
+                  {senhaSuggestion.hasWindow
+                    ? ', liberadas a partir de agora até o início da gira, para quem vir o link no grupo pegar na hora.'
+                    : '. A gira já começou, então defina a janela de liberação.'}{' '}
+                  Ajuste se precisar.
+                </AlertDescription>
               </Alert>
             )}
             <TextField
-              label="Quantidade de Senhas"
+              label="Quantas senhas"
               type="number"
+              min={1}
               value={senhaForm.max_tickets}
               onChange={(e) => handleSenhaChange('max_tickets', e.target.value)}
               onBlur={() => setSenhaTouched((p) => ({ ...p, max_tickets: true }))}
-              fullWidth
               required
-              inputProps={{ min: 1 }}
-              error={!!senhaMaxError}
-              helperText={senhaMaxError || 'Total de senhas disponíveis para esta gira'}
+              error={senhaMaxError}
+              helperText="Total de senhas disponíveis no link para esta gira."
             />
-            <TextField
-              label="Início da Liberação"
-              type="datetime-local"
+            <DateTimeField
+              label="Senhas abrem em"
               value={senhaForm.release_start_at}
-              onChange={(e) => handleSenhaChange('release_start_at', e.target.value)}
-              onBlur={() => setSenhaTouched((p) => ({ ...p, release_start_at: true }))}
-              fullWidth
+              onChange={(v) => handleSenhaChange('release_start_at', v ?? '')}
               required
-              InputLabelProps={{ shrink: true }}
-              error={!!senhaStartError}
-              helperText={senhaStartError || 'Quando o público poderá emitir senhas'}
+              error={senhaStartError}
             />
-            <TextField
-              label="Fim da Liberação"
-              type="datetime-local"
+            <DateTimeField
+              label="Senhas fecham em"
               value={senhaForm.release_end_at}
-              onChange={(e) => handleSenhaChange('release_end_at', e.target.value)}
-              onBlur={() => setSenhaTouched((p) => ({ ...p, release_end_at: true }))}
-              fullWidth
+              onChange={(v) => handleSenhaChange('release_end_at', v ?? '')}
               required
-              InputLabelProps={{ shrink: true }}
-              error={!!senhaEndError}
-              helperText={senhaEndError || 'Quando a emissão será encerrada'}
+              error={senhaEndError}
             />
-            {isShortWindow(senhaForm.release_start_at, senhaForm.release_end_at) && (() => {
-              const hours = releaseWindowHours(senhaForm.release_start_at, senhaForm.release_end_at) ?? 0;
-              const suggested = senhaTarget ? suggestReleaseWindow(senhaTarget.data_inicio) : null;
-              return (
-                <Alert
-                  severity="warning"
-                  data-testid="short-window-warning"
-                  action={
-                    suggested ? (
-                      <Button
-                        color="inherit"
-                        size="small"
-                        onClick={() =>
-                          setSenhaForm((prev) => ({
-                            ...prev,
-                            release_start_at: suggested.start,
-                            release_end_at: suggested.end,
-                          }))
-                        }
-                      >
-                        Usar sugestão
-                      </Button>
-                    ) : undefined
-                  }
-                >
-                  A liberação dura só {formatWindowDuration(hours)}. Quem vir o link fora desse horário não consegue
-                  pegar senha. Os terreiros que mais usam o GiraHub deixam a emissão aberta por horas ou dias.
-                </Alert>
-              );
-            })()}
+            <ShortWindowWarning
+              start={senhaForm.release_start_at}
+              end={senhaForm.release_end_at}
+              giraStart={senhaTarget?.data_inicio ?? null}
+              onUseSuggestion={(s) =>
+                setSenhaForm((prev) => ({ ...prev, release_start_at: s.start, release_end_at: s.end }))
+              }
+            />
 
-            {can('fila_espera') && (
-              <TextField
-                label="Prazo de confirmação da fila de espera (horas)"
-                type="number"
-                value={senhaForm.waitlist_confirmation_hours}
-                onChange={(e) => handleSenhaChange('waitlist_confirmation_hours', e.target.value)}
-                fullWidth
-                inputProps={{ min: 1 }}
-                helperText="Quando uma vaga abre para quem está na fila, esse é o prazo para confirmar antes de passar para o próximo. Padrão: 24h."
-              />
-            )}
-
-            {/* Current count + progress */}
             {senhaConfig && senhaConfig.max_tickets > 0 && (
-              <Box sx={{ mt: 1 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                  Senhas emitidas: {senhaConfig.current_count} / {senhaConfig.max_tickets}
-                </Typography>
-                <LinearProgress
-                  variant="determinate"
+              <div className="flex flex-col gap-1.5">
+                <p className="text-sm text-muted-foreground">
+                  {senhaConfig.current_count} de {senhaConfig.max_tickets} senhas emitidas
+                </p>
+                <Progress
                   value={Math.min(100, (senhaConfig.current_count / senhaConfig.max_tickets) * 100)}
-                  sx={{ height: 8, borderRadius: 4 }}
+                  className="h-2"
+                  aria-label="Senhas emitidas"
                 />
-              </Box>
+              </div>
             )}
 
-            {/* Public link */}
-            {senhaConfig?.public_link && (
-              <Box sx={{ mt: 1, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-                <Typography variant="caption" color="text.secondary">Link Público</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                  <Typography
-                    variant="body2"
-                    sx={{ flex: 1, wordBreak: 'break-all', fontFamily: 'monospace', fontSize: '0.8rem' }}
-                  >
-                    {senhaConfig.public_link}
-                  </Typography>
-                  <Tooltip title="Copiar link">
-                    <IconButton size="small" onClick={() => copyPublicLink(senhaConfig.public_link)}>
-                      <ContentCopyIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Abrir link">
-                    <IconButton size="small" component="a" href={senhaConfig.public_link} target="_blank" rel="noopener noreferrer">
-                      <OpenInNewIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Box>
-            )}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {senhaConfig?.public_link && (
+                <Button type="button" variant="outline" className="flex-1" onClick={() => openShare()}>
+                  <QrCode aria-hidden /> Compartilhar link
+                </Button>
+              )}
+              {senhaTarget && canEdit && (
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setReleaseTarget(senhaTarget)}>
+                  <Rocket aria-hidden /> Liberar agora
+                </Button>
+              )}
+            </div>
 
-            {/* Release Now button */}
-            <Box sx={{ mt: 1 }}>
-              <Button
-                variant="outlined"
-                color="warning"
-                startIcon={<RocketLaunchIcon />}
-                onClick={() => setReleaseConfirmOpen(true)}
-                fullWidth
-              >
-                Liberar Agora
-              </Button>
-            </Box>
-
-            {/* ═══ Acompanhantes ═══ */}
-            <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <GroupsIcon color="action" />
-                <Typography variant="subtitle1" fontWeight="bold">
-                  Acompanhantes
-                </Typography>
-              </Box>
-              <FormControlLabel
-                control={
-                  <Switch
+            <Accordion type="multiple" className="rounded-lg border px-3">
+              <AccordionItem value="acompanhantes">
+                <AccordionTrigger>
+                  <span className="flex items-center gap-2">
+                    <Users className="size-4" aria-hidden /> Acompanhantes
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3">
+                  <SwitchRow
+                    id="senha-acompanhantes"
                     checked={senhaForm.allow_acompanhantes}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
+                    onCheckedChange={(checked) => {
                       setSenhaForm((prev) => ({
                         ...prev,
                         allow_acompanhantes: checked,
@@ -1127,277 +1304,207 @@ function AdminGirasContent() {
                       }));
                       setSenhaTouched((prev) => ({ ...prev, allow_acompanhantes: true }));
                     }}
+                    label="Consulente pode levar acompanhantes"
+                    description="Ao pegar a senha, o consulente escolhe quantos acompanhantes leva (até o limite) e informa o nome de cada um. Cada acompanhante recebe uma senha própria, que conta na quantidade da gira."
                   />
-                }
-                label="Permitir que o consulente leve acompanhantes"
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                Ao emitir a senha, o consulente escolhe quantos acompanhantes vai levar (até o
-                limite abaixo) e informa o nome de cada um. Cada acompanhante recebe uma senha
-                própria, que consome a quantidade de senhas da gira.
-              </Typography>
-              {senhaForm.allow_acompanhantes && (
-                <TextField
-                  label="Máximo de acompanhantes por senha"
-                  type="number"
-                  value={senhaForm.max_acompanhantes}
-                  onChange={(e) => handleSenhaChange('max_acompanhantes', e.target.value)}
-                  onBlur={() => setSenhaTouched((p) => ({ ...p, max_acompanhantes: true }))}
-                  fullWidth
-                  required
-                  inputProps={{ min: 1, max: 20 }}
-                  error={!!maxAcompanhantesError}
-                  helperText={maxAcompanhantesError || 'Quantos acompanhantes cada consulente pode levar (1 a 20)'}
-                />
+                  {senhaForm.allow_acompanhantes && (
+                    <TextField
+                      label="Máximo de acompanhantes por senha"
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={senhaForm.max_acompanhantes}
+                      onChange={(e) => handleSenhaChange('max_acompanhantes', e.target.value)}
+                      onBlur={() => setSenhaTouched((p) => ({ ...p, max_acompanhantes: true }))}
+                      required
+                      error={maxAcompanhantesError}
+                      helperText="De 1 a 20."
+                    />
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+
+              {can('fila_espera') && (
+                <AccordionItem value="fila">
+                  <AccordionTrigger>Fila de espera</AccordionTrigger>
+                  <AccordionContent>
+                    <TextField
+                      label="Prazo para confirmar a vaga (horas)"
+                      type="number"
+                      min={1}
+                      value={senhaForm.waitlist_confirmation_hours}
+                      onChange={(e) => handleSenhaChange('waitlist_confirmation_hours', e.target.value)}
+                      helperText="Quando abre uma vaga, quem está na fila tem esse prazo para confirmar antes de passar para o próximo. Padrão: 24h."
+                    />
+                  </AccordionContent>
+                </AccordionItem>
               )}
-            </Box>
 
-            {/* ═══ Horários de Atendimento (agendamento por horário) ═══ */}
-            <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <AccessTimeIcon color="action" />
-                <Typography variant="subtitle1" fontWeight="bold">
-                  Horários de Atendimento
-                </Typography>
-              </Box>
-
-              {!subLoading && !can('agendamento_por_horario') ? (
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, p: 2, borderRadius: 2, bgcolor: '#f5f5f5', border: '1px solid #e0e0e0' }}>
-                  <LockIcon sx={{ fontSize: 20, color: 'text.disabled', mt: 0.2, flexShrink: 0 }} />
-                  <Box>
-                    <Typography variant="body2" fontWeight={600} color="text.secondary">
-                      Disponível a partir do plano Pro
-                    </Typography>
-                    <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.25 }}>
-                      Faça upgrade para deixar o consulente escolher um horário de atendimento ao emitir a senha.
-                    </Typography>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      sx={{ mt: 1, textTransform: 'none' }}
-                      onClick={() => { window.location.href = '/admin/plano'; }}
-                    >
-                      Ver Planos
-                    </Button>
-                  </Box>
-                </Box>
-              ) : !timeSlotSchedulingEnabled ? (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                  Habilite em{' '}
-                  <Link href="/admin/config" style={{ fontWeight: 600 }}>Configurações → Funcionalidades</Link>
-                  {' '}para usar horários de atendimento.
-                </Typography>
-              ) : (
-                <>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={useTimeSlots}
-                        onChange={(e) => handleToggleUseTimeSlots(e.target.checked)}
-                      />
-                    }
-                    label="Consulente escolhe um horário ao emitir a senha"
-                  />
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                    Divide as {senhaForm.max_tickets || 'X'} senhas em janelas de horário (ex: 20h, 20h30, 21h) para
-                    evitar acúmulo de pessoas na porta.
-                  </Typography>
-
-                  {useTimeSlots && (
+              <AccordionItem value="horarios">
+                <AccordionTrigger>
+                  <span className="flex items-center gap-2">
+                    <Clock className="size-4" aria-hidden /> Horários de atendimento
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3">
+                  {!subLoading && !can('agendamento_por_horario') ? (
+                    <PlanLockedInline text="Deixe o consulente escolher um horário de atendimento ao pegar a senha." />
+                  ) : !timeSlotSchedulingEnabled ? (
+                    <p className="text-xs text-muted-foreground">
+                      Ative em{' '}
+                      <Link href="/admin/config" className="font-semibold text-primary underline-offset-4 hover:underline">
+                        Configurações → Funcionalidades
+                      </Link>{' '}
+                      para usar horários de atendimento.
+                    </p>
+                  ) : (
                     <>
-                      {timeSlots.map((slot, index) => (
-                        <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mb: 1 }}>
-                          <TextField
-                            label="Horário"
-                            type="time"
-                            value={slot.horario}
-                            onChange={(e) => updateSlotRow(index, 'horario', e.target.value)}
-                            InputLabelProps={{ shrink: true }}
-                            size="small"
-                            sx={{ flex: 1 }}
-                          />
-                          <TextField
-                            label="Vagas"
-                            type="number"
-                            value={slot.capacidade_maxima}
-                            onChange={(e) => updateSlotRow(index, 'capacidade_maxima', e.target.value)}
-                            inputProps={{ min: 1 }}
-                            size="small"
-                            sx={{ flex: 1 }}
-                            helperText={
-                              slot.vagas_disponiveis !== undefined
-                                ? `${slot.vagas_disponiveis} disponíveis`
-                                : undefined
-                            }
-                          />
-                          <IconButton size="small" onClick={() => removeSlotRow(index)} sx={{ mt: 0.5 }}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      ))}
-                      <Button size="small" startIcon={<AddIcon />} onClick={addSlotRow}>
-                        Adicionar horário
-                      </Button>
-                      {!timeSlotsValid && timeSlots.length > 0 && (
-                        <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
-                          Preencha todos os horários com vagas ≥ 1 e sem horários repetidos.
-                        </Typography>
+                      <SwitchRow
+                        id="senha-horarios"
+                        checked={useTimeSlots}
+                        onCheckedChange={handleToggleUseTimeSlots}
+                        label="Consulente escolhe um horário ao pegar a senha"
+                        description={`Divide as ${senhaForm.max_tickets || 'X'} senhas em horários (ex.: 20h, 20h30, 21h) para não juntar gente na porta.`}
+                      />
+                      {useTimeSlots && (
+                        <div className="flex flex-col gap-2">
+                          {timeSlots.map((slot, index) => (
+                            <div key={index} className="flex items-start gap-2">
+                              <TextField
+                                label="Horário"
+                                type="time"
+                                size="small"
+                                value={slot.horario}
+                                onChange={(e) => updateSlotRow(index, 'horario', e.target.value)}
+                                className="flex-1"
+                              />
+                              <TextField
+                                label="Vagas"
+                                type="number"
+                                size="small"
+                                min={1}
+                                value={slot.capacidade_maxima}
+                                onChange={(e) => updateSlotRow(index, 'capacidade_maxima', e.target.value)}
+                                className="flex-1"
+                                helperText={
+                                  slot.vagas_disponiveis !== undefined ? `${slot.vagas_disponiveis} disponíveis` : undefined
+                                }
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                className="mt-6"
+                                aria-label={`Remover horário ${slot.horario || index + 1}`}
+                                onClick={() => removeSlotRow(index)}
+                              >
+                                <Trash2 aria-hidden />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button type="button" size="sm" variant="outline" className="self-start" onClick={addSlotRow}>
+                            <Plus aria-hidden /> Adicionar horário
+                          </Button>
+                          {!timeSlotsValid && timeSlots.length > 0 && (
+                            <p className="text-xs text-destructive">
+                              Preencha todos os horários com vagas ≥ 1 e sem horários repetidos.
+                            </p>
+                          )}
+                        </div>
                       )}
                     </>
                   )}
-                </>
-              )}
-            </Box>
+                </AccordionContent>
+              </AccordionItem>
 
-            {/* ═══ Sponsor Section ═══ */}
-            <Box sx={{ mt: 3, pt: 2, borderTop: '2px solid #daa520' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <StarIcon sx={{ color: '#daa520' }} />
-                <Typography variant="subtitle1" fontWeight="bold" color="#b8860b">
-                  Senhas de Associados
-                </Typography>
-              </Box>
-
-              {!subLoading && !can('associados') ? (
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, p: 2, borderRadius: 2, bgcolor: '#f5f5f5', border: '1px solid #e0e0e0' }}>
-                  <LockIcon sx={{ fontSize: 20, color: 'text.disabled', mt: 0.2, flexShrink: 0 }} />
-                  <Box>
-                    <Typography variant="body2" fontWeight={600} color="text.secondary">
-                      Disponível a partir do plano Pro
-                    </Typography>
-                    <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.25 }}>
-                      Faça upgrade para configurar senhas de associados.
-                    </Typography>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      sx={{ mt: 1, textTransform: 'none' }}
-                      onClick={() => { window.location.href = '/admin/plano'; }}
-                    >
-                      Ver Planos
-                    </Button>
-                  </Box>
-                </Box>
-              ) : (
-              <>
-              <TextField
-                label="Quantidade de Senhas (Associado)"
-                type="number"
-                value={senhaForm.sponsor_max_tickets}
-                onChange={(e) => handleSenhaChange('sponsor_max_tickets', e.target.value)}
-                fullWidth
-                inputProps={{ min: 0 }}
-                helperText="Deixe 0 ou vazio para desabilitar senhas de associado"
-              />
-              {senhaForm.sponsor_max_tickets && Number(senhaForm.sponsor_max_tickets) > 0 && (
-                <>
-                  <TextField
-                    label="Início da Liberação (Associado)"
-                    type="datetime-local"
-                    value={senhaForm.sponsor_release_start_at}
-                    onChange={(e) => handleSenhaChange('sponsor_release_start_at', e.target.value)}
-                    fullWidth
-                    InputLabelProps={{ shrink: true }}
-                    helperText="Se vazio, usa o mesmo horário das senhas comuns"
-                  />
-                  <TextField
-                    label="Fim da Liberação (Associado)"
-                    type="datetime-local"
-                    value={senhaForm.sponsor_release_end_at}
-                    onChange={(e) => handleSenhaChange('sponsor_release_end_at', e.target.value)}
-                    fullWidth
-                    InputLabelProps={{ shrink: true }}
-                    helperText="Se vazio, usa o mesmo horário das senhas comuns"
-                  />
-
-                  {/* Sponsor count + progress */}
-                  {senhaConfig && senhaConfig.sponsor_max_tickets && senhaConfig.sponsor_max_tickets > 0 && (
-                    <Box sx={{ mt: 1 }}>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                        Senhas associado emitidas: {senhaConfig.sponsor_current_count || 0} / {senhaConfig.sponsor_max_tickets}
-                      </Typography>
-                      <LinearProgress
-                        variant="determinate"
-                        value={Math.min(100, ((senhaConfig.sponsor_current_count || 0) / senhaConfig.sponsor_max_tickets) * 100)}
-                        sx={{ height: 8, borderRadius: 4 }}
-                        color="warning"
+              <AccordionItem value="associados">
+                <AccordionTrigger>
+                  <span className="flex items-center gap-2">
+                    <Star className="size-4 text-warning" aria-hidden /> Senhas de associados
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3">
+                  {!subLoading && !can('associados') ? (
+                    <PlanLockedInline text="Configure senhas separadas para os associados do terreiro." />
+                  ) : (
+                    <>
+                      <TextField
+                        label="Quantas senhas de associado"
+                        type="number"
+                        min={0}
+                        value={senhaForm.sponsor_max_tickets}
+                        onChange={(e) => handleSenhaChange('sponsor_max_tickets', e.target.value)}
+                        helperText="Deixe 0 ou vazio para não ter senhas de associado."
                       />
-                    </Box>
+                      {senhaForm.sponsor_max_tickets && Number(senhaForm.sponsor_max_tickets) > 0 && (
+                        <>
+                          <DateTimeField
+                            label="Senhas de associado abrem em"
+                            value={senhaForm.sponsor_release_start_at}
+                            onChange={(v) => handleSenhaChange('sponsor_release_start_at', v ?? '')}
+                            helperText="Se vazio, usa o mesmo horário das senhas comuns."
+                          />
+                          <DateTimeField
+                            label="Senhas de associado fecham em"
+                            value={senhaForm.sponsor_release_end_at}
+                            onChange={(v) => handleSenhaChange('sponsor_release_end_at', v ?? '')}
+                            helperText="Se vazio, usa o mesmo horário das senhas comuns."
+                          />
+                          {senhaConfig && senhaConfig.sponsor_max_tickets && senhaConfig.sponsor_max_tickets > 0 && (
+                            <div className="flex flex-col gap-1.5">
+                              <p className="text-sm text-muted-foreground">
+                                {senhaConfig.sponsor_current_count || 0} de {senhaConfig.sponsor_max_tickets} senhas de
+                                associado emitidas
+                              </p>
+                              <Progress
+                                value={Math.min(
+                                  100,
+                                  ((senhaConfig.sponsor_current_count || 0) / senhaConfig.sponsor_max_tickets) * 100,
+                                )}
+                                className="h-2"
+                                aria-label="Senhas de associado emitidas"
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </>
                   )}
-
-                  {/* Sponsor public link */}
-                  {senhaConfig?.sponsor_public_link && (
-                    <Box sx={{ mt: 1, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                        <StarIcon sx={{ fontSize: 14, color: '#b8860b' }} />
-                        <Typography variant="caption" sx={{ color: '#7d6608', fontWeight: 600 }}>Link Associado</Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                        <Typography
-                          variant="body2"
-                          sx={{ flex: 1, wordBreak: 'break-all', fontFamily: 'monospace', fontSize: '0.8rem' }}
-                        >
-                          {senhaConfig.sponsor_public_link}
-                        </Typography>
-                        <Tooltip title="Copiar link">
-                          <IconButton size="small" onClick={() => copyPublicLink(senhaConfig.sponsor_public_link || '')}>
-                            <ContentCopyIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Abrir link">
-                          <IconButton size="small" component="a" href={senhaConfig.sponsor_public_link} target="_blank" rel="noopener noreferrer">
-                            <OpenInNewIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </Box>
-                  )}
-                </>
-              )}
-              </>
-              )}
-            </Box>
-          </>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
         )}
       </CrudDrawer>
 
-      {/* Delete Dialog */}
       <ConfirmDialog
-        open={deleteOpen}
-        title="Confirmar exclusão"
-        message={`Tem certeza que deseja deletar a gira "${deleteTarget?.nome}"?`}
-        confirmText="Deletar"
+        open={!!deleteTarget}
+        title="Excluir gira"
+        message={`Tem certeza que deseja excluir a gira “${deleteTarget?.nome ?? ''}”?`}
+        confirmText="Excluir"
         destructive
         onConfirm={handleDelete}
-        onCancel={() => { setDeleteOpen(false); setDeleteTarget(null); }}
+        onCancel={() => setDeleteTarget(null)}
       />
 
-      {/* Release Now Confirm Dialog */}
       <ConfirmDialog
-        open={releaseConfirmOpen}
-        title="Liberar Senhas Agora?"
-        message={`A emissão de senhas para "${senhaTarget?.nome}" será aberta imediatamente. O público poderá emitir senhas a partir de agora.`}
-        confirmText="Liberar Agora"
+        open={!!releaseTarget}
+        title="Liberar senhas agora?"
+        message={`As senhas de “${releaseTarget?.nome ?? ''}” abrem imediatamente no link do terreiro.`}
+        confirmText="Liberar agora"
         cancelText="Cancelar"
         onConfirm={handleReleaseNow}
-        onCancel={() => setReleaseConfirmOpen(false)}
+        onCancel={() => setReleaseTarget(null)}
       />
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-          severity={snackbar.severity}
-          variant="filled"
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </>
+      <ShareLinkDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        link={unifiedLinks?.public_link}
+        sponsorLink={can('associados') ? unifiedLinks?.sponsor_public_link : null}
+        tenantName={profile?.tenant_name}
+        title={shareTitle}
+      />
+    </div>
   );
 }

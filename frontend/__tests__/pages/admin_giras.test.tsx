@@ -4,7 +4,6 @@
  */
 import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 
 // Objeto mutável (prefixo `mock` para o jest permitir no factory): cada teste
 // pode ajustar query/isReady.
@@ -58,10 +57,23 @@ jest.mock('@/components/CrudDrawer', () => ({
     ) : null,
 }));
 
-const theme = createTheme();
 function wrap(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+  return render(ui);
 }
+
+/** DateTimeField: data "dd/mm/aaaa" no campo rotulado e hora no input de hora ao lado. */
+function timeInputOf(label: RegExp | string): HTMLInputElement {
+  let el: HTMLElement | null = screen.getByLabelText(label);
+  while (el && !el.querySelector('input[type="time"]')) el = el.parentElement;
+  return (el as HTMLElement).querySelector('input[type="time"]') as HTMLInputElement;
+}
+
+function setDateTime(label: RegExp | string, date: string, time: string) {
+  fireEvent.change(screen.getByLabelText(label), { target: { value: date } });
+  fireEvent.change(timeInputOf(label), { target: { value: time } });
+}
+
+const timeOf = (label: RegExp | string) => timeInputOf(label).value;
 
 const MOCK_GIRAS = [
   {
@@ -143,13 +155,17 @@ describe('Admin Giras Page', () => {
     );
   });
 
-  describe('padrões inteligentes de senhas', () => {
+  describe('criação em 3 passos com padrões inteligentes de senhas', () => {
     const NEW_GIRA = { id: 'nova', nome: 'Gira de Caboclos', data_inicio: '2099-01-10T22:00:00Z', is_active: true };
+    const LINK = 'https://girahub.com.br/public/casa/senha';
 
     function mockApi(giras: any[] = []) {
       const { apiClient } = require('@/services/api_client');
       apiClient.get.mockImplementation((url: string) => {
         if (url === '/api/v1/admin/giras') return Promise.resolve({ data: giras });
+        if (url === '/api/v1/admin/giras/unified-links') {
+          return Promise.resolve({ data: { public_link: LINK, sponsor_public_link: `${LINK}?a=1` } });
+        }
         if (url.endsWith('/senhas')) {
           return Promise.resolve({
             data: { max_tickets: 0, release_start_at: NEW_GIRA.data_inicio, release_end_at: NEW_GIRA.data_inicio, current_count: 0 },
@@ -158,54 +174,80 @@ describe('Admin Giras Page', () => {
         return Promise.resolve({ data: {} });
       });
       apiClient.post.mockResolvedValue({ data: NEW_GIRA });
+      apiClient.put.mockResolvedValue({ data: {} });
       return apiClient;
     }
 
-    async function createGira() {
+    async function fillStepOne() {
       const AdminGiras = require('@/pages/admin/giras').default;
       wrap(<AdminGiras />);
-      await waitFor(() => expect(screen.getByRole('button', { name: /Nova Gira/ })).toBeEnabled());
-      fireEvent.click(screen.getByRole('button', { name: /Nova Gira/ }));
-      fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: NEW_GIRA.nome } });
-      fireEvent.change(screen.getByLabelText(/Data Início/), { target: { value: '2099-01-10T19:00' } });
+      await waitFor(() => expect(screen.getByRole('button', { name: /Nova gira/ })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: /Nova gira/ }));
+      fireEvent.change(screen.getByLabelText(/^Nome da gira/), { target: { value: NEW_GIRA.nome } });
+      setDateTime(/^Dia e hora da gira/, '10/01/2099', '19:00');
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /salvar: Nova Gira/ }));
+        fireEvent.click(screen.getByRole('button', { name: /salvar: Nova gira/ }));
       });
     }
 
-    it('depois de criar, abre a configuração de senhas já com a sugestão', async () => {
-      const api = mockApi([{ ...MOCK_GIRAS[0], max_tickets: 40 }, { ...MOCK_GIRAS[0], id: 'g2', max_tickets: 20 }]);
-      await createGira();
-      await waitFor(() => expect(screen.getByTestId('senha-suggestion')).toBeInTheDocument());
-      expect(api.post).toHaveBeenCalledWith('/api/v1/admin/giras', expect.objectContaining({ nome: NEW_GIRA.nome }));
-      expect(api.get).toHaveBeenCalledWith('/api/v1/admin/giras/nova/senhas');
-      const alert = screen.getByTestId('senha-suggestion');
-      expect(alert).toHaveTextContent('Gira criada! Falta liberar as senhas.');
-      expect(alert).toHaveTextContent('30 senhas (a média das suas giras)');
-      expect(screen.getByLabelText(/^Quantidade de Senhas(\s*\*)?$/)).toHaveValue(30);
-      expect((screen.getByLabelText(/^Início da Liberação(\s*\*)?$/) as HTMLInputElement).value).not.toBe('');
-      const fim = new Date(NEW_GIRA.data_inicio);
-      const pad = (n: number) => String(n).padStart(2, '0');
-      expect(screen.getByLabelText(/^Fim da Liberação(\s*\*)?$/)).toHaveValue(
-        `${fim.getFullYear()}-${pad(fim.getMonth() + 1)}-${pad(fim.getDate())}T${pad(fim.getHours())}:${pad(fim.getMinutes())}`,
-      );
+    it('o passo "Senhas" já vem com a sugestão: média das giras e janela até o início', async () => {
+      mockApi([{ ...MOCK_GIRAS[0], max_tickets: 40 }, { ...MOCK_GIRAS[0], id: 'g2', max_tickets: 20 }]);
+      await fillStepOne();
+      expect(screen.getByTestId('create-senha-suggestion')).toBeInTheDocument();
+      expect(screen.getByLabelText(/^Quantas senhas/)).toHaveValue(30);
+      expect((screen.getByLabelText(/^Senhas abrem em/) as HTMLInputElement).value).not.toBe('');
+      expect(screen.getByLabelText(/^Senhas fecham em/)).toHaveValue('10/01/2099');
+      expect(timeOf(/^Senhas fecham em/)).toBe('19:00');
       expect(screen.queryByTestId('short-window-warning')).not.toBeInTheDocument();
     });
 
     it('janela curta mostra aviso e "Usar sugestão" restaura a janela longa', async () => {
       mockApi([]);
-      await createGira();
-      await waitFor(() => expect(screen.getByTestId('senha-suggestion')).toBeInTheDocument());
-      expect(screen.getByLabelText(/^Quantidade de Senhas(\s*\*)?$/)).toHaveValue(30);
-      const fimSugerido = (screen.getByLabelText(/^Fim da Liberação(\s*\*)?$/) as HTMLInputElement).value;
-
-      fireEvent.change(screen.getByLabelText(/^Início da Liberação(\s*\*)?$/), { target: { value: '2099-01-10T18:00' } });
-      fireEvent.change(screen.getByLabelText(/^Fim da Liberação(\s*\*)?$/), { target: { value: '2099-01-10T19:00' } });
-      expect(screen.getByTestId('short-window-warning')).toHaveTextContent('A liberação dura só 1 hora');
-
+      await fillStepOne();
+      expect(screen.getByLabelText(/^Quantas senhas/)).toHaveValue(30);
+      setDateTime(/^Senhas abrem em/, '10/01/2099', '18:00');
+      setDateTime(/^Senhas fecham em/, '10/01/2099', '18:30');
+      expect(screen.getByTestId('short-window-warning')).toHaveTextContent('A liberação dura só 30 minutos');
       fireEvent.click(screen.getByRole('button', { name: 'Usar sugestão' }));
       expect(screen.queryByTestId('short-window-warning')).not.toBeInTheDocument();
-      expect(screen.getByLabelText(/^Fim da Liberação(\s*\*)?$/)).toHaveValue(fimSugerido);
+      expect(timeOf(/^Senhas fecham em/)).toBe('19:00');
+    });
+
+    it('ao concluir, cria a gira, salva as senhas e oferece o link', async () => {
+      const api = mockApi([]);
+      await fillStepOne();
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /salvar: Nova gira/ }));
+      });
+      expect(screen.getByTestId('create-review')).toHaveTextContent(NEW_GIRA.nome);
+      fireEvent.change(screen.getByLabelText(/^Recados/), { target: { value: 'Trazer vela branca' } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /salvar: Nova gira/ }));
+      });
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/v1/admin/giras',
+        expect.objectContaining({ nome: NEW_GIRA.nome, recados: 'Trazer vela branca' }),
+      );
+      await waitFor(() =>
+        expect(api.put).toHaveBeenCalledWith('/api/v1/admin/giras/nova/senhas', expect.objectContaining({ max_tickets: 30 })),
+      );
+      await waitFor(() => expect(screen.getByTestId('share-link-dialog')).toBeInTheDocument());
+      expect(screen.getByText('Gira criada! Compartilhe o link de senhas')).toBeInTheDocument();
+      expect(screen.getAllByTestId('share-link-text')[0]).toHaveTextContent(LINK);
+    });
+
+    it('gira sem senhas: "Configurar senhas" abre o drawer com a sugestão', async () => {
+      const api = mockApi([{ ...NEW_GIRA, max_tickets: null }]);
+      const AdminGiras = require('@/pages/admin/giras').default;
+      wrap(<AdminGiras />);
+      await waitFor(() => expect(screen.getByRole('button', { name: /Configurar senhas/ })).toBeInTheDocument());
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Configurar senhas/ }));
+      });
+      await waitFor(() => expect(screen.getByTestId('senha-suggestion')).toBeInTheDocument());
+      expect(api.get).toHaveBeenCalledWith('/api/v1/admin/giras/nova/senhas');
+      expect(screen.getByTestId('senha-suggestion')).not.toHaveTextContent('Gira criada!');
+      expect(screen.getByLabelText(/^Quantas senhas/)).toHaveValue(30);
     });
   });
 });
