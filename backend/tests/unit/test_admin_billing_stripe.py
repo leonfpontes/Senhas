@@ -276,6 +276,26 @@ class TestCancelSubscription:
         assert exc.value.status_code == 400
 
 
+    @patch("src.api.v1.admin.billing_stripe.asyncio.create_task")
+    @patch("src.api.v1.admin.billing_stripe.stripe_service")
+    @patch("src.api.v1.admin.billing_stripe.SubscriptionRepository")
+    async def test_already_scheduled_refuses_without_resending_email(self, MockRepo, mock_stripe, mock_task):
+        """Clicar de novo em Cancelar não chama a Stripe nem reenvia o e-mail."""
+        from src.api.v1.admin.billing_stripe import cancel_subscription
+
+        repo = AsyncMock()
+        repo.get_by_tenant.return_value = _make_sub(cancel_at_period_end=True)
+        MockRepo.return_value = repo
+        mock_stripe.cancel_subscription = AsyncMock(return_value={})
+
+        with pytest.raises(HTTPException) as exc:
+            await cancel_subscription(_admin_user(), AsyncMock())
+        assert exc.value.status_code == 409
+        assert "já está agendado" in exc.value.detail
+        mock_stripe.cancel_subscription.assert_not_called()
+        mock_task.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # POST /billing/reactivate
 # ---------------------------------------------------------------------------
@@ -303,6 +323,28 @@ class TestReactivateSubscription:
         audit.create.assert_called_once()
         db.commit.assert_called_once()
         assert "reativada" in result["detail"]
+
+    @patch("src.api.v1.admin.billing_stripe.stripe_service")
+    @patch("src.api.v1.admin.billing_stripe.SubscriptionRepository")
+    async def test_stripe_error_becomes_clear_http_error(self, MockRepo, mock_stripe):
+        """Erro da Stripe ao reativar vira mensagem clara (antes: 500 opaco)."""
+        import stripe as stripe_sdk
+        from src.api.v1.admin.billing_stripe import reactivate_subscription
+
+        sub = _make_sub(cancel_at_period_end=True)
+        repo = AsyncMock()
+        repo.get_by_tenant.return_value = sub
+        MockRepo.return_value = repo
+        mock_stripe.reactivate_subscription = AsyncMock(
+            side_effect=stripe_sdk.error.APIConnectionError("rede caiu")
+        )
+        db = AsyncMock()
+
+        with pytest.raises(HTTPException) as exc:
+            await reactivate_subscription(_admin_user(), db)
+        assert exc.value.status_code == 503
+        assert sub.cancel_at_period_end is True
+        db.commit.assert_not_called()
 
     @patch("src.api.v1.admin.billing_stripe.SubscriptionRepository")
     async def test_no_stripe_sub_raises_400(self, MockRepo):
