@@ -1,6 +1,5 @@
 """TenantService - Tenant creation, management, and lifecycle (T101)."""
 import logging
-import uuid
 import secrets
 from typing import Optional
 from uuid import UUID
@@ -25,10 +24,11 @@ class TenantService:
     
     Handles:
     - Creating new tenants with initial admin
-    - Suspending/activating tenants
-    - Branding updates
-    - API key generation
-    - Tenant deletion
+    - Reading/updating tenant data
+    - Permanent (LGPD) tenant deletion
+
+    Suspensão é na assinatura (SubscriptionService); exclusão lógica pelo próprio
+    terreiro fica em api/v1/auth/deactivation.py.
     """
     
     def __init__(self, db: AsyncSession):
@@ -44,7 +44,6 @@ class TenantService:
         email_admin: str,
         plan: PlanType = PlanType.BASIC,
         is_trial: bool = False,
-        data_retention_days: int = 12,
     ) -> dict:
         """Create new tenant with initial admin user.
         
@@ -54,10 +53,11 @@ class TenantService:
             email_admin: Admin email
             plan: Subscription plan
             is_trial: Whether to start as trial
-            data_retention_days: Data retention period
             
         Returns:
-            Dict with tenant info, admin user, and API key
+            Dict with tenant info, admin user, subscription and ``temp_password``
+            (senha provisória do admin, devolvida uma única vez para o super-admin
+            repassar — nunca registrar em log)
             
         Raises:
             InvalidInputError: If slug already exists
@@ -125,7 +125,7 @@ class TenantService:
                 "is_trial": subscription.is_trial,
                 "max_users": subscription.max_users,
             },
-            "temp_password": password,  # Should be sent securely
+            "temp_password": password,  # mostrada uma vez no painel; nunca logar
         }
     
     async def get_tenant(self, tenant_id: UUID) -> Optional[dict]:
@@ -137,7 +137,6 @@ class TenantService:
         Returns:
             Tenant dict or None
         """
-        stmt = "SELECT * FROM tenants WHERE id = :id AND deleted_at IS NULL"
         tenant = await self.tenant_repo.get_by_id(tenant_id, None)
         
         if not tenant:
@@ -189,45 +188,13 @@ class TenantService:
             "updated_at": tenant.updated_at.isoformat(),
         }
     
-    async def suspend_tenant(self, tenant_id: UUID) -> Optional[dict]:
-        """Suspend tenant (disable access).
-        
-        Args:
-            tenant_id: Tenant ID
-            
-        Returns:
-            Updated tenant dict or None
-        """
-        return await self.update_tenant(tenant_id, is_active=False)
-    
-    async def reactivate_tenant(self, tenant_id: UUID) -> Optional[dict]:
-        """Reactivate tenant.
-        
-        Args:
-            tenant_id: Tenant ID
-            
-        Returns:
-            Updated tenant dict or None
-        """
-        return await self.update_tenant(tenant_id, is_active=True)
-    
-    async def delete_tenant(self, tenant_id: UUID) -> bool:
-        """Soft delete tenant.
-        
-        Args:
-            tenant_id: Tenant ID
-            
-        Returns:
-            True if deleted, False if not found
-        """
-        result = await self.tenant_repo.soft_delete(tenant_id)
-        return result is not None
-
     async def hard_delete_tenant(self, tenant_id: UUID, confirm_slug: str, actor_id: UUID) -> dict:
         """Permanently delete a tenant and all its data (LGPD Art. 18 VI).
 
         Guards:
-        - Tenant must exist and not be soft-deleted.
+        - Tenant must exist. Soft-deleted tenants (terreiro que se desativou
+          pelo painel — ``self_deactivated_at``) TAMBÉM podem ser excluídos: é
+          justamente quem mais pede a exclusão definitiva dos dados (LGPD).
         - confirm_slug must match tenant.slug exactly (prevents accidental deletes).
 
         Side effects (best-effort, non-blocking):
@@ -246,7 +213,7 @@ class TenantService:
             NotFoundError: Tenant not found.
             InvalidInputError: confirm_slug does not match.
         """
-        tenant = await self.tenant_repo.get_by_id_with_subscription(tenant_id)
+        tenant = await self.tenant_repo.get_by_id_with_subscription(tenant_id, include_deleted=True)
         if not tenant:
             raise NotFoundError("Tenant não encontrado")
 
@@ -260,6 +227,10 @@ class TenantService:
             "id": str(tenant.id),
             "slug": tenant.slug,
             "name": tenant.name,
+            "was_soft_deleted": tenant.deleted_at is not None,
+            "self_deactivated_at": (
+                tenant.self_deactivated_at.isoformat() if tenant.self_deactivated_at else None
+            ),
             "plan": tenant.subscription.plan.value if tenant.subscription else None,
             "stripe_customer_id": tenant.subscription.stripe_customer_id if tenant.subscription else None,
             "stripe_subscription_id": tenant.subscription.stripe_subscription_id if tenant.subscription else None,
@@ -289,7 +260,7 @@ class TenantService:
                 )
 
         # Hard delete — cascade handles all children
-        await self.tenant_repo.hard_delete(tenant_id)
+        await self.tenant_repo.hard_delete(tenant_id, include_deleted=True)
 
         # AuditLog with tenant_id=NULL (tenant no longer exists)
         audit = AuditLog(

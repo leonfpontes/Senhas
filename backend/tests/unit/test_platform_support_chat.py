@@ -58,8 +58,9 @@ class TestListConversations:
     async def test_lists_cross_tenant(self, MockRepo):
         db = AsyncMock()
         repo_inst = AsyncMock()
-        repo_inst.list_all_conversations.return_value = [_mock_conversation()]
-        repo_inst.list_messages.return_value = [_mock_message(body="tenho uma dúvida")]
+        conversation = _mock_conversation()
+        repo_inst.list_all_conversations.return_value = [conversation]
+        repo_inst.last_message_previews.return_value = {conversation.id: "tenho uma dúvida"}
         MockRepo.return_value = repo_inst
 
         result = await list_conversations(None, None, 50, 0, _super_admin(), db)
@@ -67,6 +68,38 @@ class TestListConversations:
         assert len(result) == 1
         assert result[0].tenant_name == "Terreiro Test"
         assert result[0].last_message_preview == "tenho uma dúvida"
+        # Prévia numa consulta só — nada de carregar todas as mensagens por conversa (N+1)
+        repo_inst.list_messages.assert_not_called()
+        repo_inst.last_message_previews.assert_awaited_once()
+
+
+class TestGetConversation:
+    @patch("src.api.v1.platform.support_chat.SupportChatRepository")
+    async def test_busca_por_id_fora_da_lista(self, MockRepo):
+        from src.api.v1.platform.support_chat import get_conversation
+
+        db = AsyncMock()
+        conversation = _mock_conversation()
+        repo_inst = AsyncMock()
+        repo_inst.get_conversation.return_value = conversation
+        repo_inst.last_message_previews.return_value = {}
+        MockRepo.return_value = repo_inst
+
+        result = await get_conversation(conversation.id, _super_admin(), db)
+
+        assert result.id == conversation.id
+        assert result.last_message_preview is None
+
+    @patch("src.api.v1.platform.support_chat.SupportChatRepository")
+    async def test_conversa_inexistente_404(self, MockRepo):
+        from src.api.v1.platform.support_chat import get_conversation
+
+        repo_inst = AsyncMock()
+        repo_inst.get_conversation.return_value = None
+        MockRepo.return_value = repo_inst
+
+        with pytest.raises(NotFoundError):
+            await get_conversation(uuid4(), _super_admin(), AsyncMock())
 
 
 class TestGetConversationMessages:
@@ -148,7 +181,7 @@ class TestSetConversationStatus:
         repo_inst = AsyncMock()
         repo_inst.get_conversation.return_value = _mock_conversation(status=SupportConversationStatus.OPEN)
         repo_inst.set_status.return_value = conversation
-        repo_inst.list_messages.return_value = []
+        repo_inst.last_message_previews.return_value = {}
         MockRepo.return_value = repo_inst
 
         result = await set_conversation_status(SetStatusRequest(status=SupportConversationStatus.RESOLVED), conversation.id, _super_admin(), db)
