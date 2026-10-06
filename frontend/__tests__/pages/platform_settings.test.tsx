@@ -3,7 +3,7 @@
  * criação exige a regra de senha do app.
  */
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 const mockRouter = {
   push: jest.fn(),
@@ -93,5 +93,15 @@ describe('Platform — Configurações', () => {
     expect(screen.getByText('R$ 79,00')).toBeInTheDocument();
     expect(screen.getByText('R$ 99,00')).toBeInTheDocument();
     expect(screen.getByText('Grátis')).toBeInTheDocument();
+  });
+
+  it('aba Planos deriva os recursos de FEATURE_MIN_PLAN (mensalidade de médiuns a partir do Pro)', async () => {
+    mockRouter.query = { tab: 'planos' };
+    render(<SettingsPage />);
+    const row = (await screen.findByText('Mensalidade dos médiuns')).closest('tr') as HTMLElement;
+    const cells = within(row).getAllByRole('cell').slice(1); // free, basic, pro, premium
+    expect(cells.map((c) => within(c).queryByLabelText('Incluído') !== null)).toEqual([false, false, true, true]);
+    const suporte = (await screen.findByText('Suporte prioritário')).closest('tr') as HTMLElement;
+    expect(within(suporte).getAllByLabelText('Incluído')).toHaveLength(1);
   });
 });

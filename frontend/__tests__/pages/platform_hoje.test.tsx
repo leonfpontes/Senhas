@@ -1,6 +1,7 @@
 /**
- * /platform (Hoje) — três colunas, KPIs, alerta de inatividade com "30 dias", WhatsApp com DDI,
- * impersonação com token no fragmento.
+ * /platform (Hoje) — três colunas, KPIs, alerta de inatividade com a carência real da retenção
+ * (retention_grace_days, não "30 dias" fixo), WhatsApp com DDI, impersonação com token só no fragmento
+ * e aba aberta antes do await (bloqueador de pop-up).
  */
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -31,7 +32,7 @@ const DASHBOARD = {
   tickets: { total: 200, last_30d: 80, last_7d: 20 },
   mrr: 490,
   mrr_prev_month: 400,
-  alerts: { inactive_tenants: 1, no_activity_30d: 2 },
+  alerts: { inactive_tenants: 1 },
   plans_distribution: [],
   daily_tickets: [],
   tenant_growth: [],
@@ -42,7 +43,8 @@ const OBSERVATORY = {
   retention: [
     { tenant_id: 't-churn', tenant_name: 'Casa Antiga', tenant_slug: 'casa-antiga', plan: 'pro', mrr: 79, last_ticket_at: '2026-08-01T00:00:00Z', never_emitted: false, days_inactive: 65, tickets_30d: 0, tickets_prev_30d: 0, severity: 'critico' },
   ],
-  retention_summary: { total_at_risk: 1, mrr_at_risk: 79, critico: 1, risco: 0, atencao: 0 },
+  retention_summary: { total_at_risk: 2, mrr_at_risk: 79, critico: 1, risco: 0, atencao: 0 },
+  retention_grace_days: 15,
   activation: {
     window_days: 60,
     total: 2,
@@ -91,11 +93,11 @@ describe('Platform — Hoje', () => {
   });
   afterEach(() => localStorage.clear());
 
-  it('mostra KPIs, alerta de 30 dias e as três colunas com dados', async () => {
+  it('mostra KPIs, alerta com a carência real e as três colunas com dados', async () => {
     render(<PlatformHoje />);
     expect(await screen.findByText('R$ 490,00')).toBeInTheDocument();
     expect(screen.getByText('+22.5% vs. mês anterior')).toBeInTheDocument();
-    expect(screen.getByText('2 terreiros sem emitir senhas há 30 dias')).toBeInTheDocument();
+    expect(await screen.findByText('2 terreiros sem emitir senhas há 15 dias ou mais')).toBeInTheDocument();
     expect(screen.getByText('1 terreiro desativado')).toBeInTheDocument();
 
     const contatar = within(screen.getByTestId('contatar'));
@@ -119,16 +121,35 @@ describe('Platform — Hoje', () => {
     expect(quebrou.getByText(/Não consigo emitir/)).toBeInTheDocument();
   });
 
-  it('"Entrar como admin" impersona o admin do terreiro e passa o token no fragmento', async () => {
+  it('"Entrar como admin" abre a aba no clique e passa o token só no fragmento', async () => {
+    const tab = { opener: {}, location: { href: '' }, document: { title: '', body: { textContent: '' } }, close: jest.fn() };
+    const open = jest.spyOn(window, 'open').mockImplementation(() => tab as unknown as Window);
+    render(<PlatformHoje />);
+    const contatar = within(await screen.findByTestId('contatar'));
+    fireEvent.click(contatar.getByRole('button', { name: 'Entrar como admin de Casa Alfa' }));
+    // A aba é aberta ainda dentro do clique, antes de qualquer resposta da API.
+    expect(open).toHaveBeenCalledWith('about:blank', '_blank');
+    expect(mockPost).not.toHaveBeenCalled();
+    expect(tab.opener).toBeNull();
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/api/v1/platform/impersonate/u-adm'));
+    await waitFor(() => expect(tab.location.href).not.toBe(''));
+    const url = tab.location.href;
+    expect(url.startsWith('/admin/impersonate#')).toBe(true);
+    expect(url).not.toContain('?');
+    expect(new URLSearchParams(url.split('#')[1]).get('token')).toBe('jwt.token.aqui');
+    expect(tab.close).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it('pop-up bloqueado: avisa e não chama a API', async () => {
+    const { toast } = jest.requireMock('sonner') as { toast: { error: jest.Mock } };
     const open = jest.spyOn(window, 'open').mockImplementation(() => null);
     render(<PlatformHoje />);
     const contatar = within(await screen.findByTestId('contatar'));
     fireEvent.click(contatar.getByRole('button', { name: 'Entrar como admin de Casa Alfa' }));
-    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/api/v1/platform/impersonate/u-adm'));
-    await waitFor(() => expect(open).toHaveBeenCalled());
-    const url = open.mock.calls[0][0] as string;
-    expect(url.startsWith('/admin/impersonate?token=jwt.token.aqui&')).toBe(true);
-    expect(url.endsWith('#token=jwt.token.aqui')).toBe(true);
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(String(toast.error.mock.calls[0][0])).toMatch(/bloqueou a nova aba/);
+    expect(mockPost).not.toHaveBeenCalled();
     open.mockRestore();
   });
 });

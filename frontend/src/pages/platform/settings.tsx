@@ -31,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { PlanBadge, TenantActiveBadge, ToneBadge, PLAN_META, PLAN_ORDER, fmtDate, fmtMoney, roleLabel } from '@/components/platform';
 import { PASSWORD_RULE_HINT, isPasswordValid, passwordHelp } from '@/components/platform/passwordPolicy';
+import { BASE_FEATURES, FEATURE_CATALOG, FEATURE_MIN_PLAN, PLAN_ORDER as PLAN_TIERS } from '@/constants/plans';
 
 const TABS = ['conta', 'admins', 'flags', 'planos'] as const;
 type TabKey = (typeof TABS)[number];
@@ -550,20 +551,17 @@ interface PlanRow {
 
 const limitText = (n: number | null) => (n === null ? 'Ilimitado' : n === 0 ? '—' : String(n));
 
+/**
+ * Recursos por plano derivados de `constants/plans.ts` (FEATURE_CATALOG + FEATURE_MIN_PLAN, espelho de
+ * `plan_features.py`) — antes era uma tabela à mão que divergiu do backend (ex.: mensalidade de médiuns
+ * aparecia só no Premium, mas o backend libera a partir do Pro).
+ */
 const PLAN_FEATURE_ROWS: PlanRow[] = [
-  { label: 'Emissão de senhas', cells: { free: true, basic: true, pro: true, premium: true } },
-  { label: 'Porta (fila em tempo real)', cells: { free: true, basic: true, pro: true, premium: true } },
-  { label: 'Relatório de gira', cells: { free: false, basic: true, pro: true, premium: true } },
-  { label: 'Envio de senha por e-mail', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Tema personalizado', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Analytics avançado', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Gestão de associados', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Controle de estoque', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Site do terreiro', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Exportação CSV', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Auditoria completa', cells: { free: false, basic: false, pro: true, premium: true } },
-  { label: 'Mensalidade de médiuns', cells: { free: false, basic: false, pro: false, premium: true } },
-  { label: 'Suporte prioritário', cells: { free: false, basic: false, pro: false, premium: true } },
+  ...BASE_FEATURES.map((label) => ({ label, cells: Object.fromEntries(PLAN_ORDER.map((k) => [k, true])) })),
+  ...FEATURE_CATALOG.map((f) => ({
+    label: f.label,
+    cells: Object.fromEntries(PLAN_ORDER.map((k) => [k, PLAN_TIERS.indexOf(k) >= PLAN_TIERS.indexOf(FEATURE_MIN_PLAN[f.key])])),
+  })),
 ];
 
 function PlanCellView({ value }: { value: PlanCell }) {
@@ -584,7 +582,7 @@ function PlanosTab() {
     <>
       <Alert variant="info" className="mb-4">
         <AlertDescription>
-          Tabela de referência. Preços e limites vêm da constante única <code>PLAN_META</code> (espelho de <code>PLAN_LIMITS</code> do backend); o valor cobrado de cada terreiro é o da assinatura.
+          Tabela de referência. Preços e limites vêm de <code>PLAN_META</code> (espelho de <code>PLAN_LIMITS</code> do backend) e os recursos de <code>FEATURE_CATALOG</code>/<code>FEATURE_MIN_PLAN</code> (espelho de <code>plan_features.py</code>); o valor cobrado de cada terreiro é o da assinatura.
         </AlertDescription>
       </Alert>
       <div className="overflow-x-auto rounded-xl border bg-card">
