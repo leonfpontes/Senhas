@@ -65,6 +65,15 @@ export const AdminThemeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   }, []);
 
+  // Classe `dark` em <html> para os tokens shadcn/Tailwind (globals.css). Na raiz, e não
+  // no div do layout, porque Dialog/Popover/Select do Radix são portados para o <body>.
+  // Removida no unmount: páginas públicas continuam claras.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('dark', mode === 'dark');
+    return () => { root.classList.remove('dark'); };
+  }, [mode]);
+
   // Rebuild theme whenever mode or brand colors change.
   // Brand colors change when TenantContext resolves after login.
   const theme = React.useMemo(

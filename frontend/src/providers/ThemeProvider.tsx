@@ -19,9 +19,11 @@ import { ThemeProvider as MuiThemeProvider, createTheme, responsiveFontSizes } f
 import CssBaseline from '@mui/material/CssBaseline';
 
 import { apiClient } from '@/services/api_client';
+import { applyBrand } from '@/lib/brand';
 
 const DEFAULT_PRIMARY = '#6366f1';
 const DEFAULT_SECONDARY = '#ec4899';
+const DEFAULT_FONT = '#FFFFFF';
 const TENANT_BRANDING_UPDATED_EVENT = 'tenant-branding-updated';
 
 /**
@@ -131,7 +133,7 @@ const getStoredTenantName = (): string | undefined => {
 
 const buildTenantThemeConfig = (config: AdminTenantConfigResponse): TenantThemeConfig => {
   const user = getStoredUser();
-  const fontColor = typeof config.font_color === 'string' ? config.font_color : '#FFFFFF';
+  const fontColor = typeof config.font_color === 'string' ? config.font_color : DEFAULT_FONT;
 
   return {
     tenantId: user?.tenant_id || 'tenant',
@@ -194,6 +196,16 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
         window.removeEventListener(TENANT_BRANDING_UPDATED_EVENT, handleBrandingUpdated);
       };
     }, [refreshBranding]);
+
+    // Cores do terreiro → tokens CSS do shadcn/Tailwind (--primary, --secondary, ...).
+    // Roda a cada mudança de branding (login, troca de tenant, evento tenant-branding-updated).
+    useEffect(() => {
+      applyBrand(document.documentElement, {
+        primary: tenantConfig?.colors?.primary || DEFAULT_PRIMARY,
+        secondary: tenantConfig?.colors?.secondary || DEFAULT_SECONDARY,
+        font: tenantConfig?.colors?.font || DEFAULT_FONT,
+      });
+    }, [tenantConfig]);
 
     const theme = useMemo(
       () =>

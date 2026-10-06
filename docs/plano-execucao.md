@@ -543,6 +543,37 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 
 ---
 
+## Fase 4 — Frontend
+
+### M-01 — Migração MUI → shadcn/ui — `em andamento` (fase 0 feita em 2026-10-05)
+
+- **Por quê**: o admin tem 244 objetos responsivos `{ xs, sm, md }` e centenas de `sx` espalhados; o MUI v5
+  está parado na versão 5 (sem `enableCssLayer`) e cada tela carrega o runtime do Emotion. shadcn/ui +
+  Tailwind v4 dão componentes copiados para o repositório (sem dependência de runtime de estilo), tokens CSS
+  que o branding do terreiro escreve direto e modo escuro por classe.
+- **Como**: migração incremental com as duas bibliotecas convivendo — Tailwind vence o MUI pela ordem de
+  camadas (`@layer theme, base, mui, components, utilities`), MUI vence o reset escopado. Regra desde a fase 0:
+  **tela nova ou tela tocada usa shadcn/Tailwind; não criar `sx` novo**. Detalhes em AGENTS.md §11.16.
+  Linha de base do bundle em `docs/bundle-baseline.md`; a cada fase, comparar.
+- **Fases**:
+  - **0 — Fundação** — `feito` (2026-10-05): Tailwind v4 + shadcn, camada `mui` no Emotion, tokens dos
+    `AdminTokens`, `applyBrand` com contraste WCAG, classe `dark` na raiz, 7 primitivas, piloto
+    `admin/estoque/grupos.tsx`, gates verdes.
+  - **1 — Primitivas e compartilhados** — `em andamento`: restantes do shadcn (input, select, dialog, drawer/sheet,
+    tooltip, dropdown, tabs, toast) e reescrita de `CrudDrawer`, `PageHeader`, `KpiCard`, `UpgradePrompt`,
+    `ConfirmDialog`, snackbar.
+  - **2 — Público e bilhete** — `em andamento`: emissão pública, bilhete, cancelar, waitlist, cursos (telas de
+    maior tráfego, sem sessão).
+  - **3 — Layout e navegação** — `em andamento`: `admin_layout`, sidebar, topbar, dark mode, layout da plataforma.
+  - **4 — Operação** — `em andamento`: giras, tickets, porta, kiosk, relatório de gira.
+  - **5 — Aquisição e conta** — `em andamento`: login, cadastro, senha, perfil, plano, billing, suporte.
+  - **6 — Gestão da casa** — `em andamento`: médiuns, associados, usuários, grupos de permissão, estoque restante,
+    financeiro, auditoria, analytics, config.
+  - **7 — Meu Site** — `em andamento`: site builder e renderers (junto com P-04).
+  - **8 — Plataforma** — `em andamento`: `/platform/*` (observatório, tenants, usuários globais, billing, settings).
+  - **9 — Remoção** — `em andamento`: preflight global, remover `@mui/*`, `@emotion/*`, `adminTheme`/`platformTheme`,
+    camada `mui` e o `CacheProvider`; recomparar bundle com a linha de base.
+
 ## Regras de trabalho (vigentes a partir de agora)
 
 - **R-01 — Congelamento de módulos novos** — `cumprida` (2026-10-05): nenhum módulo/feature novo

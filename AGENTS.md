@@ -498,6 +498,40 @@ Incluir obrigatoriamente:
 - **Conteúdo**: cadastros dos últimos 60 dias (`WINDOW_DAYS`), do mais recente ao mais antigo, cada um num estágio — `sem_gira` → `sem_senhas` (gira criada sem `max_tickets`, nada aparece no link) → `aguardando_senha` → `recebendo` → `usou_porta` → `ativado` (20+ senhas pelo link, mesmo limiar do checklist). Mostra também giras configuradas/total e próxima gira, senhas pelo link, trial (dias restantes) ou pagante, e-mails de onboarding enviados (D+1/D+3, de `custom_settings.onboarding_emails`), dor do cadastro, última atividade (sessão ou ação auditada) e contato do admin mais antigo com links de WhatsApp (`wa.me`, DDI 55 acrescentado) e e-mail.
 - **Consulta**: uma ida ao banco com subconsultas correlacionadas por tenant + uma para os contatos. Visão cross-tenant por desenho (super-admin), sem filtro de tenant.
 
+### 11.16 Frontend — migração MUI → shadcn/ui (item M-01 do plano; fase 0 em 2026-10-05)
+- **Regra**: tela nova ou tela tocada usa shadcn/Tailwind; **não criar `sx` novo**. Espaçamento/layout em
+  componente MUI que ainda não migrou vai por `className` Tailwind (ex.: `className="mb-4"` num TextField), que
+  vence o MUI pela ordem das camadas abaixo. `CrudDrawer` (MUI) continua sendo o padrão de formulário até a fase 1.
+- **Convivência (as duas bibliotecas no mesmo app)** — `frontend/src/styles/globals.css`, importado só em `_app.tsx`:
+  - `@layer theme, base, mui, components, utilities;` — importa `tailwindcss/theme.css` e `tailwindcss/utilities.css`
+    (**não** o `tailwindcss` inteiro: o preflight brigaria com o `CssBaseline`). O reset é mínimo e escopado a
+    `[data-slot]` (todo componente shadcn carrega esse atributo); vira global só na fase 9.
+  - Camada `mui`: `frontend/src/lib/emotionLayerCache.ts` — plugin stylis que envolve cada regra raiz do Emotion em
+    `@layer mui{...}`; o cache vai num `<CacheProvider>` em `_app.tsx` (cliente: um cache por aba; servidor: um por
+    render, senão o SSR para de emitir `<style>` a partir do 2º request). Resultado: MUI vence o reset, Tailwind vence o MUI.
+  - Breakpoints redefinidos em `@theme` para os do MUI (`sm 600 / md 900 / lg 1200 / xl 1536`, sem `2xl`), para que
+    `sm:`/`md:` batam com os objetos `{ xs, sm, md }` existentes.
+- **Tokens**: `:root`/`.dark` em `globals.css` mapeiam os 14 `AdminTokens` de `src/styles/adminTheme.ts`
+  (`pageBg→--background`, `cardBg→--card`, `border→--border`, `borderStrong→--input`, `textSecondary→--muted-foreground`,
+  `skeletonBase→--muted`, `rowHover→--accent`, `sidebarBg→--sidebar`, `chartGrid/chartTick→--chart-*`; extras
+  `--ghost`, `--input-bg`). `--radius: 0.75rem` (= `shape.borderRadius` 12).
+- **Cores do terreiro**: `frontend/src/lib/brand.ts` — `applyBrand(document.documentElement, {primary, secondary, font})`
+  escreve `--primary`, `--primary-foreground`, `--secondary`, `--secondary-foreground`, `--ring`, `--sidebar-primary*`.
+  `--primary-foreground` = `font_color` se o contraste WCAG com a primária for ≥ 4,5; senão `#000`/`#fff`, o que
+  contrastar mais (a secundária não tem fonte configurada: mesma regra sem preferência). Chamado pelo
+  `TenantAwareThemeProvider` a cada mudança de branding (login, `tenant-branding-updated`). O tema MUI não mudou.
+  Atenção: o indigo padrão `#6366f1` com branco dá 4,47 — pela regra cai para preto, enquanto o MUI usa branco.
+- **Modo escuro**: `AdminThemeProvider` e `PlatformThemeProvider` alternam a classe `dark` em `<html>` (não no div do
+  layout — Dialog/Popover/Select do Radix são portados para o `<body>`), aplicando no mount e removendo no unmount.
+  Páginas públicas continuam claras. `@custom-variant dark (&:is(.dark *))`.
+- **Primitivas**: `frontend/src/components/ui/*` (shadcn v4, estilo `new-york`, `radix-ui`, ícones `lucide-react`),
+  `cn()` em `src/lib/utils.ts`, `components.json` na raiz do frontend. Ajustes locais sobre o que o CLI gera:
+  `Skeleton` usa `bg-muted` (= `skeletonBase`; o `bg-accent` padrão mapeia no `rowHover` quase transparente) e
+  `AlertDialogOverlay` tem `forwardRef` (React 18; o shadcn v4 assume ref-como-prop do React 19).
+- **Piloto**: `src/pages/admin/estoque/grupos.tsx` — Card/Table/Button/Badge/Skeleton/AlertDialog + `CrudDrawer` MUI,
+  guards `canGroup('estoque', ...)` ocultando botões, snackbar global (`useSnackbar`, R-03 adotado).
+  Teste: `__tests__/pages/admin_estoque_grupos.test.tsx`. Linha de base do bundle: `docs/bundle-baseline.md`.
+
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).
 - VPS: 76.13.231.19 (Hostinger), projeto em /opt/senhas.

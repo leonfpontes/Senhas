@@ -72,6 +72,15 @@ export const PlatformThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, []);
 
+  // Classe `dark` em <html> para os tokens shadcn/Tailwind (globals.css). Na raiz, e não
+  // no div do layout, porque Dialog/Popover/Select do Radix são portados para o <body>.
+  // Removida no unmount: páginas públicas continuam claras.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("dark", mode === "dark");
+    return () => { root.classList.remove("dark"); };
+  }, [mode]);
+
   const value: PlatformThemeContextValue = {
     mode,
     isDark:     mode === "dark",

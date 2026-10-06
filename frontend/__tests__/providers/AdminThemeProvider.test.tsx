@@ -112,6 +112,29 @@ describe('AdminThemeProvider', () => {
     render(<WrappedConsumer />);
     expect(screen.getByTestId('mode')).toHaveTextContent('light');
   });
+
+  describe('classe `dark` em <html> (tokens shadcn/Tailwind)', () => {
+    afterEach(() => {
+      document.documentElement.classList.remove('dark');
+    });
+
+    it('alterna a classe na raiz junto com o modo', () => {
+      render(<WrappedConsumer />);
+      expect(document.documentElement.classList.contains('dark')).toBe(false);
+      act(() => { screen.getByTestId('toggle').click(); });
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+      act(() => { screen.getByTestId('toggle').click(); });
+      expect(document.documentElement.classList.contains('dark')).toBe(false);
+    });
+
+    it('aplica no mount a partir do localStorage e remove no unmount (páginas públicas claras)', () => {
+      localStorage.setItem('admin_theme_mode', 'dark');
+      const { unmount } = render(<WrappedConsumer />);
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+      unmount();
+      expect(document.documentElement.classList.contains('dark')).toBe(false);
+    });
+  });
 });
 
 describe('useAdminTheme outside provider', () => {

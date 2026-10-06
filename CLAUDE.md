@@ -154,6 +154,11 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 model (src/models/) → repository (src/repositories/) → endpoint (src/api/v1/admin/) → migration (alembic/versions/)
 ```
 
+### UI do frontend — shadcn/ui + Tailwind (migração M-01 em andamento)
+- **Tela nova ou tela tocada usa shadcn/Tailwind (`src/components/ui/*`, `cn()`); não criar `sx` novo.**
+  MUI e Tailwind convivem via camada `@layer mui` (Tailwind vence o MUI) — detalhes, tokens, `applyBrand`
+  e classe `dark` em AGENTS.md §11.16. Piloto: `src/pages/admin/estoque/grupos.tsx`.
+
 ### Componentes frontend reutilizáveis
 - `CrudDrawer` — formulários em drawer lateral (480px). **Nunca usar modais para formulários CRUD.**
 - `KpiCard` — cards de KPI nas páginas financeiras
