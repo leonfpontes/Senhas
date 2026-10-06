@@ -125,6 +125,8 @@ GRANT ALL PRIVILEGES ON DATABASE senhas_prod TO $DB_USER;
 ALTER ROLE $DB_USER WITH CREATEDB;
 EOF
 
+# OBSOLETO (I-02, 2026-10-06): este bloco mira um Postgres do host, mas produção usa o container
+# senhas-postgres. O backup real é devops/backup/ (ver docs/deployment.md §7).
 # Configure backups directory
 sudo mkdir -p "$BACKUP_DIR"
 sudo chown postgres:postgres "$BACKUP_DIR"

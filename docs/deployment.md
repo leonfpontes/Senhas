@@ -324,12 +324,57 @@ docker compose -f docker-compose.prod.yml exec postgres \
   pg_dump -U senhas_user senhas_prod > backup_$(date +%Y%m%d).sql
 ```
 
-### Backup automático (cron)
+### Backups que existem
+
+| Backup | Onde | Quando | Fora da VPS? |
+|---|---|---|---|
+| Pré-deploy (`.github/workflows/deploy.yml`) | `/opt/senhas/backups/pre-deploy-*.sql.gz` (30 últimos) | a cada push no master | não |
+| Diário criptografado (`devops/backup/`) | `/opt/senhas/backups/daily/` (7) + bucket externo (30 diários + 12 mensais) | 03:15 UTC | **sim** |
+
+> Diagnóstico de 2026-10-06 (I-02): até esta data **não havia backup diário nenhum** na VPS. O cron
+> descrito antes aqui (`/etc/cron.d/senhas-backup` com `senhas_postgres`) nunca foi instalado, e o do
+> `devops/vps_setup.sh` mira um Postgres do host, que não é usado (o banco roda no container `senhas-postgres`).
+
+### Backup diário criptografado (I-02)
+
+O dump sai da VPS **já criptografado** com a chave **pública** gpg. A chave privada fica só com o dono,
+então nem quem invadir a VPS nem quem acessar o bucket consegue ler os dados (há PII de consulentes).
+
+**Instalação (uma vez):**
+
+1. **Bucket em free tier**: Cloudflare R2 ou Backblaze B2 (10 GB grátis; o dump comprimido tem ~17 MB).
+   Crie uma chave de API restrita a esse bucket.
+2. **Par de chaves gpg na máquina do dono** (não na VPS):
+   ```bash
+   gpg --quick-gen-key "backup@girahub.com.br" default default never
+   gpg --armor --export backup@girahub.com.br > girahub-backup.pub.asc
+   gpg --armor --export-secret-keys backup@girahub.com.br > girahub-backup.PRIVADA.asc  # guardar no gerenciador de senhas + cópia offline
+   ```
+3. **Na VPS** (como root):
+   ```bash
+   gpg --import girahub-backup.pub.asc
+   apt-get install -y rclone && rclone config        # remote apontando para o bucket
+   cp /opt/senhas/devops/backup/senhas-backup.env.example /etc/senhas-backup.env  # e editar
+   /opt/senhas/devops/backup/install.sh              # instala o cron e roda um backup na hora
+   ```
+
+**Monitorar:** `tail /var/log/senhas-backup.log` e `cat /opt/senhas/backups/daily/.last-success`
+(data do último sucesso). Se a data tiver mais de 26 h, o backup parou.
+
+### Teste de restore (trimestral)
+
+Na máquina do dono, onde está a chave privada, com Docker e rclone configurados:
 
 ```bash
-# /etc/cron.d/senhas-backup
-0 3 * * * root docker exec senhas_postgres pg_dump -U senhas_user senhas_prod | gzip > /opt/backups/senhas_$(date +\%Y\%m\%d).sql.gz
+RCLONE_REMOTE=r2:girahub-backups devops/backup/restore-test.sh
 ```
+
+O script baixa o backup mais recente, decripta, restaura num Postgres descartável e conta as linhas de
+`tenants`, `tickets`, `mediuns` e `giras`. Registre cada teste na tabela abaixo.
+
+| Data | Arquivo | tenants | tickets | Quem |
+|---|---|---|---|---|
+| 2026-10-06 | pipeline validado com o banco de dev (chave e bucket de teste) | 5 | 619 | Claude |
 
 ---
 
@@ -358,7 +403,7 @@ docker compose -f docker-compose.prod.yml exec backend alembic downgrade -1
 - [ ] Email é enviado corretamente
 - [ ] Nginx logs sem erros (`/var/log/nginx/error.log`)
 - [ ] Sentry recebendo eventos (fazer login e verificar no dashboard)
-- [ ] Backup criado em `/opt/senhas/backups/` com timestamp correto
+- [ ] Backup pré-deploy criado em `/opt/senhas/backups/` e `.last-success` do backup diário com menos de 26 h
 
 ---
 
