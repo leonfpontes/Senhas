@@ -60,10 +60,11 @@ function formatDate(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function statusTone(status: string): 'success' | 'warning' | 'destructive' {
-  if (status === 'active') return 'success';
-  if (status === 'suspended') return 'destructive';
-  return 'warning';
+// Classes estáticas: o Tailwind não enxerga nomes montados em tempo de execução.
+function statusToneClass(status: string): string {
+  if (status === 'active') return 'border-success/40 text-success';
+  if (status === 'suspended') return 'border-destructive/40 text-destructive';
+  return 'border-warning/50 text-warning';
 }
 
 // ─── Página ───────────────────────────────────────────────────────────────────
@@ -115,11 +116,12 @@ function BillingContent() {
     if (queryPlan) setTab('planos');
   }, [router.isReady, queryPlan]);
 
+  // Depende de `loading`: enquanto carrega, as abas nem estão montadas e o ref fica vazio.
   useEffect(() => {
-    if (tab === 'planos' && queryPlan && highlightedRef.current) {
+    if (!loading && tab === 'planos' && queryPlan && highlightedRef.current) {
       highlightedRef.current.scrollIntoView({ block: 'center' });
     }
-  }, [tab, queryPlan]);
+  }, [loading, tab, queryPlan]);
 
   // Volta da Stripe
   useEffect(() => {
@@ -332,7 +334,7 @@ function BillingContent() {
                     <div>
                       <p className="text-base font-bold">Plano {currentPlan.label}</p>
                       <div className="mt-1 flex flex-wrap gap-1.5">
-                        <Badge variant="outline" className={`text-${statusTone(billing.status)}`}>
+                        <Badge variant="outline" className={statusToneClass(billing.status)}>
                           {subscriptionStatusLabel(billing.status)}
                         </Badge>
                         {inLocalTrial && <Badge variant="outline">{trialEndShort ? `Teste grátis até ${trialEndShort}` : 'Teste grátis'}</Badge>}
