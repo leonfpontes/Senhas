@@ -1,17 +1,23 @@
 /**
- * Modo Kiosk / TV — exibição fullscreen da fila da porta.
- * Sem sidebar/topbar; fundo escuro e fonte grande para telas de espera.
+ * Modo TV — exibição em tela cheia da fila da porta, para a televisão da sala de espera.
+ * Fonte enorme, alto contraste, o número atual e os três próximos; o título da aba mostra o
+ * número chamado. Continua exigindo login (chamadas via apiClient → 401 leva ao /login).
  * Rota: /admin/porta/kiosk?gira=<id>  (gira opcional; usa a ativa por padrão)
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { Box, Typography, CircularProgress } from '@mui/material';
-import { apiClient } from '../../../services/api_client';
+import { Loader2 } from 'lucide-react';
+import { apiClient } from '@/services/api_client';
 
 const POLLING_INTERVAL_MS = 8000;
 
-interface Gira { id: string; nome: string; data_inicio: string; is_active: boolean; }
+interface Gira {
+  id: string;
+  nome: string;
+  data_inicio: string;
+  is_active: boolean;
+}
 interface QueueItem {
   id: string;
   numero: number;
@@ -23,29 +29,35 @@ interface QueueItem {
   checkin_em: string | null;
 }
 
+/** "#0042" → "0042" (o número da senha não leva cerquilha na interface). */
+export function numeroDaSenha(item: Pick<QueueItem, 'numero' | 'numero_formatado'>): string {
+  const base = item.numero_formatado || String(item.numero).padStart(4, '0');
+  return base.replace(/^#/, '');
+}
+
 export default function PortaKioskPage() {
   const router = useRouter();
   const [giraId, setGiraId] = useState<string>('');
   const [giraNome, setGiraNome] = useState<string>('');
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clock, setClock] = useState('');
   const prevNextRef = useRef<string | null>(null);
 
-  // Resolve a gira (query param ou a ativa mais recente)
   const loadGiras = useCallback(async () => {
     try {
       const res = await apiClient.get('/api/v1/admin/giras');
       const all: Gira[] = Array.isArray(res.data) ? res.data : res.data.items || [];
       const queryGira = typeof router.query.gira === 'string' ? router.query.gira : '';
-      const chosen = queryGira
-        ? all.find((g) => g.id === queryGira)
-        : all.find((g) => g.is_active) || all[0];
+      const chosen = queryGira ? all.find((g) => g.id === queryGira) : all.find((g) => g.is_active) || all[0];
       if (chosen) {
         setGiraId(chosen.id);
         setGiraNome(chosen.nome);
+      } else {
+        setLoading(false);
       }
     } catch {
-      /* silent */
+      setLoading(false);
     }
   }, [router.query.gira]);
 
@@ -55,106 +67,109 @@ export default function PortaKioskPage() {
       const res = await apiClient.get(`/api/v1/admin/giras/${giraId}/door/queue`);
       setQueue(res.data.items || []);
     } catch {
-      /* retry on next poll */
+      /* tenta de novo no próximo ciclo */
     } finally {
       setLoading(false);
     }
   }, [giraId]);
 
-  useEffect(() => { loadGiras(); }, [loadGiras]);
-  useEffect(() => { if (giraId) loadQueue(); }, [giraId, loadQueue]);
+  useEffect(() => {
+    if (router.isReady) loadGiras();
+  }, [router.isReady, loadGiras]);
+  useEffect(() => {
+    if (giraId) loadQueue();
+  }, [giraId, loadQueue]);
   useEffect(() => {
     if (!giraId) return;
     const t = setInterval(loadQueue, POLLING_INTERVAL_MS);
     return () => clearInterval(t);
   }, [giraId, loadQueue]);
 
-  const nextInLine = queue.find((t) => t.status === 'emitted' && t.checkin_em);
-  const waiting = queue.filter((t) => t.status === 'emitted');
-  const upcoming = waiting.filter((t) => t.id !== nextInLine?.id).slice(0, 8);
+  useEffect(() => {
+    const tick = () => setClock(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+    tick();
+    const t = setInterval(tick, 30_000);
+    return () => clearInterval(t);
+  }, []);
 
-  // Som ao mudar o "próximo"
+  const waiting = queue.filter((t) => t.status === 'emitted');
+  const nextInLine = waiting.find((t) => t.checkin_em) ?? null;
+  const upcoming = waiting.filter((t) => t.id !== nextInLine?.id).slice(0, 3);
+
+  // Som quando o "próximo" muda
   useEffect(() => {
     if (nextInLine && prevNextRef.current && prevNextRef.current !== nextInLine.id) {
       try {
         const audio = new Audio('/sounds/notification.mp3');
         audio.play().catch(() => {});
-      } catch { /* non-critical */ }
+      } catch {
+        /* ambiente sem Audio */
+      }
     }
     prevNextRef.current = nextInLine?.id ?? null;
-    // Intentionally depends on the id, not the nextInLine object reference,
-    // so the sound only fires when the "next" ticket actually changes.
+    // Depende do id, não do objeto: o som só toca quando o "próximo" realmente muda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nextInLine?.id]);
+
+  const numeroAtual = nextInLine ? numeroDaSenha(nextInLine) : null;
 
   return (
     <>
       <Head>
-        <title>{nextInLine ? `${nextInLine.numero_formatado} — Porta` : 'Modo TV — Porta'}</title>
+        <title>{numeroAtual ? `${numeroAtual} — Porta` : 'Modo TV — Porta'}</title>
         <meta name="robots" content="noindex, nofollow" />
       </Head>
-      <Box
-        sx={{
-          minHeight: '100vh',
-          bgcolor: '#0b1020',
-          color: '#fff',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          p: { xs: 3, md: 6 },
-        }}
+      <main
+        data-testid="kiosk"
+        className="flex min-h-screen flex-col items-center justify-center bg-[#05070f] px-6 py-10 text-white md:px-12"
       >
-        {giraNome && (
-          <Typography sx={{ position: 'absolute', top: 24, left: 32, opacity: 0.6, fontSize: '1.25rem' }}>
-            {giraNome}
-          </Typography>
-        )}
+        <header className="absolute inset-x-0 top-0 flex items-start justify-between px-6 py-5 text-lg text-white/60 md:px-10 md:text-2xl">
+          <span className="truncate pr-4">{giraNome}</span>
+          <span className="tabular-nums" aria-label="Hora atual">
+            {clock}
+          </span>
+        </header>
 
         {loading ? (
-          <CircularProgress sx={{ color: '#fff' }} />
+          <Loader2 className="size-12 animate-spin text-white/80" aria-label="Carregando" />
+        ) : !giraId ? (
+          <p className="text-3xl text-white/70">Nenhuma gira ativa.</p>
         ) : (
           <>
-            <Typography sx={{ letterSpacing: '0.3em', opacity: 0.7, fontSize: '1.5rem', mb: 2 }}>
-              PRÓXIMO
-            </Typography>
-            <Typography
-              sx={{
-                fontFamily: 'monospace',
-                fontWeight: 900,
-                fontSize: { xs: '6rem', md: '12rem' },
-                lineHeight: 1,
-                color: '#a5b4fc',
-              }}
+            <p className="mb-2 text-xl tracking-[0.35em] text-white/70 uppercase md:text-3xl">Senha</p>
+            <p
+              data-testid="kiosk-numero"
+              className="font-mono text-[6.5rem] leading-none font-black text-[#c7d2fe] tabular-nums sm:text-[10rem] md:text-[16rem]"
+              aria-live="polite"
             >
-              {nextInLine ? nextInLine.numero_formatado || `#${nextInLine.numero}` : '—'}
-            </Typography>
+              {numeroAtual ?? '—'}
+            </p>
             {nextInLine?.consulente_nome && (
-              <Typography sx={{ fontSize: { xs: '2rem', md: '3rem' }, fontWeight: 700, mt: 2 }}>
-                {nextInLine.consulente_nome}
-              </Typography>
+              <p className="mt-4 max-w-[90vw] truncate text-3xl font-bold md:text-6xl">{nextInLine.consulente_nome}</p>
+            )}
+            {!nextInLine && (
+              <p className="mt-4 text-2xl text-white/60 md:text-4xl">Aguardando a próxima pessoa chegar</p>
             )}
 
             {upcoming.length > 0 && (
-              <Box sx={{ mt: 6, display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {upcoming.map((t) => (
-                  <Typography
-                    key={t.id}
-                    sx={{
-                      fontFamily: 'monospace',
-                      fontWeight: 700,
-                      fontSize: { xs: '2rem', md: '3rem' },
-                      opacity: 0.55,
-                    }}
-                  >
-                    {t.numero_formatado || `#${t.numero}`}
-                  </Typography>
-                ))}
-              </Box>
+              <section className="mt-12 flex flex-col items-center gap-3 md:mt-20" aria-label="Próximas senhas">
+                <p className="text-lg tracking-[0.3em] text-white/50 uppercase md:text-2xl">Próximas</p>
+                <ol className="flex flex-wrap justify-center gap-6 md:gap-12">
+                  {upcoming.map((t) => (
+                    <li
+                      key={t.id}
+                      className="font-mono text-4xl font-bold text-white/70 tabular-nums md:text-7xl"
+                      data-testid="kiosk-proxima"
+                    >
+                      {numeroDaSenha(t)}
+                    </li>
+                  ))}
+                </ol>
+              </section>
             )}
           </>
         )}
-      </Box>
+      </main>
     </>
   );
 }

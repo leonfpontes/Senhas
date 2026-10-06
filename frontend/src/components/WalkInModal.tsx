@@ -1,23 +1,21 @@
+/**
+ * WalkInModal — "Sem senha": cadastra quem chegou ao terreiro sem pegar senha pelo link
+ * (ou edita esses dados). Dialog do kit, alvos de 48px (uso na Porta, em pé, no celular).
+ */
 import React, { useEffect, useState } from 'react';
+import { PRIORITY_CATEGORY_LABELS, PRIORITY_ORDER } from 'shared-types';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  Box,
-  Typography,
-  FormControl,
-  FormControlLabel,
-  FormLabel,
-  Radio,
-  RadioGroup,
-} from '@mui/material';
-import {
-  PRIORITY_CATEGORY_LABELS,
-  PRIORITY_ORDER,
-} from 'shared-types';
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { MaskedInput, TextField } from '@/components/fields';
 
 interface WalkInModalProps {
   open: boolean;
@@ -29,12 +27,7 @@ interface WalkInModalProps {
     telefone?: string;
     priority_category?: string | null;
   };
-  onConfirm: (data: {
-    nome: string;
-    email?: string;
-    telefone?: string;
-    priority_category: string | null;
-  }) => void;
+  onConfirm: (data: { nome: string; email?: string; telefone?: string; priority_category: string | null }) => void;
   onClose: () => void;
   loading?: boolean;
 }
@@ -71,76 +64,74 @@ export default function WalkInModal({
     });
   };
 
+  const isEdit = mode === 'edit';
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{mode === 'edit' ? 'Editar Walk-in' : 'Novo Walk-in'}</DialogTitle>
-      <DialogContent>
-        <Box sx={{ mb: 2, mt: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            {mode === 'edit'
-              ? `Atualize os dados do consulente${ticketNumero ? ` (${ticketNumero})` : ''}`
-              : 'Cadastre um novo consulente presencial e insira-o na fila'}
-          </Typography>
-        </Box>
-        <TextField
-          autoFocus
-          label="Nome *"
-          fullWidth
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          sx={{ mb: 2 }}
-          disabled={loading}
-        />
-        <TextField
-          label="E-mail"
-          type="email"
-          fullWidth
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          sx={{ mb: 2 }}
-          disabled={loading}
-        />
-        <TextField
-          label="Telefone"
-          fullWidth
-          value={telefone}
-          onChange={(e) => setTelefone(e.target.value)}
-          sx={{ mb: 2 }}
-          disabled={loading}
-        />
-        <FormControl component="fieldset" disabled={loading}>
-          <FormLabel component="legend" id="walk-in-priority-label" sx={{ fontSize: 14, mb: 0.5 }}>
-            Atendimento preferencial
-          </FormLabel>
-          <RadioGroup
-            aria-labelledby="walk-in-priority-label"
-            value={priorityCategory}
-            onChange={(e) => setPriorityCategory(e.target.value)}
-          >
-            <FormControlLabel
-              value="none"
-              control={<Radio size="small" />}
-              label={<Typography variant="body2">Não sou de grupo prioritário</Typography>}
-            />
-            {PRIORITY_ORDER.map((cat) => (
-              <FormControlLabel
-                key={cat}
-                value={cat}
-                control={<Radio size="small" />}
-                label={<Typography variant="body2">{PRIORITY_CATEGORY_LABELS[cat]}</Typography>}
-              />
-            ))}
-          </RadioGroup>
-        </FormControl>
+    <Dialog open={open} onOpenChange={(next) => !next && !loading && onClose()}>
+      <DialogContent className="z-[1300] sm:max-w-md" data-testid="walk-in-modal">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? 'Editar sem senha' : 'Sem senha'}</DialogTitle>
+          <DialogDescription>
+            {isEdit
+              ? `Atualize os dados do consulente${ticketNumero ? ` (${ticketNumero.replace(/^#/, '')})` : ''}.`
+              : 'Quem chegou sem pegar senha pelo link entra na fila daqui mesmo.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4">
+          <TextField
+            autoFocus
+            label="Nome"
+            required
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            disabled={loading}
+          />
+          <MaskedInput
+            mask="telefone"
+            label="Telefone"
+            value={telefone}
+            onChange={setTelefone}
+            disabled={loading}
+            inputMode="tel"
+          />
+          <TextField
+            label="E-mail"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={loading}
+          />
+          <fieldset className="flex flex-col gap-2" disabled={loading}>
+            <legend className="text-sm font-medium">Atendimento preferencial</legend>
+            <RadioGroup value={priorityCategory} onValueChange={setPriorityCategory} className="gap-2">
+              <div className="flex min-h-10 items-center gap-3">
+                <RadioGroupItem value="none" id="walk-in-priority-none" />
+                <Label htmlFor="walk-in-priority-none" className="font-normal">
+                  Não é de grupo prioritário
+                </Label>
+              </div>
+              {PRIORITY_ORDER.map((cat) => (
+                <div key={cat} className="flex min-h-10 items-center gap-3">
+                  <RadioGroupItem value={cat} id={`walk-in-priority-${cat}`} />
+                  <Label htmlFor={`walk-in-priority-${cat}`} className="font-normal">
+                    {PRIORITY_CATEGORY_LABELS[cat]}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </fieldset>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" size="touch" onClick={onClose} disabled={loading}>
+            Cancelar
+          </Button>
+          <Button type="button" size="touch" onClick={handleConfirm} disabled={!nome.trim() || loading}>
+            {loading ? 'Salvando…' : isEdit ? 'Salvar' : 'Emitir senha'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} disabled={loading}>
-          Cancelar
-        </Button>
-        <Button onClick={handleConfirm} variant="contained" disabled={!nome.trim() || loading}>
-          {loading ? 'Salvando...' : mode === 'edit' ? 'Salvar Alterações' : 'Emitir Walk-in'}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }
