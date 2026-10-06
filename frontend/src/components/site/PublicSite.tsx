@@ -58,7 +58,7 @@ export function PublicSite({ site, mode, className }: PublicSiteProps) {
               {!isPreview && (
                 <a
                   href={senhaUrl(site.slug)}
-                  className={cn(buttonVariants({ size: 'touch' }), 'bg-[var(--brand)] text-[var(--brand-fg)] hover:bg-[var(--brand)] hover:opacity-90')}
+                  className={cn(buttonVariants({ size: 'touch' }), 'no-underline', 'bg-[var(--brand)] text-[var(--brand-fg)] hover:bg-[var(--brand)] hover:opacity-90')}
                 >
                   <Ticket aria-hidden />
                   Retirar senha

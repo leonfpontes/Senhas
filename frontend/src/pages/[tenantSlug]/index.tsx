@@ -49,7 +49,7 @@ export default function TenantPublicSitePage({ site }: Props) {
 export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) => {
   const slug = params?.tenantSlug as string;
 
-  // 'backend' é o nome do serviço no Docker; fora dele, cai no localhost:8000.
+  // 'backend' é o nome do serviço no Docker; fora dele, defina INTERNAL_API_URL (ex.: http://127.0.0.1:8000).
   const base = process.env.INTERNAL_API_URL || 'http://backend:8000';
 
   try {

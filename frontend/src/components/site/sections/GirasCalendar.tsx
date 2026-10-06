@@ -52,7 +52,7 @@ function GiraActions({ gira, config, isPreview, brand, compact }: Omit<GiraCardP
           href={giraTicketUrl(gira.id)}
           {...inert}
           className={cn(
-            buttonVariants({ size: compact ? 'default' : 'touch' }),
+            buttonVariants({ size: compact ? 'default' : 'touch' }), 'no-underline',
             'bg-[var(--brand)] text-[var(--brand-fg)] hover:bg-[var(--brand)] hover:opacity-90 focus-visible:ring-[var(--brand)]/50',
           )}
           style={{ '--brand': brand, '--brand-fg': pickForeground(brand) } as React.CSSProperties}
@@ -66,7 +66,7 @@ function GiraActions({ gira, config, isPreview, brand, compact }: Omit<GiraCardP
           href={giraTicketUrl(gira.id, 'associado')}
           {...inert}
           className={cn(
-            buttonVariants({ variant: 'outline', size: compact ? 'default' : 'touch' }),
+            buttonVariants({ variant: 'outline', size: compact ? 'default' : 'touch' }), 'no-underline',
             'border-[var(--fg)]/40 bg-transparent text-[var(--fg)] hover:bg-[var(--fg)]/10 hover:text-[var(--fg)]',
           )}
         >
@@ -97,7 +97,7 @@ function GiraCard(props: GiraCardProps) {
         {gira._sample && <span className="ml-2 align-middle text-xs font-normal opacity-60">(exemplo)</span>}
       </h3>
       {gira.data_hora && (
-        <time dateTime={gira.data_hora} className="mt-1 block capitalize opacity-70" style={{ fontSize: Number(config.body_font_size || 14) }}>
+        <time dateTime={gira.data_hora} className="mt-1 block opacity-70 first-letter:uppercase" style={{ fontSize: Number(config.body_font_size || 14) }}>
           {formatGiraDateLong(gira.data_hora)}
         </time>
       )}
@@ -199,7 +199,7 @@ function MonthCalendar({
         >
           <ChevronLeft className="size-5" aria-hidden />
         </button>
-        <p className="text-base font-semibold capitalize" aria-live="polite">
+        <p className="text-base font-semibold first-letter:uppercase" aria-live="polite">
           {monthName}
         </p>
         <button

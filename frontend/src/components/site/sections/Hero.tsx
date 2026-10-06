@@ -110,7 +110,7 @@ export function Hero({ config, ctx }: HeroProps) {
           aria-disabled={isPreview || undefined}
           onClick={isPreview ? (e) => e.preventDefault() : undefined}
           className={cn(
-            buttonVariants({ size: 'touch' }),
+            buttonVariants({ size: 'touch' }), 'no-underline',
             'mt-8 bg-[var(--cta-bg)] text-[var(--cta-fg)] shadow-lg hover:bg-[var(--cta-bg)] hover:opacity-90 focus-visible:ring-[var(--cta-bg)]/60',
           )}
           style={{ '--cta-bg': fg, '--cta-fg': ctaFg, fontFamily } as React.CSSProperties}

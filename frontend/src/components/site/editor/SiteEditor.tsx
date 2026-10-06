@@ -101,6 +101,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [viewport, setViewport] = useState<PreviewViewport>('mobile');
   const [deleteTarget, setDeleteTarget] = useState<SiteSection | null>(null);
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false);
   const [wizardDismissed, setWizardDismissed] = useState(false);
 
   useEffect(() => {
@@ -150,7 +151,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
       case 'published-dirty':
         return (
           <Badge className="gap-1 border-warning/30 bg-warning/15 text-warning" data-testid="site-status">
-            <AlertCircle /> Alterações não publicadas
+            <AlertCircle /> Rascunho com alterações não publicadas
           </Badge>
         );
       case 'unpublished':
@@ -261,7 +262,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
                 {editor.isPublished && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="destructive" onSelect={() => void editor.unpublish()} disabled={busy}>
+                    <DropdownMenuItem variant="destructive" onSelect={() => setConfirmUnpublish(true)} disabled={busy}>
                       <GlobeLock /> Despublicar
                     </DropdownMenuItem>
                   </>
@@ -394,6 +395,19 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
       />
 
       <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} site={editor.site} onSave={editor.saveSettings} />
+
+      <ConfirmDialog
+        open={confirmUnpublish}
+        title="Despublicar site"
+        message="O site sai do ar e o endereço passa a mostrar “Site em preparação”. Tudo continua salvo como rascunho e pode ser publicado de novo."
+        destructive
+        confirmText="Despublicar"
+        onConfirm={() => {
+          setConfirmUnpublish(false);
+          void editor.unpublish();
+        }}
+        onCancel={() => setConfirmUnpublish(false)}
+      />
 
       <ConfirmDialog
         open={deleteTarget !== null}

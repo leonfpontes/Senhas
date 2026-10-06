@@ -127,7 +127,7 @@ export function Location({ config, ctx }: { config: SectionConfig; ctx: SectionC
           tabIndex={isPreview ? -1 : undefined}
           onClick={isPreview ? (e) => e.preventDefault() : undefined}
           className={cn(
-            buttonVariants({ size: 'touch' }),
+            buttonVariants({ size: 'touch' }), 'no-underline',
             'mt-1 self-start bg-[var(--fg)] text-[var(--btn-fg)] hover:bg-[var(--fg)] hover:opacity-90 focus-visible:ring-[var(--fg)]/50',
           )}
           style={{ '--btn-fg': pickForeground(fg) } as React.CSSProperties}

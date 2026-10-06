@@ -146,7 +146,13 @@ describe('MeuSitePage — Admin Site Builder', () => {
 
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Mais ações' }));
-    expect(await screen.findByRole('menuitem', { name: /Despublicar/ })).toBeInTheDocument();
+    await user.click(await screen.findByRole('menuitem', { name: /Despublicar/ }));
+    // Pede confirmação antes de tirar o site do ar.
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Despublicar site');
+    const { apiClient: mockApiClient } = require('@/services/api_client');
+    expect(mockApiClient.post).not.toHaveBeenCalledWith('/api/v1/admin/sites/unpublish');
+    await user.click(screen.getByRole('button', { name: 'Despublicar' }));
+    await waitFor(() => expect(mockApiClient.post).toHaveBeenCalledWith('/api/v1/admin/sites/unpublish'));
   });
 
   it('exibe o histórico de versões na aba Histórico', async () => {

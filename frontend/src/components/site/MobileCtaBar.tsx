@@ -34,7 +34,7 @@ export function MobileCtaBar({ slug, brandColor, variant = 'fixed', inert = fals
         aria-disabled={inert || undefined}
         onClick={inert ? (e) => e.preventDefault() : undefined}
         className={cn(
-          buttonVariants({ size: 'touch' }),
+          buttonVariants({ size: 'touch' }), 'no-underline',
           'w-full bg-[var(--brand)] text-[var(--brand-fg)] shadow-md hover:bg-[var(--brand)] hover:opacity-90 focus-visible:ring-[var(--brand)]/50',
         )}
         style={{ '--brand': brandColor, '--brand-fg': pickForeground(brandColor) } as React.CSSProperties}

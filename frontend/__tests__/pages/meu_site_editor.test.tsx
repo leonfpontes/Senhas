@@ -150,7 +150,7 @@ describe('Meu Site — editor', () => {
 
     await user.click(screen.getByRole('button', { name: 'Editar Capa' }));
     await user.type(await screen.findByLabelText(/^Título/), '!');
-    expect(screen.getByTestId('site-status')).toHaveTextContent('Alterações não publicadas');
+    expect(screen.getByTestId('site-status')).toHaveTextContent('Rascunho com alterações não publicadas');
 
     await user.click(screen.getByRole('button', { name: /Publicar alterações/ }));
     await waitFor(() => expect(apiClient.put).toHaveBeenCalledWith('/api/v1/admin/sites/sections', expect.anything()));
