@@ -322,8 +322,8 @@ interface BoolFieldProps {
 
 function BoolField({ id, label, value, onChange, disabled }: BoolFieldProps) {
   return (
-    <fieldset className="flex flex-col gap-1.5">
-      <legend className="mb-1.5 text-sm leading-snug font-medium">{label}</legend>
+    <fieldset className="m-0 min-w-0 border-0 p-0 flex flex-col gap-1.5">
+      <legend className="p-0 mb-1.5 text-sm leading-snug font-medium">{label}</legend>
       <RadioGroup
         value={value ? 'sim' : 'nao'}
         onValueChange={(v) => onChange(v === 'sim')}
@@ -661,7 +661,7 @@ export default function InscricaoCursoPage() {
                 ['E-mail', success.email],
                 ['Início', fmtDate(success.data_inicio)],
                 ...(success.valor_mensalidade != null
-                  ? [['Mensalidade', <strong key="m" className="text-primary">{fmtBRL(success.valor_mensalidade)}/mês</strong>]]
+                  ? [['Mensalidade', <strong key="m" className="text-(color:--brand-text)">{fmtBRL(success.valor_mensalidade)}/mês</strong>]]
                   : []),
               ].map(([k, v]) => (
                 <div key={String(k)} className="flex flex-wrap justify-between gap-x-4 gap-y-1 px-4 py-3">
@@ -770,7 +770,7 @@ export default function InscricaoCursoPage() {
               </div>
             )}
             {curso.gerar_mensalidade && curso.valor_mensalidade_padrao != null && (
-              <div><dt className="text-sm text-muted-foreground">Mensalidade</dt><dd className="font-semibold text-primary">{fmtBRL(curso.valor_mensalidade_padrao)}/mês</dd></div>
+              <div><dt className="text-sm text-muted-foreground">Mensalidade</dt><dd className="font-semibold text-(color:--brand-text)">{fmtBRL(curso.valor_mensalidade_padrao)}/mês</dd></div>
             )}
           </dl>
           {vagasPct != null && (
@@ -979,7 +979,7 @@ export default function InscricaoCursoPage() {
                 <Card className="gap-4 border-primary/40 bg-primary/5 py-5">
                   <CardContent className="flex flex-col gap-4 px-5">
                     <div>
-                      <h2 className="flex items-center gap-2 text-lg font-bold text-primary"><CreditCard aria-hidden className="size-5" /> Confirmação de matrícula (PIX)</h2>
+                      <h2 className="flex items-center gap-2 text-lg font-bold text-(color:--brand-text)"><CreditCard aria-hidden className="size-5" /> Confirmação de matrícula (PIX)</h2>
                       <p className="text-base text-muted-foreground">Para garantir sua vaga, faça a transferência da taxa de matrícula para a chave PIX abaixo e anexe o comprovante.</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3">

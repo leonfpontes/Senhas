@@ -196,6 +196,48 @@ describe('Emissão pública — formulário', () => {
   });
 });
 
+describe('Emissão pública — erros do envio', () => {
+  it('404 de associado mostra a mensagem do backend (não "vagas acabaram")', async () => {
+    mockRouter.query = { id: 'gira-1', tipo: 'associado' };
+    await renderOpenForm();
+    apiClient.post.mockRejectedValueOnce({
+      status: 404,
+      detail: 'E-mail de associado não encontrado. Revise as informações digitadas e tente novamente.',
+    });
+
+    fillRequired();
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByText('Não foi possível emitir sua senha')).toBeInTheDocument();
+    expect(screen.getByText(/E-mail de associado não encontrado/)).toBeInTheDocument();
+    expect(screen.queryByText(/vagas acabaram/i)).not.toBeInTheDocument();
+    expect(apiClient.post.mock.calls[0][0]).toContain('tipo=associado');
+  });
+
+  it('410 (lotou durante o preenchimento) explica e recarrega a gira', async () => {
+    await renderOpenForm();
+    apiClient.post.mockRejectedValueOnce({ status: 410, detail: 'Todas as senhas desta gira já foram emitidas' });
+    const getsBefore = apiClient.get.mock.calls.length;
+
+    fillRequired();
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByText('As vagas acabaram enquanto você preenchia')).toBeInTheDocument();
+    await waitFor(() => expect(apiClient.get.mock.calls.length).toBeGreaterThan(getsBefore));
+  });
+
+  it('5xx não mostra o detail técnico do servidor', async () => {
+    await renderOpenForm();
+    apiClient.post.mockRejectedValueOnce({ status: 500, detail: 'Internal server error during ticket emission' });
+
+    fillRequired();
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByText('Não foi possível enviar')).toBeInTheDocument();
+    expect(screen.queryByText(/Internal server error/)).not.toBeInTheDocument();
+  });
+});
+
 describe('Emissão pública — estados da gira', () => {
   it('404 diz que a gira não existe (sem "Tentar de novo")', async () => {
     apiClient.get.mockRejectedValue({ status: 404, detail: 'Gira não encontrada' });

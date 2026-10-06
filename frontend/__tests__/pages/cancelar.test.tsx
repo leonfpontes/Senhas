@@ -109,11 +109,13 @@ describe('Cancelar minha senha', () => {
   it('erro ao cancelar é separado do erro de carga e permite tentar de novo ou manter', async () => {
     mockLoad();
     render(<Page />);
-    apiClient.post.mockRejectedValueOnce({ status: 500, detail: 'Falha temporária.' });
+    apiClient.post.mockRejectedValueOnce({ status: 500, detail: 'Internal server error' });
     fireEvent.click(await screen.findByRole('button', { name: 'Sim, cancelar minha senha' }));
 
     expect(await screen.findByRole('heading', { name: 'Não foi possível cancelar' })).toBeInTheDocument();
-    expect(screen.getByText('Falha temporária.')).toBeInTheDocument();
+    // 5xx: texto em português, nunca o detail técnico do servidor
+    expect(screen.getByText('Não foi possível cancelar sua senha. Tente de novo em instantes.')).toBeInTheDocument();
+    expect(screen.queryByText('Internal server error')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Manter minha senha' })).toBeInTheDocument();
 
     apiClient.post.mockResolvedValueOnce({ data: { ticket_number: '0042', message: 'Cancelada.' } });

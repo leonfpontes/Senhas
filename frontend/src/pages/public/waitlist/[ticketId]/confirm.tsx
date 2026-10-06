@@ -14,7 +14,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { CalendarClock, Hourglass, Loader2, MapPin, SearchX, TimerOff } from 'lucide-react';
-import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import { apiClient } from '@/services/api_client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -23,6 +23,7 @@ import {
   PublicLoading,
   PublicNotice,
   PublicShell,
+  publicErrorMessage,
   formatGiraDate,
   formatGiraDateShort,
   type PublicTicket,
@@ -95,7 +96,7 @@ export default function WaitlistConfirmPage() {
         setState('notfound');
         return;
       }
-      setMessage(extractApiErrorMessage(err, 'Não foi possível carregar sua senha. Verifique a conexão e tente de novo.'));
+      setMessage(publicErrorMessage(err, 'Não foi possível carregar sua senha.'));
       setState('load-error');
     }
   }, [ticketId]);
@@ -117,7 +118,7 @@ export default function WaitlistConfirmPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       const status = (err as { status?: number } | undefined)?.status;
-      setMessage(extractApiErrorMessage(err, 'Não foi possível confirmar sua senha.'));
+      setMessage(publicErrorMessage(err, 'Não foi possível confirmar sua senha.'));
       setState(status === 410 ? 'expired' : 'confirm-error');
     }
   }, [ticketId]);
@@ -169,7 +170,7 @@ export default function WaitlistConfirmPage() {
 
             <div className="text-center">
               <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Sua senha</p>
-              <p data-testid="ticket-number" className="text-[4rem] leading-none font-extrabold tabular-nums tracking-tight text-primary">
+              <p data-testid="ticket-number" className="text-[4rem] leading-none font-extrabold tabular-nums tracking-tight text-(color:--brand-text)">
                 {ticket?.ticket_number ?? info?.ticket_number}
               </p>
             </div>

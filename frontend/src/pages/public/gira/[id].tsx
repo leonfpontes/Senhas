@@ -9,7 +9,8 @@
  * Formulário com react-hook-form + zod (erro inline no blur), botão fixo no rodapé
  * sempre ativo — ao enviar com campo pendente, o foco vai para ele. Erros acionáveis:
  * 409 (já tem senha) oferece "Reenviar meu e-mail" (POST /api/v1/public/resend-ticket-email);
- * rede/5xx oferece "Tentar de novo"; 410/400 recarrega a gira (vagas/horário mudaram).
+ * rede/5xx oferece "Tentar de novo"; 410 (lotou) e 400/404 (horário, acompanhantes, associado)
+ * mostram a mensagem do backend e recarregam a gira.
  */
 'use client';
 
@@ -23,7 +24,7 @@ import { toast } from 'sonner';
 import { CalendarClock, CalendarX2, Clock, Hourglass, Loader2, MapPin, SearchX, Star, Ticket, Users } from 'lucide-react';
 import { PRIORITY_CATEGORY_LABELS, PRIORITY_ORDER } from 'shared-types';
 import type { GiraPublic } from 'shared-types';
-import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import { apiClient } from '@/services/api_client';
 import { useGiraCountdown, parseCountdownParts } from '@/hooks/useGiraCountdown';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -43,8 +44,10 @@ import {
   PublicLoading,
   PublicNotice,
   PublicShell,
+  errorStatus,
   formatGiraDate,
   formatGiraDateShort,
+  publicErrorMessage,
   ticketIdFromLink,
   type PublicTicket,
 } from '@/components/public';
@@ -197,9 +200,9 @@ export default function PublicGiraPage() {
     } catch (err) {
       // Recarga silenciosa (contagem zerou, pós-envio): mantém o que já está na tela.
       if (opts.silent) return;
-      const status = (err as { status?: number } | undefined)?.status;
+      const status = errorStatus(err);
       setLoadError(status === 404 ? 'notfound' : 'network');
-      setLoadMessage(extractApiErrorMessage(err, status === 404 ? 'Gira não encontrada' : 'Não foi possível carregar a gira.'));
+      setLoadMessage(status === 404 ? '' : publicErrorMessage(err, 'Não foi possível carregar a gira.'));
     } finally {
       if (!opts.silent) setLoading(false);
     }
@@ -358,19 +361,24 @@ export default function PublicGiraPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       fetchGira({ silent: true });
     } catch (err) {
-      const status = (err as { status?: number } | undefined)?.status;
-      const message = extractApiErrorMessage(err, 'Não foi possível emitir sua senha.');
+      const status = errorStatus(err);
+      const message = publicErrorMessage(err, 'Não foi possível emitir sua senha.');
       if (status === 409) {
         setSubmitError({ kind: 'conflict', message });
-      } else if (status === 410 || status === 404 || status === 400) {
+      } else if (status === 410) {
+        // Lotou entre abrir a página e enviar.
         setSubmitError({ kind: 'gone', message });
-        // Horário pode ter lotado entre a seleção e o envio — atualiza as vagas.
-        if (requiresSlot) setValue('timeSlotId', null);
         fetchGira({ silent: true });
       } else if (!status || status >= 500) {
-        setSubmitError({ kind: 'network', message: status ? message : 'Sem conexão. Verifique sua internet e tente de novo.' });
+        setSubmitError({ kind: 'network', message });
       } else {
+        // 400/404: horário lotado/inválido, limite de acompanhantes, e-mail de associado não
+        // encontrado… — a mensagem do backend explica; vagas e horários são recarregados.
         setSubmitError({ kind: 'generic', message });
+        if (status === 400 || status === 404) {
+          if (requiresSlot) setValue('timeSlotId', null);
+          fetchGira({ silent: true });
+        }
       }
       scrollToError();
     } finally {
@@ -392,7 +400,7 @@ export default function PublicGiraPage() {
       });
       toast.success(`Reenviamos sua senha para ${email}. Confira também a caixa de spam.`);
     } catch (err) {
-      toast.error(extractApiErrorMessage(err, 'Não foi possível reenviar o e-mail. Tente de novo em instantes.'));
+      toast.error(publicErrorMessage(err, 'Não foi possível reenviar o e-mail.'));
     } finally {
       setResending(false);
     }
@@ -569,10 +577,10 @@ export default function PublicGiraPage() {
                 )}
                 {submitError.kind === 'gone' && (
                   <Alert variant="warning">
-                    <AlertTitle>A gira mudou enquanto você preenchia</AlertTitle>
+                    <AlertTitle>As vagas acabaram enquanto você preenchia</AlertTitle>
                     <AlertDescription>
                       <p>{submitError.message}</p>
-                      <p>Atualizamos as vagas e horários — confira e envie de novo.</p>
+                      <p>Atualizamos a página com a situação atual da gira.</p>
                     </AlertDescription>
                   </Alert>
                 )}
@@ -599,8 +607,8 @@ export default function PublicGiraPage() {
             <form id="emit-form" onSubmit={submit} noValidate className="mt-4 flex flex-col gap-5">
               {/* Horários */}
               {requiresSlot && (
-                <fieldset ref={slotsRef} className="flex flex-col gap-2">
-                  <legend className="mb-2 flex items-center gap-2 text-base font-medium">
+                <fieldset ref={slotsRef} className="m-0 min-w-0 border-0 p-0 flex flex-col gap-2">
+                  <legend className="p-0 mb-2 flex items-center gap-2 text-base font-medium">
                     <Clock aria-hidden className="size-4 text-muted-foreground" /> Escolha o horário que pretende ser atendido
                   </legend>
                   {gira.time_slots.length === 0 ? (
@@ -694,12 +702,12 @@ export default function PublicGiraPage() {
               />
 
               {/* Atendimento preferencial */}
-              <fieldset ref={priorityRef} className="flex flex-col gap-2">
-                <legend className="mb-2 flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 text-base font-medium">
+              <fieldset ref={priorityRef} className="m-0 min-w-0 border-0 p-0 flex flex-col gap-2">
+                <legend className="p-0 mb-2 flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 text-base font-medium">
                   <span>Precisa de atendimento preferencial?</span>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button type="button" variant="link" size="sm" className="h-auto px-0 text-sm">
+                      <Button type="button" variant="link" size="sm" className="h-auto min-h-6 px-0 text-sm text-(color:--brand-text)">
                         Saiba mais
                       </Button>
                     </PopoverTrigger>
@@ -781,8 +789,8 @@ export default function PublicGiraPage() {
 
               {/* Acompanhantes */}
               {gira.allow_acompanhantes && !waitlistMode && (
-                <fieldset className="flex flex-col gap-2">
-                  <legend className="mb-2 flex items-center gap-2 text-base font-medium">
+                <fieldset className="m-0 min-w-0 border-0 p-0 flex flex-col gap-2">
+                  <legend className="p-0 mb-2 flex items-center gap-2 text-base font-medium">
                     <Users aria-hidden className="size-4 text-muted-foreground" /> Acompanhantes
                   </legend>
                   {acompanhantesDisponiveis ? (

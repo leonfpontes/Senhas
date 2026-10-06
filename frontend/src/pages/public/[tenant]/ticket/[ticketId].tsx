@@ -12,13 +12,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { SearchX } from 'lucide-react';
-import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import { apiClient } from '@/services/api_client';
 import { Button } from '@/components/ui/button';
 import {
   Bilhete,
   PublicLoading,
   PublicNotice,
   PublicShell,
+  publicErrorMessage,
   formatGiraDateShort,
   type PublicTicket,
 } from '@/components/public';
@@ -48,7 +49,7 @@ export default function PublicTicketPage() {
         setState('notfound');
         return;
       }
-      setMessage(extractApiErrorMessage(err, 'Não foi possível carregar sua senha. Verifique a conexão e tente de novo.'));
+      setMessage(publicErrorMessage(err, 'Não foi possível carregar sua senha.'));
       setState('error');
     }
   }, [tenant, ticketId]);

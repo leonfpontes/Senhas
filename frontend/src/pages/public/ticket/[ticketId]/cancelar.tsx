@@ -15,7 +15,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { CalendarX2, CircleCheck, Loader2, Lock, SearchX } from 'lucide-react';
-import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import { apiClient } from '@/services/api_client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -24,6 +24,7 @@ import {
   PublicLoading,
   PublicNotice,
   PublicShell,
+  publicErrorMessage,
   formatGiraDate,
   type PublicTicket,
 } from '@/components/public';
@@ -94,7 +95,7 @@ export default function CancelTicketPage() {
         setState('notfound');
         return;
       }
-      setMessage(extractApiErrorMessage(err, 'Não foi possível carregar os dados da senha.'));
+      setMessage(publicErrorMessage(err, 'Não foi possível carregar os dados da senha.'));
       setState('load-error');
     }
   }, [ticketId]);
@@ -109,7 +110,7 @@ export default function CancelTicketPage() {
       setMessage(res.data.message);
       setState('success');
     } catch (err) {
-      setMessage(extractApiErrorMessage(err, 'Não foi possível cancelar sua senha.'));
+      setMessage(publicErrorMessage(err, 'Não foi possível cancelar sua senha.'));
       setState('cancel-error');
     }
   }, [ticketId]);
@@ -165,7 +166,7 @@ export default function CancelTicketPage() {
             </div>
 
             <div className="text-center">
-              <p data-testid="ticket-number" className="text-[4rem] leading-none font-extrabold tabular-nums tracking-tight text-primary">
+              <p data-testid="ticket-number" className="text-[4rem] leading-none font-extrabold tabular-nums tracking-tight text-(color:--brand-text)">
                 {info.ticket_number}
               </p>
               <p className="mt-2 text-base font-semibold">{info.gira_name}</p>
@@ -240,7 +241,7 @@ export default function CancelTicketPage() {
       {state === 'blocked' && (
         <PublicNotice tone="warning" icon={<Lock />} title="Cancelamento indisponível" description={message} actions={nextGiras}>
           {info && (
-            <p className="text-[3rem] leading-none font-extrabold tabular-nums tracking-tight text-primary">{info.ticket_number}</p>
+            <p className="text-[3rem] leading-none font-extrabold tabular-nums tracking-tight text-(color:--brand-text)">{info.ticket_number}</p>
           )}
         </PublicNotice>
       )}

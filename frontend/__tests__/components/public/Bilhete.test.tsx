@@ -2,11 +2,13 @@
  * Bilhete — cartão único usado na emissão, no link do e-mail, na fila e no cancelamento.
  */
 import React from 'react';
+import { contrastRatio } from '@/lib/brand';
 import { render, screen, fireEvent } from '@testing-library/react';
 import {
   Bilhete,
   PublicShell,
   brandStyle,
+  brandTextColor,
   buildShareText,
   formatGiraDateShort,
   ticketIdFromLink,
@@ -111,6 +113,10 @@ describe('PublicShell', () => {
     expect(style['--primary']).toBe('#ffeb3b');
     expect(style['--primary-foreground']).toBe('#000000');
     expect((brandStyle() as Record<string, string>)['--primary']).toBe('#4f46e5');
+    // Texto da marca sobre branco: primária clara escurece até AA; escura fica igual.
+    expect(style['--brand-text']).not.toBe('#ffeb3b');
+    expect(contrastRatio(style['--brand-text'], '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    expect(brandTextColor('#4f46e5')).toBe('#4f46e5');
 
     render(
       <PublicShell title="Teste" tenantName="Tenda Pai Joaquim" subtitle="qui, 8 de out · 19h" footer={<button type="button">CTA</button>}>

@@ -15,7 +15,7 @@
 import React from 'react';
 import Head from 'next/head';
 import { cn } from '@/lib/utils';
-import { pickForeground } from '@/lib/brand';
+import { WCAG_AA_CONTRAST, contrastRatio, parseColor, pickForeground } from '@/lib/brand';
 import PoweredByGiraHubFooter from '@/components/shared/PoweredByGiraHubFooter';
 
 export interface PublicBrand {
@@ -49,6 +49,24 @@ export interface PublicShellProps {
 
 export const DEFAULT_PUBLIC_PRIMARY = '#4f46e5';
 
+/**
+ * Cor da marca para TEXTO sobre o fundo claro da casca (links, número do bilhete).
+ * Primárias claras (amarelo, verde-limão) somem no branco: escurece em passos de 10%
+ * em direção ao preto até atingir contraste AA (4,5) com o branco. Use `text-(color:--brand-text)`
+ * no lugar de `text-primary` dentro do PublicShell; `bg-primary` + `text-primary-foreground`
+ * continuam corretos para botões.
+ */
+export function brandTextColor(primary: string): string {
+  const rgb = parseColor(primary);
+  if (!rgb) return primary;
+  for (let i = 0; i <= 10; i += 1) {
+    const f = 1 - i / 10;
+    const hex = `#${rgb.map((c) => Math.round(c * f).toString(16).padStart(2, '0')).join('')}`;
+    if (contrastRatio(hex, '#ffffff') >= WCAG_AA_CONTRAST) return i === 0 ? primary : hex;
+  }
+  return '#000000';
+}
+
 /** Variáveis CSS da marca para o wrapper. Exportado para testes e para quem precisar só das cores. */
 export function brandStyle(brand?: PublicBrand): React.CSSProperties {
   const primary = brand?.primary?.trim() || DEFAULT_PUBLIC_PRIMARY;
@@ -59,6 +77,7 @@ export function brandStyle(brand?: PublicBrand): React.CSSProperties {
     '--secondary': secondary,
     '--secondary-foreground': pickForeground(secondary),
     '--ring': primary,
+    '--brand-text': brandTextColor(primary),
   } as React.CSSProperties;
 }
 

@@ -84,7 +84,7 @@ export function Bilhete({
             style={cancelled ? { textDecoration: 'line-through' } : undefined}
             className={cn(
               'text-[4rem] leading-none font-extrabold tabular-nums tracking-tight sm:text-[5rem]',
-              done ? 'text-muted-foreground' : 'text-primary',
+              done ? 'text-muted-foreground' : 'text-(color:--brand-text)',
             )}
           >
             {ticket.ticket_number}
@@ -135,7 +135,7 @@ export function Bilhete({
                   href={ticket.maps_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block py-1 text-base font-semibold text-primary underline-offset-4 hover:underline"
+                  className="inline-block py-1 text-base font-semibold text-(color:--brand-text) underline-offset-4 hover:underline"
                 >
                   Como chegar
                 </a>
@@ -191,7 +191,7 @@ export function Bilhete({
         <p className="text-center text-sm text-muted-foreground">
           {!done && <>Na entrada, informe o número {ticket.ticket_number} à equipe. </>}
           {showNextGiras && (
-            <Link href={`/public/${ticket.tenant_slug}`} className="font-semibold text-primary underline-offset-4 hover:underline">
+            <Link href={`/public/${ticket.tenant_slug}`} className="font-semibold text-(color:--brand-text) underline-offset-4 hover:underline">
               Ver próximas giras
             </Link>
           )}
