@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { PlanLocked } from '@/components/gates';
 import { TicketEmailPanel } from '@/components/admin/TicketEmailPanel';
+import { minPlanFor } from '@/constants/plans';
 
 export default function TicketEmailPage() {
   return (
@@ -27,7 +28,7 @@ function TicketEmailContent() {
   const { can, loading: subLoading } = useSubscription();
 
   if (!subLoading && !can('email_transacional')) {
-    return <PlanLocked feature="Rastreio de e-mail" minPlan="Pro" />;
+    return <PlanLocked feature="Rastreio de e-mail" minPlan={minPlanFor('email_transacional').label} />;
   }
 
   return (

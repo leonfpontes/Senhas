@@ -40,6 +40,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { minPlanFor } from '@/constants/plans';
 
 interface Grupo {
   id: string;
@@ -172,7 +173,7 @@ function AdminEstoqueGruposContent() {
   };
 
   if (subLoading) return <div className="mt-16"><TableSkeleton /></div>;
-  if (!can('estoque_controle')) return <UpgradePrompt feature="controle de estoque" minPlan="Pro" />;
+  if (!can('estoque_controle')) return <UpgradePrompt feature="controle de estoque" minPlan={minPlanFor('estoque_controle').label} />;
   if (!canView) {
     return (
       <PermissionDenied

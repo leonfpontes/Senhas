@@ -36,6 +36,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { formatBRL, formatDateTimeBr } from '@/lib/dateBr';
 import { IconCurso } from '@/lib/icons';
+import { minPlanFor } from '@/constants/plans';
 
 interface CursoPresencial {
   id: string;
@@ -391,7 +392,7 @@ function CursosPresenciaisContent() {
       </div>
     );
   }
-  if (!isPlanAllowed) return <PlanLocked feature="Cursos Presenciais" minPlan="Pro" />;
+  if (!isPlanAllowed) return <PlanLocked feature="Cursos Presenciais" minPlan={minPlanFor('site_builder').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar cursos presenciais." />;
 
   const tituloErro = touched && !form.titulo.trim() ? 'Informe o título' : undefined;

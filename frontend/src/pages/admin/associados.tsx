@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { maskTelefone } from '@/components/fields/MaskedInput';
+import { minPlanFor } from '@/constants/plans';
 
 interface Associado {
   id: string;
@@ -260,7 +261,7 @@ function AdminAssociadosContent() {
 
   // ── Gates ───────────────────────────────────────────────────────────
 
-  if (!subLoading && !can('associados')) return <PlanLocked feature="Associados" minPlan="Pro" />;
+  if (!subLoading && !can('associados')) return <PlanLocked feature="Associados" minPlan={minPlanFor('associados').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar associados." />;
 
   return (

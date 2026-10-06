@@ -33,7 +33,7 @@ import {
   PLAN_LIST,
   formatPrice,
   planHighlights,
-  minPlanFor,
+  minPlanPhrase,
   type PlanDef,
   type PlanFeatureKey,
 } from '@/constants/plans';
@@ -80,10 +80,12 @@ interface ModuleItem {
 const MODULES: ModuleItem[] = [
   { title: 'Médiuns e cambones', desc: 'Cadastro da corrente, presença nas giras e aniversários da semana.', feature: 'mediuns' },
   { title: 'Relatório da gira', desc: 'Quantas senhas, quem compareceu e horários de pico — em PDF.', feature: 'relatorio_gira' },
-  { title: 'Financeiro', desc: 'Mensalidades, contas a pagar e a receber e o caixa do terreiro.', feature: 'contas_financeiras' },
+  { title: 'Mensalidade dos médiuns', desc: 'Quem pagou, quem está devendo e o comprovante de cada mês.', feature: 'mensalidade_mediun' },
+  { title: 'Financeiro completo', desc: 'Contas a pagar e a receber, fluxo de caixa e contas bancárias do terreiro.', feature: 'contas_financeiras' },
   { title: 'Estoque de materiais', desc: 'Velas, ervas, bebidas: entradas, saídas e aviso quando está acabando.', feature: 'estoque_controle' },
   { title: 'Site do terreiro e cursos', desc: 'Página pública com endereço, próximas giras e inscrição em cursos.', feature: 'site_builder' },
   { title: 'Associados', desc: 'Quem é da casa, com mensalidade e prioridade na fila se você quiser.', feature: 'associados' },
+  { title: 'Fila de espera e horário marcado', desc: 'Gira lotou? Quem chega entra na espera e sobe sozinho. Ou cada consulente escolhe o horário.', feature: 'fila_espera' },
 ];
 
 /** Aparece suave ao entrar na tela; sem movimento quando o sistema pede menos animação. */
@@ -399,14 +401,13 @@ export default function HomePage() {
               <Reveal>
                 <Accordion type="single" collapsible className="rounded-2xl border border-slate-200 bg-white px-4 shadow-sm">
                   {MODULES.map((m) => {
-                    const min = minPlanFor(m.feature);
                     return (
                       <AccordionItem key={m.title} value={m.title}>
                         <AccordionTrigger className="text-left text-base font-semibold hover:no-underline">
                           <span className="flex flex-1 items-center justify-between gap-3 pr-2">
                             {m.title}
                             <Badge variant="outline" className="shrink-0 font-medium text-slate-600">
-                              a partir do {min.label}
+                              {minPlanPhrase(m.feature)}
                             </Badge>
                           </span>
                         </AccordionTrigger>

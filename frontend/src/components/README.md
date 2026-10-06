@@ -38,7 +38,7 @@ Este é o kit que **todas as telas** usam. O MUI não existe mais no projeto. Re
 - **Permissão de grupo** (CLAUDE.md): toda tela admin faz o gate `canGroup(feature, 'view')` e
   renderiza `<PermissionDenied />` quando falha; botões de criar/editar/excluir são renderizados
   condicionalmente (`{canInsert && <Button>}`), nunca só `disabled`.
-- **Gate de plano**: `<PlanLocked feature="…" minPlan="…" />` (envolve o `UpgradePrompt`).
+- **Gate de plano**: `<PlanLocked feature="…" minPlan={minPlanFor('<feature>').label} />` (envolve o `UpgradePrompt`; nunca o nome do plano fixo — `constants/plans.ts` é a fonte).
 - **Select do Radix**: um `SelectItem` com `value=""` é **proibido** (o Radix usa a string vazia para
   "sem valor" e lança erro). Filtros "Todos" usam a sentinela **`"all"`**:
   ```tsx
@@ -103,7 +103,7 @@ alteração não salva (`AlertDialog`). **Mesma API** de antes.
 
 ### `UpgradePrompt` / gates — `src/components/UpgradePrompt.tsx`, `src/components/gates/`
 ```tsx
-if (!can('estoque')) return <PlanLocked feature="Estoque" minPlan="Pro" />;   // → /admin/billing?plan=pro
+if (!can('estoque_controle')) return <PlanLocked feature="Estoque" minPlan={minPlanFor('estoque_controle').label} />;   // → /admin/billing?plan=premium
 if (!canGroup('estoque', 'view')) return <PermissionDenied />;
 {!canEdit && <ReadOnlyNotice />}
 ```

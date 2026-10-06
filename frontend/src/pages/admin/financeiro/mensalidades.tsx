@@ -32,6 +32,7 @@ import {
 } from '@/components/financeiro/CobrancaMensal';
 import { baixarComprovante, montarFormPagamento, MULTIPART } from '@/components/financeiro/comprovante';
 import { currentMonthBr, formatBRL, monthLabelShort } from '@/lib/dateBr';
+import { minPlanFor } from '@/constants/plans';
 
 // ─── Tipos da API ─────────────────────────────────────────────────────────────
 
@@ -280,7 +281,7 @@ function MensalidadesContent() {
 
   // ── Gates ────────────────────────────────────────────────────────────
 
-  if (!planMediuns && !planAssoc) return <PlanLocked feature="Controle de mensalidades" minPlan="Pro" />;
+  if (!planMediuns && !planAssoc) return <PlanLocked feature="Controle de mensalidades" minPlan={minPlanFor('mensalidade_mediun').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar as mensalidades." />;
 
   const refreshing = loading || loadingAssoc;

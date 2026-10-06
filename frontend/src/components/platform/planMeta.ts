@@ -3,9 +3,10 @@
  * (Hoje, Terreiros, Tenant 360, Auditoria, Configurações).
  *
  * Cores saem dos tokens do tema (nunca hex fixo), para seguir claro/escuro. `price` e `limits`
- * espelham `PLAN_LIMITS` de `backend/src/repositories/subscription_repo.py` — tabela de
+ * vêm de `constants/plans.ts` (espelho único de `PLAN_LIMITS` do backend) — tabela de
  * referência; o valor cobrado de verdade vem da assinatura (`monthly_price`).
  */
+import { PLANS, isUnlimited, type PlanLimits } from '@/constants/plans';
 
 export type PlanKey = 'free' | 'basic' | 'pro' | 'premium';
 export type SubscriptionStatusKey = 'active' | 'suspended' | 'cancelled' | 'expired';
@@ -24,36 +25,42 @@ export interface PlanMeta {
 
 export const PLAN_ORDER: PlanKey[] = ['free', 'basic', 'pro', 'premium'];
 
+/** Limites de `constants/plans.ts` com `null` = ilimitado (Premium). */
+function metaLimits({ users, girasPerMonth, mediuns }: PlanLimits): PlanMeta['limits'] {
+  const v = (n: number) => (isUnlimited(n) ? null : n);
+  return { users: v(users), girasPerMonth: v(girasPerMonth), mediuns: v(mediuns) };
+}
+
 export const PLAN_META: Record<PlanKey, PlanMeta> = {
   free: {
     key: 'free',
     label: 'Free',
-    price: 0,
-    limits: { users: 1, girasPerMonth: 4, mediuns: 0 },
+    price: PLANS.free.price,
+    limits: metaLimits(PLANS.free.limits),
     badgeClass: 'border-transparent bg-muted text-muted-foreground',
     chartColor: 'var(--muted-foreground)',
   },
   basic: {
     key: 'basic',
     label: 'Basic',
-    price: 49,
-    limits: { users: 3, girasPerMonth: 10, mediuns: 50 },
+    price: PLANS.basic.price,
+    limits: metaLimits(PLANS.basic.limits),
     badgeClass: 'border-transparent bg-info/15 text-info-strong',
     chartColor: 'var(--info)',
   },
   pro: {
     key: 'pro',
     label: 'Pro',
-    price: 79,
-    limits: { users: 10, girasPerMonth: 15, mediuns: 150 },
+    price: PLANS.pro.price,
+    limits: metaLimits(PLANS.pro.limits),
     badgeClass: 'border-transparent bg-primary/15 text-brand',
     chartColor: 'var(--primary)',
   },
   premium: {
     key: 'premium',
     label: 'Premium',
-    price: 99,
-    limits: { users: null, girasPerMonth: null, mediuns: null },
+    price: PLANS.premium.price,
+    limits: metaLimits(PLANS.premium.limits),
     badgeClass: 'border-transparent bg-warning/15 text-warning-strong',
     chartColor: 'var(--warning)',
   },

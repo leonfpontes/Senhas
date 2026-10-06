@@ -56,7 +56,8 @@ export const MODULE_HINTS: Partial<Record<PrincipalDor, ModuleHint>> = {
     features: ['mediuns'],
   },
   financeiro: {
-    text: 'em Mensalidades você registra o pagamento de cada médium e acompanha o caixa.',
+    // Mensalidade dos médiuns é Pro; o caixa completo (contas_financeiras) é Premium.
+    text: 'em Mensalidades você registra o pagamento de cada médium e vê quem está em dia.',
     features: ['mensalidade_mediun', 'contas_financeiras'],
   },
   divulgacao: {
@@ -111,7 +112,8 @@ function moduleHintText(ctx: WelcomeTourContext): string | null {
   const available = !hint.features || hint.features.some((f) => ctx.can(f));
   if (available) return `Depois, quando quiser: ${hint.text}`;
   const plan = hint.features?.length ? minPlanFor(hint.features[0]) : null;
-  return `Depois, quando quiser: ${hint.text}${plan ? ` (disponível a partir do plano ${plan.label})` : ''}`;
+  const where = plan ? `${plan.key === 'premium' ? 'só no' : 'a partir do'} plano ${plan.label}` : '';
+  return `Depois, quando quiser: ${hint.text}${plan ? ` (disponível ${where})` : ''}`;
 }
 
 export function buildWelcomeTourSteps(ctx: WelcomeTourContext): StepType[] {

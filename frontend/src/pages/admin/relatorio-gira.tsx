@@ -38,6 +38,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatDateBr } from '@/lib/dateBr';
 import { IconGira } from '@/lib/icons';
+import { minPlanFor } from '@/constants/plans';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -427,7 +428,7 @@ function RelatorioGiraContent() {
       </div>
     );
   }
-  if (!hasPlan) return <PlanLocked feature="Relatório de gira" minPlan="Basic" />;
+  if (!hasPlan) return <PlanLocked feature="Relatório de gira" minPlan={minPlanFor('relatorio_gira').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar o relatório de gira." />;
 
   return (

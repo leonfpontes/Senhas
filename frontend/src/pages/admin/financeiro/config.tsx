@@ -1,6 +1,7 @@
 /**
  * Admin Financeiro — Configuração
- * Abas: Categorias | Contas bancárias | Mensalidade (Card + Switch, salvar fixo no rodapé).
+ * Abas: Categorias | Contas bancárias (contas_financeiras, Premium) | Mensalidade (Pro+)
+ * (Card + Switch, salvar fixo no rodapé).
  */
 'use client';
 
@@ -32,6 +33,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatBRL } from '@/lib/dateBr';
+import { minPlanFor, minPlanPhrase } from '@/constants/plans';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -724,12 +726,19 @@ export default function FinanceiroConfigPage() {
 function FinanceiroConfigContent() {
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
-  const [tab, setTab] = useState('categorias');
+  // Categorias e contas bancárias são do financeiro completo (contas_financeiras, Premium);
+  // a aba Mensalidade só precisa de mensalidade no plano (médiuns no Pro, associados no Premium).
+  const planContas = can('contas_financeiras');
+  const planMensalidade = can('mensalidade_mediun') || can('mensalidade_associado');
+  const showContas = planContas && canGroup('contas_financeiras', 'view');
+  const showMensalidade = planMensalidade && canGroup('financeiro', 'view');
+  const [tab, setTab] = useState<string | null>(null);
+  const activeTab = tab ?? (showContas ? 'categorias' : 'mensalidade');
 
-  if (!can('mensalidade_mediun') && !can('mensalidade_associado')) {
-    return <PlanLocked feature="Configuração Financeira" minPlan="Pro" />;
+  if (!planContas && !planMensalidade) {
+    return <PlanLocked feature="Configuração Financeira" minPlan={minPlanFor('mensalidade_mediun').label} />;
   }
-  if (!canGroup('contas_financeiras', 'view') && !canGroup('financeiro', 'view')) {
+  if (!showContas && !showMensalidade) {
     return <PermissionDenied message="Você não tem permissão para visualizar a configuração financeira." />;
   }
 
@@ -737,24 +746,35 @@ function FinanceiroConfigContent() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <PageHeader
         title="Configuração Financeira"
-        subtitle="Categorias, contas bancárias e mensalidades do terreiro"
+        subtitle={showContas ? 'Categorias, contas bancárias e mensalidades do terreiro' : 'Mensalidades do terreiro'}
         actions={<Settings2 className="size-6 text-brand" aria-hidden />}
       />
-      <Tabs value={tab} onValueChange={setTab}>
+      {!planContas && (
+        <p className="text-sm text-muted-foreground">
+          Categorias e contas bancárias fazem parte do financeiro completo, {minPlanPhrase('contas_financeiras')}.
+        </p>
+      )}
+      <Tabs value={activeTab} onValueChange={setTab}>
         <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="categorias">Categorias</TabsTrigger>
-          <TabsTrigger value="contas">Contas bancárias</TabsTrigger>
-          <TabsTrigger value="mensalidade">Mensalidade</TabsTrigger>
+          {showContas && <TabsTrigger value="categorias">Categorias</TabsTrigger>}
+          {showContas && <TabsTrigger value="contas">Contas bancárias</TabsTrigger>}
+          {showMensalidade && <TabsTrigger value="mensalidade">Mensalidade</TabsTrigger>}
         </TabsList>
-        <TabsContent value="categorias" className="mt-3">
-          <CategoriasTab />
-        </TabsContent>
-        <TabsContent value="contas" className="mt-3">
-          <ContasBancariasTab />
-        </TabsContent>
-        <TabsContent value="mensalidade" className="mt-3">
-          <MensalidadeTab />
-        </TabsContent>
+        {showContas && (
+          <TabsContent value="categorias" className="mt-3">
+            <CategoriasTab />
+          </TabsContent>
+        )}
+        {showContas && (
+          <TabsContent value="contas" className="mt-3">
+            <ContasBancariasTab />
+          </TabsContent>
+        )}
+        {showMensalidade && (
+          <TabsContent value="mensalidade" className="mt-3">
+            <MensalidadeTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

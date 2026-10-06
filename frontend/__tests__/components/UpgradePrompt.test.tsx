@@ -15,6 +15,12 @@ describe('UpgradePrompt', () => {
     expect(screen.getByText(/Disponível a partir do plano/)).toHaveTextContent('Pro');
   });
 
+  it('Premium (último plano) diz "apenas no plano", não "a partir do"', () => {
+    render(<UpgradePrompt feature="Estoque" minPlan="Premium" />);
+    expect(screen.getByText(/Disponível apenas no plano/)).toHaveTextContent('Premium');
+    expect(screen.queryByText(/a partir do plano/)).not.toBeInTheDocument();
+  });
+
   it('o CTA é um link para /admin/billing?plan=<minPlan em minúsculas>', () => {
     render(<UpgradePrompt feature="Analytics" minPlan="Premium" />);
     const link = screen.getByRole('link', { name: 'Ver Planos' });

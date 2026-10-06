@@ -41,6 +41,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { chartTokens, chartTooltipStyle } from '@/lib/chartTokens';
 import { addDaysIso, formatDateBr, todayBr } from '@/lib/dateBr';
+import { minPlanFor } from '@/constants/plans';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -220,7 +221,7 @@ function AdminAnalyticsContent() {
       </div>
     );
   }
-  if (!can('analytics_basico')) return <PlanLocked feature="Analytics" minPlan="Basic" />;
+  if (!can('analytics_basico')) return <PlanLocked feature="Analytics" minPlan={minPlanFor('analytics_basico').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar o analytics." />;
 
   const categoryData = analytics

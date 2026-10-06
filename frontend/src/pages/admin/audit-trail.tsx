@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatDateTimeBr, todayBr } from '@/lib/dateBr';
+import { minPlanFor } from '@/constants/plans';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -478,7 +479,7 @@ function AdminAuditTrailContent() {
       </div>
     );
   }
-  if (!can('auditoria')) return <PlanLocked feature="Auditoria" minPlan="Pro" />;
+  if (!can('auditoria')) return <PlanLocked feature="Auditoria" minPlan={minPlanFor('auditoria').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar a auditoria." />;
 
   return (
