@@ -1,561 +1,326 @@
 /**
- * /cadastro — Self-service onboarding page (Free plan)
- * 2-step form: Terreiro info → User info
+ * /cadastro — cria o terreiro e o primeiro admin numa tela só.
+ * Validação no blur (react-hook-form + zod em `components/auth/cadastroForm.ts`); a regra de
+ * senha é a mesma do backend. Depois de criar a conta, leva direto para a primeira gira.
  */
 'use client';
 
 import React, { useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Checkbox,
-  Chip,
-  CircularProgress,
-  Container,
-  FormControlLabel,
-  FormHelperText,
-  LinearProgress,
-  MenuItem,
-  Step,
-  StepLabel,
-  Stepper,
-  TextField,
-  Typography,
-} from '@mui/material';
-import CreditCardIcon from '@mui/icons-material/CreditCard';
-import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { apiClient } from '../services/api_client';
-import { dispatchTenantBrandingUpdated } from '../providers/ThemeProvider';
-import PasswordField from '../components/PasswordField';
-import { COMO_CONHECEU_OPTIONS, PRINCIPAL_DOR_OPTIONS, PrincipalDor } from '../constants/onboarding';
-import { trackEvent } from '../services/analytics';
-
-const STEPS = ['Seu Terreiro', 'Seus Dados'];
-
-// Simple WhatsApp mask: (99) 99999-9999
-function maskPhone(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 11);
-  if (digits.length <= 2) return digits.length ? `(${digits}` : '';
-  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-}
-
-// CPF (000.000.000-00) or CNPJ (00.000.000/0000-00) mask, auto-detected by length.
-function maskDocumento(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 14);
-  if (digits.length <= 11) {
-    return digits
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-  }
-  return digits
-    .replace(/(\d{2})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1/$2')
-    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-}
-
-function validarCPF(cpf: string): boolean {
-  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
-  for (const i of [9, 10]) {
-    let value = 0;
-    for (let num = 0; num < i; num++) value += parseInt(cpf[num], 10) * (i + 1 - num);
-    const digit = ((value * 10) % 11) % 10;
-    if (digit !== parseInt(cpf[i], 10)) return false;
-  }
-  return true;
-}
-
-function validarCNPJ(cnpj: string): boolean {
-  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
-  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  for (const [weights, checkIdx] of [[weights1, 12], [weights2, 13]] as [number[], number][]) {
-    let value = 0;
-    for (let i = 0; i < weights.length; i++) value += parseInt(cnpj[i], 10) * weights[i];
-    let digit = 11 - (value % 11);
-    if (digit >= 10) digit = 0;
-    if (digit !== parseInt(cnpj[checkIdx], 10)) return false;
-  }
-  return true;
-}
-
-function validarDocumento(value: string): boolean {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 11) return validarCPF(digits);
-  if (digits.length === 14) return validarCNPJ(digits);
-  return false;
-}
-
-function passwordStrength(pw: string): number {
-  let score = 0;
-  if (pw.length >= 8) score++;
-  if (/[A-Z]/.test(pw)) score++;
-  if (/[0-9]/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-  return score; // 0-4
-}
-
-const strengthColor = ['#d32f2f', '#f57c00', '#fbc02d', '#388e3c'];
-const strengthLabel = ['Fraca', 'Razoável', 'Boa', 'Forte'];
+import { useRouter } from 'next/router';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { CircleAlert, CreditCard, Loader2, PartyPopper } from 'lucide-react';
+import { AuthShell, PasswordRules } from '@/components/auth';
+import {
+  AFTER_SIGNUP_PATH,
+  CADASTRO_DEFAULTS,
+  buildOnboardingPayload,
+  cadastroSchema,
+  maskDocumento,
+  type CadastroFormValues,
+} from '@/components/auth/cadastroForm';
+import { TextField, PasswordField, MaskedInput } from '@/components/fields';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { apiClient } from '@/services/api_client';
+import { dispatchTenantBrandingUpdated } from '@/providers/ThemeProvider';
+import { COMO_CONHECEU_OPTIONS, PRINCIPAL_DOR_OPTIONS } from '@/constants/onboarding';
+import { trackEvent } from '@/services/analytics';
+import { PLANS, formatPricePerMonth, normalizePlanKey } from '@/constants/plans';
 
 export default function CadastroPage() {
   const router = useRouter();
-  const planParam = (router.query.plan as string | undefined) || '';
-  const wantedPlan = ['basic', 'pro', 'premium'].includes(planParam.toLowerCase()) ? planParam.toLowerCase() : '';
+  const wantedPlanKey = normalizePlanKey(router.query.plan);
+  const wantedPlan = wantedPlanKey && wantedPlanKey !== 'free' ? PLANS[wantedPlanKey] : null;
 
-  const PLAN_LABEL: Record<string, string> = { basic: 'Basic — R$49/mês', pro: 'Pro — R$79/mês', premium: 'Premium — R$99/mês' };
-  const PLAN_COLOR: Record<string, string> = { basic: '#3b82f6', pro: '#8b5cf6', premium: '#f59e0b' };
-  const [step, setStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Step 1
-  const [terreiroNome, setTerreiroNome] = useState('');
-  const [endereco, setEndereco] = useState('');
-  const [comoConheceu, setComoConheceu] = useState('');
-  // Obrigatória: define a trilha do tour de boas-vindas no primeiro login.
-  const [principalDor, setPrincipalDor] = useState<PrincipalDor | ''>('');
+  const form = useForm<CadastroFormValues>({
+    resolver: zodResolver(cadastroSchema),
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
+    defaultValues: CADASTRO_DEFAULTS,
+  });
+  const { register, control, handleSubmit, watch, formState } = form;
+  const { errors, isSubmitting } = formState;
+  const password = watch('password');
 
-  // Step 2
-  const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [documento, setDocumento] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [aceiteTermos, setAceiteTermos] = useState(false);
-
-  // Validation helpers
-  const step1Valid = terreiroNome.trim().length >= 3 && principalDor !== '';
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const documentoDigits = documento.replace(/\D/g, '');
-  const documentoValid = validarDocumento(documento);
-  const passwordMatch = password === confirmPassword;
-  const pwStrength = passwordStrength(password);
-  const step2Valid =
-    nome.trim().length >= 2 &&
-    emailValid &&
-    whatsapp.replace(/\D/g, '').length >= 10 &&
-    documentoValid &&
-    password.length >= 8 &&
-    passwordMatch &&
-    aceiteTermos;
-
-  const handleNext = () => {
-    setError(null);
-    if (step === 0 && step1Valid) setStep(1);
-  };
-
-  const handleBack = () => {
-    setError(null);
-    setStep(0);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!step2Valid) return;
-
-    setLoading(true);
-    setError(null);
-
+  const onSubmit = async (values: CadastroFormValues) => {
+    setSubmitError(null);
+    const payload = buildOnboardingPayload(values);
     try {
-      const res = await apiClient.post('/api/v1/public/onboarding', {
-        terreiro_nome: terreiroNome.trim(),
-        endereco: endereco.trim() || undefined,
-        responsavel_nome: nome.trim(),
-        email,
-        whatsapp: whatsapp.replace(/\D/g, ''),
-        documento: documentoDigits,
-        password,
-        como_conheceu: comoConheceu || undefined,
-        principal_dor: principalDor || undefined,
-        aceite_termos: true,
-      });
+      const res = await apiClient.post('/api/v1/public/onboarding', payload);
 
-      trackEvent('signup_completed', { principal_dor: principalDor || 'nao_informado' });
+      trackEvent('signup_completed', { principal_dor: payload.principal_dor ?? 'nao_informado' });
 
       const { user } = res.data;
-      // access_token agora chega como cookie HttpOnly
+      // access_token chega como cookie HttpOnly
       localStorage.setItem('user', JSON.stringify(user));
       dispatchTenantBrandingUpdated();
 
-      // If a paid plan was requested, initiate Stripe Checkout immediately
+      // Plano pago escolhido na landing: vai direto para o pagamento.
       if (wantedPlan) {
         try {
-          const checkoutRes = await apiClient.post('/api/v1/admin/billing/checkout', { plan: wantedPlan });
+          const checkoutRes = await apiClient.post('/api/v1/admin/billing/checkout', { plan: wantedPlan.key });
           window.location.href = checkoutRes.data.checkout_url;
           return;
         } catch {
-          // Checkout failed — go to billing page so user can try again.
-          // Use full page reload so SubscriptionProvider remounts with the token
-          // already in localStorage (same reason as login.tsx).
           window.location.href = '/admin/billing?status=checkout_error';
           return;
         }
       }
 
-      // Full page reload so SubscriptionProvider and ProfileProvider remount
-      // with the token already in localStorage — prevents canCreateGira()=false
-      // on the first visit to /admin/giras after signup.
-      window.location.href = '/admin/dashboard';
+      // Recarga completa para os providers remontarem com a sessão nova.
+      window.location.href = AFTER_SIGNUP_PATH;
     } catch (err) {
       const e = err as { response?: { data?: { detail?: unknown; message?: unknown } } } | undefined;
-      const detail = e?.response?.data?.detail ?? e?.response?.data?.message ?? 'Erro ao criar conta. Tente novamente.';
-      setError(typeof detail === 'string' ? detail : JSON.stringify(detail));
-    } finally {
-      setLoading(false);
+      const detail = e?.response?.data?.detail ?? e?.response?.data?.message ?? 'Não foi possível criar a conta. Tente novamente.';
+      setSubmitError(typeof detail === 'string' ? detail : JSON.stringify(detail));
     }
   };
 
   return (
     <>
       <Head>
-        <title>Cadastro — GiraHub</title>
-        <meta name="description" content="Crie sua conta gratuita no GiraHub e comece a gerenciar senhas e giras do seu terreiro." />
+        <title>Criar conta — GiraHub</title>
+        <meta
+          name="description"
+          content="Crie sua conta gratuita no GiraHub e coloque a primeira gira no ar em 3 minutos: senha pelo WhatsApp e fila sem tumulto."
+        />
         <link rel="canonical" href="https://girahub.com.br/cadastro" />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://girahub.com.br/cadastro" />
-        <meta property="og:title" content="Cadastro Grátis — GiraHub" />
-        <meta property="og:description" content="Crie sua conta gratuita no GiraHub e comece a gerenciar senhas e giras do seu terreiro." />
+        <meta property="og:title" content="Criar conta grátis — GiraHub" />
+        <meta
+          property="og:description"
+          content="Crie sua conta gratuita no GiraHub e coloque a primeira gira no ar em 3 minutos."
+        />
         <meta property="og:locale" content="pt_BR" />
         <meta property="og:site_name" content="GiraHub" />
       </Head>
 
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: 'background.default',
-          py: 4,
-        }}
+      <AuthShell
+        size="sm"
+        title="Crie a conta do seu terreiro"
+        subtitle={wantedPlan ? 'Crie a conta e siga para o pagamento' : '1 mês de Premium grátis, sem cartão'}
+        footer={
+          <p className="text-center text-sm text-muted-foreground">
+            Já tem conta?{' '}
+            <Link href="/login" className="font-semibold text-primary underline-offset-4 hover:underline">
+              Entrar
+            </Link>
+          </p>
+        }
       >
-        <Container maxWidth="sm">
-          <Card elevation={4}>
-            <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
-              {/* Header */}
-              <Box sx={{ textAlign: 'center', mb: 3 }}>
-                <Typography variant="h4" fontWeight={700} color="primary.main">
-                  GiraHub
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {wantedPlan ? 'Crie sua conta e assine' : '1 mês grátis no plano Premium, sem cartão de crédito'}
-                </Typography>
-              </Box>
+        {wantedPlan ? (
+          <Alert variant="info" className="mb-5">
+            <CreditCard aria-hidden />
+            <AlertDescription className="block">
+              <strong>Plano escolhido: {wantedPlan.label} — {formatPricePerMonth(wantedPlan.price)}.</strong>{' '}
+              Depois do cadastro você vai para o pagamento seguro.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert variant="warning" className="mb-5">
+            <PartyPopper aria-hidden />
+            <AlertDescription className="block">
+              <strong>Novos terreiros ganham 1 mês grátis no Premium.</strong> Sem cartão. Depois, a conta continua no
+              plano gratuito até você escolher assinar.
+            </AlertDescription>
+          </Alert>
+        )}
 
-              {/* Trial banner */}
-              {!wantedPlan && (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    bgcolor: '#f59e0b12',
-                    border: '1px solid #f59e0b40',
-                    borderRadius: 2,
-                    px: 2,
-                    py: 1.2,
-                    mb: 3,
-                  }}
-                >
-                  <Typography sx={{ fontSize: 18 }}>🎉</Typography>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="body2" fontWeight={700} sx={{ color: '#b45309' }}>
-                      Novos terreiros ganham 1 mês grátis no Premium
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Sem cartão de crédito. Depois do trial, sua conta continua no plano gratuito
-                      até você escolher assinar.
-                    </Typography>
-                  </Box>
-                </Box>
-              )}
+        {submitError && (
+          <Alert variant="destructive" role="alert" className="mb-5">
+            <CircleAlert aria-hidden />
+            <AlertDescription>{submitError}</AlertDescription>
+          </Alert>
+        )}
 
-              {/* Plan banner */}
-              {wantedPlan && (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    bgcolor: `${PLAN_COLOR[wantedPlan]}12`,
-                    border: `1px solid ${PLAN_COLOR[wantedPlan]}40`,
-                    borderRadius: 2,
-                    px: 2,
-                    py: 1.2,
-                    mb: 3,
-                  }}
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
+          <TextField
+            label="Nome do terreiro"
+            required
+            autoFocus
+            maxLength={255}
+            error={errors.terreiroNome?.message}
+            {...register('terreiroNome')}
+          />
+
+          <TextField
+            label="Seu nome"
+            required
+            maxLength={255}
+            autoComplete="name"
+            error={errors.nome?.message}
+            {...register('nome')}
+          />
+
+          <Controller
+            control={control}
+            name="whatsapp"
+            render={({ field }) => (
+              <MaskedInput
+                mask="telefone"
+                label="Seu WhatsApp"
+                required
+                placeholder="(11) 99999-9999"
+                autoComplete="tel"
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                error={errors.whatsapp?.message}
+              />
+            )}
+          />
+
+          <div className="flex flex-col gap-2">
+            <PasswordField
+              label="Senha"
+              required
+              autoComplete="new-password"
+              error={errors.password?.message}
+              {...register('password')}
+            />
+            <PasswordRules value={password} />
+          </div>
+
+          <Controller
+            control={control}
+            name="comoConheceu"
+            render={({ field }) => (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="como-conheceu">Como nos conheceu? (opcional)</Label>
+                <Select value={field.value || 'none'} onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}>
+                  <SelectTrigger id="como-conheceu" className="w-full bg-input-bg">
+                    <SelectValue placeholder="Escolha uma opção" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Prefiro não dizer</SelectItem>
+                    {COMO_CONHECEU_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="principalDor"
+            render={({ field }) => (
+              <fieldset className="flex flex-col gap-2">
+                <legend className="text-sm font-medium">O que você mais precisa resolver? (opcional)</legend>
+                <p className="text-xs text-muted-foreground">Montamos seu guia inicial a partir disso.</p>
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  spacing={2}
+                  value={field.value || ''}
+                  onValueChange={(v) => field.onChange(v ?? '')}
+                  aria-label="O que você mais precisa resolver?"
+                  className="flex-wrap justify-start"
                 >
-                  <CreditCardIcon sx={{ color: PLAN_COLOR[wantedPlan], fontSize: 20 }} />
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="body2" fontWeight={700} sx={{ color: PLAN_COLOR[wantedPlan] }}>
-                      Plano selecionado: {PLAN_LABEL[wantedPlan]}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Após o cadastro você será redirecionado para o pagamento seguro via Stripe.
-                    </Typography>
-                  </Box>
-                  <Chip
-                    label={wantedPlan.charAt(0).toUpperCase() + wantedPlan.slice(1)}
-                    size="small"
-                    sx={{ bgcolor: PLAN_COLOR[wantedPlan], color: '#fff', fontWeight: 700 }}
+                  {PRINCIPAL_DOR_OPTIONS.map((o) => (
+                    <ToggleGroupItem
+                      key={o.value}
+                      value={o.value}
+                      size="sm"
+                      className="h-auto min-h-8 whitespace-normal rounded-full px-3 py-1.5 text-left text-xs data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+                    >
+                      {o.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </fieldset>
+            )}
+          />
+
+          <div className="rounded-lg border bg-muted/40 p-4">
+            <p className="mb-3 text-xs text-muted-foreground">
+              E-mail e CPF/CNPJ são usados para liberar seu mês grátis e recuperar o acesso. Não aparecem para
+              ninguém.
+            </p>
+            <div className="flex flex-col gap-4">
+              <TextField
+                label="E-mail"
+                type="email"
+                required
+                autoComplete="email"
+                inputMode="email"
+                error={errors.email?.message}
+                {...register('email')}
+              />
+              <Controller
+                control={control}
+                name="documento"
+                render={({ field }) => (
+                  <MaskedInput
+                    mask={maskDocumento}
+                    label="CPF ou CNPJ"
+                    required
+                    placeholder="000.000.000-00"
+                    inputMode="numeric"
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    error={errors.documento?.message}
+                    helperText={!errors.documento ? 'Usado para liberar seu mês grátis no Premium.' : undefined}
                   />
-                </Box>
-              )}
-
-              {/* Stepper */}
-              <Stepper activeStep={step} alternativeLabel sx={{ mb: 3 }}>
-                {STEPS.map((label) => (
-                  <Step key={label}>
-                    <StepLabel>{label}</StepLabel>
-                  </Step>
-                ))}
-              </Stepper>
-
-              {error && (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-                  {error}
-                </Alert>
-              )}
-
-              <form onSubmit={step === 1 ? handleSubmit : (e) => { e.preventDefault(); handleNext(); }}>
-                {/* ---- STEP 1 ---- */}
-                {step === 0 && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                    <TextField
-                      label="Nome do Terreiro"
-                      value={terreiroNome}
-                      onChange={(e) => setTerreiroNome(e.target.value)}
-                      fullWidth
-                      required
-                      autoFocus
-                      inputProps={{ maxLength: 255 }}
-                      error={terreiroNome.length > 0 && terreiroNome.trim().length < 3}
-                      helperText={
-                        terreiroNome.length > 0 && terreiroNome.trim().length < 3
-                          ? 'Mínimo 3 caracteres'
-                          : ''
-                      }
-                    />
-
-                    <TextField
-                      label="Endereço (opcional)"
-                      value={endereco}
-                      onChange={(e) => setEndereco(e.target.value)}
-                      fullWidth
-                      inputProps={{ maxLength: 500 }}
-                      helperText="Usado no botão 'Como Chegar' dos emails de senha"
-                    />
-
-                    <TextField
-                      select
-                      required
-                      label="O que você mais precisa resolver?"
-                      value={principalDor}
-                      onChange={(e) => setPrincipalDor(e.target.value as PrincipalDor)}
-                      fullWidth
-                      helperText="No terreiro, hoje. Vamos montar o seu guia inicial a partir disso."
-                      inputProps={{ 'data-testid': 'principal-dor-select' }}
-                    >
-                      {PRINCIPAL_DOR_OPTIONS.map((o) => (
-                        <MenuItem key={o.value} value={o.value}>
-                          {o.label}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-
-                    <TextField
-                      select
-                      label="Como nos conheceu? (opcional)"
-                      value={comoConheceu}
-                      onChange={(e) => setComoConheceu(e.target.value)}
-                      fullWidth
-                    >
-                      <MenuItem value="">
-                        <em>Selecione</em>
-                      </MenuItem>
-                      {COMO_CONHECEU_OPTIONS.map((o) => (
-                        <MenuItem key={o.value} value={o.value}>
-                          {o.label}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      size="large"
-                      fullWidth
-                      disabled={!step1Valid}
-                      sx={{ mt: 1 }}
-                    >
-                      Próximo
-                    </Button>
-                  </Box>
                 )}
+              />
+            </div>
+          </div>
 
-                {/* ---- STEP 2 ---- */}
-                {step === 1 && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                    <TextField
-                      label="Nome completo"
-                      value={nome}
-                      onChange={(e) => setNome(e.target.value)}
-                      fullWidth
-                      required
-                      autoFocus
-                      inputProps={{ maxLength: 255 }}
-                    />
-
-                    <TextField
-                      label="Email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      fullWidth
-                      required
-                      autoComplete="email"
-                    />
-
-                    <TextField
-                      label="WhatsApp"
-                      value={whatsapp}
-                      onChange={(e) => setWhatsapp(maskPhone(e.target.value))}
-                      fullWidth
-                      required
-                      placeholder="(99) 99999-9999"
-                      inputProps={{ maxLength: 15 }}
-                    />
-
-                    <TextField
-                      label="CPF ou CNPJ"
-                      value={documento}
-                      onChange={(e) => setDocumento(maskDocumento(e.target.value))}
-                      fullWidth
-                      required
-                      placeholder="000.000.000-00"
-                      inputProps={{ maxLength: 18 }}
-                      error={documentoDigits.length > 0 && !documentoValid}
-                      helperText={
-                        documentoDigits.length > 0 && !documentoValid
-                          ? 'Documento inválido'
-                          : 'Usado para liberar seu mês grátis no plano Premium'
-                      }
-                    />
-
-                    <Box>
-                      <PasswordField
-                        label="Senha"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        fullWidth
-                        required
-                        autoComplete="new-password"
-                      />
-                      {password.length > 0 && (
-                        <Box sx={{ mt: 0.5 }}>
-                          <LinearProgress
-                            variant="determinate"
-                            value={pwStrength * 25}
-                            sx={{
-                              height: 6,
-                              borderRadius: 3,
-                              bgcolor: '#eee',
-                              '& .MuiLinearProgress-bar': {
-                                bgcolor: strengthColor[pwStrength - 1] || '#d32f2f',
-                              },
-                            }}
-                          />
-                          <Typography variant="caption" sx={{ color: strengthColor[pwStrength - 1] || '#d32f2f' }}>
-                            {strengthLabel[pwStrength - 1] || 'Muito fraca'} — mínimo 8 caracteres
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-
-                    <PasswordField
-                      label="Confirmar senha"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      fullWidth
-                      required
-                      autoComplete="new-password"
-                      error={confirmPassword.length > 0 && !passwordMatch}
-                      helperText={
-                        confirmPassword.length > 0 && !passwordMatch ? 'As senhas não coincidem' : ''
-                      }
-                    />
-
-                    <Box>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={aceiteTermos}
-                            onChange={(e) => setAceiteTermos(e.target.checked)}
-                          />
-                        }
-                        label={
-                          <Typography variant="body2">
-                            Li e aceito os{' '}
-                            <a href="/termos" target="_blank" rel="noopener noreferrer">
-                              Termos de Uso
-                            </a>{' '}
-                            e a{' '}
-                            <a href="/privacidade" target="_blank" rel="noopener noreferrer">
-                              Política de Privacidade
-                            </a>
-                          </Typography>
-                        }
-                      />
-                      {!aceiteTermos && (
-                        <FormHelperText error>Obrigatório</FormHelperText>
-                      )}
-                    </Box>
-
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Button variant="outlined" onClick={handleBack} sx={{ flex: 1 }}>
-                        Voltar
-                      </Button>
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        size="large"
-                        disabled={!step2Valid || loading}
-                        sx={{ flex: 2 }}
-                      >
-                        {loading
-                          ? <CircularProgress size={24} color="inherit" />
-                          : wantedPlan
-                            ? `Criar conta e assinar ${wantedPlan.charAt(0).toUpperCase() + wantedPlan.slice(1)}`
-                            : 'Criar minha conta'
-                        }
-                      </Button>
-                    </Box>
-                  </Box>
+          <Controller
+            control={control}
+            name="aceiteTermos"
+            render={({ field }) => (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="aceite-termos"
+                    checked={field.value}
+                    onCheckedChange={(v) => field.onChange(v === true)}
+                    aria-invalid={Boolean(errors.aceiteTermos) || undefined}
+                    aria-describedby={errors.aceiteTermos ? 'aceite-termos-erro' : undefined}
+                    className="mt-0.5"
+                  />
+                  <Label htmlFor="aceite-termos" className="cursor-pointer font-normal leading-snug">
+                    Li e aceito os{' '}
+                    <a href="/termos" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">
+                      Termos de Uso
+                    </a>{' '}
+                    e a{' '}
+                    <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">
+                      Política de Privacidade
+                    </a>
+                  </Label>
+                </div>
+                {errors.aceiteTermos && (
+                  <p id="aceite-termos-erro" className="text-xs text-destructive">
+                    {errors.aceiteTermos.message}
+                  </p>
                 )}
-              </form>
+              </div>
+            )}
+          />
 
-              {/* Footer link */}
-              <Box sx={{ textAlign: 'center', mt: 3 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Já tem conta?{' '}
-                  <Link href="/login" style={{ color: '#6C63FF', fontWeight: 600, textDecoration: 'none' }}>
-                    Faça login
-                  </Link>
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Container>
-      </Box>
+          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {isSubmitting ? 'Criando…' : wantedPlan ? `Criar conta e assinar ${wantedPlan.label}` : 'Criar minha conta'}
+          </Button>
+        </form>
+      </AuthShell>
     </>
   );
 }
