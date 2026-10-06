@@ -19,17 +19,20 @@ from .factories import create_tenant, create_user
 
 MES = datetime.now(timezone.utc).strftime("%Y-%m")
 
-# (método, rota, plano ativo SEM a feature) — uma rota de leitura por módulo gated.
+# (método, rota, plano ativo mais alto SEM a feature, plano mínimo COM a feature) — uma
+# rota de leitura por módulo gated. Reestruturação de out/2026: estoque, associados,
+# contas financeiras e mensalidade de associados são Premium (o Pro fica de fora).
 MODULOS = {
-    "estoque": ("GET", "/api/v1/admin/estoque/grupos", PlanType.BASIC),
-    "site_builder": ("GET", "/api/v1/admin/sites", PlanType.BASIC),
-    "cursos_presenciais": ("GET", "/api/v1/admin/cursos-presenciais", PlanType.BASIC),
-    "contas_financeiras": ("GET", "/api/v1/admin/financeiro/categorias", PlanType.BASIC),
-    "email_transacional": ("GET", f"/api/v1/admin/tickets/{uuid.uuid4()}/email-status", PlanType.BASIC),
-    "mensalidade_mediun": ("GET", f"/api/v1/admin/financeiro/mensalidades?mes={MES}", PlanType.BASIC),
-    "mensalidade_associado": ("GET", f"/api/v1/admin/financeiro/associados?mes={MES}", PlanType.BASIC),
-    "mensalidade_config": ("GET", "/api/v1/admin/financeiro/config", PlanType.BASIC),
-    "mediuns": ("GET", "/api/v1/admin/mediuns/aniversariantes", PlanType.FREE),
+    "estoque": ("GET", "/api/v1/admin/estoque/grupos", PlanType.PRO, PlanType.PREMIUM),
+    "associados": ("GET", "/api/v1/admin/associados", PlanType.PRO, PlanType.PREMIUM),
+    "site_builder": ("GET", "/api/v1/admin/sites", PlanType.BASIC, PlanType.PRO),
+    "cursos_presenciais": ("GET", "/api/v1/admin/cursos-presenciais", PlanType.BASIC, PlanType.PRO),
+    "contas_financeiras": ("GET", "/api/v1/admin/financeiro/categorias", PlanType.PRO, PlanType.PREMIUM),
+    "email_transacional": ("GET", f"/api/v1/admin/tickets/{uuid.uuid4()}/email-status", PlanType.BASIC, PlanType.PRO),
+    "mensalidade_mediun": ("GET", f"/api/v1/admin/financeiro/mensalidades?mes={MES}", PlanType.BASIC, PlanType.PRO),
+    "mensalidade_associado": ("GET", f"/api/v1/admin/financeiro/associados?mes={MES}", PlanType.PRO, PlanType.PREMIUM),
+    "mensalidade_config": ("GET", "/api/v1/admin/financeiro/config", PlanType.BASIC, PlanType.PRO),
+    "mediuns": ("GET", "/api/v1/admin/mediuns/aniversariantes", PlanType.FREE, PlanType.BASIC),
 }
 
 
@@ -50,7 +53,7 @@ async def _admin(db, plan: PlanType, status: SubscriptionStatus = SubscriptionSt
 @pytest.mark.parametrize("modulo", list(MODULOS))
 @pytest.mark.parametrize("status", [SubscriptionStatus.SUSPENDED, SubscriptionStatus.CANCELLED])
 async def test_assinatura_irregular_recebe_402(client, db, modulo, status):
-    method, url, _ = MODULOS[modulo]
+    method, url, _, _ = MODULOS[modulo]
     _, admin = await _admin(db, PlanType.PREMIUM, status)
     resp = await client.request(method, url, headers=admin.headers)
     assert resp.status_code == 402, f"{modulo}: {resp.status_code} {resp.text}"
@@ -58,17 +61,17 @@ async def test_assinatura_irregular_recebe_402(client, db, modulo, status):
 
 @pytest.mark.parametrize("modulo", list(MODULOS))
 async def test_plano_sem_a_feature_recebe_403(client, db, modulo):
-    method, url, plano = MODULOS[modulo]
+    method, url, plano, _ = MODULOS[modulo]
     _, admin = await _admin(db, plano)
     resp = await client.request(method, url, headers=admin.headers)
     assert resp.status_code == 403, f"{modulo}: {resp.status_code} {resp.text}"
 
 
 @pytest.mark.parametrize("modulo", list(MODULOS))
-async def test_pro_ativo_passa_pelo_gate(client, db, modulo):
-    """Controle positivo. PRO acessa mensalidade de médiuns (antes o endpoint exigia PREMIUM)."""
-    method, url, _ = MODULOS[modulo]
-    tenant, admin = await _admin(db, PlanType.PRO)
+async def test_plano_minimo_ativo_passa_pelo_gate(client, db, modulo):
+    """Controle positivo no plano mínimo de cada módulo (PRO acessa mensalidade de médiuns)."""
+    method, url, _, plano = MODULOS[modulo]
+    tenant, admin = await _admin(db, plano)
     if modulo == "mensalidade_associado":
         # além do plano, o módulo exige o toggle do tenant (_require_assoc_mensalidade_enabled)
         await db.execute(
@@ -91,7 +94,7 @@ async def test_trial_local_vencido_recebe_402(client, db):
 
 
 async def test_bonus_ativo_passa(client, db):
-    _, admin = await _admin(db, PlanType.PRO, SubscriptionStatus.ACTIVE, is_bonus=True, monthly_price=0.0)
+    _, admin = await _admin(db, PlanType.PREMIUM, SubscriptionStatus.ACTIVE, is_bonus=True, monthly_price=0.0)
     resp = await client.get("/api/v1/admin/financeiro/categorias", headers=admin.headers)
     assert resp.status_code == 200, resp.text
 
@@ -122,6 +125,6 @@ async def test_free_cancelado_segue_usando_o_free(client, db):
 
 
 async def test_ligar_fila_de_espera_com_assinatura_suspensa_recebe_402(client, db):
-    _, admin = await _admin(db, PlanType.PRO, SubscriptionStatus.SUSPENDED)
+    _, admin = await _admin(db, PlanType.PREMIUM, SubscriptionStatus.SUSPENDED)
     resp = await client.put("/api/v1/admin/tenant/config", headers=admin.headers, json={"enable_waitlist": True})
     assert resp.status_code == 402, resp.text

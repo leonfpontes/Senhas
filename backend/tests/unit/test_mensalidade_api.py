@@ -84,12 +84,14 @@ class TestPremiumGate:
     def test_rotas_tem_o_gate_certo(self):
         from src.api.v1.admin.mensalidades import router
         from tests.plan_gate_helpers import plan_gate_features
-        assert plan_gate_features(router, "/config") == ["mensalidade_associado"]
-        assert plan_gate_features(router, "/config", "PUT") == ["mensalidade_associado"]
+        # Config e relatório servem médiuns (Pro) e associados (Premium): gate no recurso
+        # de entrada; a parte de associados é filtrada dentro do endpoint (out/2026).
+        assert plan_gate_features(router, "/config") == ["mensalidade_mediun"]
+        assert plan_gate_features(router, "/config", "PUT") == ["mensalidade_mediun"]
         assert plan_gate_features(router, "/mensalidades") == ["mensalidade_mediun"]
         assert plan_gate_features(router, "/resumo") == ["mensalidade_mediun"]
         assert plan_gate_features(router, "/associados") == ["mensalidade_associado"]
-        assert plan_gate_features(router, "/relatorio/download") == ["mensalidade_associado"]
+        assert plan_gate_features(router, "/relatorio/download") == ["mensalidade_mediun"]
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("sub_factory", [_mock_free_sub, _mock_basic_sub])

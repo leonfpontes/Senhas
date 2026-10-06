@@ -234,6 +234,13 @@ async def update_tenant_config(
         await db.flush()
     
     # Update feature flags
+    # Toggles com gate de plano (fila de espera, horário marcado, associados,
+    # mensalidade de associados) só checam o plano ao LIGAR (False → True). A
+    # tela reenvia todos os toggles a cada "Salvar": um tenant que perdeu a
+    # feature (ex.: Pro depois da reestruturação de out/2026) com o toggle já
+    # gravado ligado não pode levar 403 ao salvar outra coisa. Em runtime o
+    # toggle sem plano vale como desligado (waitlist_service, time_slot_service,
+    # emit_ticket, mensalidades).
     # enable_bulk_operations is always-on; ignore any incoming value
     if config_update.enable_analytics is not None:
         await repo.toggle_feature(
@@ -276,7 +283,7 @@ async def update_tenant_config(
     # plano (Premium desde out/2026); desligar é sempre permitido. Com o plano
     # sem associados, a emissão ignora o toggle (ver public/emit_ticket.py).
     if config_update.validate_associado_on_emit is not None:
-        if config_update.validate_associado_on_emit:
+        if config_update.validate_associado_on_emit and not previous_state.get("validate_associado_on_emit"):
             from src.api.dependencies import check_plan_feature
 
             await check_plan_feature(current_user, db, "associados")
@@ -295,7 +302,7 @@ async def update_tenant_config(
     # Update enable_mensalidade_associado — ligar exige mensalidade_associado no
     # plano (Premium desde out/2026); desligar é sempre permitido.
     if config_update.enable_mensalidade_associado is not None:
-        if config_update.enable_mensalidade_associado:
+        if config_update.enable_mensalidade_associado and not previous_state.get("enable_mensalidade_associado"):
             from src.api.dependencies import check_plan_feature
 
             await check_plan_feature(current_user, db, "mensalidade_associado")
@@ -308,7 +315,7 @@ async def update_tenant_config(
     # Update enable_waitlist — enabling it requires fila_espera (Premium);
     # disabling is always allowed regardless of plan.
     if config_update.enable_waitlist is not None:
-        if config_update.enable_waitlist:
+        if config_update.enable_waitlist and not previous_state.get("enable_waitlist"):
             # Gate de plano único (P-05): 403 fora do plano, 402 assinatura irregular.
             from src.api.dependencies import check_plan_feature
 
@@ -322,7 +329,7 @@ async def update_tenant_config(
     # Update enable_time_slot_scheduling — enabling it requires
     # agendamento_por_horario (Premium); disabling is always allowed regardless of plan.
     if config_update.enable_time_slot_scheduling is not None:
-        if config_update.enable_time_slot_scheduling:
+        if config_update.enable_time_slot_scheduling and not previous_state.get("enable_time_slot_scheduling"):
             # Gate de plano único (P-05): 403 fora do plano, 402 assinatura irregular.
             from src.api.dependencies import check_plan_feature
 

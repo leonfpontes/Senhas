@@ -216,7 +216,8 @@ class TestWaitlistEnabledForTenant:
             MockRepo.return_value.get_by_tenant = AsyncMock(return_value=sub)
             assert await waitlist_service.waitlist_enabled_for_tenant(db, uuid4()) is False
 
-    async def test_true_on_pro_plan(self):
+    async def test_false_on_pro_plan_toggle_ligado(self):
+        """Premium desde out/2026: Pro com o toggle já gravado ligado vale como desligado."""
         from src.models.subscriptions import PlanType, SubscriptionStatus
         db = _mock_db()
         tc = MagicMock(enable_waitlist=True)
@@ -224,7 +225,7 @@ class TestWaitlistEnabledForTenant:
         sub = MagicMock(plan=PlanType.PRO, status=SubscriptionStatus.ACTIVE)
         with patch("src.repositories.subscription_repo.SubscriptionRepository") as MockRepo:
             MockRepo.return_value.get_by_tenant = AsyncMock(return_value=sub)
-            assert await waitlist_service.waitlist_enabled_for_tenant(db, uuid4()) is True
+            assert await waitlist_service.waitlist_enabled_for_tenant(db, uuid4()) is False
 
     async def test_false_on_pro_plan_when_suspended(self):
         from src.models.subscriptions import PlanType, SubscriptionStatus
