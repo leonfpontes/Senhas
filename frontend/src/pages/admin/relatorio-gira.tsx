@@ -121,7 +121,7 @@ function StatPill({ label, value, className }: { label: string; value: number; c
   return (
     <div className="flex flex-col items-center justify-center border-b border-r px-1 py-3 text-center [&:nth-child(4n)]:border-r-0 [&:nth-child(n+5)]:border-b-0 md:border-b-0 md:[&:nth-child(4n)]:border-r md:[&:nth-child(8n)]:border-r-0">
       <span className={cn('text-2xl font-extrabold leading-none tabular-nums text-foreground', className)}>{value}</span>
-      <span className="mt-1 text-[0.68rem] font-medium leading-tight text-muted-foreground">{label}</span>
+      <span className="mt-1 text-[0.68rem] font-medium leading-tight text-muted-foreground [overflow-wrap:anywhere]">{label}</span>
     </div>
   );
 }
