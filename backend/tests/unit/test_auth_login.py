@@ -9,7 +9,7 @@ from src.api.v1.auth.login import (
     LoginRequest, LoginResponse, login, logout, logout_all, refresh_token,
     reset_password, ResetPasswordRequest,
 )
-from src.core.errors import ValidationError, UnauthorizedError
+from src.core.errors import InsufficientPermissionsError, ValidationError, UnauthorizedError
 from src.models import User, UserRole
 from src.models.user_sessions import UserSession
 from tests.conftest import TENANT_ID, USER_ID
@@ -19,6 +19,12 @@ def _mock_request(cookies=None, headers=None):
     req = MagicMock()
     req.cookies = cookies or {}
     req.headers = headers or {}
+    return req
+
+
+def _not_impersonated_request():
+    req = _mock_request()
+    req.state.token = None
     return req
 
 
@@ -327,9 +333,26 @@ class TestLogoutAllEndpoint:
         response = MagicMock()
 
         with patch("src.services.session_service.end_all_sessions", new=AsyncMock()) as mock_end_all:
-            result = await logout_all(response, admin_user, mock_db_session)
+            result = await logout_all(_not_impersonated_request(), response, admin_user, mock_db_session)
 
         assert admin_user.sessions_revoked_at is not None
         mock_end_all.assert_awaited_once_with(mock_db_session, admin_user.id)
         assert response.delete_cookie.call_count == 3
         assert result["message"] == "Todas as sessões foram encerradas"
+
+    @patch("src.api.v1.auth.login.log_security_event")
+    async def test_blocked_during_impersonation(self, mock_log, admin_user, mock_db_session):
+        """Impersonando: revogaria as sessões reais do usuário e apagaria os
+        cookies do super-admin no navegador — tem que recusar (403)."""
+        admin_user.sessions_revoked_at = None
+        response = MagicMock()
+        req = _mock_request()
+        req.state.token = MagicMock(impersonated_by="super-admin-id")
+
+        with patch("src.services.session_service.end_all_sessions", new=AsyncMock()) as mock_end_all:
+            with pytest.raises(InsufficientPermissionsError):
+                await logout_all(req, response, admin_user, mock_db_session)
+
+        assert admin_user.sessions_revoked_at is None
+        mock_end_all.assert_not_awaited()
+        response.delete_cookie.assert_not_called()

@@ -12,6 +12,7 @@ from sqlalchemy import select
 from src.models import User, PlanType, SubscriptionStatus
 from src.models.subscriptions import Subscription
 from src.models.tenants import Tenant
+from src.api.v1.admin.subscription_info import _count_active_users
 from src.services.billing_metrics import billing_fields
 from src.services.subscription_service import SubscriptionService
 from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
@@ -34,6 +35,7 @@ class SubscriptionResponse(BaseModel):
     current_users: int
     monthly_price: float
     is_trial: bool
+    is_bonus: bool = False
     trial_ends_at: Optional[str]
     auto_renew: bool
     created_at: str
@@ -48,9 +50,14 @@ class UpgradePlanRequest(BaseModel):
     plan: PlanType
 
 
-class RecordUsageRequest(BaseModel):
-    """Request to record usage."""
-    current_users: int
+async def _response(db: AsyncSession, tenant_id: UUID, result: dict) -> SubscriptionResponse:
+    """Monta a resposta com a contagem REAL de usuários ativos.
+
+    A coluna `subscriptions.current_users` nunca é mantida (a plataforma
+    mostrava "Usuários: 0"); conta como o /admin/subscription faz.
+    """
+    result["current_users"] = int(await _count_active_users(db, tenant_id))
+    return SubscriptionResponse(**result)
 
 
 def _log_subscription_action(
@@ -99,7 +106,7 @@ async def get_subscription(
         if deleted_at is not None:
             sub = (await db.execute(select(Subscription).where(Subscription.tenant_id == tenant_id))).scalar_one()
             result.update(billing_fields(sub, tenant_deleted=True))
-        return SubscriptionResponse(**result)
+        return await _response(db, tenant_id, result)
     except HTTPException:
         raise
     except Exception as e:
@@ -137,7 +144,7 @@ async def upgrade_subscription(
         )
         await db.commit()
         
-        return SubscriptionResponse(**result)
+        return await _response(db, tenant_id, result)
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -175,7 +182,7 @@ async def downgrade_subscription(
         )
         await db.commit()
         
-        return SubscriptionResponse(**result)
+        return await _response(db, tenant_id, result)
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -207,7 +214,7 @@ async def suspend_subscription(
         )
         await db.commit()
         
-        return SubscriptionResponse(**result)
+        return await _response(db, tenant_id, result)
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -239,7 +246,7 @@ async def reactivate_subscription(
         )
         await db.commit()
         
-        return SubscriptionResponse(**result)
+        return await _response(db, tenant_id, result)
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

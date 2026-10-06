@@ -50,6 +50,10 @@ class SubscriptionInfoResponse(BaseModel):
     auto_renew: bool
     cancel_at_period_end: bool = False
     current_period_end: Optional[str] = None
+    # Para a UI distinguir trial local (sem cartão) de trial Stripe ("trialing",
+    # cartão já cadastrado — o webhook mantém is_trial=True) e de cortesia.
+    has_stripe_subscription: bool = False
+    is_bonus: bool = False
     features: PlanFeatures
 
 
@@ -117,6 +121,8 @@ async def get_tenant_subscription(
         auto_renew=sub.auto_renew,
         cancel_at_period_end=sub.cancel_at_period_end,
         current_period_end=sub.current_period_end.isoformat() if sub.current_period_end else None,
+        has_stripe_subscription=bool(sub.stripe_subscription_id) if isinstance(sub.stripe_subscription_id, str) else False,
+        is_bonus=sub.is_bonus is True,
         # Mesma semântica do require_plan_feature (P-05): a UI esconde o que o backend nega.
         features=get_effective_plan_features(sub),
     )

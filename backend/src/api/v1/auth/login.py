@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from src.core.database import get_db
-from src.core.errors import ValidationError, UnauthorizedError, NotFoundError
+from src.core.errors import ValidationError, UnauthorizedError, NotFoundError, InsufficientPermissionsError
 from src.core.config import DUMMY_BCRYPT_HASH, settings
 from src.models import User, Tenant
 from src.api.dependencies import get_current_user
@@ -25,6 +25,7 @@ from src.security import (
 from src.core.limiter import limiter
 from src.core.logging import log_security_event
 from src.services import session_service
+from src.security.auth_cookies import clear_auth_cookies, is_impersonated_request
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
@@ -310,9 +311,7 @@ async def logout(request_obj: Request, response: Response, db: AsyncSession = De
         except Exception:
             pass  # Best-effort: an already-invalid/expired token has nothing to revoke.
 
-    response.delete_cookie(key="access_token",  httponly=True,  secure=not settings.DEBUG, samesite="strict")
-    response.delete_cookie(key="refresh_token", httponly=True,  secure=not settings.DEBUG, samesite="strict")
-    response.delete_cookie(key="auth_state",    httponly=False, secure=not settings.DEBUG, samesite="strict")
+    clear_auth_cookies(response)
 
     log_security_event("logout", success=True)
 
@@ -321,6 +320,7 @@ async def logout(request_obj: Request, response: Response, db: AsyncSession = De
 
 @router.post("/logout-all")
 async def logout_all(
+    request_obj: Request,
     response: Response,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -331,15 +331,19 @@ async def logout_all(
     see get_current_user's sessions_revoked_at check — no need to wait for
     their refresh token to be used), and clears cookies for this device too.
     Intended for a lost/stolen device or "sign out everywhere" in account settings.
+
+    Blocked during impersonation (403): it would revoke the tenant user's real
+    sessions and wipe the super-admin's own cookies in that browser.
     """
+    if is_impersonated_request(request_obj):
+        raise InsufficientPermissionsError("Operação não permitida durante impersonação.")
+
     current_user.sessions_revoked_at = datetime.now(timezone.utc)
     db.add(current_user)
     await session_service.end_all_sessions(db, current_user.id)
     await db.commit()
 
-    response.delete_cookie(key="access_token",  httponly=True,  secure=not settings.DEBUG, samesite="strict")
-    response.delete_cookie(key="refresh_token", httponly=True,  secure=not settings.DEBUG, samesite="strict")
-    response.delete_cookie(key="auth_state",    httponly=False, secure=not settings.DEBUG, samesite="strict")
+    clear_auth_cookies(response)
 
     log_security_event("logout_all", user_id=current_user.id, tenant_id=current_user.tenant_id, success=True)
 

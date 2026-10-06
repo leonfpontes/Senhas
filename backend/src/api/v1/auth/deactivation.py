@@ -24,6 +24,7 @@ from src.core.limiter import limiter
 from src.models import SubscriptionStatus, Tenant, User, UserRole
 from src.models.audit_logs import AuditLog, AuditAction
 from src.repositories.subscription_repo import SubscriptionRepository
+from src.security.auth_cookies import clear_auth_cookies
 from src.security.password import verify_password
 from src.services import session_service, stripe_service
 from src.services.email.base import EmailMessage
@@ -220,7 +221,7 @@ async def deactivate_account(
         await db.rollback()
         raise
 
-    response.delete_cookie(key="refresh_token", httponly=True, secure=True, samesite="strict")
+    clear_auth_cookies(response)
 
     reactivation_url = f"{settings.FRONTEND_URL}/reactivate-account"
     asyncio.create_task(

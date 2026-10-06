@@ -28,7 +28,7 @@ def generate_welcome_html(
         beneficios = """\
                 <li>Usuários, giras e médiuns <strong>ilimitados</strong></li>
                 <li>Financeiro completo, estoque e site do terreiro</li>
-                <li>Analytics avançado e suporte prioritário</li>
+                <li>Relatórios de atendimento, histórico de alterações e cores e logo do terreiro</li>
                 <li>Emitir senhas para consulentes em tempo real</li>"""
         aviso = (
             f"Seu trial Premium termina em {trial_days} dias. Antes disso, avisaremos por e-mail — "

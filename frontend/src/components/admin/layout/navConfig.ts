@@ -206,7 +206,8 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     if (can('site_builder') && view('cursos_presenciais')) {
       casa.push(link('/admin/meu-site', 'Site do terreiro', Globe, { keywords: ['meu site', 'página pública'] }));
     }
-    if (view('cursos_presenciais')) {
+    // Mesmo gate da tela (plano site_builder + grupo cursos_presenciais).
+    if (can('site_builder') && view('cursos_presenciais')) {
       casa.push(link('/admin/cursos-presenciais', 'Cursos', GraduationCap, { keywords: ['cursos presenciais', 'inscrições'] }));
     }
 
@@ -220,8 +221,11 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     if (!isOperator) {
       conta.push(
         link('/admin/permission-groups', 'Perfis de acesso', Shield, { keywords: ['grupos de permissão', 'permissões', 'rbac'] }),
-        link('/admin/config', 'Configurações', Settings, { keywords: ['terreiro', 'cores', 'logo', 'funcionalidades'] }),
       );
+    }
+    // A tela de Configurações é gateada pelo grupo `configuracoes` (não só admin).
+    if (view('configuracoes')) {
+      conta.push(link('/admin/config', 'Configurações', Settings, { keywords: ['terreiro', 'cores', 'logo', 'funcionalidades'] }));
     }
     if (can('auditoria') && view('auditoria')) {
       conta.push(link('/admin/audit-trail', 'Auditoria', ScrollText, { keywords: ['histórico', 'log', 'quem alterou'] }));

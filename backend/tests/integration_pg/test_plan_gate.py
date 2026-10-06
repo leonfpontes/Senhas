@@ -32,6 +32,8 @@ MODULOS = {
     "mediuns": ("GET", "/api/v1/admin/mediuns/aniversariantes", PlanType.FREE),
     "analytics_basico": ("GET", "/api/v1/admin/analytics", PlanType.BASIC),
     "auditoria": ("GET", "/api/v1/admin/audit-logs", PlanType.BASIC),
+    # export CSV: admin faz bypass dos grupos, mas não do plano
+    "export_csv": ("GET", f"/api/v1/admin/giras/{uuid.uuid4()}/export-csv", PlanType.BASIC),
 }
 
 
@@ -78,9 +80,10 @@ async def test_pro_ativo_passa_pelo_gate(client, db, modulo):
         )
         await db.commit()
     resp = await client.request(method, url, headers=admin.headers)
-    # email-status de ticket inexistente: passou do gate e caiu no 404 do endpoint
+    # email-status/export de recurso inexistente: passou do gate e caiu no 404 do endpoint
     assert resp.status_code in (200, 404), f"{modulo}: {resp.status_code} {resp.text}"
-    assert resp.status_code == (404 if modulo == "email_transacional" else 200), resp.text
+    # export-csv de gira inexistente também passou do gate e caiu no 404 "nenhum ticket"
+    assert resp.status_code == (404 if modulo in ("email_transacional", "export_csv") else 200), resp.text
 
 
 async def test_trial_local_vencido_recebe_402(client, db):

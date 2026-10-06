@@ -10,6 +10,10 @@
  *   "Acesso total" continuaria valendo por cima do grupo escolhido.
  *   Os grupos só aparecem para quem é administrador (o endpoint de grupos exige admin).
  * - Senha: a mesma regra do backend (`constants/passwordPolicy.ts`), visível antes de digitar.
+ * - Proteções espelhadas do backend (`users.py`): ninguém se exclui, se desativa nem muda o
+ *   próprio perfil; o último administrador ativo não sai; operador (mesmo com permissão de
+ *   grupo) não cria/edita/exclui administradores. O limite do plano conta só pessoas ativas
+ *   (a lista vem sempre completa — o filtro de perfil é só visual).
  */
 'use client';
 
@@ -96,13 +100,43 @@ function AdminUsersContent() {
   const canDelete = canGroup('usuarios', 'delete');
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
 
-  const [users, setUsers] = useState<UserItem[]>([]);
+  // Sempre a lista completa: o filtro de perfil é só visual — o limite do plano
+  // e a regra do "último administrador" precisam enxergar todo mundo.
+  const [allUsers, setAllUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roleFilter, setRoleFilter] = useState<'all' | Role>('all');
   const [groups, setGroups] = useState<PermissionGroup[]>([]);
 
-  const canCreateUser = canCreateUserCheck(users.length);
+  const users = useMemo(
+    () => (roleFilter === 'all' ? allUsers : allUsers.filter((u) => u.role === roleFilter)),
+    [allUsers, roleFilter],
+  );
+  // O backend limita usuários ATIVOS (inativos não contam).
+  const activeCount = useMemo(() => allUsers.filter((u) => u.is_active).length, [allUsers]);
+  const activeAdminCount = useMemo(
+    () => allUsers.filter((u) => u.is_active && u.role === 'admin').length,
+    [allUsers],
+  );
+  const canCreateUser = canCreateUserCheck(activeCount);
+
+  /** Proteções espelhadas do backend (users.py): o que esta linha não pode sofrer. */
+  const rowGuards = useCallback(
+    (u: UserItem) => {
+      const isSelf = !!profile?.id && u.id === profile.id;
+      const isLastAdmin = u.role === 'admin' && u.is_active && activeAdminCount <= 1;
+      // Operador (mesmo com permissão de grupo) não mexe em administradores.
+      const protectedAdmin = !isAdmin && (u.role === 'admin' || u.role === 'super_admin');
+      return {
+        isSelf,
+        isLastAdmin,
+        canEditRow: !protectedAdmin,
+        canDeleteRow: !protectedAdmin && !isSelf && !isLastAdmin,
+        lockRoleAndActive: isSelf || isLastAdmin,
+      };
+    },
+    [profile?.id, activeAdminCount, isAdmin],
+  );
 
   // Drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -124,17 +158,15 @@ function AdminUsersContent() {
     setLoading(true);
     setError(null);
     try {
-      let url = `/api/v1/admin/users?skip=0&limit=${FETCH_LIMIT}`;
-      if (roleFilter !== 'all') url += `&role_filter=${roleFilter}`;
-      const response = await apiClient.get(url);
+      const response = await apiClient.get(`/api/v1/admin/users?skip=0&limit=${FETCH_LIMIT}`);
       const data = response.data;
-      setUsers(Array.isArray(data) ? data : data?.items || []);
+      setAllUsers(Array.isArray(data) ? data : data?.items || []);
     } catch (err) {
       setError(extractApiErrorMessage(err, 'Não foi possível carregar as pessoas.'));
     } finally {
       setLoading(false);
     }
-  }, [canView, roleFilter]);
+  }, [canView]);
 
   useEffect(() => {
     fetchUsers();
@@ -214,6 +246,10 @@ function AdminUsersContent() {
     (drawerMode === 'create' ? !!formData.password && !pwdMessage : !pwdMessage);
 
   const showGroupSelect = drawerMode === 'create' && formData.role === 'operator' && groups.length > 0;
+
+  const editingUser = drawerMode === 'edit' ? allUsers.find((u) => u.id === editUserId) : undefined;
+  const editGuard = editingUser ? rowGuards(editingUser) : null;
+  const lockRoleAndActive = !!editGuard?.lockRoleAndActive;
 
   // ─── CRUD ────────────────────────────────────────────────────────────────
   const assignGroup = async (userId: string, groupId: string) => {
@@ -327,32 +363,35 @@ function AdminUsersContent() {
         header: '',
         enableSorting: false,
         meta: { align: 'right', mobile: true },
-        cell: ({ row }) => (
-          <div className="flex justify-end gap-1">
-            {canEdit && (
-              <Button size="icon-sm" variant="ghost" aria-label="Editar usuário" onClick={() => openEdit(row.original)}>
-                <Pencil />
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                aria-label="Excluir usuário"
-                onClick={() => setConfirmTarget(row.original)}
-              >
-                <Trash2 />
-              </Button>
-            )}
-          </div>
-        ),
+        cell: ({ row }) => {
+          const guard = rowGuards(row.original);
+          return (
+            <div className="flex justify-end gap-1">
+              {canEdit && guard.canEditRow && (
+                <Button size="icon-sm" variant="ghost" aria-label="Editar usuário" onClick={() => openEdit(row.original)}>
+                  <Pencil />
+                </Button>
+              )}
+              {canDelete && guard.canDeleteRow && (
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  aria-label="Excluir usuário"
+                  onClick={() => setConfirmTarget(row.original)}
+                >
+                  <Trash2 />
+                </Button>
+              )}
+            </div>
+          );
+        },
       });
     }
     return cols;
     // openEdit só usa setters estáveis.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canEdit, canDelete]);
+  }, [canEdit, canDelete, rowGuards]);
 
   if (!canView) {
     return <PermissionDenied className="mt-4" />;
@@ -476,14 +515,16 @@ function AdminUsersContent() {
             value={formData.role}
             onValueChange={(v) => setField('role', v as Role)}
             className="gap-2"
+            disabled={lockRoleAndActive}
           >
             {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
               <Label
                 key={r}
                 htmlFor={`role-${r}`}
-                className="flex cursor-pointer items-start gap-3 rounded-md border p-3 font-normal has-[[data-state=checked]]:border-primary"
+                className="flex cursor-pointer items-start gap-3 rounded-md border p-3 font-normal has-[[data-state=checked]]:border-primary has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
               >
-                <RadioGroupItem id={`role-${r}`} value={r} className="mt-0.5" />
+                {/* Só administrador cria/promove administrador (backend 403). */}
+                <RadioGroupItem id={`role-${r}`} value={r} className="mt-0.5" disabled={r === 'admin' && !isAdmin} />
                 <span>
                   <span className="block text-sm font-medium">{ROLE_LABELS[r].label}</span>
                   <span className="block text-xs text-muted-foreground">{ROLE_LABELS[r].description}</span>
@@ -491,6 +532,13 @@ function AdminUsersContent() {
               </Label>
             ))}
           </RadioGroup>
+          {lockRoleAndActive && (
+            <p className="text-xs text-muted-foreground">
+              {editGuard?.isSelf
+                ? 'Você não pode mudar o seu próprio perfil nem se desativar. Peça a outro administrador.'
+                : 'Esta é a única pessoa administradora ativa. Promova outra pessoa antes de mudar o perfil ou desativar.'}
+            </p>
+          )}
         </fieldset>
 
         {showGroupSelect && (
@@ -529,6 +577,7 @@ function AdminUsersContent() {
               id="user-active"
               checked={formData.is_active}
               onCheckedChange={(v) => setField('is_active', v)}
+              disabled={lockRoleAndActive}
             />
           </div>
         )}

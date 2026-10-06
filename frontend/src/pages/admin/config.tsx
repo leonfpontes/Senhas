@@ -32,6 +32,7 @@ import { useSubscription, type PlanFeatures } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSnackbar } from '@/contexts/SnackbarContext';
 import { minPlanFor, type PlanFeatureKey } from '@/constants/plans';
+import { pickForeground } from '@/lib/brand';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -96,8 +97,9 @@ const FEATURE_ITEMS: { field: BoolField; title: string; description: string; gat
   },
   {
     field: 'validate_associado_on_emit',
-    title: 'Só associado pega senha',
-    description: 'Exige que a pessoa seja associada do terreiro para tirar senha pelo link.',
+    title: 'Conferir e-mail de associado',
+    description:
+      'Quem se declara associado ao pegar a senha precisa usar um e-mail cadastrado em Associados. Quem não é associado continua pegando senha normalmente.',
     gate: 'associados',
   },
   {
@@ -374,7 +376,7 @@ function TimeSlotTemplateEditor({ canEdit }: { canEdit: boolean }) {
 export default function AdminConfigPage() {
   return (
     <AdminLayout title="Configurações" maxWidth="xl">
-      {/* Sem TooltipProvider global (o layout ainda é MUI): o Radix exige um provider. */}
+      {/* O Radix exige um TooltipProvider acima dos Tooltips; esta tela monta o seu. */}
       <TooltipProvider delayDuration={200}>
         <AdminConfigContent />
       </TooltipProvider>
@@ -409,6 +411,11 @@ function AdminConfigContent() {
   const previewFontColor = getFontColor(config);
   const previewLogo = config?.logo_url?.trim() || '';
   const canTheme = can('tema_personalizado');
+  // A prévia usa a mesma regra do applyBrand (lib/brand.ts): cor de texto com contraste
+  // abaixo de AA é trocada por preto/branco — prévia igual ao que o painel mostra.
+  const previewOnPrimary = pickForeground(previewPrimary, previewFontColor);
+  const previewOnSecondary = pickForeground(previewSecondary);
+  const fontColorAdjusted = isValidHex(previewFontColor) && previewOnPrimary.toUpperCase() !== previewFontColor.trim().toUpperCase();
 
   const validationErrors = useMemo(
     () => ({
@@ -474,12 +481,17 @@ function AdminConfigContent() {
     try {
       setSaving(true);
       const res = await apiClient.put<TenantConfig>('/api/v1/admin/tenant/config', {
-        primary_color: config.primary_color.trim().toUpperCase(),
-        secondary_color: config.secondary_color.trim().toUpperCase(),
-        custom_settings: {
-          ...(config.custom_settings && typeof config.custom_settings === 'object' ? config.custom_settings : {}),
-          font_color: previewFontColor.trim().toUpperCase(),
-        },
+        // Cores só vão no plano com tema_personalizado (o backend recusa mudança fora dele).
+        ...(canTheme
+          ? {
+              primary_color: config.primary_color.trim().toUpperCase(),
+              secondary_color: config.secondary_color.trim().toUpperCase(),
+              custom_settings: {
+                ...(config.custom_settings && typeof config.custom_settings === 'object' ? config.custom_settings : {}),
+                font_color: previewFontColor.trim().toUpperCase(),
+              },
+            }
+          : {}),
         enable_analytics: config.enable_analytics,
         enable_walk_in: config.enable_walk_in,
         validate_associado_on_emit: config.validate_associado_on_emit,
@@ -501,7 +513,7 @@ function AdminConfigContent() {
   };
 
   const uploadLogo = async (file: File) => {
-    if (!canEdit) return;
+    if (!canEdit || !canTheme) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       showError('Formato inválido. Use JPG, PNG ou WEBP.');
       return;
@@ -633,16 +645,18 @@ function AdminConfigContent() {
                     />
                     {canEdit && (
                       <div className="flex flex-wrap gap-2">
-                        <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
-                          <CloudUpload aria-hidden /> {uploadingLogo ? 'Enviando…' : 'Trocar'}
-                        </Button>
+                        {canTheme && (
+                          <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
+                            <CloudUpload aria-hidden /> {uploadingLogo ? 'Enviando…' : 'Trocar'}
+                          </Button>
+                        )}
                         <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={handleLogoDelete} disabled={uploadingLogo}>
                           <Trash2 aria-hidden /> Remover
                         </Button>
                       </div>
                     )}
                   </div>
-                ) : canEdit ? (
+                ) : canEdit && canTheme ? (
                   <button
                     type="button"
                     onDragOver={(e) => {
@@ -662,7 +676,10 @@ function AdminConfigContent() {
                     <span className="text-xs text-muted-foreground">JPG, PNG ou WEBP · até 2 MB · 200×200 px</span>
                   </button>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Sem logo cadastrado.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Sem logo cadastrado.
+                    {canEdit && !canTheme && ` Logo próprio a partir do plano ${minPlanFor('tema_personalizado').label}.`}
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -763,7 +780,7 @@ function AdminConfigContent() {
           {/* Prévia */}
           <div className="flex flex-col gap-3 lg:sticky lg:top-24" data-tour="config-preview">
             <div className="rounded-2xl p-5" style={{ background: `linear-gradient(135deg, ${previewPrimary} 0%, ${previewSecondary} 100%)` }}>
-              <p className="text-[0.7rem] uppercase tracking-[0.1em]" style={{ color: previewFontColor, opacity: 0.75 }}>
+              <p className="text-[0.7rem] uppercase tracking-[0.1em]" style={{ color: previewOnPrimary, opacity: 0.75 }}>
                 Prévia
               </p>
               <div className="mt-2 flex items-center gap-3">
@@ -771,15 +788,15 @@ function AdminConfigContent() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={previewLogo} alt="" onError={() => setLogoPreviewFailed(true)} className="size-12 rounded-lg border border-white/30 bg-white/15 object-cover" />
                 ) : (
-                  <span className="flex size-12 items-center justify-center rounded-lg border border-white/30 bg-white/20 text-xl font-bold" style={{ color: previewFontColor }}>
+                  <span className="flex size-12 items-center justify-center rounded-lg border border-white/30 bg-white/20 text-xl font-bold" style={{ color: previewOnPrimary }}>
                     {(config.tenant_nome ?? 'T').charAt(0).toUpperCase()}
                   </span>
                 )}
                 <div>
-                  <p className="font-bold leading-tight" style={{ color: previewFontColor }}>
+                  <p className="font-bold leading-tight" style={{ color: previewOnPrimary }}>
                     {config.tenant_nome || 'Meu terreiro'}
                   </p>
-                  <p className="text-xs" style={{ color: previewFontColor, opacity: 0.8 }}>
+                  <p className="text-xs" style={{ color: previewOnPrimary, opacity: 0.8 }}>
                     Assim fica o topo do painel
                   </p>
                 </div>
@@ -788,11 +805,17 @@ function AdminConfigContent() {
                 <span className="rounded-md bg-white/90 px-3 py-1.5 text-xs font-bold" style={{ color: previewPrimary }}>
                   Pegar senha
                 </span>
-                <span className="rounded-md border border-white/30 px-3 py-1.5 text-xs font-semibold" style={{ backgroundColor: previewSecondary, color: previewFontColor }}>
+                <span className="rounded-md border border-white/30 px-3 py-1.5 text-xs font-semibold" style={{ backgroundColor: previewSecondary, color: previewOnSecondary }}>
                   Como chegar
                 </span>
               </div>
             </div>
+            {fontColorAdjusted && (
+              <p className="text-xs text-muted-foreground" data-testid="font-color-adjusted">
+                A cor do texto escolhida não dá leitura sobre a cor principal; o painel usa{' '}
+                {previewOnPrimary === '#ffffff' ? 'branco' : 'preto'} no lugar.
+              </p>
+            )}
             <Card>
               <CardContent className="p-4">
                 <p className="mb-2 text-[0.68rem] font-bold uppercase tracking-[0.06em] text-muted-foreground">O que muda ao salvar</p>

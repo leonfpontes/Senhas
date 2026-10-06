@@ -6,7 +6,7 @@
  */
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { CircleAlert, CircleCheck, CreditCard, Info, MessageCircle, RefreshCw, Star, XCircle } from 'lucide-react';
@@ -91,7 +91,6 @@ function BillingContent() {
   const [reactivateDialog, setReactivateDialog] = useState(false);
   const [changePlanTarget, setChangePlanTarget] = useState<PlanKey | null>(null);
   const [tab, setTab] = useState<'assinatura' | 'planos'>('assinatura');
-  const highlightedRef = useRef<HTMLDivElement | null>(null);
 
   const queryPlan = normalizePlanKey(router.query.plan);
 
@@ -100,28 +99,38 @@ function BillingContent() {
       const res = await apiClient.get<BillingInfo>('/api/v1/admin/billing');
       setBilling(res.data);
     } catch {
+      // Sem os dados, a tela trataria qualquer um como plano gratuito ("Assinar agora"
+      // para quem já paga): com `billing` nulo ela mostra o estado de erro abaixo.
       setError('Não foi possível carregar os dados da assinatura.');
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const retryBilling = () => {
+    setError(null);
+    setLoading(true);
+    void fetchBilling();
+  };
+
   useEffect(() => {
     fetchBilling();
   }, [fetchBilling]);
 
-  // `?plan=` abre a aba de comparação e destaca o card.
+  // `?plan=` abre a aba de comparação e destaca o card — menos para cortesia, cuja aba
+  // "Comparar planos" fica desabilitada (abriria uma aba travada).
+  const billingLoaded = billing !== null;
+  const isBonus = !!billing?.is_bonus;
   useEffect(() => {
-    if (!router.isReady) return;
-    if (queryPlan) setTab('planos');
-  }, [router.isReady, queryPlan]);
+    if (!router.isReady || !billingLoaded) return;
+    if (queryPlan && !isBonus) setTab('planos');
+  }, [router.isReady, queryPlan, billingLoaded, isBonus]);
 
-  // Depende de `loading`: enquanto carrega, as abas nem estão montadas e o ref fica vazio.
-  useEffect(() => {
-    if (!loading && tab === 'planos' && queryPlan && highlightedRef.current) {
-      highlightedRef.current.scrollIntoView({ block: 'center' });
-    }
-  }, [loading, tab, queryPlan]);
+  // Rola até o card destacado quando ele monta (a aba "Comparar planos" só monta o conteúdo
+  // depois de ativada — um efeito no pai rodaria antes do card existir).
+  const scrollToHighlighted = useCallback((el: HTMLDivElement | null) => {
+    el?.scrollIntoView({ block: 'center' });
+  }, []);
 
   // Volta da Stripe
   useEffect(() => {
@@ -272,6 +281,23 @@ function BillingContent() {
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (!billing) {
+    return (
+      <div data-slot="page" className="flex flex-col gap-5">
+        <PageHeader title="Plano e assinatura" subtitle="Seu plano, o uso do mês e a cobrança, num lugar só." />
+        <Alert variant="destructive" role="alert">
+          <CircleAlert aria-hidden />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>Não foi possível carregar os dados da assinatura. Nada foi alterado no seu plano.</span>
+            <Button type="button" size="sm" variant="outline" onClick={retryBilling}>
+              Tentar de novo
+            </Button>
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -476,7 +502,7 @@ function BillingContent() {
               const isHighlight = plan.key === queryPlan;
               const state = plan.key === currentPlanKey ? (inLocalTrial ? 'trial' : 'current') : 'none';
               return (
-                <div key={plan.key} ref={isHighlight ? highlightedRef : undefined}>
+                <div key={plan.key} ref={isHighlight ? scrollToHighlighted : undefined}>
                   <PlanCard
                     data-tour={`billing-plano-${plan.key}`}
                     plan={plan}

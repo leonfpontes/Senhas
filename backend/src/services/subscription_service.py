@@ -150,41 +150,6 @@ class SubscriptionService:
         
         return self._subscription_to_dict(sub)
     
-    async def record_usage(
-        self,
-        tenant_id: UUID,
-        current_users: int,
-    ) -> dict:
-        """Record current user count.
-        
-        Args:
-            tenant_id: Tenant ID
-            current_users: Current user count
-            
-        Returns:
-            Updated subscription dict
-            
-        Raises:
-            NotFoundError: If subscription not found
-            InvalidInputError: If exceeds limit
-        """
-        sub = await self.subscription_repo.get_by_tenant(tenant_id)
-        
-        if not sub:
-            raise NotFoundError("Subscrição não encontrada")
-        
-        if current_users > sub.max_users:
-            raise InvalidInputError(
-                f"Limite de usuários ({sub.max_users}) excedido"
-            )
-        
-        sub.current_users = current_users
-        
-        await self.db.flush()
-        await self.db.refresh(sub)
-        
-        return self._subscription_to_dict(sub)
-    
     def _subscription_to_dict(self, sub: Subscription) -> dict:
         """Convert Subscription to dict.
         
@@ -204,6 +169,7 @@ class SubscriptionService:
             "current_users": sub.current_users,
             "monthly_price": sub.monthly_price,
             "is_trial": sub.is_trial,
+            "is_bonus": sub.is_bonus is True,
             "trial_ends_at": sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
             "auto_renew": sub.auto_renew,
             "created_at": sub.created_at.isoformat(),

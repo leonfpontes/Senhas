@@ -11,22 +11,22 @@ import logging
 
 from src.core.database import get_db
 from src.models import User, Ticket, PermissionFeature
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-exports"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/giras/{gira_id}/export-csv", dependencies=[Depends(require_group_permission(PermissionFeature.RELATORIO_GIRA, "view"))])
+@router.get("/giras/{gira_id}/export-csv", dependencies=[Depends(require_plan_feature("export_csv")), Depends(require_group_permission(PermissionFeature.RELATORIO_GIRA, "view"))])
 async def export_tickets_csv(
     gira_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Export gira tickets to CSV.
-    
-    Requires admin role.
+
+    Plano com `export_csv` (gate único, vale também para admin) + RELATORIO_GIRA:view.
     """
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")

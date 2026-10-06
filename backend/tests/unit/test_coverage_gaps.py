@@ -962,35 +962,6 @@ class TestSubscriptionService:
         result = await s.reactivate_subscription(TENANT_ID)
         assert sub.status == SubscriptionStatus.ACTIVE
 
-    async def test_record_usage_not_found(self, svc):
-        from src.core.errors import NotFoundError
-        s, _ = svc
-        s.subscription_repo.get_by_tenant = AsyncMock(return_value=None)
-        with pytest.raises(NotFoundError):
-            await s.record_usage(TENANT_ID, 5)
-
-    async def test_record_usage_exceeds_limit(self, svc):
-        from src.core.errors import InvalidInputError
-        s, _ = svc
-        sub = MagicMock(); sub.max_users = 5
-        s.subscription_repo.get_by_tenant = AsyncMock(return_value=sub)
-        with pytest.raises(InvalidInputError, match="excedido"):
-            await s.record_usage(TENANT_ID, 10)
-
-    async def test_record_usage_ok(self, svc):
-        s, db = svc
-        sub = MagicMock()
-        sub.max_users = 10
-        sub.id = uuid4(); sub.tenant_id = TENANT_ID
-        sub.plan.value = "basic"; sub.status.value = "active"
-        sub.max_giras_per_month = 10; sub.current_users = 0
-        sub.monthly_price = 99.0; sub.is_trial = False
-        sub.trial_ends_at = None; sub.auto_renew = True
-        sub.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        s.subscription_repo.get_by_tenant = AsyncMock(return_value=sub)
-        result = await s.record_usage(TENANT_ID, 5)
-        assert sub.current_users == 5
-
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Email providers coverage
