@@ -1,53 +1,49 @@
 /**
- * Admin Estoque — Movimentações (CRUD completo)
+ * Admin Estoque — Movimentações: histórico com filtros em Popover, registro/edição via
+ * `MovimentacaoDrawer` (Combobox de item + DateTimeField) e exclusão com ConfirmDialog.
  */
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
 import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Snackbar,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import SwapVertIcon from '@mui/icons-material/SwapVert';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SearchIcon from '@mui/icons-material/Search';
+  ArrowDownToLine,
+  ArrowUpDown,
+  ArrowUpFromLine,
+  Filter,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
 import AdminLayout from '../admin_layout';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
-import UpgradePrompt from '../../../components/UpgradePrompt';
-import CrudDrawer from '../../../components/CrudDrawer';
+import { useSnackbar } from '../../../contexts/SnackbarContext';
 import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { DataTable } from '@/components/admin/DataTable';
+import { PageHeader } from '@/components/admin/PageHeader';
+import { PermissionDenied, PlanLocked } from '@/components/gates';
+import { Combobox, DateField, TextField } from '@/components/fields';
+import { MovimentacaoDrawer, nowLocalIso, type EstoqueItemRef, type MovimentacaoFormValues } from '@/components/estoque/MovimentacaoDrawer';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { formatDateTimeBr } from '@/lib/dateBr';
 
-interface Item { id: string; nome: string; saldo: number; estoque_minimo: number; unidade_medida: string; }
 interface Movimentacao {
   id: string;
   item_id: string;
@@ -60,25 +56,26 @@ interface Movimentacao {
   created_at: string;
 }
 
-interface FormData {
-  item_id: string;
-  tipo: 'entrada' | 'saida';
-  quantidade: string;
-  data_movimentacao: string;
-  motivo: string;
-  requisitante: string;
+interface Filtros {
+  item: string | null;
+  tipo: 'all' | 'entrada' | 'saida';
+  de: string | null;
+  ate: string | null;
 }
 
-const toLocalDatetimeInput = (date: Date) => {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
+const EMPTY_FILTROS: Filtros = { item: null, tipo: 'all', de: null, ate: null };
 
-const EMPTY_FORM: FormData = {
-  item_id: '', tipo: 'entrada', quantidade: '',
-  data_movimentacao: '',
-  motivo: '', requisitante: '',
-};
+function TipoBadge({ tipo }: { tipo: Movimentacao['tipo'] }) {
+  return tipo === 'entrada' ? (
+    <Badge className="gap-1 border-transparent bg-success text-success-foreground">
+      <ArrowDownToLine aria-hidden /> Entrada
+    </Badge>
+  ) : (
+    <Badge variant="destructive" className="gap-1">
+      <ArrowUpFromLine aria-hidden /> Saída
+    </Badge>
+  );
+}
 
 export default function AdminEstoqueMovimentacoesPage() {
   return (
@@ -91,424 +88,310 @@ export default function AdminEstoqueMovimentacoesPage() {
 function AdminEstoqueMovimentacoesContent() {
   const { can, loading: subLoading } = useSubscription();
   const { can: canGroup } = usePermissions();
+  const { showSuccess, showError } = useSnackbar();
+  const canView = canGroup('estoque', 'view');
+  const canInsert = canGroup('estoque', 'insert');
+  const canEdit = canGroup('estoque', 'edit');
+  const canDelete = canGroup('estoque', 'delete');
+
   const [movimentacoes, setMovimentacoes] = useState<Movimentacao[]>([]);
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<EstoqueItemRef[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [filterItem, setFilterItem] = useState('');
-  const [filterTipo, setFilterTipo] = useState('');
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
-  const [filterSearch, setFilterSearch] = useState('');
+
+  const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filtros, setFiltros] = useState<Filtros>(EMPTY_FILTROS);
+  const [draft, setDraft] = useState<Filtros>(EMPTY_FILTROS);
+  const [filtrosOpen, setFiltrosOpen] = useState(false);
 
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
   const [editTarget, setEditTarget] = useState<Movimentacao | null>(null);
-  const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [drawerError, setDrawerError] = useState<string | null>(null);
-
-  // For showing negative-stock warning
-  const [saldoWarning, setSaldoWarning] = useState<string | null>(null);
-
-  // Delete confirm
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Movimentacao | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'warning' }>({
-    open: false, message: '', severity: 'success',
-  });
-  const showSnack = (message: string, severity: 'success' | 'error' | 'warning' = 'success') =>
-    setSnackbar({ open: true, message, severity });
-
-  const canEdit = canGroup('estoque', 'edit');
-  const canDelete = canGroup('estoque', 'delete');
-  const canInsert = canGroup('estoque', 'insert');
-
   useEffect(() => {
-    loadItems();
-  }, []);
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedSearch(filterSearch), 400);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [filterSearch]);
-
-  // loadMovimentacoes isn't memoized — including it would refetch every render.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadMovimentacoes(); }, [filterItem, filterTipo, filterDateFrom, filterDateTo, debouncedSearch]);
-
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
+    if (!canView) return;
     try {
       const res = await apiClient.get('/api/v1/admin/estoque/itens');
       setItems(res.data);
-    } catch { /* silencioso */ }
-  };
+    } catch {
+      /* silencioso */
+    }
+  }, [canView]);
 
-  const loadMovimentacoes = async () => {
+  const loadMovimentacoes = useCallback(async () => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const params: Record<string, string> = {};
-      if (filterItem) params.item_id = filterItem;
-      if (filterTipo) params.tipo = filterTipo;
-      if (filterDateFrom) params.date_from = new Date(filterDateFrom + 'T00:00:00').toISOString();
-      if (filterDateTo) params.date_to = new Date(filterDateTo + 'T23:59:59').toISOString();
+      if (filtros.item) params.item_id = filtros.item;
+      if (filtros.tipo !== 'all') params.tipo = filtros.tipo;
+      if (filtros.de) params.date_from = new Date(`${filtros.de}T00:00:00`).toISOString();
+      if (filtros.ate) params.date_to = new Date(`${filtros.ate}T23:59:59`).toISOString();
       if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       const res = await apiClient.get('/api/v1/admin/estoque/movimentacoes', { params });
       setMovimentacoes(res.data);
     } catch {
-      showSnack('Erro ao carregar movimentações', 'error');
+      showError('Erro ao carregar movimentações');
     } finally {
       setLoading(false);
     }
-  };
+  }, [canView, filtros, debouncedSearch, showError]);
 
-  const handleItemChange = (itemId: string) => {
-    setFormData((prev) => ({ ...prev, item_id: itemId }));
-    checkNegativeWarning(itemId, formData.tipo, formData.quantidade);
-  };
-
-  const checkNegativeWarning = (itemId: string, tipo: 'entrada' | 'saida', qtdStr: string) => {
-    if (tipo !== 'saida' || !itemId) { setSaldoWarning(null); return; }
-    const item = items.find((i) => i.id === itemId);
-    if (!item) { setSaldoWarning(null); return; }
-    const qtd = parseInt(qtdStr, 10);
-    if (!isNaN(qtd) && qtd > 0 && item.saldo - qtd < 0) {
-      setSaldoWarning(`Atenção: esta saída resultará em saldo negativo (${item.saldo - qtd} ${item.unidade_medida}).`);
-    } else {
-      setSaldoWarning(null);
-    }
-  };
+  useEffect(() => {
+    loadItems();
+  }, [loadItems]);
+  useEffect(() => {
+    loadMovimentacoes();
+  }, [loadMovimentacoes]);
 
   const openCreate = async () => {
     await loadItems();
-    setFormData({ ...EMPTY_FORM, data_movimentacao: toLocalDatetimeInput(new Date()) });
-    setSaldoWarning(null);
-    setTouched({});
-    setDrawerError(null);
     setEditTarget(null);
-    setDrawerMode('create');
     setDrawerOpen(true);
   };
 
   const openEdit = (m: Movimentacao) => {
-    setFormData({
-      item_id: m.item_id,
-      tipo: m.tipo,
-      quantidade: String(m.quantidade),
-      data_movimentacao: toLocalDatetimeInput(new Date(m.data_movimentacao)),
-      motivo: m.motivo ?? '',
-      requisitante: m.requisitante ?? '',
-    });
-    setSaldoWarning(null);
-    setTouched({});
-    setDrawerError(null);
     setEditTarget(m);
-    setDrawerMode('edit');
     setDrawerOpen(true);
   };
 
-  const handleSave = async () => {
-    setTouched({ item_id: true, quantidade: true });
-    if (!formData.item_id || !formData.quantidade || parseInt(formData.quantidade, 10) <= 0) {
-      setDrawerError('Preencha o item e a quantidade.');
-      return;
-    }
-
-    setSaving(true);
-    setDrawerError(null);
-    try {
-      if (drawerMode === 'edit' && editTarget) {
-        await apiClient.put(`/api/v1/admin/estoque/movimentacoes/${editTarget.id}`, {
-          tipo: formData.tipo,
-          quantidade: parseInt(formData.quantidade, 10),
-          data_movimentacao: new Date(formData.data_movimentacao).toISOString(),
-          motivo: formData.motivo.trim() || null,
-          requisitante: formData.requisitante.trim() || null,
-        });
-        showSnack('Movimentação atualizada!');
-      } else {
-        await apiClient.post('/api/v1/admin/estoque/movimentacoes', {
-          item_id: formData.item_id,
-          tipo: formData.tipo,
-          quantidade: parseInt(formData.quantidade, 10),
-          data_movimentacao: new Date(formData.data_movimentacao).toISOString(),
-          motivo: formData.motivo.trim() || null,
-          requisitante: formData.requisitante.trim() || null,
-        });
-        showSnack('Movimentação registrada!');
-      }
-      setDrawerOpen(false);
-      setFormData(EMPTY_FORM);
-      setSaldoWarning(null);
-      loadItems();
-      loadMovimentacoes();
-    } catch (e) {
-      setDrawerError(extractApiErrorMessage(e, 'Erro ao salvar movimentação.'));
-    } finally {
-      setSaving(false);
-    }
-  };
+  const drawerInitial = useMemo<Partial<MovimentacaoFormValues> | undefined>(() => {
+    if (!editTarget) return undefined;
+    return {
+      item_id: editTarget.item_id,
+      tipo: editTarget.tipo,
+      quantidade: String(editTarget.quantidade),
+      data_movimentacao: nowLocalIso(new Date(editTarget.data_movimentacao)),
+      motivo: editTarget.motivo ?? '',
+      requisitante: editTarget.requisitante ?? '',
+    };
+  }, [editTarget]);
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !canDelete) return;
     setDeleting(true);
     try {
       await apiClient.delete(`/api/v1/admin/estoque/movimentacoes/${deleteTarget.id}`);
-      showSnack('Movimentação excluída.');
-      setDeleteOpen(false);
+      showSuccess('Movimentação excluída.');
       setDeleteTarget(null);
       loadItems();
       loadMovimentacoes();
     } catch (e) {
-      showSnack(extractApiErrorMessage(e, 'Erro ao excluir movimentação.'), 'error');
+      showError(extractApiErrorMessage(e, 'Erro ao excluir movimentação.'));
     } finally {
       setDeleting(false);
     }
   };
 
-  if (subLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
-  if (!can('estoque_controle')) return <UpgradePrompt feature="controle de estoque" minPlan="Pro" />;
+  const filtrosAtivos = (filtros.item ? 1 : 0) + (filtros.tipo !== 'all' ? 1 : 0) + (filtros.de ? 1 : 0) + (filtros.ate ? 1 : 0);
+  const itemOptions = useMemo(() => items.map((i) => ({ value: i.id, label: i.nome })), [items]);
 
-  const showActionsColumn = canEdit || canDelete;
+  const showActions = canEdit || canDelete;
+
+  const RowMenu = ({ m }: { m: Movimentacao }) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label={`Ações da movimentação de ${m.item_nome ?? 'item'}`}>
+          <MoreHorizontal />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {canEdit && (
+          <DropdownMenuItem onSelect={() => openEdit(m)}>
+            <Pencil />
+            Editar
+          </DropdownMenuItem>
+        )}
+        {canDelete && (
+          <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(m)}>
+            <Trash2 />
+            Excluir
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const columns = useMemo<ColumnDef<Movimentacao>[]>(() => {
+    const cols: ColumnDef<Movimentacao>[] = [
+      { accessorKey: 'data_movimentacao', header: 'Data', cell: ({ getValue }) => <span className="whitespace-nowrap">{formatDateTimeBr(getValue<string>())}</span> },
+      { accessorKey: 'item_nome', header: 'Item', cell: ({ row }) => <span className="font-medium">{row.original.item_nome || row.original.item_id}</span> },
+      { accessorKey: 'tipo', header: 'Tipo', cell: ({ getValue }) => <TipoBadge tipo={getValue<Movimentacao['tipo']>()} /> },
+      { accessorKey: 'quantidade', header: 'Qtd.', meta: { align: 'right' } },
+      { accessorKey: 'requisitante', header: 'Requisitante', cell: ({ getValue }) => <span className="text-muted-foreground">{getValue<string | null>() || '—'}</span> },
+      { accessorKey: 'motivo', header: 'Motivo', enableSorting: false, cell: ({ getValue }) => <span className="text-muted-foreground">{getValue<string | null>() || '—'}</span> },
+    ];
+    if (showActions) {
+      cols.push({ id: 'acoes', header: '', enableSorting: false, meta: { align: 'right' }, cell: ({ row }) => <RowMenu m={row.original} /> });
+    }
+    return cols;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showActions, canEdit, canDelete]);
+
+  const renderCard = (m: Movimentacao) => (
+    <div className="flex items-start gap-3 p-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="truncate font-medium">{m.item_nome || m.item_id}</span>
+          <TipoBadge tipo={m.tipo} />
+          <span className="text-sm font-semibold">{m.tipo === 'entrada' ? '+' : '−'}{m.quantidade}</span>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {formatDateTimeBr(m.data_movimentacao)}
+          {m.requisitante ? ` · ${m.requisitante}` : ''}
+        </span>
+        {m.motivo && <span className="text-xs text-muted-foreground">{m.motivo}</span>}
+      </div>
+      {showActions && <RowMenu m={m} />}
+    </div>
+  );
+
+  if (subLoading) {
+    return (
+      <div className="mt-8 flex flex-col gap-3" aria-busy="true">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
+  if (!can('estoque_controle')) return <PlanLocked feature="Controle de estoque" minPlan="Pro" />;
+  if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar movimentações de estoque." />;
 
   return (
-    <Box>
-      <Box data-tour="estoque-mov-header" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <SwapVertIcon color="primary" />
-          <Typography variant="h5" fontWeight={700}>Movimentações</Typography>
-          <Chip label={`${movimentacoes.length}`} size="small" variant="outlined" />
-        </Box>
-          <Box data-tour="estoque-mov-filtros" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-          <TextField
-            size="small"
-            placeholder="Buscar por nome do item..."
-            value={filterSearch}
-            onChange={(e) => setFilterSearch(e.target.value)}
-            InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 0.5, color: 'text.disabled' }} /> }}
-            sx={{ minWidth: 200 }}
-          />
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel>Item</InputLabel>
-            <Select value={filterItem} label="Item" onChange={(e) => setFilterItem(e.target.value)}>
-              <MenuItem value="">Todos os itens</MenuItem>
-              {items.map((i) => <MenuItem key={i.id} value={i.id}>{i.nome}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 130 }}>
-            <InputLabel>Tipo</InputLabel>
-            <Select value={filterTipo} label="Tipo" onChange={(e) => setFilterTipo(e.target.value)}>
-              <MenuItem value="">Todos</MenuItem>
-              <MenuItem value="entrada">Entrada</MenuItem>
-              <MenuItem value="saida">Saída</MenuItem>
-            </Select>
-          </FormControl>
-          <TextField
-            size="small"
-            type="date"
-            label="De"
-            value={filterDateFrom}
-            onChange={(e) => setFilterDateFrom(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 150 }}
-          />
-          <TextField
-            size="small"
-            type="date"
-            label="Até"
-            value={filterDateTo}
-            onChange={(e) => setFilterDateTo(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 150 }}
-          />
-          <Tooltip title="Atualizar"><IconButton onClick={loadMovimentacoes}><RefreshIcon /></IconButton></Tooltip>
-          {canInsert && (
-            <Button data-tour="estoque-mov-nova" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-              Registrar
+    <div className="flex flex-col gap-4">
+      <div data-tour="estoque-mov-header">
+        <PageHeader
+          title="Movimentações"
+          subtitle={`${movimentacoes.length} ${movimentacoes.length === 1 ? 'registro' : 'registros'} no filtro atual`}
+          actions={
+            <>
+              <Button variant="outline" onClick={loadMovimentacoes} disabled={loading} aria-label="Atualizar">
+                <RefreshCw className={loading ? 'animate-spin' : undefined} />
+                <span className="hidden sm:inline">Atualizar</span>
+              </Button>
+              {canInsert && (
+                <Button data-tour="estoque-mov-nova" onClick={openCreate}>
+                  <Plus />
+                  Registrar
+                </Button>
+              )}
+            </>
+          }
+        />
+      </div>
+
+      <div data-tour="estoque-mov-filtros" className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <TextField
+          aria-label="Buscar por nome do item"
+          placeholder="Buscar por nome do item..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          startAdornment={<Search />}
+          size="small"
+          className="sm:max-w-xs"
+        />
+        <Popover
+          open={filtrosOpen}
+          onOpenChange={(o) => {
+            setFiltrosOpen(o);
+            if (o) setDraft(filtros);
+          }}
+        >
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" aria-label="Filtros">
+              <Filter />
+              Filtros
+              {filtrosAtivos > 0 && <Badge className="ml-1 px-1.5">{filtrosAtivos}</Badge>}
             </Button>
-          )}
-        </Box>
-      </Box>
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>
-      ) : movimentacoes.length === 0 ? (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <SwapVertIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-          <Typography color="text.secondary">Nenhuma movimentação registrada.</Typography>
-        </Paper>
-      ) : (
-        <TableContainer data-tour="estoque-mov-tabela" component={Paper} sx={{ overflowX: 'auto' }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell><strong>Data</strong></TableCell>
-                <TableCell><strong>Item</strong></TableCell>
-                <TableCell><strong>Tipo</strong></TableCell>
-                <TableCell><strong>Qtd</strong></TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Requisitante</strong></TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Motivo</strong></TableCell>
-                {showActionsColumn && <TableCell align="right"><strong>Ações</strong></TableCell>}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {movimentacoes.map((m) => (
-                <TableRow key={m.id} hover>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                    {new Date(m.data_movimentacao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                  </TableCell>
-                  <TableCell>{m.item_nome || m.item_id}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={m.tipo === 'entrada' ? 'Entrada' : 'Saída'}
-                      color={m.tipo === 'entrada' ? 'success' : 'error'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>{m.quantidade}</TableCell>
-                  <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>{m.requisitante || '—'}</TableCell>
-                  <TableCell sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' }, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <Tooltip title={m.motivo || ''}><span>{m.motivo || '—'}</span></Tooltip>
-                  </TableCell>
-                  {showActionsColumn && (
-                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                      {canEdit && (
-                        <Tooltip title="Editar">
-                          <IconButton size="small" onClick={() => openEdit(m)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {canDelete && (
-                        <Tooltip title="Excluir">
-                          <IconButton size="small" color="error" onClick={() => { setDeleteTarget(m); setDeleteOpen(true); }}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-
-      {/* Drawer criar / editar */}
-      <CrudDrawer
-        open={drawerOpen}
-        title={drawerMode === 'edit' ? 'Editar Movimentação' : 'Registrar Movimentação'}
-        onClose={() => { setDrawerOpen(false); setDrawerError(null); }}
-        onSave={handleSave}
-        saving={saving}
-        saveLabel={drawerMode === 'edit' ? 'Salvar alterações' : 'Confirmar'}
-        error={drawerError}
-      >
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-          <ToggleButtonGroup
-            exclusive
-            value={formData.tipo}
-            onChange={(_, val) => {
-              if (!val) return;
-              setFormData((prev) => ({ ...prev, tipo: val }));
-              checkNegativeWarning(formData.item_id, val, formData.quantidade);
-            }}
-            color={formData.tipo === 'entrada' ? 'success' : 'error'}
-          >
-            <ToggleButton value="entrada" sx={{ px: 4 }}>Entrada</ToggleButton>
-            <ToggleButton value="saida" sx={{ px: 4 }}>Saída</ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-
-        <FormControl fullWidth sx={{ mb: 2 }} error={touched.item_id && !formData.item_id} disabled={drawerMode === 'edit'}>
-          <InputLabel>Item *</InputLabel>
-          <Select value={formData.item_id} label="Item *" onChange={(e) => handleItemChange(e.target.value)}>
-            {items.map((i) => (
-              <MenuItem key={i.id} value={i.id}>
-                {i.nome} — saldo: {i.saldo} {i.unidade_medida}
-              </MenuItem>
-            ))}
-          </Select>
-          {touched.item_id && !formData.item_id && <Typography variant="caption" color="error" sx={{ ml: 2 }}>Selecione um item</Typography>}
-        </FormControl>
-
-        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-          <TextField
-            label="Quantidade *"
-            type="number"
-            inputProps={{ min: 1 }}
-            fullWidth
-            value={formData.quantidade}
-            onChange={(e) => {
-              setFormData((prev) => ({ ...prev, quantidade: e.target.value }));
-              checkNegativeWarning(formData.item_id, formData.tipo, e.target.value);
-            }}
-            error={touched.quantidade && (!formData.quantidade || parseInt(formData.quantidade, 10) <= 0)}
-            helperText={touched.quantidade && (!formData.quantidade || parseInt(formData.quantidade, 10) <= 0) ? 'Quantidade inválida' : ''}
-          />
-          <TextField
-            label="Data/hora"
-            type="datetime-local"
-            fullWidth
-            value={formData.data_movimentacao}
-            onChange={(e) => setFormData((prev) => ({ ...prev, data_movimentacao: e.target.value }))}
-            InputLabelProps={{ shrink: true }}
-          />
-        </Box>
-
-        {saldoWarning && (
-          <Alert severity="warning" icon={<WarningAmberIcon />} sx={{ mb: 2 }}>
-            {saldoWarning}
-          </Alert>
-        )}
-
-        <TextField
-          label="Requisitante"
-          fullWidth
-          value={formData.requisitante}
-          onChange={(e) => setFormData((prev) => ({ ...prev, requisitante: e.target.value }))}
-          sx={{ mb: 2 }}
-        />
-        <TextField
-          label="Motivo / Observação"
-          fullWidth
-          multiline
-          rows={2}
-          value={formData.motivo}
-          onChange={(e) => setFormData((prev) => ({ ...prev, motivo: e.target.value }))}
-        />
-      </CrudDrawer>
-
-      {/* Confirmação de exclusão */}
-      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Excluir movimentação?</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Isso removerá a movimentação de <strong>{deleteTarget?.tipo === 'entrada' ? 'entrada' : 'saída'}</strong> de{' '}
-            <strong>{deleteTarget?.quantidade}</strong> unidade(s) do item <strong>{deleteTarget?.item_nome}</strong>.
-            O saldo do item será recalculado automaticamente.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteOpen(false)}>Cancelar</Button>
-          <Button variant="contained" color="error" onClick={handleDelete} disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={16} /> : undefined}>
-            {deleting ? 'Excluindo...' : 'Excluir'}
+          </PopoverTrigger>
+          <PopoverContent align="start" className="flex w-80 flex-col gap-3">
+            <Combobox label="Item" options={itemOptions} value={draft.item} onChange={(v) => setDraft((d) => ({ ...d, item: v }))} placeholder="Todos os itens" clearable size="small" />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="filtro-tipo">Tipo</Label>
+              <Select value={draft.tipo} onValueChange={(v) => setDraft((d) => ({ ...d, tipo: v as Filtros['tipo'] }))}>
+                <SelectTrigger id="filtro-tipo" size="sm" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="entrada">Entrada</SelectItem>
+                  <SelectItem value="saida">Saída</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <DateField label="De" size="small" value={draft.de} max={draft.ate ?? undefined} onChange={(v) => setDraft((d) => ({ ...d, de: v }))} />
+              <DateField label="Até" size="small" value={draft.ate} min={draft.de ?? undefined} onChange={(v) => setDraft((d) => ({ ...d, ate: v }))} />
+            </div>
+            <div className="flex justify-between gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => { setDraft(EMPTY_FILTROS); setFiltros(EMPTY_FILTROS); setFiltrosOpen(false); }}>
+                <X />
+                Limpar
+              </Button>
+              <Button size="sm" onClick={() => { setFiltros(draft); setFiltrosOpen(false); }}>
+                Aplicar
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+        {filtrosAtivos > 0 && (
+          <Button variant="ghost" size="sm" onClick={() => setFiltros(EMPTY_FILTROS)}>
+            <X />
+            Limpar filtros
           </Button>
-        </DialogActions>
-      </Dialog>
+        )}
+      </div>
 
-      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })} sx={{ width: '100%' }}>{snackbar.message}</Alert>
-      </Snackbar>
-    </Box>
+      <div data-tour="estoque-mov-tabela">
+        <DataTable
+          columns={columns}
+          data={movimentacoes}
+          getRowId={(m) => m.id}
+          loading={loading}
+          pageSize={25}
+          renderCard={renderCard}
+          emptyIcon={<ArrowUpDown className="size-10 text-ghost" aria-hidden />}
+          emptyMessage={filtrosAtivos > 0 || debouncedSearch ? 'Nenhuma movimentação para os filtros.' : 'Nenhuma movimentação registrada.'}
+          emptyDescription={canInsert && !filtrosAtivos && !debouncedSearch ? 'Use "Registrar" para lançar a primeira entrada ou saída.' : undefined}
+        />
+      </div>
+
+      <MovimentacaoDrawer
+        open={drawerOpen}
+        onClose={() => { setDrawerOpen(false); setEditTarget(null); }}
+        items={items}
+        initial={drawerInitial}
+        editId={editTarget?.id ?? null}
+        lockItem={!!editTarget}
+        onSaved={(mode) => {
+          showSuccess(mode === 'edit' ? 'Movimentação atualizada!' : 'Movimentação registrada!');
+          loadItems();
+          loadMovimentacoes();
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Excluir movimentação"
+        message={
+          <>
+            Excluir a {deleteTarget?.tipo === 'entrada' ? 'entrada' : 'saída'} de <strong>{deleteTarget?.quantidade}</strong> de{' '}
+            <strong>{deleteTarget?.item_nome ?? 'item'}</strong>? O saldo do item será recalculado.
+          </>
+        }
+        confirmText="Excluir"
+        destructive
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </div>
   );
 }

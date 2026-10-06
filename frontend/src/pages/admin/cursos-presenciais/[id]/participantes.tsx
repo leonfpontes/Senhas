@@ -1,82 +1,89 @@
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/router";
-import {
-  Box,
-  Card,
-  CardContent,
-  Grid,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TableContainer,
-  Paper,
-  Button,
-  TextField,
-  Checkbox,
-  Stack,
-  Typography,
-  CircularProgress,
-  IconButton,
-  Tooltip,
-  Chip,
-  Snackbar,
-  Alert,
-  FormControlLabel,
-  Tabs,
-  Tab,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Divider,
-} from "@mui/material";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import AddIcon from "@mui/icons-material/Add";
-import PeopleIcon from "@mui/icons-material/People";
-import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import EventIcon from "@mui/icons-material/Event";
-import PlaceIcon from "@mui/icons-material/Place";
-import WarningIcon from "@mui/icons-material/Warning";
-import AttachFileIcon from "@mui/icons-material/AttachFile";
-import DownloadIcon from "@mui/icons-material/Download";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
-import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
-import RefreshIcon from "@mui/icons-material/Refresh";
+/**
+ * Admin — Participantes de um curso presencial.
+ *
+ * - Matrículas: `DataTable` (cartões no celular), busca, "Matricular" (desabilitado com o texto
+ *   "Turma lotada" quando não há vaga), ficha do participante em `CrudDrawer` com as seções do
+ *   formulário completo em `Accordion`. Um único campo de moeda (`MoneyInput`).
+ * - Cursos com cobrança mensal: abas Matrículas / Mensalidades (`MonthNavigator` + KPIs só com a
+ *   lista do mês carregada + `CobrancaMensal`) / Histórico (gráfico).
+ * Gate de plano = `site_builder` (o mesmo do backend); RBAC `cursos_presenciais`.
+ */
+'use client';
 
-import AdminLayout from "@/pages/admin/admin_layout";
-import CrudDrawer from "@/components/CrudDrawer";
-import UpgradePrompt from "@/components/UpgradePrompt";
-import { ConfirmDialog } from '@/components/admin';
-import { apiClient, extractApiErrorMessage } from "@/services/api_client";
-import { useSubscription } from "@/hooks/useSubscription";
-import { usePermissions } from "@/hooks/usePermissions";
-import { useTenant } from "@/providers/ThemeProvider";
-import { NumericFormat } from "react-number-format";
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
+import type { ColumnDef } from '@tanstack/react-table';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
+  ArrowLeft,
+  CalendarDays,
+  Download,
+  Loader2,
+  MapPin,
+  MoreHorizontal,
+  Paperclip,
+  Pencil,
+  Search,
+  Trash2,
+  UserPlus,
+  Wallet,
+  X,
+} from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
+
+import AdminLayout from '@/pages/admin/admin_layout';
+import CrudDrawer from '@/components/CrudDrawer';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { DataTable } from '@/components/admin/DataTable';
+import { KpiCard } from '@/components/admin/KpiCard';
+import { ChartCard } from '@/components/charts/ChartCard';
+import { PermissionDenied, PlanLocked } from '@/components/gates';
+import { DateField, MaskedInput, MoneyInput, TextField } from '@/components/fields';
+import { maskTelefone } from '@/components/fields/MaskedInput';
+import { MonthNavigator } from '@/components/financeiro/MonthNavigator';
+import {
+  CobrancaKpisGrid,
+  CobrancaMensal,
+  computeCobrancaKpis,
+  type CobrancaItem,
+  type CobrancaPagamento,
+} from '@/components/financeiro/CobrancaMensal';
+import { baixarComprovante, montarFormPagamento, MULTIPART } from '@/components/financeiro/comprovante';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import { useSubscription } from '@/hooks/useSubscription';
+import { usePermissions } from '@/hooks/usePermissions';
+import { useSnackbar } from '@/contexts/SnackbarContext';
+import { useTenant } from '@/providers/ThemeProvider';
+import { chartTokens, chartTooltipStyle } from '@/lib/chartTokens';
+import { currentMonthBr, formatBRL, formatDateBr, formatDateTimeBr, monthLabelShort, todayBr } from '@/lib/dateBr';
+import { IconCurso } from '@/lib/icons';
+
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface CursoPresencial {
   id: string;
   tenant_id: string;
   titulo: string;
-  ementa?: string;
-  data_inicio: string; // ISO string
+  ementa?: string | null;
+  data_inicio: string;
   data_fim?: string | null;
   max_participantes?: number | null;
-  valor_mensalidade_padrao?: number | null;
+  valor_mensalidade_padrao?: number | string | null;
   local?: string | null;
   observacoes?: string | null;
   is_active: boolean;
@@ -89,13 +96,13 @@ interface Participante {
   curso_id: string;
   tenant_id: string;
   nome: string;
-  data_nascimento?: string | null; // YYYY-MM-DD
+  data_nascimento?: string | null;
   celular?: string | null;
   email?: string | null;
   valor_mensalidade?: number | string | null;
   pago: boolean;
   valor_pago?: number | string | null;
-  data_pagamento?: string | null; // ISO string
+  data_pagamento?: string | null;
   observacoes?: string | null;
   genero?: string | null;
   emergencia_contato?: string | null;
@@ -115,7 +122,6 @@ interface Participante {
   doenca_tratamento_nome?: string | null;
   tem_diabetes?: boolean | null;
   outras_doencas?: string | null;
-  aceita_uso_dados_saude?: boolean;
   cpf?: string | null;
   rg?: string | null;
   estado_civil?: string | null;
@@ -132,23 +138,20 @@ interface Participante {
   aceita_uso_dados?: boolean;
   aceita_uso_imagem?: boolean;
   comprovante_inscricao_filename?: string | null;
-  comprovante_inscricao_mime?: string | null;
   created_at: string;
   updated_at: string;
 }
 
-/** Shape of the create/edit drawer's controlled form — all text fields are
- * plain strings (even numeric ones) since they're bound to MUI TextFields. */
-interface ParticipanteFormData {
+export interface ParticipanteForm {
   nome: string;
-  data_nascimento: string;
+  data_nascimento: string | null;
   celular: string;
   email: string;
-  valor_mensalidade: string;
+  valor_mensalidade: number;
   observacoes: string;
   pago: boolean;
-  valor_pago: string;
-  data_pagamento: string;
+  valor_pago: number;
+  data_pagamento: string | null;
   genero: string;
   emergencia_contato: string;
   emergencia_fone: string;
@@ -185,12 +188,15 @@ interface ParticipanteFormData {
   comprovante_inscricao_filename: string | null;
 }
 
-/** Row shape returned by GET .../financeiro/mensalidades. */
+/** Linha de GET .../financeiro/mensalidades (Decimal chega como string). */
 interface MensalidadeItem {
   participante_id: string;
   participante_nome: string;
-  status: 'PAGO' | 'PENDENTE' | 'ISENTO';
+  email?: string | null;
+  celular?: string | null;
+  status: 'PAGO' | 'PENDENTE' | 'ISENTO' | null;
   valor_mensalidade: number | string | null;
+  valor_vigente?: number | string | null;
   valor_pago: number | string | null;
   data_pagamento: string | null;
   observacao: string | null;
@@ -203,1892 +209,1238 @@ interface ResumoFinanceiro {
   config: { count_ativos: number };
 }
 
-const fmtBRL = (value: number | string | null | undefined): string => {
-  if (value == null || value === "") return "R$ 0,00";
-  const num = typeof value === "string" ? parseFloat(value) : value;
-  if (isNaN(num)) return "R$ 0,00";
-  return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Dia de vencimento das mensalidades de curso (o backend não tem configuração própria). */
+const DIA_VENCIMENTO_CURSO = 10;
+
+export const toNum = (v: number | string | null | undefined): number | null => {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'string' ? parseFloat(v) : v;
+  return Number.isFinite(n) ? n : null;
 };
 
-const formatDate = (dateStr: string | null | undefined): string => {
-  if (!dateStr) return "—";
-  const [year, month, day] = dateStr.split("-");
-  if (year && month && day) {
-    return `${day}/${month}/${year}`;
-  }
-  return dateStr;
-};
-
-const formatDateTime = (dateStr: string | null | undefined): string => {
-  if (!dateStr) return "—";
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return "—";
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  } catch {
-    return "—";
-  }
-};
-
-const formatPhone = (phone: string | null | undefined): string => {
-  if (!phone) return "—";
-  const cleaned = phone.replace(/\D/g, "");
-  if (cleaned.length === 11) {
-    return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7)}`;
-  }
-  if (cleaned.length === 10) {
-    return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 6)}-${cleaned.substring(6)}`;
-  }
-  return phone;
-};
-
-function addMonths(base: Date, n: number): Date {
-  const d = new Date(base);
-  d.setMonth(d.getMonth() + n);
-  return d;
+export function mensalidadeToCobranca(i: MensalidadeItem): CobrancaItem {
+  return {
+    id: i.participante_id,
+    nome: i.participante_nome,
+    descricao: i.email || (i.celular ? maskTelefone(i.celular) : null),
+    status: i.status,
+    data_pagamento: i.data_pagamento,
+    valor_vigente: toNum(i.valor_vigente) ?? toNum(i.valor_mensalidade),
+    valor_pago: toNum(i.valor_pago),
+    comprovante_filename: i.comprovante_filename,
+    observacao: i.observacao,
+  };
 }
 
-function toYYYYMM(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+/** Data (sem hora) de um instante ISO no fuso de Brasília. */
+const dataBr = (iso: string | null | undefined) => (iso ? formatDateTimeBr(iso).slice(0, 10) : '—');
+
+/** Turma lotada: há limite e as vagas acabaram. */
+export function turmaLotada(max: number | null | undefined, ocupadas: number): boolean {
+  return max != null && max > 0 && ocupadas >= max;
 }
 
-function mesLabel(yyyymm: string): string {
-  const [y, m] = yyyymm.split('-');
-  const names = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-  return `${names[parseInt(m) - 1]}/${y.slice(2)}`;
+function emptyForm(valorPadrao: number | null): ParticipanteForm {
+  return {
+    nome: '',
+    data_nascimento: null,
+    celular: '',
+    email: '',
+    valor_mensalidade: valorPadrao ?? 0,
+    observacoes: '',
+    pago: false,
+    valor_pago: 0,
+    data_pagamento: null,
+    genero: '',
+    emergencia_contato: '',
+    emergencia_fone: '',
+    cep: '',
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    estado: '',
+    tem_plano_saude: false,
+    plano_saude_nome: '',
+    toma_medicamento: false,
+    medicamentos_nome: '',
+    tem_doenca_tratamento: false,
+    doenca_tratamento_nome: '',
+    tem_diabetes: false,
+    outras_doencas: '',
+    cpf: '',
+    rg: '',
+    estado_civil: '',
+    profissao: '',
+    experiencia_umbanda: '',
+    contato_contexto_espiritual: '',
+    motivo_busca_desenvolvimento: '',
+    interesse_aprendizado: '',
+    ja_conhece_terreiro: null,
+    como_conheceu_terreiro: '',
+    tratamento_psiquiatrico: false,
+    tratamento_psiquiatrico_detalhes: '',
+    restricoes_saude: '',
+    aceita_uso_dados: false,
+    aceita_uso_imagem: false,
+    comprovante_inscricao_filename: null,
+  };
 }
+
+function participanteToForm(p: Participante): ParticipanteForm {
+  const valorMensal = toNum(p.valor_mensalidade) ?? 0;
+  return {
+    nome: p.nome,
+    data_nascimento: p.data_nascimento || null,
+    celular: p.celular || '',
+    email: p.email || '',
+    valor_mensalidade: valorMensal,
+    observacoes: p.observacoes || '',
+    pago: p.pago,
+    valor_pago: toNum(p.valor_pago) ?? valorMensal,
+    data_pagamento: p.data_pagamento ? p.data_pagamento.slice(0, 10) : todayBr(),
+    genero: p.genero || '',
+    emergencia_contato: p.emergencia_contato || '',
+    emergencia_fone: p.emergencia_fone || '',
+    cep: p.cep || '',
+    logradouro: p.logradouro || '',
+    numero: p.numero || '',
+    complemento: p.complemento || '',
+    bairro: p.bairro || '',
+    cidade: p.cidade || '',
+    estado: p.estado || '',
+    tem_plano_saude: !!p.tem_plano_saude,
+    plano_saude_nome: p.plano_saude_nome || '',
+    toma_medicamento: !!p.toma_medicamento,
+    medicamentos_nome: p.medicamentos_nome || '',
+    tem_doenca_tratamento: !!p.tem_doenca_tratamento,
+    doenca_tratamento_nome: p.doenca_tratamento_nome || '',
+    tem_diabetes: !!p.tem_diabetes,
+    outras_doencas: p.outras_doencas || '',
+    cpf: p.cpf || '',
+    rg: p.rg || '',
+    estado_civil: p.estado_civil || '',
+    profissao: p.profissao || '',
+    experiencia_umbanda: p.experiencia_umbanda || '',
+    contato_contexto_espiritual: p.contato_contexto_espiritual || '',
+    motivo_busca_desenvolvimento: p.motivo_busca_desenvolvimento || '',
+    interesse_aprendizado: p.interesse_aprendizado || '',
+    ja_conhece_terreiro: p.ja_conhece_terreiro ?? null,
+    como_conheceu_terreiro: p.como_conheceu_terreiro || '',
+    tratamento_psiquiatrico: !!p.tratamento_psiquiatrico,
+    tratamento_psiquiatrico_detalhes: p.tratamento_psiquiatrico_detalhes || '',
+    restricoes_saude: p.restricoes_saude || '',
+    aceita_uso_dados: !!p.aceita_uso_dados,
+    aceita_uso_imagem: !!p.aceita_uso_imagem,
+    comprovante_inscricao_filename: p.comprovante_inscricao_filename || null,
+  };
+}
+
+/** Payload do POST/PUT de participante (mesmo formato de antes da migração). */
+export function formToPayload(f: ParticipanteForm, mode: 'create' | 'edit'): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    nome: f.nome.trim(),
+    data_nascimento: f.data_nascimento || null,
+    celular: f.celular || null,
+    email: f.email.trim() || null,
+    valor_mensalidade: f.valor_mensalidade > 0 ? f.valor_mensalidade : null,
+    observacoes: f.observacoes || null,
+    genero: f.genero || null,
+    emergencia_contato: f.emergencia_contato || null,
+    emergencia_fone: f.emergencia_fone || null,
+    cep: f.cep || null,
+    logradouro: f.logradouro || null,
+    numero: f.numero || null,
+    complemento: f.complemento || null,
+    bairro: f.bairro || null,
+    cidade: f.cidade || null,
+    estado: f.estado || null,
+    tem_plano_saude: f.tem_plano_saude,
+    plano_saude_nome: f.tem_plano_saude ? f.plano_saude_nome || null : null,
+    toma_medicamento: f.toma_medicamento,
+    medicamentos_nome: f.toma_medicamento ? f.medicamentos_nome || null : null,
+    tem_doenca_tratamento: f.tem_doenca_tratamento,
+    doenca_tratamento_nome: f.tem_doenca_tratamento ? f.doenca_tratamento_nome || null : null,
+    tem_diabetes: f.tem_diabetes,
+    outras_doencas: f.outras_doencas || null,
+    cpf: f.cpf || null,
+    rg: f.rg || null,
+    estado_civil: f.estado_civil || null,
+    profissao: f.profissao || null,
+    experiencia_umbanda: f.experiencia_umbanda || null,
+    contato_contexto_espiritual: f.contato_contexto_espiritual || null,
+    motivo_busca_desenvolvimento: f.motivo_busca_desenvolvimento || null,
+    interesse_aprendizado: f.interesse_aprendizado || null,
+    ja_conhece_terreiro: f.ja_conhece_terreiro,
+    como_conheceu_terreiro: f.como_conheceu_terreiro || null,
+    tratamento_psiquiatrico: f.tratamento_psiquiatrico,
+    tratamento_psiquiatrico_detalhes: f.tratamento_psiquiatrico ? f.tratamento_psiquiatrico_detalhes || null : null,
+    restricoes_saude: f.restricoes_saude || null,
+    aceita_uso_dados: f.aceita_uso_dados,
+    aceita_uso_imagem: f.aceita_uso_imagem,
+  };
+  if (mode === 'edit') {
+    payload.pago = f.pago;
+    if (f.pago) {
+      payload.valor_pago = f.valor_pago > 0 ? f.valor_pago : null;
+      payload.data_pagamento = f.data_pagamento ? new Date(f.data_pagamento).toISOString() : null;
+    }
+  }
+  return payload;
+}
+
+// ─── Campos auxiliares ────────────────────────────────────────────────────────
+
+function SelectField({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+  placeholder = 'Selecione',
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Select value={value || undefined} onValueChange={onChange}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o} value={o}>
+              {o}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function CheckField({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-start gap-2">
+      <Checkbox id={id} checked={checked} onCheckedChange={(v) => onChange(v === true)} className="mt-0.5" />
+      <Label htmlFor={id} className="font-normal leading-snug">
+        {label}
+      </Label>
+    </div>
+  );
+}
+
+// ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function ParticipantesPage() {
+  return (
+    <AdminLayout title="Participantes">
+      <ParticipantesContent />
+    </AdminLayout>
+  );
+}
+
+function ParticipantesContent() {
   const router = useRouter();
-  const { id } = router.query;
-  const { subscription, loading: subLoading } = useSubscription();
+  const id = typeof router.query.id === 'string' ? router.query.id : undefined;
+  const { can, loading: subLoading } = useSubscription();
   const { tenantName } = useTenant();
   const { can: canGroup } = usePermissions();
+  const { showSuccess, showError } = useSnackbar();
   const canView = canGroup('cursos_presenciais', 'view');
   const canInsert = canGroup('cursos_presenciais', 'insert');
   const canEdit = canGroup('cursos_presenciais', 'edit');
   const canDelete = canGroup('cursos_presenciais', 'delete');
+  const isPlanAllowed = can('site_builder');
 
   const [curso, setCurso] = useState<CursoPresencial | null>(null);
   const [participantes, setParticipantes] = useState<Participante[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [tab, setTab] = useState('matriculas');
 
-  // Drawer states
-  const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
-  const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
+  // Ficha
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<ParticipanteForm>(() => emptyForm(null));
+  const [dirty, setDirty] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [matriculaFile, setMatriculaFile] = useState<File | null>(null);
-  const [formData, setFormData] = useState<ParticipanteFormData>({
-    nome: "",
-    data_nascimento: "",
-    celular: "",
-    email: "",
-    valor_mensalidade: "",
-    observacoes: "",
-    pago: false,
-    valor_pago: "",
-    data_pagamento: "",
-    genero: "",
-    emergencia_contato: "",
-    emergencia_fone: "",
-    cep: "",
-    logradouro: "",
-    numero: "",
-    complemento: "",
-    bairro: "",
-    cidade: "",
-    estado: "",
-    tem_plano_saude: false,
-    plano_saude_nome: "",
-    toma_medicamento: false,
-    medicamentos_nome: "",
-    tem_doenca_tratamento: false,
-    doenca_tratamento_nome: "",
-    tem_diabetes: false,
-    outras_doencas: "",
-    cpf: "",
-    rg: "",
-    estado_civil: "",
-    profissao: "",
-    experiencia_umbanda: "",
-    contato_contexto_espiritual: "",
-    motivo_busca_desenvolvimento: "",
-    interesse_aprendizado: "",
-    ja_conhece_terreiro: null,
-    como_conheceu_terreiro: "",
-    tratamento_psiquiatrico: false,
-    tratamento_psiquiatrico_detalhes: "",
-    restricoes_saude: "",
-    aceita_uso_dados: false,
-    aceita_uso_imagem: false,
-    comprovante_inscricao_filename: null,
-  });
+  const [cepLoading, setCepLoading] = useState(false);
+  const [cepError, setCepError] = useState('');
 
-  // Alert state
-  const [alert, setAlert] = useState<{ open: boolean; message: string; severity: "success" | "error" }>({
-    open: false,
-    message: "",
-    severity: "success",
-  });
-
-  const today = new Date();
-  const [mes, setMes] = useState<string>(toYYYYMM(today));
-  const [tab, setTab] = useState(0);
-
-  const [mensalidadeItems, setMensalidadeItems] = useState<MensalidadeItem[]>([]);
-  const [resumo, setResumo] = useState<ResumoFinanceiro | null>(null);
-  const [loadingMensalidades, setLoadingMensalidades] = useState(false);
-  const [loadingResumo, setLoadingResumo] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<'TODOS' | 'PENDENTE' | 'PAGO' | 'ISENTO'>('TODOS');
-  const [searchMensalidades, setSearchMensalidades] = useState('');
-
-  // Payment Drawer state
-  const [paymentDrawerOpen, setPaymentDrawerOpen] = useState(false);
-  const [paymentItem, setPaymentItem] = useState<MensalidadeItem | null>(null);
-  const [paymentStatus, setPaymentStatus] = useState<'PAGO' | 'PENDENTE' | 'ISENTO'>('PENDENTE');
-  const [paymentValorPago, setPaymentValorPago] = useState<string>('');
-  const [paymentDataPag, setPaymentDataPag] = useState<string>('');
-  const [paymentObs, setPaymentObs] = useState<string>('');
-  const [paymentFile, setPaymentFile] = useState<File | null>(null);
-  const [paymentSaving, setPaymentSaving] = useState(false);
-
-  const [removePartOpen, setRemovePartOpen] = useState(false);
-  const [removePartTarget, setRemovePartTarget] = useState<Participante | null>(null);
+  // Remoções
+  const [removeTarget, setRemoveTarget] = useState<Participante | null>(null);
+  const [removing, setRemoving] = useState(false);
   const [removeCompOpen, setRemoveCompOpen] = useState(false);
 
-  const fetchCurso = async () => {
-    if (!canView) return;
-    try {
-      const res = await apiClient.get<CursoPresencial>(`/api/v1/admin/cursos-presenciais/${id}`);
-      setCurso(res.data);
-    } catch (err) {
-      console.error("Erro ao buscar curso:", err);
-      showAlert("Não foi possível carregar as informações do curso.", "error");
-    }
-  };
+  // Mensalidades
+  const [mes, setMes] = useState<string>(currentMonthBr());
+  const [mensalidades, setMensalidades] = useState<CobrancaItem[] | null>(null);
+  const [loadingMensalidades, setLoadingMensalidades] = useState(false);
+  const [resumo, setResumo] = useState<ResumoFinanceiro | null>(null);
+  const [loadingResumo, setLoadingResumo] = useState(false);
 
-  const fetchParticipantes = async () => {
-    if (!canView) return;
+  const gerarMensalidade = !!curso?.gerar_mensalidade;
+  const valorPadrao = toNum(curso?.valor_mensalidade_padrao);
+  const base = `/api/v1/admin/cursos-presenciais/${id}`;
+
+  // ── Fetchers ────────────────────────────────────────────────────────
+  const fetchParticipantes = useCallback(async () => {
+    if (!id || !canView) return;
     try {
       const res = await apiClient.get<Participante[]>(`/api/v1/admin/cursos-presenciais/${id}/participantes`);
       setParticipantes(res.data);
-    } catch (err) {
-      console.error("Erro ao buscar participantes:", err);
-      showAlert("Não foi possível carregar a lista de participantes.", "error");
+    } catch {
+      showError('Não foi possível carregar a lista de participantes.');
     }
-  };
+  }, [id, canView, showError]);
+
+  const loadData = useCallback(async () => {
+    if (!id || !canView || !isPlanAllowed) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const fetchCurso = apiClient
+      .get<CursoPresencial>(`/api/v1/admin/cursos-presenciais/${id}`)
+      .then((res) => setCurso(res.data))
+      .catch(() => showError('Não foi possível carregar as informações do curso.'));
+    await Promise.all([fetchCurso, fetchParticipantes()]);
+    setLoading(false);
+  }, [id, canView, isPlanAllowed, fetchParticipantes, showError]);
 
   const fetchMensalidades = useCallback(async () => {
-    if (!id || !curso?.gerar_mensalidade || !canView) return;
+    if (!id || !gerarMensalidade || !canView) return;
     setLoadingMensalidades(true);
+    setMensalidades(null);
     try {
-      const res = await apiClient.get(`/api/v1/admin/cursos-presenciais/${id}/financeiro/mensalidades?mes=${mes}`);
-      setMensalidadeItems(res.data);
-    } catch (err) {
-      console.error("Erro ao buscar mensalidades do curso:", err);
-      showAlert("Não foi possível carregar as mensalidades do curso.", "error");
+      const res = await apiClient.get<MensalidadeItem[]>(
+        `/api/v1/admin/cursos-presenciais/${id}/financeiro/mensalidades?mes=${mes}`,
+      );
+      setMensalidades(res.data.map(mensalidadeToCobranca));
+    } catch {
+      showError('Não foi possível carregar as mensalidades do curso.');
     } finally {
       setLoadingMensalidades(false);
     }
-  }, [id, mes, curso?.gerar_mensalidade, canView]);
+  }, [id, mes, gerarMensalidade, canView, showError]);
 
   const fetchResumo = useCallback(async () => {
-    if (!id || !curso?.gerar_mensalidade || !canView) return;
+    if (!id || !gerarMensalidade || !canView) return;
     setLoadingResumo(true);
     try {
-      const res = await apiClient.get(`/api/v1/admin/cursos-presenciais/${id}/financeiro/resumo`);
+      const res = await apiClient.get<ResumoFinanceiro>(`/api/v1/admin/cursos-presenciais/${id}/financeiro/resumo`);
       setResumo(res.data);
-    } catch (err) {
-      console.error("Erro ao buscar resumo financeiro:", err);
+    } catch {
+      setResumo(null);
     } finally {
       setLoadingResumo(false);
     }
-  }, [id, curso?.gerar_mensalidade, canView]);
-
-  const loadData = async () => {
-    if (!canView) { setLoading(false); return; }
-    setLoading(true);
-    await Promise.all([fetchCurso(), fetchParticipantes()]);
-    setLoading(false);
-  };
+  }, [id, gerarMensalidade, canView]);
 
   useEffect(() => {
-    if (id && (subscription?.plan === "pro" || subscription?.plan === "premium")) {
-      loadData();
-    }
-    // loadData isn't memoized — including it would refetch every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, subscription, canView]);
+    if (subLoading || !router.isReady) return;
+    loadData();
+  }, [subLoading, router.isReady, loadData]);
 
   useEffect(() => {
-    if (id && curso?.gerar_mensalidade) {
-      fetchMensalidades();
-    }
-  }, [id, mes, curso?.gerar_mensalidade, fetchMensalidades]);
+    if (tab === 'mensalidades') fetchMensalidades();
+  }, [tab, fetchMensalidades]);
 
   useEffect(() => {
-    if (id && curso?.gerar_mensalidade && tab === 2) {
-      fetchResumo();
-    }
-  }, [id, tab, curso?.gerar_mensalidade, fetchResumo]);
+    if (tab === 'historico') fetchResumo();
+  }, [tab, fetchResumo]);
 
-  const showAlert = (message: string, severity: "success" | "error") => {
-    setAlert({ open: true, message, severity });
+  // ── Ficha ───────────────────────────────────────────────────────────
+  const setField = <K extends keyof ParticipanteForm>(key: K, value: ParticipanteForm[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setDirty(true);
   };
 
-  const openPaymentDrawer = (item: MensalidadeItem) => {
-    setPaymentItem(item);
-    setPaymentStatus((item.status as 'PAGO' | 'PENDENTE' | 'ISENTO') || 'PENDENTE');
-    setPaymentValorPago(item.valor_pago != null ? String(item.valor_pago) : item.valor_mensalidade != null ? String(item.valor_mensalidade) : '');
-    setPaymentDataPag(item.data_pagamento ? item.data_pagamento.slice(0, 10) : new Date().toISOString().substring(0, 10));
-    setPaymentObs(item.observacao || '');
-    setPaymentFile(null);
-    setPaymentDrawerOpen(true);
+  const openCreate = () => {
+    setDrawerMode('create');
+    setEditingId(null);
+    setMatriculaFile(null);
+    setForm(emptyForm(valorPadrao));
+    setCepError('');
+    setDirty(false);
+    setTouched(false);
+    setDrawerOpen(true);
   };
 
-  const handleSavePayment = async () => {
-    if (!paymentItem || !canInsert) return;
-    setPaymentSaving(true);
-    try {
-      const form = new FormData();
-      form.append('status', paymentStatus);
-      if (paymentStatus === 'PAGO') {
-        if (paymentValorPago) form.append('valor_pago', paymentValorPago);
-        if (paymentDataPag) form.append('data_pagamento', paymentDataPag);
-        if (paymentFile) form.append('comprovante', paymentFile);
-      }
-      if (paymentObs) form.append('observacao', paymentObs);
-
-      await apiClient.post(
-        `/api/v1/admin/cursos-presenciais/${id}/financeiro/mensalidades/${paymentItem.participante_id}/${mes}`,
-        form,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      );
-
-      showAlert("Pagamento de mensalidade registrado com sucesso.", "success");
-      setPaymentDrawerOpen(false);
-      fetchMensalidades();
-      fetchResumo();
-    } catch (err) {
-      console.error("Erro ao registrar pagamento:", err);
-      showAlert(extractApiErrorMessage(err, "Erro ao registrar pagamento."), "error");
-    } finally {
-      setPaymentSaving(false);
-    }
+  const openEdit = (p: Participante) => {
+    setDrawerMode('edit');
+    setEditingId(p.id);
+    setMatriculaFile(null);
+    setForm(participanteToForm(p));
+    setCepError('');
+    setDirty(false);
+    setTouched(false);
+    setDrawerOpen(true);
   };
-
-  const handleDownloadComprovante = async (item: MensalidadeItem) => {
-    try {
-      const res = await apiClient.get(
-        `/api/v1/admin/cursos-presenciais/${id}/financeiro/mensalidades/${item.participante_id}/${mes}/comprovante`,
-        { responseType: 'blob' },
-      );
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = item.comprovante_filename || 'comprovante';
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      showAlert("Comprovante não encontrado.", "error");
-    }
-  };
-
-  const [cepLoading, setCepLoading] = useState(false);
-  const [cepError, setCepError] = useState("");
 
   const lookupCep = async (rawCep: string) => {
     if (!rawCep) return;
-    const digits = rawCep.replace(/\D/g, "");
+    const digits = rawCep.replace(/\D/g, '');
     if (digits.length !== 8) {
-      setCepError(digits.length > 0 ? "CEP deve ter 8 dígitos" : "");
+      setCepError(digits.length > 0 ? 'CEP deve ter 8 dígitos' : '');
       return;
     }
-    setCepError("");
+    setCepError('');
     setCepLoading(true);
     try {
       const resp = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
       const json = await resp.json();
       if (json.erro) {
-        setCepError("CEP não encontrado");
+        setCepError('CEP não encontrado');
         return;
       }
-      setFormData((prev: ParticipanteFormData) => ({
+      setForm((prev) => ({
         ...prev,
         cep: digits,
-        logradouro: json.logradouro || "",
-        bairro: json.bairro || "",
-        cidade: json.localidade || "",
-        estado: json.uf || "",
+        logradouro: json.logradouro || '',
+        bairro: json.bairro || '',
+        cidade: json.localidade || '',
+        estado: json.uf || '',
       }));
+      setDirty(true);
     } catch {
-      setCepError("Erro ao consultar CEP.");
+      setCepError('Erro ao consultar CEP.');
     } finally {
       setCepLoading(false);
     }
   };
 
-  const openCreateDrawer = () => {
-    setDrawerMode("create");
-    setEditingId(null);
-    setMatriculaFile(null);
-    setFormData({
-      nome: "",
-      data_nascimento: "",
-      celular: "",
-      email: "",
-      valor_mensalidade: curso?.valor_mensalidade_padrao !== null && curso?.valor_mensalidade_padrao !== undefined
-        ? String(curso.valor_mensalidade_padrao)
-        : "",
-      observacoes: "",
-      pago: false,
-      valor_pago: "",
-      data_pagamento: "",
-      genero: "",
-      emergencia_contato: "",
-      emergencia_fone: "",
-      cep: "",
-      logradouro: "",
-      numero: "",
-      complemento: "",
-      bairro: "",
-      cidade: "",
-      estado: "",
-      tem_plano_saude: false,
-      plano_saude_nome: "",
-      toma_medicamento: false,
-      medicamentos_nome: "",
-      tem_doenca_tratamento: false,
-      doenca_tratamento_nome: "",
-      tem_diabetes: false,
-      outras_doencas: "",
-      cpf: "",
-      rg: "",
-      estado_civil: "",
-      profissao: "",
-      experiencia_umbanda: "",
-      contato_contexto_espiritual: "",
-      motivo_busca_desenvolvimento: "",
-      interesse_aprendizado: "",
-      ja_conhece_terreiro: null,
-      como_conheceu_terreiro: "",
-      tratamento_psiquiatrico: false,
-      tratamento_psiquiatrico_detalhes: "",
-      restricoes_saude: "",
-      aceita_uso_dados: false,
-      aceita_uso_imagem: false,
-      comprovante_inscricao_filename: null,
-    });
-    setDrawerOpen(true);
-  };
-
-  const openEditDrawer = (p: Participante) => {
-    setDrawerMode("edit");
-    setEditingId(p.id);
-    setMatriculaFile(null);
-    setFormData({
-      nome: p.nome,
-      data_nascimento: p.data_nascimento || "",
-      celular: p.celular || "",
-      email: p.email || "",
-      valor_mensalidade: p.valor_mensalidade !== null && p.valor_mensalidade !== undefined
-        ? String(p.valor_mensalidade)
-        : "",
-      observacoes: p.observacoes || "",
-      pago: p.pago,
-      valor_pago: p.valor_pago !== null && p.valor_pago !== undefined
-        ? String(p.valor_pago)
-        : p.valor_mensalidade !== null && p.valor_mensalidade !== undefined
-        ? String(p.valor_mensalidade)
-        : "",
-      data_pagamento: p.data_pagamento ? p.data_pagamento.substring(0, 10) : new Date().toISOString().substring(0, 10),
-      genero: p.genero || "",
-      emergencia_contato: p.emergencia_contato || "",
-      emergencia_fone: p.emergencia_fone || "",
-      cep: p.cep || "",
-      logradouro: p.logradouro || "",
-      numero: p.numero || "",
-      complemento: p.complemento || "",
-      bairro: p.bairro || "",
-      cidade: p.cidade || "",
-      estado: p.estado || "",
-      tem_plano_saude: !!p.tem_plano_saude,
-      plano_saude_nome: p.plano_saude_nome || "",
-      toma_medicamento: !!p.toma_medicamento,
-      medicamentos_nome: p.medicamentos_nome || "",
-      tem_doenca_tratamento: !!p.tem_doenca_tratamento,
-      doenca_tratamento_nome: p.doenca_tratamento_nome || "",
-      tem_diabetes: !!p.tem_diabetes,
-      outras_doencas: p.outras_doencas || "",
-      cpf: p.cpf || "",
-      rg: p.rg || "",
-      estado_civil: p.estado_civil || "",
-      profissao: p.profissao || "",
-      experiencia_umbanda: p.experiencia_umbanda || "",
-      contato_contexto_espiritual: p.contato_contexto_espiritual || "",
-      motivo_busca_desenvolvimento: p.motivo_busca_desenvolvimento || "",
-      interesse_aprendizado: p.interesse_aprendizado || "",
-      ja_conhece_terreiro: p.ja_conhece_terreiro ?? null,
-      como_conheceu_terreiro: p.como_conheceu_terreiro || "",
-      tratamento_psiquiatrico: !!p.tratamento_psiquiatrico,
-      tratamento_psiquiatrico_detalhes: p.tratamento_psiquiatrico_detalhes || "",
-      restricoes_saude: p.restricoes_saude || "",
-      aceita_uso_dados: !!p.aceita_uso_dados,
-      aceita_uso_imagem: !!p.aceita_uso_imagem,
-      comprovante_inscricao_filename: p.comprovante_inscricao_filename || null,
-    });
-    setDrawerOpen(true);
-  };
-
-  const requestRemovePart = (p: Participante) => {
-    setRemovePartTarget(p);
-    setRemovePartOpen(true);
-  };
-
-  const handleRemoveParticipante = async () => {
-    if (!removePartTarget || !canDelete) return;
-    try {
-      await apiClient.delete(`/api/v1/admin/cursos-presenciais/${id}/participantes/${removePartTarget.id}`);
-      showAlert("Participante removido com sucesso.", "success");
-      fetchParticipantes();
-    } catch (err) {
-      console.error("Erro ao remover participante:", err);
-      showAlert("Erro ao remover participante.", "error");
-    } finally {
-      setRemovePartOpen(false);
-      setRemovePartTarget(null);
-    }
-  };
-
   const handleSave = async () => {
+    setTouched(true);
+    if (!form.nome.trim()) return;
     if (drawerMode === 'create' && !canInsert) return;
     if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
-    const payload: Record<string, unknown> = {
-      nome: formData.nome,
-      data_nascimento: formData.data_nascimento || null,
-      celular: formData.celular || null,
-      email: formData.email || null,
-      valor_mensalidade: formData.valor_mensalidade ? parseFloat(formData.valor_mensalidade) : null,
-      observacoes: formData.observacoes || null,
-      genero: formData.genero || null,
-      emergencia_contato: formData.emergencia_contato || null,
-      emergencia_fone: formData.emergencia_fone || null,
-      cep: formData.cep || null,
-      logradouro: formData.logradouro || null,
-      numero: formData.numero || null,
-      complemento: formData.complemento || null,
-      bairro: formData.bairro || null,
-      cidade: formData.cidade || null,
-      estado: formData.estado || null,
-      tem_plano_saude: formData.tem_plano_saude,
-      plano_saude_nome: formData.tem_plano_saude ? formData.plano_saude_nome || null : null,
-      toma_medicamento: formData.toma_medicamento,
-      medicamentos_nome: formData.toma_medicamento ? formData.medicamentos_nome || null : null,
-      tem_doenca_tratamento: formData.tem_doenca_tratamento,
-      doenca_tratamento_nome: formData.tem_doenca_tratamento ? formData.doenca_tratamento_nome || null : null,
-      tem_diabetes: formData.tem_diabetes,
-      outras_doencas: formData.outras_doencas || null,
-      cpf: formData.cpf || null,
-      rg: formData.rg || null,
-      estado_civil: formData.estado_civil || null,
-      profissao: formData.profissao || null,
-      experiencia_umbanda: formData.experiencia_umbanda || null,
-      contato_contexto_espiritual: formData.contato_contexto_espiritual || null,
-      motivo_busca_desenvolvimento: formData.motivo_busca_desenvolvimento || null,
-      interesse_aprendizado: formData.interesse_aprendizado || null,
-      ja_conhece_terreiro: formData.ja_conhece_terreiro,
-      como_conheceu_terreiro: formData.como_conheceu_terreiro || null,
-      tratamento_psiquiatrico: formData.tratamento_psiquiatrico,
-      tratamento_psiquiatrico_detalhes: formData.tratamento_psiquiatrico ? formData.tratamento_psiquiatrico_detalhes || null : null,
-      restricoes_saude: formData.restricoes_saude || null,
-      aceita_uso_dados: formData.aceita_uso_dados,
-      aceita_uso_imagem: formData.aceita_uso_imagem,
-    };
-
-    if (drawerMode === "edit") {
-      payload.pago = formData.pago;
-      if (formData.pago) {
-        payload.valor_pago = formData.valor_pago ? parseFloat(formData.valor_pago) : null;
-        payload.data_pagamento = formData.data_pagamento ? new Date(formData.data_pagamento).toISOString() : null;
-      }
-    }
-
     try {
-      let savedParticipantId = editingId;
-      if (drawerMode === "create") {
-        const res = await apiClient.post(`/api/v1/admin/cursos-presenciais/${id}/participantes`, payload);
-        savedParticipantId = res.data.id;
-        showAlert("Participante cadastrado com sucesso.", "success");
+      let savedId = editingId;
+      const payload = formToPayload(form, drawerMode);
+      if (drawerMode === 'create') {
+        const res = await apiClient.post(`${base}/participantes`, payload);
+        savedId = res.data.id;
+        showSuccess('Participante matriculado.');
       } else if (editingId) {
-        await apiClient.put(`/api/v1/admin/cursos-presenciais/${id}/participantes/${editingId}`, payload);
-        showAlert("Cadastro do participante atualizado.", "success");
+        await apiClient.put(`${base}/participantes/${editingId}`, payload);
+        showSuccess('Cadastro do participante atualizado.');
       }
-
-      // Se houver um arquivo de comprovante selecionado, faz o upload
-      if (matriculaFile && savedParticipantId) {
-        const form = new FormData();
-        form.append("comprovante", matriculaFile);
-        await apiClient.post(
-          `/api/v1/admin/cursos-presenciais/${id}/participantes/${savedParticipantId}/comprovante`,
-          form,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
-        );
+      if (matriculaFile && savedId && canInsert) {
+        const fd = new FormData();
+        fd.append('comprovante', matriculaFile);
+        await apiClient.post(`${base}/participantes/${savedId}/comprovante`, fd, MULTIPART);
       }
-
       setDrawerOpen(false);
+      setDirty(false);
       fetchParticipantes();
     } catch (err) {
-      console.error("Erro ao salvar participante:", err);
-      showAlert(extractApiErrorMessage(err, "Erro ao salvar participante."), "error");
+      showError(extractApiErrorMessage(err, 'Erro ao salvar participante.'));
     } finally {
       setSaving(false);
     }
   };
 
-  const isPlanAllowed = subscription?.plan === "pro" || subscription?.plan === "premium";
+  const handleRemove = async () => {
+    if (!removeTarget || !canDelete) return;
+    setRemoving(true);
+    try {
+      await apiClient.delete(`${base}/participantes/${removeTarget.id}`);
+      showSuccess('Participante removido.');
+      fetchParticipantes();
+    } catch {
+      showError('Erro ao remover participante.');
+    } finally {
+      setRemoving(false);
+      setRemoveTarget(null);
+    }
+  };
 
-  if (subLoading) {
-    return (
-      <AdminLayout title="Participantes">
-        <Stack alignItems="center" mt={8}>
-          <CircularProgress />
-        </Stack>
-      </AdminLayout>
+  const baixarInscricao = (participanteId: string, filename: string | null | undefined) =>
+    baixarComprovante(`${base}/participantes/${participanteId}/comprovante`, filename || 'comprovante-inscricao').catch(() =>
+      showError('Comprovante de inscrição não encontrado.'),
     );
-  }
 
-  if (!isPlanAllowed) {
-    return (
-      <AdminLayout title="Participantes">
-        <UpgradePrompt feature="Cursos Presenciais" minPlan="Pro" />
-      </AdminLayout>
+  const handleRemoveComprovante = async () => {
+    if (!canDelete || !editingId) return;
+    try {
+      await apiClient.delete(`${base}/participantes/${editingId}/comprovante`);
+      setForm((prev) => ({ ...prev, comprovante_inscricao_filename: null }));
+      showSuccess('Comprovante de inscrição removido.');
+      fetchParticipantes();
+    } catch {
+      showError('Erro ao remover comprovante.');
+    } finally {
+      setRemoveCompOpen(false);
+    }
+  };
+
+  // ── Mensalidades ────────────────────────────────────────────────────
+  const registrarMensalidade = async (item: CobrancaItem, p: CobrancaPagamento) => {
+    try {
+      await apiClient.post(`${base}/financeiro/mensalidades/${item.id}/${mes}`, montarFormPagamento(p), MULTIPART);
+    } catch (err) {
+      throw new Error(extractApiErrorMessage(err, 'Erro ao registrar pagamento.'));
+    }
+  };
+
+  const baixarMensalidade = (item: CobrancaItem) =>
+    baixarComprovante(`${base}/financeiro/mensalidades/${item.id}/${mes}/comprovante`, item.comprovante_filename).catch(() =>
+      showError('Comprovante não encontrado.'),
     );
-  }
 
-  if (loading) {
-    return (
-      <AdminLayout title="Participantes">
-        <Stack alignItems="center" mt={8}>
-          <CircularProgress />
-        </Stack>
-      </AdminLayout>
-    );
-  }
-
-  if (!canView) {
-    return (
-      <AdminLayout title="Participantes">
-        <Alert severity="warning" sx={{ mt: 2 }}>
-          Você não tem permissão para visualizar participantes. Contate o administrador do sistema.
-        </Alert>
-      </AdminLayout>
-    );
-  }
-
-  const filteredParticipantes = searchQuery.trim().length === 0 ? participantes : participantes.filter((p) =>
-    p.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.email && p.email.toLowerCase().includes(searchQuery.toLowerCase()))
+  const kpis = useMemo(
+    () =>
+      mensalidades && !loadingMensalidades
+        ? computeCobrancaKpis([{ items: mensalidades, valor: valorPadrao }], mes, DIA_VENCIMENTO_CURSO)
+        : null,
+    [mensalidades, loadingMensalidades, valorPadrao, mes],
   );
 
+  // ── Derivados ───────────────────────────────────────────────────────
+  const filteredParticipantes = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return participantes;
+    return participantes.filter((p) => p.nome.toLowerCase().includes(q) || (p.email ?? '').toLowerCase().includes(q));
+  }, [participantes, searchQuery]);
+
   const totalVagas = curso?.max_participantes ?? null;
-  const vagasPreenchidas = participantes.length;
-  const faturamentoEstimado = participantes.reduce((sum, p) => sum + Number(p.valor_mensalidade ?? 0), 0);
+  const ocupadas = participantes.length;
+  const lotada = turmaLotada(totalVagas, ocupadas);
+  const faturamentoEstimado = participantes.reduce((sum, p) => sum + (toNum(p.valor_mensalidade) ?? 0), 0);
 
-  // KPI calculations for monthly billing
-  const totalEsperado =
-    mensalidadeItems.filter((i) => i.status !== 'ISENTO').reduce((s, i) => s + Number(i.valor_mensalidade ?? 0), 0);
-  const totalArrecadado =
-    mensalidadeItems.filter((i) => i.status === 'PAGO').reduce((s, i) => s + Number(i.valor_pago ?? 0), 0);
-  const totalInadimplentesCount =
-    mensalidadeItems.filter((i) => i.status !== 'PAGO' && i.status !== 'ISENTO').length;
-  const totalEmAberto = Math.max(0, totalEsperado - totalArrecadado);
+  const chartData = useMemo(
+    () =>
+      resumo
+        ? [
+            ...resumo.historico.map((h) => ({ mes: monthLabelShort(h.mes), Esperado: h.esperado, Arrecadado: h.arrecadado })),
+            ...resumo.projecao.map((p) => ({ mes: monthLabelShort(p.mes), Projetado: p.projetado })),
+          ]
+        : [],
+    [resumo],
+  );
 
-  const filteredMensalidadeItems = mensalidadeItems.filter((i) => {
-    const matchStatus = filterStatus === 'TODOS' || i.status === filterStatus;
-    const matchSearch = i.participante_nome.toLowerCase().includes(searchMensalidades.toLowerCase());
-    return matchStatus && matchSearch;
-  });
+  const RowActions = ({ p }: { p: Participante }) =>
+    canEdit || canDelete ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={`Ações de ${p.nome}`}>
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {canEdit && (
+            <DropdownMenuItem onSelect={() => openEdit(p)}>
+              <Pencil />
+              {gerarMensalidade ? 'Editar matrícula' : 'Editar matrícula / pagamento'}
+            </DropdownMenuItem>
+          )}
+          {canDelete && (
+            <DropdownMenuItem variant="destructive" onSelect={() => setRemoveTarget(p)}>
+              <Trash2 />
+              Remover matrícula
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : null;
 
-  const statusChip = (item: MensalidadeItem) => {
-    const s = item.status;
-    if (s === 'PAGO') return <Chip label="Pago" color="success" size="small" />;
-    if (s === 'ISENTO') return <Chip label="Isento" size="small" />;
-    
-    const [y, m] = mes.split('-').map(Number);
-    const vencimento = new Date(y, m - 1, 10); // default to 10th
-    const hoje = new Date();
-    if (!s || s === 'PENDENTE') {
-      if (hoje > vencimento) return <Chip label="Inadimplente" color="error" size="small" />;
-      return <Chip label="Pendente" color="warning" size="small" />;
+  const fichaIncompleta = (p: Participante) =>
+    curso?.tipo_formulario === 'completo' && (!p.cep || !p.emergencia_contato || !p.emergencia_fone);
+  const valorCustomizado = (p: Participante) =>
+    valorPadrao != null && toNum(p.valor_mensalidade) != null && toNum(p.valor_mensalidade) !== valorPadrao;
+
+  const columns = useMemo<ColumnDef<Participante>[]>(() => {
+    const cols: ColumnDef<Participante>[] = [
+      {
+        accessorKey: 'nome',
+        header: 'Nome',
+        cell: ({ row }) => (
+          <span className="flex flex-wrap items-center gap-1.5 font-medium">
+            <span className="truncate">{row.original.nome}</span>
+            {fichaIncompleta(row.original) && (
+              <Badge className="border-transparent bg-warning text-warning-foreground" title="Ficha médica/endereço pendente">
+                Ficha incompleta
+              </Badge>
+            )}
+          </span>
+        ),
+      },
+      {
+        id: 'contato',
+        header: 'Contato',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-sm">{row.original.email || '—'}</span>
+            {row.original.celular && (
+              <span className="text-xs text-muted-foreground">{maskTelefone(row.original.celular)}</span>
+            )}
+          </div>
+        ),
+      },
+      {
+        accessorKey: 'data_nascimento',
+        header: 'Nascimento',
+        cell: ({ getValue }) => formatDateBr(getValue<string | null>()),
+      },
+      {
+        id: 'mensalidade',
+        header: 'Mensalidade',
+        accessorFn: (p) => toNum(p.valor_mensalidade) ?? 0,
+        meta: { align: 'right' },
+        cell: ({ row }) => (
+          <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+            <span className={valorCustomizado(row.original) ? 'font-bold' : undefined}>
+              {formatBRL(toNum(row.original.valor_mensalidade) ?? 0)}
+            </span>
+            {valorCustomizado(row.original) && (
+              <Badge variant="outline" className="text-[0.65rem]" title="Valor diferente do padrão do curso">
+                personalizado
+              </Badge>
+            )}
+          </span>
+        ),
+      },
+    ];
+    if (!gerarMensalidade) {
+      cols.push({
+        id: 'pagamento',
+        header: 'Pagamento',
+        accessorFn: (p) => (p.pago ? 1 : 0),
+        cell: ({ row }) =>
+          row.original.pago ? (
+            <div className="flex flex-col">
+              <Badge className="w-fit border-transparent bg-success text-success-foreground">Pago</Badge>
+              <span className="mt-0.5 text-xs text-muted-foreground">
+                {formatBRL(toNum(row.original.valor_pago) ?? 0)} · {formatDateTimeBr(row.original.data_pagamento)}
+              </span>
+            </div>
+          ) : (
+            <Badge className="border-transparent bg-warning text-warning-foreground">Pendente</Badge>
+          ),
+      });
     }
-    return <Chip label={s} size="small" />;
-  };
+    cols.push({
+      id: 'comprovante',
+      header: 'Inscrição',
+      enableSorting: false,
+      meta: { align: 'center' },
+      cell: ({ row }) =>
+        row.original.comprovante_inscricao_filename ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title={row.original.comprovante_inscricao_filename}
+            aria-label={`Baixar comprovante de inscrição de ${row.original.nome}`}
+            onClick={() => baixarInscricao(row.original.id, row.original.comprovante_inscricao_filename)}
+          >
+            <Download />
+          </Button>
+        ) : (
+          <Paperclip className="mx-auto size-4 text-ghost" aria-label="Sem comprovante" />
+        ),
+    });
+    if (canEdit || canDelete) {
+      cols.push({
+        id: 'acoes',
+        header: '',
+        enableSorting: false,
+        meta: { align: 'right' },
+        cell: ({ row }) => <RowActions p={row.original} />,
+      });
+    }
+    return cols;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gerarMensalidade, canEdit, canDelete, valorPadrao, curso?.tipo_formulario, id]);
 
-  const chartData = resumo
-    ? [
-        ...resumo.historico.map((h: ResumoFinanceiro['historico'][number]) => ({
-          mes: mesLabel(h.mes),
-          Esperado: h.esperado,
-          Arrecadado: h.arrecadado,
-          projecao: false,
-        })),
-        ...resumo.projecao.map((p: ResumoFinanceiro['projecao'][number]) => ({
-          mes: mesLabel(p.mes),
-          Projetado: p.projetado,
-          projecao: true,
-        })),
-      ]
-    : [];
+  const renderCard = (p: Participante) => (
+    <div className="flex items-start gap-3 p-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="flex flex-wrap items-center gap-1.5 font-medium">
+          <span className="truncate">{p.nome}</span>
+          {fichaIncompleta(p) && (
+            <Badge className="border-transparent bg-warning text-warning-foreground">Ficha incompleta</Badge>
+          )}
+        </span>
+        <span className="truncate text-xs text-muted-foreground">
+          {[p.email, p.celular ? maskTelefone(p.celular) : null].filter(Boolean).join(' · ') || 'Sem contato'}
+        </span>
+        <span className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span>Mensalidade {formatBRL(toNum(p.valor_mensalidade) ?? 0)}</span>
+          {!gerarMensalidade &&
+            (p.pago ? (
+              <Badge className="border-transparent bg-success text-success-foreground">Pago</Badge>
+            ) : (
+              <Badge className="border-transparent bg-warning text-warning-foreground">Pendente</Badge>
+            ))}
+        </span>
+        {p.comprovante_inscricao_filename && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-1 self-start"
+            onClick={() => baixarInscricao(p.id, p.comprovante_inscricao_filename)}
+          >
+            <Download />
+            Comprovante de inscrição
+          </Button>
+        )}
+      </div>
+      <RowActions p={p} />
+    </div>
+  );
 
-  const handlePrevMes = () => {
-    const [y, m] = mes.split('-').map(Number);
-    const d = new Date(y, m - 1, 1);
-    setMes(toYYYYMM(addMonths(d, -1)));
-  };
+  // ── Gates ───────────────────────────────────────────────────────────
+  if (subLoading || (loading && !curso)) {
+    return (
+      <div className="flex flex-col gap-3" aria-busy="true">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-8 w-72" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
+  if (!isPlanAllowed) return <PlanLocked feature="Cursos Presenciais" minPlan="Pro" />;
+  if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar participantes." />;
 
-  const handleNextMes = () => {
-    const [y, m] = mes.split('-').map(Number);
-    const d = new Date(y, m - 1, 1);
-    setMes(toYYYYMM(addMonths(d, 1)));
-  };
+  const completo = curso?.tipo_formulario === 'completo';
+  const nomeTerreiro = tenantName || 'Terreiro';
+
+  // ── Blocos ──────────────────────────────────────────────────────────
+  const matriculas = (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <KpiCard
+          label="Vagas preenchidas"
+          value={`${ocupadas} / ${totalVagas ?? 'sem limite'}`}
+          color={lotada ? 'var(--warning)' : undefined}
+          subtitle={lotada ? 'Turma lotada' : undefined}
+        />
+        <KpiCard
+          label="Faturamento mensal estimado"
+          value={formatBRL(faturamentoEstimado)}
+          icon={<Wallet />}
+          color="var(--success)"
+        />
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <TextField
+          aria-label="Buscar participante"
+          placeholder="Buscar por nome ou e-mail..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          startAdornment={<Search />}
+          size="small"
+          className="sm:max-w-sm"
+        />
+        {canInsert && (
+          <Button onClick={openCreate} disabled={lotada}>
+            <UserPlus />
+            {lotada ? 'Turma lotada' : 'Matricular'}
+          </Button>
+        )}
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={filteredParticipantes}
+        getRowId={(p) => p.id}
+        loading={loading}
+        pageSize={25}
+        renderCard={renderCard}
+        emptyMessage={participantes.length === 0 ? 'Nenhum participante matriculado.' : 'Nenhum participante encontrado.'}
+      />
+    </div>
+  );
+
+  const mensalidadesBloco = (
+    <div className="flex flex-col gap-4">
+      <MonthNavigator value={mes} onChange={setMes} onRefresh={fetchMensalidades} refreshing={loadingMensalidades} />
+      <CobrancaKpisGrid kpis={kpis} loading={!kpis} />
+      <CobrancaMensal
+        mes={mes}
+        items={mensalidades ?? []}
+        loading={loadingMensalidades || mensalidades === null}
+        diaVencimento={DIA_VENCIMENTO_CURSO}
+        valorPadrao={valorPadrao}
+        canEdit={canInsert}
+        entidade="participante"
+        onRegistrar={registrarMensalidade}
+        onChanged={fetchMensalidades}
+        onDownloadComprovante={baixarMensalidade}
+      />
+    </div>
+  );
+
+  const historico = (
+    <div className="flex flex-col gap-4">
+      <ChartCard
+        title="Cobrança e arrecadação"
+        subtitle="Histórico mensal e projeção pelas mensalidades vigentes"
+        loading={loadingResumo}
+        empty={chartData.length === 0}
+        height={300}
+        footer="A projeção usa as mensalidades vigentes de cada participante ativo."
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} vertical={false} />
+            <XAxis dataKey="mes" tick={{ fontSize: 11, fill: chartTokens.tick }} axisLine={false} tickLine={false} />
+            <YAxis
+              tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
+              tick={{ fontSize: 11, fill: chartTokens.tick }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <RechartsTooltip contentStyle={chartTooltipStyle} formatter={(v: number) => formatBRL(v)} />
+            <Legend wrapperStyle={{ fontSize: 12 }} iconSize={10} />
+            <Bar dataKey="Esperado" fill={chartTokens.muted} radius={[4, 4, 0, 0]} maxBarSize={28} />
+            <Bar dataKey="Arrecadado" fill={chartTokens.primary} radius={[4, 4, 0, 0]} maxBarSize={28} />
+            <Bar dataKey="Projetado" fill={chartTokens.info} radius={[4, 4, 0, 0]} maxBarSize={28} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <KpiCard label="Participantes ativos" value={resumo?.config.count_ativos ?? '—'} loading={loadingResumo} />
+        <KpiCard
+          label="Projeção do próximo mês"
+          value={resumo ? formatBRL(resumo.projecao[0]?.projetado ?? 0) : '—'}
+          loading={loadingResumo}
+        />
+      </div>
+    </div>
+  );
 
   return (
-    <AdminLayout title={`Participantes - ${curso?.titulo || ""}`}>
-      {/* Voltar e Cabeçalho */}
-      <Box sx={{ mb: 3 }}>
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => router.push("/admin/cursos-presenciais")}
-          sx={{ mb: 2, textTransform: "none" }}
-          variant="text"
-          size="small"
-        >
-          Voltar para Cursos
+    <div className="flex flex-col gap-4">
+      {/* Cabeçalho */}
+      <div className="flex flex-col gap-2">
+        <Button variant="ghost" size="sm" className="-ml-2 self-start" onClick={() => router.push('/admin/cursos-presenciais')}>
+          <ArrowLeft />
+          Cursos
         </Button>
-        <Typography variant="h5" fontWeight={700} gutterBottom>
-          {curso?.titulo}
-        </Typography>
-        {curso?.ementa && (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {curso.ementa}
-          </Typography>
-        )}
-        <Stack direction="row" spacing={3} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+        <h1 className="m-0 text-2xl font-bold tracking-tight text-foreground">{curso?.titulo ?? 'Curso'}</h1>
+        {curso?.ementa && <p className="m-0 text-sm text-muted-foreground">{curso.ementa}</p>}
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           {curso?.local && (
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <PlaceIcon fontSize="small" color="action" />
-              <Typography variant="body2">{curso.local}</Typography>
-            </Stack>
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="size-4" aria-hidden />
+              {curso.local}
+            </span>
           )}
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <EventIcon fontSize="small" color="action" />
-            <Typography variant="body2">
-              Início: {curso?.data_inicio ? new Date(curso.data_inicio).toLocaleDateString("pt-BR") : "—"}
-              {curso?.data_fim ? ` | Término: ${new Date(curso.data_fim).toLocaleDateString("pt-BR")}` : ""}
-            </Typography>
-          </Stack>
-          {curso?.valor_mensalidade_padrao !== null && curso?.valor_mensalidade_padrao !== undefined && (
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <AttachMoneyIcon fontSize="small" color="action" />
-              <Typography variant="body2">
-                Mensalidade Padrão: {fmtBRL(curso.valor_mensalidade_padrao)}
-              </Typography>
-            </Stack>
+          <span className="inline-flex items-center gap-1">
+            <CalendarDays className="size-4" aria-hidden />
+            Início {dataBr(curso?.data_inicio)}
+            {curso?.data_fim ? ` · término ${dataBr(curso.data_fim)}` : ''}
+          </span>
+          {valorPadrao != null && (
+            <span className="inline-flex items-center gap-1">
+              <Wallet className="size-4" aria-hidden />
+              Mensalidade padrão {formatBRL(valorPadrao)}
+            </span>
           )}
-        </Stack>
-      </Box>
+        </div>
+      </div>
 
-      {/* KPI Cards */}
-      {curso?.gerar_mensalidade ? (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          {[
-            { label: 'Esperado', value: fmtBRL(totalEsperado), color: 'text.primary' },
-            { label: 'Arrecadado', value: fmtBRL(totalArrecadado), color: 'success.main' },
-            { label: 'Inadimplentes', value: String(totalInadimplentesCount), color: totalInadimplentesCount > 0 ? 'error.main' : 'success.main' },
-            { label: 'Em aberto', value: fmtBRL(totalEmAberto), color: 'warning.main' },
-          ].map(({ label, value, color }) => (
-            <Grid item xs={6} md={3} key={label}>
-              <Card variant="outlined">
-                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                  <Typography variant="caption" color="text.secondary" textTransform="uppercase">{label}</Typography>
-                  <Typography variant="h6" fontWeight={700} color={color}>{value}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      ) : (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card variant="outlined">
-              <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
-                <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight={600}>
-                  Vagas Preenchidas
-                </Typography>
-                <Typography variant="h6" fontWeight={700} color={totalVagas && vagasPreenchidas >= totalVagas ? "warning.main" : "text.primary"}>
-                  {vagasPreenchidas} / {totalVagas !== null ? totalVagas : "Sem limite"}
-                </Typography>
-                {totalVagas && vagasPreenchidas >= totalVagas && (
-                  <Stack direction="row" spacing={0.5} alignItems="center" mt={0.5}>
-                    <WarningIcon fontSize="inherit" color="warning" />
-                    <Typography variant="caption" color="warning.main" fontWeight={600}>
-                      Curso lotado
-                    </Typography>
-                  </Stack>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card variant="outlined">
-              <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
-                <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight={600}>
-                  Faturamento Mensal Estimado
-                </Typography>
-                <Typography variant="h6" fontWeight={700} color="success.main">
-                  {fmtBRL(faturamentoEstimado)}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      )}
-
-      {/* Tabs para cursos com controle mensal */}
-      {curso?.gerar_mensalidade && (
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
-          <Tab label="Matrículas" />
-          <Tab label="Mensalidades" />
-          <Tab label="Gráfico" />
+      {gerarMensalidade ? (
+        <Tabs value={tab} onValueChange={setTab} className="gap-4">
+          <TabsList className="w-full sm:w-fit">
+            <TabsTrigger value="matriculas">Matrículas</TabsTrigger>
+            <TabsTrigger value="mensalidades">Mensalidades</TabsTrigger>
+            <TabsTrigger value="historico">Histórico</TabsTrigger>
+          </TabsList>
+          <TabsContent value="matriculas">{matriculas}</TabsContent>
+          <TabsContent value="mensalidades">{mensalidadesBloco}</TabsContent>
+          <TabsContent value="historico">{historico}</TabsContent>
         </Tabs>
+      ) : (
+        matriculas
       )}
 
-      {/* Aba 0 ou Modo Tradicional: Matrículas */}
-      {(!curso?.gerar_mensalidade || tab === 0) && (
-        <>
-          {/* Busca e Novo Participante */}
-          <Box sx={{ mb: 3 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-              <TextField
-                size="small"
-                placeholder="Buscar participante por nome..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                sx={{ width: 350, maxWidth: "100%" }}
-              />
-              {canInsert && (
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={openCreateDrawer}
-                  size="small"
-                  disabled={totalVagas !== null && vagasPreenchidas >= totalVagas}
-                  sx={{ textTransform: "none" }}
-                >
-                  Matricular Participante
-                </Button>
-              )}
-            </Stack>
-          </Box>
-
-          {/* Tabela de Participantes */}
-          <TableContainer component={Paper} sx={{ overflowX: "auto" }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 600 }}>Nome</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Contato</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Nascimento</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Mensalidade Individual</TableCell>
-                  {!curso?.gerar_mensalidade && (
-                    <>
-                      <TableCell sx={{ fontWeight: 600 }}>Status Pagamento</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Detalhes do Pagamento</TableCell>
-                    </>
-                  )}
-                  <TableCell sx={{ fontWeight: 600 }}>Comp. Inscrição</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 600 }}>Ações</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredParticipantes.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={curso?.gerar_mensalidade ? 5 : 7} align="center" sx={{ py: 4, color: "text.secondary" }}>
-                      Nenhum participante matriculado ou encontrado.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredParticipantes.map((p) => {
-                    const isCustomFee = curso?.valor_mensalidade_padrao !== null &&
-                      p.valor_mensalidade !== curso?.valor_mensalidade_padrao;
-                    const isFichaIncompleta =
-                      curso?.tipo_formulario === "completo" &&
-                      (!p.cep || !p.emergencia_contato || !p.emergencia_fone);
-
-                    return (
-                      <TableRow key={p.id} hover>
-                        <TableCell sx={{ fontWeight: 500 }}>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <span>{p.nome}</span>
-                            {isFichaIncompleta && (
-                              <Tooltip title="Ficha médica/endereço pendente">
-                                <Chip
-                                  label="Ficha Incompleta"
-                                  color="warning"
-                                  size="small"
-                                  sx={{ height: 18, fontSize: "10px", fontWeight: 600 }}
-                                />
-                              </Tooltip>
-                            )}
-                          </Stack>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                            {p.email || "—"}
-                          </Typography>
-                          {p.celular && (
-                            <Typography variant="caption" color="text.secondary">
-                              {formatPhone(p.celular)}
-                            </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell>{formatDate(p.data_nascimento)}</TableCell>
-                        <TableCell>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Typography fontWeight={isCustomFee ? 700 : 400}>
-                              {fmtBRL(p.valor_mensalidade)}
-                            </Typography>
-                            {isCustomFee && (
-                              <Tooltip title="Valor customizado para este participante">
-                                <Chip
-                                  label="Customizado"
-                                  size="small"
-                                  color="info"
-                                  variant="outlined"
-                                  sx={{ height: 16, fontSize: "9px" }}
-                                />
-                              </Tooltip>
-                            )}
-                          </Stack>
-                        </TableCell>
-                        {!curso?.gerar_mensalidade && (
-                          <>
-                            <TableCell>
-                              <Box
-                                sx={{
-                                  display: "inline-block",
-                                  px: 2,
-                                  py: 0.5,
-                                  borderRadius: 1,
-                                  backgroundColor: p.pago ? "#c8e6c9" : "#ffe0b2",
-                                  color: p.pago ? "#2e7d32" : "#e65100",
-                                  fontSize: "0.875rem",
-                                  fontWeight: 500,
-                                }}
-                              >
-                                {p.pago ? "Pago" : "Pendente"}
-                              </Box>
-                            </TableCell>
-                            <TableCell>
-                              {p.pago ? (
-                                <Box>
-                                  <Typography variant="body2" fontWeight={500}>
-                                    {fmtBRL(p.valor_pago)}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {formatDateTime(p.data_pagamento)}
-                                  </Typography>
-                                </Box>
-                              ) : (
-                                "—"
-                              )}
-                            </TableCell>
-                          </>
-                        )}
-                        <TableCell>
-                          {p.comprovante_inscricao_filename ? (
-                            <Tooltip title={p.comprovante_inscricao_filename}>
-                              <IconButton
-                                size="small"
-                                onClick={async () => {
-                                  try {
-                                    const res = await apiClient.get(
-                                      `/api/v1/admin/cursos-presenciais/${id}/participantes/${p.id}/comprovante`,
-                                      { responseType: 'blob' },
-                                    );
-                                    const url = URL.createObjectURL(res.data);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = p.comprovante_inscricao_filename || 'comprovante-inscricao';
-                                    a.click();
-                                    URL.revokeObjectURL(url);
-                                  } catch {
-                                    showAlert("Comprovante de inscrição não encontrado.", "error");
-                                  }
-                                }}
-                              >
-                                <DownloadIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          ) : (
-                            <AttachFileIcon fontSize="small" sx={{ color: 'text.disabled' }} />
-                          )}
-                        </TableCell>
-                        <TableCell align="right">
-                          <Stack direction="row" spacing={1} justifyContent="flex-end">
-                            {canEdit && (
-                              <Tooltip title={curso?.gerar_mensalidade ? "Editar Matrícula" : "Editar Matrícula / Pagamento"}>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => openEditDrawer(p)}
-                                >
-                                  <EditIcon />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            {canDelete && (
-                              <Tooltip title="Remover Matrícula">
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => requestRemovePart(p)}
-                                >
-                                  <DeleteIcon />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
-      )}
-
-      {/* Aba 1: Mensalidades */}
-      {curso?.gerar_mensalidade && tab === 1 && (
-        <>
-          {/* Navegador de Mês */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-            <IconButton onClick={handlePrevMes} size="small">
-              <ArrowBackIosNewIcon fontSize="small" />
-            </IconButton>
-            <Typography variant="h6" sx={{ minWidth: 100, textAlign: 'center', fontWeight: 600 }}>
-              {mesLabel(mes)}
-            </Typography>
-            <IconButton onClick={handleNextMes} size="small">
-              <ArrowForwardIosIcon fontSize="small" />
-            </IconButton>
-            <IconButton onClick={fetchMensalidades} size="small" title="Atualizar">
-              <RefreshIcon fontSize="small" />
-            </IconButton>
-          </Box>
-
-          {/* Filtros da listagem mensal */}
-          <Box sx={{ display: "flex", gap: 2, mb: 3, flexWrap: "wrap" }}>
-            <TextField
-              size="small"
-              placeholder="Buscar aluno..."
-              value={searchMensalidades}
-              onChange={(e) => setSearchMensalidades(e.target.value)}
-              sx={{ minWidth: 250 }}
-            />
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={filterStatus}
-                label="Status"
-                onChange={(e) => setFilterStatus(e.target.value as 'TODOS' | 'PENDENTE' | 'PAGO' | 'ISENTO')}
-              >
-                <MenuItem value="TODOS">Todos</MenuItem>
-                <MenuItem value="PENDENTE">Pendente / Inadimplente</MenuItem>
-                <MenuItem value="PAGO">Pago</MenuItem>
-                <MenuItem value="ISENTO">Isento</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-
-          {/* Tabela de mensalidades mensais */}
-          {loadingMensalidades ? (
-            <Stack alignItems="center" py={4}>
-              <CircularProgress />
-            </Stack>
-          ) : filteredMensalidadeItems.length === 0 ? (
-            <Paper sx={{ p: 4, textAlign: 'center' }}>
-              <CheckCircleIcon sx={{ fontSize: 48, color: 'success.light', mb: 1 }} />
-              <Typography color="text.secondary">
-                Nenhum participante com pendências ou resultados neste mês.
-              </Typography>
-            </Paper>
-          ) : (
-            <TableContainer component={Paper}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Nome</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Vencimento</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Data Pag.</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>Valor Pago</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Comprovante</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>Ações</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredMensalidadeItems.map((item) => (
-                    <TableRow key={item.participante_id} hover>
-                      <TableCell sx={{ fontWeight: 500 }}>{item.participante_nome}</TableCell>
-                      <TableCell>{statusChip(item)}</TableCell>
-                      <TableCell>10/{mes.slice(5, 7)}/{mes.slice(0, 4)}</TableCell>
-                      <TableCell>
-                        {item.data_pagamento
-                          ? new Date(item.data_pagamento).toLocaleDateString("pt-BR")
-                          : "—"}
-                      </TableCell>
-                      <TableCell align="right">
-                        {item.status === 'PAGO' ? fmtBRL(item.valor_pago) : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {item.comprovante_filename ? (
-                          <Tooltip title={item.comprovante_filename}>
-                            <IconButton size="small" onClick={() => handleDownloadComprovante(item)}>
-                              <DownloadIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        ) : (
-                          <AttachFileIcon fontSize="small" sx={{ color: 'text.disabled' }} />
-                        )}
-                      </TableCell>
-                      <TableCell align="right">
-                        <Tooltip title="Registrar Pagamento">
-                          <IconButton size="small" onClick={() => openPaymentDrawer(item)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </>
-      )}
-
-      {/* Aba 2: Gráfico */}
-      {curso?.gerar_mensalidade && tab === 2 && (
-        <Box>
-          {loadingResumo ? (
-            <Stack alignItems="center" py={4}>
-              <CircularProgress />
-            </Stack>
-          ) : !resumo ? (
-            <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-              Nenhum dado disponível para gerar o gráfico.
-            </Typography>
-          ) : (
-            <>
-              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
-                Histórico de Cobrança e Arrecadação
-              </Typography>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
-                  <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                  <RechartsTooltip formatter={(v: number) => fmtBRL(v)} />
-                  <Legend />
-                  <Bar dataKey="Esperado" fill="#bdbdbd" />
-                  <Bar dataKey="Arrecadado" fill="#7C3AED" />
-                  <Bar dataKey="Projetado" fill="#c5cae9" />
-                </BarChart>
-              </ResponsiveContainer>
-
-              <Grid container spacing={2} sx={{ mt: 3 }}>
-                <Grid item xs={12} md={6}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="caption" color="text.secondary">Alunos Matriculados Ativos</Typography>
-                      <Typography variant="h6" fontWeight={700}>{resumo.config.count_ativos}</Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="caption" color="text.secondary">Projeção de Faturamento Mensal</Typography>
-                      <Typography variant="h6" fontWeight={700}>{fmtBRL(resumo.projecao[0]?.projetado ?? 0)}</Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
-
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-                * A projeção é baseada nas mensalidades vigentes configuradas para cada aluno matriculado ativo.
-              </Typography>
-            </>
-          )}
-        </Box>
-      )}
-
-      {/* Drawer Matrícula (Criar/Editar cadastro do aluno) */}
+      {/* Ficha do participante */}
       <CrudDrawer
-        title={drawerMode === "create" ? "Matricular Participante" : "Editar Matrícula"}
+        title={drawerMode === 'create' ? 'Matricular participante' : 'Editar matrícula'}
         subtitle={
-          drawerMode === "create"
-            ? "Preencha as informações do novo participante."
-            : "Atualize os dados cadastrais e observações do participante."
+          drawerMode === 'create'
+            ? 'Preencha as informações do novo participante.'
+            : 'Atualize os dados cadastrais e observações do participante.'
         }
-        icon={<PeopleIcon />}
+        icon={<IconCurso />}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onSave={handleSave}
         saving={saving}
-        saveDisabled={!formData.nome}
+        isDirty={dirty}
       >
-        <Stack spacing={2} mt={1}>
+        <div className="flex flex-col gap-4">
           <TextField
-            label="Nome do Participante"
+            label="Nome do participante"
             required
-            fullWidth
-            value={formData.nome || ""}
-            onChange={(e) =>
-              setFormData((prev: ParticipanteFormData) => ({ ...prev, nome: e.target.value }))
-            }
+            value={form.nome}
+            onChange={(e) => setField('nome', e.target.value)}
+            error={touched && !form.nome.trim() ? 'Informe o nome' : undefined}
           />
-          <TextField
-            label="Data de Nascimento"
-            type="date"
-            fullWidth
-            InputLabelProps={{ shrink: true }}
-            value={formData.data_nascimento || ""}
-            onChange={(e) =>
-              setFormData((prev: ParticipanteFormData) => ({ ...prev, data_nascimento: e.target.value }))
-            }
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <DateField
+              label="Data de nascimento"
+              value={form.data_nascimento}
+              max={todayBr()}
+              onChange={(v) => setField('data_nascimento', v)}
+            />
+            <MaskedInput mask="telefone" label="Celular" value={form.celular} onChange={(v) => setField('celular', v)} />
+          </div>
+          <TextField label="E-mail" type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} />
+          <MoneyInput
+            label="Mensalidade individual"
+            value={form.valor_mensalidade}
+            onChange={(v) => setField('valor_mensalidade', v)}
+            helperText="Deixe R$ 0,00 para usar o valor padrão do curso."
           />
-          <TextField
-            label="Celular"
-            fullWidth
-            placeholder="(11) 99999-9999"
-            value={formData.celular || ""}
-            onChange={(e) =>
-              setFormData((prev: ParticipanteFormData) => ({ ...prev, celular: e.target.value }))
-            }
-          />
-          <TextField
-            label="E-mail"
-            type="email"
-            fullWidth
-            value={formData.email || ""}
-            onChange={(e) =>
-              setFormData((prev: ParticipanteFormData) => ({ ...prev, email: e.target.value }))
-            }
-          />
-          <TextField
-            label="Valor da Mensalidade Individual (R$)"
-            type="number"
-            fullWidth
-            helperText="Se não informado, herdará o valor padrão do curso."
-            value={formData.valor_mensalidade || ""}
-            onChange={(e) =>
-              setFormData((prev: ParticipanteFormData) => ({ ...prev, valor_mensalidade: e.target.value }))
-            }
-          />
-          <TextField
-            label="Observações"
-            multiline
-            rows={3}
-            fullWidth
-            value={formData.observacoes || ""}
-            onChange={(e) =>
-              setFormData((prev: ParticipanteFormData) => ({ ...prev, observacoes: e.target.value }))
-            }
-          />
+          <TextField label="Observações" multiline rows={3} value={form.observacoes} onChange={(e) => setField('observacoes', e.target.value)} />
 
-          {curso?.tipo_formulario === "completo" && (
-            <>
-              {/* Seção Gênero & Emergência */}
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
-                  Dados Pessoais, Documentos & Emergência
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                <Stack spacing={2}>
-                  <Stack direction="row" spacing={2}>
-                    <TextField
-                      label="CPF"
-                      size="small"
-                      placeholder="000.000.000-00"
-                      fullWidth
-                      value={formData.cpf || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, cpf: e.target.value }))
-                      }
+          {completo && (
+            <Accordion type="multiple" defaultValue={['pessoais']} className="rounded-lg border px-3">
+              <AccordionItem value="pessoais">
+                <AccordionTrigger>Dados pessoais, documentos e emergência</AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-4 px-0.5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <MaskedInput mask="cpf" label="CPF" value={form.cpf} onChange={(v) => setField('cpf', v)} />
+                    <TextField label="RG" value={form.rg} onChange={(e) => setField('rg', e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <SelectField
+                      id="part-estado-civil"
+                      label="Estado civil"
+                      value={form.estado_civil}
+                      onChange={(v) => setField('estado_civil', v)}
+                      options={['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável', 'Outro']}
                     />
-                    <TextField
-                      label="RG"
-                      size="small"
-                      fullWidth
-                      value={formData.rg || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, rg: e.target.value }))
-                      }
-                    />
-                  </Stack>
-                  <Stack direction="row" spacing={2}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel id="estado-civil-label">Estado Civil</InputLabel>
-                      <Select
-                        labelId="estado-civil-label"
-                        id="estado-civil-select"
-                        value={formData.estado_civil || ""}
-                        label="Estado Civil"
-                        onChange={(e) =>
-                          setFormData((prev: ParticipanteFormData) => ({ ...prev, estado_civil: e.target.value }))
-                        }
-                      >
-                        <MenuItem value="Solteiro(a)">Solteiro(a)</MenuItem>
-                        <MenuItem value="Casado(a)">Casado(a)</MenuItem>
-                        <MenuItem value="Divorciado(a)">Divorciado(a)</MenuItem>
-                        <MenuItem value="Viúvo(a)">Viúvo(a)</MenuItem>
-                        <MenuItem value="União Estável">União Estável</MenuItem>
-                        <MenuItem value="Outro">Outro</MenuItem>
-                      </Select>
-                    </FormControl>
-                    <TextField
-                      label="Profissão"
-                      size="small"
-                      fullWidth
-                      value={formData.profissao || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, profissao: e.target.value }))
-                      }
-                    />
-                  </Stack>
-                  <FormControl fullWidth size="small">
-                    <InputLabel id="genero-label">Gênero</InputLabel>
-                    <Select
-                      labelId="genero-label"
-                      id="genero-select"
-                      value={formData.genero || ""}
-                      label="Gênero"
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, genero: e.target.value }))
-                      }
-                    >
-                      <MenuItem value="Masculino">Masculino</MenuItem>
-                      <MenuItem value="Feminino">Feminino</MenuItem>
-                      <MenuItem value="Outro">Outro</MenuItem>
-                      <MenuItem value="Prefiro não responder">Prefiro não responder</MenuItem>
-                    </Select>
-                  </FormControl>
-                  <TextField
-                    label="Nome do Contato de Emergência"
-                    fullWidth
-                    size="small"
-                    value={formData.emergencia_contato || ""}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({ ...prev, emergencia_contato: e.target.value }))
-                    }
+                    <TextField label="Profissão" value={form.profissao} onChange={(e) => setField('profissao', e.target.value)} />
+                  </div>
+                  <SelectField
+                    id="part-genero"
+                    label="Gênero"
+                    value={form.genero}
+                    onChange={(v) => setField('genero', v)}
+                    options={['Masculino', 'Feminino', 'Outro', 'Prefiro não responder']}
                   />
                   <TextField
-                    label="Telefone de Emergência"
-                    fullWidth
-                    placeholder="(11) 99999-9999"
-                    size="small"
-                    value={formData.emergencia_fone || ""}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({ ...prev, emergencia_fone: e.target.value }))
-                    }
+                    label="Contato de emergência"
+                    value={form.emergencia_contato}
+                    onChange={(e) => setField('emergencia_contato', e.target.value)}
                   />
-                </Stack>
-              </Box>
+                  <MaskedInput
+                    mask="telefone"
+                    label="Telefone de emergência"
+                    value={form.emergencia_fone}
+                    onChange={(v) => setField('emergencia_fone', v)}
+                  />
+                </AccordionContent>
+              </AccordionItem>
 
-              {/* Seção Endereço */}
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
-                  Endereço Residencial
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                <Stack spacing={2}>
-                  <Stack direction="row" spacing={1}>
+              <AccordionItem value="endereco">
+                <AccordionTrigger>Endereço residencial</AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-4 px-0.5">
+                  <div className="flex items-start gap-2">
                     <TextField
                       label="CEP"
-                      size="small"
                       placeholder="00000-000"
-                      value={formData.cep || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, cep: e.target.value.replace(/[^\d-]/g, "").slice(0, 9) }))
-                      }
-                      onBlur={() => lookupCep(formData.cep)}
-                      error={!!cepError}
-                      helperText={cepError}
-                      fullWidth
+                      inputMode="numeric"
+                      value={form.cep}
+                      onChange={(e) => setField('cep', e.target.value.replace(/[^\d-]/g, '').slice(0, 9))}
+                      onBlur={() => lookupCep(form.cep)}
+                      error={cepError || undefined}
                     />
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      disabled={cepLoading}
-                      onClick={() => lookupCep(formData.cep)}
-                    >
-                      {cepLoading ? <CircularProgress size={20} /> : "Buscar"}
+                    <Button type="button" variant="outline" className="mt-[1.375rem]" disabled={cepLoading} onClick={() => lookupCep(form.cep)}>
+                      {cepLoading ? <Loader2 className="animate-spin" /> : 'Buscar'}
                     </Button>
-                  </Stack>
-                  <TextField
-                    label="Logradouro"
-                    size="small"
-                    value={formData.logradouro || ""}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({ ...prev, logradouro: e.target.value }))
-                    }
-                    fullWidth
-                  />
-                  <Stack direction="row" spacing={2}>
+                  </div>
+                  <TextField label="Logradouro" value={form.logradouro} onChange={(e) => setField('logradouro', e.target.value)} />
+                  <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-4">
+                    <TextField label="Número" value={form.numero} onChange={(e) => setField('numero', e.target.value)} />
+                    <TextField label="Complemento" value={form.complemento} onChange={(e) => setField('complemento', e.target.value)} />
+                  </div>
+                  <TextField label="Bairro" value={form.bairro} onChange={(e) => setField('bairro', e.target.value)} />
+                  <div className="grid grid-cols-[minmax(0,1fr)_5rem] gap-4">
+                    <TextField label="Cidade" value={form.cidade} onChange={(e) => setField('cidade', e.target.value)} />
                     <TextField
-                      label="Número"
-                      size="small"
-                      value={formData.numero || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, numero: e.target.value }))
-                      }
-                      sx={{ width: "120px" }}
+                      label="UF"
+                      value={form.estado}
+                      onChange={(e) => setField('estado', e.target.value.toUpperCase().slice(0, 2))}
                     />
-                    <TextField
-                      label="Complemento"
-                      size="small"
-                      value={formData.complemento || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, complemento: e.target.value }))
-                      }
-                      fullWidth
-                    />
-                  </Stack>
-                  <TextField
-                    label="Bairro"
-                    size="small"
-                    value={formData.bairro || ""}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({ ...prev, bairro: e.target.value }))
-                    }
-                    fullWidth
-                  />
-                  <Stack direction="row" spacing={2}>
-                    <TextField
-                      label="Cidade"
-                      size="small"
-                      value={formData.cidade || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, cidade: e.target.value }))
-                      }
-                      fullWidth
-                    />
-                    <TextField
-                      label="Estado"
-                      size="small"
-                      value={formData.estado || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, estado: e.target.value.toUpperCase().slice(0, 2) }))
-                      }
-                      sx={{ width: "100px" }}
-                    />
-                  </Stack>
-                </Stack>
-              </Box>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
-              {/* Seção Perfil Espiritual */}
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
-                  Ficha e Perfil Espiritual
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                <Stack spacing={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel id="umbanda-exp-label">Já teve experiência/estudo sobre Umbanda?</InputLabel>
-                    <Select
-                      labelId="umbanda-exp-label"
-                      value={formData.experiencia_umbanda || ""}
-                      label="Já teve experiência/estudo sobre Umbanda?"
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, experiencia_umbanda: e.target.value }))
-                      }
-                    >
-                      <MenuItem value="Sim">Sim</MenuItem>
-                      <MenuItem value="Não">Não</MenuItem>
-                      <MenuItem value="Outros">Outros</MenuItem>
-                    </Select>
-                  </FormControl>
-                  <FormControl fullWidth size="small">
-                    <InputLabel id="filho-contexto-label">Já foi/é filho de algum contexto espiritual?</InputLabel>
-                    <Select
-                      labelId="filho-contexto-label"
-                      value={formData.contato_contexto_espiritual || ""}
-                      label="Já foi/é filho de algum contexto espiritual?"
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, contato_contexto_espiritual: e.target.value }))
-                      }
-                    >
-                      <MenuItem value="Sim">Sim</MenuItem>
-                      <MenuItem value="Não">Não</MenuItem>
-                      <MenuItem value="Outros">Outros</MenuItem>
-                    </Select>
-                  </FormControl>
+              <AccordionItem value="espiritual">
+                <AccordionTrigger>Ficha e perfil espiritual</AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-4 px-0.5">
+                  <SelectField
+                    id="part-exp-umbanda"
+                    label="Já teve experiência/estudo sobre Umbanda?"
+                    value={form.experiencia_umbanda}
+                    onChange={(v) => setField('experiencia_umbanda', v)}
+                    options={['Sim', 'Não', 'Outros']}
+                  />
+                  <SelectField
+                    id="part-contexto"
+                    label="Já foi/é filho de algum contexto espiritual?"
+                    value={form.contato_contexto_espiritual}
+                    onChange={(v) => setField('contato_contexto_espiritual', v)}
+                    options={['Sim', 'Não', 'Outros']}
+                  />
                   <TextField
                     label="O que motivou a busca pelo desenvolvimento mediúnico?"
-                    size="small"
                     multiline
                     rows={2}
-                    value={formData.motivo_busca_desenvolvimento || ""}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({ ...prev, motivo_busca_desenvolvimento: e.target.value }))
-                    }
-                    fullWidth
+                    value={form.motivo_busca_desenvolvimento}
+                    onChange={(e) => setField('motivo_busca_desenvolvimento', e.target.value)}
                   />
                   <TextField
                     label="Tem interesse em algum aprendizado específico? Qual?"
-                    size="small"
                     multiline
                     rows={2}
-                    value={formData.interesse_aprendizado || ""}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({ ...prev, interesse_aprendizado: e.target.value }))
-                    }
-                    fullWidth
+                    value={form.interesse_aprendizado}
+                    onChange={(e) => setField('interesse_aprendizado', e.target.value)}
                   />
-                  <FormControl fullWidth size="small">
-                    <InputLabel id="conhece-terreiro-label">{`Já conhece o Terreiro ${tenantName || "Terreiro"}?`}</InputLabel>
-                    <Select
-                      labelId="conhece-terreiro-label"
-                      value={formData.ja_conhece_terreiro === true ? "Sim" : formData.ja_conhece_terreiro === false ? "Não" : ""}
-                      label={`Já conhece o Terreiro ${tenantName || "Terreiro"}?`}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setFormData((prev: ParticipanteFormData) => ({
-                          ...prev,
-                          ja_conhece_terreiro: val === "Sim" ? true : val === "Não" ? false : null
-                        }));
-                      }}
-                    >
-                      <MenuItem value="Sim">Sim</MenuItem>
-                      <MenuItem value="Não">Não</MenuItem>
-                    </Select>
-                  </FormControl>
+                  <SelectField
+                    id="part-conhece"
+                    label={`Já conhece o Terreiro ${nomeTerreiro}?`}
+                    value={form.ja_conhece_terreiro === true ? 'Sim' : form.ja_conhece_terreiro === false ? 'Não' : ''}
+                    onChange={(v) => setField('ja_conhece_terreiro', v === 'Sim' ? true : v === 'Não' ? false : null)}
+                    options={['Sim', 'Não']}
+                  />
                   <TextField
-                    label={`Como conheceu o Terreiro ${tenantName || "Terreiro"}?`}
-                    size="small"
-                    value={formData.como_conheceu_terreiro || ""}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({ ...prev, como_conheceu_terreiro: e.target.value }))
-                    }
-                    fullWidth
+                    label={`Como conheceu o Terreiro ${nomeTerreiro}?`}
+                    value={form.como_conheceu_terreiro}
+                    onChange={(e) => setField('como_conheceu_terreiro', e.target.value)}
                   />
-                </Stack>
-              </Box>
+                </AccordionContent>
+              </AccordionItem>
 
-              {/* Seção Ficha Médica */}
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
-                  Ficha Médica & Saúde
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                <Stack spacing={2}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.tem_plano_saude || false}
-                        onChange={(e) =>
-                          setFormData((prev: ParticipanteFormData) => ({ ...prev, tem_plano_saude: e.target.checked }))
-                        }
-                      />
-                    }
-                    label="Possui Plano de Saúde"
-                  />
-                  {formData.tem_plano_saude && (
-                    <TextField
-                      label="Nome do Plano de Saúde"
-                      size="small"
-                      value={formData.plano_saude_nome || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, plano_saude_nome: e.target.value }))
-                      }
-                      fullWidth
-                    />
+              <AccordionItem value="saude">
+                <AccordionTrigger>Ficha médica e saúde</AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3 px-0.5">
+                  <CheckField id="part-plano" label="Possui plano de saúde" checked={form.tem_plano_saude} onChange={(v) => setField('tem_plano_saude', v)} />
+                  {form.tem_plano_saude && (
+                    <TextField label="Nome do plano de saúde" value={form.plano_saude_nome} onChange={(e) => setField('plano_saude_nome', e.target.value)} />
                   )}
-
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.toma_medicamento || false}
-                        onChange={(e) =>
-                          setFormData((prev: ParticipanteFormData) => ({ ...prev, toma_medicamento: e.target.checked }))
-                        }
-                      />
-                    }
-                    label="Toma Algum Medicamento de Uso Contínuo"
+                  <CheckField
+                    id="part-medicamento"
+                    label="Toma algum medicamento de uso contínuo"
+                    checked={form.toma_medicamento}
+                    onChange={(v) => setField('toma_medicamento', v)}
                   />
-                  {formData.toma_medicamento && (
+                  {form.toma_medicamento && (
                     <TextField
-                      label="Medicamentos em Uso"
-                      size="small"
+                      label="Medicamentos em uso"
                       multiline
                       rows={2}
-                      value={formData.medicamentos_nome || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, medicamentos_nome: e.target.value }))
-                      }
-                      fullWidth
+                      value={form.medicamentos_nome}
+                      onChange={(e) => setField('medicamentos_nome', e.target.value)}
                     />
                   )}
-
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.tem_doenca_tratamento || false}
-                        onChange={(e) =>
-                          setFormData((prev: ParticipanteFormData) => ({ ...prev, tem_doenca_tratamento: e.target.checked }))
-                        }
-                      />
-                    }
-                    label="Faz Algum Tratamento de Doença"
+                  <CheckField
+                    id="part-doenca"
+                    label="Faz algum tratamento de doença"
+                    checked={form.tem_doenca_tratamento}
+                    onChange={(v) => setField('tem_doenca_tratamento', v)}
                   />
-                  {formData.tem_doenca_tratamento && (
+                  {form.tem_doenca_tratamento && (
                     <TextField
-                      label="Tratamento/Doença"
-                      size="small"
+                      label="Tratamento/doença"
                       multiline
                       rows={2}
-                      value={formData.doenca_tratamento_nome || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, doenca_tratamento_nome: e.target.value }))
-                      }
-                      fullWidth
+                      value={form.doenca_tratamento_nome}
+                      onChange={(e) => setField('doenca_tratamento_nome', e.target.value)}
                     />
                   )}
-
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.tem_diabetes || false}
-                        onChange={(e) =>
-                          setFormData((prev: ParticipanteFormData) => ({ ...prev, tem_diabetes: e.target.checked }))
-                        }
-                      />
-                    }
-                    label="Possui Diabetes"
-                  />
-
+                  <CheckField id="part-diabetes" label="Possui diabetes" checked={form.tem_diabetes} onChange={(v) => setField('tem_diabetes', v)} />
                   <TextField
-                    label="Outras Condições/Doenças a Mencionar"
-                    size="small"
+                    label="Outras condições/doenças a mencionar"
                     multiline
                     rows={2}
-                    value={formData.outras_doencas || ""}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({ ...prev, outras_doencas: e.target.value }))
-                    }
-                    fullWidth
+                    value={form.outras_doencas}
+                    onChange={(e) => setField('outras_doencas', e.target.value)}
                   />
-
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.tratamento_psiquiatrico || false}
-                        onChange={(e) =>
-                          setFormData((prev: ParticipanteFormData) => ({ ...prev, tratamento_psiquiatrico: e.target.checked }))
-                        }
-                      />
-                    }
-                    label="Faz Acompanhamento Psiquiátrico / Remédios Controlados"
+                  <CheckField
+                    id="part-psiq"
+                    label="Faz acompanhamento psiquiátrico / remédios controlados"
+                    checked={form.tratamento_psiquiatrico}
+                    onChange={(v) => setField('tratamento_psiquiatrico', v)}
                   />
-                  {formData.tratamento_psiquiatrico && (
+                  {form.tratamento_psiquiatrico && (
                     <TextField
-                      label="Especifique Tratamentos e Remédios Psiquiátricos"
-                      size="small"
+                      label="Tratamentos e remédios psiquiátricos"
                       multiline
                       rows={2}
-                      value={formData.tratamento_psiquiatrico_detalhes || ""}
-                      onChange={(e) =>
-                        setFormData((prev: ParticipanteFormData) => ({ ...prev, tratamento_psiquiatrico_detalhes: e.target.value }))
-                      }
-                      fullWidth
+                      value={form.tratamento_psiquiatrico_detalhes}
+                      onChange={(e) => setField('tratamento_psiquiatrico_detalhes', e.target.value)}
                     />
                   )}
-
                   <TextField
-                    label="Restrições Médicas, Físicas ou de Cuidado Especial"
-                    size="small"
+                    label="Restrições médicas, físicas ou de cuidado especial"
                     multiline
                     rows={2}
-                    value={formData.restricoes_saude || ""}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({ ...prev, restricoes_saude: e.target.value }))
-                    }
-                    fullWidth
+                    value={form.restricoes_saude}
+                    onChange={(e) => setField('restricoes_saude', e.target.value)}
                   />
-                </Stack>
-              </Box>
+                </AccordionContent>
+              </AccordionItem>
 
-              {/* Seção LGPD / Termos */}
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="subtitle2" fontWeight={600} color="text.secondary" gutterBottom>
-                  Termos e Consentimento (LGPD)
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                <Stack spacing={1}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.aceita_uso_dados || false}
-                        onChange={(e) =>
-                          setFormData((prev: ParticipanteFormData) => ({ ...prev, aceita_uso_dados: e.target.checked }))
-                        }
-                      />
-                    }
+              <AccordionItem value="lgpd">
+                <AccordionTrigger>Termos e consentimento (LGPD)</AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3 px-0.5">
+                  <CheckField
+                    id="part-lgpd-dados"
                     label="Autoriza o uso dos dados pessoais (LGPD)"
+                    checked={form.aceita_uso_dados}
+                    onChange={(v) => setField('aceita_uso_dados', v)}
                   />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.aceita_uso_imagem || false}
-                        onChange={(e) =>
-                          setFormData((prev: ParticipanteFormData) => ({ ...prev, aceita_uso_imagem: e.target.checked }))
-                        }
-                      />
-                    }
+                  <CheckField
+                    id="part-lgpd-imagem"
                     label="Autoriza o uso de imagem e voz"
+                    checked={form.aceita_uso_imagem}
+                    onChange={(v) => setField('aceita_uso_imagem', v)}
                   />
-                </Stack>
-              </Box>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
 
-              {/* Seção Comprovante de Inscrição */}
-              <Box sx={{ mt: 2, pt: 2, borderTop: "1px dashed", borderColor: "divider" }}>
-                <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                  Comprovante de Inscrição (Matrícula)
-                </Typography>
-                {formData.comprovante_inscricao_filename && (
-                  <Box sx={{ mb: 2, p: 1.5, bgcolor: "grey.100", borderRadius: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {formData.comprovante_inscricao_filename}
-                    </Typography>
-                    <Stack direction="row" spacing={1}>
-                      <IconButton
-                        size="small"
-                        onClick={async () => {
-                          try {
-                            const res = await apiClient.get(
-                              `/api/v1/admin/cursos-presenciais/${id}/participantes/${editingId}/comprovante`,
-                              { responseType: 'blob' },
-                            );
-                            const url = URL.createObjectURL(res.data);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = formData.comprovante_inscricao_filename || 'comprovante';
-                            a.click();
-                            URL.revokeObjectURL(url);
-                          } catch {
-                            showAlert("Erro ao baixar comprovante.", "error");
-                          }
-                        }}
-                      >
-                        <DownloadIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
+          {/* Comprovante de inscrição */}
+          {(canInsert || form.comprovante_inscricao_filename) && (
+            <div className="flex flex-col gap-2 rounded-lg border border-dashed p-3">
+              <span className="text-sm font-medium">Comprovante de inscrição (matrícula)</span>
+              {form.comprovante_inscricao_filename && editingId && (
+                <div className="flex items-center justify-between gap-2 rounded-md bg-muted px-2 py-1.5">
+                  <span className="truncate text-sm">{form.comprovante_inscricao_filename}</span>
+                  <span className="flex shrink-0 gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Baixar comprovante de inscrição"
+                      onClick={() => baixarInscricao(editingId, form.comprovante_inscricao_filename)}
+                    >
+                      <Download />
+                    </Button>
+                    {canDelete && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-destructive hover:text-destructive"
+                        aria-label="Remover comprovante de inscrição"
                         onClick={() => setRemoveCompOpen(true)}
                       >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Stack>
-                  </Box>
-                )}
-                <Box>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {formData.comprovante_inscricao_filename ? "Alterar comprovante de inscrição (JPG, PNG, WebP, PDF)" : "Anexar comprovante de inscrição (JPG, PNG, WebP, PDF)"}
-                  </Typography>
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    size="small"
-                    startIcon={<AttachFileIcon />}
-                    sx={{ mt: 0.5 }}
-                  >
-                    {matriculaFile ? matriculaFile.name : 'Selecionar arquivo'}
-                    <input
-                      type="file"
-                      hidden
-                      accept=".jpg,.jpeg,.png,.webp,.pdf"
-                      onChange={(e) => setMatriculaFile(e.target.files?.[0] ?? null)}
-                    />
-                  </Button>
-                </Box>
-              </Box>
-            </>
-          )}
-
-          {/* Seção Exclusiva de Pagamento Tradicional (Apenas se gerar_mensalidade for falso e for edição) */}
-          {!curso?.gerar_mensalidade && drawerMode === "edit" && (
-            <Box
-              sx={{
-                mt: 2,
-                pt: 2,
-                borderTop: "1px solid",
-                borderColor: "divider",
-              }}
-            >
-              <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                Informações de Pagamento
-              </Typography>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={formData.pago || false}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({
-                        ...prev,
-                        pago: e.target.checked,
-                        valor_pago: e.target.checked && !prev.valor_pago ? prev.valor_mensalidade : prev.valor_pago,
-                        data_pagamento: e.target.checked && !prev.data_pagamento ? new Date().toISOString().substring(0, 10) : prev.data_pagamento,
-                      }))
-                    }
-                  />
-                }
-                label="Marcar como Pago"
-              />
-
-              {formData.pago && (
-                <Stack spacing={2} mt={1}>
-                  <TextField
-                    label="Valor Pago (R$)"
-                    type="number"
-                    fullWidth
-                    required
-                    value={formData.valor_pago || ""}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({ ...prev, valor_pago: e.target.value }))
-                    }
-                  />
-                  <TextField
-                    label="Data do Pagamento"
-                    type="date"
-                    fullWidth
-                    required
-                    InputLabelProps={{ shrink: true }}
-                    value={formData.data_pagamento || ""}
-                    onChange={(e) =>
-                      setFormData((prev: ParticipanteFormData) => ({ ...prev, data_pagamento: e.target.value }))
-                    }
-                  />
-                </Stack>
+                        <Trash2 />
+                      </Button>
+                    )}
+                  </span>
+                </div>
               )}
-            </Box>
+              {canInsert && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button asChild variant="outline" size="sm">
+                    <label className="cursor-pointer">
+                      <Paperclip />
+                      {form.comprovante_inscricao_filename ? 'Trocar arquivo' : 'Anexar arquivo'}
+                      <input
+                        type="file"
+                        className="sr-only"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf"
+                        onChange={(e) => {
+                          setMatriculaFile(e.target.files?.[0] ?? null);
+                          setDirty(true);
+                        }}
+                      />
+                    </label>
+                  </Button>
+                  {matriculaFile && (
+                    <span className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+                      <span className="max-w-[12rem] truncate">{matriculaFile.name}</span>
+                      <Button type="button" variant="ghost" size="icon-xs" aria-label="Remover arquivo" onClick={() => setMatriculaFile(null)}>
+                        <X />
+                      </Button>
+                    </span>
+                  )}
+                  <span className="w-full text-xs text-muted-foreground">JPG, PNG, WebP ou PDF.</span>
+                </div>
+              )}
+            </div>
           )}
-        </Stack>
-      </CrudDrawer>
 
-      {/* Drawer de Pagamento Mensal */}
-      <CrudDrawer
-        open={paymentDrawerOpen}
-        onClose={() => setPaymentDrawerOpen(false)}
-        title={paymentItem ? `Mensalidade — ${paymentItem.participante_nome}` : "Registrar Mensalidade"}
-        onSave={handleSavePayment}
-        saving={paymentSaving}
-      >
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-          {mes < toYYYYMM(today) && (
-            <Alert severity="warning">
-              Você está editando um mês passado. Verifique os dados antes de salvar.
+          {/* Pagamento único (curso sem cobrança mensal, só na edição) */}
+          {!gerarMensalidade && drawerMode === 'edit' && (
+            <div className="flex flex-col gap-3 rounded-lg border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="part-pago">Pagamento recebido</Label>
+                <Switch
+                  id="part-pago"
+                  checked={form.pago}
+                  onCheckedChange={(v) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      pago: v,
+                      valor_pago: v && !prev.valor_pago ? prev.valor_mensalidade : prev.valor_pago,
+                      data_pagamento: v && !prev.data_pagamento ? todayBr() : prev.data_pagamento,
+                    }));
+                    setDirty(true);
+                  }}
+                />
+              </div>
+              {form.pago && (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <MoneyInput label="Valor pago" value={form.valor_pago} onChange={(v) => setField('valor_pago', v)} />
+                  <DateField
+                    label="Data do pagamento"
+                    value={form.data_pagamento}
+                    max={todayBr()}
+                    onChange={(v) => setField('data_pagamento', v)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {drawerMode === 'create' && lotada && (
+            <Alert variant="warning">
+              <AlertDescription>Turma lotada: não há vagas disponíveis.</AlertDescription>
             </Alert>
           )}
-
-          <FormControl size="small" fullWidth>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={paymentStatus}
-              label="Status"
-              onChange={(e) => setPaymentStatus(e.target.value as 'PAGO' | 'PENDENTE' | 'ISENTO')}
-            >
-              <MenuItem value="PAGO">Pago</MenuItem>
-              <MenuItem value="PENDENTE">Pendente</MenuItem>
-              <MenuItem value="ISENTO">Isento</MenuItem>
-            </Select>
-          </FormControl>
-
-          {paymentStatus === 'PAGO' && (
-            <>
-              <TextField
-                size="small"
-                label="Data do pagamento"
-                type="date"
-                value={paymentDataPag}
-                onChange={(e) => setPaymentDataPag(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
-              <NumericFormat
-                customInput={TextField}
-                size="small"
-                label="Valor pago (R$)"
-                fullWidth
-                value={paymentValorPago}
-                onValueChange={(values) => setPaymentValorPago(values.value)}
-                thousandSeparator="."
-                decimalSeparator=","
-                decimalScale={2}
-                fixedDecimalScale
-                prefix="R$ "
-                allowNegative={false}
-              />
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Comprovante (JPG, PNG, WebP, PDF — max 5MB)
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  size="small"
-                  startIcon={<AttachFileIcon />}
-                  sx={{ mt: 0.5, display: 'block' }}
-                >
-                  {paymentFile ? paymentFile.name : 'Anexar arquivo'}
-                  <input
-                    type="file"
-                    hidden
-                    accept=".jpg,.jpeg,.png,.webp,.pdf"
-                    onChange={(e) => setPaymentFile(e.target.files?.[0] ?? null)}
-                  />
-                </Button>
-              </Box>
-            </>
-          )}
-
-          <TextField
-            size="small"
-            label="Observação"
-            multiline
-            rows={3}
-            value={paymentObs}
-            onChange={(e) => setPaymentObs(e.target.value)}
-            fullWidth
-          />
-        </Box>
+        </div>
       </CrudDrawer>
 
       <ConfirmDialog
-        open={removePartOpen}
+        open={removeTarget !== null}
         title="Remover participante"
-        message={`Deseja remover o participante "${removePartTarget?.nome}" do curso?`}
+        message={
+          <>
+            Remover <strong>{removeTarget?.nome}</strong> do curso?
+          </>
+        }
         confirmText="Remover"
         destructive
-        onConfirm={handleRemoveParticipante}
-        onCancel={() => { setRemovePartOpen(false); setRemovePartTarget(null); }}
+        loading={removing}
+        onConfirm={handleRemove}
+        onCancel={() => setRemoveTarget(null)}
       />
 
       <ConfirmDialog
@@ -2097,37 +1449,9 @@ export default function ParticipantesPage() {
         message="Deseja remover este comprovante de inscrição?"
         confirmText="Remover"
         destructive
-        onConfirm={async () => {
-          if (!canDelete) return;
-          try {
-            await apiClient.delete(`/api/v1/admin/cursos-presenciais/${id}/participantes/${editingId}/comprovante`);
-            setFormData((prev: ParticipanteFormData) => ({ ...prev, comprovante_inscricao_filename: null }));
-            showAlert("Comprovante de inscrição removido.", "success");
-            fetchParticipantes();
-          } catch {
-            showAlert("Erro ao remover comprovante.", "error");
-          } finally {
-            setRemoveCompOpen(false);
-          }
-        }}
+        onConfirm={handleRemoveComprovante}
         onCancel={() => setRemoveCompOpen(false)}
       />
-
-      {/* Alerts */}
-      <Snackbar
-        open={alert.open}
-        autoHideDuration={6000}
-        onClose={() => setAlert((prev) => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-      >
-        <Alert
-          onClose={() => setAlert((prev) => ({ ...prev, open: false }))}
-          severity={alert.severity}
-          sx={{ width: "100%" }}
-        >
-          {alert.message}
-        </Alert>
-      </Snackbar>
-    </AdminLayout>
+    </div>
   );
 }

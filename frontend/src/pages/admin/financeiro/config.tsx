@@ -1,152 +1,146 @@
 /**
  * Admin Financeiro — Configuração
- * Tabs: Categorias | Contas Bancárias | Mensalidade
+ * Abas: Categorias | Contas bancárias | Mensalidade (Card + Switch, salvar fixo no rodapé).
  */
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  FormControl,
-  FormControlLabel,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Select,
-  SelectChangeEvent,
-  Snackbar,
-  Switch,
-  Tab,
-  Tabs,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import SettingsIcon from '@mui/icons-material/Settings';
-import SaveIcon from '@mui/icons-material/Save';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import CategoryIcon from '@mui/icons-material/Category';
-import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import CurrencyInput from '../../../components/CurrencyInput';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Landmark, MoreHorizontal, Pencil, Plus, Save, Settings2, Tags, Trash2, Loader2 } from 'lucide-react';
 import AdminLayout from '../admin_layout';
-import UpgradePrompt from '../../../components/UpgradePrompt';
 import CrudDrawer from '../../../components/CrudDrawer';
 import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
+import { useSnackbar } from '../../../contexts/SnackbarContext';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { PageHeader } from '@/components/admin/PageHeader';
+import { EmptyState } from '@/components/EmptyState';
+import { PermissionDenied, PlanLocked, ReadOnlyNotice } from '@/components/gates';
+import { MoneyInput, TextField } from '@/components/fields';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { formatBRL } from '@/lib/dateBr';
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// ── Tipos ─────────────────────────────────────────────────────────────────────
 
-interface Categoria {
-  id: string;
-  nome: string;
-  tipo: string;
-  cor: string | null;
-  ativo: boolean;
-}
-
-interface ContaBancaria {
-  id: string;
-  nome: string;
-  banco: string | null;
-  saldo_inicial: number;
-  ativo: boolean;
-}
-
-// ── Paleta de cores para categorias ───────────────────────────────────────────
+interface Categoria { id: string; nome: string; tipo: string; cor: string | null; ativo: boolean }
+interface ContaBancaria { id: string; nome: string; banco: string | null; saldo_inicial: number; ativo: boolean }
 
 const COR_OPTIONS = [
-  '#1D9E75', '#378ADD', '#D4537E', '#BA7517', '#A32D2D',
-  '#534AB7', '#0F6E56', '#993C1D', '#185FA5', '#3B6D11',
-  '#5F5E5A', '#D85A30',
+  '#1D9E75', '#378ADD', '#D4537E', '#BA7517', '#A32D2D', '#534AB7',
+  '#0F6E56', '#993C1D', '#185FA5', '#3B6D11', '#5F5E5A', '#D85A30',
 ];
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+const TIPO_LABEL: Record<string, string> = { pagar: 'Saída', receber: 'Entrada', ambos: 'Ambos' };
 
-const TIPO_LABEL: Record<string, string> = {
-  pagar: 'A Pagar',
-  receber: 'A Receber',
-  ambos: 'Ambos',
-};
+function TipoBadge({ tipo }: { tipo: string }) {
+  if (tipo === 'pagar') return <Badge variant="outline" className="border-destructive/40 text-destructive">{TIPO_LABEL.pagar}</Badge>;
+  if (tipo === 'receber') return <Badge variant="outline" className="border-success/40 text-success">{TIPO_LABEL.receber}</Badge>;
+  return <Badge variant="outline">{TIPO_LABEL[tipo] ?? tipo}</Badge>;
+}
 
-const TIPO_COLOR: Record<string, 'error' | 'success' | 'default'> = {
-  pagar: 'error',
-  receber: 'success',
-  ambos: 'default',
-};
+function ListSkeleton() {
+  return (
+    <Card className="gap-0 py-0">
+      <CardContent className="flex flex-col gap-3 p-4">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-9 w-full" />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
-// ── Snack helper type ──────────────────────────────────────────────────────────
-
-type Snack = { open: boolean; msg: string; severity: 'success' | 'error' };
-
-const SNACK_CLOSED: Snack = { open: false, msg: '', severity: 'success' };
+function RowMenu({ nome, onEdit, onDelete }: { nome: string; onEdit?: () => void; onDelete?: () => void }) {
+  if (!onEdit && !onDelete) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label={`Ações de ${nome}`}>
+          <MoreHorizontal />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {onEdit && (
+          <DropdownMenuItem onSelect={onEdit}>
+            <Pencil />
+            Editar
+          </DropdownMenuItem>
+        )}
+        {onDelete && (
+          <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+            <Trash2 />
+            Excluir
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Tab: Categorias
+// Aba: Categorias
 // ═══════════════════════════════════════════════════════════════════════════════
+
+const EMPTY_CAT = { nome: '', tipo: 'ambos', cor: COR_OPTIONS[0] };
 
 function CategoriasTab() {
   const { can: canGroup } = usePermissions();
+  const { showSuccess, showError } = useSnackbar();
   const canView = canGroup('contas_financeiras', 'view');
   const canInsert = canGroup('contas_financeiras', 'insert');
   const canEdit = canGroup('contas_financeiras', 'edit');
   const canDelete = canGroup('contas_financeiras', 'delete');
+
   const [items, setItems] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
-  const [snack, setSnack] = useState<Snack>(SNACK_CLOSED);
-
-  // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
   const [editTarget, setEditTarget] = useState<Categoria | null>(null);
   const [saving, setSaving] = useState(false);
-
-  // Form
-  const EMPTY_FORM = { nome: '', tipo: 'ambos', cor: COR_OPTIONS[0] };
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(EMPTY_CAT);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-
-  // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<Categoria | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const isDirty = form.nome !== EMPTY_FORM.nome || form.tipo !== EMPTY_FORM.tipo;
-
   const load = useCallback(async () => {
-    if (!canView) { setLoading(false); return; }
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     try {
       const res = await apiClient.get<Categoria[]>('/api/v1/admin/financeiro/categorias');
       setItems(res.data);
     } catch {
-      setSnack({ open: true, msg: 'Erro ao carregar categorias.', severity: 'error' });
+      showError('Erro ao carregar categorias.');
     } finally {
       setLoading(false);
     }
-  }, [canView]);
+  }, [canView, showError]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const openCreate = () => {
-    setForm(EMPTY_FORM);
+    setForm(EMPTY_CAT);
     setTouched({});
     setDrawerMode('create');
     setEditTarget(null);
     setDrawerOpen(true);
   };
-
   const openEdit = (cat: Categoria) => {
     setForm({ nome: cat.nome, tipo: cat.tipo, cor: cat.cor ?? COR_OPTIONS[0] });
     setTouched({});
@@ -155,6 +149,11 @@ function CategoriasTab() {
     setDrawerOpen(true);
   };
 
+  const isDirty =
+    drawerMode === 'create'
+      ? form.nome !== '' || form.tipo !== EMPTY_CAT.tipo
+      : !!editTarget && (form.nome !== editTarget.nome || form.tipo !== editTarget.tipo || form.cor !== (editTarget.cor ?? COR_OPTIONS[0]));
+
   const handleSave = async () => {
     setTouched({ nome: true });
     if (!form.nome.trim()) return;
@@ -162,24 +161,14 @@ function CategoriasTab() {
     if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
     try {
-      if (drawerMode === 'create') {
-        await apiClient.post('/api/v1/admin/financeiro/categorias', {
-          nome: form.nome.trim(),
-          tipo: form.tipo,
-          cor: form.cor,
-        });
-      } else if (editTarget) {
-        await apiClient.put(`/api/v1/admin/financeiro/categorias/${editTarget.id}`, {
-          nome: form.nome.trim(),
-          tipo: form.tipo,
-          cor: form.cor,
-        });
-      }
+      const body = { nome: form.nome.trim(), tipo: form.tipo, cor: form.cor };
+      if (drawerMode === 'create') await apiClient.post('/api/v1/admin/financeiro/categorias', body);
+      else if (editTarget) await apiClient.put(`/api/v1/admin/financeiro/categorias/${editTarget.id}`, body);
       setDrawerOpen(false);
-      setSnack({ open: true, msg: drawerMode === 'create' ? 'Categoria criada.' : 'Categoria atualizada.', severity: 'success' });
+      showSuccess(drawerMode === 'create' ? 'Categoria criada.' : 'Categoria atualizada.');
       load();
     } catch (err) {
-      setSnack({ open: true, msg: extractApiErrorMessage(err, 'Erro ao salvar.'), severity: 'error' });
+      showError(extractApiErrorMessage(err, 'Erro ao salvar.'));
     } finally {
       setSaving(false);
     }
@@ -190,252 +179,202 @@ function CategoriasTab() {
     setDeleting(true);
     try {
       await apiClient.delete(`/api/v1/admin/financeiro/categorias/${deleteTarget.id}`);
-      setDeleteTarget(null);
-      setSnack({ open: true, msg: 'Categoria excluída.', severity: 'success' });
+      showSuccess('Categoria excluída.');
       load();
     } catch (err) {
-      setDeleteTarget(null);
-      setSnack({ open: true, msg: extractApiErrorMessage(err, 'Erro ao excluir.'), severity: 'error' });
+      showError(extractApiErrorMessage(err, 'Erro ao excluir.'));
     } finally {
+      setDeleteTarget(null);
       setDeleting(false);
     }
   };
 
-  if (!canView) {
-    return (
-      <Alert severity="warning" sx={{ mt: 2 }}>
-        Você não tem permissão para visualizar categorias financeiras. Contate o administrador do sistema.
-      </Alert>
-    );
-  }
+  if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar categorias financeiras." />;
 
   return (
-    <>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="body2" color="text.secondary">
-          {loading ? '' : `${items.length} categoria${items.length !== 1 ? 's' : ''} cadastrada${items.length !== 1 ? 's' : ''}`}
-        </Typography>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {loading ? '' : `${items.length} categoria${items.length !== 1 ? 's' : ''}`}
+        </p>
         {canInsert && (
-          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
+          <Button size="sm" onClick={openCreate}>
+            <Plus />
             Nova categoria
           </Button>
         )}
-      </Box>
+      </div>
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+        <ListSkeleton />
       ) : items.length === 0 ? (
-        <Card variant="outlined">
-          <CardContent sx={{ textAlign: 'center', py: 4 }}>
-            <CategoryIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
-            <Typography variant="body2" color="text.secondary">
-              Nenhuma categoria cadastrada. Crie a primeira para organizar seus lançamentos.
-            </Typography>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<Tags className="size-10 text-ghost" aria-hidden />}
+          title="Nenhuma categoria"
+          description="Crie a primeira para organizar seus lançamentos."
+          action={canInsert ? <Button size="sm" onClick={openCreate}><Plus />Nova categoria</Button> : undefined}
+        />
       ) : (
-        <Card variant="outlined">
-          {items.map((cat, idx) => (
-            <Box
-              key={cat.id}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                px: 2,
-                py: 1.5,
-                borderBottom: idx < items.length - 1 ? '1px solid' : 'none',
-                borderColor: 'divider',
-              }}
-            >
-              <Box
-                sx={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  bgcolor: cat.cor ?? '#888',
-                  flexShrink: 0,
-                }}
-              />
-              <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>
-                {cat.nome}
-              </Typography>
-              <Chip
-                label={TIPO_LABEL[cat.tipo] ?? cat.tipo}
-                color={TIPO_COLOR[cat.tipo] ?? 'default'}
-                size="small"
-                variant="outlined"
-              />
-              {canEdit && (
-                <Tooltip title="Editar">
-                  <IconButton size="small" onClick={() => openEdit(cat)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-              {canDelete && (
-                <Tooltip title="Excluir">
-                  <IconButton size="small" color="error" onClick={() => setDeleteTarget(cat)}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-            </Box>
-          ))}
+        <Card className="gap-0 overflow-hidden py-0">
+          <ul className="divide-y">
+            {items.map((cat) => (
+              <li key={cat.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="size-3.5 shrink-0 rounded-full" style={{ backgroundColor: cat.cor ?? '#888' }} aria-hidden />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{cat.nome}</span>
+                <TipoBadge tipo={cat.tipo} />
+                <RowMenu
+                  nome={cat.nome}
+                  onEdit={canEdit ? () => openEdit(cat) : undefined}
+                  onDelete={canDelete ? () => setDeleteTarget(cat) : undefined}
+                />
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 
-      {/* Drawer criar / editar */}
       <CrudDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title={drawerMode === 'create' ? 'Nova Categoria' : 'Editar Categoria'}
+        title={drawerMode === 'create' ? 'Nova categoria' : 'Editar categoria'}
         subtitle="Organize seus lançamentos financeiros por categoria"
-        icon={<CategoryIcon />}
+        icon={<Tags />}
         onSave={handleSave}
         saving={saving}
         saveDisabled={!form.nome.trim()}
         isDirty={isDirty}
       >
-        <TextField
-          label="Nome *"
-          value={form.nome}
-          onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-          onBlur={() => setTouched((t) => ({ ...t, nome: true }))}
-          error={touched.nome && !form.nome.trim()}
-          helperText={touched.nome && !form.nome.trim() ? 'Obrigatório' : ''}
-          fullWidth
-          autoFocus
-        />
-
-        <FormControl fullWidth>
-          <InputLabel>Tipo</InputLabel>
-          <Select
-            value={form.tipo}
-            label="Tipo"
-            onChange={(e: SelectChangeEvent) => setForm((f) => ({ ...f, tipo: e.target.value }))}
-          >
-            <MenuItem value="pagar">A Pagar</MenuItem>
-            <MenuItem value="receber">A Receber</MenuItem>
-            <MenuItem value="ambos">Ambos</MenuItem>
-          </Select>
-        </FormControl>
-
-        <Box>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Cor de identificação
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {COR_OPTIONS.map((cor) => (
-              <Box
-                key={cor}
-                onClick={() => setForm((f) => ({ ...f, cor }))}
-                sx={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  bgcolor: cor,
-                  cursor: 'pointer',
-                  border: form.cor === cor ? '3px solid' : '2px solid transparent',
-                  borderColor: form.cor === cor ? 'text.primary' : 'transparent',
-                  transition: 'border-color 0.15s',
-                  '&:hover': { opacity: 0.85 },
-                }}
-              />
-            ))}
-          </Box>
-        </Box>
+        <div className="flex flex-col gap-4">
+          <TextField
+            label="Nome"
+            value={form.nome}
+            onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
+            onBlur={() => setTouched((t) => ({ ...t, nome: true }))}
+            required
+            error={touched.nome && !form.nome.trim() && 'Obrigatório'}
+            autoFocus
+          />
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="cat-tipo">Tipo</Label>
+            <Select value={form.tipo} onValueChange={(v) => setForm((f) => ({ ...f, tipo: v }))}>
+              <SelectTrigger id="cat-tipo" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pagar">Saída (a pagar)</SelectItem>
+                <SelectItem value="receber">Entrada (a receber)</SelectItem>
+                <SelectItem value="ambos">Ambos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">Cor de identificação</legend>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Cor de identificação">
+              {COR_OPTIONS.map((cor) => {
+                const selected = form.cor === cor;
+                return (
+                  <button
+                    key={cor}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    aria-label={`Cor ${cor}`}
+                    onClick={() => setForm((f) => ({ ...f, cor }))}
+                    className={`size-7 rounded-full border-2 transition-[border-color,transform] hover:scale-105 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${
+                      selected ? 'border-foreground' : 'border-transparent'
+                    }`}
+                    style={{ backgroundColor: cor }}
+                  />
+                );
+              })}
+            </div>
+          </fieldset>
+        </div>
       </CrudDrawer>
 
-      {/* Confirmar exclusão */}
-      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
-        <DialogTitle>Excluir categoria?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            A categoria <strong>{deleteTarget?.nome}</strong> será excluída permanentemente.
-            Lançamentos vinculados a ela ficarão sem categoria.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancelar</Button>
-          <Button onClick={handleDelete} color="error" disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={16} /> : undefined}>
-            Excluir
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack(SNACK_CLOSED)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert severity={snack.severity} onClose={() => setSnack(SNACK_CLOSED)}>{snack.msg}</Alert>
-      </Snackbar>
-    </>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Excluir categoria"
+        message={
+          <>
+            A categoria <strong>{deleteTarget?.nome}</strong> será excluída permanentemente. Lançamentos vinculados a ela
+            ficarão sem categoria.
+          </>
+        }
+        confirmText="Excluir"
+        destructive
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Tab: Contas Bancárias
+// Aba: Contas bancárias
 // ═══════════════════════════════════════════════════════════════════════════════
+
+const EMPTY_CONTA = { nome: '', banco: '', saldo_inicial: 0 };
 
 function ContasBancariasTab() {
   const { can: canGroup } = usePermissions();
+  const { showSuccess, showError } = useSnackbar();
   const canView = canGroup('contas_financeiras', 'view');
   const canInsert = canGroup('contas_financeiras', 'insert');
   const canEdit = canGroup('contas_financeiras', 'edit');
   const canDelete = canGroup('contas_financeiras', 'delete');
+
   const [items, setItems] = useState<ContaBancaria[]>([]);
   const [loading, setLoading] = useState(true);
-  const [snack, setSnack] = useState<Snack>(SNACK_CLOSED);
-
-  // Drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
   const [editTarget, setEditTarget] = useState<ContaBancaria | null>(null);
   const [saving, setSaving] = useState(false);
-
-  const EMPTY_FORM = { nome: '', banco: '', saldo_inicial: 0 };
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(EMPTY_CONTA);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-
-  // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<ContaBancaria | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const isDirty = form.nome !== EMPTY_FORM.nome || form.banco !== EMPTY_FORM.banco || form.saldo_inicial !== EMPTY_FORM.saldo_inicial;
-
   const load = useCallback(async () => {
-    if (!canView) { setLoading(false); return; }
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     try {
       const res = await apiClient.get<ContaBancaria[]>('/api/v1/admin/financeiro/contas-bancarias');
       setItems(res.data);
     } catch {
-      setSnack({ open: true, msg: 'Erro ao carregar contas bancárias.', severity: 'error' });
+      showError('Erro ao carregar contas bancárias.');
     } finally {
       setLoading(false);
     }
-  }, [canView]);
+  }, [canView, showError]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const openCreate = () => {
-    setForm(EMPTY_FORM);
+    setForm(EMPTY_CONTA);
     setTouched({});
     setDrawerMode('create');
     setEditTarget(null);
     setDrawerOpen(true);
   };
-
   const openEdit = (conta: ContaBancaria) => {
-    setForm({
-      nome: conta.nome,
-      banco: conta.banco ?? '',
-      saldo_inicial: conta.saldo_inicial,
-    });
+    setForm({ nome: conta.nome, banco: conta.banco ?? '', saldo_inicial: conta.saldo_inicial });
     setTouched({});
     setDrawerMode('edit');
     setEditTarget(conta);
     setDrawerOpen(true);
   };
+
+  const isDirty =
+    drawerMode === 'create'
+      ? form.nome !== '' || form.banco !== '' || form.saldo_inicial !== 0
+      : !!editTarget &&
+        (form.nome !== editTarget.nome || form.banco !== (editTarget.banco ?? '') || form.saldo_inicial !== editTarget.saldo_inicial);
 
   const handleSave = async () => {
     setTouched({ nome: true });
@@ -444,21 +383,14 @@ function ContasBancariasTab() {
     if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
     try {
-      const body = {
-        nome: form.nome.trim(),
-        banco: form.banco.trim() || null,
-        saldo_inicial: form.saldo_inicial,
-      };
-      if (drawerMode === 'create') {
-        await apiClient.post('/api/v1/admin/financeiro/contas-bancarias', body);
-      } else if (editTarget) {
-        await apiClient.put(`/api/v1/admin/financeiro/contas-bancarias/${editTarget.id}`, body);
-      }
+      const body = { nome: form.nome.trim(), banco: form.banco.trim() || null, saldo_inicial: form.saldo_inicial };
+      if (drawerMode === 'create') await apiClient.post('/api/v1/admin/financeiro/contas-bancarias', body);
+      else if (editTarget) await apiClient.put(`/api/v1/admin/financeiro/contas-bancarias/${editTarget.id}`, body);
       setDrawerOpen(false);
-      setSnack({ open: true, msg: drawerMode === 'create' ? 'Conta criada.' : 'Conta atualizada.', severity: 'success' });
+      showSuccess(drawerMode === 'create' ? 'Conta criada.' : 'Conta atualizada.');
       load();
     } catch (err) {
-      setSnack({ open: true, msg: extractApiErrorMessage(err, 'Erro ao salvar.'), severity: 'error' });
+      showError(extractApiErrorMessage(err, 'Erro ao salvar.'));
     } finally {
       setSaving(false);
     }
@@ -469,408 +401,361 @@ function ContasBancariasTab() {
     setDeleting(true);
     try {
       await apiClient.delete(`/api/v1/admin/financeiro/contas-bancarias/${deleteTarget.id}`);
-      setDeleteTarget(null);
-      setSnack({ open: true, msg: 'Conta excluída.', severity: 'success' });
+      showSuccess('Conta excluída.');
       load();
     } catch (err) {
-      setDeleteTarget(null);
-      setSnack({ open: true, msg: extractApiErrorMessage(err, 'Erro ao excluir.'), severity: 'error' });
+      showError(extractApiErrorMessage(err, 'Erro ao excluir.'));
     } finally {
+      setDeleteTarget(null);
       setDeleting(false);
     }
   };
 
-  const fmtSaldo = (v: number) =>
-    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-  if (!canView) {
-    return (
-      <Alert severity="warning" sx={{ mt: 2 }}>
-        Você não tem permissão para visualizar contas bancárias. Contate o administrador do sistema.
-      </Alert>
-    );
-  }
+  if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar contas bancárias." />;
 
   return (
-    <>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="body2" color="text.secondary">
-          {loading ? '' : `${items.length} conta${items.length !== 1 ? 's' : ''} cadastrada${items.length !== 1 ? 's' : ''}`}
-        </Typography>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">{loading ? '' : `${items.length} conta${items.length !== 1 ? 's' : ''}`}</p>
         {canInsert && (
-          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
+          <Button size="sm" onClick={openCreate}>
+            <Plus />
             Nova conta
           </Button>
         )}
-      </Box>
+      </div>
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+        <ListSkeleton />
       ) : items.length === 0 ? (
-        <Card variant="outlined">
-          <CardContent sx={{ textAlign: 'center', py: 4 }}>
-            <AccountBalanceIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
-            <Typography variant="body2" color="text.secondary">
-              Nenhuma conta bancária cadastrada. Adicione contas para registrar pagamentos e recebimentos.
-            </Typography>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<Landmark className="size-10 text-ghost" aria-hidden />}
+          title="Nenhuma conta bancária"
+          description="Adicione contas para registrar pagamentos e recebimentos."
+          action={canInsert ? <Button size="sm" onClick={openCreate}><Plus />Nova conta</Button> : undefined}
+        />
       ) : (
-        <Card variant="outlined">
-          {items.map((conta, idx) => (
-            <Box
-              key={conta.id}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                px: 2,
-                py: 1.5,
-                borderBottom: idx < items.length - 1 ? '1px solid' : 'none',
-                borderColor: 'divider',
-              }}
-            >
-              <AccountBalanceIcon sx={{ color: 'text.secondary', fontSize: 20, flexShrink: 0 }} />
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" fontWeight={500} noWrap>
-                  {conta.nome}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {conta.banco ? `${conta.banco} · ` : ''}Saldo inicial {fmtSaldo(conta.saldo_inicial)}
-                </Typography>
-              </Box>
-              {canEdit && (
-                <Tooltip title="Editar">
-                  <IconButton size="small" onClick={() => openEdit(conta)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-              {canDelete && (
-                <Tooltip title="Excluir">
-                  <IconButton size="small" color="error" onClick={() => setDeleteTarget(conta)}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-            </Box>
-          ))}
+        <Card className="gap-0 overflow-hidden py-0">
+          <ul className="divide-y">
+            {items.map((conta) => (
+              <li key={conta.id} className="flex items-center gap-3 px-4 py-3">
+                <Landmark className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{conta.nome}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {conta.banco ? `${conta.banco} · ` : ''}Saldo inicial {formatBRL(conta.saldo_inicial)}
+                  </p>
+                </div>
+                <RowMenu
+                  nome={conta.nome}
+                  onEdit={canEdit ? () => openEdit(conta) : undefined}
+                  onDelete={canDelete ? () => setDeleteTarget(conta) : undefined}
+                />
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 
-      {/* Drawer criar / editar */}
       <CrudDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title={drawerMode === 'create' ? 'Nova Conta Bancária' : 'Editar Conta Bancária'}
+        title={drawerMode === 'create' ? 'Nova conta bancária' : 'Editar conta bancária'}
         subtitle="Conta corrente, poupança, carteira ou caixa do terreiro"
-        icon={<AccountBalanceIcon />}
+        icon={<Landmark />}
         onSave={handleSave}
         saving={saving}
         saveDisabled={!form.nome.trim()}
         isDirty={isDirty}
       >
-        <TextField
-          label="Nome da conta *"
-          value={form.nome}
-          onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-          onBlur={() => setTouched((t) => ({ ...t, nome: true }))}
-          error={touched.nome && !form.nome.trim()}
-          helperText={touched.nome && !form.nome.trim() ? 'Obrigatório' : 'Ex: Conta Bradesco, Caixa do Terreiro'}
-          fullWidth
-          autoFocus
-        />
-        <TextField
-          label="Banco / instituição"
-          value={form.banco}
-          onChange={(e) => setForm((f) => ({ ...f, banco: e.target.value }))}
-          helperText="Opcional — ex: Bradesco, Nubank, Caixa"
-          fullWidth
-        />
-        <CurrencyInput
-          label="Saldo inicial"
-          value={form.saldo_inicial}
-          onValueChange={(v) => setForm((f) => ({ ...f, saldo_inicial: v }))}
-          helperText="Saldo da conta no momento do cadastro"
-          fullWidth
-        />
+        <div className="flex flex-col gap-4">
+          <TextField
+            label="Nome da conta"
+            value={form.nome}
+            onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
+            onBlur={() => setTouched((t) => ({ ...t, nome: true }))}
+            required
+            error={touched.nome && !form.nome.trim() && 'Obrigatório'}
+            helperText="Ex.: Conta Bradesco, Caixa do Terreiro"
+            autoFocus
+          />
+          <TextField
+            label="Banco / instituição"
+            value={form.banco}
+            onChange={(e) => setForm((f) => ({ ...f, banco: e.target.value }))}
+            helperText="Opcional — ex.: Bradesco, Nubank, Caixa"
+          />
+          <MoneyInput
+            label="Saldo inicial"
+            value={form.saldo_inicial}
+            onChange={(v) => setForm((f) => ({ ...f, saldo_inicial: v }))}
+            helperText="Saldo da conta no momento do cadastro"
+          />
+        </div>
       </CrudDrawer>
 
-      {/* Confirmar exclusão */}
-      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
-        <DialogTitle>Excluir conta bancária?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            A conta <strong>{deleteTarget?.nome}</strong> será excluída. Lançamentos
-            vinculados a ela perderão a referência bancária.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancelar</Button>
-          <Button onClick={handleDelete} color="error" disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={16} /> : undefined}>
-            Excluir
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack(SNACK_CLOSED)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert severity={snack.severity} onClose={() => setSnack(SNACK_CLOSED)}>{snack.msg}</Alert>
-      </Snackbar>
-    </>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Excluir conta bancária"
+        message={
+          <>
+            A conta <strong>{deleteTarget?.nome}</strong> será excluída. Lançamentos vinculados a ela perderão a
+            referência bancária.
+          </>
+        }
+        confirmText="Excluir"
+        destructive
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Tab: Mensalidade (conteúdo existente preservado)
+// Aba: Mensalidade
 // ═══════════════════════════════════════════════════════════════════════════════
+
+interface MensalidadeForm {
+  valorMensal: number;
+  diaVencimento: string;
+  emailRelatorioAtivo: boolean;
+  flagAssociado: boolean;
+  valorMensalAssociado: number;
+  diaVencimentoAssociado: string;
+}
+
+const DIAS = Array.from({ length: 28 }, (_, i) => String(i + 1));
+
+function DiaSelect({ id, value, onChange, disabled }: { id: string; value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  return (
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger id={id} className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {DIAS.map((d) => (
+          <SelectItem key={d} value={d}>
+            Dia {d}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 function MensalidadeTab() {
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
+  const { showSuccess, showError } = useSnackbar();
   const canView = canGroup('financeiro', 'view');
   const canEdit = canGroup('financeiro', 'edit');
+  const planMediuns = can('mensalidade_mediun');
+  const planAssoc = can('mensalidade_associado');
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [valorMensal, setValorMensal] = useState<number>(0);
-  const [diaVencimento, setDiaVencimento] = useState<string>('10');
-  const [emailRelatorioAtivo, setEmailRelatorioAtivo] = useState<boolean>(false);
-  const [valorMensalAssociado, setValorMensalAssociado] = useState<number>(0);
-  const [diaVencimentoAssociado, setDiaVencimentoAssociado] = useState<string>('10');
-  const [relatorioHoraEnvio, setRelatorioHoraEnvio] = useState<string>('');
-  const [flagMensalidadeAssociado, setFlagMensalidadeAssociado] = useState<boolean>(false);
-  const [snack, setSnack] = useState<Snack>(SNACK_CLOSED);
+  const EMPTY: MensalidadeForm = useMemo(
+    () => ({ valorMensal: 0, diaVencimento: '10', emailRelatorioAtivo: false, flagAssociado: false, valorMensalAssociado: 0, diaVencimentoAssociado: '10' }),
+    [],
+  );
+  const [form, setForm] = useState<MensalidadeForm>(EMPTY);
+  const [saved, setSaved] = useState<MensalidadeForm>(EMPTY);
 
   useEffect(() => {
-    if (!canView) { setLoading(false); return; }
-    apiClient.get('/api/v1/admin/financeiro/config')
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
+    apiClient
+      .get('/api/v1/admin/financeiro/config')
       .then((res) => {
-        if (res.data) {
-          setValorMensal(res.data.valor_mensal ?? 0);
-          setDiaVencimento(String(res.data.dia_vencimento ?? '10'));
-          setEmailRelatorioAtivo(Boolean(res.data.email_relatorio_ativo));
-          setValorMensalAssociado(res.data.valor_mensal_associado ?? 0);
-          setDiaVencimentoAssociado(String(res.data.dia_vencimento_associado ?? '10'));
-          setRelatorioHoraEnvio(res.data.relatorio_hora_envio ?? '');
-          setFlagMensalidadeAssociado(Boolean(res.data.enable_mensalidade_associado));
-        }
+        if (!res.data) return;
+        const next: MensalidadeForm = {
+          valorMensal: res.data.valor_mensal ?? 0,
+          diaVencimento: String(res.data.dia_vencimento ?? '10'),
+          emailRelatorioAtivo: Boolean(res.data.email_relatorio_ativo),
+          flagAssociado: Boolean(res.data.enable_mensalidade_associado),
+          valorMensalAssociado: res.data.valor_mensal_associado ?? 0,
+          diaVencimentoAssociado: String(res.data.dia_vencimento_associado ?? '10'),
+        };
+        setForm(next);
+        setSaved(next);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canView]);
+
+  const set = <K extends keyof MensalidadeForm>(k: K, v: MensalidadeForm[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const isDirty = JSON.stringify(form) !== JSON.stringify(saved);
 
   const handleSave = async () => {
     if (!canEdit) return;
-    if (can('mensalidade_mediun') && valorMensal < 0) {
-      setSnack({ open: true, msg: 'Informe um valor mensal válido (≥ 0).', severity: 'error' });
+    if (planMediuns && form.valorMensal < 0) {
+      showError('Informe um valor mensal válido (≥ 0).');
       return;
     }
     setSaving(true);
     try {
       const body: Record<string, unknown> = {};
-      if (can('mensalidade_mediun')) {
-        body.valor_mensal = valorMensal;
-        body.dia_vencimento = parseInt(diaVencimento);
-        body.email_relatorio_ativo = emailRelatorioAtivo;
+      if (planMediuns) {
+        body.valor_mensal = form.valorMensal;
+        body.dia_vencimento = parseInt(form.diaVencimento, 10);
+        body.email_relatorio_ativo = form.emailRelatorioAtivo;
       }
-      if (can('mensalidade_associado')) {
-        body.enable_mensalidade_associado = flagMensalidadeAssociado;
-        if (valorMensalAssociado > 0) body.valor_mensal_associado = valorMensalAssociado;
-        if (diaVencimentoAssociado) body.dia_vencimento_associado = parseInt(diaVencimentoAssociado);
-        if (relatorioHoraEnvio) body.relatorio_hora_envio = relatorioHoraEnvio;
+      if (planAssoc) {
+        body.enable_mensalidade_associado = form.flagAssociado;
+        if (form.valorMensalAssociado > 0) body.valor_mensal_associado = form.valorMensalAssociado;
+        if (form.diaVencimentoAssociado) body.dia_vencimento_associado = parseInt(form.diaVencimentoAssociado, 10);
       }
       await apiClient.put('/api/v1/admin/financeiro/config', body);
-      setSnack({ open: true, msg: 'Configuração salva com sucesso.', severity: 'success' });
+      setSaved(form);
+      showSuccess('Configuração salva.');
     } catch (err) {
-      setSnack({ open: true, msg: extractApiErrorMessage(err, 'Erro ao salvar configuração.'), severity: 'error' });
+      showError(extractApiErrorMessage(err, 'Erro ao salvar configuração.'));
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>;
-
-  if (!canView) {
-    return (
-      <Alert severity="warning" sx={{ mt: 2 }}>
-        Você não tem permissão para visualizar a configuração de mensalidade. Contate o administrador do sistema.
-      </Alert>
-    );
-  }
+  if (loading) return <ListSkeleton />;
+  if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar a configuração de mensalidade." />;
 
   return (
-    <>
-      <Card variant="outlined">
-        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <div className="flex flex-col gap-4 pb-20">
+      {!canEdit && <ReadOnlyNotice />}
 
-          {can('mensalidade_mediun') && (
-            <>
-              <Typography variant="subtitle2" color="text.secondary"
-                sx={{ textTransform: 'uppercase', letterSpacing: 1, fontSize: 11 }}>
-                Médiuns
-              </Typography>
-              <CurrencyInput
-                label="Valor Mensal"
-                size="small"
-                fullWidth
-                value={valorMensal}
-                onValueChange={(v) => setValorMensal(v)}
+      {planMediuns && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Médiuns</CardTitle>
+            <CardDescription>Valor e vencimento da mensalidade da corrente.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <MoneyInput label="Valor mensal" value={form.valorMensal} onChange={(v) => set('valorMensal', v)} disabled={!canEdit} />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="dia-venc">Dia de vencimento</Label>
+              <DiaSelect id="dia-venc" value={form.diaVencimento} onChange={(v) => set('diaVencimento', v)} disabled={!canEdit} />
+            </div>
+            <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+              <div className="flex flex-col gap-0.5">
+                <Label htmlFor="email-relatorio" className="font-medium">
+                  Enviar relatório por e-mail
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Quando ativo, o botão &quot;Enviar relatório&quot; dispara e-mail para todos os administradores.
+                </p>
+              </div>
+              <Switch
+                id="email-relatorio"
+                checked={form.emailRelatorioAtivo}
+                onCheckedChange={(v) => set('emailRelatorioAtivo', v)}
+                disabled={!canEdit}
               />
-              <FormControl size="small" fullWidth>
-                <InputLabel>Dia de Vencimento</InputLabel>
-                <Select
-                  value={diaVencimento}
-                  label="Dia de Vencimento"
-                  onChange={(e: SelectChangeEvent) => setDiaVencimento(e.target.value)}
-                >
-                  {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
-                    <MenuItem key={d} value={String(d)}>Dia {d}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControlLabel
-                control={
-                  <Switch checked={emailRelatorioAtivo}
-                    onChange={(e) => setEmailRelatorioAtivo(e.target.checked)} color="primary" />
-                }
-                label={
-                  <Box>
-                    <Typography variant="body2" fontWeight={600}>Enviar relatório por e-mail</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Quando ativo, o botão &quot;Enviar Relatório&quot; dispara e-mail para todos os admins do tenant.
-                    </Typography>
-                  </Box>
-                }
-              />
-            </>
-          )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-          {can('mensalidade_associado') && (
-            <>
-              <FormControlLabel
-                control={
-                  <Switch checked={flagMensalidadeAssociado}
-                    onChange={(e) => setFlagMensalidadeAssociado(e.target.checked)} color="primary" />
-                }
-                label={
-                  <Box>
-                    <Typography variant="body2" fontWeight={600}>Habilitar Mensalidade de Associados</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Ativa o controle de mensalidades para associados do terreiro.
-                    </Typography>
-                  </Box>
-                }
-              />
-              {flagMensalidadeAssociado && (
-                <>
-                  <Typography variant="subtitle2" color="text.secondary"
-                    sx={{ textTransform: 'uppercase', letterSpacing: 1, fontSize: 11 }}>
-                    Associados
-                  </Typography>
-                  <CurrencyInput
-                    label="Valor Mensal Associados"
-                    size="small"
-                    fullWidth
-                    value={valorMensalAssociado}
-                    onValueChange={(v) => setValorMensalAssociado(v)}
-                  />
-                  <FormControl size="small" fullWidth>
-                    <InputLabel>Dia de Vencimento (Associados)</InputLabel>
-                    <Select
-                      value={diaVencimentoAssociado}
-                      label="Dia de Vencimento (Associados)"
-                      onChange={(e: SelectChangeEvent) => setDiaVencimentoAssociado(e.target.value)}
-                    >
-                      {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
-                        <MenuItem key={d} value={String(d)}>Dia {d}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <Box>
-                    <TextField
-                      size="small"
-                      label="Hora de envio do relatório"
-                      type="time"
-                      value={relatorioHoraEnvio}
-                      onChange={(e) => setRelatorioHoraEnvio(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                      inputProps={{ step: 300 }}
-                      fullWidth
-                    />
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                      Envio automático — em breve
-                    </Typography>
-                  </Box>
-                </>
-              )}
-            </>
-          )}
+      {planAssoc && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Associados</CardTitle>
+            <CardDescription>Controle de mensalidade para associados do terreiro.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+              <div className="flex flex-col gap-0.5">
+                <Label htmlFor="flag-assoc" className="font-medium">
+                  Habilitar mensalidade de associados
+                </Label>
+                <p className="text-xs text-muted-foreground">Mostra a aba Associados em Mensalidades.</p>
+              </div>
+              <Switch id="flag-assoc" checked={form.flagAssociado} onCheckedChange={(v) => set('flagAssociado', v)} disabled={!canEdit} />
+            </div>
+            {form.flagAssociado && (
+              <>
+                <MoneyInput
+                  label="Valor mensal (associados)"
+                  value={form.valorMensalAssociado}
+                  onChange={(v) => set('valorMensalAssociado', v)}
+                  disabled={!canEdit}
+                />
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="dia-venc-assoc">Dia de vencimento (associados)</Label>
+                  <DiaSelect id="dia-venc-assoc" value={form.diaVencimentoAssociado} onChange={(v) => set('diaVencimentoAssociado', v)} disabled={!canEdit} />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-          {canEdit && (
-            <Button
-              variant="contained"
-              startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
-              onClick={handleSave}
-              disabled={saving}
-              sx={{ alignSelf: 'flex-start' }}
-            >
-              Salvar Configuração
+      {canEdit && (
+        <div className="sticky bottom-0 z-30 -mx-4 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:mx-0 sm:rounded-t-lg sm:border-x">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm text-muted-foreground" aria-live="polite">
+              {isDirty ? 'Alterações não salvas' : 'Tudo salvo'}
+            </span>
+            <Button onClick={handleSave} disabled={saving || !isDirty}>
+              {saving ? <Loader2 className="animate-spin" /> : <Save />}
+              Salvar configuração
             </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack(SNACK_CLOSED)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert severity={snack.severity} onClose={() => setSnack(SNACK_CLOSED)}>{snack.msg}</Alert>
-      </Snackbar>
-    </>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Página principal
+// Página
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function FinanceiroConfigPage() {
+  return (
+    <AdminLayout title="Configuração Financeira">
+      <FinanceiroConfigContent />
+    </AdminLayout>
+  );
+}
+
+function FinanceiroConfigContent() {
   const { can } = useSubscription();
-  const [tab, setTab] = useState(0);
+  const { can: canGroup } = usePermissions();
+  const [tab, setTab] = useState('categorias');
 
   if (!can('mensalidade_mediun') && !can('mensalidade_associado')) {
-    return (
-      <AdminLayout title="Configuração Financeira">
-        <UpgradePrompt feature="Configuração Financeira" minPlan="Pro" />
-      </AdminLayout>
-    );
+    return <PlanLocked feature="Configuração Financeira" minPlan="Pro" />;
+  }
+  if (!canGroup('contas_financeiras', 'view') && !canGroup('financeiro', 'view')) {
+    return <PermissionDenied message="Você não tem permissão para visualizar a configuração financeira." />;
   }
 
   return (
-    <AdminLayout title="Configuração Financeira">
-      <Box sx={{ maxWidth: 680 }}>
-        <Typography variant="h5" fontWeight={700} gutterBottom>
-          <SettingsIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Configuração Financeira
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Gerencie categorias, contas bancárias e as configurações de mensalidade do seu terreiro.
-        </Typography>
-
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
-        >
-          <Tab label="Categorias" />
-          <Tab label="Contas Bancárias" />
-          <Tab label="Mensalidade" />
-        </Tabs>
-
-        {tab === 0 && <CategoriasTab />}
-        {tab === 1 && <ContasBancariasTab />}
-        {tab === 2 && <MensalidadeTab />}
-      </Box>
-    </AdminLayout>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <PageHeader
+        title="Configuração Financeira"
+        subtitle="Categorias, contas bancárias e mensalidades do terreiro"
+        actions={<Settings2 className="size-6 text-primary" aria-hidden />}
+      />
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="categorias">Categorias</TabsTrigger>
+          <TabsTrigger value="contas">Contas bancárias</TabsTrigger>
+          <TabsTrigger value="mensalidade">Mensalidade</TabsTrigger>
+        </TabsList>
+        <TabsContent value="categorias" className="mt-3">
+          <CategoriasTab />
+        </TabsContent>
+        <TabsContent value="contas" className="mt-3">
+          <ContasBancariasTab />
+        </TabsContent>
+        <TabsContent value="mensalidade" className="mt-3">
+          <MensalidadeTab />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }

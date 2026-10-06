@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import MaskedInput, { maskTelefone, maskCpf, unmask } from '../../components/shared/MaskedInput';
+import { MaskedInput, maskTelefone, maskCpf, unmask } from '../../components/fields/MaskedInput';
 
 describe('MaskedInput / máscaras', () => {
   it('formata telefone corretamente', () => {

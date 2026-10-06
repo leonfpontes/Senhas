@@ -6,7 +6,7 @@ export { PasswordField } from './PasswordField';
 export type { PasswordFieldProps } from './PasswordField';
 export { MoneyInput, formatBRL, parseBRL, centsFromDigits } from './MoneyInput';
 export type { MoneyInputProps } from './MoneyInput';
-export { MaskedInput, applyFieldMask, unmask } from './MaskedInput';
+export { MaskedInput, applyFieldMask, unmask, maskTelefone, maskCpf } from './MaskedInput';
 export type { MaskedInputProps, FieldMask } from './MaskedInput';
 export { DateField } from './DateField';
 export type { DateFieldProps } from './DateField';

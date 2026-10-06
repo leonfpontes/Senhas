@@ -1,46 +1,19 @@
 /**
- * Relatório de Gira — exibe tickets de uma gira com médium, cambone e observações.
- * Feature gate: relatorio_gira (tier >= 1: Basic, Pro, Premium).
+ * Relatório de Gira — atendimentos de uma gira com médium, cambone e observações.
+ * Gate de plano: `relatorio_gira` (Basic, Pro, Premium) via `PlanLocked`.
  *
+ * A gira mais recente que já começou vem pré-selecionada na primeira carga.
  * Filtragem:
- *  - status_filter, dateFrom, dateTo, giraFilter: server-side
- *  - texto, médium, cambone, tag: client-side sobre o conjunto completo (até 500 tickets)
+ *  - status_filter, dateFrom, dateTo, tipo de gira: no servidor (Popover "Filtros de gira")
+ *  - texto, médium, cambone, tag: no cliente sobre o conjunto completo (até 500 senhas)
+ * Exportações: CSV (cliente) e PDF (`useRelatorioPDF`, layout em `components/pdf`).
  */
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
-import {
-  Alert,
-  Badge,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Collapse,
-  Divider,
-  FormControl,
-  InputAdornment,
-  InputLabel,
-  MenuItem,
-  Pagination,
-  Paper,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Typography,
-} from '@mui/material';
-import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
-import FilterListRoundedIcon from '@mui/icons-material/FilterListRounded';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import PictureAsPdfRoundedIcon from '@mui/icons-material/PictureAsPdfRounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
+import type { ColumnDef } from '@tanstack/react-table';
+import { Download, FileText, ListFilter, Loader2, Search, SlidersHorizontal, X } from 'lucide-react';
 
 import AdminLayout from './admin_layout';
 import { apiClient } from '../../services/api_client';
@@ -48,9 +21,25 @@ import { useSubscription } from '../../hooks/useSubscription';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useTenant } from '../../providers/ThemeProvider';
 import { useRelatorioPDF } from '../../hooks/useRelatorioPDF';
-import { useAdminTheme } from '@/providers/AdminThemeProvider';
+import { useSnackbar } from '../../contexts/SnackbarContext';
+import { DataTable } from '@/components/admin/DataTable';
+import { PageHeader } from '@/components/admin/PageHeader';
+import { EmptyState } from '@/components/EmptyState';
+import { PermissionDenied, PlanLocked } from '@/components/gates';
+import { Combobox, DateField, TextField } from '@/components/fields';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { formatDateBr } from '@/lib/dateBr';
+import { IconGira } from '@/lib/icons';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface Ticket {
   id: string;
@@ -80,39 +69,64 @@ interface DoorStats {
   patrocinados: number;
 }
 
+interface GiraResumo {
+  id: string;
+  nome: string;
+  is_active: boolean;
+  data_inicio?: string;
+}
+
 type GiraFilter = 'all' | 'active' | 'inactive';
-type TagFilter  = '' | 'Comum' | 'Preferencial' | 'Associado' | 'Walk-in';
+export type TagLabel = 'Comum' | 'Preferencial' | 'Associado' | 'Sem senha';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getTag(t: Ticket): { label: string; color: string; bg: string } {
-  if (t.is_sponsor)   return { label: 'Associado',    color: '#92400e', bg: '#fef3c7' };
-  if (t.preferencial) return { label: 'Preferencial', color: '#9a3412', bg: '#fff7ed' };
-  if (t.is_walk_in)   return { label: 'Walk-in',      color: '#1e40af', bg: '#eff6ff' };
-  return                       { label: 'Comum',       color: '#374151', bg: '#f3f4f6' };
+export function getTag(t: Pick<Ticket, 'is_sponsor' | 'preferencial' | 'is_walk_in'>): TagLabel {
+  if (t.is_sponsor) return 'Associado';
+  if (t.preferencial) return 'Preferencial';
+  if (t.is_walk_in) return 'Sem senha';
+  return 'Comum';
 }
 
-const normalize = (s: string) =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const TAG_CLASS: Record<TagLabel, string> = {
+  Associado: 'bg-warning text-warning-foreground',
+  Preferencial: 'bg-secondary text-secondary-foreground',
+  'Sem senha': 'bg-info text-info-foreground',
+  Comum: 'bg-muted text-muted-foreground',
+};
+
+export const STATUS_LABELS: Record<string, string> = {
+  emitted: 'Emitida',
+  called: 'Chamada',
+  completed: 'Concluída',
+  cancelled: 'Cancelada',
+  no_show: 'Não veio',
+  waitlisted: 'Lista de espera',
+  waitlist_expired: 'Espera expirada',
+};
+
+/** Gira mais recente que já começou (lista vem do backend por `data_inicio` desc). */
+export function pickUltimaGira(giras: GiraResumo[], agora: Date = new Date()): string | null {
+  if (giras.length === 0) return null;
+  const passada = giras.find((g) => g.data_inicio && new Date(g.data_inicio).getTime() <= agora.getTime());
+  return (passada ?? giras[0]).id;
+}
+
+const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const fmtSenha = (n: number) => `#${String(n).padStart(4, '0')}`;
 
 const PAGE_SIZE = 50;
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StatPill({ label, value, color }: { label: string; value: number; color?: string }) {
+function StatPill({ label, value, className }: { label: string; value: number; className?: string }) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 1.5, px: 0.5 }}>
-      <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, lineHeight: 1, color: color || 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
-        {value}
-      </Typography>
-      <Typography sx={{ fontSize: '0.65rem', fontWeight: 500, color: 'text.secondary', mt: 0.25, textAlign: 'center', lineHeight: 1.2 }}>
-        {label}
-      </Typography>
-    </Box>
+    <div className="flex flex-col items-center justify-center border-b border-r px-1 py-3 text-center [&:nth-child(4n)]:border-r-0 [&:nth-child(n+5)]:border-b-0 md:border-b-0 md:[&:nth-child(4n)]:border-r md:[&:nth-child(8n)]:border-r-0">
+      <span className={cn('text-2xl font-extrabold leading-none tabular-nums text-foreground', className)}>{value}</span>
+      <span className="mt-1 text-[0.68rem] font-medium leading-tight text-muted-foreground [overflow-wrap:anywhere]">{label}</span>
+    </div>
   );
 }
 
-// ─── Page wrapper ─────────────────────────────────────────────────────────────
+// ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function RelatorioGiraPage() {
   return (
@@ -122,138 +136,149 @@ export default function RelatorioGiraPage() {
   );
 }
 
-// ─── Main content ─────────────────────────────────────────────────────────────
-
 function RelatorioGiraContent() {
   const router = useRouter();
-  const { can }                                  = useSubscription();
-  const { can: canGroup }                        = usePermissions();
-  const { tenantName, logoUrl, config }          = useTenant();
+  const { can, loading: subLoading } = useSubscription();
+  const { can: canGroup } = usePermissions();
+  const { showError } = useSnackbar();
+  const { tenantName, logoUrl, config } = useTenant();
   const { generate: generatePDF, loading: loadingPDF } = useRelatorioPDF();
-  const { isDark }                               = useAdminTheme();
+  const canView = canGroup('relatorio_gira', 'view');
+  const hasPlan = can('relatorio_gira');
 
-  // Feature gate
-  useEffect(() => {
-    if (can('relatorio_gira') === false) router.replace('/admin/plano');
-  }, [can, router]);
-
-  // ── Gira selector state ───────────────────────────────────────────
-  const [giras, setGiras]             = useState<{ id: string; nome: string; is_active: boolean; data_inicio?: string }[]>([]);
-  const [giraId, setGiraId]           = useState<string>('');
-  const [giraFilter, setGiraFilter]   = useState<GiraFilter>('all');
-  const [dateFrom, setDateFrom]       = useState<string>('');
-  const [dateTo, setDateTo]           = useState<string>('');
+  // ── Seletor de gira ───────────────────────────────────────────────
+  const [giras, setGiras] = useState<GiraResumo[]>([]);
+  const [girasLoaded, setGirasLoaded] = useState(false);
+  const [giraId, setGiraId] = useState<string | null>(null);
+  const [giraFilter, setGiraFilter] = useState<GiraFilter>('all');
+  const [dateFrom, setDateFrom] = useState<string | null>(null);
+  const [dateTo, setDateTo] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('completed');
+  const autoSelected = useRef(false);
 
-  // ── Data state ────────────────────────────────────────────────────
-  const [doorStats, setDoorStats]   = useState<DoorStats | null>(null);
+  // ── Dados ─────────────────────────────────────────────────────────
+  const [doorStats, setDoorStats] = useState<DoorStats | null>(null);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
-  const [loading, setLoading]       = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // ── Client-side search filters ────────────────────────────────────
-  const [searchText, setSearchText]       = useState<string>('');
-  const [mediumFilter, setMediumFilter]   = useState<string>('');
-  const [camboneFilter, setCamboneFilter] = useState<string>('');
-  const [tagFilter, setTagFilter]         = useState<TagFilter>('');
-  const [page, setPage]                   = useState(0);
+  // ── Filtros no cliente ────────────────────────────────────────────
+  const [searchText, setSearchText] = useState('');
+  const [mediumFilter, setMediumFilter] = useState<string | null>(null);
+  const [camboneFilter, setCamboneFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<TagLabel | null>(null);
 
-  // ── UI state ──────────────────────────────────────────────────────
-  const [giraFiltersOpen, setGiraFiltersOpen] = useState(false);
-  const [searchFiltersOpen, setSearchFiltersOpen] = useState(false);
-
-  // ── Load giras ────────────────────────────────────────────────────
   const loadGiras = useCallback(async () => {
-    if (!canGroup('relatorio_gira', 'view')) return;
+    if (!canView || !hasPlan) return;
     try {
       const params = new URLSearchParams({ limit: '100' });
-      if (giraFilter === 'active')   params.append('is_active', 'true');
+      if (giraFilter === 'active') params.append('is_active', 'true');
       if (giraFilter === 'inactive') params.append('is_active', 'false');
       if (dateFrom) params.append('date_from', dateFrom);
-      if (dateTo)   params.append('date_to', dateTo);
-      const res  = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`);
-      const data = Array.isArray(res.data) ? res.data : res.data.items ?? [];
+      if (dateTo) params.append('date_to', dateTo);
+      const res = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`);
+      const data: GiraResumo[] = Array.isArray(res.data) ? res.data : res.data.items ?? [];
       setGiras(data);
-      if (giraId && !data.some((g: { id: string }) => g.id === giraId)) setGiraId('');
-    } catch { /* non-critical */ }
-  }, [giraFilter, dateFrom, dateTo, giraId, canGroup]);
+      if (!autoSelected.current) {
+        autoSelected.current = true;
+        setGiraId(pickUltimaGira(data));
+      } else {
+        setGiraId((cur) => (cur && !data.some((g) => g.id === cur) ? null : cur));
+      }
+    } catch {
+      showError('Erro ao carregar a lista de giras.');
+    } finally {
+      setGirasLoaded(true);
+    }
+  }, [giraFilter, dateFrom, dateTo, canView, hasPlan, showError]);
 
-  // ── Load tickets ──────────────────────────────────────────────────
   const loadTickets = useCallback(async () => {
-    if (!giraId || !canGroup('relatorio_gira', 'view')) { setAllTickets([]); return; }
+    if (!giraId || !canView) {
+      setAllTickets([]);
+      return;
+    }
     setLoading(true);
     try {
       let url = `/api/v1/admin/giras/${giraId}/tickets?skip=0&limit=500`;
       if (statusFilter) url += `&status_filter=${statusFilter}`;
       const res = await apiClient.get(url);
       setAllTickets(res.data.items ?? []);
-    } catch { /* non-critical */ } finally { setLoading(false); }
-  }, [giraId, statusFilter, canGroup]);
+    } catch {
+      setAllTickets([]);
+      showError('Erro ao carregar os atendimentos da gira.');
+    } finally {
+      setLoading(false);
+    }
+  }, [giraId, statusFilter, canView, showError]);
 
-  // ── Load door stats (for PDF + KPIs) ─────────────────────────────
   const loadDoorStats = useCallback(async () => {
-    if (!giraId || !canGroup('relatorio_gira', 'view')) { setDoorStats(null); return; }
+    if (!giraId || !canView) {
+      setDoorStats(null);
+      return;
+    }
     try {
       const res = await apiClient.get(`/api/v1/admin/giras/${giraId}/door/stats`);
       setDoorStats(res.data);
-    } catch { setDoorStats(null); }
-  }, [giraId, canGroup]);
+    } catch {
+      setDoorStats(null);
+    }
+  }, [giraId, canView]);
 
   useEffect(() => {
-    // Auth is cookie-based (HttpOnly access_token) for normal sessions — it's
-    // never in sessionStorage/localStorage except during impersonation. A
-    // check against those two alone is always false for a regular login and
-    // would bounce every visit straight back to /login before the page even
-    // gets a chance to call the API.
+    // Sessão normal = cookie HttpOnly (auth_state=1); impersonação = sessionStorage.
     const hasAuthToken =
       Boolean(typeof sessionStorage !== 'undefined' && sessionStorage.getItem('access_token')) ||
       Boolean(typeof document !== 'undefined' && document.cookie.includes('auth_state=1'));
-    if (!hasAuthToken) { router.replace('/login'); return; }
+    if (!hasAuthToken) {
+      router.replace('/login');
+      return;
+    }
     loadGiras();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [giraFilter, dateFrom, dateTo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadGiras]);
 
   useEffect(() => {
     loadTickets();
     loadDoorStats();
-    setSearchText(''); setMediumFilter(''); setCamboneFilter(''); setTagFilter(''); setPage(0);
-    // loadTickets/loadDoorStats aren't memoized — including them would refetch every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [giraId, statusFilter]);
+    setSearchText('');
+    setMediumFilter(null);
+    setCamboneFilter(null);
+    setTagFilter(null);
+  }, [loadTickets, loadDoorStats]);
 
-  // ── Derived lists ─────────────────────────────────────────────────
-  const uniqueMediums = useMemo(() =>
-    Array.from(new Set(allTickets.map((t) => t.medium_nome?.trim()).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+  // ── Listas derivadas ──────────────────────────────────────────────
+  const uniqueMediums = useMemo(
+    () =>
+      Array.from(new Set(allTickets.map((t) => t.medium_nome?.trim()).filter(Boolean) as string[])).sort((a, b) =>
+        a.localeCompare(b, 'pt-BR'),
+      ),
     [allTickets],
   );
-  const uniqueCambones = useMemo(() =>
-    Array.from(new Set(allTickets.map((t) => t.cambone_nome?.trim()).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+  const uniqueCambones = useMemo(
+    () =>
+      Array.from(new Set(allTickets.map((t) => t.cambone_nome?.trim()).filter(Boolean) as string[])).sort((a, b) =>
+        a.localeCompare(b, 'pt-BR'),
+      ),
     [allTickets],
   );
 
-  // ── Client-side filtering ─────────────────────────────────────────
   const filteredTickets = useMemo(() => {
     const needle = searchText.length >= 3 ? normalize(searchText) : '';
     return allTickets.filter((t) => {
       if (needle) {
         const nome = normalize(t.consulente_nome ?? '');
-        const obs  = normalize(t.atendimento_descricao ?? '');
+        const obs = normalize(t.atendimento_descricao ?? '');
         if (!nome.includes(needle) && !obs.includes(needle)) return false;
       }
-      if (mediumFilter  && (t.medium_nome?.trim()  || '') !== mediumFilter)  return false;
-      if (camboneFilter && (t.cambone_nome?.trim()  || '') !== camboneFilter) return false;
-      if (tagFilter     && getTag(t).label !== tagFilter)                     return false;
+      if (mediumFilter && (t.medium_nome?.trim() || '') !== mediumFilter) return false;
+      if (camboneFilter && (t.cambone_nome?.trim() || '') !== camboneFilter) return false;
+      if (tagFilter && getTag(t) !== tagFilter) return false;
       return true;
     });
   }, [allTickets, searchText, mediumFilter, camboneFilter, tagFilter]);
 
-  useEffect(() => { setPage(0); }, [searchText, mediumFilter, camboneFilter, tagFilter]);
+  const giraSelecionada = giras.find((g) => g.id === giraId);
 
-  const pagedTickets = useMemo(
-    () => filteredTickets.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
-    [filteredTickets, page],
-  );
-
-  // ── Export CSV ────────────────────────────────────────────────────
+  // ── Exportar CSV ──────────────────────────────────────────────────
   const handleExportCSV = () => {
     if (!giraId || filteredTickets.length === 0) return;
     const escape = (v: string | undefined | null) => {
@@ -263,396 +288,368 @@ function RelatorioGiraContent() {
     };
     const header = ['Senha', 'Nome', 'Tag', 'Status', 'Médium', 'Cambone', 'Observações'];
     const rows = filteredTickets.map((t) => [
-      `#${String(t.numero).padStart(4, '0')}`,
-      t.consulente_nome ?? '', getTag(t).label, t.status,
-      t.medium_nome ?? '', t.cambone_nome ?? '', t.atendimento_descricao ?? '',
+      fmtSenha(t.numero),
+      t.consulente_nome ?? '',
+      getTag(t),
+      STATUS_LABELS[t.status] ?? t.status,
+      t.medium_nome ?? '',
+      t.cambone_nome ?? '',
+      t.atendimento_descricao ?? '',
     ]);
-    const csv  = [header, ...rows].map((r) => r.map(escape).join(',')).join('\r\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const csv = [header, ...rows].map((r) => r.map(escape).join(',')).join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    link.href     = URL.createObjectURL(blob);
-    link.download = `relatorio-${(giras.find((g) => g.id === giraId)?.nome ?? 'gira').replace(/\s+/g, '-').toLowerCase()}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.download = `relatorio-${(giraSelecionada?.nome ?? 'gira').replace(/\s+/g, '-').toLowerCase()}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
   };
 
-  // ── Export PDF ────────────────────────────────────────────────────
+  // ── Exportar PDF ──────────────────────────────────────────────────
   const handleExportPDF = async () => {
     if (!giraId || !doorStats) return;
-    const g = giras.find((x) => x.id === giraId);
     await generatePDF({
       tickets: filteredTickets,
       doorStats,
-      gira: { nome: g?.nome ?? 'Gira', data: g?.data_inicio },
+      gira: { nome: giraSelecionada?.nome ?? 'Gira', data: giraSelecionada?.data_inicio },
       tenant: {
         nome: tenantName ?? 'Terreiro',
         logoUrl: logoUrl ?? undefined,
-        primaryColor:   config?.colors?.primary   ?? '#6366f1',
+        primaryColor: config?.colors?.primary ?? '#6366f1',
         secondaryColor: config?.colors?.secondary ?? '#8b5cf6',
       },
     });
   };
 
   const handleClearGiraFilters = () => {
-    setGiraFilter('all'); setDateFrom(''); setDateTo(''); setStatusFilter('completed'); setGiraId(''); setPage(0);
+    setGiraFilter('all');
+    setDateFrom(null);
+    setDateTo(null);
+    setStatusFilter('completed');
   };
   const handleClearSearchFilters = () => {
-    setSearchText(''); setMediumFilter(''); setCamboneFilter(''); setTagFilter(''); setPage(0);
+    setSearchText('');
+    setMediumFilter(null);
+    setCamboneFilter(null);
+    setTagFilter(null);
   };
 
-  const hasActiveSearchFilters     = Boolean(searchText || mediumFilter || camboneFilter || tagFilter);
-  const activeGiraFilterCount      = [dateFrom, dateTo, giraFilter !== 'all' ? giraFilter : '', statusFilter !== 'completed' ? statusFilter : ''].filter(Boolean).length;
+  const hasActiveSearchFilters = Boolean(searchText || mediumFilter || camboneFilter || tagFilter);
+  const activeGiraFilterCount = [dateFrom, dateTo, giraFilter !== 'all' ? giraFilter : '', statusFilter !== 'completed' ? 'x' : ''].filter(Boolean).length;
+  const activeSearchFilterCount = [mediumFilter, camboneFilter, tagFilter].filter(Boolean).length;
 
-  // ── Feature gate UI ───────────────────────────────────────────────
-  if (!can('relatorio_gira')) {
+  const giraOptions = useMemo(
+    () =>
+      giras.map((g) => ({
+        value: g.id,
+        label: g.data_inicio ? `${g.nome} — ${formatDateBr(g.data_inicio)}` : g.nome,
+        description: g.is_active ? undefined : 'inativa',
+      })),
+    [giras],
+  );
+
+  const columns = useMemo<ColumnDef<Ticket>[]>(
+    () => [
+      {
+        accessorKey: 'numero',
+        header: 'Senha',
+        meta: { cellClassName: 'whitespace-nowrap font-mono font-bold' },
+        cell: ({ getValue }) => fmtSenha(getValue<number>()),
+      },
+      {
+        accessorKey: 'consulente_nome',
+        header: 'Nome',
+        cell: ({ getValue }) => getValue<string | undefined>() || '—',
+      },
+      {
+        id: 'tag',
+        header: 'Tag',
+        accessorFn: (t) => getTag(t),
+        cell: ({ getValue }) => {
+          const tag = getValue<TagLabel>();
+          return <Badge className={cn('border-transparent', TAG_CLASS[tag])}>{tag}</Badge>;
+        },
+      },
+      {
+        accessorKey: 'medium_nome',
+        header: 'Médium',
+        meta: { cellClassName: 'text-muted-foreground' },
+        cell: ({ getValue }) => getValue<string | undefined>() || '—',
+      },
+      {
+        accessorKey: 'cambone_nome',
+        header: 'Cambone',
+        meta: { cellClassName: 'text-muted-foreground' },
+        cell: ({ getValue }) => getValue<string | undefined>() || '—',
+      },
+      {
+        accessorKey: 'atendimento_descricao',
+        header: 'Observações',
+        enableSorting: false,
+        meta: { cellClassName: 'max-w-[18rem] whitespace-pre-wrap break-words text-muted-foreground' },
+        cell: ({ getValue }) => getValue<string | undefined>() || '—',
+      },
+    ],
+    [],
+  );
+
+  const renderCard = (t: Ticket) => {
+    const tag = getTag(t);
     return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, gap: 2, textAlign: 'center' }}>
-        <Box sx={{ width: 64, height: 64, borderRadius: '50%', bgcolor: 'action.selected', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <LockOutlinedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />
-        </Box>
-        <Typography variant="h6" fontWeight={700}>Relatório de gira</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Disponível nos planos Basic, Pro e Premium.
-        </Typography>
-        <Button variant="contained" disableElevation onClick={() => router.push('/admin/plano')}>
-          Ver planos
-        </Button>
-      </Box>
+      <div className="flex flex-col gap-1.5 p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <span className="font-mono text-sm font-bold">{fmtSenha(t.numero)}</span>
+            <p className="m-0 truncate text-sm font-medium">{t.consulente_nome || '—'}</p>
+          </div>
+          <Badge className={cn('border-transparent', TAG_CLASS[tag])}>{tag}</Badge>
+        </div>
+        {(t.medium_nome || t.cambone_nome) && (
+          <p className="m-0 text-xs text-muted-foreground">
+            {t.medium_nome && <>Médium: {t.medium_nome}</>}
+            {t.medium_nome && t.cambone_nome && ' · '}
+            {t.cambone_nome && <>Cambone: {t.cambone_nome}</>}
+          </p>
+        )}
+        {t.atendimento_descricao && (
+          <p className="m-0 whitespace-pre-wrap break-words text-sm text-muted-foreground">{t.atendimento_descricao}</p>
+        )}
+      </div>
+    );
+  };
+
+  // ── Gates ─────────────────────────────────────────────────────────
+  if (subLoading) {
+    return (
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-28 w-full" />
+      </div>
     );
   }
-
-  // ── Group permission gate ──────────────────────────────────────────
-  if (!canGroup('relatorio_gira', 'view')) {
-    return (
-      <Alert severity="warning" sx={{ mt: 2 }}>
-        Você não tem permissão para visualizar o relatório de gira. Contate o administrador do sistema.
-      </Alert>
-    );
-  }
+  if (!hasPlan) return <PlanLocked feature="Relatório de gira" minPlan="Basic" />;
+  if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar o relatório de gira." />;
 
   return (
-    <Box>
-      {/* ── Header ── */}
-      <Box data-tour="relatorio-header" sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3, gap: 2, flexWrap: 'wrap' }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700}>Relatório de gira</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-            Selecione uma gira para visualizar os atendimentos
-          </Typography>
-        </Box>
+    <div className="flex flex-col gap-4">
+      <div data-tour="relatorio-header">
+        <PageHeader
+          title="Relatório de gira"
+          subtitle="Atendimentos da gira com médium, cambone e observações"
+          className="mb-0"
+          actions={
+            giraId ? (
+              <div data-tour="relatorio-export" className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={handleExportCSV} disabled={filteredTickets.length === 0}>
+                  <Download />
+                  CSV
+                </Button>
+                <Button size="sm" onClick={handleExportPDF} disabled={loadingPDF || !doorStats}>
+                  {loadingPDF ? <Loader2 className="animate-spin" /> : <FileText />}
+                  {loadingPDF ? 'Gerando…' : 'PDF'}
+                </Button>
+              </div>
+            ) : undefined
+          }
+        />
+      </div>
 
-        {/* Export actions — only when a gira is selected */}
-        {giraId && (
-          <Box data-tour="relatorio-export" sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<DownloadRoundedIcon sx={{ fontSize: 17 }} />}
-              onClick={handleExportCSV}
-              disabled={filteredTickets.length === 0}
-            >
-              CSV
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
-              disableElevation
-              startIcon={loadingPDF ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfRoundedIcon sx={{ fontSize: 17 }} />}
-              onClick={handleExportPDF}
-              disabled={loadingPDF || !doorStats}
-            >
-              {loadingPDF ? 'Gerando…' : 'PDF'}
-            </Button>
-          </Box>
-        )}
-      </Box>
+      {/* Seletor de gira + filtros de gira */}
+      <Card data-tour="relatorio-filtros-gira" className="gap-0 py-4">
+        <CardContent className="flex flex-col gap-3 px-4 sm:flex-row sm:items-end">
+          <Combobox
+            label="Gira"
+            options={giraOptions}
+            value={giraId}
+            onChange={setGiraId}
+            placeholder={girasLoaded && giras.length === 0 ? 'Nenhuma gira encontrada' : 'Selecione uma gira'}
+            searchPlaceholder="Buscar gira..."
+            emptyText="Nenhuma gira encontrada."
+            className="sm:max-w-sm"
+          />
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant={activeGiraFilterCount > 0 ? 'secondary' : 'outline'} size="sm" className="h-9">
+                  <ListFilter />
+                  Filtros de gira
+                  {activeGiraFilterCount > 0 && (
+                    <Badge className="ml-1 h-5 min-w-5 rounded-full px-1.5">{activeGiraFilterCount}</Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="flex w-[min(20rem,calc(100vw-2rem))] flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="rel-tipo-gira">Tipo de gira</Label>
+                  <Select value={giraFilter} onValueChange={(v) => setGiraFilter(v as GiraFilter)}>
+                    <SelectTrigger id="rel-tipo-gira" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="active">Ativas</SelectItem>
+                      <SelectItem value="inactive">Inativas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <DateField label="De" size="small" value={dateFrom} max={dateTo ?? undefined} onChange={setDateFrom} />
+                  <DateField label="Até" size="small" value={dateTo} min={dateFrom ?? undefined} onChange={setDateTo} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="rel-status">Status da senha</Label>
+                  <Select value={statusFilter || 'all'} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : v)}>
+                    <SelectTrigger id="rel-status" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="emitted">Emitidas</SelectItem>
+                      <SelectItem value="called">Chamadas</SelectItem>
+                      <SelectItem value="completed">Concluídas</SelectItem>
+                      <SelectItem value="no_show">Não veio</SelectItem>
+                      <SelectItem value="cancelled">Canceladas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {activeGiraFilterCount > 0 && (
+                  <Button variant="ghost" size="sm" onClick={handleClearGiraFilters} className="self-end">
+                    <X />
+                    Limpar filtros
+                  </Button>
+                )}
+              </PopoverContent>
+            </Popover>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* ── Gira selector + gira-level filters ── */}
-      <Paper data-tour="relatorio-filtros-gira" elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 2.5, mb: 3 }}>
-        {/* Main row: gira select + filter toggle */}
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 280 }, flex: { sm: '0 0 280px' } }}>
-            <InputLabel>Selecione uma gira</InputLabel>
-            <Select
-              value={giraId}
-              onChange={(e) => { setGiraId(e.target.value); setPage(0); }}
-              label="Selecione uma gira"
-            >
-              <MenuItem value=""><em>Nenhuma</em></MenuItem>
-              {giras.map((g) => (
-                <MenuItem key={g.id} value={g.id}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                    <span style={{ flex: 1 }}>{g.nome}</span>
-                    {!g.is_active && <Chip label="inativa" size="small" sx={{ height: 18, fontSize: '0.65rem' }} />}
-                  </Box>
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <Button
-            size="small"
-            variant={giraFiltersOpen || activeGiraFilterCount > 0 ? 'contained' : 'outlined'}
-            disableElevation
-            startIcon={<FilterListRoundedIcon sx={{ fontSize: 17 }} />}
-            onClick={() => setGiraFiltersOpen((p) => !p)}
-            sx={{ flexShrink: 0 }}
-          >
-            <Badge badgeContent={activeGiraFilterCount} color="error" sx={{ '& .MuiBadge-badge': { fontSize: '0.65rem', height: 16, minWidth: 16 } }}>
-              Filtros de gira
-            </Badge>
-          </Button>
-
-          {activeGiraFilterCount > 0 && (
-            <Button size="small" variant="text" onClick={handleClearGiraFilters} sx={{ color: 'text.secondary' }}>
-              Limpar
-            </Button>
-          )}
-        </Box>
-
-        {/* Collapsible gira filters */}
-        <Collapse in={giraFiltersOpen}>
-          <Divider sx={{ my: 2 }} />
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Tipo de gira</InputLabel>
-              <Select value={giraFilter} onChange={(e) => { setGiraFilter(e.target.value as GiraFilter); setGiraId(''); setPage(0); }} label="Tipo de gira">
-                <MenuItem value="all">Todas</MenuItem>
-                <MenuItem value="active">Ativas</MenuItem>
-                <MenuItem value="inactive">Inativas</MenuItem>
-              </Select>
-            </FormControl>
-
-            <TextField size="small" label="Data de" type="date" value={dateFrom}
-              onChange={(e) => { setDateFrom(e.target.value); setGiraId(''); setPage(0); }}
-              InputLabelProps={{ shrink: true }} sx={{ minWidth: 160 }} />
-
-            <TextField size="small" label="Data até" type="date" value={dateTo}
-              onChange={(e) => { setDateTo(e.target.value); setGiraId(''); setPage(0); }}
-              InputLabelProps={{ shrink: true }} sx={{ minWidth: 160 }} />
-
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel>Status do ticket</InputLabel>
-              <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }} label="Status do ticket">
-                <MenuItem value="">Todos</MenuItem>
-                <MenuItem value="emitted">Emitidos</MenuItem>
-                <MenuItem value="called">Chamados</MenuItem>
-                <MenuItem value="completed">Concluídos</MenuItem>
-                <MenuItem value="cancelled">Cancelados</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </Collapse>
-      </Paper>
-
-      {/* ── KPI strip (when gira is selected and doorStats loaded) ── */}
+      {/* KPIs da porta */}
       {giraId && doorStats && (
-        <Paper
-          data-tour="relatorio-kpis"
-          elevation={0}
-          sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, mb: 3, overflow: 'hidden' }}
-        >
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: 'repeat(4, 1fr)', md: 'repeat(8, 1fr)' },
-              '& > *': {
-                borderRight: '1px solid',
-                borderBottom: { xs: '1px solid', md: 'none' },
-                borderColor: 'divider',
-                '&:nth-of-type(4n)': { borderRight: { xs: 'none', md: '1px solid' } },
-                '&:nth-of-type(8n)': { borderRight: 'none' },
-                '&:nth-of-type(n+5)': { borderBottom: { xs: 'none', md: 'none' } },
-              },
-            }}
-          >
-            <StatPill label="Total"         value={doorStats.total}          />
-            <StatPill label="Concluídos"    value={doorStats.completed}      color="#16a34a" />
-            <StatPill label="Aguardando"    value={doorStats.awaiting}       />
-            <StatPill label="Em atend."     value={doorStats.in_progress}    />
-            <StatPill label="No-show"       value={doorStats.no_show}        color="#dc2626" />
-            <StatPill label="Walk-in"       value={doorStats.walk_in}        color="#2563eb" />
-            <StatPill label="Preferenciais" value={doorStats.preferenciais}  color="#9a3412" />
-            <StatPill label="Associados"    value={doorStats.patrocinados}   color="#92400e" />
-          </Box>
-        </Paper>
+        <Card data-tour="relatorio-kpis" className="gap-0 overflow-hidden py-0">
+          <div className="grid grid-cols-4 md:grid-cols-8">
+            <StatPill label="Total" value={doorStats.total} />
+            <StatPill label="Concluídos" value={doorStats.completed} className="text-success" />
+            <StatPill label="Aguardando" value={doorStats.awaiting} />
+            <StatPill label="Em atendimento" value={doorStats.in_progress} />
+            <StatPill label="Não veio" value={doorStats.no_show} className="text-destructive" />
+            <StatPill label="Sem senha" value={doorStats.walk_in} className="text-info" />
+            <StatPill label="Preferenciais" value={doorStats.preferenciais} />
+            <StatPill label="Associados" value={doorStats.patrocinados} className="text-warning" />
+          </div>
+        </Card>
       )}
 
-      {/* ── Empty state ── */}
-      {!giraId && (
-        <Box sx={{ py: 8, textAlign: 'center' }}>
-          <Typography variant="body1" color="text.secondary">
-            Selecione uma gira acima para visualizar o relatório.
-          </Typography>
-        </Box>
+      {!giraId && girasLoaded && (
+        <EmptyState
+          icon={<IconGira />}
+          title={giras.length === 0 ? 'Nenhuma gira encontrada' : 'Selecione uma gira'}
+          description={
+            giras.length === 0
+              ? 'Ajuste os filtros de gira ou cadastre uma gira.'
+              : 'Escolha uma gira acima para ver o relatório de atendimentos.'
+          }
+        />
       )}
 
-      {/* ── Search filters + table ── */}
       {giraId && (
         <>
-          {/* Search filter bar */}
-          <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 2.5, mb: 2 }}>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-              <TextField
-                size="small"
-                placeholder="Buscar por nome ou observações…"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchRoundedIcon fontSize="small" color={searchText.length >= 3 ? 'primary' : 'disabled'} />
-                    </InputAdornment>
-                  ),
-                }}
-                helperText={searchText.length > 0 && searchText.length < 3 ? 'Digite ao menos 3 caracteres' : ''}
-                sx={{ flex: '1 1 220px', minWidth: 180 }}
-              />
-
-              <Button
-                size="small"
-                variant={searchFiltersOpen || Boolean(mediumFilter || camboneFilter || tagFilter) ? 'contained' : 'outlined'}
-                disableElevation
-                startIcon={<TuneRoundedIcon sx={{ fontSize: 16 }} />}
-                onClick={() => setSearchFiltersOpen((p) => !p)}
-              >
-                <Badge badgeContent={[mediumFilter, camboneFilter, tagFilter].filter(Boolean).length} color="error" sx={{ '& .MuiBadge-badge': { fontSize: '0.65rem', height: 16, minWidth: 16 } }}>
-                  Filtros
-                </Badge>
-              </Button>
-
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+            <TextField
+              aria-label="Buscar por nome ou observações"
+              placeholder="Buscar por nome ou observações…"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              startAdornment={<Search />}
+              size="small"
+              helperText={searchText.length > 0 && searchText.length < 3 ? 'Digite ao menos 3 caracteres' : undefined}
+              className="sm:max-w-sm"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant={activeSearchFilterCount > 0 ? 'secondary' : 'outline'} size="sm" className="h-8">
+                    <SlidersHorizontal />
+                    Filtros
+                    {activeSearchFilterCount > 0 && (
+                      <Badge className="ml-1 h-5 min-w-5 rounded-full px-1.5">{activeSearchFilterCount}</Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="flex w-[min(20rem,calc(100vw-2rem))] flex-col gap-3">
+                  <Combobox
+                    label="Médium"
+                    options={uniqueMediums.map((n) => ({ value: n, label: n }))}
+                    value={mediumFilter}
+                    onChange={setMediumFilter}
+                    placeholder="Todos"
+                    clearable
+                  />
+                  <Combobox
+                    label="Cambone"
+                    options={uniqueCambones.map((n) => ({ value: n, label: n }))}
+                    value={camboneFilter}
+                    onChange={setCamboneFilter}
+                    placeholder="Todos"
+                    clearable
+                  />
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="rel-tag">Tag</Label>
+                    <Select value={tagFilter ?? 'all'} onValueChange={(v) => setTagFilter(v === 'all' ? null : (v as TagLabel))}>
+                      <SelectTrigger id="rel-tag" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        <SelectItem value="Comum">Comum</SelectItem>
+                        <SelectItem value="Preferencial">Preferencial</SelectItem>
+                        <SelectItem value="Associado">Associado</SelectItem>
+                        <SelectItem value="Sem senha">Sem senha</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </PopoverContent>
+              </Popover>
               {hasActiveSearchFilters && (
                 <>
-                  <Button size="small" variant="text" onClick={handleClearSearchFilters} sx={{ color: 'text.secondary' }}>
+                  <Button variant="ghost" size="sm" onClick={handleClearSearchFilters}>
+                    <X />
                     Limpar
                   </Button>
-                  <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
-                    {filteredTickets.length} de {allTickets.length} ticket{allTickets.length !== 1 ? 's' : ''}
-                  </Typography>
+                  <span className="text-xs text-muted-foreground">
+                    {filteredTickets.length} de {allTickets.length} senha{allTickets.length !== 1 ? 's' : ''}
+                  </span>
                 </>
               )}
-            </Box>
+            </div>
+          </div>
 
-            <Collapse in={searchFiltersOpen}>
-              <Divider sx={{ my: 2 }} />
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <FormControl size="small" sx={{ minWidth: 180 }}>
-                  <InputLabel>Médium</InputLabel>
-                  <Select value={mediumFilter} onChange={(e) => setMediumFilter(e.target.value)} label="Médium">
-                    <MenuItem value="">Todos</MenuItem>
-                    {uniqueMediums.map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
-                  </Select>
-                </FormControl>
-
-                <FormControl size="small" sx={{ minWidth: 180 }}>
-                  <InputLabel>Cambone</InputLabel>
-                  <Select value={camboneFilter} onChange={(e) => setCamboneFilter(e.target.value)} label="Cambone">
-                    <MenuItem value="">Todos</MenuItem>
-                    {uniqueCambones.map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
-                  </Select>
-                </FormControl>
-
-                <FormControl size="small" sx={{ minWidth: 150 }}>
-                  <InputLabel>Tag</InputLabel>
-                  <Select value={tagFilter} onChange={(e) => setTagFilter(e.target.value as TagFilter)} label="Tag">
-                    <MenuItem value="">Todas</MenuItem>
-                    <MenuItem value="Comum">Comum</MenuItem>
-                    <MenuItem value="Preferencial">Preferencial</MenuItem>
-                    <MenuItem value="Associado">Associado</MenuItem>
-                    <MenuItem value="Walk-in">Walk-in</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
-            </Collapse>
-          </Paper>
-
-          {allTickets.length > 500 && (
-            <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
-              Esta gira tem mais de <strong>500</strong> registros — apenas os primeiros 500 são exibidos.
+          {allTickets.length >= 500 && (
+            <Alert variant="warning">
+              <AlertDescription>
+                Esta gira tem 500 registros ou mais — apenas os primeiros 500 são exibidos.
+              </AlertDescription>
             </Alert>
           )}
 
-          {/* Table */}
-          <Paper
-            data-tour="relatorio-tabela"
-            elevation={0}
-            sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, overflow: 'hidden' }}
-          >
-            {loading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-                <CircularProgress />
-              </Box>
-            ) : (
-              <>
-                <TableContainer>
-                  <Table size="small" sx={{ minWidth: 600 }}>
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.025)' }}>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', py: 1.5 }}>Senha</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Nome</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', display: { xs: 'none', sm: 'table-cell' } }}>Tag</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', display: { xs: 'none', md: 'table-cell' } }}>Médium</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', display: { xs: 'none', md: 'table-cell' } }}>Cambone</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Observações</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {pagedTickets.length > 0 ? (
-                        pagedTickets.map((ticket) => {
-                          const tag = getTag(ticket);
-                          return (
-                            <TableRow key={ticket.id} hover>
-                              <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '0.82rem' }}>
-                                #{String(ticket.numero).padStart(4, '0')}
-                              </TableCell>
-                              <TableCell sx={{ fontSize: '0.85rem' }}>{ticket.consulente_nome || '—'}</TableCell>
-                              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                                <Chip
-                                  label={tag.label}
-                                  size="small"
-                                  sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: tag.bg, color: tag.color }}
-                                />
-                              </TableCell>
-                              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, fontSize: '0.82rem', color: 'text.secondary' }}>
-                                {ticket.medium_nome || '—'}
-                              </TableCell>
-                              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, fontSize: '0.82rem', color: 'text.secondary' }}>
-                                {ticket.cambone_nome || '—'}
-                              </TableCell>
-                              <TableCell sx={{ maxWidth: 240, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.82rem', color: 'text.secondary' }}>
-                                {ticket.atendimento_descricao || '—'}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                            {hasActiveSearchFilters
-                              ? 'Nenhum ticket encontrado para os filtros aplicados.'
-                              : 'Nenhum ticket encontrado para esta gira.'}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-
-                {filteredTickets.length > PAGE_SIZE && (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                    <Pagination
-                      count={Math.ceil(filteredTickets.length / PAGE_SIZE)}
-                      page={page + 1}
-                      onChange={(_, p) => setPage(p - 1)}
-                      size="small"
-                    />
-                  </Box>
-                )}
-              </>
-            )}
-          </Paper>
+          <div data-tour="relatorio-tabela">
+            <DataTable
+              columns={columns}
+              data={filteredTickets}
+              getRowId={(t) => t.id}
+              loading={loading}
+              pageSize={PAGE_SIZE}
+              renderCard={renderCard}
+              dense
+              emptyMessage={
+                hasActiveSearchFilters
+                  ? 'Nenhuma senha encontrada para os filtros aplicados.'
+                  : 'Nenhuma senha encontrada para esta gira.'
+              }
+            />
+          </div>
         </>
       )}
-    </Box>
+    </div>
   );
 }
