@@ -129,7 +129,7 @@ Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`
 | `reply_to_email` | `String(255)` | Sim | — | — |
 | `email_signature` | `String(1000)` | Sim | — | — |
 | `enable_bulk_operations` | `Boolean` | Não | `True` | — |
-| `enable_analytics` | `Boolean` | Não | `True` | — |
+| `enable_analytics` | `Boolean` | Não | `True` | sem efeito: nada lê; toggle removido da UI em 2026-10-06 (Analytics segue plano + grupo) |
 | `enable_webhooks` | `Boolean` | Não | `False` | — |
 | `enable_walk_in` | `Boolean` | Não | `False` | adicionado em 007; habilita emissão walk-in |
 | `sponsor_priority_mode` | `String(20)` | Não | `"first"` | `"first"` ou `"interleave"`; adicionado em 006 |
