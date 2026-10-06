@@ -3,7 +3,7 @@
  *
  * Espelha o backend: limites e preço vêm de `PLAN_LIMITS` em
  * `backend/src/repositories/subscription_repo.py`; a hierarquia e o plano mínimo de cada
- * recurso vêm de `_get_plan_features` em `backend/src/services/plan_features.py`.
+ * recurso vêm de `_FEATURE_MIN_TIER` em `backend/src/services/plan_features.py`.
  * Mudou lá, mude aqui — o teste `__tests__/constants/plans.test.ts` confere os valores.
  */
 import type { PlanFeatures } from '@/hooks/useSubscription';
@@ -40,7 +40,7 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     key: 'free',
     label: 'Gratuito',
     price: 0,
-    limits: { users: 1, girasPerMonth: 4, mediuns: 0 },
+    limits: { users: 1, girasPerMonth: 2, mediuns: 0 },
     tagline: 'Para começar a tirar senha pelo WhatsApp hoje.',
     popular: false,
     color: '#64748b',
@@ -49,7 +49,7 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     key: 'basic',
     label: 'Basic',
     price: 49,
-    limits: { users: 3, girasPerMonth: 10, mediuns: 50 },
+    limits: { users: 3, girasPerMonth: 3, mediuns: 15 },
     tagline: 'Para quem tem corrente e quer o relatório de cada gira.',
     popular: false,
     color: '#3b82f6',
@@ -58,8 +58,8 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     key: 'pro',
     label: 'Pro',
     price: 79,
-    limits: { users: 10, girasPerMonth: 15, mediuns: 150 },
-    tagline: 'Financeiro, estoque, site e associados num lugar só.',
+    limits: { users: 10, girasPerMonth: 4, mediuns: 30 },
+    tagline: 'Site do terreiro, e-mail da senha, relatórios e cores do terreiro.',
     popular: true,
     color: '#8b5cf6',
   },
@@ -68,7 +68,7 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     label: 'Premium',
     price: 99,
     limits: { users: UNLIMITED_THRESHOLD, girasPerMonth: 999999, mediuns: 9999999 },
-    tagline: 'Sem limite de usuários, giras e médiuns.',
+    tagline: 'Tudo liberado e sem limites: financeiro e mensalidades, estoque, associados e fila de espera.',
     popular: false,
     color: '#f59e0b',
   },
@@ -85,7 +85,12 @@ export const BASE_FEATURES: readonly string[] = [
   'Ações em lote nas senhas',
 ];
 
-/** Plano mínimo de cada recurso (= `tier >= n` em plan_features.py). */
+/**
+ * Plano mínimo de cada recurso (= `_FEATURE_MIN_TIER` em plan_features.py).
+ * Reestruturação de out/2026: associados (e a mensalidade deles), estoque, fila de espera,
+ * horário marcado, o financeiro (contas a pagar/receber, caixa) e a mensalidade dos médiuns
+ * passaram do Pro para o Premium.
+ */
 export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   // Ações em lote valem em todos os planos (não é recurso vendido — fica em BASE_FEATURES).
   bulk_operations: 'free',
@@ -95,16 +100,16 @@ export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   tema_personalizado: 'pro',
   analytics_basico: 'pro',
   analytics_avancado: 'pro',
-  associados: 'pro',
   export_csv: 'pro',
   auditoria: 'pro',
-  estoque_controle: 'pro',
-  mensalidade_mediun: 'pro',
-  mensalidade_associado: 'pro',
   site_builder: 'pro',
-  contas_financeiras: 'pro',
-  fila_espera: 'pro',
-  agendamento_por_horario: 'pro',
+  mensalidade_mediun: 'premium',
+  associados: 'premium',
+  mensalidade_associado: 'premium',
+  estoque_controle: 'premium',
+  contas_financeiras: 'premium',
+  fila_espera: 'premium',
+  agendamento_por_horario: 'premium',
   suporte_prioritario: 'premium',
 };
 
@@ -130,7 +135,7 @@ export const FEATURE_CATALOG: readonly FeatureCatalogItem[] = [
   { key: 'mensalidade_mediun', label: 'Mensalidade dos médiuns', group: 'Pessoas' },
   { key: 'associados', label: 'Associados', group: 'Pessoas' },
   { key: 'mensalidade_associado', label: 'Mensalidade dos associados', group: 'Pessoas' },
-  { key: 'contas_financeiras', label: 'Contas a pagar, a receber e caixa', group: 'Financeiro e estoque' },
+  { key: 'contas_financeiras', label: 'Contas a pagar e a receber, fluxo de caixa e contas bancárias', group: 'Financeiro e estoque' },
   { key: 'estoque_controle', label: 'Estoque de materiais', group: 'Financeiro e estoque' },
   { key: 'email_transacional', label: 'E-mail de confirmação da senha', group: 'Comunicação e site' },
   { key: 'tema_personalizado', label: 'Cores e logo do terreiro', group: 'Comunicação e site' },
@@ -196,6 +201,12 @@ export function planIncludes(plan: PlanKey | string | null | undefined, feature:
 
 export function minPlanFor(feature: PlanFeatureKey): PlanDef {
   return PLANS[FEATURE_MIN_PLAN[feature]];
+}
+
+/** "a partir do Pro" / "só no Premium" — o último plano não tem "a partir". */
+export function minPlanPhrase(feature: PlanFeatureKey): string {
+  const plan = minPlanFor(feature);
+  return plan.key === PLAN_ORDER[PLAN_ORDER.length - 1] ? `só no ${plan.label}` : `a partir do ${plan.label}`;
 }
 
 export function featureLabel(feature: PlanFeatureKey): string {

@@ -37,7 +37,7 @@ function makeSub(overrides: Partial<SubscriptionInfo> = {}): SubscriptionInfo {
     plan: 'free',
     status: 'active',
     max_users: 1,
-    max_giras_per_month: 4,
+    max_giras_per_month: 2,
     max_mediuns: 0,
     current_users: 0,
     current_giras_this_month: 0,
@@ -79,9 +79,9 @@ describe('can() — mensalidade_mediun', () => {
     expect(can(sub, 'mensalidade_mediun')).toBe(false);
   });
 
-  it('PRO: true', () => {
-    const sub = makeSub({ plan: 'pro', features: makeFeatures({ mensalidade_mediun: true }) });
-    expect(can(sub, 'mensalidade_mediun')).toBe(true);
+  it('PRO: false (Premium desde out/2026)', () => {
+    const sub = makeSub({ plan: 'pro', features: makeFeatures({ mensalidade_mediun: false }) });
+    expect(can(sub, 'mensalidade_mediun')).toBe(false);
   });
 
   it('PREMIUM: true', () => {
@@ -100,9 +100,9 @@ describe('can() — contas_financeiras', () => {
     expect(can(sub, 'contas_financeiras')).toBe(false);
   });
 
-  it('PRO: true', () => {
-    const sub = makeSub({ plan: 'pro', features: makeFeatures({ contas_financeiras: true }) });
-    expect(can(sub, 'contas_financeiras')).toBe(true);
+  it('PRO: false (Premium desde out/2026)', () => {
+    const sub = makeSub({ plan: 'pro', features: makeFeatures({ contas_financeiras: false }) });
+    expect(can(sub, 'contas_financeiras')).toBe(false);
   });
 
   it('PREMIUM: true', () => {
@@ -121,9 +121,9 @@ describe('can() — fila_espera', () => {
     expect(can(sub, 'fila_espera')).toBe(false);
   });
 
-  it('PRO: true', () => {
-    const sub = makeSub({ plan: 'pro', features: makeFeatures({ fila_espera: true }) });
-    expect(can(sub, 'fila_espera')).toBe(true);
+  it('PRO: false (Premium desde out/2026)', () => {
+    const sub = makeSub({ plan: 'pro', features: makeFeatures({ fila_espera: false }) });
+    expect(can(sub, 'fila_espera')).toBe(false);
   });
 
   it('PREMIUM: true', () => {
@@ -150,8 +150,32 @@ describe('can() — mediuns', () => {
 
 // ─── canCreateGira() — limites por plano ─────────────────────────────────────
 
-describe('canCreateGira() — FREE (limite 4)', () => {
-  const base = makeSub({ max_giras_per_month: 4 });
+describe('canCreateGira() — FREE (limite 2)', () => {
+  const base = makeSub({ max_giras_per_month: 2 });
+
+  it('true com 1 gira', () => {
+    expect(canCreateGira({ ...base, current_giras_this_month: 1 })).toBe(true);
+  });
+
+  it('false com 2 giras (no limite)', () => {
+    expect(canCreateGira({ ...base, current_giras_this_month: 2 })).toBe(false);
+  });
+});
+
+describe('canCreateGira() — BASIC (limite 3)', () => {
+  const base = makeSub({ plan: 'basic', max_giras_per_month: 3 });
+
+  it('true com 2 giras', () => {
+    expect(canCreateGira({ ...base, current_giras_this_month: 2 })).toBe(true);
+  });
+
+  it('false com 3 giras (no limite)', () => {
+    expect(canCreateGira({ ...base, current_giras_this_month: 3 })).toBe(false);
+  });
+});
+
+describe('canCreateGira() — PRO (limite 4)', () => {
+  const base = makeSub({ plan: 'pro', max_giras_per_month: 4 });
 
   it('true com 3 giras', () => {
     expect(canCreateGira({ ...base, current_giras_this_month: 3 })).toBe(true);
@@ -159,30 +183,6 @@ describe('canCreateGira() — FREE (limite 4)', () => {
 
   it('false com 4 giras (no limite)', () => {
     expect(canCreateGira({ ...base, current_giras_this_month: 4 })).toBe(false);
-  });
-});
-
-describe('canCreateGira() — BASIC (limite 10)', () => {
-  const base = makeSub({ plan: 'basic', max_giras_per_month: 10 });
-
-  it('true com 9 giras', () => {
-    expect(canCreateGira({ ...base, current_giras_this_month: 9 })).toBe(true);
-  });
-
-  it('false com 10 giras (no limite)', () => {
-    expect(canCreateGira({ ...base, current_giras_this_month: 10 })).toBe(false);
-  });
-});
-
-describe('canCreateGira() — PRO (limite 15)', () => {
-  const base = makeSub({ plan: 'pro', max_giras_per_month: 15 });
-
-  it('true com 14 giras', () => {
-    expect(canCreateGira({ ...base, current_giras_this_month: 14 })).toBe(true);
-  });
-
-  it('false com 15 giras (no limite)', () => {
-    expect(canCreateGira({ ...base, current_giras_this_month: 15 })).toBe(false);
   });
 });
 
@@ -196,27 +196,27 @@ describe('canCreateGira() — PREMIUM (ilimitado)', () => {
 
 // ─── canCreateMedium() — limites por plano ───────────────────────────────────
 
-describe('canCreateMedium() — BASIC (limite 50)', () => {
-  const sub = makeSub({ plan: 'basic', max_mediuns: 50 });
+describe('canCreateMedium() — BASIC (limite 15)', () => {
+  const sub = makeSub({ plan: 'basic', max_mediuns: 15 });
 
-  it('true com 49 médiuns', () => {
-    expect(canCreateMedium(sub, 49)).toBe(true);
+  it('true com 14 médiuns', () => {
+    expect(canCreateMedium(sub, 14)).toBe(true);
   });
 
-  it('false com 50 médiuns (no limite)', () => {
-    expect(canCreateMedium(sub, 50)).toBe(false);
+  it('false com 15 médiuns (no limite)', () => {
+    expect(canCreateMedium(sub, 15)).toBe(false);
   });
 });
 
-describe('canCreateMedium() — PRO (limite 150)', () => {
-  const sub = makeSub({ plan: 'pro', max_mediuns: 150 });
+describe('canCreateMedium() — PRO (limite 30)', () => {
+  const sub = makeSub({ plan: 'pro', max_mediuns: 30 });
 
-  it('true com 149 médiuns', () => {
-    expect(canCreateMedium(sub, 149)).toBe(true);
+  it('true com 29 médiuns', () => {
+    expect(canCreateMedium(sub, 29)).toBe(true);
   });
 
-  it('false com 150 médiuns (no limite)', () => {
-    expect(canCreateMedium(sub, 150)).toBe(false);
+  it('false com 30 médiuns (no limite)', () => {
+    expect(canCreateMedium(sub, 30)).toBe(false);
   });
 });
 

@@ -81,17 +81,19 @@ describe('/admin/billing', () => {
     render(<Billing />);
     expect(await screen.findByText(/Seu mês no Premium/)).toBeInTheDocument();
     expect(screen.getByText(/Faltam 10 dias de teste/)).toBeInTheDocument();
-    // 30 médiuns e 3 giras → Basic (até 50 médiuns, 10 giras)
-    expect(screen.getByText('Basic — R$ 49/mês')).toBeInTheDocument();
+    // 30 médiuns e 3 giras → Pro (até 30 médiuns, 4 giras; Basic tem 15 médiuns)
+    expect(screen.getByText('Pro — R$ 79/mês')).toBeInTheDocument();
+    // recomendado abaixo do Premium avisa o que fica só no Premium
+    expect(screen.getByText(/Só no Premium:/).parentElement).toHaveTextContent('estoque de materiais');
     expect(screen.getByText(/Cadastro de médiuns \(30 cadastrados\)/)).toBeInTheDocument();
     // senhas emitidas vêm do resumo do painel
     expect(await screen.findByText('87')).toBeInTheDocument();
     expect(screen.getByText('Ativa')).toBeInTheDocument();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Manter tudo por R$ 49/mês' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Continuar no Pro por R$ 79/mês' }));
     });
-    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/billing/checkout', { plan: 'basic' });
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/billing/checkout', { plan: 'pro' });
     await waitFor(() => expect(window.location.href).toBe('https://pagamento/x'));
   });
 

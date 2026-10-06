@@ -1,12 +1,20 @@
 /**
  * TrialSummaryCard — "Seu mês no Premium": o que o terreiro já fez no teste, o que trava
- * no gratuito e um plano recomendado pelo uso, com "Manter tudo por R$ X/mês".
+ * no gratuito e um plano recomendado pelo uso, com "Manter tudo por R$ X/mês" (Premium) ou
+ * "Continuar no <plano> por R$ X/mês" + o que fica só no Premium.
  */
 import React from 'react';
 import { CalendarDays, Flower2, Loader2, Lock, Sparkles, Ticket, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { formatPricePerMonth, lostOnFree, planHighlights, type PlanDef, type UsageSnapshot } from '@/constants/plans';
+import {
+  featuresUnlockedAt,
+  formatPricePerMonth,
+  lostOnFree,
+  planHighlights,
+  type PlanDef,
+  type UsageSnapshot,
+} from '@/constants/plans';
 
 export interface TrialUsage extends UsageSnapshot {
   /** Senhas emitidas no período (omitido quando o painel não devolve). */
@@ -46,6 +54,9 @@ export function TrialSummaryCard({ plan, trialEndsAt, usage, recommended, onKeep
   const dias = daysLeft(trialEndsAt);
   const perdas = lostOnFree(usage);
   const recommendedIsFree = recommended.price === 0;
+  // O teste é do Premium: abaixo dele, "manter tudo" não é verdade — o que só existe no Premium
+  // (estoque, associados, financeiro, fila de espera, horário marcado…) fica de fora.
+  const premiumOnly = recommended.key === 'premium' ? [] : featuresUnlockedAt('premium').map((f) => f.label);
 
   return (
     <Card data-tour={rest['data-tour']} className="border-primary/30 bg-primary/5">
@@ -82,7 +93,7 @@ export function TrialSummaryCard({ plan, trialEndsAt, usage, recommended, onKeep
                 {perdas.map((p) => (
                   <li key={p}>• {p}</li>
                 ))}
-                <li>• Relatório da gira, financeiro, estoque e site</li>
+                <li>• Relatório da gira, mensalidades, financeiro, estoque e site</li>
               </ul>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -104,6 +115,11 @@ export function TrialSummaryCard({ plan, trialEndsAt, usage, recommended, onKeep
                   <li key={f}>• {f}</li>
                 ))}
             </ul>
+            {!recommendedIsFree && premiumOnly.length > 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                <strong>Só no Premium:</strong> {premiumOnly.join(', ').toLowerCase()}.
+              </p>
+            )}
             {recommendedIsFree ? (
               <p className="mt-3 text-xs text-muted-foreground">
                 Nada a fazer: no fim do teste a conta continua no gratuito. Se quiser mais, escolha um plano na aba
@@ -112,7 +128,9 @@ export function TrialSummaryCard({ plan, trialEndsAt, usage, recommended, onKeep
             ) : (
               <Button className="mt-3 w-full font-semibold" onClick={() => onKeep(recommended)} disabled={disabled || loading}>
                 {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
-                Manter tudo por {formatPricePerMonth(recommended.price)}
+                {premiumOnly.length > 0
+                  ? `Continuar no ${recommended.label} por ${formatPricePerMonth(recommended.price)}`
+                  : `Manter tudo por ${formatPricePerMonth(recommended.price)}`}
               </Button>
             )}
           </div>

@@ -211,7 +211,11 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
 
 - `feature` e um campo de `PlanFeatures` em `backend/src/services/plan_features.py` (catalogo unico;
   nome invalido quebra na importacao). Esse arquivo e o UNICO lugar com a hierarquia de planos
-  (`_PLAN_TIER` / `plan_tier()`); o frontend espelha o catalogo em `frontend/src/hooks/useSubscription.tsx`.
+  (`_PLAN_TIER` / `plan_tier()`) e com o plano minimo de cada feature (`_FEATURE_MIN_TIER` /
+  `feature_min_plan()`); o frontend espelha catalogo, limites e plano minimo em
+  `frontend/src/constants/plans.ts` (teste-espelho `__tests__/constants/plans.test.ts`) e le as
+  features efetivas via `frontend/src/hooks/useSubscription.tsx`. Na tela, `minPlan` de
+  `PlanLocked`/`UpgradePrompt` vem sempre de `minPlanFor(feature).label` — nunca nome fixo.
 - Semantica unica: plano inclui a feature (senao **403**, mensagem "disponivel a partir do plano X")
   **e** status da assinatura permite uso (senao **402**). Super admin sem tenant → 400.
 - Status (`subscription_block_reason`): SUSPENDED bloqueia; CANCELLED/EXPIRED bloqueiam plano pago (com
@@ -224,11 +228,18 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   na criacao E na reativacao (`PATCH is_active=true`) de medium.
 - `GET /api/v1/admin/subscription` devolve `features` via `get_effective_plan_features(sub)` — a UI esconde o
   que o backend nega. `PermissionService.is_feature_enabled_for_plan` (operadores) usa a mesma funcao.
+- Mensagem de 403: derivada do catalogo (`plan_feature_denied_message`): "X disponivel a partir do plano
+  Pro" ou "X disponivel apenas no plano Premium".
+- Toggles de config com gate (fila de espera, horario marcado, validar associado, mensalidade de
+  associados) so checam o plano ao LIGAR (False → True): a tela reenvia todos os toggles a cada salvar,
+  e tenant que perdeu a feature com o toggle gravado ligado nao pode levar 403. Em runtime toggle sem
+  plano vale como desligado (`waitlist_service`, `time_slot_service`, `public/emit_ticket.py`,
+  `mensalidades._assoc_enabled`).
 - Modulos gated hoje: estoque (`estoque_controle`), sites e cursos presenciais (`site_builder`), contas
   financeiras (`contas_financeiras`), rastreio/reenvio de e-mail (`email_transacional`), mensalidades
   (`mensalidade_mediun` / `mensalidade_associado`), mediuns (`mediuns`, em aniversariantes, criacao,
   edicao e exclusao — listar/consultar fica livre: modo somente leitura P-09), associados
-  (`associados`, router inteiro), analytics (`analytics_basico`) e auditoria (`auditoria`) — ambos no
+  (`associados`, router inteiro; Premium desde out/2026), analytics (`analytics_basico`) e auditoria (`auditoria`) — ambos no
   router desde 2026-10-06 (antes so a tela checava o plano), toggles de fila de espera e agendamento
   por horario em config, marca do terreiro (`tema_personalizado`: so quando o PUT /tenant/config MUDA
   cor principal/de apoio/cor do texto, e no POST /tenant/logo; remover logo e os demais campos salvam
@@ -241,6 +252,34 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   com `analytics_avancado` e `suporte_prioritario`, que nao tem nada implementado. Os campos seguem
   no catalogo `PlanFeatures`.
 - Rotas `/api/v1/platform/*`: `Depends(require_super_admin)` importado de `src.api.dependencies` (copia unica).
+
+#### Matriz de planos (reestruturacao de out/2026)
+
+Limites (`PLAN_LIMITS`, copiados para a linha de `subscriptions` na troca de plano — mudou numero,
+crie migracao de dados como a `059_planos_limites_out_2026`):
+
+| | Gratuito | Basic | Pro | Premium |
+|---|---|---|---|---|
+| Preco/mes | R$ 0 | R$ 49 | R$ 79 | R$ 99 |
+| Usuarios | 1 | 3 | 10 | ilimitado |
+| Giras/mes | 2 | 3 | 4 | ilimitado |
+| Mediuns | — | 15 | 30 | ilimitado |
+
+Recursos (plano minimo em `_FEATURE_MIN_TIER`):
+- **Todos**: senha pelo link, Porta, painel e `bulk_operations` (always-on, nao vendido).
+- **Basic+**: `mediuns`, `relatorio_gira`.
+- **Pro+**: `email_transacional`, `tema_personalizado`, `analytics_basico`, `export_csv`, `auditoria`,
+  `site_builder` (site e cursos).
+- **So Premium**: `mensalidade_mediun`, `associados`, `mensalidade_associado`, `estoque_controle`,
+  `contas_financeiras` (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`,
+  `agendamento_por_horario`. Todo o grupo Financeiro (mensalidades + configuracao financeira) e Premium.
+- Fora do comparativo (`UNSOLD_FEATURES`): `bulk_operations`, `analytics_avancado` (Pro+ no catalogo)
+  e `suporte_prioritario` (Premium no catalogo) — nada implementado nos dois ultimos.
+- Mensalidade de mediuns e Premium (decisao do dono do produto, out/2026). O espelho em contas a
+  receber (`mensalidade_contas_service`) so nasce com a feature no plano: criar medium/associado num
+  plano sem `mensalidade_mediun`/`mensalidade_associado` nao gera conta, mesmo com config gravada.
+- Dados de modulo que saiu do plano ficam no banco (sem grandfathering): a tela mostra `PlanLocked`
+  (nao ha modo so-leitura) e a API responde 403; limites menores so bloqueiam CRIAR (422), nada e apagado.
 
 ---
 
@@ -513,7 +552,8 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `058_associados_email_unique_ativo` (2026-10-06).
+- Head atual: `059_planos_limites_out_2026` (2026-10-06, migracao so de dados com os limites da
+  reestruturacao de planos), encadeada apos `058_associados_email_unique_ativo` (2026-10-06, 2.2.0).
 - Historico com 4 merge revisions (010, 030, 037, d9fafadd9261) — prefixos numericos ja
   colidiram 3x (009, 028, 030). Por isso a regra do §4.3: `alembic heads` ANTES de criar
   qualquer migracao nova.
@@ -523,7 +563,7 @@ Incluir obrigatoriamente:
   unique), 058 (e-mail de associado unico so entre ativos — recadastrar excluido dava 500).
 
 ### 11.10 Financeiro — Controle de Mensalidade de Mediuns (branch 002-financeiro-mensalidade)
-- **Feature PRO+**: `mensalidade_mediun` e PRO+ no catalogo desde 2026-06-27; os endpoints exigiam PREMIUM ate o P-05 (2026-10-05), que passou a usar `require_plan_feature("mensalidade_mediun")`.
+- **Feature Premium**: `mensalidade_mediun` foi PRO+ de 2026-06-27 ate a reestruturacao de out/2026, quando voltou a ser Premium (junto com a de associados). Endpoints usam `require_plan_feature("mensalidade_mediun")`; config e relatorio ficam nesse gate e a parte de associados so vale com `mensalidade_associado` no plano.
 - **Modelos**: `MensalidadeConfig` (valor_mensal, dia_vencimento, 1:1 tenant), `MensalidadePagamento` (UNIQUE mediun_id+mes, BYTEA comprovante), `MensalidadeStatus` enum (PENDENTE/PAGO/ISENTO).
 - **Endpoints** (prefixo `/api/v1/admin/financeiro`): config GET/PUT, mensalidades GET/POST por mes, comprovante GET/DELETE, resumo GET (6 hist + 3 proj), relatorio POST enviar / GET download. Associados espelham em `/associados*`.
 - **Regras de acesso** (desde 2026-10-06): so `require_group_permission(FINANCEIRO, ...)` + gate de plano — nao ha mais checagem de perfil ADMIN (`_require_admin` removido; contradizia o grupo). Registrar/editar pagamento e POST (upsert) → acao `insert`; a tela mostra "Registrar"/lote so com `canGroup('financeiro','insert')`. PUT config → `edit`.

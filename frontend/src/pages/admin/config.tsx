@@ -252,7 +252,7 @@ function FeatureToggle({
         type="button"
         onClick={onLockedClick}
         className="flex w-full items-start gap-3 rounded-xl border bg-card p-4 text-left opacity-80 outline-none transition hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        aria-label={`${title} — disponível a partir do plano ${minPlanLabel}. Ver plano`}
+        aria-label={`${title} — disponível ${minPlanLabel === 'Premium' ? 'apenas no' : 'a partir do'} plano ${minPlanLabel}. Ver plano`}
       >
         {content}
       </button>
@@ -693,7 +693,7 @@ function AdminConfigContent() {
                     <Lock aria-hidden />
                     <AlertDescription className="block">
                       Cores e logo personalizados estão disponíveis a partir do plano {minPlanFor('tema_personalizado').label}.{' '}
-                      <Link href="/admin/billing?plan=pro" className="font-semibold underline underline-offset-4">
+                      <Link href={`/admin/billing?plan=${minPlanFor('tema_personalizado').key}`} className="font-semibold underline underline-offset-4">
                         Ver planos
                       </Link>
                     </AlertDescription>
@@ -932,7 +932,7 @@ function AdminConfigContent() {
               <Lock className="size-5 text-muted-foreground" aria-hidden /> {lockedFeature?.title}
             </DialogTitle>
             <DialogDescription>
-              Este recurso entra a partir do plano <strong>{lockedPlan?.label}</strong>. Você pode comparar os planos e trocar
+              Este recurso entra {lockedPlan?.key === 'premium' ? 'só no' : 'a partir do'} plano <strong>{lockedPlan?.label}</strong>. Você pode comparar os planos e trocar
               quando quiser.
             </DialogDescription>
           </DialogHeader>

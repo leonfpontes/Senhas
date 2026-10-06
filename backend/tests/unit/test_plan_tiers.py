@@ -68,19 +68,26 @@ class TestPlanFeatures:
         assert f.site_builder is False
 
     def test_pro_plan_has_mid_tier_features(self):
-        """Pro unlocks most features except api/suporte."""
+        """Pro: e-mail, tema, analytics, CSV, auditoria, site e mensalidade de médiuns.
+        Associados, estoque, fila, horário e financeiro são Premium desde out/2026."""
         f = self._get_features(PlanType.PRO)
         # Should be enabled
         assert f.email_transacional is True
         assert f.tema_personalizado is True
         assert f.analytics_basico is True
         assert f.analytics_avancado is True
-        assert f.associados is True
         assert f.export_csv is True
         assert f.bulk_operations is True
         assert f.auditoria is True
         assert f.site_builder is True
-        # Should still be disabled
+        # Premium only
+        assert f.mensalidade_mediun is False
+        assert f.associados is False
+        assert f.mensalidade_associado is False
+        assert f.estoque_controle is False
+        assert f.contas_financeiras is False
+        assert f.fila_espera is False
+        assert f.agendamento_por_horario is False
         assert f.suporte_prioritario is False
 
     def test_premium_plan_has_all_features(self):
@@ -99,7 +106,7 @@ class TestPlanFeatures:
 
 
 class TestPlanFeaturesMensalidade:
-    """Verify mensalidade_mediun feature flag is available on PRO and PREMIUM."""
+    """mensalidade_mediun é só Premium desde a reestruturação de out/2026."""
 
     def _get_features(self, plan: PlanType):
         from src.api.v1.admin.subscription_info import _get_plan_features
@@ -113,9 +120,9 @@ class TestPlanFeaturesMensalidade:
         f = self._get_features(PlanType.BASIC)
         assert f.mensalidade_mediun is False
 
-    def test_pro_tem_mensalidade_mediun(self):
+    def test_pro_nao_tem_mensalidade_mediun(self):
         f = self._get_features(PlanType.PRO)
-        assert f.mensalidade_mediun is True
+        assert f.mensalidade_mediun is False
 
     def test_premium_tem_mensalidade_mediun(self):
         f = self._get_features(PlanType.PREMIUM)
@@ -137,9 +144,10 @@ class TestPlanFeaturesAgendamentoPorHorario:
         f = self._get_features(PlanType.BASIC)
         assert f.agendamento_por_horario is False
 
-    def test_pro_tem_agendamento_por_horario(self):
+    def test_pro_nao_tem_agendamento_por_horario(self):
+        """Premium desde a reestruturação de out/2026."""
         f = self._get_features(PlanType.PRO)
-        assert f.agendamento_por_horario is True
+        assert f.agendamento_por_horario is False
 
     def test_premium_tem_agendamento_por_horario(self):
         f = self._get_features(PlanType.PREMIUM)
@@ -159,22 +167,22 @@ class TestPlanConfig:
     def test_free_config(self):
         c = self._get_config(PlanType.FREE)
         assert c["max_users"] == 1
-        assert c["max_giras_per_month"] == 4
+        assert c["max_giras_per_month"] == 2
         assert c["max_mediuns"] == 0
         assert c["price"] == 0.0
 
     def test_basic_config(self):
         c = self._get_config(PlanType.BASIC)
         assert c["max_users"] == 3
-        assert c["max_giras_per_month"] == 10
-        assert c["max_mediuns"] == 50
+        assert c["max_giras_per_month"] == 3
+        assert c["max_mediuns"] == 15
         assert c["price"] == 49.0
 
     def test_pro_config(self):
         c = self._get_config(PlanType.PRO)
         assert c["max_users"] == 10
-        assert c["max_giras_per_month"] == 15
-        assert c["max_mediuns"] == 150
+        assert c["max_giras_per_month"] == 4
+        assert c["max_mediuns"] == 30
         assert c["price"] == 79.0
 
     def test_premium_config(self):

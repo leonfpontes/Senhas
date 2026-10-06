@@ -1,4 +1,4 @@
-"""AssociadoMensalidadePagamento model — monthly dues for associados (PRO+ feature)."""
+"""AssociadoMensalidadePagamento model — monthly dues for associados (Premium)."""
 from __future__ import annotations
 
 import uuid

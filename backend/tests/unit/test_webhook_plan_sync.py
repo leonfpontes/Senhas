@@ -95,9 +95,9 @@ class TestWebhookPlanSyncWithPlanLimits:
 class TestWebhookDeletedRevertsFreeCorrectly:
     """_handle_subscription_deleted deve reverter para FREE usando PLAN_LIMITS."""
 
-    def test_free_giras_limit_is_not_two(self):
-        """Garante que FREE não usa o valor antigo hardcoded de 2."""
-        assert PLAN_LIMITS[PlanType.FREE]["max_giras_per_month"] != 2
+    def test_free_giras_limit_e_o_de_out_2026(self):
+        """FREE: 2 giras/mês desde a reestruturação de out/2026 (antes 4)."""
+        assert PLAN_LIMITS[PlanType.FREE]["max_giras_per_month"] == 2
 
     def test_free_limits_are_positive(self):
         free = PLAN_LIMITS[PlanType.FREE]

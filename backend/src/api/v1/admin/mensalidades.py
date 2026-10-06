@@ -51,24 +51,16 @@ MAX_COMPROVANTE_BYTES = 5 * 1024 * 1024  # 5 MB
 ALLOWED_COMPROVANTE_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
 
 # ── Gate de plano (P-05) ─────────────────────────────────────────────────────
-# Médiuns: mensalidade_mediun (PRO+ desde 2026-06-27; antes daqui exigia PREMIUM,
-# divergindo do catálogo e da tela). Associados: mensalidade_associado (PRO+).
-# Relatório: qualquer plano com mensalidade (os dois são PRO+). Todos checam
-# também o status da assinatura — ver require_plan_feature.
+# Médiuns: mensalidade_mediun e associados: mensalidade_associado — os dois
+# Premium desde a reestruturação de out/2026 (antes Pro+). Config e relatório servem os
+# dois e ficam no recurso de entrada (mensalidade_mediun): quem tem mensalidade
+# de associados (Premium) sempre tem a de médiuns. Dentro deles, a parte de
+# associados só vale com mensalidade_associado no plano (`_assoc_enabled`).
+# Todos checam também o status da assinatura — ver require_plan_feature.
 _GATE_MEDIUNS = Depends(require_plan_feature("mensalidade_mediun"))
 _GATE_ASSOCIADOS = Depends(require_plan_feature("mensalidade_associado"))
-_GATE_RELATORIO = Depends(
-    require_plan_feature(
-        "mensalidade_associado",
-        detail="Relatório de mensalidades está disponível nos planos Pro e Premium.",
-    )
-)
-_GATE_CONFIG = Depends(
-    require_plan_feature(
-        "mensalidade_associado",
-        detail="Configuração de Mensalidade requer plano Pro ou Premium.",
-    )
-)
+_GATE_RELATORIO = Depends(require_plan_feature("mensalidade_mediun"))
+_GATE_CONFIG = Depends(require_plan_feature("mensalidade_mediun"))
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -99,6 +91,16 @@ async def _require_assoc_mensalidade_enabled(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Mensalidade de Associados não está habilitada. Ative em Financeiro → Configuração → Mensalidade.",
         )
+
+
+def _assoc_enabled(tc, features) -> bool:
+    """Mensalidade de associados ligada E incluída no plano.
+
+    O toggle `enable_mensalidade_associado` fica gravado quando o plano perde
+    `mensalidade_associado` (ex.: rebaixado do Premium); nesse caso ele vale
+    como desligado — a config e o relatório tratam só os médiuns.
+    """
+    return bool(tc and tc.enable_mensalidade_associado and features.mensalidade_associado)
 
 
 async def _observacao_kwargs(request: Optional[Request], observacao: Optional[str]) -> Dict[str, Any]:
@@ -185,12 +187,14 @@ async def get_config(
 ):
     """Return the tenant's mensalidade configuration.
     
-    Accessible to PRO+ (gate _GATE_CONFIG no decorator).
+    Accessible to Premium (gate _GATE_CONFIG no decorator). O toggle de associados
+    volta efetivo (desligado se o plano não inclui mensalidade_associado).
     """
     repo = MensalidadeRepository(db)
     config = await repo.get_config(current_user.tenant_id)
     if not config:
         return None
+    features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id))
     config_repo = TenantConfigRepository(db)
     tc = await config_repo.get_by_tenant(current_user.tenant_id)
     hora_str = config.relatorio_hora_envio.strftime("%H:%M") if config.relatorio_hora_envio else None
@@ -203,7 +207,7 @@ async def get_config(
         valor_mensal_associado=float(config.valor_mensal_associado),
         dia_vencimento_associado=config.dia_vencimento_associado,
         relatorio_hora_envio=hora_str,
-        enable_mensalidade_associado=bool(tc.enable_mensalidade_associado) if tc else False,
+        enable_mensalidade_associado=_assoc_enabled(tc, features),
     )
 
 
@@ -215,8 +219,9 @@ async def update_config(
 ):
     """Create or update mensalidade config (grupo FINANCEIRO "edit").
 
-    Plano/status já checados por _GATE_CONFIG. Campos de médiuns (valor/dia) só
-    gravam com mensalidade_mediun no plano (PRO+ pelo catálogo; antes PREMIUM).
+    Plano/status já checados por _GATE_CONFIG (mensalidade_mediun). Campos de
+    associados (valor/dia/toggle) só gravam com mensalidade_associado no plano
+    (Premium desde out/2026); fora dele são ignorados, sem erro.
     """
     features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id))
 
@@ -242,9 +247,9 @@ async def update_config(
             existing.dia_vencimento = body.dia_vencimento
         if body.email_relatorio_ativo is not None:
             existing.email_relatorio_ativo = body.email_relatorio_ativo
-        if body.valor_mensal_associado is not None:
+        if body.valor_mensal_associado is not None and features.mensalidade_associado:
             existing.valor_mensal_associado = Decimal(str(body.valor_mensal_associado))
-        if body.dia_vencimento_associado is not None:
+        if body.dia_vencimento_associado is not None and features.mensalidade_associado:
             existing.dia_vencimento_associado = body.dia_vencimento_associado
         if body.relatorio_hora_envio is not None or body.relatorio_hora_envio == "":
             existing.relatorio_hora_envio = hora_obj
@@ -261,8 +266,10 @@ async def update_config(
             valor_mensal=Decimal(str(body.valor_mensal or 0)),
             dia_vencimento=body.dia_vencimento or 10,
             email_relatorio_ativo=body.email_relatorio_ativo or False,
-            valor_mensal_associado=Decimal(str(body.valor_mensal_associado or 0)),
-            dia_vencimento_associado=body.dia_vencimento_associado or 10,
+            valor_mensal_associado=Decimal(
+                str((body.valor_mensal_associado if features.mensalidade_associado else None) or 0)
+            ),
+            dia_vencimento_associado=(body.dia_vencimento_associado if features.mensalidade_associado else None) or 10,
             relatorio_hora_envio=hora_obj,
         )
         db.add(config)
@@ -270,7 +277,7 @@ async def update_config(
         await db.refresh(config)
 
     # Update enable_mensalidade_associado flag in tenant_config if provided
-    if body.enable_mensalidade_associado is not None:
+    if body.enable_mensalidade_associado is not None and features.mensalidade_associado:
         config_repo_upd = TenantConfigRepository(db)
         tc_upd = await config_repo_upd.get_by_tenant(current_user.tenant_id)
         if tc_upd:
@@ -297,7 +304,7 @@ async def update_config(
         valor_mensal_associado=float(config.valor_mensal_associado),
         dia_vencimento_associado=config.dia_vencimento_associado,
         relatorio_hora_envio=hora_str,
-        enable_mensalidade_associado=bool(tc.enable_mensalidade_associado) if tc else False,
+        enable_mensalidade_associado=_assoc_enabled(tc, features),
     )
 
 
@@ -556,7 +563,6 @@ async def enviar_relatorio(
     config_result = await db.execute(config_stmt)
     tc = config_result.scalar_one_or_none()
     primary_color = tc.primary_color if tc and tc.primary_color else "#7C3AED"
-    assoc_enabled = tc.enable_mensalidade_associado if tc else False
 
     admins_stmt = select(UserModel).where(
         and_(
@@ -572,6 +578,7 @@ async def enviar_relatorio(
     # um dict de tiers que nem estava importado (NameError → 500) e só PREMIUM
     # recebia médiuns.
     features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id))
+    assoc_enabled = _assoc_enabled(tc, features)
 
     from src.services.email.email_queue import email_queue, EmailQueueItem
     from src.services.email.base import EmailMessage
@@ -695,12 +702,12 @@ async def download_relatorio(
     config_result = await db.execute(config_stmt)
     tc = config_result.scalar_one_or_none()
     primary_color = tc.primary_color if tc and tc.primary_color else "#7C3AED"
-    assoc_enabled = tc.enable_mensalidade_associado if tc else False
 
     # Qual(is) relatório(s) o plano libera — catálogo único (P-05). Antes usava
     # um dict de tiers que nem estava importado (NameError → 500) e só PREMIUM
     # recebia médiuns.
     features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id))
+    assoc_enabled = _assoc_enabled(tc, features)
 
     repo = MensalidadeRepository(db)
     cfg = await repo.get_config(current_user.tenant_id)
@@ -779,7 +786,7 @@ async def download_relatorio(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Associados mensalidade endpoints (PRO+)
+# Associados mensalidade endpoints (Premium)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/associados", response_model=List[AssociadoMensalidadeItemResponse], dependencies=[_GATE_ASSOCIADOS, Depends(require_group_permission(PermissionFeature.FINANCEIRO, "view"))])
@@ -788,7 +795,7 @@ async def list_associados_mensalidades(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return all active associados with their payment status for the given month (PRO+)."""
+    """Return all active associados with their payment status for the given month (Premium)."""
     await _require_assoc_mensalidade_enabled(current_user, db)
     mes_date = _parse_mes(mes)
     repo = AssociadoMensalidadeRepository(db)
@@ -831,7 +838,7 @@ async def registrar_associado_pagamento(
     db: AsyncSession = Depends(get_db),
     request: Request = None,  # type: ignore[assignment]  # FastAPI injeta; None em chamada direta
 ):
-    """Register or update a payment for an associado for the given month (PRO+, OPERATOR+)."""
+    """Register or update a payment for an associado for the given month (Premium, OPERATOR+)."""
     await _require_assoc_mensalidade_enabled(current_user, db)
     mes_date = _parse_mes(mes)
 
@@ -942,7 +949,7 @@ async def get_associado_comprovante(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the comprovante file for an associado payment (PRO+)."""
+    """Return the comprovante file for an associado payment (Premium)."""
     await _require_assoc_mensalidade_enabled(current_user, db)
     mes_date = _parse_mes(mes)
     repo = AssociadoMensalidadeRepository(db)
@@ -963,7 +970,7 @@ async def delete_associado_comprovante(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete the comprovante from an associado payment record (PRO+)."""
+    """Delete the comprovante from an associado payment record (Premium)."""
     await _require_assoc_mensalidade_enabled(current_user, db)
     repo = AssociadoMensalidadeRepository(db)
     pag = await repo.delete_comprovante(current_user.tenant_id, pagamento_id)
@@ -978,7 +985,7 @@ async def get_associados_resumo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return 6-month histórico + 3-month projection for associados mensalidade (PRO+)."""
+    """Return 6-month histórico + 3-month projection for associados mensalidade (Premium)."""
     await _require_assoc_mensalidade_enabled(current_user, db)
     repo = AssociadoMensalidadeRepository(db)
     data = await repo.get_resumo(current_user.tenant_id)

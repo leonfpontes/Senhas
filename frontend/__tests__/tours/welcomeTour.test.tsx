@@ -107,11 +107,16 @@ describe('buildWelcomeTourSteps', () => {
   });
 
   it('módulo fora do plano: diz a partir de qual plano, sem link', () => {
-    const steps = buildWelcomeTourSteps(ctx({ dor: 'estoque', can: () => false }));
+    const steps = buildWelcomeTourSteps(ctx({ dor: 'mediuns', can: () => false }));
     const last = steps[steps.length - 1];
     render(<>{last.content as React.ReactElement}</>);
-    expect(screen.getByText(/disponível a partir do plano/)).toBeInTheDocument();
+    expect(screen.getByText(/disponível a partir do plano Basic/)).toBeInTheDocument();
     expect(screen.getAllByRole('link')).toHaveLength(1);
+  });
+
+  it('estoque (Premium desde out/2026): diz "só no plano Premium"', () => {
+    const t = texts(buildWelcomeTourSteps(ctx({ dor: 'estoque', can: () => false })));
+    expect(t[t.length - 1]).toContain('disponível só no plano Premium');
   });
 
   it('financeiro basta uma das features (mensalidade OU contas)', () => {

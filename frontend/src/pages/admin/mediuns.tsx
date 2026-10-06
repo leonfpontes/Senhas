@@ -45,6 +45,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { maskTelefone } from '@/components/fields/MaskedInput';
 import { todayBr } from '@/lib/dateBr';
+import { minPlanFor } from '@/constants/plans';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -595,7 +596,7 @@ function MediunsContent() {
   const hasAnyMedium =
     mediuns.length > 0 || (subscription?.current_mediuns ?? 0) > 0 || !!debouncedSearch || includeInactive;
   if (readOnlyByPlan && !loading && !hasAnyMedium) {
-    return <PlanLocked feature="Médiuns e Cambones" minPlan="Basic" />;
+    return <PlanLocked feature="Médiuns e Cambones" minPlan={minPlanFor('mediuns').label} />;
   }
 
   // Usa a contagem do servidor para não liberar criação com a lista filtrada pela busca.

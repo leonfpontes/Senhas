@@ -17,6 +17,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { PermissionDenied, PlanLocked } from '@/components/gates';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SiteEditor } from '@/components/site/editor/SiteEditor';
+import { minPlanFor } from '@/constants/plans';
 
 export { validateSection } from '@/components/site/lib';
 
@@ -58,7 +59,7 @@ export default function MeuSitePage() {
   } else if (!can('site_builder')) {
     content = (
       <div className="p-4">
-        <PlanLocked feature="Meu Site" minPlan="Pro" />
+        <PlanLocked feature="Meu Site" minPlan={minPlanFor('site_builder').label} />
       </div>
     );
   } else if (!canView) {

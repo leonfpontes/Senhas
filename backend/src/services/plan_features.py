@@ -77,8 +77,57 @@ class PlanFeatures(BaseModel):
 PLAN_FEATURE_NAMES = frozenset(PlanFeatures.model_fields)
 
 
+# Nível mínimo de cada feature (FREE=0, BASIC=1, PRO=2, PREMIUM=3).
+#
+# Reestruturação de planos de out/2026: controle de associados (e, junto, a
+# mensalidade de associados), estoque, agendamento por horário, fila de espera
+# e todo o controle financeiro (`contas_financeiras`: lançamentos, fluxo de
+# caixa, categorias, contas bancárias, configuração) passaram de PRO para
+# PREMIUM. A mensalidade de médiuns também é Premium (decisão do dono do
+# produto, out/2026) — o espelho fica em
+# `frontend/src/constants/plans.ts::FEATURE_MIN_PLAN`.
+_PREMIUM = 3
+_PRO = 2
+_BASIC = 1
+_FREE = 0
+
+_FEATURE_MIN_TIER: dict[str, int] = {
+    "email_transacional": _PRO,
+    "tema_personalizado": _PRO,
+    "analytics_basico": _PRO,
+    "analytics_avancado": _PRO,
+    "associados": _PREMIUM,
+    "export_csv": _PRO,
+    # Ações em lote valem em todos os planos (always-on desde 88dbc25; não é vendido).
+    "bulk_operations": _FREE,
+    "auditoria": _PRO,
+    "estoque_controle": _PREMIUM,
+    "mediuns": _BASIC,
+    "relatorio_gira": _BASIC,
+    "suporte_prioritario": _PREMIUM,
+    "mensalidade_mediun": _PREMIUM,
+    "mensalidade_associado": _PREMIUM,
+    "site_builder": _PRO,
+    "contas_financeiras": _PREMIUM,
+    "fila_espera": _PREMIUM,
+    "agendamento_por_horario": _PREMIUM,
+}
+
+# Toda feature do catálogo precisa de nível — erro na importação se faltar.
+if set(_FEATURE_MIN_TIER) != set(PLAN_FEATURE_NAMES):  # pragma: no cover
+    raise RuntimeError(
+        f"_FEATURE_MIN_TIER diverge de PlanFeatures: {set(_FEATURE_MIN_TIER) ^ set(PLAN_FEATURE_NAMES)}"
+    )
+
+
+def feature_min_plan(feature: str) -> PlanType:
+    """Plano mínimo que inclui a feature (para mensagens "a partir do plano X")."""
+    tier = _FEATURE_MIN_TIER[feature]
+    return next(p for p, t in _PLAN_TIER.items() if t == tier)
+
+
 def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
-    """Derive feature flags from plan tier.
+    """Derive feature flags from plan tier (níveis em `_FEATURE_MIN_TIER`).
 
     When suspended=True (payment failed), all features are locked regardless
     of the plan. The tenant retains only basic read access. Para considerar o
@@ -87,27 +136,7 @@ def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
     if suspended:
         return PlanFeatures()  # all False
     tier = plan_tier(plan)
-    return PlanFeatures(
-        email_transacional=tier >= 2,
-        tema_personalizado=tier >= 2,
-        analytics_basico=tier >= 2,
-        analytics_avancado=tier >= 2,
-        associados=tier >= 2,
-        export_csv=tier >= 2,
-        # Ações em lote valem em todos os planos (always-on desde 88dbc25; não é vendido).
-        bulk_operations=True,
-        auditoria=tier >= 2,
-        estoque_controle=tier >= 2,
-        mediuns=tier >= 1,
-        relatorio_gira=tier >= 1,
-        suporte_prioritario=tier >= 3,
-        mensalidade_mediun=tier >= 2,
-        mensalidade_associado=tier >= 2,
-        site_builder=tier >= 2,
-        contas_financeiras=tier >= 2,
-        fila_espera=tier >= 2,
-        agendamento_por_horario=tier >= 2,
-    )
+    return PlanFeatures(**{name: tier >= min_tier for name, min_tier in _FEATURE_MIN_TIER.items()})
 
 
 # ── Status da assinatura ────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-"""Admin endpoints — Controle de Estoque (Plano Pro+).
+"""Admin endpoints — Controle de Estoque (Plano Premium).
 
 Grupos de material, itens, movimentações e relatórios de posição de estoque.
 """
@@ -777,7 +777,7 @@ async def relatorio_posicao_csv(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Export relatório de posição de estoque como CSV (exige ``export_csv`` no plano)."""
+    """Export relatório de posição de estoque como CSV (módulo Premium; exige também ``export_csv``)."""
     mov_repo = EstoqueMovimentacaoRepository(db)
     posicao = await mov_repo.get_posicao_estoque(
         tenant_id=current_user.tenant_id, grupo_id=grupo_id

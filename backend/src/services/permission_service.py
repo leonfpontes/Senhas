@@ -38,11 +38,15 @@ class PermissionService:
         sub = await repo.get_by_tenant(tenant_id)
         features = get_effective_plan_features(sub)
 
-        # Map our fine-grained features to subscription plan features
+        # Map our fine-grained features to subscription plan features.
+        # FINANCEIRO (mensalidades) segue mensalidade_mediun (Premium desde
+        # out/2026); as rotas de associados exigem também mensalidade_associado
+        # (Premium) via require_plan_feature no endpoint.
         mapping = {
             PermissionFeature.MEDIUNS: "mediuns",
             PermissionFeature.ESTOQUE: "estoque_controle",
             PermissionFeature.FINANCEIRO: "mensalidade_mediun",
+            PermissionFeature.CONTAS_FINANCEIRAS: "contas_financeiras",
             PermissionFeature.ASSOCIADOS: "associados",
             PermissionFeature.AUDITORIA: "auditoria",
             PermissionFeature.ANALYTICS: "analytics_basico",

@@ -42,6 +42,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { addDaysIso, addMonthsYm, brDateParts, formatBRL, formatDateBr, formatDateTimeBr, monthRangeIso, todayBr } from '@/lib/dateBr';
+import { minPlanFor } from '@/constants/plans';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -323,7 +324,7 @@ function FluxoDeCaixaContent() {
 
   // ── Gates ──────────────────────────────────────────────────────────────────
 
-  if (!planAllows) return <PlanLocked feature="Fluxo de Caixa" minPlan="Pro" />;
+  if (!planAllows) return <PlanLocked feature="Fluxo de Caixa" minPlan={minPlanFor('contas_financeiras').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar o fluxo de caixa." />;
 
   const tabela = [...dados].reverse();

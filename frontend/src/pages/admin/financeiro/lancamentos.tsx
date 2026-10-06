@@ -48,6 +48,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { brDateParts, formatBRL, formatDateBr, monthRangeIso, todayBr } from '@/lib/dateBr';
+import { minPlanFor } from '@/constants/plans';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -564,7 +565,7 @@ function LancamentosContent() {
 
   // ── Gates ──────────────────────────────────────────────────────────────────
 
-  if (!planAllows) return <PlanLocked feature="Lançamentos financeiros" minPlan="Pro" />;
+  if (!planAllows) return <PlanLocked feature="Lançamentos financeiros" minPlan={minPlanFor('contas_financeiras').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar os lançamentos financeiros." />;
 
   const anos = Array.from({ length: 5 }, (_, i) => hojeParts.year - 2 + i);

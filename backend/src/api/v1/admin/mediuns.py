@@ -258,14 +258,18 @@ async def create_medium(
     )
 
     # Create pending conta a receber for next month if mensalidade is configured
-    # (isento de mensalidade não gera conta).
+    # (isento de mensalidade não gera conta). Só com mensalidade de médiuns no
+    # plano (Premium desde out/2026): a config pode ter ficado gravada de quando o
+    # tenant tinha um plano maior, e o espelho em contas a receber não deve nascer.
     try:
         from src.repositories.mensalidade_repo import MensalidadeRepository
         from src.services.mensalidade_contas_service import criar_conta_proxima_mensalidade
-        from decimal import Decimal
+        from src.services.plan_features import get_effective_plan_features
         mens_repo = MensalidadeRepository(db)
         config = await mens_repo.get_config(current_user.tenant_id)
-        if config and config.valor_mensal > 0 and not medium.mensalidade_isento:
+        sub = await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id)
+        plan_has_mensalidade = get_effective_plan_features(sub).mensalidade_mediun
+        if plan_has_mensalidade and config and config.valor_mensal > 0 and not medium.mensalidade_isento:
             await criar_conta_proxima_mensalidade(
                 db=db,
                 tenant_id=current_user.tenant_id,

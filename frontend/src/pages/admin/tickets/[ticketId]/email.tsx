@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { PermissionDenied, PlanLocked } from '@/components/gates';
 import { TicketEmailPanel } from '@/components/admin/TicketEmailPanel';
+import { minPlanFor } from '@/constants/plans';
 
 export default function TicketEmailPage() {
   return (
@@ -31,7 +32,7 @@ function TicketEmailContent() {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
 
   if (!subLoading && !can('email_transacional')) {
-    return <PlanLocked feature="Rastreio de e-mail" minPlan="Pro" />;
+    return <PlanLocked feature="Rastreio de e-mail" minPlan={minPlanFor('email_transacional').label} />;
   }
   if (!profileLoading && !isAdmin) {
     return <PermissionDenied message="Só administradores veem o rastreio e reenviam o e-mail da senha." />;

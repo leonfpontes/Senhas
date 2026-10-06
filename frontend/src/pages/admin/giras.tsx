@@ -62,6 +62,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useGiraContext } from '@/components/admin/GiraContext';
 import { useProfile } from '@/hooks/useProfile';
+import { minPlanFor, type PlanFeatureKey } from '@/constants/plans';
 
 interface Gira extends GiraCardData {
   descricao?: string;
@@ -179,15 +180,18 @@ function GiraUsageBar({ used, max }: { used: number; max: number }) {
   );
 }
 
-function PlanLockedInline({ text }: { text: string }) {
+function PlanLockedInline({ text, feature }: { text: string; feature: PlanFeatureKey }) {
+  const plan = minPlanFor(feature);
   return (
     <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3">
       <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
       <div className="flex flex-col gap-1.5">
-        <p className="text-sm font-semibold text-muted-foreground">Disponível a partir do plano Pro</p>
+        <p className="text-sm font-semibold text-muted-foreground">
+          Disponível {plan.key === 'premium' ? `só no plano ${plan.label}` : `a partir do plano ${plan.label}`}
+        </p>
         <p className="text-xs text-muted-foreground">{text}</p>
         <Button asChild size="sm" variant="outline" className="self-start">
-          <Link href="/admin/billing?plan=pro">Ver planos</Link>
+          <Link href={`/admin/billing?plan=${plan.key}`}>Ver planos</Link>
         </Button>
       </div>
     </div>
@@ -1470,7 +1474,7 @@ function AdminGirasContent() {
                 </AccordionTrigger>
                 <AccordionContent className="flex flex-col gap-3">
                   {!subLoading && !can('agendamento_por_horario') ? (
-                    <PlanLockedInline text="Deixe o consulente escolher um horário de atendimento ao pegar a senha." />
+                    <PlanLockedInline feature="agendamento_por_horario" text="Deixe o consulente escolher um horário de atendimento ao pegar a senha." />
                   ) : !timeSlotSchedulingEnabled ? (
                     <p className="text-xs text-muted-foreground">
                       Ative em{' '}
@@ -1562,7 +1566,7 @@ function AdminGirasContent() {
                 </AccordionTrigger>
                 <AccordionContent className="flex flex-col gap-3">
                   {!subLoading && !can('associados') ? (
-                    <PlanLockedInline text="Configure senhas separadas para os associados do terreiro." />
+                    <PlanLockedInline feature="associados" text="Configure senhas separadas para os associados do terreiro." />
                   ) : (
                     <>
                       <TextField

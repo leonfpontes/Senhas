@@ -16,9 +16,9 @@ class PlanType(str, enum.Enum):
     (os comentários abaixo só resumem — se divergirem, vale o PLAN_LIMITS).
     """
 
-    FREE = "free"              # 1 user, 4 giras/month, 0 médiuns, R$0/month
-    BASIC = "basic"            # 3 users, 10 giras/month, 50 médiuns, R$49/month
-    PRO = "pro"                # 10 users, 15 giras/month, 150 médiuns, R$79/month
+    FREE = "free"              # 1 user, 2 giras/month, no médiuns, R$0/month
+    BASIC = "basic"            # 3 users, 3 giras/month, 15 médiuns, R$49/month
+    PRO = "pro"                # 10 users, 4 giras/month, 30 médiuns, R$79/month
     PREMIUM = "premium"        # Unlimited, R$99/month
 
 

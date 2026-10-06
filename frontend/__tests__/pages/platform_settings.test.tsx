@@ -95,12 +95,12 @@ describe('Platform — Configurações', () => {
     expect(screen.getByText('Grátis')).toBeInTheDocument();
   });
 
-  it('aba Planos deriva os recursos de FEATURE_MIN_PLAN (mensalidade de médiuns a partir do Pro)', async () => {
+  it('aba Planos deriva os recursos de FEATURE_MIN_PLAN (mensalidade de médiuns só no Premium)', async () => {
     mockRouter.query = { tab: 'planos' };
     render(<SettingsPage />);
     const row = (await screen.findByText('Mensalidade dos médiuns')).closest('tr') as HTMLElement;
     const cells = within(row).getAllByRole('cell').slice(1); // free, basic, pro, premium
-    expect(cells.map((c) => within(c).queryByLabelText('Incluído') !== null)).toEqual([false, false, true, true]);
+    expect(cells.map((c) => within(c).queryByLabelText('Incluído') !== null)).toEqual([false, false, false, true]);
     // O que não é vendido (suporte prioritário, analytics avançado) não aparece na tabela.
     expect(screen.queryByText('Suporte prioritário')).not.toBeInTheDocument();
   });

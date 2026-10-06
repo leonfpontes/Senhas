@@ -98,7 +98,8 @@ def test_cancel_at_period_end_continua_ativo_ate_o_webhook():
 
 def test_features_efetivas():
     assert get_effective_plan_features(None).estoque_controle is False
-    assert get_effective_plan_features(make_sub(PlanType.PRO)).estoque_controle is True
+    assert get_effective_plan_features(make_sub(PlanType.PRO)).estoque_controle is False  # Premium desde out/2026
+    assert get_effective_plan_features(make_sub(PlanType.PREMIUM)).estoque_controle is True
     suspensa = get_effective_plan_features(make_sub(PlanType.PREMIUM, SubscriptionStatus.SUSPENDED))
     assert not any(suspensa.model_dump().values())
     cancelada = get_effective_plan_features(make_sub(PlanType.PRO, SubscriptionStatus.CANCELLED))
@@ -157,12 +158,12 @@ async def test_gate_mensagens():
 
     with pytest.raises(HTTPException) as exc:
         await run_gate(require_plan_feature("estoque_controle"), make_sub(PlanType.BASIC))
-    assert exc.value.detail == "Controle de Estoque disponível a partir do plano Pro."
+    assert exc.value.detail == "Controle de Estoque disponível apenas no plano Premium."
     with pytest.raises(HTTPException) as exc:
         await run_gate(require_plan_feature("site_builder", detail="Plano X."), make_sub(PlanType.FREE))
     assert exc.value.detail == "Plano X."
     with pytest.raises(HTTPException) as exc:
-        await run_gate(require_plan_feature("estoque_controle"), make_sub(PlanType.PRO, SubscriptionStatus.SUSPENDED))
+        await run_gate(require_plan_feature("estoque_controle"), make_sub(PlanType.PREMIUM, SubscriptionStatus.SUSPENDED))
     assert "suspensa" in exc.value.detail
 
 

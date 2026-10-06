@@ -44,6 +44,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDateTimeBr } from '@/lib/dateBr';
+import { minPlanFor } from '@/constants/plans';
 
 interface Movimentacao {
   id: string;
@@ -263,7 +264,7 @@ function AdminEstoqueMovimentacoesContent() {
       </div>
     );
   }
-  if (!can('estoque_controle')) return <PlanLocked feature="Controle de estoque" minPlan="Pro" />;
+  if (!can('estoque_controle')) return <PlanLocked feature="Controle de estoque" minPlan={minPlanFor('estoque_controle').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar movimentações de estoque." />;
 
   return (

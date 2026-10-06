@@ -84,16 +84,19 @@ class TestPremiumGate:
     def test_rotas_tem_o_gate_certo(self):
         from src.api.v1.admin.mensalidades import router
         from tests.plan_gate_helpers import plan_gate_features
-        assert plan_gate_features(router, "/config") == ["mensalidade_associado"]
-        assert plan_gate_features(router, "/config", "PUT") == ["mensalidade_associado"]
+        # Config e relatório servem médiuns (Pro) e associados (Premium): gate no recurso
+        # de entrada; a parte de associados é filtrada dentro do endpoint (out/2026).
+        assert plan_gate_features(router, "/config") == ["mensalidade_mediun"]
+        assert plan_gate_features(router, "/config", "PUT") == ["mensalidade_mediun"]
         assert plan_gate_features(router, "/mensalidades") == ["mensalidade_mediun"]
         assert plan_gate_features(router, "/resumo") == ["mensalidade_mediun"]
         assert plan_gate_features(router, "/associados") == ["mensalidade_associado"]
-        assert plan_gate_features(router, "/relatorio/download") == ["mensalidade_associado"]
+        assert plan_gate_features(router, "/relatorio/download") == ["mensalidade_mediun"]
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("sub_factory", [_mock_free_sub, _mock_basic_sub])
-    async def test_free_e_basic_retornam_403(self, sub_factory):
+    @pytest.mark.parametrize("sub_factory", [_mock_free_sub, _mock_basic_sub, _mock_pro_sub])
+    async def test_free_basic_e_pro_retornam_403(self, sub_factory):
+        """Mensalidade (médiuns e associados) é Premium desde out/2026."""
         from fastapi import HTTPException
         from src.api.v1.admin.mensalidades import router
         from tests.plan_gate_helpers import plan_gates, run_gate
@@ -104,13 +107,13 @@ class TestPremiumGate:
             assert exc.value.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_pro_acessa_mensalidade_de_mediuns(self):
-        """Catálogo diz PRO+ desde 2026-06-27; o endpoint exigia PREMIUM (corrigido no P-05)."""
+    async def test_premium_acessa_mensalidade_de_mediuns(self):
+        """Premium passa pelo gate de mensalidade de médiuns (Pro deixou de ter em out/2026)."""
         from src.api.v1.admin.mensalidades import router
         from src.models.subscriptions import SubscriptionStatus
         from tests.plan_gate_helpers import plan_gates, run_gate
         (gate,) = plan_gates(router, "/mensalidades")
-        sub = _mock_pro_sub()
+        sub = _mock_premium_sub()
         sub.status = SubscriptionStatus.ACTIVE
         sub.is_trial = False
         await run_gate(gate, sub)
@@ -118,10 +121,8 @@ class TestPremiumGate:
     @pytest.mark.asyncio
     @patch("src.api.v1.admin.mensalidades.SubscriptionRepository")
     @patch("src.api.v1.admin.mensalidades.MensalidadeRepository")
-    async def test_pro_permite_acesso(self, MockMensalidadeRepo, MockSubRepo):
-        """get_config é "Accessible to PRO+" (ver docstring do endpoint) —
-        diferente dos demais endpoints do módulo, que são Premium-only. PRO
-        não deve receber 403 aqui."""
+    async def test_handler_sem_config_retorna_none(self, MockMensalidadeRepo, MockSubRepo):
+        """O handler não refaz o gate de plano (feito no decorator): sem config → None."""
         from src.api.v1.admin.mensalidades import get_config
         sub_inst = AsyncMock()
         sub_inst.get_by_tenant.return_value = _mock_pro_sub()

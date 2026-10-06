@@ -1,4 +1,4 @@
-"""Admin Financeiro — Contas a Pagar / Contas a Receber (PRO+ feature).
+"""Admin Financeiro — Contas a Pagar / Contas a Receber (Premium).
 
 Routes:
   GET    /api/v1/admin/financeiro/contas                          — List entries

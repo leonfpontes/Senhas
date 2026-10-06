@@ -73,6 +73,7 @@ import { useTenant } from '@/providers/ThemeProvider';
 import { chartTokens, chartTooltipStyle } from '@/lib/chartTokens';
 import { currentMonthBr, formatBRL, formatDateBr, formatDateTimeBr, monthLabelShort, toNum, todayBr } from '@/lib/dateBr';
 import { IconCurso } from '@/lib/icons';
+import { minPlanFor } from '@/constants/plans';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -921,7 +922,7 @@ function ParticipantesContent() {
       </div>
     );
   }
-  if (!isPlanAllowed) return <PlanLocked feature="Cursos Presenciais" minPlan="Pro" />;
+  if (!isPlanAllowed) return <PlanLocked feature="Cursos Presenciais" minPlan={minPlanFor('site_builder').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar participantes." />;
 
   const completo = curso?.tipo_formulario === 'completo';

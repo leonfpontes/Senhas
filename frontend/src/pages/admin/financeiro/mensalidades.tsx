@@ -32,6 +32,7 @@ import {
 } from '@/components/financeiro/CobrancaMensal';
 import { baixarComprovante, montarFormPagamento, MULTIPART } from '@/components/financeiro/comprovante';
 import { currentMonthBr, formatBRL, monthLabelShort } from '@/lib/dateBr';
+import { minPlanFor } from '@/constants/plans';
 
 // ─── Tipos da API ─────────────────────────────────────────────────────────────
 
@@ -149,7 +150,8 @@ function MensalidadesContent() {
   // ── Fetchers ─────────────────────────────────────────────────────────
 
   const fetchConfig = useCallback(async () => {
-    if (!canView) return;
+    // Sem mensalidade no plano (Premium) a tela mostra PlanLocked: não chama a API (evita 403).
+    if (!canView || (!planMediuns && !planAssoc)) return;
     try {
       const res = await apiClient.get('/api/v1/admin/financeiro/config');
       setConfig(res.data);
@@ -158,7 +160,7 @@ function MensalidadesContent() {
     } finally {
       setConfigLoaded(true);
     }
-  }, [canView]);
+  }, [canView, planMediuns, planAssoc]);
 
   const fetchItems = useCallback(async () => {
     if (!planMediuns || !canView) return;
@@ -291,7 +293,7 @@ function MensalidadesContent() {
 
   // ── Gates ────────────────────────────────────────────────────────────
 
-  if (!planMediuns && !planAssoc) return <PlanLocked feature="Controle de mensalidades" minPlan="Pro" />;
+  if (!planMediuns && !planAssoc) return <PlanLocked feature="Controle de mensalidades" minPlan={minPlanFor('mensalidade_mediun').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar as mensalidades." />;
 
   const refreshing = loading || loadingAssoc;
