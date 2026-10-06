@@ -297,6 +297,16 @@ class TestBilling:
 
 # ── subscriptions.py ─────────────────────────────────────────────────────────
 
+def _db_counting_users(n):
+    """db cujo execute devolve `n` em scalar() (contagem de usuários ativos)."""
+    db = AsyncMock()
+    result = MagicMock()
+    result.scalar.return_value = n
+    result.scalar_one_or_none.return_value = None  # tenant não excluído
+    db.execute.return_value = result
+    return db
+
+
 class TestSubscriptions:
     @patch("src.api.v1.platform.subscriptions.SubscriptionService")
     async def test_get_subscription(self, MockService):
@@ -312,14 +322,18 @@ class TestSubscriptions:
         }
         MockService.return_value = service
 
-        result = await get_subscription(TENANT_ID, _super_admin(), AsyncMock())
+        db = _db_counting_users(7)
+        result = await get_subscription(TENANT_ID, _super_admin(), db)
         assert result.plan == "basic"
+        # A coluna current_users (3) nunca é mantida: vale a contagem real de ativos.
+        assert result.current_users == 7
+        assert result.is_bonus is False
 
     @patch("src.api.v1.platform.subscriptions.SubscriptionService")
     async def test_upgrade(self, MockService):
         from src.api.v1.platform.subscriptions import upgrade_subscription, UpgradePlanRequest
         from src.models import PlanType
-        db = AsyncMock()
+        db = _db_counting_users(3)
         service = AsyncMock()
         service.upgrade_plan.return_value = {
             "id": str(uuid.uuid4()), "tenant_id": str(TENANT_ID),
@@ -339,7 +353,7 @@ class TestSubscriptions:
     @patch("src.api.v1.platform.subscriptions.SubscriptionService")
     async def test_suspend(self, MockService):
         from src.api.v1.platform.subscriptions import suspend_subscription
-        db = AsyncMock()
+        db = _db_counting_users(3)
         service = AsyncMock()
         service.suspend_subscription.return_value = {
             "id": str(uuid.uuid4()), "tenant_id": str(TENANT_ID),
