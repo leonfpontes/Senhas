@@ -21,7 +21,8 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { apiClient } from '@/services/api_client';
 import { applyBrand } from '@/lib/brand';
 
-const DEFAULT_PRIMARY = '#6366f1';
+// Igual ao default do backend (TenantConfig.primary_color) e ao theme-color do _document.
+const DEFAULT_PRIMARY = '#4f46e5';
 const DEFAULT_SECONDARY = '#ec4899';
 const DEFAULT_FONT = '#FFFFFF';
 const TENANT_BRANDING_UPDATED_EVENT = 'tenant-branding-updated';

@@ -84,7 +84,7 @@ describe('Admin Users Page', () => {
     apiClient.get.mockReturnValue(new Promise(() => {})); // never resolves
     const AdminUsers = require('@/pages/admin/users').default;
     wrap(<AdminUsers />);
-    expect(document.querySelector('.MuiCircularProgress-root')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 
   it('renders users after load', async () => {
@@ -110,11 +110,10 @@ describe('Admin Users Page', () => {
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
 
-    // Delete buttons are error-colored IconButtons without tooltip
-    const deleteButtons = document.querySelectorAll('.MuiIconButton-colorError');
+    const deleteButtons = screen.getAllByRole('button', { name: 'Excluir usuário' });
     act(() => { fireEvent.click(deleteButtons[0]); });
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
   });
 
   it('calls DELETE API and closes dialog on confirm', async () => {
@@ -123,14 +122,14 @@ describe('Admin Users Page', () => {
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
 
-    const deleteButtons = document.querySelectorAll('.MuiIconButton-colorError');
+    const deleteButtons = screen.getAllByRole('button', { name: 'Excluir usuário' });
     act(() => { fireEvent.click(deleteButtons[0]); });
 
-    await waitFor(() => screen.getByRole('dialog'));
-    await act(async () => { fireEvent.click(screen.getByText('Excluir')); });
+    await waitFor(() => screen.getByRole('alertdialog'));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Excluir' })); });
 
     expect(apiClient.delete).toHaveBeenCalledWith(expect.stringContaining('/users/'));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
   });
 
   it('closes dialog without deleting on cancel', async () => {
@@ -139,22 +138,20 @@ describe('Admin Users Page', () => {
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
 
-    const deleteButtons = document.querySelectorAll('.MuiIconButton-colorError');
+    const deleteButtons = screen.getAllByRole('button', { name: 'Excluir usuário' });
     act(() => { fireEvent.click(deleteButtons[0]); });
 
-    await waitFor(() => screen.getByRole('dialog'));
-    await act(async () => { fireEvent.click(screen.getByText('Cancelar')); });
+    await waitFor(() => screen.getByRole('alertdialog'));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Cancelar' })); });
 
     expect(apiClient.delete).not.toHaveBeenCalled();
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
   });
 
   it('shows PageHeader with title', async () => {
     const AdminUsers = require('@/pages/admin/users').default;
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
-    // PageHeader renders an h5
-    const h5 = document.querySelector('h5');
-    expect(h5).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Gestão de Usuários' })).toBeInTheDocument();
   });
 });

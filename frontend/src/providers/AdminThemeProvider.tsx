@@ -19,7 +19,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import { AdminThemeMode, AdminTokens, buildAdminTheme, getAdminTokens } from '../styles/adminTheme';
 import { useTenant } from './ThemeProvider';
 
-const DEFAULT_PRIMARY   = '#6366F1';
+const DEFAULT_PRIMARY   = '#4F46E5'; // = TenantConfig.primary_color do backend
 const DEFAULT_SECONDARY = '#EC4899';
 const STORAGE_KEY       = 'admin_theme_mode';
 

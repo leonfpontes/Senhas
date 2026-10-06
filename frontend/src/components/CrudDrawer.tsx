@@ -1,35 +1,38 @@
 /**
- * CrudDrawer — Reusable side drawer for CRUD forms.
+ * CrudDrawer — drawer lateral reutilizável para formulários CRUD (fase 1: sobre o Sheet do shadcn).
  *
- * Design:
- *  - Header: icon + title + subtitle description
- *  - Body: scrollable form area (children)
- *  - Footer: sticky Cancel / Save buttons
- *  - Unsaved-changes guard on close
+ * Desenho:
+ *  - Cabeçalho: ícone + título + subtítulo
+ *  - Corpo: área rolável do formulário (children)
+ *  - Rodapé: Cancelar / Salvar fixos
+ *  - Guarda de alteração não salva ao fechar (AlertDialog)
+ *
+ * Largura: 480px no desktop; tela cheia abaixo de 640px. Mesma API de props da versão MUI —
+ * as telas que já usam `CrudDrawer` + `useCrudDrawer` não mudam.
  */
 'use client';
 
 import React, { useState } from 'react';
+import { Loader2, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Alert,
-  Drawer,
-  Box,
-  Typography,
-  Button,
-  Divider,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  CircularProgress,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-
-const DRAWER_WIDTH = 480;
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export interface CrudDrawerProps {
   open: boolean;
@@ -61,8 +64,6 @@ export default function CrudDrawer({
   isDirty = false,
   error,
 }: CrudDrawerProps) {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleClose = () => {
@@ -80,106 +81,100 @@ export default function CrudDrawer({
 
   return (
     <>
-      <Drawer
-        anchor="right"
+      <Sheet
         open={open}
-        onClose={handleClose}
-        sx={{ zIndex: (t) => t.zIndex.drawer + 2 }}
-        PaperProps={{
-          sx: {
-            width: isMobile ? '100%' : DRAWER_WIDTH,
-            display: 'flex',
-            flexDirection: 'column',
-          },
+        onOpenChange={(next) => {
+          if (!next) handleClose();
         }}
       >
-        {/* Header */}
-        <Box sx={{ px: 3, pt: 3, pb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              {icon && (
-                <Box sx={{ color: 'primary.main', display: 'flex', alignItems: 'center' }}>
-                  {icon}
-                </Box>
-              )}
-              <Typography variant="h6" fontWeight={700}>
-                {title}
-              </Typography>
-            </Box>
-            <IconButton size="small" onClick={handleClose} aria-label="fechar">
-              <CloseIcon />
-            </IconButton>
-          </Box>
-          {subtitle && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              {subtitle}
-            </Typography>
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          // z-index acima do Drawer do MUI (1200) enquanto as duas bibliotecas convivem.
+          className={cn(
+            'z-[1300] flex w-full max-w-full flex-col gap-0 p-0',
+            'min-[640px]:w-[480px] min-[640px]:max-w-[480px]',
           )}
-        </Box>
-
-        <Divider />
-
-        {/* Body — scrollable form area */}
-        <Box
-          sx={{
-            flex: 1,
-            overflowY: 'auto',
-            px: 3,
-            py: 3,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2.5,
+          onInteractOutside={(e) => {
+            // Enquanto salva, não deixa fechar clicando fora.
+            if (saving) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (saving) e.preventDefault();
           }}
         >
-          {error && (
-            <Alert severity="error" sx={{ borderRadius: 1 }}>
-              {error}
-            </Alert>
-          )}
-          {children}
-        </Box>
+          {/* Cabeçalho */}
+          <div className="px-6 pt-6 pb-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                {icon && (
+                  <span className="flex shrink-0 items-center text-primary [&_svg]:size-6">
+                    {icon}
+                  </span>
+                )}
+                <SheetTitle className="truncate text-lg font-bold tracking-tight">{title}</SheetTitle>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleClose}
+                aria-label="fechar"
+                disabled={saving}
+              >
+                <X />
+              </Button>
+            </div>
+            {subtitle ? (
+              <SheetDescription className="mt-1">{subtitle}</SheetDescription>
+            ) : (
+              <SheetDescription className="sr-only">{title}</SheetDescription>
+            )}
+          </div>
 
-        {/* Footer — sticky action buttons */}
-        <Divider />
-        <Box
-          sx={{
-            px: 3,
-            py: 2,
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 1.5,
-            bgcolor: 'background.paper',
-          }}
-        >
-          <Button variant="outlined" onClick={handleClose} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            onClick={onSave}
-            disabled={saving || saveDisabled}
-            startIcon={saving ? <CircularProgress size={18} color="inherit" /> : undefined}
-          >
-            {saveLabel}
-          </Button>
-        </Box>
-      </Drawer>
+          <div className="h-px w-full bg-border" role="presentation" />
 
-      {/* Unsaved changes confirmation */}
-      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
-        <DialogTitle>Descartar alterações?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Você tem alterações não salvas. Se sair agora, as informações preenchidas serão perdidas.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmOpen(false)}>Continuar editando</Button>
-          <Button onClick={handleDiscardClose} color="error">
-            Descartar
-          </Button>
-        </DialogActions>
-      </Dialog>
+          {/* Corpo — área rolável do formulário */}
+          <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-6">
+            {error && (
+              <Alert variant="destructive" role="alert">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {children}
+          </div>
+
+          {/* Rodapé — ações fixas */}
+          <div className="h-px w-full bg-border" role="presentation" />
+          <div className="flex justify-end gap-3 bg-card px-6 py-4">
+            <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={onSave} disabled={saving || saveDisabled}>
+              {saving && <Loader2 className="animate-spin" aria-hidden />}
+              {saveLabel}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Confirmação de alterações não salvas */}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent size="sm" className="z-[1400]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Descartar alterações?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem alterações não salvas. Se sair agora, as informações preenchidas serão perdidas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleDiscardClose}>
+              Descartar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

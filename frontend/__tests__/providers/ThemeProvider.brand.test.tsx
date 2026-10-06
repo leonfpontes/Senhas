@@ -27,11 +27,11 @@ describe('TenantAwareThemeProvider — applyBrand', () => {
         <div />
       </TenantAwareThemeProvider>,
     );
-    await waitFor(() => expect(token('--primary')).toBe('#6366f1'));
+    await waitFor(() => expect(token('--primary')).toBe('#4f46e5'));
     expect(token('--secondary')).toBe('#ec4899');
-    // #6366f1 + branco dá 4,47 (abaixo do 4,5 da regra) → cai para preto, que contrasta mais (4,7).
-    // O MUI (contrastThreshold 3) usa branco aqui — divergência registrada no relatório da fase 0.
-    expect(token('--primary-foreground')).toBe('#000000');
+    // #4f46e5 (default do backend) + branco dá 6,3 (≥ 4,5) → mantém o branco, igual ao MUI.
+    // Fase 1: o default antigo #6366f1 dava 4,47 e caía para preto — por isso foi alinhado.
+    expect(token('--primary-foreground').toLowerCase()).toBe('#ffffff');
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
@@ -49,7 +49,7 @@ describe('TenantAwareThemeProvider — applyBrand', () => {
     );
 
     await waitFor(() => expect(token('--primary')).toBe('#4f46e5'));
-    expect(token('--primary-foreground')).toBe('#ffffff');
+    expect(token('--primary-foreground').toLowerCase()).toBe('#ffffff');
     expect(token('--secondary')).toBe('#0f766e');
     expect(token('--secondary-foreground')).toBe('#ffffff');
     expect(token('--ring')).toBe('#4f46e5');

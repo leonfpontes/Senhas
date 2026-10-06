@@ -1,28 +1,26 @@
 /**
- * T078: BulkActionsBar - Reusable component for bulk actions (mark used, cancel, etc.)
+ * BulkActionsBar — barra fixa inferior para ações em lote em tickets (marcar usado, cancelar).
+ * Fase 1: Button + AlertDialog + toast (Sonner); mesma API e mesmas chamadas de API da versão MUI.
  */
 'use client';
 
 import React, { useState } from 'react';
+import { Check, Loader2, X, XCircle } from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { apiClient, extractApiErrorMessage } from '@/services/api_client';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import {
-  Box,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Typography,
-  Checkbox,
-  FormControlLabel,
-  Alert,
-  CircularProgress,
-} from '@mui/material';
-import {
-  Check as CheckIcon,
-  Close as CloseIcon,
-  Clear as ClearIcon,
-} from '@mui/icons-material';
-import { apiClient, extractApiErrorMessage } from '../../services/api_client';
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface BulkActionResult {
   success: boolean;
@@ -33,7 +31,7 @@ interface BulkActionResult {
   isDryRun?: boolean;
 }
 
-interface BulkActionsBarProps {
+export interface BulkActionsBarProps {
   selectedCount: number;
   ticketIds: string[];
   onRefresh: () => void;
@@ -46,6 +44,8 @@ interface BulkActionsBarProps {
   canCancel?: boolean;
 }
 
+type BulkAction = 'mark_used' | 'cancel';
+
 export default function BulkActionsBar({
   selectedCount,
   ticketIds,
@@ -55,16 +55,16 @@ export default function BulkActionsBar({
   canMarkUsed = true,
   canCancel = true,
 }: BulkActionsBarProps) {
-  const [actionDialog, setActionDialog] = useState<'mark_used' | 'cancel' | null>(null);
+  const [actionDialog, setActionDialog] = useState<BulkAction | null>(null);
   const [dryRun, setDryRun] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BulkActionResult | null>(null);
 
-  const handleAction = async (action: 'mark_used' | 'cancel') => {
+  const handleAction = async (action: BulkAction) => {
     try {
       setLoading(true);
 
-      // First, validate the bulk operation
+      // Primeiro valida a operação em lote
       const validateResponse = await apiClient.post('/api/v1/admin/validate-bulk', {
         ticket_ids: ticketIds,
         operation: action,
@@ -79,7 +79,6 @@ export default function BulkActionsBar({
         return;
       }
 
-      // If validation passed and not dry-run, execute the action
       if (!dryRun) {
         const endpoint =
           action === 'mark_used'
@@ -98,8 +97,10 @@ export default function BulkActionsBar({
           errors: executeResponse.data.errors,
         });
 
-        // Refresh data after successful operation
         if (executeResponse.data.modified > 0) {
+          toast.success(
+            `${executeResponse.data.modified} ticket(s) ${action === 'mark_used' ? 'marcado(s) como usado(s)' : 'cancelado(s)'}.`,
+          );
           setTimeout(() => {
             onRefresh();
             onClearSelection();
@@ -107,7 +108,6 @@ export default function BulkActionsBar({
           }, 1000);
         }
       } else {
-        // For dry-run, show validation results
         setResult({
           success: true,
           modified: validateResponse.data.count,
@@ -116,10 +116,9 @@ export default function BulkActionsBar({
         });
       }
     } catch (error) {
-      setResult({
-        success: false,
-        errors: [extractApiErrorMessage(error, 'Erro ao executar operação')],
-      });
+      const message = extractApiErrorMessage(error, 'Erro ao executar operação');
+      toast.error(message);
+      setResult({ success: false, errors: [message] });
     } finally {
       setLoading(false);
     }
@@ -131,172 +130,187 @@ export default function BulkActionsBar({
     setDryRun(true);
   };
 
+  const dialogTitle = actionDialog === 'mark_used' ? 'Marcar Tickets Como Usados' : 'Cancelar Tickets';
+
   return (
     <>
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', sm: 'row' },
-          alignItems: { xs: 'stretch', sm: 'center' },
-          justifyContent: 'space-between',
-          gap: 1,
-          p: 2,
-          backgroundColor: '#e3f2fd',
-          borderRadius: 1,
-          mb: 2,
-          border: '1px solid #90caf9',
-        }}
+      {/* Barra fixa inferior */}
+      <div
+        role="toolbar"
+        aria-label="Ações em lote"
+        data-slot="bulk-actions-bar"
+        className={cn(
+          'fixed bottom-4 left-1/2 z-[1250] flex w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2',
+          'flex-col gap-2 rounded-xl border border-primary/30 bg-card p-3 text-card-foreground shadow-lg',
+          'sm:flex-row sm:items-center sm:justify-between',
+          'pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+        )}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Checkbox checked={true} disabled />
-          <Typography>{selectedCount} selecionado(s)</Typography>
-        </Box>
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <span className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <Check className="size-4" aria-hidden />
+          </span>
+          <span>{selectedCount} selecionado(s)</span>
+        </div>
 
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        <div className="flex flex-wrap gap-2">
           {canMarkUsed && (
             <Button
-              variant="contained"
-              color="success"
-              size="small"
-              startIcon={<CheckIcon />}
+              type="button"
+              size="sm"
+              className="bg-success text-success-foreground hover:bg-success/90"
               onClick={() => setActionDialog('mark_used')}
             >
+              <Check aria-hidden />
               Marcar Usado
             </Button>
           )}
 
           {canCancel && (
             <Button
-              variant="outlined"
-              color="error"
-              size="small"
-              startIcon={<CloseIcon />}
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
               onClick={() => setActionDialog('cancel')}
             >
+              <XCircle aria-hidden />
               Cancelar
             </Button>
           )}
 
-          <Button
-            variant="text"
-            size="small"
-            startIcon={<ClearIcon />}
-            onClick={onClearSelection}
-          >
+          <Button type="button" size="sm" variant="ghost" onClick={onClearSelection}>
+            <X aria-hidden />
             Limpar
           </Button>
-        </Box>
-      </Box>
+        </div>
+      </div>
 
-      {/* Action Dialog */}
-      <Dialog open={Boolean(actionDialog)} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {actionDialog === 'mark_used'
-            ? 'Marcar Tickets Como Usados'
-            : 'Cancelar Tickets'}
-        </DialogTitle>
+      {/* Diálogo da ação */}
+      <AlertDialog
+        open={Boolean(actionDialog)}
+        onOpenChange={(open) => {
+          if (!open && !loading) handleClose();
+        }}
+      >
+        <AlertDialogContent className="z-[1300]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{dialogTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {actionDialog === 'mark_used'
+                ? `Você está prestes a marcar ${selectedCount} ticket(s) como usado(s).`
+                : `Você está prestes a cancelar ${selectedCount} ticket(s).`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
 
-        <DialogContent sx={{ pt: 2 }}>
           {!result ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Typography>
-                {actionDialog === 'mark_used'
-                  ? `Você está prestes a marcar ${selectedCount} ticket(s) como usado(s).`
-                  : `Você está prestes a cancelar ${selectedCount} ticket(s).`}
-              </Typography>
-
-              <FormControlLabel
-                control={<Checkbox checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />}
-                label={
-                  dryRun
-                    ? '✓ Validar primeiro (dry-run) - Recomendado'
-                    : 'Executar imediatamente (sem validação)'
-                }
-              />
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="bulk-dry-run"
+                  checked={dryRun}
+                  onCheckedChange={(v) => setDryRun(v === true)}
+                />
+                <Label htmlFor="bulk-dry-run" className="font-normal">
+                  {dryRun
+                    ? 'Validar primeiro (dry-run) - Recomendado'
+                    : 'Executar imediatamente (dry-run desligado)'}
+                </Label>
+              </div>
 
               {dryRun && (
-                <Alert severity="info">
-                  Será feita uma validação sem aplicar as alterações. Revise o resultado antes de executar.
+                <Alert variant="info">
+                  <AlertDescription>
+                    Será feita uma validação sem aplicar as alterações. Revise o resultado antes de executar.
+                  </AlertDescription>
                 </Alert>
               )}
-            </Box>
+            </div>
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div className="flex flex-col gap-3">
               {result.success ? (
                 <>
                   {result.isDryRun ? (
-                    <Alert severity="info">
-                      Validação bem-sucedida: {result.modified} ticket(s) podem ser processado(s).
+                    <Alert variant="info">
+                      <AlertDescription>
+                        Validação bem-sucedida: {result.modified} ticket(s) podem ser processado(s).
+                      </AlertDescription>
                     </Alert>
                   ) : (
-                    <Alert severity="success">
-                      Operação concluída: {result.modified} ticket(s) processado(s).
-                      {!!result.failed && result.failed > 0 && ` ${result.failed} falha(s).`}
+                    <Alert variant="success">
+                      <AlertDescription>
+                        Operação concluída: {result.modified} ticket(s) processado(s).
+                        {!!result.failed && result.failed > 0 && ` ${result.failed} falha(s).`}
+                      </AlertDescription>
                     </Alert>
                   )}
 
                   {result.warnings && result.warnings.length > 0 && (
-                    <Alert severity="warning">
-                      <strong>Avisos:</strong>
-                      <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
-                        {result.warnings.map((w: string, i: number) => (
-                          <li key={i}>{w}</li>
-                        ))}
-                      </ul>
+                    <Alert variant="warning">
+                      <AlertTitle>Avisos</AlertTitle>
+                      <AlertDescription>
+                        <ul className="list-disc pl-5">
+                          {result.warnings.map((w, i) => (
+                            <li key={i}>{w}</li>
+                          ))}
+                        </ul>
+                      </AlertDescription>
                     </Alert>
                   )}
                 </>
               ) : (
-                <Alert severity="error">
-                  <strong>Erro:</strong>
-                  <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
-                    {(result.errors || []).map((e: string, i: number) => (
-                      <li key={i}>{e}</li>
-                    ))}
-                  </ul>
+                <Alert variant="destructive">
+                  <AlertTitle>Erro</AlertTitle>
+                  <AlertDescription>
+                    <ul className="list-disc pl-5">
+                      {(result.errors || []).map((e, i) => (
+                        <li key={i}>{e}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
                 </Alert>
               )}
-            </Box>
+            </div>
           )}
-        </DialogContent>
 
-        <DialogActions>
-          {!result ? (
-            <>
-              <Button onClick={handleClose}>Cancelar</Button>
-              <Button
-                onClick={() => handleAction(actionDialog!)}
-                variant="contained"
-                disabled={loading}
-              >
-                {loading ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
-                {dryRun ? 'Validar' : 'Executar'}
-              </Button>
-            </>
-          ) : (
-            <>
-              {result.isDryRun ? (
-                <>
-                  <Button onClick={handleClose}>Cancelar</Button>
-                  <Button
-                    onClick={() => {
-                      setResult(null);
-                      setDryRun(false);
-                    }}
-                    variant="contained"
-                  >
-                    Executar Agora
-                  </Button>
-                </>
-              ) : (
-                <Button onClick={handleClose} variant="contained">
-                  Fechar
+          <AlertDialogFooter>
+            {!result ? (
+              <>
+                <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
+                  Cancelar
                 </Button>
-              )}
-            </>
-          )}
-        </DialogActions>
-      </Dialog>
+                <Button
+                  type="button"
+                  onClick={() => actionDialog && handleAction(actionDialog)}
+                  disabled={loading}
+                >
+                  {loading && <Loader2 className="animate-spin" aria-hidden />}
+                  {dryRun ? 'Validar' : 'Executar'}
+                </Button>
+              </>
+            ) : result.isDryRun ? (
+              <>
+                <Button type="button" variant="outline" onClick={handleClose}>
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setResult(null);
+                    setDryRun(false);
+                  }}
+                >
+                  Executar Agora
+                </Button>
+              </>
+            ) : (
+              <Button type="button" onClick={handleClose}>
+                Fechar
+              </Button>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

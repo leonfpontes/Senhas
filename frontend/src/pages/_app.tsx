@@ -12,6 +12,7 @@ import { ProfileProvider } from '@/hooks/useProfile';
 import { BirthdayProvider } from '@/providers/BirthdayProvider';
 import { PermissionsProvider } from '@/hooks/usePermissions';
 import { SnackbarProvider } from '@/contexts/SnackbarContext';
+import { Toaster } from '@/components/ui/sonner';
 import ClarityAnalytics from '@/components/shared/ClarityAnalytics';
 
 /**
@@ -74,6 +75,8 @@ function MyApp({ Component, pageProps }: AppProps) {
                     <Component {...pageProps} />
                   </TourProvider>
                 </BirthdayProvider>
+                {/* Toasts (Sonner) — `useSnackbar()` e `toast()` desembocam aqui */}
+                <Toaster />
               </SnackbarProvider>
             </PermissionsProvider>
           </SubscriptionProvider>

@@ -328,12 +328,12 @@ function AdminUsersContent() {
                     {(canEdit || canDelete) && (
                       <TableCell align="right">
                         {canEdit && (
-                          <IconButton size="small" onClick={() => openEdit(user)}>
+                          <IconButton size="small" aria-label="Editar usuário" onClick={() => openEdit(user)}>
                             <EditIcon fontSize="small" />
                           </IconButton>
                         )}
                         {canDelete && (
-                          <IconButton size="small" color="error" onClick={() => requestDelete(user)}>
+                          <IconButton size="small" color="error" aria-label="Excluir usuário" onClick={() => requestDelete(user)}>
                             <DeleteIcon fontSize="small" />
                           </IconButton>
                         )}
