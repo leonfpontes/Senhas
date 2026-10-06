@@ -19,7 +19,6 @@ import {
   Save,
   Settings2,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';

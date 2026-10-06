@@ -1,14 +1,14 @@
 /**
- * Tests for Site Builder feature
- * - meu-site.tsx (admin editor)
- * - [tenantSlug]/index.tsx (public SSR page)
+ * Site Builder — testes de regressão
+ * - meu-site.tsx (editor, shadcn)
+ * - [tenantSlug]/index.tsx (site público, SSR)
+ * - validateSection (mesmas regras do backend)
  */
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 
-// ── Global mocks ──────────────────────────────────────────────────────────────
+// ── Mocks globais ─────────────────────────────────────────────────────────────
 
 jest.mock('next/router', () => ({
   useRouter: () => ({
@@ -16,7 +16,7 @@ jest.mock('next/router', () => ({
     pathname: '/admin/meu-site',
     query: {},
     asPath: '/admin/meu-site',
-    events: { on: jest.fn(), off: jest.fn() },
+    events: { on: jest.fn(), off: jest.fn(), emit: jest.fn() },
   }),
 }));
 
@@ -35,12 +35,14 @@ jest.mock('@/services/api_client', () => ({
     put: jest.fn().mockResolvedValue({ data: {} }),
     delete: jest.fn().mockResolvedValue({ data: {} }),
   },
+  extractApiErrorMessage: (_e: unknown, fallback: string) => fallback,
 }));
 
 jest.mock('@/hooks/useSubscription', () => ({
   useSubscription: jest.fn(() => ({
     subscription: { plan: 'PRO', features: { site_builder: true } },
     can: (feature: string) => feature === 'site_builder',
+    planLabel: 'Pro',
   })),
 }));
 
@@ -48,20 +50,11 @@ jest.mock('@/hooks/usePermissions', () => ({
   usePermissions: () => ({ can: () => true, permissions: null, loading: false, refresh: jest.fn() }),
 }));
 
-// AdminLayout renders children directly in tests
 jest.mock('@/pages/admin/admin_layout', () => {
   return function MockAdminLayout({ children }: any) {
     return <div data-testid="admin-layout">{children}</div>;
   };
 });
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const theme = createTheme();
-
-function renderWithTheme(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
-}
 
 const SITE_DATA = {
   id: 'site-uuid',
@@ -75,237 +68,138 @@ const SITE_DATA = {
 
 const SECTIONS_DATA = {
   sections: [
-    {
-      id: 'section-uuid-1',
-      section_type: 'HERO',
-      order_index: 0,
-      config: { title: 'Bem-vindo' },
-    },
-    {
-      id: 'section-uuid-2',
-      section_type: 'ABOUT',
-      order_index: 1,
-      config: { body: 'Sobre nós' },
-    },
+    { id: 'section-uuid-1', section_type: 'HERO', order_index: 0, config: { title: 'Bem-vindo' } },
+    { id: 'section-uuid-2', section_type: 'ABOUT', order_index: 1, config: { body: 'Sobre nós' } },
   ],
   site_updated_at: '2026-04-14T12:00:00Z',
 };
 
+function mockApi(site = SITE_DATA, sections = SECTIONS_DATA, versions: unknown[] = []) {
+  const { apiClient } = require('@/services/api_client');
+  apiClient.get.mockImplementation((url: string) => {
+    if (url.includes('/sites/sections')) return Promise.resolve({ data: sections });
+    if (url.includes('/sites/images')) return Promise.resolve({ data: [] });
+    if (url.includes('/sites/versions')) return Promise.resolve({ data: versions });
+    if (url.includes('/admin/sites')) return Promise.resolve({ data: site });
+    return Promise.resolve({ data: {} });
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// meu-site.tsx — Admin Editor
+// meu-site.tsx — editor
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('MeuSitePage — Admin Site Builder', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    const { apiClient } = require('@/services/api_client');
-    apiClient.get.mockImplementation((url: string) => {
-      if (url.includes('/sections')) return Promise.resolve({ data: SECTIONS_DATA });
-      if (url.includes('/images')) return Promise.resolve({ data: [] });
-      if (url.includes('/versions')) return Promise.resolve({ data: [] });
-      return Promise.resolve({ data: SITE_DATA });
-    });
+    mockApi();
   });
 
   it('renderiza sem erros', async () => {
     const MeuSite = require('@/pages/admin/meu-site').default;
-    const { container } = renderWithTheme(<MeuSite />);
-    expect(container).toBeTruthy();
+    render(<MeuSite />);
+    expect(await screen.findByRole('heading', { name: 'Meu Site' })).toBeInTheDocument();
   });
 
   it('exibe indicador de carregamento durante fetch inicial', () => {
     const { apiClient } = require('@/services/api_client');
-    // Never resolves during this test
     apiClient.get.mockImplementation(() => new Promise(() => {}));
     const MeuSite = require('@/pages/admin/meu-site').default;
-    renderWithTheme(<MeuSite />);
-    // Loading state must be rendered (CircularProgress ou LinearProgress)
-    expect(document.body).toBeTruthy();
+    render(<MeuSite />);
+    expect(screen.getByTestId('site-editor-loading')).toBeInTheDocument();
   });
 
-  it('renderiza sem erros quando plano não tem site_builder', async () => {
+  it('mostra o bloqueio de plano quando não tem site_builder', () => {
     const { useSubscription } = require('@/hooks/useSubscription');
     useSubscription.mockReturnValueOnce({
       subscription: { plan: 'FREE', features: { site_builder: false } },
       can: () => false,
+      planLabel: 'Free',
     });
     const MeuSite = require('@/pages/admin/meu-site').default;
-    const { container } = renderWithTheme(<MeuSite />);
-    // Must render without crashing — upgrade wall or error state
-    expect(container).toBeTruthy();
+    render(<MeuSite />);
+    expect(screen.getByText('Recurso indisponível')).toBeInTheDocument();
+    expect(screen.queryByTestId('site-editor')).not.toBeInTheDocument();
   });
 
-  it('carrega e exibe seções após fetch', async () => {
+  it('carrega e lista as seções após o fetch', async () => {
     const MeuSite = require('@/pages/admin/meu-site').default;
-    renderWithTheme(<MeuSite />);
-    await waitFor(() => {
-      // Section types should appear in the list
-      expect(document.body.textContent).toMatch(/Hero|HERO|Capa/i);
-    });
+    render(<MeuSite />);
+    const list = await screen.findByRole('list', { name: 'Seções do site' });
+    expect(within(list).getByRole('button', { name: 'Editar Capa' })).toBeInTheDocument();
+    expect(within(list).getByRole('button', { name: 'Editar Sobre o terreiro' })).toBeInTheDocument();
   });
 
-  it('exibe botão Publicar quando site está em DRAFT', async () => {
+  it('exibe "Publicar site" e o estado Rascunho quando o site está em DRAFT', async () => {
     const MeuSite = require('@/pages/admin/meu-site').default;
-    renderWithTheme(<MeuSite />);
-    await waitFor(() => {
-      expect(document.body.textContent).toMatch(/Publicar|Publish/i);
-    });
+    render(<MeuSite />);
+    expect(await screen.findByTestId('site-status')).toHaveTextContent('Rascunho');
+    expect(screen.getByRole('button', { name: /Publicar site/ })).toBeInTheDocument();
   });
 
-  it('exibe botão Despublicar quando site está PUBLISHED', async () => {
-    const { apiClient } = require('@/services/api_client');
-    apiClient.get.mockImplementation((url: string) => {
-      if (url.includes('/sections')) return Promise.resolve({ data: SECTIONS_DATA });
-      if (url.includes('/images')) return Promise.resolve({ data: [] });
-      if (url.includes('/versions')) return Promise.resolve({ data: [] });
-      return Promise.resolve({ data: { ...SITE_DATA, status: 'PUBLISHED' } });
-    });
+  it('exibe "Publicado e atualizado" e Despublicar no menu quando PUBLISHED', async () => {
+    mockApi({ ...SITE_DATA, status: 'PUBLISHED' });
     const MeuSite = require('@/pages/admin/meu-site').default;
-    renderWithTheme(<MeuSite />);
-    await waitFor(() => {
-      expect(document.body.textContent).toMatch(/Despublicar|Unpublish/i);
-    });
+    render(<MeuSite />);
+    expect(await screen.findByTestId('site-status')).toHaveTextContent('Publicado e atualizado');
+    expect(screen.getByRole('button', { name: /Publicar alterações/ })).toBeDisabled();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Mais ações' }));
+    expect(await screen.findByRole('menuitem', { name: /Despublicar/ })).toBeInTheDocument();
   });
 
-  it('chama PUT /sections ao salvar — verifica configuração do mock', async () => {
-    const { apiClient } = require('@/services/api_client');
-    apiClient.put.mockResolvedValue({ data: SECTIONS_DATA });
-
+  it('exibe o histórico de versões na aba Histórico', async () => {
+    mockApi(SITE_DATA, SECTIONS_DATA, [
+      { id: 'ver-uuid-1', label: 'Primeira versão', snapshot: [], created_by: 'admin', created_at: '2026-04-14T11:00:00Z' },
+    ]);
     const MeuSite = require('@/pages/admin/meu-site').default;
-    renderWithTheme(<MeuSite />);
-
-    // Aguarda o componente carregar as seções
-    await waitFor(() => {
-      expect(apiClient.get).toHaveBeenCalled();
-    });
-
-    // O mock de put deve estar configurado corretamente para /sections
-    expect(apiClient.put.mock).toBeDefined();
-  });
-
-  it('chama POST /publish ao publicar — verifica configuração do mock', async () => {
-    const { apiClient } = require('@/services/api_client');
-    apiClient.post.mockResolvedValue({
-      data: { ...SITE_DATA, status: 'PUBLISHED' },
-    });
-
-    const MeuSite = require('@/pages/admin/meu-site').default;
-    renderWithTheme(<MeuSite />);
-
-    // Aguarda o componente carregar
-    await waitFor(() => {
-      expect(apiClient.get).toHaveBeenCalled();
-    });
-
-    // O mock de post deve estar configurado para /publish
-    expect(apiClient.post.mock).toBeDefined();
-  });
-
-  it('exibe histórico de versões quando disponível', async () => {
-    const { apiClient } = require('@/services/api_client');
-    apiClient.get.mockImplementation((url: string) => {
-      if (url.includes('/sections')) return Promise.resolve({ data: SECTIONS_DATA });
-      if (url.includes('/images')) return Promise.resolve({ data: [] });
-      if (url.includes('/versions'))
-        return Promise.resolve({
-          data: [
-            {
-              id: 'ver-uuid-1',
-              label: null,
-              snapshot: [],
-              created_by: 'admin',
-              created_at: '2026-04-14T11:00:00Z',
-            },
-          ],
-        });
-      return Promise.resolve({ data: SITE_DATA });
-    });
-
-    const MeuSite = require('@/pages/admin/meu-site').default;
-    renderWithTheme(<MeuSite />);
-    await waitFor(() => {
-      // Version history should be visible (tab or list)
-      expect(document.body.textContent).toMatch(/Histórico|Versões|Versao/i);
-    });
+    render(<MeuSite />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: 'Histórico' }));
+    expect(await screen.findByText('Primeira versão')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Restaurar/ })).toBeInTheDocument();
   });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// validateSection — frontend validator
+// validateSection
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('validateSection', () => {
-  // Import the exported function (relies on module having it exported or testing via behavior)
-  let validateSection: (section: any) => string[];
-
-  beforeAll(() => {
-    // Dynamic require to avoid module-level side-effects
-    const mod = require('@/pages/admin/meu-site');
-    validateSection = mod.validateSection;
-  });
+  const { validateSection } = require('@/pages/admin/meu-site');
 
   it('retorna erro para Hero sem título', () => {
-    if (!validateSection) return; // função não exportada — skip
-    const errors = validateSection({
-      id: '1',
-      section_type: 'HERO',
-      order_index: 0,
-      config: { title: '' },
-    });
+    const errors = validateSection({ id: '1', section_type: 'HERO', order_index: 0, config: { title: '' } });
     expect(errors.length).toBeGreaterThan(0);
     expect(errors[0]).toMatch(/título/i);
   });
 
   it('retorna vazio para Hero com título', () => {
-    if (!validateSection) return;
-    const errors = validateSection({
-      id: '1',
-      section_type: 'HERO',
-      order_index: 0,
-      config: { title: 'Bem-vindo' },
-    });
-    expect(errors).toHaveLength(0);
+    expect(validateSection({ id: '1', section_type: 'HERO', order_index: 0, config: { title: 'Bem-vindo' } })).toHaveLength(0);
   });
 
   it('retorna erro para VIDEO_EMBED com URL do Vimeo', () => {
-    if (!validateSection) return;
-    const errors = validateSection({
-      id: '1',
-      section_type: 'VIDEO_EMBED',
-      order_index: 0,
-      config: { youtube_url: 'https://vimeo.com/12345' },
-    });
+    const errors = validateSection({ id: '1', section_type: 'VIDEO_EMBED', order_index: 0, config: { youtube_url: 'https://vimeo.com/12345' } });
     expect(errors.length).toBeGreaterThan(0);
   });
 
   it('retorna vazio para VIDEO_EMBED com URL válida do YouTube', () => {
-    if (!validateSection) return;
-    const errors = validateSection({
-      id: '1',
-      section_type: 'VIDEO_EMBED',
-      order_index: 0,
-      config: { youtube_url: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
-    });
-    expect(errors).toHaveLength(0);
+    expect(
+      validateSection({ id: '1', section_type: 'VIDEO_EMBED', order_index: 0, config: { youtube_url: 'https://www.youtube.com/embed/dQw4w9WgXcQ' } }),
+    ).toHaveLength(0);
   });
 
   it('retorna vazio para ABOUT (sem validações obrigatórias)', () => {
-    if (!validateSection) return;
-    const errors = validateSection({
-      id: '1',
-      section_type: 'ABOUT',
-      order_index: 0,
-      config: {},
-    });
-    expect(errors).toHaveLength(0);
+    expect(validateSection({ id: '1', section_type: 'ABOUT', order_index: 0, config: {} })).toHaveLength(0);
   });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// [tenantSlug]/index.tsx — Public SSR page (component rendering)
+// [tenantSlug]/index.tsx — site público
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('TenantPublicSitePage — renderers de seções', () => {
+describe('TenantPublicSitePage — seções', () => {
   const PUBLIC_SITE_DATA = {
     id: 'site-uuid',
     slug: 'terreiro-test',
@@ -314,214 +208,118 @@ describe('TenantPublicSitePage — renderers de seções', () => {
     meta_title: 'Terreiro Oxalá',
     meta_description: 'O terreiro mais acolhedor',
     sections: [
-      {
-        id: 's1',
-        section_type: 'HERO',
-        order_index: 0,
-        config: { title: 'Bem-vindo ao Terreiro Oxalá', subtitle: 'Amor e Luz' },
-      },
-      {
-        id: 's2',
-        section_type: 'ABOUT',
-        order_index: 1,
-        config: { body: 'Somos um espaço de paz.' },
-      },
-      {
-        id: 's3',
-        section_type: 'LOCATION',
-        order_index: 2,
-        config: { address: 'Rua das Palmeiras, 123', maps_url: '' },
-      },
-      {
-        id: 's4',
-        section_type: 'CONTACT',
-        order_index: 3,
-        config: { phone: '11999998888', email: 'contato@terreiro.com' },
-      },
+      { id: 's1', section_type: 'HERO', order_index: 0, config: { title: 'Bem-vindo ao Terreiro Oxalá', subtitle: 'Amor e Luz' } },
+      { id: 's2', section_type: 'ABOUT', order_index: 1, config: { body: 'Somos um espaço de paz.' } },
+      { id: 's3', section_type: 'LOCATION', order_index: 2, config: { address: 'Rua das Palmeiras, 123', maps_url: '' } },
+      { id: 's4', section_type: 'CONTACT', order_index: 3, config: { phone: '11999998888', email: 'contato@terreiro.com' } },
     ],
     upcoming_giras: [
-      {
-        id: 'gira-uuid-1',
-        nome: 'Gira de Oxalá',
-        data_hora: new Date().toISOString(),
-        descricao: 'Gira especial',
-      },
+      { id: 'gira-uuid-1', nome: 'Gira de Oxalá', data_hora: new Date().toISOString(), descricao: 'Gira especial', has_tickets: true, has_sponsor_tickets: false },
     ],
   };
+  const Page = () => require('@/pages/[tenantSlug]/index').default;
 
   it('renderiza a página pública sem erros', () => {
-    const TenantPublicSitePage =
-      require('@/pages/[tenantSlug]/index').default;
-    const { container } = renderWithTheme(
-      <TenantPublicSitePage site={PUBLIC_SITE_DATA} />
-    );
+    const TenantPublicSitePage = Page();
+    const { container } = render(<TenantPublicSitePage site={PUBLIC_SITE_DATA} />);
     expect(container).toBeTruthy();
   });
 
-  it('exibe título da seção Hero', () => {
-    const TenantPublicSitePage =
-      require('@/pages/[tenantSlug]/index').default;
-    renderWithTheme(<TenantPublicSitePage site={PUBLIC_SITE_DATA} />);
-    expect(screen.getByText('Bem-vindo ao Terreiro Oxalá')).toBeTruthy();
+  it('exibe título e subtítulo da capa', () => {
+    const TenantPublicSitePage = Page();
+    render(<TenantPublicSitePage site={PUBLIC_SITE_DATA} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Bem-vindo ao Terreiro Oxalá' })).toBeInTheDocument();
+    expect(screen.getByText('Amor e Luz')).toBeInTheDocument();
   });
 
-  it('exibe subtítulo da seção Hero', () => {
-    const TenantPublicSitePage =
-      require('@/pages/[tenantSlug]/index').default;
-    renderWithTheme(<TenantPublicSitePage site={PUBLIC_SITE_DATA} />);
-    expect(screen.getByText('Amor e Luz')).toBeTruthy();
-  });
-
-  it('exibe texto da seção About', () => {
-    const TenantPublicSitePage =
-      require('@/pages/[tenantSlug]/index').default;
-    renderWithTheme(<TenantPublicSitePage site={PUBLIC_SITE_DATA} />);
-    expect(screen.getByText('Somos um espaço de paz.')).toBeTruthy();
+  it('exibe texto da seção Sobre', () => {
+    const TenantPublicSitePage = Page();
+    render(<TenantPublicSitePage site={PUBLIC_SITE_DATA} />);
+    expect(screen.getByText('Somos um espaço de paz.')).toBeInTheDocument();
   });
 
   it('exibe seção de localização com endereço', () => {
-    const TenantPublicSitePage =
-      require('@/pages/[tenantSlug]/index').default;
-    renderWithTheme(<TenantPublicSitePage site={PUBLIC_SITE_DATA} />);
-    expect(screen.getByText('Rua das Palmeiras, 123')).toBeTruthy();
+    const TenantPublicSitePage = Page();
+    render(<TenantPublicSitePage site={PUBLIC_SITE_DATA} />);
+    expect(screen.getByText('Rua das Palmeiras, 123')).toBeInTheDocument();
   });
 
-  it('exibe upcoming giras na seção de calendário (SSR)', () => {
+  it('exibe as próximas giras na seção de calendário (SSR, lista do celular e bloco do computador)', () => {
     const siteWithCalendar = {
       ...PUBLIC_SITE_DATA,
-      sections: [
-        ...PUBLIC_SITE_DATA.sections,
-        {
-          id: 's5',
-          section_type: 'GIRAS_CALENDAR',
-          order_index: 4,
-          config: { display_mode: 'list' },
-        },
-      ],
+      sections: [...PUBLIC_SITE_DATA.sections, { id: 's5', section_type: 'GIRAS_CALENDAR', order_index: 4, config: { display_mode: 'list' } }],
     };
-    const TenantPublicSitePage =
-      require('@/pages/[tenantSlug]/index').default;
-    renderWithTheme(<TenantPublicSitePage site={siteWithCalendar} />);
-    expect(screen.getByText('Gira de Oxalá')).toBeTruthy();
-  });
-
-  it('exibe meta_title via Head', () => {
-    const TenantPublicSitePage =
-      require('@/pages/[tenantSlug]/index').default;
-    const { container } = renderWithTheme(
-      <TenantPublicSitePage site={PUBLIC_SITE_DATA} />
-    );
-    // title é renderizado pelo mock do next/head — verificar via textContent ou title element
-    expect(document.title || PUBLIC_SITE_DATA.meta_title).toBeTruthy();
+    const TenantPublicSitePage = Page();
+    render(<TenantPublicSitePage site={siteWithCalendar} />);
+    expect(within(screen.getByTestId('giras-mobile')).getByText('Gira de Oxalá')).toBeInTheDocument();
+    expect(within(screen.getByTestId('giras-desktop')).getByText('Gira de Oxalá')).toBeInTheDocument();
   });
 
   it('renderiza seção de vídeo com iframe youtube-nocookie', () => {
     const siteWithVideo = {
       ...PUBLIC_SITE_DATA,
-      sections: [
-        {
-          id: 's-video',
-          section_type: 'VIDEO_EMBED',
-          order_index: 0,
-          config: { youtube_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
-        },
-      ],
+      sections: [{ id: 's-video', section_type: 'VIDEO_EMBED', order_index: 0, config: { youtube_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' } }],
       upcoming_giras: [],
     };
-    const TenantPublicSitePage =
-      require('@/pages/[tenantSlug]/index').default;
-    const { container } = renderWithTheme(
-      <TenantPublicSitePage site={siteWithVideo} />
-    );
-    const iframes = container.querySelectorAll('iframe');
-    if (iframes.length > 0) {
-      // Must use youtube-nocookie.com for privacy (Gap #21)
-      expect(iframes[0].src).toContain('youtube-nocookie.com');
-    } else {
-      // iframe pode estar via dangerouslySetInnerHTML — checar html
-      expect(container.innerHTML).toMatch(/youtube-nocookie\.com/);
-    }
+    const TenantPublicSitePage = Page();
+    const { container } = render(<TenantPublicSitePage site={siteWithVideo} />);
+    const iframe = container.querySelector('iframe');
+    expect(iframe?.getAttribute('src')).toContain('youtube-nocookie.com/embed/dQw4w9WgXcQ');
   });
 
-  it('renderiza página vazia de seções sem erros', () => {
+  it('mostra estado vazio visível quando o site não tem seções', () => {
     const emptySite = { ...PUBLIC_SITE_DATA, sections: [], upcoming_giras: [] };
-    const TenantPublicSitePage =
-      require('@/pages/[tenantSlug]/index').default;
-    const { container } = renderWithTheme(
-      <TenantPublicSitePage site={emptySite} />
-    );
-    expect(container).toBeTruthy();
+    const TenantPublicSitePage = Page();
+    render(<TenantPublicSitePage site={emptySite} />);
+    expect(screen.getByRole('status')).toHaveTextContent(/ainda está montando o site/);
   });
 
   it('exibe footer "Powered by GiraHub"', () => {
-    const TenantPublicSitePage =
-      require('@/pages/[tenantSlug]/index').default;
-    renderWithTheme(<TenantPublicSitePage site={PUBLIC_SITE_DATA} />);
-    expect(document.body.textContent).toMatch(/GiraHub/i);
+    const TenantPublicSitePage = Page();
+    render(<TenantPublicSitePage site={PUBLIC_SITE_DATA} />);
+    expect(screen.getByText(/Powered by/)).toBeInTheDocument();
+  });
+
+  it('mostra "Site em preparação" quando o site é null', () => {
+    const TenantPublicSitePage = Page();
+    render(<TenantPublicSitePage site={null} />);
+    expect(screen.getByRole('heading', { name: /Site em preparação/ })).toBeInTheDocument();
   });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// getServerSideProps — SSR data fetching
+// getServerSideProps
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('getServerSideProps', () => {
   beforeEach(() => {
     jest.resetModules();
-    // Reset module mocks here to allow node-fetch-like mocking
-    jest.mock('next/router', () => ({
-      useRouter: () => ({ push: jest.fn(), pathname: '/', query: {}, asPath: '/' }),
-    }));
   });
 
   it('retorna site null quando API retorna 404', async () => {
-    // Mock global fetch to simulate 404
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 404 }) as any;
-
-    const mod = require('@/pages/[tenantSlug]/index');
-    const getServerSideProps = mod.getServerSideProps;
-    if (!getServerSideProps) return; // skip if not exported directly
-
-    const ctx = { params: { tenantSlug: 'nao-existe' } };
-    const result = await getServerSideProps(ctx as any);
+    const { getServerSideProps } = require('@/pages/[tenantSlug]/index');
+    const result = await getServerSideProps({ params: { tenantSlug: 'nao-existe' } } as any);
     expect(result).toEqual({ props: { site: null } });
   });
 
   it('retorna props.site quando API retorna sucesso', async () => {
-    const PUBLIC_SITE = {
-      id: 'x',
-      slug: 'terreiro-test',
-      status: 'PUBLISHED',
-      template: 'moderno',
-      meta_title: null,
-      meta_description: null,
-      sections: [],
-      upcoming_giras: [],
-    };
-
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => PUBLIC_SITE,
-    }) as any;
-
-    const mod = require('@/pages/[tenantSlug]/index');
-    const getServerSideProps = mod.getServerSideProps;
-    if (!getServerSideProps) return;
-
-    const ctx = { params: { tenantSlug: 'terreiro-test' } };
-    const result = await getServerSideProps(ctx as any) as any;
+    const PUBLIC_SITE = { id: 'x', slug: 'terreiro-test', status: 'PUBLISHED', template: 'moderno', meta_title: null, meta_description: null, sections: [], upcoming_giras: [] };
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => PUBLIC_SITE }) as any;
+    const { getServerSideProps } = require('@/pages/[tenantSlug]/index');
+    const result = (await getServerSideProps({ params: { tenantSlug: 'terreiro-test' } } as any)) as any;
     expect(result?.props?.site?.slug).toBe('terreiro-test');
+    expect((global.fetch as jest.Mock).mock.calls[0][0]).toMatch(/\/api\/v1\/public\/sites\/terreiro-test$/);
   });
 
   it('retorna site null quando ocorre erro de rede', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('Network error')) as any;
-
-    const mod = require('@/pages/[tenantSlug]/index');
-    const getServerSideProps = mod.getServerSideProps;
-    if (!getServerSideProps) return;
-
-    const ctx = { params: { tenantSlug: 'terreiro-test' } };
-    const result = await getServerSideProps(ctx as any);
+    const { getServerSideProps } = require('@/pages/[tenantSlug]/index');
+    const result = await getServerSideProps({ params: { tenantSlug: 'terreiro-test' } } as any);
     expect(result).toEqual({ props: { site: null } });
+  });
+
+  afterAll(() => {
+    jest.resetModules();
   });
 });
