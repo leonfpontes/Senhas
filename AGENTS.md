@@ -494,7 +494,7 @@ Incluir obrigatoriamente:
 
 ### 11.15 Painel de ativação na tela Hoje (super-admin)
 - **Onde**: tela "Hoje" de `/platform` (o antigo `/platform/observatory` redireciona para ela, mantendo a âncora), componente `frontend/src/components/platform/ActivationSection.tsx`. Dados em `activation` do `GET /api/v1/platform/tenant-observatory` (protegido por `require_super_admin`), calculados por `backend/src/services/activation_service.py`.
-- **Conteúdo**: cadastros dos últimos 60 dias (`WINDOW_DAYS`), do mais recente ao mais antigo, cada um num estágio — `sem_gira` → `sem_senhas` (gira criada sem `max_tickets`, nada aparece no link) → `aguardando_senha` → `recebendo` → `usou_porta` → `ativado` (20+ senhas pelo link, mesmo limiar do checklist). Mostra também giras configuradas/total e próxima gira, senhas pelo link, trial (dias restantes) ou pagante, e-mails de onboarding enviados (D+1/D+3, de `custom_settings.onboarding_emails`), dor do cadastro, última atividade (sessão ou ação auditada) e contato do admin mais antigo com links de WhatsApp (`wa.me`, DDI 55 acrescentado) e e-mail.
+- **Conteúdo**: cadastros dos últimos 60 dias (`WINDOW_DAYS`), do mais recente ao mais antigo, cada um num estágio — `sem_gira` → `sem_senhas` (gira criada sem `max_tickets`, nada aparece no link) → `aguardando_senha` → `recebendo` → `usou_porta` → `ativado` (20+ senhas pelo link, mesmo limiar do checklist). Mostra também giras configuradas/total e próxima gira, senhas pelo link, trial (dias restantes) ou pagante, e-mails de onboarding enviados (D+1/D+3, de `custom_settings.onboarding_emails`), dor do cadastro, última atividade (sessão ou ação auditada — logs com `details.platform_action`, ações do super-admin, não contam) e contato do admin mais antigo com links de WhatsApp (`wa.me`, DDI 55 acrescentado) e e-mail.
 - **Consulta**: uma ida ao banco com subconsultas correlacionadas por tenant + uma para os contatos. Visão cross-tenant por desenho (super-admin), sem filtro de tenant.
 
 ### 11.17 MRR e categorias de cobrança da plataforma (2026-10-06)
@@ -507,6 +507,35 @@ Incluir obrigatoriamente:
   `_mrr` do `/platform/dashboard` (`paying_clause()`) e o MRR em risco da retenção.
 - Nunca somar `monthly_price` direto para falar de receita: use `effective_mrr`/`paying_clause`.
   O contador `subscriptions.current_users` não é mantido; conte usuários ativos na tabela `users`.
+
+### 11.18 Jornadas do super-admin (revisão de 2026-10-06)
+- **Auditoria das ações da plataforma**: o middleware só audita `/api/v1/admin`. Impersonação, suspender/reativar,
+  troca de plano, criar/editar terreiro, CRUD de super-admin e redefinir senha de usuário de terreiro gravam
+  `AuditLog` via `services/platform_audit.py::log_platform_action` (só `db.add`; o commit da ação vem DEPOIS, na
+  mesma transação). Sem valor novo no enum: action genérica (`login` para impersonação, `update`, `create`,
+  `delete`) + `details.platform_action` (id estável) e `details.description` (frase pronta; a tela de auditoria
+  mostra com o selo "Plataforma"). `tenant_id` = terreiro afetado; `None` no CRUD de super-admin.
+- **Terreiro excluído no Tenant 360**: `GET /platform/tenants/{id}` e `/users` incluem soft-deleted e devolvem
+  `deleted_at`/`self_deactivated_at`; a tela mostra "Desativado pelo terreiro"/"Excluído", desliga
+  impersonação/edição e oferece "Excluir permanentemente". O hard delete (LGPD) aceita terreiro já excluído
+  logicamente (`include_deleted=True` em `get_by_id_with_subscription`/`hard_delete`).
+- **Novo terreiro**: a resposta traz `temp_password` do admin; o painel mostra UMA vez com botão de copiar (não
+  vai por e-mail nem para log). `data_retention_days` saiu do contrato (era ignorado).
+- **Editar terreiro**: só os campos enviados (`exclude_unset`); `description: null` limpa.
+- **Super-admins**: política de senha no cadastro; não dá para excluir/desativar a si mesmo nem o último
+  super-admin ativo (`PlatformUserRepository.count_active`).
+- **Impersonação** (`components/platform/impersonate.ts`): token só no fragmento (`#token=…`); a aba abre no
+  clique, antes do `await`, e recebe o endereço depois — pop-up bloqueado vira erro com orientação.
+- **Auditoria consolidada**: data sem hora é dia de Brasília; o fim cobre o dia inteiro (o último dia aparecia vazio).
+- **Hoje**: o risco de churn vem só do `/tenant-observatory` (`retention_summary.total_at_risk`,
+  `retention_grace_days` = `GRACE_DAYS`); o `/dashboard` não calcula mais (`alerts.no_activity_30d` saiu).
+- **Tenant 360 > Giras**: `GET /platform/tenant-observatory/tenants/{id}/giras` (giras do terreiro nos próximos 30 dias).
+- **Suporte**: `GET /platform/support-chat/conversations/{id}`; a lista traz a prévia numa consulta
+  (`last_message_previews`, `DISTINCT ON`); conversa aberta é marcada como lida quando chega mensagem.
+- **Planos (Configurações)**: a tabela deriva de `FEATURE_CATALOG`/`FEATURE_MIN_PLAN` de `constants/plans.ts`.
+- **Rotas**: `tests/unit/test_route_shadowing.py` também testa rota com segmento fixo depois de parâmetro
+  (pegou `/feature-flags/{tenant_id}/enabled` engolida por `/{tenant_id}/{feature}`).
+- `PUT /platform/subscriptions/{id}/upgrade` (usado pelo drawer para qualquer troca de plano) não cria mais fatura.
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
