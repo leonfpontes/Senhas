@@ -125,7 +125,7 @@ EXEMPT_QUERIES: dict[tuple[str, str], str] = {
         "resolve nomes de impersonated_by (super_admins, tenant_id NULL) a partir de logs já "
         "filtrados por tenant em list_audit_logs; filtrar por tenant esconderia o impersonador"
     ),
-    ("sites.py", "update_site"): (
+    ("sites.py", "_sync_slug_with_tenant"): (
         "checagem de unicidade de slug é global por design (slug do site público é único "
         "entre todos os tenants); só retorna existência, nenhum dado de outro tenant"
     ),

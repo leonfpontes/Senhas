@@ -108,6 +108,19 @@ describe('Meu Site — editor', () => {
     expect(screen.queryByTestId('setup-wizard')).not.toBeInTheDocument();
   });
 
+  it('o estilo escolhido no assistente só monta as seções — não grava PUT /sites (gatilho do 409 no 1º uso)', async () => {
+    const { apiClient } = require('@/services/api_client');
+    mockApi({ sections: { sections: [], site_updated_at: SITE.updated_at } });
+    render(<MeuSitePage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('radio', { name: /Clássico/ }));
+    const create = await screen.findByRole('button', { name: /Criar meu site/ });
+    await waitFor(() => expect(create).toBeEnabled());
+    await user.click(create);
+    expect(await screen.findByRole('list', { name: 'Seções do site' })).toBeInTheDocument();
+    expect(apiClient.put).not.toHaveBeenCalledWith('/api/v1/admin/sites', expect.anything());
+  });
+
   it('"Começar do zero" fecha o assistente e abre a galeria com miniaturas', async () => {
     mockApi({ sections: { sections: [], site_updated_at: SITE.updated_at } });
     render(<MeuSitePage />);
