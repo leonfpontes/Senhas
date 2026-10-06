@@ -508,6 +508,39 @@ Incluir obrigatoriamente:
 - Nunca somar `monthly_price` direto para falar de receita: use `effective_mrr`/`paying_clause`.
   O contador `subscriptions.current_users` não é mantido; conte usuários ativos na tabela `users`.
 
+### 11.18 Casa — Estoque, Cursos presenciais e Meu Site (revisão de jornada, 2026-10-06)
+- **Cursos presenciais**: autorização é só `require_group_permission(CURSOS_PRESENCIAIS, ...)` + gate de plano
+  `site_builder` — não há checagem de cargo no corpo (operador com o grupo cria/edita/inscreve; admin faz bypass).
+  Decimais (`valor_mensalidade_padrao`, `valor_mensalidade`, `valor_pago`) chegam como string ("120.00"): no
+  frontend sempre `toNum` de `@/lib/dateBr`. `data_pagamento` do pagamento único é enviado como
+  `YYYY-MM-DDT12:00:00-03:00` e exibido com `formatDateBr` (data pura). `aceita_uso_dados_saude` (LGPD art. 11) é
+  o checkbox do formulário (admin e público) — nunca inferido das respostas de saúde. Pagamento único
+  (`pago`/`valor_pago`/`data_pagamento`) e mensalidades (`curso_participante_pagamentos`) coexistem no modelo; a UI
+  mostra o pagamento único só quando o curso NÃO gera mensalidade (coluna, cartão e drawer), então as duas
+  informações nunca aparecem juntas.
+- **Listagens sem corte silencioso**: telas de Cursos, Participantes, Estoque (itens e movimentações) usam
+  `services/fetchAllPages.ts` (pede `skip`/`limit` no máximo do endpoint até uma página vir incompleta). As queries
+  têm desempate por `id` no `ORDER BY` para o offset não repetir/pular linha.
+- **Estoque**: CSV de posição exige `export_csv` também no backend; `ItemUpdate.estoque_minimo >= 0`; editar grupo
+  com `descricao: null` limpa o campo (`model_dump(exclude_unset=True)`); o "saldo após" do `MovimentacaoDrawer` na
+  edição desfaz a movimentação original antes de aplicar os valores novos (`saldoAposMovimentacao`).
+- **Meu Site — lock otimista**: toda resposta que muda o site (PUT/GET `/sections`, `publish`, `unpublish`,
+  `PUT /sites`, `restore`) devolve `updated_at`/`site_updated_at` sempre com offset (`_iso_utc`) e o backend compara
+  `site_version` por instante (`_same_version`), não por texto. `useSiteEditor` adota a versão de toda resposta
+  (`adoptVersion`). O assistente de primeiro uso não grava mais `template` (o site público não o lê).
+- **Meu Site — configurações**: `PUT /sites` aplica só os campos enviados (null limpa título/descrição SEO). `slug`
+  é somente leitura: o backend ignora o do body e sincroniza com o slug do tenant em `PUT /sites` e `publish`
+  (`_sync_slug_with_tenant`), porque o botão "Retirar senha" monta `/{slug}/...`. O seletor de estilo saiu das
+  configurações (continua no assistente, só para montar as seções iniciais).
+- **Meu Site — histórico** (máx. 10, snapshot = estado ANTES da operação, sem duplicar o último idêntico):
+  "Publicado" ao publicar e a cada salvamento com o site no ar; "Rascunho" no salvamento fora do ar, no máximo a
+  cada 10 min (`DRAFT_SNAPSHOT_INTERVAL`); "Antes de restaurar" antes de aplicar uma versão. `GET /versions` não
+  devolve o snapshot.
+- **Meu Site — imagens**: o editor não apaga imagem ao trocar/remover (ela pode estar no histórico). No limite de 50,
+  o upload primeiro apaga as órfãs (`_prune_unreferenced_images`: nenhum UUID nas seções atuais — que são o conteúdo
+  publicado — nem em versão do histórico, e com mais de 1 h). `DELETE /sites/images/{id}` devolve 409 se a imagem
+  ainda está nas seções.
+
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
   usa Tailwind v4 + shadcn/ui (Radix, estilo new-york, `data-slot`). **Não criar `sx` nem reintroduzir MUI.**
