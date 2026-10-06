@@ -10,7 +10,6 @@
  * estilizado; sucesso com .ics e próximos passos.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -1068,11 +1067,8 @@ export default function InscricaoCursoPage() {
         </form>
       )}
 
-      <p className="text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} {curso.tenant_nome}
-        {' · '}
-        <Link href="/" className="font-semibold text-foreground underline-offset-4 hover:underline">Desenvolvido com GiraHub</Link>
-      </p>
+      {/* O "Powered by GiraHub" vem do PublicShell. */}
+      <p className="text-center text-sm text-muted-foreground">© {new Date().getFullYear()} {curso.tenant_nome}</p>
     </PublicShell>
   );
 }
