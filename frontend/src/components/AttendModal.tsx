@@ -1,19 +1,19 @@
 /**
- * AttendModal - Modal for confirming/editing a consultation (atendimento)
- * Collects medium name, cambone name, and description
+ * AttendModal — chamar uma senha (registra médium, cambone e observações) ou editar o
+ * atendimento de uma senha já atendida. Dialog do kit com Combobox para médium/cambone
+ * (quando o terreiro tem médiuns cadastrados; senão campo livre).
  */
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import {
-  Autocomplete,
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  Box,
-  Typography,
-} from '@mui/material';
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Combobox, TextField } from '@/components/fields';
 
 interface MediumOption {
   id: string;
@@ -28,18 +28,81 @@ interface AttendModalProps {
   onConfirm: (data: { medium_nome: string; cambone_nome?: string; atendimento_descricao?: string }) => void;
   onClose: () => void;
   loading?: boolean;
-  /** Pre-populate fields for edit mode */
+  /** Pré-preenche os campos no modo de edição. */
   initialValues?: {
     medium_nome?: string;
     cambone_nome?: string;
     atendimento_descricao?: string;
   };
-  /** True when editing an already completed ticket */
+  /** Editando uma senha já atendida. */
   editMode?: boolean;
-  /** Médium de atendimento options (is_atendimento=true) */
+  /** Médiuns de atendimento (is_atendimento=true). */
   mediumOptions?: MediumOption[];
-  /** All active options (médiuns + cambones) */
+  /** Todos os ativos (médiuns + cambones). */
   camboneOptions?: MediumOption[];
+}
+
+const OUTRO = '__outro__';
+
+function NameField({
+  label,
+  required,
+  options,
+  value,
+  onChange,
+  disabled,
+  autoFocus,
+}: {
+  label: string;
+  required?: boolean;
+  options: MediumOption[];
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  autoFocus?: boolean;
+}) {
+  const names = useMemo(() => Array.from(new Set(options.map((o) => o.nome))), [options]);
+  const [outro, setOutro] = useState(false);
+
+  useEffect(() => {
+    // Valor que não está na lista (ex.: edição de nome antigo) → campo livre.
+    setOutro(Boolean(value) && names.length > 0 && !names.includes(value));
+  }, [value, names]);
+
+  if (names.length === 0 || outro) {
+    return (
+      <TextField
+        label={label}
+        required={required}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        helperText={names.length > 0 ? 'Digite o nome.' : undefined}
+      />
+    );
+  }
+
+  return (
+    <Combobox
+      label={label}
+      required={required}
+      disabled={disabled}
+      options={[...names.map((n) => ({ value: n, label: n })), { value: OUTRO, label: 'Outro nome…' }]}
+      value={value || null}
+      onChange={(v) => {
+        if (v === OUTRO) {
+          setOutro(true);
+          onChange('');
+        } else {
+          onChange(v ?? '');
+        }
+      }}
+      placeholder="Escolher…"
+      searchPlaceholder="Buscar pelo nome…"
+      clearable
+    />
+  );
 }
 
 export default function AttendModal({
@@ -58,7 +121,6 @@ export default function AttendModal({
   const [camboneNome, setCamboneNome] = useState('');
   const [descricao, setDescricao] = useState('');
 
-  // Populate fields when opening (supports edit mode)
   useEffect(() => {
     if (open) {
       setMediumNome(initialValues?.medium_nome || '');
@@ -76,74 +138,48 @@ export default function AttendModal({
     });
   };
 
-  const handleClose = () => {
-    onClose();
-  };
+  const numero = String(ticketNumero).padStart(4, '0');
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        {editMode ? 'Editar Atendimento' : 'Confirmar Atendimento'}
-      </DialogTitle>
-      <DialogContent>
-        <Box sx={{ mb: 2, mt: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Senha <strong>#{ticketNumero}</strong> — {consulenteNome}
-          </Typography>
-        </Box>
-        <Autocomplete
-          freeSolo
-          options={mediumOptions.map((m) => m.nome)}
-          inputValue={mediumNome}
-          onInputChange={(_, v) => setMediumNome(v)}
-          disabled={loading}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              autoFocus
-              label="Nome do Médium *"
-              fullWidth
-              sx={{ mb: 2 }}
-            />
-          )}
-        />
-        <Autocomplete
-          freeSolo
-          options={camboneOptions.map((m) => m.nome)}
-          inputValue={camboneNome}
-          onInputChange={(_, v) => setCamboneNome(v)}
-          disabled={loading}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              label="Nome do Cambone"
-              fullWidth
-              sx={{ mb: 2 }}
-            />
-          )}
-        />
-        <TextField
-          label="Descrição / Observações"
-          fullWidth
-          multiline
-          rows={3}
-          value={descricao}
-          onChange={(e) => setDescricao(e.target.value)}
-          disabled={loading}
-        />
+    <Dialog open={open} onOpenChange={(next) => !next && !loading && onClose()}>
+      <DialogContent className="sm:max-w-md" data-testid="attend-modal">
+        <DialogHeader>
+          <DialogTitle>{editMode ? 'Editar atendimento' : `Chamar senha ${numero}`}</DialogTitle>
+          <DialogDescription>
+            Senha <strong className="font-mono text-foreground">{numero}</strong> — {consulenteNome}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4">
+          <NameField
+            label="Médium"
+            required
+            options={mediumOptions}
+            value={mediumNome}
+            onChange={setMediumNome}
+            disabled={loading}
+            autoFocus
+          />
+          <NameField label="Cambone" options={camboneOptions} value={camboneNome} onChange={setCamboneNome} disabled={loading} />
+          <TextField
+            label="Observações"
+            multiline
+            rows={3}
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" size="touch" onClick={onClose} disabled={loading}>
+            Cancelar
+          </Button>
+          <Button type="button" size="touch" onClick={handleConfirm} disabled={!mediumNome.trim() || loading}>
+            {loading ? 'Salvando…' : editMode ? 'Salvar' : 'Atendido'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={handleClose} disabled={loading}>
-          Cancelar
-        </Button>
-        <Button
-          onClick={handleConfirm}
-          variant="contained"
-          disabled={!mediumNome.trim() || loading}
-        >
-          {loading ? 'Salvando...' : editMode ? 'Salvar Alterações' : 'Confirmar Atendimento'}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

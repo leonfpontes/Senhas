@@ -29,6 +29,8 @@ const nextConfig = {
   },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
+    // Versão da UI (rodapé da sidebar e menu do usuário) — lida do package.json, ver src/lib/version.ts.
+    NEXT_PUBLIC_UI_VERSION: require('./package.json').version,
   },
   // Production: immutable cache for hashed assets.
   // In development, never force immutable caching on /_next/static because it breaks HMR.

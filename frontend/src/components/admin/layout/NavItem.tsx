@@ -1,72 +1,87 @@
+/**
+ * NavItem — um destino da sidebar sobre o bloco `Sidebar` do shadcn.
+ * `badge` mostra o contador (aniversariantes, suporte); `onAction` substitui a navegação
+ * nos itens de ação (ex.: "Link e QR do terreiro" abre o ShareLinkDialog).
+ */
 import React from 'react';
-import Badge          from '@mui/material/Badge';
-import ListItem       from '@mui/material/ListItem';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemIcon   from '@mui/material/ListItemIcon';
-import ListItemText   from '@mui/material/ListItemText';
-import Link           from 'next/link';
-import { useTenant }  from '@/providers/ThemeProvider';
+import Link from 'next/link';
+import type { LucideIcon } from 'lucide-react';
+import {
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  useSidebar,
+} from '@/components/ui/sidebar';
 
-interface NavItemProps {
-  href:     string;
-  text:     string;
-  icon:     React.ReactNode;
-  active:   boolean;
-  indent?:  boolean;
-  badge?:   number;
+export interface NavItemProps {
+  href: string;
+  text: string;
+  icon: LucideIcon;
+  active: boolean;
+  /** Dentro de uma seção recolhível (Financeiro, Estoque). */
+  indent?: boolean;
+  badge?: number;
+  onAction?: () => void;
 }
 
-export const NavItem: React.FC<NavItemProps> = ({ href, text, icon, active, indent, badge }) => {
-  const { config } = useTenant();
-  const brandPrimary   = config?.colors?.primary   ?? '#6366F1';
-  const brandSecondary = config?.colors?.secondary ?? '#EC4899';
-  const brandFont      = config?.colors?.font      ?? '#FFFFFF';
+export const NavItem: React.FC<NavItemProps> = ({ href, text, icon: Icon, active, indent, badge, onAction }) => {
+  const { isMobile, setOpenMobile } = useSidebar();
+  const closeOnMobile = () => {
+    if (isMobile) setOpenMobile(false);
+  };
+  const showBadge = typeof badge === 'number' && badge > 0;
+  const badgeLabel = showBadge ? (badge > 9 ? '9+' : String(badge)) : null;
 
-  const selectedSx = active
-    ? {
-        background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
-        color: brandFont,
-        '& .MuiListItemIcon-root': { color: brandFont },
-        '& .MuiListItemText-primary': { color: brandFont },
-        '&:hover': {
-          background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
-          filter: 'brightness(0.95)',
-        },
-      }
-    : {
-        '&:hover': { bgcolor: 'action.hover' },
-      };
+  if (indent) {
+    return (
+      <SidebarMenuSubItem>
+        <SidebarMenuSubButton asChild isActive={active}>
+          <Link href={href} aria-current={active ? 'page' : undefined} onClick={closeOnMobile}>
+            <Icon aria-hidden />
+            <span>{text}</span>
+          </Link>
+        </SidebarMenuSubButton>
+      </SidebarMenuSubItem>
+    );
+  }
+
+  const content = (
+    <>
+      <Icon aria-hidden />
+      <span>{text}</span>
+      {showBadge && <span className="sr-only"> ({badge} pendentes)</span>}
+    </>
+  );
 
   return (
-    <ListItem disablePadding>
-      <Link href={href} passHref legacyBehavior>
-        <ListItemButton
-          selected={active}
-          aria-current={active ? 'page' : undefined}
-          sx={{
-            borderRadius: 2,
-            mx: 1,
-            pl: indent ? 4 : undefined,
-            '& .MuiListItemIcon-root': {
-              color: 'text.secondary',
-              minWidth: indent ? 36 : 40,
-            },
-            ...selectedSx,
+    <SidebarMenuItem>
+      {onAction ? (
+        <SidebarMenuButton
+          type="button"
+          tooltip={text}
+          onClick={() => {
+            closeOnMobile();
+            onAction();
           }}
         >
-          <ListItemIcon>
-            {badge && badge > 0 ? (
-              <Badge badgeContent={badge} color="error" max={9}>
-                {icon}
-              </Badge>
-            ) : icon}
-          </ListItemIcon>
-          <ListItemText
-            primary={text}
-            primaryTypographyProps={{ variant: 'body2', fontWeight: active ? 600 : 500 }}
-          />
-        </ListItemButton>
-      </Link>
-    </ListItem>
+          {content}
+        </SidebarMenuButton>
+      ) : (
+        <SidebarMenuButton asChild isActive={active} tooltip={text}>
+          <Link href={href} aria-current={active ? 'page' : undefined} onClick={closeOnMobile}>
+            {content}
+          </Link>
+        </SidebarMenuButton>
+      )}
+      {badgeLabel && (
+        <SidebarMenuBadge aria-hidden className="rounded-full bg-destructive px-1.5 text-white">
+          {badgeLabel}
+        </SidebarMenuBadge>
+      )}
+    </SidebarMenuItem>
   );
 };
+
+export default NavItem;

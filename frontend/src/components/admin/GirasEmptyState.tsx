@@ -1,16 +1,14 @@
 /**
  * Empty state da tela de giras (terreiro sem nenhuma gira cadastrada).
  *
- * Antes, um terreiro novo via só uma tabela vazia. Agora a tela explica o
- * ciclo em três passos e oferece o botão de criar a primeira gira, respeitando
+ * Explica o ciclo em três passos e oferece o botão de criar a primeira gira, respeitando
  * permissão de grupo (`giras:insert`) e limite/assinatura do plano.
  */
 import React from 'react';
-import { Box, Button, Stack, Typography } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import EventAvailableRoundedIcon from '@mui/icons-material/EventAvailableRounded';
 import Link from 'next/link';
+import { CalendarDays, Plus } from 'lucide-react';
 import { trackEvent } from '@/services/analytics';
+import { Button } from '@/components/ui/button';
 
 export interface GirasEmptyStateProps {
   /** Permissão de grupo para criar gira. */
@@ -25,80 +23,62 @@ export interface GirasEmptyStateProps {
 const STEPS = [
   'Crie a gira com a data e quantas senhas liberar.',
   'Compartilhe o link do terreiro no grupo de WhatsApp — os consulentes pegam a senha pelo celular.',
-  'No dia da gira, use a Porta para fazer o check-in e chamar as senhas.',
+  'No dia da gira, use a Porta para marcar quem chegou e chamar as senhas.',
 ];
 
 export default function GirasEmptyState({ canInsert, canCreateGira, blockedReason, onCreate }: GirasEmptyStateProps) {
   return (
-    <Box
+    <div
       data-testid="giras-empty-state"
-      sx={{ py: { xs: 5, sm: 7 }, px: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}
+      role="status"
+      className="flex flex-col items-center px-6 py-10 text-center sm:py-14"
     >
-      <EventAvailableRoundedIcon sx={{ fontSize: 48, color: 'primary.main', mb: 1.5 }} />
-      <Typography variant="h6" fontWeight={700}>
-        Nenhuma gira cadastrada ainda
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 440 }}>
+      <span className="mb-3 flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary" aria-hidden>
+        <CalendarDays className="size-7" />
+      </span>
+      <h2 className="text-lg font-bold">Nenhuma gira cadastrada ainda</h2>
+      <p className="mt-1 max-w-md text-sm text-muted-foreground">
         Crie a primeira gira para começar a liberar senhas. É assim que funciona:
-      </Typography>
+      </p>
 
-      <Stack component="ol" spacing={1} sx={{ mt: 2.5, mb: 3, p: 0, maxWidth: 440, textAlign: 'left', listStyle: 'none' }}>
+      <ol className="mt-5 mb-6 flex max-w-md list-none flex-col gap-2 p-0 text-left">
         {STEPS.map((text, i) => (
-          <Box component="li" key={text} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-            <Box
-              sx={{
-                flexShrink: 0,
-                width: 22,
-                height: 22,
-                mt: '1px',
-                borderRadius: '50%',
-                bgcolor: 'primary.main',
-                color: 'primary.contrastText',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+          <li key={text} className="flex items-start gap-3">
+            <span
+              aria-hidden
+              className="mt-px flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground"
             >
               {i + 1}
-            </Box>
-            <Typography variant="body2">{text}</Typography>
-          </Box>
+            </span>
+            <span className="text-sm">{text}</span>
+          </li>
         ))}
-      </Stack>
+      </ol>
 
       {canInsert && canCreateGira && (
         <Button
-          variant="contained"
-          startIcon={<AddIcon />}
+          size="lg"
           onClick={() => {
             trackEvent('giras_empty_create');
             onCreate();
           }}
         >
-          Criar primeira gira
+          <Plus aria-hidden /> Criar primeira gira
         </Button>
       )}
 
       {canInsert && !canCreateGira && (
-        <Stack spacing={1} alignItems="center">
-          {blockedReason && (
-            <Typography variant="body2" color="text.secondary">
-              {blockedReason}
-            </Typography>
-          )}
-          <Button component={Link} href="/admin/plano" variant="outlined">
-            Ver planos
+        <div className="flex flex-col items-center gap-2">
+          {blockedReason && <p className="text-sm text-muted-foreground">{blockedReason}</p>}
+          <Button asChild variant="outline">
+            <Link href="/admin/billing">Ver planos</Link>
           </Button>
-        </Stack>
+        </div>
       )}
 
       {!canInsert && (
-        <Typography variant="body2" color="text.secondary">
-          Peça a um administrador do terreiro para criar a gira.
-        </Typography>
+        <p className="text-sm text-muted-foreground">Peça a um administrador do terreiro para criar a gira.</p>
       )}
-    </Box>
+    </div>
   );
 }
