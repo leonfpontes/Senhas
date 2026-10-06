@@ -1,20 +1,33 @@
 /**
- * Platform component library — barrel export.
- * Import everything from here to avoid deep relative paths.
+ * Componentes da área da plataforma (super admin) — barrel.
  *
- * Example:
- *   import { KpiCard, MrrHeroCard, ChartTooltip } from "@/components/platform";
+ *   import { KpiCard, PlanBadge, StatusDot } from "@/components/platform";
  */
 
-export { ChartTooltip }           from "./ChartTooltip";
-export { KpiCard }                from "./KpiCard";
-export { LiveClock }              from "./LiveClock";
-export { MrrHeroCard }            from "./MrrHeroCard";
-export { PlansDistribution }      from "./PlansDistribution";
-export { SectionLabel }           from "./SectionLabel";
-export { StatusDot }              from "./StatusDot";
-export { TopTenantsLeaderboard }  from "./TopTenantsLeaderboard";
+export { ChartTooltip } from './ChartTooltip';
+export { KpiCard } from './KpiCard';
+export type { KpiCardProps } from './KpiCard';
+export { SectionLabel } from './SectionLabel';
+export { StatusDot } from './StatusDot';
+export { PlanBadge, BonusStar, SubscriptionStatusBadge, TenantActiveBadge, ToneBadge } from './PlanBadge';
+export type { Tone } from './PlanBadge';
+export { default as ActivationSection, STAGE_META, STAGE_ORDER } from './ActivationSection';
+export type { ActivationData, ActivationTenant, ActivationStage } from './ActivationSection';
 
-export type { KpiCardProps }  from "./KpiCard";
-export { PLAN_META, DEFAULT_PLAN_META } from "./planMeta";
-export type { PlanMeta } from "./planMeta";
+export {
+  PLAN_META,
+  PLAN_ORDER,
+  DEFAULT_PLAN_META,
+  STATUS_META,
+  TENANT_ACTIVE_META,
+  ROLE_LABELS,
+  planMeta,
+  planLabel,
+  statusMeta,
+  roleLabel,
+} from './planMeta';
+export type { PlanKey, PlanMeta, StatusMeta, SubscriptionStatusKey } from './planMeta';
+
+export { impersonateUser, impersonateTenantAdmin, buildImpersonateUrl, pickTenantAdmin } from './impersonate';
+export type { ImpersonateResponse } from './impersonate';
+export * from './format';
