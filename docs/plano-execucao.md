@@ -564,8 +564,9 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   - **7 — Meu Site** (2026-10-06): seções compartilhadas (fecha o P-04), assistente, prévia, "Publicar alterações", salvar automático.
   - **8 — Plataforma** (2026-10-06): Hoje, Tenant 360, terreiros + assinaturas com paginação no servidor, suporte, auditoria, configurações.
   - **9 — Remoção** (2026-10-06): sem `@mui/*`, `@emotion/*`, `packages/shared-ui`; preflight completo; overlays no z-index do Radix.
-- **Pendências registradas**: rota `/platform/tenants/search` sombreada por `/tenants/{tenant_id}` no backend
-  (a busca da plataforma é no cliente até corrigir); "Nova conversa" no suporte da plataforma depende de endpoint
+- **Pendências registradas**: a busca de terreiros da plataforma é feita no navegador; a rota
+  `/platform/tenants/search` estava sombreada por `/tenants/{tenant_id}` (corrigido no PR #47) e, para a tela
+  usá-la, precisa devolver plano, status e fim do trial; "Nova conversa" no suporte da plataforma depende de endpoint
   de criação; isenção de mensalidade em médiuns depende de campo no backend; páginas públicas ficaram mais
   pesadas que antes (ver `docs/bundle-baseline.md`) e merecem uma rodada de corte (import de ícones, zod/RHF só
   onde há formulário).
