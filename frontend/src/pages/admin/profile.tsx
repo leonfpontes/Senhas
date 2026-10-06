@@ -33,6 +33,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { apiClient, extractApiErrorMessage, ApiRequestConfig } from '@/services/api_client';
 import { useSnackbar } from '@/contexts/SnackbarContext';
+import { useProfile } from '@/hooks/useProfile';
 import { passwordError } from '@/constants/passwordPolicy';
 
 interface ProfileData {
@@ -168,9 +169,20 @@ export default function AdminProfilePage() {
   );
 }
 
+/** Super-admin impersonando nesta aba (token no sessionStorage, ver admin/impersonate.tsx). */
+function isImpersonatingTab(): boolean {
+  return typeof sessionStorage !== 'undefined' && Boolean(sessionStorage.getItem('impersonating'));
+}
+
 function ProfileContent() {
   const router = useRouter();
   const { showSuccess } = useSnackbar();
+  const { refresh: refreshTopbarProfile } = useProfile();
+  // Lido após a hidratação (sessionStorage não existe no SSR).
+  const [impersonating, setImpersonating] = useState(false);
+  useEffect(() => {
+    setImpersonating(isImpersonatingTab());
+  }, []);
 
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -215,9 +227,29 @@ function ProfileContent() {
     };
   }, [avatarPreview]);
 
+  // Impersonando, o localStorage['user'] é do SUPER-ADMIN (compartilhado com a aba
+  // da plataforma): gravar o usuário impersonado ali derrubaria a aba dele para
+  // /admin/dashboard. Mesmo guard do useProfile — nesse caso atualiza só a cópia
+  // da sessão impersonada (sessionStorage).
   const mergeStoredUser = (patch: Record<string, unknown>) => {
-    const stored = localStorage.getItem('user');
-    localStorage.setItem('user', JSON.stringify({ ...(stored ? JSON.parse(stored) : {}), ...patch }));
+    const storage = isImpersonatingTab() ? sessionStorage : localStorage;
+    const stored = storage.getItem('user');
+    storage.setItem('user', JSON.stringify({ ...(stored ? JSON.parse(stored) : {}), ...patch }));
+  };
+
+  // Encerra a sessão deste navegador: o backend já apagou os cookies, mas o
+  // /auth/logout garante a limpeza (cookies HttpOnly só saem pelo servidor).
+  // skipAutoLogout: a sessão já foi revogada, um 401 aqui não deve disparar o
+  // redirecionamento genérico do interceptor antes do nosso.
+  const endSessionAndGo = async (path: string) => {
+    try {
+      await apiClient.post('/api/v1/auth/logout', {}, { skipAutoLogout: true } as ApiRequestConfig);
+    } catch {
+      /* best-effort */
+    }
+    localStorage.removeItem('user');
+    window.dispatchEvent(new StorageEvent('storage', { key: 'access_token', newValue: null }));
+    router.push(path);
   };
 
   const loadProfile = async () => {
@@ -264,6 +296,7 @@ function ProfileContent() {
         setAvatarPreview(updated.profile_photo_url || avatarPreview);
         mergeStoredUser(updated as unknown as Record<string, unknown>);
       }
+      refreshTopbarProfile();
       showSuccess('Dados pessoais salvos.');
     } catch (err) {
       setError(extractApiErrorMessage(err, 'Não foi possível salvar os dados.'));
@@ -272,6 +305,7 @@ function ProfileContent() {
     }
   };
 
+  const isTenantAdmin = profile?.role === 'admin';
   const newPasswordMessage = passwordError(newPassword);
   const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
 
@@ -299,8 +333,7 @@ function ProfileContent() {
         { skipAutoLogout: true } as ApiRequestConfig,
       );
       // Trocar a senha encerra todas as sessões, inclusive esta.
-      localStorage.removeItem('user');
-      router.push('/login?sessions_ended=1');
+      await endSessionAndGo('/login?sessions_ended=1');
     } catch (err) {
       setError(extractApiErrorMessage(err, 'Não foi possível alterar a senha.'));
     } finally {
@@ -313,19 +346,17 @@ function ProfileContent() {
     setLoggingOutAll(true);
     try {
       await apiClient.post('/api/v1/auth/logout-all');
-      localStorage.removeItem('user');
-      router.push('/login?sessions_ended=1');
+      await endSessionAndGo('/login?sessions_ended=1');
     } catch (err) {
       setError(extractApiErrorMessage(err, 'Não foi possível encerrar as sessões.'));
       setLoggingOutAll(false);
     }
   };
 
-  const clearSessionAndGo = (path: string) => {
+  const clearSessionAndGo = async (path: string) => {
     localStorage.clear();
     sessionStorage.clear();
-    window.dispatchEvent(new StorageEvent('storage', { key: 'access_token', newValue: null }));
-    router.push(path);
+    await endSessionAndGo(path);
   };
 
   const handleDeleteAccount = async (password: string) => {
@@ -333,7 +364,7 @@ function ProfileContent() {
     setDeleteError(null);
     try {
       await apiClient.delete('/api/v1/auth/account', { data: { password }, skipAutoLogout: true } as ApiRequestConfig);
-      clearSessionAndGo('/login?account_deleted=1');
+      await clearSessionAndGo('/login?account_deleted=1');
     } catch (err) {
       setDeleteError(extractApiErrorMessage(err, 'Não foi possível excluir a conta. Confira a senha.'));
     } finally {
@@ -346,7 +377,7 @@ function ProfileContent() {
     setDeactivateError(null);
     try {
       await apiClient.post('/api/v1/auth/deactivate-account', { password }, { skipAutoLogout: true } as ApiRequestConfig);
-      clearSessionAndGo('/login?account_deactivated=1');
+      await clearSessionAndGo('/login?account_deactivated=1');
     } catch (err) {
       setDeactivateError(extractApiErrorMessage(err, 'Não foi possível desativar a conta. Confira a senha.'));
     } finally {
@@ -380,6 +411,7 @@ function ProfileContent() {
         setAvatarPreview(photoUrl);
         mergeStoredUser({ profile_photo_url: photoUrl });
       }
+      refreshTopbarProfile();
       showSuccess('Foto de perfil atualizada.');
     } catch (err) {
       setError(extractApiErrorMessage(err, 'Não foi possível enviar a foto.'));
@@ -449,99 +481,120 @@ function ProfileContent() {
         </Card>
       </div>
 
-      <Card data-tour="profile-senha">
-        <CardContent className="p-5">
-          <SectionTitle icon={<Lock />} title="Alterar senha" description="Ao trocar a senha, você sai de todos os aparelhos e entra de novo." />
-          <div className="grid gap-4 md:grid-cols-3">
-            <PasswordField
-              label="Senha atual"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-            <PasswordField
-              label="Nova senha"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              onBlur={() => setPasswordTouched(true)}
-              autoComplete="new-password"
-              error={passwordTouched && newPassword && newPasswordMessage ? newPasswordMessage : undefined}
-            />
-            <PasswordField
-              label="Confirmar nova senha"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              autoComplete="new-password"
-              error={mismatch ? 'As senhas não são iguais.' : undefined}
-            />
-          </div>
-          <div className="mt-3">
-            <PasswordRules value={newPassword} />
-          </div>
-          <Button type="button" className="mt-4" onClick={handlePasswordChange} disabled={savingPassword}>
-            {savingPassword ? <Loader2 className="animate-spin" aria-hidden /> : null}
-            {savingPassword ? 'Alterando…' : 'Atualizar senha'}
-          </Button>
-        </CardContent>
-      </Card>
+      {impersonating && (
+        <Alert role="status">
+          <CircleAlert aria-hidden />
+          <AlertDescription>
+            Você está acessando como este usuário (impersonação). Trocar senha, sair dos aparelhos, desativar e excluir a
+            conta ficam ocultos: só o próprio usuário pode fazer isso.
+          </AlertDescription>
+        </Alert>
+      )}
 
-      <Card data-tour="profile-sessoes">
-        <CardContent className="p-5">
-          <SectionTitle
-            icon={<LogOut />}
-            title="Sessões ativas"
-            description="Sai desta conta em todos os aparelhos e abas (celular, outro computador). Use se perdeu um aparelho ou desconfia de acesso indevido."
-          />
-          <Button type="button" variant="outline" onClick={handleLogoutAllDevices} disabled={loggingOutAll}>
-            {loggingOutAll ? 'Encerrando…' : 'Sair de todos os aparelhos'}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Accordion type="single" collapsible className="rounded-xl border border-destructive/40 bg-card px-5">
-        <AccordionItem value="risco" className="border-b-0">
-          <AccordionTrigger className="text-base font-bold text-destructive hover:no-underline">
-            <span className="flex items-center gap-2">
-              <TriangleAlert className="size-4" aria-hidden /> Zona de risco
-            </span>
-          </AccordionTrigger>
-          <AccordionContent className="flex flex-col gap-5 pb-5">
-            <div className="rounded-lg border border-warning/50 p-4">
-              <h3 className="flex items-center gap-2 text-sm font-bold text-warning">
-                <PauseCircle className="size-4" aria-hidden /> Desativar conta e terreiro
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                É <strong>reversível</strong>. O terreiro para de ficar acessível e a assinatura é cancelada, mas giras, senhas,
-                médiuns e associados ficam guardados. Você reativa quando quiser, voltando no plano gratuito. Só funciona se você
-                for o único usuário ativo do terreiro.
-              </p>
-              <Button type="button" variant="outline" className="mt-3 border-warning text-warning hover:text-warning" onClick={() => { setDeactivateError(null); setDeactivateOpen(true); }}>
-                <PauseCircle aria-hidden /> Desativar conta
-              </Button>
+      {!impersonating && (
+        <Card data-tour="profile-senha">
+          <CardContent className="p-5">
+            <SectionTitle icon={<Lock />} title="Alterar senha" description="Ao trocar a senha, você sai de todos os aparelhos e entra de novo." />
+            <div className="grid gap-4 md:grid-cols-3">
+              <PasswordField
+                label="Senha atual"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+              <PasswordField
+                label="Nova senha"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                onBlur={() => setPasswordTouched(true)}
+                autoComplete="new-password"
+                error={passwordTouched && newPassword && newPasswordMessage ? newPasswordMessage : undefined}
+              />
+              <PasswordField
+                label="Confirmar nova senha"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+                error={mismatch ? 'As senhas não são iguais.' : undefined}
+              />
             </div>
-
-            <div className="rounded-lg border border-destructive/50 p-4">
-              <h3 className="flex items-center gap-2 text-sm font-bold text-destructive">
-                <Trash2 className="size-4" aria-hidden /> Excluir minha conta
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                A exclusão é <strong>permanente</strong>. Seus dados pessoais são removidos conforme a LGPD (art. 18, VI). Os registros
-                do terreiro (giras, senhas) não são afetados.
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Não consegue entrar na conta?{' '}
-                <a href="mailto:privacidade@girahub.com.br" className="font-semibold underline underline-offset-4">
-                  Peça a exclusão por e-mail
-                </a>
-                .
-              </p>
-              <Button type="button" variant="outline" className="mt-3 text-destructive hover:text-destructive" onClick={() => { setDeleteError(null); setDeleteOpen(true); }}>
-                <Trash2 aria-hidden /> Excluir minha conta
-              </Button>
+            <div className="mt-3">
+              <PasswordRules value={newPassword} />
             </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+            <Button type="button" className="mt-4" onClick={handlePasswordChange} disabled={savingPassword}>
+              {savingPassword ? <Loader2 className="animate-spin" aria-hidden /> : null}
+              {savingPassword ? 'Alterando…' : 'Atualizar senha'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Impersonando: o backend recusa (403) — revogaria as sessões reais do
+          usuário e apagaria os cookies do super-admin neste navegador. */}
+      {!impersonating && (
+        <Card data-tour="profile-sessoes">
+          <CardContent className="p-5">
+            <SectionTitle
+              icon={<LogOut />}
+              title="Sessões ativas"
+              description="Sai desta conta em todos os aparelhos e abas (celular, outro computador). Use se perdeu um aparelho ou desconfia de acesso indevido."
+            />
+            <Button type="button" variant="outline" onClick={handleLogoutAllDevices} disabled={loggingOutAll}>
+              {loggingOutAll ? 'Encerrando…' : 'Sair de todos os aparelhos'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {!impersonating && (
+        <Accordion type="single" collapsible className="rounded-xl border border-destructive/40 bg-card px-5">
+          <AccordionItem value="risco" className="border-b-0">
+            <AccordionTrigger className="text-base font-bold text-destructive hover:no-underline">
+              <span className="flex items-center gap-2">
+                <TriangleAlert className="size-4" aria-hidden /> Zona de risco
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="flex flex-col gap-5 pb-5">
+              {/* Desativar o terreiro é ação de administração (backend 403 para operador). */}
+              {isTenantAdmin && (
+                <div className="rounded-lg border border-warning/50 p-4">
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-warning">
+                    <PauseCircle className="size-4" aria-hidden /> Desativar conta e terreiro
+                  </h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    É <strong>reversível</strong>. O terreiro para de ficar acessível e a assinatura é cancelada, mas giras, senhas,
+                    médiuns e associados ficam guardados. Você reativa quando quiser, voltando no plano gratuito. Só funciona se você
+                    for o único usuário ativo do terreiro.
+                  </p>
+                  <Button type="button" variant="outline" className="mt-3 border-warning text-warning hover:text-warning" onClick={() => { setDeactivateError(null); setDeactivateOpen(true); }}>
+                    <PauseCircle aria-hidden /> Desativar conta
+                  </Button>
+                </div>
+              )}
+
+              <div className="rounded-lg border border-destructive/50 p-4">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-destructive">
+                  <Trash2 className="size-4" aria-hidden /> Excluir minha conta
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  A exclusão é <strong>permanente</strong>. Seus dados pessoais são removidos conforme a LGPD (art. 18, VI). Os registros
+                  do terreiro (giras, senhas) não são afetados.
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Não consegue entrar na conta?{' '}
+                  <a href="mailto:privacidade@girahub.com.br" className="font-semibold underline underline-offset-4">
+                    Peça a exclusão por e-mail
+                  </a>
+                  .
+                </p>
+                <Button type="button" variant="outline" className="mt-3 text-destructive hover:text-destructive" onClick={() => { setDeleteError(null); setDeleteOpen(true); }}>
+                  <Trash2 aria-hidden /> Excluir minha conta
+                </Button>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      )}
 
       <DangerDialog
         open={deactivateOpen}
