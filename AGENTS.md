@@ -497,6 +497,17 @@ Incluir obrigatoriamente:
 - **Conteúdo**: cadastros dos últimos 60 dias (`WINDOW_DAYS`), do mais recente ao mais antigo, cada um num estágio — `sem_gira` → `sem_senhas` (gira criada sem `max_tickets`, nada aparece no link) → `aguardando_senha` → `recebendo` → `usou_porta` → `ativado` (20+ senhas pelo link, mesmo limiar do checklist). Mostra também giras configuradas/total e próxima gira, senhas pelo link, trial (dias restantes) ou pagante, e-mails de onboarding enviados (D+1/D+3, de `custom_settings.onboarding_emails`), dor do cadastro, última atividade (sessão ou ação auditada) e contato do admin mais antigo com links de WhatsApp (`wa.me`, DDI 55 acrescentado) e e-mail.
 - **Consulta**: uma ida ao banco com subconsultas correlacionadas por tenant + uma para os contatos. Visão cross-tenant por desenho (super-admin), sem filtro de tenant.
 
+### 11.17 MRR e categorias de cobrança da plataforma (2026-10-06)
+- Regra única em `backend/src/services/billing_metrics.py`: **pagante** = assinatura ACTIVE, com
+  `stripe_subscription_id`, sem trial, sem bônus, fora do FREE e com terreiro não excluído. Só pagante
+  gera MRR. As outras categorias são em_teste (mostra o MRR potencial), bonificado (pilotos e
+  testadores), gratuito, suspensa, cancelada, sem_cobranca (plano pago sem Stripe) e excluido.
+- Quem usa: `/billing/statistics/summary`, `/billing/subscriptions` (com `category`, `mrr`,
+  `potential_mrr`, usuários ativos reais e `include_deleted`), `GET /platform/subscriptions/{id}`,
+  `_mrr` do `/platform/dashboard` (`paying_clause()`) e o MRR em risco da retenção.
+- Nunca somar `monthly_price` direto para falar de receita: use `effective_mrr`/`paying_clause`.
+  O contador `subscriptions.current_users` não é mantido; conte usuários ativos na tabela `users`.
+
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
   usa Tailwind v4 + shadcn/ui (Radix, estilo new-york, `data-slot`). **Não criar `sx` nem reintroduzir MUI.**

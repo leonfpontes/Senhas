@@ -3,16 +3,19 @@
  *
  * Aba Terreiros: `DataTable` com paginação no servidor (`GET /api/v1/platform/tenants?skip&limit
  * &is_active`), enriquecida com a assinatura (`GET /billing/subscriptions`) para MRR, fim do trial e
- * bônus. Busca e facetas de plano/trial/bônus não existem no servidor (o `/tenants/search` fica à
- * sombra de `/tenants/{tenant_id}`), então, com qualquer uma delas ativa, a lista completa é
- * carregada uma vez (limit=1000) e filtrada/paginada no cliente.
+ * bônus. Facetas de plano/trial/bônus não existem no servidor (o `/tenants/search` não devolve plano
+ * nem assinatura), então, com busca ou faceta ativa, a lista completa é carregada uma vez
+ * (limit=1000) e filtrada/paginada no cliente.
  *
- * Aba Assinaturas: KPIs de `GET /billing/statistics/summary` e tabela ordenável por "Trial termina"
- * e "Renova em".
+ * MRR vem pronto do backend (`services/billing_metrics.py`): só "pagante" gera receita; teste,
+ * bônus (pilotos/testadores), gratuito e excluído ficam de fora, cada um com sua categoria.
+ *
+ * Aba Assinaturas: KPIs de `GET /billing/statistics/summary`, filtro por categoria de cobrança
+ * (excluídos escondidos por padrão) e tabela ordenável por "Trial termina" e "Renova em".
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Building2, CreditCard, FlaskConical, LogIn, MoreHorizontal, Plus, RefreshCw, Search, Trash2, TrendingUp, Users, Wallet } from 'lucide-react';
+import { Building2, CircleAlert, CreditCard, FlaskConical, Gift, LogIn, MoreHorizontal, Plus, RefreshCw, Search, Trash2, TrendingUp, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import PlatformLayout from './layout';
@@ -39,6 +42,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  BillingCategoryBadge,
+  BILLING_CATEGORY_META,
+  BILLING_CATEGORY_ORDER,
+  type BillingCategoryKey,
   PlanBadge,
   SubscriptionStatusBadge,
   TenantActiveBadge,
@@ -75,6 +82,13 @@ interface SubscriptionItem {
   plan: string;
   status: string;
   monthly_price: number;
+  /** Receita real: o preço só para pagantes. */
+  mrr: number;
+  /** Preço do plano em teste (só para quem está em teste). */
+  potential_mrr: number;
+  category: BillingCategoryKey;
+  tenant_deleted: boolean;
+  /** Usuários ativos de verdade. */
   current_users: number;
   max_users: number;
   is_trial: boolean;
@@ -86,10 +100,17 @@ interface SubscriptionItem {
 }
 
 interface BillingStats {
-  active_tenants: number;
-  trial_tenants: number;
-  suspended_tenants: number;
+  /** Só pagantes. */
   mrr: number;
+  paying_tenants: number;
+  trial_tenants: number;
+  trial_potential_mrr: number;
+  bonus_tenants: number;
+  free_tenants: number;
+  suspended_tenants: number;
+  unbilled_tenants: number;
+  deleted_tenants: number;
+  active_tenants: number;
   plan_distribution: Record<string, number>;
 }
 
@@ -109,6 +130,8 @@ interface ActivationLite {
 /** Linha da tabela: tenant + assinatura + atividade. */
 export interface TenantRow extends Tenant {
   mrr: number;
+  potential_mrr: number;
+  billing_category: BillingCategoryKey | null;
   is_trial: boolean;
   trial_ends_at: string | null;
   current_period_end: string | null;
@@ -243,7 +266,7 @@ const TenantsPage: React.FC = () => {
   // Assinaturas + estatísticas (uma vez; alimentam MRR/trial das duas abas).
   const loadBilling = useCallback(async () => {
     const [s, st] = await Promise.allSettled([
-      apiClient.get<SubscriptionItem[]>('/api/v1/platform/billing/subscriptions', { params: { limit: ALL_LIMIT } }),
+      apiClient.get<SubscriptionItem[]>('/api/v1/platform/billing/subscriptions', { params: { limit: ALL_LIMIT, include_deleted: true } }),
       apiClient.get<BillingStats>('/api/v1/platform/billing/statistics/summary'),
     ]);
     if (s.status === 'fulfilled') setSubs(Array.isArray(s.value.data) ? s.value.data : []);
@@ -290,7 +313,9 @@ const TenantsPage: React.FC = () => {
         plan: t.plan ?? s?.plan ?? null,
         subscription_status: t.subscription_status ?? s?.status ?? null,
         is_bonus: t.is_bonus ?? s?.is_bonus ?? null,
-        mrr: s?.status === 'active' ? s.monthly_price : 0,
+        mrr: s?.mrr ?? 0,
+        potential_mrr: s?.potential_mrr ?? 0,
+        billing_category: s?.category ?? null,
         is_trial: s?.is_trial ?? false,
         trial_ends_at: s?.trial_ends_at ?? null,
         current_period_end: s?.current_period_end ?? null,
@@ -449,7 +474,7 @@ const TenantsPage: React.FC = () => {
         accessorKey: 'mrr',
         header: 'MRR',
         meta: { align: 'right', mobile: true, cellClassName: 'tabular-nums font-semibold whitespace-nowrap' },
-        cell: ({ row }) => (row.original.mrr > 0 ? fmtMoney(row.original.mrr) : <span className="font-normal text-muted-foreground">—</span>),
+        cell: ({ row }) => <MrrCell mrr={row.original.mrr} potential={row.original.potential_mrr} />,
       },
       {
         id: 'last_activity',
@@ -497,12 +522,22 @@ const TenantsPage: React.FC = () => {
   );
 
   // ── Aba Assinaturas ──
-  const [subSorting, setSubSorting] = useState<SortingState>([{ id: 'monthly_price', desc: true }]);
+  const [subSorting, setSubSorting] = useState<SortingState>([{ id: 'mrr', desc: true }]);
   const [subSearch, setSubSearch] = useState('');
+  const [subCategory, setSubCategory] = useState<BillingCategoryKey | 'all'>('all');
+  const [showDeleted, setShowDeleted] = useState(false);
+  const categoryCounts = useMemo(() => {
+    const counts = {} as Record<BillingCategoryKey, number>;
+    (subs ?? []).forEach((s) => { counts[s.category] = (counts[s.category] ?? 0) + 1; });
+    return counts;
+  }, [subs]);
   const subRows = useMemo(() => {
     const q = subSearch.trim().toLowerCase();
-    return (subs ?? []).filter((s) => !q || s.tenant_name.toLowerCase().includes(q) || s.tenant_slug.toLowerCase().includes(q));
-  }, [subs, subSearch]);
+    return (subs ?? []).filter((s) => {
+      if (subCategory !== 'all' ? s.category !== subCategory : !showDeleted && s.category === 'excluido') return false;
+      return !q || s.tenant_name.toLowerCase().includes(q) || s.tenant_slug.toLowerCase().includes(q);
+    });
+  }, [subs, subSearch, subCategory, showDeleted]);
 
   const subColumns = useMemo<ColumnDef<SubscriptionItem>[]>(
     () => [
@@ -519,13 +554,14 @@ const TenantsPage: React.FC = () => {
         ),
       },
       { id: 'plan', accessorKey: 'plan', header: 'Plano', meta: { mobile: true }, cell: ({ row }) => <PlanBadge plan={row.original.plan} bonus={row.original.is_bonus} /> },
-      { id: 'status', accessorKey: 'status', header: 'Status', meta: { mobile: true }, cell: ({ row }) => <SubscriptionStatusBadge status={row.original.status} /> },
+      { id: 'category', accessorKey: 'category', header: 'Situação', meta: { mobile: true }, cell: ({ row }) => <BillingCategoryBadge category={row.original.category} /> },
       {
-        id: 'monthly_price',
-        accessorKey: 'monthly_price',
+        id: 'mrr',
+        // Pagantes primeiro; entre os não pagantes, quem está em teste (receita possível) vem antes.
+        accessorFn: (s) => s.mrr * 1000 + s.potential_mrr,
         header: 'MRR',
         meta: { align: 'right', mobile: true, cellClassName: 'tabular-nums font-semibold whitespace-nowrap' },
-        cell: ({ row }) => fmtMoney(row.original.monthly_price),
+        cell: ({ row }) => <MrrCell mrr={row.original.mrr} potential={row.original.potential_mrr} />,
       },
       {
         id: 'users',
@@ -654,11 +690,40 @@ const TenantsPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="assinaturas">
-          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <KpiCard label="MRR" value={stats ? fmtMoney(stats.mrr) : '—'} subtitle="Receita mensal recorrente" icon={<TrendingUp />} color="var(--primary-text)" loading={stats === null && subs === null} />
-            <KpiCard label="Assinaturas ativas" value={stats?.active_tenants ?? '—'} icon={<Users />} color="var(--success)" loading={stats === null && subs === null} />
-            <KpiCard label="Em trial" value={stats?.trial_tenants ?? '—'} icon={<FlaskConical />} color="var(--warning)" loading={stats === null && subs === null} />
-            <KpiCard label="Suspensas / canceladas" value={stats?.suspended_tenants ?? '—'} icon={<Wallet />} color="var(--destructive)" loading={stats === null && subs === null} />
+          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <KpiCard
+              label="MRR"
+              value={stats ? fmtMoney(stats.mrr) : '—'}
+              subtitle={stats ? `${stats.paying_tenants} ${stats.paying_tenants === 1 ? 'pagante' : 'pagantes'} no Stripe` : 'Só quem paga'}
+              icon={<TrendingUp />}
+              color="var(--success)"
+              loading={stats === null && subs === null}
+            />
+            <KpiCard
+              label="Em teste"
+              value={stats?.trial_tenants ?? '—'}
+              subtitle={stats && stats.trial_potential_mrr > 0 ? `+${fmtMoney(stats.trial_potential_mrr)}/mês se assinarem` : 'Ainda não é receita'}
+              icon={<FlaskConical />}
+              color="var(--warning)"
+              loading={stats === null && subs === null}
+            />
+            <KpiCard label="Bonificados" value={stats?.bonus_tenants ?? '—'} subtitle="Pilotos e testadores" icon={<Gift />} color="var(--info)" loading={stats === null && subs === null} />
+            <KpiCard
+              label="Sem cobrança"
+              value={stats?.unbilled_tenants ?? '—'}
+              subtitle="Plano pago sem Stripe"
+              icon={<CircleAlert />}
+              color="var(--destructive)"
+              loading={stats === null && subs === null}
+            />
+            <KpiCard
+              label="Suspensas / canceladas"
+              value={stats?.suspended_tenants ?? '—'}
+              subtitle={stats ? `${stats.free_tenants} no gratuito` : undefined}
+              icon={<Wallet />}
+              color="var(--muted-foreground)"
+              loading={stats === null && subs === null}
+            />
           </div>
 
           {stats && (
@@ -673,15 +738,41 @@ const TenantsPage: React.FC = () => {
             </div>
           )}
 
-          <div className="mb-3 md:w-72">
-            <TextField
-              label="Buscar assinatura"
-              placeholder="Nome ou slug"
-              value={subSearch}
-              onChange={(e) => setSubSearch(e.target.value)}
-              size="small"
-              startAdornment={<Search className="size-4 text-muted-foreground" aria-hidden />}
-            />
+          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className="md:w-72">
+              <TextField
+                label="Buscar assinatura"
+                placeholder="Nome ou slug"
+                value={subSearch}
+                onChange={(e) => setSubSearch(e.target.value)}
+                size="small"
+                startAdornment={<Search className="size-4 text-muted-foreground" aria-hidden />}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="sub-show-deleted" checked={showDeleted} onCheckedChange={(v) => setShowDeleted(v === true)} />
+              <Label htmlFor="sub-show-deleted" className="text-sm font-normal">
+                Mostrar excluídos{categoryCounts.excluido ? ` (${categoryCounts.excluido})` : ''}
+              </Label>
+            </div>
+          </div>
+          <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por situação">
+            <Button size="sm" variant={subCategory === 'all' ? 'secondary' : 'ghost'} aria-pressed={subCategory === 'all'} onClick={() => setSubCategory('all')}>
+              Todas
+            </Button>
+            {BILLING_CATEGORY_ORDER.filter((c) => (categoryCounts[c] ?? 0) > 0 && (c !== 'excluido' || showDeleted)).map((c) => (
+              <Button
+                key={c}
+                size="sm"
+                variant={subCategory === c ? 'secondary' : 'ghost'}
+                aria-pressed={subCategory === c}
+                title={BILLING_CATEGORY_META[c].hint}
+                onClick={() => setSubCategory(subCategory === c ? 'all' : c)}
+              >
+                {BILLING_CATEGORY_META[c].label}
+                <span className="tabular-nums text-muted-foreground">{categoryCounts[c]}</span>
+              </Button>
+            ))}
           </div>
           <div className="rounded-xl border bg-card">
             <DataTable
@@ -693,7 +784,7 @@ const TenantsPage: React.FC = () => {
               sorting={subSorting}
               onSortingChange={setSubSorting}
               onRowClick={(s) => router.push(`/platform/tenants/${s.tenant_id}?tab=assinatura`)}
-              emptyMessage={subSearch ? 'Nenhum resultado para a busca.' : 'Nenhuma assinatura encontrada.'}
+              emptyMessage={subSearch || subCategory !== 'all' ? 'Nenhuma assinatura com esses filtros.' : 'Nenhuma assinatura encontrada.'}
               emptyIcon={<CreditCard />}
               data-testid="subscriptions-table"
             />
@@ -807,6 +898,13 @@ const TenantsPage: React.FC = () => {
     </PlatformLayout>
   );
 };
+
+/** MRR real; para quem está em teste, o valor que passaria a entrar se assinasse. */
+export function MrrCell({ mrr, potential }: { mrr: number; potential: number }) {
+  if (mrr > 0) return <>{fmtMoney(mrr)}</>;
+  if (potential > 0) return <span className="text-xs font-normal text-muted-foreground">{fmtMoney(potential)} se assinar</span>;
+  return <span className="font-normal text-muted-foreground">—</span>;
+}
 
 function FacetSelect({ id, label, value, onChange, options }: { id: string; label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
   return (
