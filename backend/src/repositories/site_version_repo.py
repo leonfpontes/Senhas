@@ -17,13 +17,27 @@ class SiteVersionRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
+    async def latest(self, site_id: UUID, tenant_id: UUID) -> SiteVersion | None:
+        stmt = (
+            select(SiteVersion)
+            .where(SiteVersion.site_id == site_id, SiteVersion.tenant_id == tenant_id)
+            .order_by(SiteVersion.created_at.desc())
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def create(
         self,
         site: TenantSite,
         created_by: UUID,
         label: str | None = None,
-    ) -> SiteVersion:
+    ) -> SiteVersion | None:
         """Snapshot the current sections into a version record.
+
+        Não grava nada (devolve ``None``) se o snapshot for idêntico ao da versão
+        mais recente — evita entradas repetidas no histórico (ex.: "Publicado" logo
+        seguido de salvar sem mudanças).
 
         Cleanup of excess versions is done atomically via a subquery DELETE
         (Gap #4 — avoids race condition from SELECT + DELETE pattern).
@@ -37,6 +51,9 @@ class SiteVersionRepository:
             }
             for s in sorted(site.sections, key=lambda s: s.order_index)
         ]
+        latest = await self.latest(site.id, site.tenant_id)
+        if latest is not None and latest.snapshot == snapshot:
+            return None
 
         version = SiteVersion(
             id=uuid.uuid4(),

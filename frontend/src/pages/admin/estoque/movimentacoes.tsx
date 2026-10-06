@@ -24,6 +24,7 @@ import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { useSnackbar } from '../../../contexts/SnackbarContext';
 import { apiClient, extractApiErrorMessage } from '../../../services/api_client';
+import { fetchAllPages } from '../../../services/fetchAllPages';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { DataTable } from '@/components/admin/DataTable';
 import { PageHeader } from '@/components/admin/PageHeader';
@@ -117,8 +118,7 @@ function AdminEstoqueMovimentacoesContent() {
   const loadItems = useCallback(async () => {
     if (!canView) return;
     try {
-      const res = await apiClient.get('/api/v1/admin/estoque/itens');
-      setItems(res.data);
+      setItems(await fetchAllPages<EstoqueItemRef>('/api/v1/admin/estoque/itens', { pageSize: 500 }));
     } catch {
       /* silencioso */
     }
@@ -137,8 +137,8 @@ function AdminEstoqueMovimentacoesContent() {
       if (filtros.de) params.date_from = new Date(`${filtros.de}T00:00:00`).toISOString();
       if (filtros.ate) params.date_to = new Date(`${filtros.ate}T23:59:59`).toISOString();
       if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
-      const res = await apiClient.get('/api/v1/admin/estoque/movimentacoes', { params });
-      setMovimentacoes(res.data);
+      // Backend corta em 100 por padrão: busca todas as páginas do filtro atual.
+      setMovimentacoes(await fetchAllPages<Movimentacao>('/api/v1/admin/estoque/movimentacoes', { params, pageSize: 500 }));
     } catch {
       showError('Erro ao carregar movimentações');
     } finally {

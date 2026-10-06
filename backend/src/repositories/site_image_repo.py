@@ -1,11 +1,14 @@
 """SiteImageRepository — BYTEA image storage for site builder."""
 from __future__ import annotations
 
+import json
+import re
 import uuid
-from typing import Any, Optional
+from datetime import datetime
+from typing import Any, Iterable, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.site import SiteImage
@@ -13,6 +16,21 @@ from src.models.site import SiteImage
 MAX_IMAGES_PER_TENANT = 50
 MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
 ALLOWED_MIMETYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+
+_UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
+
+def referenced_image_ids(configs: Iterable[Any]) -> set[str]:
+    """UUIDs citados em qualquer valor das configs (``bg_image``, ``logo_image``,
+    ``image`` guardam o id; ``*_url`` guardam ``/api/v1/public/sites/images/{id}``).
+
+    Conservador de propósito: qualquer UUID em qualquer string conta como referência
+    — melhor manter uma imagem órfã do que apagar uma que está no ar.
+    """
+    found: set[str] = set()
+    for config in configs:
+        found.update(m.lower() for m in _UUID_RE.findall(json.dumps(config, default=str)))
+    return found
 
 
 class SiteImageRepository:
@@ -86,6 +104,23 @@ class SiteImageRepository:
     async def delete(self, image: SiteImage) -> None:
         await self.db.delete(image)
         await self.db.flush()
+
+    async def list_ids_by_site(self, site_id: UUID, tenant_id: UUID) -> list[tuple[UUID, datetime]]:
+        """(id, created_at) das imagens do site — sem carregar o BYTEA."""
+        stmt = select(SiteImage.id, SiteImage.created_at).where(
+            and_(SiteImage.site_id == site_id, SiteImage.tenant_id == tenant_id)
+        )
+        result = await self.db.execute(stmt)
+        return [(row[0], row[1]) for row in result.all()]
+
+    async def delete_ids(self, image_ids: list[UUID], tenant_id: UUID) -> int:
+        if not image_ids:
+            return 0
+        result = await self.db.execute(
+            delete(SiteImage).where(SiteImage.id.in_(image_ids), SiteImage.tenant_id == tenant_id)
+        )
+        await self.db.flush()
+        return result.rowcount or 0
 
     def is_referenced_in_sections(
         self, image_id: UUID, sections_data: list[dict[str, Any]]

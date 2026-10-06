@@ -112,24 +112,22 @@ class SiteRepository(BaseRepository[TenantSite]):
         await self.db.flush()
         return site
 
-    async def update_site(
-        self,
-        site: TenantSite,
-        *,
-        meta_title: Optional[str] = None,
-        meta_description: Optional[str] = None,
-        template: Optional[str] = None,
-        slug: Optional[str] = None,
-    ) -> TenantSite:
-        if meta_title is not None:
-            site.meta_title = meta_title
-        if meta_description is not None:
-            site.meta_description = meta_description
-        if template is not None:
-            site.template = template
-        if slug is not None:
-            site.slug = slug
-        site.updated_at = datetime.utcnow()
+    async def update_site(self, site: TenantSite, **fields: Any) -> TenantSite:
+        """Atualização parcial das configurações do site.
+
+        Só mexe nas chaves presentes em ``fields`` (o endpoint passa
+        ``model_dump(exclude_unset=True)``): chave presente com ``None`` LIMPA o
+        campo (ex.: apagar o título SEO). ``template`` não aceita ``None`` (coluna
+        obrigatória). ``slug`` não é editável — segue o slug do tenant (ver
+        ``sites._sync_slug_with_tenant``).
+        """
+        if "meta_title" in fields:
+            site.meta_title = fields["meta_title"] or None
+        if "meta_description" in fields:
+            site.meta_description = fields["meta_description"] or None
+        if fields.get("template"):
+            site.template = fields["template"]
+        site.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
         return site
 
@@ -165,18 +163,18 @@ class SiteRepository(BaseRepository[TenantSite]):
             self.db.add(section)
             new_sections.append(section)
 
-        site.updated_at = datetime.utcnow()
+        site.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
         return new_sections
 
     async def publish(self, site: TenantSite) -> TenantSite:
         site.status = SiteStatus.PUBLISHED
-        site.updated_at = datetime.utcnow()
+        site.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
         return site
 
     async def unpublish(self, site: TenantSite) -> TenantSite:
         site.status = SiteStatus.UNPUBLISHED
-        site.updated_at = datetime.utcnow()
+        site.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
         return site

@@ -107,6 +107,17 @@ export function formatDateTimeBr(iso: string | null | undefined, empty = '—'):
   });
 }
 
+/**
+ * Decimal da API → number. O Pydantic v2 serializa `Decimal` como string ("120.00"),
+ * então todo campo monetário que vem do backend precisa passar por aqui antes de
+ * `formatBRL`/`MoneyInput`. Vazio/inválido → null.
+ */
+export const toNum = (v: number | string | null | undefined): number | null => {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'string' ? parseFloat(v) : v;
+  return Number.isFinite(n) ? n : null;
+};
+
 /** Valor em reais → "R$ 1.234,56". Nulo → "—". */
 export function formatBRL(value: number | null | undefined, empty = '—'): string {
   if (value == null || !Number.isFinite(value)) return empty;
