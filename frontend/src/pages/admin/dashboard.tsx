@@ -284,8 +284,10 @@ function DashboardContent() {
   const [shareLinks, setShareLinks] = useState<UnifiedLinks | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
 
-  const { can } = useSubscription();
+  const { can, loading: subLoading } = useSubscription();
   const { can: canGroup } = usePermissions();
+  // Plano E grupo; espera a assinatura carregar (num reload direto can() começa false).
+  const canViewAniversariantes = !subLoading && can('mediuns') && canGroup('mediuns', 'view');
   const canViewPorta = canGroup('porta', 'view');
   const canViewTickets = canGroup('tickets', 'view');
   // Checklist e compartilhar link: só para quem pode agir sobre giras.
@@ -325,15 +327,14 @@ function DashboardContent() {
   }, []);
 
   useEffect(() => {
-    if (!can('mediuns')) return;
+    if (!canViewAniversariantes) return;
     const controller = new AbortController();
     apiClient
       .get<AniversarianteItem[]>('/api/v1/admin/mediuns/aniversariantes?dias=7', { signal: controller.signal })
       .then((res) => setAniversariantes(Array.isArray(res?.data) ? res.data : []))
       .catch(() => {});
     return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [canViewAniversariantes]);
 
   const loadDashboard = async (signal?: AbortSignal) => {
     try {
@@ -418,7 +419,7 @@ function DashboardContent() {
     ...estoqueAlerts.filter((a) => a.status === 'critico'),
     ...estoqueAlerts.filter((a) => a.status !== 'critico'),
   ];
-  const hasAniversariantes = can('mediuns') && aniversariantes.length > 0;
+  const hasAniversariantes = canViewAniversariantes && aniversariantes.length > 0;
 
   const header = (
     <div data-tour="dashboard-greeting" className="mb-6 flex items-start justify-between gap-3">

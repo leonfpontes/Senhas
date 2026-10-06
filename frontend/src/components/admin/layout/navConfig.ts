@@ -6,7 +6,10 @@
  * busca de ações (⌘K) e a barra inferior do celular mostrarem exatamente os mesmos
  * destinos. Um grupo some quando nada dentro dele está liberado.
  *
- * Analytics e Auditoria saíram do menu de propósito (as rotas continuam acessíveis por URL).
+ * Regra: todo item checa o plano (`can`) E o grupo da MESMA feature que a tela/endpoint usa
+ * (`view(...)`) — operador vê o que o grupo libera, admin faz bypass. Nada de `!isOperator`
+ * para tela que tem feature de grupo (Mensalidades e Configuração financeira ficavam escondidas
+ * do operador com permissão).
  */
 import { useMemo } from 'react';
 import type { LucideIcon } from 'lucide-react';
@@ -15,6 +18,7 @@ import {
   BookOpen,
   CalendarDays,
   ChartColumn,
+  ChartLine,
   CreditCard,
   DoorOpen,
   Flower2,
@@ -27,6 +31,7 @@ import {
   QrCode,
   Receipt,
   Rocket,
+  ScrollText,
   Settings,
   Shield,
   Ticket,
@@ -153,13 +158,17 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     if (can('relatorio_gira') && view('relatorio_gira')) {
       girasSenhas.push(link('/admin/relatorio-gira', 'Relatório da gira', ChartColumn, { keywords: ['exportar', 'csv'] }));
     }
+    if (can('analytics_basico') && view('analytics')) {
+      girasSenhas.push(link('/admin/analytics', 'Analytics', ChartLine, { keywords: ['métricas', 'gráficos', 'horário de pico'] }));
+    }
 
     const corrente: NavEntry[] = [];
     if (can('mediuns') && view('mediuns')) {
       corrente.push(link('/admin/mediuns', 'Médiuns', Flower2, { badge: birthdayCount, keywords: ['cambones', 'aniversariantes'] }));
     }
     if (can('associados') && view('associados')) corrente.push(link('/admin/associados', 'Associados', HeartHandshake));
-    if (!isOperator && (can('mensalidade_mediun') || can('mensalidade_associado'))) {
+    const planMensalidade = can('mensalidade_mediun') || can('mensalidade_associado');
+    if (planMensalidade && view('financeiro')) {
       corrente.push(link('/admin/financeiro/mensalidades', 'Mensalidades', Receipt, { keywords: ['pagamentos', 'contribuição'] }));
     }
 
@@ -174,7 +183,8 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
         link('/admin/financeiro/fluxo-de-caixa', 'Fluxo de caixa', TrendingUp, { keywords: ['caixa', 'saldo'] }),
       );
     }
-    if (!isOperator && (can('mensalidade_mediun') || can('mensalidade_associado') || can('contas_financeiras'))) {
+    // A tela se protege por aba (categorias/contas: contas_financeiras; mensalidade: financeiro).
+    if ((can('contas_financeiras') && view('contas_financeiras')) || (planMensalidade && view('financeiro'))) {
       financeiro.push(link('/admin/financeiro/config', 'Configuração financeira', Wallet, { keywords: ['financeiro'] }));
     }
     if (financeiro.length > 0) casa.push({ kind: 'section', label: 'Financeiro', icon: Wallet, items: financeiro });
@@ -211,8 +221,13 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
       conta.push(
         link('/admin/permission-groups', 'Perfis de acesso', Shield, { keywords: ['grupos de permissão', 'permissões', 'rbac'] }),
         link('/admin/config', 'Configurações', Settings, { keywords: ['terreiro', 'cores', 'logo', 'funcionalidades'] }),
-        link('/admin/suporte', 'Ajuda', Headset, { badge: unreadSupport, keywords: ['suporte', 'chat', 'dúvida'] }),
       );
+    }
+    if (can('auditoria') && view('auditoria')) {
+      conta.push(link('/admin/audit-trail', 'Auditoria', ScrollText, { keywords: ['histórico', 'log', 'quem alterou'] }));
+    }
+    if (!isOperator) {
+      conta.push(link('/admin/suporte', 'Ajuda', Headset, { badge: unreadSupport, keywords: ['suporte', 'chat', 'dúvida'] }));
     }
 
     const groups: NavGroupDef[] = [
