@@ -537,7 +537,9 @@ function AdminTicketsContent() {
 
   return (
     <div className={cn(selectedIds.length > 0 && 'pb-20')}>
-      <PageHeader title="Senhas" subtitle={selectedGira ? giraLabel(selectedGira) : 'Escolha a gira para ver as senhas.'} />
+      <div data-tour="tickets-header">
+        <PageHeader title="Senhas" subtitle={selectedGira ? giraLabel(selectedGira) : 'Escolha a gira para ver as senhas.'} />
+      </div>
 
       {/* ── Busca + filtros ── */}
       <div className="mb-3 flex gap-2">

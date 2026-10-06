@@ -368,7 +368,13 @@ export function GiraCard({
           {menu.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" aria-label={`Mais ações da gira ${gira.nome}`}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  data-tour="giras-acoes"
+                  aria-label={`Mais ações da gira ${gira.nome}`}
+                >
                   <EllipsisVertical aria-hidden />
                 </Button>
               </DropdownMenuTrigger>
