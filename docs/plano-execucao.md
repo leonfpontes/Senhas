@@ -340,7 +340,7 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   novo criado sem grupo = permissão irrestrita no tenant.
 - **Esforço**: M. **Custo**: R$ 0.
 
-### Q-06 — Atualização de dependências (staged) — `em andamento` (lotes 1-3 feitos em 2026-10-05; lotes 1-2 no PR #40, lote 3 em PR próprio, ambos aguardando merge)
+### Q-06 — Atualização de dependências (staged) — `feito` (2026-10-06; lotes 1-3 em 2026-10-05, PR #40 e lote 3 já no master; etapa final fastapi 0.142.2 + starlette 1.7.0 em 2026-10-06)
 - **Feito (lotes 1-2, 2026-10-05)**:
   - Lote 1: `passlib` removido (o código já usava `bcrypt` puro; `bcrypt==5.0.0` agora declarado
     e pinado — antes vinha transitivo e sem pin). A troca `python-jose` → `PyJWT` já tinha entrado
@@ -357,7 +357,7 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
     (depreciado) migrado para `loop_scope="session"`; `asyncio.get_event_loop()` em teste síncrono →
     `asyncio.run`; `Query(regex=)` → `pattern=`; `HTTP_422_UNPROCESSABLE_ENTITY`/`HTTP_413_REQUEST_ENTITY_TOO_LARGE`
     → `..._CONTENT`/`HTTP_413_CONTENT_TOO_LARGE` (depreciados no starlette).
-  - Teto deliberado: fastapi parado em 0.136.x — o 0.137 refatora o roteamento (`router.routes`
+  - Teto deliberado (superado na etapa final, abaixo): fastapi parado em 0.136.x — o 0.137 refatora o roteamento (`router.routes`
     vira árvore, breaking declarado) e o 0.142 liga OpenTelemetry nativo; starlette segue em 0.x.
     Os dois sobem juntos numa migração própria. O starlette 0.52.1 corrigiu PYSEC-2026-1942 (saiu
     das exceções do pip-audit no deploy.yml); seguem ignoradas 161/248/249/2280/2281, todas só
@@ -376,7 +376,45 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
     sem nenhum aviso Pydantic restante.
   - Os únicos hits de `grep "class Config"` em `src` são `ConfigResponse`/`ConfigUpdate`
     (nomes de modelo em `mensalidades.py`, não config de classe).
-- **Pendente**: merge dos PRs (#40 e lote 3) e a migração fastapi 0.137+/starlette 1.x.
+- **Feito (etapa final, 2026-10-06)** — fastapi 0.136.3 → **0.142.2**; starlette 0.52.1 → **1.7.0**;
+  piso do `sentry-sdk[fastapi]` 1.39.0 → **2.63.0** (resolve 2.71.0). Fontes: release notes do
+  fastapi 0.137.0–0.142.2 (`gh release view <tag> -R fastapi/fastapi`) e do starlette 1.0.0rc1–1.7.0
+  (`docs/release-notes.md` em github.com/Kludex/starlette).
+  - **Roteamento (fastapi 0.137)**: `include_router` não copia mais as rotas — `app.routes` vira
+    árvore com nós `_IncludedRouter`, e `r.path` neles levanta `AttributeError`. Quebrou
+    `tests/unit/test_main.py` (2 testes) e, pior, deixou `tests/unit/test_route_shadowing.py`
+    **verde sem checar nada** (o filtro `isinstance(r, APIRoute)` só via as 2 rotas do próprio app).
+    Solução: percorrer com `fastapi.routing.iter_route_contexts(app.routes)` (API pública desde o
+    0.137.2), que achata a árvore na ordem de despacho com o path efetivo (prefixado) e o
+    `matches()` da rota incluída. O teste de sombreamento ganhou guarda (`> 200` rotas) e um
+    caso sintético com router aninhado que prova que o detector ainda acha a rota engolida.
+    `tests/plan_gate_helpers.py` percorre `router.routes` de routers soltos (não incluídos) e
+    seguiu funcionando. Código de produção não percorria rotas.
+  - **OpenTelemetry nativo (fastapi 0.142)**: `opentelemetry-api` virou dependência direta do
+    fastapi (leve, só `typing-extensions`); SDK/exporters seguem no extra `fastapi[opentelemetry]`,
+    não instalado. Por padrão é no-op sem provider global nem `OTEL_EXPORTER_OTLP_*`, mas fica
+    **desligado explicitamente** em `src/main.py` (`telemetry={"tracing": False, "metrics": False,
+    "logs": False, "auto_configure": False}`) — tracing/erros continuam no Sentry e não há coletor
+    OTLP na infra. Religar = item novo com coletor.
+  - **Sentry**: o `sentry-sdk` < 2.63 nomeia a transação pela URL concreta quando a rota está num
+    router prefixado (alta cardinalidade) e embrulha duas vezes handlers sync no fastapi ≥ 0.137;
+    piso subiu pra 2.63.0. Verificado com transport falso: integrações `fastapi`+`starlette`
+    ativas, erro capturado e transação `/api/v1/platform/tenants/{tenant_id}` (template).
+  - **Starlette 1.0** removeu `on_startup`/`on_shutdown`/`on_event`/`add_event_handler`,
+    `@app.route`, `@app.middleware`/`@app.exception_handler` *do Starlette* e o
+    `TemplateResponse(name, ctx)`. Nada disso afetou: o app já usava `lifespan`, e
+    `app.middleware("http")`/`app.exception_handler` são os do próprio `FastAPI` (mantidos).
+    `TrustedHostMiddleware`, CORS, slowapi e uploads (`UploadFile`/`Form`, inclusive arquivo de
+    1,8 MB com campos de formulário) seguem iguais; multipart malformado continua 422.
+  - **Contrato**: `app.openapi()` byte a byte igual antes/depois (sha256 `2f91670f…`, 184 paths,
+    190 schemas). Mesmas 247 rotas.
+  - **pip-audit**: sem nenhuma `--ignore-vuln` no `deploy.yml` → "No known vulnerabilities found".
+    As 5 ignoradas (PYSEC-2026-161, 248, 249, 2280, 2281) eram todas do starlette 0.52.1
+    (corrigidas em 1.0.1/1.3.0/1.3.1/1.1.0/1.1.0).
+  - **Fica fora**: o `TestClient` do starlette 1.x avisa (`StarletteDeprecationWarning`) que usar
+    `httpx` está depreciado em favor do `httpx2`. É só aviso; trocar mexe nos testes que usam
+    `httpx.AsyncClient`/`ASGITransport` e nos mocks de `httpx` dos clientes Resend/Brevo — item
+    próprio quando o starlette anunciar a remoção.
 - **Problema**: backend congelado em 2023 (`fastapi==0.104.1`, `sqlalchemy==2.0.23`,
   `pydantic==2.5.0`); `python-jose==3.3.0` com CVE-2024-33663/33664; `passlib` é dependência
   morta (código usa `bcrypt` puro) e incompatível com bcrypt 5; Pydantic rodando em idioma v1
@@ -459,7 +497,13 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   limites do free tier — só então virar item de implementação.
 - **Esforço**: decisão P; implementação M–G. **Custo**: R$ 0 na decisão; validar na implementação.
 
-### P-03 — API Premium: remover ou implementar — `pendente` (decisão)
+### P-03 — API Premium: remover ou implementar — `feito` (2026-10-06, removida)
+- **Feito**: decisão do dono do produto pela recomendação (remover). `api_access` saiu de `PlanFeatures`
+  (`backend/src/services/plan_features.py`), da fonte única de planos do frontend (`constants/plans.ts`,
+  que alimenta landing, assinatura e comparativo), do tipo `PlanFeatures` do `useSubscription` e da tabela
+  de planos da plataforma. A chave gerada em `TenantService.create_tenant`, que nunca era persistida nem
+  validada, deixou de ser gerada e devolvida. Para recolocar: projeto deliberado com chave persistida
+  (hash), escopo read-only primeiro e documentação.
 - **Problema**: o plano Premium anuncia `api_access` que não existe — a flag não tem consumidor,
   a chave gerada nunca é persistida, `/docs` é desabilitado em produção. Vender o que não existe
   é passivo comercial.

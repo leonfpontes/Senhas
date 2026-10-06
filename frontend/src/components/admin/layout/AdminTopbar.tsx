@@ -7,14 +7,14 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useTour } from '@reactour/tour';
 import * as Sentry from '@sentry/nextjs';
-import { BookOpen, CircleHelp, LogOut, Moon, Search, Sun, User } from 'lucide-react';
+import { BookOpen, CircleHelp, LogOut, MessageCircle, Moon, Search, Sparkles, Sun, User } from 'lucide-react';
 import { apiClient } from '@/services/api_client';
 import { useTenant } from '@/providers/ThemeProvider';
 import { useProfile } from '@/hooks/useProfile';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
 import { routeLabel } from '@/constants/routes';
-import { APP_VERSION_LABEL } from '@/lib/version';
+import { APP_VERSION } from '@/lib/version';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,6 +36,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { SupportChatWidget } from '@/components/support/SupportChatWidget';
+import { ReleaseNotesDialog, clearReleaseNotesSession, useReleaseNotesAutoOpen } from '@/components/admin/ReleaseNotesDialog';
 import { giraLabel, useGiraContext } from '@/components/admin/GiraContext';
 import { resetChecklistDismissed } from '@/components/admin/FirstGiraChecklist';
 
@@ -53,6 +55,11 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
   const { profile } = useProfile();
   const { isDark, toggleMode } = useAdminTheme();
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportUnread, setSupportUnread] = useState(false);
+  // Impersonação: o superadmin entra e sai de vários terreiros — o modal de novidades não abre sozinho.
+  const impersonating = typeof window !== 'undefined' && Boolean(safeSessionItem('impersonating'));
+  const [notesOpen, setNotesOpen] = useReleaseNotesAutoOpen(profile?.id, Boolean(profile?.id) && !impersonating);
 
   const showGiraSelector = GIRA_CONTEXT_ROUTES.includes(router.pathname);
   const { giras, selectedGiraId, setSelectedGiraId, loaded } = useGiraContext({ load: showGiraSelector });
@@ -83,6 +90,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
       /* non-critical */
     }
     localStorage.removeItem('user');
+    clearReleaseNotesSession(profile?.id);
     Sentry.setUser(null);
     router.push('/login');
   };
@@ -216,8 +224,8 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
             type="button"
             variant="ghost"
             size="icon"
-            className="rounded-full"
-            aria-label="Menu do usuário"
+            className="relative rounded-full"
+            aria-label={supportUnread ? "Menu do usuário — nova resposta do suporte" : "Menu do usuário"}
             data-testid="topbar-user-menu"
           >
             <Avatar className="size-8 border">
@@ -226,6 +234,12 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
               )}
               <AvatarFallback className="bg-primary text-xs font-bold text-primary-foreground">{avatarText}</AvatarFallback>
             </Avatar>
+              {supportUnread && (
+                <span className="absolute top-0.5 right-0.5 flex size-2.5" aria-hidden data-testid="support-unread-dot">
+                  <span className="absolute inline-flex size-full rounded-full bg-warning opacity-75 motion-safe:animate-ping" />
+                  <span className="relative inline-flex size-2.5 rounded-full bg-warning ring-2 ring-background" />
+                </span>
+              )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-56">
@@ -240,9 +254,15 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
           <DropdownMenuItem onSelect={handleShowOnboarding}>
             <BookOpen aria-hidden /> Mostrar primeiros passos
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem disabled className="text-xs text-muted-foreground data-[disabled]:opacity-100" data-testid="menu-version">
-            {APP_VERSION_LABEL}
+          {profile?.tenant_id && (
+            <DropdownMenuItem onSelect={() => setSupportOpen(true)} data-testid="menu-support">
+              <MessageCircle aria-hidden /> Falar com o suporte
+              {supportUnread && <span className="ml-auto rounded-full bg-warning px-1.5 text-[10px] font-bold text-warning-foreground">nova</span>}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onSelect={() => setNotesOpen(true)} data-testid="menu-version">
+            <Sparkles aria-hidden /> Novidades da versão
+            <span className="ml-auto text-xs text-muted-foreground">v{APP_VERSION}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => void handleLogout()} variant="destructive">
@@ -250,8 +270,26 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* Aparece também durante impersonação: o token vira o do usuário impersonado (ver
+          CLAUDE.md), então as mensagens ficam atribuídas a ele — e o superadmin reproduz o
+          fluxo de suporte exatamente como esse usuário vê. */}
+      <SupportChatWidget
+        enabled={Boolean(profile?.tenant_id)}
+        open={supportOpen}
+        onOpenChange={setSupportOpen}
+        onUnreadChange={setSupportUnread}
+      />
+      <ReleaseNotesDialog open={notesOpen} onOpenChange={setNotesOpen} userId={profile?.id} />
     </header>
   );
 };
+
+function safeSessionItem(key: string): string | null {
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
 
 export default AdminTopbar;

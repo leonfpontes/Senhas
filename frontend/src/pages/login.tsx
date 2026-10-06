@@ -192,7 +192,7 @@ export default function LoginPage() {
         </Button>
 
         <div className="text-center">
-          <Link href="/forgot-password" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          <Link href="/forgot-password" className="text-sm font-medium text-brand underline-offset-4 hover:underline">
             Esqueci minha senha
           </Link>
         </div>

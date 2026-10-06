@@ -497,7 +497,7 @@ function AdminEstoqueItensContent() {
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-3" data-tour="estoque-rel-kpis">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-tour="estoque-rel-kpis">
         <KpiCard label="Em dia" value={counts.ok} icon={<CheckCircle2 />} color="var(--success)" loading={loading} />
         <KpiCard label="Atenção" value={counts.atencao} icon={<AlertTriangle />} color="var(--warning)" loading={loading} subtitle="abaixo do mínimo" />
         <KpiCard label="Críticos" value={counts.critico} icon={<XCircle />} color="var(--destructive)" loading={loading} subtitle="zerados ou negativos" />
@@ -533,7 +533,7 @@ function AdminEstoqueItensContent() {
           pressed={somenteCriticos}
           onPressedChange={setSomenteCriticos}
           aria-label="Mostrar só itens críticos ou em atenção"
-          className="data-[state=on]:bg-destructive/10 data-[state=on]:text-destructive"
+          className="data-[state=on]:bg-destructive/10 data-[state=on]:text-destructive-strong"
         >
           <AlertTriangle />
           Críticos

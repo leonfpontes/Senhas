@@ -64,7 +64,6 @@ class PlanFeatures(BaseModel):
     estoque_controle: bool = False
     mediuns: bool = False
     relatorio_gira: bool = False
-    api_access: bool = False
     suporte_prioritario: bool = False
     mensalidade_mediun: bool = False
     mensalidade_associado: bool = False
@@ -100,7 +99,6 @@ def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
         estoque_controle=tier >= 2,
         mediuns=tier >= 1,
         relatorio_gira=tier >= 1,
-        api_access=tier >= 3,
         suporte_prioritario=tier >= 3,
         mensalidade_mediun=tier >= 2,
         mensalidade_associado=tier >= 2,

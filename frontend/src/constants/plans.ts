@@ -103,7 +103,6 @@ export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   contas_financeiras: 'pro',
   fila_espera: 'pro',
   agendamento_por_horario: 'pro',
-  api_access: 'premium',
   suporte_prioritario: 'premium',
 };
 
@@ -132,7 +131,6 @@ export const FEATURE_CATALOG: readonly FeatureCatalogItem[] = [
   { key: 'analytics_avancado', label: 'Relatórios avançados', group: 'Relatórios' },
   { key: 'export_csv', label: 'Exportar planilhas (CSV)', group: 'Relatórios' },
   { key: 'auditoria', label: 'Histórico de alterações', group: 'Relatórios' },
-  { key: 'api_access', label: 'Acesso à API', group: 'Suporte' },
   { key: 'suporte_prioritario', label: 'Suporte prioritário', group: 'Suporte' },
 ];
 
@@ -261,3 +259,14 @@ export function lostOnFree(usage: UsageSnapshot): string[] {
   if ((usage.users ?? 1) > free.users) out.push('Mais de um usuário no painel');
   return out;
 }
+
+/**
+ * Classe de TEXTO do nome de cada plano. `PlanDef.color` é só para enfeite (faixa e borda):
+ * como texto, o âmbar do Premium (2,2:1) e o azul do Basic (3,7:1) não liam no branco.
+ */
+export const PLAN_TEXT_CLASS: Record<PlanKey, string> = {
+  free: 'text-muted-foreground',
+  basic: 'text-info-strong',
+  pro: 'text-brand',
+  premium: 'text-warning-strong',
+};

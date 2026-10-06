@@ -2,7 +2,7 @@
  * /platform/tenants — paginação no servidor (skip/limit), facetas no cliente e aba Assinaturas.
  */
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 
 const mockRouter = {
   push: jest.fn(),
@@ -43,11 +43,16 @@ function tenant(i: number, over: Record<string, unknown> = {}) {
 }
 
 const ALL = Array.from({ length: 25 }, (_, i) => tenant(i + 1));
-const SUBS = ALL.map((t) => ({
-  tenant_id: t.id, tenant_name: t.name, tenant_slug: t.slug, plan: t.plan, status: 'active', monthly_price: t.plan === 'pro' ? 79 : 49,
+const SUBS = ALL.map((t) => {
+  const price = t.plan === 'pro' ? 79 : 49;
+  const category = t.id === 't3' ? 'em_teste' : t.id === 't4' ? 'bonificado' : t.id === 't5' ? 'excluido' : 'pagante';
+  return {
+  tenant_id: t.id, tenant_name: t.name, tenant_slug: t.slug, plan: t.plan, status: 'active', monthly_price: price,
+  category, mrr: category === 'pagante' ? price : 0, potential_mrr: category === 'em_teste' ? price : 0, tenant_deleted: category === 'excluido',
   current_users: 1, max_users: 10, is_trial: t.id === 't3', is_bonus: false, cancel_at_period_end: false,
   current_period_end: '2026-11-01T12:00:00Z', trial_ends_at: t.id === 't3' ? '2026-10-20T12:00:00Z' : null, stripe_customer_id: null,
-}));
+  };
+});
 
 function install() {
   mockGet.mockImplementation((url: string, cfg?: { params?: Record<string, unknown> }) => {
@@ -58,7 +63,7 @@ function install() {
       return Promise.resolve({ data: ALL.slice(skip, skip + limit) });
     }
     if (url.endsWith('/billing/subscriptions')) return Promise.resolve({ data: SUBS });
-    if (url.endsWith('/billing/statistics/summary')) return Promise.resolve({ data: { active_tenants: 25, trial_tenants: 1, suspended_tenants: 0, mrr: 1600, plan_distribution: { basic: 13, pro: 12 } } });
+    if (url.endsWith('/billing/statistics/summary')) return Promise.resolve({ data: { mrr: 1600, paying_tenants: 22, trial_tenants: 1, trial_potential_mrr: 79, bonus_tenants: 1, free_tenants: 0, suspended_tenants: 0, unbilled_tenants: 0, deleted_tenants: 1, active_tenants: 24, plan_distribution: { basic: 12, pro: 12 } } });
     if (url.endsWith('/tenant-observatory')) return Promise.resolve({ data: { activation: { tenants: [] }, retention: [] } });
     return Promise.resolve({ data: [] });
   });
@@ -116,6 +121,30 @@ describe('Platform — Terreiros', () => {
     expect(await screen.findByText('R$ 1.600,00')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Trial termina/ })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Renova em/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Em teste/ }));
     expect(screen.getByText('20/10/2026')).toBeInTheDocument();
+  });
+
+  it('Assinaturas separa pagantes de teste, bônus e excluídos', async () => {
+    mockRouter.query = { tab: 'assinaturas' };
+    render(<TenantsPage />);
+    expect(await screen.findByText('22 pagantes no Stripe')).toBeInTheDocument();
+    expect(screen.getByText('+R$ 79,00/mês se assinarem')).toBeInTheDocument();
+    const table = within(screen.getByTestId('subscriptions-table'));
+    // Excluído fica escondido por padrão; em teste mostra o potencial, não receita.
+    expect(table.queryByText('Casa 5')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Em teste/ }));
+    expect(table.getByText('Casa 3')).toBeInTheDocument();
+    expect(table.getByText(/se assinar/)).toHaveTextContent('49,00 se assinar');
+
+    fireEvent.click(screen.getByRole('button', { name: /Bonificado/ }));
+    expect(table.getByText('Casa 4')).toBeInTheDocument();
+    expect(table.queryByText('Casa 1')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Todas/ }));
+    expect(screen.queryByRole('button', { name: /Excluído/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/Mostrar excluídos/));
+    fireEvent.click(await screen.findByRole('button', { name: /Excluído/ }));
+    expect(table.getByText('Casa 5')).toBeInTheDocument();
   });
 });

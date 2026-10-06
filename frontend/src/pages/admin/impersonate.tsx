@@ -82,7 +82,7 @@ export default function ImpersonateLandingPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background px-4" role="status">
-      <Loader2 className="size-8 animate-spin text-primary" aria-hidden />
+      <Loader2 className="size-8 animate-spin text-brand" aria-hidden />
       <p className="text-sm text-muted-foreground">Preparando a sessão…</p>
     </div>
   );

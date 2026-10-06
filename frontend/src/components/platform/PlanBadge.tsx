@@ -56,12 +56,12 @@ export function TenantActiveBadge({ active, className }: { active: boolean; clas
 export type Tone = 'success' | 'warning' | 'info' | 'destructive' | 'muted' | 'primary';
 
 const TONE_CLASS: Record<Tone, string> = {
-  success: 'border-transparent bg-success/15 text-success',
-  warning: 'border-transparent bg-warning/15 text-warning',
-  info: 'border-transparent bg-info/15 text-info',
-  destructive: 'border-transparent bg-destructive/10 text-destructive',
+  success: 'border-transparent bg-success/15 text-success-strong',
+  warning: 'border-transparent bg-warning/15 text-warning-strong',
+  info: 'border-transparent bg-info/15 text-info-strong',
+  destructive: 'border-transparent bg-destructive/10 text-destructive-strong',
   muted: 'border-transparent bg-muted text-muted-foreground',
-  primary: 'border-transparent bg-primary/15 text-primary',
+  primary: 'border-transparent bg-primary/15 text-brand',
 };
 
 export function ToneBadge({

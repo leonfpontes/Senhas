@@ -47,7 +47,6 @@ class TestPlanFeatures:
         assert f.export_csv is False
         assert f.bulk_operations is False
         assert f.auditoria is False
-        assert f.api_access is False
         assert f.suporte_prioritario is False
         assert f.site_builder is False
 
@@ -65,7 +64,6 @@ class TestPlanFeatures:
         assert f.relatorio_gira is True
         assert f.mensalidade_mediun is False
         assert f.auditoria is False
-        assert f.api_access is False
         assert f.suporte_prioritario is False
         assert f.site_builder is False
 
@@ -83,7 +81,6 @@ class TestPlanFeatures:
         assert f.auditoria is True
         assert f.site_builder is True
         # Should still be disabled
-        assert f.api_access is False
         assert f.suporte_prioritario is False
 
     def test_premium_plan_has_all_features(self):
@@ -97,7 +94,6 @@ class TestPlanFeatures:
         assert f.export_csv is True
         assert f.bulk_operations is True
         assert f.auditoria is True
-        assert f.api_access is True
         assert f.suporte_prioritario is True
         assert f.site_builder is True
 

@@ -61,9 +61,9 @@ const OBSERVATORY = {
 };
 
 const SUBS = [
-  { tenant_id: 't-ok', tenant_name: 'Casa Beta', tenant_slug: 'casa-beta', plan: 'basic', status: 'active', monthly_price: 49, current_users: 1, max_users: 3, is_trial: false, is_bonus: false, cancel_at_period_end: false, current_period_end: '2026-11-01T00:00:00Z', trial_ends_at: null, stripe_customer_id: 'cus_1' },
-  { tenant_id: 't-cancel', tenant_name: 'Casa Gama', tenant_slug: 'casa-gama', plan: 'pro', status: 'cancelled', monthly_price: 0, current_users: 2, max_users: 10, is_trial: false, is_bonus: false, cancel_at_period_end: false, current_period_end: '2026-09-30T00:00:00Z', trial_ends_at: null, stripe_customer_id: null },
-  { tenant_id: 't-bonus', tenant_name: 'Casa Delta', tenant_slug: 'casa-delta', plan: 'pro', status: 'active', monthly_price: 0, current_users: 2, max_users: 10, is_trial: false, is_bonus: true, cancel_at_period_end: false, current_period_end: null, trial_ends_at: null, stripe_customer_id: null },
+  { tenant_id: 't-ok', tenant_name: 'Casa Beta', tenant_slug: 'casa-beta', plan: 'basic', status: 'active', monthly_price: 49, category: 'pagante', mrr: 49, potential_mrr: 0, current_users: 1, max_users: 3, is_trial: false, is_bonus: false, cancel_at_period_end: false, current_period_end: '2026-11-01T00:00:00Z', trial_ends_at: null, stripe_customer_id: 'cus_1' },
+  { tenant_id: 't-cancel', tenant_name: 'Casa Gama', tenant_slug: 'casa-gama', plan: 'pro', status: 'cancelled', monthly_price: 0, category: 'cancelada', mrr: 0, potential_mrr: 0, current_users: 2, max_users: 10, is_trial: false, is_bonus: false, cancel_at_period_end: false, current_period_end: '2026-09-30T00:00:00Z', trial_ends_at: null, stripe_customer_id: null },
+  { tenant_id: 't-bonus', tenant_name: 'Casa Delta', tenant_slug: 'casa-delta', plan: 'pro', status: 'active', monthly_price: 0, category: 'bonificado', mrr: 0, potential_mrr: 0, current_users: 2, max_users: 10, is_trial: false, is_bonus: true, cancel_at_period_end: false, current_period_end: null, trial_ends_at: null, stripe_customer_id: null },
 ];
 
 const CONVERSATIONS = [

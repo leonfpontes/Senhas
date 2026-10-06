@@ -328,7 +328,7 @@ function BillingContent() {
               <CardContent className="flex flex-col gap-5 p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand">
                       <CreditCard className="size-6" aria-hidden />
                     </span>
                     <div>
@@ -556,7 +556,7 @@ function SupportCard() {
           <p className="text-sm text-muted-foreground">
             {SUPPORT_WHATSAPP
               ? 'Chame no WhatsApp ou use o chat de suporte aqui no painel.'
-              : 'Use o botão "Ajuda" aqui no painel — a conversa fica salva.'}
+              : 'Use "Falar com o suporte" no menu do seu perfil — a conversa fica salva.'}
           </p>
         </div>
         {SUPPORT_WHATSAPP && (

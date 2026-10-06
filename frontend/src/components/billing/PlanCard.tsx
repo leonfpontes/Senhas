@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { formatPrice, planHighlights, type PlanDef } from '@/constants/plans';
+import { PLAN_TEXT_CLASS, formatPrice, planHighlights, type PlanDef } from '@/constants/plans';
 
 export type PlanCardState = 'current' | 'trial' | 'none';
 
@@ -55,7 +55,7 @@ export function PlanCard({ plan, state = 'none', recommended, highlighted, actio
       <div className="h-1.5 w-full" style={{ backgroundColor: accent }} aria-hidden />
       <CardContent className="flex flex-1 flex-col p-5">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-extrabold" style={{ color: accent }}>
+          <h3 className={cn('text-lg font-extrabold', PLAN_TEXT_CLASS[plan.key])}>
             {plan.label}
           </h3>
           <div className="flex flex-wrap gap-1">

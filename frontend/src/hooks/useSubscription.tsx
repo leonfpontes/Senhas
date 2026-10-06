@@ -13,7 +13,6 @@ export interface PlanFeatures {
   export_csv: boolean;
   bulk_operations: boolean;
   auditoria: boolean;
-  api_access: boolean;
   suporte_prioritario: boolean;
   mensalidade_mediun: boolean;
   mensalidade_associado: boolean;
@@ -70,7 +69,6 @@ const DEFAULT_FEATURES: PlanFeatures = {
   export_csv: false,
   bulk_operations: true,
   auditoria: false,
-  api_access: false,
   suporte_prioritario: false,
   mensalidade_mediun: false,
   mensalidade_associado: false,

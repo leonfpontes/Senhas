@@ -76,7 +76,7 @@ export const NavItem: React.FC<NavItemProps> = ({ href, text, icon: Icon, active
         </SidebarMenuButton>
       )}
       {badgeLabel && (
-        <SidebarMenuBadge aria-hidden className="rounded-full bg-destructive px-1.5 text-white">
+        <SidebarMenuBadge aria-hidden className="rounded-full bg-destructive px-1.5 text-destructive-foreground">
           {badgeLabel}
         </SidebarMenuBadge>
       )}

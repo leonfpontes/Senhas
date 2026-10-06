@@ -117,7 +117,7 @@ def _expected_status(feature, plan, status):
     return None if _expected_reason(plan, status) is None else 402
 
 
-@pytest.mark.parametrize("feature", ["estoque_controle", "mediuns", "api_access"])
+@pytest.mark.parametrize("feature", ["estoque_controle", "mediuns", "suporte_prioritario"])
 @pytest.mark.parametrize("plan", ALL_PLANS)
 @pytest.mark.parametrize("status", ALL_STATUS)
 async def test_gate_status_x_plano(feature, plan, status):

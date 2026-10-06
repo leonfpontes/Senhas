@@ -7,7 +7,12 @@ from uuid import UUID
 
 from src.core.database import get_db
 from src.api.dependencies import require_super_admin
+from sqlalchemy import select
+
 from src.models import User, PlanType, SubscriptionStatus
+from src.models.subscriptions import Subscription
+from src.models.tenants import Tenant
+from src.services.billing_metrics import billing_fields
 from src.services.subscription_service import SubscriptionService
 from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
 from src.repositories.audit_log_repo import AuditLogRepository
@@ -31,6 +36,10 @@ class SubscriptionResponse(BaseModel):
     trial_ends_at: Optional[str]
     auto_renew: bool
     created_at: str
+    # Regra de services/billing_metrics.py: só pagante tem MRR; em teste mostra o potencial.
+    billing_category: Optional[str] = None
+    mrr: float = 0.0
+    potential_mrr: float = 0.0
 
 
 class UpgradePlanRequest(BaseModel):
@@ -61,6 +70,10 @@ async def get_subscription(
                 detail="Subscrição não encontrada",
             )
         
+        deleted_at = (await db.execute(select(Tenant.deleted_at).where(Tenant.id == tenant_id))).scalar_one_or_none()
+        if deleted_at is not None:
+            sub = (await db.execute(select(Subscription).where(Subscription.tenant_id == tenant_id))).scalar_one()
+            result.update(billing_fields(sub, tenant_deleted=True))
         return SubscriptionResponse(**result)
     except HTTPException:
         raise

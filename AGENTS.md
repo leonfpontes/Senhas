@@ -497,6 +497,17 @@ Incluir obrigatoriamente:
 - **Conteúdo**: cadastros dos últimos 60 dias (`WINDOW_DAYS`), do mais recente ao mais antigo, cada um num estágio — `sem_gira` → `sem_senhas` (gira criada sem `max_tickets`, nada aparece no link) → `aguardando_senha` → `recebendo` → `usou_porta` → `ativado` (20+ senhas pelo link, mesmo limiar do checklist). Mostra também giras configuradas/total e próxima gira, senhas pelo link, trial (dias restantes) ou pagante, e-mails de onboarding enviados (D+1/D+3, de `custom_settings.onboarding_emails`), dor do cadastro, última atividade (sessão ou ação auditada) e contato do admin mais antigo com links de WhatsApp (`wa.me`, DDI 55 acrescentado) e e-mail.
 - **Consulta**: uma ida ao banco com subconsultas correlacionadas por tenant + uma para os contatos. Visão cross-tenant por desenho (super-admin), sem filtro de tenant.
 
+### 11.17 MRR e categorias de cobrança da plataforma (2026-10-06)
+- Regra única em `backend/src/services/billing_metrics.py`: **pagante** = assinatura ACTIVE, com
+  `stripe_subscription_id`, sem trial, sem bônus, fora do FREE e com terreiro não excluído. Só pagante
+  gera MRR. As outras categorias são em_teste (mostra o MRR potencial), bonificado (pilotos e
+  testadores), gratuito, suspensa, cancelada, sem_cobranca (plano pago sem Stripe) e excluido.
+- Quem usa: `/billing/statistics/summary`, `/billing/subscriptions` (com `category`, `mrr`,
+  `potential_mrr`, usuários ativos reais e `include_deleted`), `GET /platform/subscriptions/{id}`,
+  `_mrr` do `/platform/dashboard` (`paying_clause()`) e o MRR em risco da retenção.
+- Nunca somar `monthly_price` direto para falar de receita: use `effective_mrr`/`paying_clause`.
+  O contador `subscriptions.current_users` não é mantido; conte usuários ativos na tabela `users`.
+
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
   usa Tailwind v4 + shadcn/ui (Radix, estilo new-york, `data-slot`). **Não criar `sx` nem reintroduzir MUI.**
@@ -504,6 +515,13 @@ Incluir obrigatoriamente:
   preflight completo do Tailwind, `body` com `--background/--foreground/--font-sans`. Breakpoints iguais aos antigos do
   MUI (`sm 600 / md 900 / lg 1200 / xl 1536`, sem `2xl`). Tokens shadcn em `:root`/`.dark`, mais `--success`, `--warning`,
   `--info` (com `-foreground`) e `--chart-grid`/`--chart-tick`. Fonte da interface: pilha do sistema (sem Roboto global).
+- **Contraste (2.1.0)** — travado por `__tests__/styles/{contrast,colorUsage}.test.ts` (WCAG AA 4,5:1 nos dois modos):
+  - texto na cor da marca é **`text-brand`** (`--primary-text`), nunca `text-primary`: `applyBrand` calcula
+    `--brand-text-light`/`--brand-text-dark` escurecendo/clareando a primária até ler no fundo e no `bg-primary/15`;
+  - fundo suave da mesma cor (`bg-warning/15`, `bg-info/10`...) leva **`text-{success,warning,info,destructive}-strong`**;
+  - `text-*-foreground` só em cima do fundo sólido `bg-*` (é branco no claro e preto no escuro — some em fundo suave);
+  - claro: `--warning` #c2410c e `--info` #0369a1 (os do MUI ficavam em ~3:1); escuro: `--destructive` #f87171 com
+    `--destructive-foreground` escuro; ícones do `KpiCard` com marca usam `var(--primary-text)`.
 - **Cores do terreiro**: `src/lib/brand.ts` → `applyBrand(document.documentElement, {primary, secondary, font})`, chamado
   pelo `TenantAwareThemeProvider` a cada mudança de branding; escreve `--primary`, `--primary-foreground`, `--secondary`,
   `--secondary-foreground`, `--ring`, `--sidebar-primary`. Texto sobre a marca: a cor de fonte do terreiro se o contraste
@@ -514,6 +532,14 @@ Incluir obrigatoriamente:
 - **Overlays**: Sheet/Dialog/AlertDialog/Select/Popover/DropdownMenu usam o z-index padrão do Radix (`z-50`); quem abre por
   último fica por cima, então calendário e Combobox dentro do `CrudDrawer` funcionam. Barras fixas: topbar `z-30`,
   `MobileTabBar` e `BulkActionsBar` `z-40`. Não usar `z-[1300]`/`z-[1400]` (eram para ficar acima do AppBar do MUI).
+  Barra fixa embaixo numa tela admin fica **acima da `MobileTabBar` no celular** (`bottom-[calc(env(safe-area-inset-bottom)+56px)]
+  md:bottom-0`). Nada flutuante por cima do conteúdo: o antigo balão "Ajuda" saiu em 2.1.0.
+- **Menu do perfil** (`AdminTopbar`): Perfil, Mostrar primeiros passos, **Falar com o suporte** (abre o `SupportChatWidget`;
+  resposta não lida acende um ponto no avatar) e **Novidades da versão** (`components/admin/ReleaseNotesDialog`, conteúdo em
+  `constants/releaseNotes.ts`). O modal abre sozinho uma vez por login enquanto a versão atual não for dispensada
+  ("Não mostrar novamente" vale por versão, localStorage por usuário); não abre na impersonação nem por cima do tour de
+  boas-vindas. **Ao subir a versão, acrescente a entrada no topo de `RELEASE_NOTES`** (um teste exige que a primeira seja
+  `APP_VERSION`).
 - **Kit** (`frontend/src/components/README.md`): `components/ui/*`, `fields/*` (`TextField`, `PasswordField`, `MoneyInput`,
   `MaskedInput` + `maskTelefone/maskCpf/unmask`, `DateField`, `DateTimeField`, `Combobox`), `CrudDrawer`, `ConfirmDialog`,
   `DataTable` (TanStack v8, `renderCard` no celular), `EmptyState`, `PageHeader`, `KpiCard` (único), `Stepper`,
@@ -539,7 +565,7 @@ Incluir obrigatoriamente:
   POST, outra origem, `Authorization` ou HTML de página) — testado em `__tests__/pwa/sw.test.ts`. Na Porta: `PortaOfflineNotice`
   (offline ou 2 falhas seguidas da fila) e `InstallPortaHint`. Sem sincronização offline de emissão.
 - **Versão**: `frontend/package.json` `version` → `NEXT_PUBLIC_UI_VERSION` (`next.config.js`) → `src/lib/version.ts`
-  (`APP_VERSION`, "GiraHub v2.0.0" no rodapé da sidebar, menu do usuário e plataforma). Backend `APP_VERSION` 2.0.0;
+  (`APP_VERSION`, "GiraHub v2.1.0" no rodapé da sidebar, menu do usuário e plataforma). Backend `APP_VERSION` 2.1.0;
   a tag das imagens Docker vem de `APP_VERSION` no `.env` do servidor.
 - **Testes**: por papel/texto (nunca classes). `jest.setup.js` tem polyfills do Radix (`hasPointerCapture`,
   `scrollIntoView`, `ResizeObserver`, `matchMedia`). Bundle antes/depois em `docs/bundle-baseline.md`.
@@ -597,7 +623,7 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   um item novo — feito de verdade, com `/metrics` exposto e alertas.
 
 **Monitoramento de erros — Sentry (desde 2026-06-27):**
-- Backend: `sentry-sdk[fastapi]>=1.39.0` — inicializado em `main.py` quando `SENTRY_DSN` definido.
+- Backend: `sentry-sdk[fastapi]>=2.63.0` (piso exigido pelo roteamento do fastapi ≥ 0.137) — inicializado em `main.py` quando `SENTRY_DSN` definido. O OpenTelemetry nativo do fastapi 0.142 fica desligado (`telemetry=` em `create_app`).
 - Frontend: `@sentry/nextjs ^10` (upgrade 8.55 → 10.76 em 2026-10-05):
   - Navegador: `frontend/src/instrumentation-client.ts` (convenção `instrumentation-client` do Next 15.3+; substituiu o
     `sentry.client.config.ts`, deprecado desde o SDK 9). Replay só em erro (`maskAllText`/`blockAllMedia`),

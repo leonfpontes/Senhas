@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PLAN_META, PLAN_ORDER, type PlanKey } from './planMeta';
 import { PlanBadge, SubscriptionStatusBadge, ToneBadge } from './PlanBadge';
 import { fmtDate, fmtMoney } from './format';
+import type { BillingCategoryKey } from './BillingCategory';
 
 export interface SubscriptionDetail {
   id?: string;
@@ -32,6 +33,10 @@ export interface SubscriptionDetail {
   is_trial: boolean;
   trial_ends_at?: string | null;
   is_bonus?: boolean;
+  /** Regra de backend/src/services/billing_metrics.py: só pagante tem MRR. */
+  billing_category?: BillingCategoryKey | null;
+  mrr?: number;
+  potential_mrr?: number;
 }
 
 export interface SubscriptionDrawerTenant {
