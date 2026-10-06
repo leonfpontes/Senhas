@@ -63,6 +63,9 @@ async def test_constraints_que_seguram_incidentes(migrated_db):
     assert "uq_tickets_gira_consulente_ativo" in indexes
     # Um grupo padrão "Acesso total" por tenant (migração 057, Q-05).
     assert "uq_permission_groups_tenant_default" in indexes
+    # E-mail de associado único só entre os ativos (migração 058).
+    assert "uq_associados_tenant_email_ativo" in indexes
+    assert "uq_associados_tenant_email" not in uniques
 
 
 def test_modelos_batem_com_schema_migrado(migrated_db):

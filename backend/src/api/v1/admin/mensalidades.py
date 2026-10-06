@@ -2,14 +2,19 @@
 
 Routes:
   GET  /api/v1/admin/financeiro/config         — Get tenant mensalidade config
-  PUT  /api/v1/admin/financeiro/config         — Update config (ADMIN only)
-  GET  /api/v1/admin/financeiro/mensalidades   — List month (ADMIN + OPERATOR)
-  POST /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}  — Register payment (ADMIN)
+  PUT  /api/v1/admin/financeiro/config         — Update config
+  GET  /api/v1/admin/financeiro/mensalidades   — List month
+  POST /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}  — Register payment
   GET  /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}/comprovante  — Download
-  DELETE /api/v1/admin/financeiro/mensalidades/{pagamento_id}/comprovante   — Remove (ADMIN)
-  GET  /api/v1/admin/financeiro/resumo         — Chart data (ADMIN + OPERATOR)
-  POST /api/v1/admin/financeiro/relatorio/enviar  — Send email to admins (ADMIN)
-  GET  /api/v1/admin/financeiro/relatorio/download  — Return HTML (ADMIN)
+  DELETE /api/v1/admin/financeiro/mensalidades/{pagamento_id}/comprovante   — Remove
+  GET  /api/v1/admin/financeiro/resumo         — Chart data
+  POST /api/v1/admin/financeiro/relatorio/enviar  — Send email to admins
+  GET  /api/v1/admin/financeiro/relatorio/download  — Return HTML
+
+Acesso: só `require_group_permission(FINANCEIRO, ...)` + gate de plano. Admin
+faz bypass dos grupos; operador com a permissão do grupo pode tudo que ela
+libera (não há mais checagem extra de perfil ADMIN — ela contradizia o grupo).
+Registrar/editar pagamento é POST (upsert) → ação "insert" nos dois lados.
 """
 
 from __future__ import annotations
@@ -21,7 +26,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Path, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Path, Query, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,18 +97,25 @@ async def _require_assoc_mensalidade_enabled(
     if not tc or not tc.enable_mensalidade_associado:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Mensalidade de Associados não está habilitada. Ative em Configurações → Mensalidade de Associados.",
+            detail="Mensalidade de Associados não está habilitada. Ative em Financeiro → Configuração → Mensalidade.",
         )
 
 
-def _require_admin(current_user: User) -> None:
-    """Raise 403 if the user is not an admin."""
-    from src.models import UserRole
-    if current_user.role != UserRole.ADMIN and current_user.role != UserRole.SUPER_ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Esta operação requer perfil ADMIN.",
-        )
+async def _observacao_kwargs(request: Optional[Request], observacao: Optional[str]) -> Dict[str, Any]:
+    """Só repassa ``observacao`` ao repositório quando o formulário a trouxe.
+
+    O FastAPI converte campo de formulário vazio em ``None``, então "não
+    enviado" (lote "Marcar como pago" — não pode apagar a observação) e
+    "enviado vazio" (usuário limpou o campo) só se distinguem olhando o form.
+    Chamada direta (testes, sem Request): ``None`` = não enviado.
+    """
+    if request is None:
+        return {"observacao": observacao} if observacao is not None else {}
+    form = await request.form()
+    if "observacao" not in form:
+        return {}
+    raw = form.get("observacao")
+    return {"observacao": (raw.strip() or None) if isinstance(raw, str) else observacao}
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -201,12 +213,11 @@ async def update_config(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create or update mensalidade config (ADMIN only).
+    """Create or update mensalidade config (grupo FINANCEIRO "edit").
 
     Plano/status já checados por _GATE_CONFIG. Campos de médiuns (valor/dia) só
     gravam com mensalidade_mediun no plano (PRO+ pelo catálogo; antes PREMIUM).
     """
-    _require_admin(current_user)
     features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id))
 
     repo = MensalidadeRepository(db)
@@ -345,9 +356,9 @@ async def registrar_pagamento(
     comprovante: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    request: Request = None,  # type: ignore[assignment]  # FastAPI injeta; None em chamada direta
 ):
-    """Register or update mensalidade for a médium in a given month (ADMIN only)."""
-    _require_admin(current_user)
+    """Register or update mensalidade for a médium in a given month (grupo FINANCEIRO "insert")."""
     mes_date = _parse_mes(mes)
 
     try:
@@ -419,10 +430,10 @@ async def registrar_pagamento(
         valor_vigente=valor_vigente,
         valor_pago=Decimal(str(valor_pago)) if valor_pago is not None else None,
         data_pagamento=parsed_data_pag,
-        observacao=observacao,
         comprovante_data=comp_data,
         comprovante_filename=comp_filename,
         comprovante_mime=comp_mime,
+        **(await _observacao_kwargs(request, observacao)),
     )
     await audit.log_update(
         tenant_id=current_user.tenant_id,
@@ -443,7 +454,10 @@ async def registrar_pagamento(
             pessoa_nome=mediun.nome,
             mes_date=mes_date,
             status_mensalidade=parsed_status.value,
-            valor=valor_vigente,
+            # valor vigente gravado no registro (capturado no 1º registro do mês)
+            # e o valor efetivamente pago informado no formulário.
+            valor=pag.valor_vigente if pag.valor_vigente is not None else valor_vigente,
+            valor_pago=pag.valor_pago,
             data_pagamento=parsed_data_pag,
             dia_vencimento=config.dia_vencimento if config else 10,
             criado_por=current_user.id,
@@ -487,8 +501,7 @@ async def delete_comprovante(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove comprovante binary from a payment record (ADMIN only)."""
-    _require_admin(current_user)
+    """Remove comprovante binary from a payment record."""
     repo = MensalidadeRepository(db)
     audit = AuditService(db)
     pag = await repo.delete_comprovante(current_user.tenant_id, pagamento_id)
@@ -520,19 +533,14 @@ async def enviar_relatorio(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Send monthly mensalidade report email to all ADMIN users of the tenant (ADMIN only)."""
-    _require_admin(current_user)
+    """Send monthly mensalidade report email to all ADMIN users of the tenant."""
     mes_date = _parse_mes(mes)
 
     repo = MensalidadeRepository(db)
-
-    # Guard: only send if admin explicitly enabled the email feature
+    # email_relatorio_ativo não é mais checado: o toggle saiu da tela (nenhum
+    # job lia a flag e a tela não tinha botão de envio). A coluna continua no
+    # banco por compatibilidade; este endpoint é a única forma de envio.
     cfg = await repo.get_config(current_user.tenant_id)
-    if not cfg or not cfg.email_relatorio_ativo:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Envio de relatório por e-mail está desativado. Ative em Financeiro → Configuração.",
-        )
 
     from sqlalchemy import select, and_
     from src.models.tenants import Tenant
@@ -670,8 +678,7 @@ async def download_relatorio(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the mensalidade report as inline HTML for download/preview (ADMIN only)."""
-    _require_admin(current_user)
+    """Return the mensalidade report as inline HTML for download/preview."""
     mes_date = _parse_mes(mes)
 
     from sqlalchemy import select
@@ -821,6 +828,7 @@ async def registrar_associado_pagamento(
     comprovante: Optional[UploadFile] = File(default=None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    request: Request = None,  # type: ignore[assignment]  # FastAPI injeta; None em chamada direta
 ):
     """Register or update a payment for an associado for the given month (PRO+, OPERATOR+)."""
     await _require_assoc_mensalidade_enabled(current_user, db)
@@ -884,10 +892,10 @@ async def registrar_associado_pagamento(
         valor_vigente=valor_vigente_assoc,
         valor_pago=Decimal(str(valor_pago)) if valor_pago is not None else None,
         data_pagamento=parsed_data_pag,
-        observacao=observacao,
         comprovante_data=comprovante_data,
         comprovante_filename=comprovante_filename,
         comprovante_mime=comprovante_mime,
+        **(await _observacao_kwargs(request, observacao)),
     )
 
     # Sync to contas_financeiras
@@ -901,7 +909,8 @@ async def registrar_associado_pagamento(
             pessoa_nome=assoc.nome,
             mes_date=mes_date,
             status_mensalidade=status_enum.value,
-            valor=valor_vigente_assoc,
+            valor=pag.valor_vigente if pag.valor_vigente is not None else valor_vigente_assoc,
+            valor_pago=pag.valor_pago,
             data_pagamento=parsed_data_pag,
             dia_vencimento=dia_venc_assoc,
             criado_por=current_user.id,
@@ -953,9 +962,8 @@ async def delete_associado_comprovante(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete the comprovante from an associado payment record (PRO+, ADMIN)."""
+    """Delete the comprovante from an associado payment record (PRO+)."""
     await _require_assoc_mensalidade_enabled(current_user, db)
-    _require_admin(current_user)
     repo = AssociadoMensalidadeRepository(db)
     pag = await repo.delete_comprovante(current_user.tenant_id, pagamento_id)
     if not pag:
