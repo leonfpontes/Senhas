@@ -98,7 +98,7 @@ export default function Custom404() {
         <meta name="robots" content="noindex" />
       </Head>
 
-      <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-4 text-center text-base text-foreground">
+      <main data-slot="not-found-page" className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-4 text-center text-base text-foreground">
         {/* Fundo suave com a cor da marca */}
         <div
           aria-hidden

@@ -229,7 +229,7 @@ const StatusPage: React.FC = () => {
         <meta name="description" content="Status dos serviços do GiraHub" />
       </Head>
 
-      <div className="min-h-screen bg-background text-base text-foreground">
+      <div data-slot="status-page" className="min-h-screen bg-background text-base text-foreground">
         {/* Navbar mínima */}
         <header className="border-b">
           <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">

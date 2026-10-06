@@ -5,20 +5,28 @@
  * Carrega GET /api/v1/public/tickets/{ticketId}/cancel-info ao abrir (só leitura, então
  * um scanner de e-mail pré-carregando o link não cancela nada) e só chama
  * POST /api/v1/public/tickets/{ticketId}/cancel depois da confirmação explícita.
- * "Manter minha senha" mostra o Bilhete (GET /{tenant_slug}/ticket/{id}); erro de carga e
- * erro de cancelamento são estados separados, cada um com "Tentar de novo".
+ * Em seguida busca o bilhete (GET /{tenant_slug}/ticket/{id}) para logo, cores, data com dia
+ * da semana e para "Manter minha senha" mostrar o Bilhete na hora. Senha inexistente (404),
+ * erro de carga e erro de cancelamento são estados separados; os dois últimos com "Tentar de novo".
  */
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { CalendarX2, CircleCheck, Loader2, Lock } from 'lucide-react';
+import { CalendarX2, CircleCheck, Loader2, Lock, SearchX } from 'lucide-react';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Bilhete, PublicLoading, PublicNotice, PublicShell, type PublicTicket } from '@/components/public';
+import {
+  Bilhete,
+  PublicLoading,
+  PublicNotice,
+  PublicShell,
+  formatGiraDate,
+  type PublicTicket,
+} from '@/components/public';
 
 type PageState =
   | 'loading'
@@ -28,6 +36,7 @@ type PageState =
   | 'blocked'
   | 'cancelling'
   | 'success'
+  | 'notfound'
   | 'load-error'
   | 'cancel-error';
 
@@ -65,6 +74,14 @@ export default function CancelTicketPage() {
     try {
       const res = await apiClient.get<CancelInfo>(`/api/v1/public/tickets/${ticketId}/cancel-info`);
       setInfo(res.data);
+      let full: PublicTicket | null = null;
+      try {
+        const ticketRes = await apiClient.get<PublicTicket>(`/api/v1/public/${res.data.tenant_slug}/ticket/${ticketId}`);
+        full = ticketRes.data?.ticket_number ? ticketRes.data : null;
+      } catch {
+        /* sem o bilhete completo, segue com os dados do cancel-info */
+      }
+      setTicket(full);
       if (res.data.cancellable) {
         setState('confirm');
       } else {
@@ -72,6 +89,11 @@ export default function CancelTicketPage() {
         setState('blocked');
       }
     } catch (err) {
+      const status = (err as { status?: number } | undefined)?.status;
+      if (status === 404) {
+        setState('notfound');
+        return;
+      }
       setMessage(extractApiErrorMessage(err, 'Não foi possível carregar os dados da senha.'));
       setState('load-error');
     }
@@ -94,6 +116,11 @@ export default function CancelTicketPage() {
 
   const handleKeep = useCallback(async () => {
     if (!ticketId || !info) return;
+    if (ticket) {
+      setState('keep');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     setState('keeping');
     try {
       const res = await apiClient.get<PublicTicket>(`/api/v1/public/${info.tenant_slug}/ticket/${ticketId}`);
@@ -102,7 +129,7 @@ export default function CancelTicketPage() {
       setTicket(null);
     }
     setState('keep');
-  }, [ticketId, info]);
+  }, [ticketId, info, ticket]);
 
   const tenantSlug = info?.tenant_slug;
   const nextGiras = tenantSlug ? (
@@ -142,7 +169,11 @@ export default function CancelTicketPage() {
                 {info.ticket_number}
               </p>
               <p className="mt-2 text-base font-semibold">{info.gira_name}</p>
-              {info.gira_date && <p className="text-base text-muted-foreground">{info.gira_date}</p>}
+              {(ticket?.gira_date_iso || info.gira_date) && (
+                <p className="text-base text-muted-foreground">
+                  {ticket ? formatGiraDate(ticket.gira_date_iso, info.gira_date) : info.gira_date}
+                </p>
+              )}
               <p className="text-base text-muted-foreground">{info.tenant_name}</p>
             </div>
 
@@ -183,7 +214,8 @@ export default function CancelTicketPage() {
       )}
 
       {state === 'keep' && ticket && (
-        <Bilhete ticket={ticket} ticketId={ticketId} heading="Sua senha continua valendo" intro="Nada foi cancelado." />
+        // Sem ticketId: o link "Cancelar minha senha" do Bilhete apontaria para esta mesma rota.
+        <Bilhete ticket={ticket} heading="Sua senha continua valendo" intro="Nada foi cancelado." />
       )}
       {state === 'keep' && !ticket && info && (
         <PublicNotice
@@ -211,6 +243,15 @@ export default function CancelTicketPage() {
             <p className="text-[3rem] leading-none font-extrabold tabular-nums tracking-tight text-primary">{info.ticket_number}</p>
           )}
         </PublicNotice>
+      )}
+
+      {state === 'notfound' && (
+        <PublicNotice
+          tone="warning"
+          icon={<SearchX />}
+          title="Senha não encontrada"
+          description="O link pode estar incompleto ou a senha pode ter sido removida. Confira o e-mail que você recebeu."
+        />
       )}
 
       {state === 'load-error' && (

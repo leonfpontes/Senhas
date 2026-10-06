@@ -23,9 +23,6 @@ import {
   type PublicTicket,
 } from '@/components/public';
 
-// Reexportados para quem ainda importa daqui (testes antigos); a fonte é components/public.
-export { buildIcs, formatGiraDate, type PublicTicket } from '@/components/public/bilhete-utils';
-
 type PageState = 'loading' | 'ready' | 'notfound' | 'error';
 
 export default function PublicTicketPage() {

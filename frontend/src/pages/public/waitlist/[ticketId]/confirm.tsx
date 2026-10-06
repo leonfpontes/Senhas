@@ -13,7 +13,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { CalendarClock, Hourglass, Loader2, MapPin, TimerOff } from 'lucide-react';
+import { CalendarClock, Hourglass, Loader2, MapPin, SearchX, TimerOff } from 'lucide-react';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,7 +28,16 @@ import {
   type PublicTicket,
 } from '@/components/public';
 
-type PageState = 'loading' | 'decide' | 'confirming' | 'success' | 'expired' | 'load-error' | 'confirm-error' | 'not-waiting';
+type PageState =
+  | 'loading'
+  | 'decide'
+  | 'confirming'
+  | 'success'
+  | 'expired'
+  | 'notfound'
+  | 'load-error'
+  | 'confirm-error'
+  | 'not-waiting';
 
 interface CancelInfo {
   ticket_number: string;
@@ -81,6 +90,11 @@ export default function WaitlistConfirmPage() {
         setState('decide');
       }
     } catch (err) {
+      const status = (err as { status?: number } | undefined)?.status;
+      if (status === 404) {
+        setState('notfound');
+        return;
+      }
       setMessage(extractApiErrorMessage(err, 'Não foi possível carregar sua senha. Verifique a conexão e tente de novo.'));
       setState('load-error');
     }
@@ -218,6 +232,15 @@ export default function WaitlistConfirmPage() {
 
       {state === 'not-waiting' && (
         <PublicNotice tone="info" title="Nada para confirmar" description={message} actions={nextGiras} />
+      )}
+
+      {state === 'notfound' && (
+        <PublicNotice
+          tone="warning"
+          icon={<SearchX />}
+          title="Senha não encontrada"
+          description="O link pode estar incompleto ou a senha pode ter sido removida. Confira o e-mail que você recebeu."
+        />
       )}
 
       {state === 'load-error' && (

@@ -95,7 +95,7 @@ export function LegalPageLayout({ pageTitle, description, heading, updatedAt, in
         <meta name="description" content={description} />
       </Head>
 
-      <div className="min-h-screen bg-background text-base text-foreground">
+      <div data-slot="legal-page" className="min-h-screen bg-background text-base text-foreground">
         {/* Cabeçalho fixo */}
         <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-[#0f0d2e]/95 text-white backdrop-blur">
           <div className="mx-auto flex h-[72px] max-w-6xl items-center justify-between px-4">
