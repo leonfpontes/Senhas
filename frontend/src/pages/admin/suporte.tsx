@@ -1,7 +1,7 @@
 /**
  * /admin/suporte — acompanhamento (só leitura) das conversas de suporte de todas as pessoas do
  * terreiro. Só administrador acessa (checagem própria, sem grupo — ver CLAUDE.md); cada pessoa
- * responde na própria conversa pelo balão "Ajuda", não aqui.
+ * responde na própria conversa (menu do perfil → "Falar com o suporte"), não aqui.
  *
  * Desktop: lista à esquerda e conversa à direita. Celular (< 900px): lista; tocar abre a
  * conversa num Sheet de tela cheia.
@@ -184,7 +184,7 @@ function AdminSuporteContent() {
     <div data-slot="page" className="space-y-4">
       <PageHeader
         title="Suporte"
-        subtitle="Acompanhe as conversas das pessoas do seu terreiro com o suporte. Para falar com o suporte, use o botão Ajuda."
+        subtitle="Acompanhe as conversas das pessoas do seu terreiro com o suporte. Para falar com o suporte, use “Falar com o suporte” no menu do seu perfil."
       />
 
       {isDesktop ? (
@@ -233,7 +233,7 @@ export default function AdminSuportePage() {
       {loading ? (
         <Skeleton className="h-40 w-full" />
       ) : !isAdmin ? (
-        <PermissionDenied message="Só administradores veem as conversas do terreiro. A sua conversa continua no botão Ajuda." />
+        <PermissionDenied message="Só administradores veem as conversas do terreiro. A sua conversa fica em “Falar com o suporte”, no menu do seu perfil." />
       ) : (
         <AdminSuporteContent />
       )}

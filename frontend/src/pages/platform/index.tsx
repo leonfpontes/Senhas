@@ -567,7 +567,7 @@ const PlatformHoje: React.FC = () => {
 
       {/* KPIs */}
       <div data-tour="platform-kpis" className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard label="MRR" value={fmtMoney(mrr)} subtitle={mrrDeltaLabel} icon={<Wallet />} color="var(--primary)" loading={loading} />
+        <KpiCard label="MRR" value={fmtMoney(mrr)} subtitle={mrrDeltaLabel} icon={<Wallet />} color="var(--primary-text)" loading={loading} />
         <KpiCard label="Pagantes" value={paying} subtitle="Cobrados no Stripe (sem teste e sem bônus)" icon={<Users />} color="var(--success)" loading={loading} />
         <KpiCard
           label="Em teste"

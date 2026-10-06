@@ -35,7 +35,7 @@ import { PLANS, formatPricePerMonth, normalizePlanKey } from '@/constants/plans'
 
 // Chip de escolha opcional (ToggleGroup): quebra linha no celular, destaque na cor do tema.
 const CHIP_CLASS =
-  'h-auto min-h-8 whitespace-normal rounded-full px-3 py-1.5 text-left text-xs data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary';
+  'h-auto min-h-8 whitespace-normal rounded-full px-3 py-1.5 text-left text-xs data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-brand';
 
 export default function CadastroPage() {
   const router = useRouter();
@@ -115,7 +115,7 @@ export default function CadastroPage() {
         footer={
           <p className="text-center text-sm text-muted-foreground">
             Já tem conta?{' '}
-            <Link href="/login" className="font-semibold text-primary underline-offset-4 hover:underline">
+            <Link href="/login" className="font-semibold text-brand underline-offset-4 hover:underline">
               Entrar
             </Link>
           </p>
@@ -302,11 +302,11 @@ export default function CadastroPage() {
                   />
                   <Label htmlFor="aceite-termos" className="block cursor-pointer font-normal leading-snug">
                     Li e aceito os{' '}
-                    <a href="/termos" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">
+                    <a href="/termos" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand underline-offset-4 hover:underline">
                       Termos de Uso
                     </a>{' '}
                     e a{' '}
-                    <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">
+                    <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand underline-offset-4 hover:underline">
                       Política de Privacidade
                     </a>
                   </Label>

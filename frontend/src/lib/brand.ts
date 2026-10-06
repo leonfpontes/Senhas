@@ -4,6 +4,8 @@
  * O tema MUI recebe as cores do tenant via createTheme; aqui as mesmas cores viram
  * variáveis CSS em <html> (`--primary`, `--secondary`, ...) para que `bg-primary`,
  * `text-primary-foreground` etc. mostrem a marca do terreiro nos componentes shadcn.
+ * Para texto na cor da marca use `text-brand`, nunca `text-primary`: a primária crua pode
+ * não ter contraste com o fundo (amarelo no claro, índigo no escuro).
  * Chamado pelo TenantAwareThemeProvider sempre que as cores do tenant mudam.
  */
 
@@ -86,6 +88,38 @@ export function pickForeground(background: string, preferred?: string): string {
     : '#ffffff';
 }
 
+const toHex = (rgb: Rgb) => `#${rgb.map((c) => Math.round(c).toString(16).padStart(2, '0')).join('')}`;
+const mixRgb = (a: Rgb, b: Rgb, t: number): Rgb => [0, 1, 2].map((i) => a[i] + (b[i] - a[i]) * t) as Rgb;
+
+/** Superfícies de cada modo (globals.css: --card e --background). */
+const SURFACES = {
+  light: ['#ffffff', '#f8fafc'],
+  dark: ['#1e293b', '#0f172a'],
+} as const;
+
+/**
+ * Cor da marca para TEXTO num modo: escurece (claro) ou clareia (escuro) a primária em passos
+ * de 5% até ler com contraste AA no fundo do modo e também no fundo suave da própria marca
+ * (`bg-primary/15`). Primária amarela no claro ou índigo escuro no escuro somem sem isso.
+ */
+export function brandTextColor(primary: string, mode: 'light' | 'dark'): string {
+  const rgb = parseColor(primary);
+  if (!rgb) return mode === 'light' ? '#4f46e5' : '#a5b4fc';
+  const target: Rgb = mode === 'light' ? [0, 0, 0] : [255, 255, 255];
+  const surfaces = SURFACES[mode];
+  const softBase = parseColor(surfaces[0]) as Rgb;
+  const soft = toHex(mixRgb(softBase, rgb, 0.15));
+  for (let step = 0; step <= 20; step += 1) {
+    const candidate = toHex(mixRgb(rgb, target, step * 0.05));
+    // Margem no fundo suave: o Tailwind mistura `bg-primary/15` em oklab, que dá um tom um
+    // pouco diferente da mistura em sRGB calculada aqui (medido: 4,44 onde a conta dava 5,0).
+    if (surfaces.every((bg) => contrastRatio(candidate, bg) >= WCAG_AA_CONTRAST) && contrastRatio(candidate, soft) >= 5.2) {
+      return candidate;
+    }
+  }
+  return toHex(target);
+}
+
 /**
  * Escreve as cores do terreiro como variáveis CSS em `root` (normalmente
  * `document.documentElement`). Só toca nos tokens de marca — os estruturais
@@ -103,4 +137,7 @@ export function applyBrand(root: HTMLElement, colors: BrandColors): void {
   root.style.setProperty('--ring', colors.primary);
   root.style.setProperty('--sidebar-primary', colors.primary);
   root.style.setProperty('--sidebar-primary-foreground', primaryForeground);
+  // `text-brand` (globals.css: --primary-text) escolhe uma das duas conforme o modo.
+  root.style.setProperty('--brand-text-light', brandTextColor(colors.primary, 'light'));
+  root.style.setProperty('--brand-text-dark', brandTextColor(colors.primary, 'dark'));
 }

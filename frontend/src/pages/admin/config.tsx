@@ -612,7 +612,8 @@ function AdminConfigContent() {
             <SlidersHorizontal aria-hidden /> Funções
           </TabsTrigger>
           <TabsTrigger value="atendimento" disabled={!can('associados')}>
-            <DoorOpen aria-hidden /> Atendimento
+            <DoorOpen aria-hidden /> <span className="hidden sm:inline">Atendimento</span>
+            <span className="sm:hidden">Regras</span>
           </TabsTrigger>
         </TabsList>
 
@@ -626,7 +627,7 @@ function AdminConfigContent() {
                   label="Nome do terreiro"
                   value={config.tenant_nome ?? ''}
                   readOnly
-                  helperText="Para mudar o nome, fale com o suporte pelo botão Ajuda."
+                  helperText="Para mudar o nome, fale com o suporte pelo menu do seu perfil (Falar com o suporte)."
                   className="mb-4"
                 />
 
@@ -669,7 +670,7 @@ function AdminConfigContent() {
                   >
                     <CloudUpload className="size-8 text-muted-foreground" aria-hidden />
                     <span className="text-sm text-muted-foreground">{uploadingLogo ? 'Enviando…' : 'Clique ou arraste para enviar o logo'}</span>
-                    <span className="text-xs text-ghost">JPG, PNG ou WEBP · até 2 MB · 200×200 px</span>
+                    <span className="text-xs text-muted-foreground">JPG, PNG ou WEBP · até 2 MB · 200×200 px</span>
                   </button>
                 ) : (
                   <p className="text-sm text-muted-foreground">Sem logo cadastrado.</p>
@@ -717,7 +718,7 @@ function AdminConfigContent() {
                               <span className="flex-1" style={{ backgroundColor: p.secondary }} />
                             </span>
                             <span className="text-[11px] font-medium">{p.name}</span>
-                            {active && <Check className="size-3 text-primary" aria-hidden />}
+                            {active && <Check className="size-3 text-brand" aria-hidden />}
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>{`${p.name}: ${p.primary} + ${p.secondary}`}</TooltipContent>
@@ -893,7 +894,7 @@ function AdminConfigContent() {
         <div
           role="region"
           aria-label="Alterações não salvas"
-          className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:left-[280px] md:pr-36"
+          className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+56px)] z-30 border-t bg-card/95 px-4 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:bottom-0 md:left-64 md:pb-[calc(env(safe-area-inset-bottom)+0.75rem)]"
         >
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
             <span className="flex items-center gap-2 text-sm text-muted-foreground">

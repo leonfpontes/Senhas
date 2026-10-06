@@ -58,7 +58,7 @@
   --destructive: #d32f2f; /* palette.error.main do MUI (light) */
   --destructive-foreground: #ffffff;
   --chart-grid: rgba(0, 0, 0, 0.06);
-  --chart-tick: #94a3b8;
+  --chart-tick: #64748b; /* 4,8:1 no branco (o #94a3b8 ficava em 2,6:1) */
 
   /* Marca — defaults iguais aos do TenantAwareThemeProvider (= TenantConfig.primary_color do
    * backend e ao theme-color do _document); applyBrand() sobrescreve em runtime. */
@@ -77,14 +77,27 @@
   --sidebar-border: #e2e8f0;
   --sidebar-ring: #4f46e5;
 
-  /* Semânticas (fase 1) — palette.success/warning/info.main do MUI (light), usadas por
-   * Alert (variantes success/warning/info), toasts e badges de status. */
+  /* Semânticas — usadas por Alert, toasts e badges de status. Todas passam WCAG AA (4,5:1)
+   * como texto sobre o fundo claro e com texto branco por cima. O laranja (#ed6c02) e o azul
+   * (#0288d1) do MUI ficavam em ~3:1 e foram escurecidos em 2026-10-06. */
   --success: #2e7d32;
   --success-foreground: #ffffff;
-  --warning: #ed6c02;
+  --warning: #c2410c;
   --warning-foreground: #ffffff;
-  --info: #0288d1;
+  --info: #0369a1;
   --info-foreground: #ffffff;
+
+  /* Texto sobre fundo suave da mesma cor (`bg-warning/15 text-warning-strong`): o tom base
+   * cai para ~4:1 em cima do próprio tint; o "strong" fica acima de 5:1. Nunca use
+   * `text-*-foreground` sem o fundo sólido correspondente — é branco (claro) ou preto (escuro). */
+  --success-strong: #1b5e20;
+  --warning-strong: #9a3412;
+  --info-strong: #075985;
+  --destructive-strong: #b71c1c;
+
+  /* Cor da marca para TEXTO (`text-brand`): applyBrand() calcula `--brand-text-light`/`-dark`
+   * escurecendo ou clareando a primária do terreiro até ler bem no fundo de cada modo. */
+  --primary-text: var(--brand-text-light, #4338ca);
 }
 
 .dark {
@@ -102,10 +115,13 @@
   --ghost: #334155;
   --accent: rgba(255, 255, 255, 0.04);
   --accent-foreground: #f1f5f9;
-  --destructive: #f44336; /* palette.error.main do MUI (dark) */
-  --destructive-foreground: #ffffff;
+  /* #f44336 do MUI ficava em ~4:1 sobre o card escuro; o vermelho mais claro passa de 5:1.
+   * Texto escuro por cima do sólido (o Badge/Button destrutivo usa `dark:bg-destructive/60`
+   * com texto branco, que continua acima de 5:1). */
+  --destructive: #f87171;
+  --destructive-foreground: rgba(0, 0, 0, 0.87);
   --chart-grid: rgba(255, 255, 255, 0.06);
-  --chart-tick: #64748b;
+  --chart-tick: #94a3b8; /* 5,7:1 no card escuro */
 
   /* palette.success/warning/info.main do MUI (dark); texto escuro como o contrastText do MUI. */
   --success: #66bb6a;
@@ -114,6 +130,14 @@
   --warning-foreground: rgba(0, 0, 0, 0.87);
   --info: #29b6f6;
   --info-foreground: rgba(0, 0, 0, 0.87);
+
+  --success-strong: #81c784;
+  --warning-strong: #ffb74d;
+  --info-strong: #4fc3f7;
+  --destructive-strong: #fca5a5;
+
+  /* O índigo padrão (#4f46e5) fica em ~2,3:1 sobre o fundo escuro. */
+  --primary-text: var(--brand-text-dark, #a5b4fc);
 
   --sidebar: #1e293b;
   --sidebar-foreground: #f1f5f9;
@@ -159,6 +183,11 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-success-strong: var(--success-strong);
+  --color-warning-strong: var(--warning-strong);
+  --color-info-strong: var(--info-strong);
+  --color-destructive-strong: var(--destructive-strong);
+  --color-brand: var(--primary-text);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-input-bg: var(--input-bg);
@@ -288,4 +317,10 @@
     --info-border: var(--info);
     --info-text: var(--info-foreground);
   }
+}
+
+/* Legendas do Recharts: o texto vinha com a cor da série (marca clara no claro, índigo no escuro
+ * — ~2,6:1). O quadradinho continua na cor da série; o texto segue o tema. */
+.recharts-legend-item-text {
+  color: var(--foreground) !important;
 }

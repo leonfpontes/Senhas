@@ -261,3 +261,14 @@ export function lostOnFree(usage: UsageSnapshot): string[] {
   if ((usage.users ?? 1) > free.users) out.push('Mais de um usuário no painel');
   return out;
 }
+
+/**
+ * Classe de TEXTO do nome de cada plano. `PlanDef.color` é só para enfeite (faixa e borda):
+ * como texto, o âmbar do Premium (2,2:1) e o azul do Basic (3,7:1) não liam no branco.
+ */
+export const PLAN_TEXT_CLASS: Record<PlanKey, string> = {
+  free: 'text-muted-foreground',
+  basic: 'text-info-strong',
+  pro: 'text-brand',
+  premium: 'text-warning-strong',
+};

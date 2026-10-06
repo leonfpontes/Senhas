@@ -45,7 +45,7 @@ function TabLink({
       className={cn(
         'flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[0.65rem] font-medium',
         'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
-        active ? 'text-primary' : 'text-muted-foreground',
+        active ? 'text-brand' : 'text-muted-foreground',
       )}
     >
       <Icon className="size-5" aria-hidden />

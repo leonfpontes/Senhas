@@ -693,7 +693,7 @@ function MensalidadeTab() {
       )}
 
       {canEdit && (
-        <div className="sticky bottom-0 z-30 -mx-4 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:mx-0 sm:rounded-t-lg sm:border-x">
+        <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+56px)] z-30 md:bottom-0 -mx-4 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:mx-0 sm:rounded-t-lg sm:border-x">
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <span className="text-sm text-muted-foreground" aria-live="polite">
               {isDirty ? 'Alterações não salvas' : 'Tudo salvo'}
@@ -738,7 +738,7 @@ function FinanceiroConfigContent() {
       <PageHeader
         title="Configuração Financeira"
         subtitle="Categorias, contas bancárias e mensalidades do terreiro"
-        actions={<Settings2 className="size-6 text-primary" aria-hidden />}
+        actions={<Settings2 className="size-6 text-brand" aria-hidden />}
       />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full sm:w-auto">

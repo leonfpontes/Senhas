@@ -48,7 +48,7 @@ export function Stepper({ steps, active, orientation = 'horizontal', onStepClick
             className={cn(
               'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors',
               status === 'complete' && 'border-primary bg-primary text-primary-foreground',
-              status === 'current' && 'border-primary bg-background text-primary',
+              status === 'current' && 'border-primary bg-background text-brand',
               status === 'upcoming' && 'border-border bg-background text-muted-foreground',
             )}
           >

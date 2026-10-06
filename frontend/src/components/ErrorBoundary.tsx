@@ -45,7 +45,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             Ocorreu um erro inesperado nesta seção. Tente recarregar ou entre em contato com o suporte.
           </p>
           {process.env.NODE_ENV === 'development' && this.state.error && (
-            <pre className="max-w-full overflow-auto rounded-md border border-destructive/20 bg-destructive/10 p-3 text-left text-xs text-destructive">
+            <pre className="max-w-full overflow-auto rounded-md border border-destructive/20 bg-destructive/10 p-3 text-left text-xs text-destructive-strong">
               {this.state.error.message}
             </pre>
           )}
