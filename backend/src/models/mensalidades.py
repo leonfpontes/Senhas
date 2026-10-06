@@ -54,7 +54,7 @@ class MensalidadeConfig(TimestampedModel):
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     email_relatorio_ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
-    # Mensalidade de associados (PRO+)
+    # Mensalidade de associados (Premium)
     valor_mensal_associado: Mapped[Decimal] = mapped_column(
         Numeric(10, 2), nullable=False, default=Decimal("0.00"), server_default="0.00"
     )

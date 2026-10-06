@@ -11,10 +11,17 @@ from src.core.database import get_db
 from src.models import User, PermissionFeature
 from src.repositories.associado_repo import AssociadoRepository
 from src.services.audit_service import AuditService
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 
-router = APIRouter(prefix="/api/v1/admin/associados", tags=["admin-associados"])
+router = APIRouter(
+    prefix="/api/v1/admin/associados",
+    tags=["admin-associados"],
+    # Gate de plano único (P-05): controle de associados é Premium desde a
+    # reestruturação de out/2026 (antes Pro+, e o módulo nem tinha gate de plano
+    # para admins — só o PermissionService barrava operadores).
+    dependencies=[Depends(require_plan_feature("associados"))],
+)
 logger = logging.getLogger(__name__)
 
 

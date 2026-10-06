@@ -1,4 +1,4 @@
-"""AssociadoMensalidadeRepository — monthly dues for associados (PRO+ feature).
+"""AssociadoMensalidadeRepository — monthly dues for associados (Premium).
 
 Multi-tenant isolation: ALL methods receive tenant_id explicitly.
 Before any insert/update, associado ownership is verified against tenant_id.

@@ -1,6 +1,9 @@
 """Welcome email template for new tenant onboarding."""
 from html import escape
 
+from src.models.subscriptions import PlanType
+from src.repositories.subscription_repo import PLAN_LIMITS
+
 
 def _esc(value: str) -> str:
     return escape(value) if value else ""
@@ -27,7 +30,8 @@ def generate_welcome_html(
         )
         beneficios = """\
                 <li>Usuários, giras e médiuns <strong>ilimitados</strong></li>
-                <li>Financeiro completo, estoque e site do terreiro</li>
+                <li>Financeiro completo, estoque, associados e site do terreiro</li>
+                <li>Fila de espera e senhas com horário marcado</li>
                 <li>Analytics avançado e suporte prioritário</li>
                 <li>Emitir senhas para consulentes em tempo real</li>"""
         aviso = (
@@ -40,8 +44,9 @@ def generate_welcome_html(
             f"Sua conta para <strong>{t_name}</strong> foi criada com sucesso no plano "
             f"<strong>Grátis</strong>."
         )
-        beneficios = """\
-                <li>Criar até <strong>4 giras por mês</strong></li>
+        giras_free = PLAN_LIMITS[PlanType.FREE]["max_giras_per_month"]
+        beneficios = f"""\
+                <li>Criar até <strong>{giras_free} giras por mês</strong></li>
                 <li>Emitir senhas para consulentes</li>
                 <li>Gerenciar fila de atendimento em tempo real</li>
                 <li>Acompanhar o painel de controle</li>"""

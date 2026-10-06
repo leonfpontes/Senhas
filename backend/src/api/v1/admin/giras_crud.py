@@ -101,7 +101,7 @@ class SenhaConfigRequest(BaseModel):
     sponsor_max_tickets: Optional[int] = None
     sponsor_release_start_at: Optional[datetime] = None
     sponsor_release_end_at: Optional[datetime] = None
-    # Fila de espera: hours a promoted ticket has to confirm (PRO+ only; ignored
+    # Fila de espera: hours a promoted ticket has to confirm (Premium only; ignored
     # server-side when the tenant doesn't have the feature enabled)
     waitlist_confirmation_hours: Optional[int] = None
 

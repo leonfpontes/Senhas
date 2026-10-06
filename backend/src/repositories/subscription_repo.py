@@ -13,10 +13,14 @@ from .base import BaseRepository
 # PREMIUM usa números grandes (não -1) como sentinel de "ilimitado" — é o que
 # o restante do frontend (platform/billing.tsx, admin/plano.tsx, admin/mediuns.tsx)
 # já espera; ver test_webhook_plan_sync.py::test_premium_never_uses_negative_one.
+# Os limites são COPIADOS para a linha de `subscriptions` na troca de plano: mudou
+# um número aqui, crie migração de dados para as assinaturas existentes (ex.:
+# 059_planos_limites_out_2026, reestruturação de out/2026: FREE 4→2 giras,
+# BASIC 10→3 giras e 50→15 médiuns, PRO 15→4 giras e 150→30 médiuns).
 PLAN_LIMITS: dict = {
-    PlanType.FREE:    {"max_users": 1,     "max_giras_per_month": 4,      "max_mediuns": 0,       "price": 0.0},
-    PlanType.BASIC:   {"max_users": 3,     "max_giras_per_month": 10,     "max_mediuns": 50,      "price": 49.0},
-    PlanType.PRO:     {"max_users": 10,    "max_giras_per_month": 15,     "max_mediuns": 150,     "price": 79.0},
+    PlanType.FREE:    {"max_users": 1,     "max_giras_per_month": 2,      "max_mediuns": 0,       "price": 0.0},
+    PlanType.BASIC:   {"max_users": 3,     "max_giras_per_month": 3,      "max_mediuns": 15,      "price": 49.0},
+    PlanType.PRO:     {"max_users": 10,    "max_giras_per_month": 4,      "max_mediuns": 30,      "price": 79.0},
     PlanType.PREMIUM: {"max_users": 99999, "max_giras_per_month": 999999, "max_mediuns": 9999999, "price": 99.0},
 }
 

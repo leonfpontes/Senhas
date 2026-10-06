@@ -1,7 +1,7 @@
 """Waitlist service — fila de espera de senhas.
 
 When a gira reaches `max_tickets`, tenants with the waitlist feature enabled
-(PRO+/Premium, toggle `TenantConfig.enable_waitlist`) allow further requests
+(Premium, toggle `TenantConfig.enable_waitlist`) allow further requests
 to be recorded as `TicketStatus.WAITLISTED` instead of being rejected.
 
 Queue ordering reuses the ticket's already-assigned sequential `numero` (the

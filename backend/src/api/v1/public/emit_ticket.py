@@ -52,6 +52,15 @@ router = APIRouter(prefix="/api/v1/public", tags=["public"])
 logger = logging.getLogger(__name__)
 
 
+async def _plan_has_associados(session, tenant_id) -> bool:
+    """Plano × status da assinatura incluem o controle de associados (P-05)."""
+    from src.repositories.subscription_repo import SubscriptionRepository
+    from src.services.plan_features import get_effective_plan_features
+
+    sub = await SubscriptionRepository(session).get_by_tenant(tenant_id)
+    return get_effective_plan_features(sub).associados
+
+
 class EmitTicketRequest(BaseModel):
     """Request body for ticket emission
     
@@ -442,7 +451,11 @@ async def emit_ticket(
             tc_check = select(TenantConfig).where(TenantConfig.tenant_id == tenant.id)
             tc_check_result = await session.execute(tc_check)
             tc = tc_check_result.scalar_one_or_none()
-            if tc and tc.validate_associado_on_emit:
+            # Toggle vale só com controle de associados no plano (Premium desde
+            # out/2026): sem o módulo o terreiro não consegue manter a lista, então
+            # validar contra ela barraria associados novos. Plano sem a feature →
+            # toggle tratado como desligado (mesmo padrão da fila de espera).
+            if tc and tc.validate_associado_on_emit and await _plan_has_associados(session, tenant.id):
                 from src.repositories.associado_repo import AssociadoRepository
                 assoc_repo = AssociadoRepository(session)
                 if not await assoc_repo.email_exists(tenant.id, body.email):

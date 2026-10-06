@@ -55,10 +55,10 @@ class TenantConfig(TimestampedModel):
     # Estoque: log de movimentações no audit_log
     enable_estoque_log: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
 
-    # Mensalidade de associados feature toggle (PRO+)
+    # Mensalidade de associados feature toggle (Premium)
     enable_mensalidade_associado: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
-    # Fila de espera feature toggle (PRO+)
+    # Fila de espera feature toggle (Premium)
     enable_waitlist: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     # Agendamento por horário de atendimento (habilita o seletor de horário na

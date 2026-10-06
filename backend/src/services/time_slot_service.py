@@ -1,6 +1,6 @@
 """Time slot scheduling service — agendamento por horário.
 
-Optional feature (off by default, PRO+/Premium only) that lets a gira publish
+Optional feature (off by default, Premium only) that lets a gira publish
 named attendance windows (ex: 20h, 20h30, 21h) each with their own capacity,
 so consulentes pick when they intend to show up instead of everyone queuing
 at the door at once. Three things gate it: the tenant's plan tier, the
@@ -30,7 +30,7 @@ class SlotAvailability(NamedTuple):
 async def time_slot_scheduling_enabled_for_tenant(session: AsyncSession, tenant_id: UUID) -> bool:
     """True when the tenant toggled the feature on AND its current plan allows it.
 
-    PRO+/Premium only. Both checks are enforced server-side (not just relying
+    Premium only. Both checks are enforced server-side (not just relying
     on the toggle) so a plan downgrade after the toggle was enabled disables
     the feature immediately — mirrors waitlist_service.waitlist_enabled_for_tenant.
     """

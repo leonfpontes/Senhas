@@ -24,6 +24,7 @@ from ..services.plan_features import (
     BLOCK_TRIAL_ENDED,
     PLAN_FEATURE_NAMES,
     _get_plan_features,
+    feature_min_plan,
     subscription_block_reason,
 )
 from sqlalchemy import select
@@ -234,16 +235,44 @@ async def require_super_admin(user: User = Depends(get_current_user)) -> User:
 # A ordem é plano → status: 403 diz "não está no seu plano" (pagar não resolve);
 # 402 só aparece quando regularizar a assinatura devolveria o acesso.
 
+# Nome exibido de cada feature nas mensagens de 403. O plano mínimo vem do
+# catálogo (`feature_min_plan`), então a mensagem acompanha a matriz de planos
+# sem precisar ser reescrita quando uma feature muda de plano.
+_PLAN_FEATURE_LABELS: dict[str, str] = {
+    "email_transacional": "Rastreio de e-mail",
+    "estoque_controle": "Controle de Estoque",
+    "site_builder": "Site Builder",
+    "contas_financeiras": "Controle financeiro (contas a pagar/receber e fluxo de caixa)",
+    "mensalidade_mediun": "Controle de Mensalidade de Médiuns",
+    "mensalidade_associado": "Controle de Mensalidade de Associados",
+    "associados": "Controle de Associados",
+    "fila_espera": "Fila de espera",
+    "agendamento_por_horario": "Senhas com horário marcado",
+}
+
+
+_PLAN_DISPLAY_NAMES = {
+    PlanType.FREE: "Gratuito",
+    PlanType.BASIC: "Basic",
+    PlanType.PRO: "Pro",
+    PlanType.PREMIUM: "Premium",
+}
+
+def plan_feature_denied_message(feature: str) -> str:
+    """Mensagem de 403 "disponível a partir do plano X" derivada do catálogo."""
+    if feature == "mediuns":
+        return "Funcionalidade de médiuns não disponível no plano atual."
+    label = _PLAN_FEATURE_LABELS.get(feature)
+    if label is None:
+        return "Recurso não disponível no plano atual."
+    min_plan = feature_min_plan(feature)
+    if min_plan == PlanType.PREMIUM:
+        return f"{label} disponível apenas no plano Premium."
+    return f"{label} disponível a partir do plano {_PLAN_DISPLAY_NAMES[min_plan]}."
+
+
 PLAN_FEATURE_DENIED_MESSAGES: dict[str, str] = {
-    "email_transacional": "Rastreio de e-mail disponível apenas nos planos Pro e Premium.",
-    "estoque_controle": "Controle de Estoque disponível a partir do plano Pro.",
-    "site_builder": "Site Builder está disponível apenas nos planos Pro e Premium.",
-    "contas_financeiras": "Contas a Pagar/Receber está disponível nos planos Pro e Premium.",
-    "mensalidade_mediun": "Controle de Mensalidade de Médiuns está disponível a partir do plano Pro.",
-    "mensalidade_associado": "Controle de Mensalidade de Associados está disponível nos planos Pro e Premium.",
-    "mediuns": "Funcionalidade de médiuns não disponível no plano atual.",
-    "fila_espera": "Fila de espera disponível apenas nos planos Pro e Premium",
-    "agendamento_por_horario": "Agendamento por horário disponível apenas nos planos Pro e Premium",
+    name: plan_feature_denied_message(name) for name in PLAN_FEATURE_NAMES
 }
 
 

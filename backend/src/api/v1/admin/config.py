@@ -272,8 +272,14 @@ async def update_tenant_config(
         current_config.sponsor_priority_mode = config_update.sponsor_priority_mode
         await db.flush()
     
-    # Update validate_associado_on_emit
+    # Update validate_associado_on_emit — ligar exige controle de associados no
+    # plano (Premium desde out/2026); desligar é sempre permitido. Com o plano
+    # sem associados, a emissão ignora o toggle (ver public/emit_ticket.py).
     if config_update.validate_associado_on_emit is not None:
+        if config_update.validate_associado_on_emit:
+            from src.api.dependencies import check_plan_feature
+
+            await check_plan_feature(current_user, db, "associados")
         current_config = await repo.get_by_tenant(current_user.tenant_id)
         current_config.validate_associado_on_emit = config_update.validate_associado_on_emit
         await db.flush()
@@ -286,15 +292,20 @@ async def update_tenant_config(
             enabled=config_update.enable_estoque_log,
         )
 
-    # Update enable_mensalidade_associado
+    # Update enable_mensalidade_associado — ligar exige mensalidade_associado no
+    # plano (Premium desde out/2026); desligar é sempre permitido.
     if config_update.enable_mensalidade_associado is not None:
+        if config_update.enable_mensalidade_associado:
+            from src.api.dependencies import check_plan_feature
+
+            await check_plan_feature(current_user, db, "mensalidade_associado")
         await repo.toggle_feature(
             tenant_id=current_user.tenant_id,
             feature_flag="enable_mensalidade_associado",
             enabled=config_update.enable_mensalidade_associado,
         )
 
-    # Update enable_waitlist — enabling it requires a PRO/Premium plan;
+    # Update enable_waitlist — enabling it requires fila_espera (Premium);
     # disabling is always allowed regardless of plan.
     if config_update.enable_waitlist is not None:
         if config_update.enable_waitlist:
@@ -308,8 +319,8 @@ async def update_tenant_config(
             enabled=config_update.enable_waitlist,
         )
 
-    # Update enable_time_slot_scheduling — enabling it requires a PRO/Premium
-    # plan; disabling is always allowed regardless of plan.
+    # Update enable_time_slot_scheduling — enabling it requires
+    # agendamento_por_horario (Premium); disabling is always allowed regardless of plan.
     if config_update.enable_time_slot_scheduling is not None:
         if config_update.enable_time_slot_scheduling:
             # Gate de plano único (P-05): 403 fora do plano, 402 assinatura irregular.

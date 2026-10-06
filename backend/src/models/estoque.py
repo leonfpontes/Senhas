@@ -1,4 +1,4 @@
-"""Estoque models — inventory management for terreiros (Plano Pro+)."""
+"""Estoque models — inventory management for terreiros (Plano Premium)."""
 import enum
 import uuid
 from datetime import datetime
