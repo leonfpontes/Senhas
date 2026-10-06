@@ -59,6 +59,7 @@ import {
   impersonateTenantAdmin,
   type ActivationData,
   type ActivationTenant,
+  type BillingCategoryKey,
   type Tone,
 } from '@/components/platform';
 import { STUCK_STAGES } from '@/components/platform/ActivationSection';
@@ -124,6 +125,11 @@ interface SubscriptionItem {
   plan: string;
   status: string;
   monthly_price: number;
+  /** Receita real (só pagantes) — regra em backend/src/services/billing_metrics.py. */
+  mrr: number;
+  /** Preço do plano em teste, para quem está em teste. */
+  potential_mrr: number;
+  category: BillingCategoryKey;
   current_users: number;
   max_users: number;
   is_trial: boolean;
@@ -217,7 +223,8 @@ export interface ChangeItem {
 export function buildChangeList(subs: SubscriptionItem[], now: Date = new Date()): ChangeItem[] {
   const items: ChangeItem[] = [];
   for (const s of subs) {
-    const base = { tenantId: s.tenant_id, name: s.tenant_name, mrr: s.monthly_price };
+    // Valor em jogo: receita real do pagante ou o que o terreiro em teste pagaria; bônus e cancelados não pagam.
+    const base = { tenantId: s.tenant_id, name: s.tenant_name, mrr: s.mrr || s.potential_mrr };
     if (s.status === 'cancelled' || s.status === 'expired') {
       items.push({ ...base, label: s.status === 'cancelled' ? 'Assinatura cancelada' : 'Assinatura expirada', tone: 'destructive', date: s.current_period_end });
     } else if (s.status === 'suspended') {
@@ -464,9 +471,13 @@ const PlatformHoje: React.FC = () => {
 
   const mrrById = useMemo(() => {
     const map: Record<string, number> = {};
-    subs.forEach((s) => { map[s.tenant_id] = s.status === 'active' ? s.monthly_price : 0; });
+    // Valor em jogo por terreiro: MRR real do pagante ou o que o terreiro em teste pagaria se assinasse.
+    subs.forEach((s) => { map[s.tenant_id] = s.mrr || s.potential_mrr; });
     return map;
   }, [subs]);
+  const inTrial = useMemo(() => new Set(subs.filter((s) => s.category === 'em_teste').map((s) => s.tenant_id)), [subs]);
+  const moneyMeta = (tenantId: string, value: number) =>
+    value > 0 ? `${fmtMoney(value)}/mês${inTrial.has(tenantId) ? ' se assinar' : ''}` : undefined;
 
   const contactList = useMemo(
     () => buildContactList(observatory?.activation.tenants ?? [], observatory?.retention ?? [], mrrById),
@@ -476,10 +487,9 @@ const PlatformHoje: React.FC = () => {
   const unreadConversations = useMemo(() => conversations.filter((c) => c.unread), [conversations]);
   const errors = observatory?.errors_by_tenant ?? [];
 
-  const paying = useMemo(
-    () => subs.filter((s) => s.status === 'active' && !s.is_trial && !s.is_bonus && s.monthly_price > 0).length,
-    [subs],
-  );
+  const paying = useMemo(() => subs.filter((s) => s.category === 'pagante').length, [subs]);
+  const trialing = useMemo(() => subs.filter((s) => s.category === 'em_teste'), [subs]);
+  const trialPotential = trialing.reduce((acc, s) => acc + s.potential_mrr, 0);
   const activatedThisMonth = useMemo(
     () => (observatory?.activation.tenants ?? []).filter((t) => t.stage === 'ativado' && (t.days_since_signup ?? 99) <= 30).length,
     [observatory],
@@ -496,7 +506,7 @@ const PlatformHoje: React.FC = () => {
       PLAN_ORDER.map((key) => ({
         key,
         plan: PLAN_META[key].label,
-        mrr: subs.filter((s) => s.status === 'active' && s.plan === key).reduce((acc, s) => acc + s.monthly_price, 0),
+        mrr: subs.filter((s) => s.plan === key).reduce((acc, s) => acc + s.mrr, 0),
         color: PLAN_META[key].chartColor,
       })),
     [subs],
@@ -558,8 +568,15 @@ const PlatformHoje: React.FC = () => {
       {/* KPIs */}
       <div data-tour="platform-kpis" className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard label="MRR" value={fmtMoney(mrr)} subtitle={mrrDeltaLabel} icon={<Wallet />} color="var(--primary)" loading={loading} />
-        <KpiCard label="Pagantes" value={paying} subtitle="Assinaturas ativas pagas" icon={<Users />} color="var(--success)" loading={loading} />
-        <KpiCard label="Em teste" value={dashboard?.tenants.trial ?? 0} subtitle="Trials ativos" icon={<FlaskConical />} color="var(--warning)" loading={loading} />
+        <KpiCard label="Pagantes" value={paying} subtitle="Cobrados no Stripe (sem teste e sem bônus)" icon={<Users />} color="var(--success)" loading={loading} />
+        <KpiCard
+          label="Em teste"
+          value={trialing.length}
+          subtitle={trialPotential > 0 ? `+${fmtMoney(trialPotential)}/mês se assinarem` : 'Trials ativos'}
+          icon={<FlaskConical />}
+          color="var(--warning)"
+          loading={loading}
+        />
         <KpiCard label="Ativados no mês" value={activatedThisMonth} subtitle="Cadastros de 30 dias com 20+ senhas" icon={<Rocket />} color="var(--info)" loading={loading} />
       </div>
 
@@ -581,7 +598,7 @@ const PlatformHoje: React.FC = () => {
               tenantId={item.tenantId}
               name={item.name}
               badges={item.reasons}
-              meta={item.mrr > 0 ? `${fmtMoney(item.mrr)}/mês` : undefined}
+              meta={moneyMeta(item.tenantId, item.mrr)}
               phone={item.phone}
               testId={`contatar-${item.tenantId}`}
             />
@@ -604,7 +621,7 @@ const PlatformHoje: React.FC = () => {
               tenantId={item.tenantId}
               name={item.name}
               badges={[{ label: item.label, tone: item.tone }]}
-              meta={item.mrr > 0 ? `${fmtMoney(item.mrr)}/mês` : undefined}
+              meta={moneyMeta(item.tenantId, item.mrr)}
               phone={null}
             />
           ))}

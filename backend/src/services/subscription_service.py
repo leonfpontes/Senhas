@@ -10,6 +10,7 @@ from ..repositories.subscription_repo import SubscriptionRepository
 from ..repositories.billing_repo import BillingRepository
 from ..core.errors import NotFoundError, InvalidInputError
 from .plan_features import plan_tier
+from .billing_metrics import billing_fields
 
 
 class SubscriptionService:
@@ -207,6 +208,7 @@ class SubscriptionService:
             "trial_ends_at": sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
             "auto_renew": sub.auto_renew,
             "created_at": sub.created_at.isoformat(),
+            **billing_fields(sub, tenant_deleted=False),
         }
     
     async def _create_upgrade_invoice(

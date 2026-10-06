@@ -31,7 +31,7 @@ const USERS = [
   { id: 'u1', email: 'adm@casa.com', username: 'adm', role: 'ADMIN', is_active: true, created_at: '2026-09-01T00:00:00Z' },
   { id: 'u2', email: 'op@casa.com', username: 'op', role: 'OPERATOR', is_active: false, created_at: '2026-09-01T00:00:00Z' },
 ];
-const SUB = { plan: 'pro', status: 'active', max_users: 10, max_giras_per_month: 15, current_users: 2, monthly_price: 79, is_trial: true, trial_ends_at: new Date(Date.now() + 5 * 86_400_000).toISOString(), is_bonus: true };
+const SUB = { plan: 'pro', status: 'active', max_users: 10, max_giras_per_month: 15, current_users: 2, monthly_price: 79, is_trial: true, trial_ends_at: new Date(Date.now() + 5 * 86_400_000).toISOString(), is_bonus: true, billing_category: 'bonificado', mrr: 0, potential_mrr: 0 };
 
 function install(notFound = false) {
   mockGet.mockImplementation((url: string) => {
@@ -61,7 +61,9 @@ describe('Platform — Tenant 360', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Casa Alfa' })).toBeInTheDocument();
     expect(screen.getByText('casa-alfa', { selector: 'span' })).toBeInTheDocument();
     expect(await screen.findByText('Trial: 5 dias restantes')).toBeInTheDocument();
-    expect(screen.getByText('R$ 79,00', { selector: 'strong' })).toBeInTheDocument();
+    // Bonificado não é receita: MRR zero, mesmo com plano de R$ 79.
+    expect(screen.getByText('R$ 0,00', { selector: 'strong' })).toBeInTheDocument();
+    expect(screen.getByText('Bonificado')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Acesso bonificado' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Mensagem/ })).toHaveAttribute('href', '/platform/suporte?tenant=t1');
     expect(screen.getByRole('button', { name: /Entrar como admin/ })).toBeInTheDocument();
