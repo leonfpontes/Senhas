@@ -18,18 +18,18 @@ concedido (mesma regra de `platform/subscriptions.py`), então mudam junto.
 cadastrados acima do novo limite) não são apagados: só a criação de novos
 fica bloqueada até o terreiro voltar para baixo do limite ou mudar de plano.
 
-Integração: outra branch pode trazer uma 058; nesse caso, ao integrar,
-re-encadear esta revisão depois dela (down_revision) — não criar duas heads.
+Integração: re-encadeada depois de `058_associados_email_unique_ativo` (2.2.0)
+ao integrar com a branch das jornadas — uma única head.
 
 Revision ID: 059_planos_limites_out_2026
-Revises: 057_rbac_grupo_padrao
+Revises: 058_associados_email_unique_ativo
 Create Date: 2026-10-06
 """
 
 from alembic import op
 
 revision: str = "059_planos_limites_out_2026"
-down_revision: str = "057_rbac_grupo_padrao"
+down_revision: str = "058_associados_email_unique_ativo"
 branch_labels = None
 depends_on = None
 

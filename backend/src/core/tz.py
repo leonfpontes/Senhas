@@ -21,7 +21,7 @@ Usage::
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import Integer, func
@@ -61,6 +61,15 @@ def local_date(col: ColumnElement) -> ColumnElement:
     return func.date(func.timezone(_TZ_LITERAL, col))
 
 
+def today_local() -> date:
+    """Data de hoje no fuso da aplicação (São Paulo).
+
+    Use no lugar de ``date.today()`` — o servidor roda em UTC, então entre
+    21h e 0h (horário de Brasília) ``date.today()`` já devolve o dia seguinte.
+    """
+    return datetime.now(tz=APP_TZ).date()
+
+
 def today_utc_range() -> tuple[datetime, datetime]:
     """Return (start_utc, end_utc) covering today in the São Paulo timezone.
 
@@ -81,3 +90,23 @@ def today_utc_range() -> tuple[datetime, datetime]:
     end_utc = end_local.astimezone(timezone.utc)
 
     return start_utc, end_utc
+
+
+def today_local() -> date:
+    """Data de hoje no fuso do terreiro (America/Sao_Paulo).
+
+    Use no lugar de ``date.today()`` (fuso do servidor, UTC em produção) sempre que a
+    regra depender do "dia de hoje" do usuário — ex.: lançamento vencido, mês corrente.
+    Entre 21h e meia-noite de Brasília, ``date.today()`` em UTC já é o dia seguinte.
+    """
+    return datetime.now(tz=APP_TZ).date()
+
+
+def local_day_bounds_utc(start: date, end: date) -> tuple[datetime, datetime]:
+    """(início, fim) em UTC cobrindo os dias ``start``..``end`` inteiros de Brasília.
+
+    Fim exclusivo (meia-noite do dia seguinte a ``end``): use ``col >= ini`` e ``col < fim``.
+    """
+    ini = datetime.combine(start, datetime.min.time(), tzinfo=APP_TZ).astimezone(timezone.utc)
+    fim = datetime.combine(end + timedelta(days=1), datetime.min.time(), tzinfo=APP_TZ).astimezone(timezone.utc)
+    return ini, fim

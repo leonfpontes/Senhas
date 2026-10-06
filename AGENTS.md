@@ -20,7 +20,8 @@ Senhas e um SaaS multi-tenant para emissao e gestao de tickets (senhas) para ate
 Principais modulos:
 - API publica de emissao e reenvio de senha.
 - Painel admin do tenant (giras, porta, tickets, analytics, config, auditoria).
-- Painel platform (super admin) para gestao de tenants, usuarios globais, billing e feature flags.
+- Painel platform (super admin) para gestao de tenants, usuarios globais e billing (a aba de
+  feature flags saiu em 2026-10-06 — ver §11.18).
 
 ---
 
@@ -80,7 +81,7 @@ tenant redundante (barato) a uma excecao.
 - Endpoints platform so para super admin (escopo global).
 
 **Fluxo de autenticacao via cookie HttpOnly (desde 2026-06-27):**
-- Login seta 3 cookies: `access_token` (HttpOnly, Secure, SameSite=Strict), `refresh_token` (HttpOnly), `auth_state=1` (nao-HttpOnly — legivel por JS para verificar login).
+- Login seta 3 cookies: `access_token` (HttpOnly, Secure, SameSite=Strict), `refresh_token` (HttpOnly), `auth_state=1` (nao-HttpOnly — legivel por JS para verificar login). Cadastro (`/public/onboarding`) e reativacao de conta setam os mesmos 3 (helper unico `core/auth_cookies.set_auth_cookies`). `remember_me=false` no login → cookies de sessao (sem max_age), mantido no `/auth/refresh` (ver §11.22).
 - `/auth/refresh` implementado: le `refresh_token` do cookie, valida com `decode_refresh_token` (requer `type=refresh`), emite novo access + rotaciona refresh.
 - `jwt_middleware` extrai token do header `Authorization: Bearer` primeiro (impersonacao via sessionStorage), depois fallback para cookie `access_token`.
 - `jwt_middleware` public_paths inclui `/auth/refresh`, `/auth/forgot-password`, `/auth/reset-password`.
@@ -88,6 +89,14 @@ tenant redundante (barato) a uma excecao.
 - Impersonacao usa sessionStorage e header Bearer — fluxo preservado separado.
 - `hasAuthToken()` checa: `sessionStorage.getItem('access_token')` OR `document.cookie.includes('auth_state=1')` OR `localStorage.getItem('user')`.
 - Logout DEVE chamar `POST /api/v1/auth/logout` para limpar cookies no servidor.
+- Apagar os cookies de auth: SEMPRE `clear_auth_cookies(response)` de `src/core/auth_cookies.py` (junto com `set_auth_cookies`)
+  (os 3 cookies, com os mesmos atributos do login — `secure` depende de DEBUG). Usado por logout,
+  logout-all, change-password, delete account e deactivate account.
+- Impersonacao: os cookies do navegador sao do SUPER-ADMIN. Endpoint que revoga sessoes ou apaga
+  cookies recusa token com `impersonated_by` (403, `is_impersonated_request(request)`): logout-all,
+  change-password, delete account, deactivate account. No front, o "Sair" do topo chama
+  `endImpersonation()` (nunca `/auth/logout`) e o perfil nao grava o usuario impersonado no
+  `localStorage['user']` (so no `sessionStorage` da aba).
 
 ### 3.3 Grupos de Permissao — OBRIGATORIO em toda funcionalidade
 
@@ -114,7 +123,7 @@ Acoes mapeadas por tipo de endpoint:
 
 Rotas existentes e suas features:
 - Giras, Porta (door_control) → `PermissionFeature.GIRAS` / `PermissionFeature.PORTA`
-- Tickets, tickets_bulk, validate_bulk, email_resend → `PermissionFeature.TICKETS`
+- Tickets, tickets_bulk, validate_bulk → `PermissionFeature.TICKETS` (email_resend e so admin — isento do guard de grupo)
 - Mediuns → `PermissionFeature.MEDIUNS`
 - Associados → `PermissionFeature.ASSOCIADOS`
 - Usuarios → `PermissionFeature.USUARIOS`
@@ -124,8 +133,14 @@ Rotas existentes e suas features:
 - Configuracoes do Tenant → `PermissionFeature.CONFIGURACOES`
 - Auditoria → `PermissionFeature.AUDITORIA`
 - Analytics → `PermissionFeature.ANALYTICS`
-- Relatorio de Gira / exports CSV → `PermissionFeature.RELATORIO_GIRA`
+- Relatorio de Gira → `PermissionFeature.RELATORIO_GIRA`; export CSV de senhas (`exports.py`) → TICKETS ou RELATORIO_GIRA (+ plano `export_csv`)
 - Cursos Presenciais / Sites → `PermissionFeature.CURSOS_PRESENCIAIS`
+
+Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
+leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
+pode virar escalada de privilegio, escreva a protecao especifica — ex.: `users.py` (operador com
+USUARIOS nao cria/promove/edita/remove administrador; SUPER_ADMIN nunca e atribuivel; ninguem se
+exclui/desativa/rebaixa; o ultimo admin ativo fica) e `config.py` (cores/logo exigem plano).
 
 Para nova feature sem equivalente existente:
 1. Adicionar valor ao enum `PermissionFeature` em `backend/src/models/permission_groups.py`.
@@ -209,7 +224,8 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   normalmente mas nao sofre corte de fim de trial; `cancel_at_period_end` mantem acesso ate o webhook
   `customer.subscription.deleted`.
 - Limites numericos (usuarios, giras/mes, mediuns) ficam no endpoint, mas leem `effective_limit(sub, campo)`:
-  SUSPENDED → 402; CANCELLED/EXPIRED de plano pago ou trial vencido → limites do FREE.
+  SUSPENDED → 402; CANCELLED/EXPIRED de plano pago ou trial vencido → limites do FREE. `max_mediuns` vale
+  na criacao E na reativacao (`PATCH is_active=true`) de medium.
 - `GET /api/v1/admin/subscription` devolve `features` via `get_effective_plan_features(sub)` — a UI esconde o
   que o backend nega. `PermissionService.is_feature_enabled_for_plan` (operadores) usa a mesma funcao.
 - Mensagem de 403: derivada do catalogo (`plan_feature_denied_message`): "X disponivel a partir do plano
@@ -219,11 +235,22 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   e tenant que perdeu a feature com o toggle gravado ligado nao pode levar 403. Em runtime toggle sem
   plano vale como desligado (`waitlist_service`, `time_slot_service`, `public/emit_ticket.py`,
   `mensalidades._assoc_enabled`).
-- Modulos gated hoje: estoque (`estoque_controle`), associados (`associados`, no router desde out/2026),
-  sites e cursos presenciais (`site_builder`), contas
+- Modulos gated hoje: estoque (`estoque_controle`), sites e cursos presenciais (`site_builder`), contas
   financeiras (`contas_financeiras`), rastreio/reenvio de e-mail (`email_transacional`), mensalidades
-  (`mensalidade_mediun` / `mensalidade_associado`), mediuns (`mediuns`, em aniversariantes e criacao),
-  toggles de fila de espera e agendamento por horario em config.
+  (`mensalidade_mediun` / `mensalidade_associado`), mediuns (`mediuns`, em aniversariantes, criacao,
+  edicao e exclusao — listar/consultar fica livre: modo somente leitura P-09), associados
+  (`associados`, router inteiro; Premium desde out/2026), analytics (`analytics_basico`) e auditoria (`auditoria`) — ambos no
+  router desde 2026-10-06 (antes so a tela checava o plano), toggles de fila de espera e agendamento
+  por horario em config, marca do terreiro (`tema_personalizado`: so quando o PUT /tenant/config MUDA
+  cor principal/de apoio/cor do texto, e no POST /tenant/logo; remover logo e os demais campos salvam
+  em qualquer plano) e exportacao CSV (`export_csv`: CSV da gira e da posicao de estoque).
+- Excecao no gate de plano para operadores: `view` de `MEDIUNS` NAO passa por
+  `is_feature_enabled_for_plan` (`_VIEW_SEM_GATE_DE_PLANO` em `permission_service.py`) — fora do plano o
+  operador com o grupo continua consultando os mediuns; insert/edit/delete seguem zerados.
+- `bulk_operations` vale em TODOS os planos (always-on desde 88dbc25; `plan_features.py` devolve
+  True): nao e vendido — fica fora do comparativo (`UNSOLD_FEATURES` em `constants/plans.ts`), junto
+  com `analytics_avancado` e `suporte_prioritario`, que nao tem nada implementado. Os campos seguem
+  no catalogo `PlanFeatures`.
 - Rotas `/api/v1/platform/*`: `Depends(require_super_admin)` importado de `src.api.dependencies` (copia unica).
 
 #### Matriz de planos (reestruturacao de out/2026)
@@ -239,13 +266,14 @@ crie migracao de dados como a `059_planos_limites_out_2026`):
 | Mediuns | — | 15 | 30 | ilimitado |
 
 Recursos (plano minimo em `_FEATURE_MIN_TIER`):
-- **Todos**: senha pelo link, Porta, painel.
-- **Basic+**: `mediuns`, `relatorio_gira`, `bulk_operations`.
-- **Pro+**: `email_transacional`, `tema_personalizado`, `analytics_basico`, `analytics_avancado`,
-  `export_csv`, `auditoria`, `site_builder` (site e cursos), `mensalidade_mediun`.
+- **Todos**: senha pelo link, Porta, painel e `bulk_operations` (always-on, nao vendido).
+- **Basic+**: `mediuns`, `relatorio_gira`.
+- **Pro+**: `email_transacional`, `tema_personalizado`, `analytics_basico`, `export_csv`, `auditoria`,
+  `site_builder` (site e cursos), `mensalidade_mediun`.
 - **So Premium**: `associados`, `mensalidade_associado`, `estoque_controle`, `contas_financeiras`
-  (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`,
-  `agendamento_por_horario`, `suporte_prioritario`.
+  (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`, `agendamento_por_horario`.
+- Fora do comparativo (`UNSOLD_FEATURES`): `bulk_operations`, `analytics_avancado` (Pro+ no catalogo)
+  e `suporte_prioritario` (Premium no catalogo) — nada implementado nos dois ultimos.
 - Premissa registrada: "mensalidade de mediuns" nao faz parte de "contas a pagar/receber" e segue no
   Pro. Para mudar, trocar `mensalidade_mediun` para PREMIUM em `_FEATURE_MIN_TIER` e em
   `FEATURE_MIN_PLAN` (frontend) — config/relatorio de mensalidades ja usam o gate dela.
@@ -444,20 +472,66 @@ Incluir obrigatoriamente:
 - **Campos de branding**: nome, slug, logo (upload de imagem como BYTEA), cores (primary, secondary, font).
 - **Endereco**: campo `endereco` em tenant_configs (migracao 011) — usado nos emails para o botao "Como chegar".
 - **Feature flags**: habilitacao de walk-in, patrocinadores, etc.
+- **Marca**: mudar cores/logo exige `tema_personalizado` (Pro+); quem ja tinha marca propria
+  continua exibindo. As respostas de PUT /tenant/config e POST/DELETE /tenant/logo trazem
+  `tenant_nome`. A previa da tela usa `pickForeground` (mesma regra do `applyBrand`).
+- **"Conferir e-mail de associado"** (`validate_associado_on_emit`): na emissao publica, quem se
+  DECLARA associado precisa usar um e-mail cadastrado em Associados; quem nao se declara pega senha
+  normalmente (nao restringe a emissao a associados).
 
 ### 11.3 Giras
-- Campo "Local" removido do formulario de criacao/edicao e da tabela — endereco agora vem da config do tenant.
+- Campo "Local" opcional no criar/editar ("Local (se diferente do endereco do terreiro)"). Vazio →
+  vale `TenantConfig.endereco` no cartao da gira e nos e-mails (templates: `gira_location` tem
+  precedencia sobre `tenant_address`).
+- `GET /api/v1/admin/giras` (lista, so leitura) aceita GIRAS, RELATORIO_GIRA, PORTA ou TICKETS
+  (`require_any_group_permission`) — Porta, modo TV, Senhas e o GiraProvider escolhem a gira por ela.
+  Detalhe/criar/editar/excluir e `/senhas` continuam so com GIRAS. `date_from`/`date_to` sao dias
+  de Brasilia (America/Sao_Paulo), nao dias UTC.
+- `GET /api/v1/admin/giras/settings` (GIRAS:view): `enable_time_slot_scheduling` + `endereco` para a
+  tela de Giras de quem nao tem CONFIGURACOES; `GET /config/time-slot-templates` aceita GIRAS:view
+  (o PUT segue so com CONFIGURACOES:edit).
+- Compartilhar no cartao/drawer da gira usa o `public_link` DA GIRA (`/public/gira/{id}`); o link
+  unico do terreiro (`/giras/unified-links`, resolve a gira aberta mais antiga) fica em "Link e QR".
+- Criar gira sem `giras:edit` pula o passo "Senhas" (o PUT `/senhas` exige edit) e avisa.
+- "Gira de hoje": `GiraRepository.get_upcoming_giras` inclui gira que comecou ha ate 12h (mesma
+  janela do GiraCard e de `pickTodayGira`). O seletor do topo vale para Dashboard, Senhas e Porta
+  (`GIRA_CONTEXT_ROUTES`); a tela de Giras nao usa.
 
 ### 11.4 Porta (Visao da Porta)
 - Gestao da fila de atendimento via **polling HTTP a cada 8s** (`POLLING_INTERVAL_MS`) — NAO ha
-  WebSocket no codigo atual (zero `@router.websocket` no backend; o hook `useWebSocket` foi
-  removido). A location de proxy WebSocket no nginx e legado sem efeito.
-- Modo TV/Kiosk fullscreen em `porta/kiosk.tsx` (mesmo polling).
-- Modais: AttendModal, WalkInModal.
+  WebSocket no codigo atual (zero `@router.websocket` no backend, nenhuma rota `/door/ws`; o hook
+  `useWebSocket` foi removido). A location `/ws/` do nginx e legado sem efeito.
+- **Fluxo de um passo**: "Chamar" abre o AttendModal e `PATCH /door/tickets/{id}/attend` grava
+  EMITTED → COMPLETED (chamado/atendido/finalizado no mesmo instante). O app nao grava mais
+  `called`: a interface nao tem "Em atendimento" (cartao, contador, filtro). `called` legado e
+  tratado como aguardando (front: `normalizeLegacyStatus`; back: `_WAITING_STATUSES` em checkin,
+  desfazer chegada, attend e no contador `awaiting`). `/complete` e `in_progress` ficam no backend
+  por compatibilidade, sem uso na interface.
+- Modo TV/Kiosk fullscreen em `porta/kiosk.tsx` (mesmo polling). Sem `?gira=` usa `pickTodayGira`.
+  Privacidade: mostra so primeiro nome + inicial do sobrenome (`nomeParaTv`).
+- Aviso sonoro: base = primeira fila carregada de cada gira (nao toca ao abrir nem ao trocar de gira).
+- Modais: AttendModal, WalkInModal. Editar "sem senha" com `priority_category: null` tira a prioridade
+  (campo omitido mantem a atual).
+
+### 11.4.1 Senhas (tickets)
+- Busca no servidor: `GET /giras/{id}/tickets?search=` (numero exato "42"/"0042"/"#42", "P001" =
+  associado, ou trecho de nome/e-mail). Resposta traz `numero_formatado` (P001/0001).
+- Rastreio/reenvio de e-mail so para admin (`email_resend.py` exige `is_admin`).
+- "Exportar CSV": `GET /giras/{id}/export-csv` com `require_plan_feature("export_csv")` +
+  TICKETS ou RELATORIO_GIRA (view); o botao segue o mesmo plano.
+- Cancelamento em lote cancela em cascata os acompanhantes do titular e devolve as vagas (igual a
+  exclusao individual).
 
 ### 11.5 Layout Admin (Sidebar)
 - Header redesenhado: fundo gradiente com cores do tenant, logo circular 52px (ou avatar fallback com inicial), nome do terreiro como texto principal (ate 2 linhas), "Senhas Admin" como label secundario.
-- Navegacao: Dashboard, Giras, Tickets, Porta, Usuarios, Analytics, Auditoria, Configuracoes.
+- Navegacao "por trabalho a fazer" em `frontend/src/components/admin/layout/navConfig.ts` (grupos Hoje,
+  Giras e senhas, Corrente, Casa, Conta), usada pela Sidebar, pela busca de acoes (⌘K) e pela barra do
+  celular. Todo item checa plano (`can`) E grupo da mesma feature da tela (`view(...)`); nada de
+  `!isOperator` para tela que tem feature de grupo. Analytics fica em "Giras e senhas" e Auditoria em
+  "Conta" (voltaram ao menu em 2026-10-06).
+- `getFeatureForPath` (admin_layout) tem de usar a MESMA feature da tela/backend: Lancamentos, Fluxo e
+  contas-pagar/receber → `contas_financeiras`; Mensalidades → `financeiro`; Configuracao financeira sem
+  feature no layout (cada aba se protege).
 - Item selecionado com gradiente do tenant.
 - Footer: "Senhas v1.1 — Admin Edition".
 - Responsivo: drawer temporario no mobile, permanente no desktop.
@@ -465,7 +539,12 @@ Incluir obrigatoriamente:
 
 ### 11.6 Perfil do Usuario
 - Upload de foto como BYTEA (armazenado no banco).
-- Avatar exibido no AppBar e no sidebar.
+- Avatar exibido no AppBar e no sidebar; salvar dados/foto chama `useProfile().refresh()` (o topo
+  atualiza na hora).
+- Trocar senha, excluir e desativar conta encerram a sessao (backend apaga os 3 cookies; o front
+  chama `/auth/logout` com `skipAutoLogout`). "Desativar conta e terreiro" so aparece para admin.
+- Impersonando, a tela esconde trocar senha, sair de todos os aparelhos, desativar e excluir (o
+  backend recusa com 403).
 
 ### 11.7 Homepage Publica
 - Favicon personalizado.
@@ -473,24 +552,28 @@ Incluir obrigatoriamente:
 
 ### 11.8 Cadeia de Migracoes Alembic
 - Head atual: `059_planos_limites_out_2026` (2026-10-06, migracao so de dados com os limites da
-  reestruturacao de planos; encadeada apos `057_rbac_grupo_padrao` — se outra branch trouxer uma 058,
-  re-encadear na integracao).
+  reestruturacao de planos), encadeada apos `058_associados_email_unique_ativo` (2026-10-06, 2.2.0).
 - Historico com 4 merge revisions (010, 030, 037, d9fafadd9261) — prefixos numericos ja
   colidiram 3x (009, 028, 030). Por isso a regra do §4.3: `alembic heads` ANTES de criar
   qualquer migracao nova.
 - Migracoes corretivas notaveis (post-mortems nos docstrings): 044b (largura de
   alembic_version.version_num — banco zerado quebrava no upgrade), 052 (dedup de consulentes +
   unique parcial por tenant+email), 054 (purga de time slots soft-deletados que colidiam na
-  unique).
+  unique), 058 (e-mail de associado unico so entre ativos — recadastrar excluido dava 500).
 
 ### 11.10 Financeiro — Controle de Mensalidade de Mediuns (branch 002-financeiro-mensalidade)
 - **Feature PRO+**: `mensalidade_mediun` e PRO+ no catalogo desde 2026-06-27; os endpoints exigiam PREMIUM ate o P-05 (2026-10-05), que passou a usar `require_plan_feature("mensalidade_mediun")`. Desde out/2026 a mensalidade de associados e Premium: config e relatorio ficam no gate `mensalidade_mediun` e a parte de associados so vale com `mensalidade_associado` no plano.
 - **Modelos**: `MensalidadeConfig` (valor_mensal, dia_vencimento, 1:1 tenant), `MensalidadePagamento` (UNIQUE mediun_id+mes, BYTEA comprovante), `MensalidadeStatus` enum (PENDENTE/PAGO/ISENTO).
-- **Endpoints** (prefixo `/api/v1/admin/financeiro`): config GET/PUT, mensalidades GET/POST por mes, comprovante GET/DELETE, resumo GET (6 hist + 3 proj), relatorio POST enviar / GET download.
-- **Regras de acesso**: leitura para OPERATOR+ADMIN, escrita (PUT config, POST pagamento, DELETE comprovante, POST relatorio) somente ADMIN/SUPER_ADMIN.
+- **Endpoints** (prefixo `/api/v1/admin/financeiro`): config GET/PUT, mensalidades GET/POST por mes, comprovante GET/DELETE, resumo GET (6 hist + 3 proj), relatorio POST enviar / GET download. Associados espelham em `/associados*`.
+- **Regras de acesso** (desde 2026-10-06): so `require_group_permission(FINANCEIRO, ...)` + gate de plano — nao ha mais checagem de perfil ADMIN (`_require_admin` removido; contradizia o grupo). Registrar/editar pagamento e POST (upsert) → acao `insert`; a tela mostra "Registrar"/lote so com `canGroup('financeiro','insert')`. PUT config → `edit`.
+- **Mes de referencia (mediuns)**: entra quem estava na casa em algum dia do mes (`data_entrada` <= fim do mes ou nula E ativo ou `data_saida` >= inicio do mes) e quem ja tem registro de pagamento no mes. Associados nao tem datas: todos os nao excluidos.
+- **Registro**: `valor_vigente` e capturado no PRIMEIRO registro do mes e nao muda em edicoes; `observacao` so muda quando o formulario envia o campo (vazio limpa; o lote "Marcar como pago" nao envia). O lote so seleciona linhas pendentes/inadimplentes.
+- **Espelho em contas a receber** (`services/mensalidade_contas_service.py`, `external_ref = mensalidade:{mediun|associado}:{id}:{YYYY-MM}`): PAGO grava `valor_pago` informado (sem ele, o vigente); PENDENTE → pendente/vencido; ISENTO cancela a conta do mes. Cadastro de medium/associado (nao isento) cria a conta do mes seguinte; inativar (referencia = `data_saida`), excluir ou marcar `mensalidade_isento` cancela as contas pendentes dos meses seguintes. Datas de "hoje" via `core.tz.today_local()` (Brasilia). Nos Lancamentos essas contas sao somente leitura: PUT/baixa/DELETE → 409 e a listagem traz `origem_mensalidade: true` (a tela mostra "Editar em Mensalidades").
+- **Isencao permanente**: `mensalidade_isento` em Medium/Associado e editavel nos dois cadastros (switch "Isento de mensalidade"); isento nao gera conta e nao entra no esperado/inadimplentes.
+- **Config**: `enable_mensalidade_associado` e ligado so em Financeiro → Configuracao → Mensalidade (saiu de Configuracoes). `email_relatorio_ativo` nao tem mais toggle na tela (nenhum job lia e nao havia botao de envio); a coluna continua e `POST /relatorio/enviar` nao depende mais dela.
 - **Comprovante**: BYTEA no banco, limite 5MB, tipos aceitos: jpeg/png/webp/pdf.
 - **Relatorio**: email HTML gerado por `render_mensalidade_report()` com KPI cards + tabela inadimplentes.
-- **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns + Grafico com Recharts) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`).
+- **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns / Associados / Historico; KPIs com o dia de vencimento de cada grupo, "Inadimplentes" so apos o vencimento) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`). `/admin/associados` carrega todas as paginas da API (limit 200) para a busca local.
 - **Migration 027**: ENUM `mensalidade_status`, tabelas `mensalidade_configs` + `mensalidade_pagamentos`, coluna `mediuns.mensalidade_isento BOOLEAN DEFAULT false`.
 - **Dependencia**: `python-dateutil` (usado em `mensalidade_repo.get_resumo` via `dateutil.relativedelta`).
 
@@ -534,7 +617,7 @@ Incluir obrigatoriamente:
 
 ### 11.15 Painel de ativação na tela Hoje (super-admin)
 - **Onde**: tela "Hoje" de `/platform` (o antigo `/platform/observatory` redireciona para ela, mantendo a âncora), componente `frontend/src/components/platform/ActivationSection.tsx`. Dados em `activation` do `GET /api/v1/platform/tenant-observatory` (protegido por `require_super_admin`), calculados por `backend/src/services/activation_service.py`.
-- **Conteúdo**: cadastros dos últimos 60 dias (`WINDOW_DAYS`), do mais recente ao mais antigo, cada um num estágio — `sem_gira` → `sem_senhas` (gira criada sem `max_tickets`, nada aparece no link) → `aguardando_senha` → `recebendo` → `usou_porta` → `ativado` (20+ senhas pelo link, mesmo limiar do checklist). Mostra também giras configuradas/total e próxima gira, senhas pelo link, trial (dias restantes) ou pagante, e-mails de onboarding enviados (D+1/D+3, de `custom_settings.onboarding_emails`), dor do cadastro, última atividade (sessão ou ação auditada) e contato do admin mais antigo com links de WhatsApp (`wa.me`, DDI 55 acrescentado) e e-mail.
+- **Conteúdo**: cadastros dos últimos 60 dias (`WINDOW_DAYS`), do mais recente ao mais antigo, cada um num estágio — `sem_gira` → `sem_senhas` (gira criada sem `max_tickets`, nada aparece no link) → `aguardando_senha` → `recebendo` → `usou_porta` → `ativado` (20+ senhas pelo link, mesmo limiar do checklist). Mostra também giras configuradas/total e próxima gira, senhas pelo link, trial (dias restantes) ou pagante, e-mails de onboarding enviados (D+1/D+3, de `custom_settings.onboarding_emails`), dor do cadastro, última atividade (sessão ou ação auditada — logs com `details.platform_action`, ações do super-admin, não contam) e contato do admin mais antigo com links de WhatsApp (`wa.me`, DDI 55 acrescentado) e e-mail.
 - **Consulta**: uma ida ao banco com subconsultas correlacionadas por tenant + uma para os contatos. Visão cross-tenant por desenho (super-admin), sem filtro de tenant.
 
 ### 11.17 MRR e categorias de cobrança da plataforma (2026-10-06)
@@ -547,6 +630,145 @@ Incluir obrigatoriamente:
   `_mrr` do `/platform/dashboard` (`paying_clause()`) e o MRR em risco da retenção.
 - Nunca somar `monthly_price` direto para falar de receita: use `effective_mrr`/`paying_clause`.
   O contador `subscriptions.current_users` não é mantido; conte usuários ativos na tabela `users`.
+  `GET/PUT/POST /platform/subscriptions/{id}*` já devolvem `current_users` contado e `is_bonus`.
+
+### 11.18 Jornadas de conta, plano e plataforma (2026-10-06)
+- **Pessoas e acessos** (`users.py` + `users.tsx`): gate só por grupo USUARIOS (sem `is_admin`
+  extra), com as proteções do §3.3; senha de criar/editar passa por `validate_password_policy`;
+  reativar respeita o limite de usuários ATIVOS; a tela conta só ativos e busca a lista completa
+  (o filtro de perfil é visual).
+- **Configurações** (`config.py`): gate só por grupo CONFIGURACOES; marca gated por plano (§3.4).
+- **`GET /admin/subscription`** traz `has_stripe_subscription` e `is_bonus`; o aviso de trial no topo
+  usa a mesma regra do `inLocalTrial` de billing.tsx (trial local, sem Stripe e sem bônus), mostra o
+  plano real e não aparece para operador.
+- **Billing**: `/billing/cancel` com cancelamento já agendado → 409 (sem reenviar e-mail);
+  `/billing/reactivate` converte erro da Stripe (`_reraise_stripe_error`). Se `GET /admin/billing`
+  falha, a tela mostra erro com "Tentar de novo" (nunca "Assinar agora"); `?plan=` é ignorado para
+  cortesia.
+- **Rótulos de plano**: fonte única `constants/plans.ts` ("Gratuito"); `useSubscription().planLabel`
+  e `platform/planMeta.ts` (rótulo, preço e limites) derivam dela; a tabela de planos da plataforma
+  usa `BASE_FEATURES` + `FEATURE_CATALOG`.
+- **Feature flags da plataforma**: a aba saiu de `/platform/settings` porque NADA no backend lê a
+  tabela `feature_flags` (ligar/desligar não mudava nada). A API `/api/v1/platform/feature-flags` e a
+  tabela continuam; se um dia forem usadas, ligar a leitura antes de devolver a aba.
+
+### 11.19 Lancamentos, fluxo de caixa, analytics e auditoria (2026-10-06)
+- **Auditoria antes do commit**: `AuditLogRepository.create` so faz flush e `get_db` fecha a sessao sem
+  commit. Log gravado depois do ultimo commit e descartado — grave o log antes do commit, ou comite de novo
+  depois dele (repositorios que comitam sozinhos, ex. `PermissionGroupRepository`). Corrigido em
+  contas_financeiras, permission_groups e no envio do relatorio de mensalidade.
+- **Status vencido e derivado** (`contas_financeiras.py`): em aberto (pendente/vencido gravado) com
+  vencimento antes de hoje em Brasilia (`core.tz.today_local()`) aparece como vencido na listagem, no
+  filtro `?status=` e no resumo. Nenhum GET grava status.
+- **PUT parcial**: lancamento, categoria e conta bancaria usam `model_dump(exclude_unset=True)` — null
+  explicito limpa campo opcional; null em campo obrigatorio → 422. `ativo` e editavel e as listagens
+  aceitam `?incluir_inativos=true` (a tela de configuracao usa; o formulario de lancamento nao).
+- **Recorrencia mensal/anual**: dar baixa gera a proxima ocorrencia uma unica vez, com
+  `external_ref = "recorrencia:{id_origem}:d{dia}"` (checado por prefixo, inclusive soft-deleted). O dia
+  original da serie e preservado (31/jan → 28/fev → 31/mar). Cancelar nao gera; estornar e dar baixa de
+  novo nao duplica.
+- **Cancelar / reabrir**: `POST /contas/{id}/cancelar` (so em aberto) e `POST /contas/{id}/reabrir`
+  (estorna baixa ou reabre cancelado), ambos `edit` e auditados; recusados (409) para espelho de
+  mensalidade (`external_ref mensalidade:*`).
+- **Fluxo de caixa**: com `data_inicio`/`data_fim`, o primeiro e o ultimo mes sao recortados pelas datas
+  exatas. `saldo_acumulado` parte do saldo de abertura = soma do `saldo_inicial` das contas bancarias
+  ativas + realizado (pago) antes do inicio do intervalo.
+- **Analytics**: `total_cancelled` conta status CANCELLED (era emitidos − usados) e ha `total_no_show`;
+  limites de data em dias inteiros de Brasilia (`core.tz.local_day_bounds_utc`). O toggle
+  `enable_analytics` saiu da tela de configuracao (era salvo e lido por ninguem; coluna mantida).
+- **Auditoria**: `GET /admin/audit-logs` = plano `auditoria` + grupo AUDITORIA:view (sem `is_admin` extra).
+
+### 11.20 Casa — Estoque, Cursos presenciais e Meu Site (revisão de jornada, 2026-10-06)
+- **Cursos presenciais**: autorização é só `require_group_permission(CURSOS_PRESENCIAIS, ...)` + gate de plano
+  `site_builder` — não há checagem de cargo no corpo (operador com o grupo cria/edita/inscreve; admin faz bypass).
+  Decimais (`valor_mensalidade_padrao`, `valor_mensalidade`, `valor_pago`) chegam como string ("120.00"): no
+  frontend sempre `toNum` de `@/lib/dateBr`. `data_pagamento` do pagamento único é enviado como
+  `YYYY-MM-DDT12:00:00-03:00` e exibido com `formatDateBr` (data pura). `aceita_uso_dados_saude` (LGPD art. 11) é
+  o checkbox do formulário (admin e público) — nunca inferido das respostas de saúde. Pagamento único
+  (`pago`/`valor_pago`/`data_pagamento`) e mensalidades (`curso_participante_pagamentos`) coexistem no modelo; a UI
+  mostra o pagamento único só quando o curso NÃO gera mensalidade (coluna, cartão e drawer), então as duas
+  informações nunca aparecem juntas.
+- **Listagens sem corte silencioso**: telas de Cursos, Participantes, Estoque (itens e movimentações) usam
+  `services/fetchAllPages.ts` (pede `skip`/`limit` no máximo do endpoint até uma página vir incompleta). As queries
+  têm desempate por `id` no `ORDER BY` para o offset não repetir/pular linha.
+- **Estoque**: CSV de posição exige `export_csv` também no backend; `ItemUpdate.estoque_minimo >= 0`; editar grupo
+  com `descricao: null` limpa o campo (`model_dump(exclude_unset=True)`); o "saldo após" do `MovimentacaoDrawer` na
+  edição desfaz a movimentação original antes de aplicar os valores novos (`saldoAposMovimentacao`).
+- **Meu Site — lock otimista**: toda resposta que muda o site (PUT/GET `/sections`, `publish`, `unpublish`,
+  `PUT /sites`, `restore`) devolve `updated_at`/`site_updated_at` sempre com offset (`_iso_utc`) e o backend compara
+  `site_version` por instante (`_same_version`), não por texto. `useSiteEditor` adota a versão de toda resposta
+  (`adoptVersion`). O assistente de primeiro uso não grava mais `template` (o site público não o lê).
+- **Meu Site — configurações**: `PUT /sites` aplica só os campos enviados (null limpa título/descrição SEO). `slug`
+  é somente leitura: o backend ignora o do body e sincroniza com o slug do tenant em `PUT /sites` e `publish`
+  (`_sync_slug_with_tenant`), porque o botão "Retirar senha" monta `/{slug}/...`. O seletor de estilo saiu das
+  configurações (continua no assistente, só para montar as seções iniciais).
+- **Meu Site — histórico** (máx. 10, snapshot = estado ANTES da operação, sem duplicar o último idêntico):
+  "Publicado" ao publicar e a cada salvamento com o site no ar; "Rascunho" no salvamento fora do ar, no máximo a
+  cada 10 min (`DRAFT_SNAPSHOT_INTERVAL`); "Antes de restaurar" antes de aplicar uma versão. `GET /versions` não
+  devolve o snapshot.
+- **Meu Site — imagens**: o editor não apaga imagem ao trocar/remover (ela pode estar no histórico). No limite de 50,
+  o upload primeiro apaga as órfãs (`_prune_unreferenced_images`: nenhum UUID nas seções atuais — que são o conteúdo
+  publicado — nem em versão do histórico, e com mais de 1 h). `DELETE /sites/images/{id}` devolve 409 se a imagem
+  ainda está nas seções.
+
+### 11.21 Jornadas do super-admin (revisão de 2026-10-06)
+- **Auditoria das ações da plataforma**: o middleware só audita `/api/v1/admin`. Impersonação, suspender/reativar,
+  troca de plano, criar/editar terreiro, CRUD de super-admin e redefinir senha de usuário de terreiro gravam
+  `AuditLog` via `services/platform_audit.py::log_platform_action` (só `db.add`; o commit da ação vem DEPOIS, na
+  mesma transação). Sem valor novo no enum: action genérica (`login` para impersonação, `update`, `create`,
+  `delete`) + `details.platform_action` (id estável) e `details.description` (frase pronta; a tela de auditoria
+  mostra com o selo "Plataforma"). `tenant_id` = terreiro afetado; `None` no CRUD de super-admin.
+- **Terreiro excluído no Tenant 360**: `GET /platform/tenants/{id}` e `/users` incluem soft-deleted e devolvem
+  `deleted_at`/`self_deactivated_at`; a tela mostra "Desativado pelo terreiro"/"Excluído", desliga
+  impersonação/edição e oferece "Excluir permanentemente". O hard delete (LGPD) aceita terreiro já excluído
+  logicamente (`include_deleted=True` em `get_by_id_with_subscription`/`hard_delete`).
+- **Novo terreiro**: a resposta traz `temp_password` do admin; o painel mostra UMA vez com botão de copiar (não
+  vai por e-mail nem para log). `data_retention_days` saiu do contrato (era ignorado).
+- **Editar terreiro**: só os campos enviados (`exclude_unset`); `description: null` limpa.
+- **Super-admins**: política de senha no cadastro; não dá para excluir/desativar a si mesmo nem o último
+  super-admin ativo (`PlatformUserRepository.count_active`).
+- **Impersonação** (`components/platform/impersonate.ts`): token só no fragmento (`#token=…`); a aba abre no
+  clique, antes do `await`, e recebe o endereço depois — pop-up bloqueado vira erro com orientação.
+- **Auditoria consolidada**: data sem hora é dia de Brasília; o fim cobre o dia inteiro (o último dia aparecia vazio).
+- **Hoje**: o risco de churn vem só do `/tenant-observatory` (`retention_summary.total_at_risk`,
+  `retention_grace_days` = `GRACE_DAYS`); o `/dashboard` não calcula mais (`alerts.no_activity_30d` saiu).
+- **Tenant 360 > Giras**: `GET /platform/tenant-observatory/tenants/{id}/giras` (giras do terreiro nos próximos 30 dias).
+- **Suporte**: `GET /platform/support-chat/conversations/{id}`; a lista traz a prévia numa consulta
+  (`last_message_previews`, `DISTINCT ON`); conversa aberta é marcada como lida quando chega mensagem.
+- **Planos (Configurações)**: a tabela deriva de `FEATURE_CATALOG`/`FEATURE_MIN_PLAN` de `constants/plans.ts`.
+- **Rotas**: `tests/unit/test_route_shadowing.py` também testa rota com segmento fixo depois de parâmetro
+  (pegou `/feature-flags/{tenant_id}/enabled` engolida por `/{tenant_id}/{feature}`).
+- `PUT /platform/subscriptions/{id}/upgrade` (usado pelo drawer para qualquer troca de plano) não cria mais fatura.
+
+### 11.22 Jornadas públicas e de conta (2026-10-06)
+- **Emissão com horário + fila**: o horário (`time_slot_id`) só é exigido quando a senha tem vaga; com a
+  gira lotada e fila de espera ligada, a pessoa entra na fila sem horário. Recusas por horário saem como
+  `APIException` (`{error_code, message}`): 400 `TIME_SLOT_REQUIRED`, 404 `TIME_SLOT_INVALID`,
+  410 `TIME_SLOT_FULL`, 409 `TIME_SLOT_UNAVAILABLE` — o formulário limpa o horário e recarrega as vagas
+  (`isTimeSlotError` em `components/public/public-errors.ts`). `email_sent` saiu da resposta do emit.
+- **Reenvio de e-mail** (`POST /public/resend-ticket-email`, body `{email, gira_id}`; `phone` removido):
+  só senhas EMITTED/WAITLISTED, da gira informada (sem `gira_id`, giras de hoje em diante). Reenvia o
+  e-mail original: emitida → `waitlist_service.send_confirmed_ticket_email` (número com P do associado,
+  horário, acompanhantes); fila promovida → e-mail da promoção; fila → e-mail da fila com a posição.
+- **Logo**: URL pública da logo vem de `core/public_links.public_tenant_logo_url` (prefere `logo_data`,
+  que o upload grava, ao `logo_url` legado) — usada no `GET /public/gira/{id}` e `/next-gira`.
+- **Agenda pública**: `GET /public/agenda/{tenant_slug}` (próximas giras ativas, mesmo filtro do
+  calendário do site — `SiteRepository.list_upcoming_giras`, "hoje" em Brasília, sem gira inativa).
+  `/{slug}` mostra o site publicado e, sem site, essa agenda; "Ver próximas giras" (bilhete, cancelar,
+  fila, emissão) aponta para `/{slug}` (`tenantAgendaPath`), nunca para `/public/{slug}` (que redireciona
+  à próxima gira). O WhatsApp do bilhete leva a página do bilhete (`rescue_link`/`ticketPagePath`).
+- **Curso**: a inscrição pública enfileira o e-mail "Inscrição confirmada" (`email_queue`, sem CPF/RG/
+  endereço/saúde — minimização). `valor_mensalidade` só volta quando `gerar_mensalidade`. "Como
+  conheceu" só é exigido quando "Já conhece o terreiro" = Sim; perguntas de saúde começam sem resposta.
+- **Conta**: e-mail de login sem diferença de maiúsculas (`func.lower(User.email)`; cadastro e
+  `UserRepository.create` gravam minúsculo — sem migração, linhas antigas cobertas pela comparação).
+  Login, esqueci a senha e reativação usam `login.user_by_login_email_stmt` (conta mais antiga se o
+  e-mail existir em mais de um terreiro). Cadastro valida a senha com `validate_password_policy`.
+  Sessão aberta por `login.issue_session` + `core/auth_cookies.set_auth_cookies` em login, cadastro e
+  reativação (3 cookies, `secure=not DEBUG`). "Lembrar-me" desmarcado (`remember_me=false`) → cookies
+  sem `max_age`; o refresh token carrega `persist: false` e o `/auth/refresh` renova no mesmo modo.
+  Reativação: 401 se credenciais inválidas, 409 `NOT_DEACTIVATED` se a conta não está desativada,
+  200 já logado; no `/login`, o alerta de conta desativada tem "Reativar e entrar" (senha digitada uma vez).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
@@ -605,7 +827,7 @@ Incluir obrigatoriamente:
   POST, outra origem, `Authorization` ou HTML de página) — testado em `__tests__/pwa/sw.test.ts`. Na Porta: `PortaOfflineNotice`
   (offline ou 2 falhas seguidas da fila) e `InstallPortaHint`. Sem sincronização offline de emissão.
 - **Versão**: `frontend/package.json` `version` → `NEXT_PUBLIC_UI_VERSION` (`next.config.js`) → `src/lib/version.ts`
-  (`APP_VERSION`, "GiraHub v2.1.0" no rodapé da sidebar, menu do usuário e plataforma). Backend `APP_VERSION` 2.1.0;
+  (`APP_VERSION`, "GiraHub v2.2.0" no rodapé da sidebar, menu do usuário e plataforma). Backend `APP_VERSION` 2.2.0;
   a tag das imagens Docker vem de `APP_VERSION` no `.env` do servidor.
 - **Testes**: por papel/texto (nunca classes). `jest.setup.js` tem polyfills do Radix (`hasPointerCapture`,
   `scrollIntoView`, `ResizeObserver`, `matchMedia`). Bundle antes/depois em `docs/bundle-baseline.md`.
@@ -614,7 +836,7 @@ Incluir obrigatoriamente:
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).
 - VPS: 76.13.231.19 (Hostinger), projeto em /opt/senhas.
 - Dominio: girahub.com.br com SSL (Let's Encrypt).
-- nginx: proxy reverso, terminacao SSL, WebSocket proxy para /door/ws.
+- nginx: proxy reverso, terminacao SSL. (A location `/ws/` e legado sem efeito: nao existe WebSocket no backend — a Porta usa polling, ver §11.4.)
 
 **Deploy automatizado via GitHub Actions (`.github/workflows/deploy.yml`):**
 1. Job `security-audit` (paralelo, nao-bloqueante): `pip-audit` + `npm audit --audit-level=high`.

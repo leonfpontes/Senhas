@@ -10,9 +10,12 @@ from .base import TimestampedModel
 
 
 class PlanType(str, enum.Enum):
-    """Subscription plan types."""
-    
-    # Limites e preços reais: PLAN_LIMITS em repositories/subscription_repo.py.
+    """Subscription plan types.
+
+    Limites e preços: fonte única em ``repositories/subscription_repo.py::PLAN_LIMITS``
+    (os comentários abaixo só resumem — se divergirem, vale o PLAN_LIMITS).
+    """
+
     FREE = "free"              # 1 user, 2 giras/month, no médiuns, R$0/month
     BASIC = "basic"            # 3 users, 3 giras/month, 15 médiuns, R$49/month
     PRO = "pro"                # 10 users, 4 giras/month, 30 médiuns, R$79/month

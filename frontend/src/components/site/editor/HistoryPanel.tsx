@@ -41,7 +41,7 @@ export function HistoryPanel({ versions, loading, canEdit, hasChanges, onRestore
           ))}
         </div>
       ) : versions.length === 0 ? (
-        <EmptyState compact icon={<History />} title="Nenhuma versão salva" description="Cada salvamento guarda uma versão aqui." />
+        <EmptyState compact icon={<History />} title="Nenhuma versão salva" description="Guardamos uma versão ao publicar, antes de restaurar e a cada 10 minutos de edição." />
       ) : (
         <ol className="m-0 list-none p-0" aria-label="Versões salvas">
           {versions.map((v) => (

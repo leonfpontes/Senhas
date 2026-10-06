@@ -1,5 +1,8 @@
 /**
  * Admin Associados — lista (DataTable, cartões no celular) com busca + Sheet de cadastro.
+ *
+ * A API pagina (máx. 200 por página): a tela busca TODAS as páginas para que a busca local
+ * (nome, e-mail, telefone) cubra todos os associados — antes vinham só os 50 primeiros.
  */
 'use client';
 
@@ -16,8 +19,10 @@ import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { DataTable } from '@/components/admin/DataTable';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { PermissionDenied, PlanLocked } from '@/components/gates';
-import { MaskedInput, TextField } from '@/components/fields';
+import { MaskedInput, TextField, unmask } from '@/components/fields';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,10 +37,35 @@ interface Associado {
   nome: string;
   email: string;
   telefone?: string | null;
+  mensalidade_isento?: boolean;
   created_at: string;
 }
 
-const EMPTY_FORM = { nome: '', email: '', telefone: '' };
+interface AssociadoForm {
+  nome: string;
+  email: string;
+  telefone: string;
+  mensalidade_isento: boolean;
+}
+
+const EMPTY_FORM: AssociadoForm = { nome: '', email: '', telefone: '', mensalidade_isento: false };
+
+/** Tamanho de página aceito pela API (`limit` máx. 200). */
+export const ASSOCIADOS_PAGE_SIZE = 200;
+
+/** Busca todas as páginas de `/api/v1/admin/associados` (para até 50 mil associados). */
+export async function fetchTodosAssociados(): Promise<Associado[]> {
+  const todos: Associado[] = [];
+  for (let skip = 0; skip < 50_000; skip += ASSOCIADOS_PAGE_SIZE) {
+    const res = await apiClient.get<Associado[]>('/api/v1/admin/associados', {
+      params: { skip, limit: ASSOCIADOS_PAGE_SIZE },
+    });
+    const page = Array.isArray(res.data) ? res.data : [];
+    todos.push(...page);
+    if (page.length < ASSOCIADOS_PAGE_SIZE) break;
+  }
+  return todos;
+}
 
 export default function AdminAssociadosPage() {
   return (
@@ -49,6 +79,7 @@ function AdminAssociadosContent() {
   const { can, loading: subLoading } = useSubscription();
   const { can: canGroup } = usePermissions();
   const { showSuccess, showError } = useSnackbar();
+  const planAllows = can('associados');
   const canView = canGroup('associados', 'view');
   const canInsert = canGroup('associados', 'insert');
   const canEdit = canGroup('associados', 'edit');
@@ -62,27 +93,27 @@ function AdminAssociadosContent() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create');
   const [currentItem, setCurrentItem] = useState<Associado | null>(null);
-  const [formData, setFormData] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
+  const [formData, setFormData] = useState<AssociadoForm>(EMPTY_FORM);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
   const [deleteTarget, setDeleteTarget] = useState<Associado | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const loadAssociados = useCallback(async () => {
-    if (!canView) {
+    if (subLoading) return;
+    if (!canView || !planAllows) {
       setLoading(false);
       return;
     }
     try {
       setLoading(true);
-      const response = await apiClient.get('/api/v1/admin/associados');
-      setAssociados(response.data);
+      setAssociados(await fetchTodosAssociados());
     } catch {
       showError('Erro ao carregar associados');
     } finally {
       setLoading(false);
     }
-  }, [canView, showError]);
+  }, [canView, planAllows, subLoading, showError]);
 
   useEffect(() => {
     loadAssociados();
@@ -100,7 +131,12 @@ function AdminAssociadosContent() {
 
   const openEdit = (item: Associado) => {
     setCurrentItem(item);
-    setFormData({ nome: item.nome, email: item.email, telefone: item.telefone ? maskTelefone(item.telefone) : '' });
+    setFormData({
+      nome: item.nome,
+      email: item.email,
+      telefone: item.telefone ? maskTelefone(item.telefone) : '',
+      mensalidade_isento: !!item.mensalidade_isento,
+    });
     setTouched({});
     setDrawerMode('edit');
     setDrawerOpen(true);
@@ -113,17 +149,18 @@ function AdminAssociadosContent() {
     setTouched({});
   };
 
-  const handleChange = (field: keyof typeof EMPTY_FORM, value: string) => {
+  const handleChange = <K extends keyof AssociadoForm>(field: K, value: AssociadoForm[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
   const isDirty =
     drawerMode === 'create'
-      ? Object.values(formData).some((v) => v !== '')
+      ? Object.entries(formData).some(([k, v]) => v !== EMPTY_FORM[k as keyof AssociadoForm])
       : currentItem != null &&
         (formData.nome !== currentItem.nome ||
           formData.email !== currentItem.email ||
+          formData.mensalidade_isento !== !!currentItem.mensalidade_isento ||
           formData.telefone !== (currentItem.telefone ? maskTelefone(currentItem.telefone) : ''));
 
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -144,11 +181,13 @@ function AdminAssociadosContent() {
     if (drawerMode === 'edit' && !canEdit) return;
     setSaving(true);
     try {
-      const payload: Record<string, string | undefined> = {
+      // Telefone só com dígitos; vazio vai como null para limpar na edição.
+      const payload: Record<string, string | boolean | null> = {
         nome: formData.nome.trim(),
         email: formData.email.trim(),
+        telefone: unmask(formData.telefone) || null,
+        mensalidade_isento: formData.mensalidade_isento,
       };
-      if (formData.telefone.trim()) payload.telefone = formData.telefone.trim();
 
       if (drawerMode === 'create') {
         await apiClient.post('/api/v1/admin/associados', payload);
@@ -261,7 +300,7 @@ function AdminAssociadosContent() {
 
   // ── Gates ───────────────────────────────────────────────────────────
 
-  if (!subLoading && !can('associados')) return <PlanLocked feature="Associados" minPlan={minPlanFor('associados').label} />;
+  if (!subLoading && !planAllows) return <PlanLocked feature="Associados" minPlan={minPlanFor('associados').label} />;
   if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar associados." />;
 
   return (
@@ -354,6 +393,21 @@ function AdminAssociadosContent() {
             onChange={(v) => handleChange('telefone', v)}
             helperText="Opcional"
           />
+          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="associado-isento" className="font-medium">
+                Isento de mensalidade
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Não entra na cobrança mensal nem gera conta a receber.
+              </p>
+            </div>
+            <Switch
+              id="associado-isento"
+              checked={formData.mensalidade_isento}
+              onCheckedChange={(v) => handleChange('mensalidade_isento', v)}
+            />
+          </div>
         </div>
       </CrudDrawer>
 

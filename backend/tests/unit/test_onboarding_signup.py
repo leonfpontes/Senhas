@@ -16,7 +16,7 @@ BASE = {
     "email": "maria@example.com",
     "whatsapp": "11999998888",
     "documento": "52998224725",  # CPF válido de teste
-    "password": "senhaforte123",
+    "password": "Senha-forte-123",
     "aceite_termos": True,
 }
 
@@ -36,6 +36,21 @@ class TestPrincipalDorSchema:
     def test_rejects_unknown_value(self):
         with pytest.raises(ValidationError, match="o que você mais precisa resolver"):
             _req(principal_dor="qualquer")
+
+
+class TestSignupPasswordAndEmail:
+    """Cadastro usa a mesma política de senha do resto do sistema e grava o
+    e-mail de login em minúsculas."""
+
+    def test_rejects_password_that_only_has_8_chars(self):
+        with pytest.raises(ValidationError, match="política de segurança"):
+            _req(password="senhaforte123")
+
+    def test_accepts_policy_compliant_password(self):
+        assert _req(password="Outra-Senha-456").password == "Outra-Senha-456"
+
+    def test_email_is_lowercased(self):
+        assert _req(email="Maria.Silva@Example.COM").email == "maria.silva@example.com"
 
 
 class TestCustomSettings:

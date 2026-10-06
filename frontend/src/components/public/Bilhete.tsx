@@ -23,6 +23,8 @@ import {
   downloadIcs,
   formatGiraDate,
   isTicketDone,
+  tenantAgendaPath,
+  ticketPagePath,
   whatsappShareUrl,
   type PublicTicket,
 } from './bilhete-utils';
@@ -37,7 +39,10 @@ export interface BilheteProps {
   intro?: React.ReactNode;
   /** Aviso extra entre o número e os dados da gira (ex.: prioridade registrada). */
   notice?: React.ReactNode;
-  /** Link do bilhete para incluir na mensagem do WhatsApp (padrão: URL atual). */
+  /**
+   * Link do bilhete para a mensagem do WhatsApp. Padrão: a página do bilhete montada com
+   * `ticketId`; sem `ticketId`, a URL atual.
+   */
   shareLink?: string;
   /** Mostra o link "Ver próximas giras" no rodapé (padrão: sim). */
   showNextGiras?: boolean;
@@ -63,7 +68,12 @@ export function Bilhete({
     downloadIcs(ics, `senha-${ticket.ticket_number}.ics`);
   };
 
-  const link = shareLink ?? (typeof window !== 'undefined' ? window.location.href : undefined);
+  // Link do WhatsApp: sempre a página do bilhete. A URL atual só serve quando já é ela —
+  // na emissão, no "Manter minha senha" e na confirmação da fila a URL é outra tela.
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const link =
+    shareLink ??
+    (ticketId ? `${origin}${ticketPagePath(ticket.tenant_slug, ticketId)}` : typeof window !== 'undefined' ? window.location.href : undefined);
   const waUrl = whatsappShareUrl(buildShareText(ticket, link));
 
   return (
@@ -191,7 +201,7 @@ export function Bilhete({
         <p className="text-center text-sm text-muted-foreground">
           {!done && <>Na entrada, informe o número {ticket.ticket_number} à equipe. </>}
           {showNextGiras && (
-            <Link href={`/public/${ticket.tenant_slug}`} className="font-semibold text-(color:--brand-text) underline-offset-4 hover:underline">
+            <Link href={tenantAgendaPath(ticket.tenant_slug)} className="font-semibold text-(color:--brand-text) underline-offset-4 hover:underline">
               Ver próximas giras
             </Link>
           )}

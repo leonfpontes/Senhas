@@ -93,12 +93,24 @@ async def list_conversations(
         db, status=status, tenant_id=tenant_id, limit=limit, offset=offset
     )
 
-    result = []
-    for c in conversations:
-        messages = await repo.list_messages(db, c.id)
-        preview = messages[-1].body[:140] if messages else None
-        result.append(_to_platform_response(c, preview))
-    return result
+    previews = await repo.last_message_previews(db, [c.id for c in conversations])
+    return [_to_platform_response(c, previews.get(c.id)) for c in conversations]
+
+
+@router.get("/conversations/{conversation_id}", response_model=PlatformConversationResponse)
+async def get_conversation(
+    conversation_id: UUID = Path(...),
+    current_user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> PlatformConversationResponse:
+    """Uma conversa por id — `?conversation=` da inbox abre conversa fora da lista
+    carregada (filtro de status ou além das 200 mais recentes)."""
+    repo = SupportChatRepository(db)
+    conversation = await repo.get_conversation(db, conversation_id)
+    if not conversation:
+        raise NotFoundError("Conversa")
+    previews = await repo.last_message_previews(db, [conversation.id])
+    return _to_platform_response(conversation, previews.get(conversation.id))
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=List[SupportMessageResponse])
@@ -171,9 +183,8 @@ async def set_conversation_status(
     conversation = await repo.set_status(db, conversation, body.status)
     await db.commit()
 
-    messages = await repo.list_messages(db, conversation.id)
-    preview = messages[-1].body[:140] if messages else None
-    return _to_platform_response(conversation, preview)
+    previews = await repo.last_message_previews(db, [conversation.id])
+    return _to_platform_response(conversation, previews.get(conversation.id))
 
 
 @router.get("/unread-count", response_model=UnreadCountResponse)

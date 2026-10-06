@@ -26,7 +26,7 @@ from src.repositories.curso_presencial_repo import (
     CursoParticipantePagamentoRepository,
 )
 from src.services.audit_service import AuditService
-from src.core.errors import NotFoundError, InsufficientPermissionsError
+from src.core.errors import NotFoundError
 
 router = APIRouter(
     prefix="/api/v1/admin/cursos-presenciais",
@@ -145,6 +145,9 @@ class ParticipanteCreate(BaseModel):
     restricoes_saude: Optional[str] = None
     aceita_uso_dados: bool = False
     aceita_uso_imagem: bool = False
+    # Consentimento LGPD explícito para dados de saúde (art. 11). Nunca é
+    # inferido a partir das respostas de saúde — vem do checkbox do formulário.
+    aceita_uso_dados_saude: bool = False
 
 class ParticipanteUpdate(BaseModel):
     """Payload para atualizar informações de um participante."""
@@ -190,6 +193,7 @@ class ParticipanteUpdate(BaseModel):
     restricoes_saude: Optional[str] = None
     aceita_uso_dados: Optional[bool] = None
     aceita_uso_imagem: Optional[bool] = None
+    aceita_uso_dados_saude: Optional[bool] = None
 
 class ParticipanteResponse(BaseModel):
     """Resposta retornada ao consultar/editar um participante."""
@@ -271,10 +275,7 @@ async def create_curso_presencial(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CursoPresencialResponse:
-    """Cria um novo curso presencial. Apenas administradores do tenant podem criar."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Requer cargo de administrador.")
-
+    """Cria um novo curso presencial. Acesso controlado pelo grupo de permissão (admins fazem bypass)."""
     repo = CursoPresencialRepository(db)
     curso = await repo.create(
         tenant_id=current_user.tenant_id,
@@ -304,10 +305,7 @@ async def list_cursos_presenciais(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> List[CursoPresencialResponse]:
-    """Lista cursos presenciais do tenant com filtros opcionais. Disponível para operadores e administradores."""
-    if not current_user.is_operator_or_admin:
-        raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-
+    """Lista cursos presenciais do tenant com filtros opcionais. Acesso controlado pelo grupo de permissão."""
     stmt = (
         select(CursoPresencial)
         .where(
@@ -323,7 +321,8 @@ async def list_cursos_presenciais(
         dt_end = datetime.fromisoformat(date_to) + timedelta(days=1)
         stmt = stmt.where(CursoPresencial.data_inicio < dt_end)
 
-    stmt = stmt.order_by(CursoPresencial.data_inicio.desc()).offset(skip).limit(limit)
+    # id desempata: paginação por offset estável (o frontend busca todas as páginas)
+    stmt = stmt.order_by(CursoPresencial.data_inicio.desc(), CursoPresencial.id.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
     cursos = result.scalars().all()
 
@@ -335,10 +334,7 @@ async def get_curso_presencial(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CursoPresencialResponse:
-    """Obtém um curso presencial específico. Disponível para operadores e administradores."""
-    if not current_user.is_operator_or_admin:
-        raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-
+    """Obtém um curso presencial específico. Acesso controlado pelo grupo de permissão."""
     repo = CursoPresencialRepository(db)
     curso = await repo.get_by_id(curso_id, current_user.tenant_id)
     if not curso:
@@ -352,10 +348,7 @@ async def update_curso_presencial(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CursoPresencialResponse:
-    """Atualiza parcialmente um curso presencial. Apenas administradores do tenant podem atualizar."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Requer cargo de administrador.")
-
+    """Atualiza parcialmente um curso presencial. Acesso controlado pelo grupo de permissão (admins fazem bypass)."""
     repo = CursoPresencialRepository(db)
     existing_curso = await repo.get_by_id(curso_id, current_user.tenant_id)
     if not existing_curso:
@@ -387,10 +380,7 @@ async def delete_curso_presencial(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Exclui (soft delete) um curso presencial. Apenas administradores do tenant podem excluir."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Requer cargo de administrador.")
-
+    """Exclui (soft delete) um curso presencial. Acesso controlado pelo grupo de permissão (admins fazem bypass)."""
     repo = CursoPresencialRepository(db)
     existing_curso = await repo.get_by_id(curso_id, current_user.tenant_id)
     if not existing_curso:
@@ -424,10 +414,7 @@ async def create_participante(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ParticipanteResponse:
-    """Adiciona um participante a um curso presencial. Apenas administradores do tenant podem adicionar."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Requer cargo de administrador.")
-
+    """Adiciona um participante a um curso presencial. Acesso controlado pelo grupo de permissão (admins fazem bypass)."""
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
     if not curso:
@@ -452,12 +439,6 @@ async def create_participante(
     data["pago"] = False
     data["valor_pago"] = None
     data["data_pagamento"] = None
-    data["aceita_uso_dados_saude"] = True if (
-        participante_in.tem_plano_saude or 
-        participante_in.toma_medicamento or 
-        participante_in.tem_doenca_tratamento or 
-        participante_in.tem_diabetes
-    ) else False
 
     participante_repo = CursoParticipanteRepository(db)
     participante = await participante_repo.create(
@@ -486,10 +467,7 @@ async def list_participantes(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> List[ParticipanteResponse]:
-    """Lista participantes de um curso presencial. Disponível para operadores e administradores."""
-    if not current_user.is_operator_or_admin:
-        raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-
+    """Lista participantes de um curso presencial. Acesso controlado pelo grupo de permissão."""
     # Garante que o curso existe e pertence ao tenant
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
@@ -513,10 +491,7 @@ async def update_participante(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ParticipanteResponse:
-    """Atualiza informações de um participante. Apenas administradores do tenant podem atualizar."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Requer cargo de administrador.")
-
+    """Atualiza informações de um participante. Acesso controlado pelo grupo de permissão (admins fazem bypass)."""
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
     if not curso:
@@ -564,10 +539,7 @@ async def delete_participante(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Exclui (soft delete) um participante de um curso presencial. Apenas administradores do tenant podem excluir."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Requer cargo de administrador.")
-
+    """Exclui (soft delete) um participante de um curso presencial. Acesso controlado pelo grupo de permissão (admins fazem bypass)."""
     # Garante que o curso existe e pertence ao tenant
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
@@ -653,9 +625,6 @@ async def list_curso_mensalidades(
     db: AsyncSession = Depends(get_db),
 ):
     """Lista todos os participantes ativos com seus status de pagamento para o mês."""
-    if not current_user.is_operator_or_admin:
-        raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-
     # Verifica se o curso existe e pertence ao tenant
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
@@ -714,10 +683,7 @@ async def registrar_curso_pagamento(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Registra ou atualiza o pagamento de mensalidade de um participante (ADMIN only)."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Requer cargo de administrador.")
-
+    """Registra ou atualiza o pagamento de mensalidade de um participante."""
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
@@ -816,9 +782,6 @@ async def download_curso_comprovante(
     db: AsyncSession = Depends(get_db),
 ):
     """Download do comprovante binário para o pagamento de um mês específico."""
-    if not current_user.is_operator_or_admin:
-        raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
@@ -847,10 +810,7 @@ async def delete_curso_comprovante(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove o comprovante do pagamento preservando o histórico de pagamento (ADMIN only)."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Requer cargo de administrador.")
-
+    """Remove o comprovante do pagamento preservando o histórico de pagamento."""
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
@@ -880,9 +840,6 @@ async def get_curso_resumo(
     db: AsyncSession = Depends(get_db),
 ):
     """Retorna dados do gráfico (histórico + projeção) do curso específico."""
-    if not current_user.is_operator_or_admin:
-        raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
@@ -902,9 +859,6 @@ async def download_inscricao_comprovante(
     db: AsyncSession = Depends(get_db),
 ):
     """Download do comprovante binário para a inscrição (matrícula) do participante."""
-    if not current_user.is_operator_or_admin:
-        raise InsufficientPermissionsError("Requer cargo de operador ou administrador.")
-
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
@@ -932,10 +886,7 @@ async def delete_inscricao_comprovante(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove o comprovante da matrícula do participante (ADMIN only)."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Requer cargo de administrador.")
-
+    """Remove o comprovante da matrícula do participante."""
     # Verifica curso
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
@@ -967,9 +918,6 @@ async def upload_inscricao_comprovante(
     db: AsyncSession = Depends(get_db),
 ):
     """Registra ou atualiza o comprovante de inscrição do participante."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Requer cargo de administrador.")
-
     curso_repo = CursoPresencialRepository(db)
     curso = await curso_repo.get_by_id(curso_id, current_user.tenant_id)
     if not curso:

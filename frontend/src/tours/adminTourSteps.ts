@@ -110,7 +110,7 @@ export const adminTourSteps: TourStepMap = {
     {
       selector: '[data-tour="porta-stats"]',
       content:
-        'Painel de números em tempo real: Total, Atendidos, Em atendimento, Aguardando (com check-in feito), Walk-ins, Preferenciais, Ausentes e Check-ins totais. Os números se atualizam a cada 8 segundos.',
+        'Resumo da gira: aguardando, atendidos e quem não veio. Toque para ver o resumo completo (chegaram, sem senha, preferenciais, associados) e as senhas finalizadas. Os números se atualizam a cada 8 segundos.',
     },
     {
       selector: '[data-tour="porta-busca"]',

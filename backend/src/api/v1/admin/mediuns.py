@@ -1,4 +1,11 @@
-"""Admin Médiuns - CRUD /api/v1/admin/mediuns."""
+"""Admin Médiuns - CRUD /api/v1/admin/mediuns.
+
+Plano (P-09): listar/consultar fica liberado mesmo fora do plano (modo
+somente leitura); criar, editar e excluir exigem ``require_plan_feature("mediuns")``
+e reativar um médium respeita o limite ``max_mediuns`` como a criação.
+"""
+import logging
+import re
 from datetime import date, datetime, timezone
 from typing import List, Optional
 from uuid import UUID
@@ -21,6 +28,48 @@ from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
 
 router = APIRouter(prefix="/api/v1/admin/mediuns", tags=["admin-mediuns"])
+logger = logging.getLogger(__name__)
+
+_GATE_PLANO = Depends(require_plan_feature("mediuns"))
+
+
+def _so_digitos(v: Optional[str]) -> Optional[str]:
+    """Telefone gravado só com dígitos (a tela aplica a máscara)."""
+    if v is None:
+        return None
+    digits = re.sub(r"\D", "", v)
+    return digits or None
+
+
+async def _checar_limite_mediuns(db: AsyncSession, tenant_id: UUID) -> None:
+    """max_mediuns do plano (-1 = ilimitado). Usado na criação e na reativação."""
+    sub = await SubscriptionRepository(db).get_by_tenant(tenant_id)
+    if sub is None:
+        return
+    max_mediuns = effective_limit(sub, "max_mediuns")
+    if max_mediuns == 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Funcionalidade de médiuns não disponível no plano atual.",
+        )
+    if max_mediuns > 0:
+        current_count = await MediumRepository(db).count(tenant_id)
+        if current_count >= max_mediuns:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Limite de médiuns/cambones atingido ({max_mediuns}). Faça upgrade do plano.",
+            )
+
+
+async def _cancelar_contas_futuras(db: AsyncSession, tenant_id: UUID, medium_id: UUID, referencia: Optional[date]) -> None:
+    from src.services.mensalidade_contas_service import cancelar_contas_futuras_pendentes
+
+    try:
+        await cancelar_contas_futuras_pendentes(
+            db=db, tenant_id=tenant_id, tipo_pessoa="mediun", pessoa_id=medium_id, referencia=referencia
+        )
+    except Exception:
+        logger.exception("Falha ao cancelar contas futuras da mensalidade do médium %s", medium_id)
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────
@@ -29,6 +78,7 @@ router = APIRouter(prefix="/api/v1/admin/mediuns", tags=["admin-mediuns"])
 class MediumCreate(BaseModel):
     nome: str
     is_atendimento: bool = False
+    mensalidade_isento: bool = False
     data_entrada: Optional[date] = None
     telefone: Optional[str] = None
     email: Optional[str] = None
@@ -50,9 +100,12 @@ class MediumCreate(BaseModel):
 
 
 class MediumUpdate(BaseModel):
+    """Campo enviado com ``null`` limpa o valor; campo ausente não muda."""
+
     nome: Optional[str] = None
     is_atendimento: Optional[bool] = None
     is_active: Optional[bool] = None
+    mensalidade_isento: Optional[bool] = None
     data_entrada: Optional[date] = None
     data_saida: Optional[date] = None
     telefone: Optional[str] = None
@@ -81,6 +134,7 @@ class MediumResponse(BaseModel):
     nome: str
     is_atendimento: bool
     is_active: bool
+    mensalidade_isento: bool = False
     data_entrada: Optional[date] = None
     data_saida: Optional[date] = None
     telefone: Optional[str] = None
@@ -159,7 +213,7 @@ async def list_mediuns(
     )
 
 
-@router.post("", response_model=MediumResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_plan_feature("mediuns")), Depends(require_group_permission(PermissionFeature.MEDIUNS, "insert"))])
+@router.post("", response_model=MediumResponse, status_code=status.HTTP_201_CREATED, dependencies=[_GATE_PLANO, Depends(require_group_permission(PermissionFeature.MEDIUNS, "insert"))])
 async def create_medium(
     data: MediumCreate,
     current_user: User = Depends(get_current_user),
@@ -172,31 +226,16 @@ async def create_medium(
     # Plano sem médiuns (FREE) e status da assinatura já barrados pelo
     # require_plan_feature("mediuns") do decorator (403 / 402). Aqui só o limite
     # numérico: max_mediuns -1 = ilimitado, > 0 = limite.
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
-    if sub is not None:
-        max_mediuns = effective_limit(sub, "max_mediuns")
-        if max_mediuns == 0:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Funcionalidade de médiuns não disponível no plano atual.",
-            )
-        if max_mediuns > 0:
-            repo_check = MediumRepository(db)
-            current_count = await repo_check.count(current_user.tenant_id)
-            if current_count >= max_mediuns:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Limite de médiuns/cambones atingido ({max_mediuns}). Faça upgrade do plano.",
-                )
+    await _checar_limite_mediuns(db, current_user.tenant_id)
 
     repo = MediumRepository(db)
     medium = await repo.create(
         tenant_id=current_user.tenant_id,
         nome=data.nome,
         is_atendimento=data.is_atendimento,
+        mensalidade_isento=data.mensalidade_isento,
         data_entrada=data.data_entrada,
-        telefone=data.telefone or None,
+        telefone=_so_digitos(data.telefone),
         email=data.email or None,
         data_nascimento=data.data_nascimento,
         cep=data.cep or None,
@@ -219,13 +258,14 @@ async def create_medium(
     )
 
     # Create pending conta a receber for next month if mensalidade is configured
+    # (isento de mensalidade não gera conta).
     try:
         from src.repositories.mensalidade_repo import MensalidadeRepository
         from src.services.mensalidade_contas_service import criar_conta_proxima_mensalidade
         from decimal import Decimal
         mens_repo = MensalidadeRepository(db)
         config = await mens_repo.get_config(current_user.tenant_id)
-        if config and config.valor_mensal > 0:
+        if config and config.valor_mensal > 0 and not medium.mensalidade_isento:
             await criar_conta_proxima_mensalidade(
                 db=db,
                 tenant_id=current_user.tenant_id,
@@ -237,21 +277,20 @@ async def create_medium(
                 criado_por=current_user.id,
             )
     except Exception:
-        import logging
-        logging.getLogger(__name__).exception("Falha ao criar conta a receber para médium %s", medium.id)
+        logger.exception("Falha ao criar conta a receber para médium %s", medium.id)
 
     await db.commit()
     return medium
 
 
-@router.patch("/{medium_id}", response_model=MediumResponse, dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "edit"))])
+@router.patch("/{medium_id}", response_model=MediumResponse, dependencies=[_GATE_PLANO, Depends(require_group_permission(PermissionFeature.MEDIUNS, "edit"))])
 async def update_medium(
     medium_id: UUID = Path(...),
     data: MediumUpdate = ...,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MediumResponse:
-    """Update name, is_atendimento flag, or active status."""
+    """Update a médium. Field sent as null clears it; missing field is unchanged."""
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
@@ -260,41 +299,46 @@ async def update_medium(
     if not medium:
         raise NotFoundError("Médium não encontrado")
 
-    changes: dict = {}
-    if data.nome is not None:
-        changes["nome"] = {"old": medium.nome, "new": data.nome}
-        medium.nome = data.nome
-    if data.is_atendimento is not None:
-        changes["is_atendimento"] = {"old": medium.is_atendimento, "new": data.is_atendimento}
-        medium.is_atendimento = data.is_atendimento
-    if data.is_active is not None:
-        changes["is_active"] = {"old": medium.is_active, "new": data.is_active}
-        medium.is_active = data.is_active
-    # data_entrada/data_saida: field explicitly sent (even as null) means
-    # "apply this value", so reactivating a médium can clear data_saida.
     fields_set = data.model_fields_set
-    if "data_entrada" in fields_set and data.data_entrada != medium.data_entrada:
-        changes["data_entrada"] = {"old": str(medium.data_entrada), "new": str(data.data_entrada)}
-        medium.data_entrada = data.data_entrada
-    if "data_saida" in fields_set and data.data_saida != medium.data_saida:
-        changes["data_saida"] = {"old": str(medium.data_saida), "new": str(data.data_saida)}
-        medium.data_saida = data.data_saida
-    # Optional contact/profile fields — None means "don't change",
-    # empty string means "clear the field"
-    _SENTINEL = object()
+    changes: dict = {}
+    was_active = medium.is_active
+    was_isento = medium.mensalidade_isento
+
+    # Reativar conta no limite do plano, como criar (antes furava max_mediuns).
+    if data.is_active is True and not was_active:
+        await _checar_limite_mediuns(db, current_user.tenant_id)
+
+    # Campos obrigatórios/booleanos: null é ignorado (não dá para "limpar").
+    for field in ("nome", "is_atendimento", "is_active", "mensalidade_isento"):
+        value = getattr(data, field)
+        if field in fields_set and value is not None and value != getattr(medium, field):
+            changes[field] = {"old": getattr(medium, field), "new": value}
+            setattr(medium, field, value)
+
+    # Datas: enviada (mesmo null) = aplicar — reativar limpa data_saida.
+    for field in ("data_entrada", "data_saida", "data_nascimento"):
+        if field in fields_set and getattr(data, field) != getattr(medium, field):
+            changes[field] = {"old": str(getattr(medium, field)), "new": str(getattr(data, field))}
+            setattr(medium, field, getattr(data, field))
+
+    # Texto opcional: enviado com null ou "" limpa (antes null era ignorado
+    # e a tela não conseguia apagar telefone/e-mail/endereço).
     for field in ("telefone", "email", "observacoes", "cep", "logradouro", "numero", "bairro", "cidade"):
-        raw = getattr(data, field, None)
-        if raw is not None:
-            new_val = raw.strip() or None
-            old_val = getattr(medium, field)
-            if new_val != old_val:
-                changes[field] = {"old": old_val, "new": new_val}
-                setattr(medium, field, new_val)
-    if data.data_nascimento is not None:
-        old_dn = medium.data_nascimento
-        if data.data_nascimento != old_dn:
-            changes["data_nascimento"] = {"old": str(old_dn), "new": str(data.data_nascimento)}
-            medium.data_nascimento = data.data_nascimento
+        if field not in fields_set:
+            continue
+        raw = getattr(data, field)
+        new_val = _so_digitos(raw) if field == "telefone" else ((raw or "").strip() or None)
+        old_val = getattr(medium, field)
+        if new_val != old_val:
+            changes[field] = {"old": old_val, "new": new_val}
+            setattr(medium, field, new_val)
+
+    # Saiu da casa ou ficou isento: as mensalidades futuras pendentes (a do
+    # mês seguinte nasce no cadastro) deixam de ser devidas.
+    if was_active and not medium.is_active:
+        await _cancelar_contas_futuras(db, current_user.tenant_id, medium.id, medium.data_saida)
+    elif medium.mensalidade_isento and not was_isento:
+        await _cancelar_contas_futuras(db, current_user.tenant_id, medium.id, None)
 
     await db.commit()
     await db.refresh(medium)
@@ -312,7 +356,7 @@ async def update_medium(
     return medium
 
 
-@router.delete("/{medium_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "delete"))])
+@router.delete("/{medium_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_GATE_PLANO, Depends(require_group_permission(PermissionFeature.MEDIUNS, "delete"))])
 async def delete_medium(
     medium_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -328,6 +372,7 @@ async def delete_medium(
         raise NotFoundError("Médium não encontrado")
 
     medium.deleted_at = datetime.now(timezone.utc)
+    await _cancelar_contas_futuras(db, current_user.tenant_id, medium.id, None)
     await db.commit()
 
     audit = AuditService(db)

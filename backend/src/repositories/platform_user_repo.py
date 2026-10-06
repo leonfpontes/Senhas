@@ -110,6 +110,23 @@ class PlatformUserRepository:
         result = await self.db.execute(stmt)
         return result.scalar() or 0
     
+    async def count_active(self) -> int:
+        """Super-admins ativos (não excluídos e com ``is_active``).
+
+        Usado para impedir desativar/excluir o último super-admin ativo — sem
+        nenhum, ninguém mais entra na plataforma.
+        """
+        stmt = select(func.count()).select_from(User).where(
+            and_(
+                User.role == UserRole.SUPER_ADMIN,
+                User.tenant_id.is_(None),
+                User.deleted_at.is_(None),
+                User.is_active.is_(True),
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
+
     async def create(
         self,
         email: str,

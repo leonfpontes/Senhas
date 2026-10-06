@@ -145,6 +145,35 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
                 results["failed"] += 1
                 results["errors"].append(f"Error cancelling ticket {ticket.id}: {str(e)}")
 
+        # Cancelar o titular cancela em cascata as senhas de acompanhante ainda
+        # ativas (o acompanhante não entra sem o titular) — igual à exclusão
+        # individual em tickets_list.delete_ticket. Elas entram em
+        # cancelled_tickets para a vaga voltar (fila de espera / slots_returned).
+        titulares = [
+            t.id for t in results["cancelled_tickets"] if getattr(t, "is_acompanhante", False) is False
+        ]
+        if titulares:
+            already = {t.id for t in tickets}
+            # no_autoflush: no dry-run (validate-bulk) as mudanças acima não
+            # podem ir para o banco só por causa desta consulta.
+            with self.db.no_autoflush:
+                acomp_result = await self.db.execute(
+                    select(Ticket).where(
+                        and_(
+                            Ticket.tenant_id == tenant_id,
+                            Ticket.parent_ticket_id.in_(titulares),
+                            Ticket.status.in_([TicketStatus.EMITTED, TicketStatus.CALLED]),
+                        )
+                    )
+                )
+            for acomp in acomp_result.scalars().all():
+                if acomp.id in already:
+                    continue
+                acomp.status = TicketStatus.CANCELLED
+                self.db.add(acomp)
+                results["modified"] += 1
+                results["cancelled_tickets"].append(acomp)
+
         if not dry_run:
             await self.db.flush()
 

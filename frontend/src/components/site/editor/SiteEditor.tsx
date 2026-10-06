@@ -319,9 +319,11 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
             setWizardDismissed(true);
             if (canEdit) setGalleryOpen(true);
           }}
-          onCreate={(drafts, template) => {
+          onCreate={(drafts) => {
+            // O estilo escolhido só monta as seções iniciais: o site público não lê
+            // `site.template`, então não há o que gravar (e um PUT /sites em paralelo ao
+            // primeiro autosave era o gatilho do 409 falso no primeiro uso).
             editor.replaceAll(drafts);
-            if (editor.site && template !== editor.site.template) void editor.saveSettings({ slug: editor.site.slug, template, meta_title: editor.site.meta_title, meta_description: editor.site.meta_description });
             setWizardDismissed(true);
           }}
         />

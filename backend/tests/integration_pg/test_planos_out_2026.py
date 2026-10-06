@@ -273,7 +273,7 @@ async def test_migracao_059_atualiza_e_restaura_limites_das_assinaturas(db):
     for plan in (PlanType.FREE, PlanType.BASIC, PlanType.PRO, PlanType.PREMIUM):
         await create_tenant(db, f"Mig {plan.value}", plan=plan)
 
-    _alembic("downgrade", "057_rbac_grupo_padrao")
+    _alembic("downgrade", "058_associados_email_unique_ativo")
     try:
         assert await _limites() == {
             PlanType.FREE: (4, 0),

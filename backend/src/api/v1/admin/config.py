@@ -13,7 +13,7 @@ from src.models import User, TenantConfig, PermissionFeature
 from src.models.tenants import Tenant
 from src.repositories.config_repo import TenantConfigRepository
 from src.services.audit_service import AuditService
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import check_plan_feature, get_current_user, require_group_permission
 from src.core.errors import InsufficientPermissionsError, ValidationError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-config"])
@@ -30,6 +30,44 @@ def _build_logo_url(request: Request, config: TenantConfig) -> Optional[str]:
         base = str(request.base_url).rstrip("/")
         return f"{base}/api/v1/public/tenant/{config.tenant_id}/logo"
     return config.logo_url
+
+
+# Cor do texto do topo quando o tenant nunca escolheu uma (mesmo default do
+# frontend em pages/admin/config.tsx::getFontColor).
+DEFAULT_FONT_COLOR = "#FFFFFF"
+BRANDING_PLAN_DENIED = "Cores e logo personalizados estão disponíveis a partir do plano Pro."
+
+
+def _norm_hex(value: Optional[str]) -> Optional[str]:
+    return value.strip().upper() if isinstance(value, str) and value.strip() else None
+
+
+def _stored_font_color(config: TenantConfig) -> str:
+    fc = (config.custom_settings or {}).get("font_color") if isinstance(config.custom_settings, dict) else None
+    return _norm_hex(fc) or DEFAULT_FONT_COLOR
+
+
+def _branding_changed(config_update: "TenantConfigUpdate", provided: set, current: TenantConfig) -> bool:
+    """True se o PUT muda cor principal/de apoio ou cor do texto do topo.
+
+    A tela reenvia as cores em todo salvamento — só conta mudança real, senão
+    tenant de plano menor não salvaria mais nada (endereço, toggles...).
+    Remover a cor do texto (voltar ao padrão) não conta como personalizar.
+    """
+    for field in ("primary_color", "secondary_color"):
+        if field in provided and getattr(config_update, field) is not None:
+            if _norm_hex(getattr(config_update, field)) != _norm_hex(getattr(current, field)):
+                return True
+    if "custom_settings" in provided and isinstance(config_update.custom_settings, dict):
+        new_font = _norm_hex(config_update.custom_settings.get("font_color"))
+        if new_font is not None and new_font != _stored_font_color(current):
+            return True
+    return False
+
+
+async def _tenant_name(db: AsyncSession, tenant_id) -> Optional[str]:
+    result = await db.execute(select(Tenant.name).where(Tenant.id == tenant_id))
+    return result.scalar_one_or_none()
 
 
 class TenantConfigResponse(BaseModel):
@@ -172,14 +210,9 @@ async def get_tenant_config(
     repo = TenantConfigRepository(db)
     config = await repo.get_by_tenant(current_user.tenant_id)
     
-    tenant_result = await db.execute(
-        select(Tenant.name).where(Tenant.id == current_user.tenant_id)
-    )
-    tenant_name = tenant_result.scalar_one_or_none()
-
     resp = TenantConfigResponse.model_validate(config)
     resp.logo_url = _build_logo_url(request, config)
-    resp.tenant_nome = tenant_name
+    resp.tenant_nome = await _tenant_name(db, current_user.tenant_id)
     return resp
 
 
@@ -191,12 +224,10 @@ async def update_tenant_config(
     db: AsyncSession = Depends(get_db),
 ) -> TenantConfigResponse:
     """Update tenant configuration.
-    
-    Requires admin role.
+
+    Autorização pelo grupo (CONFIGURACOES:edit — admin faz bypass). Mudar cores
+    exige o plano com `tema_personalizado`; os demais campos salvam em qualquer plano.
     """
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Admin required")
-    
     # SUPER_ADMIN has no tenant — config not editable
     if current_user.tenant_id is None:
         raise HTTPException(
@@ -210,6 +241,10 @@ async def update_tenant_config(
     # Get current config
     current_config = await repo.get_by_tenant(current_user.tenant_id)
     previous_state = TenantConfigResponse.model_validate(current_config).model_dump()
+
+    # Gate de plano só para personalizar a marca (403 fora do plano, 402 irregular).
+    if _branding_changed(config_update, provided_fields, current_config):
+        await check_plan_feature(current_user, db, "tema_personalizado", detail=BRANDING_PLAN_DENIED)
     
     # Update branding if provided
     if {"primary_color", "secondary_color"} & provided_fields:
@@ -284,8 +319,6 @@ async def update_tenant_config(
     # sem associados, a emissão ignora o toggle (ver public/emit_ticket.py).
     if config_update.validate_associado_on_emit is not None:
         if config_update.validate_associado_on_emit and not previous_state.get("validate_associado_on_emit"):
-            from src.api.dependencies import check_plan_feature
-
             await check_plan_feature(current_user, db, "associados")
         current_config = await repo.get_by_tenant(current_user.tenant_id)
         current_config.validate_associado_on_emit = config_update.validate_associado_on_emit
@@ -303,8 +336,6 @@ async def update_tenant_config(
     # plano (Premium desde out/2026); desligar é sempre permitido.
     if config_update.enable_mensalidade_associado is not None:
         if config_update.enable_mensalidade_associado and not previous_state.get("enable_mensalidade_associado"):
-            from src.api.dependencies import check_plan_feature
-
             await check_plan_feature(current_user, db, "mensalidade_associado")
         await repo.toggle_feature(
             tenant_id=current_user.tenant_id,
@@ -317,8 +348,6 @@ async def update_tenant_config(
     if config_update.enable_waitlist is not None:
         if config_update.enable_waitlist and not previous_state.get("enable_waitlist"):
             # Gate de plano único (P-05): 403 fora do plano, 402 assinatura irregular.
-            from src.api.dependencies import check_plan_feature
-
             await check_plan_feature(current_user, db, "fila_espera")
         await repo.toggle_feature(
             tenant_id=current_user.tenant_id,
@@ -331,8 +360,6 @@ async def update_tenant_config(
     if config_update.enable_time_slot_scheduling is not None:
         if config_update.enable_time_slot_scheduling and not previous_state.get("enable_time_slot_scheduling"):
             # Gate de plano único (P-05): 403 fora do plano, 402 assinatura irregular.
-            from src.api.dependencies import check_plan_feature
-
             await check_plan_feature(current_user, db, "agendamento_por_horario")
         await repo.toggle_feature(
             tenant_id=current_user.tenant_id,
@@ -358,6 +385,7 @@ async def update_tenant_config(
     
     resp = TenantConfigResponse.model_validate(updated_config)
     resp.logo_url = _build_logo_url(request, updated_config)
+    resp.tenant_nome = await _tenant_name(db, current_user.tenant_id)
     return resp
 
 
@@ -370,16 +398,16 @@ async def upload_tenant_logo(
 ) -> TenantConfigResponse:
     """Upload tenant logo (stored as binary in database).
     
-    Accepts JPG, PNG or WEBP up to 2 MB. Requires admin role.
+    Accepts JPG, PNG or WEBP up to 2 MB. Autorização pelo grupo
+    (CONFIGURACOES:edit) + plano com `tema_personalizado` (logo próprio).
     """
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Admin required")
-
     if current_user.tenant_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Super Admin não possui configuração de tenant",
         )
+
+    await check_plan_feature(current_user, db, "tema_personalizado", detail=BRANDING_PLAN_DENIED)
 
     if file.content_type not in ALLOWED_LOGO_CONTENT_TYPES:
         raise ValidationError("Formato inválido. Use JPG, PNG ou WEBP")
@@ -404,6 +432,7 @@ async def upload_tenant_logo(
 
     resp = TenantConfigResponse.model_validate(config)
     resp.logo_url = _build_logo_url(request, config)
+    resp.tenant_nome = await _tenant_name(db, current_user.tenant_id)
     return resp
 
 
@@ -413,10 +442,11 @@ async def delete_tenant_logo(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TenantConfigResponse:
-    """Remove tenant logo. Requires admin role."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Admin required")
+    """Remove tenant logo.
 
+    Autorização pelo grupo (CONFIGURACOES:edit). Sem gate de plano: remover
+    (voltar ao padrão) é sempre permitido, como desligar um toggle.
+    """
     if current_user.tenant_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -436,4 +466,5 @@ async def delete_tenant_logo(
 
     resp = TenantConfigResponse.model_validate(config)
     resp.logo_url = _build_logo_url(request, config)
+    resp.tenant_nome = await _tenant_name(db, current_user.tenant_id)
     return resp

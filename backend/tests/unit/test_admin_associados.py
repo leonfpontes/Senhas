@@ -46,6 +46,7 @@ def _mock_associado():
     a.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
     a.updated_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
     a.deleted_at = None
+    a.mensalidade_isento = False
     return a
 
 

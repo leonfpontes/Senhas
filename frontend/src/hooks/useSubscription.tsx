@@ -3,6 +3,7 @@
  */
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { apiClient } from '../services/api_client';
+import { planLabel as planDisplayLabel } from '@/constants/plans';
 
 export interface PlanFeatures {
   email_transacional: boolean;
@@ -40,6 +41,10 @@ export interface SubscriptionInfo {
   auto_renew: boolean;
   cancel_at_period_end: boolean;
   current_period_end: string | null;
+  /** Já tem assinatura na Stripe (cartão cadastrado) — trial "trialing" não é trial local. */
+  has_stripe_subscription?: boolean;
+  /** Cortesia concedida pela plataforma (sem cobrança). */
+  is_bonus?: boolean;
   features: PlanFeatures;
 }
 
@@ -81,13 +86,6 @@ const DEFAULT_FEATURES: PlanFeatures = {
   agendamento_por_horario: false,
 };
 
-const PLAN_LABELS: Record<string, string> = {
-  free: 'Free',
-  basic: 'Basic',
-  pro: 'Pro',
-  premium: 'Premium',
-};
-
 const SubscriptionContext = createContext<SubscriptionContextValue>({
   subscription: null,
   loading: true,
@@ -96,7 +94,7 @@ const SubscriptionContext = createContext<SubscriptionContextValue>({
   canCreateGira: () => false,
   canCreateMedium: () => false,
   refresh: () => {},
-  planLabel: 'Free',
+  planLabel: planDisplayLabel('free'),
 });
 
 const hasAuthToken = (): boolean => {
@@ -181,7 +179,8 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     [subscription],
   );
 
-  const planLabel = PLAN_LABELS[subscription?.plan ?? 'free'] ?? 'Free';
+  // Rótulo único dos planos (constants/plans.ts) — "Gratuito", não "Free".
+  const planLabel = planDisplayLabel(subscription?.plan ?? 'free');
 
   return (
     <SubscriptionContext.Provider

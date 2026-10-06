@@ -82,7 +82,7 @@ interface DashboardData {
   tickets: { total: number; last_30d: number; last_7d: number };
   mrr: number;
   mrr_prev_month: number;
-  alerts: { inactive_tenants: number; no_activity_30d: number };
+  alerts: { inactive_tenants: number };
   plans_distribution: { plan: string; count: number }[];
   daily_tickets: { date: string; count: number }[];
   tenant_growth: { date: string; count: number }[];
@@ -112,6 +112,8 @@ interface TenantErrors {
 interface ObservatoryData {
   retention: RetentionTenant[];
   retention_summary: { total_at_risk: number; mrr_at_risk: number; critico: number; risco: number; atencao: number };
+  /** Carência da retenção (GRACE_DAYS de tenant_retention_service.py): só conta quem está há N+ dias sem emitir. */
+  retention_grace_days: number;
   activation: ActivationData;
   errors_by_tenant: TenantErrors[];
   error_window_minutes: number;
@@ -523,7 +525,9 @@ const PlatformHoje: React.FC = () => {
     [observatory],
   );
 
-  const alerts = dashboard?.alerts;
+  const inactiveTenants = dashboard?.alerts.inactive_tenants ?? 0;
+  // Risco de churn vem só do observatório (calculado uma vez por carga no backend).
+  const atRiskCount = observatory?.retention_summary.total_at_risk ?? 0;
   const dbOk = health?.database.status === 'ok';
   const quebrouCount = (health === null ? 1 : health && !dbOk ? 1 : 0) + errors.length + unreadConversations.length;
   const tick = { fill: chartTokens.tick, fontSize: 11 } as const;
@@ -540,22 +544,24 @@ const PlatformHoje: React.FC = () => {
         </Alert>
       )}
 
-      {alerts && (alerts.inactive_tenants > 0 || alerts.no_activity_30d > 0) && (
+      {(inactiveTenants > 0 || atRiskCount > 0) && (
         <div className="mb-4 grid gap-2 sm:grid-cols-2">
-          {alerts.inactive_tenants > 0 && (
+          {inactiveTenants > 0 && (
             <Alert variant="warning">
               <AlertTriangle aria-hidden />
-              <AlertTitle>{plural(alerts.inactive_tenants, 'terreiro desativado', 'terreiros desativados')}</AlertTitle>
+              <AlertTitle>{plural(inactiveTenants, 'terreiro desativado', 'terreiros desativados')}</AlertTitle>
               <AlertDescription>
                 Conta existe, acesso bloqueado.{' '}
                 <Link href="/platform/tenants?status=inativo" className="font-semibold underline underline-offset-4">Ver terreiros</Link>
               </AlertDescription>
             </Alert>
           )}
-          {alerts.no_activity_30d > 0 && (
+          {atRiskCount > 0 && (
             <Alert variant="warning">
               <Activity aria-hidden />
-              <AlertTitle>{plural(alerts.no_activity_30d, 'terreiro', 'terreiros')} sem emitir senhas há 30 dias</AlertTitle>
+              <AlertTitle>
+                {plural(atRiskCount, 'terreiro', 'terreiros')} sem emitir senhas há {observatory?.retention_grace_days ?? 15} dias ou mais
+              </AlertTitle>
               <AlertDescription>
                 Risco de churn.{' '}
                 <a href="#contatar" className="font-semibold underline underline-offset-4">Ver em Contatar</a>

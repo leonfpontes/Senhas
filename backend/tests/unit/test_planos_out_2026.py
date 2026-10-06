@@ -21,7 +21,7 @@ from src.repositories.subscription_repo import PLAN_LIMITS
 from src.services.plan_features import PLAN_FEATURE_NAMES, _get_plan_features, feature_min_plan
 
 MIN_PLAN = {
-    "bulk_operations": PlanType.BASIC,
+    "bulk_operations": PlanType.FREE,  # always-on em todos os planos (2.2.0), não é vendido
     "mediuns": PlanType.BASIC,
     "relatorio_gira": PlanType.BASIC,
     "email_transacional": PlanType.PRO,

@@ -8,7 +8,7 @@ import { useRouter } from 'next/router';
 import { useTour } from '@reactour/tour';
 import * as Sentry from '@sentry/nextjs';
 import { BookOpen, CircleHelp, LogOut, MessageCircle, Moon, Search, Sparkles, Sun, User } from 'lucide-react';
-import { apiClient } from '@/services/api_client';
+import { apiClient, endImpersonation } from '@/services/api_client';
 import { useTenant } from '@/providers/ThemeProvider';
 import { useProfile } from '@/hooks/useProfile';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
@@ -41,8 +41,11 @@ import { ReleaseNotesDialog, clearReleaseNotesSession, useReleaseNotesAutoOpen }
 import { giraLabel, useGiraContext } from '@/components/admin/GiraContext';
 import { resetChecklistDismissed } from '@/components/admin/FirstGiraChecklist';
 
-/** Rotas em que a gira de hoje faz sentido como contexto compartilhado. */
-export const GIRA_CONTEXT_ROUTES = ['/admin/dashboard', '/admin/giras', '/admin/tickets', '/admin/porta'];
+/**
+ * Rotas em que a gira de hoje faz sentido como contexto compartilhado — e que seguem o seletor
+ * do topo. Giras lista a agenda inteira, então não mostra o seletor (não teria efeito).
+ */
+export const GIRA_CONTEXT_ROUTES = ['/admin/dashboard', '/admin/tickets', '/admin/porta'];
 
 export interface AdminTopbarProps {
   title: string;
@@ -83,17 +86,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
     setIsOpen(true);
   };
 
-  const handleLogout = async () => {
-    try {
-      await apiClient.post('/api/v1/auth/logout');
-    } catch {
-      /* non-critical */
-    }
-    localStorage.removeItem('user');
-    clearReleaseNotesSession(profile?.id);
-    Sentry.setUser(null);
-    router.push('/login');
-  };
+  const handleLogout = () => adminLogout((url) => router.push(url), profile?.id);
 
   const handleShowOnboarding = () => {
     resetChecklistDismissed(profile?.tenant_id);
@@ -283,6 +276,29 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
     </header>
   );
 };
+
+/**
+ * "Sair" do menu do usuário.
+ *
+ * Impersonação: os cookies deste navegador são do SUPER-ADMIN — o /auth/logout
+ * revogaria e apagaria a sessão dele na plataforma. Sair aqui = encerrar só a
+ * impersonação (limpa o sessionStorage desta aba e fecha/volta ao login).
+ */
+export async function adminLogout(push: (url: string) => unknown, profileId?: string): Promise<void> {
+  if (safeSessionItem('impersonating')) {
+    endImpersonation();
+    return;
+  }
+  try {
+    await apiClient.post('/api/v1/auth/logout');
+  } catch {
+    /* non-critical */
+  }
+  localStorage.removeItem('user');
+  clearReleaseNotesSession(profileId);
+  Sentry.setUser(null);
+  push('/login');
+}
 
 function safeSessionItem(key: string): string | null {
   try {

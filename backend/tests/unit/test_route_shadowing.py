@@ -4,6 +4,7 @@ O Starlette casa rotas na ordem de registro. `GET /api/v1/platform/tenants/{tena
 vinha antes de `GET /api/v1/platform/tenants/search`, então "search" virava tenant_id e
 a busca da plataforma respondia 422 (UUID inválido) — nunca chegava no handler.
 """
+import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -38,14 +39,37 @@ def _api_routes(app):
     ]
 
 
+_PARAM = re.compile(r"\{[^}]+\}")
+
+
+def _probe_path(path: str) -> str | None:
+    """Path concreto para testar a rota contra as anteriores.
+
+    Rota sem parâmetro: o próprio path. Rota com parâmetro e algum segmento fixo
+    DEPOIS dele (ex.: ``/flags/{tenant_id}/enabled``): troca cada parâmetro por um
+    valor que nenhuma rota fixa usa — se uma rota anterior casar, o segmento fixo
+    está sendo lido como parâmetro dela (``/flags/{tenant_id}/{feature}``). Rota
+    cujos segmentos depois do primeiro parâmetro são todos parâmetros fica de fora
+    (rota com o mesmo formato não é sombreamento de literal).
+    """
+    segments = path.split("/")
+    first_param = next((i for i, seg in enumerate(segments) if _PARAM.search(seg)), None)
+    if first_param is None:
+        return path
+    if not any(not _PARAM.search(seg) and seg for seg in segments[first_param + 1:]):
+        return None
+    return _PARAM.sub("00000000-0000-0000-0000-000000000000", path)
+
+
 def _shadowed_routes(app):
     routes = _api_routes(app)
     found = []
     for i, route in enumerate(routes):
-        if "{" in route.path:
+        probe = _probe_path(route.path)
+        if probe is None:
             continue
         for method in route.methods:
-            scope = {"type": "http", "path": route.path, "method": method, "root_path": ""}
+            scope = {"type": "http", "path": probe, "method": method, "root_path": ""}
             for earlier in routes[:i]:
                 if method not in earlier.methods or earlier.path == route.path:
                     continue
@@ -85,6 +109,29 @@ def test_detector_acha_sombreamento_em_routers_aninhados():
     # E o despacho real concorda com o detector: "search" cai no handler de detalhe.
     resp = TestClient(fake).get("/api/v1/platform/tenants/search")
     assert resp.json() == {"handler": "detalhe"}
+
+
+def test_detector_acha_literal_depois_de_parametro():
+    """`/{tenant_id}/enabled` registrada depois de `/{tenant_id}/{feature}` é engolida."""
+    router = APIRouter(prefix="/api/v1/platform/feature-flags")
+
+    @router.get("/{tenant_id}/{feature}")
+    async def flag(tenant_id: str, feature: str):
+        return {"handler": "flag"}
+
+    @router.get("/{tenant_id}/enabled")
+    async def habilitadas(tenant_id: str):
+        return {"handler": "habilitadas"}
+
+    fake = FastAPI()
+    fake.include_router(router)
+
+    assert _shadowed_routes(fake) == [
+        "GET /api/v1/platform/feature-flags/{tenant_id}/enabled engolida por "
+        "/api/v1/platform/feature-flags/{tenant_id}/{feature}"
+    ]
+    resp = TestClient(fake).get("/api/v1/platform/feature-flags/abc/enabled")
+    assert resp.json() == {"handler": "flag"}
 
 
 def test_busca_de_terreiros_chega_no_handler(app):

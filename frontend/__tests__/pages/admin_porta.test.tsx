@@ -187,6 +187,38 @@ describe('Porta — modo operação', () => {
     expect(screen.queryByRole('button', { name: /Sem senha/ })).not.toBeInTheDocument();
   });
 
+  it('fluxo de um passo: sem "Em atendimento"; um "called" antigo aparece na fila como aguardando', async () => {
+    QUEUE = [item('t1', 1, { status: 'called' }), item('t2', 2)];
+    mockApi();
+    await renderPorta();
+    expect(screen.queryByText('Em atendimento')).not.toBeInTheDocument();
+    expect(screen.getByTestId('porta-indicadores')).toHaveTextContent('2 aguardando');
+    expect(screen.getAllByTestId('fila-item')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /Chamar próximo · 0001/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Ver resumo/ }));
+    expect(await screen.findByTestId('porta-resumo')).not.toHaveTextContent('Em atendimento');
+  });
+
+  it('o aviso sonoro não toca ao abrir a Porta, só quando entra alguém novo na fila', async () => {
+    const play = jest.fn(() => Promise.resolve());
+    const AudioMock = jest.fn(() => ({ play }));
+    (window as any).Audio = AudioMock;
+    const api = mockApi();
+    await renderPorta();
+    expect(AudioMock).not.toHaveBeenCalled();
+
+    QUEUE = [...QUEUE, item('t9', 9)];
+    const trigger = screen.getByRole('button', { name: 'Ações da senha 0001' });
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    const menu = await screen.findByRole('menu');
+    await act(async () => {
+      fireEvent.click(within(menu).getByRole('menuitem', { name: /Chegou/ }));
+    });
+    expect(api.patch).toHaveBeenCalledWith('/api/v1/admin/door/tickets/t1/checkin');
+    await waitFor(() => expect(screen.getByText('Pessoa 9')).toBeInTheDocument());
+    expect(AudioMock).toHaveBeenCalledTimes(1);
+  });
+
   it('sem rede mostra "Sem conexão" mantendo a fila; ao voltar, avisa e atualiza na hora', async () => {
     const api = mockApi();
     await renderPorta();

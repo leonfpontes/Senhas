@@ -106,13 +106,14 @@ const baseSchema = z.object({
   bairro: z.string(),
   cidade: z.string(),
   estado: z.string(),
-  tem_plano_saude: z.boolean(),
+  // Perguntas de saúde começam sem resposta (null) — o formulário completo exige Sim/Não explícito.
+  tem_plano_saude: z.boolean().nullable(),
   plano_saude_nome: z.string(),
-  toma_medicamento: z.boolean(),
+  toma_medicamento: z.boolean().nullable(),
   medicamentos_nome: z.string(),
-  tem_doenca_tratamento: z.boolean(),
+  tem_doenca_tratamento: z.boolean().nullable(),
   doenca_tratamento_nome: z.string(),
-  tem_diabetes: z.boolean(),
+  tem_diabetes: z.boolean().nullable(),
   outras_doencas: z.string(),
   aceita_uso_dados_saude: z.boolean(),
   cpf: z.string(),
@@ -125,7 +126,7 @@ const baseSchema = z.object({
   interesse_aprendizado: z.string(),
   ja_conhece_terreiro: z.string(),
   como_conheceu_terreiro: z.string(),
-  tratamento_psiquiatrico: z.boolean(),
+  tratamento_psiquiatrico: z.boolean().nullable(),
   tratamento_psiquiatrico_detalhes: z.string(),
   restricoes_saude: z.string(),
   comprovante: z.custom<File | null>((v) => v === null || isFile(v)),
@@ -179,7 +180,16 @@ function buildSchema(curso: CursoPublico | null) {
     required('motivo_busca_desenvolvimento', "O campo 'O que te fez buscar o desenvolvimento mediúnico?' é obrigatório.");
     required('interesse_aprendizado', "O campo 'Tem interesse em algum aprendizado específico? Qual?' é obrigatório.");
     required('ja_conhece_terreiro', `Por favor, responda se já conhece o Terreiro ${terreiro}.`);
-    required('como_conheceu_terreiro', `O campo 'Como conheceu o ${terreiro}?' é obrigatório.`);
+    // "Como conheceu" só aparece (e só é exigido) para quem já conhece o terreiro.
+    if (v.ja_conhece_terreiro === 'Sim') required('como_conheceu_terreiro', `O campo 'Como conheceu o ${terreiro}?' é obrigatório.`);
+    const answer = (path: FieldName, message: string) => {
+      if (v[path] === null) issue(path, message);
+    };
+    answer('tem_plano_saude', 'Responda se tem plano de saúde.');
+    answer('toma_medicamento', 'Responda se toma algum medicamento de uso contínuo.');
+    answer('tem_doenca_tratamento', 'Responda se faz algum tratamento de saúde.');
+    answer('tem_diabetes', 'Responda se tem diabetes.');
+    answer('tratamento_psiquiatrico', 'Responda se faz acompanhamento psiquiátrico.');
     if (v.tem_plano_saude) required('plano_saude_nome', 'Informe o nome do seu plano de saúde.');
     if (v.toma_medicamento) required('medicamentos_nome', 'Especifique os medicamentos controlados que você toma.');
     if (v.tem_doenca_tratamento) required('doenca_tratamento_nome', 'Especifique o tratamento de saúde que você realiza.');
@@ -195,12 +205,12 @@ const DEFAULTS: FormValues = {
   aceita_uso_dados: false, aceita_uso_imagem: false,
   genero: '', emergencia_contato: '', emergencia_fone: '',
   cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '',
-  tem_plano_saude: false, plano_saude_nome: '', toma_medicamento: false, medicamentos_nome: '',
-  tem_doenca_tratamento: false, doenca_tratamento_nome: '', tem_diabetes: false, outras_doencas: '',
+  tem_plano_saude: null, plano_saude_nome: '', toma_medicamento: null, medicamentos_nome: '',
+  tem_doenca_tratamento: null, doenca_tratamento_nome: '', tem_diabetes: null, outras_doencas: '',
   aceita_uso_dados_saude: false, cpf: '', rg: '', estado_civil: '', profissao: '',
   experiencia_umbanda: '', contato_contexto_espiritual: '', motivo_busca_desenvolvimento: '',
   interesse_aprendizado: '', ja_conhece_terreiro: '', como_conheceu_terreiro: '',
-  tratamento_psiquiatrico: false, tratamento_psiquiatrico_detalhes: '', restricoes_saude: '',
+  tratamento_psiquiatrico: null, tratamento_psiquiatrico_detalhes: '', restricoes_saude: '',
   comprovante: null,
 };
 
@@ -315,21 +325,31 @@ function SelectField({ id, label, value, onChange, options, error, required, dis
 interface BoolFieldProps {
   id: string;
   label: string;
-  value: boolean;
+  /** null = ainda não respondida (nenhuma opção marcada). */
+  value: boolean | null;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  required?: boolean;
+  error?: string;
 }
 
-function BoolField({ id, label, value, onChange, disabled }: BoolFieldProps) {
+function BoolField({ id, label, value, onChange, disabled, required, error }: BoolFieldProps) {
+  const selected = value === null ? '' : value ? 'sim' : 'nao';
   return (
     <fieldset className="m-0 min-w-0 border-0 p-0 flex flex-col gap-1.5">
-      <legend className="p-0 mb-1.5 text-sm leading-snug font-medium">{label}</legend>
+      <legend className="p-0 mb-1.5 text-sm leading-snug font-medium">
+        {label}
+        {required && <span aria-hidden className="text-destructive"> *</span>}
+      </legend>
       <RadioGroup
-        value={value ? 'sim' : 'nao'}
+        id={id}
+        value={selected}
         onValueChange={(v) => onChange(v === 'sim')}
         disabled={disabled}
         className="flex gap-2"
         aria-label={label}
+        aria-invalid={Boolean(error) || undefined}
+        aria-required={required || undefined}
       >
         {(['nao', 'sim'] as const).map((opt) => (
           <Label
@@ -337,7 +357,7 @@ function BoolField({ id, label, value, onChange, disabled }: BoolFieldProps) {
             htmlFor={`${id}-${opt}`}
             className={cn(
               'flex min-h-12 flex-1 cursor-pointer items-center gap-2 rounded-md border px-3 text-base font-normal',
-              (value ? 'sim' : 'nao') === opt && 'border-primary bg-primary/5',
+              selected === opt && 'border-primary bg-primary/5',
             )}
           >
             <RadioGroupItem id={`${id}-${opt}`} value={opt} className="size-5" />
@@ -345,6 +365,7 @@ function BoolField({ id, label, value, onChange, disabled }: BoolFieldProps) {
           </Label>
         ))}
       </RadioGroup>
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </fieldset>
   );
 }
@@ -396,6 +417,7 @@ export default function InscricaoCursoPage() {
   const tomaMed = useWatch({ control, name: 'toma_medicamento' });
   const temDoenca = useWatch({ control, name: 'tem_doenca_tratamento' });
   const psiq = useWatch({ control, name: 'tratamento_psiquiatrico' });
+  const jaConhece = useWatch({ control, name: 'ja_conhece_terreiro' });
   const comprovante = useWatch({ control, name: 'comprovante' });
 
   // ── Fetch course data ──
@@ -529,7 +551,7 @@ export default function InscricaoCursoPage() {
         motivo_busca_desenvolvimento: f.motivo_busca_desenvolvimento.trim() || null,
         interesse_aprendizado: f.interesse_aprendizado.trim() || null,
         ja_conhece_terreiro: f.ja_conhece_terreiro === 'Sim' ? true : f.ja_conhece_terreiro === 'Não' ? false : null,
-        como_conheceu_terreiro: f.como_conheceu_terreiro.trim() || null,
+        como_conheceu_terreiro: f.ja_conhece_terreiro === 'Sim' ? f.como_conheceu_terreiro.trim() || null : null,
         tratamento_psiquiatrico: f.tratamento_psiquiatrico,
         tratamento_psiquiatrico_detalhes: f.tratamento_psiquiatrico ? f.tratamento_psiquiatrico_detalhes.trim() || null : null,
         restricoes_saude: f.restricoes_saude.trim() || null,
@@ -660,7 +682,7 @@ export default function InscricaoCursoPage() {
                 ['Participante', success.nome],
                 ['E-mail', success.email],
                 ['Início', fmtDate(success.data_inicio)],
-                ...(success.valor_mensalidade != null
+                ...(success.valor_mensalidade != null && curso.gerar_mensalidade
                   ? [['Mensalidade', <strong key="m" className="text-(color:--brand-text)">{fmtBRL(success.valor_mensalidade)}/mês</strong>]]
                   : []),
               ].map(([k, v]) => (
@@ -678,7 +700,7 @@ export default function InscricaoCursoPage() {
               <ul className="mt-1 list-disc space-y-1 pl-5 text-base text-muted-foreground">
                 <li>Você recebe um e-mail de confirmação em {success.email}.</li>
                 {curso.chave_pix && <li>O terreiro confere o comprovante da matrícula e confirma sua vaga.</li>}
-                {success.valor_mensalidade != null && <li>A mensalidade é cobrada durante o período do curso.</li>}
+                {success.valor_mensalidade != null && curso.gerar_mensalidade && <li>A mensalidade é cobrada durante o período do curso.</li>}
                 <li>Anote a data de início: {fmtDate(success.data_inicio)}{curso.local ? ` · ${curso.local}` : ''}.</li>
               </ul>
             </div>
@@ -929,7 +951,9 @@ export default function InscricaoCursoPage() {
                   <Controller control={control} name="ja_conhece_terreiro" render={({ field }) => (
                     <SelectField id="ja_conhece_terreiro" label={`Já conhece o Terreiro ${curso.tenant_nome}?`} required value={field.value} onChange={field.onChange} options={SIM_NAO} error={err('ja_conhece_terreiro')} />
                   )} />
-                  <TextField id="como_conheceu_terreiro" label={`Como conheceu o ${curso.tenant_nome}?`} required placeholder="Ex: redes sociais, indicação, etc." maxLength={255} inputClassName="h-12" error={err('como_conheceu_terreiro')} {...register('como_conheceu_terreiro')} />
+                  {jaConhece === 'Sim' && (
+                    <TextField id="como_conheceu_terreiro" label={`Como conheceu o ${curso.tenant_nome}?`} required placeholder="Ex: redes sociais, indicação, etc." maxLength={255} inputClassName="h-12" error={err('como_conheceu_terreiro')} {...register('como_conheceu_terreiro')} />
+                  )}
                 </AccordionContent>
               </AccordionItem>
 
@@ -939,28 +963,28 @@ export default function InscricaoCursoPage() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="flex flex-col gap-3">
                       <Controller control={control} name="tem_plano_saude" render={({ field }) => (
-                        <BoolField id="tem_plano_saude" label="Tem plano de saúde?" value={field.value} onChange={field.onChange} />
+                        <BoolField id="tem_plano_saude" label="Tem plano de saúde?" required value={field.value} onChange={field.onChange} error={err('tem_plano_saude')} />
                       )} />
                       {temPlano && <TextField id="plano_saude_nome" label="Qual o plano de saúde?" required placeholder="Nome da operadora/plano" maxLength={100} inputClassName="h-12" error={err('plano_saude_nome')} {...register('plano_saude_nome')} />}
                     </div>
                     <div className="flex flex-col gap-3">
                       <Controller control={control} name="toma_medicamento" render={({ field }) => (
-                        <BoolField id="toma_medicamento" label="Toma algum medicamento de uso contínuo?" value={field.value} onChange={field.onChange} />
+                        <BoolField id="toma_medicamento" label="Toma algum medicamento de uso contínuo?" required value={field.value} onChange={field.onChange} error={err('toma_medicamento')} />
                       )} />
                       {tomaMed && <TextField id="medicamentos_nome" label="Quais medicamentos?" required multiline rows={2} placeholder="Liste os medicamentos e dosagens…" error={err('medicamentos_nome')} {...register('medicamentos_nome')} />}
                     </div>
                     <div className="flex flex-col gap-3">
                       <Controller control={control} name="tem_doenca_tratamento" render={({ field }) => (
-                        <BoolField id="tem_doenca_tratamento" label="Faz algum tratamento de saúde?" value={field.value} onChange={field.onChange} />
+                        <BoolField id="tem_doenca_tratamento" label="Faz algum tratamento de saúde?" required value={field.value} onChange={field.onChange} error={err('tem_doenca_tratamento')} />
                       )} />
                       {temDoenca && <TextField id="doenca_tratamento_nome" label="Qual tratamento/doença? Especifique" required multiline rows={2} placeholder="Descreva a doença e o tratamento…" error={err('doenca_tratamento_nome')} {...register('doenca_tratamento_nome')} />}
                     </div>
                     <Controller control={control} name="tem_diabetes" render={({ field }) => (
-                      <BoolField id="tem_diabetes" label="Tem diabetes?" value={field.value} onChange={field.onChange} />
+                      <BoolField id="tem_diabetes" label="Tem diabetes?" required value={field.value} onChange={field.onChange} error={err('tem_diabetes')} />
                     )} />
                     <div className="flex flex-col gap-3 sm:col-span-2">
                       <Controller control={control} name="tratamento_psiquiatrico" render={({ field }) => (
-                        <BoolField id="tratamento_psiquiatrico" label="Faz acompanhamento / tratamento psiquiátrico e remédios controlados?" value={field.value} onChange={field.onChange} />
+                        <BoolField id="tratamento_psiquiatrico" label="Faz acompanhamento / tratamento psiquiátrico e remédios controlados?" required value={field.value} onChange={field.onChange} error={err('tratamento_psiquiatrico')} />
                       )} />
                       {psiq && <TextField id="tratamento_psiquiatrico_detalhes" label="Especifique o tratamento e remédios controlados" required multiline rows={2} placeholder="Detalhes sobre tratamentos ou medicações psiquiátricas…" error={err('tratamento_psiquiatrico_detalhes')} {...register('tratamento_psiquiatrico_detalhes')} />}
                     </div>

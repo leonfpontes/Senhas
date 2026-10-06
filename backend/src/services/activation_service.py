@@ -99,7 +99,14 @@ async def get_activation(db, now: Optional[datetime] = None) -> dict[str, Any]:
         .correlate(Tenant)
     )
     last_session = corr(select(func.max(UserSession.last_used_at)).where(UserSession.tenant_id == Tenant.id))
-    last_action = corr(select(func.max(AuditLog.created_at)).where(AuditLog.tenant_id == Tenant.id))
+    # Ações da plataforma no terreiro (impersonação, troca de plano... — services/platform_audit.py)
+    # não são atividade do terreiro.
+    last_action = corr(
+        select(func.max(AuditLog.created_at)).where(
+            AuditLog.tenant_id == Tenant.id,
+            or_(AuditLog.details.is_(None), ~AuditLog.details.has_key("platform_action")),
+        )
+    )
     custom_settings = corr(
         select(TenantConfig.custom_settings)
         .where(TenantConfig.tenant_id == Tenant.id, TenantConfig.deleted_at.is_(None))

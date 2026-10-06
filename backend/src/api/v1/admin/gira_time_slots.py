@@ -21,7 +21,7 @@ from src.models.tenant_config import TenantConfig
 from src.repositories.gira_repo import GiraRepository
 from src.repositories.gira_time_slot_repo import GiraTimeSlotRepository
 from src.services import time_slot_service
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_any_group_permission
 from src.core.errors import NotFoundError, InsufficientPermissionsError
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-gira-time-slots"])
@@ -66,7 +66,9 @@ class TimeSlotTemplateUpdateRequest(BaseModel):
 @router.get(
     "/config/time-slot-templates",
     response_model=List[TimeSlotTemplateResponse],
-    dependencies=[Depends(require_group_permission(PermissionFeature.CONFIGURACOES, "view"))],
+    # Leitura também para GIRAS: a tela de Giras pré-preenche os horários da gira
+    # com o modelo. Editar o modelo (PUT) continua só com CONFIGURACOES:edit.
+    dependencies=[Depends(require_any_group_permission(PermissionFeature.CONFIGURACOES, PermissionFeature.GIRAS, action="view"))],
 )
 async def list_time_slot_templates(
     current_user: User = Depends(get_current_user),

@@ -50,7 +50,7 @@ export const platformTourSteps: TourStepMap = {
     {
       selector: '[data-tour="settings-tabs"]',
       content:
-        'Configurações em quatro abas: sua conta, os administradores da plataforma, as feature flags por terreiro e a tabela de planos.',
+        'Configurações em três abas: sua conta, os administradores da plataforma e a tabela de planos.',
     },
   ],
 

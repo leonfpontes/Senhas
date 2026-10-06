@@ -176,16 +176,53 @@ class TestRoleGate:
         assert result is None  # no 403 raised
 
     @pytest.mark.asyncio
+    @patch("src.api.v1.admin.mensalidades.TenantConfigRepository")
+    @patch("src.api.v1.admin.mensalidades.AuditService")
+    @patch("src.api.v1.admin.mensalidades.MensalidadeRepository")
     @patch("src.api.v1.admin.mensalidades.SubscriptionRepository")
-    async def test_operator_update_config_retorna_403(self, MockSubRepo):
-        """OPERATOR cannot write config."""
-        from fastapi import HTTPException
+    async def test_operator_com_grupo_atualiza_config(self, MockSubRepo, MockRepo, MockAudit, MockTC):
+        """Quem decide é o grupo (FINANCEIRO "edit" no decorator): o antigo
+        `_require_admin` dava 403 ao operador que o grupo autorizava."""
         from src.api.v1.admin.mensalidades import update_config, ConfigUpdate
         self._patch_premium(MockSubRepo)
-        body = ConfigUpdate(valor_mensal=50.0, dia_vencimento=10)
-        with pytest.raises(HTTPException) as exc:
-            await update_config(body, _operator_user(), _mock_db())
-        assert exc.value.status_code == 403
+        existing = MagicMock()
+        existing.tenant_id = TENANT_ID
+        existing.valor_mensal = Decimal("10")
+        existing.dia_vencimento = 10
+        existing.ativo = True
+        existing.email_relatorio_ativo = False
+        existing.valor_mensal_associado = Decimal("0")
+        existing.dia_vencimento_associado = 10
+        existing.relatorio_hora_envio = None
+        repo_inst = AsyncMock()
+        repo_inst.get_config.return_value = existing
+        MockRepo.return_value = repo_inst
+        MockAudit.return_value = AsyncMock()
+        MockTC.return_value = AsyncMock(get_by_tenant=AsyncMock(return_value=None))
+
+        body = ConfigUpdate(valor_mensal=50.0, dia_vencimento=12, valor_mensal_associado=0)
+        result = await update_config(body, _operator_user(), _mock_db())
+        assert result.valor_mensal == 50.0
+        assert result.dia_vencimento == 12
+        assert result.valor_mensal_associado == 0.0
+
+    def test_rotas_de_escrita_usam_so_o_grupo(self):
+        from src.api.v1.admin import mensalidades
+        assert not hasattr(mensalidades, "_require_admin")
+        perms = {}
+        for r in mensalidades.router.routes:
+            for d in r.dependencies:
+                cell = getattr(d.dependency, "__closure__", None) or ()
+                vals = [c.cell_contents for c in cell]
+                acoes = [v for v in vals if v in ("view", "insert", "edit", "delete")]
+                if acoes:
+                    for m in r.methods:
+                        perms[(m, r.path)] = acoes[0]
+        base = "/api/v1/admin/financeiro"
+        # Registrar pagamento (upsert) é "insert" — a tela usa canGroup('financeiro', 'insert').
+        assert perms[("POST", base + "/mensalidades/{mediun_id}/{mes}")] == "insert"
+        assert perms[("POST", base + "/associados/{associado_id}/{mes}")] == "insert"
+        assert perms[("PUT", base + "/config")] == "edit"
 
 
 # ═══════════════════════════════════════════════════════════

@@ -59,8 +59,8 @@ export interface SiteInfo {
 
 export interface SiteVersion {
   id: string;
+  /** "Publicado" | "Rascunho" | "Antes de restaurar" (null em versões antigas). */
   label: string | null;
-  snapshot: unknown[];
   created_by: string | null;
   created_at: string;
 }

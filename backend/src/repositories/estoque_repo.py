@@ -43,16 +43,20 @@ class EstoqueGrupoRepository(BaseRepository[EstoqueGrupo]):
         await self.db.refresh(grupo)
         return grupo
 
-    async def update_grupo(
-        self, grupo_id: UUID, tenant_id: UUID, nome: Optional[str] = None, descricao: Optional[str] = None
-    ) -> Optional[EstoqueGrupo]:
+    async def update_grupo(self, grupo_id: UUID, tenant_id: UUID, **fields) -> Optional[EstoqueGrupo]:
+        """Atualização parcial: só mexe nas chaves presentes em ``fields``.
+
+        Chave presente com ``None`` LIMPA o campo (ex.: apagar a descrição) — por isso
+        o endpoint passa ``model_dump(exclude_unset=True)`` e não os campos um a um.
+        ``nome`` nunca é limpo (coluna obrigatória; o schema já rejeita vazio).
+        """
         grupo = await self.get_by_id(grupo_id, tenant_id)
         if not grupo:
             return None
-        if nome is not None:
-            grupo.nome = nome.strip()
-        if descricao is not None:
-            grupo.descricao = descricao
+        if fields.get("nome") is not None:
+            grupo.nome = fields["nome"].strip()
+        if "descricao" in fields:
+            grupo.descricao = fields["descricao"] or None
         self.db.add(grupo)
         await self.db.flush()
         await self.db.refresh(grupo)
@@ -93,7 +97,8 @@ class EstoqueItemRepository(BaseRepository[EstoqueItem]):
         )
         if grupo_id:
             stmt = stmt.where(EstoqueItem.grupo_id == grupo_id)
-        stmt = stmt.order_by(EstoqueItem.nome).offset(skip).limit(limit)
+        # id desempata nomes iguais: paginação por offset estável (sem item repetido/pulado)
+        stmt = stmt.order_by(EstoqueItem.nome, EstoqueItem.id).offset(skip).limit(limit)
         result = await self.db.execute(stmt)
         return result.scalars().all()
 
@@ -326,7 +331,9 @@ class EstoqueMovimentacaoRepository:
         if search:
             stmt = stmt.join(EstoqueItem, EstoqueMovimentacao.item_id == EstoqueItem.id)
             stmt = stmt.where(EstoqueItem.nome.ilike(f"%{search}%"))
-        stmt = stmt.order_by(EstoqueMovimentacao.data_movimentacao.desc()).offset(skip).limit(limit)
+        stmt = stmt.order_by(
+            EstoqueMovimentacao.data_movimentacao.desc(), EstoqueMovimentacao.id.desc()
+        ).offset(skip).limit(limit)
         result = await self.db.execute(stmt)
         return result.scalars().all()
 

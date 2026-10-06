@@ -4,7 +4,7 @@
  *
  * A gira mais recente que já começou vem pré-selecionada na primeira carga.
  * Filtragem:
- *  - status_filter, dateFrom, dateTo, tipo de gira: no servidor (Popover "Filtros de gira")
+ *  - status_filter, dateFrom, dateTo: no servidor (Popover "Filtros de gira")
  *  - texto, médium, cambone, tag: no cliente sobre o conjunto completo (até 500 senhas)
  * Exportações: CSV (cliente) e PDF (`useRelatorioPDF`, layout em `components/pdf`).
  */
@@ -39,12 +39,14 @@ import { cn } from '@/lib/utils';
 import { formatDateBr } from '@/lib/dateBr';
 import { IconGira } from '@/lib/icons';
 import { minPlanFor } from '@/constants/plans';
+import { numeroDaSenha } from '@/components/admin/senhaFormat';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface Ticket {
   id: string;
   numero: number;
+  numero_formatado?: string | null;
   status: string;
   consulente_nome?: string;
   preferencial?: boolean;
@@ -73,11 +75,9 @@ interface DoorStats {
 interface GiraResumo {
   id: string;
   nome: string;
-  is_active: boolean;
   data_inicio?: string;
 }
 
-type GiraFilter = 'all' | 'active' | 'inactive';
 export type TagLabel = 'Comum' | 'Preferencial' | 'Associado' | 'Sem senha';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ const TAG_CLASS: Record<TagLabel, string> = {
 
 export const STATUS_LABELS: Record<string, string> = {
   emitted: 'Emitida',
-  called: 'Chamada',
+  called: 'Emitida', // legado: "Chamar" já atende, o app não grava mais "called"
   completed: 'Concluída',
   cancelled: 'Cancelada',
   no_show: 'Não veio',
@@ -114,7 +114,6 @@ export function pickUltimaGira(giras: GiraResumo[], agora: Date = new Date()): s
 }
 
 const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-const fmtSenha = (n: number) => `#${String(n).padStart(4, '0')}`;
 
 const PAGE_SIZE = 50;
 
@@ -151,7 +150,6 @@ function RelatorioGiraContent() {
   const [giras, setGiras] = useState<GiraResumo[]>([]);
   const [girasLoaded, setGirasLoaded] = useState(false);
   const [giraId, setGiraId] = useState<string | null>(null);
-  const [giraFilter, setGiraFilter] = useState<GiraFilter>('all');
   const [dateFrom, setDateFrom] = useState<string | null>(null);
   const [dateTo, setDateTo] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('completed');
@@ -172,8 +170,6 @@ function RelatorioGiraContent() {
     if (!canView || !hasPlan) return;
     try {
       const params = new URLSearchParams({ limit: '100' });
-      if (giraFilter === 'active') params.append('is_active', 'true');
-      if (giraFilter === 'inactive') params.append('is_active', 'false');
       if (dateFrom) params.append('date_from', dateFrom);
       if (dateTo) params.append('date_to', dateTo);
       const res = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`);
@@ -190,7 +186,7 @@ function RelatorioGiraContent() {
     } finally {
       setGirasLoaded(true);
     }
-  }, [giraFilter, dateFrom, dateTo, canView, hasPlan, showError]);
+  }, [dateFrom, dateTo, canView, hasPlan, showError]);
 
   const loadTickets = useCallback(async () => {
     if (!giraId || !canView) {
@@ -289,7 +285,7 @@ function RelatorioGiraContent() {
     };
     const header = ['Senha', 'Nome', 'Tag', 'Status', 'Médium', 'Cambone', 'Observações'];
     const rows = filteredTickets.map((t) => [
-      fmtSenha(t.numero),
+      numeroDaSenha(t),
       t.consulente_nome ?? '',
       getTag(t),
       STATUS_LABELS[t.status] ?? t.status,
@@ -323,7 +319,6 @@ function RelatorioGiraContent() {
   };
 
   const handleClearGiraFilters = () => {
-    setGiraFilter('all');
     setDateFrom(null);
     setDateTo(null);
     setStatusFilter('completed');
@@ -336,7 +331,7 @@ function RelatorioGiraContent() {
   };
 
   const hasActiveSearchFilters = Boolean(searchText || mediumFilter || camboneFilter || tagFilter);
-  const activeGiraFilterCount = [dateFrom, dateTo, giraFilter !== 'all' ? giraFilter : '', statusFilter !== 'completed' ? 'x' : ''].filter(Boolean).length;
+  const activeGiraFilterCount = [dateFrom, dateTo, statusFilter !== 'completed' ? 'x' : ''].filter(Boolean).length;
   const activeSearchFilterCount = [mediumFilter, camboneFilter, tagFilter].filter(Boolean).length;
 
   const giraOptions = useMemo(
@@ -344,7 +339,6 @@ function RelatorioGiraContent() {
       giras.map((g) => ({
         value: g.id,
         label: g.data_inicio ? `${g.nome} — ${formatDateBr(g.data_inicio)}` : g.nome,
-        description: g.is_active ? undefined : 'inativa',
       })),
     [giras],
   );
@@ -355,7 +349,7 @@ function RelatorioGiraContent() {
         accessorKey: 'numero',
         header: 'Senha',
         meta: { cellClassName: 'whitespace-nowrap font-mono font-bold' },
-        cell: ({ getValue }) => fmtSenha(getValue<number>()),
+        cell: ({ row }) => numeroDaSenha(row.original),
       },
       {
         accessorKey: 'consulente_nome',
@@ -400,7 +394,7 @@ function RelatorioGiraContent() {
       <div className="flex flex-col gap-1.5 p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <span className="font-mono text-sm font-bold">{fmtSenha(t.numero)}</span>
+            <span className="font-mono text-sm font-bold">{numeroDaSenha(t)}</span>
             <p className="m-0 truncate text-sm font-medium">{t.consulente_nome || '—'}</p>
           </div>
           <Badge className={cn('border-transparent', TAG_CLASS[tag])}>{tag}</Badge>
@@ -480,19 +474,6 @@ function RelatorioGiraContent() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="start" className="flex w-[min(20rem,calc(100vw-2rem))] flex-col gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="rel-tipo-gira">Tipo de gira</Label>
-                  <Select value={giraFilter} onValueChange={(v) => setGiraFilter(v as GiraFilter)}>
-                    <SelectTrigger id="rel-tipo-gira" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      <SelectItem value="active">Ativas</SelectItem>
-                      <SelectItem value="inactive">Inativas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <DateField label="De" size="small" value={dateFrom} max={dateTo ?? undefined} onChange={setDateFrom} />
                   <DateField label="Até" size="small" value={dateTo} min={dateFrom ?? undefined} onChange={setDateTo} />
@@ -506,7 +487,6 @@ function RelatorioGiraContent() {
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="emitted">Emitidas</SelectItem>
-                      <SelectItem value="called">Chamadas</SelectItem>
                       <SelectItem value="completed">Concluídas</SelectItem>
                       <SelectItem value="no_show">Não veio</SelectItem>
                       <SelectItem value="cancelled">Canceladas</SelectItem>
@@ -532,7 +512,7 @@ function RelatorioGiraContent() {
             <StatPill label="Total" value={doorStats.total} />
             <StatPill label="Concluídos" value={doorStats.completed} className="text-success" />
             <StatPill label="Aguardando" value={doorStats.awaiting} />
-            <StatPill label="Em atendimento" value={doorStats.in_progress} />
+            <StatPill label="Chegaram" value={doorStats.checked_in} />
             <StatPill label="Não veio" value={doorStats.no_show} className="text-destructive" />
             <StatPill label="Sem senha" value={doorStats.walk_in} className="text-info" />
             <StatPill label="Preferenciais" value={doorStats.preferenciais} />

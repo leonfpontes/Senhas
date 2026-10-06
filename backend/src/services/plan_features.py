@@ -90,6 +90,7 @@ PLAN_FEATURE_NAMES = frozenset(PlanFeatures.model_fields)
 _PREMIUM = 3
 _PRO = 2
 _BASIC = 1
+_FREE = 0
 
 _FEATURE_MIN_TIER: dict[str, int] = {
     "email_transacional": _PRO,
@@ -98,7 +99,8 @@ _FEATURE_MIN_TIER: dict[str, int] = {
     "analytics_avancado": _PRO,
     "associados": _PREMIUM,
     "export_csv": _PRO,
-    "bulk_operations": _BASIC,
+    # Ações em lote valem em todos os planos (always-on desde 88dbc25; não é vendido).
+    "bulk_operations": _FREE,
     "auditoria": _PRO,
     "estoque_controle": _PREMIUM,
     "mediuns": _BASIC,

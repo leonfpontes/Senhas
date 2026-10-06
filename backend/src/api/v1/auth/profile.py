@@ -19,6 +19,7 @@ from src.core.limiter import limiter
 from src.models import User, UserRole
 from src.models.audit_logs import AuditLog, AuditAction
 from src.security.password import verify_password, hash_password, validate_password_policy
+from src.core.auth_cookies import clear_auth_cookies, is_impersonated_request
 from src.services import session_service
 from src.services.email.base import EmailMessage
 from src.services.email.resend_fallback import ResendEmailService
@@ -148,11 +149,21 @@ async def update_profile(
 
 @router.post("/change-password")
 async def change_password(
+    request: Request,
+    response: Response,
     payload: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Change password for current authenticated user."""
+    """Change password for current authenticated user.
+
+    Revokes every session (this one included) and clears the 3 auth cookies —
+    the frontend sends the user back to /login. Blocked during impersonation:
+    clearing cookies there would log the super-admin out of the platform.
+    """
+    if is_impersonated_request(request):
+        raise InsufficientPermissionsError("Operação não permitida durante impersonação.")
+
     if not verify_password(payload.current_password, current_user.password_hash):
         raise UnauthorizedError("Senha atual inválida")
 
@@ -169,6 +180,8 @@ async def change_password(
     db.add(current_user)
     await session_service.end_all_sessions(db, current_user.id)
     await db.commit()
+
+    clear_auth_cookies(response)
 
     return {"message": "Senha alterada com sucesso"}
 
@@ -344,13 +357,8 @@ async def delete_own_account(
         await db.rollback()
         raise
 
-    # Clear refresh-token cookie
-    response.delete_cookie(
-        key="refresh_token",
-        httponly=True,
-        secure=True,
-        samesite="strict",
-    )
+    # Clear the 3 auth cookies (same attributes as /auth/logout)
+    clear_auth_cookies(response)
 
     # Send notification email asynchronously (best-effort, non-blocking)
     asyncio.create_task(

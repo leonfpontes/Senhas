@@ -23,6 +23,7 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from 'recharts';
+import { numeroDaSenha } from '@/components/admin/senhaFormat';
 
 // ── Constantes A4 ──────────────────────────────────────────────────────────────
 const A4_WIDTH_PX = 794;
@@ -41,6 +42,7 @@ const ROWS_PER_PAGE = 16; // linhas de tabela por página. Medido no navegador (
 export interface PdfTicket {
   id: string;
   numero: number;
+  numero_formatado?: string | null;
   status: string;
   consulente_nome?: string;
   preferencial?: boolean;
@@ -700,7 +702,7 @@ function TablePage({
             return (
               <tr key={t.id} style={{ backgroundColor: isEven ? '#ffffff' : '#fafafa' }}>
                 <td style={{ ...tdStyle, fontWeight: 600, whiteSpace: 'nowrap', color: '#333' }}>
-                  #{String(t.numero).padStart(4, '0')}
+                  {numeroDaSenha(t)}
                 </td>
                 <td style={tdStyle}>
                   <div style={clamp2Style}>{t.consulente_nome || '—'}</div>

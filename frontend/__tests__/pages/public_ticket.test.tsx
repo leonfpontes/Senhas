@@ -68,7 +68,7 @@ describe('Bilhete público', () => {
     expect(screen.getByText('0043 · João')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /adicionar à agenda/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /cancelar minha senha/i })).toHaveAttribute('href', '/public/ticket/t-1/cancelar');
-    expect(screen.getByRole('link', { name: /ver próximas giras/i })).toHaveAttribute('href', '/public/tenda-pai-joaquim');
+    expect(screen.getByRole('link', { name: /ver próximas giras/i })).toHaveAttribute('href', '/tenda-pai-joaquim');
   });
 
   it('senha cancelada: sem ações, número riscado e rótulo', async () => {
@@ -90,7 +90,7 @@ describe('Bilhete público', () => {
     render(<Page />);
 
     expect(await screen.findByText('Senha não encontrada')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /ver próximas giras do terreiro/i })).toHaveAttribute('href', '/public/tenda-pai-joaquim');
+    expect(screen.getByRole('link', { name: /ver próximas giras do terreiro/i })).toHaveAttribute('href', '/tenda-pai-joaquim');
   });
 
   it('erro de rede oferece tentar de novo', async () => {

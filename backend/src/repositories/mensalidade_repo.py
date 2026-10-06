@@ -8,8 +8,10 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, func, literal, outerjoin, select, update
+from sqlalchemy import and_, func, literal, or_, outerjoin, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.repositories._sentinel import UNSET
 
 from src.models.mediuns import Medium
 from src.models.mensalidades import MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
@@ -71,15 +73,26 @@ class MensalidadeRepository:
         tenant_id: UUID,
         mes_referencia: date,
     ) -> List[Dict[str, Any]]:
-        """Return all active médiuns for the tenant with their payment status for the month.
+        """Return the médiuns that belong to the month with their payment status.
+
+        Entra no mês quem estava na casa em algum dia dele — ``data_entrada``
+        até o fim do mês (ou sem data) E ainda ativo ou com ``data_saida`` a
+        partir do início do mês — e também quem já tem registro de pagamento
+        no mês (histórico de quem saiu depois continua visível). Antes só
+        ``is_active`` contava: o mês passado perdia quem saiu e ganhava quem
+        entrou depois.
 
         Performs a LEFT JOIN so médiuns without a payment record appear with status=PENDENTE.
         """
+        from calendar import monthrange
+
+        inicio_mes = mes_referencia.replace(day=1)
+        fim_mes = inicio_mes.replace(day=monthrange(inicio_mes.year, inicio_mes.month)[1])
         # Subquery: pagamentos for this tenant+month
         pag_stmt = select(MensalidadePagamento).where(
             and_(
                 MensalidadePagamento.tenant_id == tenant_id,
-                MensalidadePagamento.mes_referencia == mes_referencia,
+                MensalidadePagamento.mes_referencia == inicio_mes,
             )
         ).subquery()
 
@@ -108,7 +121,16 @@ class MensalidadeRepository:
                 and_(
                     Medium.tenant_id == tenant_id,
                     Medium.deleted_at.is_(None),
-                    Medium.is_active.is_(True),
+                    or_(
+                        and_(
+                            or_(Medium.data_entrada.is_(None), Medium.data_entrada <= fim_mes),
+                            or_(
+                                Medium.is_active.is_(True),
+                                and_(Medium.data_saida.is_not(None), Medium.data_saida >= inicio_mes),
+                            ),
+                        ),
+                        pag_stmt.c.id.is_not(None),
+                    ),
                 )
             )
             .order_by(Medium.nome)
@@ -146,7 +168,7 @@ class MensalidadeRepository:
         valor_vigente: Optional[Decimal] = None,
         valor_pago: Optional[Decimal] = None,
         data_pagamento: Optional[datetime] = None,
-        observacao: Optional[str] = None,
+        observacao: Any = UNSET,
         comprovante_data: Optional[bytes] = None,
         comprovante_filename: Optional[str] = None,
         comprovante_mime: Optional[str] = None,
@@ -160,10 +182,17 @@ class MensalidadeRepository:
         if existing:
             existing.status = status
             existing.registrado_por = registrado_por
-            existing.valor_vigente = valor_vigente
+            # valor_vigente é o valor do mês capturado no PRIMEIRO registro:
+            # editar o pagamento depois (com outro valor na config) não o
+            # recaptura — senão o "esperado" do mês muda retroativamente.
+            if existing.valor_vigente is None:
+                existing.valor_vigente = valor_vigente
             existing.valor_pago = valor_pago
             existing.data_pagamento = data_pagamento
-            existing.observacao = observacao
+            # observacao só muda quando o chamador a enviou (o lote "Marcar
+            # como pago" não envia e não pode apagar a observação existente).
+            if observacao is not UNSET:
+                existing.observacao = observacao
             existing.updated_at = datetime.now(timezone.utc)
             if comprovante_data is not None:
                 existing.comprovante_data = comprovante_data
@@ -183,7 +212,7 @@ class MensalidadeRepository:
             valor_vigente=valor_vigente,
             valor_pago=valor_pago,
             data_pagamento=data_pagamento,
-            observacao=observacao,
+            observacao=None if observacao is UNSET else observacao,
             comprovante_data=comprovante_data,
             comprovante_filename=comprovante_filename,
             comprovante_mime=comprovante_mime,

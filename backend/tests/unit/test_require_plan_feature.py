@@ -202,6 +202,8 @@ def test_dependency_expoe_a_feature():
         ("cursos_presenciais", "site_builder"),
         ("contas_financeiras", "contas_financeiras"),
         ("email_resend", "email_transacional"),
+        ("analytics", "analytics_basico"),
+        ("audit_trail", "auditoria"),
     ],
 )
 def test_modulos_gated_no_router(module, feature):

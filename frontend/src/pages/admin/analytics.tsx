@@ -69,6 +69,8 @@ interface AnalyticsData {
   total_emitted: number;
   total_used: number;
   total_cancelled: number;
+  /** Senhas marcadas como "não compareceu". */
+  total_no_show?: number;
   usage_rate: number;
   emitted_today: number;
   used_today: number;
@@ -90,6 +92,22 @@ const PRESETS: { key: AnalyticsPreset; label: string }[] = [
 /** Intervalo "últimos N dias" terminando hoje (Brasília), em ISO. */
 export function analyticsPresetRange(dias: number, hoje: string = todayBr()): { from: string; to: string } {
   return { from: addDaysIso(hoje, -(dias - 1)), to: hoje };
+}
+
+/**
+ * Fatias do gráfico de status. `total_cancelled` é o status CANCELLED de verdade (antes o
+ * backend mandava emitidos − usados, e "Pendentes" sempre dava zero).
+ */
+export function analyticsStatusSlices(
+  a: Pick<AnalyticsData, 'total_emitted' | 'total_used' | 'total_cancelled' | 'total_no_show'>,
+): { name: string; value: number; color: string }[] {
+  const noShow = a.total_no_show ?? 0;
+  return [
+    { name: 'Utilizados', value: a.total_used, color: chartTokens.success },
+    { name: 'Cancelados', value: a.total_cancelled, color: chartTokens.destructive },
+    { name: 'Não compareceram', value: noShow, color: chartTokens.warning },
+    { name: 'Pendentes', value: Math.max(0, a.total_emitted - a.total_used - a.total_cancelled - noShow), color: chartTokens.muted },
+  ];
 }
 
 function fmtChartDate(iso: string): string {
@@ -115,7 +133,8 @@ export default function AdminAnalyticsPage() {
 function AdminAnalyticsContent() {
   const { can, loading: subLoading } = useSubscription();
   const { can: canGroup } = usePermissions();
-  const canView = canGroup('analytics', 'view');
+  // Plano E grupo antes de qualquer chamada (o endpoint também exige analytics_basico).
+  const canView = !subLoading && can('analytics_basico') && canGroup('analytics', 'view');
 
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -222,7 +241,7 @@ function AdminAnalyticsContent() {
     );
   }
   if (!can('analytics_basico')) return <PlanLocked feature="Analytics" minPlan={minPlanFor('analytics_basico').label} />;
-  if (!canView) return <PermissionDenied message="Você não tem permissão para visualizar o analytics." />;
+  if (!canGroup('analytics', 'view')) return <PermissionDenied message="Você não tem permissão para visualizar o analytics." />;
 
   const categoryData = analytics
     ? [
@@ -232,17 +251,7 @@ function AdminAnalyticsContent() {
       ]
     : [];
 
-  const statusData = analytics
-    ? [
-        { name: 'Utilizados', value: analytics.total_used, color: chartTokens.success },
-        { name: 'Cancelados', value: analytics.total_cancelled, color: chartTokens.destructive },
-        {
-          name: 'Pendentes',
-          value: Math.max(0, analytics.total_emitted - analytics.total_used - analytics.total_cancelled),
-          color: chartTokens.muted,
-        },
-      ]
-    : [];
+  const statusData = analytics ? analyticsStatusSlices(analytics) : [];
 
   const peakMax = Math.max(1, ...(analytics?.peak_hours ?? []).map((p) => p.count));
   const dailyChartData = (analytics?.daily_distribution ?? []).map((d) => ({ ...d, date: fmtChartDate(d.date) }));

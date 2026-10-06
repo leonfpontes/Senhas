@@ -5,13 +5,15 @@ from sqlalchemy import select, func, and_
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, time, timezone, timedelta
 import logging
 
 from src.core.config import settings
 from src.core.database import get_db
+from src.core.tz import APP_TZ
 from src.models import User, UserRole, Gira, PermissionFeature
 from src.models.tenants import Tenant
+from src.models.tenant_config import TenantConfig
 from src.models.senha_controls import SenhaControl
 from src.repositories.gira_repo import GiraRepository
 from src.repositories.subscription_repo import SubscriptionRepository
@@ -142,6 +144,32 @@ class UnifiedLinksResponse(BaseModel):
     sponsor_public_link: str
 
 
+class GiraSettingsResponse(BaseModel):
+    """Recorte da config do terreiro de que a tela de Giras precisa.
+
+    Exposto com GIRAS:view para quem cria/edita giras sem ter
+    CONFIGURACOES:view (antes o seletor de horários sumia para esses usuários).
+    A edição dessas configurações continua só em /tenant/config (CONFIGURACOES).
+    """
+    enable_time_slot_scheduling: bool = False
+    # Endereço do terreiro: padrão quando a gira não tem "local" próprio.
+    endereco: Optional[str] = None
+
+
+def _local_day_start_utc(value: str, field: str, plus_days: int = 0) -> datetime:
+    """'YYYY-MM-DD' (+ plus_days) → início desse dia em America/Sao_Paulo, em UTC.
+
+    Os filtros de data das telas são dias do terreiro (horário de Brasília);
+    comparar com a meia-noite UTC tirava das 21h às 23h59 do dia escolhido.
+    """
+    try:
+        day = date.fromisoformat(value.strip()[:10])
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{field} deve estar no formato AAAA-MM-DD")
+    day = day + timedelta(days=plus_days)
+    return datetime.combine(day, time.min, tzinfo=APP_TZ).astimezone(timezone.utc)
+
+
 @router.post("", response_model=GiraResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "insert"))])
 async def create_gira(
     gira: GiraCreate,
@@ -201,7 +229,25 @@ async def create_gira(
     return GiraResponse.model_validate(created_gira)
 
 
-@router.get("", response_model=List[GiraResponse], dependencies=[Depends(require_any_group_permission(PermissionFeature.GIRAS, PermissionFeature.RELATORIO_GIRA, action="view"))])
+# Lista só de leitura, compartilhada por várias telas: Giras (GIRAS), Relatório
+# (RELATORIO_GIRA), Porta e modo TV (PORTA) e Senhas (TICKETS) escolhem a gira por
+# ela — e o GiraProvider do layout também. Operador só com PORTA ou só com TICKETS
+# ficava sem gira para escolher. Criar/editar/excluir continua exigindo GIRAS.
+@router.get(
+    "",
+    response_model=List[GiraResponse],
+    dependencies=[
+        Depends(
+            require_any_group_permission(
+                PermissionFeature.GIRAS,
+                PermissionFeature.RELATORIO_GIRA,
+                PermissionFeature.PORTA,
+                PermissionFeature.TICKETS,
+                action="view",
+            )
+        )
+    ],
+)
 async def list_giras(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -228,12 +274,13 @@ async def list_giras(
     if is_active is not None:
         stmt = stmt.where(Gira.is_active == is_active)
 
+    # Datas são dias do terreiro (America/Sao_Paulo), não dias UTC.
     if date_from:
-        stmt = stmt.where(Gira.data_inicio >= datetime.fromisoformat(date_from))
+        stmt = stmt.where(Gira.data_inicio >= _local_day_start_utc(date_from, "date_from"))
 
     if date_to:
-        # Include the full day
-        stmt = stmt.where(Gira.data_inicio < datetime.fromisoformat(date_to) + timedelta(days=1))
+        # Inclui o dia inteiro: até o início do dia seguinte (horário de Brasília).
+        stmt = stmt.where(Gira.data_inicio < _local_day_start_utc(date_to, "date_to", plus_days=1))
 
     stmt = stmt.order_by(Gira.data_inicio.desc()).offset(skip).limit(limit)
 
@@ -262,6 +309,30 @@ async def get_unified_links(
     return UnifiedLinksResponse(
         public_link=f"{_BASE}/public/{slug}/senha",
         sponsor_public_link=f"{_BASE}/public/{slug}/associado",
+    )
+
+
+# Declarada antes de "/{gira_id}" para "settings" não virar um id.
+@router.get("/settings", response_model=GiraSettingsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.GIRAS, "view"))])
+async def get_gira_settings(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GiraSettingsResponse:
+    """Config do terreiro que a tela de Giras usa (só leitura, GIRAS:view)."""
+    if not current_user.is_operator_or_admin:
+        raise InsufficientPermissionsError("Admin required")
+
+    result = await db.execute(
+        select(TenantConfig.enable_time_slot_scheduling, TenantConfig.endereco).where(
+            TenantConfig.tenant_id == current_user.tenant_id
+        )
+    )
+    row = result.one_or_none()
+    if row is None:
+        return GiraSettingsResponse()
+    return GiraSettingsResponse(
+        enable_time_slot_scheduling=bool(row[0]),
+        endereco=(row[1] or "").strip() or None,
     )
 
 
@@ -612,8 +683,11 @@ async def release_now(
         current_count=current_count,
         public_link=f"{_BASE}/public/gira/{gira_id}",
         sponsor_max_tickets=updated_gira.sponsor_max_tickets,
-        sponsor_release_start_at=sp_now,
-        sponsor_release_end_at=sp_end,
+        sponsor_release_start_at=sp_now or updated_gira.sponsor_release_start_at,
+        sponsor_release_end_at=sp_end or updated_gira.sponsor_release_end_at,
         sponsor_current_count=sponsor_count,
         sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=associado" if updated_gira.sponsor_max_tickets else "",
+        # Config completa: sem isto o drawer recebia None e o próximo "Salvar"
+        # apagava o prazo de confirmação da fila de espera.
+        waitlist_confirmation_hours=updated_gira.waitlist_confirmation_hours,
     )

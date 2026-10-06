@@ -84,7 +84,7 @@ describe('Cancelar minha senha', () => {
     expect(await screen.findByRole('heading', { name: 'Senha cancelada' })).toBeInTheDocument();
     expect(apiClient.post).toHaveBeenCalledWith('/api/v1/public/tickets/t-1/cancel');
     expect(screen.getByText('Sua senha foi cancelada.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Ver próximas giras' })).toHaveAttribute('href', '/public/tenda-pai-joaquim');
+    expect(screen.getByRole('link', { name: 'Ver próximas giras' })).toHaveAttribute('href', '/tenda-pai-joaquim');
   });
 
   it('"Manter minha senha" mostra o bilhete sem cancelar', async () => {

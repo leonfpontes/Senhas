@@ -2,7 +2,7 @@
  * PlanLocked — gate de plano (feature de assinatura). Envolve o UpgradePrompt para que as telas
  * usem um só nome ao lado de PermissionDenied/ReadOnlyNotice:
  *
- *   if (!can('estoque')) return <PlanLocked feature="Estoque" minPlan={minPlanFor('estoque_controle').label} />;
+ *   if (!can('estoque_controle')) return <PlanLocked feature="Estoque" minPlan={minPlanFor('estoque_controle').label} />;
  */
 import React from 'react';
 import UpgradePrompt from '@/components/UpgradePrompt';

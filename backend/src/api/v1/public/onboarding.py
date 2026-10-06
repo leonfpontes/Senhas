@@ -11,11 +11,11 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, field_validator
 
 from src.core.onboarding import COMO_CONHECEU_VALUES, PRINCIPAL_DOR_VALUES
-from sqlalchemy import select, or_
+from sqlalchemy import func, select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,9 +33,9 @@ from src.models import (
 )
 from src.repositories.tenant_repo import TenantRepository
 from src.repositories.subscription_repo import SubscriptionRepository
-from src.security.password import hash_password
-from src.security.jwt import create_access_token, create_refresh_token
-from src.services import session_service
+from src.core.errors import ValidationError as AppValidationError
+from src.security.password import hash_password, validate_password_policy
+from src.api.v1.auth.login import issue_session, normalize_login_email
 from src.services.email.base import EmailMessage
 from src.services.email.resend_fallback import ResendEmailService
 from src.services.email.brevo_provider import BrevoEmailService
@@ -129,11 +129,23 @@ class OnboardingRequest(BaseModel):
             raise ValueError("WhatsApp deve conter entre 10 e 13 dígitos")
         return digits
 
+    @field_validator("email")
+    @classmethod
+    def email_lower(cls, v: str) -> str:
+        # E-mail de login é gravado em minúsculas (ver login.normalize_login_email).
+        return v.strip().lower()
+
     @field_validator("password")
     @classmethod
-    def password_min(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Senha deve ter no mínimo 8 caracteres")
+    def password_policy(cls, v: str) -> str:
+        # Mesma política do resto do sistema (troca/redefinição de senha) e do
+        # formulário de cadastro — antes o backend aceitava qualquer senha de
+        # 8 caracteres.
+        try:
+            validate_password_policy(v)
+        except AppValidationError as exc:
+            motivos = (exc.details or {}).get("errors") or []
+            raise ValueError(f"{exc.message}: {', '.join(motivos)}" if motivos else exc.message) from exc
         return v
 
     @field_validator("como_conheceu")
@@ -277,6 +289,7 @@ async def _check_trial_eligibility(db: AsyncSession, documento: str, email: str)
 async def onboarding(
     body: OnboardingRequest,
     response: Response,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """Self-service registration: creates tenant + admin user.
@@ -285,8 +298,11 @@ async def onboarding(
     CPF/CNPJ or e-mail already claimed one before.
     """
 
-    # 1. Check email uniqueness
-    stmt = select(User).where(User.email == body.email, User.deleted_at.is_(None))
+    # 1. Check email uniqueness (sem diferença de maiúsculas — contas antigas
+    # podem ter sido gravadas com maiúsculas)
+    stmt = select(User.id).where(
+        func.lower(User.email) == normalize_login_email(body.email), User.deleted_at.is_(None)
+    ).limit(1)
     result = await db.execute(stmt)
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -365,7 +381,9 @@ async def onboarding(
         await db.rollback()
         logger.warning("Onboarding IntegrityError for email=%s: %s", body.email, exc)
         # Re-check email conflict (most likely cause)
-        stmt2 = select(User).where(User.email == body.email, User.deleted_at.is_(None))
+        stmt2 = select(User.id).where(
+            func.lower(User.email) == normalize_login_email(body.email), User.deleted_at.is_(None)
+        ).limit(1)
         result2 = await db.execute(stmt2)
         if result2.scalar_one_or_none():
             raise HTTPException(
@@ -377,20 +395,10 @@ async def onboarding(
             detail="Já existe uma conta com esse nome de terreiro. Tente um nome diferente.",
         )
 
-    # 8. Generate tokens
-    session_id, jti = await session_service.start_session(db, user)
-    await db.commit()
-    access_token = create_access_token(user.id, tenant.id, user.role.value)
-    refresh_token = create_refresh_token(user.id, tenant.id, user.role.value, session_id, jti)
-
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="strict",
-        max_age=30 * 24 * 60 * 60,
-    )
+    # 8. Abre a sessão com os mesmos 3 cookies do login (access_token,
+    # refresh_token e auth_state; secure=not DEBUG). Antes só o refresh_token
+    # era setado — a primeira tela pós-cadastro rodava sem access_token.
+    access_token = await issue_session(db, user, request, response)
 
     # 9. Send welcome email (best-effort, don't block response)
     try:

@@ -105,7 +105,7 @@ describe('Confirmação da fila de espera', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Confirmar minha senha' }));
 
     expect(await screen.findByRole('heading', { name: 'Prazo expirado' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Ver próximas giras' })).toHaveAttribute('href', '/public/tenda-pai-joaquim');
+    expect(screen.getByRole('link', { name: 'Ver próximas giras' })).toHaveAttribute('href', '/tenda-pai-joaquim');
   });
 
   it('erro ao confirmar oferece tentar de novo', async () => {

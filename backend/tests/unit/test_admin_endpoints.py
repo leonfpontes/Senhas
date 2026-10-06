@@ -49,17 +49,17 @@ class TestListGiraTickets:
     async def test_non_admin_raises(self):
         from src.api.v1.admin.tickets_list import list_gira_tickets
         with pytest.raises(InsufficientPermissionsError):
-            await list_gira_tickets(GIRA_ID, 0, 50, None, _operator_user(), AsyncMock())
+            await list_gira_tickets(GIRA_ID, 0, 50, None, None, _operator_user(), AsyncMock())
 
     async def test_success(self):
         from src.api.v1.admin.tickets_list import list_gira_tickets
         db = AsyncMock()
         count_result = MagicMock()
-        count_result.scalars.return_value.all.return_value = []
+        count_result.scalar_one.return_value = 0
         items_result = MagicMock()
         items_result.scalars.return_value.all.return_value = []
         db.execute = AsyncMock(side_effect=[count_result, items_result])
-        result = await list_gira_tickets(GIRA_ID, 0, 50, None, _admin_user(), db)
+        result = await list_gira_tickets(GIRA_ID, 0, 50, None, None, _admin_user(), db)
         assert result.total == 0
         assert result.items == []
 
@@ -184,10 +184,18 @@ class TestGetAnalytics:
 # ── audit_trail.py ───────────────────────────────────────────────────────────
 
 class TestListAuditLogs:
-    async def test_non_admin_raises(self):
+    @patch("src.api.v1.admin.audit_trail.AuditLogRepository")
+    async def test_operador_com_grupo_nao_e_barrado_por_is_admin(self, MockRepo):
+        """O acesso é decidido por require_group_permission(AUDITORIA, 'view') + plano (Depends);
+        antes um `is_admin` extra barrava o operador a quem o grupo liberou a auditoria."""
+        repo_inst = AsyncMock()
+        repo_inst.list_filtered.return_value = []
+        repo_inst.count_filtered.return_value = 0
+        MockRepo.return_value = repo_inst
+
         from src.api.v1.admin.audit_trail import list_audit_logs
-        with pytest.raises(InsufficientPermissionsError):
-            await list_audit_logs(0, 50, None, None, None, _operator_user(), AsyncMock())
+        result = await list_audit_logs(0, 50, None, None, None, _operator_user(), AsyncMock())
+        assert result.total == 0
 
     @patch("src.api.v1.admin.audit_trail.AuditLogRepository")
     async def test_success(self, MockRepo):
@@ -387,7 +395,7 @@ class TestExportsCSV:
         result_mock.scalars.return_value.all.return_value = [ticket]
         db.execute.return_value = result_mock
         resp = await export_tickets_csv(GIRA_ID, _admin_user(), db)
-        assert resp.media_type == "text/csv"
+        assert resp.media_type.startswith("text/csv")
 
 
 # ── health.py ────────────────────────────────────────────────────────────────
@@ -419,18 +427,30 @@ class TestHealthCheck:
 
 # ── users.py ─────────────────────────────────────────────────────────────────
 
-def _mock_user_model():
+OTHER_USER_ID = uuid.UUID("99999999-9999-9999-9999-999999999999")
+
+
+def _mock_user_model(user_id=None, role=None, is_active=True):
+    from src.models import UserRole
     u = MagicMock()
-    u.id = USER_ID
+    u.id = user_id or OTHER_USER_ID
     u.tenant_id = TENANT_ID
     u.email = "user@test.com"
     u.username = "testuser"
-    u.role = "admin"
-    u.is_active = True
+    u.role = role or UserRole.OPERATOR
+    u.is_active = is_active
     u.created_at = "2026-01-01T00:00:00+00:00"
     u.updated_at = "2026-01-01T00:00:00+00:00"
     u.last_login = None
     return u
+
+
+def _users_repo(MockRepo, target):
+    repo_inst = AsyncMock()
+    repo_inst.get_by_id.return_value = target
+    repo_inst.delete_soft.return_value = True
+    MockRepo.return_value = repo_inst
+    return repo_inst
 
 
 class TestCreateUser:
@@ -459,13 +479,57 @@ class TestCreateUser:
         assert result.email == "user@test.com"
         db.commit.assert_called_once()
 
-    async def test_non_admin_raises(self):
+    async def test_operator_cannot_create_admin(self):
+        """Sem o is_admin extra, operador com USUARIOS:insert cria operadores —
+        mas nunca administradores (escalada de privilégio)."""
         from src.api.v1.admin.users import create_user, UserCreate
+        from src.models import UserRole
         with pytest.raises(InsufficientPermissionsError):
             await create_user(
-                UserCreate(email="a@b.com", username="testx", password="P@ss12345678"),
+                UserCreate(email="a@b.com", username="testx", password="P@ss12345678", role=UserRole.ADMIN),
                 _operator_user(), AsyncMock(),
             )
+
+    async def test_super_admin_role_rejected(self):
+        from fastapi import HTTPException
+        from src.api.v1.admin.users import create_user, UserCreate
+        from src.models import UserRole
+        with pytest.raises(HTTPException) as exc:
+            await create_user(
+                UserCreate(email="a@b.com", username="testx", password="P@ss12345678", role=UserRole.SUPER_ADMIN),
+                _admin_user(), AsyncMock(),
+            )
+        assert exc.value.status_code == 422
+
+    async def test_weak_password_rejected(self):
+        from src.api.v1.admin.users import create_user, UserCreate
+        from src.core.errors import ValidationError
+        with pytest.raises(ValidationError):
+            await create_user(
+                UserCreate(email="a@b.com", username="testx", password="fraca"),
+                _admin_user(), AsyncMock(),
+            )
+
+    @patch("src.api.v1.admin.users.SubscriptionRepository")
+    @patch("src.api.v1.admin.users.AuditService")
+    @patch("src.api.v1.admin.users.hash_password", return_value="hashed")
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_operator_with_group_can_create_operator(self, MockRepo, mock_hash, MockAudit, MockSubRepo):
+        from src.api.v1.admin.users import create_user, UserCreate
+        db = AsyncMock()
+        repo_inst = AsyncMock()
+        repo_inst.get_by_email.return_value = None
+        repo_inst.get_by_email_including_deleted.return_value = None
+        repo_inst.create.return_value = _mock_user_model()
+        MockRepo.return_value = repo_inst
+        MockAudit.return_value = AsyncMock()
+        MockSubRepo.return_value = AsyncMock(get_by_tenant=AsyncMock(return_value=None))
+
+        result = await create_user(
+            UserCreate(email="user@test.com", username="testuser", password="SecureP@ss1234"),
+            _operator_user(), db,
+        )
+        assert result.email == "user@test.com"
 
 
 class TestListUsers:
@@ -500,16 +564,11 @@ class TestUpdateUser:
     async def test_success(self, MockRepo, MockAudit):
         from src.api.v1.admin.users import update_user, UserUpdate
         db = AsyncMock()
-        repo_inst = AsyncMock()
-        existing = _mock_user_model()
-        repo_inst.get_by_id.return_value = existing
-        MockRepo.return_value = repo_inst
+        _users_repo(MockRepo, _mock_user_model())
         MockAudit.return_value = AsyncMock()
-        # After refresh, the existing mock should still be valid
         db.refresh = AsyncMock()
 
-        result = await update_user(USER_ID, UserUpdate(username="updated_user"), _admin_user(), db)
-        # The function sets attr on existing_user then returns model_validate(existing_user)
+        result = await update_user(OTHER_USER_ID, UserUpdate(username="updated_user"), _admin_user(), db)
         assert result is not None
 
     @patch("src.api.v1.admin.users.AuditService")
@@ -517,19 +576,105 @@ class TestUpdateUser:
     async def test_password_change_revokes_existing_sessions(self, MockRepo, MockAudit):
         from src.api.v1.admin.users import update_user, UserUpdate
         db = AsyncMock()
-        repo_inst = AsyncMock()
         existing = _mock_user_model()
         existing.sessions_revoked_at = None
-        repo_inst.get_by_id.return_value = existing
-        MockRepo.return_value = repo_inst
+        _users_repo(MockRepo, existing)
         MockAudit.return_value = AsyncMock()
         db.refresh = AsyncMock()
 
         with patch("src.api.v1.admin.users.session_service.end_all_sessions", new=AsyncMock()) as mock_end_all:
-            await update_user(USER_ID, UserUpdate(password="NewPass456!"), _admin_user(), db)
+            await update_user(OTHER_USER_ID, UserUpdate(password="NewPass456!xy"), _admin_user(), db)
 
         assert existing.sessions_revoked_at is not None
         mock_end_all.assert_awaited_once_with(db, existing.id)
+
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_weak_password_rejected(self, MockRepo):
+        from src.api.v1.admin.users import update_user, UserUpdate
+        from src.core.errors import ValidationError
+        _users_repo(MockRepo, _mock_user_model())
+        with pytest.raises(ValidationError):
+            await update_user(OTHER_USER_ID, UserUpdate(password="fraca"), _admin_user(), AsyncMock())
+
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_cannot_demote_self(self, MockRepo):
+        from fastapi import HTTPException
+        from src.api.v1.admin.users import update_user, UserUpdate
+        from src.models import UserRole
+        _users_repo(MockRepo, _mock_user_model(user_id=USER_ID, role=UserRole.ADMIN))
+        with pytest.raises(HTTPException) as exc:
+            await update_user(USER_ID, UserUpdate(role=UserRole.OPERATOR), _admin_user(), AsyncMock())
+        assert exc.value.status_code == 409
+
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_cannot_deactivate_self(self, MockRepo):
+        from fastapi import HTTPException
+        from src.api.v1.admin.users import update_user, UserUpdate
+        from src.models import UserRole
+        _users_repo(MockRepo, _mock_user_model(user_id=USER_ID, role=UserRole.ADMIN))
+        with pytest.raises(HTTPException) as exc:
+            await update_user(USER_ID, UserUpdate(is_active=False), _admin_user(), AsyncMock())
+        assert exc.value.status_code == 409
+
+    @patch("src.api.v1.admin.users.AuditService")
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_self_edit_keeping_role_and_active_is_allowed(self, MockRepo, MockAudit):
+        """A UI reenvia role/is_active sem mudança — não pode ser tratado como rebaixamento."""
+        from src.api.v1.admin.users import update_user, UserUpdate
+        from src.models import UserRole
+        _users_repo(MockRepo, _mock_user_model(user_id=USER_ID, role=UserRole.ADMIN))
+        MockAudit.return_value = AsyncMock()
+        db = AsyncMock()
+        result = await update_user(
+            USER_ID, UserUpdate(username="novo", role=UserRole.ADMIN, is_active=True), _admin_user(), db
+        )
+        assert result is not None
+
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_cannot_demote_last_active_admin(self, MockRepo):
+        from fastapi import HTTPException
+        from src.api.v1.admin.users import update_user, UserUpdate
+        from src.models import UserRole
+        _users_repo(MockRepo, _mock_user_model(role=UserRole.ADMIN))
+        db = AsyncMock()
+        db.scalar = AsyncMock(return_value=0)  # nenhum outro admin ativo
+        with pytest.raises(HTTPException) as exc:
+            await update_user(OTHER_USER_ID, UserUpdate(role=UserRole.OPERATOR), _admin_user(), db)
+        assert exc.value.status_code == 409
+        assert "único administrador" in exc.value.detail
+
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_operator_cannot_promote_to_admin(self, MockRepo):
+        from src.api.v1.admin.users import update_user, UserUpdate
+        from src.models import UserRole
+        _users_repo(MockRepo, _mock_user_model())
+        with pytest.raises(InsufficientPermissionsError):
+            await update_user(OTHER_USER_ID, UserUpdate(role=UserRole.ADMIN), _operator_user(), AsyncMock())
+
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_operator_cannot_edit_admin(self, MockRepo):
+        from src.api.v1.admin.users import update_user, UserUpdate
+        from src.models import UserRole
+        _users_repo(MockRepo, _mock_user_model(role=UserRole.ADMIN))
+        with pytest.raises(InsufficientPermissionsError):
+            await update_user(OTHER_USER_ID, UserUpdate(password="NewPass456!xy"), _operator_user(), AsyncMock())
+
+    @patch("src.api.v1.admin.users.effective_limit", return_value=2)
+    @patch("src.api.v1.admin.users.SubscriptionRepository")
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_reactivation_respects_user_limit(self, MockRepo, MockSubRepo, mock_limit):
+        from fastapi import HTTPException
+        from src.api.v1.admin.users import update_user, UserUpdate
+        _users_repo(MockRepo, _mock_user_model(is_active=False))
+        MockSubRepo.return_value = AsyncMock(get_by_tenant=AsyncMock(return_value=MagicMock()))
+        db = AsyncMock()
+        count_result = MagicMock()
+        count_result.scalar.return_value = 2  # já no limite de ativos
+        db.execute.return_value = count_result
+        with pytest.raises(HTTPException) as exc:
+            await update_user(OTHER_USER_ID, UserUpdate(is_active=True), _admin_user(), db)
+        assert exc.value.status_code == 422
+        assert "Limite de usuários" in exc.value.detail
 
 
 class TestDeleteUser:
@@ -538,13 +683,43 @@ class TestDeleteUser:
     async def test_success(self, MockRepo, MockAudit):
         from src.api.v1.admin.users import delete_user
         db = AsyncMock()
-        repo_inst = AsyncMock()
-        repo_inst.delete_soft.return_value = True
-        MockRepo.return_value = repo_inst
+        _users_repo(MockRepo, _mock_user_model())
         MockAudit.return_value = AsyncMock()
 
-        await delete_user(USER_ID, _admin_user(), db)
+        await delete_user(OTHER_USER_ID, _admin_user(), db)
         db.commit.assert_called_once()
+
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_cannot_delete_self(self, MockRepo):
+        from fastapi import HTTPException
+        from src.api.v1.admin.users import delete_user
+        from src.models import UserRole
+        repo = _users_repo(MockRepo, _mock_user_model(user_id=USER_ID, role=UserRole.ADMIN))
+        with pytest.raises(HTTPException) as exc:
+            await delete_user(USER_ID, _admin_user(), AsyncMock())
+        assert exc.value.status_code == 409
+        repo.delete_soft.assert_not_awaited()
+
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_cannot_delete_last_active_admin(self, MockRepo):
+        from fastapi import HTTPException
+        from src.api.v1.admin.users import delete_user
+        from src.models import UserRole
+        repo = _users_repo(MockRepo, _mock_user_model(role=UserRole.ADMIN))
+        db = AsyncMock()
+        db.scalar = AsyncMock(return_value=0)
+        with pytest.raises(HTTPException) as exc:
+            await delete_user(OTHER_USER_ID, _admin_user(), db)
+        assert exc.value.status_code == 409
+        repo.delete_soft.assert_not_awaited()
+
+    @patch("src.api.v1.admin.users.UserRepository")
+    async def test_operator_cannot_delete_admin(self, MockRepo):
+        from src.api.v1.admin.users import delete_user
+        from src.models import UserRole
+        _users_repo(MockRepo, _mock_user_model(role=UserRole.ADMIN))
+        with pytest.raises(InsufficientPermissionsError):
+            await delete_user(OTHER_USER_ID, _operator_user(), AsyncMock())
 
 
 # ── validate_bulk.py ─────────────────────────────────────────────────────────

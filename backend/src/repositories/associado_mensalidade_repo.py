@@ -15,6 +15,8 @@ from uuid import UUID
 from sqlalchemy import and_, func, outerjoin, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.repositories._sentinel import UNSET
+
 from src.models.associados import Associado
 from src.models.associado_mensalidade import AssociadoMensalidadePagamento
 from src.models.mensalidades import MensalidadeConfig, MensalidadeStatus
@@ -126,7 +128,7 @@ class AssociadoMensalidadeRepository:
         valor_vigente: Optional[Decimal] = None,
         valor_pago: Optional[Decimal] = None,
         data_pagamento: Optional[datetime] = None,
-        observacao: Optional[str] = None,
+        observacao: Any = UNSET,
         comprovante_data: Optional[bytes] = None,
         comprovante_filename: Optional[str] = None,
         comprovante_mime: Optional[str] = None,
@@ -140,10 +142,17 @@ class AssociadoMensalidadeRepository:
         if existing:
             existing.status = status
             existing.registrado_por = registrado_por
-            existing.valor_vigente = valor_vigente
+            # valor_vigente é o valor do mês capturado no PRIMEIRO registro:
+            # editar o pagamento depois (com outro valor na config) não o
+            # recaptura — senão o "esperado" do mês muda retroativamente.
+            if existing.valor_vigente is None:
+                existing.valor_vigente = valor_vigente
             existing.valor_pago = valor_pago
             existing.data_pagamento = data_pagamento
-            existing.observacao = observacao
+            # observacao só muda quando o chamador a enviou (o lote "Marcar
+            # como pago" não envia e não pode apagar a observação existente).
+            if observacao is not UNSET:
+                existing.observacao = observacao
             existing.updated_at = datetime.now(timezone.utc)
             if comprovante_data is not None:
                 existing.comprovante_data = comprovante_data
@@ -163,7 +172,7 @@ class AssociadoMensalidadeRepository:
             valor_vigente=valor_vigente,
             valor_pago=valor_pago,
             data_pagamento=data_pagamento,
-            observacao=observacao,
+            observacao=None if observacao is UNSET else observacao,
             comprovante_data=comprovante_data,
             comprovante_filename=comprovante_filename,
             comprovante_mime=comprovante_mime,

@@ -28,6 +28,7 @@ import { useSubscription } from '../../../hooks/useSubscription';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { useSnackbar } from '../../../contexts/SnackbarContext';
 import { apiClient } from '../../../services/api_client';
+import { fetchAllPages } from '../../../services/fetchAllPages';
 import CrudDrawer from '../../../components/CrudDrawer';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { DataTable } from '@/components/admin/DataTable';
@@ -191,8 +192,8 @@ function AdminEstoqueItensContent() {
       setLoading(true);
       const params: Record<string, string> = {};
       if (filterGrupo !== 'all') params.grupo_id = filterGrupo;
-      const res = await apiClient.get('/api/v1/admin/estoque/itens', { params });
-      setItems(res.data);
+      // Backend corta em 100 por padrão: KPIs/filtros precisam de todos os itens.
+      setItems(await fetchAllPages<Item>('/api/v1/admin/estoque/itens', { params, pageSize: 500 }));
     } catch {
       showError('Erro ao carregar itens');
     } finally {

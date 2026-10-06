@@ -93,6 +93,8 @@ class CursoParticipanteRepository(BaseRepository[CursoParticipante]):
                 & (CursoParticipante.tenant_id == tenant_id)
                 & (CursoParticipante.deleted_at.is_(None))
             )
+            # Ordem determinística: sem ORDER BY a paginação por offset pode repetir/pular linhas.
+            .order_by(CursoParticipante.created_at, CursoParticipante.id)
             .offset(skip)
             .limit(limit)
         )

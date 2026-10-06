@@ -141,4 +141,28 @@ describe('/admin/billing', () => {
     expect(within(panel).getAllByText('Pro').length).toBeGreaterThan(0);
     expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
   });
+
+  it('se GET /admin/billing falha, mostra erro com "Tentar de novo" — nunca "Assinar agora"', async () => {
+    apiClient.get.mockImplementation(() => Promise.reject(new Error('503')));
+    render(<Billing />);
+    expect(await screen.findByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();
+    expect(screen.queryByText('Assinar agora')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Comparar planos' })).not.toBeInTheDocument();
+
+    mockApi({ ...TRIAL_BILLING, is_trial: false, trial_ends_at: null, plan: 'free' });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+    });
+    expect(await screen.findByRole('tab', { name: 'Comparar planos' })).toBeInTheDocument();
+  });
+
+  it('cortesia ignora ?plan= (a aba de comparação é desabilitada para bônus)', async () => {
+    mockRouter.query = { plan: 'pro' };
+    mockApi({ ...TRIAL_BILLING, is_trial: false, trial_ends_at: null, plan: 'pro', is_bonus: true });
+    render(<Billing />);
+    const assinatura = await screen.findByRole('tab', { name: 'Assinatura' });
+    await screen.findByText(/cortesia/);
+    expect(assinatura).toHaveAttribute('data-state', 'active');
+    expect(screen.getByRole('tab', { name: 'Comparar planos' })).toHaveAttribute('data-state', 'inactive');
+  });
 });

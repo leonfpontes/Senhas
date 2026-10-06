@@ -128,6 +128,22 @@ export function whatsappShareUrl(text: string): string {
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
+/**
+ * Agenda do terreiro — destino de "Ver próximas giras".
+ *
+ * `/{slug}` mostra o site publicado e, sem site publicado, a agenda pública de giras
+ * (pages/[tenantSlug]/index.tsx). Não usar `/public/{slug}`: ela redireciona para a
+ * próxima gira com emissão — em geral a mesma gira de onde a pessoa veio.
+ */
+export function tenantAgendaPath(slug: string): string {
+  return `/${encodeURIComponent(slug)}`;
+}
+
+/** Página do bilhete (mesmo formato do `rescue_link` do backend, mas relativo). */
+export function ticketPagePath(slug: string, ticketId: string): string {
+  return `/public/${encodeURIComponent(slug)}/ticket/${encodeURIComponent(ticketId)}`;
+}
+
 /** Último segmento de um link do tipo .../ticket/{id} (rescue_link do emit-ticket). */
 export function ticketIdFromLink(link: string | null | undefined): string | null {
   if (!link) return null;

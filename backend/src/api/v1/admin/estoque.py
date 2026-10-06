@@ -154,6 +154,13 @@ class ItemUpdate(BaseModel):
             raise ValueError(f"Unidade de medida deve ser uma de: {', '.join(sorted(UNIDADES_MEDIDA))}")
         return v
 
+    @field_validator("estoque_minimo")
+    @classmethod
+    def validate_estoque_minimo(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0:
+            raise ValueError("Estoque mínimo não pode ser negativo")
+        return v
+
 
 class ItemResponse(BaseModel):
     id: UUID
@@ -391,8 +398,7 @@ async def update_grupo(
     grupo = await repo.update_grupo(
         grupo_id=grupo_id,
         tenant_id=current_user.tenant_id,
-        nome=body.nome,
-        descricao=body.descricao,
+        **body.model_dump(exclude_unset=True),
     )
     if not grupo:
         raise HTTPException(status_code=404, detail="Grupo não encontrado")
@@ -530,6 +536,10 @@ async def update_item(
 ):
     repo = EstoqueItemRepository(db)
     update_kwargs = body.model_dump(exclude_unset=True)
+    # Colunas NOT NULL: null explícito no body é ignorado (não vira 500 de IntegrityError).
+    for campo_obrigatorio in ("nome", "unidade_medida", "estoque_minimo"):
+        if update_kwargs.get(campo_obrigatorio, 0) is None:
+            update_kwargs.pop(campo_obrigatorio)
     await _validar_grupo_do_tenant(db, current_user.tenant_id, update_kwargs.get("grupo_id"))
     foto_base64 = update_kwargs.pop("foto_base64", None)
     foto_content_type = update_kwargs.pop("foto_content_type", None)
@@ -753,13 +763,21 @@ def _safe_csv(value: object) -> str:
     return s
 
 
-@router.get("/relatorio/posicao/csv", dependencies=[Depends(require_group_permission(PermissionFeature.ESTOQUE, "view"))])
+@router.get(
+    "/relatorio/posicao/csv",
+    dependencies=[
+        # Export CSV é feature própria do plano (o botão usa can('export_csv')): o gate
+        # do router (estoque_controle) não basta — o backend precisa negar também.
+        Depends(require_plan_feature("export_csv")),
+        Depends(require_group_permission(PermissionFeature.ESTOQUE, "view")),
+    ],
+)
 async def relatorio_posicao_csv(
     grupo_id: Optional[UUID] = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Export relatório de posição de estoque como CSV (plano Premium)."""
+    """Export relatório de posição de estoque como CSV (módulo Premium; exige também ``export_csv``)."""
     mov_repo = EstoqueMovimentacaoRepository(db)
     posicao = await mov_repo.get_posicao_estoque(
         tenant_id=current_user.tenant_id, grupo_id=grupo_id

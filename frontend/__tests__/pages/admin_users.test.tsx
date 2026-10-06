@@ -30,11 +30,12 @@ jest.mock('@/pages/admin/admin_layout', () => ({
   default: ({ children }: any) => <div data-testid="admin-layout">{children}</div>,
 }));
 
+const mockCanCreateUser = jest.fn((count: number) => count < 10);
 jest.mock('@/hooks/useSubscription', () => ({
   useSubscription: () => ({
     subscription: { max_users: 10, plan: 'pro', status: 'active' },
     can: () => true,
-    canCreateUser: (count: number) => count < 10,
+    canCreateUser: (count: number) => mockCanCreateUser(count),
     loading: false,
   }),
 }));
@@ -43,7 +44,7 @@ jest.mock('@/hooks/usePermissions', () => ({
   usePermissions: () => ({ can: () => true, permissions: null, loading: false, refresh: jest.fn() }),
 }));
 
-const mockProfile: { role?: string } = { role: 'operator' };
+const mockProfile: { role?: string; id?: string } = { role: 'operator' };
 jest.mock('@/hooks/useProfile', () => ({
   useProfile: () => ({ profile: mockProfile, loading: false, refresh: jest.fn() }),
 }));
@@ -204,5 +205,43 @@ describe('Admin Users Page', () => {
     );
     expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/admin/permission-groups/g-default/members/new-user');
     mockProfile.role = 'operator';
+  });
+
+  it('conta só pessoas ATIVAS no limite do plano', async () => {
+    const AdminUsers = require('@/pages/admin/users').default;
+    wrap(<AdminUsers />);
+    await waitFor(() => screen.getByText('alice@test.com'));
+    // alice ativa, bob inativo → 1 (não 2)
+    expect(mockCanCreateUser).toHaveBeenLastCalledWith(1);
+  });
+
+  it('o filtro de perfil não muda a contagem do limite', async () => {
+    const AdminUsers = require('@/pages/admin/users').default;
+    wrap(<AdminUsers />);
+    await waitFor(() => screen.getByText('alice@test.com'));
+    const { apiClient } = require('@/services/api_client');
+    // a lista vem sempre completa (o filtro é só visual)
+    expect(apiClient.get).toHaveBeenCalledWith(expect.not.stringContaining('role_filter'));
+  });
+
+  it('admin não vê Excluir na própria linha (nem no último admin ativo)', async () => {
+    mockProfile.role = 'admin';
+    mockProfile.id = 'u1';
+    const AdminUsers = require('@/pages/admin/users').default;
+    wrap(<AdminUsers />);
+    await waitFor(() => screen.getByText('alice@test.com'));
+    // alice (u1) é a própria e a única admin ativa: só bob tem Excluir
+    expect(screen.getAllByRole('button', { name: 'Excluir usuário' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Editar usuário' })).toHaveLength(2);
+    mockProfile.role = 'operator';
+    mockProfile.id = undefined;
+  });
+
+  it('operador com permissão de grupo não edita nem exclui administradores', async () => {
+    const AdminUsers = require('@/pages/admin/users').default;
+    wrap(<AdminUsers />);
+    await waitFor(() => screen.getByText('alice@test.com'));
+    expect(screen.getAllByRole('button', { name: 'Excluir usuário' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Editar usuário' })).toHaveLength(1);
   });
 });

@@ -32,7 +32,7 @@ def generate_welcome_html(
                 <li>Usuários, giras e médiuns <strong>ilimitados</strong></li>
                 <li>Financeiro completo, estoque, associados e site do terreiro</li>
                 <li>Fila de espera e senhas com horário marcado</li>
-                <li>Analytics avançado e suporte prioritário</li>
+                <li>Relatórios de atendimento, histórico de alterações e cores e logo do terreiro</li>
                 <li>Emitir senhas para consulentes em tempo real</li>"""
         aviso = (
             f"Seu trial Premium termina em {trial_days} dias. Antes disso, avisaremos por e-mail — "

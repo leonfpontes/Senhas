@@ -117,7 +117,9 @@ function MensalidadesContent() {
   const { showError } = useSnackbar();
 
   const canView = canGroup('financeiro', 'view');
-  const canInsertEdit = canGroup('financeiro', 'insert') || canGroup('financeiro', 'edit');
+  // Registrar/editar pagamento é um POST (upsert) que o backend guarda com "insert" —
+  // mostrar "Registrar"/lote só com insert (antes bastava edit e o POST voltava 403).
+  const canRegistrar = canGroup('financeiro', 'insert');
   const planMediuns = can('mensalidade_mediun');
   const planAssoc = can('mensalidade_associado');
 
@@ -256,11 +258,20 @@ function MensalidadesContent() {
     if (!kpisReady) return null;
     return computeCobrancaKpis(
       [
-        ...(showMediuns ? [{ items: items ?? [], valor: config?.valor_mensal }] : []),
-        ...(showAssoc ? [{ items: assocItems ?? [], valor: config?.valor_mensal_associado }] : []),
+        ...(showMediuns
+          ? [{ items: items ?? [], valor: config?.valor_mensal, diaVencimento: config?.dia_vencimento }]
+          : []),
+        ...(showAssoc
+          ? [
+              {
+                items: assocItems ?? [],
+                valor: config?.valor_mensal_associado,
+                diaVencimento: config?.dia_vencimento_associado ?? 10,
+              },
+            ]
+          : []),
       ],
       mes,
-      config?.dia_vencimento,
     );
   }, [kpisReady, showMediuns, showAssoc, items, assocItems, config, mes]);
 
@@ -325,7 +336,7 @@ function MensalidadesContent() {
               loading={loading || items === null}
               diaVencimento={config?.dia_vencimento}
               valorPadrao={config?.valor_mensal}
-              canEdit={canInsertEdit}
+              canEdit={canRegistrar}
               entidade="médium"
               onRegistrar={registrarMedium}
               onChanged={fetchItems}
@@ -343,7 +354,7 @@ function MensalidadesContent() {
               loading={loadingAssoc || assocItems === null}
               diaVencimento={config?.dia_vencimento_associado ?? 10}
               valorPadrao={config?.valor_mensal_associado}
-              canEdit={canInsertEdit}
+              canEdit={canRegistrar}
               entidade="associado"
               onRegistrar={registrarAssociado}
               onChanged={fetchAssocItems}

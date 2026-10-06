@@ -6,22 +6,31 @@
  * giras, vêm no HTML para SEO (Gap #19).
  *
  * As seções são as mesmas da prévia do editor (`@/components/site/sections`).
+ *
+ * Sem site publicado, mas com terreiro existente: mostra a agenda pública de giras
+ * (GET /api/v1/public/agenda/{slug}) — é o destino de "Ver próximas giras" nas telas do
+ * consulente. Slug que não é terreiro nem site: "Site em preparação".
  */
 import React from 'react';
 import type { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import { ComingSoon } from '@/components/site/ComingSoon';
 import { PublicSite } from '@/components/site/PublicSite';
+import { TenantAgenda, type TenantAgendaData } from '@/components/site/TenantAgenda';
 import { fontImportUrl, siteBrandColor } from '@/components/site/lib';
 import type { PublicSiteData } from '@/components/site/types';
 
 interface Props {
   site: PublicSiteData | null;
+  agenda?: TenantAgendaData | null;
 }
 
-export default function TenantPublicSitePage({ site }: Props) {
-  // Site não publicado ou slug inexistente — "em breve" em vez do 404 padrão.
-  if (site === null) return <ComingSoon />;
+export default function TenantPublicSitePage({ site, agenda = null }: Props) {
+  if (site === null) {
+    // Terreiro sem site publicado: agenda de giras. Slug inexistente: "em breve".
+    if (agenda) return <TenantAgenda agenda={agenda} />;
+    return <ComingSoon />;
+  }
 
   const title = site.meta_title || 'Terreiro — GiraHub';
   const hero = site.sections.find((s) => s.section_type === 'HERO');
@@ -54,12 +63,22 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) 
 
   try {
     const res = await fetch(`${base}/api/v1/public/sites/${encodeURIComponent(slug)}`);
-    if (!res.ok) {
-      return { props: { site: null } };
+    if (res.ok) {
+      const site: PublicSiteData = await res.json();
+      return { props: { site } };
     }
-    const site: PublicSiteData = await res.json();
-    return { props: { site } };
   } catch {
-    return { props: { site: null } };
+    /* tenta a agenda abaixo */
   }
+
+  try {
+    const res = await fetch(`${base}/api/v1/public/agenda/${encodeURIComponent(slug)}`);
+    if (res.ok) {
+      const agenda: TenantAgendaData = await res.json();
+      return { props: { site: null, agenda } };
+    }
+  } catch {
+    /* sem agenda: "em breve" */
+  }
+  return { props: { site: null, agenda: null } };
 };

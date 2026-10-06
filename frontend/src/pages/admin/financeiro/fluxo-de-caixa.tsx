@@ -390,7 +390,7 @@ function FluxoDeCaixaContent() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard label="Saldo acumulado" value={formatBRL(saldoAtual)} icon={<Wallet />} color={saldoAtual >= 0 ? 'var(--success)' : 'var(--destructive)'} subtitle="no período" loading={loading} />
+        <KpiCard label="Saldo acumulado" value={formatBRL(saldoAtual)} icon={<Wallet />} color={saldoAtual >= 0 ? 'var(--success)' : 'var(--destructive)'} subtitle="ao fim do período, com o saldo inicial das contas" loading={loading} />
         <KpiCard label="Recebido" value={formatBRL(totalReceitas)} icon={<ArrowDownToLine />} color="var(--info)" subtitle="realizado" loading={loading} />
         <KpiCard label="Pago" value={formatBRL(totalDespesas)} icon={<ArrowUpFromLine />} color="var(--warning)" subtitle="realizado" loading={loading} />
         <KpiCard label="Pendentes (líquido)" value={formatBRL(pendenteLiquido)} icon={<Scale />} color={pendenteLiquido >= 0 ? 'var(--success)' : 'var(--destructive)'} subtitle="a receber − a pagar" loading={loading} />

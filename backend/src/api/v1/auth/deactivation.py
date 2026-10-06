@@ -19,11 +19,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import get_current_user
 from src.core.config import DUMMY_BCRYPT_HASH, settings
 from src.core.database import get_db
-from src.core.errors import InsufficientPermissionsError, NotFoundError, UnauthorizedError
+from src.core.errors import APIException, InsufficientPermissionsError, NotFoundError, UnauthorizedError
 from src.core.limiter import limiter
+from src.core.logging import log_security_event
 from src.models import SubscriptionStatus, Tenant, User, UserRole
 from src.models.audit_logs import AuditLog, AuditAction
 from src.repositories.subscription_repo import SubscriptionRepository
+from src.core.auth_cookies import clear_auth_cookies
 from src.security.password import verify_password
 from src.services import session_service, stripe_service
 from src.services.email.base import EmailMessage
@@ -48,6 +50,8 @@ class ReactivateAccountRequest(BaseModel):
 
     email: EmailStr
     password: str
+    # Mesma escolha do login: a reativação já abre a sessão.
+    remember_me: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +224,7 @@ async def deactivate_account(
         await db.rollback()
         raise
 
-    response.delete_cookie(key="refresh_token", httponly=True, secure=True, samesite="strict")
+    clear_auth_cookies(response)
 
     reactivation_url = f"{settings.FRONTEND_URL}/reactivate-account"
     asyncio.create_task(
@@ -236,49 +240,47 @@ async def deactivate_account(
 @limiter.limit("5/hour")
 async def reactivate_account(
     request: Request,
+    response: Response,
     payload: ReactivateAccountRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """Reactivate a tenant + account previously deactivated via /deactivate-account.
 
     Public endpoint (the account can't log in to authenticate normally).
-    Always returns the same generic message regardless of why it didn't
-    reactivate (user not found, wrong password, or tenant not actually
-    deactivated) — same anti-enumeration approach as /forgot-password.
+    Same account-selection rule and same answers as /login, so it reveals
+    nothing the login doesn't already reveal:
+    - e-mail desconhecido ou senha errada → 401 "Credenciais inválidas"
+      (mesma mensagem e mesmo custo de bcrypt do login);
+    - credenciais certas mas conta não desativada → 409 NOT_DEACTIVATED
+      (o login, com essas credenciais, simplesmente entraria).
 
     On success: subscription resets to FREE (never auto-restores a
-    previous paid plan), tenant + user are reactivated. Does not log the
-    user in — they complete a normal /login afterward.
+    previous paid plan), tenant + user are reactivated AND the session is
+    opened (same 3 cookies as /login) — the person typed the password once,
+    there's no second /login.
     """
-    generic_response = {
-        "message": "Se as credenciais estiverem corretas e a conta puder ser reativada, ela será reativada."
-    }
+    from src.api.v1.auth.login import issue_session, login_user_payload, user_by_login_email_stmt
 
-    stmt = (
-        select(User)
-        .where((User.email == payload.email) & (User.deleted_at.is_(None)))
-        .order_by(User.created_at.asc())
-        .limit(1)
-    )
-    result = await db.execute(stmt)
+    result = await db.execute(user_by_login_email_stmt(payload.email))
     user = result.scalar_one_or_none()
 
     if not user:
         verify_password(payload.password, DUMMY_BCRYPT_HASH)
-        return generic_response
+        raise UnauthorizedError("Credenciais inválidas")
 
     if not verify_password(payload.password, user.password_hash):
-        return generic_response
+        raise UnauthorizedError("Credenciais inválidas")
 
-    if user.tenant_id is None:
-        return generic_response
-
-    tenant = await db.get(Tenant, user.tenant_id)
+    tenant = await db.get(Tenant, user.tenant_id) if user.tenant_id is not None else None
     if not tenant or tenant.self_deactivated_at is None:
         # Not in the "self-deactivated" state — nothing to reactivate.
         # (Deliberately does not check is_active/deleted_at alone: those are
         # also touched by unrelated tenant states, e.g. platform suspension.)
-        return generic_response
+        raise APIException(
+            "Esta conta não está desativada. Entre normalmente com seu e-mail e senha.",
+            status_code=status.HTTP_409_CONFLICT,
+            error_code="NOT_DEACTIVATED",
+        )
 
     tenant.is_active = True
     tenant.deleted_at = None
@@ -303,4 +305,13 @@ async def reactivate_account(
         _send_account_reactivated_email(user.email, user.full_name or user.username, login_url)
     )
 
-    return generic_response
+    access_token = await issue_session(db, user, request, response, persistent=payload.remember_me)
+    log_security_event("login", user_id=user.id, tenant_id=user.tenant_id, success=True,
+                       details={"reason": "reactivation"})
+
+    return {
+        "message": "Conta e terreiro reativados. Bem-vindo(a) de volta!",
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": login_user_payload(user),
+    }
