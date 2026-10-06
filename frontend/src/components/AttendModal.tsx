@@ -142,7 +142,7 @@ export default function AttendModal({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && !loading && onClose()}>
-      <DialogContent className="z-[1300] sm:max-w-md" data-testid="attend-modal">
+      <DialogContent className="sm:max-w-md" data-testid="attend-modal">
         <DialogHeader>
           <DialogTitle>{editMode ? 'Editar atendimento' : `Chamar senha ${numero}`}</DialogTitle>
           <DialogDescription>

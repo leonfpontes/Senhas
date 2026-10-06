@@ -68,7 +68,7 @@ export default function WalkInModal({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && !loading && onClose()}>
-      <DialogContent className="z-[1300] sm:max-w-md" data-testid="walk-in-modal">
+      <DialogContent className="sm:max-w-md" data-testid="walk-in-modal">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar sem senha' : 'Sem senha'}</DialogTitle>
           <DialogDescription>

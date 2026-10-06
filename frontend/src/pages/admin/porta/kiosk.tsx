@@ -9,6 +9,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Loader2 } from 'lucide-react';
 import { apiClient } from '@/services/api_client';
+import { numeroDaSenha } from '@/components/admin/senhaFormat';
 
 const POLLING_INTERVAL_MS = 8000;
 
@@ -27,12 +28,6 @@ interface QueueItem {
   is_sponsor: boolean;
   numero_formatado: string;
   checkin_em: string | null;
-}
-
-/** "#0042" → "0042" (o número da senha não leva cerquilha na interface). */
-export function numeroDaSenha(item: Pick<QueueItem, 'numero' | 'numero_formatado'>): string {
-  const base = item.numero_formatado || String(item.numero).padStart(4, '0');
-  return base.replace(/^#/, '');
 }
 
 export default function PortaKioskPage() {
