@@ -18,8 +18,11 @@ from .support_chat import router as support_chat_router
 
 # Combine all platform routers
 platform_router = APIRouter()
-platform_router.include_router(tenants_router)
+# A busca (/tenants/search) vem ANTES de tenants_router: o Starlette casa rotas na ordem de
+# registro, e GET /tenants/{tenant_id} capturava "search" como id (422 de UUID inválido).
+# tests/unit/test_route_shadowing.py garante que nenhuma rota fixa fique sombreada.
 platform_router.include_router(search_router)
+platform_router.include_router(tenants_router)
 platform_router.include_router(users_router)
 platform_router.include_router(subscriptions_router)
 platform_router.include_router(audit_router)
