@@ -80,15 +80,62 @@ class CancelTicketResponse(BaseModel):
     message: str
 
 
+class PublicTicketResponse(BaseModel):
+    """O "bilhete": o que o consulente precisa no dia da gira. Servido em
+    GET /{tenant_slug}/ticket/{ticket_id}, destino do link "Para resgatar sua
+    senha" dos e-mails (pages/public/[tenant]/ticket/[ticketId].tsx)."""
+
+    ticket_number: str
+    status: str
+    status_label: str
+    waitlisted: bool = False
+    cancellable: bool
+    cancel_reason: str | None = None
+    gira_name: str
+    gira_date: str
+    gira_date_iso: str | None = None
+    gira_local: str | None = None
+    horario: str | None = None
+    recados: str | None = None
+    tenant_name: str
+    tenant_slug: str
+    tenant_address: str | None = None
+    maps_url: str | None = None
+    tenant_logo_url: str | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
+    consulente_name: str
+    acompanhantes: list[AcompanhanteCancelInfo] = []
+
+
+_STATUS_LABELS = {
+    TicketStatus.EMITTED: "Confirmada",
+    TicketStatus.CALLED: "Chamada",
+    TicketStatus.COMPLETED: "Atendida",
+    TicketStatus.CANCELLED: "Cancelada",
+    TicketStatus.NO_SHOW: "Não compareceu",
+    TicketStatus.WAITLISTED: "Na fila de espera",
+    TicketStatus.WAITLIST_EXPIRED: "Prazo da fila expirado",
+}
+
+
+def _maps_url(address: str) -> str:
+    from urllib.parse import quote
+
+    return f"https://www.google.com/maps/dir/?api=1&destination={quote(address)}"
+
+
 def _format_numero(ticket: Ticket) -> str:
     return f"P{ticket.numero:03d}" if ticket.is_sponsor else f"{ticket.numero:04d}"
 
 
 async def _load_ticket_context(
-    session: AsyncSession, ticket_id: str
+    session: AsyncSession, ticket_id: str, tenant_slug: str | None = None
 ) -> tuple[Ticket, Gira, Tenant]:
     """Resolve ticket + gira + tenant for the public cancel endpoints (404 on
-    any miss — never reveal whether the UUID exists)."""
+    any miss — never reveal whether the UUID exists). When `tenant_slug` is
+    given, the ticket must belong to that tenant (link do bilhete carrega o
+    slug na URL; slug errado é 404, não vazamento)."""
     try:
         ticket_uuid = _uuid.UUID(ticket_id)
     except ValueError:
@@ -107,7 +154,10 @@ async def _load_ticket_context(
         select(Gira).where(Gira.id == ticket.gira_id, Gira.tenant_id == ticket.tenant_id)
     )
     gira = gira_result.scalar_one_or_none()
-    tenant_result = await session.execute(select(Tenant).where(Tenant.id == ticket.tenant_id))
+    tenant_stmt = select(Tenant).where(Tenant.id == ticket.tenant_id)
+    if tenant_slug is not None:
+        tenant_stmt = tenant_stmt.where(Tenant.slug == tenant_slug)
+    tenant_result = await session.execute(tenant_stmt)
     tenant = tenant_result.scalar_one_or_none()
     if not gira or not tenant:
         raise HTTPException(status_code=404, detail="Senha não encontrada")
@@ -177,6 +227,75 @@ async def get_cancel_info(
         tenant_slug=tenant.slug,
         consulente_name=ticket.consulente.nome if ticket.consulente else "",
         waitlisted=status == TicketStatus.WAITLISTED,
+        acompanhantes=[
+            AcompanhanteCancelInfo(
+                ticket_number=_format_numero(acomp),
+                name=acomp.consulente.nome if acomp.consulente else "Acompanhante",
+            )
+            for acomp in acompanhantes
+        ],
+    )
+
+
+@router.get("/{tenant_slug}/ticket/{ticket_id}", response_model=PublicTicketResponse)
+@limiter.limit("60/minute")
+async def get_public_ticket(
+    request: Request,
+    tenant_slug: str,
+    ticket_id: str,
+    session: AsyncSession = Depends(get_db),
+):
+    """O bilhete do consulente. Read-only; o UUID da senha é o segredo, como
+    nos demais links de e-mail, e o slug na URL amarra ao terreiro."""
+    ticket, gira, tenant = await _load_ticket_context(session, ticket_id, tenant_slug=tenant_slug)
+    status = ticket.status if isinstance(ticket.status, TicketStatus) else TicketStatus(ticket.status)
+    cancellable, reason = _cancellability(ticket, gira)
+
+    tc_result = await session.execute(select(TenantConfig).where(TenantConfig.tenant_id == tenant.id))
+    tenant_config = tc_result.scalar_one_or_none()
+    address = (tenant_config.endereco or "").strip() if tenant_config else ""
+    logo_url: str | None = None
+    if tenant_config and tenant_config.logo_data:
+        logo_url = f"{settings.FRONTEND_URL.rstrip('/')}/api/v1/public/tenant/{tenant.id}/logo"
+    elif tenant_config and tenant_config.logo_url:
+        logo_url = tenant_config.logo_url
+
+    horario: str | None = None
+    if ticket.time_slot_id:
+        from src.models.gira_time_slots import GiraTimeSlot
+
+        slot_result = await session.execute(
+            select(GiraTimeSlot).where(
+                GiraTimeSlot.id == ticket.time_slot_id, GiraTimeSlot.tenant_id == tenant.id
+            )
+        )
+        slot = slot_result.scalar_one_or_none()
+        if slot is not None and slot.horario is not None:
+            horario = slot.horario.strftime("%H:%M")
+
+    acompanhantes = await _load_active_acompanhantes(session, ticket)
+    data_inicio = gira.data_inicio
+    return PublicTicketResponse(
+        ticket_number=_format_numero(ticket),
+        status=status.value,
+        status_label=_STATUS_LABELS.get(status, status.value),
+        waitlisted=status == TicketStatus.WAITLISTED,
+        cancellable=cancellable,
+        cancel_reason=reason,
+        gira_name=gira.nome,
+        gira_date=data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if data_inicio else "",
+        gira_date_iso=data_inicio.isoformat() if data_inicio else None,
+        gira_local=gira.local or None,
+        horario=horario,
+        recados=(gira.recados or "").strip() or None,
+        tenant_name=tenant.name,
+        tenant_slug=tenant.slug,
+        tenant_address=address or None,
+        maps_url=_maps_url(address) if address else None,
+        tenant_logo_url=logo_url,
+        primary_color=tenant_config.primary_color if tenant_config else None,
+        secondary_color=tenant_config.secondary_color if tenant_config else None,
+        consulente_name=ticket.consulente.nome if ticket.consulente else "",
         acompanhantes=[
             AcompanhanteCancelInfo(
                 ticket_number=_format_numero(acomp),

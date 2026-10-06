@@ -183,6 +183,7 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
     loaded by the caller.
     """
     from src.core.config import settings
+    from src.core.public_links import public_cancel_link, public_ticket_link
     from src.core.tz import APP_TZ
     from src.models.tenants import Tenant
     from src.models.tenant_config import TenantConfig
@@ -216,8 +217,8 @@ async def send_confirmed_ticket_email(session: AsyncSession, ticket: Ticket) -> 
     elif tenant_config and tenant_config.logo_url:
         tenant_logo_url = tenant_config.logo_url
 
-    rescue_link = f"{settings.FRONTEND_URL.rstrip('/')}/public/{tenant.slug}/ticket/{ticket.id}"
-    cancel_link = f"{settings.FRONTEND_URL.rstrip('/')}/public/ticket/{ticket.id}/cancelar"
+    rescue_link = public_ticket_link(settings.FRONTEND_URL, tenant.slug, ticket.id)
+    cancel_link = public_cancel_link(settings.FRONTEND_URL, ticket.id)
     gira_date_str = gira_obj.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if gira_obj.data_inicio else ""
 
     # Reenvio (upgrade de prioridade, liberação da fila): mantém no e-mail as
