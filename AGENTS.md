@@ -269,14 +269,15 @@ Recursos (plano minimo em `_FEATURE_MIN_TIER`):
 - **Todos**: senha pelo link, Porta, painel e `bulk_operations` (always-on, nao vendido).
 - **Basic+**: `mediuns`, `relatorio_gira`.
 - **Pro+**: `email_transacional`, `tema_personalizado`, `analytics_basico`, `export_csv`, `auditoria`,
-  `site_builder` (site e cursos), `mensalidade_mediun`.
-- **So Premium**: `associados`, `mensalidade_associado`, `estoque_controle`, `contas_financeiras`
-  (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`, `agendamento_por_horario`.
+  `site_builder` (site e cursos).
+- **So Premium**: `mensalidade_mediun`, `associados`, `mensalidade_associado`, `estoque_controle`,
+  `contas_financeiras` (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`,
+  `agendamento_por_horario`. Todo o grupo Financeiro (mensalidades + configuracao financeira) e Premium.
 - Fora do comparativo (`UNSOLD_FEATURES`): `bulk_operations`, `analytics_avancado` (Pro+ no catalogo)
   e `suporte_prioritario` (Premium no catalogo) — nada implementado nos dois ultimos.
-- Premissa registrada: "mensalidade de mediuns" nao faz parte de "contas a pagar/receber" e segue no
-  Pro. Para mudar, trocar `mensalidade_mediun` para PREMIUM em `_FEATURE_MIN_TIER` e em
-  `FEATURE_MIN_PLAN` (frontend) — config/relatorio de mensalidades ja usam o gate dela.
+- Mensalidade de mediuns e Premium (decisao do dono do produto, out/2026). O espelho em contas a
+  receber (`mensalidade_contas_service`) so nasce com a feature no plano: criar medium/associado num
+  plano sem `mensalidade_mediun`/`mensalidade_associado` nao gera conta, mesmo com config gravada.
 - Dados de modulo que saiu do plano ficam no banco (sem grandfathering): a tela mostra `PlanLocked`
   (nao ha modo so-leitura) e a API responde 403; limites menores so bloqueiam CRIAR (422), nada e apagado.
 
@@ -562,7 +563,7 @@ Incluir obrigatoriamente:
   unique), 058 (e-mail de associado unico so entre ativos — recadastrar excluido dava 500).
 
 ### 11.10 Financeiro — Controle de Mensalidade de Mediuns (branch 002-financeiro-mensalidade)
-- **Feature PRO+**: `mensalidade_mediun` e PRO+ no catalogo desde 2026-06-27; os endpoints exigiam PREMIUM ate o P-05 (2026-10-05), que passou a usar `require_plan_feature("mensalidade_mediun")`. Desde out/2026 a mensalidade de associados e Premium: config e relatorio ficam no gate `mensalidade_mediun` e a parte de associados so vale com `mensalidade_associado` no plano.
+- **Feature Premium**: `mensalidade_mediun` foi PRO+ de 2026-06-27 ate a reestruturacao de out/2026, quando voltou a ser Premium (junto com a de associados). Endpoints usam `require_plan_feature("mensalidade_mediun")`; config e relatorio ficam nesse gate e a parte de associados so vale com `mensalidade_associado` no plano.
 - **Modelos**: `MensalidadeConfig` (valor_mensal, dia_vencimento, 1:1 tenant), `MensalidadePagamento` (UNIQUE mediun_id+mes, BYTEA comprovante), `MensalidadeStatus` enum (PENDENTE/PAGO/ISENTO).
 - **Endpoints** (prefixo `/api/v1/admin/financeiro`): config GET/PUT, mensalidades GET/POST por mes, comprovante GET/DELETE, resumo GET (6 hist + 3 proj), relatorio POST enviar / GET download. Associados espelham em `/associados*`.
 - **Regras de acesso** (desde 2026-10-06): so `require_group_permission(FINANCEIRO, ...)` + gate de plano — nao ha mais checagem de perfil ADMIN (`_require_admin` removido; contradizia o grupo). Registrar/editar pagamento e POST (upsert) → acao `insert`; a tela mostra "Registrar"/lote so com `canGroup('financeiro','insert')`. PUT config → `edit`.

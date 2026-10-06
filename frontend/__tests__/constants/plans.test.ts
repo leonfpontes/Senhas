@@ -37,9 +37,10 @@ describe('plans — espelho do backend', () => {
     // bulk_operations vale em todos os planos (plan_features.py: nível FREE).
     const tier0 = ['bulk_operations'];
     const tier1 = ['mediuns', 'relatorio_gira'];
-    // Reestruturação de out/2026: associados, estoque, fila, horário e financeiro → Premium.
+    // Reestruturação de out/2026: associados, estoque, fila, horário, financeiro e mensalidades → Premium.
     const tier3 = [
       'suporte_prioritario',
+      'mensalidade_mediun',
       'associados',
       'mensalidade_associado',
       'estoque_controle',
@@ -88,7 +89,8 @@ describe('plans — helpers', () => {
     expect(planIncludes('basic', 'estoque_controle')).toBe(false);
     expect(planIncludes('pro', 'estoque_controle')).toBe(false);
     expect(planIncludes('premium', 'estoque_controle')).toBe(true);
-    expect(planIncludes('pro', 'mensalidade_mediun')).toBe(true);
+    expect(planIncludes('pro', 'mensalidade_mediun')).toBe(false);
+    expect(planIncludes('premium', 'mensalidade_mediun')).toBe(true);
     expect(planIncludes('pro', 'mensalidade_associado')).toBe(false);
     expect(minPlanFor('site_builder').key).toBe('pro');
     expect(minPlanFor('contas_financeiras').key).toBe('premium');
@@ -98,7 +100,9 @@ describe('plans — helpers', () => {
 
   it('destaques do card: limites e o que entra de novo', () => {
     expect(planHighlights('basic')).toEqual(expect.arrayContaining(['Tudo do Gratuito', '3 usuários', '3 giras por mês', 'Até 15 médiuns']));
-    expect(planHighlights('pro')).toEqual(expect.arrayContaining(['4 giras por mês', 'Até 30 médiuns', 'Mensalidade dos médiuns']));
+    expect(planHighlights('pro')).toEqual(expect.arrayContaining(['4 giras por mês', 'Até 30 médiuns', 'Site do terreiro e cursos']));
+    expect(planHighlights('pro')).not.toEqual(expect.arrayContaining(['Mensalidade dos médiuns']));
+    expect(planHighlights('premium')).toEqual(expect.arrayContaining(['Mensalidade dos médiuns']));
     expect(planHighlights('pro')).not.toEqual(expect.arrayContaining(['Estoque de materiais']));
     expect(planHighlights('premium')).toEqual(expect.arrayContaining(['Estoque de materiais', 'Associados', 'Fila de espera quando a gira lota']));
     expect(planHighlights('premium')).toEqual(expect.arrayContaining(['Usuários ilimitados', 'Giras ilimitadas']));

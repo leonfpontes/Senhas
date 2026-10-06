@@ -80,8 +80,8 @@ class TestPlanFeatures:
         assert f.bulk_operations is True
         assert f.auditoria is True
         assert f.site_builder is True
-        assert f.mensalidade_mediun is True
         # Premium only
+        assert f.mensalidade_mediun is False
         assert f.associados is False
         assert f.mensalidade_associado is False
         assert f.estoque_controle is False
@@ -106,7 +106,7 @@ class TestPlanFeatures:
 
 
 class TestPlanFeaturesMensalidade:
-    """Verify mensalidade_mediun feature flag is available on PRO and PREMIUM."""
+    """mensalidade_mediun é só Premium desde a reestruturação de out/2026."""
 
     def _get_features(self, plan: PlanType):
         from src.api.v1.admin.subscription_info import _get_plan_features
@@ -120,9 +120,9 @@ class TestPlanFeaturesMensalidade:
         f = self._get_features(PlanType.BASIC)
         assert f.mensalidade_mediun is False
 
-    def test_pro_tem_mensalidade_mediun(self):
+    def test_pro_nao_tem_mensalidade_mediun(self):
         f = self._get_features(PlanType.PRO)
-        assert f.mensalidade_mediun is True
+        assert f.mensalidade_mediun is False
 
     def test_premium_tem_mensalidade_mediun(self):
         f = self._get_features(PlanType.PREMIUM)

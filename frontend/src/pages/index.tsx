@@ -80,8 +80,7 @@ interface ModuleItem {
 const MODULES: ModuleItem[] = [
   { title: 'Médiuns e cambones', desc: 'Cadastro da corrente, presença nas giras e aniversários da semana.', feature: 'mediuns' },
   { title: 'Relatório da gira', desc: 'Quantas senhas, quem compareceu e horários de pico — em PDF.', feature: 'relatorio_gira' },
-  { title: 'Mensalidade dos médiuns', desc: 'Quem pagou, quem está devendo e o comprovante de cada mês.', feature: 'mensalidade_mediun' },
-  { title: 'Financeiro completo', desc: 'Contas a pagar e a receber, fluxo de caixa e contas bancárias do terreiro.', feature: 'contas_financeiras' },
+  { title: 'Financeiro completo', desc: 'Mensalidade dos médiuns e associados, contas a pagar e a receber, fluxo de caixa e contas bancárias.', feature: 'contas_financeiras' },
   { title: 'Estoque de materiais', desc: 'Velas, ervas, bebidas: entradas, saídas e aviso quando está acabando.', feature: 'estoque_controle' },
   { title: 'Site do terreiro e cursos', desc: 'Página pública com endereço, próximas giras e inscrição em cursos.', feature: 'site_builder' },
   { title: 'Associados', desc: 'Quem é da casa, com mensalidade e prioridade na fila se você quiser.', feature: 'associados' },

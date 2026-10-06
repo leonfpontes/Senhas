@@ -5,7 +5,7 @@ Decisão do dono do produto:
   médiuns; Premium ilimitado. Usuários e preços não mudam.
 - Associados (+ mensalidade de associados), estoque, horário marcado, fila de
   espera e financeiro (contas_financeiras) saem do Pro e ficam só no Premium.
-- Premissa: mensalidade de médiuns NÃO é "contas a pagar/receber" e segue no Pro.
+- Mensalidade de médiuns também é Premium (decisão do dono do produto).
 
 O frontend espelha esta matriz em frontend/src/constants/plans.ts (teste
 __tests__/constants/plans.test.ts). Mudou aqui, mude lá.
@@ -31,7 +31,7 @@ MIN_PLAN = {
     "export_csv": PlanType.PRO,
     "auditoria": PlanType.PRO,
     "site_builder": PlanType.PRO,
-    "mensalidade_mediun": PlanType.PRO,  # premissa: segue no Pro
+    "mensalidade_mediun": PlanType.PREMIUM,
     "associados": PlanType.PREMIUM,
     "mensalidade_associado": PlanType.PREMIUM,
     "estoque_controle": PlanType.PREMIUM,
@@ -91,7 +91,7 @@ def test_suspenso_perde_tudo():
         ("fila_espera", "apenas no plano Premium"),
         ("agendamento_por_horario", "apenas no plano Premium"),
         ("mensalidade_associado", "apenas no plano Premium"),
-        ("mensalidade_mediun", "a partir do plano Pro"),
+        ("mensalidade_mediun", "apenas no plano Premium"),
         ("site_builder", "a partir do plano Pro"),
     ],
 )

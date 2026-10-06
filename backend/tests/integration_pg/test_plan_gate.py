@@ -29,9 +29,9 @@ MODULOS = {
     "cursos_presenciais": ("GET", "/api/v1/admin/cursos-presenciais", PlanType.BASIC, PlanType.PRO),
     "contas_financeiras": ("GET", "/api/v1/admin/financeiro/categorias", PlanType.PRO, PlanType.PREMIUM),
     "email_transacional": ("GET", f"/api/v1/admin/tickets/{uuid.uuid4()}/email-status", PlanType.BASIC, PlanType.PRO),
-    "mensalidade_mediun": ("GET", f"/api/v1/admin/financeiro/mensalidades?mes={MES}", PlanType.BASIC, PlanType.PRO),
+    "mensalidade_mediun": ("GET", f"/api/v1/admin/financeiro/mensalidades?mes={MES}", PlanType.PRO, PlanType.PREMIUM),
     "mensalidade_associado": ("GET", f"/api/v1/admin/financeiro/associados?mes={MES}", PlanType.PRO, PlanType.PREMIUM),
-    "mensalidade_config": ("GET", "/api/v1/admin/financeiro/config", PlanType.BASIC, PlanType.PRO),
+    "mensalidade_config": ("GET", "/api/v1/admin/financeiro/config", PlanType.PRO, PlanType.PREMIUM),
     "mediuns": ("GET", "/api/v1/admin/mediuns/aniversariantes", PlanType.FREE, PlanType.BASIC),
     "analytics_basico": ("GET", "/api/v1/admin/analytics", PlanType.BASIC, PlanType.PRO),
     "auditoria": ("GET", "/api/v1/admin/audit-logs", PlanType.BASIC, PlanType.PRO),
@@ -73,7 +73,7 @@ async def test_plano_sem_a_feature_recebe_403(client, db, modulo):
 
 @pytest.mark.parametrize("modulo", list(MODULOS))
 async def test_plano_minimo_ativo_passa_pelo_gate(client, db, modulo):
-    """Controle positivo no plano mínimo de cada módulo (PRO acessa mensalidade de médiuns)."""
+    """Controle positivo no plano mínimo de cada módulo (mensalidades: Premium desde out/2026)."""
     method, url, _, plano = MODULOS[modulo]
     tenant, admin = await _admin(db, plano)
     if modulo == "mensalidade_associado":

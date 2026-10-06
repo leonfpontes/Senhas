@@ -556,9 +556,9 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 
 - **Nota (2026-10-06) — reestruturação de planos**: decisão do dono do produto. Limites: Gratuito 2
   giras/mês; Basic 3 giras e 15 médiuns; Pro 4 giras e 30 médiuns (Premium, usuários e preços sem
-  mudança). Associados (+ mensalidade de associados), estoque, fila de espera, horário marcado e
-  todo o financeiro (`contas_financeiras`) passaram do Pro para o Premium; mensalidade de médiuns
-  segue no Pro (premissa). Catálogo em `_FEATURE_MIN_TIER` (`plan_features.py`), migração de dados
+  mudança). Associados (+ mensalidade de associados), estoque, fila de espera, horário marcado,
+  todo o financeiro (`contas_financeiras`) e a mensalidade de médiuns (decisão do dono, mesma
+  data) passaram do Pro para o Premium. Catálogo em `_FEATURE_MIN_TIER` (`plan_features.py`), migração de dados
   `059_planos_limites_out_2026`, router de associados ganhou `require_plan_feature("associados")`,
   toggles com gate só checam o plano ao ligar. Sem grandfathering: tenant Pro existente perde os
   módulos (dados preservados, tela `PlanLocked`) — decisão sobre transição pendente com o dono.

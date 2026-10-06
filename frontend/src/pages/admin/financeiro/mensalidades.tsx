@@ -150,7 +150,8 @@ function MensalidadesContent() {
   // ── Fetchers ─────────────────────────────────────────────────────────
 
   const fetchConfig = useCallback(async () => {
-    if (!canView) return;
+    // Sem mensalidade no plano (Premium) a tela mostra PlanLocked: não chama a API (evita 403).
+    if (!canView || (!planMediuns && !planAssoc)) return;
     try {
       const res = await apiClient.get('/api/v1/admin/financeiro/config');
       setConfig(res.data);
@@ -159,7 +160,7 @@ function MensalidadesContent() {
     } finally {
       setConfigLoaded(true);
     }
-  }, [canView]);
+  }, [canView, planMediuns, planAssoc]);
 
   const fetchItems = useCallback(async () => {
     if (!planMediuns || !canView) return;

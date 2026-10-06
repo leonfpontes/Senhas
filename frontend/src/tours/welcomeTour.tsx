@@ -56,7 +56,7 @@ export const MODULE_HINTS: Partial<Record<PrincipalDor, ModuleHint>> = {
     features: ['mediuns'],
   },
   financeiro: {
-    // Mensalidade dos médiuns é Pro; o caixa completo (contas_financeiras) é Premium.
+    // Mensalidade dos médiuns e o caixa completo (contas_financeiras) são Premium.
     text: 'em Mensalidades você registra o pagamento de cada médium e vê quem está em dia.',
     features: ['mensalidade_mediun', 'contas_financeiras'],
   },

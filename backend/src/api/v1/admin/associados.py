@@ -123,10 +123,14 @@ async def create_associado(
         from src.repositories.mensalidade_repo import MensalidadeRepository
         from src.repositories.config_repo import TenantConfigRepository
         from src.services.mensalidade_contas_service import criar_conta_proxima_mensalidade
-        from decimal import Decimal
+        from src.repositories.subscription_repo import SubscriptionRepository
+        from src.services.plan_features import get_effective_plan_features
         cfg_repo = TenantConfigRepository(db)
         tc = await cfg_repo.get_by_tenant(current_user.tenant_id)
-        if tc and tc.enable_mensalidade_associado and not data.mensalidade_isento:
+        sub = await SubscriptionRepository(db).get_by_tenant(current_user.tenant_id)
+        # Toggle gravado sem o plano (mensalidade_associado) vale como desligado.
+        plan_has_mensalidade = get_effective_plan_features(sub).mensalidade_associado
+        if plan_has_mensalidade and tc and tc.enable_mensalidade_associado and not data.mensalidade_isento:
             mens_repo = MensalidadeRepository(db)
             config = await mens_repo.get_config(current_user.tenant_id)
             if config and config.valor_mensal_associado > 0:

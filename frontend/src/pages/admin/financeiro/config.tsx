@@ -1,6 +1,6 @@
 /**
  * Admin Financeiro — Configuração
- * Abas: Categorias | Contas bancárias (contas_financeiras, Premium) | Mensalidade (Pro+)
+ * Abas: Categorias | Contas bancárias (contas_financeiras) | Mensalidade — tudo Premium
  * (Card + Switch, salvar fixo no rodapé).
  */
 'use client';
@@ -787,7 +787,7 @@ function FinanceiroConfigContent() {
   const { can } = useSubscription();
   const { can: canGroup } = usePermissions();
   // Categorias e contas bancárias são do financeiro completo (contas_financeiras, Premium);
-  // a aba Mensalidade só precisa de mensalidade no plano (médiuns no Pro, associados no Premium).
+  // a aba Mensalidade, de mensalidade no plano — os dois são Premium desde out/2026.
   const planContas = can('contas_financeiras');
   const planMensalidade = can('mensalidade_mediun') || can('mensalidade_associado');
   const showContas = planContas && canGroup('contas_financeiras', 'view');
@@ -796,7 +796,7 @@ function FinanceiroConfigContent() {
   const activeTab = tab ?? (showContas ? 'categorias' : 'mensalidade');
 
   if (!planContas && !planMensalidade) {
-    return <PlanLocked feature="Configuração Financeira" minPlan={minPlanFor('mensalidade_mediun').label} />;
+    return <PlanLocked feature="Configuração Financeira" minPlan={minPlanFor('contas_financeiras').label} />;
   }
   if (!showContas && !showMensalidade) {
     return <PermissionDenied message="Você não tem permissão para visualizar a configuração financeira." />;

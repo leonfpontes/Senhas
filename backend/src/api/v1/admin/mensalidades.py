@@ -51,8 +51,8 @@ MAX_COMPROVANTE_BYTES = 5 * 1024 * 1024  # 5 MB
 ALLOWED_COMPROVANTE_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
 
 # ── Gate de plano (P-05) ─────────────────────────────────────────────────────
-# Médiuns: mensalidade_mediun (Pro+). Associados: mensalidade_associado (Premium
-# desde a reestruturação de out/2026; antes Pro+). Config e relatório servem os
+# Médiuns: mensalidade_mediun e associados: mensalidade_associado — os dois
+# Premium desde a reestruturação de out/2026 (antes Pro+). Config e relatório servem os
 # dois e ficam no recurso de entrada (mensalidade_mediun): quem tem mensalidade
 # de associados (Premium) sempre tem a de médiuns. Dentro deles, a parte de
 # associados só vale com mensalidade_associado no plano (`_assoc_enabled`).
@@ -97,7 +97,7 @@ def _assoc_enabled(tc, features) -> bool:
     """Mensalidade de associados ligada E incluída no plano.
 
     O toggle `enable_mensalidade_associado` fica gravado quando o plano perde
-    `mensalidade_associado` (ex.: Pro depois de out/2026); nesse caso ele vale
+    `mensalidade_associado` (ex.: rebaixado do Premium); nesse caso ele vale
     como desligado — a config e o relatório tratam só os médiuns.
     """
     return bool(tc and tc.enable_mensalidade_associado and features.mensalidade_associado)
@@ -187,7 +187,7 @@ async def get_config(
 ):
     """Return the tenant's mensalidade configuration.
     
-    Accessible to Pro+ (gate _GATE_CONFIG no decorator). O toggle de associados
+    Accessible to Premium (gate _GATE_CONFIG no decorator). O toggle de associados
     volta efetivo (desligado se o plano não inclui mensalidade_associado).
     """
     repo = MensalidadeRepository(db)

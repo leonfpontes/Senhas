@@ -59,7 +59,7 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     label: 'Pro',
     price: 79,
     limits: { users: 10, girasPerMonth: 4, mediuns: 30 },
-    tagline: 'Mensalidade dos médiuns, site do terreiro e relatórios.',
+    tagline: 'Site do terreiro, e-mail da senha, relatórios e cores do terreiro.',
     popular: true,
     color: '#8b5cf6',
   },
@@ -68,7 +68,7 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     label: 'Premium',
     price: 99,
     limits: { users: UNLIMITED_THRESHOLD, girasPerMonth: 999999, mediuns: 9999999 },
-    tagline: 'Tudo liberado e sem limites: financeiro, estoque, associados e fila de espera.',
+    tagline: 'Tudo liberado e sem limites: financeiro e mensalidades, estoque, associados e fila de espera.',
     popular: false,
     color: '#f59e0b',
   },
@@ -88,8 +88,8 @@ export const BASE_FEATURES: readonly string[] = [
 /**
  * Plano mínimo de cada recurso (= `_FEATURE_MIN_TIER` em plan_features.py).
  * Reestruturação de out/2026: associados (e a mensalidade deles), estoque, fila de espera,
- * horário marcado e o financeiro (contas a pagar/receber, caixa) passaram do Pro para o Premium.
- * Premissa: a mensalidade dos médiuns não faz parte do financeiro e segue no Pro.
+ * horário marcado, o financeiro (contas a pagar/receber, caixa) e a mensalidade dos médiuns
+ * passaram do Pro para o Premium.
  */
 export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   // Ações em lote valem em todos os planos (não é recurso vendido — fica em BASE_FEATURES).
@@ -102,8 +102,8 @@ export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   analytics_avancado: 'pro',
   export_csv: 'pro',
   auditoria: 'pro',
-  mensalidade_mediun: 'pro',
   site_builder: 'pro',
+  mensalidade_mediun: 'premium',
   associados: 'premium',
   mensalidade_associado: 'premium',
   estoque_controle: 'premium',

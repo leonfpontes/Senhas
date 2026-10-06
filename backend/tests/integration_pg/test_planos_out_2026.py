@@ -1,13 +1,14 @@
 """Reestruturação de planos de out/2026 via HTTP real (Postgres).
 
 - Limites: Gratuito 2 giras/mês; Basic 3 giras e 15 médiuns; Pro 4 giras e 30 médiuns.
-- Associados (+ mensalidade de associados), estoque, fila de espera, horário marcado e
-  contas financeiras ficam só no Premium. Mensalidade de médiuns segue no Pro (premissa).
+- Associados (+ mensalidade de associados), estoque, fila de espera, horário marcado,
+  contas financeiras e mensalidade de médiuns ficam só no Premium.
 - Tenant Pro que já tinha os toggles ligados: nada quebra (salvar config continua
   funcionando) e o toggle vale como desligado em runtime.
 - Migração 059 atualiza os limites gravados nas assinaturas (e o downgrade restaura).
 """
 import subprocess
+import uuid
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -49,6 +50,8 @@ PREMIUM_ONLY = [
     ("GET", "/api/v1/admin/financeiro/contas"),
     ("GET", "/api/v1/admin/financeiro/categorias"),
     ("GET", f"/api/v1/admin/financeiro/associados?mes={MES}"),
+    ("GET", f"/api/v1/admin/financeiro/mensalidades?mes={MES}"),
+    ("GET", "/api/v1/admin/financeiro/config"),
 ]
 
 
@@ -129,31 +132,72 @@ async def test_premium_liga_fila_e_horario(client, db):
         assert await time_slot_service.time_slot_scheduling_enabled_for_tenant(fresh, tenant.id) is True
 
 
-async def test_pro_mantem_mensalidade_de_mediuns_e_config_sem_associados(client, db):
-    """Premissa: mensalidade de médiuns segue no Pro. Config/relatório não podem quebrar."""
-    tenant, admin = await _admin(db, PlanType.PRO)
-    await _set_config(db, tenant, enable_mensalidade_associado=True)
+async def test_pro_recebe_403_em_toda_a_mensalidade(client, db):
+    """Mensalidade de médiuns é Premium (decisão do dono do produto, out/2026)."""
+    _, admin = await _admin(db, PlanType.PRO)
+    chamadas = [
+        ("GET", "/api/v1/admin/financeiro/config", {}),
+        ("PUT", "/api/v1/admin/financeiro/config", {"json": {"valor_mensal": 50, "dia_vencimento": 5}}),
+        ("GET", f"/api/v1/admin/financeiro/mensalidades?mes={MES}", {}),
+        ("POST", f"/api/v1/admin/financeiro/mensalidades/{uuid.uuid4()}/{MES}", {"data": {"status": "PAGO"}}),
+        ("GET", "/api/v1/admin/financeiro/resumo", {}),
+        ("GET", f"/api/v1/admin/financeiro/relatorio/download?mes={MES}", {}),
+    ]
+    for method, url, kwargs in chamadas:
+        resp = await client.request(method, url, headers=admin.headers, **kwargs)
+        assert resp.status_code == 403, f"{method} {url}: {resp.status_code} {resp.text}"
+        assert "Premium" in resp.json()["detail"], resp.text
 
+
+async def test_premium_configura_e_registra_mensalidade_de_medium(client, db):
+    tenant, admin = await _admin(db, PlanType.PREMIUM)
+    resp = await client.put(
+        "/api/v1/admin/financeiro/config", headers=admin.headers, json={"valor_mensal": 50, "dia_vencimento": 5}
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["valor_mensal"] == 50
+
+    resp = await client.post("/api/v1/admin/mediuns", headers=admin.headers, json={"nome": "Médium Pagante"})
+    assert resp.status_code == 201, resp.text
+    medium_id = resp.json()["id"]
+
+    resp = await client.post(
+        f"/api/v1/admin/financeiro/mensalidades/{medium_id}/{MES}", headers=admin.headers, data={"status": "PAGO"}
+    )
+    assert resp.status_code == 200, resp.text
     resp = await client.get(f"/api/v1/admin/financeiro/mensalidades?mes={MES}", headers=admin.headers)
     assert resp.status_code == 200, resp.text
 
-    resp = await client.put(
-        "/api/v1/admin/financeiro/config",
-        headers=admin.headers,
-        json={"valor_mensal": 50, "dia_vencimento": 5, "valor_mensal_associado": 30, "enable_mensalidade_associado": True},
-    )
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["valor_mensal"] == 50
-    assert body["valor_mensal_associado"] == 0  # campo de associados ignorado fora do plano
-    assert body["enable_mensalidade_associado"] is False  # toggle gravado vale como desligado
 
-    resp = await client.get("/api/v1/admin/financeiro/config", headers=admin.headers)
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["enable_mensalidade_associado"] is False
+async def _contas_espelho(tenant_id):
+    from src.core.database import AsyncSessionLocal
+    from src.models.contas_financeiras import ContaFinanceira
 
-    resp = await client.get(f"/api/v1/admin/financeiro/relatorio/download?mes={MES}", headers=admin.headers)
-    assert resp.status_code == 200, resp.text
+    async with AsyncSessionLocal() as fresh:
+        rows = await fresh.execute(
+            select(ContaFinanceira.external_ref).where(
+                ContaFinanceira.tenant_id == tenant_id, ContaFinanceira.external_ref.like("mensalidade:%")
+            )
+        )
+        return list(rows.scalars())
+
+
+@pytest.mark.parametrize("plan, espelhos", [(PlanType.PRO, 0), (PlanType.PREMIUM, 1)])
+async def test_criar_medium_so_espelha_mensalidade_com_o_plano(client, db, plan, espelhos):
+    """Config de mensalidade gravada de quando o tenant era Premium não gera conta a receber no Pro."""
+    from decimal import Decimal
+
+    from src.models.mensalidades import MensalidadeConfig
+
+    tenant, admin = await _admin(db, plan)
+    db.add(MensalidadeConfig(tenant_id=tenant.id, valor_mensal=Decimal("50"), dia_vencimento=10))
+    await db.commit()
+
+    resp = await client.post("/api/v1/admin/mediuns", headers=admin.headers, json={"nome": "Novo"})
+    assert resp.status_code == 201, resp.text
+    refs = await _contas_espelho(tenant.id)
+    assert len(refs) == espelhos, refs
+    assert all(r.startswith("mensalidade:mediun:") for r in refs)
 
 
 async def test_pro_com_validacao_de_associado_ligada_nao_barra_emissao_de_associado(client, db):
@@ -250,8 +294,9 @@ async def test_assinatura_mostra_os_novos_limites(client, db):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert (body["max_giras_per_month"], body["max_mediuns"]) == (4, 30)
-    assert body["features"]["mensalidade_mediun"] is True
-    for f in ("associados", "estoque_controle", "contas_financeiras", "fila_espera", "agendamento_por_horario"):
+    assert body["features"]["site_builder"] is True
+    for f in ("associados", "estoque_controle", "contas_financeiras", "fila_espera", "agendamento_por_horario",
+              "mensalidade_mediun", "mensalidade_associado"):
         assert body["features"][f] is False, f
 
 

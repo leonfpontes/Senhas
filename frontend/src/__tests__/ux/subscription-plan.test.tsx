@@ -79,9 +79,9 @@ describe('can() — mensalidade_mediun', () => {
     expect(can(sub, 'mensalidade_mediun')).toBe(false);
   });
 
-  it('PRO: true', () => {
-    const sub = makeSub({ plan: 'pro', features: makeFeatures({ mensalidade_mediun: true }) });
-    expect(can(sub, 'mensalidade_mediun')).toBe(true);
+  it('PRO: false (Premium desde out/2026)', () => {
+    const sub = makeSub({ plan: 'pro', features: makeFeatures({ mensalidade_mediun: false }) });
+    expect(can(sub, 'mensalidade_mediun')).toBe(false);
   });
 
   it('PREMIUM: true', () => {
