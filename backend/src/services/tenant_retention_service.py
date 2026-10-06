@@ -12,6 +12,7 @@ from sqlalchemy import select, func, and_, or_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import Tenant, Ticket, Subscription
+from src.services.billing_metrics import billing_category, effective_mrr
 
 GRACE_DAYS = 15  # tenants younger than this (or active more recently) aren't flagged
 
@@ -50,6 +51,10 @@ async def get_at_risk_tenants(db: AsyncSession) -> list[dict]:
             Tenant.created_at,
             Subscription.plan,
             Subscription.monthly_price,
+            Subscription.status,
+            Subscription.is_trial,
+            Subscription.is_bonus,
+            Subscription.stripe_subscription_id,
             ticket_stats.c.last_ticket_at,
             func.coalesce(ticket_stats.c.tickets_30d, 0).label("tickets_30d"),
             func.coalesce(ticket_stats.c.tickets_prev_30d, 0).label("tickets_prev_30d"),
@@ -85,7 +90,7 @@ async def get_at_risk_tenants(db: AsyncSession) -> list[dict]:
             "tenant_name": r.name,
             "tenant_slug": r.slug,
             "plan": r.plan.value if r.plan and hasattr(r.plan, "value") else r.plan,
-            "mrr": float(r.monthly_price) if r.monthly_price else 0.0,
+            "mrr": effective_mrr(r, billing_category(r, False)) if r.status is not None else 0.0,
             "last_ticket_at": r.last_ticket_at.isoformat() if r.last_ticket_at else None,
             "never_emitted": r.last_ticket_at is None,
             "days_inactive": days_inactive,

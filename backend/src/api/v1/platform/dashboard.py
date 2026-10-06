@@ -11,6 +11,7 @@ from src.models import User, UserRole, Tenant, Ticket, Subscription, Subscriptio
 from src.models.giras import Gira
 from src.models.subscriptions import PlanType
 from src.services.tenant_retention_service import get_at_risk_tenants
+from src.services.billing_metrics import paying_clause
 
 router = APIRouter(prefix="/api/v1/platform/dashboard", tags=["platform-dashboard"])
 
@@ -88,11 +89,8 @@ async def _mrr(db: AsyncSession) -> dict:
     first_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     first_of_prev_month = (first_of_month - timedelta(days=1)).replace(day=1)
 
-    active_filter = and_(
-        Subscription.status == SubscriptionStatus.ACTIVE,
-        Tenant.deleted_at.is_(None),
-        Tenant.is_active.is_(True),
-    )
+    # Só pagantes (regra única em services/billing_metrics.py): teste, bônus e excluídos não são receita.
+    active_filter = paying_clause()
 
     current = await db.execute(
         select(func.coalesce(func.sum(Subscription.monthly_price), 0.0))
@@ -101,10 +99,9 @@ async def _mrr(db: AsyncSession) -> dict:
         .where(active_filter)
     )
 
-    # Previous month: subscriptions that were active and created before end of previous month
+    # Aproximação (não há histórico de assinatura): pagantes de hoje que já existiam antes do mês.
     prev_filter = and_(
-        Subscription.status == SubscriptionStatus.ACTIVE,
-        Tenant.deleted_at.is_(None),
+        paying_clause(),
         Subscription.created_at < first_of_month,
     )
     prev = await db.execute(
