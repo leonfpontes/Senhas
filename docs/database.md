@@ -507,14 +507,17 @@ Ao criar um novo enum em Alembic + model Python:
 
 ## Limites por Plano
 
-| Plano | Max Users | Max Giras/Mês | Preço/Mês |
-|---|---|---|---|
-| FREE | — | — | R$ 0 |
-| BASIC | configurável | configurável | — |
-| PRO | configurável | configurável | — |
-| PREMIUM | configurável | configurável | — |
+| Plano | Max Users | Max Giras/Mês | Max Médiuns | Preço/Mês |
+|---|---|---|---|---|
+| FREE | 1 | 2 | 0 | R$ 0 |
+| BASIC | 3 | 3 | 15 | R$ 49 |
+| PRO | 10 | 4 | 30 | R$ 79 |
+| PREMIUM | ilimitado (99999) | ilimitado (999999) | ilimitado (9999999) | R$ 99 |
 
-> Limites são definidos em runtime no objeto `Subscription` (`max_users`, `max_giras_per_month`), não hardcoded.
+> Fonte: `PLAN_LIMITS` em `backend/src/repositories/subscription_repo.py` (reestruturação de out/2026).
+> Os valores são copiados para a linha de `subscriptions` (`max_users`, `max_giras_per_month`,
+> `max_mediuns`) na troca de plano e é ela que o runtime lê (`effective_limit`). Mudou um número,
+> crie migração de dados para as assinaturas existentes (ex.: `059_planos_limites_out_2026`).
 
 ---
 

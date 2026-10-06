@@ -147,6 +147,9 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 - Monitoramento: Sentry (erros + traces). A pilha Prometheus/Grafana foi removida em
   2026-08-26 (nunca ficou operacional — item I-03 do docs/plano-execucao.md)
 - **Gate de plano**: todo gate novo usa `Depends(require_plan_feature("<campo de PlanFeatures>"))` de `src/api/dependencies.py` (plano + status da assinatura → 403/402; nunca `_require_pro`/tier local — AGENTS.md §3.4).
+  Plano mínimo de cada feature só em `_FEATURE_MIN_TIER` (`plan_features.py`) e no espelho
+  `frontend/src/constants/plans.ts`; na tela, `minPlan={minPlanFor('<feature>').label}`, nunca nome fixo.
+  Matriz vigente (reestruturação de out/2026) em AGENTS.md §3.4.
 
 ### Fluxo padrão backend
 ```

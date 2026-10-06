@@ -196,7 +196,11 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
 
 - `feature` e um campo de `PlanFeatures` em `backend/src/services/plan_features.py` (catalogo unico;
   nome invalido quebra na importacao). Esse arquivo e o UNICO lugar com a hierarquia de planos
-  (`_PLAN_TIER` / `plan_tier()`); o frontend espelha o catalogo em `frontend/src/hooks/useSubscription.tsx`.
+  (`_PLAN_TIER` / `plan_tier()`) e com o plano minimo de cada feature (`_FEATURE_MIN_TIER` /
+  `feature_min_plan()`); o frontend espelha catalogo, limites e plano minimo em
+  `frontend/src/constants/plans.ts` (teste-espelho `__tests__/constants/plans.test.ts`) e le as
+  features efetivas via `frontend/src/hooks/useSubscription.tsx`. Na tela, `minPlan` de
+  `PlanLocked`/`UpgradePrompt` vem sempre de `minPlanFor(feature).label` — nunca nome fixo.
 - Semantica unica: plano inclui a feature (senao **403**, mensagem "disponivel a partir do plano X")
   **e** status da assinatura permite uso (senao **402**). Super admin sem tenant → 400.
 - Status (`subscription_block_reason`): SUSPENDED bloqueia; CANCELLED/EXPIRED bloqueiam plano pago (com
@@ -208,11 +212,45 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   SUSPENDED → 402; CANCELLED/EXPIRED de plano pago ou trial vencido → limites do FREE.
 - `GET /api/v1/admin/subscription` devolve `features` via `get_effective_plan_features(sub)` — a UI esconde o
   que o backend nega. `PermissionService.is_feature_enabled_for_plan` (operadores) usa a mesma funcao.
-- Modulos gated hoje: estoque (`estoque_controle`), sites e cursos presenciais (`site_builder`), contas
+- Mensagem de 403: derivada do catalogo (`plan_feature_denied_message`): "X disponivel a partir do plano
+  Pro" ou "X disponivel apenas no plano Premium".
+- Toggles de config com gate (fila de espera, horario marcado, validar associado, mensalidade de
+  associados) so checam o plano ao LIGAR (False → True): a tela reenvia todos os toggles a cada salvar,
+  e tenant que perdeu a feature com o toggle gravado ligado nao pode levar 403. Em runtime toggle sem
+  plano vale como desligado (`waitlist_service`, `time_slot_service`, `public/emit_ticket.py`,
+  `mensalidades._assoc_enabled`).
+- Modulos gated hoje: estoque (`estoque_controle`), associados (`associados`, no router desde out/2026),
+  sites e cursos presenciais (`site_builder`), contas
   financeiras (`contas_financeiras`), rastreio/reenvio de e-mail (`email_transacional`), mensalidades
   (`mensalidade_mediun` / `mensalidade_associado`), mediuns (`mediuns`, em aniversariantes e criacao),
   toggles de fila de espera e agendamento por horario em config.
 - Rotas `/api/v1/platform/*`: `Depends(require_super_admin)` importado de `src.api.dependencies` (copia unica).
+
+#### Matriz de planos (reestruturacao de out/2026)
+
+Limites (`PLAN_LIMITS`, copiados para a linha de `subscriptions` na troca de plano — mudou numero,
+crie migracao de dados como a `059_planos_limites_out_2026`):
+
+| | Gratuito | Basic | Pro | Premium |
+|---|---|---|---|---|
+| Preco/mes | R$ 0 | R$ 49 | R$ 79 | R$ 99 |
+| Usuarios | 1 | 3 | 10 | ilimitado |
+| Giras/mes | 2 | 3 | 4 | ilimitado |
+| Mediuns | — | 15 | 30 | ilimitado |
+
+Recursos (plano minimo em `_FEATURE_MIN_TIER`):
+- **Todos**: senha pelo link, Porta, painel.
+- **Basic+**: `mediuns`, `relatorio_gira`, `bulk_operations`.
+- **Pro+**: `email_transacional`, `tema_personalizado`, `analytics_basico`, `analytics_avancado`,
+  `export_csv`, `auditoria`, `site_builder` (site e cursos), `mensalidade_mediun`.
+- **So Premium**: `associados`, `mensalidade_associado`, `estoque_controle`, `contas_financeiras`
+  (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`,
+  `agendamento_por_horario`, `suporte_prioritario`.
+- Premissa registrada: "mensalidade de mediuns" nao faz parte de "contas a pagar/receber" e segue no
+  Pro. Para mudar, trocar `mensalidade_mediun` para PREMIUM em `_FEATURE_MIN_TIER` e em
+  `FEATURE_MIN_PLAN` (frontend) — config/relatorio de mensalidades ja usam o gate dela.
+- Dados de modulo que saiu do plano ficam no banco (sem grandfathering): a tela mostra `PlanLocked`
+  (nao ha modo so-leitura) e a API responde 403; limites menores so bloqueiam CRIAR (422), nada e apagado.
 
 ---
 
@@ -434,7 +472,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- 64 migracoes; head atual: `054_purge_soft_deleted_gira_time_slots` (2026-08-26).
+- Head atual: `059_planos_limites_out_2026` (2026-10-06, migracao so de dados com os limites da
+  reestruturacao de planos; encadeada apos `057_rbac_grupo_padrao` — se outra branch trouxer uma 058,
+  re-encadear na integracao).
 - Historico com 4 merge revisions (010, 030, 037, d9fafadd9261) — prefixos numericos ja
   colidiram 3x (009, 028, 030). Por isso a regra do §4.3: `alembic heads` ANTES de criar
   qualquer migracao nova.
@@ -444,7 +484,7 @@ Incluir obrigatoriamente:
   unique).
 
 ### 11.10 Financeiro — Controle de Mensalidade de Mediuns (branch 002-financeiro-mensalidade)
-- **Feature PRO+**: `mensalidade_mediun` e PRO+ no catalogo desde 2026-06-27; os endpoints exigiam PREMIUM ate o P-05 (2026-10-05), que passou a usar `require_plan_feature("mensalidade_mediun")`.
+- **Feature PRO+**: `mensalidade_mediun` e PRO+ no catalogo desde 2026-06-27; os endpoints exigiam PREMIUM ate o P-05 (2026-10-05), que passou a usar `require_plan_feature("mensalidade_mediun")`. Desde out/2026 a mensalidade de associados e Premium: config e relatorio ficam no gate `mensalidade_mediun` e a parte de associados so vale com `mensalidade_associado` no plano.
 - **Modelos**: `MensalidadeConfig` (valor_mensal, dia_vencimento, 1:1 tenant), `MensalidadePagamento` (UNIQUE mediun_id+mes, BYTEA comprovante), `MensalidadeStatus` enum (PENDENTE/PAGO/ISENTO).
 - **Endpoints** (prefixo `/api/v1/admin/financeiro`): config GET/PUT, mensalidades GET/POST por mes, comprovante GET/DELETE, resumo GET (6 hist + 3 proj), relatorio POST enviar / GET download.
 - **Regras de acesso**: leitura para OPERATOR+ADMIN, escrita (PUT config, POST pagamento, DELETE comprovante, POST relatorio) somente ADMIN/SUPER_ADMIN.
