@@ -7,7 +7,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import * as Sentry from '@sentry/nextjs';
 import { CircleCheck, Info, Loader2, TriangleAlert, CircleAlert } from 'lucide-react';
 import { AuthShell } from '@/components/auth';
 import { TextField, PasswordField } from '@/components/fields';
@@ -15,8 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { apiClient } from '@/services/api_client';
-import { dispatchTenantBrandingUpdated } from '@/providers/ThemeProvider';
+import { apiClient, extractApiErrorMessage, type ApiRequestConfig } from '@/services/api_client';
+import { completeLogin, type SessionUser } from '@/services/authSession';
 
 type Notice = { key: string; variant: 'success' | 'info'; text: string };
 
@@ -29,7 +28,7 @@ const QUERY_NOTICES: Record<string, Notice> = {
   account_deactivated: {
     key: 'account_deactivated',
     variant: 'info',
-    text: 'Conta e terreiro desativados. Seus dados foram preservados — para voltar, entre com e-mail e senha e use "Reative aqui".',
+    text: 'Conta e terreiro desativados. Seus dados foram preservados — para voltar, entre com e-mail e senha e toque em "Reativar e entrar".',
   },
   reset: { key: 'reset', variant: 'success', text: 'Senha redefinida. Entre com a nova senha.' },
   sessions_ended: {
@@ -46,6 +45,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -71,27 +71,8 @@ export default function LoginPage() {
         remember_me: rememberMe,
       });
 
-      const { user } = response.data;
-
-      // access_token chega como cookie HttpOnly — não armazenar em localStorage
-      localStorage.setItem('user', JSON.stringify(user));
-
-      Sentry.setUser({ id: user.id, role: user.role });
-      if (user.tenant_id) Sentry.setTag('tenant_id', user.tenant_id);
-      try {
-        if (rememberMe) sessionStorage.removeItem('no_remember');
-        else sessionStorage.setItem('no_remember', '1');
-      } catch {
-        /* não crítico */
-      }
-      dispatchTenantBrandingUpdated();
-
-      // Recarga completa para os providers do _app remontarem já com a sessão.
-      if (user.role === 'super_admin') {
-        window.location.href = '/platform';
-      } else {
-        window.location.href = '/admin/dashboard';
-      }
+      // "Lembrar-me" desmarcado: o backend devolve cookies de sessão (somem ao fechar o navegador).
+      completeLogin(response.data.user as SessionUser);
     } catch (err) {
       const e = err as { response?: { data?: { detail?: unknown; message?: unknown } } } | undefined;
       const detail = e?.response?.data?.detail;
@@ -104,6 +85,25 @@ export default function LoginPage() {
       setError(message as string);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Conta desativada pelo próprio admin: a senha já foi conferida no login — reativa com os
+  // mesmos dados e já entra, sem pedir a senha de novo.
+  const handleReactivate = async () => {
+    setReactivating(true);
+    try {
+      const res = await apiClient.post(
+        '/api/v1/auth/reactivate-account',
+        { email, password, remember_me: rememberMe },
+        { skipAutoLogout: true } as ApiRequestConfig,
+      );
+      completeLogin(res.data.user as SessionUser);
+    } catch (err) {
+      setErrorCode(null);
+      setError(extractApiErrorMessage(err, 'Não foi possível reativar a conta. Tente novamente.'));
+    } finally {
+      setReactivating(false);
     }
   };
 
@@ -140,14 +140,12 @@ export default function LoginPage() {
         {error && errorCode === 'TENANT_DEACTIVATED' ? (
           <Alert variant="warning" role="alert">
             <TriangleAlert aria-hidden />
-            <AlertDescription className="block">
-              {error}{' '}
-              <Link
-                href={{ pathname: '/reactivate-account', query: email ? { email } : undefined }}
-                className="font-semibold underline underline-offset-4"
-              >
-                Reative aqui
-              </Link>
+            <AlertDescription className="flex flex-col gap-2">
+              <span>{error}</span>
+              <Button type="button" size="sm" onClick={handleReactivate} disabled={reactivating} aria-busy={reactivating}>
+                {reactivating ? <Loader2 className="animate-spin" aria-hidden /> : null}
+                {reactivating ? 'Reativando…' : 'Reativar e entrar'}
+              </Button>
             </AlertDescription>
           </Alert>
         ) : error ? (

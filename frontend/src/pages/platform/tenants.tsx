@@ -15,7 +15,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Building2, CircleAlert, CreditCard, FlaskConical, Gift, LogIn, MoreHorizontal, Plus, RefreshCw, Search, Trash2, TrendingUp, Wallet } from 'lucide-react';
+import { Building2, Check, CircleAlert, Copy, CreditCard, FlaskConical, Gift, LogIn, MoreHorizontal, Plus, RefreshCw, Search, Trash2, TrendingUp, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import PlatformLayout from './layout';
@@ -27,7 +27,6 @@ import { TextField } from '@/components/fields';
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -35,7 +34,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
@@ -59,6 +58,7 @@ import {
   impersonateTenantAdmin,
 } from '@/components/platform';
 import { SubscriptionDrawer, type SubscriptionDrawerTenant } from '@/components/platform/SubscriptionDrawer';
+import { DeleteTenantDialog } from '@/components/platform/DeleteTenantDialog';
 
 // ─── Tipos (contratos do backend) ────────────────────────────────────────────
 
@@ -125,6 +125,16 @@ interface ActivationLite {
   tenant_id: string;
   last_activity_at: string | null;
   days_since_signup: number | null;
+}
+
+/** Resposta do POST /platform/tenants (services/tenant_service.py::create_tenant). */
+interface CreateTenantResponse {
+  id: string;
+  slug: string;
+  name: string;
+  admin_user?: { id: string; email: string; username: string; role: string };
+  /** Senha provisória do admin — devolvida uma única vez. */
+  temp_password?: string;
 }
 
 /** Linha da tabela: tenant + assinatura + atividade. */
@@ -355,10 +365,6 @@ const TenantsPage: React.FC = () => {
   // ── Ações de linha ──
   const [subTenant, setSubTenant] = useState<SubscriptionDrawerTenant | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null);
-  const [deleteSlug, setDeleteSlug] = useState('');
-  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const enterAsAdmin = async (t: Tenant) => {
     try {
@@ -368,28 +374,7 @@ const TenantsPage: React.FC = () => {
     }
   };
 
-  const openDelete = (t: Tenant) => {
-    setDeleteTarget(t);
-    setDeleteSlug('');
-    setDeleteConfirmed(false);
-    setDeleteError(null);
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteTarget || !deleteConfirmed || deleteSlug !== deleteTarget.slug) return;
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      await apiClient.delete(`/api/v1/platform/tenants/${deleteTarget.id}`, { data: { confirm_slug: deleteSlug } });
-      toast.success(`Terreiro "${deleteTarget.name}" excluído permanentemente.`);
-      setDeleteTarget(null);
-      refresh();
-    } catch (err) {
-      setDeleteError(extractApiErrorMessage(err, 'Erro ao excluir terreiro'));
-    } finally {
-      setDeleting(false);
-    }
-  };
+  const openDelete = (t: Tenant) => setDeleteTarget(t);
 
   // ── Novo terreiro ──
   const [createOpen, setCreateOpen] = useState(false);
@@ -401,14 +386,33 @@ const TenantsPage: React.FC = () => {
   const createValid = createData.slug.trim().length > 0 && createData.name.trim().length > 0 && EMAIL_RE.test(createData.email_admin);
   const createDirty = createData.slug !== '' || createData.name !== '' || createData.email_admin !== '' || createData.plan !== 'basic';
 
+  // Senha provisória do admin: vem uma única vez na resposta do POST; fica só em memória até fechar.
+  const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const copyTempPassword = async () => {
+    if (!created) return;
+    try {
+      await navigator.clipboard.writeText(created.password);
+      setCopied(true);
+      toast.success('Senha copiada.');
+    } catch {
+      toast.error('Não foi possível copiar. Selecione a senha e copie manualmente.');
+    }
+  };
+
   const handleCreate = async () => {
     setSaving(true);
     setCreateError(null);
     try {
-      await apiClient.post('/api/v1/platform/tenants', createData);
-      toast.success('Terreiro criado com sucesso.');
+      const res = await apiClient.post<CreateTenantResponse>('/api/v1/platform/tenants', createData);
       setCreateOpen(false);
       setCreateData(EMPTY_CREATE);
+      setCopied(false);
+      if (res.data?.temp_password) {
+        setCreated({ name: res.data.name, email: res.data.admin_user?.email ?? createData.email_admin, password: res.data.temp_password });
+      } else {
+        toast.success('Terreiro criado com sucesso.');
+      }
       refresh();
     } catch (err) {
       setCreateError(extractApiErrorMessage(err, 'Erro ao criar terreiro'));
@@ -855,43 +859,44 @@ const TenantsPage: React.FC = () => {
       </CrudDrawer>
 
       {/* Exclusão permanente */}
-      <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && !deleting && setDeleteTarget(null)}>
+      <DeleteTenantDialog
+        tenant={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={(t) => {
+          toast.success(`Terreiro "${t.name}" excluído permanentemente.`);
+          setDeleteTarget(null);
+          refresh();
+        }}
+      />
+
+      {/* Senha provisória do admin do terreiro recém-criado (mostrada uma vez) */}
+      <AlertDialog open={created !== null} onOpenChange={(o) => !o && setCreated(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive">Excluir terreiro permanentemente</AlertDialogTitle>
+            <AlertDialogTitle>Terreiro criado</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3 text-sm text-muted-foreground">
                 <p>
-                  Esta ação <strong>não pode ser desfeita</strong>. Usuários, giras, senhas, médiuns, estoque e dados de{' '}
-                  <strong className="text-foreground">{deleteTarget?.name}</strong> serão removidos.
+                  Repasse ao admin de <strong className="text-foreground">{created?.name}</strong> o acesso abaixo. A senha provisória{' '}
+                  <strong className="text-foreground">só aparece agora</strong> — não é enviada por e-mail nem fica salva em lugar nenhum.
+                  Peça para trocá-la no primeiro acesso.
                 </p>
-                <TextField
-                  label={`Digite o slug "${deleteTarget?.slug ?? ''}" para confirmar`}
-                  value={deleteSlug}
-                  onChange={(e) => setDeleteSlug(e.target.value)}
-                  disabled={deleting}
-                  autoComplete="off"
-                  error={deleteSlug.length > 0 && deleteSlug !== deleteTarget?.slug ? 'Slug não corresponde' : undefined}
-                />
-                <label className="flex items-start gap-2 text-sm text-foreground">
-                  <Checkbox checked={deleteConfirmed} onCheckedChange={(v) => setDeleteConfirmed(v === true)} disabled={deleting} className="mt-0.5" />
-                  Entendo que todos os dados serão removidos permanentemente.
-                </label>
-                {deleteError && (
-                  <Alert variant="destructive"><AlertDescription>{deleteError}</AlertDescription></Alert>
-                )}
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 rounded-lg border bg-muted/40 p-3">
+                  <dt>E-mail</dt>
+                  <dd className="font-medium break-all text-foreground">{created?.email}</dd>
+                  <dt>Senha provisória</dt>
+                  <dd className="flex items-center gap-2">
+                    <code className="rounded bg-background px-1.5 py-0.5 font-mono text-foreground break-all" data-testid="temp-password">{created?.password}</code>
+                    <Button type="button" variant="outline" size="icon-sm" onClick={copyTempPassword} aria-label="Copiar senha provisória">
+                      {copied ? <Check /> : <Copy />}
+                    </Button>
+                  </dd>
+                </dl>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className={buttonVariants({ variant: 'destructive' })}
-              disabled={deleting || !deleteConfirmed || deleteSlug !== deleteTarget?.slug}
-              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
-            >
-              {deleting ? 'Excluindo…' : 'Excluir permanentemente'}
-            </AlertDialogAction>
+            <AlertDialogAction onClick={() => setCreated(null)}>Já anotei</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

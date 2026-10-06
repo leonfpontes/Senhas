@@ -87,8 +87,7 @@ EMIT_RESPONSE=$(curl -s -X POST \
 
 if echo "$EMIT_RESPONSE" | grep -q '"ticket_number"'; then
   TICKET_NUMBER=$(echo "$EMIT_RESPONSE" | jq -r '.ticket_number')
-  EMAIL_SENT=$(echo "$EMIT_RESPONSE" | jq -r '.email_sent')
-  log_success "Ticket emitted: Number=$TICKET_NUMBER, Email sent=$EMAIL_SENT"
+  log_success "Ticket emitted: Number=$TICKET_NUMBER"
 else
   log_warning "Could not emit ticket. Response: $EMIT_RESPONSE"
   log_info "This may be expected if outside emission window. Continuing..."

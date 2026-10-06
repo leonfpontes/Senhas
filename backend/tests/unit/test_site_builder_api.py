@@ -35,7 +35,15 @@ def _mock_db():
     db.add = MagicMock()
     db.delete = AsyncMock()
     db.commit = AsyncMock()
+    db.expire = MagicMock()  # AsyncSession.expire é síncrono
     return db
+
+
+def _db_result(value):
+    """Resultado de db.execute cujo scalar_one_or_none() devolve `value`."""
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = value
+    return result
 
 
 def _admin_user():
@@ -271,6 +279,7 @@ class TestUpdateSite:
 
         body = SiteUpdateRequest(meta_title="Novo Título")
         db = _mock_db()
+        db.execute.return_value = _db_result("terreiro-test")  # slug do tenant == slug do site
         result = await update_site(body, _admin_user(), db)
         assert result.meta_title == "Novo Título"
         db.commit.assert_awaited()
@@ -292,28 +301,60 @@ class TestUpdateSite:
 
     @pytest.mark.asyncio
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_slug_duplicado_retorna_409(self, MockSiteRepo):
-        """Mudar para slug já em uso por outro site → 409."""
-        from fastapi import HTTPException
+    async def test_slug_do_body_e_ignorado_e_segue_o_tenant(self, MockSiteRepo):
+        """slug é read-only: o do body é ignorado e o site passa a usar o slug do tenant
+        (o link "Retirar senha" monta /{slug}/... e quebrava com slug diferente)."""
         from src.api.v1.admin.sites import update_site, SiteUpdateRequest
 
         current_site = _make_site()
+        current_site.slug = "slug-editado-a-mao"
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = current_site
+        site_inst.update_site.side_effect = lambda site, **kw: site
         MockSiteRepo.return_value = site_inst
 
-        # db.execute retorna um site existente com o mesmo slug → conflito
-        other_site = _make_site()
-        other_site.id = uuid4()
         db = _mock_db()
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = other_site
-        db.execute.return_value = mock_result
+        # 1º execute: slug do tenant; 2º: ninguém mais usa esse slug
+        db.execute.side_effect = [_db_result("terreiro-test"), _db_result(None)]
 
-        body = SiteUpdateRequest(slug="slug-em-uso")
-        with pytest.raises(HTTPException) as exc:
-            await update_site(body, _admin_user(), db)
-        assert exc.value.status_code == 409
+        result = await update_site(SiteUpdateRequest(slug="outro-qualquer", meta_title="X"), _admin_user(), db)
+        assert result.slug == "terreiro-test"
+        _, kwargs = site_inst.update_site.call_args
+        assert "slug" not in kwargs
+        assert kwargs == {"meta_title": "X"}
+
+    @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SiteRepository")
+    async def test_null_explicito_limpa_meta_title(self, MockSiteRepo):
+        """Campo enviado como null chega ao repo (limpa); campo omitido não."""
+        from src.api.v1.admin.sites import update_site, SiteUpdateRequest
+
+        site_inst = AsyncMock()
+        site_inst.get_by_tenant.return_value = _make_site()
+        site_inst.update_site.side_effect = lambda site, **kw: site
+        MockSiteRepo.return_value = site_inst
+        db = _mock_db()
+        db.execute.return_value = _db_result("terreiro-test")
+
+        await update_site(SiteUpdateRequest.model_validate({"meta_title": None}), _admin_user(), db)
+        _, kwargs = site_inst.update_site.call_args
+        assert kwargs == {"meta_title": None}
+
+
+class TestSiteRepoUpdate:
+
+    @pytest.mark.asyncio
+    async def test_update_site_none_limpa_e_omitido_mantem(self):
+        from src.repositories.site_repo import SiteRepository
+
+        site = _make_site()
+        site.meta_title = "Antigo"
+        site.meta_description = "Descrição antiga"
+        repo = SiteRepository(_mock_db())
+        await repo.update_site(site, meta_title=None)
+        assert site.meta_title is None
+        assert site.meta_description == "Descrição antiga"
+        assert site.template == "moderno"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -368,6 +409,7 @@ class TestSections:
         MockSiteRepo.return_value = site_inst
 
         ver_inst = AsyncMock()
+        ver_inst.latest.return_value = None
         MockVersionRepo.return_value = ver_inst
 
         body = SectionsUpdateRequest(
@@ -449,20 +491,26 @@ class TestSections:
 class TestPublishUnpublish:
 
     @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SiteVersionRepository")
     @patch("src.api.v1.admin.sites.SiteRepository")
-    async def test_publish_site(self, MockSiteRepo):
-        from src.api.v1.admin.sites import publish_site
+    async def test_publish_site(self, MockSiteRepo, MockVersionRepo):
+        from src.api.v1.admin.sites import publish_site, LABEL_PUBLICADO
 
         published_site = _make_site("PUBLISHED")
         site_inst = AsyncMock()
         site_inst.get_by_tenant.return_value = _make_site("DRAFT")
         site_inst.publish.return_value = published_site
         MockSiteRepo.return_value = site_inst
+        ver_inst = AsyncMock()
+        MockVersionRepo.return_value = ver_inst
 
         db = _mock_db()
+        db.execute.return_value = _db_result("terreiro-test")
         result = await publish_site(_admin_user(), db)
         assert result.status == "PUBLISHED"
         db.commit.assert_awaited()
+        # O conteúdo que vai ao ar entra no histórico como "Publicado".
+        assert ver_inst.create.await_args.kwargs["label"] == LABEL_PUBLICADO
 
     @pytest.mark.asyncio
     @patch("src.api.v1.admin.sites.SiteRepository")
@@ -612,9 +660,99 @@ class TestImages:
         file.content_type = "image/jpeg"
         file.read = AsyncMock(return_value=b"\xff\xd8\xff" + b"\x00" * 100)
 
-        with pytest.raises(HTTPException) as exc:
-            await upload_image(file=file, current_user=_admin_user(), db=_mock_db())
+        # Nada órfão para limpar: todas as 50 estão em uso → 400.
+        with patch("src.api.v1.admin.sites._prune_unreferenced_images", AsyncMock(return_value=0)) as prune:
+            with pytest.raises(HTTPException) as exc:
+                await upload_image(file=file, current_user=_admin_user(), db=_mock_db())
         assert exc.value.status_code == 400
+        prune.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SiteImageRepository")
+    @patch("src.api.v1.admin.sites.SiteRepository")
+    async def test_upload_no_limite_limpa_orfas_e_aceita(self, MockSiteRepo, MockImageRepo):
+        """No limite, imagens que nada mais usa são apagadas e o upload segue."""
+        from src.api.v1.admin.sites import upload_image, MAX_IMAGES_PER_TENANT
+
+        site_inst = AsyncMock()
+        site_inst.get_by_tenant.return_value = _make_site()
+        MockSiteRepo.return_value = site_inst
+        img_inst = AsyncMock()
+        img_inst.count_by_tenant.side_effect = [MAX_IMAGES_PER_TENANT, MAX_IMAGES_PER_TENANT - 3]
+        img_inst.create.return_value = _make_image()
+        MockImageRepo.return_value = img_inst
+
+        file = AsyncMock()
+        file.filename = "nova.jpg"
+        file.content_type = "image/jpeg"
+        file.read = AsyncMock(return_value=b"\xff\xd8\xff" + b"\x00" * 100)
+
+        with patch("src.api.v1.admin.sites._prune_unreferenced_images", AsyncMock(return_value=3)), \
+             patch("src.api.v1.admin.sites._extract_image_dimensions", return_value=(800, 600)):
+            result = await upload_image(file=file, current_user=_admin_user(), db=_mock_db())
+        assert result.filename == "foto.jpg"
+        img_inst.create.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SiteVersionRepository")
+    @patch("src.api.v1.admin.sites.SiteImageRepository")
+    async def test_prune_preserva_imagem_do_site_do_historico_e_recente(self, MockImageRepo, MockVersionRepo):
+        from datetime import timedelta
+        from src.api.v1.admin.sites import _prune_unreferenced_images
+
+        em_uso, no_historico, recente, orfa = (uuid4() for _ in range(4))
+        velha = datetime.now(timezone.utc) - timedelta(days=2)
+
+        site = _make_site()
+        hero = _make_section("HERO", 0)
+        # url (não o id) também conta como referência
+        hero.config = {"title": "Oi", "bg_image_url": f"/api/v1/public/sites/images/{em_uso}"}
+        site.sections = [hero]
+
+        version = _make_version()
+        version.snapshot = [{"section_type": "ABOUT", "config": {"image": str(no_historico)}}]
+        ver_inst = AsyncMock()
+        ver_inst.list.return_value = [version]
+        MockVersionRepo.return_value = ver_inst
+
+        img_inst = AsyncMock()
+        img_inst.list_ids_by_site.return_value = [
+            (em_uso, velha),
+            (no_historico, velha),
+            (recente, datetime.now(timezone.utc)),
+            (orfa, velha),
+        ]
+        img_inst.delete_ids.return_value = 1
+        MockImageRepo.return_value = img_inst
+
+        removed = await _prune_unreferenced_images(_mock_db(), site)
+        assert removed == 1
+        apagadas, tenant = img_inst.delete_ids.await_args.args
+        assert apagadas == [orfa]
+        assert tenant == TENANT_ID
+
+    @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SiteImageRepository")
+    @patch("src.api.v1.admin.sites.SiteRepository")
+    async def test_delete_image_em_uso_no_site_retorna_409(self, MockSiteRepo, MockImageRepo):
+        from fastapi import HTTPException
+        from src.api.v1.admin.sites import delete_image
+
+        site = _make_site()
+        hero = _make_section("HERO", 0)
+        hero.config = {"title": "Oi", "logo_image": str(IMAGE_ID)}
+        site.sections = [hero]
+        site_inst = AsyncMock()
+        site_inst.get_by_tenant.return_value = site
+        MockSiteRepo.return_value = site_inst
+        img_inst = AsyncMock()
+        img_inst.get.return_value = _make_image()
+        MockImageRepo.return_value = img_inst
+
+        with pytest.raises(HTTPException) as exc:
+            await delete_image(IMAGE_ID, _admin_user(), _mock_db())
+        assert exc.value.status_code == 409
+        img_inst.delete.assert_not_awaited()
 
     @pytest.mark.asyncio
     @patch("src.api.v1.admin.sites.SiteImageRepository")
@@ -1183,3 +1321,192 @@ class TestSiteVersionRepository:
         site = _make_site()
         snapshot = await repo.restore(version, site)
         assert snapshot == version.snapshot
+
+    @pytest.mark.asyncio
+    async def test_create_nao_duplica_snapshot_identico_ao_ultimo(self, repo_and_db):
+        repo, db = repo_and_db
+        site = _make_site()
+        hero = _make_section("HERO", 0)
+        site.sections = [hero]
+        ultima = _make_version()
+        ultima.snapshot = [{"section_type": "HERO", "order_index": 0, "config": hero.config}]
+        db.execute.return_value = self._mock_scalar(ultima)
+
+        assert await repo.create(site, created_by=USER_ID, label="Rascunho") is None
+        db.add.assert_not_called()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Lock otimista e política do histórico (jornada Meu Site)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestLockOtimista:
+
+    def test_mesmo_instante_naive_aware_e_z_sao_iguais(self):
+        """O objeto em memória logo após publish saía naive; o relido do banco, com
+        "+00:00". Mesma hora → mesma versão (antes: 409 falso e autosave parava)."""
+        from src.api.v1.admin.sites import _same_version
+
+        aware = datetime(2026, 10, 6, 15, 30, 1, 123456, tzinfo=timezone.utc)
+        assert _same_version("2026-10-06T15:30:01.123456", aware)
+        assert _same_version("2026-10-06T15:30:01.123456+00:00", aware)
+        assert _same_version("2026-10-06T15:30:01.123456Z", aware)
+        assert _same_version("2026-10-06T12:30:01.123456-03:00", aware)
+        assert _same_version("2026-10-06T15:30:01.123456+00:00", aware.replace(tzinfo=None))
+
+    def test_instante_diferente_ou_lixo_nao_bate(self):
+        from src.api.v1.admin.sites import _same_version
+
+        aware = datetime(2026, 10, 6, 15, 30, 1, 123456, tzinfo=timezone.utc)
+        assert not _same_version("2026-10-06T15:30:01.123457+00:00", aware)
+        assert not _same_version("nao-e-data", aware)
+
+    def test_respostas_sempre_com_offset(self):
+        from src.api.v1.admin.sites import _site_to_response
+
+        site = _make_site()
+        site.updated_at = datetime(2026, 10, 6, 15, 30, 1, 123456)  # naive, como após publish()
+        assert _site_to_response(site).updated_at == "2026-10-06T15:30:01.123456+00:00"
+
+    @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SiteVersionRepository")
+    @patch("src.api.v1.admin.sites.SiteRepository")
+    async def test_save_aceita_versao_devolvida_pelo_publish(self, MockSiteRepo, MockVersionRepo):
+        """Fluxo da jornada: publish devolve updated_at (naive em memória) e o próximo
+        autosave manda esse valor; o banco o devolve aware → não pode dar 409."""
+        from src.api.v1.admin.sites import _site_to_response, save_sections, SectionsUpdateRequest, SectionPayload
+
+        naive = datetime(2026, 10, 6, 15, 30, 1, 123456)
+        site_publicado = _make_site("PUBLISHED")
+        site_publicado.updated_at = naive
+        versao_do_publish = _site_to_response(site_publicado).updated_at
+
+        site_no_banco = _make_site("PUBLISHED")
+        site_no_banco.updated_at = naive.replace(tzinfo=timezone.utc)
+        depois = _make_site("PUBLISHED")
+        depois.sections = [_make_section("HERO", 0)]
+        site_inst = AsyncMock()
+        site_inst.get_by_tenant.side_effect = [site_no_banco, depois]
+        MockSiteRepo.return_value = site_inst
+        MockVersionRepo.return_value = AsyncMock()
+
+        body = SectionsUpdateRequest(
+            sections=[SectionPayload(section_type="HERO", config={"title": "Olá"})],
+            site_version=versao_do_publish,
+        )
+        result = await save_sections(body, _admin_user(), _mock_db())
+        assert len(result.sections) == 1
+
+
+class TestHistoricoDeVersoes:
+
+    def _body(self):
+        from src.api.v1.admin.sites import SectionsUpdateRequest, SectionPayload
+        return SectionsUpdateRequest(sections=[SectionPayload(section_type="HERO", config={"title": "Olá"})])
+
+    def _repo(self, MockSiteRepo, site):
+        site_inst = AsyncMock()
+        site_inst.get_by_tenant.side_effect = [site, _make_site(site.status.value)]
+        MockSiteRepo.return_value = site_inst
+        return site_inst
+
+    @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SiteVersionRepository")
+    @patch("src.api.v1.admin.sites.SiteRepository")
+    async def test_autosave_em_rascunho_nao_cria_versao_dentro_do_intervalo(self, MockSiteRepo, MockVersionRepo):
+        from datetime import timedelta
+        from src.api.v1.admin.sites import save_sections
+
+        self._repo(MockSiteRepo, _make_site("DRAFT"))
+        recente = _make_version()
+        recente.created_at = datetime.now(timezone.utc) - timedelta(minutes=2)
+        ver_inst = AsyncMock()
+        ver_inst.latest.return_value = recente
+        MockVersionRepo.return_value = ver_inst
+
+        await save_sections(self._body(), _admin_user(), _mock_db())
+        ver_inst.create.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SiteVersionRepository")
+    @patch("src.api.v1.admin.sites.SiteRepository")
+    async def test_autosave_em_rascunho_cria_versao_depois_do_intervalo(self, MockSiteRepo, MockVersionRepo):
+        from datetime import timedelta
+        from src.api.v1.admin.sites import save_sections, LABEL_RASCUNHO
+
+        self._repo(MockSiteRepo, _make_site("DRAFT"))
+        antiga = _make_version()
+        antiga.created_at = datetime.now(timezone.utc) - timedelta(minutes=11)
+        ver_inst = AsyncMock()
+        ver_inst.latest.return_value = antiga
+        MockVersionRepo.return_value = ver_inst
+
+        await save_sections(self._body(), _admin_user(), _mock_db())
+        assert ver_inst.create.await_args.kwargs["label"] == LABEL_RASCUNHO
+
+    @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SiteVersionRepository")
+    @patch("src.api.v1.admin.sites.SiteRepository")
+    async def test_salvar_com_site_no_ar_sempre_guarda_o_publicado(self, MockSiteRepo, MockVersionRepo):
+        from src.api.v1.admin.sites import save_sections, LABEL_PUBLICADO
+
+        self._repo(MockSiteRepo, _make_site("PUBLISHED"))
+        ver_inst = AsyncMock()
+        MockVersionRepo.return_value = ver_inst
+
+        await save_sections(self._body(), _admin_user(), _mock_db())
+        assert ver_inst.create.await_args.kwargs["label"] == LABEL_PUBLICADO
+        ver_inst.latest.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SiteVersionRepository")
+    @patch("src.api.v1.admin.sites.SiteRepository")
+    async def test_restaurar_guarda_o_estado_atual_antes(self, MockSiteRepo, MockVersionRepo):
+        from src.api.v1.admin.sites import restore_version, LABEL_ANTES_RESTAURAR
+
+        ordem = []
+        site_inst = AsyncMock()
+        site_inst.get_by_tenant.side_effect = [_make_site(), _make_site()]
+        site_inst.save_sections.side_effect = lambda *a, **k: ordem.append("save")
+        MockSiteRepo.return_value = site_inst
+        version = _make_version()
+        ver_inst = AsyncMock()
+        ver_inst.get.return_value = version
+        ver_inst.restore.return_value = version.snapshot
+        ver_inst.create.side_effect = lambda *a, **k: ordem.append(("snapshot", k["label"]))
+        MockVersionRepo.return_value = ver_inst
+
+        await restore_version(VERSION_ID, _admin_user(), _mock_db())
+        assert ordem == [("snapshot", LABEL_ANTES_RESTAURAR), "save"]
+
+    @pytest.mark.asyncio
+    @patch("src.api.v1.admin.sites.SiteVersionRepository")
+    @patch("src.api.v1.admin.sites.SiteRepository")
+    async def test_lista_de_versoes_nao_carrega_snapshot(self, MockSiteRepo, MockVersionRepo):
+        from src.api.v1.admin.sites import list_versions
+
+        site_inst = AsyncMock()
+        site_inst.get_by_tenant.return_value = _make_site()
+        MockSiteRepo.return_value = site_inst
+        v = _make_version()
+        v.label = "Publicado"
+        ver_inst = AsyncMock()
+        ver_inst.list.return_value = [v]
+        MockVersionRepo.return_value = ver_inst
+
+        result = await list_versions(_admin_user(), _mock_db())
+        dumped = result[0].model_dump()
+        assert "snapshot" not in dumped
+        assert dumped["label"] == "Publicado"
+
+
+def test_referenced_image_ids_acha_id_e_url():
+    from src.repositories.site_image_repo import referenced_image_ids
+
+    a, b = uuid4(), uuid4()
+    refs = referenced_image_ids([
+        {"logo_image": str(a).upper()},
+        [{"config": {"bg_image_url": f"/api/v1/public/sites/images/{b}"}}],
+        {"title": "sem imagem"},
+    ])
+    assert refs == {str(a), str(b)}

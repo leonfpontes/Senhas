@@ -2,7 +2,7 @@
 from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 
 from ..models import User, UserRole
 from .base import BaseRepository
@@ -31,6 +31,10 @@ class UserRepository(BaseRepository[User]):
         Returns:
             Created User object
         """
+        # E-mail de login em minúsculas (login/esqueci a senha comparam com
+        # func.lower — ver api/v1/auth/login.normalize_login_email).
+        if isinstance(kwargs.get("email"), str):
+            kwargs["email"] = kwargs["email"].strip().lower()
         user = User(tenant_id=tenant_id, **kwargs)
         self.db.add(user)
         await self.db.flush()
@@ -47,24 +51,34 @@ class UserRepository(BaseRepository[User]):
         Returns:
             User object or None
         """
-        stmt = select(User).where(
-            and_(
-                User.tenant_id == tenant_id,
-                User.email == email,
-                User.deleted_at.is_(None),
+        stmt = (
+            select(User)
+            .where(
+                and_(
+                    User.tenant_id == tenant_id,
+                    func.lower(User.email) == email.strip().lower(),
+                    User.deleted_at.is_(None),
+                )
             )
+            .order_by(User.created_at.asc())
+            .limit(1)
         )
-        
+
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_by_email_including_deleted(self, tenant_id: UUID, email: str) -> Optional[User]:
         """Get user by email including soft-deleted records (tenant-scoped)."""
-        stmt = select(User).where(
-            and_(
-                User.tenant_id == tenant_id,
-                User.email == email,
+        stmt = (
+            select(User)
+            .where(
+                and_(
+                    User.tenant_id == tenant_id,
+                    func.lower(User.email) == email.strip().lower(),
+                )
             )
+            .order_by(User.created_at.asc())
+            .limit(1)
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()

@@ -1,5 +1,10 @@
-"""Admin Associados - CRUD /api/v1/admin/associados."""
+"""Admin Associados - CRUD /api/v1/admin/associados.
+
+Módulo inteiro gated por ``require_plan_feature("associados")`` (PRO+) — a tela
+já escondia fora do plano, mas a API aceitava qualquer plano.
+"""
 from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import List, Optional
@@ -11,11 +16,29 @@ from src.core.database import get_db
 from src.models import User, PermissionFeature
 from src.repositories.associado_repo import AssociadoRepository
 from src.services.audit_service import AuditService
-from src.api.dependencies import get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 
-router = APIRouter(prefix="/api/v1/admin/associados", tags=["admin-associados"])
+router = APIRouter(
+    prefix="/api/v1/admin/associados",
+    tags=["admin-associados"],
+    dependencies=[Depends(require_plan_feature("associados"))],
+)
 logger = logging.getLogger(__name__)
+
+_EMAIL_DUPLICADO = "Já existe um associado com este e-mail"
+
+
+async def _cancelar_contas_futuras(db: AsyncSession, tenant_id: UUID, associado_id: UUID) -> None:
+    """Exclusão/isenção: mensalidades futuras pendentes deixam de ser devidas."""
+    from src.services.mensalidade_contas_service import cancelar_contas_futuras_pendentes
+
+    try:
+        await cancelar_contas_futuras_pendentes(
+            db=db, tenant_id=tenant_id, tipo_pessoa="associado", pessoa_id=associado_id
+        )
+    except Exception:
+        logger.exception("Falha ao cancelar contas futuras da mensalidade do associado %s", associado_id)
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────
@@ -24,12 +47,16 @@ class AssociadoCreate(BaseModel):
     nome: str
     email: EmailStr
     telefone: Optional[str] = None
+    mensalidade_isento: bool = False
 
 
 class AssociadoUpdate(BaseModel):
+    """``telefone: null`` limpa o telefone; campo ausente não muda."""
+
     nome: Optional[str] = None
     email: Optional[EmailStr] = None
     telefone: Optional[str] = None
+    mensalidade_isento: Optional[bool] = None
 
 
 class AssociadoResponse(BaseModel):
@@ -37,6 +64,7 @@ class AssociadoResponse(BaseModel):
     nome: str
     email: str
     telefone: Optional[str] = None
+    mensalidade_isento: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -61,15 +89,22 @@ async def create_associado(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Já existe um associado com este e-mail",
+            detail=_EMAIL_DUPLICADO,
         )
 
-    associado = await repo.create_associado(
-        tenant_id=current_user.tenant_id,
-        nome=data.nome,
-        email=data.email,
-        telefone=data.telefone,
-    )
+    try:
+        associado = await repo.create_associado(
+            tenant_id=current_user.tenant_id,
+            nome=data.nome,
+            email=data.email,
+            telefone=data.telefone,
+            mensalidade_isento=data.mensalidade_isento,
+        )
+    except IntegrityError:
+        # Corrida com outro cadastro do mesmo e-mail (o índice único parcial
+        # só considera associados ativos — recadastrar um excluído é permitido).
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_EMAIL_DUPLICADO)
 
     audit = AuditService(db)
     await audit.log_create(
@@ -81,6 +116,7 @@ async def create_associado(
     )
 
     # Create pending conta a receber for next month if associado mensalidade is configured
+    # (isento de mensalidade não gera conta).
     try:
         from src.repositories.mensalidade_repo import MensalidadeRepository
         from src.repositories.config_repo import TenantConfigRepository
@@ -88,7 +124,7 @@ async def create_associado(
         from decimal import Decimal
         cfg_repo = TenantConfigRepository(db)
         tc = await cfg_repo.get_by_tenant(current_user.tenant_id)
-        if tc and tc.enable_mensalidade_associado:
+        if tc and tc.enable_mensalidade_associado and not data.mensalidade_isento:
             mens_repo = MensalidadeRepository(db)
             config = await mens_repo.get_config(current_user.tenant_id)
             if config and config.valor_mensal_associado > 0:
@@ -103,8 +139,7 @@ async def create_associado(
                     criado_por=current_user.id,
                 )
     except Exception:
-        import logging
-        logging.getLogger(__name__).exception("Falha ao criar conta a receber para associado %s", associado.id)
+        logger.exception("Falha ao criar conta a receber para associado %s", associado.id)
 
     await db.commit()
     await db.refresh(associado)
@@ -117,13 +152,14 @@ async def list_associados(
     limit: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    search: Optional[str] = Query(None, max_length=255, description="Filtra por nome, e-mail ou telefone"),
 ) -> List[AssociadoResponse]:
-    """List associados for the tenant."""
+    """List associados for the tenant (paginado: a tela busca todas as páginas)."""
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
 
     repo = AssociadoRepository(db)
-    items = await repo.list_by_tenant(current_user.tenant_id, skip=skip, limit=limit)
+    items = await repo.list_by_tenant(current_user.tenant_id, skip=skip, limit=limit, search=search)
     return [AssociadoResponse.model_validate(a) for a in items]
 
 
@@ -181,15 +217,20 @@ async def update_associado(
         if conflict and conflict.id != associado.id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Já existe um associado com este e-mail",
+                detail=_EMAIL_DUPLICADO,
             )
 
+    was_isento = bool(associado.mensalidade_isento)
+    # telefone enviado (mesmo null) = aplicar; ausente = não mexe.
     updated = await repo.update_associado(
         associado,
         nome=data.nome,
         email=data.email,
-        telefone=data.telefone if data.telefone is not None else ...,
+        telefone=data.telefone if "telefone" in data.model_fields_set else ...,
+        mensalidade_isento=data.mensalidade_isento,
     )
+    if data.mensalidade_isento is True and not was_isento:
+        await _cancelar_contas_futuras(db, current_user.tenant_id, associado_id)
 
     audit = AuditService(db)
     await audit.log_update(
@@ -218,6 +259,7 @@ async def delete_associado(
     deleted = await repo.delete(associado_id, current_user.tenant_id, soft=True)
     if not deleted:
         raise NotFoundError("Associado não encontrado")
+    await _cancelar_contas_futuras(db, current_user.tenant_id, associado_id)
 
     audit = AuditService(db)
     await audit.log_delete(

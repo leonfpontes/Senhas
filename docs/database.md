@@ -129,7 +129,7 @@ Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`
 | `reply_to_email` | `String(255)` | Sim | — | — |
 | `email_signature` | `String(1000)` | Sim | — | — |
 | `enable_bulk_operations` | `Boolean` | Não | `True` | — |
-| `enable_analytics` | `Boolean` | Não | `True` | — |
+| `enable_analytics` | `Boolean` | Não | `True` | sem efeito: nada lê; toggle removido da UI em 2026-10-06 (Analytics segue plano + grupo) |
 | `enable_webhooks` | `Boolean` | Não | `False` | — |
 | `enable_walk_in` | `Boolean` | Não | `False` | adicionado em 007; habilita emissão walk-in |
 | `sponsor_priority_mode` | `String(20)` | Não | `"first"` | `"first"` ou `"interleave"`; adicionado em 006 |
@@ -369,6 +369,9 @@ Registro de faturamento vinculado ao tenant.
 ### `feature_flags`
 
 Feature flags por tenant. Permite ativar/desativar capacidades específicas com expiração opcional.
+
+> **Não lida por nenhum código** (2026-10-06): só a API `/api/v1/platform/feature-flags` grava e
+> lista. A aba "Flags" de `/platform/settings` foi removida por isso (AGENTS.md §11.18).
 
 | Coluna | Tipo SA | Nullable | Default | Notas |
 |---|---|---|---|---|

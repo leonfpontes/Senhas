@@ -5,7 +5,9 @@
  * backend mudou, atualize os dois lados juntos.
  */
 import {
+  BASE_FEATURES,
   FEATURE_CATALOG,
+  UNSOLD_FEATURES,
   FEATURE_MIN_PLAN,
   PLANS,
   formatLimit,
@@ -31,17 +33,30 @@ describe('plans — espelho do backend', () => {
   });
 
   it('plano mínimo de cada recurso igual aos tiers de plan_features.py', () => {
-    const tier1 = ['bulk_operations', 'mediuns', 'relatorio_gira'];
+    // bulk_operations vale em todos os planos (plan_features.py: sempre True).
+    const tier0 = ['bulk_operations'];
+    const tier1 = ['mediuns', 'relatorio_gira'];
     const tier3 = ['suporte_prioritario'];
     Object.entries(FEATURE_MIN_PLAN).forEach(([feature, plan]) => {
-      const expected = tier1.includes(feature) ? 'basic' : tier3.includes(feature) ? 'premium' : 'pro';
+      const expected = tier0.includes(feature)
+        ? 'free'
+        : tier1.includes(feature)
+          ? 'basic'
+          : tier3.includes(feature)
+            ? 'premium'
+            : 'pro';
       expect([feature, plan]).toEqual([feature, expected]);
     });
     expect(Object.keys(FEATURE_MIN_PLAN)).toHaveLength(18);
   });
 
-  it('todo recurso tem rótulo no catálogo', () => {
-    expect(FEATURE_CATALOG.map((f) => f.key).sort()).toEqual(Object.keys(FEATURE_MIN_PLAN).sort());
+  it('todo recurso vendido tem rótulo no catálogo; o que é grátis ou não existe fica fora', () => {
+    const sold = Object.keys(FEATURE_MIN_PLAN).filter((k) => !UNSOLD_FEATURES.includes(k as never));
+    expect(FEATURE_CATALOG.map((f) => f.key).sort()).toEqual(sold.sort());
+    for (const k of ['bulk_operations', 'analytics_avancado', 'suporte_prioritario']) {
+      expect(FEATURE_CATALOG.some((f) => f.key === k)).toBe(false);
+    }
+    expect(BASE_FEATURES).toContain('Ações em lote nas senhas');
     expect(FEATURE_CATALOG.some((f) => /analytics|csv export|feature/i.test(f.label))).toBe(false);
   });
 });

@@ -331,12 +331,10 @@ class TestDeleteAccountSuccess:
             db=mock_db_session,
         )
 
-        response.delete_cookie.assert_called_once_with(
-            key="refresh_token",
-            httponly=True,
-            secure=True,
-            samesite="strict",
-        )
+        # Os 3 cookies de auth, com os mesmos atributos do /auth/logout.
+        assert response.delete_cookie.call_count == 3
+        cleared = {c.kwargs["key"] for c in response.delete_cookie.call_args_list}
+        assert cleared == {"access_token", "refresh_token", "auth_state"}
 
     @patch("src.api.v1.auth.profile.asyncio.create_task")
     @patch("src.api.v1.auth.profile.verify_password", return_value=True)

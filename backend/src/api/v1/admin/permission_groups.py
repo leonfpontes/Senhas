@@ -174,6 +174,9 @@ async def create_group(
         resource_id=group.id,
         details={"name": request.name, "description": request.description},
     )
+    # O repositório já comitou a mudança; o log de auditoria (só flush) precisa do próprio commit,
+    # senão o get_db fecha a sessão e a linha é descartada.
+    await db.commit()
 
     return PermissionGroupResponse(
         id=group.id,
@@ -291,6 +294,9 @@ async def update_group(
         previous_state=previous_state,
         new_state=update_data,
     )
+    # O repositório já comitou a mudança; o log de auditoria (só flush) precisa do próprio commit,
+    # senão o get_db fecha a sessão e a linha é descartada.
+    await db.commit()
 
     members_count = await repo.get_members_count(group_id, current_user.tenant_id)
     # Configured count
@@ -440,6 +446,9 @@ async def set_group_permissions(
         previous_state={"permissions": prev_perms},
         new_state={"permissions": new_perms},
     )
+    # O repositório já comitou a mudança; o log de auditoria (só flush) precisa do próprio commit,
+    # senão o get_db fecha a sessão e a linha é descartada.
+    await db.commit()
 
     members_count = await repo.get_members_count(group_id, current_user.tenant_id)
     # Configured count
@@ -525,6 +534,9 @@ async def add_group_member(
         resource_id=membership.id,
         details={"group_id": str(group_id), "user_id": str(request.user_id), "username": user.username},
     )
+    # O repositório já comitou a mudança; o log de auditoria (só flush) precisa do próprio commit,
+    # senão o get_db fecha a sessão e a linha é descartada.
+    await db.commit()
 
     return GroupMemberResponse(id=user.id, email=user.email, username=user.username)
 
@@ -562,3 +574,6 @@ async def remove_group_member(
         resource_id=user_id,  # references user removed
         previous_state={"group_id": str(group_id), "user_id": str(user_id), "username": username},
     )
+    # O repositório já comitou a mudança; o log de auditoria (só flush) precisa do próprio commit,
+    # senão o get_db fecha a sessão e a linha é descartada.
+    await db.commit()

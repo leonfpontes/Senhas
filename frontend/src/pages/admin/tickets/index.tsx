@@ -2,18 +2,22 @@
  * Senhas — as senhas de uma gira: busca no topo, filtros num Popover, tabela que vira cartão
  * no celular, detalhe (com rastreio do e-mail) em Sheet, ações em lote e fila de espera.
  *
- * A gira de hoje vem pré-selecionada (GiraContext / `?gira=`). Guards por
- * `canGroup('tickets', …)`: sem `view` a tela mostra PermissionDenied; editar/excluir/lote só
- * aparecem com a permissão correspondente. Mesmas rotas de API de antes.
+ * A gira de hoje vem pré-selecionada (GiraContext / `?gira=`) e a tela segue o seletor de gira
+ * do topo. Guards por `canGroup('tickets', …)`: sem `view` a tela mostra PermissionDenied;
+ * editar/excluir/lote só aparecem com a permissão correspondente.
+ * - Busca no servidor (`?search=`): número, nome ou e-mail na gira inteira, não só na página.
+ * - Rastreio/reenvio de e-mail só para administradores (os endpoints exigem admin).
+ * - "Exportar CSV" com o plano `export_csv` (o backend exige TICKETS ou RELATORIO_GIRA).
  */
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'sonner';
 import {
   Check,
   ChevronDown,
+  Download,
   Hourglass,
   Search,
   SlidersHorizontal,
@@ -43,11 +47,13 @@ import { cn } from '@/lib/utils';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useProfile } from '@/hooks/useProfile';
 import { PRIORITY_ORDER, PRIORITY_CATEGORY_LABELS, PriorityCategoryType } from 'shared-types';
 
 interface Ticket {
   id: string;
   numero: number;
+  numero_formatado?: string;
   status: string;
   consulente_nome?: string;
   consulente_email?: string;
@@ -75,8 +81,6 @@ interface GiraOption {
   data_inicio: string;
 }
 
-type GiraFilter = 'all' | 'active' | 'inactive';
-
 interface WaitlistItem {
   id: string;
   numero: number;
@@ -93,16 +97,17 @@ interface WaitlistItem {
 
 const PAGE_SIZE = 50;
 
+// Sem "Em atendimento": na Porta "Chamar" já registra o atendimento (não há etapa intermediária).
 const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: 'emitted', label: 'Aguardando' },
-  { value: 'called', label: 'Em atendimento' },
   { value: 'completed', label: 'Atendidas' },
+  { value: 'no_show', label: 'Não veio' },
   { value: 'cancelled', label: 'Canceladas' },
 ];
 
 const STATUS_TONE: Record<string, string> = {
   emitted: '',
-  called: 'border-info/30 bg-info/10 text-info-strong',
+  called: '', // legado — aparece como "Aguardando"
   completed: 'border-success/30 bg-success/15 text-success-strong',
   cancelled: 'border-destructive/30 bg-destructive/10 text-destructive-strong',
   no_show: 'border-warning/40 bg-warning/15 text-warning-strong',
@@ -118,25 +123,6 @@ const WAITLIST_STATUS_LABEL: Record<WaitlistItem['status'], string> = {
 function priorityName(category?: string | null): string | null {
   if (!category) return null;
   return PRIORITY_CATEGORY_LABELS[category as PriorityCategoryType] ?? 'Preferencial';
-}
-
-const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-
-/** Busca livre na página carregada: número ("42", "0042", "#42"), nome ou e-mail. */
-function filterTickets(tickets: Ticket[], search: string): Ticket[] {
-  const q = search.trim();
-  if (!q) return tickets;
-  const needle = normalize(q.replace(/^#/, ''));
-  return tickets.filter((t) => {
-    const numStr = String(t.numero);
-    const numPadded = String(t.numero).padStart(4, '0');
-    return (
-      numStr.includes(needle) ||
-      numPadded.includes(needle) ||
-      normalize(t.consulente_nome ?? '').includes(needle) ||
-      normalize(t.consulente_email ?? '').includes(needle)
-    );
-  });
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -182,6 +168,10 @@ function AdminTicketsContent() {
   const canBulk = canEdit || canDelete;
   const router = useRouter();
   const giraCtx = useGiraContext({ load: false });
+  const { profile } = useProfile();
+  // Rastreio e reenvio de e-mail exigem admin no backend (email_resend.py).
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+  const canExportCsv = can('export_csv');
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,18 +182,25 @@ function AdminTicketsContent() {
   const [giraId, setGiraIdState] = useState<string>('');
   const [giras, setGiras] = useState<GiraOption[]>([]);
   const [girasLoaded, setGirasLoaded] = useState(false);
-  const [giraFilter, setGiraFilter] = useState<GiraFilter>('all');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
+  const [exporting, setExporting] = useState(false);
 
-  // Busca livre (com atraso): filtra a página atual por número, nome ou e-mail — o endpoint
-  // /tickets não aceita busca, então o filtro é local.
+  // Busca livre (com atraso): número, nome ou e-mail, feita no servidor sobre a gira inteira
+  // (antes filtrava só as 50 senhas da página carregada).
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   useEffect(() => {
-    const t = setTimeout(() => setSearch(searchInput), 400);
+    const t = setTimeout(() => setSearch(searchInput.trim()), 400);
     return () => clearTimeout(t);
   }, [searchInput]);
+  useEffect(() => {
+    // Busca nova volta para a primeira página.
+    setPagination((p) => (p.pageIndex === 0 ? p : { ...p, pageIndex: 0 }));
+    setRowSelection({});
+  }, [search]);
+  // Descarta respostas atrasadas (busca/página/gira trocadas no meio da requisição).
+  const ticketsRequestRef = useRef(0);
 
   // Detalhe
   const [detail, setDetail] = useState<Ticket | null>(null);
@@ -239,8 +236,6 @@ function AdminTicketsContent() {
   const loadGiras = async () => {
     try {
       const params = new URLSearchParams({ limit: '100' });
-      if (giraFilter === 'active') params.append('is_active', 'true');
-      if (giraFilter === 'inactive') params.append('is_active', 'false');
       if (dateFrom) params.append('date_from', dateFrom);
       if (dateTo) params.append('date_to', dateTo);
       const response = await apiClient.get(`/api/v1/admin/giras?${params.toString()}`);
@@ -283,7 +278,8 @@ function AdminTicketsContent() {
           ? `Senha ${numeroDaSenha(item)} promovida — e-mail de confirmação enviado.`
           : `Senha ${numeroDaSenha(item)} liberada direto, sem precisar de confirmação.`,
       );
-      await loadWaitlist();
+      // A senha promovida muda de status na lista também.
+      await Promise.all([loadWaitlist(), loadTickets()]);
     } catch (error) {
       toast.error(extractApiErrorMessage(error, 'Erro ao promover a senha da fila.'));
     } finally {
@@ -297,7 +293,7 @@ function AdminTicketsContent() {
     try {
       await apiClient.delete(`/api/v1/admin/giras/${giraId}/waitlist/${item.id}`);
       toast.success(`Senha ${numeroDaSenha(item)} removida da fila de espera.`);
-      await loadWaitlist();
+      await Promise.all([loadWaitlist(), loadTickets()]);
     } catch (error) {
       toast.error(extractApiErrorMessage(error, 'Erro ao remover a senha da fila.'));
     } finally {
@@ -306,6 +302,7 @@ function AdminTicketsContent() {
   };
 
   const loadTickets = async () => {
+    const requestId = ++ticketsRequestRef.current;
     try {
       setLoading(true);
       if (!giraId || !canView) {
@@ -313,15 +310,38 @@ function AdminTicketsContent() {
         setTotal(0);
         return;
       }
-      let url = `/api/v1/admin/giras/${giraId}/tickets?skip=${page * PAGE_SIZE}&limit=${PAGE_SIZE}`;
-      if (statusFilter) url += `&status_filter=${statusFilter}`;
-      const response = await apiClient.get(url);
+      const params = new URLSearchParams({ skip: String(page * PAGE_SIZE), limit: String(PAGE_SIZE) });
+      if (statusFilter) params.append('status_filter', statusFilter);
+      if (search) params.append('search', search);
+      const response = await apiClient.get(`/api/v1/admin/giras/${giraId}/tickets?${params.toString()}`);
+      if (requestId !== ticketsRequestRef.current) return;
       setTickets(Array.isArray(response?.data?.items) ? response.data.items : []);
       setTotal(typeof response?.data?.total === 'number' ? response.data.total : 0);
     } catch (error) {
       console.error('Error loading tickets:', error);
     } finally {
-      setLoading(false);
+      if (requestId === ticketsRequestRef.current) setLoading(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    if (!giraId || !canExportCsv) return;
+    setExporting(true);
+    try {
+      const response = await apiClient.get(`/api/v1/admin/giras/${giraId}/export-csv`, { responseType: 'blob' });
+      const blob = response.data instanceof Blob ? response.data : new Blob([response.data], { type: 'text/csv' });
+      const gira = giras.find((g) => g.id === giraId);
+      const nome = (gira?.nome ?? 'gira').trim().replace(/\s+/g, '-').toLowerCase();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `senhas-${nome}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(extractApiErrorMessage(error, 'Não foi possível exportar as senhas.'));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -338,7 +358,7 @@ function AdminTicketsContent() {
     loadGiras();
     // loadGiras não é memoizada e o router é estável.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [giraFilter, dateFrom, dateTo, canView]);
+  }, [dateFrom, dateTo, canView]);
 
   // Pré-seleção: ?gira= > gira do contexto > gira de hoje (só na primeira carga da lista).
   const [preselected, setPreselected] = useState(false);
@@ -355,10 +375,20 @@ function AdminTicketsContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [girasLoaded, router.isReady, giras]);
 
+  // Troca no seletor "Gira de hoje" do topo → Senhas segue (antes só valia na primeira carga).
+  useEffect(() => {
+    const ctxId = giraCtx.selectedGiraId;
+    if (!preselected || !ctxId || ctxId === giraId || !giras.some((g) => g.id === ctxId)) return;
+    setGiraIdState(ctxId);
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+    setRowSelection({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [giraCtx.selectedGiraId]);
+
   useEffect(() => {
     loadTickets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, statusFilter, giraId, canView]);
+  }, [page, statusFilter, giraId, canView, search]);
 
   useEffect(() => {
     loadWaitlist();
@@ -379,15 +409,26 @@ function AdminTicketsContent() {
     setDrawerOpen(true);
   };
 
+  // Médium/cambone/observações só existem depois do atendimento; antes disso o drawer edita só a
+  // prioridade.
+  const editIsAttended = editTicket?.status === 'completed';
+
   const handleSaveAttendInfo = async () => {
     if (!editTicket || !canEdit) return;
     setSaving(true);
     try {
-      await apiClient.patch(`/api/v1/admin/tickets/${editTicket.id}/attend-info`, {
-        medium_nome: formData.medium_nome.trim() || null,
-        cambone_nome: formData.cambone_nome.trim() || null,
-        atendimento_descricao: formData.atendimento_descricao.trim() || null,
-      });
+      const attendChanged =
+        editIsAttended &&
+        (formData.medium_nome !== originalData.medium_nome ||
+          formData.cambone_nome !== originalData.cambone_nome ||
+          formData.atendimento_descricao !== originalData.atendimento_descricao);
+      if (attendChanged) {
+        await apiClient.patch(`/api/v1/admin/tickets/${editTicket.id}/attend-info`, {
+          medium_nome: formData.medium_nome.trim() || null,
+          cambone_nome: formData.cambone_nome.trim() || null,
+          atendimento_descricao: formData.atendimento_descricao.trim() || null,
+        });
+      }
       const priorityChanged = formData.priority_category !== originalData.priority_category;
       if (priorityChanged) {
         await apiClient.patch(`/api/v1/admin/tickets/${editTicket.id}/priority`, {
@@ -396,10 +437,16 @@ function AdminTicketsContent() {
       }
       setDrawerOpen(false);
       setDetail(null);
+      // Reenviar o e-mail é só para administradores — o operador recebe a dica de pedir a um.
+      const resendHint = isAdmin
+        ? 'reenvie o e-mail da senha (no detalhe da senha) para o consulente receber a confirmação.'
+        : 'peça a um administrador para reenviar o e-mail da senha ao consulente.';
       toast.success(
         priorityChanged
-          ? 'Dados salvos. A prioridade mudou — reenvie o e-mail da senha para o consulente receber a confirmação.'
-          : 'Atendimento salvo!',
+          ? `Dados salvos. A prioridade mudou — ${resendHint}`
+          : editIsAttended
+            ? 'Atendimento salvo!'
+            : 'Dados salvos!',
       );
       loadTickets();
     } catch (err) {
@@ -419,7 +466,8 @@ function AdminTicketsContent() {
       toast.success(`Senha ${numeroDaSenha(deleteTarget.ticket)} excluída. A vaga voltou para a gira.`);
       setDeleteTarget(null);
       setDetail(null);
-      loadTickets();
+      // A vaga liberada pode ter promovido alguém da fila de espera.
+      void Promise.all([loadTickets(), loadWaitlist()]);
     } catch (err) {
       toast.error(extractApiErrorMessage(err, 'Erro ao excluir a senha.'));
     } finally {
@@ -428,13 +476,11 @@ function AdminTicketsContent() {
   };
 
   // ── Derivados ───────────────────────────────────────────────────────────────
-  const displayedTickets = useMemo(() => filterTickets(tickets, search), [tickets, search]);
   const selectedIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
-  const activeFilterCount = [dateFrom, dateTo, statusFilter, giraFilter !== 'all' ? 'g' : ''].filter(Boolean).length;
-  const showEmailFor = (t: Ticket) => !!t.consulente_email && can('email_transacional');
+  const activeFilterCount = [dateFrom, dateTo, statusFilter].filter(Boolean).length;
+  const showEmailFor = (t: Ticket) => isAdmin && !!t.consulente_email && can('email_transacional');
 
   const clearFilters = () => {
-    setGiraFilter('all');
     setDateFrom('');
     setDateTo('');
     setStatusFilter('');
@@ -584,19 +630,6 @@ function AdminTicketsContent() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="filtro-giras">Giras na lista</Label>
-              <Select value={giraFilter} onValueChange={(v) => setGiraFilter(v as GiraFilter)}>
-                <SelectTrigger id="filtro-giras" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="active">Ativas</SelectItem>
-                  <SelectItem value="inactive">Desativadas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <DateField label="Giras a partir de" value={dateFrom} onChange={(v) => setDateFrom(v ?? '')} />
             <DateField label="Giras até" value={dateTo} onChange={(v) => setDateTo(v ?? '')} />
             {activeFilterCount > 0 && (
@@ -606,6 +639,19 @@ function AdminTicketsContent() {
             )}
           </PopoverContent>
         </Popover>
+        {canExportCsv && giraId && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleExportCsv}
+            disabled={exporting}
+            aria-label="Exportar CSV"
+            title="Baixar a planilha (CSV) com as senhas desta gira"
+          >
+            <Download aria-hidden />
+            <span className="hidden sm:inline">{exporting ? 'Exportando…' : 'Exportar CSV'}</span>
+          </Button>
+        )}
       </div>
 
       <div className="mb-4" data-tour="tickets-gira-select">
@@ -617,7 +663,6 @@ function AdminTicketsContent() {
             {giras.map((g) => (
               <SelectItem key={g.id} value={g.id}>
                 {giraLabel(g)}
-                {!g.is_active ? ' (desativada)' : ''}
               </SelectItem>
             ))}
           </SelectContent>
@@ -652,10 +697,7 @@ function AdminTicketsContent() {
               <ul className="m-0 flex list-none flex-col p-0">
                 {waitlist.map((item) => (
                   <li key={item.id} className="flex items-center gap-3 border-b py-2 last:border-b-0">
-                    <span className="font-mono font-bold tabular-nums">
-                      {item.is_sponsor ? 'P' : ''}
-                      {String(item.numero).padStart(4, '0')}
-                    </span>
+                    <span className="font-mono font-bold tabular-nums">{numeroDaSenha(item)}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{item.consulente_nome || '—'}</p>
                       <p className="truncate text-xs text-muted-foreground">
@@ -714,7 +756,7 @@ function AdminTicketsContent() {
       <div data-tour="tickets-tabela">
         <DataTable<Ticket>
           columns={columns}
-          data={displayedTickets}
+          data={tickets}
           getRowId={(t) => t.id}
           loading={loading}
           emptyMessage={giraId ? 'Nenhuma senha encontrada.' : 'Escolha uma gira.'}
@@ -739,7 +781,7 @@ function AdminTicketsContent() {
           giraId={giraId}
           canMarkUsed={canEdit}
           canCancel={canDelete}
-          onRefresh={loadTickets}
+          onRefresh={() => void Promise.all([loadTickets(), loadWaitlist()])}
           onClearSelection={() => setRowSelection({})}
         />
       )}
@@ -760,8 +802,12 @@ function AdminTicketsContent() {
       <CrudDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title={`Atendimento — senha ${editTicket ? numeroDaSenha(editTicket) : ''}`}
-        subtitle="Médium, cambone, observações e atendimento preferencial."
+        title={`${editIsAttended ? 'Atendimento' : 'Editar'} — senha ${editTicket ? numeroDaSenha(editTicket) : ''}`}
+        subtitle={
+          editIsAttended
+            ? 'Médium, cambone, observações e atendimento preferencial.'
+            : 'Atendimento preferencial. Médium, cambone e observações ficam disponíveis depois do atendimento.'
+        }
         icon={<Star />}
         onSave={handleSaveAttendInfo}
         saveLabel="Salvar"
@@ -769,23 +815,27 @@ function AdminTicketsContent() {
         isDirty={isDirty}
       >
         <div className="flex flex-col gap-4">
-          <TextField
-            label="Médium"
-            value={formData.medium_nome}
-            onChange={(e) => setFormData((p) => ({ ...p, medium_nome: e.target.value }))}
-          />
-          <TextField
-            label="Cambone"
-            value={formData.cambone_nome}
-            onChange={(e) => setFormData((p) => ({ ...p, cambone_nome: e.target.value }))}
-          />
-          <TextField
-            label="Observações do atendimento"
-            multiline
-            rows={3}
-            value={formData.atendimento_descricao}
-            onChange={(e) => setFormData((p) => ({ ...p, atendimento_descricao: e.target.value }))}
-          />
+          {editIsAttended && (
+            <>
+              <TextField
+                label="Médium"
+                value={formData.medium_nome}
+                onChange={(e) => setFormData((p) => ({ ...p, medium_nome: e.target.value }))}
+              />
+              <TextField
+                label="Cambone"
+                value={formData.cambone_nome}
+                onChange={(e) => setFormData((p) => ({ ...p, cambone_nome: e.target.value }))}
+              />
+              <TextField
+                label="Observações do atendimento"
+                multiline
+                rows={3}
+                value={formData.atendimento_descricao}
+                onChange={(e) => setFormData((p) => ({ ...p, atendimento_descricao: e.target.value }))}
+              />
+            </>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="edit-prioridade">Atendimento preferencial</Label>
             <Select
@@ -805,7 +855,9 @@ function AdminTicketsContent() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Ao mudar, reenvie o e-mail da senha para o consulente receber a confirmação.
+              {isAdmin
+                ? 'Ao mudar, reenvie o e-mail da senha para o consulente receber a confirmação.'
+                : 'Ao mudar, peça a um administrador para reenviar o e-mail da senha ao consulente.'}
             </p>
           </div>
         </div>
@@ -836,7 +888,7 @@ function AdminTicketsContent() {
         title="Liberar senha sem confirmação"
         message={
           <>
-            Liberar a senha <strong>{releaseConfirmTarget ? String(releaseConfirmTarget.numero).padStart(4, '0') : ''}</strong>
+            Liberar a senha <strong>{releaseConfirmTarget ? numeroDaSenha(releaseConfirmTarget) : ''}</strong>
             {releaseConfirmTarget?.consulente_nome ? ` de ${releaseConfirmTarget.consulente_nome}` : ''} direto? Ela vale
             na hora — o consulente não precisa confirmar pelo e-mail.
           </>

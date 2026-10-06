@@ -71,8 +71,8 @@ describe('AdminSidebar', () => {
     expect(within(nav).getByRole('link', { name: /Plano e assinatura/ })).toHaveAttribute('href', '/admin/billing');
     expect(within(nav).getByRole('link', { name: /Pessoas e acessos/ })).toHaveAttribute('href', '/admin/users');
     expect(within(nav).getByRole('link', { name: /Ajuda/ })).toHaveAttribute('href', '/admin/suporte');
-    expect(within(nav).queryByText('Analytics')).not.toBeInTheDocument();
-    expect(within(nav).queryByText('Auditoria')).not.toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: /Analytics/ })).toHaveAttribute('href', '/admin/analytics');
+    expect(within(nav).getByRole('link', { name: /Auditoria/ })).toHaveAttribute('href', '/admin/audit-trail');
     expect(screen.getByTestId('sidebar-version')).toHaveTextContent(APP_VERSION_LABEL);
     expect(screen.getByText('Pro · mês grátis')).toBeInTheDocument();
   });
@@ -91,11 +91,75 @@ describe('AdminSidebar', () => {
     expect(within(nav).queryByText('Plano e assinatura')).not.toBeInTheDocument();
   });
 
+  it('Analytics e Auditoria seguem plano e grupo', () => {
+    mockPlanCan.mockImplementation((f: string) => f !== 'auditoria');
+    mockGroupCan.mockImplementation((f: string) => f === 'analytics');
+    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
+    withSidebar(<AdminSidebar isOperator />);
+    const nav = screen.getByTestId('admin-sidebar');
+    expect(within(nav).getByRole('link', { name: /Analytics/ })).toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /Auditoria/ })).not.toBeInTheDocument();
+  });
+
+  it('operador só com contas_financeiras vê Lançamentos e Configuração financeira, não Mensalidades', () => {
+    mockGroupCan.mockImplementation((f: string, a: string) => f === 'contas_financeiras' && a === 'view');
+    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
+    withSidebar(<AdminSidebar isOperator />);
+    const nav = screen.getByTestId('admin-sidebar');
+    fireEvent.click(within(nav).getByRole('button', { name: /Financeiro/ }));
+    expect(within(nav).getByRole('link', { name: /Lançamentos/ })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: /Configuração financeira/ })).toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /Mensalidades/ })).not.toBeInTheDocument();
+  });
+
+  it('operador com financeiro:view vê Mensalidades e a Configuração financeira (antes: escondidas por !isOperator)', () => {
+    mockGroupCan.mockImplementation((f: string, a: string) => f === 'financeiro' && a === 'view');
+    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
+    withSidebar(<AdminSidebar isOperator />);
+    const nav = screen.getByTestId('admin-sidebar');
+    expect(within(nav).getByRole('link', { name: /Mensalidades/ })).toHaveAttribute('href', '/admin/financeiro/mensalidades');
+    fireEvent.click(within(nav).getByRole('button', { name: /Financeiro/ }));
+    expect(within(nav).getByRole('link', { name: /Configuração financeira/ })).toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /Lançamentos/ })).not.toBeInTheDocument();
+  });
+
+  it('operador com o grupo configuracoes vê Configurações (a tela gateia por grupo)', () => {
+    mockGroupCan.mockImplementation((feature: string, action: string) => feature === 'configuracoes' && action === 'view');
+    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
+    withSidebar(<AdminSidebar isOperator />);
+    const nav = screen.getByTestId('admin-sidebar');
+    expect(within(nav).getByRole('link', { name: /Configurações/ })).toHaveAttribute('href', '/admin/config');
+    expect(within(nav).queryByText('Perfis de acesso')).not.toBeInTheDocument();
+  });
+
+  it('sem o plano do site, Cursos some (a tela é bloqueada por plano)', () => {
+    mockPlanCan.mockImplementation((f: string) => f !== 'site_builder');
+    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
+    withSidebar(<AdminSidebar isOperator={false} />);
+    const nav = screen.getByTestId('admin-sidebar');
+    expect(within(nav).queryByRole('link', { name: /^Cursos$/ })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /Site do terreiro/ })).not.toBeInTheDocument();
+  });
+
   it('sem o plano de estoque, o Estoque some mesmo com permissão de grupo', () => {
     mockPlanCan.mockImplementation((f: string) => f !== 'estoque_controle');
     const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
     withSidebar(<AdminSidebar isOperator={false} />);
     expect(screen.queryByText('Estoque')).not.toBeInTheDocument();
+  });
+});
+
+describe('getFeatureForPath', () => {
+  it('rotas do financeiro exigem a mesma feature da tela e do backend', () => {
+    const { getFeatureForPath } = require('@/pages/admin/admin_layout');
+    expect(getFeatureForPath('/admin/financeiro/lancamentos')).toBe('contas_financeiras');
+    expect(getFeatureForPath('/admin/financeiro/contas-pagar')).toBe('contas_financeiras');
+    expect(getFeatureForPath('/admin/financeiro/contas-receber')).toBe('contas_financeiras');
+    expect(getFeatureForPath('/admin/financeiro/fluxo-de-caixa')).toBe('contas_financeiras');
+    expect(getFeatureForPath('/admin/financeiro/mensalidades')).toBe('financeiro');
+    expect(getFeatureForPath('/admin/financeiro/config')).toBeNull();
+    expect(getFeatureForPath('/admin/analytics')).toBe('analytics');
+    expect(getFeatureForPath('/admin/audit-trail')).toBe('auditoria');
   });
 });
 

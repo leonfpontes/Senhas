@@ -11,7 +11,7 @@ from src.core.database import get_db
 from src.models import User, UserRole, PermissionFeature
 from src.repositories.user_repo import UserRepository
 from src.repositories.permission_group_repo import PermissionGroupRepository
-from src.security.password import hash_password
+from src.security.password import hash_password, validate_password_policy
 from src.services.audit_service import AuditService
 from src.services import session_service
 from src.api.dependencies import effective_limit, get_current_user, require_group_permission
@@ -43,6 +43,83 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
 
 
+_ADMIN_ROLES = (UserRole.ADMIN, UserRole.SUPER_ADMIN)
+
+
+def _require_assignable_role(current_user: User, role: UserRole) -> None:
+    """Perfil que quem chama pode atribuir.
+
+    SUPER_ADMIN é da plataforma — nunca sai daqui. ADMIN só por administrador:
+    operador com USUARIOS:insert/edit (grupo) não pode se promover nem criar
+    administradores (escalada de privilégio).
+    """
+    if role == UserRole.SUPER_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Perfil de acesso inválido.",
+        )
+    if role == UserRole.ADMIN and not current_user.is_admin:
+        raise InsufficientPermissionsError(
+            "Só administradores podem criar ou promover administradores."
+        )
+
+
+def _require_can_manage_target(current_user: User, target: User) -> None:
+    """Operador (mesmo com permissão de grupo) não altera nem remove administradores."""
+    if target.role in _ADMIN_ROLES and not current_user.is_admin:
+        raise InsufficientPermissionsError(
+            "Só administradores podem alterar ou remover a conta de um administrador."
+        )
+
+
+async def _ensure_user_limit(db: AsyncSession, tenant_id: UUID) -> None:
+    """Limite de usuários ATIVOS do plano (criar e reativar contam igual)."""
+    sub = await SubscriptionRepository(db).get_by_tenant(tenant_id)
+    if sub is None:
+        return
+    # SUSPENDED → 402; cancelada/trial vencido → limite do FREE (P-05).
+    max_users = effective_limit(sub, "max_users")
+    if max_users == -1:
+        return
+    count_stmt = select(func.count()).select_from(User).where(
+        and_(
+            User.tenant_id == tenant_id,
+            User.is_active.is_(True),
+            User.deleted_at.is_(None),
+        )
+    )
+    result = await db.execute(count_stmt)
+    current_count = result.scalar() or 0
+    if current_count >= max_users:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Limite de usuários atingido ({max_users}). Faça upgrade do plano.",
+        )
+
+
+async def _ensure_other_active_admin(db: AsyncSession, tenant_id: UUID, target_id: UUID) -> None:
+    """Bloqueia tirar do ar o último administrador ativo do terreiro."""
+    remaining = await db.scalar(
+        select(func.count()).select_from(User).where(
+            and_(
+                User.tenant_id == tenant_id,
+                User.role == UserRole.ADMIN,
+                User.is_active.is_(True),
+                User.deleted_at.is_(None),
+                User.id != target_id,
+            )
+        )
+    )
+    if not remaining:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Este é o único administrador ativo do terreiro. "
+                "Promova outra pessoa a administrador antes."
+            ),
+        )
+
+
 class UserResponse(BaseModel):
     """User response."""
     id: UUID
@@ -61,31 +138,16 @@ async def create_user(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
-    """Create new user (admin only)."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Admin required")
+    """Create new user.
+
+    Autorização pelo grupo (USUARIOS:insert — admin faz bypass). Operador não
+    cria administrador (ver _require_assignable_role).
+    """
+    _require_assignable_role(current_user, user_data.role)
+    validate_password_policy(user_data.password)
 
     # Enforce subscription limits server-side (frontend gates are not sufficient)
-    sub_repo = SubscriptionRepository(db)
-    sub = await sub_repo.get_by_tenant(current_user.tenant_id)
-    if sub is not None:
-        # SUSPENDED → 402; cancelada/trial vencido → limite do FREE (P-05).
-        max_users = effective_limit(sub, "max_users")
-        if max_users != -1:
-            count_stmt = select(func.count()).select_from(User).where(
-                and_(
-                    User.tenant_id == current_user.tenant_id,
-                    User.is_active.is_(True),
-                    User.deleted_at.is_(None),
-                )
-            )
-            result = await db.execute(count_stmt)
-            current_count = result.scalar() or 0
-            if current_count >= max_users:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Limite de usuários atingido ({max_users}). Faça upgrade do plano.",
-                )
+    await _ensure_user_limit(db, current_user.tenant_id)
 
     # Check if email already exists
     repo = UserRepository(db)
@@ -203,19 +265,56 @@ async def update_user(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
-    """Update user (admin only)."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Admin required")
-    
+    """Update user.
+
+    Autorização pelo grupo (USUARIOS:edit — admin faz bypass). Proteções:
+    ninguém muda o próprio perfil nem se desativa por aqui; o último
+    administrador ativo não pode ser rebaixado/desativado; operador não mexe
+    em administradores; reativar respeita o limite de usuários do plano.
+    """
     repo = UserRepository(db)
     existing_user = await repo.get_by_id(user_id, current_user.tenant_id)
     
     if not existing_user:
         raise NotFoundError("Usuário não encontrado")
-    
-    # Update fields
+
+    _require_can_manage_target(current_user, existing_user)
+
+    # Update fields (None em role/is_active = "não mudar", não "apagar")
     update_data = user_update.model_dump(exclude_unset=True, exclude={"password"})
-    
+    for key in ("role", "is_active"):
+        if key in update_data and update_data[key] is None:
+            del update_data[key]
+
+    is_self = existing_user.id == current_user.id
+    new_role = update_data.get("role")
+    role_change = new_role is not None and new_role != existing_user.role
+    deactivating = update_data.get("is_active") is False and existing_user.is_active
+    reactivating = update_data.get("is_active") is True and not existing_user.is_active
+
+    if role_change:
+        _require_assignable_role(current_user, new_role)
+        if is_self:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Você não pode mudar o seu próprio perfil de acesso. Peça a outro administrador.",
+            )
+    if deactivating and is_self:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Você não pode desativar a sua própria conta por aqui.",
+        )
+    if (
+        existing_user.role == UserRole.ADMIN
+        and existing_user.is_active
+        and (deactivating or (role_change and new_role != UserRole.ADMIN))
+    ):
+        await _ensure_other_active_admin(db, current_user.tenant_id, existing_user.id)
+    if reactivating:
+        await _ensure_user_limit(db, current_user.tenant_id)
+    if user_update.password:
+        validate_password_policy(user_update.password)
+
     for key, value in update_data.items():
         if hasattr(existing_user, key):
             setattr(existing_user, key, value)
@@ -253,11 +352,25 @@ async def delete_user(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete (soft delete) user (admin only)."""
-    if not current_user.is_admin:
-        raise InsufficientPermissionsError("Admin required")
-    
+    """Delete (soft delete) user.
+
+    Autorização pelo grupo (USUARIOS:delete — admin faz bypass). Ninguém se
+    exclui por aqui (a própria conta sai em Meu perfil), operador não remove
+    administrador e o último administrador ativo não pode ser removido.
+    """
     repo = UserRepository(db)
+    target = await repo.get_by_id(user_id, current_user.tenant_id)
+    if not target:
+        raise NotFoundError("Usuário não encontrado")
+    if target.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Você não pode remover a sua própria conta por aqui. Use Meu perfil > Zona de risco.",
+        )
+    _require_can_manage_target(current_user, target)
+    if target.role == UserRole.ADMIN and target.is_active:
+        await _ensure_other_active_admin(db, current_user.tenant_id, target.id)
+
     deleted = await repo.delete_soft(user_id, current_user.tenant_id)
     
     if not deleted:

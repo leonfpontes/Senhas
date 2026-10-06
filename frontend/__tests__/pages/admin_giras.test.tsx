@@ -42,8 +42,9 @@ jest.mock('@/hooks/useSubscription', () => ({
   }),
 }));
 
+const mockGroupCan = jest.fn((_f: string, _a: string) => true);
 jest.mock('@/hooks/usePermissions', () => ({
-  usePermissions: () => ({ can: () => true, permissions: null, loading: false, refresh: jest.fn() }),
+  usePermissions: () => ({ can: mockGroupCan, permissions: null, loading: false, refresh: jest.fn() }),
 }));
 
 jest.mock('@/components/CrudDrawer', () => ({
@@ -87,6 +88,7 @@ const MOCK_GIRAS = [
 describe('Admin Giras Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGroupCan.mockImplementation(() => true);
     mockRouter.query = {};
     const { apiClient } = require('@/services/api_client');
     apiClient.get.mockResolvedValue({ data: MOCK_GIRAS });
@@ -234,6 +236,66 @@ describe('Admin Giras Page', () => {
       await waitFor(() => expect(screen.getByTestId('share-link-dialog')).toBeInTheDocument());
       expect(screen.getByText('Gira criada! Compartilhe o link de senhas')).toBeInTheDocument();
       expect(screen.getAllByTestId('share-link-text')[0]).toHaveTextContent(LINK);
+    });
+
+    it('sem permissão de editar giras: pula o passo "Senhas", avisa e não tenta salvar senhas', async () => {
+      mockGroupCan.mockImplementation((f: string, a: string) => !(f === 'giras' && a === 'edit'));
+      const api = mockApi([]);
+      await fillStepOne();
+      expect(screen.queryByLabelText(/^Quantas senhas/)).not.toBeInTheDocument();
+      expect(screen.getByTestId('create-sem-senhas')).toHaveTextContent('sem senhas liberadas');
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /salvar: Nova gira/ }));
+      });
+      expect(api.post).toHaveBeenCalledWith('/api/v1/admin/giras', expect.objectContaining({ nome: NEW_GIRA.nome }));
+      expect(api.put).not.toHaveBeenCalled();
+    });
+
+    it('o local opcional vai no cadastro da gira (vazio = null, vale o endereço do terreiro)', async () => {
+      const api = mockApi([]);
+      const AdminGiras = require('@/pages/admin/giras').default;
+      wrap(<AdminGiras />);
+      await waitFor(() => expect(screen.getByRole('button', { name: /Nova gira/ })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: /Nova gira/ }));
+      fireEvent.change(screen.getByLabelText(/^Nome da gira/), { target: { value: NEW_GIRA.nome } });
+      setDateTime(/^Dia e hora da gira/, '10/01/2099', '19:00');
+      fireEvent.change(screen.getByLabelText(/^Local/), { target: { value: 'Cachoeira do Parque' } });
+      for (let i = 0; i < 3; i += 1) {
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: /salvar: Nova gira/ }));
+        });
+      }
+      expect(api.post).toHaveBeenCalledWith('/api/v1/admin/giras', expect.objectContaining({ local: 'Cachoeira do Parque' }));
+    });
+
+    it('"Compartilhar link" no cartão usa o link da própria gira, não o do terreiro', async () => {
+      const now = Date.now();
+      const aberta = {
+        ...NEW_GIRA,
+        id: 'aberta',
+        nome: 'Gira de Ogum',
+        data_inicio: new Date(now + 5 * 24 * 3600 * 1000).toISOString(),
+        max_tickets: 50,
+        release_start_at: new Date(now - 3600 * 1000).toISOString(),
+        release_end_at: new Date(now + 4 * 24 * 3600 * 1000).toISOString(),
+      };
+      const GIRA_LINK = 'https://girahub.com.br/public/gira/aberta';
+      const api = mockApi([aberta]);
+      const base = api.get.getMockImplementation();
+      api.get.mockImplementation((url: string) =>
+        url === '/api/v1/admin/giras/aberta/senhas'
+          ? Promise.resolve({ data: { max_tickets: 50, current_count: 3, public_link: GIRA_LINK, sponsor_public_link: '' } })
+          : base(url),
+      );
+      const AdminGiras = require('@/pages/admin/giras').default;
+      wrap(<AdminGiras />);
+      await waitFor(() => expect(screen.getByRole('button', { name: /Compartilhar link/ })).toBeInTheDocument());
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Compartilhar link/ }));
+      });
+      await waitFor(() => expect(screen.getAllByTestId('share-link-text')[0]).toHaveTextContent(GIRA_LINK));
+      expect(screen.getByTestId('share-link-dialog')).toHaveTextContent('Este link é só da Gira de Ogum');
+      expect(screen.getByTestId('share-link-dialog')).not.toHaveTextContent(LINK);
     });
 
     it('gira sem senhas: "Configurar senhas" abre o drawer com a sugestão', async () => {

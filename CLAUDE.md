@@ -38,6 +38,11 @@ from src.models import PermissionFeature
 from src.api.dependencies import require_group_permission
 ```
 
+Não empilhar `if not current_user.is_admin` em cima do `require_group_permission` — o operador
+com o grupo leva 403 enquanto a UI mostra o botão (admins já fazem bypass). Se a ação pode virar
+escalada de privilégio, escreva a proteção específica (ex.: `users.py`: operador não cria/promove/
+edita administrador; ninguém se exclui/rebaixa; o último admin ativo fica). Ver AGENTS.md §3.3.
+
 Feature por módulo:
 - Giras → `GIRAS`
 - Porta (visão da porta) → `PORTA`
@@ -51,7 +56,7 @@ Feature por módulo:
 - Configurações do Tenant → `CONFIGURACOES`
 - Auditoria → `AUDITORIA`
 - Analytics → `ANALYTICS`
-- Relatório de Gira / exports CSV → `RELATORIO_GIRA`
+- Relatório de Gira → `RELATORIO_GIRA`; export CSV da gira → `TICKETS` ou `RELATORIO_GIRA` (+ plano `export_csv`)
 - Cursos Presenciais / Sites → `CURSOS_PRESENCIAIS`
 
 Exceções (não precisam de guard de grupo):
@@ -188,6 +193,8 @@ O `access_token` é armazenado como **cookie HttpOnly** (não em `localStorage`)
 - **Impersonação**: token fica em `sessionStorage` e vai como `Authorization: Bearer` (fluxo separado preservado).
 - **hasAuthToken()**: checa `sessionStorage.getItem('access_token')` (impersonação) OU `document.cookie.includes('auth_state=1')` OU `localStorage.getItem('user')`.
 - **Logout**: sempre chamar `POST /api/v1/auth/logout` para limpar cookies HttpOnly no servidor, depois remover `user` do localStorage.
+- **Apagar cookies no backend**: sempre `clear_auth_cookies(response)` (`src/core/auth_cookies.py` (junto com `set_auth_cookies`)) — os 3 cookies com os atributos do login.
+- **Impersonação × sessão**: os cookies do navegador são do super-admin. Endpoint que revoga sessão/apaga cookie recusa token com `impersonated_by` (403); no front, "Sair" impersonando = `endImpersonation()`, e nada grava o usuário impersonado em `localStorage['user']`.
 
 ---
 

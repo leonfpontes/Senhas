@@ -306,7 +306,20 @@ describe('getServerSideProps', () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 404 }) as any;
     const { getServerSideProps } = require('@/pages/[tenantSlug]/index');
     const result = await getServerSideProps({ params: { tenantSlug: 'nao-existe' } } as any);
-    expect(result).toEqual({ props: { site: null } });
+    // Sem site e sem terreiro (agenda também 404): "Site em preparação".
+    expect(result).toEqual({ props: { site: null, agenda: null } });
+  });
+
+  it('sem site publicado, mas com terreiro: props.agenda com as próximas giras', async () => {
+    const AGENDA = { tenant_name: 'T', tenant_slug: 'terreiro-test', logo_url: null, primary_color: null, secondary_color: null, upcoming_giras: [] };
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 404 })
+      .mockResolvedValueOnce({ ok: true, json: async () => AGENDA }) as any;
+    const { getServerSideProps } = require('@/pages/[tenantSlug]/index');
+    const result = (await getServerSideProps({ params: { tenantSlug: 'terreiro-test' } } as any)) as any;
+    expect(result).toEqual({ props: { site: null, agenda: AGENDA } });
+    expect((global.fetch as jest.Mock).mock.calls[1][0]).toMatch(/\/api\/v1\/public\/agenda\/terreiro-test$/);
   });
 
   it('retorna props.site quando API retorna sucesso', async () => {
@@ -322,7 +335,7 @@ describe('getServerSideProps', () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('Network error')) as any;
     const { getServerSideProps } = require('@/pages/[tenantSlug]/index');
     const result = await getServerSideProps({ params: { tenantSlug: 'terreiro-test' } } as any);
-    expect(result).toEqual({ props: { site: null } });
+    expect(result).toEqual({ props: { site: null, agenda: null } });
   });
 
   afterAll(() => {

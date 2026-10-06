@@ -45,7 +45,7 @@ class TestPlanFeatures:
         assert f.analytics_avancado is False
         assert f.associados is False
         assert f.export_csv is False
-        assert f.bulk_operations is False
+        assert f.bulk_operations is True  # ações em lote valem em todos os planos
         assert f.auditoria is False
         assert f.suporte_prioritario is False
         assert f.site_builder is False

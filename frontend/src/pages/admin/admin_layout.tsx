@@ -47,7 +47,12 @@ const MAX_WIDTH_CLASS: Record<'xs' | 'sm' | 'md' | 'lg' | 'xl', string> = {
   xl: 'max-w-[1536px]',
 };
 
-const getFeatureForPath = (path: string): PermissionFeature | null => {
+/**
+ * Feature de grupo exigida pelo layout para a rota. Tem de ser a MESMA da tela e do backend:
+ * Lançamentos/Fluxo usam `contas_financeiras`, Mensalidades usa `financeiro`. A Configuração
+ * financeira mistura as duas (cada aba se protege), então o layout não exige feature nela.
+ */
+export const getFeatureForPath = (path: string): PermissionFeature | null => {
   if (path.startsWith('/admin/giras')) return 'giras';
   if (path.startsWith('/admin/tickets')) return 'tickets';
   if (path.startsWith('/admin/porta')) return 'porta';
@@ -57,7 +62,9 @@ const getFeatureForPath = (path: string): PermissionFeature | null => {
   if (path.startsWith('/admin/cursos-presenciais')) return 'cursos_presenciais';
   if (path.startsWith('/admin/meu-site')) return 'cursos_presenciais';
   if (path.startsWith('/admin/estoque')) return 'estoque';
-  if (path.startsWith('/admin/financeiro')) return 'financeiro';
+  if (path.startsWith('/admin/financeiro/mensalidades')) return 'financeiro';
+  if (path.startsWith('/admin/financeiro/config')) return null;
+  if (path.startsWith('/admin/financeiro')) return 'contas_financeiras';
   if (path.startsWith('/admin/config')) return 'configuracoes';
   if (path.startsWith('/admin/plano')) return 'configuracoes';
   if (path.startsWith('/admin/billing')) return 'configuracoes';

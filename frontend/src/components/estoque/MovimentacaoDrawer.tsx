@@ -53,6 +53,22 @@ export function nowLocalIso(date: Date = new Date()): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/**
+ * Saldo do item depois de salvar a movimentação. O `saldoAtual` vem da API e JÁ inclui a
+ * movimentação em edição — então, na edição, ela é desfeita antes de aplicar os valores novos
+ * (antes contava duas vezes: editar uma saída de 5 sem mudar nada mostrava saldo −5 a mais).
+ */
+export function saldoAposMovimentacao(
+  saldoAtual: number,
+  tipo: TipoMovimentacao,
+  quantidade: number,
+  original?: { tipo: TipoMovimentacao; quantidade: number } | null,
+): number {
+  const efeito = (t: TipoMovimentacao, q: number) => (t === 'saida' ? -q : q);
+  const base = original ? saldoAtual - efeito(original.tipo, original.quantidade) : saldoAtual;
+  return base + efeito(tipo, quantidade);
+}
+
 const EMPTY: MovimentacaoFormValues = {
   item_id: '',
   tipo: 'entrada',
@@ -67,10 +83,14 @@ export function MovimentacaoDrawer({ open, onClose, items, initial, editId, lock
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Movimentação como estava ao abrir a edição (já somada no saldo do item).
+  const [original, setOriginal] = useState<{ tipo: TipoMovimentacao; quantidade: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setForm({ ...EMPTY, data_movimentacao: nowLocalIso(), ...initial });
+    const qtdOriginal = parseInt(initial?.quantidade ?? '', 10);
+    setOriginal(editId && initial?.tipo && !Number.isNaN(qtdOriginal) ? { tipo: initial.tipo, quantidade: qtdOriginal } : null);
     setTouched({});
     setError(null);
     // `initial` é um objeto novo a cada render do pai; sincroniza só ao abrir.
@@ -84,7 +104,7 @@ export function MovimentacaoDrawer({ open, onClose, items, initial, editId, lock
 
   const item = useMemo(() => items.find((i) => i.id === form.item_id) ?? null, [items, form.item_id]);
   const qtd = parseInt(form.quantidade, 10);
-  const saldoApos = item && !Number.isNaN(qtd) ? (form.tipo === 'saida' ? item.saldo - qtd : item.saldo + qtd) : null;
+  const saldoApos = item && !Number.isNaN(qtd) ? saldoAposMovimentacao(item.saldo, form.tipo, qtd, original) : null;
   const saldoNegativo = form.tipo === 'saida' && saldoApos !== null && saldoApos < 0;
 
   const options = useMemo(

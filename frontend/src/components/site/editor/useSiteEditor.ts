@@ -7,6 +7,11 @@
  *   POST /unpublish, PUT /sites, GET /versions, POST /versions/{id}/restore,
  *   POST /images (upload trava o salvamento, Gap #13).
  *
+ * Lock otimista: TODA resposta que muda o site (PUT /sections, publish, unpublish,
+ * PUT /sites, restore) bumpa `updated_at` no backend — a versão local precisa ser
+ * atualizada com o valor devolvido, senão o próximo salvamento manda versão velha,
+ * leva 409 e o salvamento automático para (era o caso de publish/unpublish/settings).
+ *
  * Decisões:
  * - Salvar automático (debounce) só enquanto o site NÃO está publicado: em
  *   PUBLISHED, qualquer PUT /sections já vai ao ar, então as mudanças ficam locais
@@ -74,6 +79,13 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
   siteRef.current = site;
   dirtyRef.current = dirty;
   siteUpdatedAtRef.current = siteUpdatedAt;
+
+  /** Adota a versão (updated_at) devolvida pelo backend — ref na hora, estado no render. */
+  const adoptVersion = useCallback((version: unknown) => {
+    if (typeof version !== 'string' || !version) return;
+    siteUpdatedAtRef.current = version;
+    setSiteUpdatedAt(version);
+  }, []);
 
   // ── Carregamento ────────────────────────────────────────────────────────────
 
@@ -226,7 +238,7 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
         // Re-busca para sincronizar os UUIDs reais (Gap #12).
         const res = await apiClient.get('/api/v1/admin/sites/sections');
         const fresh: SiteSection[] = Array.isArray(res.data?.sections) ? res.data.sections : current;
-        if (res.data?.site_updated_at) setSiteUpdatedAt(res.data.site_updated_at);
+        adoptVersion(res.data?.site_updated_at);
         if (editSeqRef.current === seq) {
           // Nada mudou durante o salvamento: adota as seções do servidor e remapeia a seleção pela posição.
           setSelectedId((prev) => {
@@ -258,7 +270,7 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
         setSaving(false);
       }
     },
-    [canEdit, reload],
+    [canEdit, reload, adoptVersion],
   );
   const saveRef = useRef(save);
   saveRef.current = save;
@@ -307,6 +319,7 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
       if (!wasPublished) {
         const res = await apiClient.post('/api/v1/admin/sites/publish');
         setSite((prev) => (res.data?.id ? res.data : prev ? { ...prev, status: 'PUBLISHED' } : prev));
+        adoptVersion(res.data?.updated_at);
       }
       toast.success(wasPublished ? 'Alterações publicadas!' : 'Site publicado!');
       return true;
@@ -316,20 +329,21 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
     } finally {
       setPublishing(false);
     }
-  }, [canEdit]);
+  }, [canEdit, adoptVersion]);
 
   const unpublish = useCallback(async (): Promise<boolean> => {
     if (!canEdit) return false;
     try {
       const res = await apiClient.post('/api/v1/admin/sites/unpublish');
       setSite((prev) => (res.data?.id ? res.data : prev ? { ...prev, status: 'UNPUBLISHED' } : prev));
+      adoptVersion(res.data?.updated_at);
       toast.info('Site despublicado. Ele continua salvo como rascunho.');
       return true;
     } catch (err) {
       toast.error(extractApiErrorMessage(err, 'Erro ao despublicar.'));
       return false;
     }
-  }, [canEdit]);
+  }, [canEdit, adoptVersion]);
 
   // ── Versões ─────────────────────────────────────────────────────────────────
 
@@ -339,7 +353,7 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
       try {
         const res = await apiClient.post(`/api/v1/admin/sites/versions/${version.id}/restore`);
         setSectionsState(Array.isArray(res.data?.sections) ? res.data.sections : []);
-        if (res.data?.site_updated_at) setSiteUpdatedAt(res.data.site_updated_at);
+        adoptVersion(res.data?.site_updated_at);
         setDirty(false);
         setSelectedId(null);
         toast.success('Versão restaurada!');
@@ -347,7 +361,7 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
         toast.error(extractApiErrorMessage(err, 'Erro ao restaurar versão.'));
       }
     },
-    [canEdit],
+    [canEdit, adoptVersion],
   );
 
   // ── Configurações ───────────────────────────────────────────────────────────
@@ -358,6 +372,7 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
       try {
         const res = await apiClient.put('/api/v1/admin/sites', payload);
         setSite((prev) => (res.data?.id ? res.data : prev ? { ...prev, ...payload } : prev));
+        adoptVersion(res.data?.updated_at);
         toast.success('Configurações salvas!');
         return true;
       } catch (err) {
@@ -365,7 +380,7 @@ export function useSiteEditor({ enabled, canEdit }: UseSiteEditorOptions) {
         return false;
       }
     },
-    [canEdit],
+    [canEdit, adoptVersion],
   );
 
   // ── Upload de imagem ────────────────────────────────────────────────────────

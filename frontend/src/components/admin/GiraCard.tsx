@@ -157,6 +157,8 @@ export interface GiraCardProps {
   onRelease: (gira: GiraCardData) => void;
   onEdit: (gira: GiraCardData) => void;
   onDelete: (gira: GiraCardData) => void;
+  /** Endereço do terreiro: mostrado quando a gira não tem "local" próprio. */
+  fallbackLocal?: string | null;
   now?: Date;
   className?: string;
 }
@@ -236,9 +238,11 @@ export function GiraCard({
   onRelease,
   onEdit,
   onDelete,
+  fallbackLocal,
   now = new Date(),
   className,
 }: GiraCardProps) {
+  const local = gira.local?.trim() || fallbackLocal?.trim() || '';
   const phase = giraPhase(gira, now);
   const status = giraStatusLabel(gira, now);
   const primary = primaryActionFor(phase, permissions);
@@ -359,8 +363,12 @@ export function GiraCard({
             <h3 className="truncate text-base font-semibold text-foreground">{gira.nome}</h3>
             <p className="text-sm text-muted-foreground">
               {validStart ? `${start.toLocaleDateString('pt-BR', { weekday: 'long' })}, ${time(start)}` : ''}
-              {gira.local ? ` · ${gira.local}` : ''}
             </p>
+            {local && (
+              <p className="truncate text-xs text-muted-foreground" title={local} data-testid="gira-local">
+                {local}
+              </p>
+            )}
             <Badge variant="outline" className={cn('mt-1.5 whitespace-normal', TONE_CLASS[status.tone])}>
               {status.label}
             </Badge>

@@ -111,14 +111,46 @@ class TestCursosPresenciaisAPI:
 
     @pytest.mark.asyncio
     @patch("src.api.dependencies.SubscriptionRepository")
+    @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
     @patch(
         "src.services.permission_service.PermissionService.check_permission",
         new_callable=AsyncMock, return_value=True,
     )
-    async def test_create_curso_presencial_forbidden_as_operator(
+    async def test_create_curso_presencial_operador_com_grupo_cria(
+        self, mock_check_permission, mock_repo_cls, mock_sub_repo_cls, client, mock_operator_user, mock_subscription
+    ):
+        """Operador com CURSOS_PRESENCIAIS:insert no grupo cria curso — o RBAC de
+        grupo é a única autorização (não há mais check de cargo no corpo)."""
+        mock_sub_repo_cls.return_value.get_by_tenant = AsyncMock(return_value=mock_subscription)
+        client.app.dependency_overrides[get_current_user] = lambda: mock_operator_user
+        mock_repo = AsyncMock()
+        mock_repo.create.return_value = CursoPresencial(
+            id=CURSO_ID, tenant_id=TENANT_ID, titulo="Curso de Doutrina",
+            data_inicio=datetime.utcnow(), is_active=True,
+            created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+        )
+        mock_repo_cls.return_value = mock_repo
+
+        response = client.post(
+            "/api/v1/admin/cursos-presenciais",
+            json={
+                "titulo": "Curso de Doutrina",
+                "data_inicio": datetime.utcnow().isoformat(),
+            }
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        mock_check_permission.assert_awaited()
+
+    @pytest.mark.asyncio
+    @patch("src.api.dependencies.SubscriptionRepository")
+    @patch(
+        "src.services.permission_service.PermissionService.check_permission",
+        new_callable=AsyncMock, return_value=False,
+    )
+    async def test_create_curso_presencial_operador_sem_grupo_recebe_403(
         self, mock_check_permission, mock_sub_repo_cls, client, mock_operator_user, mock_subscription
     ):
-        # Gate de plano (router) roda antes do check de cargo do corpo (P-05).
         mock_sub_repo_cls.return_value.get_by_tenant = AsyncMock(return_value=mock_subscription)
         client.app.dependency_overrides[get_current_user] = lambda: mock_operator_user
 
@@ -131,7 +163,6 @@ class TestCursosPresenciaisAPI:
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
-        assert "cargo de administrador" in response.json()["message"]
 
     @pytest.mark.asyncio
     @patch("src.services.permission_service.SubscriptionRepository")
@@ -224,6 +255,42 @@ class TestCursosPresenciaisAPI:
         data = response.json()
         assert data["nome"] == "Zeca de Oxóssi"
         assert data["valor_mensalidade"] == "50.00"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("consentiu", [False, True])
+    @patch("src.api.dependencies.SubscriptionRepository")
+    @patch("src.api.v1.admin.cursos_presenciais.CursoPresencialRepository")
+    @patch("src.api.v1.admin.cursos_presenciais.CursoParticipanteRepository")
+    async def test_consentimento_de_saude_nunca_e_inferido(
+        self, mock_part_repo_cls, mock_course_repo_cls, mock_sub_repo_cls, consentiu, client, mock_admin_user, mock_subscription
+    ):
+        """LGPD art. 11: ter respondido perguntas de saúde NÃO é consentimento — o valor
+        gravado é exatamente o checkbox enviado (antes virava True sozinho)."""
+        client.app.dependency_overrides[get_current_user] = lambda: mock_admin_user
+        mock_sub_repo_cls.return_value.get_by_tenant = AsyncMock(return_value=mock_subscription)
+        mock_course_repo = AsyncMock()
+        mock_course_repo.get_by_id.return_value = CursoPresencial(id=CURSO_ID, tenant_id=TENANT_ID, titulo="Curso")
+        mock_course_repo.get_participant_count.return_value = 0
+        mock_course_repo_cls.return_value = mock_course_repo
+        mock_part_repo = AsyncMock()
+        mock_part_repo.create.return_value = CursoParticipante(
+            id=PARTICIPANTE_ID, curso_id=CURSO_ID, tenant_id=TENANT_ID, nome="Zeca",
+            pago=False, created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+        )
+        mock_part_repo_cls.return_value = mock_part_repo
+
+        response = client.post(
+            f"/api/v1/admin/cursos-presenciais/{CURSO_ID}/participantes",
+            json={
+                "nome": "Zeca",
+                "tem_diabetes": True,
+                "toma_medicamento": True,
+                "aceita_uso_dados_saude": consentiu,
+            },
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert mock_part_repo.create.await_args.kwargs["aceita_uso_dados_saude"] is consentiu
 
     @pytest.mark.asyncio
     @patch("src.api.dependencies.SubscriptionRepository")

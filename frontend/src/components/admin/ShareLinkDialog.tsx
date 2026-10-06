@@ -37,13 +37,19 @@ export interface ShareLinkDialogProps {
   description?: string;
   loading?: boolean;
   onShared?: (kind: ShareKind) => void;
+  /**
+   * Link de UMA gira (`/public/gira/{id}`), não o link único do terreiro: os textos deixam de
+   * dizer que o link vale para todas as giras.
+   */
+  giraName?: string | null;
 }
 
-export function buildWhatsAppShareUrl(link: string, tenantName?: string | null): string {
+export function buildWhatsAppShareUrl(link: string, tenantName?: string | null, giraName?: string | null): string {
   const quem = tenantName ? ` do ${tenantName}` : '';
-  const text =
-    `Para pegar sua senha para as giras${quem}, é só abrir este link no celular:\n${link}\n\n` +
-    'O link é o mesmo para todas as giras — pode salvar.';
+  const text = giraName
+    ? `Para pegar sua senha para a ${giraName}${quem}, é só abrir este link no celular:\n${link}`
+    : `Para pegar sua senha para as giras${quem}, é só abrir este link no celular:\n${link}\n\n` +
+      'O link é o mesmo para todas as giras — pode salvar.';
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
@@ -112,11 +118,13 @@ function LinkPanel({
   tenantName,
   onShared,
   accent,
+  giraName,
 }: {
   link: string;
   tenantName?: string | null;
   onShared?: (kind: ShareKind) => void;
   accent?: boolean;
+  giraName?: string | null;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -151,15 +159,16 @@ function LinkPanel({
             {link}
           </p>
           <p className="text-xs text-muted-foreground">
-            O link é o mesmo para todas as giras: compartilhe uma vez e deixe o QR impresso na entrada —
-            quem chegar aponta a câmera e pega a senha.
+            {giraName
+              ? `Este link é só da ${giraName}. Para um link que vale para todas as giras, use “Link e QR do terreiro”.`
+              : 'O link é o mesmo para todas as giras: compartilhe uma vez e deixe o QR impresso na entrada — quem chegar aponta a câmera e pega a senha.'}
           </p>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Button asChild size="touch" className="bg-[#15803d] text-white hover:bg-[#166534] sm:col-span-2">
           <a
-            href={buildWhatsAppShareUrl(link, tenantName)}
+            href={buildWhatsAppShareUrl(link, tenantName, giraName)}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => onShared?.('whatsapp')}
@@ -191,6 +200,7 @@ export function ShareLinkDialog({
   description = 'Por este link os consulentes pegam a senha pelo celular.',
   loading = false,
   onShared,
+  giraName,
 }: ShareLinkDialogProps) {
   const hasSponsor = Boolean(sponsorLink);
 
@@ -221,14 +231,14 @@ export function ShareLinkDialog({
               </TabsTrigger>
             </TabsList>
             <TabsContent value="comum" className="mt-4">
-              <LinkPanel link={link} tenantName={tenantName} onShared={onShared} />
+              <LinkPanel link={link} tenantName={tenantName} onShared={onShared} giraName={giraName} />
             </TabsContent>
             <TabsContent value="associado" className="mt-4">
-              <LinkPanel link={sponsorLink as string} tenantName={tenantName} onShared={onShared} accent />
+              <LinkPanel link={sponsorLink as string} tenantName={tenantName} onShared={onShared} giraName={giraName} accent />
             </TabsContent>
           </Tabs>
         ) : (
-          <LinkPanel link={link} tenantName={tenantName} onShared={onShared} />
+          <LinkPanel link={link} tenantName={tenantName} onShared={onShared} giraName={giraName} />
         )}
       </DialogContent>
     </Dialog>

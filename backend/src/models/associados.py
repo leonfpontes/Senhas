@@ -1,5 +1,5 @@
 """Associado model - registered members eligible for associado tickets."""
-from sqlalchemy import Boolean, String, ForeignKey, Index, UniqueConstraint
+from sqlalchemy import Boolean, String, ForeignKey, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -17,7 +17,16 @@ class Associado(SoftDeleteModel):
 
     __tablename__ = "associados"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "email_normalized", name="uq_associados_tenant_email"),
+        # Único só entre os ativos (migração 058): excluir e recadastrar o mesmo
+        # e-mail funciona — a constraint antiga contava as linhas soft-deletadas
+        # e o recadastro estourava IntegrityError (500).
+        Index(
+            "uq_associados_tenant_email_ativo",
+            "tenant_id",
+            "email_normalized",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
         Index("ix_associados_tenant_id", "tenant_id"),
         Index("ix_associados_email_normalized", "email_normalized"),
     )

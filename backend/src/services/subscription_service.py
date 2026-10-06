@@ -1,7 +1,6 @@
 """SubscriptionService - Plan management and upgrades/downgrades (T102)."""
 from typing import Optional
 from uuid import UUID
-from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,8 +49,11 @@ class SubscriptionService:
         tenant_id: UUID,
         new_plan: PlanType,
     ) -> dict:
-        """Upgrade tenant subscription plan.
-        
+        """Change tenant subscription plan (platform drawer — any plan).
+
+        Só troca plano e limites. Não cria fatura: a cobrança real vem do Stripe
+        (webhook). Antes criava uma fatura fictícia com proração fixa de 50%.
+
         Args:
             tenant_id: Tenant ID
             new_plan: New plan type
@@ -66,10 +68,7 @@ class SubscriptionService:
         
         if not sub:
             raise NotFoundError("Subscrição não encontrada")
-        
-        # Create invoice for the upgrade
-        await self._create_upgrade_invoice(tenant_id, sub)
-        
+
         return self._subscription_to_dict(sub)
     
     async def downgrade_plan(
@@ -151,41 +150,6 @@ class SubscriptionService:
         
         return self._subscription_to_dict(sub)
     
-    async def record_usage(
-        self,
-        tenant_id: UUID,
-        current_users: int,
-    ) -> dict:
-        """Record current user count.
-        
-        Args:
-            tenant_id: Tenant ID
-            current_users: Current user count
-            
-        Returns:
-            Updated subscription dict
-            
-        Raises:
-            NotFoundError: If subscription not found
-            InvalidInputError: If exceeds limit
-        """
-        sub = await self.subscription_repo.get_by_tenant(tenant_id)
-        
-        if not sub:
-            raise NotFoundError("Subscrição não encontrada")
-        
-        if current_users > sub.max_users:
-            raise InvalidInputError(
-                f"Limite de usuários ({sub.max_users}) excedido"
-            )
-        
-        sub.current_users = current_users
-        
-        await self.db.flush()
-        await self.db.refresh(sub)
-        
-        return self._subscription_to_dict(sub)
-    
     def _subscription_to_dict(self, sub: Subscription) -> dict:
         """Convert Subscription to dict.
         
@@ -205,36 +169,9 @@ class SubscriptionService:
             "current_users": sub.current_users,
             "monthly_price": sub.monthly_price,
             "is_trial": sub.is_trial,
+            "is_bonus": sub.is_bonus is True,
             "trial_ends_at": sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
             "auto_renew": sub.auto_renew,
             "created_at": sub.created_at.isoformat(),
             **billing_fields(sub, tenant_deleted=False),
         }
-    
-    async def _create_upgrade_invoice(
-        self,
-        tenant_id: UUID,
-        subscription: Subscription,
-    ) -> None:
-        """Create invoice for plan upgrade (prorated).
-        
-        Args:
-            tenant_id: Tenant ID
-            subscription: Updated subscription
-        """
-        now = datetime.now(timezone.utc)
-        invoice_number = f"INV-{tenant_id.hex}-{int(now.timestamp())}"
-        
-        # Prorated amount (simplified)
-        prorate_factor = 0.5  # Example: 50% of month remaining
-        amount = subscription.monthly_price * prorate_factor
-        
-        await self.billing_repo.create_invoice(
-            tenant_id=tenant_id,
-            invoice_number=invoice_number,
-            period_start=now,
-            period_end=now + timedelta(days=30),
-            subtotal=amount,
-            tax_amount=0,
-            discount_amount=0,
-        )

@@ -35,6 +35,11 @@ jest.mock('@/hooks/useSubscription', () => ({
   useSubscription: () => ({ can: mockPlanCan, subscription: null, loading: false, canCreateGira: () => true, refresh: jest.fn() }),
 }));
 
+let mockProfile: { role: string } = { role: 'admin' };
+jest.mock('@/hooks/useProfile', () => ({
+  useProfile: () => ({ profile: mockProfile, loading: false, refresh: jest.fn() }),
+}));
+
 jest.mock('@/components/admin/TicketEmailPanel', () => ({
   TicketEmailPanel: ({ ticketId }: { ticketId: string }) => <div data-testid="email-panel">{ticketId}</div>,
 }));
@@ -78,6 +83,7 @@ describe('Senhas', () => {
     jest.clearAllMocks();
     mockCan.mockImplementation(() => true);
     mockPlanCan.mockImplementation(() => true);
+    mockProfile = { role: 'admin' };
     mockRouter.query = {};
     window.sessionStorage.clear();
     document.cookie = 'auth_state=1';
@@ -120,6 +126,60 @@ describe('Senhas', () => {
     expect(within(sheet).queryByRole('button', { name: /Editar atendimento/ })).not.toBeInTheDocument();
     expect(within(sheet).queryByRole('button', { name: /Excluir senha/ })).not.toBeInTheDocument();
     expect(within(sheet).queryByTestId('email-panel')).not.toBeInTheDocument();
+  });
+
+  it('operador não vê o rastreio de e-mail (endpoints só de admin)', async () => {
+    mockProfile = { role: 'operator' };
+    mockApi();
+    await renderPage();
+    fireEvent.click(screen.getByText('Maria Souza'));
+    const sheet = await screen.findByTestId('ticket-detail-sheet');
+    expect(within(sheet).getByRole('button', { name: /Editar atendimento/ })).toBeInTheDocument();
+    expect(within(sheet).queryByTestId('email-panel')).not.toBeInTheDocument();
+  });
+
+  it('a busca vai para o servidor (gira inteira) e volta para a primeira página', async () => {
+    const api = mockApi();
+    await renderPage();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Buscar senha' }), { target: { value: 'joana' } });
+    await waitFor(
+      () => expect(api.get).toHaveBeenCalledWith(expect.stringMatching(/\/giras\/hoje\/tickets\?skip=0&limit=50&search=joana$/)),
+      { timeout: 2000 },
+    );
+  });
+
+  it('senha ainda não atendida: o drawer edita só a prioridade', async () => {
+    mockApi();
+    await renderPage();
+    fireEvent.click(screen.getByText('Maria Souza'));
+    const sheet = await screen.findByTestId('ticket-detail-sheet');
+    fireEvent.click(within(sheet).getByRole('button', { name: /Editar atendimento/ }));
+    expect(await screen.findByText('Atendimento preferencial')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Médium' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Cambone' })).not.toBeInTheDocument();
+  });
+
+  it('exportar CSV baixa a planilha da gira (com o plano)', async () => {
+    const api = mockApi();
+    const createObjectURL = jest.fn(() => 'blob:x');
+    const revokeObjectURL = jest.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const click = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    await renderPage();
+    api.get.mockImplementationOnce(() => Promise.resolve({ data: new Blob(['Senha']) }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar CSV' }));
+    await waitFor(() =>
+      expect(api.get).toHaveBeenCalledWith('/api/v1/admin/giras/hoje/export-csv', { responseType: 'blob' }),
+    );
+    await waitFor(() => expect(click).toHaveBeenCalled());
+    click.mockRestore();
+  });
+
+  it('sem o plano de exportação o botão não aparece', async () => {
+    mockPlanCan.mockImplementation((f: string) => f !== 'export_csv');
+    mockApi();
+    await renderPage();
+    expect(screen.queryByRole('button', { name: 'Exportar CSV' })).not.toBeInTheDocument();
   });
 
   it('sem permissão de ver senhas mostra o aviso padrão e não chama a API', () => {

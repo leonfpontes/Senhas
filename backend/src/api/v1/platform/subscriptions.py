@@ -12,12 +12,14 @@ from sqlalchemy import select
 from src.models import User, PlanType, SubscriptionStatus
 from src.models.subscriptions import Subscription
 from src.models.tenants import Tenant
+from src.api.v1.admin.subscription_info import _count_active_users
 from src.services.billing_metrics import billing_fields
 from src.services.subscription_service import SubscriptionService
 from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS
 from src.repositories.audit_log_repo import AuditLogRepository
 from src.models.audit_logs import AuditAction
 from src.core.errors import NotFoundError
+from src.services.platform_audit import log_platform_action
 
 router = APIRouter(prefix="/api/v1/platform/subscriptions", tags=["platform-subscriptions"])
 
@@ -33,6 +35,7 @@ class SubscriptionResponse(BaseModel):
     current_users: int
     monthly_price: float
     is_trial: bool
+    is_bonus: bool = False
     trial_ends_at: Optional[str]
     auto_renew: bool
     created_at: str
@@ -47,9 +50,38 @@ class UpgradePlanRequest(BaseModel):
     plan: PlanType
 
 
-class RecordUsageRequest(BaseModel):
-    """Request to record usage."""
-    current_users: int
+async def _response(db: AsyncSession, tenant_id: UUID, result: dict) -> SubscriptionResponse:
+    """Monta a resposta com a contagem REAL de usuários ativos.
+
+    A coluna `subscriptions.current_users` nunca é mantida (a plataforma
+    mostrava "Usuários: 0"); conta como o /admin/subscription faz.
+    """
+    result["current_users"] = int(await _count_active_users(db, tenant_id))
+    return SubscriptionResponse(**result)
+
+
+def _log_subscription_action(
+    db: AsyncSession,
+    actor: User,
+    tenant_id: UUID,
+    result: dict,
+    *,
+    platform_action: str,
+    description: str,
+    **details,
+) -> None:
+    """Log da ação de assinatura na auditoria do terreiro (antes do commit)."""
+    log_platform_action(
+        db,
+        actor_id=actor.id,
+        action=AuditAction.UPDATE,
+        platform_action=platform_action,
+        description=description,
+        tenant_id=tenant_id,
+        resource_type="subscription",
+        resource_id=UUID(result["id"]) if result.get("id") else None,
+        **details,
+    )
 
 
 @router.get("/{tenant_id}", response_model=SubscriptionResponse)
@@ -74,7 +106,7 @@ async def get_subscription(
         if deleted_at is not None:
             sub = (await db.execute(select(Subscription).where(Subscription.tenant_id == tenant_id))).scalar_one()
             result.update(billing_fields(sub, tenant_deleted=True))
-        return SubscriptionResponse(**result)
+        return await _response(db, tenant_id, result)
     except HTTPException:
         raise
     except Exception as e:
@@ -91,14 +123,28 @@ async def upgrade_subscription(
     current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Upgrade tenant subscription plan."""
+    """Troca o plano do terreiro (usado pelo SubscriptionDrawer da plataforma).
+
+    Apesar do nome, aceita qualquer plano (inclusive inferior): só muda plano e
+    limites. Não gera fatura — a cobrança real é do Stripe (webhook).
+    """
     service = SubscriptionService(db)
     
     try:
+        previous = await service.get_subscription(tenant_id)
         result = await service.upgrade_plan(tenant_id, request.plan)
+        _log_subscription_action(
+            db, current_user, tenant_id, result,
+            platform_action="subscription_plan_change",
+            description=(
+                f"Plano alterado pela plataforma: {(previous or {}).get('plan', '?')} → {result['plan']}"
+            ),
+            previous_values={"plan": (previous or {}).get("plan")},
+            new_values={"plan": result["plan"]},
+        )
         await db.commit()
         
-        return SubscriptionResponse(**result)
+        return await _response(db, tenant_id, result)
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -123,10 +169,20 @@ async def downgrade_subscription(
     service = SubscriptionService(db)
     
     try:
+        previous = await service.get_subscription(tenant_id)
         result = await service.downgrade_plan(tenant_id, request.plan)
+        _log_subscription_action(
+            db, current_user, tenant_id, result,
+            platform_action="subscription_downgrade",
+            description=(
+                f"Plano rebaixado pela plataforma: {(previous or {}).get('plan', '?')} → {result['plan']}"
+            ),
+            previous_values={"plan": (previous or {}).get("plan")},
+            new_values={"plan": result["plan"]},
+        )
         await db.commit()
         
-        return SubscriptionResponse(**result)
+        return await _response(db, tenant_id, result)
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -151,9 +207,14 @@ async def suspend_subscription(
     
     try:
         result = await service.suspend_subscription(tenant_id)
+        _log_subscription_action(
+            db, current_user, tenant_id, result,
+            platform_action="subscription_suspend",
+            description="Assinatura suspensa pela plataforma",
+        )
         await db.commit()
         
-        return SubscriptionResponse(**result)
+        return await _response(db, tenant_id, result)
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -178,9 +239,14 @@ async def reactivate_subscription(
     
     try:
         result = await service.reactivate_subscription(tenant_id)
+        _log_subscription_action(
+            db, current_user, tenant_id, result,
+            platform_action="subscription_reactivate",
+            description="Assinatura reativada pela plataforma",
+        )
         await db.commit()
         
-        return SubscriptionResponse(**result)
+        return await _response(db, tenant_id, result)
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -213,8 +279,8 @@ async def set_bonus(
 ):
     """Grant or revoke bonus access for a tenant.
 
-    - Enabling bonus (is_bonus=True): sets is_bonus flag, upgrades to given plan (free if omitted),
-      cancels any active Stripe subscription immediately.
+    - Enabling bonus (is_bonus=True): sets is_bonus flag, grants the given plan (BASIC if
+      omitted), cancels any active Stripe subscription immediately.
     - Disabling bonus (is_bonus=False): removes is_bonus flag; plan stays as-is (tenant must
       subscribe manually to keep paid features).
     """

@@ -1,9 +1,9 @@
 """T059: Admin Tickets List - GET /api/v1/admin/giras/{gira_id}/tickets (pagination)"""
 from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -63,8 +63,47 @@ class TicketResponse(BaseModel):
     resend_email_id: Optional[str] = None
     email_sent_at: Optional[datetime] = None
     email_provider: Optional[str] = None
+    # Mesmo formato da Porta/e-mails: "P001" (associado) ou "0001". Sem ele as
+    # telas de Senhas e Relatório mostravam a senha de associado como "0001".
+    numero_formatado: str = ""
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def _fill_numero_formatado(self) -> "TicketResponse":
+        if not self.numero_formatado:
+            self.numero_formatado = format_ticket_numero(self.numero, self.is_sponsor)
+        return self
+
+
+def format_ticket_numero(numero: int, is_sponsor: bool) -> str:
+    """Número da senha como o consulente vê: P001 (associado) ou 0001."""
+    return f"P{numero:03d}" if is_sponsor else f"{numero:04d}"
+
+
+def _ticket_search_clause(search: Optional[str]):
+    """Filtro da busca livre de Senhas: número exato ("42", "0042", "#42",
+    "P001" = associado 1) ou trecho do nome/e-mail do consulente.
+
+    Exige o join com Consulente na query. None quando não há busca.
+    """
+    needle = (search or "").strip().lstrip("#").strip()
+    if not needle:
+        return None
+    escaped = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
+    conditions = [
+        Consulente.nome.ilike(pattern, escape="\\"),
+        Consulente.email.ilike(pattern, escape="\\"),
+    ]
+    sponsor_prefix = needle[:1] in ("P", "p")
+    digits = needle[1:] if sponsor_prefix else needle
+    if digits.isdigit() and len(digits) <= 9:
+        numero_match = Ticket.numero == int(digits)
+        if sponsor_prefix:  # "P001" → só senha de associado
+            numero_match = and_(numero_match, Ticket.is_sponsor.is_(True))
+        conditions.append(numero_match)
+    return or_(*conditions)
 
 
 class UpdateAttendInfoRequest(BaseModel):
@@ -106,38 +145,50 @@ async def list_gira_tickets(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
     status_filter: Optional[TicketStatus] = Query(None),
+    search: Optional[str] = Query(None, max_length=100, description="Número (42, 0042, #42, P001), nome ou e-mail"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TicketListResponse:
     """List tickets for a gira with pagination.
-    
+
     Requires admin role.
-    
+
     Query parameters:
     - skip: Offset for pagination
     - limit: Max results (1-500)
     - status_filter: Filter by ticket status (optional)
+    - search: número da senha, nome ou e-mail do consulente (na gira inteira,
+      não só na página carregada)
     """
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
-    
+
     # Build query
     where_clause = and_(
         Ticket.tenant_id == current_user.tenant_id,
         Ticket.gira_id == gira_id,
     )
-    
+
     if status_filter:
         where_clause = and_(where_clause, Ticket.status == status_filter)
-    
-    # Count total
-    count_stmt = select(Ticket).where(where_clause)
-    count_result = await db.execute(count_stmt)
-    total = len(count_result.scalars().all())
-    
+
+    search_clause = _ticket_search_clause(search)
+    if search_clause is not None:
+        where_clause = and_(where_clause, search_clause)
+
+    # Count total (COUNT no banco — antes carregava todas as senhas para contar)
+    count_stmt = (
+        select(func.count(Ticket.id))
+        .select_from(Ticket)
+        .outerjoin(Consulente, Consulente.id == Ticket.consulente_id)
+        .where(where_clause)
+    )
+    total = (await db.execute(count_stmt)).scalar_one() or 0
+
     # Fetch paginated results with consulente data
     stmt = (
         select(Ticket)
+        .outerjoin(Consulente, Consulente.id == Ticket.consulente_id)
         .options(selectinload(Ticket.consulente))
         .where(where_clause)
         .offset(skip)

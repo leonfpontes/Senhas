@@ -304,6 +304,13 @@ async def cancel_subscription(
     if not sub.stripe_subscription_id:
         raise HTTPException(status_code=400, detail="Sem assinatura Stripe ativa")
 
+    # Já agendado: não chama a Stripe de novo nem reenvia o e-mail de cancelamento.
+    if sub.cancel_at_period_end:
+        raise HTTPException(
+            status_code=409,
+            detail="O cancelamento já está agendado para o fim do período. Para continuar no plano, use Reativar.",
+        )
+
     try:
         await stripe_service.cancel_subscription(sub.stripe_subscription_id)
     except (stripe_sdk.error.StripeError, ValueError) as exc:
@@ -347,7 +354,10 @@ async def reactivate_subscription(
     if not sub.cancel_at_period_end:
         raise HTTPException(status_code=400, detail="Assinatura não está agendada para cancelamento")
 
-    await stripe_service.reactivate_subscription(sub.stripe_subscription_id)
+    try:
+        await stripe_service.reactivate_subscription(sub.stripe_subscription_id)
+    except (stripe_sdk.error.StripeError, ValueError) as exc:
+        _reraise_stripe_error(exc)
 
     sub.cancel_at_period_end = False
 

@@ -150,7 +150,7 @@ def generate_waitlist_promotion_html(
     """Sent when a slot opens up and this waitlisted consulente is next in line."""
     c_name = _esc(consulente_name)
     g_name = _esc(gira_name)
-    address = tenant_address or gira_location or ""
+    address = gira_location or tenant_address or ""  # local próprio da gira > endereço do terreiro
     maps_block = ""
     if address:
         maps_block = f"""
@@ -198,7 +198,7 @@ def generate_waitlist_promotion_text(
     tenant_name: str,
     tenant_address: str = "",
 ) -> str:
-    address = tenant_address or gira_location or ""
+    address = gira_location or tenant_address or ""  # local próprio da gira > endereço do terreiro
     return f"""UMA VAGA ABRIU PARA VOCÊ!
 
 Olá {consulente_name},

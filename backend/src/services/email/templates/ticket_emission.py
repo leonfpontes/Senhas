@@ -482,7 +482,7 @@ def generate_ticket_emission_html(
     acompanhantes: (nome, número formatado) das senhas extras emitidas para os
              acompanhantes do titular — rendered as its own block only when set.
     """
-    address = tenant_address or gira_location or ""
+    address = gira_location or tenant_address or ""  # local próprio da gira > endereço do terreiro
 
     if is_sponsor:
         return _sponsor_html(
@@ -544,7 +544,7 @@ def generate_plain_text_fallback(
     acompanhantes: Optional[list[tuple[str, str]]] = None,
 ) -> str:
     """Generate plain text fallback for email clients that don't support HTML."""
-    address = tenant_address or gira_location or ""
+    address = gira_location or tenant_address or ""  # local próprio da gira > endereço do terreiro
     sponsor_note = (
         "\nAgradecemos imensamente o seu apoio e contribuição ao trabalho espiritual.\n"
         if is_sponsor else ""

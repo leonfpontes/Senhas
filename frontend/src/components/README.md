@@ -103,7 +103,7 @@ alteração não salva (`AlertDialog`). **Mesma API** de antes.
 
 ### `UpgradePrompt` / gates — `src/components/UpgradePrompt.tsx`, `src/components/gates/`
 ```tsx
-if (!can('estoque')) return <PlanLocked feature="Estoque" minPlan="Pro" />;   // → /admin/billing?plan=pro
+if (!can('estoque_controle')) return <PlanLocked feature="Estoque" minPlan="Pro" />;   // → /admin/billing?plan=pro
 if (!canGroup('estoque', 'view')) return <PermissionDenied />;
 {!canEdit && <ReadOnlyNotice />}
 ```

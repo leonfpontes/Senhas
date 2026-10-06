@@ -125,7 +125,7 @@ EXEMPT_QUERIES: dict[tuple[str, str], str] = {
         "resolve nomes de impersonated_by (super_admins, tenant_id NULL) a partir de logs já "
         "filtrados por tenant em list_audit_logs; filtrar por tenant esconderia o impersonador"
     ),
-    ("sites.py", "update_site"): (
+    ("sites.py", "_sync_slug_with_tenant"): (
         "checagem de unicidade de slug é global por design (slug do site público é único "
         "entre todos os tenants); só retorna existência, nenhum dado de outro tenant"
     ),
@@ -181,6 +181,9 @@ EXEMPT_SCOPED_QUERIES: dict[tuple[str, str], str] = {
     ),
     ("repositories/platform_user_repo.py", "PlatformUserRepository.count_all"): (
         "repositório de usuários da plataforma (super_admin): escopo global"
+    ),
+    ("repositories/platform_user_repo.py", "PlatformUserRepository.count_active"): (
+        "super-admins ativos (tenant_id IS NULL) para a trava do último super-admin: escopo global"
     ),
     ("repositories/platform_user_repo.py", "PlatformUserRepository.update"): (
         "repositório de usuários da plataforma (super_admin): escopo global"
@@ -255,8 +258,17 @@ RESOLVED_ID_QUERIES: dict[tuple[str, str], dict] = {
             ("api/v1/admin/support_chat.py", "get_my_conversation"),
             ("api/v1/admin/support_chat.py", "list_tenant_conversations"),
             ("api/v1/admin/support_chat.py", "get_tenant_conversation_messages"),
-            ("api/v1/platform/support_chat.py", "list_conversations"),
             ("api/v1/platform/support_chat.py", "get_conversation_messages"),
+        ],
+    },
+    ("repositories/support_chat_repo.py", "SupportChatRepository.last_message_previews"): {
+        "motivo": (
+            "recebe ids de conversas já carregadas pela inbox da plataforma "
+            "(super_admin, cross-tenant por design)"
+        ),
+        "chamadores": [
+            ("api/v1/platform/support_chat.py", "list_conversations"),
+            ("api/v1/platform/support_chat.py", "get_conversation"),
             ("api/v1/platform/support_chat.py", "set_conversation_status"),
         ],
     },

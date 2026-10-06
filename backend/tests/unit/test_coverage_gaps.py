@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from uuid import uuid4, UUID
 from datetime import datetime, timezone, timedelta, time
 from fastapi import HTTPException
+from src.core.errors import APIException
 
 
 TENANT_ID = uuid4()
@@ -452,7 +453,7 @@ class TestEmitTicketEndpoint:
         with patch("src.api.v1.public.emit_ticket.email_queue") as mock_queue:
             result = await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert result.ticket_number == "0042"
-        assert result.email_sent is True
+        assert not hasattr(result, "email_sent")
         mock_queue.enqueue.assert_called_once()
 
     # ── agendamento por horário (time slots) ────────────────────────────────
@@ -482,9 +483,10 @@ class TestEmitTicketEndpoint:
         MockSenhaRepo.return_value.increment_atomic = AsyncMock(return_value=1)
         MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
         req = EmitTicketRequest(name="Test", email="t@t.com")  # no time_slot_id
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(APIException) as exc:
             await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 400
+        assert exc.value.error_code == "TIME_SLOT_REQUIRED"
         db.rollback.assert_awaited()
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -567,9 +569,10 @@ class TestEmitTicketEndpoint:
         MockSenhaRepo.return_value.get_by_gira = AsyncMock(return_value=None)
         MockSlotRepo.return_value.get_by_id_for_gira = AsyncMock(return_value=None)
         req = EmitTicketRequest(name="Test", email="t@t.com", time_slot_id=uuid4())
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(APIException) as exc:
             await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 404
+        assert exc.value.error_code == "TIME_SLOT_INVALID"
         db.rollback.assert_awaited()
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
@@ -603,9 +606,10 @@ class TestEmitTicketEndpoint:
         MockSlotRepo.return_value.get_by_id_for_gira = AsyncMock(return_value=slot)
         MockSlotRepo.return_value.increment_atomic = AsyncMock(side_effect=TimeSlotFullError("full"))
         req = EmitTicketRequest(name="Test", email="t@t.com", time_slot_id=slot.id)
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(APIException) as exc:
             await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 410
+        assert exc.value.error_code == "TIME_SLOT_FULL"
         db.rollback.assert_awaited()
         MockTicketRepo.return_value.create_ticket.assert_not_called()
 
@@ -643,9 +647,10 @@ class TestEmitTicketEndpoint:
         MockSlotRepo.return_value.get_by_id_for_gira = AsyncMock(return_value=slot)
         MockSlotRepo.return_value.increment_atomic = AsyncMock(side_effect=ValueError("slot not found"))
         req = EmitTicketRequest(name="Test", email="t@t.com", time_slot_id=slot.id)
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(APIException) as exc:
             await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 409
+        assert exc.value.error_code == "TIME_SLOT_UNAVAILABLE"
         db.rollback.assert_awaited()
         MockTicketRepo.return_value.create_ticket.assert_not_called()
 
@@ -879,6 +884,8 @@ class TestSubscriptionService:
         s.billing_repo.create_invoice = AsyncMock()
         result = await s.upgrade_plan(TENANT_ID, PlanType.PRO)
         assert result["plan"] == "pro"
+        # Troca de plano pela plataforma não gera fatura fictícia (cobrança é do Stripe)
+        s.billing_repo.create_invoice.assert_not_called()
 
     async def test_downgrade_plan_not_found(self, svc):
         from src.core.errors import NotFoundError
@@ -959,35 +966,6 @@ class TestSubscriptionService:
         s.subscription_repo.get_by_tenant = AsyncMock(return_value=sub)
         result = await s.reactivate_subscription(TENANT_ID)
         assert sub.status == SubscriptionStatus.ACTIVE
-
-    async def test_record_usage_not_found(self, svc):
-        from src.core.errors import NotFoundError
-        s, _ = svc
-        s.subscription_repo.get_by_tenant = AsyncMock(return_value=None)
-        with pytest.raises(NotFoundError):
-            await s.record_usage(TENANT_ID, 5)
-
-    async def test_record_usage_exceeds_limit(self, svc):
-        from src.core.errors import InvalidInputError
-        s, _ = svc
-        sub = MagicMock(); sub.max_users = 5
-        s.subscription_repo.get_by_tenant = AsyncMock(return_value=sub)
-        with pytest.raises(InvalidInputError, match="excedido"):
-            await s.record_usage(TENANT_ID, 10)
-
-    async def test_record_usage_ok(self, svc):
-        s, db = svc
-        sub = MagicMock()
-        sub.max_users = 10
-        sub.id = uuid4(); sub.tenant_id = TENANT_ID
-        sub.plan.value = "basic"; sub.status.value = "active"
-        sub.max_giras_per_month = 10; sub.current_users = 0
-        sub.monthly_price = 99.0; sub.is_trial = False
-        sub.trial_ends_at = None; sub.auto_renew = True
-        sub.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        s.subscription_repo.get_by_tenant = AsyncMock(return_value=sub)
-        result = await s.record_usage(TENANT_ID, 5)
-        assert sub.current_users == 5
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -1351,20 +1329,6 @@ class TestTenantServiceExtended:
         result = await s.update_tenant(TENANT_ID, name="Updated")
         assert result is not None
 
-    async def test_delete_tenant_not_found(self, svc):
-        s, _ = svc
-        s.tenant_repo.soft_delete = AsyncMock(return_value=None)
-        result = await s.delete_tenant(TENANT_ID)
-        assert result is False
-
-    async def test_delete_tenant_success(self, svc):
-        s, db = svc
-        tenant = MagicMock()
-        tenant.is_active = True
-        s.tenant_repo.soft_delete = AsyncMock(return_value=tenant)
-        result = await s.delete_tenant(TENANT_ID)
-        assert result is True
-
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Platform endpoints: extended coverage
@@ -1423,6 +1387,7 @@ class TestPlatformUsersExtended:
         user = _super_admin_user()
         req = UpdatePlatformUserRequest(username="new_name")
         with patch("src.api.v1.platform.users_global.PlatformUserRepository") as MockRepo:
+            MockRepo.return_value.get_by_id = AsyncMock(return_value=None)
             MockRepo.return_value.update = AsyncMock(return_value=None)
             with pytest.raises(HTTPException) as exc:
                 await update_platform_user(uuid4(), req, user, db)
@@ -1441,6 +1406,7 @@ class TestPlatformUsersExtended:
         updated.is_active = True
         updated.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
         with patch("src.api.v1.platform.users_global.PlatformUserRepository") as MockRepo:
+            MockRepo.return_value.get_by_id = AsyncMock(return_value=MagicMock(username="old"))
             MockRepo.return_value.update = AsyncMock(return_value=updated)
             result = await update_platform_user(uuid4(), req, user, db)
             assert result.username == "updated"
@@ -1461,6 +1427,7 @@ class TestPlatformUsersExtended:
         db = _mock_db()
         user = _super_admin_user()
         with patch("src.api.v1.platform.users_global.PlatformUserRepository") as MockRepo:
+            MockRepo.return_value.get_by_id = AsyncMock(return_value=None)
             MockRepo.return_value.soft_delete = AsyncMock(return_value=None)
             with pytest.raises(HTTPException) as exc:
                 await delete_platform_user(uuid4(), user, db)
@@ -1490,7 +1457,7 @@ class TestPlatformUsersExtended:
         from src.api.v1.platform.users_global import create_platform_user, CreatePlatformUserRequest
         db = _mock_db()
         user = _super_admin_user()
-        req = CreatePlatformUserRequest(email="a@b.com", username="test", password="pass")
+        req = CreatePlatformUserRequest(email="a@b.com", username="test", password="P@ss12345678")
         with patch("src.api.v1.platform.users_global.PlatformUserRepository") as MockRepo:
             MockRepo.return_value.get_by_email = AsyncMock(return_value=MagicMock())
             with pytest.raises(HTTPException) as exc:
@@ -1501,7 +1468,7 @@ class TestPlatformUsersExtended:
         from src.api.v1.platform.users_global import create_platform_user, CreatePlatformUserRequest
         db = _mock_db()
         user = _super_admin_user()
-        req = CreatePlatformUserRequest(email="a@b.com", username="test", password="pass")
+        req = CreatePlatformUserRequest(email="a@b.com", username="test", password="P@ss12345678")
         with patch("src.api.v1.platform.users_global.PlatformUserRepository") as MockRepo:
             MockRepo.return_value.get_by_email = AsyncMock(side_effect=RuntimeError("err"))
             with pytest.raises(HTTPException) as exc:
@@ -1540,6 +1507,7 @@ class TestPlatformSubscriptionsExtended:
         user = _super_admin_user()
         req = UpgradePlanRequest(plan=PlanType.PRO)
         with patch("src.api.v1.platform.subscriptions.SubscriptionService") as MockSvc:
+            MockSvc.return_value.get_subscription = AsyncMock(return_value=None)
             MockSvc.return_value.upgrade_plan = AsyncMock(side_effect=NotFoundError("not found"))
             with pytest.raises(HTTPException) as exc:
                 await upgrade_subscription(TENANT_ID, req, user, db)
@@ -1565,6 +1533,7 @@ class TestPlatformSubscriptionsExtended:
         user = _super_admin_user()
         req = UpgradePlanRequest(plan=PlanType.BASIC)
         with patch("src.api.v1.platform.subscriptions.SubscriptionService") as MockSvc:
+            MockSvc.return_value.get_subscription = AsyncMock(return_value=None)
             MockSvc.return_value.downgrade_plan = AsyncMock(side_effect=NotFoundError("nf"))
             with pytest.raises(HTTPException) as exc:
                 await downgrade_subscription(TENANT_ID, req, user, db)
@@ -1827,6 +1796,7 @@ class TestPlatformTenantsExtended:
         user = _super_admin_user()
         req = UpdateTenantRequest(name="Updated")
         with patch("src.api.v1.platform.tenants.TenantService") as MockSvc:
+            MockSvc.return_value.get_tenant = AsyncMock(return_value=None)
             MockSvc.return_value.update_tenant = AsyncMock(return_value=None)
             with pytest.raises(HTTPException) as exc:
                 await update_tenant(TENANT_ID, req, user, db)
@@ -1838,6 +1808,7 @@ class TestPlatformTenantsExtended:
         user = _super_admin_user()
         req = UpdateTenantRequest(name="Updated")
         with patch("src.api.v1.platform.tenants.TenantService") as MockSvc:
+            MockSvc.return_value.get_tenant = AsyncMock(return_value={"name": "Old"})
             MockSvc.return_value.update_tenant = AsyncMock(side_effect=RuntimeError("err"))
             with pytest.raises(HTTPException) as exc:
                 await update_tenant(TENANT_ID, req, user, db)
