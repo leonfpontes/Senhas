@@ -31,7 +31,7 @@ export function AuthShell({ headTitle, title, subtitle, size = 'xs', footer, chi
           <meta name="robots" content="noindex, nofollow" />
         </Head>
       )}
-      <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8 [:where(&)_a]:[color:inherit] [:where(&)_a]:[text-decoration:inherit]">
+      <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8 [:where(&)_a]:[color:inherit] [:where(&)_a]:[text-decoration:inherit] [:where(&)_:is(ul,ol)]:[list-style:none] [:where(&)_:is(ul,ol)]:[padding:0] [:where(&)_:is(ul,ol,h1,h2,h3,h4,p,figure)]:[margin:0]">
         <Card className={cn('w-full', size === 'xs' ? 'max-w-md' : 'max-w-xl', className)}>
           <CardContent className="px-6 py-8 sm:px-8">
             <div className="mb-6 text-center">

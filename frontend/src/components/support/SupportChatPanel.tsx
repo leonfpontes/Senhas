@@ -81,6 +81,7 @@ export function SupportChatPanel({ messages, loading, sending, onSend, onClose, 
 
   return (
     <section
+      data-slot="support-chat"
       role="dialog"
       aria-label="Ajuda — conversa com o suporte"
       className={cn(

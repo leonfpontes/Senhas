@@ -181,7 +181,7 @@ function AdminSuporteContent() {
   );
 
   return (
-    <div className="space-y-4">
+    <div data-slot="page" className="space-y-4">
       <PageHeader
         title="Suporte"
         subtitle="Acompanhe as conversas das pessoas do seu terreiro com o suporte. Para falar com o suporte, use o botão Ajuda."

@@ -82,7 +82,7 @@ export interface WelcomeTourContext {
 
 function StepBody({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="text-sm leading-relaxed">
+    <div data-slot="tour-step" className="text-sm leading-relaxed">
       {title && <p className="mb-1.5 text-base font-bold">{title}</p>}
       <div className="space-y-2">{children}</div>
     </div>

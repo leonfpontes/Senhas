@@ -270,7 +270,7 @@ function PermissionGroupDetailContent({ groupId }: { groupId: string }) {
   }
 
   return (
-    <div className="space-y-4 pb-20">
+    <div data-slot="page" className="space-y-4 pb-20">
       <div>
         <Button variant="ghost" size="sm" className="-ml-2 mb-2" onClick={() => router.push('/admin/permission-groups')}>
           <ArrowLeft /> Grupos de permissão

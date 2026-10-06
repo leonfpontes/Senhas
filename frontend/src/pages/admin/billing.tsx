@@ -277,7 +277,7 @@ function BillingContent() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div data-slot="page" className="flex flex-col gap-5">
       <PageHeader title="Plano e assinatura" subtitle="Seu plano, o uso do mês e a cobrança, num lugar só." />
 
       {success && (

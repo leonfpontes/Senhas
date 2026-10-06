@@ -248,7 +248,7 @@ function PermissionGroupsContent() {
   const nameError = nameTouched && !name.trim() ? 'Dê um nome ao grupo.' : undefined;
 
   return (
-    <div className="space-y-4">
+    <div data-slot="page" className="space-y-4">
       <PageHeader
         title="Grupos de permissão"
         subtitle="Cada grupo diz o que os operadores podem fazer. Administradores fazem tudo."

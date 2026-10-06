@@ -595,7 +595,7 @@ function AdminConfigContent() {
   const lockedPlan = lockedFeature ? minPlanFor(lockedFeature.gate) : null;
 
   return (
-    <div className={cn('flex flex-col gap-5', showSaveBar && 'pb-24')}>
+    <div data-slot="page" className={cn('flex flex-col gap-5', showSaveBar && 'pb-24')}>
       <div data-tour="config-header">
         <PageHeader title="Configurações" subtitle="Identidade visual, funcionalidades e regras de atendimento do terreiro." />
       </div>

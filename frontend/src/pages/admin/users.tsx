@@ -359,7 +359,7 @@ function AdminUsersContent() {
   }
 
   return (
-    <div className="space-y-4">
+    <div data-slot="page" className="space-y-4">
       <div data-tour="users-header">
         <PageHeader
           title="Pessoas e acessos"

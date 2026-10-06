@@ -401,7 +401,7 @@ function ProfileContent() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div data-slot="page" className="flex flex-col gap-5">
       <PageHeader title="Meu perfil" subtitle="Seus dados de acesso. O terreiro fica em Configurações." />
 
       {error && (
