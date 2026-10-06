@@ -212,15 +212,15 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
     <div className="flex h-full min-h-0 flex-1 flex-col bg-background" data-testid="site-editor">
       {/* ── Barra superior ── */}
       <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2 sm:px-4">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <h1 className="text-lg font-bold">Meu Site</h1>
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-1">
+          <h1 className="sr-only md:not-sr-only md:text-lg md:font-bold">Meu Site</h1>
           {!editor.loading && statusBadge}
           {saveState}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
           {editor.isPublished && editor.site && (
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="sm" className={canEdit ? 'hidden sm:inline-flex' : undefined}>
               <a href={editor.publicUrl} target="_blank" rel="noopener noreferrer">
                 <ExternalLink aria-hidden /> <span className="hidden sm:inline">Ver site</span>
                 <span className="sr-only sm:hidden">Ver site</span>
@@ -252,7 +252,14 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
                   <MoreHorizontal />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="z-[1400]">
+                {editor.isPublished && editor.site && (
+                  <DropdownMenuItem asChild className="sm:hidden">
+                    <a href={editor.publicUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink /> Ver site publicado
+                    </a>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onSelect={() => void editor.save()} disabled={!editor.dirty || busy || editor.errorCount > 0}>
                   <Save /> Salvar rascunho agora
                 </DropdownMenuItem>
@@ -331,7 +338,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
                   Histórico
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="secoes" className="flex min-h-0 flex-1 flex-col">
+              <TabsContent value="secoes" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
                 <SectionList
                   sections={editor.sections}
                   selectedId={editor.selectedId}
@@ -344,7 +351,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
                   onAdd={() => setGalleryOpen(true)}
                 />
               </TabsContent>
-              <TabsContent value="historico" className="flex min-h-0 flex-1 flex-col">
+              <TabsContent value="historico" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
                 <HistoryPanel versions={editor.versions} loading={editor.versionsLoading} canEdit={canEdit} hasChanges={editor.dirty} onRestore={editor.restore} />
               </TabsContent>
             </Tabs>
@@ -362,9 +369,10 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
         </div>
       )}
 
-      {/* Editor no celular (Sheet) */}
+      {/* Editor no celular (Sheet). Sheets do editor em z-[1300] (acima do AppBar/Drawer do MUI,
+          como o CrudDrawer) e Select/Dropdown/Popover dentro deles em z-[1400]. */}
       <Sheet open={isMobile && editor.selected !== null} onOpenChange={(o) => !o && editor.setSelectedId(null)}>
-        <SheetContent side="right" className="@container w-full gap-0 sm:max-w-[520px]">
+        <SheetContent side="right" className="@container z-[1300] w-full gap-0 sm:max-w-[520px]">
           <SheetHeader className="border-b border-border">
             <SheetTitle className="flex items-center gap-2">
               {editor.selected && <SectionIcon type={editor.selected.section_type} className="text-muted-foreground" />}
@@ -377,7 +385,7 @@ export function SiteEditor({ canEdit, canInsert }: SiteEditorProps) {
 
       {/* Prévia em Sheet (< 1200) */}
       <Sheet open={previewOpen && !hasPreviewPane} onOpenChange={setPreviewOpen}>
-        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[min(100vw,900px)]">
+        <SheetContent side="right" className="z-[1300] w-full gap-0 p-0 sm:max-w-[min(100vw,900px)]">
           <SheetTitle className="sr-only">Prévia do site</SheetTitle>
           {previewSite && <SitePreview site={previewSite} viewport={viewport} onViewportChange={setViewport} className="pt-10" />}
         </SheetContent>

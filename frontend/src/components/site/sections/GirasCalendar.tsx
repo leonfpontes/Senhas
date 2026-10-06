@@ -244,7 +244,7 @@ function MonthCalendar({
           return (
             <Popover key={day} open={openDay === day} onOpenChange={(o) => setOpenDay(o ? day : null)}>
               <PopoverTrigger asChild>{cell}</PopoverTrigger>
-              <PopoverContent className="w-[min(92vw,360px)] p-3">{dayDetails(day)}</PopoverContent>
+              <PopoverContent className="z-[1400] w-[min(92vw,360px)] p-3">{dayDetails(day)}</PopoverContent>
             </Popover>
           );
         })}
@@ -252,7 +252,7 @@ function MonthCalendar({
 
       {isNarrowViewport && (
         <Sheet open={openDay !== null} onOpenChange={(o) => !o && setOpenDay(null)}>
-          <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl">
+          <SheetContent side="bottom" className="z-[1400] max-h-[85vh] overflow-y-auto rounded-t-2xl">
             <SheetHeader>
               <SheetTitle>Giras do dia {openDay}</SheetTitle>
             </SheetHeader>

@@ -20,7 +20,7 @@ export interface SectionGalleryProps {
 export function SectionGallery({ open, onOpenChange, existingTypes, onAdd }: SectionGalleryProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full gap-0 sm:max-w-[600px]">
+      <SheetContent side="right" className="z-[1300] w-full gap-0 sm:max-w-[600px]">
         <SheetHeader className="border-b border-border">
           <SheetTitle>Adicionar seção</SheetTitle>
           <SheetDescription>Escolha um bloco para o seu site. Você pode mudar a ordem depois.</SheetDescription>

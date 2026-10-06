@@ -213,7 +213,7 @@ function LabeledSelect({
         <SelectTrigger id={id} className="w-full bg-input-bg">
           <SelectValue>{renderValue}</SelectValue>
         </SelectTrigger>
-        <SelectContent>{children}</SelectContent>
+        <SelectContent className="z-[1400]">{children}</SelectContent>
       </Select>
     </div>
   );

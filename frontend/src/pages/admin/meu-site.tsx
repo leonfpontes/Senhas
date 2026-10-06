@@ -9,7 +9,7 @@
  */
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Head from 'next/head';
 import AdminLayout from './admin_layout';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -20,7 +20,27 @@ import { SiteEditor } from '@/components/site/editor/SiteEditor';
 
 export { validateSection } from '@/components/site/lib';
 
+const PAGE_TITLE = 'Meu Site · GiraHub';
+
+/**
+ * O `AdminLayout` escreve o próprio `<title>` ("… | Senhas Admin") e, como o
+ * next/head dá a vitória ao último `<Head>` registrado, ele volta a ganhar a cada
+ * re-render do layout. Este hook mantém o título da página enquanto ela está montada.
+ */
+function usePageTitle(title: string) {
+  useEffect(() => {
+    const apply = () => {
+      if (document.title !== title) document.title = title;
+    };
+    apply();
+    const observer = new MutationObserver(apply);
+    observer.observe(document.head, { subtree: true, childList: true, characterData: true });
+    return () => observer.disconnect();
+  }, [title]);
+}
+
 export default function MeuSitePage() {
+  usePageTitle(PAGE_TITLE);
   const { can, loading: subLoading } = useSubscription();
   const { can: canGroup } = usePermissions();
   const canView = canGroup('cursos_presenciais', 'view');
@@ -54,7 +74,7 @@ export default function MeuSitePage() {
   return (
     <AdminLayout title="Meu Site" noPadding>
       <Head>
-        <title>Meu Site · GiraHub</title>
+        <title>{PAGE_TITLE}</title>
       </Head>
       {content}
     </AdminLayout>
