@@ -157,7 +157,7 @@ function LinkPanel({
         </div>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <Button asChild size="touch" className="bg-[#25D366] text-white hover:bg-[#1ebe5b]">
+        <Button asChild size="touch" className="bg-[#15803d] text-white hover:bg-[#166534]">
           <a
             href={buildWhatsAppShareUrl(link, tenantName)}
             target="_blank"

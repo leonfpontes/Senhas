@@ -593,7 +593,7 @@ export default function TenantDetailPage() {
                         {g.max_tickets ? ` de ${g.max_tickets}` : ' (sem limite configurado)'}
                         {g.ocupacao_pct !== null && ` · ${g.ocupacao_pct}%`}
                       </p>
-                      <a href={g.public_link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-primary underline-offset-4 hover:underline">
+                      <a href={g.public_link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-brand underline-offset-4 hover:underline">
                         Link público
                       </a>
                     </CardContent>

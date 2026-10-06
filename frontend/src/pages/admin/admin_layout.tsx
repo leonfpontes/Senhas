@@ -27,7 +27,6 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useProfile } from '@/hooks/useProfile';
 import { useSubscription } from '@/hooks/useSubscription';
 import { PermissionFeature } from '@/constants/permissionFeatures';
-import { SupportChatWidget } from '@/components/support/SupportChatWidget';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
@@ -228,10 +227,6 @@ function AdminLayoutInner({ children, title, maxWidth = 'lg', noPadding = false 
         loading={shareLoading}
       />
 
-      {/* Aparece também durante impersonação: o token vira o do usuário impersonado (ver
-          CLAUDE.md), então as mensagens ficam atribuídas a ele — e o superadmin reproduz o
-          fluxo de suporte exatamente como esse usuário vê. */}
-      <SupportChatWidget enabled={Boolean(profile?.tenant_id)} />
     </>
   );
 }

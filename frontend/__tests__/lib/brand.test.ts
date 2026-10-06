@@ -1,7 +1,7 @@
 /**
  * Cores do terreiro → tokens CSS, com contraste WCAG.
  */
-import { applyBrand, contrastRatio, parseColor, pickForeground, relativeLuminance } from '@/lib/brand';
+import { applyBrand, brandTextColor, contrastRatio, parseColor, pickForeground, relativeLuminance } from '@/lib/brand';
 
 describe('parseColor', () => {
   it('aceita #rgb, #rrggbb, #rrggbbaa e rgb()', () => {
@@ -83,5 +83,31 @@ describe('applyBrand', () => {
     root.style.setProperty('--background', '#123456');
     applyBrand(root, { primary: '#4f46e5', secondary: '#ec4899', font: '#ffffff' });
     expect(root.style.getPropertyValue('--background')).toBe('#123456');
+  });
+});
+
+describe('brandTextColor — cor da marca para texto (`text-brand`)', () => {
+  const surfaces = { light: ['#ffffff', '#f8fafc'], dark: ['#1e293b', '#0f172a'] };
+
+  it.each([
+    ['#ffa726', 'light'], // laranja claro do terreiro do print do celular
+    ['#ffeb3b', 'light'], // amarelo
+    ['#4f46e5', 'dark'], // índigo padrão no modo escuro
+    ['#1a237e', 'dark'], // azul-marinho
+    ['#4f46e5', 'light'],
+  ] as const)('%s no modo %s passa de 4,5:1 nas superfícies', (primary, mode) => {
+    const text = brandTextColor(primary, mode);
+    surfaces[mode].forEach((bg) => expect(contrastRatio(text, bg)).toBeGreaterThanOrEqual(4.5));
+  });
+
+  it('mantém a cor quando ela já lê bem', () => {
+    expect(brandTextColor('#1e3a8a', 'light')).toBe('#1e3a8a');
+  });
+
+  it('applyBrand grava as duas variantes', () => {
+    const root = document.createElement('div');
+    applyBrand(root, { primary: '#ffa726', secondary: '#ec4899', font: '#000000' });
+    expect(root.style.getPropertyValue('--brand-text-light')).not.toBe('#ffa726');
+    expect(root.style.getPropertyValue('--brand-text-dark')).toBe('#ffa726');
   });
 });

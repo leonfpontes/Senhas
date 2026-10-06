@@ -72,10 +72,10 @@ function mapPlans<T>(fn: (p: PlanKey) => T): Record<PlanKey, T> {
 
 function CellValue({ value, emphasized }: { value: Cell; emphasized: boolean }) {
   if (typeof value === 'string') {
-    return <span className={cn('text-sm', emphasized ? 'font-bold text-primary' : 'text-foreground')}>{value}</span>;
+    return <span className={cn('text-sm', emphasized ? 'font-bold text-brand' : 'text-foreground')}>{value}</span>;
   }
   return value ? (
-    <Check className={cn('mx-auto size-4', emphasized ? 'text-primary' : 'text-success')} aria-label="Incluído" />
+    <Check className={cn('mx-auto size-4', emphasized ? 'text-brand' : 'text-success')} aria-label="Incluído" />
   ) : (
     <X className="mx-auto size-4 text-ghost" aria-label="Não incluído" />
   );

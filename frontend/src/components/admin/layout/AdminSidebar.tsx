@@ -26,14 +26,14 @@ import { useAdminNav, type NavAction } from './navConfig';
 
 /**
  * Largura da sidebar expandida em px (= `--sidebar-width` 16rem do bloco shadcn).
- * Mantido porque o chat de suporte posiciona o botão flutuante a partir dela.
+ * Exportado para quem precisa da largura da sidebar em px.
  */
 export const DRAWER_WIDTH = 256;
 
 const PLAN_BADGE_CLASS: Record<string, string> = {
-  premium: 'bg-[#f59e0b] text-white',
-  pro: 'bg-[#8b5cf6] text-white',
-  basic: 'bg-[#3b82f6] text-white',
+  premium: 'bg-[#b45309] text-white',
+  pro: 'bg-[#7c3aed] text-white',
+  basic: 'bg-[#2563eb] text-white',
 };
 
 export interface AdminSidebarProps {

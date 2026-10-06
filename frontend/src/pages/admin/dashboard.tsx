@@ -215,7 +215,7 @@ function TodayGiraCard({
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold tracking-wide text-primary uppercase">
+            <p className="text-xs font-semibold tracking-wide text-brand uppercase">
               {isToday ? 'Gira de hoje' : 'Próxima gira'}
             </p>
             <h2 className="truncate text-xl font-bold">{gira.nome}</h2>
@@ -223,7 +223,7 @@ function TodayGiraCard({
           </div>
           <Badge
             variant="outline"
-            className={gira.is_open ? 'border-success/30 bg-success/15 text-success' : 'text-muted-foreground'}
+            className={gira.is_open ? 'border-success/30 bg-success/15 text-success-strong' : 'text-muted-foreground'}
           >
             {gira.is_open ? 'Senhas abertas no link' : 'Senhas fechadas'}
           </Badge>
@@ -617,7 +617,7 @@ function DashboardContent() {
                       </div>
                       <Badge
                         variant="outline"
-                        className={g.is_open ? 'border-success/30 bg-success/15 text-success' : 'text-muted-foreground'}
+                        className={g.is_open ? 'border-success/30 bg-success/15 text-success-strong' : 'text-muted-foreground'}
                       >
                         {g.is_open ? 'Abertas' : 'Fechadas'}
                       </Badge>
@@ -688,17 +688,17 @@ function DashboardContent() {
           >
             <div className="mb-3 flex flex-wrap gap-2">
               {!!data.estoque_summary?.itens_ok && (
-                <Badge variant="outline" className="border-success/30 bg-success/15 text-success">
+                <Badge variant="outline" className="border-success/30 bg-success/15 text-success-strong">
                   <Check aria-hidden /> {data.estoque_summary.itens_ok} em dia
                 </Badge>
               )}
               {!!data.estoque_summary?.itens_atencao && (
-                <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-foreground">
+                <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-strong">
                   <TriangleAlert aria-hidden /> {data.estoque_summary.itens_atencao} atenção
                 </Badge>
               )}
               {!!data.estoque_summary?.itens_critico && (
-                <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
+                <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive-strong">
                   <CircleAlert aria-hidden /> {data.estoque_summary.itens_critico} crítico
                 </Badge>
               )}
@@ -717,7 +717,7 @@ function DashboardContent() {
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {item.saldo} / {item.estoque_minimo} {item.unidade_medida}
                   </span>
-                  <Badge variant="outline" className={item.status === 'critico' ? 'text-destructive' : 'text-warning-foreground'}>
+                  <Badge variant="outline" className={item.status === 'critico' ? 'text-destructive' : 'text-warning-strong'}>
                     {item.status === 'critico' ? 'Crítico' : 'Atenção'}
                   </Badge>
                 </li>

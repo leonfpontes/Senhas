@@ -5,6 +5,7 @@
 import React from 'react';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { SidebarProvider } from '@/components/ui/sidebar';
+import { APP_VERSION_LABEL } from '@/lib/version';
 
 const mockRouter: any = {
   push: jest.fn(),
@@ -72,7 +73,7 @@ describe('AdminSidebar', () => {
     expect(within(nav).getByRole('link', { name: /Ajuda/ })).toHaveAttribute('href', '/admin/suporte');
     expect(within(nav).queryByText('Analytics')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Auditoria')).not.toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-version')).toHaveTextContent('GiraHub v2.0.0');
+    expect(screen.getByTestId('sidebar-version')).toHaveTextContent(APP_VERSION_LABEL);
     expect(screen.getByText('Pro · mês grátis')).toBeInTheDocument();
   });
 

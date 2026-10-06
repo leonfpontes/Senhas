@@ -110,7 +110,7 @@ export default function Custom404() {
           <Icon
             key={i}
             aria-hidden
-            className={`absolute text-primary/40 motion-safe:animate-bounce ${className}`}
+            className={`absolute text-brand/40 motion-safe:animate-bounce ${className}`}
             style={{ animationDelay: delay, animationDuration: '3.5s' }}
           />
         ))}
@@ -118,7 +118,7 @@ export default function Custom404() {
         <div className="relative z-10 flex w-full max-w-md flex-col items-center gap-4">
           <p
             aria-hidden
-            className="text-[7rem] leading-none font-black tracking-tighter text-primary motion-safe:animate-pulse sm:text-[10rem]"
+            className="text-[7rem] leading-none font-black tracking-tighter text-brand motion-safe:animate-pulse sm:text-[10rem]"
             style={{ animationDuration: '3s' }}
           >
             404

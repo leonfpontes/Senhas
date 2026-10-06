@@ -126,7 +126,7 @@ const ACTION_LABELS: Record<string, string> = {
 const ACTION_CLASS: Record<string, string> = {
   create: 'bg-success text-success-foreground',
   update: 'bg-warning text-warning-foreground',
-  delete: 'bg-destructive text-white',
+  delete: 'bg-destructive text-destructive-foreground',
   login: 'bg-info text-info-foreground',
   logout: 'bg-secondary text-secondary-foreground',
 };
@@ -205,7 +205,7 @@ function FormatDetails({ action, details }: { action: string; details?: Record<s
     return (
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span>{action === 'login' ? 'Login' : 'Logout'}</span>
-        <Badge className={cn('border-transparent', ok ? 'bg-success text-success-foreground' : 'bg-destructive text-white')}>
+        <Badge className={cn('border-transparent', ok ? 'bg-success text-success-foreground' : 'bg-destructive text-destructive-foreground')}>
           {ok ? 'sucesso' : 'falha'}
         </Badge>
         {ipAddress && <span className="text-xs text-muted-foreground">IP: {ipAddress}</span>}

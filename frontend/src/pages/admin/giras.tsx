@@ -152,7 +152,7 @@ function GiraUsageBar({ used, max }: { used: number; max: number }) {
     <Card className={cn('gap-2 px-4 py-3', atLimit && 'border-warning')}>
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium text-muted-foreground">Giras criadas este mês</span>
-        <span className={cn('font-bold tabular-nums', atLimit && 'text-warning-foreground')}>
+        <span className={cn('font-bold tabular-nums', atLimit && 'text-warning-strong')}>
           {used} de {max}
         </span>
       </div>
@@ -160,7 +160,7 @@ function GiraUsageBar({ used, max }: { used: number; max: number }) {
       {atLimit && (
         <p className="text-xs text-muted-foreground">
           Limite do plano atingido.{' '}
-          <Link href="/admin/billing" className="font-semibold text-primary underline-offset-4 hover:underline">
+          <Link href="/admin/billing" className="font-semibold text-brand underline-offset-4 hover:underline">
             Ver planos
           </Link>{' '}
           para criar mais giras.
@@ -1352,7 +1352,7 @@ function AdminGirasContent() {
                   ) : !timeSlotSchedulingEnabled ? (
                     <p className="text-xs text-muted-foreground">
                       Ative em{' '}
-                      <Link href="/admin/config" className="font-semibold text-primary underline-offset-4 hover:underline">
+                      <Link href="/admin/config" className="font-semibold text-brand underline-offset-4 hover:underline">
                         Configurações → Funcionalidades
                       </Link>{' '}
                       para usar horários de atendimento.

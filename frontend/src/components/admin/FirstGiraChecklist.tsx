@@ -313,7 +313,7 @@ export default function FirstGiraChecklist({
                       aria-hidden
                       className={cn(
                         'flex size-6 items-center justify-center rounded-full border-2 text-xs font-bold',
-                        isCurrent ? 'border-primary text-primary' : 'border-border text-muted-foreground',
+                        isCurrent ? 'border-primary text-brand' : 'border-border text-muted-foreground',
                       )}
                     >
                       {i + 1}

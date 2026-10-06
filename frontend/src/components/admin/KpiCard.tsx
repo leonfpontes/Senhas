@@ -32,7 +32,7 @@ export interface KpiCardProps {
 export const KpiCard: React.FC<KpiCardProps> = ({
   label, value, icon, color, loading, subtitle, sub, highlight, className,
 }) => {
-  const accent = color ?? 'var(--primary)';
+  const accent = color ?? 'var(--primary-text)';
   const caption = subtitle ?? sub;
 
   return (

@@ -533,7 +533,7 @@ function AdminEstoqueItensContent() {
           pressed={somenteCriticos}
           onPressedChange={setSomenteCriticos}
           aria-label="Mostrar só itens críticos ou em atenção"
-          className="data-[state=on]:bg-destructive/10 data-[state=on]:text-destructive"
+          className="data-[state=on]:bg-destructive/10 data-[state=on]:text-destructive-strong"
         >
           <AlertTriangle />
           Críticos

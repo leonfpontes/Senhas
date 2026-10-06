@@ -738,7 +738,7 @@ function FinanceiroConfigContent() {
       <PageHeader
         title="Configuração Financeira"
         subtitle="Categorias, contas bancárias e mensalidades do terreiro"
-        actions={<Settings2 className="size-6 text-primary" aria-hidden />}
+        actions={<Settings2 className="size-6 text-brand" aria-hidden />}
       />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full sm:w-auto">

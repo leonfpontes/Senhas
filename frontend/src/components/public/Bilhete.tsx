@@ -94,8 +94,8 @@ export function Bilhete({
               variant={done ? 'outline' : 'secondary'}
               className={cn(
                 'mt-3 text-sm font-semibold',
-                !done && ticket.waitlisted && 'bg-warning/15 text-warning',
-                !done && !ticket.waitlisted && 'bg-info/15 text-info',
+                !done && ticket.waitlisted && 'bg-warning/15 text-warning-strong',
+                !done && !ticket.waitlisted && 'bg-info/15 text-info-strong',
               )}
             >
               {ticket.status_label}

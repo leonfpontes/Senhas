@@ -140,10 +140,10 @@ export default function BulkActionsBar({
         aria-label="Ações em lote"
         data-slot="bulk-actions-bar"
         className={cn(
-          'fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2',
+          // celular: acima da barra de abas (56px + safe area)
+          'fixed bottom-[calc(env(safe-area-inset-bottom)+64px)] left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 md:bottom-4',
           'flex-col gap-2 rounded-xl border border-primary/30 bg-card p-3 text-card-foreground shadow-lg',
           'sm:flex-row sm:items-center sm:justify-between',
-          'pb-[max(0.75rem,env(safe-area-inset-bottom))]',
         )}
       >
         <div className="flex items-center gap-2 text-sm font-medium">
@@ -171,7 +171,7 @@ export default function BulkActionsBar({
               type="button"
               size="sm"
               variant="outline"
-              className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
+              className="border-destructive/40 text-destructive-strong hover:bg-destructive/5 hover:text-destructive-strong"
               onClick={() => setActionDialog('cancel')}
             >
               <XCircle aria-hidden />

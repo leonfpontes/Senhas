@@ -50,10 +50,10 @@ export const TICKET_STATUS_LABELS: Record<string, string> = {
 };
 
 const TONE_CLASS: Record<Tone, string> = {
-  success: 'bg-success/15 text-success border-success/30',
-  error: 'bg-destructive/15 text-destructive border-destructive/30',
-  warning: 'bg-warning/20 text-warning-foreground border-warning/40',
-  info: 'bg-info/15 text-info border-info/30',
+  success: 'bg-success/15 text-success-strong border-success/30',
+  error: 'bg-destructive/15 text-destructive-strong border-destructive/30',
+  warning: 'bg-warning/20 text-warning-strong border-warning/40',
+  info: 'bg-info/15 text-info-strong border-info/30',
   default: '',
 };
 

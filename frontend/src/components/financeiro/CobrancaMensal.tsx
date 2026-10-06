@@ -152,7 +152,7 @@ const STATUS_CLASS: Record<CobrancaStatusEfetivo, string> = {
   PAGO: 'border-transparent bg-success text-success-foreground',
   ISENTO: 'border-transparent bg-muted text-muted-foreground',
   PENDENTE: 'border-transparent bg-warning text-warning-foreground',
-  INADIMPLENTE: 'border-transparent bg-destructive text-white',
+  INADIMPLENTE: 'border-transparent bg-destructive text-destructive-foreground',
 };
 
 export function CobrancaStatusBadge({ status }: { status: CobrancaStatusEfetivo }) {
@@ -494,7 +494,7 @@ export function CobrancaMensal({
         <div
           role="toolbar"
           aria-label="Ações em lote"
-          className="fixed inset-x-3 bottom-3 z-40 mx-auto flex max-w-2xl flex-wrap items-center gap-2 rounded-lg border bg-card p-3 shadow-lg sm:inset-x-6"
+          className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+64px)] z-40 mx-auto md:bottom-3 flex max-w-2xl flex-wrap items-center gap-2 rounded-lg border bg-card p-3 shadow-lg sm:inset-x-6"
         >
           <span className="flex-1 text-sm font-medium">
             {selectedIds.length} selecionado{selectedIds.length === 1 ? '' : 's'}
