@@ -43,6 +43,10 @@ def _added_audit_logs(db) -> list[AuditLog]:
 def _db():
     db = AsyncMock()
     db.add = MagicMock()
+    # As respostas de assinatura contam os usuários ativos de verdade (db.execute(...).scalar()).
+    count = MagicMock()
+    count.scalar.return_value = 0
+    db.execute = AsyncMock(return_value=count)
     return db
 
 

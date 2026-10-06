@@ -101,7 +101,7 @@ describe('Platform — Configurações', () => {
     const row = (await screen.findByText('Mensalidade dos médiuns')).closest('tr') as HTMLElement;
     const cells = within(row).getAllByRole('cell').slice(1); // free, basic, pro, premium
     expect(cells.map((c) => within(c).queryByLabelText('Incluído') !== null)).toEqual([false, false, true, true]);
-    const suporte = (await screen.findByText('Suporte prioritário')).closest('tr') as HTMLElement;
-    expect(within(suporte).getAllByLabelText('Incluído')).toHaveLength(1);
+    // O que não é vendido (suporte prioritário, analytics avançado) não aparece na tabela.
+    expect(screen.queryByText('Suporte prioritário')).not.toBeInTheDocument();
   });
 });

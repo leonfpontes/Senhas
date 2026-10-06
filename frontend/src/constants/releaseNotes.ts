@@ -22,6 +22,34 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.2.0',
+    date: '2026-10-07',
+    title: 'Revisão completa das jornadas',
+    highlights: [
+      'Porta instalável no celular: abra a Porta e toque em "Instalar a Porta na tela inicial". Sem internet, a fila carregada continua na tela.',
+      'Operadores com permissão só da Porta ou só de Senhas agora escolhem a gira normalmente, inclusive no modo TV.',
+      'Senhas: busca na gira inteira, filtro "Não veio", exportação em CSV e senha de associado sempre como P001.',
+      'Giras: "Compartilhar link" do cartão leva para a própria gira, campo "Local" opcional e aviso quando a soma das vagas por horário não bate com o total.',
+      'Mensalidades: o valor pago vai para as contas a receber, a isenção pode ser marcada no cadastro do médium e do associado, e "Marcar como pago" em lote só pega quem está em aberto.',
+      'Financeiro: lançamentos mensais e anuais geram o próximo ao dar baixa; dá para cancelar, estornar a baixa e reabrir; o fluxo de caixa começa pelo saldo inicial das contas.',
+      'Analytics e Auditoria voltaram ao menu, com os números de cancelados corretos.',
+      'Emissão pública: com horários marcados e gira lotada, dá para entrar na fila de espera; a logo do terreiro aparece; "Ver próximas giras" abre a agenda do terreiro.',
+      '"Lembrar-me" no login passa a valer: desmarcado, a sessão termina ao fechar o navegador. E-mail com maiúsculas não atrapalha mais o login.',
+      'Conta desativada: "Reativar e entrar" sem digitar a senha de novo.',
+    ],
+    fixes: [
+      'Operadores com permissão de grupo deixam de receber "acesso negado" em Configurações, Pessoas, Cursos, Mensalidades e Auditoria.',
+      'Lista de associados, itens e movimentações de estoque e participantes de cursos mostram todos os registros, não só os primeiros.',
+      'Recadastrar um associado com o e-mail de um excluído não dá mais erro.',
+      'Editar médium, associado, lançamento ou grupo de estoque agora permite apagar um campo.',
+      'Meu Site não mostra mais "alterado por outro usuário" depois de publicar, e o histórico guarda versões úteis.',
+      'A gira de hoje continua no Início enquanto acontece, e o gráfico dos últimos 7 dias mostra as datas certas.',
+      'Cancelar senhas em lote cancela também os acompanhantes e devolve as vagas.',
+      '"Reenviar meu e-mail" reenvia só a senha desta gira, igual ao e-mail original.',
+      'A inscrição em curso envia o e-mail de confirmação prometido.',
+    ],
+  },
+  {
     version: '2.1.0',
     date: '2026-10-06',
     title: 'Leitura mais fácil e ajuda no menu',

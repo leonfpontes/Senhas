@@ -56,7 +56,7 @@ Feature por módulo:
 - Configurações do Tenant → `CONFIGURACOES`
 - Auditoria → `AUDITORIA`
 - Analytics → `ANALYTICS`
-- Relatório de Gira / exports CSV → `RELATORIO_GIRA`
+- Relatório de Gira → `RELATORIO_GIRA`; export CSV da gira → `TICKETS` ou `RELATORIO_GIRA` (+ plano `export_csv`)
 - Cursos Presenciais / Sites → `CURSOS_PRESENCIAIS`
 
 Exceções (não precisam de guard de grupo):

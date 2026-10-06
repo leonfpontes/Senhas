@@ -81,7 +81,7 @@ tenant redundante (barato) a uma excecao.
 - Endpoints platform so para super admin (escopo global).
 
 **Fluxo de autenticacao via cookie HttpOnly (desde 2026-06-27):**
-- Login seta 3 cookies: `access_token` (HttpOnly, Secure, SameSite=Strict), `refresh_token` (HttpOnly), `auth_state=1` (nao-HttpOnly — legivel por JS para verificar login). Cadastro (`/public/onboarding`) e reativacao de conta setam os mesmos 3 (helper unico `core/auth_cookies.set_auth_cookies`). `remember_me=false` no login → cookies de sessao (sem max_age), mantido no `/auth/refresh` (ver §11.18).
+- Login seta 3 cookies: `access_token` (HttpOnly, Secure, SameSite=Strict), `refresh_token` (HttpOnly), `auth_state=1` (nao-HttpOnly — legivel por JS para verificar login). Cadastro (`/public/onboarding`) e reativacao de conta setam os mesmos 3 (helper unico `core/auth_cookies.set_auth_cookies`). `remember_me=false` no login → cookies de sessao (sem max_age), mantido no `/auth/refresh` (ver §11.22).
 - `/auth/refresh` implementado: le `refresh_token` do cookie, valida com `decode_refresh_token` (requer `type=refresh`), emite novo access + rotaciona refresh.
 - `jwt_middleware` extrai token do header `Authorization: Bearer` primeiro (impersonacao via sessionStorage), depois fallback para cookie `access_token`.
 - `jwt_middleware` public_paths inclui `/auth/refresh`, `/auth/forgot-password`, `/auth/reset-password`.
@@ -701,7 +701,7 @@ Incluir obrigatoriamente:
   (pegou `/feature-flags/{tenant_id}/enabled` engolida por `/{tenant_id}/{feature}`).
 - `PUT /platform/subscriptions/{id}/upgrade` (usado pelo drawer para qualquer troca de plano) não cria mais fatura.
 
-### 11.18 Jornadas públicas e de conta (2026-10-06)
+### 11.22 Jornadas públicas e de conta (2026-10-06)
 - **Emissão com horário + fila**: o horário (`time_slot_id`) só é exigido quando a senha tem vaga; com a
   gira lotada e fila de espera ligada, a pessoa entra na fila sem horário. Recusas por horário saem como
   `APIException` (`{error_code, message}`): 400 `TIME_SLOT_REQUIRED`, 404 `TIME_SLOT_INVALID`,
@@ -788,7 +788,7 @@ Incluir obrigatoriamente:
   POST, outra origem, `Authorization` ou HTML de página) — testado em `__tests__/pwa/sw.test.ts`. Na Porta: `PortaOfflineNotice`
   (offline ou 2 falhas seguidas da fila) e `InstallPortaHint`. Sem sincronização offline de emissão.
 - **Versão**: `frontend/package.json` `version` → `NEXT_PUBLIC_UI_VERSION` (`next.config.js`) → `src/lib/version.ts`
-  (`APP_VERSION`, "GiraHub v2.1.0" no rodapé da sidebar, menu do usuário e plataforma). Backend `APP_VERSION` 2.1.0;
+  (`APP_VERSION`, "GiraHub v2.2.0" no rodapé da sidebar, menu do usuário e plataforma). Backend `APP_VERSION` 2.2.0;
   a tag das imagens Docker vem de `APP_VERSION` no `.env` do servidor.
 - **Testes**: por papel/texto (nunca classes). `jest.setup.js` tem polyfills do Radix (`hasPointerCapture`,
   `scrollIntoView`, `ResizeObserver`, `matchMedia`). Bundle antes/depois em `docs/bundle-baseline.md`.
