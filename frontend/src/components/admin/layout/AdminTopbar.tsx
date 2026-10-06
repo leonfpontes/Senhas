@@ -1,78 +1,74 @@
-import React from 'react';
-import AppBar     from '@mui/material/AppBar';
-import Avatar     from '@mui/material/Avatar';
-import Box        from '@mui/material/Box';
-import Breadcrumbs from '@mui/material/Breadcrumbs';
-import Divider    from '@mui/material/Divider';
-import Link       from '@mui/material/Link';
-import IconButton from '@mui/material/IconButton';
-import Menu       from '@mui/material/Menu';
-import MenuItem   from '@mui/material/MenuItem';
-import Toolbar    from '@mui/material/Toolbar';
-import Tooltip    from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
-import MenuIcon          from '@mui/icons-material/Menu';
-import AccountIcon       from '@mui/icons-material/AccountCircle';
-import LogoutIcon        from '@mui/icons-material/Logout';
-import DarkModeIcon      from '@mui/icons-material/DarkModeRounded';
-import LightModeIcon     from '@mui/icons-material/LightModeRounded';
-import HelpOutlineIcon   from '@mui/icons-material/HelpOutline';
-import { useRouter }     from 'next/router';
-import { useTour }       from '@reactour/tour';
-import { useTenant }     from '@/providers/ThemeProvider';
-import { useProfile }    from '@/hooks/useProfile';
+/**
+ * AdminTopbar — barra superior do admin: gatilho da sidebar, breadcrumb, nome do terreiro,
+ * seletor da gira de hoje (quando há várias), busca de ações (⌘K), guia da tela, modo
+ * claro/escuro e menu do usuário (Perfil, versão, primeiros passos, Sair).
+ */
+import React, { useState } from 'react';
+import { useRouter } from 'next/router';
+import { useTour } from '@reactour/tour';
+import * as Sentry from '@sentry/nextjs';
+import { BookOpen, CircleHelp, LogOut, Moon, Search, Sun, User } from 'lucide-react';
+import { apiClient } from '@/services/api_client';
+import { useTenant } from '@/providers/ThemeProvider';
+import { useProfile } from '@/hooks/useProfile';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
 import { getAdminTourSteps } from '@/tours/adminTourSteps';
-import { ImpersonationBanner } from './ImpersonationBanner';
-import * as Sentry from '@sentry/nextjs';
-import { apiClient } from '@/services/api_client';
 import { routeLabel } from '@/constants/routes';
+import { APP_VERSION_LABEL } from '@/lib/version';
+import { cn } from '@/lib/utils';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { giraLabel, useGiraContext } from '@/components/admin/GiraContext';
+import { resetChecklistDismissed } from '@/components/admin/FirstGiraChecklist';
 
-const DRAWER_WIDTH = 280;
+/** Rotas em que a gira de hoje faz sentido como contexto compartilhado. */
+export const GIRA_CONTEXT_ROUTES = ['/admin/dashboard', '/admin/giras', '/admin/tickets', '/admin/porta'];
 
-interface AdminTopbarProps {
-  title:           string;
-  onMenuClick:     () => void;
-  isImpersonating: boolean;
-  impersonateUser:   { email?: string; username?: string } | null;
-  impersonateTenant: { name?: string } | null;
+export interface AdminTopbarProps {
+  title: string;
+  onOpenCommand?: () => void;
 }
 
-export const AdminTopbar: React.FC<AdminTopbarProps> = ({
-  title,
-  onMenuClick,
-  isImpersonating,
-  impersonateUser,
-  impersonateTenant,
-}) => {
+export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }) => {
   const router = useRouter();
-  const { config }         = useTenant();
-  const { profile }        = useProfile();
+  const { tenantName } = useTenant();
+  const { profile } = useProfile();
   const { isDark, toggleMode } = useAdminTheme();
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
-  const brandPrimary   = config?.colors?.primary   ?? '#6366F1';
-  const brandSecondary = config?.colors?.secondary ?? '#EC4899';
-  const brandFont      = config?.colors?.font      ?? '#FFFFFF';
+  const showGiraSelector = GIRA_CONTEXT_ROUTES.includes(router.pathname);
+  const { giras, selectedGiraId, setSelectedGiraId, loaded } = useGiraContext({ load: showGiraSelector });
 
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-  const [avatarFailed, setAvatarFailed] = React.useState(false);
+  const avatarText = (profile?.full_name || profile?.username || profile?.email || 'A').charAt(0).toUpperCase();
 
-  const avatarText = (profile?.full_name || profile?.username || profile?.email || 'A')
-    .charAt(0).toUpperCase();
-
-  // Breadcrumbs a partir da rota atual (sem querystring).
-  // Exibidos apenas quando há mais de 1 nível dentro de /admin.
-  const segments = router.asPath.split('?')[0].split('/').filter(Boolean);
+  // Breadcrumb a partir da rota (sem querystring); só a partir do 3º nível (/admin/x/y).
+  const segments = router.asPath.split('?')[0].split('#')[0].split('/').filter(Boolean);
   const crumbs = segments.map((seg, idx) => ({
     label: routeLabel(seg),
     href: '/' + segments.slice(0, idx + 1).join('/'),
     isLast: idx === segments.length - 1,
   }));
-  // Só mostra se há mais de 2 segmentos (ex.: /admin/financeiro/mensalidades),
-  // ocultando na raiz /admin/dashboard.
   const showBreadcrumbs = segments.length > 2;
 
-  // Tour button
   const { setSteps, setIsOpen, setCurrentStep } = useTour();
   const tourSteps = getAdminTourSteps(router.pathname);
   const handleOpenTour = () => {
@@ -82,147 +78,181 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
   };
 
   const handleLogout = async () => {
-    setAnchorEl(null);
-    try { await apiClient.post('/api/v1/auth/logout'); } catch { /* non-critical */ }
+    try {
+      await apiClient.post('/api/v1/auth/logout');
+    } catch {
+      /* non-critical */
+    }
     localStorage.removeItem('user');
     Sentry.setUser(null);
     router.push('/login');
   };
 
+  const handleShowOnboarding = () => {
+    resetChecklistDismissed(profile?.tenant_id);
+    router.push('/admin/dashboard?passos=1');
+  };
+
+  const selectableGiras = [...giras].sort(
+    (a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime(),
+  );
+
   return (
-    <AppBar
-      position="fixed"
-      elevation={0}
-      sx={{
-        background: `linear-gradient(90deg, ${brandPrimary} 0%, ${brandSecondary} 100%)`,
-        color: brandFont,
-        width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
-        ml:    { md: `${DRAWER_WIDTH}px` },
-        borderBottom: 'none',
-      }}
+    <header
+      data-slot="admin-topbar"
+      className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-4"
     >
-      {isImpersonating && (
-        <ImpersonationBanner
-          userLabel={impersonateUser?.email || impersonateUser?.username || '...'}
-          tenantLabel={impersonateTenant?.name || '...'}
-        />
+      <SidebarTrigger className="-ml-1" aria-label="Abrir menu" />
+
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="truncate text-sm font-bold text-foreground sm:text-base">{title}</h2>
+          {tenantName && (
+            <span className="hidden truncate text-xs text-muted-foreground md:inline" data-testid="topbar-tenant">
+              · {tenantName}
+            </span>
+          )}
+        </div>
+        {showBreadcrumbs && (
+          <Breadcrumb className="hidden sm:block">
+            <BreadcrumbList className="text-[0.72rem]">
+              {crumbs.map((c, i) => (
+                <React.Fragment key={c.href}>
+                  {i > 0 && <BreadcrumbSeparator />}
+                  <BreadcrumbItem>
+                    {c.isLast ? (
+                      <BreadcrumbPage>{c.label}</BreadcrumbPage>
+                    ) : (
+                      <BreadcrumbLink asChild>
+                        <button type="button" onClick={() => router.push(c.href)} className="hover:text-foreground">
+                          {c.label}
+                        </button>
+                      </BreadcrumbLink>
+                    )}
+                  </BreadcrumbItem>
+                </React.Fragment>
+              ))}
+            </BreadcrumbList>
+          </Breadcrumb>
+        )}
+      </div>
+
+      {showGiraSelector && loaded && selectableGiras.length > 1 && (
+        <Select value={selectedGiraId ?? undefined} onValueChange={(v) => setSelectedGiraId(v)}>
+          <SelectTrigger
+            size="sm"
+            className="hidden max-w-[260px] sm:flex"
+            aria-label="Gira de hoje"
+            data-testid="topbar-gira-select"
+          >
+            <SelectValue placeholder="Escolher gira" />
+          </SelectTrigger>
+          <SelectContent align="end" className="z-[1300]">
+            {selectableGiras.map((g) => (
+              <SelectItem key={g.id} value={g.id}>
+                {giraLabel(g)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
 
-      <Toolbar sx={{ gap: 1 }}>
-        <IconButton
-          color="inherit"
-          aria-label="Abrir menu"
-          edge="start"
-          onClick={onMenuClick}
-          sx={{ mr: 1, display: { md: 'none' } }}
-        >
-          <MenuIcon />
-        </IconButton>
-
-        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Typography variant="h6" noWrap sx={{ fontWeight: 700, color: brandFont, lineHeight: 1.2 }}>
-            {title}
-          </Typography>
-          {showBreadcrumbs && (
-            <Breadcrumbs
-              aria-label="breadcrumb"
-              sx={{
-                color: brandFont,
-                '& .MuiBreadcrumbs-separator': { color: brandFont, opacity: 0.6 },
-                '& .MuiTypography-root, & a': { fontSize: '0.72rem' },
-                display: { xs: 'none', sm: 'flex' },
-              }}
+      {onOpenCommand && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="hidden gap-2 text-muted-foreground md:inline-flex"
+              onClick={onOpenCommand}
+              aria-label="Buscar ações (Ctrl K)"
+              data-testid="topbar-command"
             >
-              {crumbs.map((c) =>
-                c.isLast ? (
-                  <Typography key={c.href} sx={{ color: brandFont, opacity: 0.9 }}>
-                    {c.label}
-                  </Typography>
-                ) : (
-                  <Link
-                    key={c.href}
-                    component="button"
-                    underline="hover"
-                    onClick={() => router.push(c.href)}
-                    sx={{ color: brandFont, opacity: 0.75, '&:hover': { opacity: 1 } }}
-                  >
-                    {c.label}
-                  </Link>
-                ),
-              )}
-            </Breadcrumbs>
-          )}
-        </Box>
+              <Search aria-hidden />
+              <span className="text-xs">Buscar…</span>
+              <kbd className="pointer-events-none rounded border bg-muted px-1 font-mono text-[0.65rem]">⌘K</kbd>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Buscar páginas e ações (⌘K / Ctrl K)</TooltipContent>
+        </Tooltip>
+      )}
 
-        {tourSteps.length > 0 && (
-          <Tooltip title="Guia desta tela">
-            <IconButton
-              color="inherit"
+      {tourSteps.length > 0 && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
               aria-label="Abrir guia da tela"
               data-tour="topbar-help"
               onClick={handleOpenTour}
-              size="small"
-              sx={{ opacity: 0.85, '&:hover': { opacity: 1 } }}
             >
-              <HelpOutlineIcon />
-            </IconButton>
-          </Tooltip>
-        )}
+              <CircleHelp aria-hidden />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Guia desta tela</TooltipContent>
+        </Tooltip>
+      )}
 
-        <Tooltip title={isDark ? 'Modo claro' : 'Modo escuro'}>
-          <IconButton
-            color="inherit"
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             aria-label={isDark ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
             onClick={toggleMode}
-            size="small"
-            sx={{ opacity: 0.85, '&:hover': { opacity: 1 } }}
           >
-            {isDark ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
-          </IconButton>
-        </Tooltip>
+            {isDark ? <Sun aria-hidden /> : <Moon aria-hidden />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{isDark ? 'Modo claro' : 'Modo escuro'}</TooltipContent>
+      </Tooltip>
 
-        <IconButton
-          onClick={(e) => setAnchorEl(e.currentTarget)}
-          size="small"
-          aria-label="Menu do usuário"
-          aria-controls="admin-user-menu"
-          aria-haspopup="true"
-          sx={{ ml: 0.5 }}
-        >
-          <Avatar
-            src={profile?.profile_photo_url && !avatarFailed ? profile.profile_photo_url : undefined}
-            onError={() => setAvatarFailed(true)}
-            sx={{
-              width: 34, height: 34,
-              fontSize: '0.875rem',
-              bgcolor: 'rgba(255,255,255,0.22)',
-              color: brandFont,
-              border: '1.5px solid rgba(255,255,255,0.45)',
-            }}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            aria-label="Menu do usuário"
+            data-testid="topbar-user-menu"
           >
-            {avatarText}
-          </Avatar>
-        </IconButton>
-
-        <Menu
-          id="admin-user-menu"
-          anchorEl={anchorEl}
-          open={Boolean(anchorEl)}
-          onClose={() => setAnchorEl(null)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        >
-          <MenuItem onClick={() => { setAnchorEl(null); router.push('/admin/profile'); }}>
-            <AccountIcon sx={{ mr: 1, fontSize: '1.1rem' }} />
-            Perfil
-          </MenuItem>
-          <Divider />
-          <MenuItem onClick={handleLogout}>
-            <LogoutIcon sx={{ mr: 1, fontSize: '1.1rem' }} />
-            Logout
-          </MenuItem>
-        </Menu>
-      </Toolbar>
-    </AppBar>
+            <Avatar className="size-8 border">
+              {profile?.profile_photo_url && !avatarFailed && (
+                <AvatarImage src={profile.profile_photo_url} alt="" onError={() => setAvatarFailed(true)} />
+              )}
+              <AvatarFallback className="bg-primary text-xs font-bold text-primary-foreground">{avatarText}</AvatarFallback>
+            </Avatar>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className={cn('z-[1300] min-w-56')}>
+          <DropdownMenuLabel className="flex flex-col">
+            <span className="truncate text-sm font-semibold">{profile?.full_name || profile?.username || 'Usuário'}</span>
+            {profile?.email && <span className="truncate text-xs font-normal text-muted-foreground">{profile.email}</span>}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => router.push('/admin/profile')}>
+            <User aria-hidden /> Perfil
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={handleShowOnboarding}>
+            <BookOpen aria-hidden /> Mostrar primeiros passos
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled className="text-xs text-muted-foreground data-[disabled]:opacity-100" data-testid="menu-version">
+            {APP_VERSION_LABEL}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => void handleLogout()} variant="destructive">
+            <LogOut aria-hidden /> Sair
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </header>
   );
 };
+
+export default AdminTopbar;

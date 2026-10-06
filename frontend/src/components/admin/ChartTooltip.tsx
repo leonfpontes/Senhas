@@ -1,59 +1,40 @@
+/**
+ * ChartTooltip — tooltip customizado para gráficos Recharts do admin, nas cores do Popover
+ * (`chartTokens`), seguindo o modo escuro sem depender do tema MUI.
+ *
+ *   <RechartsTooltip content={<ChartTooltip />} />
+ */
 import React from 'react';
-import Box       from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import { useAdminTheme } from '@/providers/AdminThemeProvider';
+import { chartTooltipStyle } from '@/lib/chartTokens';
 
 interface TooltipPayloadEntry {
-  name:   string;
-  value:  number | string;
+  name: string;
+  value: number | string;
   color?: string;
 }
 
-interface ChartTooltipProps {
-  active?:  boolean;
+export interface ChartTooltipProps {
+  active?: boolean;
   payload?: TooltipPayloadEntry[];
-  label?:   string;
+  label?: string;
   formatter?: (value: number | string, name: string) => string;
 }
 
-export const ChartTooltip: React.FC<ChartTooltipProps> = ({
-  active, payload, label, formatter,
-}) => {
-  const { tokens } = useAdminTheme();
-
+export const ChartTooltip: React.FC<ChartTooltipProps> = ({ active, payload, label, formatter }) => {
   if (!active || !payload?.length) return null;
 
   return (
-    <Box
-      sx={{
-        background: tokens.tooltipBg,
-        border: `1px solid ${tokens.border}`,
-        borderRadius: 2,
-        px: 1.5,
-        py: 1,
-        boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-      }}
-    >
-      {label && (
-        <Typography
-          sx={{ fontSize: '0.72rem', color: tokens.textSecondary, mb: 0.5, fontWeight: 600 }}
-        >
-          {label}
-        </Typography>
-      )}
+    <div data-slot="chart-tooltip" style={chartTooltipStyle} className="px-3 py-2">
+      {label && <p className="mb-1 text-[0.72rem] font-semibold text-muted-foreground">{label}</p>}
       {payload.map((entry, i) => (
-        <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: i < payload.length - 1 ? 0.25 : 0 }}>
-          {entry.color && (
-            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: entry.color, flexShrink: 0 }} />
-          )}
-          <Typography sx={{ fontSize: '0.78rem', color: tokens.textPrimary, fontWeight: 600 }}>
-            {formatter ? formatter(entry.value, entry.name) : entry.value}
-          </Typography>
-          <Typography sx={{ fontSize: '0.72rem', color: tokens.textSecondary }}>
-            {entry.name}
-          </Typography>
-        </Box>
+        <div key={i} className="flex items-center gap-1.5 not-last:mb-0.5">
+          {entry.color && <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ backgroundColor: entry.color }} />}
+          <span className="text-[0.78rem] font-semibold">{formatter ? formatter(entry.value, entry.name) : entry.value}</span>
+          <span className="text-[0.72rem] text-muted-foreground">{entry.name}</span>
+        </div>
       ))}
-    </Box>
+    </div>
   );
 };
+
+export default ChartTooltip;

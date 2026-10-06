@@ -1,302 +1,87 @@
 /**
- * AdminSidebar
- *
- * Full sidebar with brand header, navigation groups, and plan badge.
- * All brand-color usage (gradients on selected items, header) comes from
- * useTenant() — never from the structural AdminTheme tokens.
+ * AdminSidebar — navegação do admin sobre o bloco `Sidebar` do shadcn (recolhível em ícones no
+ * desktop, `Sheet` no celular). Os grupos vêm de `useAdminNav()` já filtrados por plano e por
+ * grupo de permissão; um grupo some quando nada dentro dele está liberado.
  */
-import React, { useEffect, useState } from 'react';
-import Box        from '@mui/material/Box';
-import Chip       from '@mui/material/Chip';
-import Divider    from '@mui/material/Divider';
-import Drawer     from '@mui/material/Drawer';
-import List       from '@mui/material/List';
-import Skeleton   from '@mui/material/Skeleton';
-import Typography from '@mui/material/Typography';
-import DashboardIcon       from '@mui/icons-material/Dashboard';
-import EventIcon           from '@mui/icons-material/Event';
-import SelfImprovementIcon from '@mui/icons-material/SelfImprovement';
-import TicketIcon          from '@mui/icons-material/ConfirmationNumber';
-import PeopleIcon          from '@mui/icons-material/People';
-import SettingsIcon        from '@mui/icons-material/Settings';
-import AnalyticsIcon       from '@mui/icons-material/Assessment';
-import HistoryIcon         from '@mui/icons-material/History';
-import MeetingRoomIcon     from '@mui/icons-material/MeetingRoom';
-import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded';
-import FolderOpenIcon      from '@mui/icons-material/FolderOpen';
-import Diversity3Icon      from '@mui/icons-material/Diversity3';
-import CardMembershipIcon  from '@mui/icons-material/CardMembership';
-import CreditCardIcon      from '@mui/icons-material/CreditCard';
-import Inventory2Icon      from '@mui/icons-material/Inventory2';
-import CategoryIcon        from '@mui/icons-material/Category';
-import SwapVertIcon        from '@mui/icons-material/SwapVert';
-import BarChartIcon        from '@mui/icons-material/BarChart';
-import SummarizeIcon       from '@mui/icons-material/Summarize';
-import LockOutlinedIcon    from '@mui/icons-material/LockOutlined';
-import LanguageIcon        from '@mui/icons-material/Language';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import PaymentsIcon        from '@mui/icons-material/Payments';
-import ArrowUpwardIcon     from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon   from '@mui/icons-material/ArrowDownward';
-import AccountBalanceIcon  from '@mui/icons-material/AccountBalance';
-import { useRouter }        from 'next/router';
-import { useSubscription }  from '@/hooks/useSubscription';
-import { usePermissions }   from '@/hooks/usePermissions';
-import { useBirthday }      from '@/providers/BirthdayProvider';
-import { useTenantSupportUnread } from '@/components/support/useTenantSupportUnread';
-import { PermissionFeature } from '@/constants/permissionFeatures';
-import { BrandHeader }      from './BrandHeader';
-import { NavItem }          from './NavItem';
-import { NavGroup, NavGroupItem } from './NavGroup';
+import React from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { useSubscription } from '@/hooks/useSubscription';
+import { useProfile } from '@/hooks/useProfile';
+import { APP_VERSION_LABEL } from '@/lib/version';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarRail,
+  SidebarSeparator,
+} from '@/components/ui/sidebar';
+import { BrandHeader } from './BrandHeader';
+import { NavGroup } from './NavGroup';
+import { useAdminNav, type NavAction } from './navConfig';
 
-export const DRAWER_WIDTH = 280;
+/**
+ * Largura da sidebar expandida em px (= `--sidebar-width` 16rem do bloco shadcn).
+ * Mantido porque o chat de suporte posiciona o botão flutuante a partir dela.
+ */
+export const DRAWER_WIDTH = 256;
 
-interface AdminSidebarProps {
-  mobileOpen: boolean;
-  onClose:    () => void;
+const PLAN_BADGE_CLASS: Record<string, string> = {
+  premium: 'bg-[#f59e0b] text-white',
+  pro: 'bg-[#8b5cf6] text-white',
+  basic: 'bg-[#3b82f6] text-white',
+};
+
+export interface AdminSidebarProps {
   isOperator: boolean;
+  onAction?: (action: NavAction) => void;
 }
 
-export const AdminSidebar: React.FC<AdminSidebarProps> = ({
-  mobileOpen,
-  onClose,
-  isOperator,
-}) => {
-  const router   = useRouter();
+export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOperator, onAction }) => {
+  const router = useRouter();
   const pathname = router.pathname;
-
-  const { can, planLabel, subscription, loading: subscriptionLoading } = useSubscription();
-  const { birthdayCount } = useBirthday();
-  const { can: canGroup }  = usePermissions();
-  const unreadTeamSupportCount = useTenantSupportUnread(!isOperator);
-
-  const hasGroupView = (feature: PermissionFeature): boolean =>
-    !isOperator || canGroup(feature, 'view');
-
-  // ─── Nav item arrays ───────────────────────────────────────────────────────
-
-  const topItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, href: '/admin/dashboard' },
-    ...(hasGroupView('tickets')
-      ? [{ text: 'Tickets', icon: <TicketIcon />, href: '/admin/tickets' }] : []),
-    ...(can('site_builder') && hasGroupView('cursos_presenciais')
-      ? [{ text: 'Meu Site', icon: <LanguageIcon />, href: '/admin/meu-site' }] : []),
-  ];
-
-  const cadastrosItems: NavGroupItem[] = [
-    ...(hasGroupView('giras')
-      ? [{ text: 'Giras', icon: <EventIcon />, href: '/admin/giras' }] : []),
-    ...(can('mediuns') && hasGroupView('mediuns')
-      ? [{ text: 'Médiuns', icon: <SelfImprovementIcon />, href: '/admin/mediuns', badge: birthdayCount }] : []),
-    ...(hasGroupView('usuarios')
-      ? [{ text: 'Usuários', icon: <PeopleIcon />, href: '/admin/users' }] : []),
-    ...(!isOperator
-      ? [{ text: 'Grupos de Permissão', icon: <LockOutlinedIcon />, href: '/admin/permission-groups' }] : []),
-    ...(can('associados') && hasGroupView('associados')
-      ? [{ text: 'Associados', icon: <Diversity3Icon />, href: '/admin/associados' }] : []),
-    ...(hasGroupView('cursos_presenciais')
-      ? [{ text: 'Cursos Presenciais', icon: <CardMembershipIcon />, href: '/admin/cursos-presenciais' }] : []),
-  ];
-
-  const estoqueItems: NavGroupItem[] =
-    can('estoque_controle') && hasGroupView('estoque')
-      ? [
-          { text: 'Grupos de Material', icon: <CategoryIcon />,  href: '/admin/estoque/grupos' },
-          { text: 'Itens',              icon: <Inventory2Icon />, href: '/admin/estoque/itens' },
-          { text: 'Movimentações',      icon: <SwapVertIcon />,   href: '/admin/estoque/movimentacoes' },
-          { text: 'Relatório',          icon: <BarChartIcon />,   href: '/admin/estoque/relatorio' },
-        ]
-      : [];
-
-  const financeiroItems: NavGroupItem[] = (() => {
-    const items: NavGroupItem[] = [];
-    if (!isOperator && (can('mensalidade_mediun') || can('mensalidade_associado'))) {
-      items.push({ text: 'Mensalidades', icon: <PaymentsIcon />, href: '/admin/financeiro/mensalidades' });
-    }
-    if (can('contas_financeiras') && hasGroupView('contas_financeiras')) {
-      items.push({ text: 'Contas a Pagar',   icon: <ArrowUpwardIcon />,   href: '/admin/financeiro/contas-pagar' });
-      items.push({ text: 'Contas a Receber', icon: <ArrowDownwardIcon />, href: '/admin/financeiro/contas-receber' });
-      items.push({ text: 'Fluxo de Caixa',   icon: <AccountBalanceIcon />, href: '/admin/financeiro/fluxo-de-caixa' });
-    }
-    if (!isOperator && (can('mensalidade_mediun') || can('mensalidade_associado') || can('contas_financeiras'))) {
-      items.push({ text: 'Configuração', icon: <AccountBalanceWalletIcon />, href: '/admin/financeiro/config' });
-    }
-    return items;
-  })();
-
-  const relatoriosItems: NavGroupItem[] = [
-    ...(can('analytics_basico') && hasGroupView('analytics')
-      ? [{ text: 'Analytics', icon: <AnalyticsIcon />, href: '/admin/analytics' }] : []),
-    ...(can('relatorio_gira') && hasGroupView('relatorio_gira')
-      ? [{ text: 'Relatório de Gira', icon: <SummarizeIcon />, href: '/admin/relatorio-gira' }] : []),
-    ...(!isOperator && can('auditoria')
-      ? [{ text: 'Auditoria', icon: <HistoryIcon />, href: '/admin/audit-trail' }] : []),
-  ];
-
-  const bottomItems = [
-    ...(hasGroupView('porta')
-      ? [{ text: 'Porta', icon: <MeetingRoomIcon />, href: '/admin/porta' }] : []),
-    ...(!isOperator
-      ? [
-          { text: 'Suporte',       icon: <SupportAgentRoundedIcon />, href: '/admin/suporte', badge: unreadTeamSupportCount },
-          { text: 'Plano',         icon: <CardMembershipIcon />, href: '/admin/plano' },
-          { text: 'Assinatura',    icon: <CreditCardIcon />,     href: '/admin/billing' },
-          { text: 'Configurações', icon: <SettingsIcon />,        href: '/admin/config' },
-        ]
-      : []),
-  ];
-
-  // ─── Accordion state ───────────────────────────────────────────────────────
-  const isCadastrosActive  = cadastrosItems.some((i) => i.href === pathname);
-  const isEstoqueActive    = estoqueItems.some((i) => i.href === pathname);
-  const isFinanceiroActive = financeiroItems.some((i) => i.href === pathname);
-  const isRelatoriosActive = relatoriosItems.some((i) => i.href === pathname);
-
-  const [cadastrosOpen,  setCadastrosOpen]  = useState(isCadastrosActive);
-  const [estoqueOpen,    setEstoqueOpen]    = useState(isEstoqueActive);
-  const [financeiroOpen, setFinanceiroOpen] = useState(isFinanceiroActive);
-  const [relatoriosOpen, setRelatoriosOpen] = useState(isRelatoriosActive);
-
-  useEffect(() => { if (isCadastrosActive)  setCadastrosOpen(true);  }, [isCadastrosActive]);
-  useEffect(() => { if (isEstoqueActive)    setEstoqueOpen(true);    }, [isEstoqueActive]);
-  useEffect(() => { if (isFinanceiroActive) setFinanceiroOpen(true); }, [isFinanceiroActive]);
-  useEffect(() => { if (isRelatoriosActive) setRelatoriosOpen(true); }, [isRelatoriosActive]);
-
-  // ─── Plan chip color ───────────────────────────────────────────────────────
-  const planChipColor =
-    subscription?.plan === 'premium' ? '#f59e0b' :
-    subscription?.plan === 'pro'     ? '#8b5cf6' :
-    subscription?.plan === 'basic'   ? '#3b82f6' :
-    '#94a3b8';
-
-  // ─── Drawer content ────────────────────────────────────────────────────────
-  const content = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <BrandHeader showClose={mobileOpen} onClose={onClose} />
-      <Divider />
-
-      <List sx={{ flex: 1, py: 1, overflowY: 'auto' }}>
-        {topItems.map((item) => (
-          <NavItem
-            key={item.href}
-            href={item.href}
-            text={item.text}
-            icon={item.icon}
-            active={pathname === item.href}
-          />
-        ))}
-
-        {cadastrosItems.length > 0 && (
-          <NavGroup
-            label="Cadastros"
-            icon={<FolderOpenIcon />}
-            items={cadastrosItems}
-            open={cadastrosOpen}
-            onToggle={() => setCadastrosOpen((o) => !o)}
-            activeHref={pathname}
-          />
-        )}
-
-        {estoqueItems.length > 0 && (
-          <NavGroup
-            label="Estoque"
-            icon={<Inventory2Icon />}
-            items={estoqueItems}
-            open={estoqueOpen}
-            onToggle={() => setEstoqueOpen((o) => !o)}
-            activeHref={pathname}
-          />
-        )}
-
-        {financeiroItems.length > 0 && (
-          <NavGroup
-            label="Financeiro"
-            icon={<AccountBalanceWalletIcon />}
-            items={financeiroItems}
-            open={financeiroOpen}
-            onToggle={() => setFinanceiroOpen((o) => !o)}
-            activeHref={pathname}
-          />
-        )}
-
-        {relatoriosItems.length > 0 && (
-          <NavGroup
-            label="Relatórios"
-            icon={<BarChartIcon />}
-            items={relatoriosItems}
-            open={relatoriosOpen}
-            onToggle={() => setRelatoriosOpen((o) => !o)}
-            activeHref={pathname}
-          />
-        )}
-
-        {bottomItems.map((item) => (
-          <NavItem
-            key={item.href}
-            href={item.href}
-            text={item.text}
-            icon={item.icon}
-            active={pathname === item.href}
-            badge={'badge' in item ? item.badge : undefined}
-          />
-        ))}
-      </List>
-
-      <Divider />
-      <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-        {subscriptionLoading ? (
-          <Skeleton variant="rounded" width={56} height={24} sx={{ borderRadius: 4 }} />
-        ) : (
-          <Chip
-            label={planLabel}
-            size="small"
-            onClick={() => router.push('/admin/plano')}
-            sx={{
-              fontWeight: 700,
-              fontSize: '0.7rem',
-              letterSpacing: 0.5,
-              color: '#fff',
-              cursor: 'pointer',
-              backgroundColor: planChipColor,
-              alignSelf: 'flex-start',
-              '&:hover': { opacity: 0.85 },
-            }}
-          />
-        )}
-        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-          GiraHub v4.0
-        </Typography>
-      </Box>
-    </Box>
-  );
+  const { profile } = useProfile();
+  const { planLabel, subscription, loading: subscriptionLoading } = useSubscription();
+  const groups = useAdminNav({ isOperator, tenantId: profile?.tenant_id });
 
   return (
-    <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}>
-      {/* Mobile */}
-      <Drawer
-        variant="temporary"
-        open={mobileOpen}
-        onClose={onClose}
-        ModalProps={{ keepMounted: true }}
-        sx={{
-          display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box' },
-        }}
-      >
-        {content}
-      </Drawer>
-
-      {/* Desktop */}
-      <Drawer
-        variant="permanent"
-        open
-        sx={{
-          display: { xs: 'none', md: 'block' },
-          '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box' },
-        }}
-      >
-        {content}
-      </Drawer>
-    </Box>
+    <Sidebar collapsible="icon" aria-label="Navegação principal" data-testid="admin-sidebar">
+      <SidebarHeader className="p-0">
+        <BrandHeader />
+      </SidebarHeader>
+      <SidebarContent>
+        {groups.map((group) => (
+          <NavGroup key={group.key} label={group.label} items={group.items} activeHref={pathname} onAction={onAction} />
+        ))}
+      </SidebarContent>
+      <SidebarSeparator />
+      <SidebarFooter className="gap-1 px-3 py-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1">
+        {subscriptionLoading ? (
+          <Skeleton className="h-5 w-14 rounded-full" />
+        ) : (
+          <Badge
+            asChild
+            className={cn(
+              'cursor-pointer text-[0.65rem] font-bold tracking-wide uppercase',
+              PLAN_BADGE_CLASS[subscription?.plan ?? ''] ?? 'bg-muted text-muted-foreground',
+            )}
+          >
+            <Link href="/admin/billing" aria-label={`Plano ${planLabel} — ver assinatura`}>
+              {planLabel}
+            </Link>
+          </Badge>
+        )}
+        <p className="text-[0.65rem] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden" data-testid="sidebar-version">
+          {APP_VERSION_LABEL}
+        </p>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
   );
 };
+
+export default AdminSidebar;

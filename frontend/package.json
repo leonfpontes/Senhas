@@ -1,6 +1,6 @@
 {
   "name": "senhas-frontend",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "Frontend web para Sistema Multi-Tenant de Gestão de Senhas - Terreiros de Umbanda",
   "private": true,
   "scripts": {
