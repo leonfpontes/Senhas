@@ -1,23 +1,25 @@
 /**
- * /admin/suporte — visão agregada (read-only) das conversas de suporte de
- * todos os usuários do terreiro. Só ADMIN acessa; cada usuário responde na
- * própria conversa via o FAB global (SupportChatWidget), não aqui — esta
- * tela é só acompanhamento.
+ * /admin/suporte — acompanhamento (só leitura) das conversas de suporte de todas as pessoas do
+ * terreiro. Só administrador acessa (checagem própria, sem grupo — ver CLAUDE.md); cada pessoa
+ * responde na própria conversa pelo balão "Ajuda", não aqui.
+ *
+ * Desktop: lista à esquerda e conversa à direita. Celular (< 900px): lista; tocar abre a
+ * conversa num Sheet de tela cheia.
  */
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
-import List from '@mui/material/List';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemText from '@mui/material/ListItemText';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Loader2, MessagesSquare } from 'lucide-react';
 import AdminLayout from './admin_layout';
-import { PageHeader } from '@/components/admin';
+import { EmptyState, PageHeader } from '@/components/admin';
+import { PermissionDenied } from '@/components/gates';
+import { SupportMessageBubble, formatMessageTime } from '@/components/support/SupportChatPanel';
+import type { SupportMessage } from '@/components/support/useSupportChat';
+import { Badge } from '@/components/ui/badge';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useProfile } from '@/hooks/useProfile';
 import { apiClient } from '@/services/api_client';
 
@@ -32,18 +34,49 @@ interface ConversationSummary {
   unread: boolean;
 }
 
-interface Message {
-  id: string;
-  body: string;
-  is_from_support: boolean;
-  sender_name_snapshot: string;
-  created_at: string;
+function StatusBadge({ status }: { status: ConversationSummary['status'] }) {
+  return status === 'open' ? (
+    <Badge variant="outline" className="border-success/40 text-success">
+      Aberta
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="text-muted-foreground">
+      Resolvida
+    </Badge>
+  );
+}
+
+function MessagesView({ messages, loading }: { messages: SupportMessage[]; loading: boolean }) {
+  const endRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages.length]);
+
+  if (loading && messages.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" aria-label="Carregando" />
+      </div>
+    );
+  }
+  if (messages.length === 0) {
+    return <p className="m-auto text-sm text-muted-foreground">Sem mensagens nesta conversa.</p>;
+  }
+  return (
+    <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
+      {messages.map((m) => (
+        <SupportMessageBubble key={m.id} message={m} showSender />
+      ))}
+      <div ref={endRef} />
+    </div>
+  );
 }
 
 function AdminSuporteContent() {
+  const isDesktop = useMediaQuery('(min-width: 900px)');
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
@@ -52,7 +85,7 @@ function AdminSuporteContent() {
       const res = await apiClient.get<ConversationSummary[]>('/api/v1/admin/support-chat/conversations');
       setConversations(res.data);
     } catch {
-      /* retry on next poll */
+      /* tenta de novo no próximo ciclo */
     } finally {
       setLoadingList(false);
     }
@@ -60,15 +93,17 @@ function AdminSuporteContent() {
 
   const loadMessages = useCallback(async (conversationId: string) => {
     try {
-      const res = await apiClient.get<Message[]>(`/api/v1/admin/support-chat/conversations/${conversationId}/messages`);
+      const res = await apiClient.get<SupportMessage[]>(
+        `/api/v1/admin/support-chat/conversations/${conversationId}/messages`,
+      );
       setMessages(res.data);
     } catch {
-      /* retry on next poll */
+      /* tenta de novo no próximo ciclo */
     }
   }, []);
 
-  useEffect(() => { loadConversations(); }, [loadConversations]);
   useEffect(() => {
+    loadConversations();
     const t = setInterval(() => {
       if (document.visibilityState === 'visible') loadConversations();
     }, POLLING_INTERVAL_MS);
@@ -77,6 +112,7 @@ function AdminSuporteContent() {
 
   useEffect(() => {
     if (!selectedId) return;
+    setMessages([]);
     setLoadingMessages(true);
     loadMessages(selectedId).finally(() => setLoadingMessages(false));
     const t = setInterval(() => {
@@ -85,98 +121,106 @@ function AdminSuporteContent() {
     return () => clearInterval(t);
   }, [selectedId, loadMessages]);
 
+  const selected = conversations.find((c) => c.id === selectedId) ?? null;
+
+  const list = (
+    <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card md:w-80 md:shrink-0">
+      {loadingList ? (
+        <div className="space-y-2 p-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-14 w-full" />
+          ))}
+        </div>
+      ) : conversations.length === 0 ? (
+        <EmptyState
+          compact
+          icon={<MessagesSquare />}
+          title="Nenhuma conversa ainda"
+          description="Ninguém do seu terreiro falou com o suporte até agora."
+        />
+      ) : (
+        <ul className="divide-y overflow-y-auto" aria-label="Conversas">
+          {conversations.map((c) => (
+            <li key={c.id}>
+              <button
+                type="button"
+                onClick={() => setSelectedId(c.id)}
+                aria-current={c.id === selectedId || undefined}
+                className={cn(
+                  'flex w-full flex-col gap-1 px-3 py-2.5 text-left outline-none hover:bg-accent focus-visible:bg-accent',
+                  c.id === selectedId && 'bg-accent',
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <span className={cn('min-w-0 flex-1 truncate text-sm', c.unread ? 'font-bold' : 'font-medium')}>
+                    {c.owner_name_snapshot}
+                  </span>
+                  {c.last_message_at && (
+                    <time dateTime={c.last_message_at} className="shrink-0 text-xs text-muted-foreground">
+                      {formatMessageTime(c.last_message_at)}
+                    </time>
+                  )}
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                    {c.last_message_preview || '—'}
+                  </span>
+                  {c.unread && (
+                    <Badge variant="outline" className="border-warning/50 text-warning">
+                      Nova resposta
+                    </Badge>
+                  )}
+                  <StatusBadge status={c.status} />
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
   return (
-    <>
+    <div className="space-y-4">
       <PageHeader
         title="Suporte"
-        subtitle="Acompanhe as conversas de todos os usuários do seu terreiro com o suporte da plataforma."
+        subtitle="Acompanhe as conversas das pessoas do seu terreiro com o suporte. Para falar com o suporte, use o botão Ajuda."
       />
 
-      {/* -90px reserva o canto inferior esquerdo pro FAB global de suporte (fixed, ~64px + respiro) */}
-      <Box sx={{ display: 'flex', gap: 2, height: 'calc(100vh - 220px - 90px)', minHeight: 420 }}>
-        <Paper sx={{ width: 320, flexShrink: 0, overflowY: 'auto' }}>
-          {loadingList ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress size={24} />
-            </Box>
-          ) : conversations.length === 0 ? (
-            <Box sx={{ p: 3 }}>
-              <Typography variant="body2" color="text.secondary">
-                Ninguém do seu terreiro falou com o suporte ainda.
-              </Typography>
-            </Box>
-          ) : (
-            <List disablePadding>
-              {conversations.map((c) => (
-                <ListItemButton
-                  key={c.id}
-                  selected={c.id === selectedId}
-                  onClick={() => setSelectedId(c.id)}
-                  sx={{ borderBottom: '1px solid', borderColor: 'divider', alignItems: 'flex-start', py: 1.25 }}
-                >
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" fontWeight={c.unread ? 700 : 500} sx={{ flex: 1 }}>
-                          {c.owner_name_snapshot}
-                        </Typography>
-                        {c.unread && <Chip label="Nova resposta" size="small" color="warning" sx={{ height: 20, fontSize: '0.65rem' }} />}
-                        <Chip
-                          label={c.status === 'open' ? 'Aberta' : 'Resolvida'}
-                          size="small"
-                          color={c.status === 'open' ? 'success' : 'default'}
-                          variant="outlined"
-                          sx={{ height: 20, fontSize: '0.65rem' }}
-                        />
-                      </Box>
-                    }
-                    secondary={c.last_message_preview || '—'}
-                    secondaryTypographyProps={{ noWrap: true }}
-                  />
-                </ListItemButton>
-              ))}
-            </List>
-          )}
-        </Paper>
-
-        <Paper sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {!selectedId ? (
-            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
-                Selecione uma conversa pra ver as mensagens.
-              </Typography>
-            </Box>
-          ) : loadingMessages && messages.length === 0 ? (
-            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CircularProgress size={28} />
-            </Box>
-          ) : (
-            <Box sx={{ flex: 1, overflowY: 'auto', p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {messages.map((m) => (
-                <Box
-                  key={m.id}
-                  sx={{
-                    alignSelf: m.is_from_support ? 'flex-start' : 'flex-end',
-                    maxWidth: '70%',
-                    bgcolor: m.is_from_support ? 'action.selected' : 'primary.main',
-                    color: m.is_from_support ? 'text.primary' : 'primary.contrastText',
-                    borderRadius: 2,
-                    px: 1.5, py: 1,
-                  }}
-                >
-                  <Typography variant="caption" sx={{ opacity: 0.75, display: 'block', mb: 0.25 }}>
-                    {m.sender_name_snapshot}
-                  </Typography>
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {m.body}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-          )}
-        </Paper>
-      </Box>
-    </>
+      {isDesktop ? (
+        <div className="flex h-[calc(100dvh-260px)] min-h-[420px] gap-4">
+          {list}
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card">
+            {selected ? (
+              <>
+                <div className="flex items-center gap-2 border-b px-4 py-3">
+                  <h2 className="flex-1 truncate font-semibold">{selected.owner_name_snapshot}</h2>
+                  <StatusBadge status={selected.status} />
+                </div>
+                <MessagesView messages={messages} loading={loadingMessages} />
+              </>
+            ) : (
+              <p className="m-auto text-sm text-muted-foreground">Escolha uma conversa para ver as mensagens.</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          {list}
+          <Sheet open={!!selected} onOpenChange={(o) => !o && setSelectedId(null)}>
+            <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-full">
+              <SheetHeader className="border-b">
+                <SheetTitle>{selected?.owner_name_snapshot}</SheetTitle>
+                <SheetDescription>
+                  {selected?.status === 'open' ? 'Conversa aberta' : 'Conversa resolvida'} · só leitura
+                </SheetDescription>
+              </SheetHeader>
+              <MessagesView messages={messages} loading={loadingMessages} />
+            </SheetContent>
+          </Sheet>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -187,13 +231,9 @@ export default function AdminSuportePage() {
   return (
     <AdminLayout title="Suporte">
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <CircularProgress />
-        </Box>
+        <Skeleton className="h-40 w-full" />
       ) : !isAdmin ? (
-        <Alert severity="warning" sx={{ mt: 2 }}>
-          Você não tem permissão para visualizar as conversas de suporte do terreiro. Sua própria conversa continua disponível pelo botão de suporte.
-        </Alert>
+        <PermissionDenied message="Só administradores veem as conversas do terreiro. A sua conversa continua no botão Ajuda." />
       ) : (
         <AdminSuporteContent />
       )}

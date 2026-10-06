@@ -893,7 +893,7 @@ function AdminConfigContent() {
         <div
           role="region"
           aria-label="Alterações não salvas"
-          className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:left-[280px]"
+          className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:left-[280px] md:pr-36"
         >
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
             <span className="flex items-center gap-2 text-sm text-muted-foreground">
