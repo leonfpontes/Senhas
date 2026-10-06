@@ -70,6 +70,8 @@ interface ContaFinanceira {
   recorrencia: string | null;
   observacoes: string | null;
   created_at: string;
+  /** Espelho de Mensalidade: somente leitura aqui (o backend responde 409 a editar/baixar/excluir). */
+  origem_mensalidade?: boolean;
 }
 interface Resumo {
   total_pagar_pendente: number;
@@ -380,8 +382,20 @@ function LancamentosContent() {
 
   // ── Tabela ─────────────────────────────────────────────────────────────────
 
-  const podeBaixar = (c: ContaFinanceira) => canEdit && c.status !== 'pago' && c.status !== 'cancelado';
+  const podeBaixar = (c: ContaFinanceira) =>
+    canEdit && !c.origem_mensalidade && c.status !== 'pago' && c.status !== 'cancelado';
   const showActions = canEdit || canDelete;
+
+  // Conta gerada pela Mensalidade: sem editar/baixar/excluir aqui — a mudança é feita lá.
+  const EspelhoMensalidade = () => (
+    <Link
+      href="/admin/financeiro/mensalidades"
+      title="Gerado pela Mensalidade — registre pagamento, isenção ou correção em Financeiro → Mensalidades"
+      className="whitespace-nowrap text-xs text-muted-foreground underline underline-offset-2"
+    >
+      Editar em Mensalidades
+    </Link>
+  );
 
   const RowMenu = ({ c }: { c: ContaFinanceira }) => (
     <DropdownMenu>
@@ -453,7 +467,7 @@ function LancamentosContent() {
                 Dar baixa
               </Button>
             )}
-            <RowMenu c={row.original} />
+            {row.original.origem_mensalidade ? <EspelhoMensalidade /> : <RowMenu c={row.original} />}
           </div>
         ),
       });
@@ -494,7 +508,7 @@ function LancamentosContent() {
               Dar baixa
             </Button>
           )}
-          <RowMenu c={c} />
+          {c.origem_mensalidade ? <EspelhoMensalidade /> : <RowMenu c={c} />}
         </div>
       )}
     </div>

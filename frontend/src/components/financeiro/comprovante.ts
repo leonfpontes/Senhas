@@ -16,7 +16,12 @@ export async function baixarComprovante(url: string, filename?: string | null): 
   URL.revokeObjectURL(blobUrl);
 }
 
-/** Monta o multipart aceito pelos endpoints `POST .../{pessoa_id}/{mes}` de mensalidade. */
+/**
+ * Monta o multipart aceito pelos endpoints `POST .../{pessoa_id}/{mes}` de mensalidade.
+ *
+ * `observacao`: `undefined` = não envia (o backend mantém a atual — usado pelo lote);
+ * `null`/vazio = envia vazio (o backend limpa); texto = grava.
+ */
 export function montarFormPagamento(p: {
   status: string;
   valor_pago?: number | null;
@@ -28,7 +33,7 @@ export function montarFormPagamento(p: {
   form.append('status', p.status);
   if (p.valor_pago != null && p.valor_pago > 0) form.append('valor_pago', String(p.valor_pago));
   if (p.data_pagamento) form.append('data_pagamento', p.data_pagamento);
-  if (p.observacao) form.append('observacao', p.observacao);
+  if (p.observacao !== undefined) form.append('observacao', p.observacao ?? '');
   if (p.comprovante) form.append('comprovante', p.comprovante);
   return form;
 }

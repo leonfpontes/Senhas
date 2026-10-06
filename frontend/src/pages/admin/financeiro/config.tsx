@@ -517,10 +517,11 @@ function ContasBancariasTab() {
 // Aba: Mensalidade
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// O toggle "Enviar relatório por e-mail" (email_relatorio_ativo) saiu daqui: nenhum job lia
+// a flag e não existe botão "Enviar relatório" na tela. A coluna segue no banco.
 interface MensalidadeForm {
   valorMensal: number;
   diaVencimento: string;
-  emailRelatorioAtivo: boolean;
   flagAssociado: boolean;
   valorMensalAssociado: number;
   diaVencimentoAssociado: string;
@@ -557,7 +558,7 @@ function MensalidadeTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const EMPTY: MensalidadeForm = useMemo(
-    () => ({ valorMensal: 0, diaVencimento: '10', emailRelatorioAtivo: false, flagAssociado: false, valorMensalAssociado: 0, diaVencimentoAssociado: '10' }),
+    () => ({ valorMensal: 0, diaVencimento: '10', flagAssociado: false, valorMensalAssociado: 0, diaVencimentoAssociado: '10' }),
     [],
   );
   const [form, setForm] = useState<MensalidadeForm>(EMPTY);
@@ -575,7 +576,6 @@ function MensalidadeTab() {
         const next: MensalidadeForm = {
           valorMensal: res.data.valor_mensal ?? 0,
           diaVencimento: String(res.data.dia_vencimento ?? '10'),
-          emailRelatorioAtivo: Boolean(res.data.email_relatorio_ativo),
           flagAssociado: Boolean(res.data.enable_mensalidade_associado),
           valorMensalAssociado: res.data.valor_mensal_associado ?? 0,
           diaVencimentoAssociado: String(res.data.dia_vencimento_associado ?? '10'),
@@ -602,11 +602,12 @@ function MensalidadeTab() {
       if (planMediuns) {
         body.valor_mensal = form.valorMensal;
         body.dia_vencimento = parseInt(form.diaVencimento, 10);
-        body.email_relatorio_ativo = form.emailRelatorioAtivo;
       }
       if (planAssoc) {
+        // Único lugar que liga/desliga a mensalidade de associados (saiu de Configurações).
         body.enable_mensalidade_associado = form.flagAssociado;
-        if (form.valorMensalAssociado > 0) body.valor_mensal_associado = form.valorMensalAssociado;
+        // 0 é um valor válido (volta a não cobrar) — antes só valores > 0 eram enviados.
+        if (form.valorMensalAssociado >= 0) body.valor_mensal_associado = form.valorMensalAssociado;
         if (form.diaVencimentoAssociado) body.dia_vencimento_associado = parseInt(form.diaVencimentoAssociado, 10);
       }
       await apiClient.put('/api/v1/admin/financeiro/config', body);
@@ -637,22 +638,6 @@ function MensalidadeTab() {
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="dia-venc">Dia de vencimento</Label>
               <DiaSelect id="dia-venc" value={form.diaVencimento} onChange={(v) => set('diaVencimento', v)} disabled={!canEdit} />
-            </div>
-            <div className="flex items-start justify-between gap-4 rounded-md border p-3">
-              <div className="flex flex-col gap-0.5">
-                <Label htmlFor="email-relatorio" className="font-medium">
-                  Enviar relatório por e-mail
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Quando ativo, o botão &quot;Enviar relatório&quot; dispara e-mail para todos os administradores.
-                </p>
-              </div>
-              <Switch
-                id="email-relatorio"
-                checked={form.emailRelatorioAtivo}
-                onCheckedChange={(v) => set('emailRelatorioAtivo', v)}
-                disabled={!canEdit}
-              />
             </div>
           </CardContent>
         </Card>
