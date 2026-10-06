@@ -1,0 +1,59 @@
+{
+  "id": "/admin/porta",
+  "name": "GiraHub",
+  "short_name": "GiraHub",
+  "description": "Porta do GiraHub: chame a fila, marque quem chegou e registre os atendimentos da gira direto do celular ou do tablet.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/admin/porta?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#4f46e5",
+  "background_color": "#ffffff",
+  "categories": ["productivity", "business"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Porta",
+      "short_name": "Porta",
+      "description": "Fila da gira de hoje na entrada",
+      "url": "/admin/porta?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Giras",
+      "short_name": "Giras",
+      "description": "Agenda de giras do terreiro",
+      "url": "/admin/giras?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Senhas",
+      "short_name": "Senhas",
+      "description": "Senhas emitidas e consulentes",
+      "url": "/admin/tickets?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

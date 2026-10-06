@@ -12,6 +12,7 @@ import { PermissionsProvider } from '@/hooks/usePermissions';
 import { SnackbarProvider } from '@/contexts/SnackbarContext';
 import { Toaster } from '@/components/ui/sonner';
 import ClarityAnalytics from '@/components/shared/ClarityAnalytics';
+import ServiceWorkerRegistrar from '@/components/shared/ServiceWorkerRegistrar';
 
 /**
  * Estilos do popover do tour — responsivos.
@@ -50,6 +51,8 @@ function MyApp({ Component, pageProps }: AppProps) {
           gtag('config', 'G-BF9G0RFCDB');
         `}
       </Script>
+      {/* PWA (P-01): registra public/sw.js em produção; em dev, desregistra */}
+      <ServiceWorkerRegistrar />
       <TenantAwareThemeProvider>
         <ProfileProvider>
           <SubscriptionProvider>

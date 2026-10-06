@@ -219,6 +219,64 @@ describe('Porta — modo operação', () => {
     expect(AudioMock).toHaveBeenCalledTimes(1);
   });
 
+  it('sem rede mostra "Sem conexão" mantendo a fila; ao voltar, avisa e atualiza na hora', async () => {
+    const api = mockApi();
+    await renderPorta();
+    expect(screen.queryByText('Sem conexão — mostrando a última fila carregada')).not.toBeInTheDocument();
+
+    const onLine = jest.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    act(() => {
+      window.dispatchEvent(new Event('offline'));
+    });
+    expect(screen.getByTestId('porta-sem-conexao')).toHaveAttribute('role', 'status');
+    expect(screen.getByText('Sem conexão — mostrando a última fila carregada')).toBeInTheDocument();
+    // A última fila continua na tela.
+    expect(screen.getAllByTestId('fila-item').length).toBeGreaterThan(0);
+
+    const queueCallsBefore = api.get.mock.calls.filter((c: any[]) => String(c[0]).endsWith('/door/queue')).length;
+    onLine.mockReturnValue(true);
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+    });
+    await waitFor(() =>
+      expect(screen.queryByText('Sem conexão — mostrando a última fila carregada')).not.toBeInTheDocument(),
+    );
+    expect(mockToast.success).toHaveBeenCalledWith('Conexão de volta');
+    const queueCallsAfter = api.get.mock.calls.filter((c: any[]) => String(c[0]).endsWith('/door/queue')).length;
+    expect(queueCallsAfter).toBeGreaterThan(queueCallsBefore);
+    onLine.mockRestore();
+  });
+
+  it('duas falhas seguidas da atualização também mostram "Sem conexão" (um toast de erro só)', async () => {
+    jest.useFakeTimers();
+    try {
+      const api = mockApi();
+      await renderPorta();
+      const ok = api.get.getMockImplementation();
+      api.get.mockImplementation((url: string) =>
+        url.endsWith('/door/queue') ? Promise.reject(new Error('Network Error')) : ok(url),
+      );
+      await act(async () => {
+        jest.advanceTimersByTime(8000);
+      });
+      expect(screen.queryByText('Sem conexão — mostrando a última fila carregada')).not.toBeInTheDocument();
+      await act(async () => {
+        jest.advanceTimersByTime(8000);
+      });
+      expect(screen.getByText('Sem conexão — mostrando a última fila carregada')).toBeInTheDocument();
+      expect(mockToast.error.mock.calls.filter((c: any[]) => c[0] === 'Erro ao carregar a fila.')).toHaveLength(1);
+
+      api.get.mockImplementation(ok);
+      await act(async () => {
+        jest.advanceTimersByTime(8000);
+      });
+      expect(screen.queryByText('Sem conexão — mostrando a última fila carregada')).not.toBeInTheDocument();
+      expect(mockToast.success).toHaveBeenCalledWith('Conexão de volta');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('sem permissão de ver a Porta mostra o aviso padrão', () => {
     mockCan.mockImplementation(() => false);
     mockApi();
