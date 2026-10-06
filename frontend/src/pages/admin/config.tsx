@@ -24,7 +24,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { dispatchTenantBrandingUpdated } from '@/providers/ThemeProvider';
@@ -384,7 +384,10 @@ function TimeSlotTemplateEditor({ canEdit }: { canEdit: boolean }) {
 export default function AdminConfigPage() {
   return (
     <AdminLayout title="Configurações" maxWidth="xl">
-      <AdminConfigContent />
+      {/* Sem TooltipProvider global (o layout ainda é MUI): o Radix exige um provider. */}
+      <TooltipProvider delayDuration={200}>
+        <AdminConfigContent />
+      </TooltipProvider>
     </AdminLayout>
   );
 }
