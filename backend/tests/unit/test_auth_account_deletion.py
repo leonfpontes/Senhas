@@ -374,3 +374,25 @@ class TestDeleteAccountSuccess:
 
         mock_db_session.rollback.assert_called_once()
         mock_db_session.commit.assert_not_called()
+
+
+async def test_email_de_exclusao_nao_promete_apagar_tudo(monkeypatch):
+    """O e-mail descreve o que a exclusão faz de verdade (Política de Privacidade, R-02): apaga o
+    usuário, mas dados do terreiro ficam com a casa e os backups expiram em até 12 meses."""
+    from src.api.v1.auth import profile
+
+    enviados = []
+
+    class FakeResend:
+        async def send_async(self, msg):
+            enviados.append(msg)
+            return True
+
+    monkeypatch.setattr(profile, "ResendEmailService", FakeResend)
+    await profile._send_account_deleted_email("pessoa@example.com", "pessoa")
+
+    msg = enviados[0]
+    for corpo in (msg.html_body, msg.text_body):
+        assert "Todos os seus dados pessoais foram removidos" not in corpo
+        assert "12 meses" in corpo
+        assert "girahub.com.br/privacidade" in corpo
