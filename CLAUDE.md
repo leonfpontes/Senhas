@@ -51,7 +51,7 @@ Feature por módulo:
 - Associados → `ASSOCIADOS`
 - Usuários → `USUARIOS`
 - Estoque → `ESTOQUE`
-- Mensalidades (config/resumo/relatorio/pagamentos) → `FINANCEIRO`
+- Mensalidades (config/resumo/relatorio/pagamentos; comprovantes enviados pela Área: fila = `view`, confirmar = `insert`, não confirmar = `edit`) → `FINANCEIRO`
 - Contas a Pagar/Receber, Fluxo de Caixa, Config Financeira → `CONTAS_FINANCEIRAS`
 - Configurações do Tenant → `CONFIGURACOES`
 - Auditoria → `AUDITORIA`

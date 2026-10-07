@@ -20,6 +20,7 @@ from sqlalchemy import (
     Text,
     Time,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID, BYTEA
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -98,6 +99,13 @@ class MensalidadePagamento(TimestampedModel):
         UniqueConstraint("mediun_id", "mes_referencia", name="uq_mensalidade_mediun_mes"),
         Index("ix_mensalidade_pagamentos_tenant_mes", "tenant_id", "mes_referencia"),
         Index("ix_mensalidade_pagamentos_mediun_id", "mediun_id"),
+        # Fila "Comprovantes para conferir" do painel (AM-12, migração 072).
+        Index(
+            "ix_mensalidade_pagamentos_conferir",
+            "tenant_id",
+            "comprovante_enviado_em",
+            postgresql_where=text("comprovante_enviado_em IS NOT NULL AND status = 'PENDENTE'"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -134,6 +142,26 @@ class MensalidadePagamento(TimestampedModel):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Comprovante enviado pelo próprio médium na Área (AM-12, migração 072). O status
+    # continua PENDENTE até a casa confirmar; "em conferência"/"não confirmada" saem
+    # destas colunas (services/medium_inicio.situacao_mensalidade). Comprovante anexado
+    # pelo painel não preenche `comprovante_enviado_em`.
+    comprovante_enviado_em: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    comprovante_enviado_por: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "users.id",
+            ondelete="SET NULL",
+            name="fk_mensalidade_pagamentos_comprovante_enviado_por",
+        ),
+        nullable=True,
+    )
+    # A casa não confirmou o comprovante: o médium vê o motivo e pode reenviar
+    # (o reenvio limpa os dois campos).
+    recusa_motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    recusado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     mediun = relationship("Medium", backref="mensalidade_pagamentos")
 

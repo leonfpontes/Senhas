@@ -173,9 +173,9 @@ describe('Início da Área do Médium', () => {
     const mensal = within(pend).getByTestId('pendencia-mensalidade');
     expect(within(mensal).getByText(/Mensalidade de outubro/)).toBeInTheDocument();
     expect(within(mensal).getByText('Venceu em 10/10')).toBeInTheDocument();
-    expect(within(mensal).getByRole('link', { name: 'Ver mensalidade' })).toHaveAttribute(
+    expect(within(mensal).getByRole('link', { name: 'Pagar com PIX' })).toHaveAttribute(
       'href',
-      '/medium/mensalidade',
+      '/medium/mensalidade?pagar=1',
     );
     expect(within(pend).getByRole('link', { name: /2 avisos novos da casa/ })).toHaveAttribute(
       'href',
@@ -396,7 +396,6 @@ describe('gate do MediumLayout', () => {
     api({ '/api/v1/medium/me': ME }, profile);
     for (const [path, mod, titulo] of [
       ['/medium/agenda', '@/pages/medium/agenda', 'Agenda'],
-      ['/medium/mensalidade', '@/pages/medium/mensalidade', 'Mensalidade'],
     ]) {
       mockRouter.pathname = path;
       const Page = require(mod).default;

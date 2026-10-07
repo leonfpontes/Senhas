@@ -109,6 +109,10 @@ class MensalidadeRepository:
                 pag_stmt.c.valor_pago.label("valor_pago"),
                 pag_stmt.c.comprovante_filename.label("comprovante_filename"),
                 pag_stmt.c.observacao.label("observacao"),
+                # Comprovante enviado pela Área do Médium e a recusa da casa (AM-12).
+                pag_stmt.c.comprovante_enviado_em.label("comprovante_enviado_em"),
+                pag_stmt.c.recusado_em.label("recusado_em"),
+                pag_stmt.c.recusa_motivo.label("recusa_motivo"),
             )
             .select_from(
                 outerjoin(

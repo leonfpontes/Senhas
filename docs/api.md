@@ -635,7 +635,7 @@ e chave do piloto `tenants.area_medium_liberada`; sem a chave → 403). Médium 
 
 ---
 
-### 9. Área do Médium configuration (AM-10)
+### 10. Área do Médium configuration (AM-10)
 
 `GET /api/v1/admin/config/area-medium` (CONFIGURACOES `view`) ·
 `PUT /api/v1/admin/config/area-medium` (CONFIGURACOES `edit`). Both require the plan feature
@@ -656,7 +656,7 @@ clears), `whatsapp` (Brazilian number with DDD, any mask; stored as digits with 
 invalid → 422), `modulos` (`{agenda?, avisos?, mensalidade?}`). Audited as `TenantConfig` /
 `config_type: "area_medium"`.
 
-### 10. PIX key for the mensalidade (AM-10)
+### 11. PIX key for the mensalidade (AM-10)
 
 `GET /api/v1/admin/financeiro/config/pix` (FINANCEIRO `view` + plan `mensalidade_mediun`):
 ```json
@@ -700,7 +700,32 @@ refused while impersonating — 403, rate limit 10/hour per IP):
   mensalidade alterada") goes to every active admin of the tenant through the e-mail queue,
   with the masked old/new key.
 
-### 11. Avisos da casa (comunicados, AM-09)
+### 12. Receipts sent by médiuns (AM-12)
+
+Both with plan `mensalidade_mediun`.
+
+`GET /api/v1/admin/financeiro/mensalidades/comprovantes-para-conferir` (FINANCEIRO `view`) —
+receipts sent through the Área and not yet checked, every month, oldest first:
+```json
+[{ "pagamento_id": "uuid", "mediun_id": "uuid", "mediun_nome": "Elaine Souza", "mes": "2026-10",
+   "valor": 50.0, "comprovante_enviado_em": "2026-10-08T17:05:00Z",
+   "comprovante_filename": "comprovante.jpg", "comprovante_mime": "image/jpeg" }]
+```
+The file is the existing `GET .../mensalidades/{mediun_id}/{mes}/comprovante`.
+`GET /api/v1/admin/financeiro/mensalidades?mes=` items also carry `comprovante_enviado_em`,
+`comprovante_para_conferir`, `recusa_motivo` and `recusado_em`.
+
+- **Confirm** = the existing `POST /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}` with
+  `status=PAGO` (FINANCEIRO `insert`): the month becomes paid, the médium's file is kept and the
+  account receivable mirror is updated as usual.
+- **Do not confirm**: `PATCH /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}/recusa`
+  (FINANCEIRO `edit`), body `{"motivo": "até 500 caracteres"}` → `{mediun_id, mes, recusa_motivo,
+  recusado_em}`. The médium sees the reason and can send another receipt. 404 when there is no record
+  (or the médium belongs to another tenant), 409 `COMPROVANTE_NAO_PENDENTE` when nothing is waiting
+  (already confirmed, refused or removed), 422 for an empty reason. Audited as
+  `mensalidade_comprovante_medium`.
+
+### 13. Avisos da casa (comunicados, AM-09)
 
 On screen it is **"Avisos"** (decision D-16); the API keeps `comunicados`. Every route requires the
 plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium_liberada`, otherwise
@@ -916,18 +941,21 @@ médium come from the session; a `medium_id` in the query string is ignored).
 }
 ```
 - `pendencias`: already in screen order (decision D-24): `escala` (AM-17) → `mensalidade`
-  (`situacao` `atrasada`, or `pendente` only from 5 days before the due date — `DIAS_AVISO_MENSALIDADE`;
-  earlier it stays out and the screen shows it under "Acompanhando") → `aviso` (AM-09:
-  `{"tipo": "aviso", "quantidade": N}` with the unread count). Escala is never returned yet.
+  (`situacao` `atrasada` or `nao_confirmada` (the house did not confirm the receipt, AM-12), or
+  `pendente` only from 5 days before the due date — `DIAS_AVISO_MENSALIDADE`; earlier it stays out
+  and the screen shows it under "Acompanhando"; `em_conferencia` is never a pendência) → `aviso`
+  (AM-09: `{"tipo": "aviso", "quantidade": N}` with the unread count). Escala is never returned yet.
 - `proxima_gira`: the tenant's next active gira (future, or in progress: `data_fim` not reached,
   or started less than 6 h ago when there is no `data_fim`). Only name, times and place — no
   tickets, consulente data or `recados`. `orientacoes` (what to bring) is `null` until AM-07.
 - `mensalidade`: current month in Brasília time, `null` when the plan has no
   `mensalidade_mediun`, the house has no active mensalidade config, the médium joined after the
-  month, or the house never set a value. `status`: `isento` (permanent exemption or ISENTO record),
-  `paga` (PAGO record; `valor` = amount paid), `pendente` (until the due day, inclusive) or
-  `atrasada` (after it). `valor` is the amount captured on the month's first record, else the
-  configured monthly value.
+  month, or the house never set a value. `status`: `paga` (PAGO record; `valor` = amount paid),
+  `isento` (permanent exemption or ISENTO record), `em_conferencia` (receipt sent through the Área,
+  waiting for the house — AM-12), `nao_confirmada` (the house did not confirm it), `pendente`
+  (until the due day, inclusive) or `atrasada` (after it). `valor` is the amount captured on the
+  month's first record, else the configured monthly value. Same rule as the Mensalidade screen
+  (`services/medium_inicio.situacao_mensalidade`).
 - `avisos` (AM-09): `{nao_lidos, ultimos}` — unread count and the 3 newest unread
   (`{id, titulo, fixado, publicado_em}`); `{0, []}` when the house turned the "avisos" module off.
 
@@ -943,6 +971,69 @@ médium come from the session; a `medium_id` in the query string is ignored).
 - The house module "avisos" off (`PUT /admin/config/area-medium` with `modulos.avisos = false`) →
   403 (`error_code: MEDIUM_MODULO_DESLIGADO`) on these three routes. Nothing here reveals who else
   read it or who wrote it.
+
+### 4. Mensalidade (AM-11/AM-12)
+
+Besides `require_medium`, these routes need the **mensalidade module visible** in the Área
+(`area_medium_mensalidade` on AND the effective plan has `mensalidade_mediun`); otherwise **403**
+`details.error_code: MEDIUM_MODULO_INDISPONIVEL` (neutral — no plan offer to the médium). The month
+`AAAA-MM` is the only parameter; the médium never marks a month as paid.
+
+**`GET /api/v1/medium/mensalidades`**
+```json
+{
+  "hoje": "2026-10-08",
+  "isento": false,
+  "valor_mensal": 50.0,
+  "dia_vencimento": 10,
+  "pix": { "tipo": "cpf", "chave": "12345678909", "nome_recebedor": "Casa de Oxala", "chave_alterada_em": null },
+  "meses": [
+    { "mes": "2026-10", "status": "pendente", "valor": 50.0, "vencimento": "2026-10-10",
+      "data_pagamento": null, "comprovante_enviado_em": null, "recusa_motivo": null,
+      "recusado_em": null, "atual": true },
+    { "mes": "2026-09", "status": "nao_confirmada", "valor": 50.0, "vencimento": "2026-09-10",
+      "comprovante_enviado_em": "2026-09-12T17:05:00Z",
+      "recusa_motivo": "O valor é diferente da mensalidade.", "recusado_em": "2026-09-13T10:00:00Z",
+      "data_pagamento": null, "atual": false }
+  ]
+}
+```
+- `meses`: newest first (current month first). From the médium's `data_entrada` month (reference
+  month rule, §11.10 of AGENTS.md) to the current month, but never before the house created its
+  mensalidade config nor more than 12 months back; months with a record (paid, exempt, receipt)
+  always appear. Permanent exemption (`isento: true`) shows only the current month (+ records).
+  Months without a record and without a configured value are skipped.
+- `status`: same values as the Início (`pendente`, `atrasada`, `em_conferencia`, `nao_confirmada`,
+  `paga`, `isento`).
+- `pix`: `null` when the house has no PIX key ("Combine o pagamento com a casa").
+  `chave_alterada_em` is filled only for 30 days after the key changed (§7.3).
+- Never returned: `observacao`, `registrado_por`, the receipt file.
+
+**`GET /api/v1/medium/mensalidades/{AAAA-MM}/pix`** — "PIX copia e cola" of an open month
+(`pendente`, `atrasada` or `nao_confirmada`):
+```json
+{
+  "mes": "2026-10", "valor": 50.0,
+  "copia_e_cola": "00020126...6304ABCD",
+  "txid": "MENS2026100A1B2C3D4E",
+  "tipo": "cpf", "chave": "12345678909", "nome_recebedor": "Casa de Oxala", "cidade": "Sao Paulo",
+  "instrucoes": null, "chave_alterada_em": null
+}
+```
+The BR Code is built on the server (`services/pix_brcode.build_static_brcode`) with the month's
+value, txid `MENS` + AAAAMM + 10 hex of the médium id (`txid_mensalidade`) and the description
+"Mensalidade MM/AAAA"; the same text is the QR payload. Errors: 404 `MES_SEM_MENSALIDADE` (month
+outside the list), 409 `MES_FECHADO` (`paga`, `isento` or `em_conferencia` — `details.status`), 409
+`PIX_NAO_CONFIGURADO`, 409 `MENSALIDADE_SEM_VALOR`, 422 `MES_INVALIDO`.
+
+**`POST /api/v1/medium/mensalidades/{AAAA-MM}/comprovante`** (multipart, field `arquivo`) —
+JPEG, PNG, WebP or PDF up to **2 MB**, type checked by the file's first bytes. Creates the month's
+record (PENDENTE, `valor_vigente` = configured value, like the first record in the panel) or updates
+it, stores the file, sets `comprovante_enviado_em/_por` and clears a previous refusal. The month
+becomes `em_conferencia`; the response is the month item. Errors: 422 `COMPROVANTE_GRANDE` /
+`COMPROVANTE_TIPO` / `COMPROVANTE_VAZIO`, 404 `MES_SEM_MENSALIDADE`, 409 `MES_FECHADO` (paid or
+exempt), 403 while impersonating, 429 above 20 uploads/hour per IP. Audited as
+`mensalidade_comprovante_medium` with month, type and size only (never the file).
 
 ---
 
