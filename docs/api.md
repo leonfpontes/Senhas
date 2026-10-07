@@ -715,7 +715,8 @@ médium come from the session; a `medium_id` in the query string is ignored).
 }
 ```
 - `pendencias`: already in screen order (decision D-24): `escala` (AM-17) → `mensalidade`
-  (`situacao` `pendente`/`atrasada`) → `aviso` (AM-09). Escala and aviso are never returned yet.
+  (`situacao` `atrasada`, or `pendente` only from 5 days before the due date — `DIAS_AVISO_MENSALIDADE`;
+  earlier it stays out and the screen shows it under "Acompanhando") → `aviso` (AM-09). Escala and aviso are never returned yet.
 - `proxima_gira`: the tenant's next active gira (future, or in progress: `data_fim` not reached,
   or started less than 6 h ago when there is no `data_fim`). Only name, times and place — no
   tickets, consulente data or `recados`. `orientacoes` (what to bring) is `null` until AM-07.

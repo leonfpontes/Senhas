@@ -938,8 +938,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   encerra só a impersonação quando há uma), barra inferior Início · Agenda · Avisos · Mensalidade ·
   Perfil (`z-40`, área segura, ícone + texto), claro/escuro do sistema, gate (sem sessão → login;
   só painel → painel). `GET /api/v1/medium/inicio` (`api/v1/medium/inicio.py`, regras puras em
-  `services/medium_inicio.py`): `pendencias` já ordenadas (D-24: escala → mensalidade pendente/
-  atrasada → aviso; escala e aviso vazios até AM-17/AM-09), `proxima_gira` (ativa, futura ou em
+  `services/medium_inicio.py`): `pendencias` já ordenadas (D-24: escala → mensalidade atrasada ou
+  a até 5 dias do vencimento — antes disso vai para "Acompanhando", decisão do dono 07/10 → aviso; escala e aviso vazios até AM-17/AM-09), `proxima_gira` (ativa, futura ou em
   andamento; só nome/horário/local; `orientacoes` null até o AM-07), `mensalidade` do mês em
   Brasília (só com `mensalidade_mediun` e config ativa; regras do §11.10: isento/paga/pendente até
   o vencimento/atrasada depois; entrou depois do mês ou casa sem valor → null) e `avisos`

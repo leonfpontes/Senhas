@@ -97,6 +97,16 @@ def test_pendencias_na_ordem_escala_mensalidade_aviso():
     assert itens[1]["dias_para_vencer"] == -2
 
 
+def test_mensalidade_em_aberto_so_e_pendencia_a_5_dias_do_vencimento():
+    def pend(venc):
+        mens = MensalidadeDoMes(mes="2026-10", status="pendente", valor=50.0, vencimento=venc, data_pagamento=None)
+        return montar_pendencias(hoje=HOJE, mensalidade=mens)
+
+    assert pend(date(2026, 10, 13)) == []  # faltam 6 dias: fica em "Acompanhando"
+    assert pend(date(2026, 10, 12))[0]["dias_para_vencer"] == 5
+    assert pend(date(2026, 10, 7))[0]["dias_para_vencer"] == 0
+
+
 def test_mensalidade_paga_ou_isenta_nao_e_pendencia():
     for status in ("paga", "isento"):
         mens = MensalidadeDoMes(mes="2026-10", status=status, valor=None, vencimento=None, data_pagamento=None)

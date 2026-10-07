@@ -261,6 +261,29 @@ describe('Início da Área do Médium', () => {
     expect(screen.queryByRole('region', { name: 'Para você ver agora' })).not.toBeInTheDocument();
   });
 
+  it('mensalidade em aberto a mais de 5 dias do vencimento fica em "Acompanhando"', async () => {
+    const profile = profileOf('medium', MEDIUM_AREAS);
+    signIn(profile);
+    api(
+      {
+        '/api/v1/medium/me': ME,
+        '/api/v1/medium/inicio': {
+          hoje: '2026-10-01',
+          pendencias: [],
+          proxima_gira: null,
+          mensalidade: { mes: '2026-10', status: 'pendente', valor: 50, vencimento: '2026-10-10', data_pagamento: null },
+          avisos: { nao_lidos: 0, ultimos: [] },
+        },
+      },
+      profile,
+    );
+    const Page = require('@/pages/medium/index').default;
+    renderApp(<Page />);
+    const acomp = await screen.findByRole('region', { name: 'Acompanhando' });
+    expect(within(acomp).getByText(/vence em 10\/10/)).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Para você ver agora' })).not.toBeInTheDocument();
+  });
+
   it('primeiro acesso no aparelho abre o passo "Deixe a Área na tela inicial" (e lembra)', async () => {
     localStorage.removeItem(INSTALL_AREA_SEEN_KEY);
     const profile = profileOf('medium', MEDIUM_AREAS);

@@ -13,6 +13,7 @@ import {
   ArrowRight,
   CalendarDays,
   CircleCheck,
+  Clock,
   Megaphone,
   TriangleAlert,
   Wallet,
@@ -180,19 +181,31 @@ function ProximaGira({ gira }: { gira: InicioGira }) {
 
 function Acompanhando({ mensalidade }: { mensalidade: InicioMensalidade }) {
   const isento = mensalidade.status === 'isento';
+  // Em aberto e longe do vencimento (mais de 5 dias): acompanha aqui, sem subir para o topo.
+  const aVencer = mensalidade.status === 'pendente';
   return (
     <section className="flex flex-col gap-2.5" aria-labelledby="titulo-acompanhando">
       <h2 id="titulo-acompanhando" className={SECTION_TITLE}>
         Acompanhando
       </h2>
       <div className={cn(CARD, 'flex-row items-center')}>
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-success/15 text-success-strong">
-          <CircleCheck className="size-5" aria-hidden />
-        </span>
+        {aVencer ? (
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+            <Clock className="size-5" aria-hidden />
+          </span>
+        ) : (
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-success/15 text-success-strong">
+            <CircleCheck className="size-5" aria-hidden />
+          </span>
+        )}
         <div className="min-w-0">
           <p className="text-base font-bold">Mensalidade de {nomeDoMes(mensalidade.mes)}</p>
           <p className="text-sm text-muted-foreground">
-            {isento ? 'Você está isento de mensalidade' : 'Paga · confirmada pela casa'}
+            {aVencer
+              ? `${mensalidade.valor != null ? `${valorBr(mensalidade.valor)} · ` : ''}vence em ${mensalidade.vencimento ? diaMesCurto(mensalidade.vencimento) : 'breve'}`
+              : isento
+                ? 'Você está isento de mensalidade'
+                : 'Paga · confirmada pela casa'}
           </p>
         </div>
       </div>
@@ -239,9 +252,12 @@ function Inicio() {
   const nome = primeiroNome(me?.nome);
   const pendencias = data?.pendencias ?? [];
   const n = pendencias.length;
+  const mensalidadeNoTopo = pendencias.some((p) => p.tipo === 'mensalidade');
   const acompanhando =
     data?.mensalidade &&
-    (data.mensalidade.status === 'paga' || data.mensalidade.status === 'isento')
+    (data.mensalidade.status === 'paga' ||
+      data.mensalidade.status === 'isento' ||
+      (data.mensalidade.status === 'pendente' && !mensalidadeNoTopo))
       ? data.mensalidade
       : null;
   const vazio = data && n === 0 && !data.proxima_gira && !acompanhando;

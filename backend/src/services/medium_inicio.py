@@ -10,8 +10,8 @@ Postgres:
   o vigente gravado no 1º registro do mês ou, sem registro, o valor da configuração. Médium que
   só entrou depois do mês não tem mensalidade nele.
 - **Pendências** (`montar_pendencias`, decisão D-24): o que o médium precisa resolver vem
-  primeiro, já na ordem da tela — responder escala (AM-17, ainda vazio), mensalidade a vencer
-  ou vencida, aviso novo (AM-09, ainda vazio).
+  primeiro, já na ordem da tela — responder escala (AM-17, ainda vazio), mensalidade vencida ou
+  a até 5 dias do vencimento (`DIAS_AVISO_MENSALIDADE`), aviso novo (AM-09, ainda vazio).
 """
 from __future__ import annotations
 
@@ -25,6 +25,10 @@ from ..models.mensalidades import MensalidadeStatus
 
 # Ordem das pendências na tela (D-24). Escala e aviso ficam reservados para AM-17 e AM-09.
 ORDEM_PENDENCIAS = {"escala": 0, "mensalidade": 1, "aviso": 2}
+
+# Mensalidade em aberto só sobe para "Para você ver agora" a partir de N dias antes do
+# vencimento (decisão do dono, 07/10); antes disso fica em "Acompanhando". Atrasada sempre sobe.
+DIAS_AVISO_MENSALIDADE = 5
 
 STATUS_ISENTO = "isento"
 STATUS_PAGA = "paga"
@@ -122,8 +126,11 @@ def montar_pendencias(
     itens: list[dict[str, Any]] = []
     if escalas_a_responder > 0:
         itens.append({"tipo": "escala", "quantidade": escalas_a_responder})
-    if mensalidade is not None and mensalidade.status in (STATUS_PENDENTE, STATUS_ATRASADA):
-        dias = (mensalidade.vencimento - hoje).days if mensalidade.vencimento else None
+    dias = (mensalidade.vencimento - hoje).days if mensalidade and mensalidade.vencimento else None
+    if mensalidade is not None and (
+        mensalidade.status == STATUS_ATRASADA
+        or (mensalidade.status == STATUS_PENDENTE and dias is not None and dias <= DIAS_AVISO_MENSALIDADE)
+    ):
         itens.append(
             {
                 "tipo": "mensalidade",
