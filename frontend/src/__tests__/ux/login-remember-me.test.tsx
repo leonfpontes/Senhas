@@ -80,6 +80,25 @@ describe('Login — Lembrar-me', () => {
     expect(mockCompleteLogin).not.toHaveBeenCalled();
   });
 
+  it('passa as áreas da resposta do login para decidir a rota (AM-04)', async () => {
+    const areas = { admin: false, medium: { medium_id: 'm1', nome: 'Ana' } };
+    mockPost.mockResolvedValue({ data: { user: { id: 'u1', role: 'medium' }, areas } });
+    render(<LoginPage />);
+    fillAndSubmit();
+    await waitFor(() => expect(mockCompleteLogin).toHaveBeenCalledWith({ id: 'u1', role: 'medium', areas }));
+  });
+
+  it('"Recebi um convite da casa" explica que o primeiro acesso é pelo link da casa (AM-04)', () => {
+    render(<LoginPage />);
+    const botao = screen.getByRole('button', { name: /recebi um convite da casa/i });
+    expect(botao).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText(/o primeiro acesso começa pelo link da casa/i)).not.toBeInTheDocument();
+    fireEvent.click(botao);
+    expect(botao).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(/o primeiro acesso começa pelo link da casa/i)).toBeInTheDocument();
+    expect(screen.getByText(/whatsapp ou no e-mail/i)).toBeInTheDocument();
+  });
+
   it('erro comum não oferece reativação', async () => {
     mockPost.mockRejectedValueOnce({ response: { data: { detail: 'E-mail ou senha incorretos.' } } });
     render(<LoginPage />);

@@ -3,5 +3,8 @@ Allow: /
 Disallow: /admin/
 Disallow: /platform/
 Disallow: /api/
+Disallow: /medium$
+Disallow: /medium/
+Disallow: /escolher-area$
 
 Sitemap: https://girahub.com.br/sitemap.xml

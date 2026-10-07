@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
+import { AREA_HOME, knownWithoutAdminArea } from '@/lib/areas';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -74,7 +75,28 @@ export const getFeatureForPath = (path: string): PermissionFeature | null => {
   return null;
 };
 
+/**
+ * Conta sem o painel (médium puro, AM-04) vai para a Área do Médium. Decide pelo perfil
+ * carregado (`areas`); as chamadas `/api/v1/admin/*` dessa conta já são canceladas no
+ * `api_client`, então nada chega ao backend enquanto o redirecionamento acontece.
+ */
 export default function AdminLayout(props: AdminLayoutProps) {
+  const router = useRouter();
+  const { profile } = useProfile();
+  const semPainel = knownWithoutAdminArea(profile);
+
+  useEffect(() => {
+    if (semPainel) void router.replace(AREA_HOME.medium);
+  }, [semPainel, router]);
+
+  if (semPainel) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center" role="status" aria-label="Abrindo a Área do Médium">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
+      </div>
+    );
+  }
+
   return (
     <AdminThemeProvider>
       <GiraProvider>

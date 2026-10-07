@@ -171,6 +171,50 @@
   --ring: var(--color-barro-600);
 }
 
+/* Área do Médium (/medium/*, /escolher-area — `components/medium/MediumLayout`, AM-06): mesma
+ * paleta "terra" do site (areia, tinta, café, ouro, Fraunces), mas com a COR DO TERREIRO nos
+ * detalhes. Diferente do `.auth-terra`, NÃO redefine `--primary`/`--primary-foreground`: elas vêm
+ * do applyBrand() (botão principal, aba ativa, data da gira, linha do cabeçalho). O texto na cor
+ * da marca (`text-brand`) usa `--terra-brand-text-*`, calculadas por applyTerraBrandText()
+ * (lib/brand.ts) contra as superfícies terra; sem elas, barro-700/ouro-300. Segue o claro/escuro
+ * do sistema (o MediumLayout liga a classe `dark` em <html>). Pares em
+ * __tests__/styles/marketingContrast.test.ts. Só na Área: nunca no painel. */
+.medium-terra {
+  --background: var(--color-areia-50);
+  --foreground: var(--color-tinta);
+  --card: #ffffff;
+  --card-foreground: var(--color-tinta);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-tinta);
+  --border: var(--color-areia-200);
+  --input: color-mix(in srgb, var(--color-tinta-suave) 65%, #ffffff);
+  --input-bg: #ffffff;
+  --muted: var(--color-areia-100);
+  --muted-foreground: var(--color-tinta-suave);
+  --accent: var(--color-areia-100);
+  --accent-foreground: var(--color-tinta);
+  --primary-text: var(--terra-brand-text-light, var(--color-barro-700));
+  --ring: var(--primary);
+}
+
+.dark .medium-terra,
+.dark.medium-terra {
+  --background: var(--color-cafe-950);
+  --foreground: var(--color-areia-100);
+  --card: var(--color-cafe-900);
+  --card-foreground: var(--color-areia-100);
+  --popover: var(--color-cafe-900);
+  --popover-foreground: var(--color-areia-100);
+  --border: rgba(243, 203, 116, 0.14);
+  --input: rgba(247, 238, 225, 0.35);
+  --input-bg: rgba(247, 238, 225, 0.05);
+  --muted: var(--color-cafe-800);
+  --muted-foreground: var(--color-areia-300);
+  --accent: var(--color-cafe-800);
+  --accent-foreground: var(--color-areia-100);
+  --primary-text: var(--terra-brand-text-dark, var(--color-ouro-300));
+}
+
 /* Breakpoints iguais aos do MUI (xs 0 / sm 600 / md 900 / lg 1200 / xl 1536), para que
  * `sm:` `md:` `lg:` `xl:` batam com os objetos `{ xs, sm, md }` já existentes nas telas.
  * O MUI não tem 2xl — removido para não existir um breakpoint sem equivalente. */

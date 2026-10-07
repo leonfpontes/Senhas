@@ -2,6 +2,7 @@
  * Subscription context — provides plan info and feature gates to all admin pages.
  */
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useAdminDataEnabled } from '@/hooks/useAdminDataEnabled';
 import { apiClient } from '../services/api_client';
 import { planLabel as planDisplayLabel } from '@/constants/plans';
 
@@ -109,10 +110,12 @@ const hasAuthToken = (): boolean => {
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  // Só no painel (/admin/*) e para quem tem o painel (AM-04): a Área do Médium não chama /admin.
+  const enabled = useAdminDataEnabled();
 
   const fetchSubscription = useCallback(async () => {
     // Skip the fetch on public pages (no token) to avoid unnecessary 401s.
-    if (!hasAuthToken()) {
+    if (!enabled || !hasAuthToken()) {
       setLoading(false);
       return;
     }
@@ -126,7 +129,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
     fetchSubscription();

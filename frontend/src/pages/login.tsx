@@ -1,13 +1,14 @@
 /**
- * /login — entrada de admins e operadores (e da plataforma).
- * Sessão em cookie HttpOnly; o frontend só guarda `user` no localStorage (ver CLAUDE.md).
+ * /login — entrada de admins, operadores, médiuns (Área do Médium) e da plataforma.
+ * Sessão em cookie HttpOnly; o frontend só guarda `user` (com as `areas`) no localStorage (ver
+ * CLAUDE.md). Para onde vai depois decide `completeLogin` pelas áreas da conta (AM-04).
  */
 'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { CircleCheck, Info, Loader2, TriangleAlert, CircleAlert } from 'lucide-react';
+import { ChevronDown, CircleCheck, Info, Loader2, Mail, TriangleAlert, CircleAlert } from 'lucide-react';
 import { AuthShell, AUTH_INPUT, AUTH_LINK } from '@/components/auth';
 import { cn } from '@/lib/utils';
 import { TextField, PasswordField } from '@/components/fields';
@@ -73,7 +74,8 @@ export default function LoginPage() {
       });
 
       // "Lembrar-me" desmarcado: o backend devolve cookies de sessão (somem ao fechar o navegador).
-      completeLogin(response.data.user as SessionUser);
+      // `areas` (AM-02) decide a rota: painel, Área do Médium ou a escolha entre as duas (AM-04).
+      completeLogin({ ...(response.data.user as SessionUser), areas: response.data.areas });
     } catch (err) {
       const e = err as { response?: { data?: { detail?: unknown; message?: unknown } } } | undefined;
       const detail = e?.response?.data?.detail;
@@ -99,7 +101,7 @@ export default function LoginPage() {
         { email, password, remember_me: rememberMe },
         { skipAutoLogout: true } as ApiRequestConfig,
       );
-      completeLogin(res.data.user as SessionUser);
+      completeLogin({ ...(res.data.user as SessionUser), areas: res.data.areas });
     } catch (err) {
       setErrorCode(null);
       setError(extractApiErrorMessage(err, 'Não foi possível reativar a conta. Tente novamente.'));
@@ -214,7 +216,44 @@ export default function LoginPage() {
           {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
           {loading ? 'Entrando…' : 'Entrar'}
         </Button>
+
+        <ConviteDaCasa />
       </form>
     </AuthShell>
+  );
+}
+
+/**
+ * "Recebi um convite da casa" (AM-04): o médium não cria conta aqui — o primeiro acesso começa
+ * pelo link do convite que a casa mandou (WhatsApp ou e-mail, AM-03). Depois disso, entra aqui.
+ */
+function ConviteDaCasa() {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="-mt-2 flex flex-col">
+      <button
+        type="button"
+        aria-expanded={aberto}
+        aria-controls="convite-da-casa"
+        onClick={() => setAberto((v) => !v)}
+        className={cn(
+          'inline-flex min-h-12 items-center gap-2 self-center rounded-md text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          AUTH_LINK,
+        )}
+      >
+        <Mail className="size-4" aria-hidden />
+        Recebi um convite da casa
+        <ChevronDown className={cn('size-4 transition-transform', aberto && 'rotate-180')} aria-hidden />
+      </button>
+      {aberto && (
+        <div id="convite-da-casa" className="rounded-xl bg-areia-100 px-4 py-3 text-sm text-tinta">
+          <p className="font-bold">O primeiro acesso começa pelo link da casa.</p>
+          <p className="mt-1 text-tinta-suave">
+            Toque no link do convite que a casa mandou no WhatsApp ou no e-mail e crie sua senha de acesso. Depois,
+            é só entrar aqui com seu e-mail e essa senha.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

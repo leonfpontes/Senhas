@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useAdminDataEnabled } from './useAdminDataEnabled';
 import { permissionGroupsService } from '../services/permissionGroupsService';
 import { PermissionFeature } from '../constants/permissionFeatures';
 
@@ -34,9 +35,11 @@ const hasAuthToken = (): boolean => {
 export function PermissionsProvider({ children }: { children: React.ReactNode }) {
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [loading, setLoading] = useState(true);
+  // Só no painel (/admin/*) e para quem tem o painel (AM-04): a Área do Médium não chama /admin.
+  const enabled = useAdminDataEnabled();
 
   const fetchPermissions = useCallback(async () => {
-    if (!hasAuthToken()) {
+    if (!enabled || !hasAuthToken()) {
       setLoading(false);
       return;
     }
@@ -48,7 +51,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   // Fetch permissions on mount
   useEffect(() => {

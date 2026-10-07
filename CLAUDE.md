@@ -93,6 +93,11 @@ inclusive nas exceções acima. Rota admin nova entra sempre no `admin_router`
 (`tests/unit/test_area_medium_rotas.py` varre o app). Consulta "qualquer usuário do
 terreiro" (contato, contagem) exclui `role = medium`. Ver AGENTS.md §3.3.
 
+Tela da Área do Médium (`frontend/src/pages/medium/*`, AM-06): não usa `useSubscription`/
+`usePermissions`; envolve tudo em `<MediumLayout>` (gate de área — `audit-permission-guards.js`
+exige) e só chama `/api/v1/medium/*`. Médium puro nunca chama `/api/v1/admin/*`: os providers
+do painel só buscam em `/admin/*` e o `api_client` cancela a chamada (AGENTS.md §11.23).
+
 ### Frontend — checklist por tela
 
 Toda tela admin precisa de ambos os hooks:
