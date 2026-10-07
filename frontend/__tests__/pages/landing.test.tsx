@@ -175,7 +175,7 @@ describe('V-03 depoimentos', () => {
     expect(within(sec).getByText('Tuccco — Tenda de Umbanda Caboclo Cobra Coral')).toBeInTheDocument();
   });
 
-  it('os depoimentos reais (Marcelo e Natália) aparecem lado a lado, com foto', () => {
+  it('os depoimentos reais aparecem em grade, com foto', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { TESTIMONIALS } = require('@/constants/testimonials');
     render(<Testimonials items={TESTIMONIALS} />);
@@ -185,7 +185,10 @@ describe('V-03 depoimentos', () => {
     expect(within(sec).getByText('TUFF — Terreiro de Umbanda Filhos de Fé')).toBeInTheDocument();
     expect(within(sec).getByText(/divisor de águas/)).toBeInTheDocument();
     for (const t of TESTIMONIALS) expect(t.foto).toMatch(/^\/landing\/depoimentos\/.+\.webp$/);
-    expect(within(sec).getByRole('list')).toHaveClass('md:grid-cols-2');
+    expect(within(sec).getByText('Sacerdote Pai Tim e Sacerdotisa Mãe Ray')).toBeInTheDocument();
+    expect(within(sec).getByText('Terreiro Tia Maria e Cabocla Jupira')).toBeInTheDocument();
+    // Três ou mais → 3 colunas a partir de md (com dois, eram 2).
+    expect(within(sec).getByRole('list')).toHaveClass('md:grid-cols-3');
   });
 
   it('instagramUrl descarta caracteres fora do padrão do Instagram', () => {
