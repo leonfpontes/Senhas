@@ -13,8 +13,8 @@
 
 Downgrade: remove índice e colunas (perde os vínculos e o registro de consentimento).
 
-Revision ID: 064_mediuns_user_id
-Revises: 063_user_role_medium
+Revision ID: 065_mediuns_user_id
+Revises: 064_user_role_medium
 Create Date: 2026-10-07
 """
 
@@ -22,8 +22,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "064_mediuns_user_id"
-down_revision: str = "063_user_role_medium"
+revision: str = "065_mediuns_user_id"
+down_revision: str = "064_user_role_medium"
 branch_labels = None
 depends_on = None
 

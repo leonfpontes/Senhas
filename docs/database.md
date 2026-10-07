@@ -110,7 +110,7 @@ Herda as 3 colunas de timestamp. Adiciona método `.soft_delete()` que define `d
 
 **Properties:** `.is_super_admin`, `.is_admin`, `.is_operator_or_admin` (falso para `medium`), `.is_medium_only`
 
-**Vínculo com médium (AM-02, migração 064):** `mediuns.user_id` (FK → `users.id` **ON DELETE SET NULL**,
+**Vínculo com médium (AM-02, migração 065):** `mediuns.user_id` (FK → `users.id` **ON DELETE SET NULL**,
 nullable) liga a conta ao cadastro do médium e é o que dá acesso à Área do Médium (`require_medium`).
 Índice único parcial `uq_mediuns_user_id_ativo` em `(user_id) WHERE user_id IS NOT NULL AND deleted_at IS NULL`
 (um usuário, no máximo um médium não excluído). `mediuns.area_consentimento_em` (`DateTime(tz)`) e

@@ -1,6 +1,6 @@
 """AM-02 — Área do Médium: papel `medium`, vínculo médium↔usuário e trava do painel.
 
-Postgres real (migrações 063/064), app inteiro via HTTP: JWT → middleware →
+Postgres real (migrações 064/065), app inteiro via HTTP: JWT → middleware →
 require_backoffice / require_medium → banco.
 """
 import asyncio

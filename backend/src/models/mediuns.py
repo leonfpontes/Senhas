@@ -23,7 +23,7 @@ class Medium(SoftDeleteModel):
     __table_args__ = (
         Index("ix_mediuns_tenant_id", "tenant_id"),
         Index("ix_mediuns_is_active", "is_active"),
-        # Um usuário ligado a no máximo um médium não excluído (migração 064).
+        # Um usuário ligado a no máximo um médium não excluído (migração 065).
         # sqlite_where espelha o predicado para os testes que compilam em SQLite.
         Index(
             "uq_mediuns_user_id_ativo",
@@ -67,7 +67,7 @@ class Medium(SoftDeleteModel):
     cidade: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     observacoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # Área do Médium (AM-02, migração 064). O vínculo com a conta só nasce no
+    # Área do Médium (AM-02, migração 065). O vínculo com a conta só nasce no
     # aceite do convite (AM-03, prova de posse do e-mail) — o admin nunca liga
     # uma conta a um médium diretamente. É ele, e não o papel do usuário, que dá
     # acesso a /api/v1/medium/* (require_medium).

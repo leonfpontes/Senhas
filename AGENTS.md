@@ -631,10 +631,10 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `064_mediuns_user_id` (2026-10-07, AM-02: `mediuns.user_id` FK `users.id` ON DELETE
+- Head atual: `065_mediuns_user_id` (2026-10-07, AM-02: `mediuns.user_id` FK `users.id` ON DELETE
   SET NULL + unico parcial `uq_mediuns_user_id_ativo` e `area_consentimento_em/_versao`), apos
-  `063_user_role_medium` (`ALTER TYPE user_role ADD VALUE 'medium'`, sozinha num
-  `autocommit_block()`), `062_permissao_site_copia`/`061_permissao_site_enum` (T-06) e
+  `064_user_role_medium` (`ALTER TYPE user_role ADD VALUE 'medium'`, sozinha num
+  `autocommit_block()`), `063_legal_acceptances` (aceite dos Termos/Privacidade), `062_permissao_site_copia`/`061_permissao_site_enum` (T-06) e
   `060_usuarios_ilimitados` (so dados: `max_users` = 99999 em todas as assinaturas).
 - Historico com 4 merge revisions (010, 030, 037, d9fafadd9261) — prefixos numericos ja
   colidiram 3x (009, 028, 030). Por isso a regra do §4.3: `alembic heads` ANTES de criar
@@ -885,7 +885,7 @@ Incluir obrigatoriamente:
 ### 11.23 Área do Médium — fundação de identidade (AM-02, 2026-10-07)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Só backend até aqui; nenhuma tela.
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
-  `mediuns.user_id → users.id` (migração 064), não do papel. Papel `medium` (063) só para quem não
+  `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
   tem painel; operador/admin que é médium mantém o papel e ganha a Área pelo vínculo. O vínculo só
   nasce no aceite do convite (AM-03) — o admin nunca liga conta a médium; até lá nenhuma linha tem
   `user_id`. `area_consentimento_em/_versao` (LGPD art. 11) também são gravados no aceite.
