@@ -36,6 +36,7 @@ class PermissionFeature(str, enum.Enum):
     SITE = "site"  # "Site do terreiro" (Meu Site) — separado de Cursos no T-06
     PORTA = "porta"
     CONTAS_FINANCEIRAS = "contas_financeiras"
+    COMUNICADOS = "comunicados"  # "Avisos da Área" (AM-09): avisos da casa para a corrente
 
 
 class PermissionGroup(SoftDeleteModel):

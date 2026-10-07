@@ -15,7 +15,7 @@ Postgres:
 - **Pendências** (`montar_pendencias`, decisão D-24): o que o médium precisa resolver vem
   primeiro, já na ordem da tela — responder escala (AM-17, ainda vazio), mensalidade vencida,
   a até 5 dias do vencimento (`DIAS_AVISO_MENSALIDADE`) ou com comprovante não confirmado, aviso
-  novo (AM-09, ainda vazio). Comprovante em conferência não é pendência (não há o que fazer).
+  novo (AM-09). Comprovante em conferência não é pendência (não há o que fazer).
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from typing import Any, Optional
 
 from ..models.mensalidades import MensalidadeStatus
 
-# Ordem das pendências na tela (D-24). Escala e aviso ficam reservados para AM-17 e AM-09.
+# Ordem das pendências na tela (D-24). Escala fica reservada para o AM-17.
 ORDEM_PENDENCIAS = {"escala": 0, "mensalidade": 1, "aviso": 2}
 
 # Mensalidade em aberto só sobe para "Para você ver agora" a partir de N dias antes do

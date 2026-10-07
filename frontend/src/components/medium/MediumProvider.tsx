@@ -30,6 +30,8 @@ export interface MediumMe {
   modulos: string[];
   /** WhatsApp da casa (dígitos com DDI) para "Falar com a casa" (AM-10). */
   whatsapp_casa?: string | null;
+  /** Avisos ainda não lidos — selo da aba Avisos (AM-09). */
+  avisos_nao_lidos?: number;
 }
 
 export type MediumStatus = 'idle' | 'loading' | 'ok' | 'indisponivel' | 'erro';

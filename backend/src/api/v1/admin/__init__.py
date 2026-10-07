@@ -32,6 +32,7 @@ from .support_chat import router as support_chat_router
 from .area_medium_config import router as area_medium_config_router
 from .mensalidade_pix import router as mensalidade_pix_router
 from .mensalidade_comprovantes import router as mensalidade_comprovantes_router
+from .comunicados import router as comunicados_router
 
 # Combine all admin routers.
 # require_backoffice (AM-02): o papel `medium` (Área do Médium) leva 403 em TODA
@@ -68,5 +69,6 @@ admin_router.include_router(support_chat_router)
 admin_router.include_router(area_medium_config_router)
 admin_router.include_router(mensalidade_pix_router)
 admin_router.include_router(mensalidade_comprovantes_router)
+admin_router.include_router(comunicados_router)
 
 __all__ = ["admin_router"]

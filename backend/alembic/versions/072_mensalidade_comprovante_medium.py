@@ -18,7 +18,7 @@ pendentes com comprovante enviado — a fila do painel não varre a tabela (que 
 BYTEA do comprovante).
 
 Revision ID: 072_mensalidade_comprovante_medium
-Revises: 068_area_medium_config_pix
+Revises: 071_comunicados
 Create Date: 2026-10-07
 """
 
@@ -27,7 +27,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "072_mensalidade_comprovante_medium"
-down_revision: str = "068_area_medium_config_pix"
+down_revision: str = "071_comunicados"
 branch_labels = None
 depends_on = None
 

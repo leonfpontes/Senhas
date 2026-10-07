@@ -159,6 +159,45 @@ preenche `comprovante_enviado_em`. Índice parcial `ix_mensalidade_pagamentos_co
 "Comprovantes para conferir" sem varrer o BYTEA). O arquivo continua em `comprovante_data` (BYTEA): pela Área o
 limite é 2 MB (o navegador reduz a foto antes); pelo painel, 5 MB.
 
+### `comunicados` e `comunicado_leituras` (AM-09, migrações 070/071)
+
+Avisos da casa para a corrente — na tela é **"Avisos"** (D-16); tabelas e API admin seguem `comunicados`.
+Model `Comunicado(SoftDeleteModel)` e `ComunicadoLeitura(Base)` (`src/models/comunicados.py`).
+
+`comunicados`:
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `titulo` | `String(120)` | texto simples (HTML e controle removidos ao salvar) |
+| `corpo` | `Text` | texto simples com quebras de linha; ≤ 5000 na API; links só viram clicáveis na tela |
+| `publico` | `String(20)`, padrão `todos` | CHECK `ck_comunicados_publico` em `todos/atendimento/cambones` — string, não ENUM do PG, para entrar `grupos` (AM-23, tabela `comunicado_grupos`) sem `ALTER TYPE` |
+| `fixado` | `Boolean`, padrão `false` | primeiro da lista |
+| `publicar_em` | `DateTime(tz)` | agora ou agendado |
+| `expira_em` | `DateTime(tz)` NULL | sai do ar nessa hora |
+| `criado_por` | UUID FK → `users.id` SET NULL | |
+| `created_at` / `updated_at` / `deleted_at` | `DateTime(tz)` | soft delete = arquivado |
+
+**Indexes:** `ix_comunicados_tenant_id`, `ix_comunicados_tenant_publicar_em` (`tenant_id, publicar_em`).
+
+`comunicado_leituras` (quem leu, D-28):
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `comunicado_id` | UUID FK → `comunicados.id` CASCADE | |
+| `medium_id` | UUID FK → `mediuns.id` CASCADE | sempre o médium logado (`ctx.medium.id`) |
+| `lido_em` | `DateTime(tz)` | `server_default now()`; ler de novo não muda |
+
+**Constraints/Indexes:** UNIQUE `uq_comunicado_leituras_comunicado_medium` (`comunicado_id, medium_id`),
+`ix_comunicado_leituras_tenant_id`, `ix_comunicado_leituras_medium_id`.
+
+**Permissão:** valor `comunicados` no ENUM `permission_feature` (070, `ADD VALUE` em `autocommit_block`); a 071
+cria as tabelas e dá acesso total à feature nos grupos padrão "Acesso total" (grupos criados pelo admin ficam
+sem a feature até ele marcar).
+
 ---
 
 ### `tenant_configs`
@@ -652,3 +691,6 @@ alembic current
 | `medium_convites` | `token_hash` | UNIQUE |
 | `medium_convites` | `(medium_id) WHERE usado_em IS NULL AND revogado_em IS NULL` | UNIQUE parcial (`uq_medium_convites_aberto`) |
 | `medium_convites` | `tenant_id`, `medium_id` | B-tree |
+| `comunicados` | `tenant_id`, `(tenant_id, publicar_em)` | B-tree |
+| `comunicado_leituras` | `(comunicado_id, medium_id)` | UNIQUE (`uq_comunicado_leituras_comunicado_medium`) |
+| `comunicado_leituras` | `tenant_id`, `medium_id` | B-tree |
