@@ -370,6 +370,26 @@ async def test_remover_operador_ligado_a_medium_rebaixa_para_medium(client, db):
     assert (await client.get(MEDIUM_ME, headers=operador.headers)).status_code == 200
 
 
+async def test_desativar_operador_medium_tira_so_o_painel(client, db):
+    """Decisão do dono (07/10): desativar quem é operador e médium tira só o painel;
+    a conta vira `medium` e continua ativa na Área. Sem vínculo, desativa de verdade."""
+    tenant = await create_tenant(db)
+    admin = await create_user(db, tenant, UserRole.ADMIN)
+    ligado = await create_user(db, tenant, UserRole.OPERATOR, name="ligado")
+    await _medium(db, tenant, ligado.user)
+    solto = await create_user(db, tenant, UserRole.OPERATOR, name="solto")
+
+    resp = await client.put(f"/api/v1/admin/users/{ligado.user.id}", headers=admin.headers, json={"is_active": False})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["role"] == "medium" and resp.json()["is_active"] is True
+    assert (await client.get("/api/v1/admin/giras", headers=ligado.headers)).status_code == 403
+    assert (await client.get(MEDIUM_ME, headers=ligado.headers)).status_code == 200
+
+    resp = await client.put(f"/api/v1/admin/users/{solto.user.id}", headers=admin.headers, json={"is_active": False})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["role"] == "operator" and resp.json()["is_active"] is False
+
+
 async def test_rebaixar_por_edicao_e_remover_sem_vinculo(client, db):
     tenant = await create_tenant(db)
     admin = await create_user(db, tenant, UserRole.ADMIN)

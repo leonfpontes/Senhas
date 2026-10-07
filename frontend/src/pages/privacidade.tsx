@@ -17,7 +17,7 @@ const HIGHLIGHTS: LegalHighlight[] = [
 const SECTIONS = [
   {
     title: '1. Quem cuida dos seus dados',
-    body: `Esta Política explica como ${identificacaoDoFornecedor()} trata dados pessoais na plataforma, no site girahub.com.br e nos sites dos terreiros hospedados aqui, conforme a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018).
+    body: `Esta Política explica como o GiraHub trata dados pessoais na plataforma, no site girahub.com.br e nos sites dos terreiros hospedados aqui, conforme a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018). O responsável é ${identificacaoDoFornecedor()}.
 
 Há dois papéis diferentes:
 

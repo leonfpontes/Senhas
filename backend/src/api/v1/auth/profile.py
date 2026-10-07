@@ -236,7 +236,11 @@ async def _send_account_deleted_email(email: str, username: str) -> None:
         f"<p>Olá, {username}.</p>"
         f"<p>Confirmamos que sua conta no <strong>GiraHub</strong> foi excluída permanentemente "
         f"conforme solicitado, em cumprimento ao Art. 18, VI da LGPD.</p>"
-        f"<p>Todos os seus dados pessoais foram removidos de nossos sistemas.</p>"
+        f"<p>Seu acesso e seus dados de usuário (nome, e-mail, telefone e foto) foram apagados do "
+        f"sistema. Os dados cadastrados pelo terreiro continuam sob responsabilidade da casa. "
+        f"Cópias de segurança criptografadas expiram em até 12 meses, e registros que a lei manda "
+        f"guardar ficam só pelo prazo legal — veja a "
+        f"<a href='https://girahub.com.br/privacidade'>Política de Privacidade</a>.</p>"
         f"<p>Se você não solicitou essa exclusão, entre em contato imediatamente com "
         f"<a href='mailto:privacidade@girahub.com.br'>privacidade@girahub.com.br</a>.</p>"
     )
@@ -248,7 +252,10 @@ async def _send_account_deleted_email(email: str, username: str) -> None:
             f"Olá, {username}.\n\n"
             "Confirmamos que sua conta no GiraHub foi excluída permanentemente conforme solicitado, "
             "em cumprimento ao Art. 18, VI da LGPD.\n\n"
-            "Todos os seus dados pessoais foram removidos de nossos sistemas.\n\n"
+            "Seu acesso e seus dados de usuário (nome, e-mail, telefone e foto) foram apagados do sistema. "
+            "Os dados cadastrados pelo terreiro continuam sob responsabilidade da casa. Cópias de segurança "
+            "criptografadas expiram em até 12 meses, e registros que a lei manda guardar ficam só pelo prazo "
+            "legal — veja https://girahub.com.br/privacidade.\n\n"
             "Se você não solicitou essa exclusão, entre em contato imediatamente com "
             "privacidade@girahub.com.br."
         ),
@@ -280,7 +287,7 @@ async def delete_own_account(
     - Impersonated sessions are blocked.
     - Last ADMIN of a tenant is blocked (would orphan the tenant).
     - Password confirmation required.
-    - Rate-limited to 3 requests/hour per IP.
+    - Rate-limited to 5 requests/hour per IP.
 
     On success:
     - User row is hard-deleted from the database.
