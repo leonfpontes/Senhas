@@ -183,6 +183,17 @@ async def platform_endpoint(
 
 ---
 
+## Quando um token deixa de valer antes de expirar
+
+`get_current_user` (toda rota autenticada) e `POST /auth/refresh` carregam o usuário do banco e recusam com 401:
+- conta inativa (`is_active = false`);
+- conta excluída (`deleted_at` preenchido);
+- token emitido antes de `sessions_revoked_at` (troca de senha, "sair de todos os dispositivos" e exclusão).
+
+Excluir um usuário (`User.soft_delete()`, usado pela tela Usuários e pela plataforma) marca `deleted_at`, desativa a
+conta e grava `sessions_revoked_at`. O corte vale na próxima requisição, sem esperar as 24 h do access token, e
+continua valendo se a conta for recriada com o mesmo e-mail.
+
 ## Middleware de Autenticação
 
 ### JWTMiddleware

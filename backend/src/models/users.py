@@ -7,6 +7,7 @@ import uuid
 import enum
 
 from .base import SoftDeleteModel
+from ..core.tz import utc_now
 
 
 class UserRole(str, enum.Enum):
@@ -77,6 +78,15 @@ class User(SoftDeleteModel):
     
     def __repr__(self) -> str:
         return f"<User(id={self.id}, email='{self.email}', role={self.role.value})>"
+
+    def soft_delete(self) -> None:
+        """Exclui (soft delete) e corta o acesso na hora: desativa a conta e revoga
+        toda sessão emitida até agora. Sem isso, o access token (24 h) e o refresh
+        continuavam valendo — e, se o admin recriar a conta com o mesmo e-mail
+        (`admin/users.py` ressuscita a linha), os tokens antigos voltariam a valer."""
+        super().soft_delete()
+        self.is_active = False
+        self.sessions_revoked_at = utc_now()
     
     @property
     def is_super_admin(self) -> bool:

@@ -92,6 +92,10 @@ tenant redundante (barato) a uma excecao.
 - Apagar os cookies de auth: SEMPRE `clear_auth_cookies(response)` de `src/core/auth_cookies.py` (junto com `set_auth_cookies`)
   (os 3 cookies, com os mesmos atributos do login — `secure` depende de DEBUG). Usado por logout,
   logout-all, change-password, delete account e deactivate account.
+- Conta excluida perde o acesso na hora: `get_current_user` e `/auth/refresh` recusam `deleted_at` preenchido
+  (alem de `is_active` falso e token anterior a `sessions_revoked_at`), e `User.soft_delete()` desativa a conta e grava
+  `sessions_revoked_at`. Assim o token antigo nao volta a valer quando `POST /admin/users` ressuscita a linha com o
+  mesmo e-mail. Nunca apagar usuario com `deleted_at = ...` direto: usar `soft_delete()`.
 - Impersonacao: os cookies do navegador sao do SUPER-ADMIN. Endpoint que revoga sessoes ou apaga
   cookies recusa token com `impersonated_by` (403, `is_impersonated_request(request)`): logout-all,
   change-password, delete account, deactivate account. No front, o "Sair" do topo chama

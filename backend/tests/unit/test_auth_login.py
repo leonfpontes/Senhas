@@ -214,6 +214,27 @@ class TestRefreshEndpoint:
                 await refresh_token(_mock_request(cookies={"refresh_token": "raw"}), MagicMock(), mock_db_session)
         assert exc_info.value.status_code == 401
 
+    async def test_soft_deleted_user_raises_401(self, admin_user, mock_db_session):
+        from fastapi import HTTPException
+
+        payload = MagicMock(
+            sub=str(admin_user.id),
+            iat=datetime.now(timezone.utc) - timedelta(minutes=5),
+            session_id=str(uuid.uuid4()),
+            jti=str(uuid.uuid4()),
+        )
+        admin_user.sessions_revoked_at = None
+        admin_user.deleted_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = admin_user
+        mock_db_session.execute.return_value = result_mock
+
+        with patch("src.security.jwt.decode_refresh_token", return_value=payload):
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_token(_mock_request(cookies={"refresh_token": "raw"}), MagicMock(), mock_db_session)
+        assert exc_info.value.status_code == 401
+
     async def test_sessions_revoked_after_token_issued_raises_401(self, admin_user, mock_db_session):
         from fastapi import HTTPException
 
