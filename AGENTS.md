@@ -958,8 +958,10 @@ Incluir obrigatoriamente:
   conheceu" só é exigido quando "Já conhece o terreiro" = Sim; perguntas de saúde começam sem resposta.
 - **Conta**: e-mail de login sem diferença de maiúsculas (`func.lower(User.email)`; cadastro e
   `UserRepository.create` gravam minúsculo — sem migração, linhas antigas cobertas pela comparação).
-  Login, esqueci a senha e reativação usam `login.user_by_login_email_stmt` (conta mais antiga se o
-  e-mail existir em mais de um terreiro). Cadastro valida a senha com `validate_password_policy`.
+  Login, esqueci a senha e reativação usam `login.user_by_login_email_stmt`: se o e-mail existir em
+  mais de um terreiro, ganha a conta ativa (usuário ativo, terreiro sem `self_deactivated_at`) e, entre
+  elas, a mais antiga — conta inativa só quando não há ativa (terreiro de teste desativado não "rouba"
+  o login do médium/operador de outro terreiro). Duas contas ativas: ainda a mais antiga, sem escolha. Cadastro valida a senha com `validate_password_policy`.
   Sessão aberta por `login.issue_session` + `core/auth_cookies.set_auth_cookies` em login, cadastro e
   reativação (3 cookies, `secure=not DEBUG`). "Lembrar-me" desmarcado (`remember_me=false`) → cookies
   sem `max_age`; o refresh token carrega `persist: false` e o `/auth/refresh` renova no mesmo modo.
