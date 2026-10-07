@@ -134,7 +134,9 @@ Rotas existentes e suas features:
 - Auditoria → `PermissionFeature.AUDITORIA`
 - Analytics → `PermissionFeature.ANALYTICS`
 - Relatorio de Gira → `PermissionFeature.RELATORIO_GIRA`; export CSV de senhas (`exports.py`) → TICKETS ou RELATORIO_GIRA (+ plano `export_csv`)
-- Cursos Presenciais / Sites → `PermissionFeature.CURSOS_PRESENCIAIS`
+- Cursos Presenciais → `PermissionFeature.CURSOS_PRESENCIAIS`
+- Site do terreiro (Meu Site, `sites.py`, inclusive imagens) → `PermissionFeature.SITE` (T-06; antes usava
+  CURSOS_PRESENCIAIS — as migracoes 061/062 copiaram as permissoes de Cursos para `site` em todo grupo)
 
 Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
 leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
@@ -144,7 +146,11 @@ exclui/desativa/rebaixa; o ultimo admin ativo fica) e `config.py` (cores/logo ex
 
 Para nova feature sem equivalente existente:
 1. Adicionar valor ao enum `PermissionFeature` em `backend/src/models/permission_groups.py`.
-2. Criar migracao Alembic para adicionar o valor ao tipo ENUM no banco (`ALTER TYPE ... ADD VALUE`).
+2. Criar migracao Alembic para adicionar o valor ao tipo ENUM no banco (`ALTER TYPE ... ADD VALUE`, dentro de
+   `op.get_context().autocommit_block()` — o `env.py` roda tudo numa transacao so e o Postgres nao deixa usar o
+   valor novo antes do commit) e uma SEGUNDA migracao que da o acesso (grupos padrao "Acesso total" ou, quando a
+   feature sai de outra, copia as linhas da feature de origem — ex.: `061_permissao_site_enum` +
+   `062_permissao_site_copia`). Valor de ENUM nao sai no downgrade (o Postgres nao tem `DROP VALUE`).
 3. Adicionar entrada em `frontend/src/constants/permissionFeatures.ts` (type union + FEATURE_LABELS com label e group).
 4. Mapear no `permission_service.py` se a feature requer restricao de plano, e proteger os endpoints com
    `require_plan_feature` (ver §3.4).
@@ -701,6 +707,12 @@ Incluir obrigatoriamente:
 - **Auditoria**: `GET /admin/audit-logs` = plano `auditoria` + grupo AUDITORIA:view (sem `is_admin` extra).
 
 ### 11.20 Casa — Estoque, Cursos presenciais e Meu Site (revisão de jornada, 2026-10-06)
+- **Meu Site — permissao propria (T-06)**: `sites.py` (inclusive imagens e historico) usa `PermissionFeature.SITE`
+  ("Site do terreiro" na matriz de perfis, area Cadastros) + plano `site_builder`; Cursos segue em
+  `CURSOS_PRESENCIAIS`. No front: `canGroup('site', ...)` em `pages/admin/meu-site.tsx`, item "Site do terreiro" do
+  `navConfig`, `getFeatureForPath('/admin/meu-site')` e passos "site"/"publicar" do onboarding. Na virada, todo
+  grupo ganhou `site` igual ao que tinha em `cursos_presenciais` (ninguem perdeu nem ganhou acesso); dali em diante
+  as duas sao independentes.
 - **Cursos presenciais**: autorização é só `require_group_permission(CURSOS_PRESENCIAIS, ...)` + gate de plano
   `site_builder` — não há checagem de cargo no corpo (operador com o grupo cria/edita/inscreve; admin faz bypass).
   Decimais (`valor_mensalidade_padrao`, `valor_mensalidade`, `valor_pago`) chegam como string ("120.00"): no

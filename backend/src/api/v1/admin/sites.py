@@ -70,7 +70,7 @@ router = APIRouter(
     dependencies=[
         # Gate de plano único (P-05): plano com site_builder E assinatura em dia.
         Depends(require_plan_feature("site_builder")),
-        Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view")),
+        Depends(require_group_permission(PermissionFeature.SITE, "view")),
     ],
 )
 logger = logging.getLogger(__name__)
@@ -302,7 +302,7 @@ async def _extract_image_dimensions(data: bytes, mimetype: str) -> tuple[int | N
 
 # ── Site config endpoints ─────────────────────────────────────────────────────
 
-@router.get("", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
+@router.get("", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "view"))])
 async def get_site(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -326,7 +326,7 @@ async def get_site(
     return _site_to_response(site)
 
 
-@router.put("", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
+@router.put("", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "edit"))])
 async def update_site(
     body: SiteUpdateRequest,
     current_user: User = Depends(get_current_user),
@@ -347,7 +347,7 @@ async def update_site(
 
 # ── Sections endpoints ────────────────────────────────────────────────────────
 
-@router.get("/sections", response_model=SectionsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
+@router.get("/sections", response_model=SectionsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "view"))])
 async def get_sections(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -364,7 +364,7 @@ async def get_sections(
     )
 
 
-@router.put("/sections", response_model=SectionsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
+@router.put("/sections", response_model=SectionsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "edit"))])
 async def save_sections(
     body: SectionsUpdateRequest,
     current_user: User = Depends(get_current_user),
@@ -427,7 +427,7 @@ async def save_sections(
 
 # ── Publish / Unpublish ───────────────────────────────────────────────────────
 
-@router.post("/publish", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
+@router.post("/publish", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "edit"))])
 async def publish_site(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -444,7 +444,7 @@ async def publish_site(
     return _site_to_response(site)
 
 
-@router.post("/unpublish", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
+@router.post("/unpublish", response_model=SiteResponse, dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "edit"))])
 async def unpublish_site(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -460,7 +460,7 @@ async def unpublish_site(
 
 # ── Image endpoints ───────────────────────────────────────────────────────────
 
-@router.get("/images", response_model=list[ImageResponse], dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
+@router.get("/images", response_model=list[ImageResponse], dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "view"))])
 async def list_images(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -486,7 +486,7 @@ async def list_images(
     ]
 
 
-@router.post("/images", response_model=ImageResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "insert"))])
+@router.post("/images", response_model=ImageResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "insert"))])
 async def upload_image(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
@@ -561,7 +561,7 @@ async def upload_image(
     )
 
 
-@router.delete("/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "delete"))])
+@router.delete("/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "delete"))])
 async def delete_image(
     image_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),
@@ -585,7 +585,7 @@ async def delete_image(
 
 # ── Version history ───────────────────────────────────────────────────────────
 
-@router.get("/versions", response_model=list[VersionResponse], dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "view"))])
+@router.get("/versions", response_model=list[VersionResponse], dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "view"))])
 async def list_versions(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -607,7 +607,7 @@ async def list_versions(
     ]
 
 
-@router.post("/versions/{version_id}/restore", response_model=SectionsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.CURSOS_PRESENCIAIS, "edit"))])
+@router.post("/versions/{version_id}/restore", response_model=SectionsResponse, dependencies=[Depends(require_group_permission(PermissionFeature.SITE, "edit"))])
 async def restore_version(
     version_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),

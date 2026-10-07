@@ -6,6 +6,7 @@ export type PermissionFeature =
   | 'associados'
   | 'usuarios'
   | 'cursos_presenciais'
+  | 'site'
   | 'estoque'
   | 'financeiro'
   | 'configuracoes'
@@ -28,6 +29,7 @@ export const FEATURE_LABELS: Record<PermissionFeature, FeatureMeta> = {
   associados: { label: 'Associados', group: 'Cadastros' },
   usuarios: { label: 'Pessoas e acessos', group: 'Cadastros' },
   cursos_presenciais: { label: 'Cursos Presenciais', group: 'Cadastros' },
+  site: { label: 'Site do terreiro', group: 'Cadastros' },
   estoque: { label: 'Estoque', group: 'Operacional' },
   financeiro: { label: 'Mensalidades', group: 'Financeiro' },
   configuracoes: { label: 'Configurações', group: 'Administração' },

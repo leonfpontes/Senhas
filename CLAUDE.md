@@ -1,6 +1,6 @@
 # CLAUDE.md — Instruções para Claude Code
 
-Last Updated: 2026-10-05
+Last Updated: 2026-10-07
 Projeto: Senhas — SaaS multi-tenant de emissão de tickets para giras
 
 Este arquivo é lido automaticamente pelo Claude Code em toda sessão. Contém regras não negociáveis
@@ -57,7 +57,8 @@ Feature por módulo:
 - Auditoria → `AUDITORIA`
 - Analytics → `ANALYTICS`
 - Relatório de Gira → `RELATORIO_GIRA`; export CSV da gira → `TICKETS` ou `RELATORIO_GIRA` (+ plano `export_csv`)
-- Cursos Presenciais / Sites → `CURSOS_PRESENCIAIS`
+- Cursos Presenciais → `CURSOS_PRESENCIAIS`
+- Site do terreiro (Meu Site, `sites.py`, inclusive imagens) → `SITE` (separado de Cursos desde o T-06)
 
 Exceções (não precisam de guard de grupo):
 - `health.py`, `billing_stripe.py`, `subscription_info.py`, `permission_groups.py` — rotas de sistema/plataforma
@@ -115,7 +116,10 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 
 2. **Backend** — criar migração Alembic para adicionar o valor ao tipo ENUM:
    ```python
-   op.execute("ALTER TYPE permission_feature ADD VALUE 'nova_feature'")
+   # O env.py roda todas as migrações numa transação só: o ADD VALUE precisa do autocommit_block
+   # para o valor existir (commitado) quando a segunda migração rodar no mesmo `upgrade head`.
+   with op.get_context().autocommit_block():
+       op.execute("ALTER TYPE permission_feature ADD VALUE IF NOT EXISTS 'nova_feature'")
    ```
    E, numa **segunda migração** (o Postgres só deixa usar o valor novo depois do commit), dar
    acesso total à feature nos grupos padrão "Acesso total" (Q-05 — operador sem grupo não

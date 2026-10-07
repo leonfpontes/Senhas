@@ -60,7 +60,7 @@ export const getFeatureForPath = (path: string): PermissionFeature | null => {
   if (path.startsWith('/admin/associados')) return 'associados';
   if (path.startsWith('/admin/users')) return 'usuarios';
   if (path.startsWith('/admin/cursos-presenciais')) return 'cursos_presenciais';
-  if (path.startsWith('/admin/meu-site')) return 'cursos_presenciais';
+  if (path.startsWith('/admin/meu-site')) return 'site';
   if (path.startsWith('/admin/estoque')) return 'estoque';
   if (path.startsWith('/admin/financeiro/mensalidades')) return 'financeiro';
   if (path.startsWith('/admin/financeiro/config')) return null;

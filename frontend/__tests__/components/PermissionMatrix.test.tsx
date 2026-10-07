@@ -30,6 +30,16 @@ describe('PermissionMatrix', () => {
     expect(screen.getByRole('checkbox', { name: 'Giras: Ver' })).toBeChecked();
   });
 
+  it('"Site do terreiro" é um módulo próprio, separado de Cursos Presenciais (T-06)', () => {
+    const handleChange = jest.fn();
+    render(<PermissionMatrix value={[]} onChange={handleChange} />);
+    expect(FEATURE_LABELS.site).toEqual({ label: 'Site do terreiro', group: 'Cadastros' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Site do terreiro: Ver' }));
+    const next: GroupPermission[] = handleChange.mock.calls[0][0];
+    expect(next.find((p) => p.feature === 'site')).toMatchObject({ can_view: true });
+    expect(next.find((p) => p.feature === 'cursos_presenciais')).toMatchObject({ can_view: false });
+  });
+
   it('turning on Criar also turns on Ver', () => {
     const handleChange = jest.fn();
     render(<PermissionMatrix value={[]} onChange={handleChange} />);

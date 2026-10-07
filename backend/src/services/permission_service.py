@@ -52,6 +52,7 @@ class PermissionService:
             PermissionFeature.ANALYTICS: "analytics_basico",
             PermissionFeature.RELATORIO_GIRA: "relatorio_gira",
             PermissionFeature.CURSOS_PRESENCIAIS: "site_builder",  # Cursos uses site builder / pro elements
+            PermissionFeature.SITE: "site_builder",  # Site do terreiro (T-06)
         }
 
         flag_attr = mapping.get(feature)

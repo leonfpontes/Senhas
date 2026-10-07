@@ -203,7 +203,8 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
         ],
       });
     }
-    if (can('site_builder') && view('cursos_presenciais')) {
+    // Mesmo gate da tela (plano site_builder + grupo site — separado de Cursos desde o T-06).
+    if (can('site_builder') && view('site')) {
       casa.push(link('/admin/meu-site', 'Site do terreiro', Globe, { keywords: ['meu site', 'página pública'] }));
     }
     // Mesmo gate da tela (plano site_builder + grupo cursos_presenciais).
