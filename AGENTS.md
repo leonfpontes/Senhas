@@ -177,6 +177,8 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `medium_router` perder prefixo/`require_medium` ou se um router de `medium/` ficar fora dele.
   `scripts/audit_tenant_isolation.py` (modo "medium") exige filtro por tenant e, em modelo do
   medium (`Medium` e FK para `mediuns`), por `ctx.medium.id`; e acusa `medium_id` vindo da requisicao.
+- Dado so da Area: `giras.orientacoes_corrente` (AM-07) sai apenas por `/api/v1/medium/*` e pelo painel
+  (GIRAS); rota publica, e-mail e bilhete nunca o leem (teste de integracao trava).
 - Frontend da Area (AM-04/AM-06, detalhes em §11.23): toda pagina de `src/pages/medium/` renderiza
   `<MediumLayout>` (gate de area; `frontend/scripts/audit-permission-guards.js` falha sem ele) e so chama
   `/api/v1/medium/*`. Conta sem painel nunca chama `/api/v1/admin/*` (providers do painel so em `/admin/*`;
@@ -220,7 +222,15 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   (usado pelo `require_medium` e pelo `compute_areas`), `get_area_medium_config` e
   `area_medium_modulos`/`modulos_visiveis` (mensalidade so com `mensalidade_mediun` no plano).
   `GET /medium/me` devolve `modulos`, `boas_vindas` e `whatsapp_casa`. Card novo da Area que tem
-  modulo: esconder/recusar quando o modulo estiver fora de `area_medium_modulos`.
+  modulo: esconder/recusar quando o modulo estiver fora de `area_medium_modulos` (ex.: Agenda, AM-07 —
+  dependencia `require_agenda_ligada` em `medium/agenda.py` → 403 neutro `MEDIUM_MODULO_INDISPONIVEL`;
+  aba com `modulo` em `MEDIUM_TABS` some da barra).
+- **Agenda (AM-07)**: `GET /medium/agenda` (+ `/agenda/gira/{id}` e `/agenda/gira/{id}/ics`) so le giras
+  ativas do tenant do `ctx`; formato unificado `{origem, id, tipo{nome, icone, cor}, titulo, inicio, fim,
+  local, minha_participacao}` que o AM-08/AM-17 estendem. `giras.orientacoes_corrente` (069) e dado SO da
+  Area: nunca em `public/*`, site, e-mail ou bilhete (o consulente ve `recados`) — teste em
+  `tests/integration_pg/test_am07_agenda.py`. Detalhe nunca devolve contagem/dado de consulente (so a
+  situacao das senhas).
 - **Chave PIX da mensalidade (AM-10, decisao D-05)**: `GET/PUT /admin/financeiro/config/pix`
   (`mensalidade_pix.py`, FINANCEIRO view/edit + `mensalidade_mediun`). A protecao especifica no lugar
   de `is_admin`: senha de quem altera no corpo (errada → 401 `INVALID_PASSWORD`; o front chama com
@@ -683,7 +693,8 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `068_area_medium_config_pix` (2026-10-07, AM-10: colunas `area_medium_*` em `tenant_configs` e
+- Head atual: `069_giras_orientacoes_corrente` (2026-10-07, AM-07: `giras.orientacoes_corrente`, so na Area
+  do Medium), apos `068_area_medium_config_pix` (2026-10-07, AM-10: colunas `area_medium_*` em `tenant_configs` e
   `pix_*` em `mensalidade_configs`), apos `067_medium_convites` (2026-10-07, AM-03: tabela `medium_convites` —
   convite da casa para a Area do Medium, token sha256 unico, 7 dias, um convite em aberto por medium), apos
   `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`, chave do piloto da Area do
@@ -939,7 +950,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca e Início (AM-02/03/04/06/10, 2026-10-07)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início e Agenda (AM-02/03/04/06/07/10, 2026-10-07)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -980,12 +991,13 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   só painel → painel). `GET /api/v1/medium/inicio` (`api/v1/medium/inicio.py`, regras puras em
   `services/medium_inicio.py`): `pendencias` já ordenadas (D-24: escala → mensalidade atrasada ou
   a até 5 dias do vencimento — antes disso vai para "Acompanhando", decisão do dono 07/10 → aviso; escala e aviso vazios até AM-17/AM-09), `proxima_gira` (ativa, futura ou em
-  andamento; só nome/horário/local; `orientacoes` null até o AM-07), `mensalidade` do mês em
+  andamento; só nome/horário/local e `orientacoes` = `giras.orientacoes_corrente`, AM-07), `mensalidade` do mês em
   Brasília (só com `mensalidade_mediun` e config ativa; regras do §11.10: isento/paga/pendente até
   o vencimento/atrasada depois; entrou depois do mês ou casa sem valor → null) e `avisos`
   `{nao_lidos: 0, ultimos: []}` até o AM-09. Telas: `/medium` (faixa café "Olá, <nome>",
-  pendências, próxima gira, "Acompanhando", EmptyState), `/medium/perfil` (Ícone na tela inicial,
-  Trocar de área, Sair) e `agenda`/`avisos`/`mensalidade` provisórias ("Em breve").
+  pendências, próxima gira com "O que levar" e "Ver detalhes da gira" — só com o módulo agenda —,
+  "Acompanhando", EmptyState), `/medium/perfil` (Ícone na tela inicial, Trocar de área, Sair) e
+  `avisos`/`mensalidade` provisórias ("Em breve").
 - **Ícone na tela inicial (D-23)**: `public/manifest-medium.webmanifest` (`id` `/medium`,
   `start_url` `/medium?source=pwa`, ícones do GiraHub), linkado só pelo `MediumLayout`; o
   `_document` não põe o manifesto da Porta nas rotas `/medium/*`. No 1º acesso do aparelho abre o
@@ -1002,8 +1014,26 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `canGroup('mediuns','edit')` (no piloto não há PlanLocked: escondido). Página pública
   `pages/convite/[token].tsx` (`AuthShell`): logo e nome da casa, "Crie sua senha de acesso" (ou a senha
   do painel), consentimento + "Ler o termo"; no aceite já entra e vai para `/medium`. Backend em §3.3.
-- **Pendente nos próximos cards**: login multi-terreiro (AM-05), Agenda (AM-07), Avisos (AM-09),
-  Mensalidade com Pagar com PIX e comprovante (AM-11/AM-12).
+- **Agenda (AM-07)**: migração `069_giras_orientacoes_corrente` (`giras.orientacoes_corrente`, Text). Painel:
+  campo "Orientações para a corrente" no drawer da gira (criar e editar; GIRAS insert/edit como os demais
+  campos), componente `components/admin/giras/OrientacoesCorrenteField` — só aparece e só é enviado com
+  `can('area_medium')` (no piloto fica escondido; o backend aceita o campo sempre; ≤ 2000, aparado, vazio =
+  null). Área: `GET /api/v1/medium/agenda?inicio&fim` (dias de Brasília inclusivos; padrão 1º dia do mês
+  corrente até o fim do 3º mês; máx. < 6 meses → senão 400), regras puras em `services/medium_agenda.py`;
+  `GET /medium/agenda/gira/{id}` (horário, `local` + endereço do terreiro com `mapa_url`, descrição,
+  orientações, `senhas.situacao` abertas/esgotadas/abrem_em/encerradas/sem_senhas, `link_publico` =
+  `/public/gira/{id}` ou `/{slug}` sem senhas, `agenda_celular.{ics_path, google_url}`) e
+  `GET /medium/agenda/gira/{id}/ics` (`text/calendar` inline: o Safari do iPhone oferece "Adicionar à
+  agenda", o Chrome do Android baixa e abre a agenda; 3 h quando a gira não tem fim). Módulo agenda
+  desligado → 403 neutro e a aba some. Telas: `pages/medium/agenda.tsx` (lista por mês, filtro Tudo ·
+  Giras só com as origens que existem, `DataChip` na cor do terreiro, "Ver os próximos meses") e
+  `pages/medium/agenda/[tipo]/[id].tsx` (detalhe; ações "Adicionar à agenda do celular" (.ics, principal),
+  "Abrir no Google Agenda" e "Divulgar a gira no WhatsApp" (wa.me com o link público; as orientações não
+  vão no texto); dentro do navegador do WhatsApp/Instagram mostra como abrir no navegador). Tipos e textos em
+  `components/medium/agenda.ts`. "A corrente chega às…" não é derivável (sem campo próprio): fica no texto
+  das orientações.
+- **Pendente nos próximos cards**: login multi-terreiro (AM-05), Avisos (AM-09),
+  Mensalidade com Pagar com PIX e comprovante (AM-11/AM-12), atividades da casa na Agenda (AM-08).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
