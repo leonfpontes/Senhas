@@ -287,8 +287,13 @@ function AdminUsersContent() {
           is_active: formData.is_active,
         };
         if (formData.password) payload.password = formData.password;
-        await apiClient.put(`/api/v1/admin/users/${editUserId}`, payload);
-        showSuccess('Alterações salvas.');
+        const { data } = await apiClient.put(`/api/v1/admin/users/${editUserId}`, payload);
+        // Operador/admin que também é médium: desativar tira só o painel (vira conta da Área do Médium).
+        showSuccess(
+          !formData.is_active && data?.role === 'medium'
+            ? 'Acesso ao painel retirado. Como a pessoa é médium, continua na Área do Médium.'
+            : 'Alterações salvas.',
+        );
       }
       setDrawerOpen(false);
       fetchUsers();
@@ -555,7 +560,7 @@ function AdminUsersContent() {
           <div className="flex items-center justify-between gap-4 rounded-md border p-3">
             <Label htmlFor="user-active" className="block font-normal">
               <span className="block text-sm font-medium">Ativo</span>
-              <span className="block text-xs text-muted-foreground">Desligado, a pessoa não consegue entrar.</span>
+              <span className="block text-xs text-muted-foreground">Desligado, a pessoa não entra mais no painel.</span>
             </Label>
             <Switch
               id="user-active"

@@ -186,7 +186,8 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   com o e-mail de um `medium` do terreiro promove a MESMA conta (papel pedido, grupo padrao, senha e
   username mantidos — quem cadastra nao fica sabendo a senha do medium; anti-escalada igual);
   remover (DELETE) operador/admin ligado a medium ativo rebaixa para `medium` e tira dos grupos em vez
-  de excluir; excluir de verdade solta o vinculo. Medium nao entra em grupo (`add_member` → 403) e
+  de excluir; desativar (`PUT is_active=false`) operador/admin ligado a medium ativo tambem so tira o painel
+  (vira `medium`, continua ativo na Area — decisao do dono, 07/10); excluir de verdade solta o vinculo. Medium nao entra em grupo (`add_member` → 403) e
   `PermissionService.check_permission` nega tudo a `medium`, mesmo impersonado.
 - Inativar/excluir medium (`mediuns.py`) desativa a conta `medium` pura ligada (e derruba as sessoes);
   reativar religa. Operador/admin ligado so perde/recupera a Area.

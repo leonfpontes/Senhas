@@ -348,6 +348,18 @@ async def update_user(
     if user_update.password:
         validate_password_policy(user_update.password)
 
+    # Desativar quem é operador/admin e também médium (decisão do dono, 07/10) tira só
+    # o painel: a conta vira `medium` e segue ativa na Área do Médium. Quem tira a
+    # Área é inativar/excluir o cadastro de médium.
+    if (
+        deactivating
+        and not role_change
+        and existing_user.role in (UserRole.ADMIN, UserRole.OPERATOR)
+        and await get_linked_medium(db, current_user.tenant_id, existing_user.id) is not None
+    ):
+        del update_data["is_active"]
+        update_data["role"] = UserRole.MEDIUM
+
     for key, value in update_data.items():
         if hasattr(existing_user, key):
             setattr(existing_user, key, value)
