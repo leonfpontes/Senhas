@@ -2,7 +2,8 @@
 
 Devolve só o que o próprio médium pode ver: nome, foto da conta, terreiro,
 marca (o mesmo subconjunto público de `GET /admin/tenant/branding`, que já é
-servido sem autenticação nas páginas de senha), áreas e módulos ligados.
+servido sem autenticação nas páginas de senha), áreas, módulos ligados e a
+configuração da Área (boas-vindas e WhatsApp da casa, AM-10).
 Campos internos do cadastro (`observacoes`, contatos, mensalidade) ficam fora.
 """
 from typing import List, Optional
@@ -16,7 +17,9 @@ from src.api.dependencies import MediumContext, require_medium
 from src.api.v1.auth.profile import _build_photo_url
 from src.core.database import get_db
 from src.models import Tenant, TenantConfig
-from src.services.medium_area import areas_payload
+from src.services.medium_area import areas_payload, get_area_medium_config, modulos_visiveis
+from src.services.plan_features import get_effective_plan_features
+from src.repositories.subscription_repo import SubscriptionRepository
 
 router = APIRouter()
 
@@ -44,9 +47,13 @@ class MediumMeResponse(BaseModel):
     terreiro: TerreiroInfo
     marca: MarcaInfo
     areas: dict
-    # Módulos da Área ligados no terreiro (calendário, comunicados, mensalidade…).
-    # TODO(AM-10): vem da configuração da Área; até lá, lista vazia.
+    # Módulos da Área ligados no terreiro, na ordem da barra: "agenda", "avisos",
+    # "mensalidade" (AM-10; mensalidade só com `mensalidade_mediun` no plano).
     modulos: List[str] = []
+    # Configuração da Área (AM-10): mensagem de boas-vindas e WhatsApp da casa
+    # (só dígitos com DDI, para o botão "Falar com a casa").
+    boas_vindas: Optional[str] = None
+    whatsapp_casa: Optional[str] = None
 
 
 @router.get("/me", response_model=MediumMeResponse)
@@ -59,6 +66,9 @@ async def get_medium_me(
     config = (
         await db.execute(select(TenantConfig).where(TenantConfig.tenant_id == ctx.tenant_id))
     ).scalar_one_or_none()
+
+    area = await get_area_medium_config(db, ctx.tenant_id)
+    sub = await SubscriptionRepository(db).get_by_tenant(ctx.tenant_id)
 
     logo_url = None
     font_color = None
@@ -82,5 +92,7 @@ async def get_medium_me(
             font_color=font_color,
         ),
         areas=areas_payload(ctx.user, ctx.medium),
-        modulos=[],
+        modulos=modulos_visiveis(area, get_effective_plan_features(sub).mensalidade_mediun),
+        boas_vindas=area.boas_vindas,
+        whatsapp_casa=area.whatsapp,
     )

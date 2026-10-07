@@ -188,7 +188,7 @@ async def test_area_do_medium_devolve_so_o_proprio_medium(client, db):
     assert body["terreiro"] == {"id": str(tenant.id), "nome": "Tenda Pai Joaquim", "slug": tenant.slug}
     assert body["areas"] == {"admin": False, "medium": {"medium_id": str(m.id), "nome": "Maria de Oxum"}}
     assert set(body["marca"]) == {"logo_url", "primary_color", "secondary_color", "font_color"}
-    assert body["modulos"] == []
+    assert body["modulos"] == ["agenda", "avisos", "mensalidade"]  # padrão da config da Área (AM-10)
     assert "interno" not in resp.text
 
 

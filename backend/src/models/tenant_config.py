@@ -1,5 +1,5 @@
 """TenantConfig model - organization branding and settings (T052)."""
-from sqlalchemy import Column, String, ForeignKey, Boolean, Index, LargeBinary, UniqueConstraint
+from sqlalchemy import Column, String, ForeignKey, Boolean, Index, LargeBinary, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from datetime import datetime
@@ -65,6 +65,16 @@ class TenantConfig(TimestampedModel):
     # emissão pública). Default desabilitado — cada gira ainda decide via
     # Gira.use_time_slots se usa ou não.
     enable_time_slot_scheduling: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+
+    # Área do Médium (AM-10) — o que a casa mostra ao médium. A chave da plataforma
+    # (`tenants.area_medium_liberada`) e o plano (`area_medium`) valem por cima.
+    area_medium_ativa: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    area_medium_boas_vindas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Só dígitos, com DDI (ex.: 5511987654321) — botão "Falar com a casa".
+    area_medium_whatsapp: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    area_medium_agenda: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    area_medium_avisos: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    area_medium_mensalidade: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
 
     # Custom metadata
     custom_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)

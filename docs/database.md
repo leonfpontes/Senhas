@@ -141,6 +141,13 @@ Convite da casa para o médium entrar na Área do Médium. O vínculo `mediuns.u
 `uq_medium_convites_aberto` em `(medium_id) WHERE usado_em IS NULL AND revogado_em IS NULL` — no máximo um
 convite em aberto por médium (criar outro revoga o anterior antes).
 
+**Configuração da Área e chave PIX (migração 068, AM-10):** colunas `area_medium_*` em `tenant_configs` (abaixo) e,
+em `mensalidade_configs`: `pix_tipo` (`String(10)`, CHECK `ck_mensalidade_configs_pix_tipo` em
+`cpf/cnpj/email/telefone/aleatoria` — string, não ENUM do PG), `pix_chave` (`String(77)`, já no formato do DICT),
+`pix_nome_recebedor` (`String(25)`), `pix_cidade` (`String(15)`), `pix_instrucoes` (`Text`) e `pix_alterado_em`
+(`DateTime(tz)`, só muda quando tipo/chave mudam). Trocar a chave: `PUT /admin/financeiro/config/pix` (senha + e-mail
+aos admins + auditoria mascarada).
+
 ---
 
 ### `tenant_configs`
@@ -167,6 +174,10 @@ Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`
 | `validate_associado_on_emit` | `Boolean` | Não | `False` | adicionado em 012; verifica email na tabela `associados` |
 | `enable_estoque_log` | `Boolean` | Não | `True` | adicionado em 018 |
 | `custom_settings` | `JSON` | Sim | — | dicionário arbitrário |
+| `area_medium_ativa` | `Boolean` | Não | `true` | 067 (AM-10): liga/desliga da própria casa; a chave da plataforma (`tenants.area_medium_liberada`) vale por cima |
+| `area_medium_boas_vindas` | `Text` | Sim | — | 067: mensagem de boas-vindas da Área (≤ 500 na API) |
+| `area_medium_whatsapp` | `String(20)` | Sim | — | 067: WhatsApp da casa, só dígitos com DDI (`5511987654321`) |
+| `area_medium_agenda` / `area_medium_avisos` / `area_medium_mensalidade` | `Boolean` | Não | `true` | 067: módulos visíveis na Área (mensalidade também exige `mensalidade_mediun` no plano) |
 | `created_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `updated_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `deleted_at` | `DateTime(tz)` | Sim | — | soft-delete |

@@ -9,6 +9,7 @@ from typing import Optional
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Enum as SAEnum,
@@ -36,7 +37,13 @@ class MensalidadeConfig(TimestampedModel):
     """Per-tenant configuration for mensalidade module (1:1 with tenant)."""
 
     __tablename__ = "mensalidade_configs"
-    __table_args__ = (Index("ix_mensalidade_configs_tenant_id", "tenant_id"),)
+    __table_args__ = (
+        Index("ix_mensalidade_configs_tenant_id", "tenant_id"),
+        CheckConstraint(
+            "pix_tipo IS NULL OR pix_tipo IN ('cpf', 'cnpj', 'email', 'telefone', 'aleatoria')",
+            name="ck_mensalidade_configs_pix_tipo",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -61,6 +68,17 @@ class MensalidadeConfig(TimestampedModel):
     dia_vencimento_associado: Mapped[int] = mapped_column(nullable=False, default=10, server_default="10")
     # Preferred time for scheduled report email (stored only — no auto-scheduler yet)
     relatorio_hora_envio: Mapped[Optional[datetime]] = mapped_column(Time, nullable=True)
+
+    # Chave PIX da mensalidade (AM-10, migração 068). Trocar exige FINANCEIRO:edit +
+    # senha + e-mail a todos os admins (PUT /admin/financeiro/config/pix). A chave fica
+    # normalizada no formato do DICT (services/pix_chave.py) e vira o BR Code
+    # estático em services/pix_brcode.py.
+    pix_tipo: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    pix_chave: Mapped[Optional[str]] = mapped_column(String(77), nullable=True)
+    pix_nome_recebedor: Mapped[Optional[str]] = mapped_column(String(25), nullable=True)
+    pix_cidade: Mapped[Optional[str]] = mapped_column(String(15), nullable=True)
+    pix_instrucoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    pix_alterado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     tenant = relationship("Tenant", backref="mensalidade_config")
 
