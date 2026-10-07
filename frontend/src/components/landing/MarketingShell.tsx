@@ -16,6 +16,7 @@ import { PHOTO_CREDITS } from '@/constants/landingPhotos';
 import { supportWhatsappLink } from '@/lib/whatsapp';
 import { fraunces, MARKETING_RESET as RESET } from '@/components/landing/fonts';
 import { abrirPreferenciasDeCookies } from '@/lib/consent';
+import { LEGAL_ENTITY } from '@/constants/legal';
 
 export const MARKETING_NAV = [
   { label: 'Para quem é', href: '/#para-quem' },
@@ -163,7 +164,10 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
         </div>
         <div className="mx-auto mt-10 flex max-w-6xl flex-col gap-2 border-t border-white/10 px-4 pt-6 text-xs sm:px-6">
           <div className="flex flex-wrap justify-between gap-2">
-            <span>© {new Date().getFullYear()} GiraHub. Todos os direitos reservados.</span>
+            <span>
+              © {new Date().getFullYear()} GiraHub{LEGAL_ENTITY.razaoSocial && ` · ${LEGAL_ENTITY.razaoSocial}`}
+              {LEGAL_ENTITY.cnpj && ` · CNPJ ${LEGAL_ENTITY.cnpj}`}. Todos os direitos reservados.
+            </span>
             <span>Feito com axé para a comunidade dos terreiros</span>
           </div>
           <p>
