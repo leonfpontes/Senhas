@@ -8,6 +8,18 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { apiClient } from '../services/api_client';
 
+/**
+ * Áreas que a conta acessa (AM-02), calculadas no servidor a cada chamada — vêm em
+ * GET /auth/profile, GET /auth/me e na resposta do login. Ainda não decidem nada no front:
+ * a escolha de área depois do login é o AM-04.
+ */
+export interface UserAreas {
+  /** Painel do terreiro (papel admin ou operator). */
+  admin: boolean;
+  /** Área do Médium: vínculo ativo com um médium e plano com `area_medium`. */
+  medium: { medium_id: string; nome: string } | null;
+}
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -17,6 +29,7 @@ export interface UserProfile {
   tenant_id?: string | null;
   tenant_name?: string | null;
   role?: string;
+  areas?: UserAreas;
 }
 
 interface ProfileContextValue {
