@@ -36,6 +36,8 @@ Há dois papéis diferentes:
 
 **Médiuns e associados (cadastrados pela casa):** nome, contatos, data de nascimento e endereço dos médiuns; mensalidades, pagamentos e comprovantes enviados.
 
+**Médiuns com acesso à Área do Médium:** quando a casa convida, o médium cria uma conta com e-mail e senha (guardada só em formato criptografado) e registramos a data e a versão da autorização dada no convite. Na Área ficam a agenda da casa, os avisos e quem os leu, a mensalidade e os comprovantes enviados pelo próprio médium e, quando a casa usa, as escalas, as presenças e os motivos de ausência que ele informar.
+
 **Inscritos em cursos presenciais:** os dados da ficha definida pela casa, que pode incluir documentos (CPF, RG), endereço, contato de emergência e, nas fichas completas, informações de saúde — sempre com consentimento específico.
 
 **Assinatura:** plano, situação dos pagamentos e identificadores da Stripe. Os dados do cartão ficam só com a Stripe.
@@ -50,7 +52,8 @@ Há dois papéis diferentes:
 • **Cobrança e obrigações fiscais:** execução de contrato e obrigação legal (art. 7º, II e V).
 • **E-mails sobre a conta** (fim do teste, dicas para a primeira gira, novidades do sistema): legítimo interesse, sempre relacionados ao serviço que você usa.
 • **Estatísticas de uso do site e do painel** e **medição de anúncios**: consentimento (art. 7º, I), dado no aviso de cookies e revogável a qualquer momento.
-• **Dados sensíveis** (saúde em fichas de curso, prioridade de atendimento): consentimento específico ou proteção da vida e da saúde, conforme o caso (art. 11).`,
+• **Dados sensíveis** (saúde em fichas de curso, prioridade de atendimento): consentimento específico ou proteção da vida e da saúde, conforme o caso (art. 11).
+• **Área do Médium:** o acesso só existe com a autorização que o médium dá ao aceitar o convite da casa (consentimento específico, art. 11, I). Ele pode revogá-la pedindo à casa o encerramento do acesso.`,
   },
   {
     title: '4. Dados sensíveis e religião',
@@ -58,7 +61,8 @@ Há dois papéis diferentes:
 
 • Os dados de cada casa ficam isolados e só são vistos por quem a casa autorizou.
 • Não usamos dados das casas para anúncios, perfis de comportamento ou qualquer finalidade nossa.
-• As ferramentas de estatística mascaram campos de formulário — nomes, e-mails, telefones e documentos não chegam a elas.`,
+• As ferramentas de estatística mascaram campos de formulário — nomes, e-mails, telefones e documentos não chegam a elas.
+• Na Área do Médium, cada médium vê só os próprios dados; os outros médiuns não veem nada dele. Os convites e avisos por e-mail não citam religião, entidade nem valores.`,
   },
   {
     title: '5. Com quem compartilhamos',
