@@ -42,12 +42,32 @@ POST /api/v1/auth/login
 {
   "sub": "user-uuid",
   "tenant_id": "tenant-uuid",
-  "email": "admin@terreiro.com",
-  "role": "ADMIN",
+  "role": "admin",
   "iat": 1709740800,
-  "exp": 1709827200
+  "exp": 1709827200,
+  "type": "access"
 }
 ```
+
+- `tenant_id` é `null` para `super_admin`.
+- Impersonação acrescenta `"impersonated_by": "<super-admin-uuid>"` e expira em 1h; o token
+  continua com `"type": "access"` e vai como `Authorization: Bearer` (sessionStorage).
+- Todo access token sai de `create_access_token` (`backend/src/security/jwt.py`) — login,
+  `/auth/refresh`, impersonação, reativação de conta e cadastro (`issue_session`). Nenhum outro
+  módulo chama `jwt.encode` (travado em `test_security_jwt.py::test_so_security_jwt_assina_tokens`).
+
+#### Claim `type` — allowlist (T-02, out/2026)
+
+`decode_token` — o que o `jwt_middleware` usa para autenticar — aceita **só** `type == "access"`.
+`refresh` e qualquer outro tipo (os futuros `account_select`, `mfa_pending`, convite...) dão 401.
+Tipo novo de JWT deve ter `type` próprio e decoder próprio, nunca passar por `decode_token`.
+
+**Janela de compatibilidade:** access tokens emitidos antes do T-02 não têm `type`. Um token
+**sem** `type` só é aceito se `iat < LEGACY_UNTYPED_ACCESS_CUTOFF` (**2026-10-08T00:00Z**) **e**
+agora `< iat + ACCESS_TOKEN_EXPIRE_HOURS` — os tokens legados morrem pelo TTL normal e, a partir
+de corte + TTL (2026-10-09T00:00Z com o TTL padrão de 24h), o decode é allowlist pura. Token sem
+`type` recusado vira 401 e o front renova sozinho via `/auth/refresh` (sem deslogar). O ramo
+legado (`_legacy_untyped_access_allowed`) pode ser removido a partir de 2026-10-10 (TODO no código).
 
 ### Refresh Token
 
@@ -262,7 +282,7 @@ def verify_password(password: str, hashed: str) -> bool:
 | access_token | Cookie `HttpOnly; Secure; SameSite=Strict` — protegido contra XSS |
 | auth_state | Cookie não-HttpOnly `auth_state=1` — permite JS detectar login sem expor token |
 | refresh_token | Cookie `HttpOnly; Secure; SameSite=Strict`; payload com `type: refresh` |
-| Separação de tipos | `decode_refresh_token` rejeita access tokens; `decode_token` rejeita refresh tokens |
+| Separação de tipos | `decode_token` é allowlist: só `type: access` (tokens sem `type` só na janela de compatibilidade do T-02); `decode_refresh_token` exige `type: refresh` |
 | CSRF | Mitigado por `SameSite=Strict` — não requer CSRF token separado |
 | CORS | Origins configuráveis via `.env` |
 | Role hierarchy | `OPERATOR=0 < ADMIN=1 < SUPER_ADMIN=2` — hierarquia explícita em `dependencies.py` |
