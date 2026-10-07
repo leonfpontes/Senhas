@@ -575,7 +575,7 @@ Incluir obrigatoriamente:
   unique), 058 (e-mail de associado unico so entre ativos — recadastrar excluido dava 500).
 
 ### 11.10 Financeiro — Controle de Mensalidade de Mediuns (branch 002-financeiro-mensalidade)
-- **Feature Premium**: `mensalidade_mediun` foi PRO+ de 2026-06-27 ate a reestruturacao de out/2026, quando voltou a ser Premium (junto com a de associados). Endpoints usam `require_plan_feature("mensalidade_mediun")`; config e relatorio ficam nesse gate e a parte de associados so vale com `mensalidade_associado` no plano.
+- **Feature Basic+**: `mensalidade_mediun` foi PRO+ de 2026-06-27 ate a reestruturacao de out/2026, quando passou a valer a partir do Basic (decisao do dono, ver §3.4; a de associados segue Premium). Endpoints usam `require_plan_feature("mensalidade_mediun")`; config e relatorio ficam nesse gate e a parte de associados so vale com `mensalidade_associado` no plano.
 - **Modelos**: `MensalidadeConfig` (valor_mensal, dia_vencimento, 1:1 tenant), `MensalidadePagamento` (UNIQUE mediun_id+mes, BYTEA comprovante), `MensalidadeStatus` enum (PENDENTE/PAGO/ISENTO).
 - **Endpoints** (prefixo `/api/v1/admin/financeiro`): config GET/PUT, mensalidades GET/POST por mes, comprovante GET/DELETE, resumo GET (6 hist + 3 proj), relatorio POST enviar / GET download. Associados espelham em `/associados*`.
 - **Regras de acesso** (desde 2026-10-06): so `require_group_permission(FINANCEIRO, ...)` + gate de plano — nao ha mais checagem de perfil ADMIN (`_require_admin` removido; contradizia o grupo). Registrar/editar pagamento e POST (upsert) → acao `insert`; a tela mostra "Registrar"/lote so com `canGroup('financeiro','insert')`. PUT config → `edit`.

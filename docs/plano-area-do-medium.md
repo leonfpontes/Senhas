@@ -1,0 +1,1064 @@
+# Plano da Área do Médium (outubro/2026)
+
+Criado: 2026-10-07 · Status: **planejamento, nada implementado** · Prefixo dos cards: **AM-**
+
+Fontes internas: [benchmark-concorrentes-2026-10.md](benchmark-concorrentes-2026-10.md),
+[plano-benchmark-2026-10.md](plano-benchmark-2026-10.md) (cards F-01 a F-10, T-02), AGENTS.md §3 e §11, código em
+`backend/src` e `frontend/src` na `master` de 2026-10-07 (head Alembic `060_usuarios_ilimitados`; a próxima
+migração é a **061**, confira `alembic heads` antes).
+
+Caminhos abreviados: **B/** = `backend/src/`, **F/** = `frontend/src/`. Escala dos cards igual à do
+plano-benchmark: esforço **P** ≤ 1 dia · **M** 2 a 4 dias · **G** 1 a 2 semanas; prioridade **P0** agora ·
+**P1** próximo · **P2** depois · **P3** futuro. A "Definição de pronto" do plano-benchmark vale para todo card
+com código daqui.
+
+---
+
+## 1. Pedido do dono
+
+1. **Login dos médiuns**: depois do login, uma tela de desambiguação. Quem tem acesso ao painel do terreiro
+   (back-office) **e** é médium escolhe entre a Área do Médium e a área administrativa. Quem tem só uma das
+   áreas entra direto nela.
+2. **Calendário de giras** compartilhado, com informação detalhada dos eventos.
+3. **Comunicados**.
+4. **"Pague sua mensalidade aqui"** com a chave PIX (recorrente) que o terreiro disponibiliza.
+5. Levantar o que os concorrentes oferecem nessa área e trazer para o planejamento.
+
+---
+
+## 2. Resumo executivo
+
+- **O que já temos e dá para aproveitar**: cadastro de médiuns (`Medium`, com `data_entrada`, `data_nascimento`,
+  `mensalidade_isento`, contato e endereço), mensalidade por médium com comprovante (`MensalidadePagamento`,
+  BYTEA, 5 MB), espelho em contas a receber, giras com local/descrição/recados, agenda pública, gerador de `.ics`
+  (`F/components/public/bilhete-utils.ts`), fluxo de token de reset de senha (`token_urlsafe` + sha256 +
+  expiração), agendadores com `scheduler_guard`, fila de e-mail, PWA da Porta, e um precedente de "chave PIX +
+  comprovante" nos cursos presenciais (`curso.chave_pix`, botão copiar, comprovante obrigatório).
+- **O que não existe**: nenhuma conta de médium. `Medium` não tem vínculo com `User`. A "área do associado"
+  (`F/pages/public/[tenant]/associado.tsx`) só redireciona para a emissão de senha. Não há comunicados (só
+  `Gira.recados`, que vai no e-mail do consulente), não há evento interno (toda gira aparece no site e conta no
+  limite de giras do plano) e não há gerador de PIX copia-e-cola.
+- **Desenho proposto**: uma pessoa = um `User` por terreiro. O acesso à Área do Médium vem do **vínculo**
+  `mediuns.user_id → users.id`, não do papel. Quem só é médium ganha o papel novo `medium` (sem nenhum acesso ao
+  back-office). Admin ou operador que também é médium continua admin/operador e ganha a segunda área pelo
+  vínculo. As áreas são calculadas no servidor a cada requisição (não vão no JWT), então desvincular vale na hora.
+- **API separada**: `/api/v1/medium/*` com a dependência `require_medium`, que resolve o médium pelo usuário logado
+  (tenant **e** `medium_id`). Nenhum endpoint da área recebe `medium_id` na URL ou no corpo.
+- **Plano**: feature nova `area_medium` a partir do **Basic** (o mesmo nível de `mediuns` e `mensalidade_mediun`).
+  Justificativa na §6.5.
+- **"PIX recorrente" sem gateway** é: chave estática do terreiro + copia-e-cola/QR gerado com valor e
+  identificador do mês + lembrete mensal + instrução para o médium agendar o "Pix Agendado Recorrente" no próprio
+  banco + comprovante enviado pelo médium e confirmado pelo admin. Baixa automática só com gateway (F-01/F-02).
+  O Pix Automático do BC exige CNPJ com 6 meses e contrato com PSP (§7.4).
+- **MVP** = 13 cards (AM-01 a AM-13), estimativa de 6 a 8 semanas de uma pessoa. Fase 2 e 3 trazem notificações,
+  PWA com push, presença, escalas, ficha espiritual, aniversariantes, estudos e baixa automática.
+- **Backlog existente**: a Área do Médium **substitui o F-04** (Portal do médium); **depende** de T-02; e **consome**
+  F-05, F-06, F-07 e F-02 nas fases 2 e 3 (tabela na §5).
+
+---
+
+## 3. O que os concorrentes oferecem na área do médium/membro
+
+Pesquisa feita em **07/10/2026** nos sites públicos (texto da página e, nos SPAs, o bundle JavaScript público
+servido pela landing). Nenhuma conta foi criada. Legenda: **V** = verificado na fonte citada; **I** = inferido
+(indício, não confirmado); **B** = vem do benchmark de 06/10/2026, não reconferido hoje.
+
+### 3.1 Por concorrente
+
+**AxéCloud** (plano único R$ 69,90)
+- V: "Cada membro acessa um espaço separado do painel da administração", com avisos, calendário, mensalidades,
+  biblioteca "e outros conteúdos liberados pela casa" (home).
+- V: o portal do filho de santo mostra "apenas o que a diretoria liberou"; entrada com "ID da casa e CPF";
+  funciona no navegador ou instalado como PWA, "Não precisa App Store nem Google Play"
+  (`/recursos/portal-filho-de-santo`).
+- V: mensalidade: "O filho de santo paga pelo portal; a diretoria vê o crédito no painel"
+  (`/recursos/financeiro-pix-mensalidades`). **Não diz** se é chave estática, QR dinâmico ou gateway.
+- V: mural de avisos para tirar os comunicados do grupo de WhatsApp (`/recursos/mural-de-avisos`); a página não
+  detalha segmentação nem confirmação de leitura.
+- V: frequência: "Presenças, faltas e assiduidade registradas em giras e atividades da casa"
+  (`/recursos/frequencia-check-in`); a página não diz se o próprio membro faz check-in.
+- V: push: "Avisos importantes da casa entregues diretamente no celular" (`/recursos/notificacoes-push`).
+- V (índice `/recursos`): páginas de caminhada mediúnica ("entrada, iniciações, obrigações, cargos e marcos"),
+  biblioteca de estudos ("Textos, cantigas e materiais de fundamento"), obrigações e alertas, calendário
+  litúrgico, desenvolvimento mediúnico (turmas e frequência), documentos da casa, camarinha "em área reservada à
+  zeladoria".
+
+**Kanzuá** (R$ 41,90 a 59,90, equipe ilimitada)
+- V: "App dos Médiuns" com "Agenda da casa", "Comunicados internos", "Informações da corrente" e "Acesso simples
+  pelo celular" (home).
+- Não aparece na página: mensalidade, presença, escalas, ficha ou estudos para o médium.
+
+**ORI** (R$ 24,90 a 59,90 + add-ons)
+- V (bundle): link "Recebeu um convite do seu terreiro?" / "Entrar como membro", com **código de convite**
+  ("Digite o código de convite que você recebeu", "Aceitar e Entrar no Templo"), papéis Proprietário,
+  Administrador e Membro.
+- V (bundle): pagamento por PIX ou cartão via Mercado Pago "com baixa automática e débito recorrente"; página
+  pública `/pagar/:token` com aba "PIX copia e cola"; recibo por e-mail ao registrar pagamento.
+- V (bundle): avisos no WhatsApp "com consentimento de cada pessoa" (lembrete antes do vencimento, aviso de
+  atraso); "Jornada do médium" (guias, orixás, marcos); "histórico de frequência"; e-mail de aniversariantes
+  para administradores.
+- I: o "Membro" do ORI parece um papel da equipe dentro do mesmo painel ("Fui convidado por um templo para fazer
+  parte da equipe"), e não um portal separado do médium.
+
+**Minha Gira** (R$ 99,90 a 149,90 por nº de membros)
+- V (home, por plano): em todos os planos, "Agenda do terreiro", "Comunicados" e "Notificações de aniversários e
+  datas importantes". A partir do intermediário: "Chat do terreiro", "Controle de Presença nas giras",
+  lembretes de mensalidade antes do vencimento e "Escalas de limpeza do terreiro". Só no plano mais alto:
+  biblioteca da casa, cursos e "Controle de obrigações com a casa".
+- V: mensalidade via Asaas, "cobranças automáticas por cartão de crédito ou Pix".
+- B: é PWA; benefícios escritos como perguntas ("O que eu tenho que levar pra gira?").
+
+**Quartinha** (preço oculto)
+- V (bundle): "Histórico de Frequência" ("Presença em eventos enquanto membro da casa"), "Diário & Entidades",
+  "Acompanhamento & Diário Espiritual", "Diário de Tutoria & Supervisão" (acompanhamento de desenvolvimento),
+  "Mural de avisos para a comunidade" com QR code do mural, escalas de limpeza/cozinha no modelo de estatuto,
+  cadastro de chave PIX com botão copiar, conexão com Asaas ("automatizar cobranças via PIX, Boleto e Cartão") e
+  com o Banco Cora.
+- I: existe a string "Área do Médium" no bundle, mas o contexto (área logada ou título de conteúdo) não foi
+  confirmado.
+
+**Tupam** (preço oculto)
+- V (bundle): "Arrecadação via PIX" por "link compartilhado no app, acessível por médiuns e consulentes";
+  "Pontos & Cânticos" por entidade/linha; "Estudos"; "Biblioteca Virtual"; "Membros & Filhos de Santo".
+
+**Meu Axé**
+- O site respondeu 403 em 07/10/2026. B: ficha espiritual separada Umbanda × Candomblé, faturas futuras geradas
+  automaticamente, presença com relatório de ausentes, portal do membro.
+
+### 3.2 Matriz da área do médium
+
+| Recurso para o médium | AxéCloud | Kanzuá | ORI | Minha Gira | Quartinha | Tupam | GiraHub hoje | Card |
+|---|---|---|---|---|---|---|---|---|
+| Acesso próprio separado do painel | V | V | I (papel Membro) | B (PWA) | I | ? | não | AM-02/03/04 |
+| Convite do terreiro | ? | ? | V (código) | ? | ? | ? | não | AM-03 |
+| Agenda/calendário | V | V | V (agenda pública) | V | ? | ? | só agenda pública | AM-07/08 |
+| Comunicados/mural | V | V | WhatsApp | V | V | ? | não | AM-09 |
+| Mensalidade pelo portal | V (PIX) | ? | V (link /pagar) | V (Asaas) | V (Asaas/Cora) | V (link PIX) | só no painel | AM-11/12/22 |
+| Baixa automática | V ("vê o crédito") | ? | V | V | V | ? | não | AM-22 (F-02) |
+| Lembrete de vencimento | ? | ? | V (WhatsApp) | V | ? | ? | não | AM-15 |
+| Presença/frequência | V | ? | V | V | V | ? | não | AM-17 (F-06) |
+| Escalas de zeladoria | ? | ? | ? | V | V (estatuto) | ? | não | AM-18 (F-07) |
+| Ficha/caminhada/obrigações | V | ? | V | V (plano alto) | V (diário) | ? | não | AM-19 (F-05) |
+| Aniversários | ? | ? | V (só admin) | V | ? | ? | só admin | AM-20 |
+| Biblioteca/estudos/pontos | V | ? | ? | V (plano alto) | ? | V | não | AM-21 |
+| Push/PWA | V | V (celular) | ? | B | ? | ? | PWA só da Porta | AM-16 |
+| Chat do terreiro | ? | ? | ? | V | ? | ? | não | fora do escopo (§8) |
+
+"?" = não encontrado nas fontes públicas consultadas (não quer dizer que não exista).
+
+### 3.3 Conclusões da pesquisa
+1. **Agenda + comunicados + mensalidade** é o núcleo comum (AxéCloud, Kanzuá, Minha Gira). Bate com o pedido.
+2. **Convite** é a porta de entrada (ORI faz por código; propomos link por e-mail/WhatsApp, que é mais simples
+   para o médium).
+3. **Privacidade** é argumento de venda: AxéCloud repete que o membro vê "apenas o que a diretoria liberou" e que
+   cobrança fica "fora do grupo público".
+4. **Presença, escalas e caminhada** aparecem nos planos mais altos (Minha Gira) ou como módulos à parte; servem
+   de fase 2 e de degrau de plano.
+5. Ninguém mostrou publicamente um **PIX copia-e-cola com valor gerado da chave estática**; quem tem baixa
+   automática usa gateway (Asaas, Mercado Pago). O nosso "Pague aqui" sem gateway é diferencial de custo zero
+   enquanto o F-02 não chega.
+
+---
+
+## 4. GiraHub hoje (o que o código impõe)
+
+| Tema | Estado em 2026-10-07 | Consequência para a Área do Médium |
+|---|---|---|
+| Papéis | `UserRole` = `super_admin`, `admin`, `operator` (`B/models/users.py`). Hierarquia em `_ROLE_HIERARCHY` (`B/api/dependencies.py`). | Papel novo `medium` (ALTER TYPE, enum minúsculo conforme AGENTS.md §4.4). |
+| Unicidade | `UniqueConstraint(tenant_id, email)`; mesmo e-mail pode existir em terreiros diferentes. | Operador que é médium no mesmo terreiro **é o mesmo `User`**: o vínculo resolve, papel não. |
+| Login | `user_by_login_email_stmt` pega a **conta mais antiga** com o e-mail (`B/api/v1/auth/login.py`). | Médium com conta em dois terreiros não consegue entrar no segundo. Card AM-05. |
+| JWT | Claims `sub`, `tenant_id`, `role`, `iat`, `exp`, `impersonated_by`; access sem `type` (`B/security/jwt.py`). | Token de convite/seleção de conta exige o **T-02** (allowlist de `type`). |
+| Rotas admin | `admin_router = APIRouter()` sem dependência comum (`B/api/v1/admin/__init__.py`). Algumas rotas usam só `get_current_user` (dashboard_summary, support_chat `/me`, subscription_info, branding, `/me/permissions`). | Um guard único no `admin_router` barra o papel `medium` em tudo de uma vez. |
+| Grupos | `PermissionService.check_permission`: admin e impersonação passam; operador sem grupo é fail-closed. | Usuário `medium` não tem grupo, então já leva 403 nas rotas com grupo; o guard do router fecha o resto. |
+| Medium | Sem `user_id`. Campos civis + `is_atendimento`, `data_entrada/saida`, `mensalidade_isento`, `observacoes`. | Migração com `mediuns.user_id` (FK nullable, único parcial). `observacoes` é campo interno, nunca exposto ao médium. |
+| Mensalidade | `MensalidadePagamento` (único por médium+mês, `valor_vigente`, comprovante BYTEA 5 MB, `registrado_por`), gate `mensalidade_mediun` (**Basic**), grupo FINANCEIRO. | Médium só vê o próprio; envio de comprovante cria/atualiza o registro do mês **sem** marcar pago. |
+| Giras | `nome`, `descricao`, `data_inicio/fim`, `local`, `recados` (vai no e-mail do consulente), `is_active`. Agenda pública lista toda gira ativa (`SiteRepository.list_upcoming_giras`). | Falta campo de orientação só para a corrente e falta evento interno que não apareça no site nem conte no limite de giras. |
+| PIX | Só `cursos_presenciais.chave_pix` (texto livre + copiar + comprovante obrigatório). | Reaproveitar o padrão de UI; criar gerador de BR Code. |
+| Frontend | `ProfileProvider`, `SubscriptionProvider`, `PermissionsProvider` e `BirthdayProvider` montados no `_app` chamam rotas `/api/v1/admin/*` em toda página. `completeLogin` manda tudo que não é super admin para `/admin/dashboard`. | Providers precisam saber a área; `completeLogin` passa a decidir pela área. |
+| Slugs | `B/core/reserved_slugs.py` já reserva `medium` e `convite` (T-01 feito). | Reservar também `escolher-area`. |
+| PWA | Manifesto único com `id`/`start_url` em `/admin/porta`; SW nunca cacheia `/api/*`. | Manifesto próprio para a Área do Médium (AM-16). |
+| Auditores | `audit_tenant_isolation.py` cobre `admin/`, `repositories/`, `services/`, `public/`; `audit_permission_guards.py` só `admin/`; o JS só `pages/admin`. | Estender os três para `medium/` (AM-02). |
+| Banco | Postgres com limite de 8 GB; comprovantes e fotos em BYTEA. | Comprimir imagem no navegador e limitar tamanho do comprovante do médium (risco R-05). |
+
+**Divergência corrigida neste PR (R-02):** AGENTS.md §11.10 dizia que `mensalidade_mediun` "voltou a ser
+Premium"; o código (`_FEATURE_MIN_TIER`) e a matriz da §3.4 dizem **Basic**. O texto foi corrigido. O docstring de
+`B/models/mensalidades.py` ("Premium feature") também está desatualizado e fica para o primeiro PR de código.
+
+---
+
+## 5. Reconciliação com o backlog existente
+
+| Card | Relação | O que fazer no board |
+|---|---|---|
+| **F-04** Portal do médium | **Substituído** pela Área do Médium (AM-02 a AM-13). Aproveitamos do F-04: papel `medium`, `require_medium`, convite reaproveitando o fluxo de reset, bloqueio das rotas admin. Mudamos: vínculo por `user_id` em vez de "papel define tudo" (para o operador-médium), plano Basic em vez de Pro, e o item "médium fora do limite de usuários" caiu (usuários são ilimitados desde a `060`). | Arquivar F-04 com comentário apontando para os AM. |
+| **T-02** Token tipado | **Dependência dura** de AM-03 e AM-05 (token de convite e de seleção de conta não podem passar como access). | Subir o T-02 no ranking, antes do AM-02. |
+| **T-01** Slugs reservados | Feito. Falta só `escolher-area`. | Nada; o AM-04 acrescenta o slug. |
+| **F-05** Ficha espiritual | **AM-19 depende** do F-05 (o F-05 cria campos, marcos e consentimento; o AM-19 mostra ao médium e libera edição de alguns campos). | Manter F-05; tirar "Destrava F-04" e pôr "Destrava AM-19". |
+| **F-06** Presença | **AM-17 depende** do F-06 (lista de chamada do admin). O AM-17 acrescenta "vou/não vou", justificativa de falta e histórico do médium. | Manter F-06; destrava AM-17. |
+| **F-07** Escalas | **AM-18 depende** do F-07. O AM-18 mostra "minhas escalas" e o aviso da véspera vai também para a Área. | Manter F-07; destrava AM-18. |
+| **F-09** Importar médiuns | **Sinergia**, não dependência: depois de importar, "Convidar todos com e-mail" (AM-03, convite em lote). | Manter. |
+| **F-01** Gateway | **AM-22 depende**. Também decide se a chave estática continua como alternativa. | Manter; destrava F-02. |
+| **F-02** PIX com baixa automática | **AM-22 depende**. O "Pague aqui" do AM-11 é a ponte até o F-02: quando o terreiro conecta o gateway, o botão passa a gerar a cobrança dinâmica e a baixa é automática. | Trocar "Destrava F-04" por "Destrava AM-22". |
+| **F-03** WhatsApp automático | **Opcional** para AM-15 (canal extra de lembrete). O MVP usa e-mail e link `wa.me` sem API. | Manter. |
+| **F-10** 2FA | Independente. Se entrar antes, o fluxo `mfa_pending` precisa passar pela escolha de área depois do código. | Nota no F-10. |
+| **N-03** Senha por médium | Independente. Ideia de fase 3: "minhas consultas na gira" na Área do Médium. | Nada agora. |
+
+---
+
+## 6. Arquitetura
+
+### 6.1 Personas
+- **Médium** (inclui cambone, ogã, ekedi): quer saber quando é a próxima gira, o que levar, ler os avisos da casa
+  e pagar a mensalidade sem mandar print no grupo. Usa celular, muitas vezes Android simples, e não lê e-mail com
+  frequência.
+- **Dirigente/admin**: quer tirar comunicado e cobrança do grupo de WhatsApp, saber quem leu e quem pagou, sem
+  expor a vida de um médium para os outros.
+- **Operador que também é médium** (o filho da casa que opera a Porta): precisa das duas áreas com o mesmo login.
+
+### 6.2 Identidade e vínculo
+
+```
+users (1 por pessoa por terreiro)          mediuns
+  id, tenant_id, email, role  <──────────  user_id (FK nullable, único parcial onde não nulo e não excluído)
+  role: admin | operator | medium          tenant_id, nome, ...
+```
+
+Regras:
+1. **Área administrativa** = `role in (admin, operator)` (super admin continua indo para `/platform`).
+2. **Área do Médium** = existe `Medium` com `user_id = user.id`, `tenant_id = user.tenant_id`, não excluído e
+   ativo, **e** o plano efetivo do terreiro tem `area_medium` (e a área está ligada na configuração, AM-10).
+3. **Papel `medium`** só para quem não tem acesso ao back-office. Ele não passa em nenhuma rota admin.
+4. **Operador/admin que é médium**: mantém o papel; ganha a Área pelo vínculo. Tirar o acesso ao painel de um
+   operador-médium (tela Usuários) rebaixa para `medium` em vez de excluir a conta, para não quebrar o vínculo.
+   Dar acesso ao painel para um usuário `medium` (Usuários → "Adicionar" com o mesmo e-mail) promove para
+   `operator` e põe no grupo padrão, com a mesma regra anti-escalada de `users.py`.
+5. **Vínculo só com prova de posse do e-mail**: o admin nunca liga uma conta a um médium diretamente; ele envia o
+   convite e o vínculo nasce no aceite (AM-03). Isso evita que alguém com MEDIUNS:edit ligue a própria conta à
+   ficha de outra pessoa e passe a ver a mensalidade dela.
+6. **Excluir/inativar o médium** encerra o acesso na hora (o `require_medium` falha). Se o usuário for `medium`
+   puro, a conta é desativada junto; se for operador/admin, só perde a Área.
+7. **Mesmo e-mail em vários terreiros**: cada terreiro tem o seu `User` (senhas independentes). O login passa a
+   procurar todas as contas ativas com o e-mail e conferir a senha em cada uma (AM-05).
+
+### 6.3 Tokens e claims
+- **Nenhum claim novo de área no JWT.** As áreas são calculadas no servidor (`GET /api/v1/auth/me` e resposta do
+  login devolvem `areas: {admin: bool, medium: {medium_id, nome} | null}`). Motivo: o access token vale 24 h e o
+  vínculo pode mudar a qualquer momento (médium saiu da casa, convite revogado).
+- Com o **T-02**, todo access passa a ter `type: "access"`. Tokens novos desta frente:
+  `type: "account_select"` (seleção de conta, 5 min, AM-05). O convite **não** é JWT: é token opaco
+  `token_urlsafe(32)` guardado como sha256 (mesmo padrão do reset de senha), com expiração e uso único.
+- `role` continua no token (o `medium` aparece aí para o `require_backoffice` barrar sem ir ao banco, mas a
+  checagem de área sempre consulta o banco).
+
+### 6.4 Login e escolha de área
+```
+POST /auth/login
+  ├─ e-mail com mais de uma conta cuja senha confere → {choose_account, selection_token, options[]} (AM-05)
+  └─ uma conta → sessão aberta (cookies), user + areas
+        ├─ super_admin                  → /platform
+        ├─ só admin/operador            → /admin/dashboard
+        ├─ só médium                    → /medium
+        ├─ as duas, escolha lembrada    → área lembrada
+        ├─ as duas, sem escolha         → /escolher-area
+        └─ nenhuma (médium sem plano)   → /medium com aviso neutro "A Área do Médium não está disponível agora.
+                                            Fale com a direção da casa." (sem oferta de upgrade ao médium)
+```
+- "Lembrar minha escolha neste aparelho" (caixa marcada por padrão) grava `girahub:area:{userId}` no
+  localStorage. Os dois cabeçalhos têm "Trocar de área" (no menu do perfil do `AdminTopbar` e no menu da Área do
+  Médium), que também atualiza a escolha lembrada.
+- A troca de área **não troca o token**: é a mesma sessão, só muda a rota. Logout é o mesmo (`/auth/logout`).
+- `/escolher-area` mostra dois cartões grandes ("Área do Médium: agenda, avisos e mensalidade" e "Painel do
+  terreiro: giras, senhas e gestão"), com o nome e a marca do terreiro.
+
+### 6.5 Plano
+Proposta: **feature nova `area_medium` no catálogo `PlanFeatures`, nível BASIC**, espelhada em
+`F/constants/plans.ts` e no quadro da landing ("Área do Médium: agenda, avisos e mensalidade").
+
+Por quê:
+- Não existe médium no Gratuito (limite "—"), então a Área nasce no Basic de qualquer jeito.
+- O gatilho de upgrade já é o **número de médiuns** (15/30/ilimitado) e de giras. A Área faz o terreiro cadastrar
+  todos os médiuns, o que bate no limite e puxa o upgrade. Cobrar a Área à parte enfraquece esse gatilho.
+- O mercado entrega o núcleo (agenda, avisos, mensalidade) em todos os planos (AxéCloud tudo incluso; Minha Gira
+  tem agenda e comunicados até no plano de entrada). Pôr no Pro nos deixaria atrás de quem cobra R$ 41,90.
+- Feature própria (e não reaproveitar `mediuns`) deixa o dono mover de plano depois sem mexer em código.
+
+Degraus sugeridos para as fases seguintes (decisão D-02): presença do médium segue o F-06 (`mediuns`, Basic);
+escalas seguem o F-07 (sugestão `escalas`, Pro); ficha segue o F-05; estudos/biblioteca (`biblioteca_medium`,
+Pro); baixa automática segue F-01/F-02. A mensalidade na Área exige também `mensalidade_mediun` (Basic) e a
+config de mensalidade ativa.
+
+Status da assinatura: suspenso/vencido bloqueia a Área como qualquer feature paga (402), e a tela do médium
+mostra o aviso neutro. Nada é apagado.
+
+### 6.6 API e isolamento
+- Router `B/api/v1/medium/__init__.py` com `APIRouter(prefix="/api/v1/medium", dependencies=[Depends(require_medium)])`.
+- `require_medium` (em `B/api/dependencies.py`) devolve um `MediumContext(user, tenant_id, medium, token)`:
+  1. `get_current_user`;
+  2. `tenant_id` do usuário (nunca do corpo);
+  3. `select(Medium).where(Medium.user_id == user.id, Medium.tenant_id == user.tenant_id, Medium.deleted_at.is_(None), Medium.is_active.is_(True))`;
+  4. `check_plan_feature(user, db, "area_medium")` (403/402);
+  5. config da Área ligada (AM-10).
+- **Regra de ouro**: rotas da Área são "minhas" (`/me`, `/mensalidades`, `/comunicados`). Nunca aceitam
+  `medium_id`. Recurso com id (gira, comunicado, evento) é buscado com `tenant_id == ctx.tenant_id` e, quando há
+  segmentação, com a regra de público do médium.
+- **Escrita sob impersonação é recusada** (403, `is_impersonated_request`): o suporte pode ver o que o médium vê,
+  mas não envia comprovante, não marca leitura e não edita perfil em nome dele.
+- `require_backoffice` (novo) no `admin_router` inteiro: recusa `role == medium` com 403. Fecha de uma vez as
+  rotas que hoje só usam `get_current_user`. Platform já exige super admin.
+- Auditores:
+  - `audit_tenant_isolation.py` ganha o modo **medium** para `B/api/v1/medium/`: toda query em modelo
+    multi-tenant filtra por tenant **e** toda query em modelo com coluna `mediun_id`/`medium_id` filtra pelo
+    `ctx.medium.id`;
+  - `audit_permission_guards.py` passa a exigir `require_medium` no router `medium/` (rotas da Área são
+    isentas de grupo, como as de sistema; a exceção vai para CLAUDE.md e AGENTS.md §3.3);
+  - `frontend/scripts/audit-permission-guards.js` exige que toda página em `F/pages/medium/` use o
+    `MediumLayout` (que faz o gate de área).
+- Teste que varre o app: usuário `medium` recebe 403 em **toda** rota `/api/v1/admin/*` e `/api/v1/platform/*`
+  (modelo: `test_route_shadowing.py` para listar as rotas).
+
+### 6.7 Grupos de permissão (lado admin)
+| Ação no painel | Feature | Ação |
+|---|---|---|
+| Convidar, reenviar e revogar acesso do médium | `MEDIUNS` | `edit` |
+| Publicar, editar, arquivar comunicado | **`COMUNICADOS`** (nova) | `insert`/`edit`/`delete`; ver leituras = `view` |
+| Eventos internos da corrente | `GIRAS` | `insert`/`edit`/`delete` |
+| Configuração da Área (boas-vindas, WhatsApp da casa, módulos) | `CONFIGURACOES` | `edit` |
+| Chave PIX da mensalidade | `FINANCEIRO` | `edit` + senha + aviso aos admins (§7.3) |
+| Confirmar/recusar comprovante enviado | `FINANCEIRO` | `insert` (confirmar, igual a registrar) / `edit` (recusar) |
+
+`COMUNICADOS` segue o roteiro do CLAUDE.md: valor no enum, migração `ALTER TYPE permission_feature ADD VALUE`,
+segunda migração dando acesso total no grupo padrão "Acesso total", entrada em `permissionFeatures.ts` (grupo
+"Corrente").
+
+### 6.8 LGPD
+- Ser médium de um terreiro revela **convicção religiosa** (dado sensível, LGPD art. 11). Vale para o cadastro
+  todo, não só para a ficha espiritual. O terreiro é o controlador; o GiraHub é operador.
+- **Consentimento no aceite do convite**: texto curto e versionado ("Ao ativar, você autoriza o terreiro X a
+  usar seus dados para…"), gravado em `mediuns.area_consentimento_em` + `area_consentimento_versao`. Sem aceite,
+  não há conta. Modelo: consentimento de saúde dos cursos ("nunca é inferido").
+- **O médium não vê dados de outros médiuns no MVP.** Nada de lista da corrente, telefone ou mensalidade alheia.
+  Aniversariantes e "quem está na escala" só na fase 2, com opt-in de cada um (AM-20, AM-18).
+- **Convite discreto**: assunto e texto do e-mail/WhatsApp sem termos religiosos além do nome que o terreiro
+  escolheu ("Convite de <terreiro> para acessar sua área no GiraHub").
+- Campos internos (`observacoes`, comprovantes de outros, `registrado_por`) nunca saem pela API da Área.
+- Auditoria registra ações do médium (enviou comprovante, alterou contato) sem gravar o conteúdo sensível.
+- "Meus dados" (exportar, revogar consentimento) na fase 2 (AM-14). Política de privacidade (`F/pages/privacidade.tsx`)
+  atualizada já no MVP.
+
+### 6.9 Impersonação e suporte
+- Super admin pode impersonar um usuário `medium` (mesma ferramenta, banner amarelo); a Área abre em modo leitura
+  (escritas 403, §6.6). Impersonando um operador-médium, a escolha de área aparece normalmente.
+- O **chat de suporte** (`support_chat`) é o canal do terreiro com a plataforma e **não aparece** para o papel
+  `medium` (o guard do router já recusa). O médium fala com a casa: botão "Falar com a casa" (WhatsApp da casa
+  configurado no AM-10) e e-mail de resposta do terreiro.
+- `get_tenant_primary_contact` (`trial_scheduler.py`) cai para "qualquer usuário" quando não acha admin: excluir
+  `role = medium` desse fallback (senão um médium pode receber e-mail de cobrança da plataforma).
+
+### 6.10 Frontend
+- Rotas: `/escolher-area`, `/convite/[token]`, `/medium` (início), `/medium/calendario`,
+  `/medium/calendario/[tipo]/[id]`, `/medium/comunicados`, `/medium/comunicados/[id]`, `/medium/mensalidade`,
+  `/medium/perfil`; fases seguintes: `/medium/presencas`, `/medium/escalas`, `/medium/estudos`, `/medium/meus-dados`.
+- `F/components/medium/MediumLayout.tsx`: celular primeiro, cabeçalho com logo e cor do terreiro (`applyBrand`),
+  barra inferior com Início · Calendário · Avisos · Mensalidade · Perfil (mesma regra de z-index da
+  `MobileTabBar`), menu com "Trocar de área" (só se tiver as duas) e "Sair". Gate: sem área de médium →
+  redireciona para a área certa.
+- Kit existente: `PageHeader`, `EmptyState`, `KpiCard`, `CrudDrawer` (perfil), `DataTable` com `renderCard`,
+  `fields/*`, `ConfirmDialog`, `useSnackbar`, `qrcode.react`, `lib/dateBr.ts`. Cores: `text-brand`,
+  `text-X-strong` (contraste travado por teste).
+- `_app.tsx`: `SubscriptionProvider`, `PermissionsProvider` e `BirthdayProvider` só buscam dados quando o perfil tem
+  `areas.admin` e a rota é `/admin/*`; um `MediumProvider` busca `/api/v1/medium/me` nas rotas `/medium/*`.
+
+---
+
+## 7. Mensalidade: "Pague sua mensalidade aqui"
+
+### 7.1 O que dá para fazer sem gateway (MVP)
+1. O terreiro cadastra **uma chave PIX** (CPF, CNPJ, e-mail, telefone ou aleatória), o nome do recebedor e a cidade
+   (AM-10).
+2. Na Área, o médium vê o mês: valor, vencimento, status (Em aberto, Vencida, Comprovante enviado, Paga, Isento) e
+   os meses anteriores em aberto.
+3. "Pagar com PIX" mostra:
+   - **PIX copia e cola** gerado no servidor a partir da chave, no padrão BR Code (EMV) do BC: chave, valor do mês
+     (`valor_vigente` se já houver registro, senão `valor_mensal` da config), nome e cidade do recebedor,
+     **txid** de até 25 caracteres que identifica médium e mês (ex.: `GH` + 10 caracteres do id do médium +
+     `AAAAMM`), CRC16;
+   - o **QR code** do mesmo texto (`qrcode.react`, local);
+   - a **chave** com botão copiar (para quem prefere digitar).
+4. "Já paguei, enviar comprovante": foto ou PDF, comprimido no navegador. O status vira "Comprovante enviado".
+5. O admin vê a fila "Comprovantes para conferir" em Mensalidades e **confirma** (vira Paga, com espelho em contas
+   a receber, como hoje) ou **recusa** com motivo (o médium vê o motivo).
+
+O médium **nunca** marca como pago. Quem confirma é sempre o terreiro.
+
+### 7.2 O que "PIX recorrente" pode significar
+| Opção | Como funciona | Precisa de | Baixa automática | Quando |
+|---|---|---|---|---|
+| Chave estática + lembrete | Mesmo copia-e-cola todo mês + e-mail/push no D-3 e no vencimento | nada | não (comprovante) | MVP (AM-11/12) + AM-15 |
+| **Pix Agendado Recorrente** | O médium agenda no app do próprio banco um PIX mensal de mesmo valor para a chave do terreiro. Obrigatório em todos os bancos desde 28/10/2024 e vale para recebedor pessoa física | nada do nosso lado; só instrução na tela | não (conciliação manual ou por comprovante) | MVP: texto "Agende no seu banco" com passo a passo |
+| Cobrança por gateway | QR dinâmico por cobrança, webhook dá baixa | F-01 + F-02 (conta do terreiro no gateway) | sim | AM-22 |
+| **Pix Automático** (BC, desde 16/06/2025) | O médium autoriza uma vez; o recebedor debita todo mês | recebedor **pessoa jurídica com CNPJ ativo há 6 meses** e contrato com PSP | sim | Fase 3, só via gateway e só para terreiro com CNPJ |
+
+Recomendação: vender como "PIX todo mês sem taxa" (opções 1 e 2) no MVP e "PIX com baixa automática" quando o
+F-02 sair. Não prometer "Pix Automático" para casa sem CNPJ.
+
+### 7.3 Riscos da chave PIX
+- **Troca maliciosa da chave** (alguém com FINANCEIRO:edit põe a própria chave): o PUT exige a senha de quem
+  altera (padrão `skipAutoLogout`, já usado em confirmações de senha), grava auditoria com chave antiga e nova
+  mascaradas, manda e-mail para **todos os admins** do terreiro e mostra ao médium "Chave alterada em dd/mm" por
+  30 dias. É a "proteção específica" que o CLAUDE.md pede, sem empilhar `is_admin` no guard.
+- **Validação de formato** por tipo (CPF/CNPJ com dígito verificador, e-mail, telefone +55, UUID para aleatória).
+- **Nome e cidade** do recebedor limitados a 25 e 15 caracteres, sem acento, como o BR Code exige; a tela avisa
+  que o nome que aparece no banco do médium é o do titular da chave.
+- Gerar o BR Code no servidor (função pura `B/services/pix_brcode.py`, com testes de CRC contra exemplos do
+  manual do BC) evita que a chave seja montada de forma diferente em cada tela.
+
+---
+
+## 8. Fora do escopo (por enquanto)
+- **Chat do terreiro / grupo** (Minha Gira tem): moderação, notificação e expectativa de resposta em tempo real;
+  o WhatsApp já cumpre esse papel. Comunicados de mão única resolvem a dor do "aviso perdido no grupo".
+- **App nativo** (lojas): PWA cobre (AxéCloud vende justamente "não precisa App Store").
+- **Pedido de reza / consulentes na Área**: é outro público.
+- **Pagamento por cartão**: só com gateway (F-02).
+
+---
+
+## 9. Cards
+
+### AM-01 — Decisões do dono da Área do Médium
+- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** P · **Tipo:** decisão · **Depende de:** —
+
+**Por quê.** Sete pontos mudam o desenho e o preço (lista completa com recomendação na §11). Sem eles, AM-02,
+AM-08 e AM-10 podem ser refeitos.
+
+**Aceite**
+- [ ] D-01 a D-08 da §11 respondidas e registradas neste documento
+- [ ] Plano da `area_medium` decidido (e, se mudar a matriz, AGENTS.md §3.4 atualizado no card de código)
+- [ ] F-04 arquivado no board apontando para os cards AM
+
+### AM-02 — Fundação de identidade: vínculo médium↔usuário, papel `medium` e trava do painel
+- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** G · **Tipo:** dev · **Depende de:** T-02, AM-01
+
+**Por quê.** Todos os concorrentes com área do membro separam o acesso do painel ("Cada membro acessa um espaço
+separado do painel da administração", AxéCloud). Hoje não há como um médium ter conta, e o operador que é médium
+precisa das duas áreas com um login só.
+
+**Implementação**
+- Migração 061: `ALTER TYPE user_role ADD VALUE 'medium'` (sozinha, por causa da regra do Postgres sobre enum
+  novo na mesma transação).
+- Migração 062: `mediuns.user_id` (FK `users.id` ON DELETE SET NULL, nullable), índice único parcial
+  `(user_id) WHERE user_id IS NOT NULL AND deleted_at IS NULL`; `mediuns.area_consentimento_em`,
+  `area_consentimento_versao`.
+- `UserRole.MEDIUM` fora do `_ROLE_HIERARCHY` de back-office (nível -1); `is_operator_or_admin` continua falso.
+- `require_backoffice` no `admin_router` (`B/api/v1/admin/__init__.py`). As rotas de `/auth/*` que o médium usa
+  (perfil, trocar senha, logout) continuam abertas a ele; platform já exige super admin.
+- `require_medium` + `MediumContext` em `B/api/dependencies.py`; router vazio `B/api/v1/medium/` com `GET /me`
+  (nome, foto, terreiro, marca, áreas, módulos ligados).
+- `GET /auth/me`, `GET /auth/profile` e a resposta do login passam a trazer `areas`.
+- Feature `area_medium` (BASIC) em `PlanFeatures`/`_FEATURE_MIN_TIER` + `F/constants/plans.ts` + teste-espelho.
+- `users.py`: listagem de Usuários esconde `role = medium` por padrão; criar usuário com e-mail de um `medium` do
+  mesmo terreiro promove para operador (com grupo padrão); rebaixar operador-médium volta para `medium`.
+- `trial_scheduler.get_tenant_primary_contact` ignora `role = medium`.
+- Auditores estendidos (§6.6) e entrada na lista de exceções do CLAUDE.md/AGENTS.md §3.3 para `medium/`.
+- Inativar/excluir médium (`B/api/v1/admin/mediuns.py`): desativa o usuário se for `medium` puro.
+
+**Testes.** `test_dependencies.py` (require_medium: sem vínculo, médium inativo, outro tenant, plano sem
+feature, assinatura suspensa), varredura de rotas admin/platform com usuário `medium` (403 em todas),
+`integration_pg/test_rbac_http.py`, `test_migrations.py`, `test_tenant_isolation.py`.
+
+**Aceite**
+- [ ] Usuário `medium` recebe 403 em toda rota `/api/v1/admin/*` e `/api/v1/platform/*` (teste varrendo o app)
+- [ ] `require_medium` resolve o médium só pelo usuário logado, com tenant e médium ativos
+- [ ] Operador/admin vinculado tem as duas áreas; `areas` correto em `/auth/me` e no login
+- [ ] `area_medium` no catálogo, no espelho do front e no quadro de planos
+- [ ] Auditores de tenant e de guard cobrindo `B/api/v1/medium/`; CLAUDE.md e AGENTS.md atualizados
+- [ ] `alembic heads` com uma head; migrações testadas com Postgres real
+
+**Riscos.** Rota admin esquecida fora do `admin_router` (mitigado pela varredura). Consulta de `User` sem filtro
+de papel tratando médium como usuário do painel (contagens, contato principal, listas da plataforma): revisar
+`grep "select(User)"`.
+
+### AM-03 — Convite do médium e ativação da conta
+- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, T-02
+
+**Por quê.** O ORI entra por convite ("Recebeu um convite do seu terreiro?"). Convite com prova de posse do
+e-mail é o que garante que só a pessoa certa vê a própria mensalidade.
+
+**Implementação**
+- Tabela `medium_convites` (tenant_id, medium_id, email, token_hash único, expira_em (7 dias), usado_em,
+  revogado_em, criado_por, created_at). Um convite ativo por médium (reenviar revoga o anterior).
+- `POST /api/v1/admin/mediuns/{id}/convite` (MEDIUNS edit + `area_medium`): exige e-mail no cadastro; devolve o
+  link para copiar e o texto pronto para WhatsApp (`wa.me` com o telefone do médium, sem API); envia e-mail
+  (template `medium_convite.py` via `email_queue`, texto discreto, §6.8).
+- `POST .../convite/lote` (MEDIUNS edit): convida todos os ativos com e-mail e sem acesso (sinergia com F-09).
+- `DELETE /api/v1/admin/mediuns/{id}/acesso` (MEDIUNS edit): revoga convite ou desfaz o vínculo (com
+  `ConfirmDialog`).
+- Público: `GET /api/v1/public/convite/{token}` (nome do terreiro, primeiro nome do médium, se já existe conta com
+  o e-mail no terreiro) e `POST /api/v1/public/convite/{token}/aceitar`:
+  - sem conta no terreiro: cria `User(role=medium)` com senha (`validate_password_policy`), grava consentimento,
+    vincula e abre sessão (`issue_session`);
+  - já existe conta no terreiro com o e-mail (operador/admin): pede a senha dessa conta, vincula e abre sessão;
+  - rate limit (`B/core/limiter.py`), token de uso único, resposta genérica para token inválido/expirado.
+- Busca do convite pelo token entra como "busca raiz" no auditor de `public/`.
+- Front: `F/pages/convite/[token].tsx` (AuthShell da identidade de conta), coluna/selo "Acesso à Área" em
+  `F/pages/admin/mediuns.tsx` (Sem acesso · Convite enviado · Ativo), ações Convidar/Reenviar/Copiar link/Revogar
+  só com `canGroup('mediuns','edit')` e `can('area_medium')` (`PlanLocked` com `minPlanFor`).
+- Política de privacidade com o parágrafo da Área do Médium.
+
+**Aceite**
+- [ ] Admin convida por e-mail e copia link/texto de WhatsApp
+- [ ] Médium cria a senha, aceita o termo e cai na Área já logado
+- [ ] Operador que é médium aceita com a senha que já tem e passa a ter as duas áreas
+- [ ] Convite expira em 7 dias, é de uso único e reenviar invalida o anterior
+- [ ] Revogar tira o acesso na hora
+- [ ] Consentimento gravado com data e versão; sem aceite não há conta
+- [ ] Convite em lote para médiuns ativos com e-mail
+
+**Riscos.** E-mail errado no cadastro entrega o convite a outra pessoa (mitigação: mostrar o e-mail mascarado na
+confirmação do admin e permitir revogar). E-mail que já existe em outro terreiro gera segunda conta; o login
+precisa do AM-05.
+
+### AM-04 — Login com escolha de área e troca de área
+- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02
+
+**Por quê.** Pedido direto do dono. Quem tem as duas áreas escolhe; quem tem uma entra direto.
+
+**Implementação**
+- `F/services/authSession.ts::completeLogin` decide pelo `areas` (§6.4) e pela escolha lembrada.
+- `F/pages/escolher-area.tsx` (+ `escolher-area` em `RESERVED_SLUGS` e no teste); dois cartões, caixa "Lembrar
+  neste aparelho", marca do terreiro.
+- "Trocar de área" no menu do perfil do `AdminTopbar` (só com `areas.medium`) e no `MediumLayout` (só com
+  `areas.admin`).
+- `admin_layout.tsx` redireciona quem não tem `areas.admin` para `/medium`; `MediumLayout` faz o inverso.
+- `_app.tsx`: providers de admin só carregam com `areas.admin` em rota `/admin/*` (sem 403 em série no Sentry).
+- Link "Recebi um convite" no `/login` explicando que o acesso vem pelo link do terreiro.
+- Evento de analytics `area_escolhida {area, lembrada}`.
+
+**Aceite**
+- [ ] Só admin/operador vai direto ao painel; só médium vai direto à Área
+- [ ] Com as duas, aparece a escolha; marcar "lembrar" pula a tela nos próximos logins naquele aparelho
+- [ ] Troca de área nos dois menus, sem novo login
+- [ ] Médium puro nunca vê tela nem chamada de `/admin/*` (sem 403 no console)
+- [ ] Médium cujo terreiro perdeu o plano vê o aviso neutro
+
+### AM-05 — Mesmo e-mail em mais de um terreiro
+- **Prioridade:** P1 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** T-02, AM-02
+
+**Por quê.** Hoje o login pega a conta mais antiga com o e-mail. Médium que já é admin de outro terreiro (ou
+médium em duas casas) nunca entraria na Área nova. Convidar médiuns aumenta muito a chance de colisão.
+
+**Implementação**
+- `login`: buscar **todas** as contas ativas com o e-mail (`func.lower`), conferir a senha em cada uma (no máximo
+  N, ex. 5, para limitar o custo do bcrypt), manter o tempo constante quando nenhuma confere.
+- Uma conta confere: fluxo atual. Mais de uma: 200 com `choose_account: true`, `selection_token`
+  (`type: "account_select"`, 5 min, lista de user_ids) e `options` (nome do terreiro, áreas). Sem cookies ainda.
+- `POST /auth/login/select {selection_token, user_id}` (público com rate limit, em `public_paths`): valida o tipo
+  e a lista, chama `issue_session`.
+- Esqueci a senha e reativação: hoje usam a conta mais antiga; o e-mail de reset passa a listar os terreiros
+  (um link por conta).
+- Front: passo "Em qual terreiro?" no `/login`, antes da escolha de área.
+
+**Aceite**
+- [ ] Pessoa com conta em dois terreiros escolhe o terreiro no login
+- [ ] Senha que só confere numa das contas entra direto nela
+- [ ] `selection_token` não funciona como access (teste do T-02)
+- [ ] Reset de senha alcança cada conta
+- [ ] Tempo de resposta sem diferença perceptível entre e-mail inexistente e senha errada
+
+**Riscos.** Enumeração de terreiros pelo e-mail: só listar terreiros cuja senha conferiu.
+
+### AM-06 — Casca da Área do Médium e tela Início
+- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, AM-04
+
+**Por quê.** É a "home" que todos os concorrentes descrevem: agenda, avisos e mensalidade num lugar só, no
+celular.
+
+**Implementação**
+- `F/components/medium/MediumLayout.tsx` e `MediumProvider` (§6.10), marca do terreiro via `applyBrand`,
+  claro/escuro seguindo o sistema.
+- `GET /api/v1/medium/inicio`: próxima gira/evento, comunicados não lidos (contagem + 3 últimos), mensalidade do
+  mês (status, valor, vencimento), aviso de aniversário do próprio médium, módulos ligados (AM-10).
+- `F/pages/medium/index.tsx`: cartões com ação direta ("Ver gira", "Ler aviso", "Pagar"), `EmptyState` amigável
+  quando a casa ainda não publicou nada.
+- Textos em linguagem de terreiro; testes por papel/texto.
+
+**Aceite**
+- [ ] Início mostra próxima gira, avisos não lidos e mensalidade do mês numa tela de celular sem rolagem lateral
+- [ ] Cor e logo do terreiro aplicados com contraste AA (teste de contraste passa)
+- [ ] Módulo desligado pelo terreiro não aparece
+- [ ] Página carrega só endpoints `/api/v1/medium/*`
+
+### AM-07 — Calendário de giras para a corrente
+- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-06
+
+**Por quê.** Pedido do dono e núcleo de todos os concorrentes ("Agenda da casa", Kanzuá; "Agenda do terreiro",
+Minha Gira). A Minha Gira vende a pergunta "O que eu tenho que levar pra gira?".
+
+**Implementação**
+- Migração: `giras.orientacoes_corrente` (Text, nullable): o que levar, roupa, horário de chegada da corrente.
+  Diferente de `recados` (que vai para o consulente). Campo novo no drawer da gira em `F/pages/admin/giras.tsx`
+  (GIRAS edit), num componente próprio.
+- `GET /api/v1/medium/calendario?inicio&fim`: giras ativas do tenant no período (passadas e futuras), mais os
+  eventos internos do AM-08 quando existir; resposta unificada `{tipo: "gira"|"evento", id, titulo, inicio, fim,
+  local, ...}`.
+- `GET /api/v1/medium/calendario/gira/{id}`: nome, data e hora (Brasília, `lib/dateBr.ts`), local ou endereço do
+  terreiro com link do mapa, descrição, orientações da corrente, situação das senhas (abertas/lotadas, sem dados
+  de consulentes) e link público da gira.
+- Front: `F/pages/medium/calendario.tsx` com lista por mês (padrão) e grade mensal opcional, filtro
+  Giras/Eventos; detalhe com "Adicionar à agenda" (`.ics` do `bilhete-utils`, link do Google Agenda) e
+  "Divulgar a gira" (WhatsApp com o link público: o médium vira divulgador).
+
+**Aceite**
+- [ ] Médium vê as giras do mês e dos próximos meses, com detalhe completo
+- [ ] Orientações da corrente aparecem só na Área (nunca no site, e-mail ou bilhete do consulente)
+- [ ] Adicionar ao calendário (.ics e Google) funciona no Android e no iPhone
+- [ ] Botão de divulgar abre o WhatsApp com o link público da gira
+- [ ] Nenhum dado de consulente na resposta
+
+### AM-08 — Eventos internos da corrente
+- **Prioridade:** P1 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-07, AM-01 (D-03)
+
+**Por quê.** O calendário da corrente tem mais que giras abertas: desenvolvimento, reunião, festa, obrigação,
+mutirão de limpeza, estudo (AxéCloud: "atividades da casa", calendário litúrgico). Hoje toda gira aparece no site
+e conta no limite de giras/mês do plano (2/3/4), o que inviabiliza lançar evento interno como gira.
+
+**Implementação**
+- Tabela `eventos_corrente` (tenant_id, titulo, tipo enum (desenvolvimento, reuniao, festa, obrigacao, zeladoria,
+  estudo, outro), inicio, fim, local, descricao, orientacoes, publico (todos | atendimento | cambones), soft
+  delete, criado_por).
+- `B/api/v1/admin/eventos_corrente.py`: CRUD com GIRAS (`view`/`insert`/`edit`/`delete`) + `area_medium`. Não
+  conta no limite de giras. Nunca aparece no site, na agenda pública nem no sitemap.
+- Na tela de Giras, aba ou filtro "Eventos da corrente" com `CrudDrawer`.
+- Entra no `GET /api/v1/medium/calendario` respeitando o público.
+
+**Aceite**
+- [ ] Admin cria evento interno sem consumir o limite de giras
+- [ ] Evento aparece só na Área do Médium, para o público escolhido
+- [ ] Agenda pública, site e sitemap não mostram evento interno (teste)
+- [ ] Teste de FK/tenant cruzado no corpo
+
+### AM-09 — Comunicados
+- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, AM-06
+
+**Por quê.** Pedido do dono e presente em AxéCloud ("mural e avisos oficiais para reduzir ruído no grupo"),
+Kanzuá ("Comunicados internos"), Minha Gira e Quartinha.
+
+**Implementação**
+- Migrações: `ALTER TYPE permission_feature ADD VALUE 'comunicados'`; depois, acesso total no grupo padrão.
+- Tabelas `comunicados` (tenant_id, titulo, corpo (texto simples com quebras de linha e links autolinkados, sem
+  HTML), publico (todos | atendimento | cambones), fixado, publicar_em, expira_em, criado_por, soft delete) e
+  `comunicado_leituras` (tenant_id, comunicado_id, medium_id, lido_em; único comunicado+médium).
+- Admin `B/api/v1/admin/comunicados.py`: CRUD com `COMUNICADOS` + `area_medium`; `GET /{id}/leituras` (quem leu,
+  quem não leu: `view`). Tela `F/pages/admin/comunicados.tsx` no grupo "Corrente" do menu, com `CrudDrawer`,
+  prévia como o médium vê e contagem "lido por 12 de 20".
+- Médium: `GET /api/v1/medium/comunicados` (não expirados, do seu público, fixados primeiro, `lido` por item),
+  `GET /{id}`, `POST /{id}/lido` (recusado sob impersonação).
+- E-mail opcional "Avisar por e-mail agora" fica para o AM-15.
+
+**Aceite**
+- [ ] Quem tem COMUNICADOS:insert publica; botões ocultos sem permissão; `PermissionDenied` sem `view`
+- [ ] Médium vê só comunicados do seu público, com marca de não lido
+- [ ] Admin vê quem leu e quem não leu
+- [ ] Fixar, agendar publicação e expirar funcionam
+- [ ] Corpo sem HTML (sem XSS), testado
+
+### AM-10 — Configuração da Área e chave PIX do terreiro
+- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, AM-01
+
+**Por quê.** O terreiro decide o que o médium vê (AxéCloud: "mostra apenas o que a diretoria liberou") e onde o
+dinheiro cai.
+
+**Implementação**
+- Configuração da Área em `tenant_configs` (colunas ou `custom_settings.area_medium`): ligada, mensagem de
+  boas-vindas, WhatsApp da casa ("Falar com a casa"), módulos visíveis (calendário, comunicados, mensalidade).
+  `GET/PUT /api/v1/admin/config/area-medium` (CONFIGURACOES view/edit + `area_medium`); seção nova em
+  `F/pages/admin/config.tsx`.
+- Chave PIX em `mensalidade_configs`: `pix_tipo`, `pix_chave`, `pix_nome_recebedor` (≤ 25), `pix_cidade` (≤ 15),
+  `pix_instrucoes`, `pix_alterado_em`. `PUT /api/v1/admin/financeiro/config/pix` (FINANCEIRO edit +
+  `mensalidade_mediun`) com senha de confirmação, validação por tipo, auditoria mascarada e e-mail a todos os
+  admins (§7.3). Na tela `F/pages/admin/financeiro/config.tsx`, com prévia do QR.
+- `B/services/pix_brcode.py`: função pura que monta o BR Code estático (chave, valor, nome, cidade, txid, CRC16).
+
+**Aceite**
+- [ ] Terreiro liga/desliga a Área e cada módulo; médium não vê módulo desligado
+- [ ] Chave PIX validada por tipo; trocar exige senha e avisa todos os admins por e-mail
+- [ ] Auditoria registra a troca com a chave mascarada
+- [ ] `pix_brcode` com testes de CRC e de limites de campo (exemplos do manual do BC)
+- [ ] Prévia do QR na tela de configuração lê corretamente em pelo menos 3 apps de banco
+
+### AM-11 — "Pague sua mensalidade aqui"
+- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-06, AM-10
+
+**Por quê.** Pedido do dono. AxéCloud ("O filho de santo paga pelo portal"), ORI (`/pagar` com "PIX copia e
+cola"), Minha Gira e Tupam têm. Tira o print do grupo.
+
+**Implementação**
+- `GET /api/v1/medium/mensalidades`: meses do médium a partir de `data_entrada` (mesma regra de "mês de
+  referência" da §11.10 do AGENTS.md), com status calculado (em aberto, vencida após `dia_vencimento`,
+  comprovante enviado, paga, isento) e valor. Gate `mensalidade_mediun` + módulo ligado; isento mostra
+  "Você é isento de mensalidade".
+- `GET /api/v1/medium/mensalidades/{AAAA-MM}/pix`: copia-e-cola + dados para o QR, só para mês em aberto e com
+  chave configurada.
+- Front `F/pages/medium/mensalidade.tsx`: cartão do mês com "Pagar com PIX" (Sheet com QR, copiar código, copiar
+  chave), lista de meses em aberto e histórico (pagos com data). Bloco "Quer pagar todo mês sem lembrar?" com
+  passo a passo do Pix Agendado Recorrente e o aviso de conferir o valor quando a casa reajustar.
+- Sem chave PIX configurada: mostra "Combine o pagamento com a casa" + botão do WhatsApp da casa.
+
+**Aceite**
+- [ ] Médium vê o mês atual, os meses em aberto e o histórico, só os dele
+- [ ] Copia-e-cola e QR com valor e txid do mês, aceitos por apps de banco
+- [ ] Copiar chave funciona no celular
+- [ ] Isento e sem chave têm mensagem própria
+- [ ] Nenhum dado de outro médium (teste de isolamento por `medium_id`)
+
+### AM-12 — Comprovante enviado pelo médium e confirmação no painel
+- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-11
+
+**Por quê.** Sem gateway, a baixa é humana; o comprovante precisa chegar organizado ("Menos print perdido no
+WhatsApp", AxéCloud).
+
+**Implementação**
+- Migração em `mensalidade_pagamentos`: `comprovante_enviado_em`, `comprovante_enviado_por` (FK users),
+  `recusa_motivo`, `recusado_em`. Status continua PENDENTE até a confirmação (sem valor novo no enum).
+- `POST /api/v1/medium/mensalidades/{AAAA-MM}/comprovante` (multipart): cria ou atualiza o registro do mês do
+  próprio médium com o comprovante; recusa se já estiver PAGO ou ISENTO; tipos jpeg/png/webp/pdf; limite de
+  **2 MB** (imagem comprimida no navegador antes de enviar); rate limit; recusado sob impersonação; auditoria.
+- Admin, em `F/pages/admin/financeiro/mensalidades.tsx`: filtro e selo "Comprovante enviado", ver comprovante
+  (rota que já existe), "Confirmar pagamento" (POST de registro atual, FINANCEIRO insert, espelha em contas a
+  receber) e "Recusar" com motivo (`PATCH .../recusa`, FINANCEIRO edit). KPI "Comprovantes para conferir".
+- Médium vê "Em conferência" e, se recusado, o motivo e o botão para reenviar.
+- E-mail ao admin quando chega comprovante fica para o AM-15 (no MVP, o contador no painel resolve).
+
+**Aceite**
+- [ ] Médium envia foto/PDF e o mês fica "Em conferência"
+- [ ] Admin com FINANCEIRO:insert confirma e o mês vira pago, com espelho em contas a receber
+- [ ] Recusa com motivo aparece para o médium, que pode reenviar
+- [ ] Médium não consegue marcar pago nem mexer em mês de outro médium (teste)
+- [ ] Arquivo acima de 2 MB ou tipo inválido recusado com mensagem clara
+
+**Riscos.** Crescimento do banco (BYTEA, limite de 8 GB): compressão no navegador, limite de 2 MB e
+monitoramento do tamanho da tabela.
+
+### AM-13 — Perfil do médium
+- **Prioridade:** P1 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-06
+
+**Por quê.** Cadastro atualizado sem o admin digitar tudo ("Informações da corrente", Kanzuá); base para
+aniversário e lembretes.
+
+**Implementação**
+- `GET /api/v1/medium/perfil` e `PATCH` (recusado sob impersonação).
+- **O médium edita**: telefone, endereço (CEP), data de nascimento, foto (do `User`, mesmo upload do perfil
+  admin), senha (rota existente de trocar senha) e e-mail de login (com confirmação no e-mail novo).
+- **Só o admin edita** (o médium vê, sem editar): nome no cadastro da casa, data de entrada, tipo (atendimento ou
+  cambone), isenção. **Nunca aparece**: `observacoes`, `data_saida`, `registrado_por`.
+- Cada alteração do médium vai para a auditoria do terreiro ("médium atualizou o telefone"), sem valor sensível.
+- Front `F/pages/medium/perfil.tsx` com `CrudDrawer` e `MaskedInput`.
+
+**Aceite**
+- [ ] Médium atualiza contato, endereço, nascimento e foto
+- [ ] Campos da casa visíveis e travados; campos internos ausentes da resposta (teste do schema)
+- [ ] Alteração aparece na Auditoria do terreiro
+- [ ] Trocar senha e e-mail seguem as regras de sessão já existentes
+
+### AM-14 — Meus dados e privacidade (LGPD)
+- **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-13
+
+**Por quê.** Direito de acesso e de revogação (LGPD art. 18) para um cadastro que revela religião. AxéCloud usa
+privacidade como argumento ("ambiente isolado, com autenticação e acesso aos próprios registros").
+
+**Implementação**
+- `GET /api/v1/medium/meus-dados/exportar` (JSON/PDF com cadastro, mensalidades, leituras, presenças).
+- "Encerrar meu acesso": revoga o consentimento, desvincula e desativa a conta `medium` (os dados da casa ficam
+  com o terreiro, controlador); avisa os admins.
+- Texto "Quem vê o quê" na tela.
+
+**Aceite**
+- [ ] Médium baixa os próprios dados
+- [ ] Encerrar acesso desvincula e desativa a conta, com aviso aos admins
+- [ ] Política de privacidade descreve os dois fluxos
+
+### AM-15 — Lembretes e avisos por e-mail
+- **Prioridade:** P1 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-09, AM-11, AM-12
+
+**Por quê.** Minha Gira "envia lembretes amigáveis antes do vencimento"; ORI avisa por WhatsApp. Sem lembrete, a
+Área vira mais um lugar para esquecer.
+
+**Implementação**
+- `B/services/medium_lembrete_scheduler.py` no padrão `scheduler_guard` (advisory lock + marca por linha,
+  `UPDATE ... WHERE notificado_em IS NULL RETURNING`), registrado no lifespan: mensalidade D-3 e no vencimento,
+  gira/evento de amanhã, comunicado novo (quando o admin marca "avisar por e-mail").
+- Aviso ao admin quando chega comprovante (resumo diário, não um por arquivo).
+- Preferências do médium (`medium_preferencias`: por tipo de aviso, opt-out) e link de descadastro.
+- Volume de e-mail: medir contra o plano gratuito do Resend antes de ligar para todos.
+
+**Aceite**
+- [ ] Lembretes chegam uma vez só, mesmo com 2 workers (teste)
+- [ ] Médium desliga cada tipo de aviso
+- [ ] Admin recebe resumo de comprovantes pendentes
+- [ ] Volume mensal estimado e registrado no card
+
+### AM-16 — Instalar no celular (PWA da Área) e notificação push
+- **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** G · **Tipo:** dev · **Depende de:** AM-06, AM-15
+
+**Por quê.** AxéCloud: "Não precisa App Store nem Google Play" e push; Kanzuá e Minha Gira são "app" no celular.
+O manifesto atual abre a Porta.
+
+**Implementação**
+- `public/manifest-medium.webmanifest` (`id` `/medium`, `start_url` `/medium?source=pwa`, ícones do GiraHub),
+  linkado só no `MediumLayout`; dica de instalação (padrão do `InstallPortaHint`), com instrução para iPhone.
+- Web Push com VAPID (sem custo): tabela `push_inscricoes` (user_id, endpoint, chaves, criado_em), envio pelo
+  mesmo agendador do AM-15, handler `push`/`notificationclick` no `sw.js` (sem cachear `/api/*`, regra mantida).
+  iPhone só recebe com o app instalado (iOS 16.4+).
+
+**Aceite**
+- [ ] Instalar a partir da Área abre direto na Área (não na Porta)
+- [ ] Push de comunicado e de mensalidade chega no Android e no iPhone instalado
+- [ ] Teste do SW continua garantindo que `/api/*` não é cacheado
+
+### AM-17 — Presença: "vou / não vou" e meu histórico
+- **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** F-06, AM-07
+
+**Por quê.** AxéCloud ("Presenças, faltas e assiduidade"), Minha Gira ("Controle de Presença nas giras"),
+Quartinha ("Histórico de Frequência"), ORI. Ajuda o dirigente a montar a corrente.
+
+**Implementação**
+- Sobre a tabela `gira_presencas` do F-06: o médium responde "vou / não vou / justificar falta" até o início da
+  gira (`POST /api/v1/medium/calendario/gira/{id}/presenca`); a lista de chamada do admin mostra a intenção.
+- `GET /api/v1/medium/presencas`: histórico e assiduidade do próprio médium.
+- Check-in pelo próprio médium (QR na entrada) fica como ideia de fase 3 (depende do N-06).
+
+**Aceite**
+- [ ] Médium confirma ou justifica antes da gira
+- [ ] Admin vê as respostas na lista de chamada do F-06
+- [ ] Médium vê o próprio histórico, nunca o de outros
+
+### AM-18 — Minhas escalas
+- **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** P · **Tipo:** dev · **Depende de:** F-07, AM-07
+
+**Por quê.** Minha Gira ("Escalas de limpeza do terreiro"); Quartinha prevê escalas de limpeza e cozinha.
+
+**Implementação**
+- `GET /api/v1/medium/escalas`: alocações futuras do médium (F-07) e, com opt-in da casa, quem divide a mesma
+  escala (só primeiro nome).
+- Escala aparece no detalhe da gira e no Início; o aviso da véspera do F-07 vai também por push (AM-16).
+
+**Aceite**
+- [ ] Médium vê suas próximas escalas e o detalhe na gira
+- [ ] Nome de colegas só aparece se a casa ligar a opção
+
+### AM-19 — Minha ficha e minha caminhada
+- **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** F-05, AM-13
+
+**Por quê.** Todos os concorrentes de gestão têm (caminhada no AxéCloud, "Jornada do médium" no ORI, obrigações
+na Minha Gira, "Diário & Entidades" na Quartinha).
+
+**Implementação**
+- `GET /api/v1/medium/ficha`: campos da ficha do F-05 marcados como "visível ao médium" e linha do tempo de
+  marcos (entrada, batismo, obrigações).
+- Campos marcados como "o médium pode sugerir" geram uma sugestão que o admin aprova (nunca gravação direta em
+  dado religioso).
+- Respeita o consentimento e a feature `FICHA_ESPIRITUAL` do F-05 do lado admin.
+
+**Aceite**
+- [ ] Médium vê só os campos que a casa liberou e a própria linha do tempo
+- [ ] Sugestão do médium só entra depois de aprovada
+- [ ] Nada da ficha em exportação, log ou e-mail
+
+### AM-20 — Aniversariantes da corrente
+- **Prioridade:** P3 · **Fase:** Fase 2 · **Esforço:** P · **Tipo:** dev · **Depende de:** AM-13
+
+**Por quê.** Minha Gira ("Notificações de aniversários"); o GiraHub já tem aniversariantes, mas só para o admin.
+
+**Implementação**
+- Opt-in do médium ("Mostrar meu aniversário para a corrente", dia e mês, sem ano).
+- Cartão no Início com os aniversariantes da semana que aceitaram; parabéns do próprio terreiro para o
+  aniversariante (sem opt-in, é só para ele).
+
+**Aceite**
+- [ ] Só aparece quem aceitou, sem o ano
+- [ ] Aniversariante vê a mensagem da casa no dia
+
+### AM-21 — Estudos e documentos da casa
+- **Prioridade:** P3 · **Fase:** Fase 3 · **Esforço:** G · **Tipo:** dev · **Depende de:** AM-09, AM-01 (D-02)
+
+**Por quê.** AxéCloud (biblioteca, "Textos, cantigas e materiais de fundamento"), Tupam ("Pontos & Cânticos",
+"Estudos", "Biblioteca Virtual"), Minha Gira (biblioteca no plano mais alto).
+
+**Implementação**
+- `materiais_corrente` (tenant_id, titulo, tipo (link, pdf, texto, ponto cantado), url ou arquivo, categoria,
+  público, ordem). Começar por **links** (Drive, YouTube) e texto; upload de PDF com limite baixo por causa do
+  banco (8 GB) ou só depois de armazenamento de objetos.
+- Feature de plano sugerida `biblioteca_medium` (Pro); grupo `COMUNICADOS` ou feature nova.
+- Ideia relacionada: mostrar na Área os cursos presenciais abertos da casa (já existem) com o link de inscrição.
+
+**Aceite**
+- [ ] Admin publica material por público e categoria
+- [ ] Médium lista, busca e abre os materiais liberados
+- [ ] Limite de tamanho definido e medido
+
+### AM-22 — Mensalidade com baixa automática na Área
+- **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** F-01, F-02, AM-11
+
+**Por quê.** Quem tem baixa automática (AxéCloud, ORI, Minha Gira, Quartinha) usa gateway. O F-02 cria a cobrança;
+este card a põe na Área.
+
+**Implementação**
+- Com o gateway conectado, "Pagar com PIX" chama a cobrança do F-02 (`mensalidade_cobrancas`) em vez do BR Code
+  estático; o webhook dá baixa e o médium vê "Paga" sem comprovante.
+- Sem gateway, continua o fluxo do AM-11/AM-12.
+- Pix Automático/débito recorrente: só se o gateway escolhido oferecer e o terreiro tiver CNPJ (§7.2).
+
+**Aceite**
+- [ ] Terreiro com gateway: médium paga e o mês vira pago sozinho
+- [ ] Terreiro sem gateway: fluxo de chave estática intacto
+- [ ] Mesmo isolamento por médium do AM-11
+
+### AM-23 — Públicos da corrente (segmentos)
+- **Prioridade:** P3 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-09, AM-08
+
+**Por quê.** O MVP segmenta só por atendimento/cambone (o que existe no cadastro). Casas grandes separam ogãs,
+ekedis, desenvolvimento, diretoria.
+
+**Implementação**
+- `corrente_grupos` e `corrente_grupo_membros` (tenant), gestão em Médiuns (MEDIUNS edit).
+- Comunicados, eventos e materiais passam a aceitar lista de grupos como público.
+
+**Aceite**
+- [ ] Admin cria grupos e põe médiuns neles
+- [ ] Comunicado/evento para um grupo só aparece para quem está nele
+
+### AM-24 — Divulgação: "Sou médium" na landing, página de recurso e novidades
+- **Prioridade:** P2 · **Fase:** MVP (fim) · **Esforço:** P · **Tipo:** conteúdo + dev · **Depende de:** AM-03, AM-11
+
+**Por quê.** O ORI tem "Entrar como membro" na landing. A Área é argumento de venda contra o "tudo incluso".
+
+**Implementação**
+- Link "Recebi um convite / sou médium" no hero e no `/login` (explica que o acesso vem do terreiro).
+- Linha "Área do Médium" no quadro de planos (`PlanComparisonTable`) e, quando o C-02 existir, a página
+  `/recursos/area-do-medium` com telas reais do terreiro demo (regra do dono: a imagem mostra o que o texto diz).
+- Entrada nas novidades da versão (`releaseNotes.ts`) e uma pergunta no FAQ ("Os médiuns têm acesso?").
+
+**Aceite**
+- [ ] Link na landing e no login
+- [ ] Quadro de planos com a Área
+- [ ] Novidades da versão escritas em linguagem de terreiro
+
+---
+
+## 10. Ordem de execução
+
+| # | Card | Prio | Fase | Esf. | Observação |
+|---|---|---|---|---|---|
+| 0 | T-02 Token tipado | P0 | (pré) | P | Puxar para antes do AM-02 |
+| 1 | AM-01 Decisões | P0 | MVP | P | Bloqueia desenho e preço |
+| 2 | AM-02 Fundação de identidade | P0 | MVP | G | Base de tudo |
+| 3 | AM-03 Convite e ativação | P0 | MVP | M | |
+| 4 | AM-04 Escolha de área | P0 | MVP | M | Pode correr junto com AM-03 |
+| 5 | AM-06 Casca e Início | P0 | MVP | M | |
+| 6 | AM-10 Configuração e chave PIX | P0 | MVP | M | Pode correr junto com AM-06 |
+| 7 | AM-07 Calendário de giras | P0 | MVP | M | |
+| 8 | AM-09 Comunicados | P0 | MVP | M | |
+| 9 | AM-11 Pague aqui | P0 | MVP | M | |
+| 10 | AM-12 Comprovante e confirmação | P0 | MVP | M | |
+| 11 | AM-05 Mesmo e-mail em vários terreiros | P1 | MVP | M | Antes de convidar em massa |
+| 12 | AM-13 Perfil | P1 | MVP | M | |
+| 13 | AM-08 Eventos internos | P1 | MVP | M | Depende da D-03 |
+| 14 | AM-24 Divulgação | P2 | MVP | P | Fecha o lançamento |
+| 15 | AM-15 Lembretes por e-mail | P1 | Fase 2 | M | |
+| 16 | AM-22 Baixa automática | P2 | Fase 2 | M | Quando F-02 sair |
+| 17 | AM-17 Presença | P2 | Fase 2 | M | Depois do F-06 |
+| 18 | AM-16 PWA e push | P2 | Fase 2 | G | |
+| 19 | AM-14 Meus dados | P2 | Fase 2 | M | |
+| 20 | AM-18 Minhas escalas | P2 | Fase 2 | P | Depois do F-07 |
+| 21 | AM-19 Ficha e caminhada | P2 | Fase 2 | M | Depois do F-05 |
+| 22 | AM-20 Aniversariantes | P3 | Fase 2 | P | |
+| 23 | AM-23 Públicos da corrente | P3 | Fase 2 | M | |
+| 24 | AM-21 Estudos e documentos | P3 | Fase 3 | G | |
+
+Lançamento sugerido em duas entregas: **2.3.0** com AM-02 a AM-07, AM-09 a AM-12 (Área funcionando com convite,
+calendário, comunicados e Pague aqui) e **2.4.0** com AM-05, AM-08, AM-13 e AM-24. Cada uma com entrada em
+`releaseNotes.ts`.
+
+---
+
+## 11. Decisões do dono (com recomendação)
+
+| # | Decisão | Opções | Recomendação |
+|---|---|---|---|
+| D-01 | Plano da Área do Médium | Basic · Pro · todos os planos pagos com módulos em degraus | **Basic** (`area_medium`), núcleo completo; degraus em presença/escalas/estudos (§6.5) |
+| D-02 | Degraus das fases 2 e 3 | escalas, estudos e baixa automática no Pro/Premium ou tudo no Basic | escalas e estudos no **Pro**; baixa automática segue o gateway (taxa paga pelo terreiro) |
+| D-03 | Evento interno | tabela própria fora do limite de giras · gira com flag "interna" que conta no limite | **Tabela própria** (`eventos_corrente`), fora do limite e fora do site |
+| D-04 | Escolha de área | perguntar sempre · lembrar por aparelho · lembrar no servidor | **Lembrar por aparelho** (caixa marcada por padrão) + "Trocar de área" nos dois menus |
+| D-05 | Quem pode trocar a chave PIX | FINANCEIRO:edit com senha e aviso aos admins · só admin | **FINANCEIRO:edit + senha + e-mail a todos os admins + aviso ao médium** (sem `is_admin`, como pede o CLAUDE.md) |
+| D-06 | Impersonação de médium | proibida · só leitura · completa | **Só leitura** (escritas da Área recusam token impersonado) |
+| D-07 | O que o médium vê dos outros | nada · lista da corrente · opt-in por item | **Nada no MVP**; aniversário e escala com opt-in na fase 2 |
+| D-08 | Médium inativo/que saiu da casa | perde acesso · vê só histórico de pagamentos | **Perde acesso** (desativa a conta `medium`); histórico sob pedido via "Meus dados" do terreiro |
+
+---
+
+## 12. Riscos gerais
+
+| # | Risco | Mitigação |
+|---|---|---|
+| R-01 | Médium alcança rota admin que só usa `get_current_user` | `require_backoffice` no router inteiro + teste que varre todas as rotas |
+| R-02 | Médium vê dado de outro médium | Rotas "minhas" sem `medium_id`, modo medium no auditor, testes com dois médiuns no mesmo tenant |
+| R-03 | Troca maliciosa da chave PIX | Senha, auditoria, e-mail a todos os admins, aviso ao médium (§7.3) |
+| R-04 | Colisão de e-mail entre terreiros trava o login | AM-05 antes do convite em massa; aviso no convite quando o e-mail já tem conta em outro terreiro |
+| R-05 | Banco de 8 GB cresce com comprovantes e fotos | Compressão no navegador, 2 MB por comprovante, medir `pg_total_relation_size`; armazenamento de objetos antes do AM-21 com upload |
+| R-06 | Dado religioso exposto (convite, e-mail, push na tela bloqueada) | Textos discretos, consentimento versionado, push sem conteúdo sensível |
+| R-07 | Providers do admin disparam 403/401 na Área | Gate por `areas` no `_app`; 401 força logout (memória `skipAutoLogout`), conferir que nenhuma chamada da Área cai nisso |
+| R-08 | Volume de e-mail passa do gratuito do Resend | Medir no AM-15; lembretes agregados; push como canal principal na fase 2 |
+| R-09 | Adoção baixa (médium não ativa o convite) | Convite por WhatsApp com texto pronto, convite em lote, Início útil já no primeiro acesso, painel de status do convite |
+| R-10 | Escopo cresce (chat, app nativo) | Fora do escopo explícito (§8) |
+
+---
+
+## 13. Fontes externas (acessadas em 07/10/2026)
+- AxéCloud: https://axecloud.com.br · https://axecloud.com.br/sistema-de-gestao-para-terreiros ·
+  https://axecloud.com.br/recursos · /recursos/portal-filho-de-santo · /recursos/financeiro-pix-mensalidades ·
+  /recursos/mural-de-avisos · /recursos/frequencia-check-in · /recursos/notificacoes-push
+- Kanzuá: https://kanzua.com.br
+- ORI: https://oriapp.com.br (textos do bundle público `/assets/main-*.js`)
+- Minha Gira: https://minhagira.com.br
+- Quartinha: https://quartinha.com.br (textos do bundle público `/assets/index-*.js`)
+- Tupam: https://www.tupam.com.br (textos do bundle público `/assets/index-*.js`)
+- Meu Axé: https://meuaxe.com.br (respondeu 403; dados do benchmark de 06/10/2026)
+- Pix Automático (regras para recebedor: CNPJ ativo há 6 meses, verificação pelo PSP), Agência Brasil, jun/2025:
+  https://agenciabrasil.ebc.com.br/economia/noticia/2025-06/bc-publica-regras-para-evitar-fraudes-por-empresas-no-pix-automatico
+- Pix Agendado Recorrente obrigatório desde 28/10/2024, Fenacon:
+  https://fenacon.org.br/noticias/pix-agendado-recorrente-torna-se-obrigatorio/
+- BR Code (QR estático EMV, txid, CRC16): "Manual de Padrões para Iniciação do Pix" do Banco Central.
+  **Não reconferido nesta pesquisa**; conferir a versão vigente ao implementar o AM-10.
+
+---
+
+## Apêndice A — Cards em formato de linha
+
+```
+AM-01 | Decisões do dono da Área do Médium | P0 | MVP | P | — | Responder D-01 a D-08 (plano, eventos internos, escolha de área, chave PIX, impersonação, privacidade) antes do código.
+AM-02 | Fundação de identidade: vínculo médium↔usuário, papel medium e trava do painel | P0 | MVP | G | T-02, AM-01 | Cria mediuns.user_id, papel medium, require_medium, require_backoffice, feature area_medium e auditores para /api/v1/medium.
+AM-03 | Convite do médium e ativação da conta | P0 | MVP | M | AM-02, T-02 | Admin convida por e-mail/WhatsApp; médium cria senha, aceita o termo LGPD e é vinculado ao cadastro.
+AM-04 | Login com escolha de área e troca de área | P0 | MVP | M | AM-02 | Após o login, quem tem as duas áreas escolhe (com "lembrar"), quem tem uma entra direto; troca nos dois menus.
+AM-05 | Mesmo e-mail em mais de um terreiro | P1 | MVP | M | T-02, AM-02 | Login confere a senha em todas as contas do e-mail e pergunta o terreiro quando mais de uma confere.
+AM-06 | Casca da Área do Médium e tela Início | P0 | MVP | M | AM-02, AM-04 | Layout mobile com a marca do terreiro e Início com próxima gira, avisos não lidos e mensalidade do mês.
+AM-07 | Calendário de giras para a corrente | P0 | MVP | M | AM-06 | Calendário com detalhe da gira, orientações só para a corrente, .ics/Google e botão de divulgar no WhatsApp.
+AM-08 | Eventos internos da corrente | P1 | MVP | M | AM-07, AM-01 | Eventos (desenvolvimento, reunião, festa, zeladoria) só na Área, fora do site e do limite de giras.
+AM-09 | Comunicados | P0 | MVP | M | AM-02, AM-06 | Admin publica avisos por público com fixar/agendar/expirar; médium lê e o admin vê quem leu.
+AM-10 | Configuração da Área e chave PIX do terreiro | P0 | MVP | M | AM-02, AM-01 | Terreiro liga módulos, define WhatsApp da casa e cadastra a chave PIX com senha, auditoria e aviso aos admins.
+AM-11 | Pague sua mensalidade aqui | P0 | MVP | M | AM-06, AM-10 | Médium vê status e histórico e paga pelo PIX copia-e-cola/QR gerado da chave com valor e txid do mês.
+AM-12 | Comprovante enviado pelo médium e confirmação no painel | P0 | MVP | M | AM-11 | Médium envia comprovante; admin confirma (vira pago e espelha em contas a receber) ou recusa com motivo.
+AM-13 | Perfil do médium | P1 | MVP | M | AM-06 | Médium edita contato, endereço, nascimento e foto; campos da casa travados e internos ocultos.
+AM-14 | Meus dados e privacidade (LGPD) | P2 | Fase 2 | M | AM-13 | Exportar os próprios dados e encerrar o acesso revogando o consentimento.
+AM-15 | Lembretes e avisos por e-mail | P1 | Fase 2 | M | AM-09, AM-11, AM-12 | Agendador sem duplicidade para vencimento, gira de amanhã e comunicado, com preferências do médium.
+AM-16 | Instalar no celular (PWA da Área) e notificação push | P2 | Fase 2 | G | AM-06, AM-15 | Manifesto próprio da Área e Web Push (VAPID) para avisos e mensalidade.
+AM-17 | Presença: vou/não vou e meu histórico | P2 | Fase 2 | M | F-06, AM-07 | Médium confirma ou justifica a presença e vê a própria assiduidade, integrado à lista de chamada do F-06.
+AM-18 | Minhas escalas | P2 | Fase 2 | P | F-07, AM-07 | Médium vê as próprias escalas de zeladoria no Início e na gira.
+AM-19 | Minha ficha e minha caminhada | P2 | Fase 2 | M | F-05, AM-13 | Médium vê os campos liberados da ficha espiritual e a linha do tempo; sugestões passam por aprovação.
+AM-20 | Aniversariantes da corrente | P3 | Fase 2 | P | AM-13 | Aniversários da semana com opt-in, sem o ano, e parabéns da casa ao aniversariante.
+AM-21 | Estudos e documentos da casa | P3 | Fase 3 | G | AM-09, AM-01 | Biblioteca de links, textos, PDFs e pontos cantados por público, começando por links externos.
+AM-22 | Mensalidade com baixa automática na Área | P2 | Fase 2 | M | F-01, F-02, AM-11 | Com gateway conectado, o Pague aqui gera cobrança dinâmica e a baixa é automática.
+AM-23 | Públicos da corrente (segmentos) | P3 | Fase 2 | M | AM-09, AM-08 | Grupos da corrente (ogãs, ekedis, desenvolvimento) como público de comunicados, eventos e materiais.
+AM-24 | Divulgação: Sou médium na landing, página de recurso e novidades | P2 | MVP | P | AM-03, AM-11 | Link de convite na landing e no login, Área no quadro de planos, FAQ e novidades da versão.
+```
+
+O aceite de cada card (checklist do Trello) é a lista "Aceite" da §9.
