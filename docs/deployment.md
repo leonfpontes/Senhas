@@ -384,6 +384,7 @@ O script baixa o backup mais recente, decripta, restaura num Postgres descartáv
 | Data | Arquivo | tenants | tickets | Quem |
 |---|---|---|---|---|
 | 2026-10-06 | pipeline validado com o banco de dev (chave e bucket de teste) | 5 | 619 | Claude |
+| 2026-10-07 | `senhas-daily-20261007-180209.sql.gz.gpg` (produção, R2) | 19 | 3746 | Leonardo (máquina do dono) |
 
 ---
 

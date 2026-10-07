@@ -85,8 +85,9 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   a privada fica só com o dono; trocamos `age` por gpg) e upload via rclone para o bucket R2
   `girahub-backups`, cron diário às 03:15 UTC; primeiro backup (17 MB) no bucket. Configuração
   em `docs/deployment.md` §7.
-- **Falta para `feito`**: teste de restore com o backup real na máquina do dono (a chave privada
-  só existe lá) e 3 dias seguidos de upload visíveis no bucket.
+- **Restore testado em 2026-10-07** na máquina do dono, com o backup de produção baixado do R2:
+  19 tenants, 3746 tickets, 168 médiuns, 115 giras.
+- **Falta para `feito`**: 3 dias seguidos de upload visíveis no bucket (até 2026-10-10).
 - **Problema**: os dois mecanismos de backup (pré-deploy no CI e cron diário) gravam no mesmo
   disco do Postgres. Perda do volume/VPS = perda de tudo. Nenhum restore jamais testado.
 - **Entrega (custo zero)**:
