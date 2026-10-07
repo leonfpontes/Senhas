@@ -153,7 +153,7 @@ function Pendencia({ p }: { p: InicioPendencia }) {
   );
 }
 
-function ProximaGira({ gira }: { gira: InicioGira }) {
+function ProximaGira({ gira, comAgenda }: { gira: InicioGira; comAgenda: boolean }) {
   const { dia, mes } = diaMesBr(gira.data_inicio);
   return (
     <section className="flex flex-col gap-2.5" aria-labelledby="titulo-proxima-gira">
@@ -185,12 +185,14 @@ function ProximaGira({ gira }: { gira: InicioGira }) {
             <span className="whitespace-pre-line">{gira.orientacoes}</span>
           </div>
         )}
-        <Link
-          href="/medium/agenda"
-          className="inline-flex min-h-12 items-center gap-1.5 self-start font-bold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        >
-          Ver a agenda <ArrowRight className="size-4" aria-hidden />
-        </Link>
+        {comAgenda && (
+          <Link
+            href={`/medium/agenda/gira/${encodeURIComponent(gira.id)}`}
+            className="inline-flex min-h-12 items-center gap-1.5 self-start font-bold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          >
+            Ver detalhes da gira <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        )}
       </article>
     </section>
   );
@@ -344,7 +346,12 @@ function Inicio() {
                 ))}
               </section>
             )}
-            {data.proxima_gira && <ProximaGira gira={data.proxima_gira} />}
+            {data.proxima_gira && (
+              <ProximaGira
+                gira={data.proxima_gira}
+                comAgenda={(me?.modulos ?? []).includes('agenda')}
+              />
+            )}
             {acompanhando && <Acompanhando mensalidade={acompanhando} />}
           </>
         )}

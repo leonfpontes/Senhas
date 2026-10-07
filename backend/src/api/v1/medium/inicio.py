@@ -7,7 +7,7 @@ requisição). Devolve, numa chamada só:
   a vencer/vencida → aviso novo). Escala entra no AM-17.
 - `proxima_gira`: a próxima gira ativa do terreiro (ou a que está acontecendo agora), só com o
   que a corrente precisa — nome, horário e local. Nada de senhas ou consulentes.
-  `orientacoes` (o que levar) fica null até o AM-07 criar o campo.
+  `orientacoes` = `giras.orientacoes_corrente` (AM-07: o que levar, só na Área).
 - `mensalidade`: a do mês corrente (Brasília), só com o plano `mensalidade_mediun` e a
   configuração de mensalidade ativa; regras em `services/medium_inicio.py`.
 - `avisos` (AM-09): `{nao_lidos, ultimos}` — quantos avisos o médium ainda não leu e os 3 mais
@@ -44,7 +44,7 @@ class ProximaGira(BaseModel):
     data_inicio: datetime
     data_fim: Optional[datetime] = None
     local: Optional[str] = None
-    # O que levar / orientações para a corrente — campo do AM-07; null até lá.
+    # O que levar / orientações para a corrente (`giras.orientacoes_corrente`, AM-07).
     orientacoes: Optional[str] = None
 
 
@@ -103,7 +103,7 @@ async def _proxima_gira(db: AsyncSession, ctx: MediumContext) -> Optional[Proxim
         data_inicio=gira.data_inicio,
         data_fim=gira.data_fim,
         local=gira.local,
-        orientacoes=None,
+        orientacoes=(gira.orientacoes_corrente or "").strip() or None,
     )
 
 

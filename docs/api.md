@@ -258,89 +258,53 @@ them — the role is read from the database, not from the token.
 
 ---
 
-### 1. Create Gira
+### 1. Create / update Gira
 
-**Endpoint**: `POST /admin/giras`
+**Endpoints**: `POST /admin/giras` (GIRAS `insert`; monthly limit of the plan → 422) ·
+`PUT /admin/giras/{gira_id}` (GIRAS `edit`; only the fields sent change).
 
 **Request Body**:
 ```json
 {
-  "name": "Gira Especial",
-  "description": "Special event",
-  "event_date": "2026-03-06T18:00:00Z",
-  "tickets_limit": 100,
-  "location": "Terreiro ABC"
+  "nome": "Gira de Caboclos",
+  "descricao": "Gira aberta ao público",
+  "data_inicio": "2026-10-09T23:30:00Z",
+  "data_fim": null,
+  "local": null,
+  "is_active": true,
+  "recados": "Investimento sugerido: R$ 20. Trazer uma vela branca.",
+  "orientacoes_corrente": "Roupa branca e guias. A corrente chega às 19h30."
 }
 ```
+- `local`: only when different from the terreiro address (`tenant_configs.endereco`).
+- `recados`: goes to the consulente (ticket e-mail and public ticket page).
+- `orientacoes_corrente` (AM-07, ≤ 2000 chars, trimmed; blank → `null`): what to bring / arrival
+  time for the corrente. Shown **only** in the Área do Médium (Agenda detail, `.ics` and Início) —
+  never in public routes, the site, e-mails or the ticket. Accepted regardless of plan; the
+  screen only shows the field with `can('area_medium')`.
 
-**Response** (201 Created):
-```json
-{
-  "id": "gira-uuid",
-  "name": "Gira Especial",
-  "description": "Special event",
-  "event_date": "2026-03-06T18:00:00Z",
-  "tickets_limit": 100,
-  "location": "Terreiro ABC",
-  "current_number": 0,
-  "status": "ACTIVE",
-  "created_at": "2026-03-05T14:30:00Z"
-}
-```
+**Response** (201 Created / 200 OK): `GiraResponse` — `id`, `nome`, `descricao`, `data_inicio`,
+`data_fim`, `local`, `is_active`, `recados`, `orientacoes_corrente`, `allow_acompanhantes`,
+`max_acompanhantes`, `max_tickets`, `release_start_at`, `release_end_at`, `sponsor_*`,
+`created_at`, `updated_at`. Senhas are configured separately (`PUT /admin/giras/{id}/senhas`).
 
 ---
 
 ### 2. Get All Giras
 
-**Endpoint**: `GET /admin/giras`
+**Endpoint**: `GET /admin/giras` (GIRAS, RELATORIO_GIRA, PORTA or TICKETS `view`)
 
-**Query Parameters**:
-- `status`: ACTIVE | INACTIVE (optional)
-- `limit`: 1-100, default 50
-- `offset`: pagination, default 0
+**Query Parameters**: `is_active` (optional), `date_from` / `date_to` (`YYYY-MM-DD`, Brasília
+days), `skip` (default 0), `limit` (1-100, default 50).
 
-**Response** (200 OK):
-```json
-{
-  "data": [
-    {
-      "id": "gira-uuid-1",
-      "name": "Gira 1",
-      "event_date": "2026-03-06T18:00:00Z",
-      "tickets_limit": 100,
-      "current_number": 45,
-      "status": "ACTIVE"
-    }
-  ],
-  "pagination": {
-    "total": 15,
-    "limit": 50,
-    "offset": 0
-  }
-}
-```
+**Response** (200 OK): list of `GiraResponse`, newest first.
 
 ---
 
 ### 3. Get Gira by ID
 
-**Endpoint**: `GET /admin/giras/{gira_id}`
-
-**Response** (200 OK):
-```json
-{
-  "id": "gira-uuid",
-  "name": "Gira Especial",
-  "description": "Special event",
-  "event_date": "2026-03-06T18:00:00Z",
-  "tickets_limit": 100,
-  "current_number": 45,
-  "location": "Terreiro ABC",
-  "status": "ACTIVE",
-  "created_at": "2026-03-05T14:30:00Z",
-  "updated_at": "2026-03-05T14:35:00Z"
-}
-```
+**Endpoint**: `GET /admin/giras/{gira_id}` (GIRAS `view`) → `GiraResponse`; another tenant's
+gira → 404.
 
 ---
 
@@ -928,7 +892,7 @@ médium come from the session; a `medium_id` in the query string is ignored).
     "data_inicio": "2026-10-16T23:00:00Z",
     "data_fim": null,
     "local": "Salão principal",
-    "orientacoes": null
+    "orientacoes": "Roupa branca e guias."
   },
   "mensalidade": {
     "mes": "2026-10",
@@ -947,7 +911,8 @@ médium come from the session; a `medium_id` in the query string is ignored).
   (AM-09: `{"tipo": "aviso", "quantidade": N}` with the unread count). Escala is never returned yet.
 - `proxima_gira`: the tenant's next active gira (future, or in progress: `data_fim` not reached,
   or started less than 6 h ago when there is no `data_fim`). Only name, times and place — no
-  tickets, consulente data or `recados`. `orientacoes` (what to bring) is `null` until AM-07.
+  tickets, consulente data or `recados`. `orientacoes` = `giras.orientacoes_corrente` (AM-07,
+  what to bring; `null` when the house left it blank).
 - `mensalidade`: current month in Brasília time, `null` when the plan has no
   `mensalidade_mediun`, the house has no active mensalidade config, the médium joined after the
   month, or the house never set a value. `status`: `paga` (PAGO record; `valor` = amount paid),
@@ -972,7 +937,69 @@ médium come from the session; a `medium_id` in the query string is ignored).
   403 (`error_code: MEDIUM_MODULO_DESLIGADO`) on these three routes. Nothing here reveals who else
   read it or who wrote it.
 
-### 4. Mensalidade (AM-11/AM-12)
+### 4. Agenda (AM-07)
+
+All three routes also require the house to keep the **agenda** module on (AM-10,
+`tenant_configs.area_medium_agenda`); otherwise **403** with the neutral message "A agenda não
+está disponível na Área do Médium desta casa." (`details.error_code: MEDIUM_MODULO_INDISPONIVEL`).
+Giras are the tenant's own, active and not deleted; anything else → **404**.
+
+**Endpoint**: `GET /api/v1/medium/agenda?inicio=YYYY-MM-DD&fim=YYYY-MM-DD`
+
+Both optional, Brasília days, inclusive. Default: first day of the current month → end of the
+third month (current + 2). `inicio` alone → 3 months from it. `fim < inicio`, a range of 6 months
+or more, or a bad date → **400**. Past and future giras of the range, ordered by start.
+
+```json
+{
+  "inicio": "2026-10-01",
+  "fim": "2026-12-31",
+  "itens": [
+    {
+      "origem": "gira",
+      "id": "gira-uuid",
+      "tipo": { "nome": "Gira", "icone": "gira", "cor": null },
+      "titulo": "Gira de Caboclos",
+      "inicio": "2026-10-09T23:30:00Z",
+      "fim": null,
+      "local": null,
+      "minha_participacao": null
+    }
+  ]
+}
+```
+Unified item shape (plan §8.2/§8.3): AM-08 adds `origem: "atividade"` items (house activities)
+and AM-17 fills `minha_participacao`, without changing the shape. `cor: null` = terreiro colour.
+
+**Endpoint**: `GET /api/v1/medium/agenda/gira/{gira_id}` — the item above plus:
+
+```json
+{
+  "descricao": "Gira aberta ao público.",
+  "orientacoes_corrente": "Roupa branca e guias. A corrente chega às 19h30.",
+  "endereco": "Rua das Palmeiras, 120",
+  "mapa_url": "https://www.google.com/maps/search/?api=1&query=Rua%20das%20Palmeiras%2C%20120",
+  "senhas": { "situacao": "abrem_em", "abrem_em": "2026-10-07T12:00:00Z" },
+  "link_publico": "https://girahub.com.br/public/gira/gira-uuid",
+  "agenda_celular": {
+    "ics_path": "/api/v1/medium/agenda/gira/gira-uuid/ics",
+    "google_url": "https://calendar.google.com/calendar/render?action=TEMPLATE&..."
+  }
+}
+```
+- `senhas.situacao`: `abertas` · `esgotadas` · `abrem_em` (with `abrem_em`) · `encerradas` ·
+  `sem_senhas` (no ticket window configured). Only the situation — never counts or consulente data.
+- `link_publico`: the gira's public ticket page, or the terreiro's public agenda (`/{slug}`) when
+  the gira has no tickets. `mapa_url` uses the terreiro address (or the gira `local`).
+- `recados`, ticket limits and consulente data are never returned.
+
+**Endpoint**: `GET /api/v1/medium/agenda/gira/{gira_id}/ics` — `text/calendar` (RFC 5545, UTC
+times, 3 h when the gira has no end), `Content-Disposition: inline; filename="<gira>-<date>.ics"`,
+`Cache-Control: private, no-store`. Inline on purpose: Safari on iPhone offers "Add to Calendar";
+Chrome on Android downloads it and opens the calendar app. The description carries the
+orientações and the link to the gira in the Área.
+
+### 5. Mensalidade (AM-11/AM-12)
 
 Besides `require_medium`, these routes need the **mensalidade module visible** in the Área
 (`area_medium_mensalidade` on AND the effective plan has `mensalidade_mediun`); otherwise **403**
