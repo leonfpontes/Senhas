@@ -79,7 +79,7 @@ const ME = {
   terreiro: { id: 't1', nome: 'Tenda Luz da Mata', slug: 'luz' },
   marca: { logo_url: null, primary_color: '#2f6b4f', secondary_color: '#e9b04a', font_color: null },
   areas: MEDIUM_AREAS,
-  modulos: [],
+  modulos: ['agenda', 'avisos', 'mensalidade'],
 };
 
 const INICIO_COMPLETO = {
@@ -173,9 +173,9 @@ describe('Início da Área do Médium', () => {
     const mensal = within(pend).getByTestId('pendencia-mensalidade');
     expect(within(mensal).getByText(/Mensalidade de outubro/)).toBeInTheDocument();
     expect(within(mensal).getByText('Venceu em 10/10')).toBeInTheDocument();
-    expect(within(mensal).getByRole('link', { name: 'Ver mensalidade' })).toHaveAttribute(
+    expect(within(mensal).getByRole('link', { name: 'Pagar com PIX' })).toHaveAttribute(
       'href',
-      '/medium/mensalidade',
+      '/medium/mensalidade?pagar=1',
     );
     expect(within(pend).getByRole('link', { name: /2 avisos novos da casa/ })).toHaveAttribute(
       'href',
@@ -397,7 +397,6 @@ describe('gate do MediumLayout', () => {
     for (const [path, mod, titulo] of [
       ['/medium/agenda', '@/pages/medium/agenda', 'Agenda'],
       ['/medium/avisos', '@/pages/medium/avisos', 'Avisos'],
-      ['/medium/mensalidade', '@/pages/medium/mensalidade', 'Mensalidade'],
     ]) {
       mockRouter.pathname = path;
       const Page = require(mod).default;

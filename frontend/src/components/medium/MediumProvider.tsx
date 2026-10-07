@@ -28,6 +28,8 @@ export interface MediumMe {
   marca: MediumMarca;
   areas: UserAreas;
   modulos: string[];
+  /** WhatsApp da casa (dígitos com DDI) para "Falar com a casa" (AM-10). */
+  whatsapp_casa?: string | null;
 }
 
 export type MediumStatus = 'idle' | 'loading' | 'ok' | 'indisponivel' | 'erro';

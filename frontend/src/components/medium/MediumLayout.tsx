@@ -56,13 +56,26 @@ import { useMedium } from './MediumProvider';
 import { InstallAreaSheet, installAreaSeen } from './InstallAreaSheet';
 import { TerreiroEmblem } from './TerreiroEmblem';
 
-export const MEDIUM_TABS: { href: string; label: string; icon: LucideIcon }[] = [
+export const MEDIUM_TABS: { href: string; label: string; icon: LucideIcon; modulo?: string }[] = [
   { href: '/medium', label: 'Início', icon: House },
   { href: '/medium/agenda', label: 'Agenda', icon: CalendarDays },
   { href: '/medium/avisos', label: 'Avisos', icon: Megaphone },
-  { href: '/medium/mensalidade', label: 'Mensalidade', icon: Wallet },
+  // Some quando a casa desliga o módulo ou o plano não tem `mensalidade_mediun` (AM-11).
+  { href: '/medium/mensalidade', label: 'Mensalidade', icon: Wallet, modulo: 'mensalidade' },
   { href: '/medium/perfil', label: 'Perfil', icon: UserRound },
 ];
+
+const GRID_COLS: Record<number, string> = {
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+  5: 'grid-cols-5',
+};
+
+/** Abas visíveis: as de módulo só quando `/medium/me` diz que o módulo está ligado. */
+export function visibleMediumTabs(modulos: string[] | null | undefined) {
+  return MEDIUM_TABS.filter((t) => !t.modulo || !modulos || modulos.includes(t.modulo));
+}
 
 interface MediumShellValue {
   /** Abre o passo "Deixe a Área na tela inicial". */
@@ -113,14 +126,16 @@ export function useSystemDarkMode(): void {
 }
 
 function TabBar({ pathname }: { pathname: string }) {
+  const { me } = useMedium();
+  const tabs = visibleMediumTabs(me?.modulos);
   return (
     <nav
       aria-label="Menu da Área do Médium"
       data-testid="medium-tab-bar"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
     >
-      <ul className="mx-auto grid max-w-xl grid-cols-5">
-        {MEDIUM_TABS.map(({ href, label, icon: Icon }) => {
+      <ul className={cn('mx-auto grid max-w-xl', GRID_COLS[tabs.length] ?? 'grid-cols-5')}>
+        {tabs.map(({ href, label, icon: Icon }) => {
           const active =
             href === '/medium'
               ? pathname === href
