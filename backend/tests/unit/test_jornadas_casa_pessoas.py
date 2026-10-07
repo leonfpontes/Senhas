@@ -280,6 +280,7 @@ class TestUpdateMedium:
         m.data_nascimento = date(1980, 1, 1)
         m.telefone = "11999990000"
         m.email = "pai@example.com"
+        m.user_id = None  # sem conta da Área do Médium (AM-02)
         for f in ("observacoes", "cep", "logradouro", "numero", "bairro", "cidade"):
             setattr(m, f, "valor")
         for k, v in kw.items():

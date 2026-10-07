@@ -784,6 +784,12 @@ function ParticipantesContent() {
                 Ficha incompleta
               </Badge>
             )}
+            {/* Imagem e voz são opcionais na inscrição: avisa quem não pode aparecer em fotos/vídeos. */}
+            {!row.original.aceita_uso_imagem && (
+              <Badge variant="outline" title="Não autorizou o uso de imagem e voz — não usar em fotos, vídeos ou divulgação">
+                Sem uso de imagem
+              </Badge>
+            )}
           </span>
         ),
       },

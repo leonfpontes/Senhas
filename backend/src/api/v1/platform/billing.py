@@ -13,7 +13,7 @@ from src.api.dependencies import require_super_admin
 from src.models import User, Invoice
 from src.models.subscriptions import Subscription, PlanType, SubscriptionStatus
 from src.models.tenants import Tenant
-from src.models.users import User as UserModel
+from src.models.users import User as UserModel, UserRole
 from src.repositories.billing_repo import BillingRepository
 from src.services.billing_metrics import (
     BillingCategory,
@@ -238,7 +238,8 @@ async def list_billing_subscriptions(
     try:
         users_count = (
             select(UserModel.tenant_id, func.count().label("n"))
-            .where(UserModel.deleted_at.is_(None), UserModel.is_active.is_(True))
+            # Usuários do painel (contas `medium` da Área do Médium não contam — AM-02).
+            .where(UserModel.deleted_at.is_(None), UserModel.is_active.is_(True), UserModel.role != UserRole.MEDIUM)
             .group_by(UserModel.tenant_id)
             .subquery()
         )

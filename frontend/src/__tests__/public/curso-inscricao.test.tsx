@@ -1,6 +1,8 @@
 /**
  * Inscrição em curso (formulário simples): a tela de sucesso só fala de mensalidade quando o
  * curso gera cobrança mensal (gerar_mensalidade) — antes bastava existir valor padrão.
+ * Consentimentos (LGPD): dados é obrigatório; imagem e voz é opcional (art. 8º, §4º) e o texto
+ * de dados não promete "nenhum terceiro" — aponta para a Política de Privacidade.
  */
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -67,5 +69,40 @@ describe('Inscrição em curso — sucesso', () => {
     await waitFor(() => expect(screen.queryByText('Mensalidade')).not.toBeInTheDocument());
     expect(screen.queryByText(/mensalidade é cobrada/i)).not.toBeInTheDocument();
     expect(screen.getByText(/e-mail de confirmação em maria@example.com/)).toBeInTheDocument();
+  });
+
+  it('inscreve sem autorizar imagem e voz e manda a escolha (false) para o backend', async () => {
+    mockFetch({
+      id: 'p2',
+      nome: 'João Souza',
+      email: 'joao@example.com',
+      curso_titulo: 'Curso de Desenvolvimento',
+      data_inicio: CURSO.data_inicio,
+      valor_mensalidade: null,
+      mensagem: 'Inscrição realizada com sucesso!',
+    });
+    render(<InscricaoCursoPage />);
+    fireEvent.change(await screen.findByLabelText(/Nome completo/i), { target: { value: 'João Souza' } });
+    fireEvent.change(screen.getByLabelText(/^E-mail/i), { target: { value: 'joao@example.com' } });
+    expect(screen.getByText(/Opcional: você pode se inscrever sem autorizar/)).toBeInTheDocument();
+    expect(screen.queryByText(/não serão compartilhados com terceiros/)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Política de Privacidade' })).toHaveAttribute('href', '/privacidade');
+    fireEvent.click(document.getElementById('aceita_uso_dados') as HTMLElement);
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar inscrição/i }));
+
+    expect(await screen.findByText('Inscrição confirmada!')).toBeInTheDocument();
+    const post = (global.fetch as jest.Mock).mock.calls.find(([, init]) => init?.method === 'POST');
+    const enviado = JSON.parse((post![1].body as FormData).get('data') as string);
+    expect(enviado).toMatchObject({ aceita_uso_dados: true, aceita_uso_imagem: false });
+  });
+
+  it('sem o consentimento de dados não envia', async () => {
+    mockFetch({});
+    render(<InscricaoCursoPage />);
+    fireEvent.change(await screen.findByLabelText(/Nome completo/i), { target: { value: 'Ana Lima' } });
+    fireEvent.change(screen.getByLabelText(/^E-mail/i), { target: { value: 'ana@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar inscrição/i }));
+    expect(await screen.findByText(/aceitar o uso dos seus dados pessoais/i)).toBeInTheDocument();
+    expect((global.fetch as jest.Mock).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
   });
 });

@@ -75,6 +75,19 @@ Checagens
      de criar a membership).
    Exceções: ``EXEMPT_BODY_FKS`` por (arquivo, função, campo).
 
+5. Área do Médium (``src/api/v1/medium/``) — modo "medium" (AM-02). O tenant vem de
+   ``ctx.tenant_id`` e o médium de ``ctx.medium`` (``MediumContext`` do ``require_medium``):
+   - toda query sobre modelo multi-tenant filtra por tenant (critério generoso do modo admin:
+     ``Modelo.tenant_id == ctx.tenant_id``);
+   - toda query sobre modelo "do médium" — ``Medium`` e modelos com FK para ``mediuns``
+     (descobertos em ``src/models/``, ex. ``MensalidadePagamento.mediun_id``) — filtra também
+     pelo médium logado: ``<Modelo>.<fk> == ctx.medium.id`` (``Medium.id == ctx.medium.id``
+     no próprio cadastro). O valor precisa citar ``.medium`` (``ctx.medium.id``) ou a
+     variável ``medium``; ``session.get`` em modelo do médium é sempre violação;
+   - nenhuma rota recebe ``medium_id``/``mediun_id`` (parâmetro, trecho de path ou campo de
+     schema do arquivo): as rotas da Área são "minhas".
+   Exceções: ``EXEMPT_MEDIUM_QUERIES``.
+
 Limites conhecidos (o auditor é rede de segurança, não prova)
 =============================================================
 - Não verifica QUAL valor é comparado no modo admin/public: ``Gira.tenant_id ==
@@ -106,6 +119,7 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 SRC_DIR = BACKEND_DIR / "src"
 ADMIN_DIR = SRC_DIR / "api" / "v1" / "admin"
 PUBLIC_DIR = SRC_DIR / "api" / "v1" / "public"
+MEDIUM_DIR = SRC_DIR / "api" / "v1" / "medium"
 REPOSITORIES_DIR = SRC_DIR / "repositories"
 SERVICES_DIR = SRC_DIR / "services"
 MODELS_DIR = SRC_DIR / "models"
@@ -312,6 +326,13 @@ EXEMPT_PUBLIC_QUERIES: dict[tuple[str, str], str] = {
 # Checagem de FK. Chave: (arquivo admin, função, campo).
 EXEMPT_BODY_FKS: dict[tuple[str, str, str], str] = {}
 
+# Modo medium (src/api/v1/medium/, AM-02). Chave: (caminho relativo a src/, função).
+EXEMPT_MEDIUM_QUERIES: dict[tuple[str, str], str] = {}
+
+# Tabela do cadastro de médiuns e nomes que a Área nunca recebe da requisição.
+MEDIUM_TABLE = "mediuns"
+MEDIUM_ID_INPUTS = {"medium_id", "mediun_id"}
+
 QUERY_FUNCS = {"select", "update", "delete", "exists"}
 
 # Prefixos de nome de chamada considerada "escrita" (sink de FK).
@@ -396,6 +417,20 @@ def discover_model_info(models_dir: Path = MODELS_DIR) -> ModelInfo:
                         for n in names:
                             info.fks.setdefault(node.name, {})[n] = table
     return info
+
+
+def discover_medium_models(info: ModelInfo) -> dict[str, set[str]]:
+    """{Modelo: colunas que apontam para o médium} — ``Medium`` (``id``) e todo modelo com
+    FK para ``mediuns`` (ex. ``MensalidadePagamento: {"mediun_id"}``)."""
+    out: dict[str, set[str]] = {}
+    for model, table in info.tables.items():
+        if table == MEDIUM_TABLE:
+            out[model] = {"id"}
+    for model, fks in info.fks.items():
+        cols = {col for col, table in fks.items() if table == MEDIUM_TABLE}
+        if cols:
+            out.setdefault(model, set()).update(cols)
+    return out
 
 
 # ─── Resolução de nomes no arquivo auditado ─────────────────────────────────────────
@@ -954,6 +989,68 @@ def _is_root_lookup(
     return False
 
 
+# ─── Filtro pelo médium logado (modo medium) ────────────────────────────────────────
+
+
+def _is_medium_value(node: ast.AST) -> bool:
+    """Valor que carrega o médium do ``MediumContext``: ``ctx.medium.id``, ``medium.id``."""
+    for n in ast.walk(node):
+        if isinstance(n, ast.Attribute) and n.attr == "medium":
+            if not (isinstance(n.value, ast.Name) and n.value.id[:1].isupper()):
+                return True
+        if isinstance(n, ast.Name) and n.id == "medium":
+            return True
+    return False
+
+
+def _contains_medium_filter(expr: ast.AST, medium_cols: dict[str, set[str]]) -> bool:
+    """``<Modelo>.<coluna do médium> == <valor do médium>`` (ou ``filter_by(coluna=...)``)."""
+    def is_medium_col(side: ast.AST) -> bool:
+        return (
+            isinstance(side, ast.Attribute)
+            and isinstance(side.value, ast.Name)
+            and side.attr in medium_cols.get(side.value.id, ())
+        )
+
+    all_cols = set().union(*medium_cols.values()) if medium_cols else set()
+    for node in ast.walk(expr):
+        if isinstance(node, ast.Compare) and all(isinstance(o, ast.Eq) for o in node.ops):
+            sides = [node.left, *node.comparators]
+            for i, side in enumerate(sides):
+                if is_medium_col(side) and any(_is_medium_value(o) for o in sides[:i] + sides[i + 1 :]):
+                    return True
+        elif isinstance(node, ast.Call) and _call_name(node) == "filter_by":
+            if any(kw.arg in all_cols and _is_medium_value(kw.value) for kw in node.keywords):
+                return True
+    return False
+
+
+def find_medium_id_inputs(path: Path, source: str | None = None) -> list[tuple[int, str, str]]:
+    """Rotas da Área que recebem ``medium_id``: [(linha, função/schema, onde)]."""
+    tree = ast.parse(source if source is not None else path.read_text(), filename=str(path))
+    found: list[tuple[int, str, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and _is_route(node):
+            for p in _param_names(node):
+                if p in MEDIUM_ID_INPUTS:
+                    found.append((node.lineno, node.name, f"parâmetro {p}"))
+            for dec in node.decorator_list:
+                for arg in getattr(dec, "args", [])[:1]:
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                        for name in sorted(MEDIUM_ID_INPUTS):
+                            if "{" + name + "}" in arg.value:
+                                found.append((node.lineno, node.name, f"path {arg.value}"))
+        elif isinstance(node, ast.ClassDef):
+            for stmt in node.body:
+                if (
+                    isinstance(stmt, ast.AnnAssign)
+                    and isinstance(stmt.target, ast.Name)
+                    and stmt.target.id in MEDIUM_ID_INPUTS
+                ):
+                    found.append((stmt.lineno, node.name, f"campo {stmt.target.id}"))
+    return found
+
+
 # ─── Checagens 1-3: queries ─────────────────────────────────────────────────────────
 
 
@@ -963,20 +1060,29 @@ def find_unfiltered_queries(
     exempt_queries: dict | None = None,
     source: str | None = None,
     mode: str = "admin",
+    medium_models: dict[str, set[str]] | None = None,
 ) -> tuple[list[tuple[int, str, str]], int]:
     """Retorna (violações [(linha, função, modelo)], total de queries multi-tenant checadas).
 
     ``mode``: "admin" (filtro generoso), "scoped" (repositories/services — filtro derivado
-    do parâmetro de tenant) ou "public" (filtro generoso ou busca raiz)."""
+    do parâmetro de tenant), "public" (filtro generoso ou busca raiz) ou "medium" (filtro
+    generoso de tenant + filtro pelo médium logado nos modelos de ``medium_models``)."""
     if exempt_queries is None:
         exempt_queries = {
             "admin": EXEMPT_QUERIES,
             "scoped": {**EXEMPT_SCOPED_QUERIES, **RESOLVED_ID_QUERIES},
             "public": EXEMPT_PUBLIC_QUERIES,
+            "medium": EXEMPT_MEDIUM_QUERIES,
         }[mode]
     key_file = path.name if mode == "admin" else rel_key(path)
     tree = ast.parse(source if source is not None else path.read_text(), filename=str(path))
     model_names, query_funcs = _resolve_names(tree, tenant_models)
+    # Modo medium: nomes locais (com alias) dos modelos "do médium" → colunas do médium.
+    medium_cols: dict[str, set[str]] = {}
+    if mode == "medium":
+        medium_models = medium_models or {}
+        aliases = _model_aliases(tree, set(medium_models))
+        medium_cols = {local: medium_models[cls] for local, cls in aliases.items()}
     self_model_classes = _self_model_classes(tree, model_names) if mode == "scoped" else set()
 
     violations: list[tuple[int, str, str]] = []
@@ -1020,6 +1126,11 @@ def find_unfiltered_queries(
                 return True
             return False
 
+        def medium_ok(models: list[str], exprs: list[ast.AST]) -> bool:
+            if mode != "medium" or not any(m in medium_cols for m in models):
+                return True
+            return any(_contains_medium_filter(e, medium_cols) for e in exprs)
+
         for node in ast.walk(func):
             if not isinstance(node, ast.Call):
                 continue
@@ -1029,7 +1140,8 @@ def find_unfiltered_queries(
                 if not models:
                     continue
                 checked += 1
-                ok = query_ok(_related_expressions(root, idx))
+                related = _related_expressions(root, idx)
+                ok = query_ok(related) and medium_ok(models, related)
                 if not ok and mode == "public":
                     # Busca raiz: só no próprio statement — o fluxo de dados traria a busca
                     # do objeto pai e "aprovaria" a query filha por tabela.
@@ -1043,6 +1155,10 @@ def find_unfiltered_queries(
                 if model is None:
                     continue
                 checked += 1
+                # Modo medium: session.get não filtra pelo médium — use select com filtro.
+                if mode == "medium" and model in medium_cols and not exempt:
+                    violations.append((node.lineno, qualname, model))
+                    continue
                 if not _check_session_get(node, func, idx, strict_pred) and not exempt:
                     violations.append((node.lineno, qualname, model))
     return violations, checked
@@ -1737,6 +1853,24 @@ def main() -> int:
             for ln, fn, m in violations
         ]
 
+    # 5. Área do Médium
+    medium_models = discover_medium_models(info)
+    medium_v: list[str] = []
+    medium_checked = 0
+    for path in sorted(MEDIUM_DIR.rglob("*.py")) if MEDIUM_DIR.is_dir() else []:
+        violations, checked = find_unfiltered_queries(
+            path, tenant_models, mode="medium", medium_models=medium_models
+        )
+        medium_checked += checked
+        medium_v += [
+            f"  {rel_key(path)}:{ln}: {fn}() — modelo {m} sem filtro de tenant e/ou do médium logado"
+            for ln, fn, m in violations
+        ]
+        medium_v += [
+            f"  {rel_key(path)}:{ln}: {fn} — {onde}: a Área nunca recebe o médium da requisição"
+            for ln, fn, onde in find_medium_id_inputs(path)
+        ]
+
     # 4. FKs da requisição
     callees = build_callee_index(tenant_models)
     fk_v: list[str] = []
@@ -1762,6 +1896,10 @@ def main() -> int:
         ("Queries públicas SEM filtro de tenant nem busca raiz", public_v,
          "Filtre pelo tenant do objeto pai (`<Modelo>.tenant_id == ticket.tenant_id`) ou "
          "justifique em EXEMPT_PUBLIC_QUERIES."),
+        ("Área do Médium: query sem filtro de tenant/médium ou medium_id vindo da requisição", medium_v,
+         "Filtre por `ctx.tenant_id` e, em modelo do médium, por `ctx.medium.id` "
+         "(`<Modelo>.mediun_id == ctx.medium.id`); nunca receba medium_id na rota. Exceção "
+         "justificada em EXEMPT_MEDIUM_QUERIES."),
         ("FKs recebidos na requisição gravados SEM busca escopada no tenant", fk_v,
          "Valide o id antes de gravar (`_validar_*_do_tenant(db, current_user.tenant_id, "
          "body.x_id)` ou `repo.get_by_id(body.x_id, current_user.tenant_id)`) ou justifique "
@@ -1780,7 +1918,8 @@ def main() -> int:
     print(
         f"OK: {len(tenant_models)} modelos multi-tenant; queries com filtro de tenant — "
         f"admin {admin_checked}, repositories/services {scoped_checked}, public "
-        f"{public_checked}; {fk_checked} gravações de FK da requisição validadas no tenant "
+        f"{public_checked}, medium {medium_checked}; {fk_checked} gravações de FK da "
+        f"requisição validadas no tenant "
         f"({len(EXEMPT_QUERIES)} + {len(EXEMPT_SCOPED_QUERIES) + len(RESOLVED_ID_QUERIES)} + "
         f"{len(EXEMPT_PUBLIC_QUERIES)} + {len(EXEMPT_BODY_FKS)} exceções justificadas)."
     )

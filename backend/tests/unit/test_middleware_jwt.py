@@ -1,11 +1,16 @@
 """Tests for JWT validation middleware."""
 import uuid
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 
+import jwt as pyjwt
 import pytest
 
+import src.security.jwt as jwt_module
+from src.core.config import settings
 from src.middleware.jwt_middleware import jwt_middleware
 from src.core.errors import InvalidTokenError
+from src.security.jwt import create_access_token, create_refresh_token
 from tests.conftest import TENANT_ID, USER_ID
 
 
@@ -125,3 +130,72 @@ class TestJwtMiddlewareAuth:
         call_next = _make_call_next()
         response = await jwt_middleware(request, call_next)
         assert response.status_code == 401
+
+
+def _token(tipo):
+    """JWT assinado com o segredo real; `tipo=None` → sem claim `type`."""
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(USER_ID),
+        "tenant_id": str(TENANT_ID),
+        "role": "admin",
+        "exp": now + timedelta(minutes=5),
+        "iat": now,
+    }
+    if tipo is not None:
+        payload["type"] = tipo
+    return pyjwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+class TestJwtMiddlewareTokenType:
+    """T-02: com o decode_token real, só access tipado autentica."""
+
+    async def test_access_tipado_no_cookie_autentica(self):
+        request = _make_request()
+        request.cookies = {"access_token": create_access_token(USER_ID, TENANT_ID, "admin")}
+        call_next = _make_call_next()
+        await jwt_middleware(request, call_next)
+        call_next.assert_called_once()
+        assert request.state.user_id == USER_ID
+        assert request.state.tenant_id == TENANT_ID
+
+    async def test_impersonacao_via_bearer_autentica_e_preserva_impersonated_by(self):
+        super_id = uuid.uuid4()
+        token = create_access_token(
+            USER_ID, TENANT_ID, "admin", expires_delta=timedelta(hours=1), impersonated_by=super_id
+        )
+        request = _make_request(auth_header=f"Bearer {token}")
+        call_next = _make_call_next()
+        await jwt_middleware(request, call_next)
+        call_next.assert_called_once()
+        assert request.state.user_id == USER_ID
+        assert request.state.token.impersonated_by == str(super_id)
+
+    @pytest.mark.parametrize("tipo", ["account_select", "mfa_pending", "invite", "refresh"])
+    @patch("src.middleware.jwt_middleware.log_security_event")
+    async def test_tipo_nao_access_recebe_401(self, mock_log, tipo):
+        request = _make_request(auth_header=f"Bearer {_token(tipo)}")
+        call_next = _make_call_next()
+        response = await jwt_middleware(request, call_next)
+        assert response.status_code == 401
+        call_next.assert_not_called()
+
+    @patch("src.middleware.jwt_middleware.log_security_event")
+    async def test_refresh_token_real_no_cookie_recebe_401(self, mock_log):
+        request = _make_request()
+        request.cookies = {
+            "access_token": create_refresh_token(USER_ID, TENANT_ID, "admin", uuid.uuid4(), uuid.uuid4())
+        }
+        call_next = _make_call_next()
+        response = await jwt_middleware(request, call_next)
+        assert response.status_code == 401
+        call_next.assert_not_called()
+
+    @patch("src.middleware.jwt_middleware.log_security_event")
+    async def test_sem_type_fora_da_janela_recebe_401(self, mock_log):
+        with patch.object(jwt_module, "_utcnow", return_value=datetime(2030, 1, 1, tzinfo=timezone.utc)):
+            request = _make_request(auth_header=f"Bearer {_token(None)}")
+            call_next = _make_call_next()
+            response = await jwt_middleware(request, call_next)
+        assert response.status_code == 401
+        call_next.assert_not_called()

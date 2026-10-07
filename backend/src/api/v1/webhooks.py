@@ -23,12 +23,11 @@ logger = logging.getLogger("senhas")
 
 async def _get_tenant_primary_contact(tenant_id, db: AsyncSession) -> "User | None":
     """Best-effort pick of who should receive tenant-level billing notifications:
-    the oldest active ADMIN, falling back to the oldest active user of any role.
+    the oldest active ADMIN, falling back to the oldest active back-office user
+    (never a `medium` account — Área do Médium only, AM-02).
     """
-    for role_filter in (User.role == UserRole.ADMIN, None):
-        conditions = [User.tenant_id == tenant_id, User.is_active.is_(True), User.deleted_at.is_(None)]
-        if role_filter is not None:
-            conditions.append(role_filter)
+    for role_filter in (User.role == UserRole.ADMIN, User.role != UserRole.MEDIUM):
+        conditions = [User.tenant_id == tenant_id, User.is_active.is_(True), User.deleted_at.is_(None), role_filter]
         result = await db.execute(
             select(User).where(and_(*conditions)).order_by(User.created_at.asc()).limit(1)
         )

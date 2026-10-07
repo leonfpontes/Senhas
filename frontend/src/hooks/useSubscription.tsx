@@ -24,6 +24,8 @@ export interface PlanFeatures {
   site_builder: boolean;
   fila_espera: boolean;
   agendamento_por_horario: boolean;
+  /** Área do Médium (AM-02): login do médium e /api/v1/medium/*. */
+  area_medium: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -82,6 +84,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   site_builder: false,
   fila_espera: false,
   agendamento_por_horario: false,
+  area_medium: false,
 };
 
 const SubscriptionContext = createContext<SubscriptionContextValue>({

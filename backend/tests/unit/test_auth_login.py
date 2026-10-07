@@ -64,6 +64,11 @@ class TestLoginRequest:
 # ── Login endpoint ───────────────────────────────────────────────────────────
 
 class TestLoginEndpoint:
+    # Áreas (AM-02) têm teste próprio (test_area_medium.py); aqui o banco é um mock genérico.
+    @patch(
+        "src.api.v1.auth.login.compute_areas",
+        new=AsyncMock(return_value={"admin": True, "medium": None}),
+    )
     @patch("src.api.v1.auth.login.settings.DEBUG", False)
     @patch("src.api.v1.auth.login.log_security_event")
     @patch("src.api.v1.auth.login.create_refresh_token", return_value="refresh-jwt")
@@ -85,6 +90,7 @@ class TestLoginEndpoint:
         assert result.access_token == "access-jwt"
         assert result.token_type == "bearer"
         assert result.user["email"] == "admin@test.com"
+        assert result.areas == {"admin": True, "medium": None}
         assert response.set_cookie.call_count == 3
         response.set_cookie.assert_any_call(
             key="access_token", value="access-jwt", httponly=True,

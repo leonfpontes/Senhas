@@ -26,6 +26,7 @@ from src.core.limiter import limiter
 from src.core.logging import log_security_event
 from src.services import session_service
 from src.core.auth_cookies import clear_auth_cookies, is_impersonated_request, set_auth_cookies
+from src.services.medium_area import compute_areas
 from sqlalchemy import func, select
 
 logger = logging.getLogger(__name__)
@@ -103,6 +104,9 @@ class LoginResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int = 86400  # 24 hours
     user: dict
+    # Áreas que a conta acessa (AM-02): {"admin": bool, "medium": {medium_id, nome} | None}.
+    # Calculadas no servidor (nunca no JWT) — ver src/services/medium_area.py.
+    areas: dict | None = None
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -204,6 +208,7 @@ async def login(
         token_type="bearer",
         expires_in=24 * 60 * 60,  # 24 hours
         user=login_user_payload(user),
+        areas=await compute_areas(db, user),
     )
 
 
@@ -360,8 +365,13 @@ async def logout_all(
 @router.get("/me")
 async def get_me(
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """GET /api/v1/auth/me - Return current authenticated user info."""
+    """GET /api/v1/auth/me - Return current authenticated user info.
+
+    `areas` (AM-02): admin (papel admin/operator) e médium (vínculo ativo + plano
+    com area_medium), recalculadas a cada chamada.
+    """
     return {
         "id": str(current_user.id),
         "email": current_user.email,
@@ -373,6 +383,7 @@ async def get_me(
         "full_name": current_user.full_name,
         "phone": current_user.phone,
         "profile_photo_url": current_user.profile_photo_url,
+        "areas": await compute_areas(db, current_user),
     }
 
 
