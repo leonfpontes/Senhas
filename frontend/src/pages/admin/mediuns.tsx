@@ -9,6 +9,7 @@ import Link from 'next/link';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
   Cake,
+  KeyRound,
   Loader2,
   MoreHorizontal,
   Pencil,
@@ -46,6 +47,7 @@ import { Switch } from '@/components/ui/switch';
 import { maskTelefone } from '@/components/fields/MaskedInput';
 import { todayBr } from '@/lib/dateBr';
 import { minPlanFor } from '@/constants/plans';
+import { AcessoAreaBadge, AcessoAreaSheet, ConvidarTodosButton, type AcessoArea } from '@/components/admin/mediuns';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -67,6 +69,8 @@ interface Medium {
   cidade?: string | null;
   observacoes?: string | null;
   created_at: string;
+  /** Área do Médium (AM-03). */
+  acesso_area?: AcessoArea | null;
 }
 
 interface FormData {
@@ -212,6 +216,9 @@ function MediunsContent() {
   const canInsert = planAllows && canGroup('mediuns', 'insert');
   const canEdit = planAllows && canGroup('mediuns', 'edit');
   const canDelete = planAllows && canGroup('mediuns', 'delete');
+  // Área do Médium (AM-03): coluna e ações só com a feature (plano + chave do piloto) e MEDIUNS:edit.
+  const canAcesso = can('area_medium') && canGroup('mediuns', 'edit');
+  const [acessoTarget, setAcessoTarget] = useState<Medium | null>(null);
 
   const [mediuns, setMediuns] = useState<Medium[]>([]);
   const [loading, setLoading] = useState(true);
@@ -478,6 +485,12 @@ function MediunsContent() {
             Editar
           </DropdownMenuItem>
         )}
+        {canAcesso && (
+          <DropdownMenuItem onSelect={() => setAcessoTarget(m)}>
+            <KeyRound />
+            Acesso à Área
+          </DropdownMenuItem>
+        )}
         {canDelete && (
           <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(m)}>
             <Trash2 />
@@ -544,6 +557,14 @@ function MediunsContent() {
           ),
       },
     ];
+    if (canAcesso) {
+      cols.push({
+        id: 'acesso_area',
+        header: 'Acesso à Área',
+        accessorFn: (m) => m.acesso_area?.status ?? 'sem_acesso',
+        cell: ({ row }) => <AcessoAreaBadge acesso={row.original.acesso_area} />,
+      });
+    }
     if (showActions) {
       cols.push({
         id: 'acoes',
@@ -555,7 +576,7 @@ function MediunsContent() {
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [birthdayMap, showActions, canEdit, canDelete]);
+  }, [birthdayMap, showActions, canEdit, canDelete, canAcesso]);
 
   const renderCard = (m: Medium) => {
     const bday = birthdayLabel(m.id);
@@ -577,6 +598,7 @@ function MediunsContent() {
             ) : (
               <Badge variant="outline">Inativo</Badge>
             )}
+            {canAcesso && <AcessoAreaBadge acesso={m.acesso_area} />}
           </span>
           <span className="text-xs text-muted-foreground">
             {m.telefone ? maskTelefone(m.telefone) : 'Sem telefone'}
@@ -618,6 +640,7 @@ function MediunsContent() {
                 <RefreshCw className={loading ? 'animate-spin' : undefined} />
                 <span className="hidden sm:inline">Atualizar</span>
               </Button>
+              {canAcesso && !debouncedSearch && <ConvidarTodosButton mediuns={mediuns} onDone={load} />}
               {canInsert && (
                 <Button
                   data-tour="mediuns-novo"
@@ -946,6 +969,23 @@ function MediunsContent() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {canAcesso && (
+        <AcessoAreaSheet
+          medium={acessoTarget}
+          onOpenChange={(open) => !open && setAcessoTarget(null)}
+          onChanged={load}
+          onEditar={
+            canEdit
+              ? () => {
+                  const alvo = acessoTarget;
+                  setAcessoTarget(null);
+                  if (alvo) openEdit(alvo);
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }
