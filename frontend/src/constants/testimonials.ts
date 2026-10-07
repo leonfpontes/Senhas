@@ -40,6 +40,15 @@ export const TESTIMONIALS: readonly Testimonial[] = [
     // Depoimento e foto enviados pelo dono do GiraHub em 2026-10-07 (a apresentação "Me chamo
     // Natália, sou dirigente do TUFF" virou a linha de autoria; autorização fora do repositório).
     autorizadoEm: '2026-10-07',
+  },  {
+    nome: 'Sacerdote Pai Tim e Sacerdotisa Mãe Ray',
+    casa: 'Terreiro Tia Maria e Cabocla Jupira',
+    texto:
+      'O GiraHub me ajudou muito na organização do estoque, nas planilhas de controle de velas, ervas, produtos de higiene e limpeza e inclusive na despensa da cozinha, no controle de recebimento de mensalidade e também no controle de faltas. Sem contar as senhas online para os consulentes, que são uma mão na roda, já deixando em ordem as prioridades. Obrigado, Léo, ótimo trabalho!',
+    foto: '/landing/depoimentos/pai-tim-mae-ray-tia-maria.webp',
+    // Depoimento e foto enviados pelo dono do GiraHub em 2026-10-07; só grafia ajustada
+    // (despensa, consulentes, já, vírgulas). Autorização fora do repositório.
+    autorizadoEm: '2026-10-07',
   },
 ];
 
