@@ -1,5 +1,5 @@
 """Tenant model - organization/terreiro (T011)."""
-from sqlalchemy import Column, String, Boolean, DateTime, Index, UniqueConstraint
+from sqlalchemy import Column, String, Boolean, DateTime, Index, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
@@ -38,6 +38,10 @@ class Tenant(SoftDeleteModel):
     # de elegibilidade contra TrialGrant. Nullable pra não quebrar tenants
     # criados antes dessa mudança.
     documento: Mapped[str | None] = mapped_column(String(14), nullable=True)
+    # Chave do lançamento da Área do Médium (decisão do dono, 07/10): tudo vai para a
+    # produção desligado e a plataforma liga por terreiro (piloto) em /platform. Vale
+    # junto com o plano (`area_medium`, Basic+): `dependencies.check_plan_feature`.
+    area_medium_liberada: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
 
     # Relationships
     users = relationship("User", back_populates="tenant", cascade="all, delete-orphan")

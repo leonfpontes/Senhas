@@ -23,11 +23,19 @@ from src.security import hash_password
 from src.security.jwt import create_access_token
 
 from .conftest import BACKEND_DIR
-from .factories import Actor, create_tenant, create_user, grant
+from .factories import Actor, create_user, grant
+from .factories import create_tenant as _create_tenant
 
 ME = "/api/v1/auth/me"
 MEDIUM_ME = "/api/v1/medium/me"
 SENHA = "Senha-forte-123"
+
+
+async def create_tenant(db, *args, **kw):
+    """Terreiros destes testes já com a Área liberada pela plataforma (a chave do
+    piloto tem testes próprios em test_area_medium_chave.py)."""
+    kw.setdefault("area_medium_liberada", True)
+    return await _create_tenant(db, *args, **kw)
 
 
 async def _medium(db, tenant, user=None, nome="Maria de Oxum", **kw) -> Medium:
@@ -53,7 +61,7 @@ async def _medium_actor(db, tenant, nome="medium") -> Actor:
     return await create_user(db, tenant, UserRole.MEDIUM, name=nome)
 
 
-# ── Migrações 063/064 ───────────────────────────────────────────────────────
+# ── Migrações 064/065 ───────────────────────────────────────────────────────
 
 
 def _alembic(*args):

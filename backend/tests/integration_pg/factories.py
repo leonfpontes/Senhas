@@ -24,9 +24,11 @@ class Actor:
     headers: dict
 
 
-async def create_tenant(db, name: str = "Terreiro Teste", plan: PlanType = PlanType.PREMIUM) -> Tenant:
+async def create_tenant(
+    db, name: str = "Terreiro Teste", plan: PlanType = PlanType.PREMIUM, area_medium_liberada: bool = False
+) -> Tenant:
     slug = f"{name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:6]}"
-    tenant = Tenant(name=name, slug=slug, is_active=True)
+    tenant = Tenant(name=name, slug=slug, is_active=True, area_medium_liberada=area_medium_liberada)
     db.add(tenant)
     await db.flush()
     limits = SubscriptionRepository(db)._get_plan_config(plan)

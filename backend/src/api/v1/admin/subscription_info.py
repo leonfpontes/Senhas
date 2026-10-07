@@ -19,6 +19,7 @@ from src.repositories.mediun_repo import MediumRepository
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-subscription"])
 logger = logging.getLogger(__name__)
 
+from src.services.medium_area import area_medium_liberada
 from src.services.plan_features import PlanFeatures, _get_plan_features, get_effective_plan_features
 
 
@@ -56,6 +57,15 @@ class SubscriptionInfoResponse(BaseModel):
     has_stripe_subscription: bool = False
     is_bonus: bool = False
     features: PlanFeatures
+
+
+async def _features_do_terreiro(db: AsyncSession, sub) -> PlanFeatures:
+    """Features do plano efetivo, com a Área do Médium só onde a plataforma liberou
+    (lançamento em piloto — mesma regra do `check_plan_feature`)."""
+    features = get_effective_plan_features(sub)
+    if features.area_medium and not await area_medium_liberada(db, sub.tenant_id):
+        features = features.model_copy(update={"area_medium": False})
+    return features
 
 
 @router.get("/subscription", response_model=SubscriptionInfoResponse)
@@ -125,5 +135,5 @@ async def get_tenant_subscription(
         has_stripe_subscription=bool(sub.stripe_subscription_id) if isinstance(sub.stripe_subscription_id, str) else False,
         is_bonus=sub.is_bonus is True,
         # Mesma semântica do require_plan_feature (P-05): a UI esconde o que o backend nega.
-        features=get_effective_plan_features(sub),
+        features=await _features_do_terreiro(db, sub),
     )

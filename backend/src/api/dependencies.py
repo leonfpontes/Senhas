@@ -20,7 +20,7 @@ from ..models import Medium, User, UserRole, PermissionFeature, PlanType
 from ..middleware.tenant_context import get_tenant_id
 from ..repositories.subscription_repo import PLAN_LIMITS, SubscriptionRepository
 from ..services.permission_service import PermissionService
-from ..services.medium_area import area_medium_enabled_by_tenant, get_linked_medium
+from ..services.medium_area import area_medium_enabled_by_tenant, area_medium_liberada, get_linked_medium
 from ..services.plan_features import (
     BLOCK_INACTIVE,
     BLOCK_MESSAGES,
@@ -257,6 +257,7 @@ class MediumContext:
 
 
 AREA_MEDIUM_INDISPONIVEL = "A Área do Médium não está disponível para a sua conta."
+AREA_MEDIUM_NAO_LIBERADA = "A Área do Médium ainda não foi liberada para este terreiro."
 
 
 async def require_medium(
@@ -387,6 +388,9 @@ async def check_plan_feature(user: User, db: AsyncSession, feature: str, detail:
             status_code=status.HTTP_403_FORBIDDEN,
             detail=detail or PLAN_FEATURE_DENIED_MESSAGES.get(feature, "Recurso não disponível no plano atual."),
         )
+    # Área do Médium em piloto: além do plano, a plataforma precisa ter liberado o terreiro.
+    if feature == "area_medium" and not await area_medium_liberada(db, user.tenant_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AREA_MEDIUM_NAO_LIBERADA)
     reason = subscription_block_reason(sub)
     if reason is not None:
         raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail=BLOCK_MESSAGES[reason])

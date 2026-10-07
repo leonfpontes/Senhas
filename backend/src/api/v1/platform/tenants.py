@@ -42,6 +42,8 @@ class UpdateTenantRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    # Chave do lançamento em piloto da Área do Médium (vale junto com o plano Basic+).
+    area_medium_liberada: Optional[bool] = None
 
 
 class DeleteTenantRequest(BaseModel):
@@ -71,6 +73,7 @@ class TenantResponse(BaseModel):
     # próprio terreiro que se desativou pelo painel (/auth/deactivate-account).
     deleted_at: Optional[str] = None
     self_deactivated_at: Optional[str] = None
+    area_medium_liberada: bool = False
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=dict)
@@ -167,6 +170,7 @@ async def get_tenant(
             self_deactivated_at=(
                 tenant.self_deactivated_at.isoformat() if tenant.self_deactivated_at else None
             ),
+            area_medium_liberada=bool(tenant.area_medium_liberada),
         )
     except HTTPException:
         raise
@@ -189,7 +193,7 @@ async def update_tenant(
     
     try:
         update_data = request.model_dump(exclude_unset=True)
-        for field in ("name", "is_active"):
+        for field in ("name", "is_active", "area_medium_liberada"):
             if field in update_data and update_data[field] is None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
