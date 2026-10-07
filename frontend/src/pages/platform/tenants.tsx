@@ -573,10 +573,8 @@ const TenantsPage: React.FC = () => {
         header: 'Usuários',
         meta: { align: 'center' },
         cell: ({ row }) => (
-          <span className="tabular-nums">
-            {row.original.current_users}
-            <span className="text-xs text-muted-foreground">/{row.original.max_users >= 99999 ? '∞' : row.original.max_users}</span>
-          </span>
+          // Usuários não têm limite em nenhum plano: só a contagem.
+          <span className="tabular-nums">{row.original.current_users}</span>
         ),
       },
       {

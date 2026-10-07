@@ -223,7 +223,8 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   mesmo antes do trial_scheduler rebaixar; trial Stripe e decidido pelo webhook; `is_bonus` segue o status
   normalmente mas nao sofre corte de fim de trial; `cancel_at_period_end` mantem acesso ate o webhook
   `customer.subscription.deleted`.
-- Limites numericos (usuarios, giras/mes, mediuns) ficam no endpoint, mas leem `effective_limit(sub, campo)`:
+- Limites numericos (giras/mes, mediuns) ficam no endpoint, mas leem `effective_limit(sub, campo)` — usuarios
+  NAO tem limite desde out/2026 (ilimitados em todos os planos; `users.py` nao checa nada ao criar/reativar):
   SUSPENDED → 402; CANCELLED/EXPIRED de plano pago ou trial vencido → limites do FREE. `max_mediuns` vale
   na criacao E na reativacao (`PATCH is_active=true`) de medium.
 - `GET /api/v1/admin/subscription` devolve `features` via `get_effective_plan_features(sub)` — a UI esconde o
@@ -248,36 +249,46 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   `is_feature_enabled_for_plan` (`_VIEW_SEM_GATE_DE_PLANO` em `permission_service.py`) — fora do plano o
   operador com o grupo continua consultando os mediuns; insert/edit/delete seguem zerados.
 - `bulk_operations` vale em TODOS os planos (always-on desde 88dbc25; `plan_features.py` devolve
-  True): nao e vendido — fica fora do comparativo (`UNSOLD_FEATURES` em `constants/plans.ts`), junto
-  com `analytics_avancado` e `suporte_prioritario`, que nao tem nada implementado. Os campos seguem
-  no catalogo `PlanFeatures`.
+  True): nao e vendido — fica fora do quadro (`UNSOLD_FEATURES` em `constants/plans.ts`), junto com
+  `export_csv` (segue no Pro+, mas nao e diferencial no segmento), `analytics_avancado` e
+  `suporte_prioritario` (nada implementado). So exibicao: gates e campos seguem no catalogo `PlanFeatures`.
 - Rotas `/api/v1/platform/*`: `Depends(require_super_admin)` importado de `src.api.dependencies` (copia unica).
 
 #### Matriz de planos (reestruturacao de out/2026)
 
 Limites (`PLAN_LIMITS`, copiados para a linha de `subscriptions` na troca de plano — mudou numero,
-crie migracao de dados como a `059_planos_limites_out_2026`):
+crie migracao de dados como a `059_planos_limites_out_2026` e a `060_usuarios_ilimitados`):
 
 | | Gratuito | Basic | Pro | Premium |
 |---|---|---|---|---|
 | Preco/mes | R$ 0 | R$ 49 | R$ 79 | R$ 99 |
-| Usuarios | 1 | 3 | 10 | ilimitado |
+| Usuarios | ilimitado | ilimitado | ilimitado | ilimitado |
 | Giras/mes | 2 | 3 | 4 | ilimitado |
 | Mediuns | — | 15 | 30 | ilimitado |
 
 Recursos (plano minimo em `_FEATURE_MIN_TIER`):
-- **Todos**: senha pelo link, Porta, painel e `bulk_operations` (always-on, nao vendido).
-- **Basic+**: `mediuns`, `relatorio_gira`.
-- **Pro+**: `email_transacional`, `tema_personalizado`, `analytics_basico`, `export_csv`, `auditoria`,
-  `site_builder` (site e cursos).
-- **So Premium**: `mensalidade_mediun`, `associados`, `mensalidade_associado`, `estoque_controle`,
-  `contas_financeiras` (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`,
-  `agendamento_por_horario`. Todo o grupo Financeiro (mensalidades + configuracao financeira) e Premium.
-- Fora do comparativo (`UNSOLD_FEATURES`): `bulk_operations`, `analytics_avancado` (Pro+ no catalogo)
-  e `suporte_prioritario` (Premium no catalogo) — nada implementado nos dois ultimos.
-- Mensalidade de mediuns e Premium (decisao do dono do produto, out/2026). O espelho em contas a
-  receber (`mensalidade_contas_service`) so nasce com a feature no plano: criar medium/associado num
-  plano sem `mensalidade_mediun`/`mensalidade_associado` nao gera conta, mesmo com config gravada.
+- **Todos**: link de senhas para enviar via WhatsApp, Porta, painel, usuarios ilimitados e
+  `bulk_operations` (always-on, fora do quadro).
+- **Basic+**: `mediuns`, `relatorio_gira`, `mensalidade_mediun`.
+- **Pro+**: `email_transacional`, `tema_personalizado` (no quadro: "Personalizacao da plataforma"),
+  `analytics_basico`, `export_csv` (fora do quadro), `auditoria`, `site_builder` (site e cursos).
+- **So Premium**: `associados`, `mensalidade_associado`, `estoque_controle`, `contas_financeiras`
+  (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`, `agendamento_por_horario`.
+- Fora do quadro (`UNSOLD_FEATURES`): `bulk_operations`, `export_csv`, `analytics_avancado` (Pro+ no
+  catalogo) e `suporte_prioritario` (Premium no catalogo) — nada implementado nos dois ultimos.
+- **Por que mensalidade de mediuns no Basic**: o 1o gatilho de upgrade e o numero de giras/mes; o 2o e
+  o numero de mediuns. Com a mensalidade ja no Basic e o limite de 15 mediuns, o dirigente sobe de
+  plano para continuar controlando a mensalidade de todo mundo. A de associados segue Premium.
+- **Por que usuarios ilimitados**: quem opera a plataforma (muitas vezes um filho da casa, nao o
+  dirigente que assinou) e quem sente falta dos recursos novos — mais usuarios = mais promotores
+  internos do upgrade. `max_users` segue na assinatura com o sentinela 99999 (linhas antigas com -1
+  tambem sao "ilimitado"); `effective_limit` nao e mais chamado para usuarios.
+- O espelho de mensalidade em contas a receber (`mensalidade_contas_service`) so nasce com a feature
+  no plano: criar medium/associado num plano sem `mensalidade_mediun`/`mensalidade_associado` nao gera
+  conta, mesmo com config gravada.
+- A landing (`pages/index.tsx`) mostra os cartoes e o comparativo completo (`PlanComparisonTable`, o
+  mesmo da pagina /planos, derivado de `constants/plans.ts`); no celular ele fica atras de
+  "Ver comparativo completo".
 - Dados de modulo que saiu do plano ficam no banco (sem grandfathering): a tela mostra `PlanLocked`
   (nao ha modo so-leitura) e a API responde 403; limites menores so bloqueiam CRIAR (422), nada e apagado.
 
@@ -552,8 +563,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `059_planos_limites_out_2026` (2026-10-06, migracao so de dados com os limites da
-  reestruturacao de planos), encadeada apos `058_associados_email_unique_ativo` (2026-10-06, 2.2.0).
+- Head atual: `060_usuarios_ilimitados` (2026-10-07, so dados: `max_users` = 99999 em todas as
+  assinaturas), apos `059_planos_limites_out_2026` (limites da reestruturacao de planos) e
+  `058_associados_email_unique_ativo` (2.2.0).
 - Historico com 4 merge revisions (010, 030, 037, d9fafadd9261) — prefixos numericos ja
   colidiram 3x (009, 028, 030). Por isso a regra do §4.3: `alembic heads` ANTES de criar
   qualquer migracao nova.
@@ -636,8 +648,8 @@ Incluir obrigatoriamente:
 ### 11.18 Jornadas de conta, plano e plataforma (2026-10-06)
 - **Pessoas e acessos** (`users.py` + `users.tsx`): gate só por grupo USUARIOS (sem `is_admin`
   extra), com as proteções do §3.3; senha de criar/editar passa por `validate_password_policy`;
-  reativar respeita o limite de usuários ATIVOS; a tela conta só ativos e busca a lista completa
-  (o filtro de perfil é visual).
+  usuarios sao ilimitados em todos os planos (out/2026), entao criar e reativar nao checam limite;
+  a tela busca a lista completa (o filtro de perfil é visual).
 - **Configurações** (`config.py`): gate só por grupo CONFIGURACOES; marca gated por plano (§3.4).
 - **`GET /admin/subscription`** traz `has_stripe_subscription` e `is_bonus`; o aviso de trial no topo
   usa a mesma regra do `inLocalTrial` de billing.tsx (trial local, sem Stripe e sem bônus), mostra o

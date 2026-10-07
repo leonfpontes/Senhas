@@ -142,6 +142,20 @@ describe('/admin/billing', () => {
     expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
   });
 
+  it('comparar planos: mensalidade dos médiuns desde o Basic, usuários ilimitados, sem CSV nem ações em lote', async () => {
+    mockRouter.query = { plan: 'basic' };
+    mockApi({ ...TRIAL_BILLING, is_trial: false, trial_ends_at: null, plan: 'free' });
+    render(<Billing />);
+    const tab = await screen.findByRole('tab', { name: 'Comparar planos' });
+    await waitFor(() => expect(tab).toHaveAttribute('data-state', 'active'));
+    const panel = screen.getByRole('tabpanel');
+    expect(within(panel).getAllByText('Mensalidade dos médiuns').length).toBeGreaterThan(0);
+    expect(within(panel).getAllByText('Usuários ilimitados').length).toBeGreaterThan(0);
+    expect(within(panel).getAllByText('Link de senhas para enviar via WhatsApp').length).toBeGreaterThan(0);
+    expect(within(panel).queryByText(/\d+ usuários/)).not.toBeInTheDocument();
+    expect(within(panel).queryByText(/Exportar planilhas|Ações em lote|Cores e logo/)).not.toBeInTheDocument();
+  });
+
   it('se GET /admin/billing falha, mostra erro com "Tentar de novo" — nunca "Assinar agora"', async () => {
     apiClient.get.mockImplementation(() => Promise.reject(new Error('503')));
     render(<Billing />);

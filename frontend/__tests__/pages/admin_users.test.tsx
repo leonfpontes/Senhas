@@ -30,16 +30,6 @@ jest.mock('@/pages/admin/admin_layout', () => ({
   default: ({ children }: any) => <div data-testid="admin-layout">{children}</div>,
 }));
 
-const mockCanCreateUser = jest.fn((count: number) => count < 10);
-jest.mock('@/hooks/useSubscription', () => ({
-  useSubscription: () => ({
-    subscription: { max_users: 10, plan: 'pro', status: 'active' },
-    can: () => true,
-    canCreateUser: (count: number) => mockCanCreateUser(count),
-    loading: false,
-  }),
-}));
-
 jest.mock('@/hooks/usePermissions', () => ({
   usePermissions: () => ({ can: () => true, permissions: null, loading: false, refresh: jest.fn() }),
 }));
@@ -207,15 +197,15 @@ describe('Admin Users Page', () => {
     mockProfile.role = 'operator';
   });
 
-  it('conta só pessoas ATIVAS no limite do plano', async () => {
+  it('usuários ilimitados: "Nova pessoa" sempre habilitado, sem aviso de limite do plano', async () => {
     const AdminUsers = require('@/pages/admin/users').default;
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));
-    // alice ativa, bob inativo → 1 (não 2)
-    expect(mockCanCreateUser).toHaveBeenLastCalledWith(1);
+    expect(screen.getByRole('button', { name: /Nova pessoa/ })).toBeEnabled();
+    expect(screen.queryByText(/Seu plano permite/)).not.toBeInTheDocument();
   });
 
-  it('o filtro de perfil não muda a contagem do limite', async () => {
+  it('a lista vem sempre completa (filtro de perfil é só visual)', async () => {
     const AdminUsers = require('@/pages/admin/users').default;
     wrap(<AdminUsers />);
     await waitFor(() => screen.getByText('alice@test.com'));

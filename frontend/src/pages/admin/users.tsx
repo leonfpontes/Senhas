@@ -35,7 +35,6 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useProfile } from '@/hooks/useProfile';
 import { useSnackbar } from '@/contexts/SnackbarContext';
@@ -90,7 +89,6 @@ export default function AdminUsersPage() {
 }
 
 function AdminUsersContent() {
-  const { subscription, canCreateUser: canCreateUserCheck } = useSubscription();
   const { can: canGroup } = usePermissions();
   const { profile } = useProfile();
   const { showSuccess, showError } = useSnackbar();
@@ -100,8 +98,9 @@ function AdminUsersContent() {
   const canDelete = canGroup('usuarios', 'delete');
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
 
-  // Sempre a lista completa: o filtro de perfil é só visual — o limite do plano
-  // e a regra do "último administrador" precisam enxergar todo mundo.
+  // Sempre a lista completa: o filtro de perfil é só visual — a regra do
+  // "último administrador" precisa enxergar todo mundo. Usuários não têm limite
+  // de plano (ilimitados em todos os planos desde out/2026).
   const [allUsers, setAllUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,13 +111,10 @@ function AdminUsersContent() {
     () => (roleFilter === 'all' ? allUsers : allUsers.filter((u) => u.role === roleFilter)),
     [allUsers, roleFilter],
   );
-  // O backend limita usuários ATIVOS (inativos não contam).
-  const activeCount = useMemo(() => allUsers.filter((u) => u.is_active).length, [allUsers]);
   const activeAdminCount = useMemo(
     () => allUsers.filter((u) => u.is_active && u.role === 'admin').length,
     [allUsers],
   );
-  const canCreateUser = canCreateUserCheck(activeCount);
 
   /** Proteções espelhadas do backend (users.py): o que esta linha não pode sofrer. */
   const rowGuards = useCallback(
@@ -421,7 +417,7 @@ function AdminUsersContent() {
                 <RefreshCw /> Atualizar
               </Button>
               {canInsert && (
-                <Button data-tour="users-novo" onClick={openCreate} disabled={loading || !canCreateUser}>
+                <Button data-tour="users-novo" onClick={openCreate} disabled={loading}>
                   <UserPlus /> Nova pessoa
                 </Button>
               )}
@@ -429,18 +425,6 @@ function AdminUsersContent() {
           }
         />
       </div>
-
-      {canInsert && !canCreateUser && !loading && (
-        <Alert variant="info">
-          <AlertDescription>
-            Seu plano permite {subscription?.max_users ?? 0} pessoa(s).{' '}
-            <Link href="/admin/billing" className="font-medium underline underline-offset-4">
-              Ver planos
-            </Link>{' '}
-            para adicionar mais.
-          </AlertDescription>
-        </Alert>
-      )}
 
       {error && (
         <Alert variant="destructive">

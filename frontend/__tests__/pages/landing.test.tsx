@@ -3,7 +3,7 @@
  * quando existem, WhatsApp só com número configurado.
  */
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import HomePage from '@/pages/index';
 import { Hero } from '@/components/landing/Hero';
 import { FinalCta } from '@/components/landing/FinalCta';
@@ -84,6 +84,53 @@ describe('Landing', () => {
   it('credita os fotógrafos no rodapé', () => {
     render(<HomePage />);
     expect(screen.getByText(/Fotos ilustrativas/i)).toHaveTextContent(/Reginaldo Lustosa/);
+  });
+});
+
+describe('Planos na landing: comparativo completo', () => {
+  const rowCells = (label: string) => {
+    const table = screen.getByRole('table', { name: 'Comparativo dos planos do GiraHub' });
+    const row = within(table).getByRole('rowheader', { name: label }).closest('tr') as HTMLElement;
+    return within(row)
+      .getAllByRole('cell')
+      .map((c) => (within(c).queryByLabelText('Incluído') ? true : within(c).queryByLabelText('Não incluído') ? false : c.textContent));
+  };
+
+  it('mostra o comparativo logo depois dos cartões, gerado de constants/plans.ts', () => {
+    render(<HomePage />);
+    const planos = document.getElementById('planos') as HTMLElement;
+    expect(within(planos).getByRole('heading', { name: 'Comparativo completo' })).toBeInTheDocument();
+    expect(rowCells('Link de senhas para enviar via WhatsApp')).toEqual([true, true, true, true]);
+    expect(rowCells('Usuários no painel')).toEqual(['Ilimitado', 'Ilimitado', 'Ilimitado', 'Ilimitado']);
+    expect(rowCells('Giras por mês')).toEqual(['2', '3', '4', 'Ilimitado']);
+    expect(rowCells('Médiuns cadastrados')).toEqual(['—', '15', '30', 'Ilimitado']);
+    expect(rowCells('Mensalidade dos médiuns')).toEqual([false, true, true, true]);
+    expect(rowCells('Personalização da plataforma')).toEqual([false, false, true, true]);
+    for (const premium of [
+      'Fila de espera quando a gira lota',
+      'Senha com horário marcado',
+      'Associados',
+      'Mensalidade dos associados',
+      'Contas a pagar e a receber, fluxo de caixa e contas bancárias',
+      'Estoque de materiais',
+    ]) {
+      expect(rowCells(premium)).toEqual([false, false, false, true]);
+    }
+    const table = screen.getByRole('table', { name: 'Comparativo dos planos do GiraHub' });
+    expect(within(table).queryByText(/Ações em lote/)).not.toBeInTheDocument();
+    expect(within(table).queryByText(/CSV|planilhas/i)).not.toBeInTheDocument();
+    expect(within(table).queryByText(/Cores e logo/)).not.toBeInTheDocument();
+    expect(within(table).queryByText('Atual')).not.toBeInTheDocument();
+  });
+
+  it('no celular o comparativo fica atrás de "Ver comparativo completo"', () => {
+    render(<HomePage />);
+    const toggle = screen.getByRole('button', { name: /Ver comparativo completo/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(document.getElementById('comparativo-completo')).toHaveClass('hidden', 'md:block');
+    fireEvent.click(toggle);
+    expect(screen.getByRole('button', { name: /Esconder comparativo/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(document.getElementById('comparativo-completo')).toHaveClass('block');
   });
 });
 
@@ -242,7 +289,7 @@ describe('V-05 telas reais', () => {
     const byTitle = Object.fromEntries(MODULES.map((m: { title: string; media: object }) => [m.title, m.media]));
     expect(byTitle['Relatório da gira']).toEqual({ screen: 'relatorio' });
     expect(byTitle['Site do terreiro e cursos']).toEqual({ screen: 'site' });
-    expect(byTitle['Mensalidades e financeiro']).toEqual({ screen: 'mensalidades' });
+    expect(byTitle['Mensalidade da corrente']).toEqual({ screen: 'mensalidades' });
     expect(byTitle['Fila de espera e horário marcado']).toEqual({ screen: 'senhas' });
   });
 

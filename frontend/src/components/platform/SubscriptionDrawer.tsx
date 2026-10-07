@@ -177,7 +177,7 @@ export function SubscriptionDrawer({ open, tenant, presetBonus = false, onClose,
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Usuários: {detail.current_users} / {limitLabel(detail.max_users)} · Giras/mês: {limitLabel(detail.max_giras_per_month)}
+              Usuários: {detail.current_users} · Giras/mês: {limitLabel(detail.max_giras_per_month)}
               {detail.monthly_price > 0 && ` · ${fmtMoney(detail.monthly_price)}/mês`}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -223,10 +223,10 @@ export function SubscriptionDrawer({ open, tenant, presetBonus = false, onClose,
             <SelectContent>
               {planOptions.map((key) => {
                 const meta = PLAN_META[key];
-                const users = meta.limits.users === null ? 'usuários ilimitados' : `até ${meta.limits.users} usuário${meta.limits.users === 1 ? '' : 's'}`;
+                const giras = meta.limits.girasPerMonth === null ? 'giras ilimitadas' : `${meta.limits.girasPerMonth} giras/mês`;
                 return (
                   <SelectItem key={key} value={key}>
-                    {meta.label} — {users}
+                    {meta.label} — {giras}
                   </SelectItem>
                 );
               })}
