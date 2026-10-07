@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, CircleCheck, Loader2 } from 'lucide-react';
-import { AuthShell } from '@/components/auth';
+import { AuthShell, AUTH_INPUT } from '@/components/auth';
 import { TextField } from '@/components/fields';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -32,7 +32,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell headTitle="Esqueci minha senha — GiraHub" title="Recuperar acesso">
       {submitted ? (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           <Alert variant="success" role="status">
             <CircleCheck aria-hidden />
             <AlertDescription>
@@ -40,15 +40,15 @@ export default function ForgotPasswordPage() {
               Confira também a caixa de spam.
             </AlertDescription>
           </Alert>
-          <Button asChild variant="outline" className="w-full">
+          <Button asChild variant="outline" size="touch" className="w-full">
             <Link href="/login">
               <ArrowLeft aria-hidden /> Voltar para entrar
             </Link>
           </Button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-          <p className="text-sm text-muted-foreground">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
+          <p className="text-base text-tinta-suave">
             Informe o e-mail da sua conta e enviaremos um link para redefinir a senha.
           </p>
           <TextField
@@ -58,14 +58,15 @@ export default function ForgotPasswordPage() {
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete="email"
+            inputClassName={AUTH_INPUT}
             inputMode="email"
             autoFocus
           />
-          <Button type="submit" size="lg" className="w-full" disabled={loading || !email}>
+          <Button type="submit" size="touch" className="w-full font-bold" disabled={loading || !email}>
             {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
             {loading ? 'Enviando…' : 'Enviar link'}
           </Button>
-          <Button asChild variant="ghost" className="w-full">
+          <Button asChild variant="ghost" size="touch" className="w-full text-tinta-suave hover:bg-areia-100 hover:text-tinta">
             <Link href="/login">
               <ArrowLeft aria-hidden /> Voltar para entrar
             </Link>

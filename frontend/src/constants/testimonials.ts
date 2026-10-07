@@ -49,6 +49,27 @@ export function testimonialPlace(t: Testimonial): string {
   return [t.casa, local].filter(Boolean).join(' · ');
 }
 
+/** Depoimento mais recente (maior `autorizadoEm`; no empate, o primeiro da lista). */
+export function latestTestimonial(list: readonly Testimonial[] = TESTIMONIALS): Testimonial | undefined {
+  return list.reduce<Testimonial | undefined>(
+    (best, t) => (!best || t.autorizadoEm > best.autorizadoEm ? t : best),
+    undefined,
+  );
+}
+
+/**
+ * Trecho curto para espaços pequenos (painel das telas de conta): a primeira frase inteira, ou o
+ * começo do texto cortado na palavra, com reticências. Nunca reescreve a fala da pessoa.
+ */
+export function testimonialExcerpt(t: Testimonial, max = 170): string {
+  const texto = t.texto.trim();
+  const primeira = texto.match(/^.+?[.!?](?=\s|$)/)?.[0];
+  if (primeira && primeira.length <= max) return primeira;
+  if (texto.length <= max) return texto;
+  const corte = texto.slice(0, max);
+  return `${corte.slice(0, corte.lastIndexOf(' ')).replace(/[\s,;:]+$/, '')}…`;
+}
+
 /** Só letras, números, ponto e sublinhado — o resto do @ é descartado. */
 export function instagramUrl(handle: string): string {
   const clean = handle.replace(/^@/, '').replace(/[^A-Za-z0-9._]/g, '');

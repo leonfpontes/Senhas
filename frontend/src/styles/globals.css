@@ -146,6 +146,31 @@
   --sidebar-border: rgba(255, 255, 255, 0.08);
 }
 
+/* Telas de conta (/login, /cadastro, esqueci/redefinir senha, reativar — `components/auth/AuthShell`):
+ * o kit (Button, Checkbox, ToggleGroup, anel de foco, `text-brand`, campos) passa a usar a paleta
+ * "terra" da landing, e não a cor do último terreiro que o applyBrand() deixou no :root. Sempre claro.
+ * Pares de contraste em __tests__/styles/marketingContrast.test.ts. */
+.auth-terra {
+  --background: var(--color-areia-50);
+  --foreground: var(--color-tinta);
+  --card: #ffffff;
+  --card-foreground: var(--color-tinta);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-tinta);
+  --border: var(--color-areia-200);
+  /* Borda dos campos ~3:1 sobre o branco (WCAG 1.4.11): o areia-300 sozinho some no cartão. */
+  --input: color-mix(in srgb, var(--color-tinta-suave) 65%, #ffffff);
+  --input-bg: #ffffff;
+  --muted: var(--color-areia-100);
+  --muted-foreground: var(--color-tinta-suave);
+  --accent: var(--color-areia-100);
+  --accent-foreground: var(--color-tinta);
+  --primary: var(--color-barro-600);
+  --primary-foreground: #ffffff;
+  --primary-text: var(--color-barro-700);
+  --ring: var(--color-barro-600);
+}
+
 /* Breakpoints iguais aos do MUI (xs 0 / sm 600 / md 900 / lg 1200 / xl 1536), para que
  * `sm:` `md:` `lg:` `xl:` batam com os objetos `{ xs, sm, md }` já existentes nas telas.
  * O MUI não tem 2xl — removido para não existir um breakpoint sem equivalente. */
