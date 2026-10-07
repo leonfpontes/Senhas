@@ -32,6 +32,7 @@ const RESERVED_SEGMENTS = new Set([
   'favicon.svg',
   'robots.txt',
   'sitemap.xml',
+  'planos',
   'sounds',
 ]);
 
