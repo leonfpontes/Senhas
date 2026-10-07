@@ -883,6 +883,11 @@ celular.
   mês (status, valor, vencimento), aviso de aniversário do próprio médium, módulos ligados (AM-10).
 - `F/pages/medium/index.tsx`: cartões com ação direta ("Ver gira", "Ler aviso", "Pagar"), `EmptyState` amigável
   quando a casa ainda não publicou nada.
+- (v3, D-23) **Ícone na tela inicial já no MVP**: `public/manifest-medium.webmanifest` (`id` `/medium`,
+  `start_url` `/medium?source=pwa`, ícones do GiraHub), linkado só no `MediumLayout`; no 1º acesso, passo guiado
+  "Adicionar à tela inicial" (padrão do `InstallPortaHint`), com instrução para iPhone. Sessão lembrada.
+- (v3, D-24) Ordem do Início: **pendências primeiro** (responder escala, mensalidade a vencer ou vencida, aviso
+  novo) e depois a próxima gira. Barra inferior: Início · Agenda · Avisos · Mensalidade · Perfil (D-27).
 - O `/inicio` já nasce com espaço para os cartões da v2 ("Sua próxima escala", confirmação pendente e "Cheguei"),
   que o AM-17 e o AM-25 preenchem (§8.9).
 - Textos em linguagem de terreiro; testes por papel/texto.
@@ -892,6 +897,7 @@ celular.
 - [ ] Cor e logo do terreiro aplicados com contraste AA (teste de contraste passa)
 - [ ] Módulo desligado pelo terreiro não aparece
 - [ ] Página carrega só endpoints `/api/v1/medium/*`
+- [ ] Instalar pelo passo "Adicionar à tela inicial" abre direto na Área (não na Porta), no Android e no iPhone
 
 ### AM-07 — Calendário de giras para a corrente
 - **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-06
@@ -1133,14 +1139,12 @@ esquecer.
 O manifesto atual abre a Porta.
 
 **Implementação**
-- `public/manifest-medium.webmanifest` (`id` `/medium`, `start_url` `/medium?source=pwa`, ícones do GiraHub),
-  linkado só no `MediumLayout`; dica de instalação (padrão do `InstallPortaHint`), com instrução para iPhone.
+- (v3, D-23) O manifesto da Área e a dica de instalação **saíram para o AM-06 (MVP 2.3.0)**. Aqui fica só o push.
 - Web Push com VAPID (sem custo): tabela `push_inscricoes` (user_id, endpoint, chaves, criado_em), envio pelo
   mesmo agendador do AM-15, handler `push`/`notificationclick` no `sw.js` (sem cachear `/api/*`, regra mantida).
   iPhone só recebe com o app instalado (iOS 16.4+).
 
 **Aceite**
-- [ ] Instalar a partir da Área abre direto na Área (não na Porta)
 - [ ] Push de comunicado e de mensalidade chega no Android e no iPhone instalado
 - [ ] Teste do SW continua garantindo que `/api/*` não é cacheado
 
