@@ -8,6 +8,10 @@ Histórico:
   escala de gira e presença com justificativa** em giras e atividades internas. Entrou a §8 (atividades da casa,
   escalas e presença), os cards AM-08, AM-15, AM-17, AM-18 e AM-23 foram reescritos e nasceram AM-25 a AM-28.
   F-06 e F-07 passam a ser substituídos.
+- 2026-10-07 (v3): o dono pediu um **estudo de experiência e usabilidade completo antes de desenvolver** (foco em
+  usabilidade, facilidade, termos conhecidos, jornada simples e celular). Nasceu o **AM-00**
+  ([estudo-ux-area-do-medium.md](estudo-ux-area-do-medium.md)) e a §11 ganhou a fase 0: nenhuma tela da Área
+  começa antes do estudo fechar.
 
 Fontes internas: [benchmark-concorrentes-2026-10.md](benchmark-concorrentes-2026-10.md),
 [plano-benchmark-2026-10.md](plano-benchmark-2026-10.md) (cards F-01 a F-10, T-02), AGENTS.md §3 e §11, código em
@@ -702,6 +706,26 @@ Fluxo do admin (tipo com modo "grupos por dia", ex.: Faxina):
 
 ## 10. Cards
 
+### AM-00 — Estudo de experiência e usabilidade da Área do Médium
+- **Prioridade:** P0 · **Fase:** Fase 0 · **Esforço:** G (3 semanas) · **Tipo:** pesquisa · **Depende de:** AM-01
+
+**Por quê.** Pedido do dono (v3): estudar experiência e usabilidade antes de desenvolver, com foco em facilidade,
+termos conhecidos, jornada simples e celular. A Área é a primeira parte do GiraHub usada por quem não escolheu o
+sistema; adoção, vocabulário e celular simples são os riscos principais (R-09, R-06).
+
+**Como.** Roteiro completo em [estudo-ux-area-do-medium.md](estudo-ux-area-do-medium.md): conversas com médiuns
+e dirigentes de 3 a 4 casas, teste de vocabulário, protótipo navegável no celular (jornadas J1 a J13), teste de
+primeiro toque e teste de usabilidade moderado, no celular de cada participante e com o link aberto pelo
+WhatsApp. O dono recruta e conduz; o Claude prepara o material e faz a síntese.
+
+**Aceite**
+- [ ] Casas e participantes recrutados (8 a 10 médiuns, 3 a 4 dirigentes)
+- [ ] Conversas de descoberta feitas e jornada atual mapeada
+- [ ] Teste de vocabulário respondido e glossário da Área fechado
+- [ ] Protótipo navegável cobrindo J1 a J13, testado no celular
+- [ ] Metas do §9 do estudo atingidas, sem problema que impeça tarefa em aberto
+- [ ] Cards AM atualizados com escopo, ordem e aceite de UX; decisões novas na §12
+
 ### AM-01 — Decisões do dono da Área do Médium
 - **Prioridade:** P0 · **Fase:** MVP · **Esforço:** P · **Tipo:** decisão · **Depende de:** —
 
@@ -1384,11 +1408,17 @@ com a presença. Conversa com o N-06 (check-in do consulente por QR).
 
 ## 11. Ordem de execução
 
+**Fase 0 — estudo de experiência (3 semanas, v3).** O AM-00 vem antes de qualquer tela. Enquanto ele roda, só
+anda o que não tem tela e que nenhum resultado do estudo muda: o T-02 (token tipado) e a parte de backend do AM-02
+(vínculo, papel `medium`, trava do painel, auditores). As telas do AM-02 em diante só começam com o protótipo
+validado e o glossário fechados; os textos e o nome da área saem do estudo.
+
 | # | Card | Prio | Fase | Esf. | Observação |
 |---|---|---|---|---|---|
-| 0 | T-02 Token tipado | P0 | (pré) | P | Puxar para antes do AM-02 |
-| 1 | AM-01 Decisões | P0 | MVP | P | D-01 a D-08 decididas; faltam D-09 a D-13 |
-| 2 | AM-02 Fundação de identidade | P0 | MVP 2.3.0 | G | Base de tudo |
+| 0 | AM-00 Estudo de experiência e usabilidade | P0 | Fase 0 | G | Antes de qualquer tela; 3 semanas com as casas |
+| 0 | T-02 Token tipado | P0 | (pré) | P | Sem tela: corre junto com o AM-00 |
+| 1 | AM-01 Decisões | P0 | MVP | P | D-01 a D-13 decididas (feito) |
+| 2 | AM-02 Fundação de identidade | P0 | MVP 2.3.0 | G | Base de tudo; backend pode correr junto com o AM-00 |
 | 3 | AM-03 Convite e ativação | P0 | MVP 2.3.0 | M | |
 | 4 | AM-04 Escolha de área | P0 | MVP 2.3.0 | M | Pode correr junto com AM-03 |
 | 5 | AM-06 Casca e Início | P0 | MVP 2.3.0 | M | |
@@ -1402,24 +1432,24 @@ com a presença. Conversa com o N-06 (check-in do consulente por QR).
 | 13 | AM-23 Grupos da corrente | P1 | MVP 2.4.0 | M | Antes de atividades e escalas |
 | 14 | AM-08 Atividades da casa e tipos | P1 | MVP 2.4.0 | G | Cria `ESCALAS`, `atividades_corrente`, `escalas` |
 | 15 | AM-17 Presença | P1 | MVP 2.4.0 | G | Substitui o F-06 |
-| 16 | AM-25 Escala de faxina | P1 | MVP 2.4.0 | G | Substitui o F-07 (zeladoria) |
-| 17 | AM-15 Lembretes por e-mail | P1 | MVP 2.4.0 | M | Véspera da escala, confirmação, justificativa |
-| 18 | AM-26 Assiduidade | P1 | MVP 2.4.0 | M | Substitui o relatório do F-06 |
-| 19 | AM-18 Escala de gira | P1 | MVP 2.4.0 | M | Substitui o F-07 (gira e rodízio); pode virar 2.5.0 se a 2.4.0 crescer demais |
-| 20 | AM-24 Divulgação | P2 | MVP 2.4.0 | P | Fecha o lançamento |
-| 21 | AM-22 Baixa automática | P2 | Fase 2 | M | Quando F-02 sair |
-| 22 | AM-16 PWA e push | P2 | Fase 2 | G | |
-| 23 | AM-27 Troca na escala | P2 | Fase 2 | M | |
-| 24 | AM-14 Meus dados | P2 | Fase 2 | M | |
-| 25 | AM-19 Ficha e caminhada | P2 | Fase 2 | M | Depois do F-05 |
-| 26 | AM-28 Modo de presença e check-in com QR | P1 | MVP (2.4.0) | M | |
+| 16 | AM-28 Modo de presença e check-in com QR | P1 | MVP 2.4.0 | M | Logo depois do AM-17 |
+| 17 | AM-25 Escala de faxina | P1 | MVP 2.4.0 | G | Substitui o F-07 (zeladoria) |
+| 18 | AM-15 Lembretes por e-mail | P1 | MVP 2.4.0 | M | Véspera da escala, confirmação, justificativa |
+| 19 | AM-26 Assiduidade | P1 | MVP 2.4.0 | M | Substitui o relatório do F-06 |
+| 20 | AM-18 Escala de gira | P1 | MVP 2.4.0 | M | Substitui o F-07 (gira e rodízio); pode virar 2.5.0 se a 2.4.0 crescer demais |
+| 21 | AM-24 Divulgação | P2 | MVP 2.4.0 | P | Fecha o lançamento |
+| 22 | AM-22 Baixa automática | P2 | Fase 2 | M | Quando F-02 sair |
+| 23 | AM-16 PWA e push | P2 | Fase 2 | G | |
+| 24 | AM-27 Troca na escala | P2 | Fase 2 | M | |
+| 25 | AM-14 Meus dados | P2 | Fase 2 | M | |
+| 26 | AM-19 Ficha e caminhada | P2 | Fase 2 | M | Depois do F-05 |
 | 27 | AM-20 Aniversariantes | P3 | Fase 2 | P | |
 | 28 | AM-21 Estudos e documentos | P3 | Fase 3 | G | |
 
 Lançamento em duas entregas, cada uma com entrada em `releaseNotes.ts`:
 - **2.3.0** (5 a 6 semanas): AM-02, AM-03, AM-04, AM-06, AM-07, AM-09, AM-10, AM-11, AM-12. A Área funciona com
   convite, escolha de área, calendário de giras, comunicados e Pague aqui.
-- **2.4.0** (6 a 7 semanas): AM-05, AM-13, AM-23, AM-08, AM-17, AM-25, AM-15, AM-26, AM-18, AM-24. Atividades da
+- **2.4.0** (6 a 7 semanas): AM-05, AM-13, AM-23, AM-08, AM-17, AM-28, AM-25, AM-15, AM-26, AM-18, AM-24. Atividades da
   casa, grupos, presença com justificativa, escala de faxina, escala de gira, lembretes e relatório.
 
 **Por que escala de faxina e presença no MVP e não na fase 2** (recomendação D-09): foram pedidas pelo dono, são o
@@ -1502,6 +1532,7 @@ faxina fica, porque é o exemplo do dono.
 ## Apêndice A — Cards em formato de linha
 
 ```
+AM-00 | Estudo de experiência e usabilidade da Área do Médium | P0 | Fase 0 | G | AM-01 | Conversas, teste de vocabulário, protótipo no celular e teste de usabilidade com médiuns e dirigentes antes de qualquer tela; sai glossário, protótipo validado e aceite de UX dos cards.
 AM-01 | Decisões do dono da Área do Médium | P0 | MVP | P | — | D-01 a D-08 decididas em 2026-10-07 (todas como recomendado); faltam D-09 a D-13 sobre escalas e presença.
 AM-02 | Fundação de identidade: vínculo médium↔usuário, papel medium e trava do painel | P0 | MVP (2.3.0) | G | T-02, AM-01 | Cria mediuns.user_id, papel medium, require_medium, require_backoffice, feature area_medium e auditores para /api/v1/medium.
 AM-03 | Convite do médium e ativação da conta | P0 | MVP (2.3.0) | M | AM-02, T-02 | Admin convida por e-mail/WhatsApp; médium cria senha, aceita o termo LGPD e é vinculado ao cadastro.
