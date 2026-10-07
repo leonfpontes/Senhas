@@ -1,8 +1,8 @@
 """Logging configuration and utilities."""
 import logging
 import json
-from datetime import datetime
 from typing import Any, Optional
+from .tz import utc_now
 
 # Configure logger
 logger = logging.getLogger("senhas")
@@ -36,7 +36,7 @@ def log_audit_event(
         details: Additional details about the action
     """
     log_data = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": utc_now().isoformat(),
         "action": action,
         "resource_type": resource_type,
         "resource_id": str(resource_id) if resource_id else None,
@@ -64,7 +64,7 @@ def log_security_event(
         details: Additional details
     """
     log_data = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": utc_now().isoformat(),
         "event_type": event_type,
         "user_id": str(user_id) if user_id else None,
         "tenant_id": str(tenant_id) if tenant_id else None,

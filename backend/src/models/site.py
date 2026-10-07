@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import UUID, BYTEA, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import TimestampedModel, Base
+from ..core.tz import utc_now
 
 
 class SiteStatus(str, enum.Enum):
@@ -121,7 +122,7 @@ class TenantSiteSection(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.utcnow(),
+        default=utc_now,
     )
 
     # Relationships
@@ -159,7 +160,7 @@ class SiteImage(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.utcnow(),
+        default=utc_now,
     )
 
     # Relationships
@@ -198,7 +199,7 @@ class SiteVersion(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.utcnow(),
+        default=utc_now,
     )
 
     # Relationships

@@ -7,7 +7,7 @@ from sqlalchemy import select, func, and_, or_, desc, Integer, case
 from sqlalchemy.sql import text
 
 from ..models import Ticket, TicketStatus, Gira
-from ..core.tz import local_hour, local_date, today_utc_range
+from ..core.tz import local_hour, local_date, today_utc_range, utc_now
 
 
 class TicketAnalyticsRepository:
@@ -153,10 +153,8 @@ class TicketAnalyticsRepository:
         Returns:
             List of dicts with date, count, status_breakdown
         """
-        from datetime import datetime as dt_module
-        
         if date_from is None:
-            start_date = dt_module.utcnow() - timedelta(days=days)
+            start_date = utc_now() - timedelta(days=days)
         else:
             start_date = date_from
         
@@ -317,7 +315,7 @@ class TicketAnalyticsRepository:
             List of hour/count tuples sorted by count desc
         """
         if date_from is None:
-            start_date = datetime.utcnow() - timedelta(days=days)
+            start_date = utc_now() - timedelta(days=days)
         else:
             start_date = date_from
         

@@ -21,6 +21,7 @@ from src.core.errors import (
 )
 from src.repositories.subscription_repo import SubscriptionRepository
 from sqlalchemy import select, func, and_
+from src.core.tz import utc_now
 
 router = APIRouter(prefix="/api/v1/admin/users", tags=["admin-users"])
 logger = logging.getLogger(__name__)
@@ -162,7 +163,6 @@ async def create_user(
     hashed_password = hash_password(user_data.password)
     deleted_user = await repo.get_by_email_including_deleted(current_user.tenant_id, user_data.email)
     if deleted_user:
-        from datetime import datetime
         deleted_user.username = user_data.username
         deleted_user.password_hash = hashed_password
         deleted_user.role = user_data.role
@@ -173,7 +173,7 @@ async def create_user(
         deleted_user.profile_photo_data = None
         deleted_user.profile_photo_url = None
         deleted_user.profile_photo_content_type = None
-        deleted_user.updated_at = datetime.utcnow()
+        deleted_user.updated_at = utc_now()
         await db.flush()
         await db.refresh(deleted_user)
         created_user = deleted_user

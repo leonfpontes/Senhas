@@ -27,6 +27,7 @@ from src.repositories.curso_presencial_repo import (
 )
 from src.services.audit_service import AuditService
 from src.core.errors import NotFoundError
+from src.core.tz import utc_now
 
 router = APIRouter(
     prefix="/api/v1/admin/cursos-presenciais",
@@ -508,7 +509,7 @@ async def update_participante(
     # Se o pago foi alterado para True ou o valor_pago foi informado, marca como pago e registra data_pagamento
     if data.get("pago") is True:
         if "data_pagamento" not in data and not participante.data_pagamento:
-            data["data_pagamento"] = datetime.utcnow()
+            data["data_pagamento"] = utc_now()
         if data.get("valor_pago") is None and participante.valor_pago is None:
             data["valor_pago"] = data.get("valor_mensalidade", participante.valor_mensalidade)
     elif data.get("pago") is False:

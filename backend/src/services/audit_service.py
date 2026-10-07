@@ -2,10 +2,10 @@
 from typing import Optional, Dict, Any
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime
 
 from ..models import AuditLog, AuditAction
 from ..repositories.audit_log_repo import AuditLogRepository
+from ..core.tz import utc_now
 
 
 class AuditService:
@@ -179,7 +179,7 @@ class AuditService:
             details={
                 "success": success,
                 "ip_address": ip_address,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": utc_now().isoformat(),
             },
         )
     

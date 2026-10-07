@@ -7,6 +7,7 @@ import uuid
 import enum
 
 from .base import Base
+from ..core.tz import utc_now
 
 
 class AuditAction(str, enum.Enum):
@@ -68,7 +69,7 @@ class AuditLog(Base):
     details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # Extra context (JSONB no banco)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.utcnow(),
+        default=utc_now,
         nullable=False,
     )
     
