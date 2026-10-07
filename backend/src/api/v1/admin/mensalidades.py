@@ -42,6 +42,7 @@ from src.repositories.subscription_repo import SubscriptionRepository
 from src.repositories.config_repo import TenantConfigRepository
 from src.services.plan_features import get_effective_plan_features
 from src.services.audit_service import AuditService
+from src.services.medium_mensalidade import comprovante_para_conferir
 
 router = APIRouter(prefix="/api/v1/admin/financeiro", tags=["admin-financeiro"])
 logger = logging.getLogger(__name__)
@@ -158,6 +159,12 @@ class MensalidadeItemResponse(BaseModel):
     valor_pago: Optional[float] = None
     comprovante_filename: Optional[str] = None
     observacao: Optional[str] = None
+    # Comprovante enviado pelo médium na Área (AM-12): "Comprovante enviado" na tela,
+    # até a casa confirmar (POST de registro) ou não confirmar (PATCH .../recusa).
+    comprovante_enviado_em: Optional[datetime] = None
+    comprovante_para_conferir: bool = False
+    recusa_motivo: Optional[str] = None
+    recusado_em: Optional[datetime] = None
 
 
 class AssociadoMensalidadeItemResponse(BaseModel):
@@ -344,6 +351,15 @@ async def list_mensalidades(
                 valor_pago=float(r["valor_pago"]) if r.get("valor_pago") is not None else None,
                 comprovante_filename=r.get("comprovante_filename"),
                 observacao=r.get("observacao"),
+                comprovante_enviado_em=r.get("comprovante_enviado_em"),
+                comprovante_para_conferir=comprovante_para_conferir(
+                    effective_status,
+                    r.get("comprovante_enviado_em"),
+                    bool(r.get("comprovante_filename")),
+                    r.get("recusado_em"),
+                ),
+                recusa_motivo=r.get("recusa_motivo"),
+                recusado_em=r.get("recusado_em"),
             )
         )
     return result

@@ -125,6 +125,11 @@ async def _mensalidade(db: AsyncSession, ctx: MediumContext, hoje: date) -> Opti
         pagamento_valor_vigente=pagamento.valor_vigente if pagamento else None,
         pagamento_valor_pago=pagamento.valor_pago if pagamento else None,
         pagamento_data=pagamento.data_pagamento if pagamento else None,
+        # Comprovante enviado pela Área (AM-12): "em conferência" sai das pendências e
+        # "não confirmado" volta para elas.
+        comprovante_enviado_em=pagamento.comprovante_enviado_em if pagamento else None,
+        comprovante_presente=bool(pagamento and pagamento.comprovante_filename),
+        recusado_em=pagamento.recusado_em if pagamento else None,
     )
     return situacao
 
