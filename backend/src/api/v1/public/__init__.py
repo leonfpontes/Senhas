@@ -9,6 +9,7 @@ from src.api.v1.public.curso_inscricao import router as curso_inscricao_router
 from src.api.v1.public.waitlist_confirm import router as waitlist_confirm_router
 from src.api.v1.public.cancel_ticket import router as cancel_ticket_router
 from src.api.v1.public.stats import router as public_stats_router
+from src.api.v1.public.sitemap import router as public_sitemap_router
 
 __all__ = [
     "next_gira_router",
@@ -21,4 +22,5 @@ __all__ = [
     "waitlist_confirm_router",
     "cancel_ticket_router",
     "public_stats_router",
+    "public_sitemap_router",
 ]

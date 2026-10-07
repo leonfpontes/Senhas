@@ -36,6 +36,7 @@ RESERVED_SLUGS: frozenset[str] = frozenset(
         "convite",
         "medium",
         "sitemap",
+        "sitemap.xml",
         "sobre",
         "contato",
         "ajuda",

@@ -300,6 +300,10 @@ EXEMPT_PUBLIC_QUERIES: dict[tuple[str, str], str] = {
         "números da landing (V-02): só COUNT somado entre todos os tenants, nenhum dado de "
         "terreiro sai na resposta"
     ),
+    ("api/v1/public/sitemap.py", "_published_sites"): (
+        "sitemap (T-03): lista slugs de sites PUBLICADOS de terreiros ativos — o mesmo que já é "
+        "público em /{slug}; nenhum outro dado"
+    ),
     ("api/v1/public/stats.py", "_tenant_publico"): (
         "filtro auxiliar do _compute_stats (terreiro ativo, não demo); não consulta nada sozinho"
     ),
