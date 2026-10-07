@@ -216,6 +216,7 @@ class TestEmitTicketEndpoint:
         ])
         consulente = MagicMock()
         consulente.id = uuid4()
+        consulente.nome = "Test"
         MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, False))
         MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=True)
         req = EmitTicketRequest(name="Test", email="t@t.com")
@@ -247,6 +248,7 @@ class TestEmitTicketEndpoint:
         ])
         consulente = MagicMock()
         consulente.id = uuid4()
+        consulente.nome = "Test"
         MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, False))
         MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=True)
         existing = MagicMock()
@@ -290,6 +292,7 @@ class TestEmitTicketEndpoint:
         ])
         consulente = MagicMock()
         consulente.id = uuid4()
+        consulente.nome = "Test"
         MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, False))
         MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=True)
         existing = MagicMock()
@@ -300,6 +303,47 @@ class TestEmitTicketEndpoint:
             await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 409
         assert existing.priority_category == "REDUCED_MOBILITY"
+
+    @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
+    @patch("src.api.v1.public.emit_ticket.TicketRepository")
+    @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")
+    @patch("src.api.v1.public.emit_ticket.ConsulenteRepository")
+    @patch("src.api.v1.public.emit_ticket.select")
+    @patch("src.api.v1.public.emit_ticket.and_")
+    async def test_emit_ticket_duplicate_other_person_does_not_touch_ticket(
+            self, mock_and, mock_select, MockConsRepo, MockSenhaRepo, MockTicketRepo):
+        """Bug Tuccco (out/2026): a filha tira a senha dela e depois pede a da
+        mãe (Idoso) com o mesmo e-mail. A preferência não pode ir para a senha
+        da filha, nem o nome dela ser trocado — 409 orientando a usar outro e-mail."""
+        from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest
+        db = _mock_db()
+        tenant = MagicMock()
+        tenant.id = TENANT_ID
+        tenant.slug = "test"
+        gira = MagicMock()
+        gira.id = GIRA_ID
+        db.execute = AsyncMock(side_effect=[
+            _mock_result_scalar(tenant),
+            _mock_result_scalar(gira),
+        ])
+        consulente = MagicMock()
+        consulente.id = uuid4()
+        consulente.nome = "Franciele Olímpia de Souza"
+        MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, False))
+        MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=True)
+        existing = MagicMock()
+        existing.priority_category = None
+        MockTicketRepo.return_value.get_duplicate_in_gira = AsyncMock(return_value=existing)
+        req = EmitTicketRequest(
+            name="Wilselena Pereira Machado", email="fran@mail.com", priority_category="ELDERLY"
+        )
+        with pytest.raises(HTTPException) as exc:
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        assert exc.value.status_code == 409
+        assert "outra pessoa" in exc.value.detail
+        assert existing.priority_category is None
+        assert consulente.nome == "Franciele Olímpia de Souza"
+        assert db.commit.await_count == 0
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
     @patch("src.api.v1.public.emit_ticket.TicketRepository")
@@ -400,6 +444,47 @@ class TestEmitTicketEndpoint:
         with pytest.raises(HTTPException) as exc:
             await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
         assert exc.value.status_code == 500
+
+    @patch("src.api.v1.public.emit_ticket.TicketRepository")
+    @patch("src.api.v1.public.emit_ticket.SenhaControlRepository")
+    @patch("src.api.v1.public.emit_ticket.ConsulenteRepository")
+    @patch("src.api.v1.public.emit_ticket.select")
+    @patch("src.api.v1.public.emit_ticket.and_")
+    async def test_emit_ticket_new_ticket_uses_typed_name(self, mock_and, mock_select,
+                                                          MockConsRepo, MockSenhaRepo, MockTicketRepo):
+        """Bug Tuccco (out/2026): cadastro antigo com nome "F" saía em toda senha
+        nova, ignorando o nome completo digitado. Senha nova grava o nome digitado
+        (o fluxo é interrompido no incremento só para não montar o resto)."""
+        from src.api.v1.public.emit_ticket import emit_ticket, EmitTicketRequest
+        db = _mock_db()
+        tenant = MagicMock()
+        tenant.id = TENANT_ID
+        gira = MagicMock()
+        gira.id = GIRA_ID
+        db.execute = AsyncMock(side_effect=[
+            _mock_result_scalar(tenant),
+            _mock_result_scalar(gira),
+        ])
+        consulente = MagicMock(); consulente.id = uuid4(); consulente.nome = "F"
+        MockConsRepo.return_value.upsert_consulente = AsyncMock(return_value=(consulente, False))
+        MockTicketRepo.return_value.check_duplicate_in_gira = AsyncMock(return_value=False)
+        MockSenhaRepo.return_value.get_or_create_for_gira = AsyncMock()
+        MockSenhaRepo.return_value.increment_atomic = AsyncMock(side_effect=ValueError("fail"))
+        req = EmitTicketRequest(name="  Franciele Olímpia de Souza ", email="fran@mail.com")
+        with pytest.raises(HTTPException):
+            await emit_ticket(_make_starlette_request(), "test", "regular", req, db)
+        assert consulente.nome == "Franciele Olímpia de Souza"
+
+    @pytest.mark.parametrize("stored, typed, expected", [
+        ("Franciele Olímpia de Souza", "franciele souza", True),
+        ("F", "Franciele Olímpia de Souza", True),
+        ("José Silva", "Jose", True),
+        ("Franciele Olímpia de Souza", "Wilselena Pereira Machado", False),
+        ("", "Qualquer", True),
+    ])
+    def test_same_person(self, stored, typed, expected):
+        from src.api.v1.public.emit_ticket import _same_person
+        assert _same_person(stored, typed) is expected
 
     @patch("src.api.v1.public.emit_ticket.Gira", _MockGiraClass)
     @patch("src.api.v1.public.emit_ticket.TicketRepository")

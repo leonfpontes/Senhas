@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 import json
 import logging
 import hashlib
+import unicodedata
 import uuid
 import sentry_sdk
 from src.core.tz import APP_TZ
@@ -181,6 +182,29 @@ async def _tenant_branding(session: AsyncSession, tenant: Tenant) -> tuple[str, 
         tenant_logo_url = tenant_config.logo_url
 
     return tenant_address, primary_color, secondary_color, tenant_logo_url
+
+
+def _first_name_key(name: str | None) -> str:
+    """Primeiro nome sem acento/caixa — base da comparação de _same_person."""
+    decomposed = unicodedata.normalize("NFKD", (name or "").strip().casefold())
+    plain = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return plain.split()[0] if plain.split() else ""
+
+
+def _same_person(stored_name: str | None, typed_name: str | None) -> bool:
+    """O nome digitado é plausivelmente da mesma pessoa do cadastro do e-mail?
+
+    Família costuma dividir e-mail: a filha tira a senha dela e depois tenta
+    tirar a da mãe (preferencial) com o mesmo e-mail. Sem essa checagem a
+    reemissão caía em _upgrade_duplicate_priority e a preferência da mãe ia
+    para a senha da filha (bug Tuccco, out/2026). Compara só o primeiro nome,
+    aceitando abreviação ("F" × "Franciele") — cadastros antigos têm nomes
+    curtos e a própria pessoa não pode ser barrada por digitar o nome inteiro.
+    """
+    a, b = _first_name_key(stored_name), _first_name_key(typed_name)
+    if not a or not b:
+        return True
+    return a.startswith(b) or b.startswith(a)
 
 
 async def _upgrade_duplicate_priority(
@@ -521,6 +545,18 @@ async def emit_ticket(
         )
 
         if has_duplicate:
+            # E-mail dividido: o nome digitado é de outra pessoa (ex.: a filha
+            # pedindo a senha da mãe com o próprio e-mail). Não mexe na senha
+            # existente — nem prioridade nem nome — e orienta a usar o e-mail
+            # da outra pessoa. Sem revelar nome/número da senha existente.
+            if not _same_person(consulente.nome, body.name):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Este e-mail já tem uma senha para esta gira, em nome de outra "
+                        "pessoa. Para pegar a senha de outra pessoa, use o e-mail dela."
+                    ),
+                )
             # Re-emission that adds a priority the existing ticket lacks
             # (consulente forgot to mark it the first time): register the
             # priority and resend the email instead of just rejecting.
@@ -540,6 +576,16 @@ async def emit_ticket(
                 status_code=409,
                 detail="Este e-mail já possui uma senha emitida para esta gira",
             )
+
+        # === STEP 5b: Nome digitado vale para a senha nova ===
+        # O ticket não guarda nome próprio (lê consulente.nome) e o upsert por
+        # e-mail só usa o nome na criação — um cadastro antigo abreviado ("F")
+        # saía em toda senha nova, ignorando o nome completo digitado (bug
+        # Tuccco, out/2026). Só depois da checagem de duplicata: uma tentativa
+        # recusada não pode renomear a senha que já existe.
+        typed_name = body.name.strip()
+        if typed_name and consulente.nome != typed_name:
+            consulente.nome = typed_name
 
         # === STEP 6: Get or Create SenhaControl (for atomic counting) ===
         await senha_control_repo.get_or_create_for_gira(
