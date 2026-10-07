@@ -84,12 +84,12 @@ tenant redundante (barato) a uma excecao.
 - Area do Medium (`/api/v1/medium/*`, AM-02): `medium_router` com `Depends(require_medium)` →
   `MediumContext(user, tenant_id, medium, token)` — medium ativo e nao excluido com
   `mediuns.user_id = user.id` no tenant do usuario + `check_plan_feature("area_medium")` (403/402) +
-  gancho da config da Area (AM-10, hoje sempre ligada). Vale para qualquer papel (operador/admin
-  ligado a um medium tem as duas areas). Rotas da Area nunca recebem `medium_id`.
+  Area ligada pela casa (`tenant_configs.area_medium_ativa`, AM-10 → senao 403). Vale para qualquer
+  papel (operador/admin ligado a um medium tem as duas areas). Rotas da Area nunca recebem `medium_id`.
 - `areas` (`{"admin": bool, "medium": {"medium_id", "nome"} | null}`) vem em `GET /auth/me`,
   `GET /auth/profile` e na resposta do login, calculadas no servidor a cada chamada
   (`services/medium_area.compute_areas`) — nunca no JWT. `admin` = papel admin/operator;
-  `medium` so com vinculo ativo E plano efetivo com `area_medium`.
+  `medium` so com vinculo ativo E plano efetivo com `area_medium` E Area ligada pela casa (AM-10).
 - Endpoints platform so para super admin (escopo global).
 
 **Fluxo de autenticacao via cookie HttpOnly (desde 2026-06-27):**
@@ -191,6 +191,20 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `PermissionService.check_permission` nega tudo a `medium`, mesmo impersonado.
 - Inativar/excluir medium (`mediuns.py`) desativa a conta `medium` pura ligada (e derruba as sessoes);
   reativar religa. Operador/admin ligado so perde/recupera a Area.
+- Convite (AM-03, `admin/mediuns_acesso.py` + `public/convite.py` + `services/medium_convite.py`):
+  `POST /admin/mediuns/{id}/convite`, `POST /admin/mediuns/convite/lote` e `DELETE /admin/mediuns/{id}/acesso`
+  usam `MEDIUNS:edit` + `require_plan_feature("area_medium")`. O vinculo `mediuns.user_id` SO nasce no aceite
+  publico (`/public/convite/{token}/aceitar`): token opaco `token_urlsafe(32)` guardado como sha256
+  (`medium_convites.token_hash`), 7 dias, uso unico, um convite em aberto por medium (indice unico parcial;
+  reenviar revoga o anterior). Resposta generica 404 `CONVITE_INVALIDO` para token inexistente/vencido/usado/
+  revogado. Sem conta do painel com o e-mail → cria `User(role=medium)` (conta `medium` antiga ou excluida do
+  mesmo e-mail volta com senha nova); com conta admin/operador → pede a senha DELA (errada = 400
+  `SENHA_INCORRETA`, nunca 401) e nao muda o papel. Consentimento obrigatorio (`area_consentimento_em/_versao`,
+  versao `CONSENTIMENTO_AREA_VERSAO` espelhada em `frontend/src/constants/areaMedium.ts`). Tirar o acesso
+  (`services/medium_convite.tirar_acesso`) revoga o convite, desfaz o vinculo e desativa a conta `medium` pura
+  (sessoes caem na hora). Trocar o e-mail, inativar ou excluir o medium revoga o convite em aberto. E-mail e
+  texto de WhatsApp discretos (sem termo religioso alem do nome do terreiro, §6.8 do plano). A busca pelo
+  token e a "busca raiz" isenta em `EXEMPT_PUBLIC_QUERIES` (`_convite_pelo_token`).
 - **Lancamento em piloto (decisao do dono, 07/10)**: a Area do Medium vai para a producao desligada.
   `tenants.area_medium_liberada` (padrao false) e ligado por terreiro pelo super admin no Tenant 360
   (`PUT /platform/tenants/{id}` com `area_medium_liberada`). `check_plan_feature(..., "area_medium")` exige
@@ -198,6 +212,28 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   respeita; `GET /admin/subscription` devolve `features.area_medium = false` sem a chave (a tela esconde as
   entradas da Area com `can('area_medium')`, sem PlanLocked no piloto) e `areas.medium` fica null. No
   lancamento: ligar para todos (migracao de dados) ou remover a chave.
+- **Configuracao da Area (AM-10)**: `GET/PUT /admin/config/area-medium` (`area_medium_config.py`,
+  CONFIGURACOES view/edit + `require_plan_feature("area_medium")`, logo respeita a chave do piloto).
+  Colunas `area_medium_*` em `tenant_configs` (068): ligada (o liga/desliga DA CASA; a chave da
+  plataforma vale por cima), boas-vindas, WhatsApp da casa (digitos com DDI) e modulos visiveis
+  (agenda, avisos, mensalidade). Leitura unica em `services/medium_area`: `area_medium_enabled_by_tenant`
+  (usado pelo `require_medium` e pelo `compute_areas`), `get_area_medium_config` e
+  `area_medium_modulos`/`modulos_visiveis` (mensalidade so com `mensalidade_mediun` no plano).
+  `GET /medium/me` devolve `modulos`, `boas_vindas` e `whatsapp_casa`. Card novo da Area que tem
+  modulo: esconder/recusar quando o modulo estiver fora de `area_medium_modulos`.
+- **Chave PIX da mensalidade (AM-10, decisao D-05)**: `GET/PUT /admin/financeiro/config/pix`
+  (`mensalidade_pix.py`, FINANCEIRO view/edit + `mensalidade_mediun`). A protecao especifica no lugar
+  de `is_admin`: senha de quem altera no corpo (errada → 401 `INVALID_PASSWORD`; o front chama com
+  `skipAutoLogout`), `require_not_impersonated`, limite 10/h por IP, auditoria `mensalidade_pix` com a
+  chave antiga e a nova MASCARADAS (`pix_chave.mascarar_chave`; nunca a senha), e-mail
+  (`templates/pix_chave_alterada.py`) a TODOS os admins ativos quando tipo/chave mudam, e
+  `pix_alterado_em` (a Area mostra "Chave alterada em dd/mm" por 30 dias — AM-11; aviso ativo ao
+  medium e TODO(AM-15)). Chave inteira e previa do QR so para FINANCEIRO:edit; quem so ve recebe a
+  mascarada. Validacao/normalizacao no formato do DICT em `services/pix_chave.py` (CPF/CNPJ com DV,
+  CNPJ alfanumerico incluso; e-mail minusculo; celular `+55DD9…`; EVP com hifens) e espelho em
+  `frontend/src/lib/pixChave.ts`. BR Code estatico ("PIX copia e cola") so no servidor:
+  `services/pix_brcode.build_static_brcode` (+ `txid_mensalidade`), testado contra os exemplos do
+  Manual de Padroes para Iniciacao do Pix (BCB v2.10.0) — nunca montar o payload no front.
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -647,7 +683,10 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`, chave do piloto da Area do
+- Head atual: `068_area_medium_config_pix` (2026-10-07, AM-10: colunas `area_medium_*` em `tenant_configs` e
+  `pix_*` em `mensalidade_configs`), apos `067_medium_convites` (2026-10-07, AM-03: tabela `medium_convites` —
+  convite da casa para a Area do Medium, token sha256 unico, 7 dias, um convite em aberto por medium), apos
+  `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`, chave do piloto da Area do
   Medium), apos `065_mediuns_user_id` (2026-10-07, AM-02: `mediuns.user_id` FK `users.id` ON DELETE
   SET NULL + unico parcial `uq_mediuns_user_id_ativo` e `area_consentimento_em/_versao`), apos
   `064_user_role_medium` (`ALTER TYPE user_role ADD VALUE 'medium'`, sozinha num
@@ -671,6 +710,7 @@ Incluir obrigatoriamente:
 - **Espelho em contas a receber** (`services/mensalidade_contas_service.py`, `external_ref = mensalidade:{mediun|associado}:{id}:{YYYY-MM}`): PAGO grava `valor_pago` informado (sem ele, o vigente); PENDENTE → pendente/vencido; ISENTO cancela a conta do mes. Cadastro de medium/associado (nao isento) cria a conta do mes seguinte; inativar (referencia = `data_saida`), excluir ou marcar `mensalidade_isento` cancela as contas pendentes dos meses seguintes. Datas de "hoje" via `core.tz.today_local()` (Brasilia). Nos Lancamentos essas contas sao somente leitura: PUT/baixa/DELETE → 409 e a listagem traz `origem_mensalidade: true` (a tela mostra "Editar em Mensalidades").
 - **Isencao permanente**: `mensalidade_isento` em Medium/Associado e editavel nos dois cadastros (switch "Isento de mensalidade"); isento nao gera conta e nao entra no esperado/inadimplentes.
 - **Config**: `enable_mensalidade_associado` e ligado so em Financeiro → Configuracao → Mensalidade (saiu de Configuracoes). `email_relatorio_ativo` nao tem mais toggle na tela (nenhum job lia e nao havia botao de envio); a coluna continua e `POST /relatorio/enviar` nao depende mais dela.
+- **Chave PIX (AM-10)**: `mensalidade_configs.pix_*` (067) — tipo, chave (formato do DICT), nome do recebedor (≤ 25), cidade (≤ 15), instrucoes e `pix_alterado_em`. Endpoint proprio `PUT /financeiro/config/pix` com senha + e-mail aos admins + auditoria mascarada (detalhes em §3.3, Area do Medium); o PUT `/financeiro/config` nao toca nesses campos. Tela: card "Chave PIX da mensalidade" (`components/financeiro/PixConfigCard.tsx`) na aba Mensalidade de `/admin/financeiro/config`, com previa do QR (`qrcode.react`) do BR Code gerado no servidor e copia-e-cola.
 - **Comprovante**: BYTEA no banco, limite 5MB, tipos aceitos: jpeg/png/webp/pdf.
 - **Relatorio**: email HTML gerado por `render_mensalidade_report()` com KPI cards + tabela inadimplentes.
 - **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns / Associados / Historico; KPIs com o dia de vencimento de cada grupo, "Inadimplentes" so apos o vencimento) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`). `/admin/associados` carrega todas as paginas da API (limit 200) para a busca local.
@@ -899,7 +939,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, escolha de área, casca e Início (AM-02/04/06, 2026-10-07)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca e Início (AM-02/03/04/06/10, 2026-10-07)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -909,7 +949,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
 - **Guards** (§3.2/§3.3): `require_backoffice` no `admin_router`; `require_medium` + `MediumContext` no
   `medium_router`; `require_not_impersonated` para as escritas da Área (cards seguintes).
 - **API**: só `GET /api/v1/medium/me` (nome, foto da conta, terreiro, marca — o mesmo subconjunto
-  público do branding —, `areas`, `modulos` vazio até o AM-10). `areas` também em `/auth/me`,
+  público do branding —, `areas`, `modulos`, `boas_vindas` e `whatsapp_casa` da config da Área, AM-10). `areas` também em `/auth/me`,
   `/auth/profile` e no login (front só tipou `UserAreas` em `useProfile.tsx`; quem decide a rota
   pela área é o AM-04).
 - **Plano**: `area_medium` Basic+ no catálogo e no espelho `constants/plans.ts` (fora do quadro).
@@ -952,8 +992,18 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   passo "Deixe a Área na tela inicial" (`InstallAreaSheet`: Android/iPhone, aviso de quem abriu no
   WhatsApp, prompt nativo quando o Chrome oferece; lembrado em `girahub:medium-instalar-visto`);
   também pelo Perfil. `sw.js` sem mudança (nunca cacheia `/api/*`).
-- **Pendente nos próximos cards**: convite e ativação (AM-03), login multi-terreiro (AM-05), Agenda
-  (AM-07), Avisos (AM-09), config da Área (AM-10, hoje sempre ligada), Mensalidade/PIX (AM-11).
+- **Configuração da Área e chave PIX (AM-10)**: aba "Área do Médium" em `/admin/config`
+  (`components/admin/AreaMediumConfigSection.tsx`, só com `can('area_medium')`, salva à parte) e card
+  "Chave PIX da mensalidade" em Financeiro → Configuração → Mensalidade. Backend e regras em §3.3.
+- **Convite (AM-03)**: tela Médiuns ganha a coluna "Acesso à Área" (Sem acesso · Convite enviado · Ativo),
+  a ação "Acesso à Área" na linha (sheet `components/admin/mediuns/AcessoAreaSheet`: e-mail mascarado,
+  mensagem pronta, "Enviar pelo WhatsApp" abre o `wa.me`, "Copiar link do convite", cancelar convite, tirar
+  o acesso com `ConfirmDialog`) e "Convidar todos com e-mail (N)" — tudo só com `can('area_medium')` e
+  `canGroup('mediuns','edit')` (no piloto não há PlanLocked: escondido). Página pública
+  `pages/convite/[token].tsx` (`AuthShell`): logo e nome da casa, "Crie sua senha de acesso" (ou a senha
+  do painel), consentimento + "Ler o termo"; no aceite já entra e vai para `/medium`. Backend em §3.3.
+- **Pendente nos próximos cards**: login multi-terreiro (AM-05), Agenda (AM-07), Avisos (AM-09),
+  Mensalidade com Pagar com PIX e comprovante (AM-11/AM-12).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
@@ -1020,7 +1070,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
 - **Por área** (compostos próprios): público `components/public/*` (`PublicShell`, `Bilhete` + `bilhete-utils`,
   `public-errors`); operação `components/admin/{GiraCard,ShareLinkDialog,GiraContext,CommandPalette,MobileTabBar,
   TicketDetailSheet,TicketEmailPanel,senhaFormat}` e `layout/navConfig.ts` (menu por trabalho: Hoje · Giras e senhas ·
-  Corrente · Casa · Conta); casa `components/financeiro/{CobrancaMensal,MonthNavigator}`, `components/estoque/MovimentacaoDrawer`;
+  Corrente · Casa · Conta); casa `components/financeiro/{CobrancaMensal,MonthNavigator,PixConfigCard}` + `lib/pixChave.ts`, `components/estoque/MovimentacaoDrawer`;
   conta `constants/plans.ts` (fonte única de planos, testada contra o backend), `constants/passwordPolicy.ts`,
   `components/{auth,billing}/*`; site `components/site/{sections,editor}/*` (mesmas seções no site público e na prévia);
   plataforma `components/platform/{planMeta,format,impersonate,passwordPolicy,CommandPalette,...}`.

@@ -6,7 +6,7 @@ Regras (docs/plano-area-do-medium.md §6.2/§6.3):
 - **Área do Médium** = existe `Medium` com `user_id = user.id`, do MESMO tenant,
   não excluído e ativo, **e** o plano efetivo do terreiro (plano × status da
   assinatura) tem `area_medium`, **e** a Área está ligada na configuração do
-  terreiro (AM-10; por enquanto sempre ligada).
+  terreiro (AM-10, `tenant_configs.area_medium_ativa`).
 - As áreas são calculadas no servidor a cada chamada — nunca vão no JWT (o
   access token vale 24 h e o vínculo pode mudar a qualquer momento).
 
@@ -16,6 +16,7 @@ plano HTTP; `GET /auth/me`, `GET /auth/profile` e o login usam `compute_areas`.
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from typing import Optional
 
 from datetime import datetime, timezone
@@ -23,7 +24,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Medium, Tenant, User, UserRole
+from ..models import Medium, Tenant, TenantConfig, User, UserRole
 from ..repositories.subscription_repo import SubscriptionRepository
 from .plan_features import get_effective_plan_features
 from . import session_service
@@ -46,13 +47,86 @@ async def get_linked_medium(db: AsyncSession, tenant_id: uuid.UUID, user_id: uui
     return result.scalar_one_or_none()
 
 
-async def area_medium_enabled_by_tenant(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
-    """Configuração da Área ligada no terreiro.
+# Módulos da Área que a casa liga/desliga (AM-10), na ordem da barra inferior.
+MODULOS_AREA = ("agenda", "avisos", "mensalidade")
 
-    TODO(AM-10): ler a configuração da Área (boas-vindas, módulos, liga/desliga)
-    quando ela existir. Até lá a Área vale para todo terreiro cujo plano a inclui.
+
+@dataclass(frozen=True)
+class AreaMediumConfig:
+    """O que a casa configurou para a Área (colunas `area_medium_*` de `tenant_configs`).
+
+    Terreiro sem linha de config usa os padrões da migração 068: ligada, os três
+    módulos visíveis, sem boas-vindas e sem WhatsApp.
     """
-    return True
+
+    ativa: bool = True
+    boas_vindas: Optional[str] = None
+    whatsapp: Optional[str] = None
+    agenda: bool = True
+    avisos: bool = True
+    mensalidade: bool = True
+
+
+async def get_area_medium_config(db: AsyncSession, tenant_id: uuid.UUID) -> AreaMediumConfig:
+    """Configuração da Área do terreiro (padrões se não houver `tenant_configs`)."""
+    row = (
+        await db.execute(
+            select(
+                TenantConfig.area_medium_ativa,
+                TenantConfig.area_medium_boas_vindas,
+                TenantConfig.area_medium_whatsapp,
+                TenantConfig.area_medium_agenda,
+                TenantConfig.area_medium_avisos,
+                TenantConfig.area_medium_mensalidade,
+            ).where(TenantConfig.tenant_id == tenant_id)
+        )
+    ).one_or_none()
+    if row is None:
+        return AreaMediumConfig()
+    return AreaMediumConfig(
+        ativa=bool(row[0]),
+        boas_vindas=row[1],
+        whatsapp=row[2],
+        agenda=bool(row[3]),
+        avisos=bool(row[4]),
+        mensalidade=bool(row[5]),
+    )
+
+
+async def area_medium_enabled_by_tenant(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
+    """A casa deixou a Área ligada (`tenant_configs.area_medium_ativa`, AM-10).
+
+    É o liga/desliga do próprio terreiro; a chave da plataforma
+    (`area_medium_liberada`) e o plano são checados à parte. Sem linha de config,
+    vale o padrão da coluna (ligada).
+    """
+    result = await db.execute(
+        select(TenantConfig.area_medium_ativa).where(TenantConfig.tenant_id == tenant_id)
+    )
+    value = result.scalar_one_or_none()
+    return True if value is None else bool(value)
+
+
+def modulos_visiveis(config: AreaMediumConfig, mensalidade_no_plano: bool) -> list[str]:
+    """Módulos que o médium vê, na ordem de `MODULOS_AREA`.
+
+    A mensalidade também depende do plano (`mensalidade_mediun`): módulo ligado num
+    plano sem a feature não aparece (mesma regra dos toggles: sem plano vale como
+    desligado). Agenda e avisos só dependem da casa.
+    """
+    ligados = {
+        "agenda": config.agenda,
+        "avisos": config.avisos,
+        "mensalidade": config.mensalidade and mensalidade_no_plano,
+    }
+    return [m for m in MODULOS_AREA if ligados[m]]
+
+
+async def area_medium_modulos(db: AsyncSession, tenant_id: uuid.UUID) -> list[str]:
+    """Módulos visíveis da Área no terreiro (`GET /medium/me` e cards seguintes)."""
+    config = await get_area_medium_config(db, tenant_id)
+    sub = await SubscriptionRepository(db).get_by_tenant(tenant_id)
+    return modulos_visiveis(config, get_effective_plan_features(sub).mensalidade_mediun)
 
 
 async def area_medium_liberada(db: AsyncSession, tenant_id: uuid.UUID) -> bool:

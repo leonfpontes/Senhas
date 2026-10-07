@@ -196,6 +196,54 @@ ainda não publicou o site.
 
 ---
 
+### 5. Convite da casa — Área do Médium (AM-03)
+
+O link do convite (`{FRONTEND_URL}/convite/{token}`, página `pages/convite/[token].tsx`) leva um
+token opaco (`secrets.token_urlsafe(32)`); só o sha256 fica no banco (`medium_convites.token_hash`).
+Vale 7 dias e é de uso único. Token inexistente, vencido, usado ou revogado (ou médium que ficou
+inativo, já tem acesso ou trocou de e-mail) → **sempre** a mesma resposta:
+
+```json
+// 404
+{ "detail": { "message": "Este convite não vale mais. Peça um novo convite à casa.", "error_code": "CONVITE_INVALIDO" } }
+```
+Terreiro sem a Área (plano sem `area_medium`, assinatura bloqueada ou chave do piloto desligada) →
+403 `AREA_INDISPONIVEL`.
+
+**`GET /api/v1/public/convite/{token}`** (30/min por IP)
+```json
+{
+  "terreiro": { "nome": "Tenda Luz da Mata", "slug": "luz-da-mata" },
+  "marca": { "logo_url": null, "primary_color": "#4f46e5", "secondary_color": "#818cf8", "font_color": null },
+  "medium_primeiro_nome": "Ana",
+  "email_mascarado": "an•••••••@gmail.com",
+  "conta_existente": false,
+  "expira_em": "2026-10-14T12:00:00Z",
+  "consentimento_versao": "1"
+}
+```
+`conta_existente` = já existe conta do painel (admin/operador, não excluída) com o e-mail do
+convite no terreiro: o aceite pede a senha dessa conta.
+
+**`POST /api/v1/public/convite/{token}/aceitar`** (10/min por IP)
+```json
+{ "senha": "...", "aceite_termo": true }
+```
+- Sem conta do painel: cria `User(role=medium)` com a senha (política `validate_password_policy`,
+  422 `VALIDATION_ERROR`). Conta `medium` antiga (acesso retirado) ou excluída do mesmo e-mail no
+  terreiro volta com a senha nova (o convite prova a posse do e-mail, como o "esqueci a senha").
+- Conta do painel: confere a senha dela (errada → **400** `SENHA_INCORRETA`, não 401; desativada →
+  403 `CONTA_INATIVA`); o papel não muda.
+- `aceite_termo` falso → 422 `TERMO_OBRIGATORIO`. Conta já ligada a outro médium → 409
+  `CONTA_JA_LIGADA`.
+- Sucesso: `mediuns.user_id`, `area_consentimento_em` e `area_consentimento_versao` gravados,
+  convite marcado como usado e sessão aberta (`issue_session`: os 3 cookies do login).
+```json
+{ "redirect": "/medium", "user": { "id": "...", "role": "medium", "tenant_id": "..." }, "areas": { "admin": false, "medium": { "medium_id": "...", "nome": "Ana Paula" } } }
+```
+
+---
+
 ## Admin Endpoints
 
 ### Authentication Required
@@ -557,6 +605,101 @@ Endpoints for fine-grained authorization control (Admin role only, operators res
 }
 ```
 
+### 9. Acesso do médium à Área do Médium (AM-03)
+
+Todas com `MEDIUNS:edit` + `require_plan_feature("area_medium")` (plano Basic+, assinatura em dia
+e chave do piloto `tenants.area_medium_liberada`; sem a chave → 403). Médium de outro terreiro → 404.
+
+- `POST /admin/mediuns/{medium_id}/convite` — convida ou reenvia (revoga o convite em aberto e cria
+  outro). 422 sem e-mail válido no cadastro ou médium inativo; 409 se já tem acesso. Enfileira o
+  e-mail discreto (assunto "Convite de {terreiro} para acessar sua área no GiraHub").
+  ```json
+  {
+    "link": "https://girahub.com.br/convite/<token>",
+    "mensagem_whatsapp": "Oi, Ana! Tenda Luz da Mata convidou você para acessar sua área no GiraHub: ...",
+    "whatsapp_url": "https://wa.me/5511987654321?text=...",
+    "email_mascarado": "an•••••••@gmail.com",
+    "expira_em": "2026-10-14T12:00:00Z",
+    "acesso_area": { "status": "convite_enviado", "convite_enviado_em": "...", "convite_expira_em": "..." }
+  }
+  ```
+  `whatsapp_url` usa o telefone do médium (DDI 55 quando falta); sem telefone, `https://wa.me/?text=`.
+- `POST /admin/mediuns/convite/lote` — convida por e-mail todos os médiuns ativos com e-mail, sem
+  acesso e sem convite em aberto: `{"convidados": 3, "sem_email": 2, "ja_convidados": 1}`.
+- `DELETE /admin/mediuns/{medium_id}/acesso` (204) — cancela o convite em aberto e desfaz o vínculo.
+  Conta `medium` pura é desativada e perde as sessões na hora; operador/admin ligado só perde a Área.
+- `GET /admin/mediuns` passa a trazer `acesso_area` em cada médium:
+  `{"status": "sem_acesso" | "convite_enviado" | "ativo", "desde", "convite_enviado_em", "convite_expira_em"}`
+  (`ativo` = vínculo `mediuns.user_id`; `desde` = data do consentimento). Convite vencido conta como
+  `sem_acesso`. Trocar o e-mail do médium, inativar ou excluir revoga o convite em aberto.
+
+---
+
+### 9. Área do Médium configuration (AM-10)
+
+`GET /api/v1/admin/config/area-medium` (CONFIGURACOES `view`) ·
+`PUT /api/v1/admin/config/area-medium` (CONFIGURACOES `edit`). Both require the plan feature
+`area_medium` (Basic+ **and** the pilot switch `tenants.area_medium_liberada`), otherwise 403.
+
+**Response** (200 OK):
+```json
+{
+  "ativa": true,
+  "boas_vindas": "Que bom ter você na corrente!",
+  "whatsapp": "5511987654321",
+  "modulos": { "agenda": true, "avisos": true, "mensalidade": true },
+  "mensalidade_no_plano": true
+}
+```
+**PUT body** (partial — only sent fields change): `ativa` (bool), `boas_vindas` (≤ 500, empty
+clears), `whatsapp` (Brazilian number with DDD, any mask; stored as digits with `55`; empty clears;
+invalid → 422), `modulos` (`{agenda?, avisos?, mensalidade?}`). Audited as `TenantConfig` /
+`config_type: "area_medium"`.
+
+### 10. PIX key for the mensalidade (AM-10)
+
+`GET /api/v1/admin/financeiro/config/pix` (FINANCEIRO `view` + plan `mensalidade_mediun`):
+```json
+{
+  "configurada": true,
+  "tipo": "cpf",
+  "chave_mascarada": "***.456.789-**",
+  "chave": "12345678909",
+  "nome_recebedor": "Casa de Oxalá",
+  "cidade": "São Paulo",
+  "instrucoes": "Mande o comprovante pela Área.",
+  "alterado_em": "2026-10-07T20:00:00Z",
+  "brcode_previa": "00020126330014br.gov.bcb.pix0111123456789095204000053039865404..." ,
+  "valor_previa": 50.0
+}
+```
+`chave`, `brcode_previa` and `valor_previa` are only filled for users with FINANCEIRO `edit`
+(admins bypass); view-only users get the masked key. `brcode_previa` is the static BR Code
+("PIX copia e cola", `services/pix_brcode.py`) of the **saved** key with the monthly value
+(R$ 1,00 when none) — the same payload the Área will show to the médium.
+
+`PUT /api/v1/admin/financeiro/config/pix` (FINANCEIRO `edit` + plan `mensalidade_mediun`,
+refused while impersonating — 403, rate limit 10/hour per IP):
+```json
+{
+  "tipo": "cpf | cnpj | email | telefone | aleatoria",
+  "chave": "123.456.789-09",
+  "nome_recebedor": "Casa de Oxalá",
+  "cidade": "São Paulo",
+  "instrucoes": "opcional, até 500",
+  "senha": "password of the user making the change"
+}
+```
+- Wrong `senha` → **401** `INVALID_PASSWORD` (business rule — the frontend calls with
+  `skipAutoLogout`, the session stays valid).
+- The key is validated per type and stored in DICT format: CPF/CNPJ (numeric or alphanumeric)
+  with check digits, lowercase e-mail, mobile `+55DD9XXXXXXXX`, random key (UUID with hyphens).
+  `nome_recebedor` ≤ 25 and `cidade` ≤ 15 characters (BR Code limits). Invalid → 422.
+- Audit `mensalidade_pix` with the old and new key **masked** (never the password).
+- When `tipo`/`chave` change: `pix_alterado_em` is updated and an e-mail ("Chave PIX da
+  mensalidade alterada") goes to every active admin of the tenant through the e-mail queue,
+  with the masked old/new key.
+
 ---
 
 ## Authentication Endpoints
@@ -670,12 +813,20 @@ path or body. Writes made while impersonating are refused (403, `require_not_imp
     "admin": false,
     "medium": { "medium_id": "medium-uuid", "nome": "Maria de Oxum" }
   },
-  "modulos": []
+  "modulos": ["agenda", "avisos", "mensalidade"],
+  "boas_vindas": "Que bom ter você na corrente!",
+  "whatsapp_casa": "5511987654321"
 }
 ```
-`marca` is the same public subset served by the branding endpoint; `modulos` stays empty
-until the Área configuration (AM-10). Internal médium fields (`observacoes`, contacts,
-payments) are never returned.
+`marca` is the same public subset served by the branding endpoint. `modulos` lists the modules
+the terreiro left on (AM-10, in bottom-bar order); `mensalidade` also requires `mensalidade_mediun`
+in the plan. `boas_vindas` and `whatsapp_casa` (digits with country code, for "Falar com a casa")
+come from the Área configuration and may be `null`. Internal médium fields (`observacoes`,
+contacts, payments) are never returned.
+
+If the terreiro turns the Área off (`PUT /api/v1/admin/config/area-medium` with `"ativa": false`),
+every `/api/v1/medium/*` route answers 403 (`MEDIUM_AREA_UNAVAILABLE`) and `areas.medium` becomes
+`null` in `/auth/me`.
 
 ### 2. Home screen (Início, AM-06)
 
@@ -768,6 +919,8 @@ médium come from the session; a `medium_id` in the query string is ignored).
 | Endpoint | Limit | Window |
 |----------|-------|--------|
 | `/auth/login` | 10 | 15 minutes |
+| `/public/convite/{token}` | 30 | 1 minute per IP |
+| `/public/convite/{token}/aceitar` | 10 | 1 minute per IP |
 | `/public/*/emit-ticket` | 5 | 1 hour per email |
 | `/admin/*` | 100 | 1 minute |
 | `/admin/audit-logs` | 50 | 1 minute |
