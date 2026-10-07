@@ -700,6 +700,54 @@ refused while impersonating — 403, rate limit 10/hour per IP):
   mensalidade alterada") goes to every active admin of the tenant through the e-mail queue,
   with the masked old/new key.
 
+### 11. Avisos da casa (comunicados, AM-09)
+
+On screen it is **"Avisos"** (decision D-16); the API keeps `comunicados`. Every route requires the
+plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium_liberada`, otherwise
+403) and the permission group `COMUNICADOS` ("Avisos da Área"):
+
+| Method | Path | Group action |
+|---|---|---|
+| GET | `/api/v1/admin/comunicados` | `view` |
+| GET | `/api/v1/admin/comunicados/{id}` | `view` |
+| GET | `/api/v1/admin/comunicados/{id}/leituras` | `view` |
+| POST | `/api/v1/admin/comunicados` (201) | `insert` |
+| PUT | `/api/v1/admin/comunicados/{id}` | `edit` |
+| DELETE | `/api/v1/admin/comunicados/{id}` (204, soft delete) | `delete` |
+
+**Item** (list ordered by `fixado` desc, then `publicar_em` desc):
+```json
+{
+  "id": "uuid",
+  "titulo": "Gira de sexta começa às 20h30",
+  "corpo": "A corrente chega às 19h30.\nVeja https://exemplo.com.br",
+  "publico": "todos",
+  "fixado": true,
+  "publicar_em": "2026-10-07T12:00:00Z",
+  "expira_em": null,
+  "situacao": "publicado",
+  "created_at": "...",
+  "updated_at": "...",
+  "leituras": { "lidos": 9, "total": 20 }
+}
+```
+- **Body** (POST; PUT is partial): `titulo` (≤ 120), `corpo` (≤ 5000), `publico`
+  (`todos` | `atendimento` | `cambones`; other values → 422), `fixado`, `publicar_em` (absent/null =
+  now; future = scheduled; naive datetimes are Brasília time) and `expira_em` (optional; must be after
+  `publicar_em` and, when set, in the future → else 422). On PUT, `publicar_em: null` publishes now and
+  `expira_em: null` removes the expiry.
+- **Plain text only**: HTML tags and control characters are stripped on save (line breaks are kept);
+  empty title/text after cleaning → 422. The screens render text nodes only and auto-link
+  `http(s)://`/`www.` addresses.
+- `situacao`: `agendado` (before `publicar_em`), `publicado`, `expirado` (after `expira_em`).
+- `leituras.total` ("lido por N de M") counts only médiuns who can read it: active, in the audience
+  (`atendimento` = `mediuns.is_atendimento`, `cambones` = not), and with access to the Área (linked to
+  an active account).
+- `GET /{id}/leituras` → `{ "total", "lidos", "leram": [{ "medium_id", "nome", "lido_em" }],
+  "nao_leram": [{ "medium_id", "nome", "lido_em": null }] }` (D-28; only names — no contact data).
+- Another tenant's id → 404. Audited as `comunicado` (create/update/delete; title, audience and
+  dates — not the text).
+
 ---
 
 ## Authentication Endpoints
@@ -815,13 +863,15 @@ path or body. Writes made while impersonating are refused (403, `require_not_imp
   },
   "modulos": ["agenda", "avisos", "mensalidade"],
   "boas_vindas": "Que bom ter você na corrente!",
-  "whatsapp_casa": "5511987654321"
+  "whatsapp_casa": "5511987654321",
+  "avisos_nao_lidos": 2
 }
 ```
 `marca` is the same public subset served by the branding endpoint. `modulos` lists the modules
 the terreiro left on (AM-10, in bottom-bar order); `mensalidade` also requires `mensalidade_mediun`
 in the plan. `boas_vindas` and `whatsapp_casa` (digits with country code, for "Falar com a casa")
-come from the Área configuration and may be `null`. Internal médium fields (`observacoes`,
+come from the Área configuration and may be `null`. `avisos_nao_lidos` feeds the badge on the
+"Avisos" tab (AM-09; `0` when the module is off). Internal médium fields (`observacoes`,
 contacts, payments) are never returned.
 
 If the terreiro turns the Área off (`PUT /api/v1/admin/config/area-medium` with `"ativa": false`),
@@ -867,7 +917,8 @@ médium come from the session; a `medium_id` in the query string is ignored).
 ```
 - `pendencias`: already in screen order (decision D-24): `escala` (AM-17) → `mensalidade`
   (`situacao` `atrasada`, or `pendente` only from 5 days before the due date — `DIAS_AVISO_MENSALIDADE`;
-  earlier it stays out and the screen shows it under "Acompanhando") → `aviso` (AM-09). Escala and aviso are never returned yet.
+  earlier it stays out and the screen shows it under "Acompanhando") → `aviso` (AM-09:
+  `{"tipo": "aviso", "quantidade": N}` with the unread count). Escala is never returned yet.
 - `proxima_gira`: the tenant's next active gira (future, or in progress: `data_fim` not reached,
   or started less than 6 h ago when there is no `data_fim`). Only name, times and place — no
   tickets, consulente data or `recados`. `orientacoes` (what to bring) is `null` until AM-07.
@@ -877,7 +928,21 @@ médium come from the session; a `medium_id` in the query string is ignored).
   `paga` (PAGO record; `valor` = amount paid), `pendente` (until the due day, inclusive) or
   `atrasada` (after it). `valor` is the amount captured on the month's first record, else the
   configured monthly value.
-- `avisos`: always `{nao_lidos: 0, ultimos: []}` until AM-09.
+- `avisos` (AM-09): `{nao_lidos, ultimos}` — unread count and the 3 newest unread
+  (`{id, titulo, fixado, publicado_em}`); `{0, []}` when the house turned the "avisos" module off.
+
+### 3. Avisos (AM-09)
+
+- `GET /api/v1/medium/avisos` → `{ "itens": [{ "id", "titulo", "resumo", "fixado", "publicado_em",
+  "lido" }], "nao_lidos": N }` — published, not expired, not archived, for the médium's audience
+  (`todos` plus `atendimento` or `cambones` by `mediuns.is_atendimento`); pinned first, then newest.
+- `GET /api/v1/medium/avisos/{id}` → `{ "id", "titulo", "corpo", "fixado", "publicado_em", "lido",
+  "lido_em" }`. Scheduled, expired, archived, other audience or other tenant → 404.
+- `POST /api/v1/medium/avisos/{id}/lido` → `{ "lido": true, "lido_em": "..." }` — idempotent (keeps
+  the first reading). Refused while impersonating (403, D-06).
+- The house module "avisos" off (`PUT /admin/config/area-medium` with `modulos.avisos = false`) →
+  403 (`error_code: MEDIUM_MODULO_DESLIGADO`) on these three routes. Nothing here reveals who else
+  read it or who wrote it.
 
 ---
 
