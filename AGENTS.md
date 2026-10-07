@@ -790,6 +790,19 @@ Incluir obrigatoriamente:
   `--secondary-foreground`, `--ring`, `--sidebar-primary`. Texto sobre a marca: a cor de fonte do terreiro se o contraste
   for ≥ 4,5, senão preto/branco. Default `#4f46e5` (= backend). Telas públicas: texto na cor da marca usa
   `text-(color:--brand-text)` (primária escurecida até AA, definida pelo `PublicShell`), nunca `text-primary`.
+- **Páginas de marketing (V-08, out/2026)**: `/` e `/planos` usam `components/landing/MarketingShell` (cabeçalho,
+  rodapé com créditos das fotos, WhatsApp flutuante) e a paleta **"terra"** — tokens ESTÁTICOS `areia/tinta/barro/
+  café/ouro/folha` no `@theme` de `globals.css` (só marketing; nunca no painel; pares AA travados em
+  `__tests__/styles/marketingContrast.test.ts`) + serifa Fraunces (`font-display`, via `next/font`). A marca do
+  GiraHub (ticket âmbar + "GiraHub" sans) **não muda** (`components/landing/GiraHubLogo`). Fotos reais em
+  `constants/landingPhotos.ts` (Pexels, licença comercial) e telas reais do terreiro demo em
+  `constants/landingScreens.ts`; **regra do dono: a imagem precisa mostrar o que o texto ao lado diz** —
+  funcionalidade do sistema usa a tela real, não foto ilustrativa. Textos em `constants/landing{Copy,Faq,Stats}.ts`
+  (FAQ = mesma fonte do JSON-LD). Depoimentos (`constants/testimonials.ts`) só reais e autorizados
+  (`docs/marketing/kit-depoimentos.md`); lista vazia = seção oculta. Números de uso: `GET /api/v1/public/stats`.
+  WhatsApp comercial: `NEXT_PUBLIC_SUPPORT_WHATSAPP` é **ARG de build** do frontend (vazio = sem botões).
+  Página nova de primeiro nível → `backend/src/core/reserved_slugs.py` (teste quebra se faltar) e
+  `STATIC_ROUTES` do `pages/sitemap.xml.tsx`.
 - **Claro/escuro**: classe `dark` em `<html>` (não no layout — Radix porta overlays para o `<body>`), aplicada por
   `AdminThemeProvider`/`PlatformThemeProvider` (chaves `admin_theme_mode`/`platform_theme_mode`); páginas públicas sempre claras.
 - **Overlays**: Sheet/Dialog/AlertDialog/Select/Popover/DropdownMenu usam o z-index padrão do Radix (`z-50`); quem abre por
