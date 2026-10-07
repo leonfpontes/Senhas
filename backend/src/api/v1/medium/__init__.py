@@ -25,6 +25,7 @@ from .agenda import router as agenda_router
 from .avisos import router as avisos_router
 from .inicio import router as inicio_router
 from .me import router as me_router
+from .mensalidades import router as mensalidades_router
 
 medium_router = APIRouter(
     prefix="/api/v1/medium",
@@ -34,6 +35,7 @@ medium_router = APIRouter(
 medium_router.include_router(me_router)
 medium_router.include_router(inicio_router)
 medium_router.include_router(agenda_router)
+medium_router.include_router(mensalidades_router)
 medium_router.include_router(avisos_router)
 
 __all__ = ["medium_router"]

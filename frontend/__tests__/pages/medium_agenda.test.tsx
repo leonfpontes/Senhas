@@ -239,7 +239,7 @@ describe('Detalhe da gira', () => {
     const href = wa.getAttribute('href') as string;
     expect(href.startsWith('https://wa.me/?text=')).toBe(true);
     const texto = decodeURIComponent(href.split('text=')[1]);
-    expect(texto).toContain('Gira de Caboclos na Tenda Luz da Mata');
+    expect(texto).toContain('Gira de Caboclos · Tenda Luz da Mata');
     expect(texto).toContain('https://girahub.com.br/public/gira/g1');
     // Orientações são da corrente: não vão na divulgação.
     expect(texto).not.toContain('Roupa branca');

@@ -110,8 +110,8 @@ export function textoSenhas(senhas: GiraDetalhe['senhas']): string | null {
 
 /** Mensagem pronta para divulgar a gira (o médium escolhe o grupo ou o contato no WhatsApp). */
 export function textoDivulgar(gira: GiraDetalhe, terreiro?: string | null): string {
-  const casa = terreiro ? ` na ${terreiro}` : '';
-  const linhas = [`${gira.titulo}${casa}: ${quandoBr(gira.inicio)}.`];
+  // "Título · Casa" em vez de "na <casa>": o artigo (do/da) depende do nome de cada terreiro.
+  const linhas = [terreiro ? `${gira.titulo} · ${terreiro}` : gira.titulo, `Quando: ${quandoBr(gira.inicio)}`];
   if (gira.senhas.situacao === 'abertas') {
     linhas.push(`Pegue sua senha para o atendimento: ${gira.link_publico}`);
   } else if (gira.senhas.situacao === 'abrem_em' && gira.senhas.abrem_em) {

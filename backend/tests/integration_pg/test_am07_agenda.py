@@ -4,7 +4,7 @@
   unificado, só giras ativas do PRÓPRIO terreiro; período inválido → 400.
 - `GET /medium/agenda/gira/{id}` e `/ics`: detalhe completo sem nenhum dado de consulente;
   gira de outro terreiro → 404.
-- `giras.orientacoes_corrente` (migração 069): gravada pelo drawer da gira (GIRAS), aparece na
+- `giras.orientacoes_corrente` (migração 073): gravada pelo drawer da gira (GIRAS), aparece na
   Área (detalhe, .ics e Início) e NUNCA nas rotas públicas, no e-mail ou no bilhete.
 - Módulo "agenda" desligado pela casa → 403 neutro; chave do piloto desligada → 403.
 """
@@ -315,6 +315,6 @@ async def test_orientacoes_no_drawer_da_gira_no_inicio_e_nunca_no_publico(client
     assert resend.status_code == 200, resend.text
     assert all(marcador not in item.message.html_body for item in enqueued)
 
-    # A coluna existe e guarda o texto (migração 069).
+    # A coluna existe e guarda o texto (migração 073).
     salvo = (await db.execute(select(Gira.orientacoes_corrente).where(Gira.id == gira.id))).scalar_one()
     assert salvo == ORIENTACOES

@@ -35,7 +35,7 @@ class Gira(SoftDeleteModel):
     # email de emissão de senha quando preenchido. Ver ticket_emission.py.
     recados: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Orientações para a corrente (AM-07, migração 069): o que levar, roupa, horário de
+    # Orientações para a corrente (AM-07, migração 073): o que levar, roupa, horário de
     # chegada. Só na Área do Médium — NUNCA em rota pública, site, e-mail ou bilhete
     # (o consulente vê `recados`). Teste: tests/integration_pg/test_am07_agenda.py.
     orientacoes_corrente: Mapped[str | None] = mapped_column(Text, nullable=True)

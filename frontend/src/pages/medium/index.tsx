@@ -45,7 +45,7 @@ export interface InicioGira {
 
 export interface InicioMensalidade {
   mes: string;
-  status: 'pendente' | 'atrasada' | 'paga' | 'isento';
+  status: 'pendente' | 'atrasada' | 'em_conferencia' | 'nao_confirmada' | 'paga' | 'isento';
   valor?: number | null;
   vencimento?: string | null;
   data_pagamento?: string | null;
@@ -56,7 +56,7 @@ export type InicioPendencia =
   | { tipo: 'aviso'; quantidade: number }
   | {
       tipo: 'mensalidade';
-      situacao: 'pendente' | 'atrasada';
+      situacao: 'pendente' | 'atrasada' | 'nao_confirmada';
       mes: string;
       valor?: number | null;
       vencimento?: string | null;
@@ -76,6 +76,22 @@ const CARD =
   'flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm';
 
 function Pendencia({ p }: { p: InicioPendencia }) {
+  if (p.tipo === 'mensalidade' && p.situacao === 'nao_confirmada') {
+    return (
+      <article className={CARD} data-testid="pendencia-mensalidade">
+        <p className="flex items-center gap-1.5 text-sm font-bold text-destructive-strong">
+          <TriangleAlert className="size-4" aria-hidden /> Mensalidade de {nomeDoMes(p.mes)}
+        </p>
+        <h3 className="font-display text-xl leading-tight font-semibold">
+          A casa não confirmou seu comprovante
+        </h3>
+        <p className="text-base text-muted-foreground">Veja o motivo e envie outro comprovante.</p>
+        <Button asChild size="touch" className="w-full font-bold">
+          <Link href="/medium/mensalidade">Ver o motivo</Link>
+        </Button>
+      </article>
+    );
+  }
   if (p.tipo === 'mensalidade') {
     const atrasada = p.situacao === 'atrasada';
     const venc = p.vencimento ? diaMesCurto(p.vencimento) : null;
@@ -104,7 +120,8 @@ function Pendencia({ p }: { p: InicioPendencia }) {
           )}
         </div>
         <Button asChild size="touch" className="w-full font-bold">
-          <Link href="/medium/mensalidade">Ver mensalidade</Link>
+          {/* AM-11: abre direto o "Pagar com PIX" do mês. */}
+          <Link href="/medium/mensalidade?pagar=1">Pagar com PIX</Link>
         </Button>
       </article>
     );
@@ -183,8 +200,9 @@ function ProximaGira({ gira, comAgenda }: { gira: InicioGira; comAgenda: boolean
 
 function Acompanhando({ mensalidade }: { mensalidade: InicioMensalidade }) {
   const isento = mensalidade.status === 'isento';
+  const conferencia = mensalidade.status === 'em_conferencia';
   // Em aberto e longe do vencimento (mais de 5 dias): acompanha aqui, sem subir para o topo.
-  const aVencer = mensalidade.status === 'pendente';
+  const aVencer = mensalidade.status === 'pendente' || conferencia;
   return (
     <section className="flex flex-col gap-2.5" aria-labelledby="titulo-acompanhando">
       <h2 id="titulo-acompanhando" className={SECTION_TITLE}>
@@ -203,11 +221,13 @@ function Acompanhando({ mensalidade }: { mensalidade: InicioMensalidade }) {
         <div className="min-w-0">
           <p className="text-base font-bold">Mensalidade de {nomeDoMes(mensalidade.mes)}</p>
           <p className="text-sm text-muted-foreground">
-            {aVencer
-              ? `${mensalidade.valor != null ? `${valorBr(mensalidade.valor)} · ` : ''}vence em ${mensalidade.vencimento ? diaMesCurto(mensalidade.vencimento) : 'breve'}`
-              : isento
-                ? 'Você está isento de mensalidade'
-                : 'Paga · confirmada pela casa'}
+            {conferencia
+              ? 'Comprovante enviado · aguardando a casa confirmar'
+              : aVencer
+                ? `${mensalidade.valor != null ? `${valorBr(mensalidade.valor)} · ` : ''}vence em ${mensalidade.vencimento ? diaMesCurto(mensalidade.vencimento) : 'breve'}`
+                : isento
+                  ? 'Você está isento de mensalidade'
+                  : 'Paga · confirmada pela casa'}
           </p>
         </div>
       </div>
@@ -259,6 +279,7 @@ function Inicio() {
     data?.mensalidade &&
     (data.mensalidade.status === 'paga' ||
       data.mensalidade.status === 'isento' ||
+      data.mensalidade.status === 'em_conferencia' ||
       (data.mensalidade.status === 'pendente' && !mensalidadeNoTopo))
       ? data.mensalidade
       : null;
