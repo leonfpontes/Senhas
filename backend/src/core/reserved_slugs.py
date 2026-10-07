@@ -17,6 +17,7 @@ RESERVED_SLUGS: frozenset[str] = frozenset(
         "admin",
         "cadastro",
         "cookies",
+        "escolher-area",
         "forgot-password",
         "login",
         "offline",

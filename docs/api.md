@@ -677,6 +677,56 @@ path or body. Writes made while impersonating are refused (403, `require_not_imp
 until the Área configuration (AM-10). Internal médium fields (`observacoes`, contacts,
 payments) are never returned.
 
+### 2. Home screen (Início, AM-06)
+
+**Endpoint**: `GET /api/v1/medium/inicio` — no parameters (everything is "mine": tenant and
+médium come from the session; a `medium_id` in the query string is ignored).
+
+**Response** (200 OK):
+```json
+{
+  "hoje": "2026-10-15",
+  "pendencias": [
+    {
+      "tipo": "mensalidade",
+      "situacao": "atrasada",
+      "mes": "2026-10",
+      "valor": 50.0,
+      "vencimento": "2026-10-10",
+      "dias_para_vencer": -5
+    }
+  ],
+  "proxima_gira": {
+    "id": "gira-uuid",
+    "nome": "Gira de Caboclos",
+    "data_inicio": "2026-10-16T23:00:00Z",
+    "data_fim": null,
+    "local": "Salão principal",
+    "orientacoes": null
+  },
+  "mensalidade": {
+    "mes": "2026-10",
+    "status": "atrasada",
+    "valor": 50.0,
+    "vencimento": "2026-10-10",
+    "data_pagamento": null
+  },
+  "avisos": { "nao_lidos": 0, "ultimos": [] }
+}
+```
+- `pendencias`: already in screen order (decision D-24): `escala` (AM-17) → `mensalidade`
+  (`situacao` `pendente`/`atrasada`) → `aviso` (AM-09). Escala and aviso are never returned yet.
+- `proxima_gira`: the tenant's next active gira (future, or in progress: `data_fim` not reached,
+  or started less than 6 h ago when there is no `data_fim`). Only name, times and place — no
+  tickets, consulente data or `recados`. `orientacoes` (what to bring) is `null` until AM-07.
+- `mensalidade`: current month in Brasília time, `null` when the plan has no
+  `mensalidade_mediun`, the house has no active mensalidade config, the médium joined after the
+  month, or the house never set a value. `status`: `isento` (permanent exemption or ISENTO record),
+  `paga` (PAGO record; `valor` = amount paid), `pendente` (until the due day, inclusive) or
+  `atrasada` (after it). `valor` is the amount captured on the month's first record, else the
+  configured monthly value.
+- `avisos`: always `{nao_lidos: 0, ultimos: []}` until AM-09.
+
 ---
 
 ## Error Handling
