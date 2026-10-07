@@ -108,7 +108,7 @@ describe('Platform — Configurações', () => {
     expect(screen.getByText('Link de senhas para enviar via WhatsApp')).toBeInTheDocument();
     expect(screen.getByText('Personalização da plataforma')).toBeInTheDocument();
     expect(screen.queryByText('Suporte prioritário')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Exportar listagens/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Exportar planilhas/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Ações em lote/)).not.toBeInTheDocument();
   });
 });
