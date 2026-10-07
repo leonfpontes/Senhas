@@ -1,6 +1,7 @@
 /**
  * /admin/financeiro/config — ativar/desativar categoria e conta bancária, texto correto da
- * exclusão (soft delete) e Mensalidade bloqueada quando o GET da config falha.
+ * exclusão (soft delete), Mensalidade bloqueada quando o GET da config falha e a chave PIX
+ * (AM-10) dentro da aba Mensalidade.
  */
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -81,5 +82,35 @@ describe('Configuração financeira', () => {
     expect(await screen.findByText(/Não foi possível carregar a configuração de mensalidade/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Salvar configuração/ })).not.toBeInTheDocument();
     expect(mockPut).not.toHaveBeenCalled();
+  });
+
+  it('Mensalidade mostra a chave PIX (AM-10)', async () => {
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/api/v1/admin/financeiro/config') return Promise.resolve({ data: { valor_mensal: 50, dia_vencimento: 10 } });
+      if (url === '/api/v1/admin/financeiro/config/pix') {
+        return Promise.resolve({
+          data: {
+            configurada: true,
+            tipo: 'email',
+            chave_mascarada: 't***@example.com',
+            chave: 'tesouraria@example.com',
+            nome_recebedor: 'Casa',
+            cidade: 'Rio',
+            instrucoes: null,
+            alterado_em: null,
+            brcode_previa: null,
+            valor_previa: null,
+          },
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+    render(<FinanceiroConfigPage />);
+    const tab = screen.getByRole('tab', { name: 'Mensalidade' });
+    fireEvent.mouseDown(tab);
+    fireEvent.click(tab);
+    expect(await screen.findByText('Chave PIX da mensalidade')).toBeInTheDocument();
+    expect(await screen.findByTestId('pix-chave-atual')).toHaveTextContent('tesouraria@example.com');
+    expect(mockGet).toHaveBeenCalledWith('/api/v1/admin/financeiro/config/pix');
   });
 });
