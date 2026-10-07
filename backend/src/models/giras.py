@@ -34,7 +34,12 @@ class Gira(SoftDeleteModel):
     # Texto livre opcional (investimento, itens de doação, avisos) incluído no
     # email de emissão de senha quando preenchido. Ver ticket_emission.py.
     recados: Mapped[str | None] = mapped_column(Text, nullable=True)
-    
+
+    # Orientações para a corrente (AM-07, migração 069): o que levar, roupa, horário de
+    # chegada. Só na Área do Médium — NUNCA em rota pública, site, e-mail ou bilhete
+    # (o consulente vê `recados`). Teste: tests/integration_pg/test_am07_agenda.py.
+    orientacoes_corrente: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Senha emission control fields
     max_tickets: Mapped[int | None] = mapped_column(Integer, nullable=True)
     release_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

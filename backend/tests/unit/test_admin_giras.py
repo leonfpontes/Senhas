@@ -43,6 +43,7 @@ def _mock_gira(recados=None):
     g.local = "Centro"
     g.is_active = True
     g.recados = recados
+    g.orientacoes_corrente = None
     g.allow_acompanhantes = False
     g.max_acompanhantes = None
     g.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -244,3 +245,21 @@ class TestDeleteGira:
 
         with pytest.raises(NotFoundError):
             await delete_gira(GIRA_ID, _admin_user(), AsyncMock())
+
+
+def test_orientacoes_corrente_aparadas_e_vazio_vira_none():
+    """AM-07: o texto é aparado; só espaços apaga o campo; acima de 2000 caracteres → 422."""
+    from pydantic import ValidationError
+
+    base = dict(nome="Gira", data_inicio=datetime(2026, 5, 1, tzinfo=timezone.utc))
+    assert GiraCreate(**base, orientacoes_corrente="  Roupa branca  ").orientacoes_corrente == "Roupa branca"
+    assert GiraCreate(**base, orientacoes_corrente="   ").orientacoes_corrente is None
+    assert GiraUpdate(orientacoes_corrente="").orientacoes_corrente is None
+    # Sem o campo no PUT, nada muda (exclude_unset).
+    assert "orientacoes_corrente" not in GiraUpdate(nome="x").model_dump(exclude_unset=True)
+    try:
+        GiraUpdate(orientacoes_corrente="x" * 2001)
+    except ValidationError:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("esperava ValidationError")
