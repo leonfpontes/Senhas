@@ -13,16 +13,16 @@
   `pix_chave` (≤ 77, já normalizada no formato do DICT), `pix_nome_recebedor` (≤ 25),
   `pix_cidade` (≤ 15), `pix_instrucoes` e `pix_alterado_em`.
 
-Revision ID: 067_area_medium_config_pix
-Revises: 066_tenant_area_medium
+Revision ID: 068_area_medium_config_pix
+Revises: 067_medium_convites
 Create Date: 2026-10-07
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "067_area_medium_config_pix"
-down_revision: str = "066_tenant_area_medium"
+revision: str = "068_area_medium_config_pix"
+down_revision: str = "067_medium_convites"
 branch_labels = None
 depends_on = None
 

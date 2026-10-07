@@ -55,7 +55,7 @@ MODULOS_AREA = ("agenda", "avisos", "mensalidade")
 class AreaMediumConfig:
     """O que a casa configurou para a Área (colunas `area_medium_*` de `tenant_configs`).
 
-    Terreiro sem linha de config usa os padrões da migração 067: ligada, os três
+    Terreiro sem linha de config usa os padrões da migração 068: ligada, os três
     módulos visíveis, sem boas-vindas e sem WhatsApp.
     """
 

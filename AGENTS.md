@@ -187,6 +187,20 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `PermissionService.check_permission` nega tudo a `medium`, mesmo impersonado.
 - Inativar/excluir medium (`mediuns.py`) desativa a conta `medium` pura ligada (e derruba as sessoes);
   reativar religa. Operador/admin ligado so perde/recupera a Area.
+- Convite (AM-03, `admin/mediuns_acesso.py` + `public/convite.py` + `services/medium_convite.py`):
+  `POST /admin/mediuns/{id}/convite`, `POST /admin/mediuns/convite/lote` e `DELETE /admin/mediuns/{id}/acesso`
+  usam `MEDIUNS:edit` + `require_plan_feature("area_medium")`. O vinculo `mediuns.user_id` SO nasce no aceite
+  publico (`/public/convite/{token}/aceitar`): token opaco `token_urlsafe(32)` guardado como sha256
+  (`medium_convites.token_hash`), 7 dias, uso unico, um convite em aberto por medium (indice unico parcial;
+  reenviar revoga o anterior). Resposta generica 404 `CONVITE_INVALIDO` para token inexistente/vencido/usado/
+  revogado. Sem conta do painel com o e-mail → cria `User(role=medium)` (conta `medium` antiga ou excluida do
+  mesmo e-mail volta com senha nova); com conta admin/operador → pede a senha DELA (errada = 400
+  `SENHA_INCORRETA`, nunca 401) e nao muda o papel. Consentimento obrigatorio (`area_consentimento_em/_versao`,
+  versao `CONSENTIMENTO_AREA_VERSAO` espelhada em `frontend/src/constants/areaMedium.ts`). Tirar o acesso
+  (`services/medium_convite.tirar_acesso`) revoga o convite, desfaz o vinculo e desativa a conta `medium` pura
+  (sessoes caem na hora). Trocar o e-mail, inativar ou excluir o medium revoga o convite em aberto. E-mail e
+  texto de WhatsApp discretos (sem termo religioso alem do nome do terreiro, §6.8 do plano). A busca pelo
+  token e a "busca raiz" isenta em `EXEMPT_PUBLIC_QUERIES` (`_convite_pelo_token`).
 - **Lancamento em piloto (decisao do dono, 07/10)**: a Area do Medium vai para a producao desligada.
   `tenants.area_medium_liberada` (padrao false) e ligado por terreiro pelo super admin no Tenant 360
   (`PUT /platform/tenants/{id}` com `area_medium_liberada`). `check_plan_feature(..., "area_medium")` exige
@@ -665,9 +679,11 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `067_area_medium_config_pix` (2026-10-07, AM-10: colunas `area_medium_*` em `tenant_configs` e
-  `pix_*` em `mensalidade_configs`), apos `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`,
-  chave do piloto da Area do Medium), apos `065_mediuns_user_id` (2026-10-07, AM-02: `mediuns.user_id` FK `users.id` ON DELETE
+- Head atual: `068_area_medium_config_pix` (2026-10-07, AM-10: colunas `area_medium_*` em `tenant_configs` e
+  `pix_*` em `mensalidade_configs`), apos `067_medium_convites` (2026-10-07, AM-03: tabela `medium_convites` —
+  convite da casa para a Area do Medium, token sha256 unico, 7 dias, um convite em aberto por medium), apos
+  `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`, chave do piloto da Area do
+  Medium), apos `065_mediuns_user_id` (2026-10-07, AM-02: `mediuns.user_id` FK `users.id` ON DELETE
   SET NULL + unico parcial `uq_mediuns_user_id_ativo` e `area_consentimento_em/_versao`), apos
   `064_user_role_medium` (`ALTER TYPE user_role ADD VALUE 'medium'`, sozinha num
   `autocommit_block()`), `063_legal_acceptances` (aceite dos Termos/Privacidade), `062_permissao_site_copia`/`061_permissao_site_enum` (T-06) e
@@ -920,7 +936,7 @@ Incluir obrigatoriamente:
   não vira erro).
 
 ### 11.23 Área do Médium — fundação de identidade (AM-02, 2026-10-07)
-Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Só backend até aqui; nenhuma tela.
+Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). AM-02 só backend; AM-03 trouxe as primeiras telas (convite).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
   tem painel; operador/admin que é médium mantém o papel e ganha a Área pelo vínculo. O vínculo só
@@ -936,7 +952,14 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Só back
 - **Configuração da Área e chave PIX (AM-10)**: aba "Área do Médium" em `/admin/config`
   (`components/admin/AreaMediumConfigSection.tsx`, só com `can('area_medium')`, salva à parte) e card
   "Chave PIX da mensalidade" em Financeiro → Configuração → Mensalidade. Backend e regras em §3.3.
-- **Pendente nos próximos cards**: convite e ativação (AM-03), escolha de área no login (AM-04),
+- **Convite (AM-03)**: tela Médiuns ganha a coluna "Acesso à Área" (Sem acesso · Convite enviado · Ativo),
+  a ação "Acesso à Área" na linha (sheet `components/admin/mediuns/AcessoAreaSheet`: e-mail mascarado,
+  mensagem pronta, "Enviar pelo WhatsApp" abre o `wa.me`, "Copiar link do convite", cancelar convite, tirar
+  o acesso com `ConfirmDialog`) e "Convidar todos com e-mail (N)" — tudo só com `can('area_medium')` e
+  `canGroup('mediuns','edit')` (no piloto não há PlanLocked: escondido). Página pública
+  `pages/convite/[token].tsx` (`AuthShell`): logo e nome da casa, "Crie sua senha de acesso" (ou a senha
+  do painel), consentimento + "Ler o termo"; no aceite já entra e vai para `/medium`. Backend em §3.3.
+- **Pendente nos próximos cards**: escolha de área no login (AM-04),
   login multi-terreiro (AM-05), casca/telas (AM-06+),
   auditor JS de `pages/medium` com `MediumLayout`, slug `escolher-area`.
 

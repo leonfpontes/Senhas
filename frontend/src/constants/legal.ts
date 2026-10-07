@@ -18,7 +18,7 @@ export const LEGAL_ENTITY = {
 
 export const LEGAL_VERSIONS = {
   termos: { version: '2.1', updatedAt: '7 de outubro de 2026', updatedAtIso: '2026-10-07' },
-  privacidade: { version: '2.1', updatedAt: '7 de outubro de 2026', updatedAtIso: '2026-10-07' },
+  privacidade: { version: '2.2', updatedAt: '7 de outubro de 2026', updatedAtIso: '2026-10-07' },
   cookies: { version: '1.0', updatedAt: '7 de outubro de 2026', updatedAtIso: '2026-10-07' },
 } as const;
 

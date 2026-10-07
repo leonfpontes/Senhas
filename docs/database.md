@@ -119,7 +119,29 @@ nullable) liga a conta ao cadastro do médium e é o que dá acesso à Área do 
 **Chave do piloto (migração 066):** `tenants.area_medium_liberada` (`Boolean`, padrão `false`). A plataforma liga por
 terreiro no Tenant 360; sem ela a Área do Médium não vale, mesmo com plano Basic+ (`check_plan_feature`).
 
-**Configuração da Área e chave PIX (migração 067, AM-10):** colunas `area_medium_*` em `tenant_configs` (abaixo) e,
+### `medium_convites` (AM-03, migração 067)
+
+Convite da casa para o médium entrar na Área do Médium. O vínculo `mediuns.user_id` só nasce no aceite
+(prova de posse do e-mail). Model `MediumConvite(Base)` (sem `updated_at`/`deleted_at`).
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `medium_id` | UUID FK → `mediuns.id` CASCADE | |
+| `email` | `String(255)` | e-mail do cadastro no momento do convite (minúsculas); se o cadastro mudar, o convite deixa de valer |
+| `token_hash` | `String(64)` UNIQUE | sha256 do token opaco `token_urlsafe(32)` — o token em claro só existe no link |
+| `expira_em` | `DateTime(tz)` | criação + 7 dias |
+| `usado_em` | `DateTime(tz)` NULL | aceite (uso único) |
+| `revogado_em` | `DateTime(tz)` NULL | reenviar, cancelar, tirar acesso, trocar o e-mail, inativar ou excluir o médium |
+| `criado_por` | UUID FK → `users.id` SET NULL | |
+| `created_at` | `DateTime(tz)` | `server_default now()` |
+
+**Indexes:** `ix_medium_convites_tenant_id`, `ix_medium_convites_medium_id` e o único parcial
+`uq_medium_convites_aberto` em `(medium_id) WHERE usado_em IS NULL AND revogado_em IS NULL` — no máximo um
+convite em aberto por médium (criar outro revoga o anterior antes).
+
+**Configuração da Área e chave PIX (migração 068, AM-10):** colunas `area_medium_*` em `tenant_configs` (abaixo) e,
 em `mensalidade_configs`: `pix_tipo` (`String(10)`, CHECK `ck_mensalidade_configs_pix_tipo` em
 `cpf/cnpj/email/telefone/aleatoria` — string, não ENUM do PG), `pix_chave` (`String(77)`, já no formato do DICT),
 `pix_nome_recebedor` (`String(25)`), `pix_cidade` (`String(15)`), `pix_instrucoes` (`Text`) e `pix_alterado_em`
@@ -616,3 +638,6 @@ alembic current
 | `estoque_itens` | `tenant_id`, `grupo_id` | B-tree |
 | `estoque_movimentacoes` | `tenant_id`, `item_id`, `data_movimentacao` | B-tree |
 | `audit_logs` | `tenant_id`, `user_id`, `created_at`, `action`, `resource_type` | B-tree |
+| `medium_convites` | `token_hash` | UNIQUE |
+| `medium_convites` | `(medium_id) WHERE usado_em IS NULL AND revogado_em IS NULL` | UNIQUE parcial (`uq_medium_convites_aberto`) |
+| `medium_convites` | `tenant_id`, `medium_id` | B-tree |

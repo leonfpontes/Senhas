@@ -9,6 +9,7 @@ Os padrões abaixo espelham os nomes de arquivo do Next:
 - PUBLIC_TICKET_ROUTE  → pages/public/[tenant]/ticket/[ticketId].tsx
 - PUBLIC_CANCEL_ROUTE  → pages/public/ticket/[ticketId]/cancelar.tsx
 - PUBLIC_TENANT_ROUTE  → pages/public/[tenant].tsx (redireciona à próxima gira)
+- MEDIUM_CONVITE_ROUTE → pages/convite/[token].tsx (convite da casa para a Área do Médium, AM-03)
 
 `tests/unit/test_public_links.py` confere que os arquivos existem.
 """
@@ -20,6 +21,7 @@ from uuid import UUID
 PUBLIC_TICKET_ROUTE = "/public/{tenant_slug}/ticket/{ticket_id}"
 PUBLIC_CANCEL_ROUTE = "/public/ticket/{ticket_id}/cancelar"
 PUBLIC_TENANT_ROUTE = "/public/{tenant_slug}"
+MEDIUM_CONVITE_ROUTE = "/convite/{token}"
 
 
 def _base(frontend_url: str) -> str:
@@ -37,6 +39,11 @@ def public_cancel_link(frontend_url: str, ticket_id: UUID | str) -> str:
 
 def public_tenant_link(frontend_url: str, tenant_slug: str) -> str:
     return _base(frontend_url) + PUBLIC_TENANT_ROUTE.format(tenant_slug=tenant_slug)
+
+
+def medium_convite_link(frontend_url: str, token: str) -> str:
+    """Convite da casa para a Área do Médium: o token opaco vai em claro só aqui."""
+    return _base(frontend_url) + MEDIUM_CONVITE_ROUTE.format(token=token)
 
 
 def public_tenant_logo_url(frontend_url: str, tenant_config) -> str | None:

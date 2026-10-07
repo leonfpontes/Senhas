@@ -69,7 +69,7 @@ class MensalidadeConfig(TimestampedModel):
     # Preferred time for scheduled report email (stored only — no auto-scheduler yet)
     relatorio_hora_envio: Mapped[Optional[datetime]] = mapped_column(Time, nullable=True)
 
-    # Chave PIX da mensalidade (AM-10, migração 067). Trocar exige FINANCEIRO:edit +
+    # Chave PIX da mensalidade (AM-10, migração 068). Trocar exige FINANCEIRO:edit +
     # senha + e-mail a todos os admins (PUT /admin/financeiro/config/pix). A chave fica
     # normalizada no formato do DICT (services/pix_chave.py) e vira o BR Code
     # estático em services/pix_brcode.py.

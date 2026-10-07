@@ -8,7 +8,7 @@ casa ("Falar com a casa") e quais módulos o médium vê (agenda, avisos,
 mensalidade). O gate `area_medium` já exige a chave do piloto
 (`tenants.area_medium_liberada`): sem ela, 403 aqui também.
 
-Os valores ficam em colunas `area_medium_*` de `tenant_configs` (migração 067) e são
+Os valores ficam em colunas `area_medium_*` de `tenant_configs` (migração 068) e são
 lidos pela Área via `services/medium_area` (`area_medium_enabled_by_tenant`,
 `area_medium_modulos`).
 """

@@ -26,6 +26,7 @@ from .stripe_events import StripeEventProcessed
 from .trial_grants import TrialGrant
 from .legal_acceptances import LegalAcceptance
 from .support_chat import SupportConversation, SupportMessage, SupportConversationStatus
+from .medium_convites import MediumConvite
 
 __all__ = [
     "Base",
@@ -55,6 +56,7 @@ __all__ = [
     "EstoqueMovimentacao",
     "EstoqueMovimentacaoTipo",
     "Medium",
+    "MediumConvite",
     "MensalidadeConfig",
     "MensalidadePagamento",
     "MensalidadeStatus",
