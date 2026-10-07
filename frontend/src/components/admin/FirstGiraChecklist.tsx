@@ -1,10 +1,11 @@
 /**
- * Checklist "primeira gira" do dashboard.
+ * Checklist de primeiros passos do dashboard, por trilha (`onboardingTrilhas.ts`).
  *
- * Guia o terreiro novo pelo ciclo que gera valor no GiraHub (análise de produção de
- * 2026-10-05): criar gira → compartilhar o link de senhas → receber senhas pelo link → usar a
- * Porta no dia da gira. Enquanto o terreiro não estiver ativado, o dashboard é só este
- * checklist (sem KPIs).
+ * A trilha segue a resposta do cadastro "O que você mais precisa resolver?" (senhas, médiuns,
+ * financeiro, site, estoque). Sem resposta (terreiros antigos) ou "Ainda estou conhecendo", é o
+ * ciclo que gera valor no GiraHub (análise de produção de 2026-10-05): criar gira → compartilhar
+ * o link de senhas → receber senhas pelo link → usar a Porta no dia da gira. Enquanto o terreiro
+ * não estiver ativado, o dashboard é só este checklist (sem KPIs).
  *
  * O estado vem do backend (`onboarding` no /dashboard-summary). No localStorage, por tenant,
  * ficam só "já compartilhei", "ocultar" e a flag "primeiros passos pendentes" que a sidebar lê
@@ -12,13 +13,23 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Check, CircleCheck, ExternalLink, Share2, X } from 'lucide-react';
+import { Check, CircleCheck, ExternalLink, Lock, Share2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { setAnalyticsTag, trackEvent } from '@/services/analytics';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { ShareLinkDialog, buildWhatsAppShareUrl, type ShareKind } from '@/components/admin/ShareLinkDialog';
+import {
+  TRILHA_TITULOS,
+  resolveTrilha,
+  trilhaConcluida,
+  trilhaDe,
+  type OnboardingStepStatus,
+  type ResolvedStep,
+  type TrilhaGates,
+} from '@/components/admin/onboardingTrilhas';
+import { minPlanPhrase } from '@/constants/plans';
 
 export { buildWhatsAppShareUrl };
 
@@ -28,8 +39,11 @@ export interface OnboardingStatus {
   door_used: boolean;
   public_link: string | null;
   completed: boolean;
-  /** Resposta do cadastro; define a trilha do tour de boas-vindas. */
+  /** Resposta do cadastro; define a trilha do tour de boas-vindas e deste checklist. */
   principal_dor?: string | null;
+  /** Trilha e passos com "feito" calculados pelo backend (ausentes em respostas antigas). */
+  trilha?: string | null;
+  steps?: OnboardingStepStatus[] | null;
 }
 
 export interface FirstGiraChecklistProps {
@@ -40,6 +54,10 @@ export interface FirstGiraChecklistProps {
   primary?: string;
   canCreateGira: boolean;
   canViewPorta: boolean;
+  /** Recurso do plano liberado (useSubscription().can) — trava passos de módulos fora do plano. */
+  canPlan?: TrilhaGates['canPlan'];
+  /** Permissão de grupo (usePermissions().can); sem ela, usa canCreateGira/canViewPorta. */
+  canGroup?: TrilhaGates['canGroup'];
   /** Dashboard em tela cheia (terreiro ainda não ativado). */
   fullscreen?: boolean;
   onDismiss?: () => void;
@@ -73,9 +91,15 @@ function writeFlag(key: string, value: boolean): void {
   }
 }
 
-/** Terreiro ativado: checklist concluído ou já com senhas suficientes pelo link. */
-export function isTenantActivated(status: OnboardingStatus): boolean {
-  return status.completed || status.public_tickets >= ACTIVATED_PUBLIC_TICKETS;
+const ALLOW_ALL: TrilhaGates = { canPlan: () => true, canGroup: () => true };
+
+/**
+ * Terreiro ativado: trilha concluída (sem contar passos travados pelo plano) ou já com senhas
+ * suficientes pelo link.
+ */
+export function isTenantActivated(status: OnboardingStatus, gates: Partial<TrilhaGates> = {}): boolean {
+  if (status.public_tickets >= ACTIVATED_PUBLIC_TICKETS) return true;
+  return trilhaConcluida(resolveTrilha(status, { ...ALLOW_ALL, ...gates }));
 }
 
 export function readChecklistDismissed(tenantId?: string | null): boolean {
@@ -123,6 +147,8 @@ export default function FirstGiraChecklist({
   tenantName,
   canCreateGira,
   canViewPorta,
+  canPlan,
+  canGroup,
   fullscreen = false,
   onDismiss,
 }: FirstGiraChecklistProps) {
@@ -196,68 +222,93 @@ export default function FirstGiraChecklist({
     </div>
   ) : null;
 
-  const steps: Step[] = [
-    {
-      key: 'gira',
-      title: 'Crie sua primeira gira',
-      done: status.has_gira,
-      description: 'Defina a data, o horário e quantas senhas liberar. Leva menos de um minuto.',
-      actions: canCreateGira ? (
-        <Button asChild size="sm">
-          <Link href="/admin/giras?nova=1" onClick={() => trackEvent('onboarding_cta_create_gira')}>
-            Criar gira
-          </Link>
-        </Button>
-      ) : (
-        <p className="text-xs text-muted-foreground">Peça a um administrador do terreiro para criar a gira.</p>
-      ),
-    },
-    {
-      key: 'share',
-      title: 'Compartilhe o link de senhas',
-      done: shared || hasPublicTickets,
-      description: (
-        <>
-          É por este link que os consulentes pegam a senha pelo celular. Teste no seu próprio celular e mande
-          no grupo de WhatsApp do terreiro: ele vale para todas as giras, então é só compartilhar uma vez.
-          {link && <span className="mt-1 block font-mono text-xs break-all text-foreground">{link}</span>}
-        </>
-      ),
-      actions: shareActions,
-    },
-    {
-      key: 'tickets',
-      title: 'Receba as primeiras senhas',
-      done: hasPublicTickets,
-      description: hasPublicTickets
-        ? `${status.public_tickets} senha(s) já recebida(s) pelo link.`
-        : 'Assim que alguém pegar uma senha pelo link, este passo se completa sozinho. Dica: abra o link no seu celular e pegue uma senha de teste.',
-      actions: shareActions,
-    },
-    {
-      key: 'porta',
-      title: 'Use a Porta no dia da gira',
-      done: status.door_used,
-      description: 'Na hora da gira, abra a Porta no celular para marcar quem chegou e chamar as senhas na ordem.',
-      actions: canViewPorta ? (
+  const gates: TrilhaGates = {
+    canPlan: canPlan ?? (() => true),
+    canGroup:
+      canGroup ??
+      ((feature, action) => {
+        if (feature === 'giras' && action === 'insert') return canCreateGira;
+        if (feature === 'porta') return canViewPorta;
+        return true;
+      }),
+    shared,
+  };
+  const trilha = trilhaDe(status);
+  const titulos = TRILHA_TITULOS[trilha];
+  const resolved = resolveTrilha(status, gates);
+
+  const lockedNote = (step: ResolvedStep) =>
+    step.locked === 'plan' && step.plan ? (
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Lock className="size-3.5" aria-hidden /> Disponível {minPlanPhrase(step.plan)}.
+        </p>
         <Button asChild size="sm" variant="outline">
-          <Link href="/admin/porta" onClick={() => trackEvent('onboarding_cta_porta')}>
-            Abrir a Porta
-          </Link>
+          <Link href="/admin/billing">Ver planos</Link>
         </Button>
-      ) : null,
-    },
-  ];
+      </div>
+    ) : (
+      <p className="text-xs text-muted-foreground">
+        {step.key === 'gira'
+          ? 'Peça a um administrador do terreiro para criar a gira.'
+          : 'Peça a um administrador do terreiro para fazer este passo.'}
+      </p>
+    );
+
+  const ctaFor = (step: ResolvedStep) => {
+    if (step.locked) return lockedNote(step);
+    if (!step.cta) return null;
+    const { label, href, event } = step.cta;
+    return (
+      <Button asChild size="sm" variant={step.key === 'porta' ? 'outline' : 'default'}>
+        <Link href={href} onClick={() => trackEvent(event ?? 'onboarding_cta', { trilha, passo: step.key })}>
+          {label}
+        </Link>
+      </Button>
+    );
+  };
+
+  const steps: Step[] = resolved.map((step) => {
+    if (step.key === 'share') {
+      return {
+        key: step.key,
+        title: step.title,
+        done: step.done,
+        description: (
+          <>
+            {step.description}
+            {link && <span className="mt-1 block font-mono text-xs break-all text-foreground">{link}</span>}
+          </>
+        ),
+        actions: shareActions,
+      };
+    }
+    if (step.key === 'tickets') {
+      return {
+        key: step.key,
+        title: step.title,
+        done: step.done,
+        description: hasPublicTickets ? `${status.public_tickets} senha(s) já recebida(s) pelo link.` : step.description,
+        actions: shareActions,
+      };
+    }
+    if (step.key === 'porta' && step.locked === 'perm') {
+      // Sem acesso à Porta: só a explicação (como antes), sem pedir para outra pessoa.
+      return { key: step.key, title: step.title, done: step.done, description: step.description, actions: null };
+    }
+    return { key: step.key, title: step.title, done: step.done, description: step.description, actions: ctaFor(step) };
+  });
 
   const doneCount = steps.filter((s) => s.done).length;
   const currentIndex = steps.findIndex((s) => !s.done);
 
-  const hidden = isTenantActivated(status) || dismissed || !hydrated;
+  const activated = status.public_tickets >= ACTIVATED_PUBLIC_TICKETS || trilhaConcluida(resolved);
+  const hidden = activated || dismissed || !hydrated;
 
   useEffect(() => {
     if (!hydrated) return;
-    writeOnboardingPending(tenantId, !isTenantActivated(status) && !dismissed);
-  }, [hydrated, tenantId, status, dismissed]);
+    writeOnboardingPending(tenantId, !activated && !dismissed);
+  }, [hydrated, tenantId, activated, dismissed]);
 
   useEffect(() => {
     if (hidden) return;
@@ -270,17 +321,16 @@ export default function FirstGiraChecklist({
     <Card
       data-testid="first-gira-checklist"
       data-tour="first-gira-checklist"
+      data-trilha={trilha}
       className={cn('border-primary/60 py-0', fullscreen ? 'mx-auto w-full max-w-2xl' : 'mb-6')}
     >
       <CardContent className={cn('px-4 py-4 sm:px-6 sm:py-6')}>
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className={cn('font-bold tracking-tight', fullscreen ? 'text-2xl' : 'text-lg')}>
-              Primeiros passos: sua primeira gira
+              {titulos.title}
             </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Siga estes passos para os consulentes começarem a pegar senha pelo celular.
-            </p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{titulos.subtitle}</p>
           </div>
           <Button type="button" variant="ghost" size="icon-sm" onClick={handleDismiss} aria-label="Ocultar primeiros passos">
             <X aria-hidden />

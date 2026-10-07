@@ -56,6 +56,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useProfile } from '@/hooks/useProfile';
 import { useWelcomeTour } from '@/tours/welcomeTour';
+import { proximoPasso, resolveTrilha, trilhaDe, type TrilhaGates } from '@/components/admin/onboardingTrilhas';
 import { isPrincipalDor } from '@/constants/onboarding';
 import { setAnalyticsTag } from '@/services/analytics';
 import { apiClient } from '@/services/api_client';
@@ -360,9 +361,21 @@ function DashboardContent() {
     if (principalDor) setAnalyticsTag('principal_dor', principalDor);
   }, [principalDor]);
 
+  // Travas do checklist por trilha: plano (enquanto a assinatura carrega, nada travado — senão
+  // passos de módulo contariam como "fora do plano" e o checklist sumiria por um instante) e grupo.
+  const trilhaGates: TrilhaGates = {
+    canPlan: (feature) => subLoading || can(feature),
+    canGroup,
+  };
+  const trilhaSteps = data?.onboarding ? resolveTrilha(data.onboarding, trilhaGates) : [];
+  const nextStep = proximoPasso(trilhaSteps);
+
   useWelcomeTour({
-    enabled: !loading && !!data && profile?.role === 'admin',
+    enabled: !loading && !!data && profile?.role === 'admin' && !subLoading,
     dor: principalDor,
+    trilha: data?.onboarding ? trilhaDe(data.onboarding) : undefined,
+    checklistTitles: trilhaSteps.map((s) => s.title),
+    nextStep,
     userId: profile?.id,
     firstName: profile?.full_name?.split(' ')[0],
     can,
@@ -397,7 +410,8 @@ function DashboardContent() {
   };
 
   const onboarding = data?.onboarding;
-  const onboardingOnly = !!onboarding && canViewGiras && !isTenantActivated(onboarding) && !checklistDismissed;
+  const onboardingOnly =
+    !!onboarding && canViewGiras && !isTenantActivated(onboarding, trilhaGates) && !checklistDismissed;
 
   const upcomingGiras = useMemo(() => data?.upcoming_giras ?? [], [data]);
   const todayGira = useMemo(() => {
@@ -468,6 +482,8 @@ function DashboardContent() {
           tenantName={profile?.tenant_name}
           canCreateGira={canCreateGira}
           canViewPorta={canViewPorta}
+          canPlan={trilhaGates.canPlan}
+          canGroup={canGroup}
           fullscreen
           onDismiss={() => setChecklistDismissed(true)}
         />

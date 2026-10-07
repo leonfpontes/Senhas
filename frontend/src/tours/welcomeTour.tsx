@@ -7,10 +7,13 @@
  * responderam a pergunta (cadastros a partir de 2026-10-05) — clientes
  * antigos não são afetados.
  *
- * Toda trilha leva à primeira gira: boas-vindas → roteiro (checklist) → Porta →
- * ajuda → "Criar gira". Nenhum passo leva para fora da gira; o módulo da dor
- * (médiuns, financeiro, site, estoque) aparece só como "depois, quando quiser",
- * em texto, no último passo.
+ * A trilha é a mesma do checklist de primeiros passos (`components/admin/onboardingTrilhas.ts`):
+ * - "gira"/"senhas" (e "Ainda estou conhecendo"): boas-vindas → roteiro (checklist) → Porta →
+ *   ajuda → "Criar gira";
+ * - módulos (médiuns, financeiro, site, estoque): boas-vindas → roteiro com os passos da trilha →
+ *   ajuda → botão do primeiro passo pendente do checklist (ex.: "Cadastrar médium"). A primeira
+ *   gira continua no roteiro. Se o módulo estiver fora do plano, o tour cai na trilha da gira e
+ *   o módulo aparece como "depois, quando quiser", com o plano necessário.
  *
  * Os passos não apontam para o menu lateral: ele muda por plano/permissão e
  * fica escondido numa gaveta no celular, onde está a maioria dos admins.
@@ -70,8 +73,21 @@ export const MODULE_HINTS: Partial<Record<PrincipalDor, ModuleHint>> = {
   },
 };
 
+/** Próximo passo do checklist (o primeiro pendente que a pessoa consegue fazer). */
+export interface WelcomeNextStep {
+  key: string;
+  title: string;
+  description: string;
+  cta?: { label: string; href: string };
+}
+
 export interface WelcomeTourContext {
   dor: PrincipalDor;
+  /** Trilha do checklist (mesma do backend). Ausente = trilha da gira. */
+  trilha?: string;
+  /** Títulos dos passos do checklist, na ordem. */
+  checklistTitles?: string[];
+  nextStep?: WelcomeNextStep | null;
   firstName?: string | null;
   /** Feature de plano disponível (useSubscription().can). */
   can: (feature: keyof PlanFeatures) => boolean;
@@ -116,10 +132,20 @@ function moduleHintText(ctx: WelcomeTourContext): string | null {
   return `Depois, quando quiser: ${hint.text}${plan ? ` (disponível ${where})` : ''}`;
 }
 
+const TRILHAS_DA_GIRA = new Set(['gira', 'senhas']);
+
+/** Trilha de módulo com um próximo passo do próprio módulo (não travado pelo plano). */
+function moduleFirst(ctx: WelcomeTourContext): WelcomeNextStep | null {
+  if (!ctx.trilha || TRILHAS_DA_GIRA.has(ctx.trilha)) return null;
+  const next = ctx.nextStep;
+  return next && next.key !== 'gira' && next.cta ? next : null;
+}
+
 export function buildWelcomeTourSteps(ctx: WelcomeTourContext): StepType[] {
   const option = PRINCIPAL_DOR_OPTIONS.find((o) => o.value === ctx.dor);
   const name = ctx.firstName?.trim();
   const steps: StepType[] = [];
+  const modulo = moduleFirst(ctx);
 
   steps.push({
     ...CENTER_STEP,
@@ -128,7 +154,9 @@ export function buildWelcomeTourSteps(ctx: WelcomeTourContext): StepType[] {
       <StepBody title={name ? `Bem-vindo ao GiraHub, ${name}!` : 'Bem-vindo ao GiraHub!'}>
         {ctx.dor === 'outro'
           ? 'Preparamos um guia rápido com o essencial: sua primeira gira com senhas pelo WhatsApp.'
-          : `Você contou que quer ${option?.phrase ?? 'organizar o terreiro'}. Começamos pela primeira gira, que é onde tudo se junta.`}
+          : modulo
+            ? `Você contou que quer ${option?.phrase ?? 'organizar o terreiro'}. Montamos um roteiro curto para isso, começando por: ${modulo.title.toLowerCase()}.`
+            : `Você contou que quer ${option?.phrase ?? 'organizar o terreiro'}. Começamos pela primeira gira, que é onde tudo se junta.`}
       </StepBody>
     ),
   });
@@ -138,22 +166,25 @@ export function buildWelcomeTourSteps(ctx: WelcomeTourContext): StepType[] {
       selector: CHECKLIST_SELECTOR,
       content: (
         <StepBody title="Seu roteiro de primeiros passos">
-          Crie a gira, mande o link de senhas no grupo de WhatsApp do terreiro e, no dia, use a Porta. Cada passo se
-          completa sozinho.
+          {modulo && ctx.checklistTitles?.length
+            ? `${ctx.checklistTitles.join(' → ')}. Cada passo se completa sozinho.`
+            : 'Crie a gira, mande o link de senhas no grupo de WhatsApp do terreiro e, no dia, use a Porta. Cada passo se completa sozinho.'}
         </StepBody>
       ),
     });
   }
 
-  steps.push({
-    ...CENTER_STEP,
-    position: 'center',
-    content: (
-      <StepBody title="No dia da gira, use a Porta">
-        Abra a Porta no celular: ela mostra quem já pegou senha, faz o check-in na entrada e chama as senhas na ordem.
-      </StepBody>
-    ),
-  });
+  if (!modulo) {
+    steps.push({
+      ...CENTER_STEP,
+      position: 'center',
+      content: (
+        <StepBody title="No dia da gira, use a Porta">
+          Abra a Porta no celular: ela mostra quem já pegou senha, faz o check-in na entrada e chama as senhas na ordem.
+        </StepBody>
+      ),
+    });
+  }
 
   if (ctx.hasHelpButton) {
     steps.push({
@@ -166,7 +197,34 @@ export function buildWelcomeTourSteps(ctx: WelcomeTourContext): StepType[] {
     });
   }
 
-  // Último passo de toda trilha: criar a gira.
+  // Trilha de módulo: o último passo é o primeiro pendente do checklist.
+  if (modulo?.cta) {
+    const { label, href } = modulo.cta;
+    steps.push({
+      ...CENTER_STEP,
+      position: 'center',
+      content: (
+        <StepBody title={`Agora: ${modulo.title.toLowerCase()}`}>
+          <p>{modulo.description}</p>
+          <p className="text-muted-foreground">A primeira gira também está no roteiro, para quando você quiser.</p>
+          <Button asChild size="sm" className="mt-1 no-underline">
+            <Link
+              href={href}
+              onClick={() => {
+                trackEvent('welcome_tour_cta', { trilha: ctx.dor, href });
+                ctx.close();
+              }}
+            >
+              {label}
+            </Link>
+          </Button>
+        </StepBody>
+      ),
+    });
+    return steps;
+  }
+
+  // Último passo das trilhas da gira (e de módulo fora do plano): criar a gira.
   const hint = moduleHintText(ctx);
   steps.push({
     ...CENTER_STEP,
@@ -203,6 +261,9 @@ export interface UseWelcomeTourArgs {
   /** Dados prontos e usuário elegível (admin, tenant com principal_dor). */
   enabled: boolean;
   dor: PrincipalDor | null | undefined;
+  trilha?: string;
+  checklistTitles?: string[];
+  nextStep?: WelcomeNextStep | null;
   userId: string | null | undefined;
   firstName?: string | null;
   can: (feature: keyof PlanFeatures) => boolean;
@@ -213,7 +274,16 @@ export interface UseWelcomeTourArgs {
  * localStorage). Espera um instante para o checklist do dashboard montar,
  * já que o tour ancora nele quando existe.
  */
-export function useWelcomeTour({ enabled, dor, userId, firstName, can }: UseWelcomeTourArgs): void {
+export function useWelcomeTour({
+  enabled,
+  dor,
+  userId,
+  firstName,
+  can,
+  trilha,
+  checklistTitles,
+  nextStep,
+}: UseWelcomeTourArgs): void {
   const { setSteps, setIsOpen, setCurrentStep } = useTour();
 
   useEffect(() => {
@@ -225,6 +295,9 @@ export function useWelcomeTour({ enabled, dor, userId, firstName, can }: UseWelc
       writeFlag(key);
       const steps = buildWelcomeTourSteps({
         dor,
+        trilha,
+        checklistTitles,
+        nextStep,
         firstName,
         can,
         close: () => setIsOpen(false),
@@ -238,7 +311,7 @@ export function useWelcomeTour({ enabled, dor, userId, firstName, can }: UseWelc
     }, 600);
 
     return () => window.clearTimeout(timer);
-    // `can`/`firstName` mudam de identidade a cada render; o disparo depende
+    // `can`/`firstName`/`nextStep` mudam de identidade a cada render; o disparo depende
     // só de habilitação, trilha e usuário.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, dor, userId]);

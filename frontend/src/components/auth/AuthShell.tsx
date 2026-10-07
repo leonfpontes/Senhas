@@ -43,10 +43,12 @@ export interface AuthShellProps {
 function BrandPanel({ photo }: { photo: PhotoKey }) {
   const depoimento = latestTestimonial();
   return (
-    <aside aria-label="Sobre o GiraHub" className="relative z-20 hidden bg-cafe-950 text-white md:block">
-      {/* Caixa do tamanho da tela que acompanha a rolagem (cadastro longo): foto, véu e texto
-          andam juntos, então o contraste calculado abaixo vale em qualquer posição. */}
-      <div className="sticky top-0 isolate flex h-[calc(100dvh-4rem)] flex-col justify-between gap-10 overflow-hidden p-10 lg:p-14">
+    <aside aria-label="Sobre o GiraHub" className="relative z-20 hidden overflow-clip bg-cafe-950 text-white md:block">
+      {/* Caixa da altura da tela que acompanha a rolagem (cadastro longo): foto, véu e texto
+          andam juntos, então o contraste calculado abaixo vale em qualquer posição. Com a página
+          no topo, os 4rem de baixo ficam sob a dobra (o cabeçalho ocupa o começo) — daí o
+          respiro maior embaixo; o `overflow-clip` do aside impede que isso alongue a página. */}
+      <div className="sticky top-0 isolate flex h-dvh flex-col justify-between gap-10 overflow-hidden p-10 pb-[6.5rem] lg:p-14 lg:pb-[7.5rem]">
         <Photo
           name={photo}
           decorative

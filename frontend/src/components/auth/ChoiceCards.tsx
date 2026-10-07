@@ -89,7 +89,8 @@ export function ChoiceCards({
                 'group flex h-full min-h-14 w-full items-center gap-3 rounded-xl border bg-white px-3.5 py-3 text-left text-sm text-tinta outline-none transition-colors',
                 'border-areia-300 hover:border-barro-500 hover:bg-areia-50',
                 'focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                'data-[state=checked]:border-barro-600 data-[state=checked]:bg-barro-600/10 data-[state=checked]:font-semibold data-[state=checked]:text-barro-700',
+                // Mesmo peso de fonte nos dois estados: negrito ao marcar quebrava a linha e mexia na grade.
+                'font-medium data-[state=checked]:border-barro-600 data-[state=checked]:bg-barro-600/10 data-[state=checked]:text-barro-700',
                 error && 'border-destructive/60',
               )}
             >
