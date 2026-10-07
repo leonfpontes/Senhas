@@ -1,0 +1,805 @@
+<title>Área do Médium · Protótipo</title>
+<style>
+/* Layout: no celular, o app ocupa a tela; no computador, aparelho de 400 px ao lado do roteiro de jornadas.
+   Tokens seguem o painel do GiraHub (globals.css): neutros slate, cor da casa via --brand (applyBrand). */
+:root {
+  --page: #e9edf3;
+  --bg: #f8fafc;
+  --fg: #0f172a;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --muted: #f1f5f9;
+  --muted-fg: #5b6b80;
+  --frame: #1e293b;
+  --brand: #2f6b4f;
+  --brand-fg: #ffffff;
+  --brand-text: color-mix(in srgb, var(--brand) 88%, #000);
+  --brand-soft: color-mix(in srgb, var(--brand) 11%, var(--card));
+  --ok: #1b5e20;   --ok-soft: #e8f3e9;
+  --warn: #9a3412; --warn-soft: #fdf0e7;
+  --info: #075985; --info-soft: #e6f3fa;
+  --bad: #b71c1c;  --bad-soft: #fbeaea;
+  --proto: #6d28d9; --proto-soft: #f1eafd;
+  --scrim: rgba(15, 23, 42, 0.5);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --r: 12px; --r-lg: 16px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #070b14; --bg: #0f172a; --fg: #f1f5f9; --card: #1e293b; --border: rgba(255,255,255,0.09);
+    --muted: #273449; --muted-fg: #a3b1c6; --frame: #334155;
+    --brand-text: color-mix(in srgb, var(--brand) 42%, #fff);
+    --brand-soft: color-mix(in srgb, var(--brand) 26%, var(--card));
+    --ok: #81c784; --ok-soft: rgba(102,187,106,0.14);
+    --warn: #ffb74d; --warn-soft: rgba(255,167,38,0.14);
+    --info: #4fc3f7; --info-soft: rgba(41,182,246,0.14);
+    --bad: #fca5a5; --bad-soft: rgba(248,113,113,0.14);
+    --proto: #c4b5fd; --proto-soft: rgba(139,92,246,0.16);
+    --scrim: rgba(0,0,0,0.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #070b14; --bg: #0f172a; --fg: #f1f5f9; --card: #1e293b; --border: rgba(255,255,255,0.09);
+  --muted: #273449; --muted-fg: #a3b1c6; --frame: #334155;
+  --brand-text: color-mix(in srgb, var(--brand) 42%, #fff);
+  --brand-soft: color-mix(in srgb, var(--brand) 26%, var(--card));
+  --ok: #81c784; --ok-soft: rgba(102,187,106,0.14);
+  --warn: #ffb74d; --warn-soft: rgba(255,167,38,0.14);
+  --info: #4fc3f7; --info-soft: rgba(41,182,246,0.14);
+  --bad: #fca5a5; --bad-soft: rgba(248,113,113,0.14);
+  --proto: #c4b5fd; --proto-soft: rgba(139,92,246,0.16);
+  --scrim: rgba(0,0,0,0.6);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--page); color: var(--fg); font: 16px/1.45 var(--font); -webkit-text-size-adjust: 100%; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 60%, transparent); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--brand-text); }
+
+.stage { height: 100%; display: flex; justify-content: center; }
+.device { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
+.panel { display: none; }
+
+@media (min-width: 900px) {
+  .stage { align-items: center; gap: 40px; padding: 24px; }
+  .device { width: 400px; height: min(860px, 100%); border: 10px solid var(--frame); border-radius: 40px;
+    box-shadow: 0 30px 60px -20px rgba(15,23,42,0.35); }
+  .panel { display: flex; flex-direction: column; gap: 16px; width: 340px; max-height: 100%; overflow-y: auto; padding-right: 4px; }
+  .protobar { display: none !important; }
+}
+
+/* ——— barra do protótipo (só celular) ——— */
+.protobar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 16px;
+  background: var(--proto-soft); color: var(--proto); font-size: 13px; font-weight: 600; border-bottom: 1px dashed var(--proto); }
+.protobar button { border: 1px solid var(--proto); background: transparent; color: var(--proto); border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 700; }
+
+/* ——— app ——— */
+.appbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--border); min-height: 64px; }
+.logo { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--brand); color: var(--brand-fg); font-weight: 800; font-size: 15px; letter-spacing: 0.02em; }
+.appbar .t { min-width: 0; }
+.appbar .t strong { display: block; font-size: 16px; line-height: 1.2; }
+.appbar .t span { display: block; font-size: 13px; color: var(--muted-fg); }
+.back { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--brand-text); font-weight: 600; padding: 8px 4px; margin-left: -4px; min-height: 44px; }
+
+.screen { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 20px; }
+.screen.center { justify-content: center; }
+.section { display: flex; flex-direction: column; gap: 10px; }
+.section > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-fg); font-weight: 700; }
+.hello { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.card.tint { background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 25%, var(--border)); }
+.card .eyebrow { font-size: 13px; font-weight: 700; color: var(--brand-text); display: flex; align-items: center; gap: 6px; }
+.card h3 { font-size: 18px; line-height: 1.25; }
+.card .sub { color: var(--muted-fg); font-size: 15px; }
+.row { display: flex; gap: 10px; }
+.row > * { flex: 1; }
+.meta { display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+.meta div { display: flex; gap: 10px; align-items: flex-start; }
+.meta svg { flex: none; margin-top: 2px; color: var(--muted-fg); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 18px; border-radius: 10px; border: 1px solid transparent; font-size: 16px; font-weight: 700; text-decoration: none; }
+.btn-primary { background: var(--brand); color: var(--brand-fg); }
+.btn-outline { background: var(--card); color: var(--fg); border-color: var(--border); }
+.btn-soft { background: var(--brand-soft); color: var(--brand-text); }
+.btn-big { min-height: 64px; font-size: 20px; border-radius: 14px; }
+.btn-block { width: 100%; }
+.btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.link { border: 0; background: none; color: var(--brand-text); font-weight: 600; padding: 8px 0; text-align: left; min-height: 44px; }
+
+.pill { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.pill.brand { background: var(--brand-soft); color: var(--brand-text); }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.info { background: var(--info-soft); color: var(--info); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.muted { background: var(--muted); color: var(--muted-fg); }
+
+.note { font-size: 14px; color: var(--muted-fg); }
+.status { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: var(--r); font-size: 15px; }
+.status.ok { background: var(--ok-soft); color: var(--ok); }
+.status.warn { background: var(--warn-soft); color: var(--warn); }
+.status.info { background: var(--info-soft); color: var(--info); }
+.status.bad { background: var(--bad-soft); color: var(--bad); }
+.status svg { flex: none; margin-top: 2px; }
+
+.list { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+.item { display: flex; gap: 12px; align-items: center; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--border); background: transparent; text-align: left; width: 100%; min-height: 64px; }
+.item:last-child { border-bottom: 0; }
+.item .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.item .grow strong { font-size: 16px; line-height: 1.3; }
+.item .grow span { font-size: 14px; color: var(--muted-fg); }
+.item .chev { color: var(--muted-fg); flex: none; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); flex: none; }
+.date { flex: none; width: 52px; text-align: center; border-radius: 12px; padding: 6px 0; background: var(--muted); }
+.date b { display: block; font-size: 20px; line-height: 1.1; }
+.date small { display: block; font-size: 12px; font-weight: 700; color: var(--muted-fg); text-transform: uppercase; letter-spacing: 0.04em; }
+.date.brand { background: var(--brand); color: var(--brand-fg); }
+.date.brand small { color: color-mix(in srgb, var(--brand-fg) 80%, transparent); }
+
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.chip { flex: none; border: 1px solid var(--border); background: var(--card); border-radius: 999px; padding: 8px 14px; font-size: 15px; font-weight: 600; min-height: 40px; }
+.chip[aria-pressed="true"] { background: var(--brand); color: var(--brand-fg); border-color: var(--brand); }
+
+.month { font-size: 15px; font-weight: 800; padding: 4px 2px; }
+.box { background: var(--muted); border-radius: var(--r); padding: 12px 14px; font-size: 15px; display: flex; flex-direction: column; gap: 6px; }
+.box strong { font-size: 14px; }
+.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; word-break: break-all; background: var(--muted); border-radius: 10px; padding: 10px 12px; user-select: all; }
+.step { display: flex; gap: 12px; align-items: flex-start; }
+.step .n { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-text); font-weight: 800; font-size: 14px; }
+.step .c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-weight: 700; font-size: 15px; }
+.field input, .field textarea { width: 100%; border: 1px solid color-mix(in srgb, var(--muted-fg) 55%, var(--card)); background: var(--card); border-radius: 10px; padding: 12px 14px; font-size: 16px; min-height: 48px; }
+.field textarea { min-height: 110px; resize: vertical; }
+.pwd { position: relative; }
+.pwd button { position: absolute; right: 6px; top: 6px; border: 0; background: transparent; color: var(--brand-text); font-weight: 700; font-size: 14px; min-height: 36px; padding: 0 10px; }
+.check { display: flex; gap: 12px; align-items: flex-start; font-size: 15px; }
+.check input { width: 24px; height: 24px; margin: 0; flex: none; accent-color: var(--brand); }
+
+.tabbar { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--card); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.tab { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 62px; border: 0; background: transparent; color: var(--muted-fg); font-size: 12.5px; font-weight: 600; padding: 6px 2px; }
+.tab[aria-current="page"] { color: var(--brand-text); }
+.tab[aria-current="page"]::before { content: ""; position: absolute; top: 0; left: 25%; right: 25%; height: 3px; border-radius: 0 0 3px 3px; background: var(--brand); }
+.tab .badge { position: absolute; top: 7px; left: calc(50% + 6px); min-width: 18px; height: 18px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; padding: 0 4px; }
+
+.scrim { position: absolute; inset: 0; background: var(--scrim); z-index: 20; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 90%; overflow-y: auto; background: var(--card); border-radius: 22px 22px 0 0;
+  padding: 10px 16px calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 16px; animation: up .22s ease-out; }
+.sheet .grab { width: 44px; height: 5px; border-radius: 3px; background: var(--border); align-self: center; }
+.sheet h2 { font-size: 20px; }
+@keyframes up { from { transform: translateY(24px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+
+.toast { position: absolute; left: 16px; right: 16px; bottom: 78px; z-index: 30; background: var(--fg); color: var(--bg); border-radius: 12px; padding: 12px 14px; font-size: 15px; font-weight: 600; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.4); }
+
+.qr { align-self: center; background: #fff; padding: 12px; border-radius: 12px; border: 1px solid var(--border); }
+.qr img, .qr canvas { display: block; width: 180px; height: 180px; }
+.thumb { display: flex; gap: 12px; align-items: center; padding: 10px; border: 1px solid var(--border); border-radius: 12px; }
+.thumb img { width: 56px; height: 72px; object-fit: cover; border-radius: 6px; background: var(--muted); }
+.thumb .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; }
+.thumb .grow strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.wa { display: flex; flex-direction: column; gap: 12px; }
+.wa .who { display: flex; gap: 10px; align-items: center; font-weight: 700; }
+.wa .bubble { background: var(--card); border: 1px solid var(--border); border-radius: 4px 16px 16px 16px; padding: 12px 14px; font-size: 15.5px; display: flex; flex-direction: column; gap: 8px; max-width: 92%; }
+.wa .bubble time { align-self: flex-end; font-size: 12px; color: var(--muted-fg); }
+.tag-sim { align-self: flex-start; font-size: 12px; font-weight: 700; color: var(--proto); background: var(--proto-soft); border-radius: 6px; padding: 3px 8px; }
+
+.areas { display: flex; flex-direction: column; gap: 12px; }
+.area { display: flex; gap: 14px; align-items: center; text-align: left; border: 2px solid var(--border); background: var(--card); border-radius: 18px; padding: 18px 16px; min-height: 96px; }
+.area .ic { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-text); }
+.area strong { display: block; font-size: 18px; }
+.area span { display: block; font-size: 14px; color: var(--muted-fg); }
+
+.big-pct { font-size: 40px; font-weight: 800; line-height: 1; color: var(--brand-text); font-variant-numeric: tabular-nums; }
+details.acc { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 0 16px; }
+details.acc summary { list-style: none; cursor: pointer; padding: 14px 0; font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 52px; }
+details.acc summary::-webkit-details-marker { display: none; }
+details.acc[open] summary svg { transform: rotate(90deg); }
+details.acc .in { padding-bottom: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 15px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--muted); border-radius: 12px; padding: 4px; gap: 4px; }
+.seg button { border: 0; background: transparent; border-radius: 9px; min-height: 40px; font-weight: 700; color: var(--muted-fg); }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+.auth-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; }
+.auth-brand .logo { background: #a64b22; color: #fff; }
+
+/* ——— painel do roteiro ——— */
+.panel h1 { font-size: 22px; letter-spacing: -0.01em; }
+.panel .lead { color: var(--muted-fg); font-size: 14.5px; }
+.pcard { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.pcard > strong { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-fg); }
+.journey { display: flex; gap: 10px; align-items: flex-start; border: 0; background: transparent; text-align: left; padding: 8px; border-radius: 10px; width: 100%; }
+.journey:hover { background: var(--muted); }
+.journey .j { flex: none; font-size: 12px; font-weight: 800; color: var(--proto); background: var(--proto-soft); border-radius: 6px; padding: 2px 6px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.journey b { display: block; font-size: 14.5px; }
+.journey span { display: block; font-size: 13.5px; color: var(--muted-fg); }
+.task { background: var(--proto-soft); color: var(--fg); border-radius: 10px; padding: 10px 12px; font-size: 14px; border-left: 3px solid var(--proto); }
+.task b { color: var(--proto); }
+.opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14.5px; }
+.opt .seg { min-width: 170px; }
+.swatches { display: flex; gap: 8px; }
+.sw { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--card); box-shadow: 0 0 0 1px var(--border); }
+.sw[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--fg); }
+.toggle { display: flex; gap: 10px; align-items: center; font-size: 14.5px; }
+.toggle input { width: 20px; height: 20px; accent-color: var(--proto); }
+.small-btn { border: 1px solid var(--border); background: var(--card); border-radius: 8px; padding: 8px 12px; font-size: 14px; font-weight: 600; }
+</style>
+
+<div class="stage">
+  <aside class="panel" id="panel" aria-label="Roteiro do protótipo"></aside>
+  <div class="device" id="device"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ——————————————————— ícones (traço 2px, estilo lucide) ——————————————————— */
+  var P = {
+    home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    megaphone: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+    wallet: '<rect x="2" y="6" width="20" height="14" rx="2"/><path d="M16 13h2M2 10h20M6 6l10-3 1 3"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+    pin: '<path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    right: '<path d="m9 18 6-6-6-6"/>',
+    left: '<path d="m15 18-6-6 6-6"/>',
+    upload: '<path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
+    share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    broom: '<path d="M19 3 11 11"/><path d="M10 10c-3 1-5 3-6 7l-1 4 4-1c4-1 6-3 7-6z"/><path d="m7 17 2-2"/>',
+    star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+    book: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2.5z"/><path d="M8 7h8"/>',
+    chat: '<path d="M21 12a8 8 0 0 1-11.8 7L3 21l2-6A8 8 0 1 1 21 12z"/>',
+    phone: '<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>',
+    shield: '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+    alert: '<path d="M12 3 2 21h20z"/><path d="M12 10v5M12 18v.5"/>',
+    pinned: '<path d="M9 4h6l-1 5 3 3v2H7v-2l3-3z"/><path d="M12 14v7"/>',
+    door: '<path d="M4 21h16M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17"/><circle cx="14.5" cy="12" r="1"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    logout: '<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l-5-5 5-5M5 12h11"/>',
+    refresh: '<path d="M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4"/>'
+  };
+  function ic(n, s) { s = s || 20; return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + P[n] + '</svg>'; }
+  function esc(t) { return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  /* ——————————————————— dados fictícios ——————————————————— */
+  var CASA = { nome: 'Tenda Luz da Mata', sigla: 'LM', whatsapp: '(11) 90000-0000', pix: 'tesouraria@luzdamata.exemplo' };
+  var MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  var AGENDA = [
+    { id: 'g1', tipo: 'gira', titulo: 'Gira de Caboclos', dia: 9, mes: 9, sem: 'Sexta', hora: '20h30', chegada: '19h30',
+      leve: 'Roupa branca, guias e uma vela branca.', orient: 'Por causa da reforma do salão, a gira começa às 20h30. A corrente chega às 19h30 para a preparação. Quem for cambonear, procure o pai pequeno na chegada.',
+      senhas: 'Senhas abertas para o público' },
+    { id: 'f1', tipo: 'faxina', titulo: 'Faxina', grupo: 'G2', dia: 10, mes: 9, sem: 'Sábado', hora: '9h', fim: '12h', escala: true,
+      leve: 'Roupa de trabalho. Material de limpeza fica na casa.', orient: 'Limpeza do salão e do congá, troca das toalhas e organização do almoxarifado.' },
+    { id: 'g2', tipo: 'gira', titulo: 'Gira de Pretos-Velhos', dia: 16, mes: 9, sem: 'Sexta', hora: '20h', chegada: '19h',
+      leve: 'Roupa branca, guias e um cachimbo, se for o seu caso.', orient: 'A corrente chega às 19h.', senhas: 'Senhas abrem na quarta, 14/10' },
+    { id: 'a1', tipo: 'estudo', titulo: 'Estudo da corrente', dia: 21, mes: 9, sem: 'Quarta', hora: '19h30', fim: '21h',
+      leve: 'Caderno.', orient: 'Tema: firmeza e preparo antes da gira. Só para a corrente.' },
+    { id: 'f2', tipo: 'faxina', titulo: 'Faxina', grupo: 'G2', dia: 24, mes: 9, sem: 'Sábado', hora: '9h', fim: '12h', escala: true,
+      leve: 'Roupa de trabalho.', orient: 'Limpeza geral e preparo do salão para a gira de sexta.' },
+    { id: 'g3', tipo: 'gira', titulo: 'Gira de Exu', dia: 30, mes: 9, sem: 'Sexta', hora: '21h', chegada: '20h',
+      leve: 'Roupa branca e guias.', orient: 'A corrente chega às 20h.', senhas: 'Senhas abrem na quarta, 28/10' },
+    { id: 'g4', tipo: 'gira', titulo: 'Gira de Baianos', dia: 6, mes: 10, sem: 'Sexta', hora: '20h', chegada: '19h',
+      leve: 'Roupa branca e guias.', orient: 'A corrente chega às 19h.', senhas: 'Senhas abrem na quarta, 04/11' },
+    { id: 'f3', tipo: 'faxina', titulo: 'Faxina', grupo: 'G2', dia: 7, mes: 10, sem: 'Sábado', hora: '9h', fim: '12h', escala: true,
+      leve: 'Roupa de trabalho.', orient: 'Limpeza do salão.' }
+  ];
+  var TIPO = {
+    gira: { nome: 'Gira', icon: 'star', cls: 'brand' },
+    faxina: { nome: 'Faxina', icon: 'broom', cls: 'info' },
+    estudo: { nome: 'Estudo', icon: 'book', cls: 'muted' }
+  };
+  var AVISOS = [
+    { id: 'v1', fixado: true, titulo: 'Agenda de outubro', data: '01/10', corpo: 'Giras: 09/10 (Caboclos), 16/10 (Pretos-Velhos) e 30/10 (Exu).\nFaxinas: sábados 10/10 e 24/10 (G2), 03/10 e 17/10 (G1), 31/10 (G3).\nEstudo da corrente: quarta, 21/10, às 19h30.' },
+    { id: 'v2', novo: true, titulo: 'Gira de sexta começa às 20h30', data: '07/10', corpo: 'Por causa da reforma do salão, a gira desta sexta (09/10) começa às 20h30.\nA corrente chega às 19h30, uma hora antes, como sempre.\nObrigado pela compreensão de todos.' },
+    { id: 'v3', titulo: 'Campanha do agasalho', data: '28/09', corpo: 'Estamos recebendo agasalhos e cobertores até 31/10. Deixe na secretaria antes da gira.\nTudo será entregue na comunidade do bairro.' }
+  ];
+  var HIST_MENSAL = [
+    { mes: 'Setembro de 2026', sit: 'Paga em 05/09' },
+    { mes: 'Agosto de 2026', sit: 'Paga em 08/08' },
+    { mes: 'Julho de 2026', sit: 'Paga em 09/07' }
+  ];
+  var PRESENCAS = [
+    { id: 'p1', t: 'Gira de Caboclos', d: 'Sexta, 02/10', sit: 'Presente', cls: 'ok' },
+    { id: 'p2', t: 'Estudo da corrente', d: 'Quarta, 30/09', sit: 'Ausente', cls: 'bad', justificar: true },
+    { id: 'p3', t: 'Faxina · G2', d: 'Sábado, 26/09', sit: 'Ausência avisada', cls: 'warn', motivo: 'Viagem a trabalho.' },
+    { id: 'p4', t: 'Gira de Exu', d: 'Sexta, 25/09', sit: 'Presente', cls: 'ok' },
+    { id: 'p5', t: 'Gira de Ogum', d: 'Sexta, 18/09', sit: 'Presente', cls: 'ok' },
+    { id: 'p6', t: 'Faxina · G2', d: 'Sábado, 12/09', sit: 'Presente', cls: 'ok' }
+  ];
+  var PIX_CODE = '00020126580014br.gov.bcb.pix0136' + CASA.pix + '520400005303986540550.005802BR5915TENDA LUZ DA MATA6009SAO PAULO62170513PROTOTIPO1026304ABCD';
+  var BRANDS = [['#2f6b4f', 'Verde'], ['#1d4e89', 'Azul'], ['#7a2e8e', 'Roxo'], ['#a64b22', 'Barro']];
+
+  /* ——————————————————— estado ——————————————————— */
+  function fresh() {
+    return {
+      screen: 'inicio', params: {}, history: [], persona: 'medium', logged: true,
+      escala: {}, cheguei: {}, diaFaxina: false,
+      mensal: 'aberto', file: null, enviadoEm: null,
+      lidos: {}, justificados: {}, installSeen: true,
+      agendaFiltro: 'tudo', sheet: null, sheetData: {}, toast: null, task: null, lembrar: true
+    };
+  }
+  var S = fresh();
+  try { var b = localStorage.getItem('am-proto-brand'); if (b) document.documentElement.style.setProperty('--brand', b); } catch (e) {}
+
+  var device = document.getElementById('device');
+  var panel = document.getElementById('panel');
+
+  function go(screen, params, opts) {
+    if (!(opts && opts.replace)) S.history.push({ screen: S.screen, params: S.params });
+    S.screen = screen; S.params = params || {}; S.sheet = null;
+    render(); var sc = device.querySelector('.screen'); if (sc) sc.scrollTop = 0;
+  }
+  function back() { var h = S.history.pop(); if (h) { S.screen = h.screen; S.params = h.params; } else { S.screen = 'inicio'; } S.sheet = null; render(); }
+  function tab(screen) { S.history = []; go(screen, {}, { replace: true }); }
+  function sheet(name, data) { S.sheet = name; S.sheetData = data || {}; render(); var sh = device.querySelector('.sheet'); if (sh) { var f = sh.querySelector('textarea,input:not([type=checkbox]):not([type=file])'); if (f) setTimeout(function () { f.focus(); }, 60); } }
+  var toastTimer;
+  function toast(msg) { S.toast = msg; render(); clearTimeout(toastTimer); toastTimer = setTimeout(function () { S.toast = null; render(); }, 3200); }
+
+  /* ——————————————————— peças ——————————————————— */
+  function appbar(title, sub, withBack) {
+    if (withBack) return '<header class="appbar"><button class="back" data-act="back">' + ic('left', 22) + 'Voltar</button><div class="t" style="margin-left:auto;text-align:right"><strong>' + title + '</strong>' + (sub ? '<span>' + sub + '</span>' : '') + '</div></header>';
+    return '<header class="appbar"><div class="logo" aria-hidden="true">' + CASA.sigla + '</div><div class="t"><strong>' + CASA.nome + '</strong><span>' + (sub || 'Área do Médium') + '</span></div></header>';
+  }
+  function naoLidos() { return AVISOS.filter(function (a) { return a.novo && !S.lidos[a.id]; }).length; }
+  function tabbar(active) {
+    var t = [['inicio', 'home', 'Início'], ['agenda', 'calendar', 'Agenda'], ['avisos', 'megaphone', 'Avisos'], ['mensalidade', 'wallet', 'Mensalidade'], ['perfil', 'user', 'Perfil']];
+    var n = naoLidos();
+    return '<nav class="tabbar" aria-label="Menu da Área do Médium">' + t.map(function (x) {
+      return '<button class="tab" data-tab="' + x[0] + '"' + (active === x[0] ? ' aria-current="page"' : '') + '>' + ic(x[1], 24) + x[2] +
+        (x[0] === 'avisos' && n ? '<span class="badge">' + n + '</span>' : '') + '</button>';
+    }).join('') + '</nav>';
+  }
+  function dateBox(it, brand) { return '<div class="date' + (brand ? ' brand' : '') + '"><b>' + it.dia + '</b><small>' + MES[it.mes] + '</small></div>'; }
+  function byId(id) { for (var i = 0; i < AGENDA.length; i++) if (AGENDA[i].id === id) return AGENDA[i]; }
+  function dd(it) { return (it.dia < 10 ? '0' : '') + it.dia + '/' + (it.mes + 1 < 10 ? '0' : '') + (it.mes + 1); }
+
+  function respostaBloco(it, compact) {
+    var r = S.escala[it.id];
+    if (S.diaFaxina && it.id === 'f1') {
+      if (S.cheguei[it.id]) return '<div class="status ok">' + ic('check') + '<div><b>Presença marcada às 9h04.</b><br>Bom trabalho na faxina!</div></div>';
+      return '<button class="btn btn-primary btn-big btn-block" data-act="cheguei" data-id="' + it.id + '">' + ic('check', 26) + 'Cheguei</button>' +
+        '<p class="note">O botão aparece das 8h30 às 10h, no dia da faxina.</p>';
+    }
+    if (r && r.resp === 'vou') return '<div class="status ok">' + ic('check') + '<div><b>Você confirmou: Vou.</b><br><button class="link" data-act="mudar" data-id="' + it.id + '">Mudar resposta</button></div></div>';
+    if (r && r.resp === 'nao') return '<div class="status warn">' + ic('info') + '<div><b>Você avisou que não vai.</b><br>Motivo: ' + esc(r.motivo) + '<br><button class="link" data-act="mudar" data-id="' + it.id + '">Mudar resposta</button></div></div>';
+    return '<div class="row"><button class="btn btn-primary" data-act="vou" data-id="' + it.id + '">' + ic('check') + 'Vou</button>' +
+      '<button class="btn btn-outline" data-act="naovou" data-id="' + it.id + '">' + ic('x') + 'Não vou</button></div>' +
+      (compact ? '' : '<p class="note">Você pode mudar a resposta até o início da faxina.</p>');
+  }
+
+  /* ——————————————————— telas ——————————————————— */
+  var V = {};
+
+  V.whatsapp = function () {
+    return '<header class="appbar"><div class="logo" aria-hidden="true">' + CASA.sigla + '</div><div class="t"><strong>' + CASA.nome + '</strong><span>Conversa no WhatsApp</span></div></header>' +
+      '<main class="screen"><span class="tag-sim">Simulação da mensagem que a casa manda</span><div class="wa">' +
+      '<div class="bubble"><p>Oi, Ana! A <b>' + CASA.nome + '</b> convidou você para a <b>Área do Médium</b> no GiraHub.</p>' +
+      '<p>Lá você vê a agenda da casa, os avisos e a mensalidade, tudo no celular.</p>' +
+      '<p>Toque no link para ativar seu acesso (vale por 7 dias):<br><button class="link" data-go="convite" style="padding:4px 0">girahub.com.br/convite/k7Q2…</button></p><time>14:20</time></div>' +
+      '</div></main>';
+  };
+
+  V.convite = function () {
+    return appbar(CASA.nome, 'Convite da casa') +
+      '<main class="screen"><div class="section" style="gap:14px">' +
+      '<h1 class="hello">Olá, Ana!</h1>' +
+      '<p>A <b>' + CASA.nome + '</b> convidou você para a <b>Área do Médium</b>: a agenda da casa, os avisos e a sua mensalidade num lugar só.</p>' +
+      '<div class="card"><div class="meta"><div>' + ic('user') + '<span>Seu e-mail de acesso<br><b>an••••••@gmail.com</b></span></div>' +
+      '<div>' + ic('shield') + '<span>Só a direção da casa vê seus dados. Os outros médiuns não veem nada seu.</span></div></div></div>' +
+      '</div><div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">' +
+      '<button class="btn btn-primary btn-block" data-go="convite-senha">Continuar</button>' +
+      '<p class="note" style="text-align:center">Não é você? Avise a casa: ' + CASA.whatsapp + '</p></div></main>';
+  };
+
+  V['convite-senha'] = function () {
+    var d = S.sheetData || {};
+    return appbar('Criar acesso', 'Passo 2 de 2', true) +
+      '<main class="screen"><h1 class="hello" style="font-size:22px">Crie sua senha de acesso</h1>' +
+      '<p class="note">É com o seu e-mail e esta senha que você entra na Área do Médium.</p>' +
+      '<div class="field"><label for="pw">Senha de acesso</label><div class="pwd"><input id="pw" type="password" autocomplete="new-password" placeholder="8 ou mais caracteres">' +
+      '<button type="button" data-act="showpw">Mostrar</button></div><span class="note">Use 8 ou mais caracteres, com letras e números.</span></div>' +
+      '<label class="check"><input id="termo" type="checkbox"><span>Autorizo a ' + CASA.nome + ' a usar meu nome, contato e mensalidades para organizar a corrente nesta área. <button class="link" data-act="termo" style="padding:0;min-height:0">Ler o termo</button></span></label>' +
+      '<div id="err" class="status bad" hidden>' + ic('alert') + '<span id="errmsg"></span></div>' +
+      '<div style="margin-top:auto"><button class="btn btn-primary btn-block" data-act="ativar">Ativar meu acesso</button></div></main>';
+  };
+
+  V.login = function () {
+    return '<header class="appbar"><div class="auth-brand"><div class="logo" aria-hidden="true">G</div>GiraHub</div></header>' +
+      '<main class="screen"><h1 class="hello">Entrar</h1>' +
+      '<div class="field"><label for="em">E-mail</label><input id="em" type="email" value="ana.paula@exemplo.com" autocomplete="email"></div>' +
+      '<div class="field"><label for="pw2">Senha de acesso</label><div class="pwd"><input id="pw2" type="password" value="exemplo123" autocomplete="current-password"><button type="button" data-act="showpw2">Mostrar</button></div></div>' +
+      '<button class="btn btn-primary btn-block" data-act="entrar">Entrar</button>' +
+      '<button class="link" data-act="esqueci">Esqueci minha senha</button>' +
+      '<div class="box"><strong>Recebeu um convite da casa?</strong><span>O primeiro acesso começa pelo link que a casa mandou no WhatsApp ou no e-mail.</span></div>' +
+      '<p class="note">Dica: depois do primeiro acesso, use o ícone da casa na tela inicial do celular. Você continua conectado.</p></main>';
+  };
+
+  V['escolher-area'] = function () {
+    return appbar(CASA.nome, 'Escolha onde entrar') +
+      '<main class="screen"><h1 class="hello">Olá, Ana. Para onde você quer ir?</h1><div class="areas">' +
+      '<button class="area" data-act="area" data-v="medium"><span class="ic">' + ic('user', 26) + '</span><span><strong>Área do Médium</strong><span>Agenda, avisos e mensalidade</span></span></button>' +
+      '<button class="area" data-act="area" data-v="painel"><span class="ic">' + ic('grid', 26) + '</span><span><strong>Painel do terreiro</strong><span>Giras, senhas e gestão</span></span></button></div>' +
+      '<label class="check"><input id="lembrar" type="checkbox"' + (S.lembrar ? ' checked' : '') + '><span>Lembrar minha escolha neste aparelho</span></label>' +
+      '<p class="note">Você pode trocar a qualquer hora pelo menu do perfil.</p></main>';
+  };
+
+  V.painel = function () {
+    return '<header class="appbar"><div class="logo" aria-hidden="true">' + CASA.sigla + '</div><div class="t"><strong>Painel do terreiro</strong><span>' + CASA.nome + '</span></div></header>' +
+      '<main class="screen center"><div class="card" style="text-align:center;align-items:center">' + ic('grid', 36) +
+      '<h3>Aqui abre o painel que já existe</h3><p class="sub">Giras, senhas, médiuns e gestão. No menu do perfil do painel aparece a opção abaixo para quem também é médium.</p>' +
+      '<button class="btn btn-soft btn-block" data-act="area" data-v="medium">' + ic('user') + 'Ir para a Área do Médium</button></div></main>';
+  };
+
+  V.inicio = function () {
+    var f = byId('f1'), g = byId('g1');
+    var pend = [];
+    // Escala
+    var r = S.escala.f1;
+    if (S.diaFaxina || !r) {
+      pend.push('<article class="card tint"><div class="eyebrow">' + ic('broom', 16) + (S.diaFaxina ? 'Hoje · você está na escala' : 'Você está na escala') + '</div>' +
+        '<h3>Faxina · Grupo G2</h3><p class="sub">' + f.sem + ', ' + dd(f) + ' · ' + f.hora + ' às ' + f.fim + '</p>' + respostaBloco(f, true) + '</article>');
+    }
+    // Mensalidade
+    if (S.mensal === 'aberto') pend.push('<article class="card"><div class="eyebrow">' + ic('wallet', 16) + 'Mensalidade de outubro</div><h3>R$ 50,00</h3><p class="sub">Vence sábado, 10/10</p>' +
+      '<button class="btn btn-primary btn-block" data-act="pagar">Pagar com PIX</button></article>');
+    if (S.mensal === 'recusado') pend.push('<article class="card"><div class="eyebrow" style="color:var(--bad)">' + ic('alert', 16) + 'Mensalidade de outubro</div><h3>A casa não confirmou seu comprovante</h3>' +
+      '<p class="sub">Veja o motivo e envie outro comprovante.</p><button class="btn btn-primary btn-block" data-tab="mensalidade">Ver o motivo</button></article>');
+    // Aviso
+    var n = naoLidos();
+    if (n) pend.push('<button class="card" data-go="aviso" data-id="v2" style="text-align:left"><div class="eyebrow">' + ic('megaphone', 16) + n + ' aviso novo</div><h3>' + AVISOS[1].titulo + '</h3><span class="link" style="padding:0;min-height:0">Ler o aviso</span></button>');
+
+    var html = appbar(CASA.nome) + '<main class="screen"><h1 class="hello">Olá, Ana</h1>';
+    if (pend.length) html += '<section class="section"><h2>Para você ver agora</h2>' + pend.join('') + '</section>';
+    else html += '<div class="status ok">' + ic('check') + '<span><b>Tudo em dia.</b> Nada para responder agora.</span></div>';
+
+    html += '<section class="section"><h2>Próxima gira</h2><button class="card" data-go="evento" data-id="g1" style="text-align:left">' +
+      '<div style="display:flex;gap:12px;align-items:center">' + dateBox(g, true) + '<div style="min-width:0"><h3>' + g.titulo + '</h3><p class="sub">' + g.sem + ' · ' + g.hora + ' · corrente às ' + g.chegada + '</p></div></div>' +
+      '<div class="box"><strong>O que levar</strong><span>' + g.leve + '</span></div><span class="link" style="padding:0;min-height:0">Ver detalhes da gira</span></button></section>';
+
+    var info = [];
+    if (r && !S.diaFaxina) info.push('<div class="item" style="cursor:default">' + ic('broom') + '<div class="grow"><strong>Faxina · ' + f.sem + ', ' + dd(f) + '</strong><span>' + (r.resp === 'vou' ? 'Você confirmou: Vou' : 'Você avisou que não vai') + '</span></div></div>');
+    if (S.mensal === 'conferencia') info.push('<div class="item" style="cursor:default">' + ic('clock') + '<div class="grow"><strong>Mensalidade de outubro</strong><span>Comprovante enviado · aguardando a casa confirmar</span></div></div>');
+    if (S.mensal === 'paga') info.push('<div class="item" style="cursor:default">' + ic('check') + '<div class="grow"><strong>Mensalidade de outubro</strong><span>Paga · confirmada pela casa</span></div></div>');
+    if (info.length) html += '<section class="section"><h2>Acompanhando</h2><div class="list">' + info.join('') + '</div></section>';
+    return html + '</main>' + tabbar('inicio');
+  };
+
+  V.agenda = function () {
+    var fl = S.agendaFiltro;
+    var itens = AGENDA.filter(function (it) { return fl === 'tudo' || (fl === 'giras' ? it.tipo === 'gira' : fl === 'escala' ? it.escala : it.tipo !== 'gira'); });
+    var html = appbar(CASA.nome, 'Agenda') + '<main class="screen"><div class="chips" role="group" aria-label="Filtrar agenda">' +
+      [['tudo', 'Tudo'], ['giras', 'Giras'], ['escala', 'Minha escala'], ['outras', 'Faxinas e atividades']].map(function (c) {
+        return '<button class="chip" data-act="filtro" data-v="' + c[0] + '" aria-pressed="' + (fl === c[0]) + '">' + c[1] + '</button>';
+      }).join('') + '</div>';
+    var mesAtual = -1;
+    itens.forEach(function (it) {
+      if (it.mes !== mesAtual) { if (mesAtual !== -1) html += '</div>'; mesAtual = it.mes; html += '<div class="month">' + (it.mes === 9 ? 'Outubro' : 'Novembro') + ' de 2026</div><div class="list">'; }
+      var tp = TIPO[it.tipo]; var r = S.escala[it.id];
+      var tag = it.escala ? (r ? (r.resp === 'vou' ? '<span class="pill ok">Vou</span>' : '<span class="pill warn">Não vou</span>') : '<span class="pill brand">Na escala</span>') : '<span class="pill ' + tp.cls + '">' + tp.nome + '</span>';
+      html += '<button class="item" data-go="evento" data-id="' + it.id + '">' + dateBox(it) + '<div class="grow"><strong>' + it.titulo + (it.grupo ? ' · ' + it.grupo : '') + '</strong><span>' + it.sem + ' · ' + it.hora + '</span><span>' + tag + '</span></div><span class="chev">' + ic('right') + '</span></button>';
+    });
+    if (mesAtual !== -1) html += '</div>'; else html += '<p class="note">Nada nesta agenda por enquanto.</p>';
+    return html + '</main>' + tabbar('agenda');
+  };
+
+  V.evento = function () {
+    var it = byId(S.params.id); var tp = TIPO[it.tipo];
+    var html = appbar(tp.nome, it.sem + ', ' + dd(it), true) + '<main class="screen">';
+    html += '<div style="display:flex;gap:12px;align-items:center">' + dateBox(it, true) + '<div style="min-width:0"><span class="pill ' + tp.cls + '">' + ic(tp.icon, 14) + tp.nome + '</span><h1 style="font-size:22px;margin-top:6px">' + it.titulo + (it.grupo ? ' · Grupo ' + it.grupo : '') + '</h1></div></div>';
+    if (it.escala) html += '<article class="card tint"><div class="eyebrow">' + ic('broom', 16) + 'Você está na escala</div>' + respostaBloco(it) + '</article>';
+    html += '<div class="card"><div class="meta">' +
+      '<div>' + ic('clock') + '<span><b>' + it.sem + ', ' + dd(it) + ' · ' + it.hora + (it.fim ? ' às ' + it.fim : '') + '</b>' + (it.chegada ? '<br>A corrente chega às ' + it.chegada : '') + '</span></div>' +
+      '<div>' + ic('pin') + '<span>Rua das Palmeiras, 120 · Jardim Exemplo<br><a href="https://www.google.com/maps/search/?api=1&query=Rua+das+Palmeiras+120" target="_blank" rel="noopener">Abrir no mapa</a></span></div>' +
+      (it.senhas ? '<div>' + ic('door') + '<span>' + it.senhas + '</span></div>' : '') + '</div></div>';
+    html += '<div class="box"><strong>O que levar</strong><span>' + it.leve + '</span></div>';
+    html += '<div class="box"><strong>Orientações para a corrente</strong><span>' + it.orient + '</span></div>';
+    html += '<div class="section"><button class="btn btn-outline btn-block" data-act="agendacel">' + ic('calendar') + 'Adicionar à agenda do celular</button>';
+    if (it.tipo === 'gira') html += '<button class="btn btn-outline btn-block" data-act="divulgar" data-id="' + it.id + '">' + ic('share') + 'Divulgar a gira no WhatsApp</button>';
+    html += '</div>';
+    return html + '</main>' + tabbar('agenda');
+  };
+
+  V.avisos = function () {
+    var ord = AVISOS.slice().sort(function (a, b) { return (b.fixado ? 1 : 0) - (a.fixado ? 1 : 0); });
+    return appbar(CASA.nome, 'Avisos') + '<main class="screen"><div class="list">' + ord.map(function (a) {
+      var novo = a.novo && !S.lidos[a.id];
+      return '<button class="item" data-go="aviso" data-id="' + a.id + '">' + (novo ? '<span class="dot" aria-label="Não lido"></span>' : '<span style="width:10px;flex:none"></span>') +
+        '<div class="grow"><strong' + (novo ? '' : ' style="font-weight:600"') + '>' + a.titulo + '</strong><span>' + (a.fixado ? '<span class="pill brand">' + ic('pinned', 13) + 'Fixado</span> ' : '') + 'Publicado em ' + a.data + '</span></div><span class="chev">' + ic('right') + '</span></button>';
+    }).join('') + '</div><p class="note">Os avisos são da direção da casa. Eles não aparecem para quem é de fora.</p></main>' + tabbar('avisos');
+  };
+
+  V.aviso = function () {
+    var a; AVISOS.forEach(function (x) { if (x.id === S.params.id) a = x; });
+    S.lidos[a.id] = true;
+    return appbar('Aviso', 'Publicado em ' + a.data, true) + '<main class="screen"><article class="section" style="gap:14px">' +
+      (a.fixado ? '<span class="pill brand" style="align-self:flex-start">' + ic('pinned', 13) + 'Fixado</span>' : '') +
+      '<h1 style="font-size:24px">' + a.titulo + '</h1><p class="note">Da direção da ' + CASA.nome + ' · ' + a.data + '</p>' +
+      a.corpo.split('\n').map(function (l) { return '<p style="font-size:17px">' + l + '</p>'; }).join('') + '</article></main>' + tabbar('avisos');
+  };
+
+  V.mensalidade = function () {
+    var m = S.mensal;
+    var pill = { aberto: '<span class="pill warn">Em aberto</span>', conferencia: '<span class="pill info">Aguardando a casa</span>', recusado: '<span class="pill bad">Não confirmado</span>', paga: '<span class="pill ok">Paga</span>' }[m];
+    var html = appbar(CASA.nome, 'Mensalidade') + '<main class="screen"><article class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="eyebrow" style="color:var(--muted-fg)">Outubro de 2026</span>' + pill + '</div>' +
+      '<div style="font-size:34px;font-weight:800;font-variant-numeric:tabular-nums">R$ 50,00</div><p class="sub">Vence sábado, 10/10</p>';
+    if (m === 'aberto') html += '<button class="btn btn-primary btn-block" data-act="pagar">Pagar com PIX</button><button class="btn btn-outline btn-block" data-act="comprovante">' + ic('upload') + 'Já paguei: enviar comprovante</button>';
+    if (m === 'conferencia') html += '<div class="status info">' + ic('clock') + '<span><b>Comprovante enviado hoje às ' + S.enviadoEm + '.</b><br>A casa confere e confirma. Você recebe um aviso quando confirmar.</span></div>';
+    if (m === 'recusado') html += '<div class="status bad">' + ic('alert') + '<span><b>A casa não confirmou seu comprovante.</b><br>Motivo: o comprovante mostra R$ 40,00 e a mensalidade é R$ 50,00.</span></div>' +
+      '<button class="btn btn-primary btn-block" data-act="comprovante">' + ic('upload') + 'Enviar outro comprovante</button><button class="btn btn-outline btn-block" data-act="falar">' + ic('chat') + 'Falar com a casa</button>';
+    if (m === 'paga') html += '<div class="status ok">' + ic('check') + '<span><b>Paga.</b> A casa confirmou seu pagamento. Obrigado!</span></div>';
+    html += '</article>';
+    html += '<details class="acc"><summary>Quer pagar todo mês sem lembrar?' + ic('right') + '</summary><div class="in">' +
+      '<p>Você pode agendar um PIX que se repete todo mês no app do seu banco (Pix Agendado Recorrente).</p>' +
+      '<div class="step"><span class="n">1</span><div class="c">No app do banco, entre em PIX e escolha <b>Agendar</b> ou <b>Programar</b>.</div></div>' +
+      '<div class="step"><span class="n">2</span><div class="c">Use a chave da casa: <b>' + CASA.pix + '</b>, valor R$ 50,00, todo dia 10.</div></div>' +
+      '<div class="step"><span class="n">3</span><div class="c">Escolha <b>Repetir todo mês</b> e confirme.</div></div>' +
+      '<p class="note">Se a casa mudar o valor, ajuste o agendamento no banco. Continue enviando o comprovante aqui todo mês.</p></div></details>';
+    html += '<section class="section"><h2>Meses anteriores</h2><div class="list">' + HIST_MENSAL.map(function (h) {
+      return '<div class="item" style="cursor:default"><div class="grow"><strong>' + h.mes + '</strong><span>R$ 50,00</span></div><span class="pill ok">' + h.sit + '</span></div>';
+    }).join('') + '</div></section>';
+    return html + '</main>' + tabbar('mensalidade');
+  };
+
+  V.perfil = function () {
+    var html = appbar(CASA.nome, 'Perfil') + '<main class="screen"><div style="display:flex;gap:14px;align-items:center"><div class="logo" style="width:56px;height:56px;border-radius:50%;font-size:20px" aria-hidden="true">AP</div>' +
+      '<div><h1 style="font-size:20px">Ana Paula Ribeiro</h1><p class="note">Médium da corrente · Grupo G2</p></div></div><div class="list">' +
+      '<button class="item" data-go="presencas">' + ic('check') + '<div class="grow"><strong>Minhas presenças</strong><span>11 de 12 nos últimos 3 meses</span></div><span class="chev">' + ic('right') + '</span></button>' +
+      '<button class="item" data-go="dados">' + ic('user') + '<div class="grow"><strong>Meus dados</strong><span>Contato, endereço e aniversário</span></div><span class="chev">' + ic('right') + '</span></button>' +
+      '<button class="item" data-act="falar">' + ic('chat') + '<div class="grow"><strong>Falar com a casa</strong><span>WhatsApp da secretaria</span></div><span class="chev">' + ic('right') + '</span></button>' +
+      '<button class="item" data-act="instalar">' + ic('phone') + '<div class="grow"><strong>Ícone na tela inicial</strong><span>Abrir a Área com um toque</span></div><span class="chev">' + ic('right') + '</span></button>' +
+      (S.persona === 'operador' ? '<button class="item" data-act="area" data-v="painel">' + ic('grid') + '<div class="grow"><strong>Ir para o painel do terreiro</strong><span>Giras, senhas e gestão</span></div><span class="chev">' + ic('right') + '</span></button>' : '') +
+      '<button class="item" data-act="sair">' + ic('logout') + '<div class="grow"><strong>Sair</strong></div></button></div></main>' + tabbar('perfil');
+    return html;
+  };
+
+  V.presencas = function () {
+    return appbar('Minhas presenças', 'Últimos 3 meses', true) + '<main class="screen"><article class="card" style="flex-direction:row;align-items:center;gap:16px"><div class="big-pct">92%</div><p class="sub">Você esteve em <b>11 de 12</b> giras, faxinas e atividades em que estava na escala.</p></article>' +
+      '<div class="list">' + PRESENCAS.map(function (p) {
+        var j = S.justificados[p.id];
+        var sit = j ? '<span class="pill warn">Ausência com motivo</span>' : '<span class="pill ' + p.cls + '">' + p.sit + '</span>';
+        return '<div class="item" style="cursor:default;align-items:flex-start"><div class="grow"><strong>' + p.t + '</strong><span>' + p.d + '</span><span>' + sit + '</span>' +
+          (p.motivo ? '<span>Motivo: ' + p.motivo + '</span>' : '') + (j ? '<span>Motivo: ' + esc(j) + '</span>' : '') +
+          (p.justificar && !j ? '<button class="link" data-act="justificar" data-id="' + p.id + '">Contar o motivo (até hoje, 07/10)</button>' : '') + '</div></div>';
+      }).join('') + '</div><p class="note">Só você e a direção da casa veem suas presenças.</p></main>' + tabbar('perfil');
+  };
+
+  V.dados = function () {
+    var rows = [['Nome', 'Ana Paula Ribeiro'], ['Celular', '(11) 9••••-4321'], ['E-mail', 'ana.paula@exemplo.com'], ['Aniversário', '14 de março'], ['Endereço', 'Rua Exemplo, 45 · São Paulo']];
+    return appbar('Meus dados', '', true) + '<main class="screen"><div class="list">' + rows.map(function (r) {
+      return '<div class="item" style="cursor:default"><div class="grow"><span>' + r[0] + '</span><strong>' + r[1] + '</strong></div></div>';
+    }).join('') + '</div><div class="status info">' + ic('info') + '<span>Para mudar algum dado, fale com a casa. Em breve você poderá mudar por aqui.</span></div>' +
+      '<button class="btn btn-outline btn-block" data-act="falar">' + ic('chat') + 'Falar com a casa</button></main>' + tabbar('perfil');
+  };
+
+  /* ——————————————————— folhas (bottom sheets) ——————————————————— */
+  var SH = {};
+  SH.naovou = function () {
+    var it = byId(S.sheetData.id);
+    return '<h2>Não vou à faxina de ' + it.sem.toLowerCase() + ', ' + dd(it) + '</h2>' +
+      '<div class="field"><label for="motivo">Conte o motivo</label><textarea id="motivo" maxlength="500" placeholder="Ex.: vou estar viajando a trabalho."></textarea>' +
+      '<span class="note">A direção da casa vê o motivo. Não precisa detalhar questões de saúde.</span></div>' +
+      '<button class="btn btn-primary btn-block" data-act="enviar-motivo" disabled>Avisar a casa</button><button class="btn btn-outline btn-block" data-act="fechar">Cancelar</button>';
+  };
+  SH.justificar = function () {
+    var p; PRESENCAS.forEach(function (x) { if (x.id === S.sheetData.id) p = x; });
+    return '<h2>Por que você não foi?</h2><p class="sub">' + p.t + ' · ' + p.d + '</p>' +
+      '<div class="field"><label for="motivo">Conte o motivo</label><textarea id="motivo" maxlength="500"></textarea>' +
+      '<span class="note">A direção da casa vê o motivo. Não precisa detalhar questões de saúde.</span></div>' +
+      '<button class="btn btn-primary btn-block" data-act="enviar-just" disabled>Enviar para a casa</button><button class="btn btn-outline btn-block" data-act="fechar">Cancelar</button>';
+  };
+  SH.pagar = function () {
+    return '<h2>Pagar com PIX</h2><p class="sub">Mensalidade de outubro · <b>R$ 50,00</b></p>' +
+      '<div class="step"><span class="n">1</span><div class="c"><b>Copie o código do PIX</b><div class="code" id="pixcode">' + PIX_CODE + '</div>' +
+      '<button class="btn btn-primary btn-block" data-act="copiar" data-v="code">' + ic('copy') + 'Copiar código do PIX</button><span class="note">Código de exemplo deste protótipo. Não pague.</span></div></div>' +
+      '<div class="step"><span class="n">2</span><div class="c">Abra o app do seu banco, entre em <b>PIX</b> e escolha <b>PIX copia e cola</b>. Confira o nome: ' + CASA.nome + '.</div></div>' +
+      '<div class="step"><span class="n">3</span><div class="c">Depois de pagar, envie o comprovante aqui.<button class="btn btn-outline btn-block" data-act="comprovante">' + ic('upload') + 'Enviar comprovante</button></div></div>' +
+      '<details class="acc"><summary>Pagar de outro aparelho (QR Code)' + ic('right') + '</summary><div class="in"><div class="qr" id="qr"></div><p class="note" style="text-align:center">Aponte a câmera do app do banco para o código.</p></div></details>' +
+      '<details class="acc"><summary>Prefere usar a chave PIX?' + ic('right') + '</summary><div class="in"><div class="code">' + CASA.pix + '</div>' +
+      '<button class="btn btn-outline btn-block" data-act="copiar" data-v="chave">' + ic('copy') + 'Copiar chave PIX</button></div></details>';
+  };
+  SH.comprovante = function () {
+    var f = S.file;
+    return '<h2>Enviar comprovante</h2><p class="sub">Mensalidade de outubro · R$ 50,00</p>' +
+      (f ? '<div class="thumb"><img src="' + f.url + '" alt="Prévia do comprovante"><div class="grow"><strong>' + esc(f.name) + '</strong><span class="note">' + f.size + '</span></div><button class="link" data-act="trocar-arq">Trocar</button></div>'
+         : '<label class="btn btn-outline btn-block" for="arq" style="cursor:pointer">' + ic('upload') + 'Escolher foto ou PDF</label>' +
+           '<button class="link" data-act="exemplo" style="align-self:center">Usar um comprovante de exemplo</button>') +
+      '<input id="arq" type="file" accept="image/*,application/pdf" hidden>' +
+      '<p class="note">Foto ou PDF do comprovante do banco. Se a foto for grande, a gente reduz antes de enviar.</p>' +
+      '<button class="btn btn-primary btn-block" data-act="enviar-comp"' + (f ? '' : ' disabled') + '>Enviar para a casa</button>';
+  };
+  SH.instalar = function () {
+    var ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    var plat = S.sheetData.plat || (ios ? 'iphone' : 'android');
+    var steps = plat === 'android'
+      ? ['Toque nos três pontinhos <b>⋮</b> no canto de cima.', 'Toque em <b>Adicionar à tela inicial</b> (ou <b>Instalar app</b>).', 'Confirme. O ícone da casa aparece junto dos seus apps.']
+      : ['Toque no botão <b>Compartilhar</b> (o quadrado com a seta para cima).', 'Role e toque em <b>Adicionar à Tela de Início</b>.', 'Toque em <b>Adicionar</b>. O ícone da casa aparece junto dos seus apps.'];
+    return '<h2>Deixe a Área na tela inicial</h2><p class="sub">Assim você abre com um toque, sem procurar o link no WhatsApp.</p>' +
+      '<div class="seg" role="group" aria-label="Tipo de celular"><button data-act="plat" data-v="android" aria-pressed="' + (plat === 'android') + '">Android</button><button data-act="plat" data-v="iphone" aria-pressed="' + (plat === 'iphone') + '">iPhone</button></div>' +
+      steps.map(function (s, i) { return '<div class="step"><span class="n">' + (i + 1) + '</span><div class="c">' + s + '</div></div>'; }).join('') +
+      '<div class="status info">' + ic('info') + '<span>Abriu dentro do WhatsApp? Antes, toque nos três pontinhos e escolha <b>' + (plat === 'android' ? 'Abrir no Chrome' : 'Abrir no Safari') + '</b>.</span></div>' +
+      '<button class="btn btn-primary btn-block" data-act="fechar-inst">Pronto, adicionei</button><button class="btn btn-outline btn-block" data-act="fechar-inst">Agora não</button>';
+  };
+  SH.termo = function () {
+    return '<h2>Termo de uso dos seus dados</h2>' +
+      '<p>A ' + CASA.nome + ' usa seu nome, contato, aniversário, mensalidades e presenças para organizar a corrente nesta área.</p>' +
+      '<p>Só a direção da casa vê esses dados. Os outros médiuns não veem nada seu.</p>' +
+      '<p>O GiraHub guarda os dados para a casa e não usa para outra finalidade. Você pode pedir à casa para encerrar seu acesso quando quiser.</p>' +
+      '<p class="note">Versão 1 · outubro de 2026 (texto de exemplo do protótipo)</p><button class="btn btn-primary btn-block" data-act="fechar">Entendi</button>';
+  };
+  SH.divulgar = function () {
+    var it = byId(S.sheetData.id);
+    var txt = it.titulo + ' na ' + CASA.nome + ': ' + it.sem.toLowerCase() + ', ' + dd(it) + ', às ' + it.hora + '. Senhas para atendimento: girahub.com.br/luzdamata';
+    return '<h2>Divulgar a gira</h2><p class="sub">No app, este botão abre o WhatsApp com a mensagem pronta para você escolher o grupo ou contato.</p><div class="box"><span>' + txt + '</span></div>' +
+      '<button class="btn btn-primary btn-block" data-act="copiar" data-v="txt" data-txt="' + esc(txt) + '">' + ic('copy') + 'Copiar mensagem</button><button class="btn btn-outline btn-block" data-act="fechar">Fechar</button>';
+  };
+  SH.falar = function () {
+    return '<h2>Falar com a casa</h2><p class="sub">No app, este botão abre o WhatsApp da secretaria.</p><div class="code">' + CASA.whatsapp + '</div>' +
+      '<button class="btn btn-primary btn-block" data-act="copiar" data-v="txt" data-txt="' + CASA.whatsapp + '">' + ic('copy') + 'Copiar número</button><button class="btn btn-outline btn-block" data-act="fechar">Fechar</button>';
+  };
+  SH.esqueci = function () {
+    return '<h2>Esqueci minha senha</h2><div class="field"><label for="em2">E-mail</label><input id="em2" type="email" value="ana.paula@exemplo.com"></div>' +
+      '<button class="btn btn-primary btn-block" data-act="enviar-reset">Mandar link para criar nova senha</button><button class="btn btn-outline btn-block" data-act="fechar">Cancelar</button>';
+  };
+  SH.proto = function () { return '<h2>Protótipo</h2>' + panelHTML(true) + '<button class="btn btn-outline btn-block" data-act="fechar">Fechar</button>'; };
+
+  /* ——————————————————— roteiro de jornadas ——————————————————— */
+  var J = [
+    { j: 'J1', t: 'Convite pelo WhatsApp', task: 'A casa mandou um convite. Entre e deixe seu acesso pronto.', start: function () { S.logged = false; S.installSeen = false; S.history = []; go('whatsapp', {}, { replace: true }); } },
+    { j: 'J2', t: 'Entrar de novo', task: 'Você fechou o app ontem. Como você entra hoje?', start: function () { S.persona = 'medium'; S.history = []; go('login', {}, { replace: true }); } },
+    { j: 'J3', t: 'Operador que é médium', task: 'Você trabalha na porta e também é médium. Entre e vá para a Área do Médium; depois volte ao painel.', start: function () { S.persona = 'operador'; S.history = []; go('login', {}, { replace: true }); } },
+    { j: 'J4', t: 'Próxima gira', task: 'Quando é a próxima gira e o que você precisa levar?', start: function () { tab('inicio'); } },
+    { j: 'J5', t: 'Agenda e divulgar', task: 'Coloque a gira de sexta na agenda do celular e divulgue para um amigo.', start: function () { tab('agenda'); } },
+    { j: 'J6', t: 'Aviso novo', task: 'Tem um aviso novo da casa. O que ele diz?', start: function () { S.lidos = {}; tab('inicio'); } },
+    { j: 'J7', t: 'Pagar a mensalidade', task: 'Pague a mensalidade de outubro (sem pagar de verdade) e mande o comprovante.', start: function () { S.mensal = 'aberto'; S.file = null; tab('inicio'); } },
+    { j: 'J8', t: 'Comprovante recusado', task: 'A casa não confirmou seu comprovante. O que aconteceu e o que você faz?', start: function () { S.mensal = 'recusado'; S.file = null; tab('inicio'); } },
+    { j: 'J9', t: 'Faxina: não vou e cheguei', task: 'Você não vai poder ir à faxina de sábado. Avise a casa. Depois, ligue "É dia da faxina" e marque presença.', start: function () { S.escala = {}; S.cheguei = {}; S.diaFaxina = false; tab('inicio'); } }
+  ];
+  function panelHTML(inSheet) {
+    var cur = S.task ? '<div class="task"><b>' + S.task.j + ' · Tarefa:</b> ' + S.task.task + '</div>' : '';
+    var brand = getComputedStyle(document.documentElement).getPropertyValue('--brand').trim();
+    return (inSheet ? '' : '<div><h1>Área do Médium</h1><p class="lead">Protótipo navegável com as decisões D-14 a D-29. Casa e pessoas fictícias; nada é salvo nem enviado. Abra no celular para testar de verdade.</p></div>') + cur +
+      '<div class="pcard"><strong>Jornadas</strong>' + J.map(function (x, i) {
+        return '<button class="journey" data-act="journey" data-i="' + i + '"><span class="j">' + x.j + '</span><span><b>' + x.t + '</b><span>' + x.task + '</span></span></button>';
+      }).join('') + '</div>' +
+      '<div class="pcard"><strong>Simular</strong>' +
+      '<label class="toggle"><input type="checkbox" data-act="diafaxina"' + (S.diaFaxina ? ' checked' : '') + '>É dia da faxina (mostra “Cheguei”)</label>' +
+      '<div class="opt"><span>Comprovante</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="small-btn" data-act="sim-mensal" data-v="paga">Casa confirmou</button><button class="small-btn" data-act="sim-mensal" data-v="recusado">Casa recusou</button></span></div>' +
+      '<div class="opt"><span>Quem usa</span><div class="seg"><button data-act="persona" data-v="medium" aria-pressed="' + (S.persona === 'medium') + '">Médium</button><button data-act="persona" data-v="operador" aria-pressed="' + (S.persona === 'operador') + '">Operador</button></div></div>' +
+      '<div class="opt"><span>Cor da casa</span><span class="swatches">' + BRANDS.map(function (b) {
+        return '<button class="sw" style="background:' + b[0] + '" title="' + b[1] + '" aria-label="Cor ' + b[1] + '" aria-pressed="' + (brand.toLowerCase() === b[0]) + '" data-act="brand" data-v="' + b[0] + '"></button>';
+      }).join('') + '</span></div>' +
+      '<button class="small-btn" data-act="reset">' + ic('refresh', 14) + ' Recomeçar do zero</button></div>';
+  }
+
+  /* ——————————————————— render ——————————————————— */
+  function render() {
+    var view = V[S.screen] ? V[S.screen]() : V.inicio();
+    var html = '<div class="protobar"><span>PROTÓTIPO · dados fictícios</span><button data-act="proto">Roteiro</button></div>' + view;
+    if (S.sheet) html += '<div class="scrim" data-act="fechar"></div><div class="sheet" role="dialog" aria-modal="true"><span class="grab"></span>' + SH[S.sheet]() + '</div>';
+    if (S.toast) html += '<div class="toast" role="status">' + S.toast + '</div>';
+    device.innerHTML = html;
+    panel.innerHTML = panelHTML(false);
+    if (S.sheet === 'pagar') drawQR();
+  }
+  function drawQR() {
+    var el = document.getElementById('qr'); if (!el) return;
+    try { new QRCode(el, { text: PIX_CODE, width: 180, height: 180, colorDark: '#000000', colorLight: '#ffffff' }); }
+    catch (e) { el.innerHTML = '<p class="note" style="width:180px">QR Code indisponível neste aparelho.</p>'; }
+  }
+  function sampleReceipt() {
+    var c = document.createElement('canvas'); c.width = 300; c.height = 400; var x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, 300, 400); x.fillStyle = '#0f172a'; x.font = 'bold 22px sans-serif'; x.fillText('Comprovante PIX', 24, 50);
+    x.font = '16px sans-serif'; x.fillStyle = '#475569';
+    ['Valor: R$ 50,00', 'Para: Tenda Luz da Mata', 'Data: 07/10/2026 14:31', 'EXEMPLO · protótipo'].forEach(function (t, i) { x.fillText(t, 24, 100 + i * 34); });
+    return c.toDataURL('image/png');
+  }
+  function now() { var d = new Date(); return d.getHours() + 'h' + String(d.getMinutes()).padStart(2, '0'); }
+  function copyText(t, okMsg) {
+    var done = function () { toast(okMsg); };
+    try { navigator.clipboard.writeText(t).then(done, function () { toast('Toque e segure o código para copiar.'); }); }
+    catch (e) { toast('Toque e segure o código para copiar.'); }
+  }
+
+  /* ——————————————————— eventos ——————————————————— */
+  function onClick(e) {
+    var el = e.target.closest('[data-go],[data-act],[data-tab]'); if (!el) return;
+    if (el.tagName === 'INPUT' && el.type === 'checkbox' && !el.dataset.act) return;
+    var a = el.dataset.act, id = el.dataset.id, v = el.dataset.v;
+    if (el.dataset.tab) return tab(el.dataset.tab);
+    if (el.dataset.go) return go(el.dataset.go, { id: id });
+    switch (a) {
+      case 'back': return back();
+      case 'proto': return sheet('proto');
+      case 'fechar': S.sheet = null; return render();
+      case 'vou': S.escala[id] = { resp: 'vou' }; return toast('Combinado! A casa já sabe que você vai.');
+      case 'naovou': return sheet('naovou', { id: id });
+      case 'mudar': delete S.escala[id]; return render();
+      case 'enviar-motivo': {
+        var m = (document.getElementById('motivo').value || '').trim(); if (!m) return;
+        S.escala[S.sheetData.id] = { resp: 'nao', motivo: m }; S.sheet = null; return toast('A casa foi avisada. Obrigado por avisar.');
+      }
+      case 'justificar': return sheet('justificar', { id: id });
+      case 'enviar-just': {
+        var mj = (document.getElementById('motivo').value || '').trim(); if (!mj) return;
+        S.justificados[S.sheetData.id] = mj; S.sheet = null; return toast('Motivo enviado para a casa.');
+      }
+      case 'cheguei': S.cheguei[id] = true; return toast('Presença marcada. Bom trabalho!');
+      case 'pagar': return sheet('pagar');
+      case 'comprovante': return sheet('comprovante');
+      case 'copiar': {
+        if (v === 'code') return copyText(PIX_CODE, 'Código copiado. Abra o app do banco e escolha PIX copia e cola.');
+        if (v === 'chave') return copyText(CASA.pix, 'Chave PIX copiada.');
+        return copyText(el.dataset.txt, 'Copiado.');
+      }
+      case 'exemplo': S.file = { name: 'comprovante-pix.png', size: '84 KB', url: sampleReceipt() }; return render();
+      case 'trocar-arq': S.file = null; return render();
+      case 'enviar-comp': S.mensal = 'conferencia'; S.enviadoEm = now(); S.sheet = null; S.file = null; if (S.screen !== 'mensalidade') { S.history = []; S.screen = 'mensalidade'; } return toast('Comprovante enviado. A casa vai conferir.');
+      case 'filtro': S.agendaFiltro = v; return render();
+      case 'agendacel': return toast('No app, isso baixa o evento para a agenda do celular (Google ou Apple).');
+      case 'divulgar': return sheet('divulgar', { id: id });
+      case 'falar': return sheet('falar');
+      case 'instalar': return sheet('instalar');
+      case 'plat': S.sheetData.plat = v; return render();
+      case 'fechar-inst': S.installSeen = true; S.sheet = null; return render();
+      case 'termo': return sheet('termo');
+      case 'showpw': case 'showpw2': {
+        var inp = el.parentNode.querySelector('input'); var show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; el.textContent = show ? 'Ocultar' : 'Mostrar'; return;
+      }
+      case 'ativar': {
+        var pw = document.getElementById('pw').value, ok = document.getElementById('termo').checked, err = document.getElementById('err'), msg = document.getElementById('errmsg');
+        if (pw.length < 8 || !/[a-zA-Z]/.test(pw) || !/\d/.test(pw)) { msg.textContent = 'A senha precisa ter 8 ou mais caracteres, com letras e números.'; err.hidden = false; return; }
+        if (!ok) { msg.textContent = 'Para ativar, marque que você autoriza o uso dos seus dados.'; err.hidden = false; return; }
+        S.logged = true; S.history = []; S.screen = 'inicio'; render(); return sheet('instalar');
+      }
+      case 'entrar': S.logged = true; S.history = []; if (S.persona === 'operador') return go('escolher-area', {}, { replace: true }); return tab('inicio');
+      case 'esqueci': return sheet('esqueci');
+      case 'enviar-reset': S.sheet = null; return toast('Se o e-mail tiver acesso, chega um link em alguns minutos.');
+      case 'area': {
+        var lb = document.getElementById('lembrar'); if (lb) S.lembrar = lb.checked;
+        S.history = []; return v === 'painel' ? go('painel', {}, { replace: true }) : tab('inicio');
+      }
+      case 'sair': S.history = []; return go('login', {}, { replace: true });
+      case 'journey': {
+        var jj = J[+el.dataset.i]; S.task = jj; S.sheet = null; jj.start(); return;
+      }
+      case 'diafaxina': S.diaFaxina = el.checked; if (S.diaFaxina) delete S.escala.f1; return render();
+      case 'sim-mensal': S.mensal = v; S.sheet = null; return render();
+      case 'persona': S.persona = v; return render();
+      case 'brand': document.documentElement.style.setProperty('--brand', v); try { localStorage.setItem('am-proto-brand', v); } catch (e2) {} return render();
+      case 'reset': { var keep = S.persona; S = fresh(); S.persona = keep; return render(); }
+    }
+  }
+  document.addEventListener('click', function (e) { if (device.contains(e.target) || panel.contains(e.target)) onClick(e); });
+  document.addEventListener('input', function (e) {
+    if (e.target.id === 'motivo') { var b = device.querySelector('[data-act="enviar-motivo"],[data-act="enviar-just"]'); if (b) b.disabled = !e.target.value.trim(); }
+  });
+  document.addEventListener('change', function (e) {
+    if (e.target.id === 'arq' && e.target.files && e.target.files[0]) {
+      var f = e.target.files[0]; var kb = Math.round(f.size / 1024);
+      S.file = { name: f.name, size: kb > 1024 ? (kb / 1024).toFixed(1) + ' MB' : kb + ' KB', url: /^image\//.test(f.type) ? URL.createObjectURL(f) : sampleReceipt() };
+      render();
+    }
+    if (e.target.dataset && e.target.dataset.act === 'diafaxina') { S.diaFaxina = e.target.checked; if (S.diaFaxina) delete S.escala.f1; render(); }
+  });
+
+  render();
+})();
+</script>
