@@ -607,9 +607,14 @@ Regras:
 - Cancelar a atividade dispensa todo mundo e avisa os convocados.
 
 ### 8.6 Presença no dia
-- **Check-in pelo médium**: botão "Cheguei" na Área, só dentro da janela do tipo e só para quem é convocado ou
-  elegível. Grava `presenca_origem = checkin_medium`. Sem GPS no MVP (decisão D-11); a fase 2 traz o **QR do dia**
-  exibido na Porta/TV para evitar check-in de casa (AM-28, conversa com o N-06).
+- **Modo de presença (decisão D-11, configurável pela casa)**: em Configurações da Área, com padrão da casa e
+  ajuste por tipo de atividade. São três modos, nenhum usa GPS:
+  - **Confiança** (padrão): a confirmação "vou" do médium basta. Quem confirmou conta como presente quando a
+    atividade termina, a não ser que o admin/porteiro marque ausência. Não há botão "Cheguei".
+  - **Check-in pelo app**: botão "Cheguei" na Área, só dentro da janela do tipo e só para quem é convocado ou
+    elegível. Grava `presenca_origem = checkin_medium`.
+  - **Check-in com QR**: o "Cheguei" exige o QR do dia, exibido na Porta/TV e na tela da chamada (AM-28, conversa com
+    o N-06), para evitar check-in de casa.
 - **Chamada pelo admin/porteiro**: lista com os convocados/elegíveis, busca por nome, tocar alterna
   Presente/Ausente, "Marcar todos os confirmados como presentes", "Adicionar quem veio", "Encerrar chamada". Na
   gira, a chamada abre também a partir da Porta (`PORTA:edit`).
@@ -701,12 +706,13 @@ Fluxo do admin (tipo com modo "grupos por dia", ex.: Faxina):
 - **Prioridade:** P0 · **Fase:** MVP · **Esforço:** P · **Tipo:** decisão · **Depende de:** —
 
 **Por quê.** Pontos que mudam o desenho e o preço (lista na §12). **D-01 a D-08 foram decididas em 2026-10-07**
-(todas como recomendado). A v2 trouxe D-09 a D-13, sobre escalas e presença, ainda abertas.
+(todas como recomendado). D-09 a D-13, sobre escalas e presença, também foram decididas em 2026-10-07: todas como
+recomendado, menos a D-11, que virou configuração da casa (confiança, check-in pelo app ou check-in com QR).
 
 **Aceite**
 - [x] D-01 a D-08 da §12 respondidas e registradas neste documento (2026-10-07)
 - [x] Plano da `area_medium` decidido: Basic (o AGENTS.md §3.4 é atualizado no card de código, AM-02)
-- [ ] D-09 a D-13 da §12 respondidas
+- [x] D-09 a D-13 da §12 respondidas (2026-10-07; D-11 como configuração da casa)
 - [ ] F-04, F-06 e F-07 arquivados no board apontando para os cards AM
 
 ### AM-02 — Fundação de identidade: vínculo médium↔usuário, papel `medium` e trava do painel
@@ -1354,21 +1360,25 @@ opt-in (D-07, fase 2).
 - [ ] Admin pode aceitar ou recusar uma justificativa
 - [ ] Opt-in para mostrar o primeiro nome aos colegas de escala
 
-### AM-28 — Check-in com QR do dia na casa
-- **Prioridade:** P3 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-17
+### AM-28 — Modo de presença da casa e check-in com QR do dia
+- **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-17
 
-**Por quê.** O check-in pelo app no MVP depende de confiança (D-11). Para casas que querem garantir presença física,
-um QR que só existe no terreiro resolve sem GPS. Conversa com o N-06 (check-in do consulente por QR).
+**Por quê.** Decisão D-11: a casa escolhe se confia na confirmação do médium, se pede check-in pelo app ou se exige o
+QR do dia, que só existe no terreiro (sem GPS). Para o QR ser opção desde o lançamento, este card entra na 2.4.0, junto
+com a presença. Conversa com o N-06 (check-in do consulente por QR).
 
 **Implementação**
 - Token curto por atividade, rotativo (ex.: a cada 60 s), exibido na Porta/modo TV e na tela da chamada.
 - O botão "Cheguei" abre a câmera; o servidor confere o token da atividade e a janela.
-- Configurável por tipo ("check-in exige QR").
+- Configuração da casa em Configurações da Área (modo padrão: confiança · check-in pelo app · check-in com QR), com
+  ajuste por tipo de atividade.
 
 **Aceite**
-- [ ] Tipo configurado com QR só aceita check-in com o código da hora
+- [ ] Casa escolhe o modo padrão de presença e pode ajustar por tipo de atividade
+- [ ] No modo confiança, quem confirmou conta como presente ao fim da atividade, salvo ausência marcada pelo admin
+- [ ] No modo QR, o check-in só é aceito com o código da hora
 - [ ] Código exibido na Porta e no modo TV, sem dado pessoal
-- [ ] Check-in sem QR continua possível onde a casa não exige
+- [ ] Trocar o modo vale para as atividades futuras, sem alterar presenças já registradas
 
 ---
 
@@ -1402,7 +1412,7 @@ um QR que só existe no terreiro resolve sem GPS. Conversa com o N-06 (check-in 
 | 23 | AM-27 Troca na escala | P2 | Fase 2 | M | |
 | 24 | AM-14 Meus dados | P2 | Fase 2 | M | |
 | 25 | AM-19 Ficha e caminhada | P2 | Fase 2 | M | Depois do F-05 |
-| 26 | AM-28 Check-in com QR | P3 | Fase 2 | M | |
+| 26 | AM-28 Modo de presença e check-in com QR | P1 | MVP (2.4.0) | M | |
 | 27 | AM-20 Aniversariantes | P3 | Fase 2 | P | |
 | 28 | AM-21 Estudos e documentos | P3 | Fase 3 | G | |
 
@@ -1434,13 +1444,13 @@ faxina fica, porque é o exemplo do dono.
 | D-07 | O que o médium vê dos outros | **Nada no MVP**; aniversário e colegas de escala com opt-in na fase 2 |
 | D-08 | Médium que sai da casa | **Perde acesso** (conta `medium` desativada); histórico sob pedido ao terreiro |
 
-**Decisões abertas pela v2 (escalas e presença), com recomendação:**
+**Decisões da v2 (escalas e presença), tomadas em 2026-10-07:**
 
 | # | Decisão | Opções | Recomendação |
 |---|---|---|---|
 | D-09 | Escala de faxina e presença: MVP ou fase 2 | MVP (2.4.0) · fase 2 | **MVP 2.4.0**; se cortar, a escala de gira vai para 2.5.0 (§11) |
 | D-10 | Plano da presença | Basic · Pro | **Basic** (`atividades_corrente`): no Basic a casa marca quem veio; no Pro planeja quem vem |
-| D-11 | Check-in do médium sem prova física | só janela de horário · GPS · QR do dia | **Só janela no MVP** (admin corrige); **QR do dia na fase 2** (AM-28); GPS não, por privacidade e imprecisão |
+| D-11 | Como a presença é confirmada | confiança · janela de horário · QR do dia · GPS | **Configuração da casa** (padrão + ajuste por tipo): **confiança** (padrão; a confirmação do médium basta), **check-in pelo app** na janela ou **check-in com QR** (AM-28, MVP 2.4.0). GPS não, por privacidade e imprecisão |
 | D-12 | Prazos | justificativa até N dias; encerramento automático da chamada | **7 dias** para justificar (configurável); **48 h** para encerrar sozinho, só se houve alguma presença |
 | D-13 | Abonar justificativa | admin aceita/recusa · basta ter texto | **Basta ter texto no MVP**; aceitar/recusar na fase 2 (AM-27) |
 
@@ -1462,7 +1472,7 @@ faxina fica, porque é o exemplo do dono.
 | R-10 | Escopo cresce (chat, app nativo) | Fora do escopo explícito (§9) |
 | R-11 | Âncora da gira divergente (gira excluída ou de outro tenant) | Âncora sem cópia de dados, `ON CONFLICT` na mesma transação, join com `giras.deleted_at`, conferência de tenant no serviço e teste de FK cruzada |
 | R-12 | Republicar a escala apaga respostas ou duplica faxinas | Diff puro testado, `SELECT ... FOR UPDATE` no plano, unicidade (`plano`, `data`, `grupo`) e (`atividade`, `médium`) |
-| R-13 | Check-in feito de casa | Janela curta, correção pelo admin, QR do dia na fase 2 (AM-28) |
+| R-13 | Check-in feito de casa | Casa escolhe o modo; quem quer prova física usa o QR do dia (AM-28); admin corrige |
 | R-14 | Justificativa com dado de saúde vaza | Aviso no campo, visível só com `ESCALAS:view`, fora de e-mail/push/auditoria/PDF |
 | R-15 | 2.4.0 grande demais | Corte previsto: AM-18 para 2.5.0 (§11) |
 
@@ -1519,7 +1529,7 @@ AM-24 | Divulgação: Sou médium na landing, página de recurso e novidades | P
 AM-25 | Escala de faxina: grupos por dias do mês | P1 | MVP (2.4.0) | G | AM-08, AM-17, AM-23 | Planejador do mês: admin toca nos dias para atribuir G1/G2/G3, copia o mês anterior ou gira grupos e publica, gerando as faxinas e convocações.
 AM-26 | Relatório de assiduidade e justificativas | P1 | MVP (2.4.0) | M | AM-17, AM-23 | Relatório de presença por médium (Basic) e por grupo (Pro), com ausências justificadas ou não e PDF.
 AM-27 | Troca e substituição na escala | P2 | Fase 2 | M | AM-25, AM-18, AM-15 | Médium pede troca a um colega, colega aceita, admin aprova; inclui abonar justificativa e opt-in de colegas de escala.
-AM-28 | Check-in com QR do dia na casa | P3 | Fase 2 | M | AM-17 | QR rotativo exibido na Porta/TV como prova de presença física no check-in, configurável por tipo.
+AM-28 | Modo de presença da casa e check-in com QR do dia | P1 | MVP (2.4.0) | M | AM-17 | Casa escolhe confiança, check-in pelo app ou check-in com QR (código rotativo na Porta/TV), com ajuste por tipo.
 ```
 
 O aceite de cada card (checklist do Trello) é a lista "Aceite" da §10.
