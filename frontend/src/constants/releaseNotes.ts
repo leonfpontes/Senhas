@@ -22,6 +22,21 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.4.0',
+    date: '2026-10-07',
+    title: 'Área do Médium chegando',
+    highlights: [
+      'Vem aí a Área do Médium: um espaço da corrente no celular de cada médium, com a agenda das giras, os avisos da casa e a mensalidade pelo PIX. Ela começa em teste com algumas casas e será liberada para todas em breve.',
+      'Nas casas do teste: convite dos médiuns pela tela Médiuns, com a mensagem pronta para mandar no WhatsApp; avisos para a corrente, com a lista de quem leu e de quem ainda não leu; e conferência dos comprovantes de mensalidade enviados pelos próprios médiuns.',
+      'Também nas casas do teste: campo "Orientações para a corrente" na gira (o que levar, horário de chegada), que só a corrente vê, e chave PIX da casa nas configurações do Financeiro.',
+      'Política de Privacidade atualizada (versão 2.2) com as regras da Área do Médium.',
+    ],
+    fixes: [
+      'Quem é removido na tela Usuários perde o acesso na hora, sem esperar a sessão vencer.',
+      'Desativar um operador que também é médium tira só o acesso ao painel; ele continua com a Área do Médium.',
+    ],
+  },
+  {
     version: '2.3.0',
     date: '2026-10-07',
     title: 'Privacidade de cara nova',
