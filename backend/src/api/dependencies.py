@@ -271,8 +271,8 @@ async def require_medium(
     2. tenant do próprio usuário (nunca do corpo/URL); sem tenant → 403;
     3. médium com `user_id` = usuário, do mesmo tenant, não excluído e ativo → senão 403;
     4. plano com `area_medium` e status da assinatura em dia (403/402, `check_plan_feature`);
-    5. Área ligada na configuração do terreiro — TODO(AM-10), hoje sempre ligada
-       (`medium_area.area_medium_enabled_by_tenant`).
+    5. Área ligada na configuração do terreiro (AM-10, `tenant_configs.area_medium_ativa`,
+       `medium_area.area_medium_enabled_by_tenant`) → senão 403.
     Vale para qualquer papel: operador/admin vinculado também usa a Área.
     """
     tenant_id = user.tenant_id
