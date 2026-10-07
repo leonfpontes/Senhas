@@ -1,15 +1,14 @@
 /**
- * useRelatorioPDF — hook que orquestra a geração do PDF A4.
- *
- * jsPDF e html2canvas são carregados via CDN em runtime (script tag injection),
- * evitando qualquer dependência de resolução webpack/bundler.
+ * useRelatorioPDF — gera o PDF A4 do Relatório da gira.
  *
  * Fluxo:
- *  1. Injeta scripts CDN de jsPDF e html2canvas (se ainda não carregados)
- *  2. Monta RelatorioPDFLayout oculto no DOM
- *  3. Aguarda 700ms para Recharts finalizar animações
- *  4. Para cada data-pdf-page: html2canvas → canvas → jsPDF.addImage
- *  5. jsPDF.save(filename) e desmonta componente
+ *  1. Monta RelatorioPDFLayout (só a página de resumo: big numbers + gráficos) oculto no DOM
+ *  2. html2canvas → imagem da página 1
+ *  3. Tabela de senhas (páginas 2+) desenhada como texto pelo jspdf-autotable — cabeçalho
+ *     do terreiro e rodapé "Página X de Y" em cada página, quebra de página automática.
+ *     Antes a tabela também era foto do HTML e o html2canvas cortava a parte de baixo do
+ *     texto das células (bug de out/2026, ver lib/pdf/pdfDoc.ts).
+ *  4. Salva e desmonta o layout
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -20,65 +19,14 @@ import RelatorioPDFLayout, {
   type PdfDoorStats,
   type PdfTenant,
 } from '../components/pdf/RelatorioPDFLayout';
-
-const CDN_JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-const CDN_HTML2CANVAS = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-
-/** Injeta um script CDN e resolve quando estiver carregado. Idempotente. */
-function loadScript(src: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) {
-      resolve();
-      return;
-    }
-    const el = document.createElement('script');
-    el.src = src;
-    el.async = true;
-    el.onload = () => resolve();
-    el.onerror = () => reject(new Error(`Falha ao carregar script: ${src}`));
-    document.head.appendChild(el);
-  });
-}
+import { loadPdfLibs, loadRoundLogo, slugify } from '@/lib/pdf/pdfDoc';
+import { desenharTabelaRelatorio } from '@/lib/pdf/relatorioTabelaPdf';
 
 interface GenerateParams {
   tickets: PdfTicket[];
   doorStats: PdfDoorStats;
   gira: { nome: string; data?: string };
   tenant: PdfTenant;
-}
-
-/** Shape mínima do UMD global exposto pelo CDN do jsPDF — sem @types disponível. */
-interface JsPDFInstance {
-  addPage(): void;
-  addImage(
-    imageData: string,
-    format: string,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    alias: string | undefined,
-    compression: string,
-  ): void;
-  save(filename: string): void;
-}
-type JsPDFConstructor = new (options: {
-  orientation: string;
-  unit: string;
-  format: string;
-  compress: boolean;
-}) => JsPDFInstance;
-
-/** Shape mínima do UMD global exposto pelo CDN do html2canvas — sem @types disponível. */
-type Html2CanvasFn = (
-  element: HTMLElement,
-  options: Record<string, unknown>,
-) => Promise<{ toDataURL(type: string): string }>;
-
-interface PdfCdnWindow {
-  jspdf?: { jsPDF: JsPDFConstructor };
-  jsPDF?: JsPDFConstructor;
-  html2canvas?: Html2CanvasFn;
 }
 
 export function useRelatorioPDF() {
@@ -103,99 +51,55 @@ export function useRelatorioPDF() {
       setLoading(true);
 
       try {
-        // 1. Carrega libs via CDN (idempotente — só injeta uma vez)
-        await Promise.all([
-          loadScript(CDN_JSPDF),
-          loadScript(CDN_HTML2CANVAS),
+        const [{ jsPDF, autoTable }, html2canvas, logo] = await Promise.all([
+          loadPdfLibs(),
+          import('html2canvas').then((m) => m.default),
+          loadRoundLogo(tenant.logoUrl),
         ]);
 
-        // Acessa as libs expostas como UMD no window
-        const pdfWindow = window as unknown as PdfCdnWindow;
-        const jsPDFClass = pdfWindow.jspdf?.jsPDF ?? pdfWindow.jsPDF;
-        const html2canvas = pdfWindow.html2canvas;
-
-        if (!jsPDFClass || !html2canvas) {
-          throw new Error('Bibliotecas PDF não carregaram. Verifique a conexão com a internet.');
-        }
-
-        // 2. Cria container oculto no body
+        // 1. Página de resumo renderizada fora da tela
         const mountNode = document.createElement('div');
         mountNode.style.cssText =
           'position:absolute;left:-9999px;top:0;z-index:-9999;pointer-events:none;';
         document.body.appendChild(mountNode);
         mountNodeRef.current = mountNode;
 
-        // 3. Renderiza o layout no container
         const root = ReactDOM.createRoot(mountNode);
         rootRef.current = root;
-
         await new Promise<void>((resolve) => {
-          root.render(
-            React.createElement(RelatorioPDFLayout, {
-              tickets,
-              doorStats,
-              gira,
-              tenant,
-            }),
-          );
+          root.render(React.createElement(RelatorioPDFLayout, { tickets, doorStats, gira, tenant }));
           // Aguarda React finalizar renderização (animações desativadas nos charts)
           setTimeout(resolve, 200);
         });
 
-        // 4. Coleta todas as seções A4 na ordem correta
-        const pages = Array.from(
-          mountNode.querySelectorAll<HTMLElement>('[data-pdf-page]'),
-        ).sort((a, b) => {
-          const keyA = a.dataset.pdfPage ?? '';
-          const keyB = b.dataset.pdfPage ?? '';
-          if (keyA === 'dashboard') return -1;
-          if (keyB === 'dashboard') return 1;
-          const nA = parseInt(keyA.replace('table-', ''), 10);
-          const nB = parseInt(keyB.replace('table-', ''), 10);
-          return nA - nB;
+        const dashboard = mountNode.querySelector<HTMLElement>('[data-pdf-page="dashboard"]');
+        if (!dashboard) throw new Error('Página de resumo do PDF não encontrada.');
+
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+
+        // 2. Página 1 — imagem do resumo
+        const canvas = await html2canvas(dashboard, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          logging: false,
+          width: 794,
+          windowWidth: 794,
+        });
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 297, undefined, 'FAST');
+
+        // 3. Páginas 2+ — tabela de senhas (texto, não foto)
+        pdf.addPage();
+        desenharTabelaRelatorio(pdf, autoTable, {
+          tickets,
+          gira,
+          brand: { nome: tenant.nome, logoUrl: tenant.logoUrl, primaryColor: tenant.primaryColor },
+          logo,
         });
 
-        if (pages.length === 0) {
-          throw new Error('Nenhuma seção PDF encontrada para captura.');
-        }
-
-        // 5. Cria documento jsPDF A4
-        const pdf = new jsPDFClass({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4',
-          compress: true,
-        });
-
-        const A4_W_MM = 210;
-        const A4_H_MM = 297;
-
-        for (let i = 0; i < pages.length; i++) {
-          if (i > 0) pdf.addPage();
-
-          const canvas = await html2canvas(pages[i], {
-            scale: 2,
-            useCORS: true,
-            allowTaint: false,
-            backgroundColor: '#ffffff',
-            logging: false,
-            width: 794,
-            windowWidth: 794,
-          });
-
-          const imgData = canvas.toDataURL('image/png');
-          pdf.addImage(imgData, 'PNG', 0, 0, A4_W_MM, A4_H_MM, undefined, 'FAST');
-        }
-
-        // 6. Salva o arquivo
-        const giraSlug = gira.nome
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/\s+/g, '-')
-          .toLowerCase()
-          .replace(/[^a-z0-9-]/g, '');
-        const dateSlug = new Date().toISOString().slice(0, 10);
-        pdf.save(`relatorio-${giraSlug}-${dateSlug}.pdf`);
+        // 4. Salva o arquivo
+        pdf.save(`relatorio-${slugify(gira.nome)}-${new Date().toISOString().slice(0, 10)}.pdf`);
       } catch (err) {
         console.error('[useRelatorioPDF] Erro ao gerar PDF:', err);
         throw err;

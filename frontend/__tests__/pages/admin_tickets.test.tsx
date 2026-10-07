@@ -44,6 +44,10 @@ jest.mock('@/components/admin/TicketEmailPanel', () => ({
   TicketEmailPanel: ({ ticketId }: { ticketId: string }) => <div data-testid="email-panel">{ticketId}</div>,
 }));
 
+const mockGerarPdf = jest.fn((..._args: unknown[]) => Promise.resolve());
+jest.mock('@/lib/pdf/listagemSenhasPdf', () => ({
+  gerarListagemSenhasPdf: (...args: unknown[]) => mockGerarPdf(...args),
+}));
 jest.mock('sonner', () => ({ toast: Object.assign(jest.fn(), { success: jest.fn(), error: jest.fn(), info: jest.fn() }) }));
 
 const today = new Date();
@@ -159,27 +163,33 @@ describe('Senhas', () => {
     expect(screen.queryByRole('textbox', { name: 'Cambone' })).not.toBeInTheDocument();
   });
 
-  it('exportar CSV baixa a planilha da gira (com o plano)', async () => {
+  it('exportar PDF busca a listagem completa da gira e gera o PDF (com o plano)', async () => {
     const api = mockApi();
-    const createObjectURL = jest.fn(() => 'blob:x');
-    const revokeObjectURL = jest.fn();
-    Object.assign(URL, { createObjectURL, revokeObjectURL });
-    const click = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     await renderPage();
-    api.get.mockImplementationOnce(() => Promise.resolve({ data: new Blob(['Senha']) }));
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar CSV' }));
-    await waitFor(() =>
-      expect(api.get).toHaveBeenCalledWith('/api/v1/admin/giras/hoje/export-csv', { responseType: 'blob' }),
-    );
-    await waitFor(() => expect(click).toHaveBeenCalled());
-    click.mockRestore();
+    const listagem = { gira: { nome: 'Gira de hoje', data_inicio: null }, items: [{ senha: '0001', nome: 'Maria Souza' }] };
+    api.get.mockImplementationOnce(() => Promise.resolve({ data: listagem }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar PDF' }));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/v1/admin/giras/hoje/export-listagem'));
+    await waitFor(() => expect(mockGerarPdf).toHaveBeenCalledWith(listagem, expect.objectContaining({ nome: expect.any(String) })));
+    expect(screen.queryByRole('button', { name: 'Exportar CSV' })).not.toBeInTheDocument();
+  });
+
+  it('gira sem senhas: avisa e não gera PDF', async () => {
+    const api = mockApi();
+    mockGerarPdf.mockClear();
+    await renderPage();
+    api.get.mockImplementationOnce(() => Promise.resolve({ data: { gira: { nome: 'Gira' }, items: [] } }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar PDF' }));
+    const { toast } = require('sonner');
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('Nenhuma senha emitida nesta gira ainda.'));
+    expect(mockGerarPdf).not.toHaveBeenCalled();
   });
 
   it('sem o plano de exportação o botão não aparece', async () => {
     mockPlanCan.mockImplementation((f: string) => f !== 'export_csv');
     mockApi();
     await renderPage();
-    expect(screen.queryByRole('button', { name: 'Exportar CSV' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Exportar PDF' })).not.toBeInTheDocument();
   });
 
   it('sem permissão de ver senhas mostra o aviso padrão e não chama a API', () => {

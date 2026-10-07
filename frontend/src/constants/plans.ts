@@ -135,7 +135,7 @@ export interface FeatureCatalogItem {
  * Recursos de `PlanFeatures` que NÃO aparecem no quadro de planos (cards, comparativo, landing,
  * tabela da plataforma). Só exibição — gate e funcionamento continuam iguais:
  * - `bulk_operations` (ações em lote): vale em todos os planos, mas não é diferencial;
- * - `export_csv` (exportar planilhas): segue no Pro+, mas o segmento não usa — não vende;
+ * - `export_csv` (exportar listagens — PDF das senhas, CSV do estoque): segue no Pro+, mas não vende;
  * - `analytics_avancado` e `suporte_prioritario`: nada implementado por trás.
  * Os campos continuam no backend (catálogo de `PlanFeatures`).
  */
