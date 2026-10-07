@@ -4,7 +4,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import User, PermissionFeature
+from ..models import User, UserRole, PermissionFeature
 from ..repositories.permission_group_repo import PermissionGroupRepository
 from ..repositories.subscription_repo import SubscriptionRepository
 from src.services.plan_features import get_effective_plan_features
@@ -78,6 +78,12 @@ class PermissionService:
           default "Acesso total" group that new operators join automatically.
         - Operators with groups are restricted according to OR-consolidated group permissions.
         """
+        # 0. Papel `medium` (Área do Médium, AM-02) nunca tem permissão de grupo —
+        # nem impersonado. O admin_router já o barra (require_backoffice); isto é
+        # defesa em profundidade para quem chamar o serviço fora do router.
+        if user.role == UserRole.MEDIUM:
+            return False
+
         # 1. Role bypass
         if user.is_admin:
             return True

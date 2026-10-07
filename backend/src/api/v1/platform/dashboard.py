@@ -58,7 +58,8 @@ async def _user_count(db: AsyncSession) -> int:
         select(func.count()).select_from(User).where(
             and_(
                 User.is_active.is_(True),
-                User.role != UserRole.SUPER_ADMIN,
+                # Usuários do painel: sem super admin nem contas `medium` (AM-02).
+                User.role.notin_((UserRole.SUPER_ADMIN, UserRole.MEDIUM)),
                 User.deleted_at.is_(None),
             )
         )

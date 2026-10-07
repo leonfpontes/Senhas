@@ -67,6 +67,23 @@ class UserRepository(BaseRepository[User]):
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def list_backoffice(self, tenant_id: UUID, skip: int = 0, limit: int = 50) -> List[User]:
+        """Usuários do painel (sem as contas `medium` da Área do Médium — AM-02)."""
+        stmt = (
+            select(User)
+            .where(
+                and_(
+                    User.tenant_id == tenant_id,
+                    User.role != UserRole.MEDIUM,
+                    User.deleted_at.is_(None),
+                )
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
+
     async def get_by_email_including_deleted(self, tenant_id: UUID, email: str) -> Optional[User]:
         """Get user by email including soft-deleted records (tenant-scoped)."""
         stmt = (

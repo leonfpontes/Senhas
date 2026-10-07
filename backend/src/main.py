@@ -23,6 +23,7 @@ from .middleware import jwt_middleware, tenant_context_middleware, audit_logging
 from .api import auth_router
 from .api.v1.admin import admin_router
 from .api.v1.platform import platform_router
+from .api.v1.medium import medium_router
 from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router, public_sites_router, curso_inscricao_router, waitlist_confirm_router, cancel_ticket_router, public_stats_router, public_sitemap_router
 from .api.v1.webhooks import router as webhooks_router
 from .models import (
@@ -278,6 +279,9 @@ def create_app() -> FastAPI:
     
     # Platform routes (SUPER_ADMIN only)
     app.include_router(platform_router)
+
+    # Área do Médium (AM-02) — require_medium no router inteiro
+    app.include_router(medium_router)
     
     # Public routes (no auth required)
     app.include_router(next_gira_router)

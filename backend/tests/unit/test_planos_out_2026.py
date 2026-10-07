@@ -40,6 +40,8 @@ MIN_PLAN = {
     "fila_espera": PlanType.PREMIUM,
     "agendamento_por_horario": PlanType.PREMIUM,
     "suporte_prioritario": PlanType.PREMIUM,
+    # Área do Médium (AM-02, decisão D-01 de 2026-10-07): a partir do Basic.
+    "area_medium": PlanType.BASIC,
 }
 ORDER = [PlanType.FREE, PlanType.BASIC, PlanType.PRO, PlanType.PREMIUM]
 
@@ -93,6 +95,7 @@ def test_suspenso_perde_tudo():
         ("agendamento_por_horario", "apenas no plano Premium"),
         ("mensalidade_associado", "apenas no plano Premium"),
         ("mensalidade_mediun", "a partir do plano Basic"),
+        ("area_medium", "Área do Médium disponível a partir do plano Basic"),
         ("site_builder", "a partir do plano Pro"),
     ],
 )

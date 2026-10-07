@@ -21,6 +21,7 @@ from src.models.audit_logs import AuditLog, AuditAction
 from src.security.password import verify_password, hash_password, validate_password_policy
 from src.core.auth_cookies import clear_auth_cookies, is_impersonated_request
 from src.services import session_service
+from src.services.medium_area import compute_areas
 from src.services.email.base import EmailMessage
 from src.services.email.resend_fallback import ResendEmailService
 from src.services.email.brevo_provider import BrevoEmailService
@@ -119,9 +120,10 @@ def _serialize_user_profile(request: Request, user: User) -> dict:
 async def get_profile(
     request: Request,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Return current authenticated user profile."""
-    return _serialize_user_profile(request, current_user)
+    """Return current authenticated user profile (+ `areas`, AM-02)."""
+    return {**_serialize_user_profile(request, current_user), "areas": await compute_areas(db, current_user)}
 
 
 @router.put("/profile")

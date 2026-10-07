@@ -562,12 +562,15 @@ class TestListUsers:
         from src.api.v1.admin.users import list_users
         repo_inst = AsyncMock()
         user_mock = _mock_user_model()
-        repo_inst.list.return_value = [user_mock]
+        repo_inst.list_backoffice.return_value = [user_mock]
         MockRepo.return_value = repo_inst
 
         result = await list_users(0, 50, None, _admin_user(), AsyncMock())
         assert len(result) == 1
         assert result[0].email == "user@test.com"
+        # Sem filtro, a lista é a do painel (contas `medium` ficam fora — AM-02).
+        repo_inst.list_backoffice.assert_awaited_once()
+        repo_inst.list.assert_not_called()
 
 
 class TestGetUser:
