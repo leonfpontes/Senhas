@@ -4,6 +4,8 @@ All CSS is inline for maximum Gmail/Outlook compatibility.
 """
 
 from datetime import datetime, timezone
+
+from src.core.tz import APP_TZ
 from html import escape
 
 
@@ -73,7 +75,7 @@ def generate_ticket_cancelled_html(
     </div>
 
     <p style="margin:24px 0 0 0;text-align:center;font-size:12px;color:#999;border-top:1px solid #e0e0e0;padding-top:16px;">
-      {t_name} &copy; {datetime.now().year}
+      {t_name} &copy; {datetime.now(APP_TZ).year}
     </p>
   </div>
 

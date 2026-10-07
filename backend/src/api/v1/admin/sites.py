@@ -155,7 +155,7 @@ class VersionResponse(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _as_utc(dt: datetime) -> datetime:
-    """Naive = UTC (o projeto grava ``utcnow()``); aware é convertido para UTC."""
+    """Naive = UTC (registros antigos); aware é convertido para UTC. Hoje tudo é gravado com ``utc_now()``."""
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)

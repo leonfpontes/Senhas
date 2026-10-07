@@ -4,6 +4,7 @@ from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
+from ..core.tz import utc_now
 
 Base = declarative_base()
 
@@ -15,13 +16,13 @@ class TimestampedModel(Base):
     
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.utcnow(),
+        default=utc_now,
         nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.utcnow(),
-        onupdate=lambda: datetime.utcnow(),
+        default=utc_now,
+        onupdate=utc_now,
         nullable=False,
     )
     deleted_at: Mapped[datetime | None] = mapped_column(
@@ -37,4 +38,4 @@ class SoftDeleteModel(TimestampedModel):
     
     def soft_delete(self) -> None:
         """Mark record as deleted without removing from database."""
-        self.deleted_at = datetime.utcnow()
+        self.deleted_at = utc_now()

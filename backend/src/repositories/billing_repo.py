@@ -7,6 +7,7 @@ from sqlalchemy import select, and_, func
 
 from ..models import Invoice, InvoiceStatus
 from .base import BaseRepository
+from ..core.tz import utc_now
 
 
 class BillingRepository(BaseRepository[Invoice]):
@@ -163,7 +164,7 @@ class BillingRepository(BaseRepository[Invoice]):
         invoice.payment_method = payment_method
         invoice.payment_reference = payment_reference
         invoice.paid_amount = paid_amount or invoice.total_amount
-        invoice.paid_at = datetime.utcnow()
+        invoice.paid_at = utc_now()
         
         await self.db.flush()
         await self.db.refresh(invoice)

@@ -12,6 +12,7 @@ from src.services.email.brevo_provider import BrevoEmailService
 from src.services.email.resend_fallback import ResendEmailService
 from src.api.dependencies import get_current_user
 from src.core.errors import InsufficientPermissionsError
+from src.core.tz import utc_now
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-health"])
 logger = logging.getLogger(__name__)
@@ -45,7 +46,6 @@ async def health_check(
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     
-    from datetime import datetime
     import asyncio
     
     # Check database
@@ -99,5 +99,5 @@ async def health_check(
         database=db_status,
         email_primary=email_primary_status,
         email_fallback=email_fallback_status,
-        timestamp=datetime.utcnow().isoformat() + "Z",
+        timestamp=utc_now().isoformat().replace("+00:00", "Z"),
     )

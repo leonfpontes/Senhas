@@ -6,6 +6,7 @@ from sqlalchemy import select, update, and_
 
 from ..models import SenhaControl, Ticket, TicketStatus
 from .senha_control_repo import SenhaControlRepository as BaseSenhaControlRepository
+from ..core.tz import utc_now
 
 
 class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
@@ -84,8 +85,7 @@ class SenhaControlRepositoryExtended(BaseSenhaControlRepository):
             try:
                 if ticket.status == TicketStatus.EMITTED or ticket.status == TicketStatus.CALLED:
                     ticket.status = TicketStatus.COMPLETED
-                    from datetime import datetime
-                    ticket.finalizado_em = datetime.utcnow()
+                    ticket.finalizado_em = utc_now()
                     self.db.add(ticket)
                     results["modified"] += 1
             except Exception as e:

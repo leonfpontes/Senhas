@@ -36,6 +36,17 @@ _TZ_NAME = "America/Sao_Paulo"
 _TZ_LITERAL = literal_column("'America/Sao_Paulo'")
 
 
+def utc_now() -> datetime:
+    """Agora, em UTC e COM fuso (aware).
+
+    Use sempre no lugar de ``datetime.utcnow()``: o valor sem fuso que ele devolve é interpretado
+    pelo asyncpg no fuso LOCAL da máquina ao gravar em ``timestamptz`` — numa máquina em Brasília
+    o horário ia 3 h adiantado — e comparar com uma coluna aware levanta ``TypeError``.
+    ``tests/unit/test_no_naive_utcnow.py`` impede a volta do ``utcnow()``.
+    """
+    return datetime.now(timezone.utc)
+
+
 def local_hour(col: ColumnElement) -> ColumnElement:
     """Return a SQLAlchemy expression that extracts the *local* hour (0-23)
     from a timezone-aware timestamp column.

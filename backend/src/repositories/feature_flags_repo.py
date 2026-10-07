@@ -7,6 +7,7 @@ from sqlalchemy import select, and_
 
 from ..models import FeatureFlag
 from .base import BaseRepository
+from ..core.tz import utc_now
 
 
 class FeatureFlagsRepository(BaseRepository[FeatureFlag]):
@@ -66,7 +67,7 @@ class FeatureFlagsRepository(BaseRepository[FeatureFlag]):
             return False
         
         # Check if expired
-        if flag.expires_at and flag.expires_at < datetime.utcnow():
+        if flag.expires_at and flag.expires_at < utc_now():
             return False
         
         return True
@@ -91,7 +92,7 @@ class FeatureFlagsRepository(BaseRepository[FeatureFlag]):
         flags = result.scalars().all()
         
         # Filter out expired flags
-        now = datetime.utcnow()
+        now = utc_now()
         return [f for f in flags if not f.expires_at or f.expires_at > now]
     
     async def list_all_for_tenant(self, tenant_id: UUID) -> List[FeatureFlag]:

@@ -2,6 +2,8 @@
 from html import escape
 from typing import Optional
 from datetime import datetime, timezone
+
+from src.core.tz import APP_TZ
 from urllib.parse import quote
 
 
@@ -317,7 +319,7 @@ def generate_curso_inscricao_html(
         <tr>
           <td style="background-color:#F9FAFB;padding:24px;text-align:center;border-top:1px solid #F3F4F6;font-size:12px;color:#9CA3AF;">
             <p style="margin:0 0 4px 0;font-weight:bold;color:#4B5563;">{t_name}</p>
-            <p style="margin:0;">GiraHub &copy; {datetime.now().year} &middot; Enviado em {ts}</p>
+            <p style="margin:0;">GiraHub &copy; {datetime.now(APP_TZ).year} &middot; Enviado em {ts}</p>
           </td>
         </tr>
 

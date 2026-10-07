@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def _mock_db():
@@ -286,7 +286,7 @@ class TestFeatureFlagsRepository:
         r, db = repo
         flag = MagicMock()
         flag.enabled = True
-        flag.expires_at = datetime(2020, 1, 1)  # past
+        flag.expires_at = datetime(2020, 1, 1, tzinfo=timezone.utc)  # past
         r.get_by_name = AsyncMock(return_value=flag)
         result = await r.exists(uuid4(), "dark_mode")
         assert result is False
@@ -302,7 +302,7 @@ class TestFeatureFlagsRepository:
         f1 = MagicMock()
         f1.expires_at = None
         f2 = MagicMock()
-        f2.expires_at = datetime(2030, 1, 1)  # future
+        f2.expires_at = datetime(2030, 1, 1, tzinfo=timezone.utc)  # future
         db.execute.return_value = _mock_result_scalars([f1, f2])
         result = await r.list_enabled(uuid4())
         assert len(result) == 2
@@ -310,7 +310,7 @@ class TestFeatureFlagsRepository:
     async def test_list_enabled_filters_expired(self, repo):
         r, db = repo
         f1 = MagicMock()
-        f1.expires_at = datetime(2020, 1, 1)  # expired
+        f1.expires_at = datetime(2020, 1, 1, tzinfo=timezone.utc)  # expired
         f2 = MagicMock()
         f2.expires_at = None
         db.execute.return_value = _mock_result_scalars([f1, f2])
