@@ -78,7 +78,8 @@ class InscricaoPublicaRequest(BaseModel):
     data_nascimento: Optional[date] = None
     observacoes: Optional[str] = Field(None, max_length=1000)
     aceita_uso_dados: bool = Field(..., description="Aceite LGPD: uso de dados pessoais")
-    aceita_uso_imagem: bool = Field(..., description="Aceite: uso de imagem e gravações")
+    # Opcional (LGPD, art. 8º, §4º): autorizar imagem não pode ser condição da inscrição.
+    aceita_uso_imagem: bool = Field(False, description="Autorização opcional: uso de imagem e gravações")
     genero: Optional[str] = Field(None, max_length=50)
     emergencia_contato: Optional[str] = Field(None, max_length=255)
     emergencia_fone: Optional[str] = Field(None, max_length=20)
@@ -242,8 +243,9 @@ async def inscricao_publica(
 ) -> InscricaoPublicaResponse:
     """Inscrição pública em um curso presencial — sem autenticação.
 
-    Valida consentimentos LGPD, verifica vagas disponíveis, e impede duplicata
-    pelo mesmo e-mail no mesmo curso.
+    Valida consentimentos LGPD (dados sempre; saúde no formulário completo; imagem é
+    opcional e só registrada), verifica vagas disponíveis, e impede duplicata pelo mesmo
+    e-mail no mesmo curso.
     """
     # === Parse JSON data ===
     try:
@@ -259,11 +261,6 @@ async def inscricao_publica(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="É obrigatório aceitar o uso dos dados pessoais (LGPD).",
-        )
-    if not body.aceita_uso_imagem:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="É obrigatório aceitar o uso de imagem e gravações.",
         )
 
     # === Buscar curso e tenant ===
