@@ -269,7 +269,7 @@ describe('Detalhe da gira', () => {
       null,
     );
     expect(sem).toContain('Veja a agenda da casa: https://girahub.com.br/luz');
-    expect(sem.startsWith('Gira de Caboclos: ')).toBe(true);
+    expect(sem.startsWith('Gira de Caboclos\nQuando: ')).toBe(true);
   });
 });
 
