@@ -15,6 +15,7 @@ from ..repositories.user_repo import UserRepository
 from ..repositories.subscription_repo import SubscriptionRepository
 from ..security.password import hash_password
 from ..core.errors import NotFoundError, InvalidInputError
+from ..core.reserved_slugs import is_reserved_slug
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,8 @@ class TenantService:
         Raises:
             InvalidInputError: If slug already exists
         """
+        if is_reserved_slug(slug):
+            raise InvalidInputError(f"Slug '{slug}' é reservado para páginas do GiraHub")
         # Check slug uniqueness
         existing = await self.tenant_repo.get_by_slug(slug)
         if existing:

@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, field_validator
 
 from src.core.onboarding import COMO_CONHECEU_VALUES, PRINCIPAL_DOR_VALUES
+from src.core.reserved_slugs import is_reserved_slug
 from sqlalchemy import func, select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -216,10 +217,14 @@ def _slugify(text: str) -> str:
 
 
 async def _unique_slug(slug: str, tenant_repo: TenantRepository) -> str:
-    """Ensure slug is unique by appending a numeric suffix if needed."""
+    """Ensure slug is unique by appending a numeric suffix if needed.
+
+    Slugs reservados (rotas do site, ver ``core/reserved_slugs.py``) também ganham sufixo:
+    um terreiro chamado "Planos" vira ``planos-1``, senão a página /planos encobriria o site dele.
+    """
     base = slug
     counter = 1
-    while await tenant_repo.get_by_slug(slug):
+    while is_reserved_slug(slug) or await tenant_repo.get_by_slug(slug):
         slug = f"{base}-{counter}"
         counter += 1
     return slug
