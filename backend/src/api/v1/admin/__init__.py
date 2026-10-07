@@ -22,6 +22,7 @@ from .billing_stripe import router as billing_stripe_router
 from .estoque import router as estoque_router
 from .dashboard_summary import router as dashboard_summary_router
 from .mediuns import router as mediuns_router
+from .mediuns_acesso import router as mediuns_acesso_router
 from .mensalidades import router as mensalidades_router
 from .sites import router as sites_router
 from .cursos_presenciais import router as cursos_presenciais_router
@@ -54,6 +55,7 @@ admin_router.include_router(billing_stripe_router)
 admin_router.include_router(estoque_router)
 admin_router.include_router(dashboard_summary_router)
 admin_router.include_router(mediuns_router)
+admin_router.include_router(mediuns_acesso_router)
 admin_router.include_router(mensalidades_router)
 admin_router.include_router(sites_router)
 admin_router.include_router(cursos_presenciais_router)

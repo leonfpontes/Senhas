@@ -321,6 +321,11 @@ EXEMPT_PUBLIC_QUERIES: dict[tuple[str, str], str] = {
     ("api/v1/public/stats.py", "_tenant_publico"): (
         "filtro auxiliar do _compute_stats (terreiro ativo, não demo); não consulta nada sozinho"
     ),
+    ("api/v1/public/convite.py", "_convite_pelo_token"): (
+        "busca raiz do convite da Área do Médium (AM-03): token opaco de 256 bits comparado pelo "
+        "sha256 (token_hash == hash_token(token)) — o hash esconde do auditor o parâmetro da "
+        "requisição; o tenant passa a ser o do convite e as queries seguintes filtram por ele"
+    ),
 }
 
 # Checagem de FK. Chave: (arquivo admin, função, campo).
