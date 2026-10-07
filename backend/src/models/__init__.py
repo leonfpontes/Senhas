@@ -27,6 +27,7 @@ from .trial_grants import TrialGrant
 from .legal_acceptances import LegalAcceptance
 from .support_chat import SupportConversation, SupportMessage, SupportConversationStatus
 from .medium_convites import MediumConvite
+from .comunicados import Comunicado, ComunicadoLeitura, ComunicadoPublico
 
 __all__ = [
     "Base",
@@ -57,6 +58,9 @@ __all__ = [
     "EstoqueMovimentacaoTipo",
     "Medium",
     "MediumConvite",
+    "Comunicado",
+    "ComunicadoLeitura",
+    "ComunicadoPublico",
     "MensalidadeConfig",
     "MensalidadePagamento",
     "MensalidadeStatus",

@@ -8,7 +8,8 @@
  * MediumProvider). Claro/escuro segue o sistema (classe `dark` em <html>, removida ao sair).
  * Celular primeiro: uma coluna, alvos de 48px+, barra inferior Início · Agenda · Avisos ·
  * Mensalidade · Perfil (D-27) com ícone E texto, respeitando a área segura (`z-40`, como a
- * `MobileTabBar`; overlays do Radix ficam por cima com `z-50`).
+ * `MobileTabBar`; overlays do Radix ficam por cima com `z-50`). Aba de módulo que a casa desligou
+ * (`me.modulos`, AM-10) some; a de Avisos mostra o selo de não lidos (`me.avisos_nao_lidos`, AM-09).
  *
  * Gate (AM-04): sem sessão → /login; sem Área do Médium mas com painel → painel; sem nenhuma
  * área (ou 403/402 do /medium/me) → aviso neutro, sem oferta de upgrade. Só chama
@@ -56,10 +57,18 @@ import { useMedium } from './MediumProvider';
 import { InstallAreaSheet, installAreaSeen } from './InstallAreaSheet';
 import { TerreiroEmblem } from './TerreiroEmblem';
 
-export const MEDIUM_TABS: { href: string; label: string; icon: LucideIcon }[] = [
+export interface MediumTab {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  /** Módulo da casa (AM-10): a aba some quando o módulo não está em `me.modulos`. */
+  modulo?: string;
+}
+
+export const MEDIUM_TABS: MediumTab[] = [
   { href: '/medium', label: 'Início', icon: House },
   { href: '/medium/agenda', label: 'Agenda', icon: CalendarDays },
-  { href: '/medium/avisos', label: 'Avisos', icon: Megaphone },
+  { href: '/medium/avisos', label: 'Avisos', icon: Megaphone, modulo: 'avisos' },
   { href: '/medium/mensalidade', label: 'Mensalidade', icon: Wallet },
   { href: '/medium/perfil', label: 'Perfil', icon: UserRound },
 ];
@@ -112,15 +121,39 @@ export function useSystemDarkMode(): void {
   }, []);
 }
 
-function TabBar({ pathname }: { pathname: string }) {
+// Classes estáticas (o Tailwind não enxerga `grid-cols-${n}`).
+const GRID_COLS: Record<number, string> = {
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+  5: 'grid-cols-5',
+};
+
+/** Abas visíveis: sem `me` (carregando) mostra todas; depois, só as dos módulos ligados. */
+export function visibleTabs(modulos: string[] | undefined): MediumTab[] {
+  if (!modulos) return MEDIUM_TABS;
+  return MEDIUM_TABS.filter((t) => !t.modulo || modulos.includes(t.modulo));
+}
+
+function TabBar({
+  pathname,
+  modulos,
+  avisosNaoLidos = 0,
+}: {
+  pathname: string;
+  modulos?: string[];
+  avisosNaoLidos?: number;
+}) {
+  const tabs = visibleTabs(modulos);
   return (
     <nav
       aria-label="Menu da Área do Médium"
       data-testid="medium-tab-bar"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
     >
-      <ul className="mx-auto grid max-w-xl grid-cols-5">
-        {MEDIUM_TABS.map(({ href, label, icon: Icon }) => {
+      <ul className={cn('mx-auto grid max-w-xl', GRID_COLS[tabs.length] ?? 'grid-cols-5')}>
+        {tabs.map(({ href, label, icon: Icon }) => {
+          const badge = href === '/medium/avisos' && avisosNaoLidos > 0 ? avisosNaoLidos : 0;
           const active =
             href === '/medium'
               ? pathname === href
@@ -142,8 +175,24 @@ function TabBar({ pathname }: { pathname: string }) {
                     className="absolute inset-x-[24%] top-0 h-[3px] rounded-b-sm bg-primary"
                   />
                 )}
-                <Icon className="size-6" aria-hidden />
+                <span className="relative">
+                  <Icon className="size-6" aria-hidden />
+                  {badge > 0 && (
+                    <span
+                      aria-hidden
+                      data-testid="medium-tab-badge"
+                      className="absolute -top-1.5 -right-2.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] leading-none font-bold text-primary-foreground ring-2 ring-card"
+                    >
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  )}
+                </span>
                 <span className="max-w-full truncate">{label}</span>
+                {badge > 0 && (
+                  <span className="sr-only">
+                    {badge === 1 ? ', 1 aviso não lido' : `, ${badge} avisos não lidos`}
+                  </span>
+                )}
               </Link>
             </li>
           );
@@ -349,7 +398,11 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
         >
           {status === 'ok' ? children : status === 'erro' ? <ErroAoCarregar /> : <Carregando />}
         </main>
-        <TabBar pathname={router.pathname} />
+        <TabBar
+          pathname={router.pathname}
+          modulos={me?.modulos}
+          avisosNaoLidos={me?.avisos_nao_lidos ?? 0}
+        />
         <InstallAreaSheet
           open={installOpen}
           onOpenChange={setInstallOpen}
