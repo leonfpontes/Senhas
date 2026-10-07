@@ -254,9 +254,9 @@ async def test_chamar_atende_em_um_passo_inclusive_called_legado(client, db):
     assert resp.json()["status"] == "completed"
 
 
-# ── 24. Exportar CSV ─────────────────────────────────────────────────────────
+# ── 24. Exportar listagem (PDF) ──────────────────────────────────────────────
 
-async def test_exportar_csv_das_senhas(client, db):
+async def test_exportar_listagem_das_senhas(client, db):
     tenant = await create_tenant(db)
     gira = await create_gira(db, tenant)
     await _senha(db, tenant, gira, 7, nome="Maria Conga", status=TicketStatus.COMPLETED, medium_nome="Pai João")
@@ -265,23 +265,37 @@ async def test_exportar_csv_das_senhas(client, db):
     sem_grupo = await create_user(db, tenant, UserRole.OPERATOR, name="mediuns")
     await grant(db, sem_grupo, tenant, PermissionFeature.MEDIUNS, "view")
 
-    url = f"/api/v1/admin/giras/{gira.id}/export-csv"
+    url = f"/api/v1/admin/giras/{gira.id}/export-listagem"
     resp = await client.get(url, headers=operador.headers)
     assert resp.status_code == 200, resp.text
-    text = resp.content.decode("utf-8-sig")
-    assert text.splitlines()[0].startswith("Senha,Nome,E-mail")
-    assert "0007,Maria Conga" in text and "Atendida" in text and "Pai João" in text
+    body = resp.json()
+    assert body["gira"]["nome"] == gira.nome
+    [item] = body["items"]
+    assert item["senha"] == "0007" and item["nome"] == "Maria Conga"
+    assert item["status_label"] == "Atendida" and item["medium"] == "Pai João"
 
     assert (await client.get(url, headers=sem_grupo.headers)).status_code == 403
 
 
-async def test_exportar_csv_exige_plano_pro(client, db):
+async def test_exportar_listagem_de_gira_de_outro_terreiro_404(client, db):
+    tenant = await create_tenant(db)
+    outro = await create_tenant(db, "Outro Terreiro")
+    gira_alheia = await create_gira(db, outro)
+    await _senha(db, outro, gira_alheia, 1, nome="Fulana")
+    admin = await create_user(db, tenant, UserRole.ADMIN)
+
+    resp = await client.get(f"/api/v1/admin/giras/{gira_alheia.id}/export-listagem", headers=admin.headers)
+
+    assert resp.status_code == 404, resp.text
+
+
+async def test_exportar_listagem_exige_plano_pro(client, db):
     tenant = await create_tenant(db, "Terreiro Basic", plan=PlanType.BASIC)
     admin = await create_user(db, tenant, UserRole.ADMIN)
     gira = await create_gira(db, tenant)
     await _senha(db, tenant, gira, 1)
 
-    resp = await client.get(f"/api/v1/admin/giras/{gira.id}/export-csv", headers=admin.headers)
+    resp = await client.get(f"/api/v1/admin/giras/{gira.id}/export-listagem", headers=admin.headers)
 
     assert resp.status_code == 403, resp.text
 

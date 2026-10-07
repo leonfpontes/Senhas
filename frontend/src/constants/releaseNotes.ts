@@ -22,6 +22,19 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.2.1',
+    date: '2026-10-07',
+    title: 'Listagem de senhas em PDF',
+    highlights: [
+      'Senhas: o botão "Exportar CSV" virou "Exportar PDF" — baixa a listagem completa da gira, com a logo do terreiro, nome, telefone, prioridade, status, médium, cambone e observações.',
+    ],
+    fixes: [
+      'Relatório da gira em PDF: os nomes não saem mais cortados na tabela de senhas, e cabem mais senhas por página.',
+      'Ao pegar a senha, o nome digitado passa a valer, mesmo que o e-mail já tenha sido usado antes com outro nome.',
+      'Pedir senha preferencial com um e-mail que já tem senha de outra pessoa não passa mais a preferência para a senha errada — o sistema pede o e-mail da própria pessoa.',
+    ],
+  },
+  {
     version: '2.2.0',
     date: '2026-10-07',
     title: 'Revisão completa das jornadas',

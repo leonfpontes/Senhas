@@ -150,7 +150,7 @@ Usado para renovar o access token sem re-login.
 | Ver tickets | ✅ | ✅ | ✅ |
 | Marcar ticket como usado | ✅ | ✅ | ✅ |
 | Bulk operations (tickets) | ❌ | ✅ | ✅ |
-| Exportar CSV | ❌ | ✅ | ✅ |
+| Exportar PDF das senhas | ❌ | ✅ | ✅ |
 | Ver analytics | ✅ | ✅ | ✅ |
 | Ver audit trail | ❌ | ✅ | ✅ |
 | Configurar tenant | ❌ | ✅ | ✅ |

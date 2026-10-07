@@ -35,8 +35,8 @@ MODULOS = {
     "mediuns": ("GET", "/api/v1/admin/mediuns/aniversariantes", PlanType.FREE, PlanType.BASIC),
     "analytics_basico": ("GET", "/api/v1/admin/analytics", PlanType.BASIC, PlanType.PRO),
     "auditoria": ("GET", "/api/v1/admin/audit-logs", PlanType.BASIC, PlanType.PRO),
-    # export CSV: admin faz bypass dos grupos, mas não do plano
-    "export_csv": ("GET", f"/api/v1/admin/giras/{uuid.uuid4()}/export-csv", PlanType.BASIC, PlanType.PRO),
+    # exportar listagem (PDF) das senhas: admin faz bypass dos grupos, mas não do plano
+    "export_csv": ("GET", f"/api/v1/admin/giras/{uuid.uuid4()}/export-listagem", PlanType.BASIC, PlanType.PRO),
 }
 
 
@@ -85,7 +85,7 @@ async def test_plano_minimo_ativo_passa_pelo_gate(client, db, modulo):
     resp = await client.request(method, url, headers=admin.headers)
     # email-status/export de recurso inexistente: passou do gate e caiu no 404 do endpoint
     assert resp.status_code in (200, 404), f"{modulo}: {resp.status_code} {resp.text}"
-    # export-csv de gira inexistente também passou do gate e caiu no 404 "nenhum ticket"
+    # export-listagem de gira inexistente também passou do gate e caiu no 404 "gira não encontrada"
     assert resp.status_code == (404 if modulo in ("email_transacional", "export_csv") else 200), resp.text
 
 

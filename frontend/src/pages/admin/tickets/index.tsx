@@ -7,7 +7,9 @@
  * editar/excluir/lote só aparecem com a permissão correspondente.
  * - Busca no servidor (`?search=`): número, nome ou e-mail na gira inteira, não só na página.
  * - Rastreio/reenvio de e-mail só para administradores (os endpoints exigem admin).
- * - "Exportar CSV" com o plano `export_csv` (o backend exige TICKETS ou RELATORIO_GIRA).
+ * - "Exportar PDF" (listagem completa da gira, `lib/pdf/listagemSenhasPdf`) com o plano
+ *   `export_csv` (o backend `export-listagem` exige TICKETS ou RELATORIO_GIRA). Substituiu o
+ *   "Exportar CSV" em out/2026.
  */
 'use client';
 
@@ -48,6 +50,8 @@ import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { useSubscription } from '@/hooks/useSubscription';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useProfile } from '@/hooks/useProfile';
+import { useTenant } from '@/providers/ThemeProvider';
+import { gerarListagemSenhasPdf, type ListagemSenhasData } from '@/lib/pdf/listagemSenhasPdf';
 import { PRIORITY_ORDER, PRIORITY_CATEGORY_LABELS, PriorityCategoryType } from 'shared-types';
 
 interface Ticket {
@@ -171,7 +175,9 @@ function AdminTicketsContent() {
   const { profile } = useProfile();
   // Rastreio e reenvio de e-mail exigem admin no backend (email_resend.py).
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
-  const canExportCsv = can('export_csv');
+  // Feature de plano `export_csv` = exportar listagens (aqui, o PDF das senhas).
+  const canExport = can('export_csv');
+  const { tenantName, logoUrl, config } = useTenant();
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -324,22 +330,23 @@ function AdminTicketsContent() {
     }
   };
 
-  const handleExportCsv = async () => {
-    if (!giraId || !canExportCsv) return;
+  const handleExportPdf = async () => {
+    if (!giraId || !canExport) return;
     setExporting(true);
     try {
-      const response = await apiClient.get(`/api/v1/admin/giras/${giraId}/export-csv`, { responseType: 'blob' });
-      const blob = response.data instanceof Blob ? response.data : new Blob([response.data], { type: 'text/csv' });
-      const gira = giras.find((g) => g.id === giraId);
-      const nome = (gira?.nome ?? 'gira').trim().replace(/\s+/g, '-').toLowerCase();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `senhas-${nome}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
+      const response = await apiClient.get<ListagemSenhasData>(`/api/v1/admin/giras/${giraId}/export-listagem`);
+      const data = response.data;
+      if (!data?.items?.length) {
+        toast.info('Nenhuma senha emitida nesta gira ainda.');
+        return;
+      }
+      await gerarListagemSenhasPdf(data, {
+        nome: tenantName ?? 'Terreiro',
+        logoUrl: logoUrl ?? undefined,
+        primaryColor: config?.colors?.primary ?? '#15803d',
+      });
     } catch (error) {
-      toast.error(extractApiErrorMessage(error, 'Não foi possível exportar as senhas.'));
+      toast.error(extractApiErrorMessage(error, 'Não foi possível gerar o PDF das senhas.'));
     } finally {
       setExporting(false);
     }
@@ -639,17 +646,17 @@ function AdminTicketsContent() {
             )}
           </PopoverContent>
         </Popover>
-        {canExportCsv && giraId && (
+        {canExport && giraId && (
           <Button
             type="button"
             variant="outline"
-            onClick={handleExportCsv}
+            onClick={handleExportPdf}
             disabled={exporting}
-            aria-label="Exportar CSV"
-            title="Baixar a planilha (CSV) com as senhas desta gira"
+            aria-label="Exportar PDF"
+            title="Baixar o PDF com a listagem completa das senhas desta gira"
           >
             <Download aria-hidden />
-            <span className="hidden sm:inline">{exporting ? 'Exportando…' : 'Exportar CSV'}</span>
+            <span className="hidden sm:inline">{exporting ? 'Gerando PDF…' : 'Exportar PDF'}</span>
           </Button>
         )}
       </div>

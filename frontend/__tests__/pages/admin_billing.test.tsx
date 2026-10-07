@@ -153,7 +153,7 @@ describe('/admin/billing', () => {
     expect(within(panel).getAllByText('Usuários ilimitados').length).toBeGreaterThan(0);
     expect(within(panel).getAllByText('Link de senhas para enviar via WhatsApp').length).toBeGreaterThan(0);
     expect(within(panel).queryByText(/\d+ usuários/)).not.toBeInTheDocument();
-    expect(within(panel).queryByText(/Exportar planilhas|Ações em lote|Cores e logo/)).not.toBeInTheDocument();
+    expect(within(panel).queryByText(/Exportar listagens|Ações em lote|Cores e logo/)).not.toBeInTheDocument();
   });
 
   it('se GET /admin/billing falha, mostra erro com "Tentar de novo" — nunca "Assinar agora"', async () => {
