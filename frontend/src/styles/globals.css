@@ -523,3 +523,73 @@
     animation: none !important;
   }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * Passagem marketing ⇄ documentos legais (/termos, /privacidade, /cookies) e entre documentos
+ * (lib/passagem.ts: abrir-/fechar-documento, folhear-frente/-tras). Eixo compartilhado: o
+ * cabeçalho escuro não se mexe; a página que sai desliza e esmaece para um lado e a que chega
+ * vem do lado oposto. A aba ativa dos documentos escorrega até a nova. Os nomes de transição só
+ * existem durante essas passagens, para não mexer na passagem marketing ⇄ conta.
+ * ─────────────────────────────────────────────────────────────────────────── */
+html:is([data-passagem$='-documento'], [data-passagem^='folhear']) .cabecalho-marketing {
+  view-transition-name: cabecalho-marketing;
+}
+html:is([data-passagem$='-documento'], [data-passagem^='folhear']) .documento-aba-ativa {
+  view-transition-name: documento-aba-ativa;
+}
+::view-transition-group(cabecalho-marketing) {
+  animation: none;
+  z-index: 2;
+}
+::view-transition-group(documento-aba-ativa) {
+  animation-duration: 520ms;
+  animation-timing-function: cubic-bezier(0.22, 0.75, 0.12, 1);
+  z-index: 3;
+}
+html:is([data-passagem='abrir-documento'], [data-passagem='folhear-frente'])::view-transition-old(root) {
+  animation: documento-sai-esquerda 380ms cubic-bezier(0.55, 0, 0.75, 0.2) both;
+}
+html:is([data-passagem='abrir-documento'], [data-passagem='folhear-frente'])::view-transition-new(root) {
+  animation: documento-entra-direita 620ms cubic-bezier(0.22, 0.75, 0.12, 1) 120ms both;
+}
+html:is([data-passagem='fechar-documento'], [data-passagem='folhear-tras'])::view-transition-old(root) {
+  animation: documento-sai-direita 380ms cubic-bezier(0.55, 0, 0.75, 0.2) both;
+}
+html:is([data-passagem='fechar-documento'], [data-passagem='folhear-tras'])::view-transition-new(root) {
+  animation: documento-entra-esquerda 620ms cubic-bezier(0.22, 0.75, 0.12, 1) 120ms both;
+}
+@keyframes documento-sai-esquerda {
+  to { opacity: 0; transform: translateX(-6%) scale(0.985); }
+}
+@keyframes documento-sai-direita {
+  to { opacity: 0; transform: translateX(6%) scale(0.985); }
+}
+@keyframes documento-entra-direita {
+  from { opacity: 0; transform: translateX(8%); }
+}
+@keyframes documento-entra-esquerda {
+  from { opacity: 0; transform: translateX(-8%); }
+}
+
+/* Chegada de um documento: o título sobe, o fio dourado se desenha sob ele e o texto surge
+ * logo atrás (roda em toda montagem, com ou sem a View Transitions API). */
+@layer components {
+  .documento-surge {
+    animation: passagem-surgir 700ms cubic-bezier(0.22, 0.75, 0.12, 1) both;
+    animation-delay: var(--atraso, 0ms);
+  }
+  .documento-fio {
+    transform-origin: left center;
+    animation: documento-fio 900ms cubic-bezier(0.22, 0.75, 0.12, 1) 250ms both;
+  }
+  @keyframes documento-fio {
+    from { transform: scaleX(0); opacity: 0; }
+    to { transform: scaleX(1); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .documento-surge,
+    .documento-fio {
+      animation: none !important;
+    }
+  }
+}

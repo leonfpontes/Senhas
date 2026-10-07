@@ -1,11 +1,16 @@
 /**
  * Eventos de produto — envia o mesmo evento para GA4 (gtag) e Microsoft
  * Clarity, quando carregados. Nunca lança: analytics não pode quebrar a UI.
+ * As tags só existem/gravam cookie com o consentimento da pessoa (lib/consent.ts);
+ * eventos que também são conversões de marketing (cadastro, clique no WhatsApp)
+ * saem ainda com os nomes do Google Ads e da Meta (lib/marketingTags.ts).
  *
  * Use nomes snake_case estáveis (`onboarding_share_whatsapp`); no Clarity o
  * evento vira filtro de gravações ("Custom events") e no GA4 vira evento
  * customizado. Nunca passe dado pessoal (nome, e-mail, CPF) em `params`.
  */
+import { registrarConversao } from '@/lib/marketingTags';
+
 type AnalyticsWindow = {
   gtag?: (...args: unknown[]) => void;
   clarity?: (...args: unknown[]) => void;
@@ -28,6 +33,7 @@ export function trackEvent(name: string, params?: Record<string, string | number
   } catch {
     /* ignora */
   }
+  registrarConversao(name);
 }
 
 /** Tag de sessão no Clarity (filtro de gravações). Sem efeito no GA4. */

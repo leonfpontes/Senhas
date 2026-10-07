@@ -22,6 +22,16 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.3.0',
+    date: '2026-10-07',
+    title: 'Privacidade de cara nova',
+    highlights: [
+      'Termos de Uso e Política de Privacidade reescritos em linguagem direta, com um resumo "em poucas palavras" no começo e índice para pular direto ao assunto.',
+      'Nova Política de Cookies e um aviso de cookies em todo o site: os consulentes da sua casa escolhem o que aceitam, e recusar é tão fácil quanto aceitar.',
+      'Mudou de ideia? "Preferências de cookies" no rodapé do site reabre as opções a qualquer momento.',
+    ],
+  },
+  {
     version: '2.2.1',
     date: '2026-10-07',
     title: 'Listagem de senhas em PDF',
