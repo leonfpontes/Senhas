@@ -249,11 +249,11 @@ async def refresh_token(
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh_token inválido ou expirado")
 
-    # Valida que o usuário ainda existe e está ativo
+    # Valida que o usuário ainda existe, está ativo e não foi excluído
     stmt = select(User).where(User.id == uuid.UUID(payload.sub))
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
-    if not user or not user.is_active:
+    if not user or not user.is_active or user.deleted_at is not None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário inativo ou não encontrado")
 
     # Troca de senha / "logout em todos os dispositivos" invalida qualquer token
