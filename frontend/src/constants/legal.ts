@@ -9,14 +9,14 @@
  * a partir do espelho em backend/src/core/legal_versions.py — suba nos dois (um teste confere).
  */
 export const LEGAL_ENTITY = {
-  razaoSocial: '',
+  razaoSocial: 'L F Pontes Consultoria em Informática',
   cnpj: '',
   endereco: '',
 };
 
 export const LEGAL_VERSIONS = {
-  termos: { version: '2.0', updatedAt: '7 de outubro de 2026', updatedAtIso: '2026-10-07' },
-  privacidade: { version: '2.0', updatedAt: '7 de outubro de 2026', updatedAtIso: '2026-10-07' },
+  termos: { version: '2.1', updatedAt: '7 de outubro de 2026', updatedAtIso: '2026-10-07' },
+  privacidade: { version: '2.1', updatedAt: '7 de outubro de 2026', updatedAtIso: '2026-10-07' },
   cookies: { version: '1.0', updatedAt: '7 de outubro de 2026', updatedAtIso: '2026-10-07' },
 } as const;
 

@@ -404,7 +404,8 @@ async def test_excluir_conta_medium_solta_o_vinculo(client, db):
 
     assert (await client.delete(f"/api/v1/admin/users/{puro.user.id}", headers=admin.headers)).status_code == 204
     assert (await _fresh(Medium, m.id)).user_id is None
-    assert (await client.get(MEDIUM_ME, headers=puro.headers)).status_code == 403
+    # Conta excluída já não autentica (get_current_user recusa deleted_at): 401, não 403.
+    assert (await client.get(MEDIUM_ME, headers=puro.headers)).status_code == 401
 
 
 async def test_medium_nao_entra_em_grupo_de_permissao(client, db):
