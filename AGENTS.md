@@ -862,7 +862,9 @@ Incluir obrigatoriamente:
   funcionalidade do sistema usa a tela real, não foto ilustrativa. Textos em `constants/landing{Copy,Faq,Stats}.ts`
   (FAQ = mesma fonte do JSON-LD). Depoimentos (`constants/testimonials.ts`) só reais e autorizados
   (`docs/marketing/kit-depoimentos.md`); lista vazia = seção oculta. Números de uso: `GET /api/v1/public/stats`.
-  WhatsApp comercial: `NEXT_PUBLIC_SUPPORT_WHATSAPP` é **ARG de build** do frontend (vazio = sem botões).
+  WhatsApp comercial: `NEXT_PUBLIC_SUPPORT_WHATSAPP` é **ARG de build** do frontend (vazio = sem botões); em
+  produção o valor é a variável homônima do ambiente `Hostinger` no GitHub (`gh variable set --env Hostinger`),
+  que o `deploy.yml` repassa ao build — trocar o número = mudar a variável e redeployar.
   Página nova de primeiro nível → `backend/src/core/reserved_slugs.py` (teste quebra se faltar) e
   `STATIC_ROUTES` do `pages/sitemap.xml.tsx`.
 - **Claro/escuro**: classe `dark` em `<html>` (não no layout — Radix porta overlays para o `<body>`), aplicada por
