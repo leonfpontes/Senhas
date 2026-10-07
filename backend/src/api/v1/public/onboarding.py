@@ -16,6 +16,8 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from src.core.onboarding import COMO_CONHECEU_VALUES, PRINCIPAL_DOR_VALUES
 from src.core.reserved_slugs import is_reserved_slug
+from src.core.legal_versions import DOCUMENTOS_DO_CADASTRO, LEGAL_VERSIONS
+from src.core.limiter import get_client_ip
 from sqlalchemy import func, select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import get_db
 from src.core.config import settings
 from src.models import (
+    LegalAcceptance,
     Tenant,
     TenantConfig,
     User,
@@ -379,6 +382,18 @@ async def onboarding(
         db.add(user)
         await db.flush()
         await db.refresh(user)
+
+        # Prova do aceite (LGPD, art. 8º, §2º): documento, versão vigente, data, IP e navegador.
+        user_agent = (request.headers.get("user-agent") or "")[:255] or None
+        for documento in DOCUMENTOS_DO_CADASTRO:
+            db.add(LegalAcceptance(
+                tenant_id=tenant.id,
+                user_id=user.id,
+                document=documento,
+                version=LEGAL_VERSIONS[documento],
+                ip_address=get_client_ip(request)[:45] or None,
+                user_agent=user_agent,
+            ))
 
         # Grupo padrão "Acesso total" (Q-05): operadores criados depois entram nele.
         from src.repositories.permission_group_repo import PermissionGroupRepository

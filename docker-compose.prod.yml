@@ -185,6 +185,11 @@ services:
         # Sentry — NEXT_PUBLIC_* é inlined no build; o environment abaixo não basta
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
         NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
+        # Tags de marketing (só com consentimento — lib/marketingTags.ts); vazio = desligada
+        NEXT_PUBLIC_GA4_ID: ${NEXT_PUBLIC_GA4_ID:-}
+        NEXT_PUBLIC_GOOGLE_ADS_ID: ${NEXT_PUBLIC_GOOGLE_ADS_ID:-}
+        NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL: ${NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL:-}
+        NEXT_PUBLIC_META_PIXEL_ID: ${NEXT_PUBLIC_META_PIXEL_ID:-}
         # WhatsApp comercial (V-06) — inlined no build; vazio esconde os botões
         NEXT_PUBLIC_SUPPORT_WHATSAPP: ${NEXT_PUBLIC_SUPPORT_WHATSAPP:-}
     container_name: senhas-frontend

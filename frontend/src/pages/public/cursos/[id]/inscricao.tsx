@@ -151,7 +151,6 @@ function buildSchema(curso: CursoPublico | null) {
     if (!v.email.trim() || !EMAIL_RX.test(v.email.trim())) issue('email', 'Informe um e-mail válido.');
     if (v.celular && v.celular.replace(/\D/g, '').length < 10) issue('celular', 'Celular incompleto — use DDD + número.');
     if (!v.aceita_uso_dados) issue('aceita_uso_dados', 'É necessário aceitar o uso dos seus dados pessoais (LGPD).');
-    if (!v.aceita_uso_imagem) issue('aceita_uso_imagem', 'É necessário autorizar o uso de imagem e gravações.');
     if (completo && !v.aceita_uso_dados_saude) {
       issue('aceita_uso_dados_saude', 'É necessário aceitar o processamento de dados de saúde para formulários completos.');
     }
@@ -1056,17 +1055,21 @@ export default function InscricaoCursoPage() {
               <Card className="gap-4 py-5">
                 <CardContent className="flex flex-col gap-4 px-5">
                   <h2 className="flex items-center gap-2 text-lg font-bold"><Lock aria-hidden className="size-5 text-muted-foreground" /> Autorização e consentimento (LGPD)</h2>
+                  {/* Dados e saúde são condição da inscrição; imagem e voz são opcionais — consentimento
+                      condicionado não é livre (LGPD, art. 8º, §4º). O texto de dados segue a Política de
+                      Privacidade: o terreiro é o controlador e o GiraHub, o operador. */}
                   {([
-                    ['aceita_uso_dados', <>
-                      <strong>Autorizo o uso dos meus dados pessoais</strong> (nome, e-mail, celular e data de nascimento) para fins de gestão da minha participação neste curso, conforme a <strong>Lei Geral de Proteção de Dados (LGPD – Lei 13.709/2018)</strong>. Meus dados serão utilizados exclusivamente pelo <strong>{curso.tenant_nome}</strong> e não serão compartilhados com terceiros.
+                    ['aceita_uso_dados', true, <>
+                      <strong>Autorizo o {curso.tenant_nome} a usar os dados pessoais desta ficha</strong> para organizar a minha participação no curso <strong>{curso.titulo}</strong> (inscrição, contato, pagamento e avisos), conforme a <strong>Lei Geral de Proteção de Dados (LGPD – Lei 13.709/2018)</strong>. O {curso.tenant_nome} é o responsável pelos meus dados; eles ficam guardados no GiraHub, sistema que a casa usa, e passam só pelos serviços necessários para ele funcionar (hospedagem, cópias de segurança e envio de e-mails). Não são vendidos nem usados para propaganda. Posso pedir à casa, a qualquer momento, acesso, correção ou exclusão. Saiba mais na{' '}
+                      <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand underline underline-offset-2">Política de Privacidade</a>.
                     </>],
-                    ['aceita_uso_imagem', <>
-                      <strong>Autorizo o uso da minha imagem e voz</strong> em fotografias e gravações em vídeo/áudio realizadas durante o curso <strong>{curso.titulo}</strong>, para fins de registro e divulgação institucional do <strong>{curso.tenant_nome}</strong>, incluindo redes sociais e materiais educativos.
-                    </>],
-                    ...(completo ? [['aceita_uso_dados_saude', <>
-                      <strong>Consentimento para processamento de dados de saúde (sensíveis):</strong> Autorizo o processamento dos meus dados de saúde fornecidos neste formulário para fins de cuidados e atendimento rápido em caso de emergência durante as atividades do curso, conforme a <strong>Lei Geral de Proteção de Dados (LGPD – Lei 13.709/2018)</strong>. Meus dados médicos serão mantidos sob estrito sigilo.
+                    ...(completo ? [['aceita_uso_dados_saude', true, <>
+                      <strong>Consentimento para dados de saúde (sensíveis):</strong> autorizo o {curso.tenant_nome} a usar as informações de saúde desta ficha só para cuidar de mim e agir rápido em caso de emergência durante as atividades do curso, conforme a <strong>LGPD (art. 11)</strong>. Esses dados ficam visíveis apenas para quem a casa autorizar e são mantidos em sigilo.
                     </>] as const] : []),
-                  ] as [FieldName, React.ReactNode][]).map(([name, text]) => (
+                    ['aceita_uso_imagem', false, <>
+                      <strong>Autorizo o uso da minha imagem e voz</strong> em fotos e gravações feitas durante o curso <strong>{curso.titulo}</strong>, para registro e divulgação do <strong>{curso.tenant_nome}</strong>, inclusive em redes sociais e materiais educativos. <span className="text-muted-foreground">Opcional: você pode se inscrever sem autorizar, e pode retirar a autorização depois falando com a casa.</span>
+                    </>],
+                  ] as [FieldName, boolean, React.ReactNode][]).map(([name, obrigatorio, text]) => (
                     <Controller key={name} control={control} name={name} render={({ field }) => (
                       <div className={cn('rounded-lg border p-3', err(name) && 'border-destructive')}>
                         <Label htmlFor={name} className="flex cursor-pointer items-start gap-3 text-base leading-relaxed font-normal">
@@ -1078,7 +1081,10 @@ export default function InscricaoCursoPage() {
                             aria-invalid={Boolean(err(name)) || undefined}
                             aria-describedby={err(name) ? `${name}-error` : undefined}
                           />
-                          <span>{text} <span aria-hidden className="text-destructive">*</span></span>
+                          <span>
+                            {text}
+                            {obrigatorio && <span aria-hidden className="text-destructive"> *</span>}
+                          </span>
                         </Label>
                         {err(name) && <p id={`${name}-error`} role="alert" className="mt-2 text-sm text-destructive">{err(name)}</p>}
                       </div>

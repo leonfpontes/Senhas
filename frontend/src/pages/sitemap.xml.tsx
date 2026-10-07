@@ -16,6 +16,7 @@ export const STATIC_ROUTES: { path: string; changefreq: string; priority: string
   { path: '/login', changefreq: 'monthly', priority: '0.3' },
   { path: '/privacidade', changefreq: 'yearly', priority: '0.2' },
   { path: '/termos', changefreq: 'yearly', priority: '0.2' },
+  { path: '/cookies', changefreq: 'yearly', priority: '0.2' },
 ];
 
 export interface SitemapSite {

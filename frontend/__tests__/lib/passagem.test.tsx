@@ -62,6 +62,13 @@ describe('passagemEntre', () => {
     ['/cadastro', '/#como-funciona', 'voltar'],
     ['/login', '/cadastro', 'lado'],
     ['/cadastro?passo=2', '/forgot-password', 'lado'],
+    ['/', '/termos', 'abrir-documento'],
+    ['/planos', '/cookies', 'abrir-documento'],
+    ['/privacidade', '/#duvidas', 'fechar-documento'],
+    ['/termos', '/privacidade', 'folhear-frente'],
+    ['/cookies', '/termos', 'folhear-tras'],
+    ['/termos', '/cadastro', 'avancar'],
+    ['/login', '/privacidade', 'voltar'],
   ])('%s → %s = %s', (de, para, esperado) => {
     expect(passagemEntre(de, para)).toBe(esperado);
   });
@@ -71,7 +78,8 @@ describe('passagemEntre', () => {
     ['/', '/planos'],
     ['/login', '/admin/dashboard'],
     ['/admin/giras', '/login'],
-    ['/', '/termos'],
+    ['/termos', '/termos#contato'],
+    ['/cookies', '/admin/dashboard'],
   ])('%s → %s fica de fora (navegação comum)', (de, para) => {
     expect(passagemEntre(de, para)).toBeNull();
   });
@@ -174,7 +182,7 @@ describe('<PassagemDeEntrada />', () => {
 
   it('deixa passar links fora do trecho, com modificador ou com menos movimento', () => {
     render(<PassagemDeEntrada />);
-    expect(clicar('/termos').defaultPrevented).toBe(false);
+    expect(clicar('/admin/giras').defaultPrevented).toBe(false);
     expect(clicar('/login', { metaKey: true }).defaultPrevented).toBe(false);
     expect(clicar('https://exemplo.com/login').defaultPrevented).toBe(false);
     setReducedMotion(true);

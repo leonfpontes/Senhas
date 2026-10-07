@@ -9,12 +9,16 @@
  *   UUID do usuário, que o próprio SDK faz hash antes de enviar.
  * - Clarity mascara inputs/texto sensível por padrão (modo "Balanced");
  *   os campos de CPF/e-mail da emissão pública já ficam cobertos.
+ * - Só carrega com o consentimento de **estatísticas** (banner de cookies,
+ *   lib/consent.ts); revogado depois, `clarity('consent', false)` apaga os
+ *   cookies dele e para a gravação na hora.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Script from 'next/script';
 import { useRouter } from 'next/router';
 import { useProfile } from '@/hooks/useProfile';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useConsentimento } from '@/hooks/useConsentimento';
 
 declare global {
   interface Window {
@@ -33,7 +37,7 @@ export function clarityScope(pathname: string): string {
   if (pathname === '/login' || pathname.startsWith('/forgot-password') || pathname.startsWith('/reset-password')) {
     return 'auth';
   }
-  if (pathname === '/' || pathname === '/privacidade' || pathname === '/termos' || pathname === '/status') {
+  if (['/', '/planos', '/privacidade', '/termos', '/cookies', '/status'].includes(pathname)) {
     return 'marketing';
   }
   return 'tenant-site';
@@ -48,16 +52,29 @@ export default function ClarityAnalytics() {
   const router = useRouter();
   const { profile } = useProfile();
   const { subscription } = useSubscription();
+  const { consentimento } = useConsentimento();
+  const liberado = Boolean(CLARITY_PROJECT_ID && consentimento?.estatisticas);
+  const carregado = useRef(false);
+
+  // Consentimento dado (ou revogado) com a página aberta: avisa o Clarity.
+  useEffect(() => {
+    if (liberado) {
+      carregado.current = true;
+      window.clarity?.('consent');
+    } else if (carregado.current) {
+      window.clarity?.('consent', false);
+    }
+  }, [liberado]);
 
   // Superfície (admin/public/signup...) por rota — útil para funis de onboarding.
   useEffect(() => {
-    if (!CLARITY_PROJECT_ID) return;
+    if (!liberado) return;
     setTag('scope', clarityScope(router.pathname));
-  }, [router.pathname]);
+  }, [router.pathname, liberado]);
 
   // Contexto do usuário autenticado — permite filtrar sessões por tenant/plano.
   useEffect(() => {
-    if (!CLARITY_PROJECT_ID || !profile) return;
+    if (!liberado || !profile) return;
     if (window.clarity) {
       // identify(customId, sessionId?, pageId?, friendlyName?) — o SDK faz hash do customId.
       window.clarity('identify', profile.id, undefined, undefined, profile.tenant_name ?? undefined);
@@ -65,15 +82,15 @@ export default function ClarityAnalytics() {
     setTag('tenant_id', profile.tenant_id);
     setTag('tenant', profile.tenant_name);
     setTag('role', profile.role);
-  }, [profile]);
+  }, [profile, liberado]);
 
   useEffect(() => {
-    if (!CLARITY_PROJECT_ID || !subscription) return;
+    if (!liberado || !subscription) return;
     setTag('plan', subscription.plan);
     setTag('trial', subscription.is_trial ? 'yes' : 'no');
-  }, [subscription]);
+  }, [subscription, liberado]);
 
-  if (!CLARITY_PROJECT_ID) return null;
+  if (!liberado) return null;
 
   return (
     <Script id="ms-clarity" strategy="afterInteractive">
@@ -83,6 +100,7 @@ export default function ClarityAnalytics() {
           t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
           y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
         })(window, document, "clarity", "script", "${CLARITY_PROJECT_ID}");
+        window.clarity("consent");
       `}
     </Script>
   );

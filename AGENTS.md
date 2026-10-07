@@ -1055,15 +1055,32 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
 - Em producao: `SENTRY_ENVIRONMENT=production`, `SENTRY_TRACES_SAMPLE_RATE=0.1`.
 - MCP do Sentry disponivel via `.claude/settings.json` (url: `https://mcp.sentry.dev/mcp`).
 
-**Analytics de produto — GA4 + Microsoft Clarity (Clarity desde 2026-10-05):**
-- GA4: tag `G-BF9G0RFCDB` hardcoded em `frontend/src/pages/_app.tsx` (pageviews + evento `click_powered_by_girahub`).
-- Clarity (gravação de sessão, heatmaps, funis — gratuito): `frontend/src/components/shared/ClarityAnalytics.tsx`,
-  montado em `_app.tsx`. Só injeta o script quando `NEXT_PUBLIC_CLARITY_PROJECT_ID` está definido.
-- A variável é **build-time** (ARG em `frontend/Dockerfile`, passada por `docker-compose.prod.yml` a partir do
-  `/opt/senhas/.env`). Trocar o ID exige rebuild do frontend; o deploy.yml já faz `build frontend` a cada push.
-- Cada sessão recebe tags (`scope`, `tenant_id`, `tenant`, `plan`, `trial`, `role`) e `identify` com o UUID do
-  usuário (hash feito pelo SDK). Nunca enviar e-mail/CPF/nome como tag — filtrar por tenant no painel usa `tenant`.
-- CSP do nginx libera `www.clarity.ms` / `scripts.clarity.ms` (script-src) e `*.clarity.ms` (connect-src).
+**Analytics e marketing — GA4, Google Ads, Meta Pixel e Microsoft Clarity, todos sob consentimento (out/2026):**
+- **Banner de cookies** (`frontend/src/components/shared/CookieConsent.tsx`, montado no `_app.tsx`): categorias
+  necessários / estatísticas / marketing; "Recusar opcionais" com o mesmo peso de "Aceitar todos"; "Personalizar"
+  abre o painel com a lista de cookies. Escolha no cookie `girahub_consent` (180 dias, `lib/consent.ts`; subir
+  `CONSENT_VERSION` pergunta de novo a todos). Reabre pelo rodapé ("Preferências de cookies") e por `/cookies`
+  (`abrirPreferenciasDeCookies()`). Sem banner só em `ROTAS_SEM_BANNER` (Porta em modo quiosque).
+- **Inventário de cookies**: `frontend/src/constants/cookies.ts` (fonte da página `/cookies` e do painel). Cookie novo
+  no código → acrescente lá e, se opcional, o padrão de nome em `COOKIES_DA_CATEGORIA` (apagado ao revogar).
+- **Tags** (`frontend/src/lib/marketingTags.ts` + `components/shared/MarketingTags.tsx`): gtag.js com **Consent Mode v2**
+  (tudo `denied` por padrão, `consent update` na escolha, `ads_data_redaction`, `url_passthrough`); Meta Pixel só
+  carrega com marketing aceito. IDs são **ARG de build**: `NEXT_PUBLIC_GA4_ID` (vazio = `G-BF9G0RFCDB`),
+  `NEXT_PUBLIC_GOOGLE_ADS_ID`, `NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL`, `NEXT_PUBLIC_META_PIXEL_ID` (vazios = desligados).
+- **Conversões**: `trackEvent` (`services/analytics.ts`) repassa `signup_completed` → `sign_up` (GA4), conversão do Ads
+  e `CompleteRegistration` (Meta); `whatsapp_click` → `generate_lead` e `Contact`.
+- **Clarity** (`components/shared/ClarityAnalytics.tsx`): só com `NEXT_PUBLIC_CLARITY_PROJECT_ID` no build **e**
+  consentimento de estatísticas; revogar chama `clarity('consent', false)`. Tags de sessão (`scope`, `tenant_id`,
+  `tenant`, `plan`, `trial`, `role`) e `identify` com o UUID do usuário (hash do SDK). Nunca e-mail/CPF/nome como tag.
+- CSP do nginx libera Clarity, GA4 (`*.google-analytics.com`), Google Ads (`googleadservices`, `doubleclick`,
+  `www.google.com`) e Meta (`connect.facebook.net`, `www.facebook.com`).
+- **Documentos legais** (`/termos`, `/privacidade`, `/cookies`): moldura `components/public/LegalPageLayout.tsx`
+  (MarketingShell + abas + índice), versão/vigência e razão social/CNPJ em `constants/legal.ts`. O texto descreve o
+  que o código faz — mudou operador, retenção, plano ou cookie, revise o documento (R-02).
+  **Aceite no cadastro**: `POST /public/onboarding` grava uma linha por documento em `legal_acceptances` (versão, data,
+  IP, navegador — migração 063, só acréscimo). As versões vêm de `backend/src/core/legal_versions.py`, espelho de
+  `LEGAL_VERSIONS` do frontend (`tests/unit/test_legal_acceptance.py` quebra se divergirem): subiu a versão, suba nos dois. Passagens animadas
+  marketing ⇄ documentos e entre documentos em `lib/passagem.ts` (`abrir-/fechar-documento`, `folhear-*`).
 
 ---
 

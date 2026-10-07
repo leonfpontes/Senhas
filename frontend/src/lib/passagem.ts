@@ -9,6 +9,11 @@
  * - **voltar** (conta → marketing, pela marca, "Voltar ao site" ou o voltar do navegador): o
  *   escuro avança sobre o formulário e só então a landing entra, com a marca voando de volta;
  * - **lado** (conta ↔ conta, ex.: login ⇄ cadastro): só a marca e o formulário surgindo.
+ * - **abrir-documento / fechar-documento** (marketing ⇄ Termos, Privacidade, Cookies): o cabeçalho
+ *   fica parado, a página sai deslizando e o documento entra pelo lado oposto (eixo compartilhado);
+ *   na volta, o movimento inverte. Documento → conta e conta → documento valem como marketing.
+ * - **folhear-frente / folhear-tras** (documento ⇄ documento): o mesmo deslize, no sentido da
+ *   ordem das abas (Termos → Privacidade → Cookies), e a aba ativa escorrega até a nova.
  *
  * Usa a View Transitions API em volta da navegação do router do Next (mesmo documento). Sem a API
  * a troca é direta (as animações de CSS ainda rodam); com `prefers-reduced-motion` nada anima.
@@ -16,9 +21,18 @@
  * tratadas para o cancelamento não virar erro — a troca acontece do mesmo jeito.
  */
 
-export type Passagem = 'avancar' | 'voltar' | 'lado';
+export type Passagem =
+  | 'avancar'
+  | 'voltar'
+  | 'lado'
+  | 'abrir-documento'
+  | 'fechar-documento'
+  | 'folhear-frente'
+  | 'folhear-tras';
 
 export const ROTAS_DE_MARKETING = ['/', '/planos'] as const;
+/** Documentos legais, na ordem das abas (define o sentido do folhear). */
+export const ROTAS_DE_DOCUMENTO = ['/termos', '/privacidade', '/cookies'] as const;
 export const ROTAS_DE_CONTA = ['/login', '/cadastro', '/forgot-password', '/reset-password', '/reactivate-account'] as const;
 
 /** Quanto dura a saída (o escuro cobrindo a tela) antes da troca — o mesmo tempo do CSS. */
@@ -28,6 +42,8 @@ export const DURACAO_DA_SAIDA_MS = 650;
 const ESPERA_MAXIMA_MS = 3000;
 
 const ehMarketing = (p: string) => (ROTAS_DE_MARKETING as readonly string[]).includes(p);
+const indiceDoDocumento = (p: string) => (ROTAS_DE_DOCUMENTO as readonly string[]).indexOf(p);
+const ehDocumento = (p: string) => indiceDoDocumento(p) >= 0;
 const ehConta = (p: string) => (ROTAS_DE_CONTA as readonly string[]).includes(p);
 
 /** Caminho (sem busca nem âncora) de uma URL relativa ou absoluta. */
@@ -44,8 +60,12 @@ export function passagemEntre(de: string, para: string): Passagem | null {
   const a = caminhoDe(de);
   const b = caminhoDe(para);
   if (a === b) return null;
-  if (ehMarketing(a) && ehConta(b)) return 'avancar';
-  if (ehConta(a) && ehMarketing(b)) return 'voltar';
+  if (ehDocumento(a) && ehDocumento(b)) return indiceDoDocumento(b) > indiceDoDocumento(a) ? 'folhear-frente' : 'folhear-tras';
+  if (ehMarketing(a) && ehDocumento(b)) return 'abrir-documento';
+  if (ehDocumento(a) && ehMarketing(b)) return 'fechar-documento';
+  // Para as telas de conta, os documentos são parte do marketing (mesmo cabeçalho escuro).
+  if ((ehMarketing(a) || ehDocumento(a)) && ehConta(b)) return 'avancar';
+  if (ehConta(a) && (ehMarketing(b) || ehDocumento(b))) return 'voltar';
   if (ehConta(a) && ehConta(b)) return 'lado';
   return null;
 }
