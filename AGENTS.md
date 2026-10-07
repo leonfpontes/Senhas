@@ -187,6 +187,13 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `PermissionService.check_permission` nega tudo a `medium`, mesmo impersonado.
 - Inativar/excluir medium (`mediuns.py`) desativa a conta `medium` pura ligada (e derruba as sessoes);
   reativar religa. Operador/admin ligado so perde/recupera a Area.
+- **Lancamento em piloto (decisao do dono, 07/10)**: a Area do Medium vai para a producao desligada.
+  `tenants.area_medium_liberada` (padrao false) e ligado por terreiro pelo super admin no Tenant 360
+  (`PUT /platform/tenants/{id}` com `area_medium_liberada`). `check_plan_feature(..., "area_medium")` exige
+  plano Basic+ E a chave (403 "ainda nao foi liberada"), entao todo `require_plan_feature("area_medium")` ja
+  respeita; `GET /admin/subscription` devolve `features.area_medium = false` sem a chave (a tela esconde as
+  entradas da Area com `can('area_medium')`, sem PlanLocked no piloto) e `areas.medium` fica null. No
+  lancamento: ligar para todos (migracao de dados) ou remover a chave.
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -636,7 +643,8 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `065_mediuns_user_id` (2026-10-07, AM-02: `mediuns.user_id` FK `users.id` ON DELETE
+- Head atual: `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`, chave do piloto da Area do
+  Medium), apos `065_mediuns_user_id` (2026-10-07, AM-02: `mediuns.user_id` FK `users.id` ON DELETE
   SET NULL + unico parcial `uq_mediuns_user_id_ativo` e `area_consentimento_em/_versao`), apos
   `064_user_role_medium` (`ALTER TYPE user_role ADD VALUE 'medium'`, sozinha num
   `autocommit_block()`), `063_legal_acceptances` (aceite dos Termos/Privacidade), `062_permissao_site_copia`/`061_permissao_site_enum` (T-06) e

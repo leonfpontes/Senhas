@@ -116,6 +116,9 @@ nullable) liga a conta ao cadastro do médium e é o que dá acesso à Área do 
 (um usuário, no máximo um médium não excluído). `mediuns.area_consentimento_em` (`DateTime(tz)`) e
 `mediuns.area_consentimento_versao` (`String(20)`) guardam o aceite LGPD gravado no convite (AM-03).
 
+**Chave do piloto (migração 066):** `tenants.area_medium_liberada` (`Boolean`, padrão `false`). A plataforma liga por
+terreiro no Tenant 360; sem ela a Área do Médium não vale, mesmo com plano Basic+ (`check_plan_feature`).
+
 ---
 
 ### `tenant_configs`

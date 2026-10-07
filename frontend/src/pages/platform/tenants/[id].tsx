@@ -43,6 +43,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -88,6 +89,8 @@ interface TenantInfo {
   /** Excluído logicamente; com `self_deactivated_at`, foi o próprio terreiro que se desativou. */
   deleted_at?: string | null;
   self_deactivated_at?: string | null;
+  /** Lançamento em piloto da Área do Médium: a plataforma libera por terreiro. */
+  area_medium_liberada?: boolean;
 }
 
 interface TenantUser {
@@ -279,6 +282,22 @@ export default function TenantDetailPage() {
       setEditError(extractApiErrorMessage(err, 'Erro ao atualizar o terreiro'));
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  // ── Área do Médium em piloto: liga/desliga por terreiro ──
+  const [areaSaving, setAreaSaving] = useState(false);
+  const toggleAreaMedium = async (liberar: boolean) => {
+    if (!tenant) return;
+    setAreaSaving(true);
+    try {
+      await apiClient.put(`/api/v1/platform/tenants/${tenant.id}`, { area_medium_liberada: liberar });
+      toast.success(liberar ? 'Área do Médium liberada para este terreiro.' : 'Área do Médium desligada para este terreiro.');
+      load();
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, 'Não foi possível mudar a Área do Médium.'));
+    } finally {
+      setAreaSaving(false);
     }
   };
 
@@ -541,6 +560,33 @@ export default function TenantDetailPage() {
                 </dl>
               ) : (
                 <Skeleton className="h-32 w-full" />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="gap-3 py-4">
+            <CardHeader className="px-4">
+              <CardTitle className="text-base">Área do Médium (piloto)</CardTitle>
+              <CardDescription>
+                Libera a Área do Médium para este terreiro antes do lançamento. Vale junto com o plano Basic ou
+                superior.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-4">
+              {tenant ? (
+                <div className="flex items-center justify-between gap-4">
+                  <Label htmlFor="area-medium-liberada" className="font-normal">
+                    {tenant.area_medium_liberada ? 'Liberada' : 'Desligada'}
+                  </Label>
+                  <Switch
+                    id="area-medium-liberada"
+                    checked={!!tenant.area_medium_liberada}
+                    onCheckedChange={toggleAreaMedium}
+                    disabled={areaSaving || isDeleted}
+                  />
+                </div>
+              ) : (
+                <Skeleton className="h-8 w-full" />
               )}
             </CardContent>
           </Card>

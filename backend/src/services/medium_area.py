@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Medium, User, UserRole
+from ..models import Medium, Tenant, User, UserRole
 from ..repositories.subscription_repo import SubscriptionRepository
 from .plan_features import get_effective_plan_features
 from . import session_service
@@ -55,10 +55,19 @@ async def area_medium_enabled_by_tenant(db: AsyncSession, tenant_id: uuid.UUID) 
     return True
 
 
+async def area_medium_liberada(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
+    """A plataforma liberou a Área do Médium para o terreiro (chave do lançamento em piloto)."""
+    result = await db.execute(select(Tenant.area_medium_liberada).where(Tenant.id == tenant_id))
+    return bool(result.scalar_one_or_none())
+
+
 async def tenant_has_area_medium(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
-    """Plano efetivo (plano × status da assinatura) inclui `area_medium` e a Área está ligada."""
+    """Plano efetivo (plano × status da assinatura) inclui `area_medium`, a plataforma
+    liberou a Área para o terreiro e a Área está ligada na configuração."""
     sub = await SubscriptionRepository(db).get_by_tenant(tenant_id)
     if not get_effective_plan_features(sub).area_medium:
+        return False
+    if not await area_medium_liberada(db, tenant_id):
         return False
     return await area_medium_enabled_by_tenant(db, tenant_id)
 
