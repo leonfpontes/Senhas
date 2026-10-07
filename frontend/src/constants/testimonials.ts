@@ -26,8 +26,19 @@ export const TESTIMONIALS: readonly Testimonial[] = [
     casa: 'Tuccco — Tenda de Umbanda Caboclo Cobra Coral',
     texto:
       'Desde que começamos a usar o site GiraHub, a organização do terreiro deu um salto de qualidade. A liberação das senhas ficou muito mais eficiente, evitando filas e agendamentos confusos. Além disso, a organização do terreiro, em relação à mensalidade, contas a pagar e a receber, e ao controle de estoque, ficou muito mais eficaz. A comunicação com os frequentadores também se tornou mais clara, trazendo mais tranquilidade e segurança para todos. Recomendo fortemente!',
+    foto: '/landing/depoimentos/sacerdote-marcelo-tuccco.webp',
     // Depoimento e foto enviados pelo dono do GiraHub em 2026-10-07 (autorização do dirigente
     // guardada fora do repositório — docs/marketing/kit-depoimentos.md).
+    autorizadoEm: '2026-10-07',
+  },
+  {
+    nome: 'Natália',
+    casa: 'TUFF — Terreiro de Umbanda Filhos de Fé',
+    texto:
+      'O GiraHub foi um divisor de águas na organização das minhas giras. Um sistema completo pra um terreiro: desde liberação de senhas, controle de estoque, organização de mensalidades dos médiuns e muito mais. Hoje tenho zero preocupações com a retirada de senhas e minha comunidade se adaptou muito rápido à mudança. O sistema é bem fácil de entender. Sempre que posso indico a plataforma para todos os irmãos de fé, porque o que é bom precisamos repassar para frente. Axé!',
+    foto: '/landing/depoimentos/natalia-tuff.webp',
+    // Depoimento e foto enviados pelo dono do GiraHub em 2026-10-07 (a apresentação "Me chamo
+    // Natália, sou dirigente do TUFF" virou a linha de autoria; autorização fora do repositório).
     autorizadoEm: '2026-10-07',
   },
 ];

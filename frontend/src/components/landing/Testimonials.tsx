@@ -1,11 +1,13 @@
 /**
  * V-03 — depoimentos reais de dirigentes (constants/testimonials.ts). Sem nenhum depoimento
  * autorizado, a seção não aparece: nunca preencher com texto inventado.
- * Um depoimento só → destaque (foto grande + citação); dois ou mais → carrossel/grade.
+ * Um depoimento só → destaque (foto grande + citação); dois ou mais → carrossel no celular e grade
+ * (2 colunas com dois depoimentos, 3 com três ou mais) a partir de md.
  */
 import React from 'react';
 import Image from 'next/image';
 import { Quote } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Reveal } from '@/components/landing/Reveal';
 import { SectionHeading } from '@/components/landing/SectionHeading';
@@ -24,7 +26,7 @@ function Author({ t, avatar = true }: { t: Testimonial; avatar?: boolean }) {
   return (
     <div className="flex items-center gap-3">
       {avatar && (
-        <Avatar className="size-12">
+        <Avatar className="size-14">
           {t.foto && <AvatarImage src={t.foto} alt={`Foto de ${t.nome}`} className="object-cover" />}
           <AvatarFallback className="bg-areia-200 font-bold text-barro-700">{initials(t.nome)}</AvatarFallback>
         </Avatar>
@@ -80,7 +82,12 @@ export function Testimonials({ items = TESTIMONIALS }: { items?: readonly Testim
           <Featured t={items[0]!} />
         ) : (
           // Celular: carrossel com rolagem lateral; a partir de md: grade.
-          <ul className="-mx-4 mt-12 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-4 md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0">
+          <ul
+            className={cn(
+              '-mx-4 mt-12 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-4 md:mx-auto md:grid md:overflow-visible md:px-0',
+              items.length === 2 ? 'md:max-w-5xl md:grid-cols-2' : 'md:grid-cols-3',
+            )}
+          >
             {items.map((t, i) => (
               <li key={`${t.nome}-${t.casa}`} className="w-[85%] shrink-0 snap-center md:w-auto">
                 <Reveal delay={i * 0.06} className="flex h-full flex-col rounded-3xl border border-areia-200 bg-white p-7 shadow-sm">

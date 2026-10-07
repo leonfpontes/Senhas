@@ -128,6 +128,19 @@ describe('V-03 depoimentos', () => {
     expect(within(sec).getByText('Tuccco — Tenda de Umbanda Caboclo Cobra Coral')).toBeInTheDocument();
   });
 
+  it('os depoimentos reais (Marcelo e Natália) aparecem lado a lado, com foto', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { TESTIMONIALS } = require('@/constants/testimonials');
+    render(<Testimonials items={TESTIMONIALS} />);
+    const sec = screen.getByRole('region', { name: /palavra de quem cuida da casa/i });
+    expect(within(sec).getByText('Sacerdote Marcelo')).toBeInTheDocument();
+    expect(within(sec).getByText('Natália')).toBeInTheDocument();
+    expect(within(sec).getByText('TUFF — Terreiro de Umbanda Filhos de Fé')).toBeInTheDocument();
+    expect(within(sec).getByText(/divisor de águas/)).toBeInTheDocument();
+    for (const t of TESTIMONIALS) expect(t.foto).toMatch(/^\/landing\/depoimentos\/.+\.webp$/);
+    expect(within(sec).getByRole('list')).toHaveClass('md:grid-cols-2');
+  });
+
   it('instagramUrl descarta caracteres fora do padrão do Instagram', () => {
     expect(instagramUrl('@casa"><script>')).toBe('https://instagram.com/casascript');
   });
