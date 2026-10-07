@@ -519,8 +519,12 @@ Incluir obrigatoriamente:
   tratado como aguardando (front: `normalizeLegacyStatus`; back: `_WAITING_STATUSES` em checkin,
   desfazer chegada, attend e no contador `awaiting`). `/complete` e `in_progress` ficam no backend
   por compatibilidade, sem uso na interface.
-- Modo TV/Kiosk fullscreen em `porta/kiosk.tsx` (mesmo polling). Sem `?gira=` usa `pickTodayGira`.
-  Privacidade: mostra so primeiro nome + inicial do sobrenome (`nomeParaTv`).
+- Modo TV/Kiosk fullscreen em `porta/kiosk.tsx` (mesmo polling; gate `porta:view` na tela). Sem
+  `?gira=` usa `pickTodayGira`. Privacidade (T-04): a TV e publica na sala de espera, entao le SO
+  `GET /giras/{id}/door/tv` (PORTA:view, sem gate de plano; gira de outro tenant → 404) — numero
+  formatado, nome reduzido NO SERVIDOR (`nome_para_tv`: "Maria S."), proximas 3 senhas e a ultima
+  chamada (`chamado_em`). Nunca e-mail, telefone, nome completo nem ids; nao usar `/door/queue` na TV.
+  A ordem e a mesma da fila da Porta (`_ordenar_fila` em `door_control.py`).
 - Aviso sonoro: base = primeira fila carregada de cada gira (nao toca ao abrir nem ao trocar de gira).
 - Modais: AttendModal, WalkInModal. Editar "sem senha" com `priority_category: null` tira a prioridade
   (campo omitido mantem a atual).

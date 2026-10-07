@@ -71,6 +71,25 @@ class DoorQueueResponse(BaseModel):
     total: int
 
 
+class DoorTvSenha(BaseModel):
+    """Uma senha como aparece na TV: número e, no máximo, o nome reduzido."""
+    numero_formatado: str
+    nome: Optional[str] = None  # "Maria S." — nunca o nome completo
+    chamado_em: Optional[datetime] = None
+
+
+class DoorTvResponse(BaseModel):
+    """Modo TV (tela pública da sala de espera). Sem e-mail, telefone, nome
+    completo nem ids de consulente/ticket — só o que a TV mostra."""
+    gira_nome: str
+    atual: Optional[DoorTvSenha] = None  # 1º da fila que já chegou: o número grande da TV
+    proximas: List[str] = []  # numero_formatado das próximas (até 3)
+    ultima_chamada: Optional[DoorTvSenha] = None  # última senha chamada (número + hora)
+
+
+TV_PROXIMAS = 3
+
+
 class DoorConfigResponse(BaseModel):
     """Lightweight tenant-config subset needed by the door view (PORTA-gated)."""
     enable_walk_in: bool
@@ -164,10 +183,15 @@ def _build_observacoes(
     return json.dumps(payload) if payload else None
 
 
+def _numero_formatado(t: Ticket) -> str:
+    """"P001" para senha de associado, "0001" para as demais."""
+    return f"P{t.numero:03d}" if getattr(t, "is_sponsor", False) else f"{t.numero:04d}"
+
+
 def _ticket_to_queue_item(t: Ticket) -> QueueItemResponse:
     is_sponsor = getattr(t, "is_sponsor", False)
     is_walk_in = getattr(t, "is_walk_in", False)
-    numero_fmt = f"P{t.numero:03d}" if is_sponsor else f"{t.numero:04d}"
+    numero_fmt = _numero_formatado(t)
     priority_category = getattr(t, "priority_category", None)
     # preferencial=True if category is set OR if the legacy JSON flag is set
     is_preferencial = (priority_category is not None) or _parse_preferencial(t.observacoes)
@@ -195,6 +219,62 @@ def _ticket_to_queue_item(t: Ticket) -> QueueItemResponse:
         atendimento_descricao=t.atendimento_descricao,
         horario_desejado=horario_desejado,
     )
+
+
+def _interleave(a: list, b: list) -> list:
+    """Round-robin merge two lists: a0, b0, a1, b1, ..."""
+    result = []
+    ai, bi = 0, 0
+    while ai < len(a) or bi < len(b):
+        if ai < len(a):
+            result.append(a[ai])
+            ai += 1
+        if bi < len(b):
+            result.append(b[bi])
+            bi += 1
+    return result
+
+
+def _ordenar_fila(items: List[QueueItemResponse], sponsor_mode: str) -> List[QueueItemResponse]:
+    """Ordem da fila da Porta (e do modo TV): categorias de prioridade na ordem de
+    PRIORITY_ORDER, depois preferenciais legados (só JSON), depois os demais. Em cada
+    faixa, senhas de associado antes (``first``) ou intercaladas (``interleave``).
+    ``items`` já vem ordenado por número."""
+
+    def _juntar(assoc: list, demais: list) -> list:
+        return _interleave(assoc, demais) if sponsor_mode == "interleave" else assoc + demais
+
+    sorted_items: list = []
+    for cat in PRIORITY_ORDER:
+        sorted_items.extend(_juntar(
+            [i for i in items if i.is_sponsor and i.priority_category == cat],
+            [i for i in items if not i.is_sponsor and i.priority_category == cat],
+        ))
+
+    # Legacy fallback: preferenciais without a category (old JSON-only tickets)
+    sorted_items.extend(_juntar(
+        [i for i in items if i.is_sponsor and i.preferencial and i.priority_category is None],
+        [i for i in items if not i.is_sponsor and i.preferencial and i.priority_category is None],
+    ))
+
+    # Non-preferencial tickets
+    sorted_items.extend(_juntar(
+        [i for i in items if i.is_sponsor and not i.preferencial],
+        [i for i in items if not i.is_sponsor and not i.preferencial],
+    ))
+    return sorted_items
+
+
+def nome_para_tv(nome: Optional[str]) -> Optional[str]:
+    """Nome para a TV da sala de espera: primeiro nome + inicial do sobrenome
+    ("Maria da Silva" → "Maria S."). Era o ``nomeParaTv`` do frontend até o T-04;
+    a TV é pública, então o nome completo não sai mais do servidor."""
+    partes = (nome or "").split()
+    if not partes:
+        return None
+    if len(partes) == 1:
+        return partes[0]
+    return f"{partes[0]} {partes[-1][0].upper()}."
 
 
 # Status de quem ainda está na fila. A Porta tem fluxo de um passo ("Chamar" =
@@ -326,53 +406,93 @@ async def get_door_queue(
     # Fetch tenant config for sponsor priority mode
     tenant_config = await _get_tenant_config(db, current_user.tenant_id)
     sponsor_mode = tenant_config.sponsor_priority_mode if tenant_config else "first"
-
-    def _interleave(a: list, b: list) -> list:
-        """Round-robin merge two lists: a0, b0, a1, b1, ..."""
-        result = []
-        ai, bi = 0, 0
-        while ai < len(a) or bi < len(b):
-            if ai < len(a):
-                result.append(a[ai])
-                ai += 1
-            if bi < len(b):
-                result.append(b[bi])
-                bi += 1
-        return result
-
-    # Build ordered list from priority categories (items already ordered by numero via query)
-    sorted_items: list = []
-    for cat in PRIORITY_ORDER:
-        assoc_cat = [i for i in items if i.is_sponsor and i.priority_category == cat]
-        noassoc_cat = [i for i in items if not i.is_sponsor and i.priority_category == cat]
-        if sponsor_mode == "interleave":
-            sorted_items.extend(_interleave(assoc_cat, noassoc_cat))
-        else:
-            sorted_items.extend(assoc_cat + noassoc_cat)
-
-    # Legacy fallback: preferenciais without a category (old JSON-only tickets)
-    assoc_legacy_pref = [
-        i for i in items
-        if i.is_sponsor and i.preferencial and i.priority_category is None
-    ]
-    noassoc_legacy_pref = [
-        i for i in items
-        if not i.is_sponsor and i.preferencial and i.priority_category is None
-    ]
-    if sponsor_mode == "interleave":
-        sorted_items.extend(_interleave(assoc_legacy_pref, noassoc_legacy_pref))
-    else:
-        sorted_items.extend(assoc_legacy_pref + noassoc_legacy_pref)
-
-    # Non-preferencial tickets
-    assoc_reg = [i for i in items if i.is_sponsor and not i.preferencial]
-    regular = [i for i in items if not i.is_sponsor and not i.preferencial]
-    if sponsor_mode == "interleave":
-        sorted_items.extend(_interleave(assoc_reg, regular))
-    else:
-        sorted_items.extend(assoc_reg + regular)
+    sorted_items = _ordenar_fila(items, sponsor_mode)
 
     return DoorQueueResponse(items=sorted_items, total=len(sorted_items))
+
+
+@router.get("/giras/{gira_id}/door/tv", response_model=DoorTvResponse, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "view"))])
+async def get_door_tv(
+    gira_id: UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DoorTvResponse:
+    """Modo TV da Porta (/admin/porta/kiosk) — payload enxuto para a tela pública.
+
+    O navegador da TV fica na sala de espera: a fila completa (`/door/queue`)
+    levaria e-mail e telefone de todo mundo até ele. Aqui só vão o número
+    formatado, o nome reduzido no servidor ("Maria S.") de quem é chamado agora,
+    as próximas senhas e a última chamada. Sem gate de plano: Porta é de todos
+    os planos.
+    """
+    if not current_user.is_operator_or_admin:
+        raise InsufficientPermissionsError("Admin ou operador necessário")
+
+    gira = (
+        await db.execute(
+            select(Gira).where(
+                and_(
+                    Gira.id == gira_id,
+                    Gira.tenant_id == current_user.tenant_id,
+                    Gira.deleted_at.is_(None),
+                )
+            )
+        )
+    ).scalar_one_or_none()
+    if gira is None:
+        raise NotFoundError("Gira não encontrada")
+
+    stmt = (
+        select(Ticket)
+        .options(selectinload(Ticket.consulente), selectinload(Ticket.time_slot))
+        .where(
+            and_(
+                Ticket.tenant_id == current_user.tenant_id,
+                Ticket.gira_id == gira.id,
+                Ticket.status.in_(_WAITING_STATUSES),
+            )
+        )
+        .order_by(Ticket.numero)
+    )
+    tickets = (await db.execute(stmt)).scalars().all()
+    tenant_config = await _get_tenant_config(db, current_user.tenant_id)
+    sponsor_mode = tenant_config.sponsor_priority_mode if tenant_config else "first"
+    fila = _ordenar_fila([_ticket_to_queue_item(t) for t in tickets], sponsor_mode)
+
+    # Mesma regra que a TV usava no navegador: o número grande é o primeiro da
+    # fila que já chegou; as próximas são as demais que ainda esperam.
+    atual = next((i for i in fila if i.checkin_em is not None), None)
+    proximas = [i.numero_formatado for i in fila if i is not atual][:TV_PROXIMAS]
+
+    ultima = (
+        await db.execute(
+            select(Ticket)
+            .where(
+                and_(
+                    Ticket.tenant_id == current_user.tenant_id,
+                    Ticket.gira_id == gira.id,
+                    Ticket.chamado_em.isnot(None),
+                    Ticket.status.notin_(_WAITING_STATUSES),
+                )
+            )
+            .order_by(Ticket.chamado_em.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    return DoorTvResponse(
+        gira_nome=gira.nome,
+        atual=DoorTvSenha(
+            numero_formatado=atual.numero_formatado,
+            nome=nome_para_tv(atual.consulente_nome),
+            chamado_em=atual.chamado_em,
+        ) if atual else None,
+        proximas=proximas,
+        ultima_chamada=DoorTvSenha(
+            numero_formatado=_numero_formatado(ultima),
+            chamado_em=ultima.chamado_em,
+        ) if ultima else None,
+    )
 
 
 @router.post("/giras/{gira_id}/door/walk-in", response_model=QueueItemResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "insert"))])
