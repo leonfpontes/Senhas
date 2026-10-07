@@ -21,8 +21,26 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Controller, useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, ChevronRight, CircleAlert, CreditCard, Gift, Loader2 } from 'lucide-react';
-import { AuthShell, AUTH_INPUT, AUTH_LINK, PasswordRules, SignupProgress } from '@/components/auth';
+import {
+  ArrowLeft,
+  Camera,
+  ChevronRight,
+  CircleAlert,
+  Compass,
+  CreditCard,
+  Ellipsis,
+  Gift,
+  Globe,
+  Handshake,
+  Loader2,
+  Package,
+  Search,
+  Ticket,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react';
+import { AuthShell, AUTH_INPUT, AUTH_LINK, ChoiceCards, PasswordRules, SignupProgress } from '@/components/auth';
 import {
   AFTER_SIGNUP_PATH,
   CADASTRO_DEFAULTS,
@@ -44,16 +62,24 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { apiClient } from '@/services/api_client';
 import { dispatchTenantBrandingUpdated } from '@/providers/ThemeProvider';
 import { COMO_CONHECEU_OPTIONS, PRINCIPAL_DOR_OPTIONS } from '@/constants/onboarding';
 import { trackEvent } from '@/services/analytics';
 import { PLANS, formatPricePerMonth, normalizePlanKey } from '@/constants/plans';
 
-// Chip de escolha opcional (ToggleGroup): quebra linha no celular, alvo de 44px, destaque em barro.
-const CHIP_CLASS =
-  'h-auto min-h-11 whitespace-normal rounded-full border-areia-300 px-4 py-2 text-left text-sm text-tinta data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:font-semibold data-[state=on]:text-brand';
+// Ícones dos cartões de escolha do passo "Para começar" (rótulos/valores vêm de constants/onboarding).
+const DOR_ICONS: Record<string, LucideIcon> = {
+  senhas: Ticket,
+  mediuns: Users,
+  financeiro: Wallet,
+  divulgacao: Globe,
+  estoque: Package,
+  outro: Compass,
+};
+const COMO_ICONS: Record<string, LucideIcon> = { google: Search, instagram: Camera, indicacao: Handshake, outro: Ellipsis };
+const DOR_CARDS = PRINCIPAL_DOR_OPTIONS.map((o) => ({ value: o.value, label: o.label, icon: DOR_ICONS[o.value] }));
+const COMO_CONHECEU_CARDS = COMO_CONHECEU_OPTIONS.map((o) => ({ value: o.value, label: o.label, icon: COMO_ICONS[o.value] }));
 
 const LAST_STEP = CADASTRO_STEPS.length - 1;
 
@@ -480,26 +506,15 @@ export default function CadastroPage() {
                     control={control}
                     name="principalDor"
                     render={({ field }) => (
-                      <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
-                        <legend className="mb-3 p-0 text-sm font-semibold">
-                          O que você mais precisa resolver? <span className="font-normal text-tinta-suave">(opcional)</span>
-                        </legend>
-                        <ToggleGroup
-                          type="single"
-                          variant="outline"
-                          spacing={2}
-                          value={field.value || ''}
-                          onValueChange={(v) => field.onChange(v ?? '')}
-                          aria-label="O que você mais precisa resolver?"
-                          className="flex-wrap justify-start"
-                        >
-                          {PRINCIPAL_DOR_OPTIONS.map((o) => (
-                            <ToggleGroupItem key={o.value} value={o.value} className={CHIP_CLASS}>
-                              {o.label}
-                            </ToggleGroupItem>
-                          ))}
-                        </ToggleGroup>
-                      </fieldset>
+                      <ChoiceCards
+                        label="O que você mais precisa resolver?"
+                        required
+                        options={DOR_CARDS}
+                        value={field.value}
+                        onChange={field.onChange}
+                        focusRef={field.ref}
+                        error={errors.principalDor?.message}
+                      />
                     )}
                   />
 
@@ -507,26 +522,16 @@ export default function CadastroPage() {
                     control={control}
                     name="comoConheceu"
                     render={({ field }) => (
-                      <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
-                        <legend className="mb-3 p-0 text-sm font-semibold">
-                          Como nos conheceu? <span className="font-normal text-tinta-suave">(opcional)</span>
-                        </legend>
-                        <ToggleGroup
-                          type="single"
-                          variant="outline"
-                          spacing={2}
-                          value={field.value || ''}
-                          onValueChange={(v) => field.onChange(v ?? '')}
-                          aria-label="Como nos conheceu?"
-                          className="flex-wrap justify-start"
-                        >
-                          {COMO_CONHECEU_OPTIONS.map((o) => (
-                            <ToggleGroupItem key={o.value} value={o.value} className={CHIP_CLASS}>
-                              {o.label}
-                            </ToggleGroupItem>
-                          ))}
-                        </ToggleGroup>
-                      </fieldset>
+                      <ChoiceCards
+                        label="Como nos conheceu?"
+                        required
+                        columns="2"
+                        options={COMO_CONHECEU_CARDS}
+                        value={field.value}
+                        onChange={field.onChange}
+                        focusRef={field.ref}
+                        error={errors.comoConheceu?.message}
+                      />
                     )}
                   />
 

@@ -266,8 +266,17 @@ async def test_cadastro_seta_3_cookies_e_barra_email_com_maiusculas(client, db, 
         "whatsapp": "11999998888",
         "documento": "52998224725",
         "password": SENHA,
+        "como_conheceu": "indicacao",
+        "principal_dor": "outro",
         "aceite_termos": True,
     }
+    sem_respostas = await client.post(
+        "/api/v1/public/onboarding",
+        json={k: v for k, v in base.items() if k not in ("como_conheceu", "principal_dor")} | {"email": "nova@example.com"},
+    )
+    assert sem_respostas.status_code == 422
+    campos = {e["loc"][-1] for e in sem_respostas.json()["details"]}
+    assert campos == {"como_conheceu", "principal_dor"}
     dup = await client.post("/api/v1/public/onboarding", json={**base, "email": "existente@example.com"})
     assert dup.status_code == 409
 

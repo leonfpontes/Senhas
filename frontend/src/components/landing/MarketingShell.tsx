@@ -50,7 +50,8 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
           <Link
             href="/"
             aria-label="GiraHub — página inicial"
-            className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
+            // marca-girahub: a marca "voa" para a tela de conta e volta (lib/passagem.ts)
+            className="marca-girahub rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
           >
             <GiraHubLogo className="text-white" />
           </Link>

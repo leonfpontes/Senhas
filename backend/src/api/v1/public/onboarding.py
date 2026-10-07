@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from src.core.onboarding import COMO_CONHECEU_VALUES, PRINCIPAL_DOR_VALUES
 from src.core.reserved_slugs import is_reserved_slug
@@ -86,10 +86,12 @@ class OnboardingRequest(BaseModel):
     whatsapp: str
     documento: str
     password: str
-    como_conheceu: Optional[str] = None
-    # Maior dor que quer resolver — define a trilha do tour de boas-vindas.
-    # Opcional no schema (clientes antigos/integrações); o formulário exige.
-    principal_dor: Optional[str] = None
+    # Obrigatórias desde 2026-10-07 (decisão do dono): "Ainda estou conhecendo" (`outro`) e "Outro"
+    # continuam valendo. `validate_default` faz a ausência passar pelo validador e sair como 422
+    # com mensagem clara (o "Field required" do pydantic não diz o que falta).
+    como_conheceu: Optional[str] = Field(default=None, validate_default=True)
+    # Maior dor que quer resolver — define a trilha do tour de boas-vindas e do checklist.
+    principal_dor: Optional[str] = Field(default=None, validate_default=True)
     aceite_termos: bool
 
     @field_validator("documento")
@@ -151,15 +153,19 @@ class OnboardingRequest(BaseModel):
 
     @field_validator("como_conheceu")
     @classmethod
-    def como_conheceu_enum(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in COMO_CONHECEU_VALUES:
+    def como_conheceu_enum(cls, v: Optional[str]) -> str:
+        if not v:
+            raise ValueError("Conte como você conheceu o GiraHub")
+        if v not in COMO_CONHECEU_VALUES:
             raise ValueError("Valor inválido para 'como nos conheceu'")
         return v
 
     @field_validator("principal_dor")
     @classmethod
-    def principal_dor_enum(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in PRINCIPAL_DOR_VALUES:
+    def principal_dor_enum(cls, v: Optional[str]) -> str:
+        if not v:
+            raise ValueError("Conte o que você mais precisa resolver")
+        if v not in PRINCIPAL_DOR_VALUES:
             raise ValueError("Valor inválido para 'o que você mais precisa resolver'")
         return v
 

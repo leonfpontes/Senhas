@@ -4,7 +4,7 @@
  */
 import { z } from 'zod';
 import { passwordSchema } from '@/constants/passwordPolicy';
-import { isPrincipalDor, type PrincipalDor } from '@/constants/onboarding';
+import { COMO_CONHECEU_OPTIONS, isPrincipalDor, type PrincipalDor } from '@/constants/onboarding';
 
 export const unmaskDigits = (value: string): string => value.replace(/\D/g, '');
 
@@ -67,8 +67,11 @@ export const cadastroSchema = z.object({
     { message: 'Informe o DDD e o número.' },
   ),
   password: passwordSchema,
-  comoConheceu: z.string().optional(),
-  principalDor: z.string().optional(),
+  // Obrigatórias (decisão do dono, 2026-10-07) — "Ainda estou conhecendo" e "Outro" valem.
+  comoConheceu: z.string().refine((v) => COMO_CONHECEU_OPTIONS.some((o) => o.value === v), {
+    message: 'Conte como você conheceu o GiraHub.',
+  }),
+  principalDor: z.string().refine((v): boolean => isPrincipalDor(v), { message: 'Escolha o que você mais precisa resolver.' }),
   email: z.string().trim().min(1, 'Informe seu e-mail.').email('E-mail inválido.'),
   documento: z.string().refine(validarDocumento, { message: 'CPF ou CNPJ inválido.' }),
   aceiteTermos: z.boolean().refine((v) => v === true, { message: 'Precisamos do seu aceite para criar a conta.' }),
@@ -95,8 +98,8 @@ export interface OnboardingPayload {
   whatsapp: string;
   documento: string;
   password: string;
-  como_conheceu?: string;
-  principal_dor?: PrincipalDor;
+  como_conheceu: string;
+  principal_dor: PrincipalDor;
   aceite_termos: true;
 }
 
@@ -108,8 +111,8 @@ export function buildOnboardingPayload(values: CadastroFormValues): OnboardingPa
     whatsapp: unmaskDigits(values.whatsapp),
     documento: unmaskDigits(values.documento),
     password: values.password,
-    como_conheceu: values.comoConheceu || undefined,
-    principal_dor: isPrincipalDor(values.principalDor) ? values.principalDor : undefined,
+    como_conheceu: values.comoConheceu,
+    principal_dor: values.principalDor as PrincipalDor,
     aceite_termos: true,
   };
 }
@@ -135,8 +138,8 @@ export interface CadastroStep {
 
 /**
  * Do mais leve ao mais pesado: o nome da casa primeiro (vitória rápida), contato, senha e
- * documento (que só servem para entrar e liberar o mês grátis) e, por fim, as perguntas
- * opcionais e o aceite. Mudou a ordem? Ajuste `__tests__/pages/cadastro.test.tsx`.
+ * documento (que só servem para entrar e liberar o mês grátis) e, por fim, as duas perguntas
+ * que escolhem a trilha do tour e do checklist de primeiros passos, e o aceite. Mudou a ordem? Ajuste `__tests__/pages/cadastro.test.tsx`.
  */
 export const CADASTRO_STEPS: readonly CadastroStep[] = [
   {
@@ -164,8 +167,8 @@ export const CADASTRO_STEPS: readonly CadastroStep[] = [
     key: 'comeco',
     label: 'Para começar',
     title: 'Para começar do jeito certo',
-    hint: 'As duas perguntas são opcionais — com elas montamos o seu guia inicial.',
-    fields: ['comoConheceu', 'principalDor', 'aceiteTermos'],
+    hint: 'Duas perguntas rápidas: com elas o seu painel já abre no caminho certo.',
+    fields: ['principalDor', 'comoConheceu', 'aceiteTermos'],
   },
 ];
 

@@ -85,11 +85,18 @@ async function preencherAteOFim() {
   fireEvent.click(screen.getByRole('checkbox', { name: /Li e aceito/ }));
 }
 
+async function responderPerguntas(dor = 'Ainda estou conhecendo', como = 'Google') {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('radio', { name: dor }));
+    fireEvent.click(screen.getByRole('radio', { name: como }));
+  });
+}
+
 /** Campos do `OnboardingRequest` lidos do próprio backend: [nome, obrigatório?]. */
 function backendSchemaFields(): [string, boolean][] {
   const src = fs.readFileSync(path.join(__dirname, '../../../backend/src/api/v1/public/onboarding.py'), 'utf8');
   const body = src.split('class OnboardingRequest(BaseModel):')[1].split('@field_validator')[0];
-  return Array.from(body.matchAll(/^ {4}(\w+): ([^\n]+)$/gm)).map((m) => [m[1], !/=\s*None/.test(m[2])]);
+  return Array.from(body.matchAll(/^ {4}(\w+): ([^\n]+)$/gm)).map((m) => [m[1], !/=\s*None\s*$/.test(m[2])]);
 }
 
 describe('Cadastro em passos', () => {
@@ -198,10 +205,11 @@ describe('Cadastro em passos', () => {
     expect(screen.getByText('CPF ou CNPJ inválido.')).toBeInTheDocument();
   });
 
-  it('dor e "como nos conheceu" são chips opcionais no último passo', async () => {
+  it('dor e "como nos conheceu" são cartões de escolha única no último passo', async () => {
     render(<Cadastro />);
     await preencherAteOFim();
-    const dor = screen.getByRole('radiogroup', { name: 'O que você mais precisa resolver?' });
+    expect(screen.queryByText(/opcional/i)).not.toBeInTheDocument();
+    const dor = screen.getByRole('radiogroup', { name: /O que você mais precisa resolver\?/ });
     const chips = Array.from(dor.querySelectorAll('button')).map((b) => b.textContent);
     expect(chips).toEqual([
       'Organizar as senhas e a fila das giras',
@@ -211,12 +219,49 @@ describe('Cadastro em passos', () => {
       'Controlar o estoque de materiais',
       'Ainda estou conhecendo',
     ]);
-    expect(screen.getByRole('radiogroup', { name: 'Como nos conheceu?' })).toBeInTheDocument();
+    const como = screen.getByRole('radiogroup', { name: /Como nos conheceu\?/ });
+    expect(Array.from(como.querySelectorAll('button')).map((b) => b.textContent)).toEqual([
+      'Google',
+      'Instagram',
+      'Indicação',
+      'Outro',
+    ]);
+    // Escolha única: marcar outra opção desmarca a anterior
+    await act(async () => {
+      fireEvent.click(screen.getByRole('radio', { name: 'Google' }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('radio', { name: 'Outro' }));
+    });
+    expect(screen.getByRole('radio', { name: 'Outro' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Google' })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('as duas perguntas do último passo são obrigatórias (erro no passo, nada enviado)', async () => {
+    render(<Cadastro />);
+    await preencherAteOFim();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Criar minha conta/ }));
+    });
+    expect(await screen.findByText('Escolha o que você mais precisa resolver.')).toBeInTheDocument();
+    expect(screen.getByText('Conte como você conheceu o GiraHub.')).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: /O que você mais precisa resolver\?/ })).toHaveAttribute('aria-invalid', 'true');
+    expect(apiClient.post).not.toHaveBeenCalled();
+
+    await responderPerguntas('Ainda estou conhecendo', 'Outro');
+    await waitFor(() => expect(screen.queryByText('Escolha o que você mais precisa resolver.')).not.toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Criar minha conta/ }));
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect((apiClient.post as jest.Mock).mock.calls[0][1]).toMatchObject({ principal_dor: 'outro', como_conheceu: 'outro' });
+    expect(trackEvent).toHaveBeenCalledWith('signup_completed', { principal_dor: 'outro' });
   });
 
   it('sem aceite dos termos não envia', async () => {
     render(<Cadastro />);
     await preencherAteOFim();
+    await responderPerguntas();
     fireEvent.click(screen.getByRole('checkbox', { name: /Li e aceito/ })); // desmarca
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Criar minha conta/ }));
@@ -228,8 +273,7 @@ describe('Cadastro em passos', () => {
   it('envia o payload do schema do backend, registra a conversão e vai para a primeira gira', async () => {
     render(<Cadastro />);
     await preencherAteOFim();
-    fireEvent.click(screen.getByRole('radio', { name: 'Organizar os médiuns e a corrente' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Instagram' }));
+    await responderPerguntas('Organizar os médiuns e a corrente', 'Instagram');
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Criar minha conta/ }));
@@ -261,21 +305,13 @@ describe('Cadastro em passos', () => {
     expect(sessionStorage.getItem(CADASTRO_DRAFT_KEY)).toBeNull();
   });
 
-  it('sem dor escolhida registra "nao_informado"', async () => {
-    render(<Cadastro />);
-    await preencherAteOFim();
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Criar minha conta/ }));
-    });
-    await waitFor(() => expect(trackEvent).toHaveBeenCalledWith('signup_completed', { principal_dor: 'nao_informado' }));
-  });
-
   it('e-mail já cadastrado volta para o passo do e-mail com o erro no campo', async () => {
     (apiClient.post as jest.Mock).mockRejectedValueOnce({
       response: { status: 409, data: { detail: 'Este email já está cadastrado' } },
     });
     render(<Cadastro />);
     await preencherAteOFim();
+    await responderPerguntas();
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Criar minha conta/ }));
     });
@@ -294,6 +330,7 @@ describe('Cadastro em passos', () => {
     (apiClient.post as jest.Mock).mockRejectedValueOnce({ response: { status: 429, data: { error: 'Muitas tentativas.' } } });
     render(<Cadastro />);
     await preencherAteOFim();
+    await responderPerguntas();
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Criar minha conta/ }));
     });
@@ -314,6 +351,7 @@ describe('Cadastro em passos', () => {
       undefined,
       { shallow: true, scroll: false },
     );
+    await responderPerguntas();
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Criar conta e assinar Pro/ }));
     });
@@ -347,13 +385,15 @@ describe('cadastroForm', () => {
     password: STRONG,
     email: 'maria@example.com',
     documento: '529.982.247-25',
+    comoConheceu: 'google',
+    principalDor: 'senhas',
     aceiteTermos: true,
   };
 
   it('aceita um cadastro completo e monta o payload sem máscara', () => {
     expect(cadastroSchema.safeParse(valid).success).toBe(true);
     expect(buildOnboardingPayload(valid)).toMatchObject({ whatsapp: '11999998888', documento: '52998224725' });
-    expect(buildOnboardingPayload(valid).principal_dor).toBeUndefined();
+    expect(buildOnboardingPayload(valid)).toMatchObject({ principal_dor: 'senhas', como_conheceu: 'google' });
   });
 
   it('rejeita senha fora da regra, documento inválido e sem aceite', () => {
@@ -361,6 +401,15 @@ describe('cadastroForm', () => {
     expect(r.success).toBe(false);
     const fields = r.success ? [] : r.error.issues.map((i) => i.path[0]);
     expect(fields).toEqual(expect.arrayContaining(['password', 'documento', 'aceiteTermos']));
+  });
+
+  it('exige dor e "como conheceu" com valores conhecidos ("outro" vale nas duas)', () => {
+    const r = cadastroSchema.safeParse({ ...valid, comoConheceu: '', principalDor: 'qualquer' });
+    expect(r.success).toBe(false);
+    expect(r.success ? [] : r.error.issues.map((i) => i.path[0])).toEqual(
+      expect.arrayContaining(['comoConheceu', 'principalDor']),
+    );
+    expect(cadastroSchema.safeParse({ ...valid, comoConheceu: 'outro', principalDor: 'outro' }).success).toBe(true);
   });
 
   it('valida CPF e CNPJ', () => {

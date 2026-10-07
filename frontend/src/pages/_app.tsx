@@ -13,6 +13,7 @@ import { SnackbarProvider } from '@/contexts/SnackbarContext';
 import { Toaster } from '@/components/ui/sonner';
 import ClarityAnalytics from '@/components/shared/ClarityAnalytics';
 import ServiceWorkerRegistrar from '@/components/shared/ServiceWorkerRegistrar';
+import PassagemDeEntrada from '@/components/shared/PassagemDeEntrada';
 
 /**
  * Estilos do popover do tour — responsivos.
@@ -53,6 +54,8 @@ function MyApp({ Component, pageProps }: AppProps) {
       </Script>
       {/* PWA (P-01): registra public/sw.js em produção; em dev, desregistra */}
       <ServiceWorkerRegistrar />
+      {/* Passagem animada marketing ⇄ telas de conta (só nesse trecho do site) */}
+      <PassagemDeEntrada />
       <TenantAwareThemeProvider>
         <ProfileProvider>
           <SubscriptionProvider>

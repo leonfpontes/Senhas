@@ -9,12 +9,13 @@
  * paleta terra, independentemente da cor do último terreiro aplicada no :root. Sempre claro.
  * Cada tela só entrega o formulário e, se quiser, um rodapé.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Check, Quote } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ultimaPassagem } from '@/lib/passagem';
 import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 import { Photo } from '@/components/landing/Photo';
 import { fraunces, MARKETING_RESET } from '@/components/landing/fonts';
@@ -42,7 +43,7 @@ export interface AuthShellProps {
 function BrandPanel({ photo }: { photo: PhotoKey }) {
   const depoimento = latestTestimonial();
   return (
-    <aside aria-label="Sobre o GiraHub" className="relative hidden bg-cafe-950 text-white md:block">
+    <aside aria-label="Sobre o GiraHub" className="relative z-20 hidden bg-cafe-950 text-white md:block">
       {/* Caixa do tamanho da tela que acompanha a rolagem (cadastro longo): foto, véu e texto
           andam juntos, então o contraste calculado abaixo vale em qualquer posição. */}
       <div className="sticky top-0 isolate flex h-[calc(100dvh-4rem)] flex-col justify-between gap-10 overflow-hidden p-10 lg:p-14">
@@ -61,7 +62,7 @@ function BrandPanel({ photo }: { photo: PhotoKey }) {
           aria-hidden
           className="absolute inset-0 -z-10 bg-gradient-to-b from-cafe-950/80 via-cafe-950/60 via-50% to-transparent to-75%"
         />
-        <div>
+        <div className="passagem-surge">
           <p className="text-xs font-bold tracking-[0.2em] text-ouro-300 uppercase">{AUTH_PANEL.eyebrow}</p>
           <p className="mt-4 font-display text-4xl leading-[1.1] font-bold tracking-tight lg:text-5xl">
             {AUTH_PANEL.promise}
@@ -80,7 +81,7 @@ function BrandPanel({ photo }: { photo: PhotoKey }) {
 
         {depoimento && (
           // Telas baixas (notebook com zoom): o depoimento sai para a promessa não ser cortada.
-          <figure className="rounded-2xl border border-white/10 bg-cafe-950/70 p-6 backdrop-blur-sm [@media(max-height:44rem)]:hidden">
+          <figure className="passagem-surge rounded-2xl border border-white/10 bg-cafe-950/70 p-6 backdrop-blur-sm [@media(max-height:44rem)]:hidden">
             <Quote className="size-6 text-ouro-300" aria-hidden />
             <blockquote className="mt-3 text-lg leading-relaxed text-areia-100">
               “{testimonialExcerpt(depoimento)}”
@@ -119,6 +120,9 @@ export function AuthShell({
   children,
   className,
 }: AuthShellProps) {
+  // Vindo de outra tela de conta (login ⇄ cadastro) o escuro já está no lugar: sem recuo.
+  // Lido uma vez, ao montar (no servidor e na hidratação é sempre a chegada inicial).
+  const [semRecuo] = useState(() => typeof window !== 'undefined' && ultimaPassagem() === 'lado');
   return (
     <>
       {headTitle && (
@@ -128,12 +132,18 @@ export function AuthShell({
         </Head>
       )}
       <div
+        data-passagem-moldura=""
         className={cn(
           fraunces.variable,
-          'auth-terra flex min-h-dvh flex-col bg-areia-50 text-tinta',
+          'auth-terra passagem relative flex min-h-dvh flex-col bg-areia-50 text-tinta',
+          semRecuo && 'passagem-sem-recuo',
           MARKETING_RESET,
         )}
       >
+        {/* Passagem (globals.css): o escuro da landing que recua até o painel, e o fio na borda. */}
+        <div className="passagem-fundo" aria-hidden />
+        <div className="passagem-costura" aria-hidden />
+
         <a
           href="#conteudo-conta"
           className="sr-only z-50 rounded-md bg-ouro-300 px-3 py-2 font-bold text-cafe-950 focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
@@ -141,12 +151,12 @@ export function AuthShell({
           Pular para o formulário
         </a>
 
-        <header className="border-b border-white/10 bg-cafe-950 text-white">
+        <header className="relative z-50 border-b border-white/10 bg-cafe-950 text-white">
           <div className="mx-auto flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
             <Link
               href="/"
               aria-label="GiraHub — página inicial"
-              className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
+              className="marca-girahub rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
             >
               <GiraHubLogo className="text-white" />
             </Link>
@@ -168,7 +178,7 @@ export function AuthShell({
             id="conteudo-conta"
             className="flex flex-1 flex-col items-center px-4 pt-8 pb-10 sm:px-6 sm:pt-12 md:justify-center md:py-14"
           >
-            <div className={cn('w-full', size === 'xs' ? 'max-w-md' : 'max-w-xl', className)}>
+            <div className={cn('passagem-porta w-full', size === 'xs' ? 'max-w-md' : 'max-w-xl', className)}>
               <div className="mb-6 sm:mb-8">
                 <h1 className="font-display text-3xl leading-tight font-bold tracking-tight text-tinta sm:text-4xl">
                   {title}
