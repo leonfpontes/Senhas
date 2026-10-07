@@ -56,9 +56,10 @@ import { useMedium } from './MediumProvider';
 import { InstallAreaSheet, installAreaSeen } from './InstallAreaSheet';
 import { TerreiroEmblem } from './TerreiroEmblem';
 
-export const MEDIUM_TABS: { href: string; label: string; icon: LucideIcon }[] = [
+// `modulo`: aba de módulo que a casa liga/desliga (AM-10) — some quando fora de `me.modulos`.
+export const MEDIUM_TABS: { href: string; label: string; icon: LucideIcon; modulo?: string }[] = [
   { href: '/medium', label: 'Início', icon: House },
-  { href: '/medium/agenda', label: 'Agenda', icon: CalendarDays },
+  { href: '/medium/agenda', label: 'Agenda', icon: CalendarDays, modulo: 'agenda' },
   { href: '/medium/avisos', label: 'Avisos', icon: Megaphone },
   { href: '/medium/mensalidade', label: 'Mensalidade', icon: Wallet },
   { href: '/medium/perfil', label: 'Perfil', icon: UserRound },
@@ -112,15 +113,23 @@ export function useSystemDarkMode(): void {
   }, []);
 }
 
-function TabBar({ pathname }: { pathname: string }) {
+const GRID_COLS: Record<number, string> = {
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+  5: 'grid-cols-5',
+};
+
+function TabBar({ pathname, modulos }: { pathname: string; modulos: string[] }) {
+  const tabs = MEDIUM_TABS.filter((t) => !t.modulo || modulos.includes(t.modulo));
   return (
     <nav
       aria-label="Menu da Área do Médium"
       data-testid="medium-tab-bar"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
     >
-      <ul className="mx-auto grid max-w-xl grid-cols-5">
-        {MEDIUM_TABS.map(({ href, label, icon: Icon }) => {
+      <ul className={cn('mx-auto grid max-w-xl', GRID_COLS[tabs.length] ?? 'grid-cols-5')}>
+        {tabs.map(({ href, label, icon: Icon }) => {
           const active =
             href === '/medium'
               ? pathname === href
@@ -349,7 +358,7 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
         >
           {status === 'ok' ? children : status === 'erro' ? <ErroAoCarregar /> : <Carregando />}
         </main>
-        <TabBar pathname={router.pathname} />
+        <TabBar pathname={router.pathname} modulos={me?.modulos ?? []} />
         <InstallAreaSheet
           open={installOpen}
           onOpenChange={setInstallOpen}

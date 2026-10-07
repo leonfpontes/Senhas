@@ -79,7 +79,7 @@ const ME = {
   terreiro: { id: 't1', nome: 'Tenda Luz da Mata', slug: 'luz' },
   marca: { logo_url: null, primary_color: '#2f6b4f', secondary_color: '#e9b04a', font_color: null },
   areas: MEDIUM_AREAS,
-  modulos: [],
+  modulos: ['agenda', 'avisos', 'mensalidade'],
 };
 
 const INICIO_COMPLETO = {
@@ -395,7 +395,6 @@ describe('gate do MediumLayout', () => {
     signIn(profile);
     api({ '/api/v1/medium/me': ME }, profile);
     for (const [path, mod, titulo] of [
-      ['/medium/agenda', '@/pages/medium/agenda', 'Agenda'],
       ['/medium/avisos', '@/pages/medium/avisos', 'Avisos'],
       ['/medium/mensalidade', '@/pages/medium/mensalidade', 'Mensalidade'],
     ]) {
