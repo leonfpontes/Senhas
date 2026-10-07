@@ -13,7 +13,8 @@ export type PermissionFeature =
   | 'auditoria'
   | 'analytics'
   | 'relatorio_gira'
-  | 'contas_financeiras';
+  | 'contas_financeiras'
+  | 'comunicados';
 
 /** Rótulos dos módulos na tela de grupos (português, sem jargão). */
 export interface FeatureMeta {
@@ -37,4 +38,5 @@ export const FEATURE_LABELS: Record<PermissionFeature, FeatureMeta> = {
   analytics: { label: 'Indicadores', group: 'Relatórios' },
   relatorio_gira: { label: 'Relatório de Gira', group: 'Relatórios' },
   contas_financeiras: { label: 'Contas a Pagar / Receber', group: 'Financeiro' },
+  comunicados: { label: 'Avisos da Área', group: 'Corrente' },
 };

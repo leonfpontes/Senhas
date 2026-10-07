@@ -27,6 +27,7 @@ import {
   Headset,
   HeartHandshake,
   LayoutDashboard,
+  Megaphone,
   Package,
   QrCode,
   Receipt,
@@ -170,6 +171,10 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     const planMensalidade = can('mensalidade_mediun') || can('mensalidade_associado');
     if (planMensalidade && view('financeiro')) {
       corrente.push(link('/admin/financeiro/mensalidades', 'Mensalidades', Receipt, { keywords: ['pagamentos', 'contribuição'] }));
+    }
+    // Avisos da Área do Médium (AM-09): só com `area_medium` (plano + chave do piloto) — sem oferta de plano.
+    if (can('area_medium') && view('comunicados')) {
+      corrente.push(link('/admin/comunicados', 'Avisos', Megaphone, { keywords: ['comunicados', 'recados', 'área do médium', 'quem leu'] }));
     }
 
     const casa: NavEntry[] = [];

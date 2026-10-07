@@ -160,6 +160,9 @@ Rotas existentes e suas features:
 - Cursos Presenciais → `PermissionFeature.CURSOS_PRESENCIAIS`
 - Site do terreiro (Meu Site, `sites.py`, inclusive imagens) → `PermissionFeature.SITE` (T-06; antes usava
   CURSOS_PRESENCIAIS — as migracoes 061/062 copiaram as permissoes de Cursos para `site` em todo grupo)
+- Avisos da Area do Medium (`comunicados.py`, AM-09) → `PermissionFeature.COMUNICADOS` ("Avisos da Area",
+  grupo "Corrente" na tela de perfis; publicar = insert, editar = edit, arquivar = delete, lista e quem
+  leu = view) + `require_plan_feature("area_medium")` no router (migracoes 070/071)
 
 Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
 leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
@@ -221,10 +224,15 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   (agenda, avisos, mensalidade). Leitura unica em `services/medium_area`: `area_medium_enabled_by_tenant`
   (usado pelo `require_medium` e pelo `compute_areas`), `get_area_medium_config` e
   `area_medium_modulos`/`modulos_visiveis` (mensalidade so com `mensalidade_mediun` no plano).
-  `GET /medium/me` devolve `modulos`, `boas_vindas` e `whatsapp_casa`. Card novo da Area que tem
-  modulo: esconder/recusar quando o modulo estiver fora de `area_medium_modulos` (ex.: Agenda, AM-07 —
-  dependencia `require_agenda_ligada` em `medium/agenda.py` → 403 neutro `MEDIUM_MODULO_INDISPONIVEL`;
-  aba com `modulo` em `MEDIUM_TABS` some da barra).
+  `GET /medium/me` devolve `modulos`, `boas_vindas`, `whatsapp_casa` e `avisos_nao_lidos` (AM-09). Card
+  novo da Area que tem modulo: esconder/recusar quando o modulo estiver fora de `area_medium_modulos`
+  (modelos: `require_modulo_avisos` em `api/v1/medium/avisos.py` → 403 neutro `MEDIUM_MODULO_DESLIGADO`;
+  `require_agenda_ligada` em `api/v1/medium/agenda.py` → 403 neutro `MEDIUM_MODULO_INDISPONIVEL`;
+  no front, `modulo` na entrada de `MEDIUM_TABS`).
+- **Avisos (AM-09)**: `/api/v1/admin/comunicados*` (COMUNICADOS view/insert/edit/delete + `area_medium`;
+  `GET /{id}/leituras` = quem leu e quem nao leu, so nomes) e `/api/v1/medium/avisos*` (so publicados, nao
+  expirados, do publico do medium; `POST /{id}/lido` com `require_not_impersonated`; leituras sempre por
+  `ctx.medium.id`). O medium nunca ve quem mais leu (D-07). Detalhes em §11.23.
 - **Agenda (AM-07)**: `GET /medium/agenda` (+ `/agenda/gira/{id}` e `/agenda/gira/{id}/ics`) so le giras
   ativas do tenant do `ctx`; formato unificado `{origem, id, tipo{nome, icone, cor}, titulo, inicio, fim,
   local, minha_participacao}` que o AM-08/AM-17 estendem. `giras.orientacoes_corrente` (069) e dado SO da
@@ -694,8 +702,12 @@ Incluir obrigatoriamente:
 
 ### 11.8 Cadeia de Migracoes Alembic
 - Head atual: `069_giras_orientacoes_corrente` (2026-10-07, AM-07: `giras.orientacoes_corrente`, so na Area
-  do Medium), apos `068_area_medium_config_pix` (2026-10-07, AM-10: colunas `area_medium_*` em `tenant_configs` e
-  `pix_*` em `mensalidade_configs`), apos `067_medium_convites` (2026-10-07, AM-03: tabela `medium_convites` —
+  do Medium; encadeada depois da 071 no merge com o AM-09), apos `071_comunicados` (2026-10-07, AM-09: tabelas
+  `comunicados` e `comunicado_leituras` + acesso total a `comunicados` nos grupos padrao), apos
+  `070_permissao_comunicados_enum` (`ALTER TYPE permission_feature ADD VALUE 'comunicados'`, sozinha num
+  `autocommit_block()`; a 072 e de outro card da Area e pode ser re-encadeada no merge), apos
+  `068_area_medium_config_pix` (2026-10-07, AM-10: colunas `area_medium_*` em
+  `tenant_configs` e `pix_*` em `mensalidade_configs`), apos `067_medium_convites` (2026-10-07, AM-03: tabela `medium_convites` —
   convite da casa para a Area do Medium, token sha256 unico, 7 dias, um convite em aberto por medium), apos
   `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`, chave do piloto da Area do
   Medium), apos `065_mediuns_user_id` (2026-10-07, AM-02: `mediuns.user_id` FK `users.id` ON DELETE
@@ -950,7 +962,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início e Agenda (AM-02/03/04/06/07/10, 2026-10-07)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos e Agenda (AM-02/03/04/06/07/09/10, 2026-10-07)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -990,14 +1002,14 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   Perfil (`z-40`, área segura, ícone + texto), claro/escuro do sistema, gate (sem sessão → login;
   só painel → painel). `GET /api/v1/medium/inicio` (`api/v1/medium/inicio.py`, regras puras em
   `services/medium_inicio.py`): `pendencias` já ordenadas (D-24: escala → mensalidade atrasada ou
-  a até 5 dias do vencimento — antes disso vai para "Acompanhando", decisão do dono 07/10 → aviso; escala e aviso vazios até AM-17/AM-09), `proxima_gira` (ativa, futura ou em
+  a até 5 dias do vencimento — antes disso vai para "Acompanhando", decisão do dono 07/10 → aviso novo (AM-09); escala vazia até o AM-17), `proxima_gira` (ativa, futura ou em
   andamento; só nome/horário/local e `orientacoes` = `giras.orientacoes_corrente`, AM-07), `mensalidade` do mês em
   Brasília (só com `mensalidade_mediun` e config ativa; regras do §11.10: isento/paga/pendente até
   o vencimento/atrasada depois; entrou depois do mês ou casa sem valor → null) e `avisos`
-  `{nao_lidos: 0, ultimos: []}` até o AM-09. Telas: `/medium` (faixa café "Olá, <nome>",
+  `{nao_lidos, ultimos}` (AM-09; vazio com o módulo desligado). Telas: `/medium` (faixa café "Olá, <nome>",
   pendências, próxima gira com "O que levar" e "Ver detalhes da gira" — só com o módulo agenda —,
   "Acompanhando", EmptyState), `/medium/perfil` (Ícone na tela inicial, Trocar de área, Sair) e
-  `avisos`/`mensalidade` provisórias ("Em breve").
+  `mensalidade` provisória ("Em breve").
 - **Ícone na tela inicial (D-23)**: `public/manifest-medium.webmanifest` (`id` `/medium`,
   `start_url` `/medium?source=pwa`, ícones do GiraHub), linkado só pelo `MediumLayout`; o
   `_document` não põe o manifesto da Porta nas rotas `/medium/*`. No 1º acesso do aparelho abre o
@@ -1014,6 +1026,20 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `canGroup('mediuns','edit')` (no piloto não há PlanLocked: escondido). Página pública
   `pages/convite/[token].tsx` (`AuthShell`): logo e nome da casa, "Crie sua senha de acesso" (ou a senha
   do painel), consentimento + "Ler o termo"; no aceite já entra e vai para `/medium`. Backend em §3.3.
+- **Avisos (AM-09; "Avisos" na tela, D-16 — tabelas e API admin `comunicados`)**: migrações 070 (ENUM) e 071
+  (tabelas + acesso total no grupo padrão). Painel `/admin/comunicados` (menu Corrente → "Avisos", só com
+  `can('area_medium')` e `canGroup('comunicados','view')`; sem a feature → aviso neutro, sem PlanLocked): lista com
+  "lido por N de M" (M = médiuns ativos do público com acesso à Área), `CrudDrawer` (Título, Texto, Para quem
+  `todos|atendimento|cambones`, Fixar no topo, Publicar agora/Agendar — aviso já publicado não muda a data —,
+  Sai do ar em), "Ver como o médium vê" (prévia `.medium-terra`), detalhe em Sheet com abas "Ainda não leram (N)" /
+  "Leram (N)" e "Lembrar quem não leu" (mensagem pronta: copiar ou abrir o `wa.me`). Área: `/medium/avisos`
+  (fixados primeiro, ponto de não lido, "Fixado") e `/medium/avisos/[id]` (abrir marca como lido — não envia
+  impersonando — e atualiza o selo). Texto SIMPLES: o backend tira HTML/controle ao salvar
+  (`services/comunicados.limpar_*`) e o front só renderiza nós de texto (`components/avisos/AvisoLeitura`,
+  `lib/autolink`: só `http(s)://`/`www.` viram link, `rel=noopener noreferrer nofollow`). Barra inferior:
+  aba de módulo fora de `me.modulos` some (`MEDIUM_TABS[].modulo`) e a aba Avisos tem selo com
+  `me.avisos_nao_lidos`. Público "cambones" = `is_atendimento` falso; grupos da corrente entram com o AM-23
+  (`publico = 'grupos'` + `comunicado_grupos`, a coluna é texto com CHECK). E-mail "avisar agora" é do AM-15.
 - **Agenda (AM-07)**: migração `069_giras_orientacoes_corrente` (`giras.orientacoes_corrente`, Text). Painel:
   campo "Orientações para a corrente" no drawer da gira (criar e editar; GIRAS insert/edit como os demais
   campos), componente `components/admin/giras/OrientacoesCorrenteField` — só aparece e só é enviado com
@@ -1032,8 +1058,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   vão no texto); dentro do navegador do WhatsApp/Instagram mostra como abrir no navegador). Tipos e textos em
   `components/medium/agenda.ts`. "A corrente chega às…" não é derivável (sem campo próprio): fica no texto
   das orientações.
-- **Pendente nos próximos cards**: login multi-terreiro (AM-05), Avisos (AM-09),
-  Mensalidade com Pagar com PIX e comprovante (AM-11/AM-12), atividades da casa na Agenda (AM-08).
+- **Pendente nos próximos cards**: login multi-terreiro (AM-05), Mensalidade com Pagar com PIX e
+  comprovante (AM-11/AM-12), atividades da casa na Agenda (AM-08).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

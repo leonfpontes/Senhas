@@ -395,7 +395,6 @@ describe('gate do MediumLayout', () => {
     signIn(profile);
     api({ '/api/v1/medium/me': ME }, profile);
     for (const [path, mod, titulo] of [
-      ['/medium/avisos', '@/pages/medium/avisos', 'Avisos'],
       ['/medium/mensalidade', '@/pages/medium/mensalidade', 'Mensalidade'],
     ]) {
       mockRouter.pathname = path;

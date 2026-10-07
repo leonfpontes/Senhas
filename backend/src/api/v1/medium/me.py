@@ -3,7 +3,8 @@
 Devolve só o que o próprio médium pode ver: nome, foto da conta, terreiro,
 marca (o mesmo subconjunto público de `GET /admin/tenant/branding`, que já é
 servido sem autenticação nas páginas de senha), áreas, módulos ligados e a
-configuração da Área (boas-vindas e WhatsApp da casa, AM-10).
+configuração da Área (boas-vindas e WhatsApp da casa, AM-10) e quantos avisos ainda não foram
+lidos (selo da aba Avisos, AM-09).
 Campos internos do cadastro (`observacoes`, contatos, mensalidade) ficam fora.
 """
 from typing import List, Optional
@@ -14,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import MediumContext, require_medium
+from src.api.v1.medium.avisos import avisos_do_medium
 from src.api.v1.auth.profile import _build_photo_url
 from src.core.database import get_db
 from src.models import Tenant, TenantConfig
@@ -54,6 +56,8 @@ class MediumMeResponse(BaseModel):
     # (só dígitos com DDI, para o botão "Falar com a casa").
     boas_vindas: Optional[str] = None
     whatsapp_casa: Optional[str] = None
+    # Avisos que o médium ainda não leu (selo da aba Avisos, AM-09); 0 com o módulo desligado.
+    avisos_nao_lidos: int = 0
 
 
 @router.get("/me", response_model=MediumMeResponse)
@@ -81,6 +85,11 @@ async def get_medium_me(
             fc = config.custom_settings.get("font_color")
             font_color = fc if isinstance(fc, str) else None
 
+    modulos = modulos_visiveis(area, get_effective_plan_features(sub).mensalidade_mediun)
+    avisos_nao_lidos = 0
+    if "avisos" in modulos:
+        avisos_nao_lidos = sum(1 for _, lido_em in await avisos_do_medium(db, ctx) if lido_em is None)
+
     return MediumMeResponse(
         nome=ctx.medium.nome,
         foto_url=_build_photo_url(request, ctx.user),
@@ -92,7 +101,8 @@ async def get_medium_me(
             font_color=font_color,
         ),
         areas=areas_payload(ctx.user, ctx.medium),
-        modulos=modulos_visiveis(area, get_effective_plan_features(sub).mensalidade_mediun),
+        modulos=modulos,
         boas_vindas=area.boas_vindas,
         whatsapp_casa=area.whatsapp,
+        avisos_nao_lidos=avisos_nao_lidos,
     )

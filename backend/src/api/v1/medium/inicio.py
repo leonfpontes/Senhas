@@ -4,16 +4,17 @@ Tudo é "meu": o terreiro vem de `ctx.tenant_id` e o médium de `ctx.medium` (nu
 requisição). Devolve, numa chamada só:
 
 - `pendencias`: o que o médium precisa resolver, já na ordem da tela (D-24: escala → mensalidade
-  a vencer/vencida → aviso novo). Escala (AM-17) e avisos (AM-09) entram nos próximos cards.
+  a vencer/vencida → aviso novo). Escala entra no AM-17.
 - `proxima_gira`: a próxima gira ativa do terreiro (ou a que está acontecendo agora), só com o
   que a corrente precisa — nome, horário e local. Nada de senhas ou consulentes.
   `orientacoes` = `giras.orientacoes_corrente` (AM-07: o que levar, só na Área).
 - `mensalidade`: a do mês corrente (Brasília), só com o plano `mensalidade_mediun` e a
   configuração de mensalidade ativa; regras em `services/medium_inicio.py`.
-- `avisos`: `{nao_lidos: 0, ultimos: []}` até o AM-09.
+- `avisos` (AM-09): `{nao_lidos, ultimos}` — quantos avisos o médium ainda não leu e os 3 mais
+  novos deles (só título/data/fixado); zerado quando a casa desligou o módulo "avisos" (AM-10).
 """
 from datetime import date, datetime, timedelta
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -21,10 +22,12 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import MediumContext, require_medium
+from src.api.v1.medium.avisos import avisos_do_medium
 from src.core.database import get_db
 from src.core.tz import today_local, utc_now
 from src.models import Gira, MensalidadeConfig, MensalidadePagamento
 from src.repositories.subscription_repo import SubscriptionRepository
+from src.services.medium_area import get_area_medium_config
 from src.services.medium_inicio import MensalidadeDoMes, montar_pendencias, situacao_mensalidade
 from src.services.plan_features import get_effective_plan_features
 
@@ -53,9 +56,16 @@ class MensalidadeInicio(BaseModel):
     data_pagamento: Optional[datetime] = None
 
 
+class AvisoInicio(BaseModel):
+    id: str
+    titulo: str
+    fixado: bool
+    publicado_em: datetime
+
+
 class AvisosInicio(BaseModel):
     nao_lidos: int = 0
-    ultimos: List[Any] = []
+    ultimos: List[AvisoInicio] = []
 
 
 class InicioResponse(BaseModel):
@@ -129,6 +139,21 @@ async def _mensalidade(db: AsyncSession, ctx: MediumContext, hoje: date) -> Opti
     return situacao
 
 
+async def _avisos(db: AsyncSession, ctx: MediumContext) -> AvisosInicio:
+    """Avisos não lidos (AM-09): contagem e os 3 mais novos. Módulo desligado → vazio."""
+    if not (await get_area_medium_config(db, ctx.tenant_id)).avisos:
+        return AvisosInicio()
+    nao_lidos = [c for c, lido_em in await avisos_do_medium(db, ctx) if lido_em is None]
+    nao_lidos.sort(key=lambda c: c.publicar_em, reverse=True)
+    return AvisosInicio(
+        nao_lidos=len(nao_lidos),
+        ultimos=[
+            AvisoInicio(id=str(c.id), titulo=c.titulo, fixado=c.fixado, publicado_em=c.publicar_em)
+            for c in nao_lidos[:3]
+        ],
+    )
+
+
 @router.get("/inicio", response_model=InicioResponse)
 async def get_medium_inicio(
     ctx: MediumContext = Depends(require_medium),
@@ -136,7 +161,7 @@ async def get_medium_inicio(
 ) -> InicioResponse:
     hoje = today_local()
     mensalidade = await _mensalidade(db, ctx, hoje)
-    avisos = AvisosInicio(nao_lidos=0, ultimos=[])  # AM-09
+    avisos = await _avisos(db, ctx)
     return InicioResponse(
         hoje=hoje,
         pendencias=montar_pendencias(hoje=hoje, mensalidade=mensalidade, avisos_nao_lidos=avisos.nao_lidos),
