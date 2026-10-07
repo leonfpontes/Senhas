@@ -75,7 +75,7 @@ Caminhos abreviados: **B/** = `backend/src/`, **F/** = `frontend/src/`. A próxi
 | 33 | C-03 Glossário | P2 | 4 | P | Backlog |
 | 34 | C-04 GiraHub × caderno | P2 | 4 | P | Backlog |
 | 35 | C-08 Tutoriais em vídeo | P2 | 4 | M | Backlog |
-| 36 | T-02 Token de acesso tipado | P2 | 4 | P | Backlog |
+| 36 | T-02 Token de acesso tipado | P0 | 4 | P | Backlog |
 | 37 | F-03 WhatsApp automático | P2 | 4 | G | Backlog |
 | 38 | F-04 Portal do médium | P2 | 4 | G | Backlog |
 | 39 | F-05 Ficha espiritual | P2 | 4 | M | Backlog |
@@ -1110,8 +1110,11 @@ primeira gira. O Tupam promete tutoriais e mostra "em breve"; nós entregamos.
 - [ ] Embutidos na landing e no onboarding
 
 ### T-02 — Token de acesso tipado (allowlist no decode)
-- **Ranking:** 36 · **Prioridade:** P2 · **Onda:** 4 · **Esforço:** P · **Tipo:** dev · **Módulo:** Conta & Segurança · **Épico:** Fundação
-- **Depende de:** — · **Destrava:** F-04, F-10
+- **Ranking:** 36 · **Prioridade:** P0 · **Onda:** 4 · **Esforço:** P · **Tipo:** dev · **Módulo:** Conta & Segurança · **Épico:** Fundação
+- **Depende de:** — · **Destrava:** AM-03, AM-05 (Área do Médium), F-10
+
+> 2026-10-07: subiu de P2 para P0. É dependência dura da Área do Médium e, sem tela, corre junto com o estudo
+> de experiência (AM-00). Ver `docs/plano-area-do-medium.md` §11.
 
 **Por quê.** O access token não tem `type`. O `decode_token` (`B/security/jwt.py:170`) só rejeita `type=="refresh"`,
 ou seja, funciona como lista de bloqueio. O F-10 (token `mfa_pending`) e o F-04 (token de convite) criariam tokens que
