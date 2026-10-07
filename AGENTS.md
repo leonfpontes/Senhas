@@ -83,6 +83,13 @@ tenant redundante (barato) a uma excecao.
 **Fluxo de autenticacao via cookie HttpOnly (desde 2026-06-27):**
 - Login seta 3 cookies: `access_token` (HttpOnly, Secure, SameSite=Strict), `refresh_token` (HttpOnly), `auth_state=1` (nao-HttpOnly — legivel por JS para verificar login). Cadastro (`/public/onboarding`) e reativacao de conta setam os mesmos 3 (helper unico `core/auth_cookies.set_auth_cookies`). `remember_me=false` no login → cookies de sessao (sem max_age), mantido no `/auth/refresh` (ver §11.22).
 - `/auth/refresh` implementado: le `refresh_token` do cookie, valida com `decode_refresh_token` (requer `type=refresh`), emite novo access + rotaciona refresh.
+- Claim `type` do JWT (T-02): todo access token sai de `create_access_token` com `type=access`
+  (login, refresh, impersonacao, reativacao, cadastro). `decode_token` (usado pelo `jwt_middleware`)
+  e ALLOWLIST: so `type=access`; `refresh` e tipos desconhecidos (`account_select`, `mfa_pending`,
+  convite...) dao 401. Tipo novo de JWT = `type` proprio + decoder proprio, nunca `decode_token`.
+  Janela de compatibilidade: token SEM `type` so passa se `iat < LEGACY_UNTYPED_ACCESS_CUTOFF`
+  (2026-10-08T00:00Z) e ainda dentro de `ACCESS_TOKEN_EXPIRE_HOURS` do `iat`; ramo legado
+  removivel a partir de 2026-10-10 (detalhes em `docs/authentication.md`).
 - `jwt_middleware` extrai token do header `Authorization: Bearer` primeiro (impersonacao via sessionStorage), depois fallback para cookie `access_token`.
 - `jwt_middleware` public_paths inclui `/auth/refresh`, `/auth/forgot-password`, `/auth/reset-password`.
 - Frontend usa `withCredentials: true` no axios — nao ha token no header para sessoes normais.

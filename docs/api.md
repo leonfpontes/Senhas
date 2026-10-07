@@ -31,11 +31,12 @@ Header:   { "alg": "HS256", "typ": "JWT" }
 Payload:  {
   "sub": "user-id",
   "tenant_id": "tenant-uuid",
-  "email": "user@example.com",
-  "role": "ADMIN|CONSULENTE",
+  "role": "super_admin|admin|operator",
   "iat": 1646416200,
-  "exp": 1646502600
+  "exp": 1646502600,
+  "type": "access"
 }
+// Only `type: "access"` authenticates requests (see docs/authentication.md, T-02).
 Signature: HMAC-SHA256(base64(header) + "." + base64(payload), SECRET)
 ```
 
