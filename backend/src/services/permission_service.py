@@ -53,6 +53,7 @@ class PermissionService:
             PermissionFeature.RELATORIO_GIRA: "relatorio_gira",
             PermissionFeature.CURSOS_PRESENCIAIS: "site_builder",  # Cursos uses site builder / pro elements
             PermissionFeature.SITE: "site_builder",  # Site do terreiro (T-06)
+            PermissionFeature.COMUNICADOS: "area_medium",  # Avisos da Área do Médium (AM-09)
         }
 
         flag_attr = mapping.get(feature)
