@@ -8,6 +8,7 @@ import { SubscriptionProvider } from '@/hooks/useSubscription';
 import { ProfileProvider } from '@/hooks/useProfile';
 import { BirthdayProvider } from '@/providers/BirthdayProvider';
 import { PermissionsProvider } from '@/hooks/usePermissions';
+import { MediumProvider } from '@/components/medium/MediumProvider';
 import { SnackbarProvider } from '@/contexts/SnackbarContext';
 import { Toaster } from '@/components/ui/sonner';
 import ClarityAnalytics from '@/components/shared/ClarityAnalytics';
@@ -51,24 +52,29 @@ function MyApp({ Component, pageProps }: AppProps) {
       <ServiceWorkerRegistrar />
       {/* Passagem animada marketing ⇄ telas de conta (só nesse trecho do site) */}
       <PassagemDeEntrada />
+      {/* Providers do painel (tema do terreiro, assinatura, permissões, aniversariantes) só chamam
+          /api/v1/admin/* em rota /admin/* e para quem tem o painel; o MediumProvider só chama
+          /api/v1/medium/me em /medium/* (AM-04/AM-06 — médium puro nunca chama o admin). */}
       <TenantAwareThemeProvider>
         <ProfileProvider>
-          <SubscriptionProvider>
-            <PermissionsProvider>
-              <SnackbarProvider>
-                {/* Microsoft Clarity — só com NEXT_PUBLIC_CLARITY_PROJECT_ID no build E consentimento de estatísticas */}
-                <ClarityAnalytics />
-                <BirthdayProvider>
-                  {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}
-                  <TourProvider steps={[]} styles={tourStyles}>
-                    <Component {...pageProps} />
-                  </TourProvider>
-                </BirthdayProvider>
-                {/* Toasts (Sonner) — `useSnackbar()` e `toast()` desembocam aqui */}
-                <Toaster />
-              </SnackbarProvider>
-            </PermissionsProvider>
-          </SubscriptionProvider>
+          <MediumProvider>
+            <SubscriptionProvider>
+              <PermissionsProvider>
+                <SnackbarProvider>
+                  {/* Microsoft Clarity — só com NEXT_PUBLIC_CLARITY_PROJECT_ID no build E consentimento de estatísticas */}
+                  <ClarityAnalytics />
+                  <BirthdayProvider>
+                    {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}
+                    <TourProvider steps={[]} styles={tourStyles}>
+                      <Component {...pageProps} />
+                    </TourProvider>
+                  </BirthdayProvider>
+                  {/* Toasts (Sonner) — `useSnackbar()` e `toast()` desembocam aqui */}
+                  <Toaster />
+                </SnackbarProvider>
+              </PermissionsProvider>
+            </SubscriptionProvider>
+          </MediumProvider>
         </ProfileProvider>
       </TenantAwareThemeProvider>
     </>

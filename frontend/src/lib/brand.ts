@@ -103,21 +103,57 @@ const SURFACES = {
  * (`bg-primary/15`). Primária amarela no claro ou índigo escuro no escuro somem sem isso.
  */
 export function brandTextColor(primary: string, mode: 'light' | 'dark'): string {
+  const surfaces = SURFACES[mode];
+  return brandTextColorOn(primary, mode, surfaces, [surfaces[0]]);
+}
+
+/**
+ * Mesma busca de `brandTextColor` para um conjunto qualquer de superfícies (`surfaces`) e de
+ * bases do fundo suave da marca (`softBases`, onde a marca entra a 15%). Usada pela Área do
+ * Médium, cujas superfícies são as da paleta terra (areia no claro, café no escuro).
+ */
+export function brandTextColorOn(
+  primary: string,
+  mode: 'light' | 'dark',
+  surfaces: readonly string[],
+  softBases: readonly string[] = surfaces,
+): string {
   const rgb = parseColor(primary);
   if (!rgb) return mode === 'light' ? '#4f46e5' : '#a5b4fc';
   const target: Rgb = mode === 'light' ? [0, 0, 0] : [255, 255, 255];
-  const surfaces = SURFACES[mode];
-  const softBase = parseColor(surfaces[0]) as Rgb;
-  const soft = toHex(mixRgb(softBase, rgb, 0.15));
+  const softs = softBases.map((base) => toHex(mixRgb(parseColor(base) as Rgb, rgb, 0.15)));
   for (let step = 0; step <= 20; step += 1) {
     const candidate = toHex(mixRgb(rgb, target, step * 0.05));
     // Margem no fundo suave: o Tailwind mistura `bg-primary/15` em oklab, que dá um tom um
     // pouco diferente da mistura em sRGB calculada aqui (medido: 4,44 onde a conta dava 5,0).
-    if (surfaces.every((bg) => contrastRatio(candidate, bg) >= WCAG_AA_CONTRAST) && contrastRatio(candidate, soft) >= 5.2) {
+    if (
+      surfaces.every((bg) => contrastRatio(candidate, bg) >= WCAG_AA_CONTRAST) &&
+      softs.every((soft) => contrastRatio(candidate, soft) >= 5.2)
+    ) {
       return candidate;
     }
   }
   return toHex(target);
+}
+
+/**
+ * Superfícies da Área do Médium (paleta terra, `.medium-terra` em globals.css): claro = cartão
+ * branco, fundo areia-50 e caixa areia-100; escuro = cartão café-900, fundo café-950 e caixa
+ * café-800. Espelhadas em __tests__/styles/marketingContrast.test.ts.
+ */
+export const TERRA_SURFACES = {
+  light: ['#ffffff', '#fcf8f2', '#f7eee1'],
+  dark: ['#26170f', '#180e09', '#3b2519'],
+} as const;
+
+/**
+ * Cor do terreiro para texto na Área do Médium: escreve `--terra-brand-text-light`/`-dark`
+ * (lidas por `.medium-terra` em `--primary-text`, ou seja, `text-brand`). As cores de fundo da
+ * marca (`--primary`, `--primary-foreground`) continuam vindo do `applyBrand`.
+ */
+export function applyTerraBrandText(root: HTMLElement, primary: string): void {
+  root.style.setProperty('--terra-brand-text-light', brandTextColorOn(primary, 'light', TERRA_SURFACES.light));
+  root.style.setProperty('--terra-brand-text-dark', brandTextColorOn(primary, 'dark', TERRA_SURFACES.dark));
 }
 
 /**

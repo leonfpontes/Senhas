@@ -15,6 +15,7 @@ import React, {
 import { apiClient } from '../services/api_client';
 import { useSubscription } from '../hooks/useSubscription';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAdminDataEnabled } from '../hooks/useAdminDataEnabled';
 
 interface BirthdayContextValue {
   /** Number of médiuns with birthday today (dias=0). */
@@ -29,7 +30,9 @@ export function BirthdayProvider({ children }: { children: React.ReactNode }) {
   const [birthdayCount, setBirthdayCount] = useState(0);
   const { can, loading: subLoading } = useSubscription();
   const { can: canGroup, loading: permLoading } = usePermissions();
-  const allowed = !subLoading && !permLoading && can('mediuns') && canGroup('mediuns', 'view');
+  // Só no painel (/admin/*) e para quem tem o painel (AM-04).
+  const adminData = useAdminDataEnabled();
+  const allowed = adminData && !subLoading && !permLoading && can('mediuns') && canGroup('mediuns', 'view');
 
   useEffect(() => {
     if (!allowed) return;

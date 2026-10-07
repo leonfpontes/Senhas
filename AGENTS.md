@@ -177,6 +177,10 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `medium_router` perder prefixo/`require_medium` ou se um router de `medium/` ficar fora dele.
   `scripts/audit_tenant_isolation.py` (modo "medium") exige filtro por tenant e, em modelo do
   medium (`Medium` e FK para `mediuns`), por `ctx.medium.id`; e acusa `medium_id` vindo da requisicao.
+- Frontend da Area (AM-04/AM-06, detalhes em §11.23): toda pagina de `src/pages/medium/` renderiza
+  `<MediumLayout>` (gate de area; `frontend/scripts/audit-permission-guards.js` falha sem ele) e so chama
+  `/api/v1/medium/*`. Conta sem painel nunca chama `/api/v1/admin/*` (providers do painel so em `/admin/*`;
+  `api_client` cancela). Telas do medium nao usam `canGroup`/`PlanLocked`: sem area → aviso neutro.
 - Papel `medium` em `users.py`: a lista de Usuarios esconde `medium` (so com `?role_filter=medium`);
   `medium` nao se cria nem se atribui sem vinculo (422 — a conta nasce do convite, AM-03); "Adicionar"
   com o e-mail de um `medium` do terreiro promove a MESMA conta (papel pedido, grupo padrao, senha e
@@ -894,8 +898,8 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — fundação de identidade (AM-02, 2026-10-07)
-Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Só backend até aqui; nenhuma tela.
+### 11.23 Área do Médium — identidade, escolha de área, casca e Início (AM-02/04/06, 2026-10-07)
+Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
   tem painel; operador/admin que é médium mantém o papel e ganha a Área pelo vínculo. O vínculo só
@@ -908,9 +912,47 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Só back
   `/auth/profile` e no login (front só tipou `UserAreas` em `useProfile.tsx`; quem decide a rota
   pela área é o AM-04).
 - **Plano**: `area_medium` Basic+ no catálogo e no espelho `constants/plans.ts` (fora do quadro).
-- **Pendente nos próximos cards**: convite e ativação (AM-03), escolha de área no login (AM-04),
-  login multi-terreiro (AM-05), casca/telas (AM-06+), config da Área (AM-10, hoje sempre ligada),
-  auditor JS de `pages/medium` com `MediumLayout`, slug `escolher-area`.
+- **Escolha de área (AM-04)**: `services/authSession.completeLogin` guarda o `user` COM as `areas`
+  e manda pela tabela do plano §6.4 (`lib/areas.routeAfterLogin`): super admin → `/platform`; só
+  painel → `/admin/dashboard`; só médium → `/medium`; as duas → escolha lembrada
+  (`girahub:area:{userId}` no localStorage, try/catch) ou `/escolher-area` (dois cartões, "Lembrar
+  minha escolha neste aparelho" marcado); nenhuma → `/medium`, que mostra o aviso neutro "A Área do
+  Médium não está disponível agora. Fale com a direção da casa." (sem oferta de plano). "Trocar de
+  área" no menu do perfil do `AdminTopbar` (só com `areas.medium`) e no menu/Perfil da Área (só com
+  `areas.admin`): mesma sessão, só muda a rota, atualiza a escolha lembrada se houver. Evento
+  `area_escolhida {area, lembrada, origem}`. `/login` tem "Recebi um convite da casa" (o primeiro
+  acesso é pelo link do convite). `escolher-area` está em `RESERVED_SLUGS`.
+- **Médium puro nunca chama `/api/v1/admin/*`**: `hooks/useAdminDataEnabled` faz
+  `SubscriptionProvider`, `PermissionsProvider`, `BirthdayProvider` e o branding do
+  `TenantAwareThemeProvider` só buscarem em rota `/admin/*` e quando a conta tem o painel (rota via
+  `next/compat/router`; conta = perfil ou `user` guardado); o `api_client` ainda cancela
+  (`CanceledError`, sem rede) qualquer `/api/v1/admin/*` de quem sabidamente não tem o painel
+  (`lib/areas.knownWithoutAdminArea`, inclusive impersonando um `medium`); o `admin_layout`
+  manda essa conta para `/medium` sem montar o painel.
+- **Casca e Início (AM-06)**: `MediumProvider` (no `_app`) busca `GET /api/v1/medium/me` só em
+  `/medium/*` e com `areas.medium`, e aplica a marca (`applyMediumBrand` = `applyBrand` +
+  `applyTerraBrandText`); 403/402 → aviso neutro. `components/medium/MediumLayout` (toda página de
+  `pages/medium/` usa — `scripts/audit-permission-guards.js` exige): cabeçalho com logo e nome do
+  terreiro e linha da marca, menu "Menu" (Trocar de área, Sair = `services/authSession.logout`, que
+  encerra só a impersonação quando há uma), barra inferior Início · Agenda · Avisos · Mensalidade ·
+  Perfil (`z-40`, área segura, ícone + texto), claro/escuro do sistema, gate (sem sessão → login;
+  só painel → painel). `GET /api/v1/medium/inicio` (`api/v1/medium/inicio.py`, regras puras em
+  `services/medium_inicio.py`): `pendencias` já ordenadas (D-24: escala → mensalidade pendente/
+  atrasada → aviso; escala e aviso vazios até AM-17/AM-09), `proxima_gira` (ativa, futura ou em
+  andamento; só nome/horário/local; `orientacoes` null até o AM-07), `mensalidade` do mês em
+  Brasília (só com `mensalidade_mediun` e config ativa; regras do §11.10: isento/paga/pendente até
+  o vencimento/atrasada depois; entrou depois do mês ou casa sem valor → null) e `avisos`
+  `{nao_lidos: 0, ultimos: []}` até o AM-09. Telas: `/medium` (faixa café "Olá, <nome>",
+  pendências, próxima gira, "Acompanhando", EmptyState), `/medium/perfil` (Ícone na tela inicial,
+  Trocar de área, Sair) e `agenda`/`avisos`/`mensalidade` provisórias ("Em breve").
+- **Ícone na tela inicial (D-23)**: `public/manifest-medium.webmanifest` (`id` `/medium`,
+  `start_url` `/medium?source=pwa`, ícones do GiraHub), linkado só pelo `MediumLayout`; o
+  `_document` não põe o manifesto da Porta nas rotas `/medium/*`. No 1º acesso do aparelho abre o
+  passo "Deixe a Área na tela inicial" (`InstallAreaSheet`: Android/iPhone, aviso de quem abriu no
+  WhatsApp, prompt nativo quando o Chrome oferece; lembrado em `girahub:medium-instalar-visto`);
+  também pelo Perfil. `sw.js` sem mudança (nunca cacheia `/api/*`).
+- **Pendente nos próximos cards**: convite e ativação (AM-03), login multi-terreiro (AM-05), Agenda
+  (AM-07), Avisos (AM-09), config da Área (AM-10, hoje sempre ligada), Mensalidade/PIX (AM-11).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
@@ -946,11 +988,20 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Só back
   que o `deploy.yml` repassa ao build — trocar o número = mudar a variável e redeployar.
   Página nova de primeiro nível → `backend/src/core/reserved_slugs.py` (teste quebra se faltar) e
   `STATIC_ROUTES` do `pages/sitemap.xml.tsx`.
+- **Área do Médium (AM-06)**: identidade do site novo (paleta terra + Fraunces) com a COR E O LOGO DO TERREIRO nos
+  detalhes. Escopo `.medium-terra` (globals.css; `MediumLayout`, `/escolher-area` e os overlays que eles abrem — Sheet e
+  DropdownMenu recebem a classe e `fraunces.variable`, porque são portados para o `<body>`): fundos/texto/bordas da
+  paleta terra (areia no claro, café no escuro), mas `--primary`/`--primary-foreground` continuam do `applyBrand` (botão
+  principal, aba ativa, data da gira, linha do cabeçalho) e `text-brand` lê `--terra-brand-text-light/-dark`, calculadas
+  por `applyTerraBrandText` (`lib/brand.brandTextColorOn` contra `TERRA_SURFACES`). Faixas café (`bg-cafe-950`) com título
+  branco, eyebrow `text-ouro-300` e texto `text-areia-200`, fio da marca `from-primary to-ouro-400`. Pares travados em
+  `__tests__/styles/marketingContrast.test.ts` (claro e escuro, 8 cores de terreiro difíceis). Só na Área; nunca no painel.
 - **Claro/escuro**: classe `dark` em `<html>` (não no layout — Radix porta overlays para o `<body>`), aplicada por
-  `AdminThemeProvider`/`PlatformThemeProvider` (chaves `admin_theme_mode`/`platform_theme_mode`); páginas públicas sempre claras.
+  `AdminThemeProvider`/`PlatformThemeProvider` (chaves `admin_theme_mode`/`platform_theme_mode`) e, na Área do Médium,
+  pelo `MediumLayout` seguindo o sistema (`prefers-color-scheme`); páginas públicas sempre claras.
 - **Overlays**: Sheet/Dialog/AlertDialog/Select/Popover/DropdownMenu usam o z-index padrão do Radix (`z-50`); quem abre por
   último fica por cima, então calendário e Combobox dentro do `CrudDrawer` funcionam. Barras fixas: topbar `z-30`,
-  `MobileTabBar` e `BulkActionsBar` `z-40`. Não usar `z-[1300]`/`z-[1400]` (eram para ficar acima do AppBar do MUI).
+  `MobileTabBar`, `BulkActionsBar` e a barra inferior da Área do Médium `z-40` (cabeçalho da Área `z-30`). Não usar `z-[1300]`/`z-[1400]` (eram para ficar acima do AppBar do MUI).
   Barra fixa embaixo numa tela admin fica **acima da `MobileTabBar` no celular** (`bottom-[calc(env(safe-area-inset-bottom)+56px)]
   md:bottom-0`). Nada flutuante por cima do conteúdo: o antigo balão "Ajuda" saiu em 2.1.0.
 - **Menu do perfil** (`AdminTopbar`): Perfil, Mostrar primeiros passos, **Falar com o suporte** (abre o `SupportChatWidget`;
@@ -977,7 +1028,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Só back
   `/platform`; `/platform/billing` → aba Assinaturas de `/platform/tenants`; `/platform/users_global` e `/platform/profile`
   → abas de `/platform/settings`. Parâmetros: `?nova=1`/`?compartilhar=1` em Giras, `?passos=1` no Início, `?gira=` em
   Porta/Senhas/modo TV, `?plan=` no billing e no cadastro. Impersonação aceita `#token=` (e ainda a query string).
-- **PWA (P-01)**: `public/manifest.webmanifest` (`start_url` `/admin/porta?source=pwa`, `standalone`), ícones gerados
+- **PWA (P-01)**: `public/manifest.webmanifest` (`start_url` `/admin/porta?source=pwa`, `standalone`; nas rotas `/medium/*`
+  o `_document` não o linka — lá vale o `manifest-medium.webmanifest` da Área, §11.23), ícones gerados
   de `public/favicon.svg` por `scripts/generate-icons.mjs`, `public/sw.js` escrito à mão (sem workbox/next-pwa) registrado por
   `components/shared/ServiceWorkerRegistrar` só em produção + contexto seguro (`?v=<buildId>`; caches antigos apagados no
   `activate`), `/offline` como fallback de navegação. **Regra: o SW nunca cacheia `/api/*`** (nem `/ws/*`, `/_next/data/*`,
