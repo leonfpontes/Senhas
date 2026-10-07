@@ -148,6 +148,17 @@ em `mensalidade_configs`: `pix_tipo` (`String(10)`, CHECK `ck_mensalidade_config
 (`DateTime(tz)`, só muda quando tipo/chave mudam). Trocar a chave: `PUT /admin/financeiro/config/pix` (senha + e-mail
 aos admins + auditoria mascarada).
 
+**Comprovante enviado pelo médium (migração 072, AM-11/AM-12):** em `mensalidade_pagamentos`,
+`comprovante_enviado_em` (`DateTime(tz)`), `comprovante_enviado_por` (UUID FK → `users.id` **ON DELETE SET NULL**,
+`fk_mensalidade_pagamentos_comprovante_enviado_por`), `recusa_motivo` (`Text`, o médium vê) e `recusado_em`
+(`DateTime(tz)`). O status continua `PENDENTE` até a casa confirmar (sem valor novo em `mensalidade_status`): "em
+conferência" = pendente + `comprovante_enviado_em` + arquivo guardado + sem recusa depois do envio; "não
+confirmada" = `recusado_em >= comprovante_enviado_em`. Reenvio limpa a recusa. Comprovante anexado pelo painel não
+preenche `comprovante_enviado_em`. Índice parcial `ix_mensalidade_pagamentos_conferir` em
+`(tenant_id, comprovante_enviado_em) WHERE comprovante_enviado_em IS NOT NULL AND status = 'PENDENTE'` (fila
+"Comprovantes para conferir" sem varrer o BYTEA). O arquivo continua em `comprovante_data` (BYTEA): pela Área o
+limite é 2 MB (o navegador reduz a foto antes); pelo painel, 5 MB.
+
 ---
 
 ### `tenant_configs`

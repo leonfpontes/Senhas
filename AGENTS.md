@@ -234,6 +234,20 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `frontend/src/lib/pixChave.ts`. BR Code estatico ("PIX copia e cola") so no servidor:
   `services/pix_brcode.build_static_brcode` (+ `txid_mensalidade`), testado contra os exemplos do
   Manual de Padroes para Iniciacao do Pix (BCB v2.10.0) — nunca montar o payload no front.
+- **Mensalidade na Area (AM-11/AM-12, decisao D-25)**: `api/v1/medium/mensalidades.py` —
+  `GET /medium/mensalidades`, `GET /medium/mensalidades/{AAAA-MM}/pix` e
+  `POST /medium/mensalidades/{AAAA-MM}/comprovante`. Alem do `require_medium`, exigem o modulo
+  "mensalidade" visivel (`require_modulo_mensalidade` → `area_medium_modulos`: casa ligou E plano
+  efetivo com `mensalidade_mediun`; senao 403 neutro `MEDIUM_MODULO_INDISPONIVEL`). O mes `AAAA-MM`
+  e o unico parametro. O medium NUNCA marca pago: o comprovante deixa o registro PENDENTE com
+  `comprovante_enviado_em` ("em conferencia"); o envio e recusado sob impersonacao, limitado a
+  20/h por IP, JPEG/PNG/WebP/PDF ate 2 MB conferido pelos bytes (`services/medium_mensalidade.
+  validar_comprovante`) e auditado sem o arquivo (`mensalidade_comprovante_medium`). Status por mes
+  = `services/medium_inicio.situacao_mensalidade` (a MESMA regra do Inicio); meses exibidos =
+  `medium_mensalidade.meses_da_area`. Lado do painel (`admin/mensalidade_comprovantes.py`,
+  FINANCEIRO + `mensalidade_mediun`): fila `GET .../mensalidades/comprovantes-para-conferir` (view),
+  "Confirmar pagamento" = o POST de registro de sempre com PAGO (insert; espelha em contas a
+  receber) e "Nao confirmar" = `PATCH .../mensalidades/{mediun_id}/{mes}/recusa` com motivo (edit).
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -683,7 +697,10 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `068_area_medium_config_pix` (2026-10-07, AM-10: colunas `area_medium_*` em `tenant_configs` e
+- Head atual: `072_mensalidade_comprovante_medium` (2026-10-07, AM-11/AM-12: `comprovante_enviado_em/_por`,
+  `recusa_motivo`, `recusado_em` e o indice parcial `ix_mensalidade_pagamentos_conferir` em
+  `mensalidade_pagamentos`; criada sobre a 068 em paralelo com as 069-071 do AM-07/AM-09 — no merge, encadear
+  depois delas), apos `068_area_medium_config_pix` (2026-10-07, AM-10: colunas `area_medium_*` em `tenant_configs` e
   `pix_*` em `mensalidade_configs`), apos `067_medium_convites` (2026-10-07, AM-03: tabela `medium_convites` —
   convite da casa para a Area do Medium, token sha256 unico, 7 dias, um convite em aberto por medium), apos
   `066_tenant_area_medium` (2026-10-07: `tenants.area_medium_liberada`, chave do piloto da Area do
@@ -711,7 +728,18 @@ Incluir obrigatoriamente:
 - **Isencao permanente**: `mensalidade_isento` em Medium/Associado e editavel nos dois cadastros (switch "Isento de mensalidade"); isento nao gera conta e nao entra no esperado/inadimplentes.
 - **Config**: `enable_mensalidade_associado` e ligado so em Financeiro → Configuracao → Mensalidade (saiu de Configuracoes). `email_relatorio_ativo` nao tem mais toggle na tela (nenhum job lia e nao havia botao de envio); a coluna continua e `POST /relatorio/enviar` nao depende mais dela.
 - **Chave PIX (AM-10)**: `mensalidade_configs.pix_*` (067) — tipo, chave (formato do DICT), nome do recebedor (≤ 25), cidade (≤ 15), instrucoes e `pix_alterado_em`. Endpoint proprio `PUT /financeiro/config/pix` com senha + e-mail aos admins + auditoria mascarada (detalhes em §3.3, Area do Medium); o PUT `/financeiro/config` nao toca nesses campos. Tela: card "Chave PIX da mensalidade" (`components/financeiro/PixConfigCard.tsx`) na aba Mensalidade de `/admin/financeiro/config`, com previa do QR (`qrcode.react`) do BR Code gerado no servidor e copia-e-cola.
-- **Comprovante**: BYTEA no banco, limite 5MB, tipos aceitos: jpeg/png/webp/pdf.
+- **Comprovante**: BYTEA no banco, limite 5MB pelo painel (2 MB pela Area do Medium), tipos aceitos: jpeg/png/webp/pdf.
+- **Comprovante enviado pelo medium (AM-11/AM-12, migracao 072)**: o medium envia pela Area e o registro do mes
+  fica PENDENTE com `comprovante_enviado_em/_por` (sem valor novo no ENUM; `valor_vigente` capturado no 1o
+  registro, como no painel). "Em conferencia" = pendente + enviado + arquivo guardado + sem recusa depois do
+  envio (`medium_mensalidade.comprovante_para_conferir`; a lista do mes devolve `comprovante_para_conferir`).
+  Na tela, so com `can('area_medium')` (sem a Area ela fica como antes): KPI e fila "Comprovantes para conferir"
+  (`components/financeiro/ComprovantesParaConferir`, todos os meses), selo/filtro "Comprovante enviado" e botao
+  "Conferir" no `CobrancaMensal` (prop `onConferir`), sheet de conferencia com o comprovante (rota de download
+  existente): "Confirmar pagamento" (POST de registro com PAGO, valor esperado e a data do envio — espelha em
+  contas a receber; o arquivo do medium fica) e "Nao confirmar" (motivos rapidos + texto → `PATCH .../recusa`,
+  FINANCEIRO edit). O medium ve o motivo e pode reenviar (o reenvio limpa a recusa). E-mail ao admin quando
+  chega comprovante: AM-15.
 - **Relatorio**: email HTML gerado por `render_mensalidade_report()` com KPI cards + tabela inadimplentes.
 - **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns / Associados / Historico; KPIs com o dia de vencimento de cada grupo, "Inadimplentes" so apos o vencimento) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`). `/admin/associados` carrega todas as paginas da API (limit 200) para a busca local.
 - **Migration 027**: ENUM `mensalidade_status`, tabelas `mensalidade_configs` + `mensalidade_pagamentos`, coluna `mediuns.mensalidade_isento BOOLEAN DEFAULT false`.
@@ -939,7 +967,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca e Início (AM-02/03/04/06/10, 2026-10-07)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início e Mensalidade (AM-02/03/04/06/10/11/12, 2026-10-07)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -976,7 +1004,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `pages/medium/` usa — `scripts/audit-permission-guards.js` exige): cabeçalho com logo e nome do
   terreiro e linha da marca, menu "Menu" (Trocar de área, Sair = `services/authSession.logout`, que
   encerra só a impersonação quando há uma), barra inferior Início · Agenda · Avisos · Mensalidade ·
-  Perfil (`z-40`, área segura, ícone + texto), claro/escuro do sistema, gate (sem sessão → login;
+  Perfil (`z-40`, área segura, ícone + texto; aba de módulo — hoje a Mensalidade — some quando
+  `modulos` do `/medium/me` não a traz, `visibleMediumTabs`), claro/escuro do sistema, gate (sem sessão → login;
   só painel → painel). `GET /api/v1/medium/inicio` (`api/v1/medium/inicio.py`, regras puras em
   `services/medium_inicio.py`): `pendencias` já ordenadas (D-24: escala → mensalidade atrasada ou
   a até 5 dias do vencimento — antes disso vai para "Acompanhando", decisão do dono 07/10 → aviso; escala e aviso vazios até AM-17/AM-09), `proxima_gira` (ativa, futura ou em
@@ -985,7 +1014,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   o vencimento/atrasada depois; entrou depois do mês ou casa sem valor → null) e `avisos`
   `{nao_lidos: 0, ultimos: []}` até o AM-09. Telas: `/medium` (faixa café "Olá, <nome>",
   pendências, próxima gira, "Acompanhando", EmptyState), `/medium/perfil` (Ícone na tela inicial,
-  Trocar de área, Sair) e `agenda`/`avisos`/`mensalidade` provisórias ("Em breve").
+  Trocar de área, Sair) e `agenda`/`avisos` provisórias ("Em breve"; a mensalidade saiu no AM-11).
 - **Ícone na tela inicial (D-23)**: `public/manifest-medium.webmanifest` (`id` `/medium`,
   `start_url` `/medium?source=pwa`, ícones do GiraHub), linkado só pelo `MediumLayout`; o
   `_document` não põe o manifesto da Porta nas rotas `/medium/*`. No 1º acesso do aparelho abre o
@@ -1002,8 +1031,19 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `canGroup('mediuns','edit')` (no piloto não há PlanLocked: escondido). Página pública
   `pages/convite/[token].tsx` (`AuthShell`): logo e nome da casa, "Crie sua senha de acesso" (ou a senha
   do painel), consentimento + "Ler o termo"; no aceite já entra e vai para `/medium`. Backend em §3.3.
-- **Pendente nos próximos cards**: login multi-terreiro (AM-05), Agenda (AM-07), Avisos (AM-09),
-  Mensalidade com Pagar com PIX e comprovante (AM-11/AM-12).
+- **Mensalidade (AM-11/AM-12)**: `/medium/mensalidade` (`components/medium/mensalidade/*`): cartão do mês
+  (valor em Fraunces, etiqueta, vencimento) com uma ação principal por situação — em aberto/atrasada → "Pagar com
+  PIX" (+ "Já paguei: enviar comprovante"); "Aguardando a casa confirmar"; não confirmado → motivo + "Enviar outro
+  comprovante" + "Falar com a casa" (WhatsApp da casa do `/medium/me`); paga; "Você é isento de mensalidade"; sem
+  chave PIX → "Combine o pagamento com a casa". Depois: meses em aberto (tocar troca o cartão), "Quer pagar todo mês
+  sem lembrar?" (Pix Agendado Recorrente) e meses anteriores. `PagarPixSheet`: copiar o PIX copia e cola
+  (`navigator.clipboard`, plano B `execCommand`, e "toque e segure" se nada funcionar — navegador do WhatsApp),
+  abrir o banco, enviar comprovante; QR (`qrcode.react`) e chave recolhidos; "A casa trocou a chave PIX em dd/mm"
+  por 30 dias. `EnviarComprovanteSheet`: câmera ou foto/PDF, prévia, foto reduzida no navegador para JPEG
+  (`prepararComprovante`, até 2 MB), erros com a próxima ação. Início: o botão da pendência é "Pagar com PIX"
+  (`/medium/mensalidade?pagar=1` abre o sheet); "não confirmado" vira pendência ("Ver o motivo"); em conferência
+  fica em "Acompanhando". Backend e regras em §3.3 e §11.10.
+- **Pendente nos próximos cards**: login multi-terreiro (AM-05), Agenda (AM-07), Avisos (AM-09).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
