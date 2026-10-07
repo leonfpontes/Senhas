@@ -91,7 +91,7 @@ describe('Convite da casa', () => {
     expect(await screen.findByRole('dialog', { name: 'Termo de uso dos seus dados' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Entendi' }));
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /Autorizo Tenda Luz da Mata/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /autorizo Tenda Luz da Mata/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Ativar meu acesso' }));
 
     await waitFor(() => expect(window.location.href).toBe('/medium'));
@@ -107,7 +107,7 @@ describe('Convite da casa', () => {
     render(<ConvitePage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
     fireEvent.change(screen.getByLabelText(/Senha de acesso/), { target: { value: 'abc' } });
-    fireEvent.click(screen.getByRole('checkbox', { name: /Autorizo/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /autorizo/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Ativar meu acesso' }));
     await waitFor(() => expect(screen.getByLabelText(/Senha de acesso/)).toHaveAttribute('aria-invalid', 'true'));
     expect(mockPost).not.toHaveBeenCalled();
@@ -124,7 +124,7 @@ describe('Convite da casa', () => {
     expect(screen.queryByRole('list', { name: 'Regras da senha' })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/Senha de acesso/), { target: { value: 'qualquer' } });
-    fireEvent.click(screen.getByRole('checkbox', { name: /Autorizo/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /autorizo/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Ativar meu acesso' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Senha incorreta');
     expect(window.location.href).toBe('');

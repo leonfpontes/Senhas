@@ -6,19 +6,25 @@
  * `backend/src/services/medium_convite.py` (o teste `test_medium_convite.py` confere). Mudou o
  * texto → suba a versão nos dois lugares.
  */
+/** Mesmo canal de `PRIVACY_EMAIL` (LegalPageLayout); repetido para não puxar a moldura legal para o convite. */
+const PRIVACY_EMAIL = 'privacidade@girahub.com.br';
+
 export const AREA_MEDIUM_CONSENTIMENTO_VERSAO = '1';
 
 /** Rótulo da caixa de consentimento no aceite do convite. */
 export function consentimentoAreaLabel(casa: string): string {
-  return `Autorizo ${casa} a usar meu nome, meu contato e minhas mensalidades para organizar a corrente nesta área.`;
+  return `Li o termo e autorizo ${casa} a usar meus dados na Área do Médium.`;
 }
 
-/** Texto completo do termo ("Ler o termo"). */
+/** Texto completo do termo ("Ler o termo"), em linguagem simples (LGPD art. 9º e 11, I). */
 export function termoAreaParagrafos(casa: string): string[] {
   return [
-    `${casa} usa seu nome, seu contato, seu aniversário, suas mensalidades e suas presenças para organizar a corrente na Área do Médium.`,
-    'Só a direção da casa vê esses dados. Os outros médiuns não veem nada seu.',
-    'O GiraHub guarda os dados para a casa e não usa para outra finalidade. Você pode pedir à casa para encerrar seu acesso quando quiser.',
+    `Ao ativar seu acesso, você autoriza ${casa} a usar seus dados na Área do Médium do GiraHub para organizar a corrente: a agenda das giras e atividades, os avisos da casa, a mensalidade e, quando a casa usar, as escalas e a presença.`,
+    'Os dados usados são: seu nome, e-mail, telefone, data de aniversário e endereço (quando a casa tiver), as mensalidades e os comprovantes que você enviar, suas respostas às escalas, suas presenças e os motivos de ausência que você contar.',
+    'Quem vê: só a direção da casa e as pessoas que ela autorizar no painel. Os outros médiuns não veem nada seu.',
+    'Por que pedimos a sua autorização: fazer parte da corrente de um terreiro revela a sua religião, e a Lei Geral de Proteção de Dados (LGPD) trata isso como dado sensível. Por isso o acesso só existe com o seu sim.',
+    `O papel de cada um: ${casa} decide como os seus dados são usados. O GiraHub guarda e processa os dados para a casa e não usa para nenhuma outra finalidade — nada de anúncios nem venda de dados.`,
+    `Você pode mudar de ideia: peça à casa para encerrar o seu acesso quando quiser. Para ver ou corrigir seus dados, fale com a casa; se precisar, escreva para ${PRIVACY_EMAIL}. Mais detalhes na Política de Privacidade (girahub.com.br/privacidade).`,
   ];
 }
 

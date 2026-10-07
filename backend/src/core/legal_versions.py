@@ -7,7 +7,7 @@ falha se as duas divergirem — ao subir a versão de um documento, suba nos doi
 
 LEGAL_VERSIONS: dict[str, str] = {
     "termos": "2.1",
-    "privacidade": "2.1",
+    "privacidade": "2.2",
 }
 
 # Documentos que o cadastro exige aceitar (o checkbox "Li e aceito os Termos de Uso e a

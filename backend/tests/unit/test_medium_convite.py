@@ -118,12 +118,14 @@ def test_whatsapp_url_com_e_sem_telefone():
     assert mc.whatsapp_url("123", "a b").endswith("?text=a%20b")
 
 
-def test_mensagem_whatsapp_discreta_com_link():
+def test_mensagem_whatsapp_simpatica_com_link():
+    """No WhatsApp (enviado pela casa) vale o vocabulário do terreiro (decisão do dono, 07/10)."""
     texto = mc.mensagem_whatsapp("Ana", "Casa Luz", "https://girahub.com.br/convite/abc")
-    assert texto.startswith("Oi, Ana! Casa Luz convidou você")
+    assert texto.startswith("Oi, Ana! Tudo bem?")
+    assert "A nossa casa, Casa Luz, agora tem a Área do Médium" in texto
     assert "https://girahub.com.br/convite/abc" in texto and "7 dias" in texto
-    for termo in ("médium", "gira", "terreiro", "orixá"):
-        assert not re.search(rf"\b{termo}\b", texto.lower()), termo
+    assert texto.endswith("Axé!")
+    assert mc.mensagem_whatsapp("", "Casa Luz", "x").startswith("Oi! Tudo bem?")
 
 
 def test_template_do_email_escapa_html_e_e_discreto():

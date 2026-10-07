@@ -76,12 +76,19 @@ def primeiro_nome(nome: Optional[str]) -> str:
 
 
 def mensagem_whatsapp(primeiro: str, terreiro: str, link: str) -> str:
-    """Texto pronto que o dirigente manda pelo WhatsApp (discreto, §6.8)."""
-    saudacao = f"Oi, {primeiro}!" if primeiro else "Oi!"
+    """Texto pronto que o dirigente manda pelo WhatsApp, do jeito que se fala na casa.
+
+    Decisão do dono (07/10): no WhatsApp, que a própria casa envia, vale o vocabulário do
+    terreiro ("Área do Médium", gira, Axé) num tom simpático. O e-mail do convite segue
+    discreto (§6.8). "A nossa casa, <nome>," evita errar o artigo (do/da) do nome da casa.
+    """
+    saudacao = f"Oi, {primeiro}! Tudo bem?" if primeiro else "Oi! Tudo bem?"
     return (
-        f"{saudacao} {terreiro} convidou você para acessar sua área no GiraHub: a agenda, os avisos e a "
-        f"mensalidade da casa, tudo no seu celular. Ative seu acesso por este link "
-        f"(vale por {CONVITE_VALIDADE_DIAS} dias): {link}"
+        f"{saudacao}\n\n"
+        f"A nossa casa, {terreiro}, agora tem a Área do Médium no GiraHub: a agenda das giras, os avisos "
+        f"da casa e a sua mensalidade, tudo no seu celular.\n\n"
+        f"Toque no link para ativar o seu acesso (vale por {CONVITE_VALIDADE_DIAS} dias):\n{link}\n\n"
+        f"Qualquer dúvida, é só responder esta mensagem. Axé!"
     )
 
 
