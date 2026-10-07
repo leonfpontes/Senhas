@@ -18,7 +18,6 @@ import { Combobox, TextField } from '@/components/fields';
 interface MediumOption {
   id: string;
   nome: string;
-  is_atendimento: boolean;
 }
 
 interface AttendModalProps {

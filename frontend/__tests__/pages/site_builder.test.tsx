@@ -46,8 +46,9 @@ jest.mock('@/hooks/useSubscription', () => ({
   })),
 }));
 
+const mockGroupCan = jest.fn((_feature: string, _action: string) => true);
 jest.mock('@/hooks/usePermissions', () => ({
-  usePermissions: () => ({ can: () => true, permissions: null, loading: false, refresh: jest.fn() }),
+  usePermissions: () => ({ can: mockGroupCan, permissions: null, loading: false, refresh: jest.fn() }),
 }));
 
 jest.mock('@/pages/admin/admin_layout', () => {
@@ -92,6 +93,7 @@ function mockApi(site = SITE_DATA, sections = SECTIONS_DATA, versions: unknown[]
 describe('MeuSitePage — Admin Site Builder', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGroupCan.mockImplementation(() => true);
     mockApi();
   });
 
@@ -99,6 +101,22 @@ describe('MeuSitePage — Admin Site Builder', () => {
     const MeuSite = require('@/pages/admin/meu-site').default;
     render(<MeuSite />);
     expect(await screen.findByRole('heading', { name: 'Meu Site' })).toBeInTheDocument();
+  });
+
+  it('o gate de grupo é o "site", não o de cursos (T-06)', async () => {
+    const { apiClient } = require('@/services/api_client');
+    const MeuSite = require('@/pages/admin/meu-site').default;
+
+    mockGroupCan.mockImplementation((f: string) => f === 'cursos_presenciais');
+    const { unmount } = render(<MeuSite />);
+    expect(screen.getByText(/Você não tem permissão para visualizar o Meu Site/)).toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalled();
+    unmount();
+
+    mockGroupCan.mockImplementation((f: string) => f === 'site');
+    render(<MeuSite />);
+    expect(await screen.findByRole('heading', { name: 'Meu Site' })).toBeInTheDocument();
+    expect(mockGroupCan).not.toHaveBeenCalledWith('cursos_presenciais', expect.anything());
   });
 
   it('exibe indicador de carregamento durante fetch inicial', () => {

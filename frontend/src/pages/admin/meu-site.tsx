@@ -4,7 +4,7 @@
  * Construtor do site público do terreiro (shadcn/Tailwind, sem MUI). A tela é
  * `@/components/site/editor/SiteEditor`; aqui ficam só os gates:
  *   - plano: `site_builder` → `PlanLocked`;
- *   - grupo: `cursos_presenciais` (convenção do projeto para Sites) → `PermissionDenied`;
+ *   - grupo: `site` ("Site do terreiro", separado de Cursos desde o T-06) → `PermissionDenied`;
  *   - ações de edição/upload só com `edit`/`insert`.
  */
 'use client';
@@ -44,9 +44,9 @@ export default function MeuSitePage() {
   usePageTitle(PAGE_TITLE);
   const { can, loading: subLoading } = useSubscription();
   const { can: canGroup } = usePermissions();
-  const canView = canGroup('cursos_presenciais', 'view');
-  const canEdit = canGroup('cursos_presenciais', 'edit');
-  const canInsert = canGroup('cursos_presenciais', 'insert');
+  const canView = canGroup('site', 'view');
+  const canEdit = canGroup('site', 'edit');
+  const canInsert = canGroup('site', 'insert');
 
   let content: React.ReactNode;
   if (subLoading) {

@@ -33,6 +33,7 @@ class PermissionFeature(str, enum.Enum):
     ANALYTICS = "analytics"
     RELATORIO_GIRA = "relatorio_gira"
     CURSOS_PRESENCIAIS = "cursos_presenciais"
+    SITE = "site"  # "Site do terreiro" (Meu Site) — separado de Cursos no T-06
     PORTA = "porta"
     CONTAS_FINANCEIRAS = "contas_financeiras"
 

@@ -1,11 +1,14 @@
 /**
  * Modo TV — exibição em tela cheia da fila da porta, para a televisão da sala de espera.
  * Fonte enorme, alto contraste, o número atual e os três próximos; o título da aba mostra o
- * número chamado. Continua exigindo login (chamadas via apiClient → 401 leva ao /login).
+ * número chamado. Continua exigindo login (chamadas via apiClient → 401 leva ao /login) e o
+ * grupo `porta` (view).
  * Rota: /admin/porta/kiosk?gira=<id>  (gira opcional; sem ela usa a gira de hoje, pela mesma
  * regra do GiraContext — `pickTodayGira`).
- * Privacidade: a TV é pública na sala de espera — mostra só o primeiro nome e a inicial do
- * sobrenome ("Maria S."), nunca o nome completo.
+ * Privacidade (T-04): a TV é pública na sala de espera. A fila vem de
+ * `GET /giras/{id}/door/tv`, que só traz número, nome reduzido no servidor ("Maria S."),
+ * próximas senhas e a última chamada — nunca e-mail, telefone, nome completo ou ids. Não usar
+ * `/door/queue` aqui.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
@@ -13,7 +16,8 @@ import Head from 'next/head';
 import { Loader2 } from 'lucide-react';
 import { apiClient } from '@/services/api_client';
 import { pickTodayGira } from '@/components/admin/GiraContext';
-import { nomeParaTv, normalizeLegacyStatus, numeroDaSenha } from '@/components/admin/senhaFormat';
+import { PermissionDenied } from '@/components/gates';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const POLLING_INTERVAL_MS = 8000;
 
@@ -23,27 +27,50 @@ interface Gira {
   data_inicio: string;
   is_active: boolean;
 }
-interface QueueItem {
-  id: string;
-  numero: number;
-  status: string;
-  consulente_nome: string | null;
-  preferencial: boolean;
-  is_sponsor: boolean;
+/** Payload de `GET /api/v1/admin/giras/{id}/door/tv` (só o que a TV mostra). */
+interface TvSenha {
   numero_formatado: string;
-  checkin_em: string | null;
+  nome: string | null;
+  chamado_em: string | null;
+}
+export interface DoorTv {
+  gira_nome: string;
+  atual: TvSenha | null;
+  proximas: string[];
+  ultima_chamada: TvSenha | null;
+}
+
+function horaCurta(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
 export default function PortaKioskPage() {
+  const { can: canGroup, loading: permLoading } = usePermissions();
+  const canView = canGroup('porta', 'view');
+
+  if (!permLoading && !canView) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#05070f] px-6">
+        <PermissionDenied className="max-w-md" />
+      </main>
+    );
+  }
+  return <KioskContent canView={canView} />;
+}
+
+function KioskContent({ canView }: { canView: boolean }) {
   const router = useRouter();
   const [giraId, setGiraId] = useState<string>('');
   const [giraNome, setGiraNome] = useState<string>('');
-  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [tv, setTv] = useState<DoorTv | null>(null);
   const [loading, setLoading] = useState(true);
   const [clock, setClock] = useState('');
   const prevNextRef = useRef<string | null>(null);
 
   const loadGiras = useCallback(async () => {
+    if (!canView) return;
     try {
       const res = await apiClient.get('/api/v1/admin/giras');
       const all: Gira[] = Array.isArray(res.data) ? res.data : res.data.items || [];
@@ -60,19 +87,20 @@ export default function PortaKioskPage() {
     } catch {
       setLoading(false);
     }
-  }, [router.query.gira]);
+  }, [router.query.gira, canView]);
 
   const loadQueue = useCallback(async () => {
-    if (!giraId) return;
+    if (!giraId || !canView) return;
     try {
-      const res = await apiClient.get(`/api/v1/admin/giras/${giraId}/door/queue`);
-      setQueue(Array.isArray(res.data?.items) ? res.data.items.map(normalizeLegacyStatus) : []);
+      const res = await apiClient.get<DoorTv>(`/api/v1/admin/giras/${giraId}/door/tv`);
+      setTv(res.data ?? null);
+      if (res.data?.gira_nome) setGiraNome(res.data.gira_nome);
     } catch {
       /* tenta de novo no próximo ciclo */
     } finally {
       setLoading(false);
     }
-  }, [giraId]);
+  }, [giraId, canView]);
 
   useEffect(() => {
     if (router.isReady) loadGiras();
@@ -93,13 +121,13 @@ export default function PortaKioskPage() {
     return () => clearInterval(t);
   }, []);
 
-  const waiting = queue.filter((t) => t.status === 'emitted');
-  const nextInLine = waiting.find((t) => t.checkin_em) ?? null;
-  const upcoming = waiting.filter((t) => t.id !== nextInLine?.id).slice(0, 3);
+  const atual = tv?.atual ?? null;
+  const upcoming = tv?.proximas ?? [];
+  const ultima = tv?.ultima_chamada ?? null;
 
-  // Som quando o "próximo" muda
+  // Som quando o "próximo" muda (o número formatado é único na gira: "0042" ou "P003").
   useEffect(() => {
-    if (nextInLine && prevNextRef.current && prevNextRef.current !== nextInLine.id) {
+    if (atual && prevNextRef.current && prevNextRef.current !== atual.numero_formatado) {
       try {
         const audio = new Audio('/sounds/notification.mp3');
         audio.play().catch(() => {});
@@ -107,12 +135,12 @@ export default function PortaKioskPage() {
         /* ambiente sem Audio */
       }
     }
-    prevNextRef.current = nextInLine?.id ?? null;
-    // Depende do id, não do objeto: o som só toca quando o "próximo" realmente muda.
+    prevNextRef.current = atual?.numero_formatado ?? null;
+    // Depende do número, não do objeto: o som só toca quando o "próximo" realmente muda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextInLine?.id]);
+  }, [atual?.numero_formatado]);
 
-  const numeroAtual = nextInLine ? numeroDaSenha(nextInLine) : null;
+  const numeroAtual = atual ? atual.numero_formatado : null;
 
   return (
     <>
@@ -145,12 +173,12 @@ export default function PortaKioskPage() {
             >
               {numeroAtual ?? '—'}
             </p>
-            {nextInLine?.consulente_nome && (
+            {atual?.nome && (
               <p className="mt-4 max-w-[90vw] truncate text-3xl font-bold md:text-6xl" data-testid="kiosk-nome">
-                {nomeParaTv(nextInLine.consulente_nome)}
+                {atual.nome}
               </p>
             )}
-            {!nextInLine && (
+            {!atual && (
               <p className="mt-4 text-2xl text-white/60 md:text-4xl">Aguardando a próxima pessoa chegar</p>
             )}
 
@@ -158,17 +186,27 @@ export default function PortaKioskPage() {
               <section className="mt-12 flex flex-col items-center gap-3 md:mt-20" aria-label="Próximas senhas">
                 <p className="text-lg tracking-[0.3em] text-white/50 uppercase md:text-2xl">Próximas</p>
                 <ol className="flex flex-wrap justify-center gap-6 md:gap-12">
-                  {upcoming.map((t) => (
+                  {upcoming.map((numero) => (
                     <li
-                      key={t.id}
+                      key={numero}
                       className="font-mono text-4xl font-bold text-white/70 tabular-nums md:text-7xl"
                       data-testid="kiosk-proxima"
                     >
-                      {numeroDaSenha(t)}
+                      {numero}
                     </li>
                   ))}
                 </ol>
               </section>
+            )}
+
+            {ultima && (
+              <p
+                className="absolute inset-x-0 bottom-0 px-6 py-5 text-center text-lg text-white/50 md:text-2xl"
+                data-testid="kiosk-ultima"
+              >
+                Última chamada: <span className="font-mono font-bold tabular-nums">{ultima.numero_formatado}</span>
+                {horaCurta(ultima.chamado_em) && ` às ${horaCurta(ultima.chamado_em)}`}
+              </p>
             )}
           </>
         )}

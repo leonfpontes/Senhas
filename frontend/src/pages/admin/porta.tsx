@@ -75,7 +75,6 @@ const MUTE_STORAGE_KEY = 'girahub:porta-som-mudo';
 interface MediumOption {
   id: string;
   nome: string;
-  is_atendimento: boolean;
 }
 interface Gira {
   id: string;
@@ -420,16 +419,19 @@ function PortaContent() {
     }
   };
 
+  // Sugestões do AttendModal pela própria Porta (PORTA:view): o porteiro sem acesso a Médiuns
+  // também escolhe da lista, em vez de digitar nomes com grafias diferentes (T-05).
   const loadMediunOptions = async () => {
     try {
       const [mRes, cRes] = await Promise.all([
-        apiClient.get<MediumOption[]>('/api/v1/admin/mediuns/options?only_atendimento=true'),
-        apiClient.get<MediumOption[]>('/api/v1/admin/mediuns/options'),
+        apiClient.get<MediumOption[]>('/api/v1/admin/door/mediuns-options?only_atendimento=true'),
+        apiClient.get<MediumOption[]>('/api/v1/admin/door/mediuns-options?only_atendimento=false'),
       ]);
       setMediumOptions(Array.isArray(mRes?.data) ? mRes.data : []);
       setCamboneOptions(Array.isArray(cRes?.data) ? cRes.data : []);
-    } catch {
-      /* opcional */
+    } catch (err) {
+      console.error('Erro ao carregar médiuns para a Porta:', err);
+      toast.error('Não foi possível carregar a lista de médiuns. Dá para digitar o nome ao chamar.');
     }
   };
 
