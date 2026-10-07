@@ -185,6 +185,8 @@ services:
         # Sentry — NEXT_PUBLIC_* é inlined no build; o environment abaixo não basta
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
         NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
+        # WhatsApp comercial (V-06) — inlined no build; vazio esconde os botões
+        NEXT_PUBLIC_SUPPORT_WHATSAPP: ${NEXT_PUBLIC_SUPPORT_WHATSAPP:-}
     container_name: senhas-frontend
     restart: always
     depends_on:

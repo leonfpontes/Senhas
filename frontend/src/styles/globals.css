@@ -158,9 +158,34 @@
 
   /* Mesma pilha do adminTheme (FONT_FAMILY). */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+
+  /* Paleta "terra" das páginas de marketing (landing, /planos — V-08). Cores ESTÁTICAS: não mudam
+   * com o tema nem com applyBrand, então nunca usar no painel. Pares aprovados em AA estão em
+   * __tests__/styles/marketingContrast.test.ts (texto: tinta/tinta-suave/barro-700 sobre areia;
+   * areia/ouro sobre café; branco sobre barro-600+/folha-600+; café-950 sobre ouro). */
+  --color-areia-50: #fcf8f2;
+  --color-areia-100: #f7eee1;
+  --color-areia-200: #eedfc8;
+  --color-areia-300: #e0c9a6;
+  --color-tinta: #2b1d14;
+  --color-tinta-suave: #6a5444;
+  --color-barro-500: #c0612f;
+  --color-barro-600: #a64b22;
+  --color-barro-700: #86391a;
+  --color-cafe-800: #3b2519;
+  --color-cafe-900: #26170f;
+  --color-cafe-950: #180e09;
+  --color-ouro-300: #f3cb74;
+  --color-ouro-400: #e9b04a;
+  --color-ouro-500: #c98e1e;
+  --color-folha-600: #2e6a4e;
+  --color-folha-700: #24543d;
 }
 
 @theme inline {
+  /* Serifa de títulos do marketing: Fraunces via next/font, cuja variável só existe dentro do
+   * MarketingShell — por isso `inline` (resolvida no elemento, não no :root). */
+  --font-display: var(--font-fraunces), Georgia, 'Times New Roman', serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

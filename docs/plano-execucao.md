@@ -656,6 +656,16 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   pesadas que antes (ver `docs/bundle-baseline.md`) e merecem uma rodada de corte (import de ícones, zod/RHF só
   onde há formulário).
 
+## Fase 5 — Pós-benchmark de concorrentes (2026-10-06)
+
+Backlog derivado do [benchmark-concorrentes-2026-10.md](benchmark-concorrentes-2026-10.md), detalhado em
+[plano-benchmark-2026-10.md](plano-benchmark-2026-10.md): 47 cards com ranking global em 5 ondas, incluindo
+I-02 e P-02 deste plano e a decisão de transição dos clientes Pro (X-01). Esse arquivo é a fonte da verdade do
+board "GiraHub" no Trello: edite lá e rode `scripts/trello_sync_backlog.py`. As restrições deste plano (custo
+zero, R-01 a R-04) continuam valendo lá.
+
+---
+
 ## Regras de trabalho (vigentes a partir de agora)
 
 - **R-01 — Congelamento de módulos novos** — `cumprida` (2026-10-05): nenhum módulo/feature novo

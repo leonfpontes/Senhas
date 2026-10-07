@@ -29,19 +29,20 @@ export interface PlanComparisonProps {
   className?: string;
 }
 
-type Cell = boolean | string;
+export type Cell = boolean | string;
 
-interface RowDef {
+export interface RowDef {
   label: string;
   cells: Record<PlanKey, Cell>;
 }
 
-interface GroupDef {
+export interface GroupDef {
   group: string;
   rows: RowDef[];
 }
 
-function buildGroups(): GroupDef[] {
+/** Linhas do comparativo (fonte única do painel e da página pública /planos). */
+export function buildComparisonGroups(): GroupDef[] {
   const base: GroupDef = {
     group: 'Base',
     rows: BASE_FEATURES.map((label) => ({
@@ -82,7 +83,7 @@ function CellValue({ value, emphasized }: { value: Cell; emphasized: boolean }) 
   );
 }
 
-const GROUPS = buildGroups();
+const GROUPS = buildComparisonGroups();
 
 export function PlanComparison({ currentPlan, highlightPlan, className }: PlanComparisonProps) {
   const isMobile = useMediaQuery('(max-width: 639px)');
