@@ -6,7 +6,8 @@
 - Reenvio de e-mail só das senhas ativas da gira informada.
 - Logo enviada (logo_data) aparece na página de emissão; agenda pública sem giras inativas.
 - Login / esqueci a senha / cadastro sem diferença de maiúsculas no e-mail;
-  e-mail repetido em dois terreiros não derruba o esqueci a senha.
+  e-mail repetido em dois terreiros não derruba o esqueci a senha; terreiro desativado mais
+  antigo não ganha da conta ativa em outro terreiro (login, esqueci a senha, reativação).
 - Cadastro grava a prova do aceite dos Termos e da Privacidade (versão, data, IP, navegador).
 - Cadastro e reativação abrem a sessão com os 3 cookies; "Lembrar-me"
   desmarcado gera cookies de sessão e o refresh mantém o modo.
@@ -356,6 +357,51 @@ async def test_reativacao_abre_sessao_e_mostra_o_resultado_real(client, db, monk
     de_novo = await client.post("/api/v1/auth/reactivate-account", json={"email": "voltei@example.com", "password": SENHA})
     assert de_novo.status_code == 409
     assert de_novo.json()["error_code"] == "NOT_DEACTIVATED"
+
+
+async def _terreiro_desativado_mais_antigo_e_conta_ativa_em_outro(db, email):
+    """Terreiro de teste desativado (conta mais antiga) + conta ativa em outro terreiro."""
+    velho, atual = await create_tenant(db, name="Terreiro de Teste"), await create_tenant(db, name="Terreiro Atual")
+    await db.execute(
+        update(Tenant).where(Tenant.id == velho.id).values(is_active=False, self_deactivated_at=datetime.now(timezone.utc))
+    )
+    await db.commit()
+    agora = datetime.now(timezone.utc)
+    await _user(db, velho, email, created_at=agora - timedelta(days=90), is_active=False)
+    ativa = await _user(db, atual, email, created_at=agora)
+    return velho, atual, ativa
+
+
+async def test_login_prefere_conta_ativa_a_terreiro_desativado_mais_antigo(client, db):
+    velho, atual, ativa = await _terreiro_desativado_mais_antigo_e_conta_ativa_em_outro(db, "medium@example.com")
+
+    resp = await client.post("/api/v1/auth/login", json={"email": "medium@example.com", "password": SENHA})
+
+    assert resp.status_code == 200, resp.text  # antes: 401 TENANT_DEACTIVATED do terreiro velho
+    assert resp.json()["user"]["id"] == str(ativa.id)
+    assert resp.json()["user"]["tenant_id"] == str(atual.id)
+
+    # E a reativação não religa o terreiro velho por engano: a conta escolhida é a ativa.
+    reativa = await client.post("/api/v1/auth/reactivate-account", json={"email": "medium@example.com", "password": SENHA})
+    assert reativa.status_code == 409
+    assert reativa.json()["error_code"] == "NOT_DEACTIVATED"
+    await db.refresh(velho)
+    assert velho.self_deactivated_at is not None
+
+
+async def test_esqueci_a_senha_vai_para_a_conta_ativa(client, db, monkeypatch):
+    monkeypatch.setattr("src.services.email.resend_fallback.ResendEmailService.send_async", AsyncMock(return_value=True))
+    monkeypatch.setattr("src.services.email.brevo_provider.BrevoEmailService.send_async", AsyncMock(return_value=True))
+    _, _, ativa = await _terreiro_desativado_mais_antigo_e_conta_ativa_em_outro(db, "esqueci@example.com")
+
+    resp = await client.post("/api/v1/auth/forgot-password", json={"email": "esqueci@example.com"})
+
+    assert resp.status_code == 200, resp.text
+    from src.core.database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as fresh:
+        token = (await fresh.execute(select(User.reset_token_hash).where(User.id == ativa.id))).scalar_one()
+    assert token is not None  # antes: escolhia a conta inativa e nenhum link saía
 
 
 # ── Curso ─────────────────────────────────────────────────────────────────────

@@ -27,7 +27,7 @@ from src.core.logging import log_security_event
 from src.services import session_service
 from src.core.auth_cookies import clear_auth_cookies, is_impersonated_request, set_auth_cookies
 from src.services.medium_area import compute_areas
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +56,20 @@ def normalize_login_email(email: str) -> str:
 
 def user_by_login_email_stmt(email: str):
     """SELECT do usuário pelo e-mail de login: ignora maiúsculas e, se o mesmo
-    e-mail existir em mais de um terreiro, fica com a conta mais antiga (regra
-    do login — o /forgot-password e a reativação seguem a mesma)."""
+    e-mail existir em mais de um terreiro, fica com a conta ativa (usuário ativo
+    num terreiro não desativado) e, entre elas, a mais antiga (regra do login —
+    o /forgot-password e a reativação seguem a mesma).
+
+    Conta inativa só é escolhida quando não há nenhuma ativa. Antes ganhava
+    sempre a mais antiga: quem tinha desativado um terreiro de teste e depois
+    virou médium/operador de outro com o mesmo e-mail caía no "Deseja
+    reativá-la?" do terreiro velho — e reativava sem querer."""
+    conta_ativa = (User.is_active.is_(True)) & (Tenant.self_deactivated_at.is_(None))
     return (
         select(User)
+        .outerjoin(Tenant, Tenant.id == User.tenant_id)
         .where((func.lower(User.email) == normalize_login_email(email)) & (User.deleted_at.is_(None)))
-        .order_by(User.created_at.asc())
+        .order_by(case((conta_ativa, 0), else_=1), User.created_at.asc())
         .limit(1)
     )
 
@@ -135,9 +143,9 @@ async def login(
         UnauthorizedError: If credentials invalid
         NotFoundError: If user not found
     """
-    # Email may exist in multiple tenants — pick the oldest active record.
-    # If a user belongs to multiple tenants, the first-created account wins.
-    # Case-insensitive (see normalize_login_email).
+    # Email may exist in multiple tenants — active account (active user in a
+    # non-deactivated tenant) first, then the oldest. Case-insensitive.
+    # See user_by_login_email_stmt.
     stmt = user_by_login_email_stmt(credentials.email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
