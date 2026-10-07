@@ -9,8 +9,8 @@ export interface Testimonial {
   /** Como a pessoa pediu para ser chamada (ex.: "Mãe Maria de Oxum"). */
   nome: string;
   casa: string;
-  cidade: string;
-  uf: string;
+  cidade?: string;
+  uf?: string;
   texto: string;
   /** Caminho da foto em /public, ou omitido (mostra as iniciais). */
   foto?: string;
@@ -20,7 +20,23 @@ export interface Testimonial {
   autorizadoEm: string;
 }
 
-export const TESTIMONIALS: readonly Testimonial[] = [];
+export const TESTIMONIALS: readonly Testimonial[] = [
+  {
+    nome: 'Sacerdote Marcelo',
+    casa: 'Tuccco — Tenda de Umbanda Caboclo Cobra Coral',
+    texto:
+      'Desde que começamos a usar o site GiraHub, a organização do terreiro deu um salto de qualidade. A liberação das senhas ficou muito mais eficiente, evitando filas e agendamentos confusos. Além disso, a organização do terreiro, em relação à mensalidade, contas a pagar e a receber, e ao controle de estoque, ficou muito mais eficaz. A comunicação com os frequentadores também se tornou mais clara, trazendo mais tranquilidade e segurança para todos. Recomendo fortemente!',
+    // Depoimento e foto enviados pelo dono do GiraHub em 2026-10-07 (autorização do dirigente
+    // guardada fora do repositório — docs/marketing/kit-depoimentos.md).
+    autorizadoEm: '2026-10-07',
+  },
+];
+
+/** "Casa · Cidade/UF", omitindo o que não foi informado. */
+export function testimonialPlace(t: Testimonial): string {
+  const local = t.cidade ? `${t.cidade}${t.uf ? `/${t.uf}` : ''}` : '';
+  return [t.casa, local].filter(Boolean).join(' · ');
+}
 
 /** Só letras, números, ponto e sublinhado — o resto do @ é descartado. */
 export function instagramUrl(handle: string): string {

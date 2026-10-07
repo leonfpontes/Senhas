@@ -94,9 +94,11 @@ describe('V-03 depoimentos', () => {
   });
 
   it('mostra nome, casa, cidade e @ com link seguro', () => {
+    const outro = { nome: 'Pai Teste', casa: 'Outra Casa', texto: 'Outro texto.', autorizadoEm: '2026-10-06' };
     render(
       <Testimonials
         items={[
+          outro,
           {
             nome: 'Mãe Teste de Oxum',
             casa: 'Casa Teste',
@@ -114,6 +116,16 @@ describe('V-03 depoimentos', () => {
     const ig = screen.getByRole('link', { name: '@casa.teste' });
     expect(ig).toHaveAttribute('href', 'https://instagram.com/casa.teste');
     expect(ig).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('com um depoimento só, mostra em destaque com o texto completo', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { TESTIMONIALS } = require('@/constants/testimonials');
+    render(<Testimonials items={TESTIMONIALS.slice(0, 1)} />);
+    const sec = screen.getByRole('region', { name: /palavra de quem cuida da casa/i });
+    expect(within(sec).getByText(TESTIMONIALS[0].nome)).toBeInTheDocument();
+    expect(within(sec).getByText(/salto de qualidade/)).toBeInTheDocument();
+    expect(within(sec).getByText('Tuccco — Tenda de Umbanda Caboclo Cobra Coral')).toBeInTheDocument();
   });
 
   it('instagramUrl descarta caracteres fora do padrão do Instagram', () => {
