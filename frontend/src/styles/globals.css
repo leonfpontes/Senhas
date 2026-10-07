@@ -146,6 +146,31 @@
   --sidebar-border: rgba(255, 255, 255, 0.08);
 }
 
+/* Telas de conta (/login, /cadastro, esqueci/redefinir senha, reativar — `components/auth/AuthShell`):
+ * o kit (Button, Checkbox, ToggleGroup, anel de foco, `text-brand`, campos) passa a usar a paleta
+ * "terra" da landing, e não a cor do último terreiro que o applyBrand() deixou no :root. Sempre claro.
+ * Pares de contraste em __tests__/styles/marketingContrast.test.ts. */
+.auth-terra {
+  --background: var(--color-areia-50);
+  --foreground: var(--color-tinta);
+  --card: #ffffff;
+  --card-foreground: var(--color-tinta);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-tinta);
+  --border: var(--color-areia-200);
+  /* Borda dos campos ~3:1 sobre o branco (WCAG 1.4.11): o areia-300 sozinho some no cartão. */
+  --input: color-mix(in srgb, var(--color-tinta-suave) 65%, #ffffff);
+  --input-bg: #ffffff;
+  --muted: var(--color-areia-100);
+  --muted-foreground: var(--color-tinta-suave);
+  --accent: var(--color-areia-100);
+  --accent-foreground: var(--color-tinta);
+  --primary: var(--color-barro-600);
+  --primary-foreground: #ffffff;
+  --primary-text: var(--color-barro-700);
+  --ring: var(--color-barro-600);
+}
+
 /* Breakpoints iguais aos do MUI (xs 0 / sm 600 / md 900 / lg 1200 / xl 1536), para que
  * `sm:` `md:` `lg:` `xl:` batam com os objetos `{ xs, sm, md }` já existentes nas telas.
  * O MUI não tem 2xl — removido para não existir um breakpoint sem equivalente. */
@@ -348,4 +373,153 @@
  * — ~2,6:1). O quadradinho continua na cor da série; o texto segue o tema. */
 .recharts-legend-item-text {
   color: var(--foreground) !important;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * Passagem landing ⇄ telas de conta (lib/passagem.ts + components/shared/PassagemDeEntrada,
+ * desenho da entrada do ATRAIR). A landing termina escura; na tela de conta o escuro recua até
+ * o painel da marca (41,67% = 5/12 da grade do AuthShell), um fio dourado acompanha a borda e o
+ * formulário surge. Na volta, o escuro avança sobre o formulário e só então a landing entra.
+ * A marca é "a mesma" nas duas páginas: voa de uma para a outra (view-transition-name).
+ * ─────────────────────────────────────────────────────────────────────────── */
+@layer components {
+  .passagem {
+    --passagem-corte: 41.6667%;
+    --passagem-tempo: 900ms;
+    --passagem-curva: cubic-bezier(0.22, 0.75, 0.12, 1);
+    --passagem-curva-volta: cubic-bezier(0.55, 0, 0.75, 0.2);
+  }
+  .marca-girahub {
+    view-transition-name: marca-girahub;
+  }
+  .passagem-fundo,
+  .passagem-costura {
+    display: none;
+    pointer-events: none;
+  }
+
+  @media (min-width: 900px) {
+    .passagem-fundo {
+      display: block;
+      position: absolute;
+      inset: 4rem 0 0 0;
+      z-index: 10;
+      background: var(--color-cafe-950);
+      clip-path: inset(0 calc(100% - var(--passagem-corte)) 0 0);
+      animation: passagem-recuar var(--passagem-tempo) var(--passagem-curva) both;
+    }
+    .passagem-costura {
+      display: block;
+      position: absolute;
+      top: 4rem;
+      bottom: 0;
+      left: var(--passagem-corte);
+      width: 2px;
+      margin-left: -1px;
+      z-index: 30;
+      background: linear-gradient(180deg, var(--color-ouro-400), var(--color-barro-600));
+      box-shadow: 0 0 24px 2px color-mix(in oklab, var(--color-ouro-400) 35%, transparent);
+      animation: passagem-costura var(--passagem-tempo) var(--passagem-curva) both;
+    }
+    .passagem-surge {
+      animation: passagem-surgir 700ms var(--passagem-curva) both;
+      animation-delay: 250ms;
+    }
+    .passagem-porta {
+      animation: passagem-surgir 700ms var(--passagem-curva) both;
+      animation-delay: calc(var(--passagem-tempo) * 0.55);
+    }
+  }
+  @media (max-width: 899.98px) {
+    .passagem-porta {
+      animation: passagem-surgir 600ms var(--passagem-curva) both;
+      animation-delay: 120ms;
+    }
+  }
+
+  /* Entre telas de conta (login ⇄ cadastro): o escuro já está no lugar, só o formulário surge. */
+  .passagem-sem-recuo .passagem-fundo,
+  .passagem-sem-recuo .passagem-costura,
+  .passagem-sem-recuo .passagem-surge {
+    animation: none;
+  }
+  .passagem-sem-recuo .passagem-porta {
+    animation: passagem-surgir 450ms var(--passagem-curva) both;
+    animation-delay: 0ms;
+  }
+
+  /* A volta: o escuro avança sobre a parte clara e o formulário se apaga (DURACAO_DA_SAIDA_MS). */
+  html[data-passagem-saindo] .passagem-porta {
+    animation: passagem-apagar 320ms ease-in both;
+  }
+  html[data-passagem-saindo] .passagem-fundo {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: var(--color-cafe-950);
+    animation: passagem-avancar 650ms var(--passagem-curva-volta) both;
+  }
+  html[data-passagem-saindo] .passagem-costura {
+    animation: passagem-costura-volta 650ms var(--passagem-curva-volta) both;
+  }
+  /* No celular o escuro é o cabeçalho: ele desce até cobrir tudo. */
+  @media (max-width: 899.98px) {
+    html[data-passagem-saindo] .passagem-fundo {
+      animation: passagem-descer 650ms var(--passagem-curva-volta) both;
+    }
+  }
+
+  @keyframes passagem-recuar {
+    from { clip-path: inset(0 0 0 0); }
+    to { clip-path: inset(0 calc(100% - var(--passagem-corte)) 0 0); }
+  }
+  @keyframes passagem-costura {
+    from { left: 100%; opacity: 0; }
+    30% { opacity: 1; }
+    to { left: var(--passagem-corte); opacity: 1; }
+  }
+  @keyframes passagem-surgir {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes passagem-avancar {
+    from { clip-path: inset(0 calc(100% - var(--passagem-corte)) 0 0); }
+    to { clip-path: inset(0 0 0 0); }
+  }
+  @keyframes passagem-costura-volta {
+    from { left: var(--passagem-corte); opacity: 1; }
+    80% { opacity: 1; }
+    to { left: 100%; opacity: 0; }
+  }
+  @keyframes passagem-descer {
+    from { clip-path: inset(0 0 100% 0); }
+    to { clip-path: inset(0 0 0 0); }
+  }
+  @keyframes passagem-apagar {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateY(8px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .passagem-fundo,
+    .passagem-costura,
+    .passagem-surge,
+    .passagem-porta {
+      animation: none !important;
+    }
+  }
+}
+
+/* A marca do cabeçalho voa entre as páginas (mesmo tempo e curva do ATRAIR). */
+::view-transition-group(marca-girahub) {
+  animation-duration: 650ms;
+  animation-timing-function: cubic-bezier(0.22, 0.75, 0.12, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }

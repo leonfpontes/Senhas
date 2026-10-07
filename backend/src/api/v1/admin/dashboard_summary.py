@@ -14,7 +14,12 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.core.onboarding import read_principal_dor
 from src.models import User
+from src.models.contas_financeiras import ContaFinanceira
+from src.models.estoque import EstoqueGrupo, EstoqueItem, EstoqueMovimentacao
 from src.models.giras import Gira
+from src.models.mediuns import Medium
+from src.models.mensalidades import MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
+from src.models.site import SiteStatus, SiteVersion, TenantSite
 from src.models.senha_controls import SenhaControl
 from src.models.tenant_config import TenantConfig
 from src.models.tenants import Tenant
@@ -90,25 +95,62 @@ class PlanBadge(BaseModel):
     status: str = "active"
 
 
-class OnboardingStatus(BaseModel):
-    """Checklist "primeira gira" do dashboard — derivado só de dados existentes.
+# Trilhas do checklist de primeiros passos (P-07 + checklist por dor, 2026-10-07): a resposta do
+# cadastro "o que você mais precisa resolver" escolhe a trilha; cada passo tem uma condição de
+# "feito" calculada de dados reais (ver `_get_onboarding_status`). Sem resposta (tenants antigos)
+# ou "Ainda estou conhecendo" → a trilha da primeira gira de sempre. Espelhado no frontend em
+# `components/admin/onboardingTrilhas.ts` (textos, links e travas de plano/permissão).
+TRILHA_POR_DOR: dict[str, str] = {
+    "senhas": "senhas",
+    "mediuns": "mediuns",
+    "financeiro": "financeiro",
+    "divulgacao": "site",
+    "estoque": "estoque",
+    "outro": "gira",
+}
+TRILHA_PADRAO = "gira"
+TRILHA_PASSOS: dict[str, tuple[str, ...]] = {
+    "gira": ("gira", "share", "tickets", "porta"),
+    "senhas": ("gira", "senhas", "share", "tickets"),
+    "mediuns": ("medium", "mensalidade", "gira"),
+    "financeiro": ("mensalidade", "pagamento", "lancamento", "gira"),
+    "site": ("site", "publicar", "gira"),
+    "estoque": ("grupo", "item", "movimentacao", "gira"),
+}
 
-    Mede o ciclo que gera valor (análise de 2026-10-05: 88% das senhas vêm do
-    link público e quem usa a Porta é quem paga): criar gira → compartilhar o
-    link → receber senhas pelo link → usar a Porta no dia da gira.
+
+def trilha_da_dor(principal_dor: Optional[str]) -> str:
+    return TRILHA_POR_DOR.get(principal_dor or "", TRILHA_PADRAO)
+
+
+class OnboardingStep(BaseModel):
+    key: str
+    done: bool = False
+
+
+class OnboardingStatus(BaseModel):
+    """Checklist de primeiros passos do dashboard — derivado só de dados existentes.
+
+    Trilha padrão ("gira"): o ciclo que gera valor (análise de 2026-10-05: 88% das senhas
+    vêm do link público e quem usa a Porta é quem paga): criar gira → compartilhar o
+    link → receber senhas pelo link → usar a Porta no dia da gira. As outras trilhas
+    seguem a dor do cadastro e terminam, quando faz sentido, na primeira gira.
     """
     has_gira: bool = False
     public_tickets: int = 0
     door_used: bool = False
     public_link: Optional[str] = None
     # Resposta do cadastro ("o que você mais precisa resolver"); define a
-    # trilha do tour de boas-vindas. None para tenants anteriores à pergunta.
+    # trilha do tour de boas-vindas e do checklist. None para tenants anteriores à pergunta.
     principal_dor: Optional[str] = None
+    trilha: str = TRILHA_PADRAO
+    steps: List[OnboardingStep] = [OnboardingStep(key=k) for k in TRILHA_PASSOS[TRILHA_PADRAO]]
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def completed(self) -> bool:
-        return self.has_gira and self.public_tickets > 0 and self.door_used
+        """Todos os passos da trilha feitos (na trilha "gira": gira + senha pelo link + Porta)."""
+        return bool(self.steps) and all(s.done for s in self.steps)
 
 
 class DashboardSummaryResponse(BaseModel):
@@ -133,6 +175,11 @@ async def _get_onboarding_status(db: AsyncSession, tenant_id: UUID) -> Onboardin
       (`emitido_por_id IS NULL`); walk-in e emissão pela equipe não contam,
       porque o passo mede se o link chegou aos consulentes.
     - door_used: alguma senha chamada ou com check-in — sinal de uso da Porta.
+    - Sinais das outras trilhas (todos `EXISTS`, baratos com os índices por tenant):
+      senhas configuradas (gira com `max_tickets` > 0), 1º médium, mensalidade com valor,
+      1º pagamento de mensalidade, 1º lançamento manual (fora o espelho das mensalidades,
+      `external_ref` "mensalidade:..."), site salvo (alguma versão) ou publicado, e grupo,
+      item e movimentação de estoque.
     """
     has_gira = exists().where(Gira.tenant_id == tenant_id, Gira.deleted_at.is_(None))
     public_tickets = (
@@ -156,19 +203,91 @@ async def _get_onboarding_status(db: AsyncSession, tenant_id: UUID) -> Onboardin
         .limit(1)
         .scalar_subquery()
     )
+    senhas_configuradas = exists().where(
+        Gira.tenant_id == tenant_id, Gira.deleted_at.is_(None), Gira.max_tickets > 0
+    )
+    tem_medium = exists().where(Medium.tenant_id == tenant_id, Medium.deleted_at.is_(None))
+    mensalidade_configurada = exists().where(
+        MensalidadeConfig.tenant_id == tenant_id,
+        MensalidadeConfig.deleted_at.is_(None),
+        MensalidadeConfig.ativo.is_(True),
+        MensalidadeConfig.valor_mensal > 0,
+    )
+    mensalidade_paga = exists().where(
+        MensalidadePagamento.tenant_id == tenant_id,
+        MensalidadePagamento.deleted_at.is_(None),
+        MensalidadePagamento.status == MensalidadeStatus.PAGO,
+    )
+    tem_lancamento = exists().where(
+        ContaFinanceira.tenant_id == tenant_id,
+        ContaFinanceira.deleted_at.is_(None),
+        or_(ContaFinanceira.external_ref.is_(None), ~ContaFinanceira.external_ref.like("mensalidade:%")),
+    )
+    site_publicado = exists().where(
+        TenantSite.tenant_id == tenant_id,
+        TenantSite.deleted_at.is_(None),
+        TenantSite.status == SiteStatus.PUBLISHED,
+    )
+    site_salvo = exists().where(SiteVersion.tenant_id == tenant_id)
+    tem_grupo = exists().where(EstoqueGrupo.tenant_id == tenant_id, EstoqueGrupo.deleted_at.is_(None))
+    tem_item = exists().where(EstoqueItem.tenant_id == tenant_id, EstoqueItem.deleted_at.is_(None))
+    tem_movimentacao = exists().where(
+        EstoqueMovimentacao.tenant_id == tenant_id, EstoqueMovimentacao.deleted_at.is_(None)
+    )
 
     row = (
-        await db.execute(select(has_gira, public_tickets, door_used, slug, custom_settings))
+        await db.execute(
+            select(
+                has_gira.label("has_gira"),
+                public_tickets.label("public_tickets"),
+                door_used.label("door_used"),
+                slug.label("slug"),
+                custom_settings.label("custom_settings"),
+                senhas_configuradas.label("senhas_configuradas"),
+                tem_medium.label("tem_medium"),
+                mensalidade_configurada.label("mensalidade_configurada"),
+                mensalidade_paga.label("mensalidade_paga"),
+                tem_lancamento.label("tem_lancamento"),
+                site_publicado.label("site_publicado"),
+                site_salvo.label("site_salvo"),
+                tem_grupo.label("tem_grupo"),
+                tem_movimentacao.label("tem_movimentacao"),
+                tem_item.label("tem_item"),
+            )
+        )
     ).one()
+    sinal = dict(row._mapping)
     base = settings.FRONTEND_URL.rstrip("/")
+    public_count = int(sinal.get("public_tickets") or 0)
+    principal_dor = read_principal_dor(sinal.get("custom_settings"))
+    trilha = trilha_da_dor(principal_dor)
+    feito = {
+        "gira": bool(sinal.get("has_gira")),
+        "senhas": bool(sinal.get("senhas_configuradas")),
+        # O frontend também conta o "já compartilhei" guardado no navegador.
+        "share": public_count > 0,
+        "tickets": public_count > 0,
+        "porta": bool(sinal.get("door_used")),
+        "medium": bool(sinal.get("tem_medium")),
+        "mensalidade": bool(sinal.get("mensalidade_configurada")),
+        "pagamento": bool(sinal.get("mensalidade_paga")),
+        "lancamento": bool(sinal.get("tem_lancamento")),
+        "site": bool(sinal.get("site_salvo")) or bool(sinal.get("site_publicado")),
+        "publicar": bool(sinal.get("site_publicado")),
+        "grupo": bool(sinal.get("tem_grupo")),
+        "item": bool(sinal.get("tem_item")),
+        "movimentacao": bool(sinal.get("tem_movimentacao")),
+    }
     return OnboardingStatus(
-        has_gira=bool(row[0]),
-        public_tickets=int(row[1] or 0),
-        door_used=bool(row[2]),
+        has_gira=feito["gira"],
+        public_tickets=public_count,
+        door_used=feito["porta"],
         # Mesmo link de giras_crud.get_unified_links: resolve a próxima gira a
         # cada visita, então pode ser compartilhado uma vez só.
-        public_link=f"{base}/public/{row[3]}/senha" if row[3] else None,
-        principal_dor=read_principal_dor(row[4]),
+        public_link=f"{base}/public/{sinal['slug']}/senha" if sinal.get("slug") else None,
+        principal_dor=principal_dor,
+        trilha=trilha,
+        steps=[OnboardingStep(key=k, done=feito[k]) for k in TRILHA_PASSOS[trilha]],
     )
 
 

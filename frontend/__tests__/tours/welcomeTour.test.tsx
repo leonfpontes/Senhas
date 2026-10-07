@@ -53,6 +53,61 @@ function texts(steps: StepType[]): string[] {
   });
 }
 
+describe('tour na mesma trilha do checklist (módulos)', () => {
+  const medium = {
+    key: 'medium',
+    title: 'Cadastre o primeiro médium',
+    description: 'Nome, contato e aniversário.',
+    cta: { label: 'Cadastrar médium', href: '/admin/mediuns' },
+  };
+
+  it('trilha de médiuns: roteiro com os passos do checklist e o último passo leva ao 1º pendente', () => {
+    const close = jest.fn();
+    const steps = buildWelcomeTourSteps(
+      ctx({
+        dor: 'mediuns',
+        trilha: 'mediuns',
+        checklistTitles: ['Cadastre o primeiro médium', 'Configure a mensalidade', 'Crie sua primeira gira'],
+        nextStep: medium,
+        close,
+      }),
+    );
+    const t = texts(steps);
+    expect(t[0]).toMatch(/começando por: cadastre o primeiro médium/);
+    expect(t[1]).toContain('Cadastre o primeiro médium → Configure a mensalidade → Crie sua primeira gira');
+    expect(t.some((x) => /use a Porta/.test(x))).toBe(false);
+    expect(t[t.length - 1]).toMatch(/Agora: cadastre o primeiro médium/);
+
+    render(<>{steps[steps.length - 1].content as React.ReactElement}</>);
+    const link = screen.getByRole('link', { name: 'Cadastrar médium' });
+    expect(link).toHaveAttribute('href', '/admin/mediuns');
+    fireEvent.click(link);
+    expect(close).toHaveBeenCalled();
+    expect(trackEvent).toHaveBeenCalledWith('welcome_tour_cta', { trilha: 'mediuns', href: '/admin/mediuns' });
+  });
+
+  it('módulo travado pelo plano (próximo passo é a gira): volta para a trilha da gira com o aviso do plano', () => {
+    const t = texts(
+      buildWelcomeTourSteps(
+        ctx({
+          dor: 'estoque',
+          trilha: 'estoque',
+          can: () => false,
+          nextStep: { key: 'gira', title: 'Crie sua primeira gira', description: '', cta: { label: 'Criar gira', href: CREATE_GIRA_HREF } },
+        }),
+      ),
+    );
+    expect(t[t.length - 1]).toMatch(/Agora, sua primeira gira/);
+    expect(t[t.length - 1]).toMatch(/só no plano Premium/);
+  });
+
+  it('trilha de senhas segue o roteiro da gira', () => {
+    const t = texts(buildWelcomeTourSteps(ctx({ dor: 'senhas', trilha: 'senhas', nextStep: medium })));
+    expect(t.some((x) => /use a Porta/.test(x))).toBe(true);
+    expect(t[t.length - 1]).toMatch(/Agora, sua primeira gira/);
+  });
+});
+
 describe('buildWelcomeTourSteps', () => {
   it('trilha senhas: boas-vindas citando a dor, checklist, Porta, ajuda e Criar gira por último', () => {
     const steps = buildWelcomeTourSteps(ctx());

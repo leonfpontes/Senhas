@@ -8,7 +8,8 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { CircleCheck, Info, Loader2, TriangleAlert, CircleAlert } from 'lucide-react';
-import { AuthShell } from '@/components/auth';
+import { AuthShell, AUTH_INPUT, AUTH_LINK } from '@/components/auth';
+import { cn } from '@/lib/utils';
 import { TextField, PasswordField } from '@/components/fields';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -110,17 +111,24 @@ export default function LoginPage() {
   return (
     <AuthShell
       headTitle="Entrar — GiraHub"
-      title="Acesse sua conta"
+      title="Que bom ver você de novo"
+      subtitle="Entre para cuidar das giras, da porta e da casa."
+      headerAction={{ label: 'Criar conta grátis', href: '/cadastro' }}
       footer={
         <div className="text-center">
-          <p className="mb-3 text-sm text-muted-foreground">Ainda não tem conta?</p>
-          <Button asChild variant="outline" className="w-full">
+          <p className="mb-3 text-sm text-tinta-suave">Ainda não tem conta? Comece grátis, sem cartão.</p>
+          <Button
+            asChild
+            variant="outline"
+            size="touch"
+            className="w-full border-barro-600 bg-transparent font-bold text-barro-700 hover:bg-areia-100 hover:text-barro-700"
+          >
             <Link href="/cadastro">Criar conta grátis</Link>
           </Button>
         </div>
       }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
         {notices.map((n) => (
           <Alert key={n.key} variant={n.variant}>
             {n.variant === 'success' ? <CircleCheck aria-hidden /> : <Info aria-hidden />}
@@ -129,7 +137,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => dismissNotice(n.key)}
-                className="shrink-0 text-xs font-semibold underline underline-offset-2"
+                className="-my-2 inline-flex min-h-10 shrink-0 items-center rounded-md px-1 text-xs font-semibold underline underline-offset-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 Fechar
               </button>
@@ -140,9 +148,16 @@ export default function LoginPage() {
         {error && errorCode === 'TENANT_DEACTIVATED' ? (
           <Alert variant="warning" role="alert">
             <TriangleAlert aria-hidden />
-            <AlertDescription className="flex flex-col gap-2">
+            <AlertDescription className="flex flex-col gap-3">
               <span>{error}</span>
-              <Button type="button" size="sm" onClick={handleReactivate} disabled={reactivating} aria-busy={reactivating}>
+              <Button
+                type="button"
+                size="touch"
+                className="w-full font-bold sm:w-auto"
+                onClick={handleReactivate}
+                disabled={reactivating}
+                aria-busy={reactivating}
+              >
                 {reactivating ? <Loader2 className="animate-spin" aria-hidden /> : null}
                 {reactivating ? 'Reativando…' : 'Reativar e entrar'}
               </Button>
@@ -163,6 +178,7 @@ export default function LoginPage() {
           required
           autoComplete="email"
           inputMode="email"
+          inputClassName={AUTH_INPUT}
         />
 
         <PasswordField
@@ -171,29 +187,33 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
           autoComplete="current-password"
+          inputClassName={AUTH_INPUT}
         />
 
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="remember-me"
-            checked={rememberMe}
-            onCheckedChange={(v) => setRememberMe(v === true)}
-          />
-          <Label htmlFor="remember-me" className="cursor-pointer font-normal">
-            Lembrar-me
-          </Label>
-        </div>
-
-        <Button type="submit" size="lg" className="w-full" disabled={loading || !email || !password}>
-          {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
-          {loading ? 'Entrando…' : 'Entrar'}
-        </Button>
-
-        <div className="text-center">
-          <Link href="/forgot-password" className="text-sm font-medium text-brand underline-offset-4 hover:underline">
+        <div className="-my-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <div className="flex min-h-12 items-center gap-2.5">
+            <Checkbox
+              id="remember-me"
+              checked={rememberMe}
+              onCheckedChange={(v) => setRememberMe(v === true)}
+              className="size-5 bg-white"
+            />
+            <Label htmlFor="remember-me" className="cursor-pointer text-sm font-normal">
+              Lembrar-me
+            </Label>
+          </div>
+          <Link
+            href="/forgot-password"
+            className={cn('inline-flex min-h-12 items-center rounded-md text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50', AUTH_LINK)}
+          >
             Esqueci minha senha
           </Link>
         </div>
+
+        <Button type="submit" size="touch" className="w-full font-bold" disabled={loading || !email || !password}>
+          {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {loading ? 'Entrando…' : 'Entrar'}
+        </Button>
       </form>
     </AuthShell>
   );

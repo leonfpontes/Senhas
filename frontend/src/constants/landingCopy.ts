@@ -14,6 +14,17 @@ export const HERO = {
   proof: ['Grátis para começar', '30 dias de Premium sem cartão', 'Sem app para o consulente'],
 };
 
+/** Painel da marca nas telas de conta (AuthShell, só no desktop): promessa curta + provas. */
+export const AUTH_PANEL = {
+  eyebrow: 'Para terreiros de Umbanda, Candomblé e casas de axé',
+  promise: 'Senha pela internet, fila sem tumulto.',
+  bullets: [
+    'O consulente pega a senha pelo link no WhatsApp, sem instalar app',
+    'Quem está na porta chama na ordem — até na TV do salão',
+    'Grátis para começar, com 30 dias de Premium sem cartão',
+  ],
+};
+
 export interface AudienceCard {
   title: string;
   who: string;

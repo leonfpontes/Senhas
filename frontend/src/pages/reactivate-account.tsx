@@ -11,7 +11,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { CircleAlert, Loader2 } from 'lucide-react';
-import { AuthShell } from '@/components/auth';
+import { AuthShell, AUTH_INPUT } from '@/components/auth';
 import { TextField, PasswordField } from '@/components/fields';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -51,8 +51,8 @@ export default function ReactivateAccountPage() {
 
   return (
     <AuthShell headTitle="Reativar conta — GiraHub" title="Reativar conta e terreiro">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-        <p className="text-sm text-muted-foreground">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
+        <p className="text-base text-tinta-suave">
           Informe o e-mail e a senha da conta que você desativou. Giras, senhas, médiuns e
           associados foram preservados; a assinatura volta no plano gratuito.
         </p>
@@ -71,6 +71,7 @@ export default function ReactivateAccountPage() {
           onChange={(e) => setEmail(e.target.value)}
           required
           autoComplete="email"
+          inputClassName={AUTH_INPUT}
           inputMode="email"
         />
 
@@ -80,19 +81,20 @@ export default function ReactivateAccountPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
           autoComplete="current-password"
+          inputClassName={AUTH_INPUT}
         />
 
         <Button
           type="submit"
-          size="lg"
-          className="w-full"
+          size="touch"
+          className="w-full font-bold"
           disabled={loading || !email || !password}
         >
           {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
           {loading ? 'Reativando…' : 'Reativar conta'}
         </Button>
 
-        <Button asChild variant="ghost" className="w-full">
+        <Button asChild variant="ghost" size="touch" className="w-full text-tinta-suave hover:bg-areia-100 hover:text-tinta">
           <Link href="/login">Voltar para entrar</Link>
         </Button>
       </form>

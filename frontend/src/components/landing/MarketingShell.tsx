@@ -6,7 +6,6 @@
  */
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Fraunces } from 'next/font/google';
 import { Menu, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -15,14 +14,7 @@ import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 import { WhatsAppFab } from '@/components/landing/WhatsAppFab';
 import { PHOTO_CREDITS } from '@/constants/landingPhotos';
 import { supportWhatsappLink } from '@/lib/whatsapp';
-
-const fraunces = Fraunces({
-  subsets: ['latin'],
-  weight: ['600', '700'],
-  style: ['normal', 'italic'],
-  display: 'swap',
-  variable: '--font-fraunces',
-});
+import { fraunces, MARKETING_RESET as RESET } from '@/components/landing/fonts';
 
 export const MARKETING_NAV = [
   { label: 'Para quem é', href: '/#para-quem' },
@@ -30,11 +22,6 @@ export const MARKETING_NAV = [
   { label: 'Planos', href: '/planos' },
   { label: 'Dúvidas', href: '/#duvidas' },
 ];
-
-/* Links, listas e títulos fora de componentes do kit ficam com o estilo do navegador (o reset de
-   globals.css só vale dentro de [data-slot]); este reset tem especificidade 0,0,1 e perde para qualquer classe. */
-const RESET =
-  '[:where(&)_a]:[color:inherit] [:where(&)_a]:[text-decoration:inherit] [:where(&)_:is(ul,ol)]:[list-style:none] [:where(&)_:is(ul,ol)]:[padding:0] [:where(&)_:is(ul,ol,h1,h2,h3,h4,p,figure,blockquote)]:[margin:0]';
 
 const NAV_LINK =
   'rounded-md text-sm font-medium text-areia-200 outline-none hover:text-white focus-visible:ring-[3px] focus-visible:ring-ouro-300/60';
@@ -63,7 +50,8 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
           <Link
             href="/"
             aria-label="GiraHub — página inicial"
-            className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
+            // marca-girahub: a marca "voa" para a tela de conta e volta (lib/passagem.ts)
+            className="marca-girahub rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
           >
             <GiraHubLogo className="text-white" />
           </Link>

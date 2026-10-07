@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { CircleAlert, CircleCheck, Loader2 } from 'lucide-react';
-import { AuthShell, PasswordRules } from '@/components/auth';
+import { AuthShell, AUTH_INPUT, PasswordRules } from '@/components/auth';
 import { PasswordField } from '@/components/fields';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -66,7 +66,7 @@ export default function ResetPasswordPage() {
 
   if (!router.isReady) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4">
+      <main className="flex min-h-screen items-center justify-center bg-areia-50 px-4">
         <Skeleton className="h-72 w-full max-w-md" />
       </main>
     );
@@ -75,17 +75,17 @@ export default function ResetPasswordPage() {
   return (
     <AuthShell headTitle="Redefinir senha — GiraHub" title="Criar nova senha">
       {success ? (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           <Alert variant="success" role="status">
             <CircleCheck aria-hidden />
             <AlertDescription>Senha redefinida. Agora é só entrar com a nova senha.</AlertDescription>
           </Alert>
-          <Button asChild size="lg" className="w-full">
+          <Button asChild size="touch" className="w-full font-bold">
             <Link href="/login?reset=1">Entrar</Link>
           </Button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
           {error && errorCode === 'EXPIRED_TOKEN' ? (
             <Alert variant="destructive" role="alert">
               <CircleAlert aria-hidden />
@@ -112,6 +112,7 @@ export default function ResetPasswordPage() {
               onBlur={() => setTouched((t) => ({ ...t, password: true }))}
               required
               autoComplete="new-password"
+              inputClassName={AUTH_INPUT}
               error={touched.password && passwordMessage ? passwordMessage : undefined}
             />
             <PasswordRules value={newPassword} />
@@ -124,15 +125,16 @@ export default function ResetPasswordPage() {
             onBlur={() => setTouched((t) => ({ ...t, confirm: true }))}
             required
             autoComplete="new-password"
+            inputClassName={AUTH_INPUT}
             error={touched.confirm && mismatch ? 'As senhas não são iguais.' : undefined}
           />
 
-          <Button type="submit" size="lg" className="w-full" disabled={loading || !newPassword || !confirmPassword}>
+          <Button type="submit" size="touch" className="w-full font-bold" disabled={loading || !newPassword || !confirmPassword}>
             {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
             {loading ? 'Salvando…' : 'Redefinir senha'}
           </Button>
 
-          <Button asChild variant="ghost" className="w-full">
+          <Button asChild variant="ghost" size="touch" className="w-full text-tinta-suave hover:bg-areia-100 hover:text-tinta">
             <Link href="/login">Voltar para entrar</Link>
           </Button>
         </form>
