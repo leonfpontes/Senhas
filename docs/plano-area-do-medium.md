@@ -1,6 +1,13 @@
 # Plano da Área do Médium (outubro/2026)
 
-Criado: 2026-10-07 · Status: **planejamento, nada implementado** · Prefixo dos cards: **AM-**
+Criado: 2026-10-07 · Status: **planejamento aprovado, nada implementado** · Prefixo dos cards: **AM-**
+
+Histórico:
+- 2026-10-07 (v1): plano inicial, cards AM-01 a AM-24.
+- 2026-10-07 (v2): o dono aceitou as decisões D-01 a D-08 como recomendadas (§12) e pediu **escala de faxina,
+  escala de gira e presença com justificativa** em giras e atividades internas. Entrou a §8 (atividades da casa,
+  escalas e presença), os cards AM-08, AM-15, AM-17, AM-18 e AM-23 foram reescritos e nasceram AM-25 a AM-28.
+  F-06 e F-07 passam a ser substituídos.
 
 Fontes internas: [benchmark-concorrentes-2026-10.md](benchmark-concorrentes-2026-10.md),
 [plano-benchmark-2026-10.md](plano-benchmark-2026-10.md) (cards F-01 a F-10, T-02), AGENTS.md §3 e §11, código em
@@ -23,6 +30,11 @@ com código daqui.
 3. **Comunicados**.
 4. **"Pague sua mensalidade aqui"** com a chave PIX (recorrente) que o terreiro disponibiliza.
 5. Levantar o que os concorrentes oferecem nessa área e trazer para o planejamento.
+6. (v2) **Escala de faxina e escala de gira**, com presença marcada no app e justificativa em caso de ausência.
+   A escala de faxina é cadastrada pelo admin com grupos por dias escolhidos do mês (ex.: G1 nos dias X e Y, G2
+   nos dias Z e W, G3 no dia D). Presença e ausência valem para faxinas, giras e **atividades internas** do
+   terreiro, com cadastro livre dessas atividades (rituais coletivos, rituais individuais, organização interna,
+   preparação de cursos e o que mais a casa quiser criar).
 
 ---
 
@@ -44,16 +56,25 @@ com código daqui.
   vínculo. As áreas são calculadas no servidor a cada requisição (não vão no JWT), então desvincular vale na hora.
 - **API separada**: `/api/v1/medium/*` com a dependência `require_medium`, que resolve o médium pelo usuário logado
   (tenant **e** `medium_id`). Nenhum endpoint da área recebe `medium_id` na URL ou no corpo.
-- **Plano**: feature nova `area_medium` a partir do **Basic** (o mesmo nível de `mediuns` e `mensalidade_mediun`).
-  Justificativa na §6.5.
+- **Plano (decidido)**: feature nova `area_medium` a partir do **Basic** (o mesmo nível de `mediuns` e
+  `mensalidade_mediun`); `atividades_corrente` (atividades internas e presença) também no **Basic**; `escalas`
+  (faxina por grupos, escala de gira) e estudos no **Pro**. Justificativa na §6.5.
 - **"PIX recorrente" sem gateway** é: chave estática do terreiro + copia-e-cola/QR gerado com valor e
   identificador do mês + lembrete mensal + instrução para o médium agendar o "Pix Agendado Recorrente" no próprio
   banco + comprovante enviado pelo médium e confirmado pelo admin. Baixa automática só com gateway (F-01/F-02).
-  O Pix Automático do BC exige CNPJ com 6 meses e contrato com PSP (§7.4).
-- **MVP** = 13 cards (AM-01 a AM-13), estimativa de 6 a 8 semanas de uma pessoa. Fase 2 e 3 trazem notificações,
-  PWA com push, presença, escalas, ficha espiritual, aniversariantes, estudos e baixa automática.
-- **Backlog existente**: a Área do Médium **substitui o F-04** (Portal do médium); **depende** de T-02; e **consome**
-  F-05, F-06, F-07 e F-02 nas fases 2 e 3 (tabela na §5).
+  O Pix Automático do BC exige CNPJ com 6 meses e contrato com PSP (§7.2).
+- **Atividades, escalas e presença (v2)**: uma camada única para giras e atividades internas. A gira continua na
+  tabela `giras` (senhas, site, limite do plano) e ganha uma "âncora" em `atividades`; atividades internas são
+  linhas próprias em `atividades`, com **tipos livres por terreiro**. Escala e presença são uma tabela só
+  (`atividade_participacoes`, uma linha por médium por atividade). Grupos da corrente (G1, G2, G3) são um conceito
+  só, usado em escala, público de comunicado e elegibilidade. Desenho na §8.
+- **MVP** em duas entregas: **2.3.0** (Área com convite, escolha de área, calendário, comunicados e Pague aqui) e
+  **2.4.0** (atividades da casa, grupos, presença com justificativa, escala de faxina, escala de gira, lembretes,
+  relatório de assiduidade, perfil, multi-terreiro). Estimativa: 11 a 13 semanas de uma pessoa no total. Fase 2 e 3
+  trazem PWA com push, troca de escala, check-in por QR, ficha espiritual, aniversariantes, estudos e baixa
+  automática.
+- **Backlog existente**: a Área do Médium **substitui o F-04** (Portal do médium), o **F-06** (Presença) e o
+  **F-07** (Escalas de zeladoria); **depende** de T-02; e **consome** F-05 e F-02 nas fases 2 e 3 (tabela na §5).
 
 ---
 
@@ -131,18 +152,22 @@ servido pela landing). Nenhuma conta foi criada. Legenda: **V** = verificado na 
 |---|---|---|---|---|---|---|---|---|
 | Acesso próprio separado do painel | V | V | I (papel Membro) | B (PWA) | I | ? | não | AM-02/03/04 |
 | Convite do terreiro | ? | ? | V (código) | ? | ? | ? | não | AM-03 |
-| Agenda/calendário | V | V | V (agenda pública) | V | ? | ? | só agenda pública | AM-07/08 |
+| Agenda/calendário | V | V | V (agenda pública) | V | ? | ? | só agenda pública | AM-07 |
+| Atividades internas com tipos | V ("atividades da casa") | ? | V (tipos de ritual) | ? | V (eventos) | ? | não | AM-08 |
 | Comunicados/mural | V | V | WhatsApp | V | V | ? | não | AM-09 |
 | Mensalidade pelo portal | V (PIX) | ? | V (link /pagar) | V (Asaas) | V (Asaas/Cora) | V (link PIX) | só no painel | AM-11/12/22 |
 | Baixa automática | V ("vê o crédito") | ? | V | V | V | ? | não | AM-22 (F-02) |
 | Lembrete de vencimento | ? | ? | V (WhatsApp) | V | ? | ? | não | AM-15 |
-| Presença/frequência | V | ? | V | V | V | ? | não | AM-17 (F-06) |
-| Escalas de zeladoria | ? | ? | ? | V | V (estatuto) | ? | não | AM-18 (F-07) |
+| Presença/frequência | V | ? | V | V | V | ? | não | AM-17, AM-26 |
+| Justificativa de falta | ? | ? | ? | ? | V | ? | não | AM-17 |
+| Escalas de zeladoria | ? | ? | ? | V | V (estatuto) | ? | não | AM-25 |
+| Funções na gira/ritual | ? | ? | V (Funções) | ? | ? | ? | não | AM-18 |
+| Troca de escala | ? | ? | ? | ? | ? | ? | não | AM-27 |
 | Ficha/caminhada/obrigações | V | ? | V | V (plano alto) | V (diário) | ? | não | AM-19 (F-05) |
 | Aniversários | ? | ? | V (só admin) | V | ? | ? | só admin | AM-20 |
 | Biblioteca/estudos/pontos | V | ? | ? | V (plano alto) | ? | V | não | AM-21 |
 | Push/PWA | V | V (celular) | ? | B | ? | ? | PWA só da Porta | AM-16 |
-| Chat do terreiro | ? | ? | ? | V | ? | ? | não | fora do escopo (§8) |
+| Chat do terreiro | ? | ? | ? | V | ? | ? | não | fora do escopo (§9) |
 
 "?" = não encontrado nas fontes públicas consultadas (não quer dizer que não exista).
 
@@ -152,11 +177,29 @@ servido pela landing). Nenhuma conta foi criada. Legenda: **V** = verificado na 
    para o médium).
 3. **Privacidade** é argumento de venda: AxéCloud repete que o membro vê "apenas o que a diretoria liberou" e que
    cobrança fica "fora do grupo público".
-4. **Presença, escalas e caminhada** aparecem nos planos mais altos (Minha Gira) ou como módulos à parte; servem
-   de fase 2 e de degrau de plano.
+4. **Presença, escalas e caminhada** aparecem nos planos mais altos (Minha Gira) ou como módulos à parte. Por
+   isso escalas são degrau do Pro (D-02); presença fica no Basic, junto com a Área (§6.5).
 5. Ninguém mostrou publicamente um **PIX copia-e-cola com valor gerado da chave estática**; quem tem baixa
    automática usa gateway (Asaas, Mercado Pago). O nosso "Pague aqui" sem gateway é diferencial de custo zero
    enquanto o F-02 não chega.
+
+### 3.4 Escalas, presença e atividades internas (pesquisa da v2, 07/10/2026)
+- **Minha Gira** (V, home): "Escalas de Zeladoria", "Gestão da limpeza do terreiro e atividades de zeladoria",
+  "Programe alertas automáticos"; "Controle de Presença nas giras" nos planos Padrão e Avançado. A página **não**
+  fala de troca de escala, justificativa de falta, confirmação pelo membro, grupos/equipes nem rodízio.
+- **AxéCloud** (V, `/recursos/frequencia-check-in`): "Presenças, faltas e assiduidade registradas em giras e
+  atividades da casa". Não diz se o membro faz o próprio check-in.
+- **ORI** (V, bundle): cadastros configuráveis de "Tipos de Rituais" e de "Funções" ("Gerenciar funções
+  espirituais e administrativas do terreiro"), serviço de presença em ritual e PDF de atendimentos por médium.
+  Rituais têm "Agenda, tipos e controle de presença".
+- **Quartinha** (V, bundle): presença gravada por evento e por pessoa, formulário "Confirmação de Presença",
+  "Histórico de Frequência", categoria de solicitação "Faltas & Justificativas" com campo "Motivo / Justificativa";
+  o modelo de estatuto prevê "escalas de limpeza, cozinha" e "faltas justificadas".
+- **Ninguém** mostra publicamente: escala por **grupos em dias escolhidos do mês**, **troca/substituição** de
+  escala, nem check-in do próprio médium pelo app com janela de horário. Os três são diferenciais nossos.
+- Conclusão: tipos de atividade configuráveis (ORI), funções na gira (ORI), presença em giras **e** atividades
+  (AxéCloud, Quartinha) e justificativa (Quartinha) já são esperados; a escala mensal por grupos com toque no
+  calendário é o pedido do dono e não tem equivalente público.
 
 ---
 
@@ -172,7 +215,7 @@ servido pela landing). Nenhuma conta foi criada. Legenda: **V** = verificado na 
 | Grupos | `PermissionService.check_permission`: admin e impersonação passam; operador sem grupo é fail-closed. | Usuário `medium` não tem grupo, então já leva 403 nas rotas com grupo; o guard do router fecha o resto. |
 | Medium | Sem `user_id`. Campos civis + `is_atendimento`, `data_entrada/saida`, `mensalidade_isento`, `observacoes`. | Migração com `mediuns.user_id` (FK nullable, único parcial). `observacoes` é campo interno, nunca exposto ao médium. |
 | Mensalidade | `MensalidadePagamento` (único por médium+mês, `valor_vigente`, comprovante BYTEA 5 MB, `registrado_por`), gate `mensalidade_mediun` (**Basic**), grupo FINANCEIRO. | Médium só vê o próprio; envio de comprovante cria/atualiza o registro do mês **sem** marcar pago. |
-| Giras | `nome`, `descricao`, `data_inicio/fim`, `local`, `recados` (vai no e-mail do consulente), `is_active`. Agenda pública lista toda gira ativa (`SiteRepository.list_upcoming_giras`). | Falta campo de orientação só para a corrente e falta evento interno que não apareça no site nem conte no limite de giras. |
+| Giras | `nome`, `descricao`, `data_inicio/fim`, `local`, `recados` (vai no e-mail do consulente), `is_active`. Agenda pública lista toda gira ativa (`SiteRepository.list_upcoming_giras`). Giras/mês têm limite por plano (2/3/4/ilimitado). | Falta campo de orientação só para a corrente e falta atividade interna que não apareça no site nem conte no limite de giras. Não existe escala nem presença de médium. |
 | PIX | Só `cursos_presenciais.chave_pix` (texto livre + copiar + comprovante obrigatório). | Reaproveitar o padrão de UI; criar gerador de BR Code. |
 | Frontend | `ProfileProvider`, `SubscriptionProvider`, `PermissionsProvider` e `BirthdayProvider` montados no `_app` chamam rotas `/api/v1/admin/*` em toda página. `completeLogin` manda tudo que não é super admin para `/admin/dashboard`. | Providers precisam saber a área; `completeLogin` passa a decidir pela área. |
 | Slugs | `B/core/reserved_slugs.py` já reserva `medium` e `convite` (T-01 feito). | Reservar também `escolher-area`. |
@@ -194,8 +237,8 @@ Premium"; o código (`_FEATURE_MIN_TIER`) e a matriz da §3.4 dizem **Basic**. O
 | **T-02** Token tipado | **Dependência dura** de AM-03 e AM-05 (token de convite e de seleção de conta não podem passar como access). | Subir o T-02 no ranking, antes do AM-02. |
 | **T-01** Slugs reservados | Feito. Falta só `escolher-area`. | Nada; o AM-04 acrescenta o slug. |
 | **F-05** Ficha espiritual | **AM-19 depende** do F-05 (o F-05 cria campos, marcos e consentimento; o AM-19 mostra ao médium e libera edição de alguns campos). | Manter F-05; tirar "Destrava F-04" e pôr "Destrava AM-19". |
-| **F-06** Presença | **AM-17 depende** do F-06 (lista de chamada do admin). O AM-17 acrescenta "vou/não vou", justificativa de falta e histórico do médium. | Manter F-06; destrava AM-17. |
-| **F-07** Escalas | **AM-18 depende** do F-07. O AM-18 mostra "minhas escalas" e o aviso da véspera vai também para a Área. | Manter F-07; destrava AM-18. |
+| **F-06** Presença | **Substituído (v2)** por **AM-17** (convocação, vou/não vou, justificativa, check-in e lista de chamada, para giras **e** atividades) e **AM-26** (relatório de assiduidade com PDF). A tabela `gira_presencas` do F-06 não é criada: a presença mora em `atividade_participacoes` (§8). Mantido do F-06: unicidade por atividade+médium, validação de FK entre tenants, PDF com `useRelatorioPDF`, componente próprio fora do `giras.tsx`. Mudou: plano `atividades_corrente` (Basic) em vez de `mediuns`, e feature de grupo `ESCALAS` em vez de GIRAS/MEDIUNS. | Arquivar F-06 apontando para AM-17 e AM-26. |
+| **F-07** Escalas de zeladoria | **Substituído (v2)** por **AM-25** (escala de faxina por grupos e dias do mês), **AM-18** (escala de gira por função, com o rodízio do F-07) e **AM-15** (aviso da véspera, com o `scheduler_guard` e marca por linha que o F-07 previa). As tabelas `escala_tipos`/`escala_alocacoes` do F-07 viram `atividade_tipos`, `funcoes_corrente`, `escala_planos` e `atividade_participacoes`. Plano `escalas` (Pro), como o F-07 sugeria. | Arquivar F-07 apontando para AM-25, AM-18 e AM-15. |
 | **F-09** Importar médiuns | **Sinergia**, não dependência: depois de importar, "Convidar todos com e-mail" (AM-03, convite em lote). | Manter. |
 | **F-01** Gateway | **AM-22 depende**. Também decide se a chave estática continua como alternativa. | Manter; destrava F-02. |
 | **F-02** PIX com baixa automática | **AM-22 depende**. O "Pague aqui" do AM-11 é a ponte até o F-02: quando o terreiro conecta o gateway, o botão passa a gerar a cobrança dinâmica e a baixa é automática. | Trocar "Destrava F-04" por "Destrava AM-22". |
@@ -235,7 +278,7 @@ Regras:
 5. **Vínculo só com prova de posse do e-mail**: o admin nunca liga uma conta a um médium diretamente; ele envia o
    convite e o vínculo nasce no aceite (AM-03). Isso evita que alguém com MEDIUNS:edit ligue a própria conta à
    ficha de outra pessoa e passe a ver a mensalidade dela.
-6. **Excluir/inativar o médium** encerra o acesso na hora (o `require_medium` falha). Se o usuário for `medium`
+6. **Excluir/inativar o médium** (D-08, decidido) encerra o acesso na hora (o `require_medium` falha). Se o usuário for `medium`
    puro, a conta é desativada junto; se for operador/admin, só perde a Área.
 7. **Mesmo e-mail em vários terreiros**: cada terreiro tem o seu `User` (senhas independentes). O login passa a
    procurar todas as contas ativas com o e-mail e conferir a senha em cada uma (AM-05).
@@ -263,16 +306,16 @@ POST /auth/login
         └─ nenhuma (médium sem plano)   → /medium com aviso neutro "A Área do Médium não está disponível agora.
                                             Fale com a direção da casa." (sem oferta de upgrade ao médium)
 ```
-- "Lembrar minha escolha neste aparelho" (caixa marcada por padrão) grava `girahub:area:{userId}` no
+- (D-04, decidido) "Lembrar minha escolha neste aparelho" (caixa marcada por padrão) grava `girahub:area:{userId}` no
   localStorage. Os dois cabeçalhos têm "Trocar de área" (no menu do perfil do `AdminTopbar` e no menu da Área do
   Médium), que também atualiza a escolha lembrada.
 - A troca de área **não troca o token**: é a mesma sessão, só muda a rota. Logout é o mesmo (`/auth/logout`).
 - `/escolher-area` mostra dois cartões grandes ("Área do Médium: agenda, avisos e mensalidade" e "Painel do
   terreiro: giras, senhas e gestão"), com o nome e a marca do terreiro.
 
-### 6.5 Plano
-Proposta: **feature nova `area_medium` no catálogo `PlanFeatures`, nível BASIC**, espelhada em
-`F/constants/plans.ts` e no quadro da landing ("Área do Médium: agenda, avisos e mensalidade").
+### 6.5 Plano (decidido em 2026-10-07, D-01 e D-02)
+**Feature nova `area_medium` no catálogo `PlanFeatures`, nível BASIC**, espelhada em `F/constants/plans.ts` e no
+quadro da landing ("Área do Médium: agenda, avisos e mensalidade").
 
 Por quê:
 - Não existe médium no Gratuito (limite "—"), então a Área nasce no Basic de qualquer jeito.
@@ -282,10 +325,20 @@ Por quê:
   tem agenda e comunicados até no plano de entrada). Pôr no Pro nos deixaria atrás de quem cobra R$ 41,90.
 - Feature própria (e não reaproveitar `mediuns`) deixa o dono mover de plano depois sem mexer em código.
 
-Degraus sugeridos para as fases seguintes (decisão D-02): presença do médium segue o F-06 (`mediuns`, Basic);
-escalas seguem o F-07 (sugestão `escalas`, Pro); ficha segue o F-05; estudos/biblioteca (`biblioteca_medium`,
-Pro); baixa automática segue F-01/F-02. A mensalidade na Área exige também `mensalidade_mediun` (Basic) e a
-config de mensalidade ativa.
+Degraus (D-02, decidido):
+
+| Feature do catálogo | Nível | O que libera |
+|---|---|---|
+| `area_medium` | Basic | Login do médium, Início, calendário, comunicados, Pague aqui, perfil |
+| `atividades_corrente` (nova, v2) | Basic | Tipos de atividade, atividades internas, grupos da corrente, convocação, vou/não vou com justificativa, check-in no app, lista de chamada, histórico do médium, relatório de assiduidade por médium |
+| `escalas` (nova) | **Pro** | Escala de faxina por grupos e dias do mês, escala de gira por função, rodízio, copiar mês, relatório por grupo, lembrete de escala, troca de escala (fase 2) |
+| `biblioteca_medium` (nova, fase 3) | **Pro** | Estudos e documentos (AM-21) |
+| ficha | segue o F-05 | AM-19 |
+| baixa automática | segue F-01/F-02 | AM-22 (taxa paga pelo terreiro) |
+
+A mensalidade na Área exige também `mensalidade_mediun` (Basic) e a config de mensalidade ativa. Presença fica no
+Basic (o F-06 já previa) porque é o dado que o dirigente mais pede e porque a escala é que vende o Pro: no Basic a
+casa marca quem veio; no Pro ela planeja quem vem.
 
 Status da assinatura: suspenso/vencido bloqueia a Área como qualquer feature paga (402), e a tela do médium
 mostra o aviso neutro. Nada é apagado.
@@ -321,14 +374,24 @@ mostra o aviso neutro. Nada é apagado.
 |---|---|---|
 | Convidar, reenviar e revogar acesso do médium | `MEDIUNS` | `edit` |
 | Publicar, editar, arquivar comunicado | **`COMUNICADOS`** (nova) | `insert`/`edit`/`delete`; ver leituras = `view` |
-| Eventos internos da corrente | `GIRAS` | `insert`/`edit`/`delete` |
+| Tipos de atividade, funções, atividades internas | **`ESCALAS`** (nova, rótulo "Atividades e escalas") | `view`/`insert`/`edit`/`delete` |
+| Planejar e publicar escala de faxina e escala de gira | `ESCALAS` | `insert`/`edit` |
+| Lista de chamada (marcar presente/ausente, encerrar chamada) | `ESCALAS` `edit`; na gira também `PORTA` `edit` (`require_any_group_permission`) | `edit` |
+| Ver confirmações, justificativas e relatórios de assiduidade | `ESCALAS` | `view` |
+| Grupos da corrente (criar, pôr e tirar médiuns) | `MEDIUNS` | `edit` (ler: `MEDIUNS` ou `ESCALAS` `view`) |
 | Configuração da Área (boas-vindas, WhatsApp da casa, módulos) | `CONFIGURACOES` | `edit` |
 | Chave PIX da mensalidade | `FINANCEIRO` | `edit` + senha + aviso aos admins (§7.3) |
 | Confirmar/recusar comprovante enviado | `FINANCEIRO` | `insert` (confirmar, igual a registrar) / `edit` (recusar) |
 
-`COMUNICADOS` segue o roteiro do CLAUDE.md: valor no enum, migração `ALTER TYPE permission_feature ADD VALUE`,
-segunda migração dando acesso total no grupo padrão "Acesso total", entrada em `permissionFeatures.ts` (grupo
-"Corrente").
+`COMUNICADOS` e `ESCALAS` seguem o roteiro do CLAUDE.md: valor no enum, migração `ALTER TYPE permission_feature
+ADD VALUE`, segunda migração dando acesso total no grupo padrão "Acesso total", entrada em `permissionFeatures.ts`
+(grupo "Corrente").
+
+Por que `ESCALAS` e não reaproveitar `MEDIUNS` ou `GIRAS`: quem organiza a corrente (capitão de corrente, pai
+pequeno, o porteiro que faz a chamada) não deveria precisar de `MEDIUNS:edit`, que dá acesso a telefone, endereço e
+nascimento de todo mundo e a criar/excluir médium; nem de `GIRAS`, que mexe em senhas e no site. A chamada da gira
+aceita também `PORTA:edit` porque quem está na porta no dia é quem vê quem chegou. Grupos ficam em `MEDIUNS` porque
+compor grupo é mexer no cadastro da corrente, e servem a comunicados e escalas ao mesmo tempo.
 
 ### 6.8 LGPD
 - Ser médium de um terreiro revela **convicção religiosa** (dado sensível, LGPD art. 11). Vale para o cadastro
@@ -336,8 +399,14 @@ segunda migração dando acesso total no grupo padrão "Acesso total", entrada e
 - **Consentimento no aceite do convite**: texto curto e versionado ("Ao ativar, você autoriza o terreiro X a
   usar seus dados para…"), gravado em `mediuns.area_consentimento_em` + `area_consentimento_versao`. Sem aceite,
   não há conta. Modelo: consentimento de saúde dos cursos ("nunca é inferido").
-- **O médium não vê dados de outros médiuns no MVP.** Nada de lista da corrente, telefone ou mensalidade alheia.
-  Aniversariantes e "quem está na escala" só na fase 2, com opt-in de cada um (AM-20, AM-18).
+- **O médium não vê dados de outros médiuns no MVP (D-07).** Nada de lista da corrente, telefone, mensalidade,
+  presença ou justificativa alheia. Ele vê o nome do próprio grupo ("Você está no G2"), não quem mais está nele.
+  Aniversariantes e "quem divide a escala comigo" só na fase 2, com opt-in de cada um (AM-20, AM-27).
+- **Justificativa de falta** pode conter dado de saúde: campo livre de até 500 caracteres com o aviso "não precisa
+  detalhar motivo de saúde"; visível só para quem tem `ESCALAS:view`; fora de e-mail, push, auditoria e
+  exportação (o relatório mostra só se há justificativa).
+- **Ritual individual** (obrigação, amaci de uma pessoa) tem visibilidade "só convocados" por padrão: não aparece no
+  calendário de quem não está nele.
 - **Convite discreto**: assunto e texto do e-mail/WhatsApp sem termos religiosos além do nome que o terreiro
   escolheu ("Convite de <terreiro> para acessar sua área no GiraHub").
 - Campos internos (`observacoes`, comprovantes de outros, `registrado_por`) nunca saem pela API da Área.
@@ -346,8 +415,8 @@ segunda migração dando acesso total no grupo padrão "Acesso total", entrada e
   atualizada já no MVP.
 
 ### 6.9 Impersonação e suporte
-- Super admin pode impersonar um usuário `medium` (mesma ferramenta, banner amarelo); a Área abre em modo leitura
-  (escritas 403, §6.6). Impersonando um operador-médium, a escolha de área aparece normalmente.
+- (D-06, decidido) Super admin pode impersonar um usuário `medium` (mesma ferramenta, banner amarelo); a Área abre em modo leitura
+  (escritas 403, §6.6; inclui vou/não vou, justificativa e check-in). Impersonando um operador-médium, a escolha de área aparece normalmente.
 - O **chat de suporte** (`support_chat`) é o canal do terreiro com a plataforma e **não aparece** para o papel
   `medium` (o guard do router já recusa). O médium fala com a casa: botão "Falar com a casa" (WhatsApp da casa
   configurado no AM-10) e e-mail de resposta do terreiro.
@@ -357,7 +426,9 @@ segunda migração dando acesso total no grupo padrão "Acesso total", entrada e
 ### 6.10 Frontend
 - Rotas: `/escolher-area`, `/convite/[token]`, `/medium` (início), `/medium/calendario`,
   `/medium/calendario/[tipo]/[id]`, `/medium/comunicados`, `/medium/comunicados/[id]`, `/medium/mensalidade`,
-  `/medium/perfil`; fases seguintes: `/medium/presencas`, `/medium/escalas`, `/medium/estudos`, `/medium/meus-dados`.
+  `/medium/perfil`, `/medium/presencas` (minhas escalas e meu histórico, v2); fases seguintes: `/medium/estudos`,
+  `/medium/meus-dados`. Admin (v2): `/admin/atividades` (calendário da casa com giras e atividades, abas Atividades ·
+  Escala de faxina · Tipos e funções · Relatórios), `/admin/atividades/[id]/chamada`, `/admin/mediuns/grupos`.
 - `F/components/medium/MediumLayout.tsx`: celular primeiro, cabeçalho com logo e cor do terreiro (`applyBrand`),
   barra inferior com Início · Calendário · Avisos · Mensalidade · Perfil (mesma regra de z-index da
   `MobileTabBar`), menu com "Trocar de área" (só se tiver as duas) e "Sair". Gate: sem área de médium →
@@ -402,7 +473,7 @@ Recomendação: vender como "PIX todo mês sem taxa" (opções 1 e 2) no MVP e "
 F-02 sair. Não prometer "Pix Automático" para casa sem CNPJ.
 
 ### 7.3 Riscos da chave PIX
-- **Troca maliciosa da chave** (alguém com FINANCEIRO:edit põe a própria chave): o PUT exige a senha de quem
+- **Troca maliciosa da chave** (alguém com FINANCEIRO:edit põe a própria chave). Decidido (D-05): o PUT exige a senha de quem
   altera (padrão `skipAutoLogout`, já usado em confirmações de senha), grava auditoria com chave antiga e nova
   mascaradas, manda e-mail para **todos os admins** do terreiro e mostra ao médium "Chave alterada em dd/mm" por
   30 dias. É a "proteção específica" que o CLAUDE.md pede, sem empilhar `is_admin` no guard.
@@ -414,7 +485,208 @@ F-02 sair. Não prometer "Pix Automático" para casa sem CNPJ.
 
 ---
 
-## 8. Fora do escopo (por enquanto)
+## 8. Atividades da casa, escalas e presença (v2)
+
+### 8.1 Ideia central
+Tudo o que a corrente faz junto vira uma **atividade**: gira, faxina, ritual coletivo, reunião, preparação de
+curso. Cada atividade tem um **tipo** que a casa configura. Em cima de qualquer atividade, a mesma camada responde
+três perguntas: **quem foi chamado** (convocação e escala), **quem disse que vai** (vou/não vou com justificativa) e
+**quem veio** (check-in do médium ou chamada do admin).
+
+- A **gira continua na tabela `giras`** (senhas, fila, site, limite do plano). Para entrar na camada, ela ganha
+  uma **âncora** em `atividades` (uma linha com `gira_id`), criada na primeira vez que alguém escala, convoca ou
+  marca presença. A âncora não copia data, nome nem local: lê da gira.
+- **Atividades internas** são linhas próprias em `atividades` (D-03: tabela própria, fora do limite de giras, fora
+  do site, da agenda pública e do sitemap).
+- **Escala e presença são a mesma tabela** (`atividade_participacoes`): uma linha por médium por atividade, com a
+  convocação (de onde veio: grupo, função, rodízio, manual), a resposta (vou/não vou), a justificativa e a presença.
+  Não há tabela de escala separada da de presença, então não há o que sincronizar.
+- **Grupos da corrente** (G1, G2, "Ogãs", "Desenvolvimento") são um conceito só, usado como escala de faxina,
+  escala de gira, elegibilidade de um tipo e público de comunicado.
+
+```
+atividade_tipos ──< atividades >── giras (âncora opcional, 1:1)
+      │                 │
+      │                 └──< atividade_participacoes >── mediuns
+      │                              │        │
+corrente_grupos ──< corrente_grupo_membros   ├── funcoes_corrente
+      │                                       └── corrente_grupos (origem)
+      └──< escala_plano_dias >── escala_planos (mês × tipo)
+```
+
+### 8.2 Tipos de atividade (livres por terreiro)
+Sugestões criadas para todo terreiro (migração de dados + `ensure_default_atividade_tipos` no cadastro e na criação
+pela plataforma, como o grupo "Acesso total"). O admin renomeia, muda ícone e cor, cria novos e arquiva; "Gira" é
+de sistema (pode renomear, não pode arquivar).
+
+| Tipo sugerido | Presença | Pede vou/não vou | Justificativa obrigatória | Convocação padrão | Escala | Visibilidade padrão |
+|---|---|---|---|---|---|---|
+| Gira (sistema) | sim | sim | sim | todos os elegíveis | por função | corrente |
+| Faxina / Zeladoria | sim | sim | sim | só escalados | grupos por dia | corrente |
+| Ritual coletivo | sim | sim | sim | todos os elegíveis | nenhuma | corrente |
+| Ritual individual | sim | sim | não | só escalados (manual) | nenhuma | só convocados |
+| Organização interna | sim | sim | não | só escalados | nenhuma | corrente |
+| Preparação de curso | não | sim | não | só escalados | nenhuma | corrente |
+| Desenvolvimento | sim | sim | sim | elegíveis = grupo "Desenvolvimento" ou atendimento | nenhuma | corrente |
+| Reunião | sim | sim | não | todos os elegíveis | nenhuma | corrente |
+
+Configuração por tipo:
+- nome, ícone (lista fechada de `lib/icons.ts`), cor (paleta fechada com contraste AA testado);
+- **visível no site público**: só o tipo Gira, e não é editável (é a gira de verdade); nenhum outro tipo vai ao
+  site;
+- controla presença; pede confirmação (vou/não vou); exige justificativa para "não vou" e para ausência;
+- check-in pelo médium no app (sim/não) e janela (padrão: de 60 min antes a 180 min depois do início);
+- **quem pode ser escalado/convocado**: todos, só atendimento, só cambones, ou grupos escolhidos;
+- convocação padrão: "todos os elegíveis" ou "só quem for escalado";
+- modo de escala: nenhuma · grupos por dia do mês (planejador da faxina) · por função (escala de gira);
+- horário e duração padrão; visibilidade padrão (corrente ou só convocados).
+
+### 8.3 Modelo de dados
+Todas as tabelas têm `tenant_id` (FK `tenants`, ON DELETE CASCADE), `created_at`/`updated_at`, e índice por
+`tenant_id`. Enums novos seguem a convenção minúscula do AGENTS.md §4.4.
+
+| Tabela | Colunas principais | Restrições |
+|---|---|---|
+| `atividade_tipos` | `nome` (60), `natureza` (`gira` \| `atividade`), `icone`, `cor`, `controla_presenca`, `pede_confirmacao`, `exige_justificativa`, `checkin_pelo_medium`, `checkin_antes_min`, `checkin_depois_min`, `elegiveis` (`todos` \| `atendimento` \| `cambones` \| `grupos`), `convocacao_padrao` (`todos_elegiveis` \| `so_escalados`), `modo_escala` (`nenhuma` \| `grupos_por_dia` \| `funcoes`), `hora_padrao`, `duracao_min`, `visibilidade_padrao`, `is_sistema`, `ordem`, `arquivado_em` | único parcial (`tenant_id`, `lower(nome)`) onde não arquivado; único parcial (`tenant_id`) onde `natureza = 'gira'` |
+| `atividade_tipo_grupos` | `tipo_id`, `grupo_id` | PK (`tipo_id`, `grupo_id`) |
+| `atividades` | `tipo_id`, `gira_id` (FK `giras`, nullable), `titulo`, `inicio`, `fim`, `local`, `descricao`, `orientacoes`, `visibilidade` (`corrente` \| `convocados`), `origem` (`manual` \| `plano_escala` \| `gira`), `escala_plano_dia_id`, `cancelada_em`, `cancelamento_motivo`, `chamada_encerrada_em`, `chamada_encerrada_por`, `created_by`, `deleted_at` | único parcial (`gira_id`) onde não nulo; CHECK `gira_id IS NOT NULL OR (titulo IS NOT NULL AND inicio IS NOT NULL)`; índice (`tenant_id`, `inicio`) |
+| `corrente_grupos` | `nome`, `cor`, `descricao`, `arquivado_em` | único parcial (`tenant_id`, `lower(nome)`) onde não arquivado |
+| `corrente_grupo_membros` | `grupo_id`, `medium_id`, `desde` | PK (`grupo_id`, `medium_id`) |
+| `funcoes_corrente` | `nome` (ex.: Cambone, Porteiro, Ogã/Atabaque, Cozinha, Limpeza pós-gira), `descricao`, `ordem`, `arquivado_em` | único parcial por nome ativo |
+| `atividade_participacoes` | `atividade_id`, `medium_id`, `convocado` (bool), `origem` (`elegivel` \| `grupo` \| `funcao` \| `rodizio` \| `manual` \| `avulso`), `grupo_id`, `funcao_id`, `resposta` (`sem_resposta` \| `vou` \| `nao_vou`), `respondido_em`, `justificativa` (500), `justificativa_em`, `presenca` (`nao_registrada` \| `presente` \| `ausente`), `presenca_origem` (`checkin_medium` \| `chamada` \| `encerramento`), `presenca_registrada_em`, `presenca_registrada_por` (FK users), `dispensado_em`, `substituida_por_id` (FK própria, fase 2), `lembrete_enviado_em` | **único (`atividade_id`, `medium_id`)**; índices (`tenant_id`, `medium_id`) e (`tenant_id`, `atividade_id`) |
+| `escala_planos` | `tipo_id`, `mes` (1º dia do mês), `status` (`rascunho` \| `publicado`), `publicado_em`, `publicado_por` | único (`tenant_id`, `tipo_id`, `mes`) |
+| `escala_plano_dias` | `plano_id`, `data`, `grupo_id`, `hora_inicio`, `hora_fim`, `atividade_id` (preenchido ao publicar) | único (`plano_id`, `data`, `grupo_id`) |
+
+Isolamento:
+- Toda FK que chega no corpo ou no caminho (`tipo_id`, `grupo_id`, `funcao_id`, `medium_id`, `gira_id`,
+  `atividade_id`) é validada no tenant antes de gravar (`_validar_*_do_tenant`, checagem 4 do auditor) e coberta
+  por `test_fk_cross_tenant.py`.
+- O `tenant_id` da participação é sempre o da atividade, que é o da gira âncora; o serviço confere os três.
+- Rotas do médium filtram participação por `ctx.medium.id` e atividade "só convocados" por `EXISTS` da
+  participação do próprio médium.
+- Nenhuma rota pública lê `atividades`, `atividade_participacoes` ou grupos (teste: agenda pública e site não
+  mostram atividade interna).
+
+**Âncora da gira**: `atividade_da_gira(db, tenant_id, gira_id)` faz `INSERT ... ON CONFLICT (gira_id) DO NOTHING`
+e devolve a linha, na mesma transação da operação que precisou dela. Gira excluída (soft delete) some do calendário
+e dos lembretes pelo join com `giras.deleted_at IS NULL`; o histórico de presença continua.
+
+### 8.4 Convocação: quem é esperado
+- **"Todos os elegíveis"** (gira, ritual coletivo, reunião): a convocação é **virtual** até a chamada. A tela de
+  confirmações lista os elegíveis ativos no dia (calculado) unidos às participações já gravadas; a linha só nasce
+  quando o médium responde, faz check-in, é escalado numa função ou quando a chamada é encerrada (aí nasce para
+  todos os elegíveis, para o relatório ter denominador). Assim, médium que entrou na casa depois de a atividade
+  ser criada também é esperado, e não há milhares de linhas para atividades futuras.
+- **"Só escalados"** (faxina, organização, ritual individual): as linhas nascem na escala (planejador da faxina,
+  escala de gira, ou "Convocar" manual na atividade).
+- Médium que veio sem estar convocado: a chamada tem "Adicionar quem veio" (`origem = avulso`, `convocado = false`).
+
+### 8.5 Situação de cada médium numa atividade
+Gravamos só `resposta`, `justificativa`, `presenca`, `dispensado_em` e `substituida_por_id`; a situação mostrada é
+derivada:
+
+| Situação na tela | Regra |
+|---|---|
+| **Convocado** | convocado, sem resposta, presença não registrada |
+| **Confirmado** | resposta = vou, presença não registrada |
+| **Ausência avisada** | resposta = não vou (com justificativa quando o tipo exige), antes da atividade |
+| **Presente** | presença = presente (vale mesmo que tenha respondido "não vou") |
+| **Ausente com justificativa** | presença = ausente e há justificativa (dada antes ou depois) |
+| **Ausente sem justificativa** | presença = ausente e sem justificativa |
+| **Dispensado** | admin tirou da escala ou a atividade foi cancelada |
+| **Substituído** (fase 2) | `substituida_por_id` preenchido (AM-27) |
+
+Regras:
+- "Não vou" num tipo que exige justificativa não salva sem texto. O médium pode mudar a resposta até o início.
+- Depois de marcado ausente, o médium pode justificar até **7 dias** depois (prazo configurável por terreiro).
+  Aceitar ou recusar a justificativa (abonar) fica para a fase 2; no MVP, justificada = tem justificativa.
+- **Encerrar chamada** (botão do admin) marca como ausente quem continua sem presença registrada, com
+  `presenca_origem = encerramento`. Se ninguém encerrar, um job encerra 48 h depois do fim **apenas** se a
+  atividade tiver pelo menos uma presença registrada (sinal de que a chamada aconteceu); senão fica "sem chamada" e
+  não entra no relatório.
+- Cancelar a atividade dispensa todo mundo e avisa os convocados.
+
+### 8.6 Presença no dia
+- **Check-in pelo médium**: botão "Cheguei" na Área, só dentro da janela do tipo e só para quem é convocado ou
+  elegível. Grava `presenca_origem = checkin_medium`. Sem GPS no MVP (decisão D-11); a fase 2 traz o **QR do dia**
+  exibido na Porta/TV para evitar check-in de casa (AM-28, conversa com o N-06).
+- **Chamada pelo admin/porteiro**: lista com os convocados/elegíveis, busca por nome, tocar alterna
+  Presente/Ausente, "Marcar todos os confirmados como presentes", "Adicionar quem veio", "Encerrar chamada". Na
+  gira, a chamada abre também a partir da Porta (`PORTA:edit`).
+- O admin pode corrigir o que o médium marcou (fica registrado quem mudou).
+
+### 8.7 Escala de faxina: planejador do mês (grupos por dia)
+Fluxo do admin (tipo com modo "grupos por dia", ex.: Faxina):
+1. Escolhe o **mês** e o tipo. Se o mês não tem plano, oferece "Copiar do mês anterior" ou "Começar vazio".
+2. À esquerda (no celular, em cima), os **grupos** como fichas coloridas (G1, G2, G3) com o número de dias de cada
+   um; "Novo grupo" abre o cadastro de grupos sem sair da tela.
+3. À direita, a **grade do mês** (7 colunas, células de 44 px, funciona no celular). Toca numa ficha de grupo e
+   depois nos dias: o dia ganha a cor e a sigla do grupo. Tocar de novo tira. Um dia pode ter mais de um grupo.
+4. Atalhos:
+   - **Copiar do mês anterior** pela ordem do dia da semana (o 1º sábado vai para o 1º sábado, o 2º para o 2º);
+   - **Girar grupos** (G1 pega os dias do G3, G2 os do G1, G3 os do G2), para quem faz rodízio mês a mês;
+   - **Distribuir**: escolhe dias da semana (ex.: sábados) e os grupos em ordem, e o sistema preenche em ciclo.
+5. Horário padrão do tipo em todos os dias, editável por dia (toque longo ou menu do dia).
+6. Resumo em texto antes de publicar: "G1: dias 5 e 19 · G2: dias 12 e 26 · G3: dia 3".
+7. **Salvar rascunho** (o médium não vê) e **Publicar**: cria uma atividade por dia e grupo ("Faxina · G1"), cria a
+   participação de cada membro do grupo (`origem = grupo`, `convocado = true`) e dispara o aviso (AM-15).
+8. **Republicar** depois de mexer: dia removido → atividade cancelada e convocados dispensados com aviso; grupo
+   trocado num dia → os do grupo antigo dispensados, os do novo convocados; o que não mudou mantém respostas e
+   presenças. Publicar roda sob `SELECT ... FOR UPDATE` no plano e é idempotente.
+9. Mudou a composição de um grupo depois de publicado: botão "Atualizar convocações das próximas faxinas" (só
+   datas futuras; o passado não muda).
+
+### 8.8 Escala de gira (por função e por grupo)
+- Na gira (e em qualquer tipo com modo "por função"), a aba **Escala** lista as funções da casa (`funcoes_corrente`).
+  Para cada função, escolher médiuns (Combobox com só os elegíveis) ou **um grupo inteiro** ("G2 trabalha nesta
+  gira": todos os membros convocados, com função padrão opcional).
+- **Copiar da gira anterior** e **Rodízio**: para uma função, distribuir em ordem circular entre os elegíveis (ou
+  entre grupos) pelas próximas N giras (função pura testada, herdada do F-07).
+- Um médium tem no máximo uma função por gira (unicidade atividade+médium); a escala grava `funcao_id` na própria
+  participação, que é a mesma linha da presença.
+- Médiuns sem função continuam convocados pelo tipo ("todos os elegíveis") e aparecem na chamada.
+
+### 8.9 Na Área do Médium
+- **Início**: cartão "Sua próxima escala" (ex.: "Faxina · sábado 12/10, 9h · grupo G2") com **Vou** / **Não vou**
+  (abre o campo de justificativa quando o tipo exige); cartão "Responda até sexta" para confirmações pendentes; botão
+  **Cheguei** quando estiver dentro da janela de check-in.
+- **Calendário**: giras, atividades visíveis para ele e as escalas dele em destaque ("Você está escalado:
+  Cambone"). O detalhe da atividade tem resposta, check-in e justificativa.
+- **Minhas presenças** (`/medium/presencas`, acessível pelo Início e pelo menu): próximas escalas, histórico com a
+  situação de cada atividade, percentual de presença no período e "Justificar" nas ausências ainda dentro do prazo.
+- O médium vê o nome do próprio grupo; não vê quem mais está no grupo nem a presença dos outros (D-07).
+
+### 8.10 Lado admin
+- `/admin/atividades`: calendário da casa (mês/lista) com giras e atividades, filtro por tipo e grupo; criar
+  atividade com `CrudDrawer` (tipo, data, horário, local, orientações, visibilidade, convocação).
+- Abas: **Escala de faxina** (planejador do §8.7, só com `escalas`), **Tipos e funções**, **Relatórios**.
+- Na tela de Giras, aba **Escala** e botão **Chamada** em cada gira (componente próprio; o `giras.tsx` já tem
+  mais de 1.600 linhas).
+- **Confirmações**: por atividade, contadores (confirmados, ausências avisadas, sem resposta) e lista com as
+  justificativas.
+- **Relatório de assiduidade** (AM-26): por médium e por grupo, período e tipo; colunas convocações, presenças,
+  ausências com e sem justificativa, percentual (presentes ÷ convocações com chamada encerrada, sem dispensados);
+  PDF com `useRelatorioPDF`.
+
+### 8.11 Avisos (AM-15)
+- Véspera, às 18 h: "Amanhã você está na faxina (G2), 9h" e "Amanhã tem gira, você é Cambone".
+- Dois dias antes: confirmação pendente.
+- Depois de marcado ausente: "Quer justificar a falta de sábado?" (link para a Área).
+- Para o admin: resumo diário com ausências avisadas e justificativas novas.
+- Canal: e-mail no MVP; push quando o AM-16 existir; WhatsApp só com o F-03.
+
+### 8.12 Plano e permissões (resumo)
+- `atividades_corrente` (Basic): tipos, atividades internas, grupos, convocação, vou/não vou, justificativa,
+  check-in, chamada, histórico, relatório por médium, avisos de atividade e de confirmação pendente.
+- `escalas` (Pro): planejador da faxina, escala de gira por função e por grupo, rodízio, copiar mês, relatório por
+  grupo, aviso de escala, troca (fase 2). Fora do plano, a aba aparece com `PlanLocked`
+  (`minPlanFor('escalas').label`) e a API responde 403.
+- Grupo de permissão `ESCALAS` (nova) para tudo isso; grupos da corrente em `MEDIUNS`; chamada da gira aceita
+  `PORTA:edit` (§6.7).
+
+---
+
+## 9. Fora do escopo (por enquanto)
 - **Chat do terreiro / grupo** (Minha Gira tem): moderação, notificação e expectativa de resposta em tempo real;
   o WhatsApp já cumpre esse papel. Comunicados de mão única resolvem a dor do "aviso perdido no grupo".
 - **App nativo** (lojas): PWA cobre (AxéCloud vende justamente "não precisa App Store").
@@ -423,21 +695,22 @@ F-02 sair. Não prometer "Pix Automático" para casa sem CNPJ.
 
 ---
 
-## 9. Cards
+## 10. Cards
 
 ### AM-01 — Decisões do dono da Área do Médium
 - **Prioridade:** P0 · **Fase:** MVP · **Esforço:** P · **Tipo:** decisão · **Depende de:** —
 
-**Por quê.** Sete pontos mudam o desenho e o preço (lista completa com recomendação na §11). Sem eles, AM-02,
-AM-08 e AM-10 podem ser refeitos.
+**Por quê.** Pontos que mudam o desenho e o preço (lista na §12). **D-01 a D-08 foram decididas em 2026-10-07**
+(todas como recomendado). A v2 trouxe D-09 a D-13, sobre escalas e presença, ainda abertas.
 
 **Aceite**
-- [ ] D-01 a D-08 da §11 respondidas e registradas neste documento
-- [ ] Plano da `area_medium` decidido (e, se mudar a matriz, AGENTS.md §3.4 atualizado no card de código)
-- [ ] F-04 arquivado no board apontando para os cards AM
+- [x] D-01 a D-08 da §12 respondidas e registradas neste documento (2026-10-07)
+- [x] Plano da `area_medium` decidido: Basic (o AGENTS.md §3.4 é atualizado no card de código, AM-02)
+- [ ] D-09 a D-13 da §12 respondidas
+- [ ] F-04, F-06 e F-07 arquivados no board apontando para os cards AM
 
 ### AM-02 — Fundação de identidade: vínculo médium↔usuário, papel `medium` e trava do painel
-- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** G · **Tipo:** dev · **Depende de:** T-02, AM-01
+- **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** G · **Tipo:** dev · **Depende de:** T-02, AM-01
 
 **Por quê.** Todos os concorrentes com área do membro separam o acesso do painel ("Cada membro acessa um espaço
 separado do painel da administração", AxéCloud). Hoje não há como um médium ter conta, e o operador que é médium
@@ -479,7 +752,7 @@ de papel tratando médium como usuário do painel (contagens, contato principal,
 `grep "select(User)"`.
 
 ### AM-03 — Convite do médium e ativação da conta
-- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, T-02
+- **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, T-02
 
 **Por quê.** O ORI entra por convite ("Recebeu um convite do seu terreiro?"). Convite com prova de posse do
 e-mail é o que garante que só a pessoa certa vê a própria mensalidade.
@@ -519,7 +792,7 @@ confirmação do admin e permitir revogar). E-mail que já existe em outro terre
 precisa do AM-05.
 
 ### AM-04 — Login com escolha de área e troca de área
-- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02
+- **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02
 
 **Por quê.** Pedido direto do dono. Quem tem as duas áreas escolhe; quem tem uma entra direto.
 
@@ -542,7 +815,7 @@ precisa do AM-05.
 - [ ] Médium cujo terreiro perdeu o plano vê o aviso neutro
 
 ### AM-05 — Mesmo e-mail em mais de um terreiro
-- **Prioridade:** P1 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** T-02, AM-02
+- **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** T-02, AM-02
 
 **Por quê.** Hoje o login pega a conta mais antiga com o e-mail. Médium que já é admin de outro terreiro (ou
 médium em duas casas) nunca entraria na Área nova. Convidar médiuns aumenta muito a chance de colisão.
@@ -568,7 +841,7 @@ médium em duas casas) nunca entraria na Área nova. Convidar médiuns aumenta m
 **Riscos.** Enumeração de terreiros pelo e-mail: só listar terreiros cuja senha conferiu.
 
 ### AM-06 — Casca da Área do Médium e tela Início
-- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, AM-04
+- **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, AM-04
 
 **Por quê.** É a "home" que todos os concorrentes descrevem: agenda, avisos e mensalidade num lugar só, no
 celular.
@@ -580,6 +853,8 @@ celular.
   mês (status, valor, vencimento), aviso de aniversário do próprio médium, módulos ligados (AM-10).
 - `F/pages/medium/index.tsx`: cartões com ação direta ("Ver gira", "Ler aviso", "Pagar"), `EmptyState` amigável
   quando a casa ainda não publicou nada.
+- O `/inicio` já nasce com espaço para os cartões da v2 ("Sua próxima escala", confirmação pendente e "Cheguei"),
+  que o AM-17 e o AM-25 preenchem (§8.9).
 - Textos em linguagem de terreiro; testes por papel/texto.
 
 **Aceite**
@@ -589,7 +864,7 @@ celular.
 - [ ] Página carrega só endpoints `/api/v1/medium/*`
 
 ### AM-07 — Calendário de giras para a corrente
-- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-06
+- **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-06
 
 **Por quê.** Pedido do dono e núcleo de todos os concorrentes ("Agenda da casa", Kanzuá; "Agenda do terreiro",
 Minha Gira). A Minha Gira vende a pergunta "O que eu tenho que levar pra gira?".
@@ -598,9 +873,10 @@ Minha Gira). A Minha Gira vende a pergunta "O que eu tenho que levar pra gira?".
 - Migração: `giras.orientacoes_corrente` (Text, nullable): o que levar, roupa, horário de chegada da corrente.
   Diferente de `recados` (que vai para o consulente). Campo novo no drawer da gira em `F/pages/admin/giras.tsx`
   (GIRAS edit), num componente próprio.
-- `GET /api/v1/medium/calendario?inicio&fim`: giras ativas do tenant no período (passadas e futuras), mais os
-  eventos internos do AM-08 quando existir; resposta unificada `{tipo: "gira"|"evento", id, titulo, inicio, fim,
-  local, ...}`.
+- `GET /api/v1/medium/calendario?inicio&fim`: giras ativas do tenant no período (passadas e futuras); com o
+  AM-08, também as atividades internas visíveis ao médium e, com o AM-17/AM-25, a participação dele em cada item
+  (convocado, função, grupo, resposta). Resposta unificada `{origem: "gira"|"atividade", id, tipo (nome, ícone,
+  cor), titulo, inicio, fim, local, minha_participacao}`, desenhada já assim no MVP para não quebrar depois.
 - `GET /api/v1/medium/calendario/gira/{id}`: nome, data e hora (Brasília, `lib/dateBr.ts`), local ou endereço do
   terreiro com link do mapa, descrição, orientações da corrente, situação das senhas (abertas/lotadas, sem dados
   de consulentes) e link público da gira.
@@ -615,30 +891,42 @@ Minha Gira). A Minha Gira vende a pergunta "O que eu tenho que levar pra gira?".
 - [ ] Botão de divulgar abre o WhatsApp com o link público da gira
 - [ ] Nenhum dado de consulente na resposta
 
-### AM-08 — Eventos internos da corrente
-- **Prioridade:** P1 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-07, AM-01 (D-03)
+### AM-08 — Atividades da casa: tipos configuráveis e atividades internas
+- **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** G · **Tipo:** dev · **Depende de:** AM-02, AM-07, AM-23
+- (v2: substitui o antigo "Eventos internos da corrente")
 
-**Por quê.** O calendário da corrente tem mais que giras abertas: desenvolvimento, reunião, festa, obrigação,
-mutirão de limpeza, estudo (AxéCloud: "atividades da casa", calendário litúrgico). Hoje toda gira aparece no site
-e conta no limite de giras/mês do plano (2/3/4), o que inviabiliza lançar evento interno como gira.
+**Por quê.** O calendário da corrente tem mais que giras abertas: rituais coletivos e individuais, organização
+interna, preparação de curso, desenvolvimento, reunião, faxina (pedido do dono, v2). AxéCloud registra presença em
+"giras e atividades da casa"; o ORI tem "Tipos de Rituais" configuráveis. Hoje toda gira aparece no site e conta
+no limite de giras/mês do plano (2/3/4), o que inviabiliza lançar atividade interna como gira (D-03).
 
-**Implementação**
-- Tabela `eventos_corrente` (tenant_id, titulo, tipo enum (desenvolvimento, reuniao, festa, obrigacao, zeladoria,
-  estudo, outro), inicio, fim, local, descricao, orientacoes, publico (todos | atendimento | cambones), soft
-  delete, criado_por).
-- `B/api/v1/admin/eventos_corrente.py`: CRUD com GIRAS (`view`/`insert`/`edit`/`delete`) + `area_medium`. Não
-  conta no limite de giras. Nunca aparece no site, na agenda pública nem no sitemap.
-- Na tela de Giras, aba ou filtro "Eventos da corrente" com `CrudDrawer`.
-- Entra no `GET /api/v1/medium/calendario` respeitando o público.
+**Implementação** (§8.2, §8.3, §8.10)
+- Migrações: `ALTER TYPE permission_feature ADD VALUE 'escalas'` (sozinha) e, em seguida, acesso total no grupo
+  padrão; tabelas `atividade_tipos`, `atividade_tipo_grupos`, `funcoes_corrente`, `atividades`; migração de dados
+  com os 8 tipos sugeridos e funções sugeridas para todo terreiro; `ensure_default_atividade_tipos` no cadastro
+  (`public/onboarding.py`) e no `tenant_service`.
+- Features de plano `atividades_corrente` (BASIC) e `escalas` (PRO) no catálogo e no espelho do front.
+- `B/api/v1/admin/atividades.py`: CRUD de tipos e funções (`ESCALAS` edit), CRUD de atividades
+  (`ESCALAS` view/insert/edit/delete + `atividades_corrente`), cancelar com motivo, calendário da casa
+  (`GET /admin/atividades/calendario`: giras + atividades). Não conta no limite de giras.
+- Serviço `atividade_da_gira` (âncora, `ON CONFLICT DO NOTHING`).
+- Front: `F/pages/admin/atividades.tsx` (calendário + `CrudDrawer`), aba "Tipos e funções" com ícone/cor e as
+  opções de presença, confirmação, justificativa, check-in, elegíveis, convocação e modo de escala.
+- `GET /api/v1/medium/calendario` passa a trazer atividades visíveis (visibilidade "só convocados" filtrada por
+  participação do próprio médium).
+- `permissionFeatures.ts`: `escalas` com rótulo "Atividades e escalas", grupo "Corrente".
 
 **Aceite**
-- [ ] Admin cria evento interno sem consumir o limite de giras
-- [ ] Evento aparece só na Área do Médium, para o público escolhido
-- [ ] Agenda pública, site e sitemap não mostram evento interno (teste)
-- [ ] Teste de FK/tenant cruzado no corpo
+- [ ] Terreiro novo e existente nascem com os 8 tipos sugeridos; admin cria, renomeia, muda ícone/cor e arquiva tipos
+- [ ] Tipo "Gira" é de sistema: não arquiva, é o único visível no site
+- [ ] Admin cria atividade interna sem consumir o limite de giras
+- [ ] Atividade aparece só na Área do Médium, para quem pode ver (corrente ou só convocados)
+- [ ] Agenda pública, site e sitemap não mostram atividade interna (teste)
+- [ ] `ESCALAS` no enum, no grupo padrão e no `permissionFeatures.ts`; botões ocultos sem permissão
+- [ ] Teste de FK/tenant cruzado em tipo, grupo, função e gira
 
 ### AM-09 — Comunicados
-- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, AM-06
+- **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, AM-06
 
 **Por quê.** Pedido do dono e presente em AxéCloud ("mural e avisos oficiais para reduzir ruído no grupo"),
 Kanzuá ("Comunicados internos"), Minha Gira e Quartinha.
@@ -654,6 +942,7 @@ Kanzuá ("Comunicados internos"), Minha Gira e Quartinha.
 - Médium: `GET /api/v1/medium/comunicados` (não expirados, do seu público, fixados primeiro, `lido` por item),
   `GET /{id}`, `POST /{id}/lido` (recusado sob impersonação).
 - E-mail opcional "Avisar por e-mail agora" fica para o AM-15.
+- Quando o AM-23 existir, o público aceita também grupos da corrente (`comunicado_grupos`).
 
 **Aceite**
 - [ ] Quem tem COMUNICADOS:insert publica; botões ocultos sem permissão; `PermissionDenied` sem `view`
@@ -663,7 +952,7 @@ Kanzuá ("Comunicados internos"), Minha Gira e Quartinha.
 - [ ] Corpo sem HTML (sem XSS), testado
 
 ### AM-10 — Configuração da Área e chave PIX do terreiro
-- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, AM-01
+- **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, AM-01
 
 **Por quê.** O terreiro decide o que o médium vê (AxéCloud: "mostra apenas o que a diretoria liberou") e onde o
 dinheiro cai.
@@ -687,7 +976,7 @@ dinheiro cai.
 - [ ] Prévia do QR na tela de configuração lê corretamente em pelo menos 3 apps de banco
 
 ### AM-11 — "Pague sua mensalidade aqui"
-- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-06, AM-10
+- **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-06, AM-10
 
 **Por quê.** Pedido do dono. AxéCloud ("O filho de santo paga pelo portal"), ORI (`/pagar` com "PIX copia e
 cola"), Minha Gira e Tupam têm. Tira o print do grupo.
@@ -712,7 +1001,7 @@ cola"), Minha Gira e Tupam têm. Tira o print do grupo.
 - [ ] Nenhum dado de outro médium (teste de isolamento por `medium_id`)
 
 ### AM-12 — Comprovante enviado pelo médium e confirmação no painel
-- **Prioridade:** P0 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-11
+- **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-11
 
 **Por quê.** Sem gateway, a baixa é humana; o comprovante precisa chegar organizado ("Menos print perdido no
 WhatsApp", AxéCloud).
@@ -740,7 +1029,7 @@ WhatsApp", AxéCloud).
 monitoramento do tamanho da tabela.
 
 ### AM-13 — Perfil do médium
-- **Prioridade:** P1 · **Fase:** MVP · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-06
+- **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-06
 
 **Por quê.** Cadastro atualizado sem o admin digitar tudo ("Informações da corrente", Kanzuá); base para
 aniversário e lembretes.
@@ -778,23 +1067,33 @@ privacidade como argumento ("ambiente isolado, com autenticação e acesso aos p
 - [ ] Política de privacidade descreve os dois fluxos
 
 ### AM-15 — Lembretes e avisos por e-mail
-- **Prioridade:** P1 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-09, AM-11, AM-12
+- **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-09, AM-11, AM-12, AM-17
+- (v2: entra no MVP e passa a cobrir escalas, confirmação pendente e justificativa; absorve o "e-mail na véspera" do F-07)
 
-**Por quê.** Minha Gira "envia lembretes amigáveis antes do vencimento"; ORI avisa por WhatsApp. Sem lembrete, a
-Área vira mais um lugar para esquecer.
+**Por quê.** Minha Gira "envia lembretes amigáveis antes do vencimento" e "Programe alertas automáticos" nas
+escalas; ORI avisa por WhatsApp. Sem lembrete, escala de faxina vira esquecimento e a Área vira mais um lugar para
+esquecer.
 
-**Implementação**
+**Implementação** (§8.11)
 - `B/services/medium_lembrete_scheduler.py` no padrão `scheduler_guard` (advisory lock + marca por linha,
-  `UPDATE ... WHERE notificado_em IS NULL RETURNING`), registrado no lifespan: mensalidade D-3 e no vencimento,
-  gira/evento de amanhã, comunicado novo (quando o admin marca "avisar por e-mail").
-- Aviso ao admin quando chega comprovante (resumo diário, não um por arquivo).
+  `UPDATE ... WHERE lembrete_enviado_em IS NULL RETURNING`), registrado no lifespan:
+  - mensalidade: D-3 e no vencimento;
+  - véspera, 18 h: escala do médium (faxina com o grupo, função na gira) e atividade/gira de amanhã;
+  - D-2: confirmação (vou/não vou) pendente;
+  - depois de marcado ausente: convite para justificar, dentro do prazo;
+  - comunicado novo, quando o admin marca "avisar por e-mail".
+- Para o admin: resumo diário com comprovantes para conferir, ausências avisadas e justificativas novas (um e-mail,
+  não um por evento).
 - Preferências do médium (`medium_preferencias`: por tipo de aviso, opt-out) e link de descadastro.
+- Lembrete de escala só com `escalas` (Pro); os demais com o plano do módulo.
 - Volume de e-mail: medir contra o plano gratuito do Resend antes de ligar para todos.
 
 **Aceite**
 - [ ] Lembretes chegam uma vez só, mesmo com 2 workers (teste)
+- [ ] Véspera da faxina e da escala de gira avisa o médium com grupo/função e horário
+- [ ] Confirmação pendente e justificativa de falta têm aviso próprio
 - [ ] Médium desliga cada tipo de aviso
-- [ ] Admin recebe resumo de comprovantes pendentes
+- [ ] Admin recebe um resumo diário (comprovantes, ausências, justificativas)
 - [ ] Volume mensal estimado e registrado no card
 
 ### AM-16 — Instalar no celular (PWA da Área) e notificação push
@@ -815,36 +1114,68 @@ O manifesto atual abre a Porta.
 - [ ] Push de comunicado e de mensalidade chega no Android e no iPhone instalado
 - [ ] Teste do SW continua garantindo que `/api/*` não é cacheado
 
-### AM-17 — Presença: "vou / não vou" e meu histórico
-- **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** F-06, AM-07
+### AM-17 — Presença: convocação, vou/não vou com justificativa, check-in e lista de chamada
+- **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** G · **Tipo:** dev · **Depende de:** AM-08, AM-06
+- (v2: reescrito; **substitui o F-06** junto com o AM-26)
 
-**Por quê.** AxéCloud ("Presenças, faltas e assiduidade"), Minha Gira ("Controle de Presença nas giras"),
-Quartinha ("Histórico de Frequência"), ORI. Ajuda o dirigente a montar a corrente.
+**Por quê.** Pedido do dono (v2): presença e ausência com justificativa em giras, faxinas e atividades internas.
+AxéCloud ("Presenças, faltas e assiduidade registradas em giras e atividades da casa"), Minha Gira ("Controle de
+Presença nas giras"), Quartinha ("Confirmação de Presença", "Histórico de Frequência", "Faltas & Justificativas"),
+ORI (presença em ritual).
 
-**Implementação**
-- Sobre a tabela `gira_presencas` do F-06: o médium responde "vou / não vou / justificar falta" até o início da
-  gira (`POST /api/v1/medium/calendario/gira/{id}/presenca`); a lista de chamada do admin mostra a intenção.
-- `GET /api/v1/medium/presencas`: histórico e assiduidade do próprio médium.
-- Check-in pelo próprio médium (QR na entrada) fica como ideia de fase 3 (depende do N-06).
+**Implementação** (§8.3 a §8.6, §8.9)
+- Tabela `atividade_participacoes` (única por atividade+médium) e serviço de convocação (virtual para "todos os
+  elegíveis", materializada no encerramento da chamada).
+- Médium (`require_medium` + `atividades_corrente`, escritas recusadas sob impersonação):
+  - `POST /api/v1/medium/atividades/{origem}/{id}/resposta` (`vou` | `nao_vou` + justificativa obrigatória quando o
+    tipo exige; até o início);
+  - `POST .../checkin` (só na janela do tipo, só convocado/elegível);
+  - `POST .../justificativa` (depois de ausente, até o prazo);
+  - `GET /api/v1/medium/presencas` (próximas convocações, histórico, percentual) e
+    `F/pages/medium/presencas.tsx`; cartões no Início e ações no detalhe do calendário.
+- Admin (`ESCALAS`; na gira também `PORTA:edit` na chamada):
+  - `GET /api/v1/admin/atividades/{id}/confirmacoes` (contadores e lista com justificativas, `view`);
+  - `GET/PUT .../chamada` (marcar presente/ausente, adicionar avulso, "marcar confirmados como presentes", `edit`);
+  - `POST .../chamada/encerrar` (`edit`) e job de encerramento automático em 48 h (só se houve alguma presença);
+  - `F/pages/admin/atividades/[id]/chamada.tsx`, botão "Chamada" no cartão da gira e na Porta.
+- Situações derivadas e regras do §8.5; prazo de justificativa (7 dias) em `tenant_configs`.
+- Justificativa fora de e-mail, push, auditoria e exportação (§6.8).
+
+**Testes.** Isolamento entre dois médiuns do mesmo terreiro e entre terreiros; janela de check-in; justificativa
+obrigatória por tipo; encerramento idempotente; `integration_pg` com concorrência de check-in e chamada.
 
 **Aceite**
-- [ ] Médium confirma ou justifica antes da gira
-- [ ] Admin vê as respostas na lista de chamada do F-06
-- [ ] Médium vê o próprio histórico, nunca o de outros
+- [ ] Médium responde vou/não vou; "não vou" exige justificativa quando o tipo pede
+- [ ] Médium faz check-in pelo app só dentro da janela do tipo
+- [ ] Admin ou porteiro faz a chamada (presente/ausente, avulso) e encerra; quem sobrou vira ausente
+- [ ] Ausente pode justificar até o prazo; situação muda para "ausente com justificativa"
+- [ ] Admin vê confirmados, ausências avisadas, sem resposta e as justificativas por atividade
+- [ ] Vale para giras, faxinas e atividades internas (tipos com presença ligada)
+- [ ] Médium vê só o próprio histórico (teste com dois médiuns)
 
-### AM-18 — Minhas escalas
-- **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** P · **Tipo:** dev · **Depende de:** F-07, AM-07
+### AM-18 — Escala de gira: funções e quem trabalha em cada gira
+- **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-08, AM-17, AM-23
+- (v2: reescrito de "Minhas escalas"; **substitui a parte de gira do F-07**, inclusive o rodízio)
 
-**Por quê.** Minha Gira ("Escalas de limpeza do terreiro"); Quartinha prevê escalas de limpeza e cozinha.
+**Por quê.** Pedido do dono (v2): "escala de gira". O ORI tem cadastro de "Funções" ("Gerenciar funções
+espirituais e administrativas do terreiro"); o F-07 previa limpeza, cozinha e portaria por gira com rodízio.
 
-**Implementação**
-- `GET /api/v1/medium/escalas`: alocações futuras do médium (F-07) e, com opt-in da casa, quem divide a mesma
-  escala (só primeiro nome).
-- Escala aparece no detalhe da gira e no Início; o aviso da véspera do F-07 vai também por push (AM-16).
+**Implementação** (§8.8)
+- Aba **Escala** na gira (e em qualquer tipo com modo "por função"): por função, escolher médiuns elegíveis ou um
+  grupo inteiro; "Copiar da gira anterior"; **Rodízio** para as próximas N giras (função pura testada, ordem
+  circular entre médiuns ou grupos).
+- `GET/PUT /api/v1/admin/atividades/{id}/escala` (`ESCALAS` view/edit + `escalas`); grava `funcao_id`,
+  `grupo_id` e `origem` na participação (a mesma linha da presença); trocar alguém de função ou tirar da escala
+  marca `dispensado_em` e avisa.
+- Médium: função aparece no Início ("Você é Cambone na gira de sábado"), no calendário e em "Minhas presenças".
+- Fora do plano `escalas`: aba com `PlanLocked`; giras continuam com presença (Basic).
 
 **Aceite**
-- [ ] Médium vê suas próximas escalas e o detalhe na gira
-- [ ] Nome de colegas só aparece se a casa ligar a opção
+- [ ] Admin monta a escala da gira por função, com médiuns ou grupo inteiro
+- [ ] Copiar da gira anterior e rodízio para as próximas giras funcionam
+- [ ] Um médium tem no máximo uma função por gira
+- [ ] Médium vê a própria função no Início e no calendário
+- [ ] Sem o plano Pro, a aba mostra o bloqueio com o plano mínimo e a API responde 403
 
 ### AM-19 — Minha ficha e minha caminhada
 - **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** F-05, AM-13
@@ -886,7 +1217,7 @@ na Minha Gira, "Diário & Entidades" na Quartinha).
 
 **Implementação**
 - `materiais_corrente` (tenant_id, titulo, tipo (link, pdf, texto, ponto cantado), url ou arquivo, categoria,
-  público, ordem). Começar por **links** (Drive, YouTube) e texto; upload de PDF com limite baixo por causa do
+  público (todos, atendimento, cambones ou grupos do AM-23), ordem). Começar por **links** (Drive, YouTube) e texto; upload de PDF com limite baixo por causa do
   banco (8 GB) ou só depois de armazenamento de objetos.
 - Feature de plano sugerida `biblioteca_medium` (Pro); grupo `COMUNICADOS` ou feature nova.
 - Ideia relacionada: mostrar na Área os cursos presenciais abertos da casa (já existem) com o link de inscrição.
@@ -913,22 +1244,32 @@ este card a põe na Área.
 - [ ] Terreiro sem gateway: fluxo de chave estática intacto
 - [ ] Mesmo isolamento por médium do AM-11
 
-### AM-23 — Públicos da corrente (segmentos)
-- **Prioridade:** P3 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-09, AM-08
+### AM-23 — Grupos da corrente
+- **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02
+- (v2: reescrito de "Públicos da corrente (segmentos)" e trazido para o MVP; um conceito só para escala, público e elegibilidade)
 
-**Por quê.** O MVP segmenta só por atendimento/cambone (o que existe no cadastro). Casas grandes separam ogãs,
-ekedis, desenvolvimento, diretoria.
+**Por quê.** A escala de faxina do dono é feita por grupos (G1, G2, G3). Casas também separam ogãs, ekedis,
+desenvolvimento, diretoria. Um único cadastro de grupos serve à escala, ao público de comunicados e à elegibilidade
+dos tipos de atividade.
 
-**Implementação**
-- `corrente_grupos` e `corrente_grupo_membros` (tenant), gestão em Médiuns (MEDIUNS edit).
-- Comunicados, eventos e materiais passam a aceitar lista de grupos como público.
+**Implementação** (§8.3)
+- Tabelas `corrente_grupos` e `corrente_grupo_membros`; `B/api/v1/admin/corrente_grupos.py` com `MEDIUNS`
+  (edit para criar/editar/arquivar e pôr/tirar médiuns; leitura com `MEDIUNS` ou `ESCALAS` view via
+  `require_any_group_permission`) + `atividades_corrente`.
+- Tela `F/pages/admin/mediuns/grupos.tsx` (ou aba em Médiuns): lista com cor e contagem, `CrudDrawer` com
+  Combobox de médiuns ativos; no cadastro do médium, campo "Grupos".
+- Comunicados (`comunicado_grupos`), tipos de atividade (`atividade_tipo_grupos`) e escalas passam a aceitar grupos.
+- Médium inativo/excluído sai dos grupos (mantém histórico das participações).
+- Médium vê só o nome do próprio grupo (D-07).
 
 **Aceite**
-- [ ] Admin cria grupos e põe médiuns neles
-- [ ] Comunicado/evento para um grupo só aparece para quem está nele
+- [ ] Admin cria grupos com nome e cor e põe médiuns neles
+- [ ] Comunicado/atividade para um grupo só aparece para quem está nele
+- [ ] Tipo de atividade pode limitar quem é escalado a certos grupos
+- [ ] Médium vê o nome do próprio grupo e não vê os outros membros
 
 ### AM-24 — Divulgação: "Sou médium" na landing, página de recurso e novidades
-- **Prioridade:** P2 · **Fase:** MVP (fim) · **Esforço:** P · **Tipo:** conteúdo + dev · **Depende de:** AM-03, AM-11
+- **Prioridade:** P2 · **Fase:** MVP (2.4.0) · **Esforço:** P · **Tipo:** conteúdo + dev · **Depende de:** AM-03, AM-11
 
 **Por quê.** O ORI tem "Entrar como membro" na landing. A Área é argumento de venda contra o "tudo incluso".
 
@@ -943,60 +1284,169 @@ ekedis, desenvolvimento, diretoria.
 - [ ] Quadro de planos com a Área
 - [ ] Novidades da versão escritas em linguagem de terreiro
 
+### AM-25 — Escala de faxina: grupos por dias do mês
+- **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** G · **Tipo:** dev · **Depende de:** AM-08, AM-17, AM-23
+- (v2: card novo; **substitui a parte de zeladoria do F-07**)
+
+**Por quê.** Pedido do dono (v2): "G1 fica com os dias X e Y, G2 com os dias Z e W e G3 com o dia D". Minha Gira
+vende "Escalas de Zeladoria" e a pergunta "É a vez de quem limpar o terreiro?"; Quartinha prevê "escalas de
+limpeza, cozinha" no estatuto. Nenhum concorrente mostra publicamente escala por grupos em dias escolhidos.
+
+**Implementação** (§8.7)
+- Tabelas `escala_planos` (tipo × mês, rascunho/publicado) e `escala_plano_dias` (data × grupo × horário).
+- `B/api/v1/admin/escala_planos.py` (`ESCALAS` view/insert/edit + `escalas`):
+  `GET/PUT /escala-planos/{tipo_id}/{AAAA-MM}` (rascunho), `POST .../copiar-mes-anterior`, `POST .../girar-grupos`,
+  `POST .../distribuir`, `POST .../publicar` (cria/atualiza atividades e participações, com diff na republicação,
+  sob `SELECT ... FOR UPDATE`, idempotente), `POST .../atualizar-convocacoes` (só datas futuras).
+- Funções puras testadas: copiar por ordem do dia da semana, girar grupos, distribuir em ciclo, diff de publicação.
+- Front: aba "Escala de faxina" em `F/pages/admin/atividades.tsx` com grade do mês (7 colunas, células de 44 px),
+  fichas de grupo coloridas, tocar para atribuir, resumo em texto, Salvar rascunho / Publicar com `ConfirmDialog`.
+  Vale para qualquer tipo com modo "grupos por dia" (ex.: Cozinha).
+- Médium: cartão "Sua próxima escala" com grupo e horário, vou/não vou, check-in (AM-17); aviso da véspera (AM-15).
+
+**Aceite**
+- [ ] Admin escolhe o mês, cria/usa grupos e toca nos dias para atribuir cada grupo, no celular e no computador
+- [ ] Copiar do mês anterior (por dia da semana), girar grupos e distribuir em ciclo funcionam
+- [ ] Rascunho não aparece para o médium; publicar cria as faxinas e convoca os membros de cada grupo
+- [ ] Republicar cancela dias removidos, troca convocados de dias alterados e preserva respostas do que não mudou
+- [ ] Mudança de grupo depois de publicado atualiza só as faxinas futuras
+- [ ] Sem o plano Pro, a aba mostra o bloqueio e a API responde 403
+
+### AM-26 — Relatório de assiduidade e justificativas
+- **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-17, AM-23
+- (v2: card novo; **substitui o relatório do F-06**)
+
+**Por quê.** O dirigente quer saber quem falta e por quê, por médium e por grupo. AxéCloud fala em "assiduidade";
+o ORI gera PDF por médium; Meu Axé (benchmark) tem relatório de ausentes.
+
+**Implementação** (§8.10)
+- `GET /api/v1/admin/atividades/assiduidade?inicio&fim&tipo_id&grupo_id&agrupar=medium|grupo` (`ESCALAS` view;
+  `agrupar=grupo` exige `escalas`, Pro): convocações, presenças, ausências com e sem justificativa e percentual
+  (presentes ÷ convocações com chamada encerrada, sem dispensados).
+- Detalhe por médium com a lista de ausências e as justificativas (só na tela, nunca no PDF/CSV).
+- Aba "Relatórios" com `DataTable` (`renderCard` no celular) e PDF via `useRelatorioPDF`.
+
+**Aceite**
+- [ ] Relatório por médium e período, filtrável por tipo de atividade, com PDF
+- [ ] Relatório por grupo no plano Pro
+- [ ] Justificativas visíveis só na tela de quem tem `ESCALAS:view`, fora do PDF
+- [ ] Atividade sem chamada encerrada não entra no percentual
+
+### AM-27 — Troca e substituição na escala
+- **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-25, AM-18, AM-15
+
+**Por quê.** Quem não pode ir costuma combinar a troca no grupo de WhatsApp e o admin fica sem saber. Nenhum
+concorrente mostra troca de escala publicamente (diferencial). Também traz o "quem divide a escala comigo" com
+opt-in (D-07, fase 2).
+
+**Implementação**
+- Tabela `participacao_trocas` (tenant, participação de origem, médium substituto, status pedido · aceito ·
+  aprovado · recusado, datas).
+- Médium pede troca indicando um colega elegível (vê só o primeiro nome de quem aceitou aparecer); o colega aceita
+  na Área; o admin aprova (ou a casa liga "troca aceita entre médiuns não precisa de aprovação").
+- Aprovada: a participação original fica "Substituído" (`substituida_por_id`) e nasce a do substituto com a mesma
+  função/grupo; avisos aos envolvidos.
+- Abonar justificativa (aceitar/recusar) entra aqui também.
+
+**Aceite**
+- [ ] Médium pede troca, colega aceita e admin aprova (ou aprovação automática configurada)
+- [ ] Situação "Substituído" aparece para os dois e no relatório
+- [ ] Admin pode aceitar ou recusar uma justificativa
+- [ ] Opt-in para mostrar o primeiro nome aos colegas de escala
+
+### AM-28 — Check-in com QR do dia na casa
+- **Prioridade:** P3 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-17
+
+**Por quê.** O check-in pelo app no MVP depende de confiança (D-11). Para casas que querem garantir presença física,
+um QR que só existe no terreiro resolve sem GPS. Conversa com o N-06 (check-in do consulente por QR).
+
+**Implementação**
+- Token curto por atividade, rotativo (ex.: a cada 60 s), exibido na Porta/modo TV e na tela da chamada.
+- O botão "Cheguei" abre a câmera; o servidor confere o token da atividade e a janela.
+- Configurável por tipo ("check-in exige QR").
+
+**Aceite**
+- [ ] Tipo configurado com QR só aceita check-in com o código da hora
+- [ ] Código exibido na Porta e no modo TV, sem dado pessoal
+- [ ] Check-in sem QR continua possível onde a casa não exige
+
 ---
 
-## 10. Ordem de execução
+## 11. Ordem de execução
 
 | # | Card | Prio | Fase | Esf. | Observação |
 |---|---|---|---|---|---|
 | 0 | T-02 Token tipado | P0 | (pré) | P | Puxar para antes do AM-02 |
-| 1 | AM-01 Decisões | P0 | MVP | P | Bloqueia desenho e preço |
-| 2 | AM-02 Fundação de identidade | P0 | MVP | G | Base de tudo |
-| 3 | AM-03 Convite e ativação | P0 | MVP | M | |
-| 4 | AM-04 Escolha de área | P0 | MVP | M | Pode correr junto com AM-03 |
-| 5 | AM-06 Casca e Início | P0 | MVP | M | |
-| 6 | AM-10 Configuração e chave PIX | P0 | MVP | M | Pode correr junto com AM-06 |
-| 7 | AM-07 Calendário de giras | P0 | MVP | M | |
-| 8 | AM-09 Comunicados | P0 | MVP | M | |
-| 9 | AM-11 Pague aqui | P0 | MVP | M | |
-| 10 | AM-12 Comprovante e confirmação | P0 | MVP | M | |
-| 11 | AM-05 Mesmo e-mail em vários terreiros | P1 | MVP | M | Antes de convidar em massa |
-| 12 | AM-13 Perfil | P1 | MVP | M | |
-| 13 | AM-08 Eventos internos | P1 | MVP | M | Depende da D-03 |
-| 14 | AM-24 Divulgação | P2 | MVP | P | Fecha o lançamento |
-| 15 | AM-15 Lembretes por e-mail | P1 | Fase 2 | M | |
-| 16 | AM-22 Baixa automática | P2 | Fase 2 | M | Quando F-02 sair |
-| 17 | AM-17 Presença | P2 | Fase 2 | M | Depois do F-06 |
-| 18 | AM-16 PWA e push | P2 | Fase 2 | G | |
-| 19 | AM-14 Meus dados | P2 | Fase 2 | M | |
-| 20 | AM-18 Minhas escalas | P2 | Fase 2 | P | Depois do F-07 |
-| 21 | AM-19 Ficha e caminhada | P2 | Fase 2 | M | Depois do F-05 |
-| 22 | AM-20 Aniversariantes | P3 | Fase 2 | P | |
-| 23 | AM-23 Públicos da corrente | P3 | Fase 2 | M | |
-| 24 | AM-21 Estudos e documentos | P3 | Fase 3 | G | |
+| 1 | AM-01 Decisões | P0 | MVP | P | D-01 a D-08 decididas; faltam D-09 a D-13 |
+| 2 | AM-02 Fundação de identidade | P0 | MVP 2.3.0 | G | Base de tudo |
+| 3 | AM-03 Convite e ativação | P0 | MVP 2.3.0 | M | |
+| 4 | AM-04 Escolha de área | P0 | MVP 2.3.0 | M | Pode correr junto com AM-03 |
+| 5 | AM-06 Casca e Início | P0 | MVP 2.3.0 | M | |
+| 6 | AM-10 Configuração e chave PIX | P0 | MVP 2.3.0 | M | Pode correr junto com AM-06 |
+| 7 | AM-07 Calendário de giras | P0 | MVP 2.3.0 | M | Resposta já no formato unificado do §8 |
+| 8 | AM-09 Comunicados | P0 | MVP 2.3.0 | M | |
+| 9 | AM-11 Pague aqui | P0 | MVP 2.3.0 | M | |
+| 10 | AM-12 Comprovante e confirmação | P0 | MVP 2.3.0 | M | |
+| 11 | AM-05 Mesmo e-mail em vários terreiros | P1 | MVP 2.4.0 | M | Antes de convidar em massa |
+| 12 | AM-13 Perfil | P1 | MVP 2.4.0 | M | |
+| 13 | AM-23 Grupos da corrente | P1 | MVP 2.4.0 | M | Antes de atividades e escalas |
+| 14 | AM-08 Atividades da casa e tipos | P1 | MVP 2.4.0 | G | Cria `ESCALAS`, `atividades_corrente`, `escalas` |
+| 15 | AM-17 Presença | P1 | MVP 2.4.0 | G | Substitui o F-06 |
+| 16 | AM-25 Escala de faxina | P1 | MVP 2.4.0 | G | Substitui o F-07 (zeladoria) |
+| 17 | AM-15 Lembretes por e-mail | P1 | MVP 2.4.0 | M | Véspera da escala, confirmação, justificativa |
+| 18 | AM-26 Assiduidade | P1 | MVP 2.4.0 | M | Substitui o relatório do F-06 |
+| 19 | AM-18 Escala de gira | P1 | MVP 2.4.0 | M | Substitui o F-07 (gira e rodízio); pode virar 2.5.0 se a 2.4.0 crescer demais |
+| 20 | AM-24 Divulgação | P2 | MVP 2.4.0 | P | Fecha o lançamento |
+| 21 | AM-22 Baixa automática | P2 | Fase 2 | M | Quando F-02 sair |
+| 22 | AM-16 PWA e push | P2 | Fase 2 | G | |
+| 23 | AM-27 Troca na escala | P2 | Fase 2 | M | |
+| 24 | AM-14 Meus dados | P2 | Fase 2 | M | |
+| 25 | AM-19 Ficha e caminhada | P2 | Fase 2 | M | Depois do F-05 |
+| 26 | AM-28 Check-in com QR | P3 | Fase 2 | M | |
+| 27 | AM-20 Aniversariantes | P3 | Fase 2 | P | |
+| 28 | AM-21 Estudos e documentos | P3 | Fase 3 | G | |
 
-Lançamento sugerido em duas entregas: **2.3.0** com AM-02 a AM-07, AM-09 a AM-12 (Área funcionando com convite,
-calendário, comunicados e Pague aqui) e **2.4.0** com AM-05, AM-08, AM-13 e AM-24. Cada uma com entrada em
-`releaseNotes.ts`.
+Lançamento em duas entregas, cada uma com entrada em `releaseNotes.ts`:
+- **2.3.0** (5 a 6 semanas): AM-02, AM-03, AM-04, AM-06, AM-07, AM-09, AM-10, AM-11, AM-12. A Área funciona com
+  convite, escolha de área, calendário de giras, comunicados e Pague aqui.
+- **2.4.0** (6 a 7 semanas): AM-05, AM-13, AM-23, AM-08, AM-17, AM-25, AM-15, AM-26, AM-18, AM-24. Atividades da
+  casa, grupos, presença com justificativa, escala de faxina, escala de gira, lembretes e relatório.
+
+**Por que escala de faxina e presença no MVP e não na fase 2** (recomendação D-09): foram pedidas pelo dono, são o
+destaque de quem vende área do membro (Minha Gira) e dão ao Pro (D-02) um motivo concreto de upgrade já no
+lançamento. O custo é a 2.4.0 ficar grande; se precisar cortar, a escala de gira (AM-18) vai para uma 2.5.0 e a
+faxina fica, porque é o exemplo do dono.
 
 ---
 
-## 11. Decisões do dono (com recomendação)
+## 12. Decisões tomadas
+
+**D-01 a D-08: decididas pelo dono em 2026-10-07, todas como recomendado.**
+
+| # | Decisão | Escolha |
+|---|---|---|
+| D-01 | Plano da Área do Médium | **Basic** (`area_medium`), núcleo completo (§6.5) |
+| D-02 | Degraus das fases seguintes | **Escalas e estudos no Pro** (`escalas`, `biblioteca_medium`); baixa automática segue o gateway, com taxa paga pelo terreiro |
+| D-03 | Atividade interna | **Tabela própria** (`atividades`, §8), fora do limite de giras, do site, da agenda pública e do sitemap |
+| D-04 | Escolha de área | **Lembrar por aparelho** (caixa marcada por padrão) + "Trocar de área" nos dois menus |
+| D-05 | Troca da chave PIX | **FINANCEIRO:edit + senha + e-mail a todos os admins + aviso ao médium**, sem `is_admin` |
+| D-06 | Impersonação de médium | **Só leitura** (escritas da Área recusam token impersonado) |
+| D-07 | O que o médium vê dos outros | **Nada no MVP**; aniversário e colegas de escala com opt-in na fase 2 |
+| D-08 | Médium que sai da casa | **Perde acesso** (conta `medium` desativada); histórico sob pedido ao terreiro |
+
+**Decisões abertas pela v2 (escalas e presença), com recomendação:**
 
 | # | Decisão | Opções | Recomendação |
 |---|---|---|---|
-| D-01 | Plano da Área do Médium | Basic · Pro · todos os planos pagos com módulos em degraus | **Basic** (`area_medium`), núcleo completo; degraus em presença/escalas/estudos (§6.5) |
-| D-02 | Degraus das fases 2 e 3 | escalas, estudos e baixa automática no Pro/Premium ou tudo no Basic | escalas e estudos no **Pro**; baixa automática segue o gateway (taxa paga pelo terreiro) |
-| D-03 | Evento interno | tabela própria fora do limite de giras · gira com flag "interna" que conta no limite | **Tabela própria** (`eventos_corrente`), fora do limite e fora do site |
-| D-04 | Escolha de área | perguntar sempre · lembrar por aparelho · lembrar no servidor | **Lembrar por aparelho** (caixa marcada por padrão) + "Trocar de área" nos dois menus |
-| D-05 | Quem pode trocar a chave PIX | FINANCEIRO:edit com senha e aviso aos admins · só admin | **FINANCEIRO:edit + senha + e-mail a todos os admins + aviso ao médium** (sem `is_admin`, como pede o CLAUDE.md) |
-| D-06 | Impersonação de médium | proibida · só leitura · completa | **Só leitura** (escritas da Área recusam token impersonado) |
-| D-07 | O que o médium vê dos outros | nada · lista da corrente · opt-in por item | **Nada no MVP**; aniversário e escala com opt-in na fase 2 |
-| D-08 | Médium inativo/que saiu da casa | perde acesso · vê só histórico de pagamentos | **Perde acesso** (desativa a conta `medium`); histórico sob pedido via "Meus dados" do terreiro |
+| D-09 | Escala de faxina e presença: MVP ou fase 2 | MVP (2.4.0) · fase 2 | **MVP 2.4.0**; se cortar, a escala de gira vai para 2.5.0 (§11) |
+| D-10 | Plano da presença | Basic · Pro | **Basic** (`atividades_corrente`): no Basic a casa marca quem veio; no Pro planeja quem vem |
+| D-11 | Check-in do médium sem prova física | só janela de horário · GPS · QR do dia | **Só janela no MVP** (admin corrige); **QR do dia na fase 2** (AM-28); GPS não, por privacidade e imprecisão |
+| D-12 | Prazos | justificativa até N dias; encerramento automático da chamada | **7 dias** para justificar (configurável); **48 h** para encerrar sozinho, só se houve alguma presença |
+| D-13 | Abonar justificativa | admin aceita/recusa · basta ter texto | **Basta ter texto no MVP**; aceitar/recusar na fase 2 (AM-27) |
 
 ---
 
-## 12. Riscos gerais
+## 13. Riscos gerais
 
 | # | Risco | Mitigação |
 |---|---|---|
@@ -1009,11 +1459,16 @@ calendário, comunicados e Pague aqui) e **2.4.0** com AM-05, AM-08, AM-13 e AM-
 | R-07 | Providers do admin disparam 403/401 na Área | Gate por `areas` no `_app`; 401 força logout (memória `skipAutoLogout`), conferir que nenhuma chamada da Área cai nisso |
 | R-08 | Volume de e-mail passa do gratuito do Resend | Medir no AM-15; lembretes agregados; push como canal principal na fase 2 |
 | R-09 | Adoção baixa (médium não ativa o convite) | Convite por WhatsApp com texto pronto, convite em lote, Início útil já no primeiro acesso, painel de status do convite |
-| R-10 | Escopo cresce (chat, app nativo) | Fora do escopo explícito (§8) |
+| R-10 | Escopo cresce (chat, app nativo) | Fora do escopo explícito (§9) |
+| R-11 | Âncora da gira divergente (gira excluída ou de outro tenant) | Âncora sem cópia de dados, `ON CONFLICT` na mesma transação, join com `giras.deleted_at`, conferência de tenant no serviço e teste de FK cruzada |
+| R-12 | Republicar a escala apaga respostas ou duplica faxinas | Diff puro testado, `SELECT ... FOR UPDATE` no plano, unicidade (`plano`, `data`, `grupo`) e (`atividade`, `médium`) |
+| R-13 | Check-in feito de casa | Janela curta, correção pelo admin, QR do dia na fase 2 (AM-28) |
+| R-14 | Justificativa com dado de saúde vaza | Aviso no campo, visível só com `ESCALAS:view`, fora de e-mail/push/auditoria/PDF |
+| R-15 | 2.4.0 grande demais | Corte previsto: AM-18 para 2.5.0 (§11) |
 
 ---
 
-## 13. Fontes externas (acessadas em 07/10/2026)
+## 14. Fontes externas (acessadas em 07/10/2026)
 - AxéCloud: https://axecloud.com.br · https://axecloud.com.br/sistema-de-gestao-para-terreiros ·
   https://axecloud.com.br/recursos · /recursos/portal-filho-de-santo · /recursos/financeiro-pix-mensalidades ·
   /recursos/mural-de-avisos · /recursos/frequencia-check-in · /recursos/notificacoes-push
@@ -1025,6 +1480,8 @@ calendário, comunicados e Pague aqui) e **2.4.0** com AM-05, AM-08, AM-13 e AM-
 - Meu Axé: https://meuaxe.com.br (respondeu 403; dados do benchmark de 06/10/2026)
 - Pix Automático (regras para recebedor: CNPJ ativo há 6 meses, verificação pelo PSP), Agência Brasil, jun/2025:
   https://agenciabrasil.ebc.com.br/economia/noticia/2025-06/bc-publica-regras-para-evitar-fraudes-por-empresas-no-pix-automatico
+- Minha Gira, escalas e presença (v2): https://minhagira.com.br ("Escalas de Zeladoria", "Controle de Presença
+  nas giras"); ORI e Quartinha pelos mesmos bundles acima (tipos de ritual, funções, presença, justificativas).
 - Pix Agendado Recorrente obrigatório desde 28/10/2024, Fenacon:
   https://fenacon.org.br/noticias/pix-agendado-recorrente-torna-se-obrigatorio/
 - BR Code (QR estático EMV, txid, CRC16): "Manual de Padrões para Iniciação do Pix" do Banco Central.
@@ -1035,30 +1492,34 @@ calendário, comunicados e Pague aqui) e **2.4.0** com AM-05, AM-08, AM-13 e AM-
 ## Apêndice A — Cards em formato de linha
 
 ```
-AM-01 | Decisões do dono da Área do Médium | P0 | MVP | P | — | Responder D-01 a D-08 (plano, eventos internos, escolha de área, chave PIX, impersonação, privacidade) antes do código.
-AM-02 | Fundação de identidade: vínculo médium↔usuário, papel medium e trava do painel | P0 | MVP | G | T-02, AM-01 | Cria mediuns.user_id, papel medium, require_medium, require_backoffice, feature area_medium e auditores para /api/v1/medium.
-AM-03 | Convite do médium e ativação da conta | P0 | MVP | M | AM-02, T-02 | Admin convida por e-mail/WhatsApp; médium cria senha, aceita o termo LGPD e é vinculado ao cadastro.
-AM-04 | Login com escolha de área e troca de área | P0 | MVP | M | AM-02 | Após o login, quem tem as duas áreas escolhe (com "lembrar"), quem tem uma entra direto; troca nos dois menus.
-AM-05 | Mesmo e-mail em mais de um terreiro | P1 | MVP | M | T-02, AM-02 | Login confere a senha em todas as contas do e-mail e pergunta o terreiro quando mais de uma confere.
-AM-06 | Casca da Área do Médium e tela Início | P0 | MVP | M | AM-02, AM-04 | Layout mobile com a marca do terreiro e Início com próxima gira, avisos não lidos e mensalidade do mês.
-AM-07 | Calendário de giras para a corrente | P0 | MVP | M | AM-06 | Calendário com detalhe da gira, orientações só para a corrente, .ics/Google e botão de divulgar no WhatsApp.
-AM-08 | Eventos internos da corrente | P1 | MVP | M | AM-07, AM-01 | Eventos (desenvolvimento, reunião, festa, zeladoria) só na Área, fora do site e do limite de giras.
-AM-09 | Comunicados | P0 | MVP | M | AM-02, AM-06 | Admin publica avisos por público com fixar/agendar/expirar; médium lê e o admin vê quem leu.
-AM-10 | Configuração da Área e chave PIX do terreiro | P0 | MVP | M | AM-02, AM-01 | Terreiro liga módulos, define WhatsApp da casa e cadastra a chave PIX com senha, auditoria e aviso aos admins.
-AM-11 | Pague sua mensalidade aqui | P0 | MVP | M | AM-06, AM-10 | Médium vê status e histórico e paga pelo PIX copia-e-cola/QR gerado da chave com valor e txid do mês.
-AM-12 | Comprovante enviado pelo médium e confirmação no painel | P0 | MVP | M | AM-11 | Médium envia comprovante; admin confirma (vira pago e espelha em contas a receber) ou recusa com motivo.
-AM-13 | Perfil do médium | P1 | MVP | M | AM-06 | Médium edita contato, endereço, nascimento e foto; campos da casa travados e internos ocultos.
+AM-01 | Decisões do dono da Área do Médium | P0 | MVP | P | — | D-01 a D-08 decididas em 2026-10-07 (todas como recomendado); faltam D-09 a D-13 sobre escalas e presença.
+AM-02 | Fundação de identidade: vínculo médium↔usuário, papel medium e trava do painel | P0 | MVP (2.3.0) | G | T-02, AM-01 | Cria mediuns.user_id, papel medium, require_medium, require_backoffice, feature area_medium e auditores para /api/v1/medium.
+AM-03 | Convite do médium e ativação da conta | P0 | MVP (2.3.0) | M | AM-02, T-02 | Admin convida por e-mail/WhatsApp; médium cria senha, aceita o termo LGPD e é vinculado ao cadastro.
+AM-04 | Login com escolha de área e troca de área | P0 | MVP (2.3.0) | M | AM-02 | Após o login, quem tem as duas áreas escolhe (com lembrar), quem tem uma entra direto; troca nos dois menus.
+AM-05 | Mesmo e-mail em mais de um terreiro | P1 | MVP (2.4.0) | M | T-02, AM-02 | Login confere a senha em todas as contas do e-mail e pergunta o terreiro quando mais de uma confere.
+AM-06 | Casca da Área do Médium e tela Início | P0 | MVP (2.3.0) | M | AM-02, AM-04 | Layout mobile com a marca do terreiro e Início com próxima gira, avisos não lidos e mensalidade do mês.
+AM-07 | Calendário de giras para a corrente | P0 | MVP (2.3.0) | M | AM-06 | Calendário com detalhe da gira, orientações só para a corrente, .ics/Google e botão de divulgar no WhatsApp.
+AM-08 | Atividades da casa: tipos configuráveis e atividades internas | P1 | MVP (2.4.0) | G | AM-02, AM-07, AM-23 | Tipos de atividade livres por terreiro (8 sugeridos) e atividades internas fora do site e do limite de giras, com a feature de grupo ESCALAS.
+AM-09 | Comunicados | P0 | MVP (2.3.0) | M | AM-02, AM-06 | Admin publica avisos por público com fixar/agendar/expirar; médium lê e o admin vê quem leu.
+AM-10 | Configuração da Área e chave PIX do terreiro | P0 | MVP (2.3.0) | M | AM-02, AM-01 | Terreiro liga módulos, define WhatsApp da casa e cadastra a chave PIX com senha, auditoria e aviso aos admins.
+AM-11 | Pague sua mensalidade aqui | P0 | MVP (2.3.0) | M | AM-06, AM-10 | Médium vê status e histórico e paga pelo PIX copia-e-cola/QR gerado da chave com valor e txid do mês.
+AM-12 | Comprovante enviado pelo médium e confirmação no painel | P0 | MVP (2.3.0) | M | AM-11 | Médium envia comprovante; admin confirma (vira pago e espelha em contas a receber) ou recusa com motivo.
+AM-13 | Perfil do médium | P1 | MVP (2.4.0) | M | AM-06 | Médium edita contato, endereço, nascimento e foto; campos da casa travados e internos ocultos.
 AM-14 | Meus dados e privacidade (LGPD) | P2 | Fase 2 | M | AM-13 | Exportar os próprios dados e encerrar o acesso revogando o consentimento.
-AM-15 | Lembretes e avisos por e-mail | P1 | Fase 2 | M | AM-09, AM-11, AM-12 | Agendador sem duplicidade para vencimento, gira de amanhã e comunicado, com preferências do médium.
-AM-16 | Instalar no celular (PWA da Área) e notificação push | P2 | Fase 2 | G | AM-06, AM-15 | Manifesto próprio da Área e Web Push (VAPID) para avisos e mensalidade.
-AM-17 | Presença: vou/não vou e meu histórico | P2 | Fase 2 | M | F-06, AM-07 | Médium confirma ou justifica a presença e vê a própria assiduidade, integrado à lista de chamada do F-06.
-AM-18 | Minhas escalas | P2 | Fase 2 | P | F-07, AM-07 | Médium vê as próprias escalas de zeladoria no Início e na gira.
+AM-15 | Lembretes e avisos por e-mail | P1 | MVP (2.4.0) | M | AM-09, AM-11, AM-12, AM-17 | Agendador sem duplicidade para mensalidade, véspera da escala/atividade, confirmação pendente, justificativa e comunicado, com resumo diário ao admin.
+AM-16 | Instalar no celular (PWA da Área) e notificação push | P2 | Fase 2 | G | AM-06, AM-15 | Manifesto próprio da Área e Web Push (VAPID) para avisos, escalas e mensalidade.
+AM-17 | Presença: convocação, vou/não vou com justificativa, check-in e lista de chamada | P1 | MVP (2.4.0) | G | AM-08, AM-06 | Presença em giras, faxinas e atividades: convocação, vou/não vou com justificativa, check-in no app na janela e lista de chamada do admin/porteiro.
+AM-18 | Escala de gira: funções e quem trabalha em cada gira | P1 | MVP (2.4.0) | M | AM-08, AM-17, AM-23 | Escala de gira por função (médiuns ou grupo inteiro), copiar da gira anterior e rodízio, no plano Pro.
 AM-19 | Minha ficha e minha caminhada | P2 | Fase 2 | M | F-05, AM-13 | Médium vê os campos liberados da ficha espiritual e a linha do tempo; sugestões passam por aprovação.
 AM-20 | Aniversariantes da corrente | P3 | Fase 2 | P | AM-13 | Aniversários da semana com opt-in, sem o ano, e parabéns da casa ao aniversariante.
-AM-21 | Estudos e documentos da casa | P3 | Fase 3 | G | AM-09, AM-01 | Biblioteca de links, textos, PDFs e pontos cantados por público, começando por links externos.
+AM-21 | Estudos e documentos da casa | P3 | Fase 3 | G | AM-09, AM-01 (D-02) | Biblioteca de links, textos, PDFs e pontos cantados por público, começando por links externos.
 AM-22 | Mensalidade com baixa automática na Área | P2 | Fase 2 | M | F-01, F-02, AM-11 | Com gateway conectado, o Pague aqui gera cobrança dinâmica e a baixa é automática.
-AM-23 | Públicos da corrente (segmentos) | P3 | Fase 2 | M | AM-09, AM-08 | Grupos da corrente (ogãs, ekedis, desenvolvimento) como público de comunicados, eventos e materiais.
-AM-24 | Divulgação: Sou médium na landing, página de recurso e novidades | P2 | MVP | P | AM-03, AM-11 | Link de convite na landing e no login, Área no quadro de planos, FAQ e novidades da versão.
+AM-23 | Grupos da corrente | P1 | MVP (2.4.0) | M | AM-02 | Grupos da corrente (G1, G2, ogãs, desenvolvimento) como conceito único para escala, público de comunicado e elegibilidade.
+AM-24 | Divulgação: Sou médium na landing, página de recurso e novidades | P2 | MVP (2.4.0) | P | AM-03, AM-11 | Link de convite na landing e no login, Área no quadro de planos, FAQ e novidades da versão.
+AM-25 | Escala de faxina: grupos por dias do mês | P1 | MVP (2.4.0) | G | AM-08, AM-17, AM-23 | Planejador do mês: admin toca nos dias para atribuir G1/G2/G3, copia o mês anterior ou gira grupos e publica, gerando as faxinas e convocações.
+AM-26 | Relatório de assiduidade e justificativas | P1 | MVP (2.4.0) | M | AM-17, AM-23 | Relatório de presença por médium (Basic) e por grupo (Pro), com ausências justificadas ou não e PDF.
+AM-27 | Troca e substituição na escala | P2 | Fase 2 | M | AM-25, AM-18, AM-15 | Médium pede troca a um colega, colega aceita, admin aprova; inclui abonar justificativa e opt-in de colegas de escala.
+AM-28 | Check-in com QR do dia na casa | P3 | Fase 2 | M | AM-17 | QR rotativo exibido na Porta/TV como prova de presença física no check-in, configurável por tipo.
 ```
 
-O aceite de cada card (checklist do Trello) é a lista "Aceite" da §9.
+O aceite de cada card (checklist do Trello) é a lista "Aceite" da §10.
