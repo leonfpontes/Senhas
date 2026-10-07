@@ -15,15 +15,21 @@ class UserRole(str, enum.Enum):
     SUPER_ADMIN = "super_admin"  # Global admin
     ADMIN = "admin"              # Per-tenant admin
     OPERATOR = "operator"        # Read-only/operator role
+    # Área do Médium (AM-02): só médium, SEM acesso ao painel do terreiro. Nunca
+    # passa em /api/v1/admin/* (require_backoffice) e só usa /api/v1/medium/*
+    # quando há vínculo mediuns.user_id ativo (require_medium). Operador/admin
+    # que também é médium mantém o próprio papel e ganha a área pelo vínculo.
+    MEDIUM = "medium"
 
 
 class User(SoftDeleteModel):
     """User model for authentication and authorization.
     
-    Supports RBAC with three role levels:
+    Supports RBAC with three back-office role levels:
     - SUPER_ADMIN: Global platform administrator
     - ADMIN: Tenant-level administrator
     - OPERATOR: Read-only/operator role
+    plus MEDIUM (Área do Médium only — no back-office access, AM-02).
     """
     
     __tablename__ = "users"
@@ -90,5 +96,13 @@ class User(SoftDeleteModel):
 
     @property
     def is_operator_or_admin(self) -> bool:
-        """Check if user can access most admin routes (admin or operator)."""
+        """Check if user can access most admin routes (admin or operator).
+
+        Falso para MEDIUM (AM-02): o papel `medium` não tem acesso ao painel.
+        """
         return self.role in (UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR)
+
+    @property
+    def is_medium_only(self) -> bool:
+        """Papel `medium`: conta só da Área do Médium, sem back-office (AM-02)."""
+        return self.role == UserRole.MEDIUM

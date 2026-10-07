@@ -1,8 +1,8 @@
 """Medium model - registered mediums and cambones for the terreiro."""
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Date, String, ForeignKey, Boolean, Index, Text
+from sqlalchemy import Date, DateTime, String, ForeignKey, Boolean, Index, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -23,6 +23,15 @@ class Medium(SoftDeleteModel):
     __table_args__ = (
         Index("ix_mediuns_tenant_id", "tenant_id"),
         Index("ix_mediuns_is_active", "is_active"),
+        # Um usuário ligado a no máximo um médium não excluído (migração 064).
+        # sqlite_where espelha o predicado para os testes que compilam em SQLite.
+        Index(
+            "uq_mediuns_user_id_ativo",
+            "user_id",
+            unique=True,
+            postgresql_where=text("user_id IS NOT NULL AND deleted_at IS NULL"),
+            sqlite_where=text("user_id IS NOT NULL AND deleted_at IS NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -57,6 +66,20 @@ class Medium(SoftDeleteModel):
     bairro: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     cidade: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     observacoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Área do Médium (AM-02, migração 064). O vínculo com a conta só nasce no
+    # aceite do convite (AM-03, prova de posse do e-mail) — o admin nunca liga
+    # uma conta a um médium diretamente. É ele, e não o papel do usuário, que dá
+    # acesso a /api/v1/medium/* (require_medium).
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # Consentimento LGPD (art. 11: ser médium revela convicção religiosa),
+    # gravado no aceite do convite com a versão do texto aceito.
+    area_consentimento_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    area_consentimento_versao: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
     tenant = relationship("Tenant", backref="mediuns")
 
