@@ -2,6 +2,7 @@
 import React from 'react';
 import { Reveal } from '@/components/landing/Reveal';
 import { Photo } from '@/components/landing/Photo';
+import { ScreenShot } from '@/components/landing/ScreenShot';
 import { SectionHeading } from '@/components/landing/SectionHeading';
 import { STEPS } from '@/constants/landingCopy';
 
@@ -10,12 +11,10 @@ export function HowItWorks() {
     <section id="como-funciona" aria-labelledby="como-funciona-title" className="scroll-mt-20 bg-areia-100 py-20 md:py-28">
       <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 sm:px-6 md:grid-cols-[1fr_1.15fr]">
         <Reveal className="order-last md:order-first">
-          <div className="relative mx-auto max-w-sm">
+          <div className="relative mx-auto mb-10 max-w-sm">
             <Photo name="consulenteCelular" sizes="(min-width: 900px) 30vw, 80vw" className="aspect-[4/5] w-full rounded-3xl shadow-xl shadow-cafe-900/15" />
-            <p className="absolute -right-3 bottom-8 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-tinta shadow-lg sm:-right-8">
-              <span className="block text-xs font-bold tracking-widest text-barro-700 uppercase">Senha confirmada</span>
-              Nº 24 · Gira de Pretos Velhos
-            </p>
+            {/* Bilhete real que o consulente recebe (terreiro de demonstração). */}
+            <ScreenShot name="bilhete" sizes="200px" className="absolute -right-4 -bottom-10 max-w-[9.5rem] sm:-right-12 sm:max-w-[11rem]" />
           </div>
         </Reveal>
 

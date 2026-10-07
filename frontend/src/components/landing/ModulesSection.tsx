@@ -1,10 +1,34 @@
 /** "E ainda tem" — módulos da casa além da senha, com o plano mínimo vindo de constants/plans.ts. */
 import React from 'react';
+import Image from 'next/image';
 import { Reveal } from '@/components/landing/Reveal';
 import { Photo } from '@/components/landing/Photo';
 import { SectionHeading } from '@/components/landing/SectionHeading';
-import { MODULES } from '@/constants/landingCopy';
+import { MODULES, type ModuleMedia } from '@/constants/landingCopy';
+import { SCREENS, type LandingScreen } from '@/constants/landingScreens';
 import { minPlanPhrase } from '@/constants/plans';
+
+const MEDIA_CLASS =
+  'aspect-[16/10] w-full transition duration-500 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100';
+
+function ModuleMediaView({ media }: { media: ModuleMedia }) {
+  if ('photo' in media) {
+    return <Photo name={media.photo} sizes="(min-width: 1200px) 380px, (min-width: 600px) 50vw, 100vw" className={MEDIA_CLASS} />;
+  }
+  const s: LandingScreen = SCREENS[media.screen];
+  // Tela real do sistema: recorte da área de conteúdo, legível no tamanho do cartão.
+  return (
+    <Image
+      src={s.cardSrc ?? s.src}
+      alt={s.alt}
+      width={s.cardSrc ? 800 : s.width}
+      height={s.cardSrc ? 500 : s.height}
+      unoptimized
+      sizes="(min-width: 1200px) 380px, (min-width: 600px) 50vw, 100vw"
+      className={`${MEDIA_CLASS} bg-areia-100 object-cover object-top`}
+    />
+  );
+}
 
 export function ModulesSection() {
   return (
@@ -17,13 +41,8 @@ export function ModulesSection() {
           {MODULES.map((m, i) => (
             <li key={m.title}>
               <Reveal delay={(i % 3) * 0.06} className="group h-full overflow-hidden rounded-3xl border border-areia-200 bg-white shadow-sm">
-                <div className="overflow-hidden">
-                  <Photo
-                    name={m.photo}
-                    decorative
-                    sizes="(min-width: 1200px) 380px, (min-width: 600px) 50vw, 100vw"
-                    className="aspect-[16/10] w-full transition duration-500 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
-                  />
+                <div className="overflow-hidden border-b border-areia-200">
+                  <ModuleMediaView media={m.media} />
                 </div>
                 <div className="p-6">
                   <p className="mb-2 inline-block rounded-full bg-areia-100 px-2.5 py-0.5 text-xs font-semibold text-barro-700">

@@ -11,7 +11,7 @@ export function BilheteMock() {
     >
       <div className="overflow-hidden rounded-[1.5rem] bg-areia-50 text-tinta">
         <div className="bg-barro-600 px-5 pt-5 pb-4 text-white">
-          <p className="text-xs font-semibold tracking-widest text-areia-100 uppercase">Tenda de Umbanda Pai Joaquim</p>
+          <p className="text-xs font-semibold tracking-widest text-areia-100 uppercase">Terreiro Modelo</p>
           <p className="mt-1 font-display text-lg font-bold">Gira de Pretos Velhos</p>
         </div>
         <div className="px-5 py-5 text-center">

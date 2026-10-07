@@ -192,3 +192,44 @@ describe('V-02 números', () => {
     expect(screen.queryByText(/terreiros usando/)).not.toBeInTheDocument();
   });
 });
+
+describe('V-05 telas reais', () => {
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  const { fireEvent } = require('@testing-library/react');
+  const { ScreensCarousel } = require('@/components/landing/ScreensCarousel');
+  const { SCREENS, SCREEN_TOUR } = require('@/constants/landingScreens');
+  const { PHOTOS } = require('@/constants/landingPhotos');
+  const { MODULES } = require('@/constants/landingCopy');
+  const fs = require('fs');
+  const path = require('path');
+  /* eslint-enable @typescript-eslint/no-require-imports */
+  const exists = (src: string) => fs.existsSync(path.join(__dirname, '../../public', src));
+
+  it('toda foto e tela citada existe em /public (nenhuma imagem quebrada)', () => {
+    for (const p of Object.values(PHOTOS) as { src: string }[]) expect(exists(p.src)).toBe(true);
+    for (const s of Object.values(SCREENS) as { src: string; cardSrc?: string }[]) {
+      expect(exists(s.src)).toBe(true);
+      if (s.cardSrc) expect(exists(s.cardSrc)).toBe(true);
+    }
+  });
+
+  it('módulo de sistema mostra tela real; foto só onde retrata o assunto', () => {
+    const byTitle = Object.fromEntries(MODULES.map((m: { title: string; media: object }) => [m.title, m.media]));
+    expect(byTitle['Relatório da gira']).toEqual({ screen: 'relatorio' });
+    expect(byTitle['Site do terreiro e cursos']).toEqual({ screen: 'site' });
+    expect(byTitle['Mensalidades e financeiro']).toEqual({ screen: 'mensalidades' });
+    expect(byTitle['Fila de espera e horário marcado']).toEqual({ screen: 'senhas' });
+  });
+
+  it('abas trocam a tela e a legenda; a tela amplia num diálogo', () => {
+    render(<ScreensCarousel />);
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs).toHaveLength(SCREEN_TOUR.length);
+    fireEvent.click(screen.getByRole('tab', { name: 'Modo TV' }));
+    expect(screen.getByRole('tab', { name: 'Modo TV' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel')).toHaveTextContent(SCREENS.kiosk.caption);
+    expect(screen.getByRole('img', { name: SCREENS.kiosk.alt })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /ampliar a tela: modo tv/i }));
+    expect(screen.getByRole('dialog', { name: 'Modo TV' })).toBeInTheDocument();
+  });
+});

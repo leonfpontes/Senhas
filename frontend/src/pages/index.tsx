@@ -17,6 +17,7 @@ import { BeforeAfter } from '@/components/landing/BeforeAfter';
 import { HowItWorks } from '@/components/landing/HowItWorks';
 import { Testimonials } from '@/components/landing/Testimonials';
 import { StatsBand } from '@/components/landing/StatsBand';
+import { ScreensCarousel } from '@/components/landing/ScreensCarousel';
 import { PlanCards } from '@/components/landing/PlanCards';
 import { ModulesSection } from '@/components/landing/ModulesSection';
 import { FaqSection } from '@/components/landing/FaqSection';
@@ -66,6 +67,7 @@ export default function HomePage() {
         <AudienceSection />
         <BeforeAfter />
         <HowItWorks />
+        <ScreensCarousel />
         <StatsBand />
         <Testimonials />
 

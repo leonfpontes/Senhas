@@ -4,6 +4,7 @@
  */
 import type { PlanFeatureKey } from '@/constants/plans';
 import type { PhotoKey } from '@/constants/landingPhotos';
+import type { ScreenKey } from '@/constants/landingScreens';
 
 export const HERO = {
   eyebrow: 'Para terreiros de Umbanda, Candomblé e casas de axé',
@@ -84,11 +85,17 @@ export const TERREIRO_QUESTIONS: readonly { q: string; a: string }[] = [
   { q: 'Quantos foram atendidos?', a: 'O relatório da gira conta tudo sozinho.' },
 ];
 
+/**
+ * Mídia de cada módulo: precisa mostrar o que o texto diz. Funcionalidade do sistema → tela real
+ * (`screen`); só usa foto (`photo`) quando ela retrata literalmente o assunto (a corrente, as velas).
+ */
+export type ModuleMedia = { photo: PhotoKey } | { screen: ScreenKey };
+
 export interface ModuleItem {
   title: string;
   desc: string;
   feature: PlanFeatureKey;
-  photo: PhotoKey;
+  media: ModuleMedia;
 }
 
 export const MODULES: readonly ModuleItem[] = [
@@ -96,36 +103,36 @@ export const MODULES: readonly ModuleItem[] = [
     title: 'Corrente e cambones',
     desc: 'Cadastro dos médiuns, quem atende em cada gira e os aniversariantes da semana.',
     feature: 'mediuns',
-    photo: 'corrente',
+    media: { photo: 'corrente' },
   },
   {
     title: 'Relatório da gira',
     desc: 'Quantas senhas saíram, quem compareceu e os horários de maior movimento — em PDF.',
     feature: 'relatorio_gira',
-    photo: 'assistencia',
+    media: { screen: 'relatorio' },
   },
   {
     title: 'Site do terreiro e cursos',
     desc: 'Página da casa com endereço, próximas giras e inscrição em cursos e desenvolvimentos.',
     feature: 'site_builder',
-    photo: 'altarIemanja',
+    media: { screen: 'site' },
   },
   {
     title: 'Mensalidades e financeiro',
     desc: 'Mensalidade da corrente e dos associados, contas a pagar e a receber e o caixa da casa.',
     feature: 'contas_financeiras',
-    photo: 'congaPretoVelho',
+    media: { screen: 'mensalidades' },
   },
   {
     title: 'Estoque de materiais',
     desc: 'Velas, ervas, pemba, bebidas: entradas, saídas e aviso quando está acabando.',
     feature: 'estoque_controle',
-    photo: 'velasCosmeDamiao',
+    media: { photo: 'velasEstoque' },
   },
   {
     title: 'Fila de espera e horário marcado',
     desc: 'Gira lotou? Quem chega entra na espera e sobe sozinho. Ou cada consulente escolhe o horário.',
     feature: 'fila_espera',
-    photo: 'mulheresDeBranco',
+    media: { screen: 'senhas' },
   },
 ];
