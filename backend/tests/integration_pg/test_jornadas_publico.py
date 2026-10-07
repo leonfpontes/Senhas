@@ -7,6 +7,7 @@
 - Logo enviada (logo_data) aparece na página de emissão; agenda pública sem giras inativas.
 - Login / esqueci a senha / cadastro sem diferença de maiúsculas no e-mail;
   e-mail repetido em dois terreiros não derruba o esqueci a senha.
+- Cadastro grava a prova do aceite dos Termos e da Privacidade (versão, data, IP, navegador).
 - Cadastro e reativação abrem a sessão com os 3 cookies; "Lembrar-me"
   desmarcado gera cookies de sessão e o refresh mantém o modo.
 - Inscrição em curso enfileira o e-mail de confirmação.
@@ -23,11 +24,14 @@ from sqlalchemy import select, update
 from src.models.consulentes import Consulente
 from src.models.cursos_presenciais import CursoPresencial
 from src.models.gira_time_slots import GiraTimeSlot
+from src.models.legal_acceptances import LegalAcceptance
 from src.models.tenant_config import TenantConfig
 from src.models.tenants import Tenant
 from src.models.tickets import Ticket, TicketStatus
 from src.models.users import User, UserRole
 from src.security.password import hash_password
+
+from src.core.legal_versions import LEGAL_VERSIONS
 
 from .factories import create_gira, create_tenant
 
@@ -289,6 +293,46 @@ async def test_cadastro_seta_3_cookies_e_barra_email_com_maiusculas(client, db, 
     assert set(_set_cookies(ok)) >= {"access_token", "refresh_token", "auth_state"}
     me = await client.get("/api/v1/auth/me")
     assert me.status_code == 200, me.text
+
+
+async def test_cadastro_grava_o_aceite_dos_termos_e_da_privacidade(client, db, monkeypatch):
+    monkeypatch.setattr("src.api.v1.public.onboarding._send_welcome_email", AsyncMock())
+    body = {
+        "terreiro_nome": "Casa do Aceite",
+        "responsavel_nome": "Maria",
+        "email": "aceite@example.com",
+        "whatsapp": "11999998888",
+        "documento": "52998224725",
+        "password": SENHA,
+        "como_conheceu": "indicacao",
+        "principal_dor": "senhas",
+        "aceite_termos": True,
+    }
+    sem_aceite = await client.post("/api/v1/public/onboarding", json={**body, "aceite_termos": False})
+    assert sem_aceite.status_code == 422
+    assert (await db.execute(select(LegalAcceptance))).scalars().all() == []
+
+    ok = await client.post(
+        "/api/v1/public/onboarding",
+        json=body,
+        headers={"user-agent": "Navegador de Teste/1.0", "x-real-ip": "203.0.113.7"},
+    )
+    assert ok.status_code == 201, ok.text
+    user_id = uuid.UUID(ok.json()["user"]["id"])
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one()
+
+    aceites = (
+        await db.execute(select(LegalAcceptance).where(LegalAcceptance.user_id == user_id))
+    ).scalars().all()
+    assert {(a.document, a.version) for a in aceites} == {
+        ("termos", LEGAL_VERSIONS["termos"]),
+        ("privacidade", LEGAL_VERSIONS["privacidade"]),
+    }
+    for a in aceites:
+        assert a.tenant_id == user.tenant_id
+        assert a.ip_address == "203.0.113.7"
+        assert a.user_agent == "Navegador de Teste/1.0"
+        assert a.accepted_at is not None
 
 
 async def test_reativacao_abre_sessao_e_mostra_o_resultado_real(client, db, monkeypatch):

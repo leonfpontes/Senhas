@@ -4,6 +4,9 @@
  * Razão social, CNPJ e endereço identificam o fornecedor (Decreto 7.962/2013, art. 2º, e CDC):
  * preencha quando o dono definir a pessoa jurídica do GiraHub — enquanto vazios, a frase
  * "Quem somos" sai só com o nome GiraHub. Vigência/versão mudam junto com o texto.
+ *
+ * As versões de termos/privacidade são gravadas no aceite do cadastro (tabela legal_acceptances)
+ * a partir do espelho em backend/src/core/legal_versions.py — suba nos dois (um teste confere).
  */
 export const LEGAL_ENTITY = {
   razaoSocial: '',

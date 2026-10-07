@@ -1016,7 +1016,10 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   `www.google.com`) e Meta (`connect.facebook.net`, `www.facebook.com`).
 - **Documentos legais** (`/termos`, `/privacidade`, `/cookies`): moldura `components/public/LegalPageLayout.tsx`
   (MarketingShell + abas + índice), versão/vigência e razão social/CNPJ em `constants/legal.ts`. O texto descreve o
-  que o código faz — mudou operador, retenção, plano ou cookie, revise o documento (R-02). Passagens animadas
+  que o código faz — mudou operador, retenção, plano ou cookie, revise o documento (R-02).
+  **Aceite no cadastro**: `POST /public/onboarding` grava uma linha por documento em `legal_acceptances` (versão, data,
+  IP, navegador — migração 063, só acréscimo). As versões vêm de `backend/src/core/legal_versions.py`, espelho de
+  `LEGAL_VERSIONS` do frontend (`tests/unit/test_legal_acceptance.py` quebra se divergirem): subiu a versão, suba nos dois. Passagens animadas
   marketing ⇄ documentos e entre documentos em `lib/passagem.ts` (`abrir-/fechar-documento`, `folhear-*`).
 
 ---
