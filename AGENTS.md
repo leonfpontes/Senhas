@@ -210,7 +210,7 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   lancamento: ligar para todos (migracao de dados) ou remover a chave.
 - **Configuracao da Area (AM-10)**: `GET/PUT /admin/config/area-medium` (`area_medium_config.py`,
   CONFIGURACOES view/edit + `require_plan_feature("area_medium")`, logo respeita a chave do piloto).
-  Colunas `area_medium_*` em `tenant_configs` (067): ligada (o liga/desliga DA CASA; a chave da
+  Colunas `area_medium_*` em `tenant_configs` (068): ligada (o liga/desliga DA CASA; a chave da
   plataforma vale por cima), boas-vindas, WhatsApp da casa (digitos com DDI) e modulos visiveis
   (agenda, avisos, mensalidade). Leitura unica em `services/medium_area`: `area_medium_enabled_by_tenant`
   (usado pelo `require_medium` e pelo `compute_areas`), `get_area_medium_config` e
