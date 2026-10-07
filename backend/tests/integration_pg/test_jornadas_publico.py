@@ -9,7 +9,8 @@
   e-mail repetido em dois terreiros não derruba o esqueci a senha.
 - Cadastro e reativação abrem a sessão com os 3 cookies; "Lembrar-me"
   desmarcado gera cookies de sessão e o refresh mantém o modo.
-- Inscrição em curso enfileira o e-mail de confirmação.
+- Inscrição em curso enfileira o e-mail de confirmação; autorizar imagem e voz é opcional
+  (LGPD, art. 8º, §4º) e a escolha fica gravada; o consentimento de dados continua obrigatório.
 """
 from __future__ import annotations
 
@@ -347,3 +348,39 @@ async def test_inscricao_em_curso_enfileira_email_de_confirmacao(client, db, enq
     assert msg.to_email == "participante@example.com"
     assert "Curso de Desenvolvimento" in msg.subject
     assert "52998224725" not in msg.html_body  # CPF fora do e-mail (minimização)
+
+
+async def test_inscricao_em_curso_imagem_e_opcional_e_dados_obrigatorio(client, db, enqueued):
+    import json
+
+    from src.models.cursos_presenciais import CursoParticipante
+
+    tenant = await create_tenant(db)
+    curso = CursoPresencial(
+        tenant_id=tenant.id,
+        titulo="Curso de Passes",
+        data_inicio=datetime.now(timezone.utc) + timedelta(days=10),
+        is_active=True,
+        gerar_mensalidade=False,
+    )
+    db.add(curso)
+    await db.commit()
+    url = f"/api/v1/public/cursos/{curso.id}/inscricao"
+
+    sem_dados = await client.post(url, data={"data": json.dumps({"nome": "Sem Aceite", "email": "sem@example.com", "aceita_uso_dados": False})})
+    assert sem_dados.status_code == 422
+
+    # Sem o campo de imagem (formulário antigo) e com imagem recusada: os dois inscrevem.
+    sem_campo = await client.post(url, data={"data": json.dumps({"nome": "Sem Campo", "email": "a@example.com", "aceita_uso_dados": True})})
+    assert sem_campo.status_code == 201, sem_campo.text
+    recusou = await client.post(
+        url,
+        data={"data": json.dumps({"nome": "Recusou Imagem", "email": "b@example.com", "aceita_uso_dados": True, "aceita_uso_imagem": False})},
+    )
+    assert recusou.status_code == 201, recusou.text
+
+    gravados = {
+        p.email: p.aceita_uso_imagem
+        for p in (await db.execute(select(CursoParticipante).where(CursoParticipante.curso_id == curso.id))).scalars()
+    }
+    assert gravados == {"a@example.com": False, "b@example.com": False}
