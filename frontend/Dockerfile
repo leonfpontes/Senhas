@@ -31,6 +31,11 @@ ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 ARG NEXT_PUBLIC_CLARITY_PROJECT_ID=""
 ENV NEXT_PUBLIC_CLARITY_PROJECT_ID=${NEXT_PUBLIC_CLARITY_PROJECT_ID}
 
+# WhatsApp comercial (landing, /planos e billing). Só dígitos com DDI, ex.: 5511999998888.
+# Vazio = os botões de WhatsApp não aparecem. Build-time pelo mesmo motivo do Clarity (V-06).
+ARG NEXT_PUBLIC_SUPPORT_WHATSAPP=""
+ENV NEXT_PUBLIC_SUPPORT_WHATSAPP=${NEXT_PUBLIC_SUPPORT_WHATSAPP}
+
 # Sentry (browser + server bundles). Também build-time: sem isto o DSN sai vazio
 # do bundle e o Sentry do frontend fica desligado em produção, mesmo com a
 # variável no environment do container.
