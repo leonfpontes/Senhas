@@ -76,8 +76,20 @@ tenant redundante (barato) a uma excecao.
 
 ### 3.2 Auth e autorizacao
 
-- Roles principais: SUPER_ADMIN, ADMIN, OPERATOR.
-- Endpoints admin so para escopo do tenant atual.
+- Roles principais: SUPER_ADMIN, ADMIN, OPERATOR — e MEDIUM (AM-02), conta so da Area do Medium,
+  fora da hierarquia de back-office (`_ROLE_HIERARCHY` nivel -1; `is_operator_or_admin` falso).
+- Endpoints admin so para escopo do tenant atual. O `admin_router` inteiro tem
+  `Depends(require_backoffice)`: o papel `medium` leva 403 em TODA rota `/api/v1/admin/*` (o papel
+  vem do usuario no banco, nao do token — rebaixar vale na hora; impersonando um `medium` tambem).
+- Area do Medium (`/api/v1/medium/*`, AM-02): `medium_router` com `Depends(require_medium)` →
+  `MediumContext(user, tenant_id, medium, token)` — medium ativo e nao excluido com
+  `mediuns.user_id = user.id` no tenant do usuario + `check_plan_feature("area_medium")` (403/402) +
+  gancho da config da Area (AM-10, hoje sempre ligada). Vale para qualquer papel (operador/admin
+  ligado a um medium tem as duas areas). Rotas da Area nunca recebem `medium_id`.
+- `areas` (`{"admin": bool, "medium": {"medium_id", "nome"} | null}`) vem em `GET /auth/me`,
+  `GET /auth/profile` e na resposta do login, calculadas no servidor a cada chamada
+  (`services/medium_area.compute_areas`) — nunca no JWT. `admin` = papel admin/operator;
+  `medium` so com vinculo ativo E plano efetivo com `area_medium`.
 - Endpoints platform so para super admin (escopo global).
 
 **Fluxo de autenticacao via cookie HttpOnly (desde 2026-06-27):**
@@ -144,6 +156,29 @@ pode virar escalada de privilegio, escreva a protecao especifica — ex.: `users
 USUARIOS nao cria/promove/edita/remove administrador; SUPER_ADMIN nunca e atribuivel; ninguem se
 exclui/desativa/rebaixa; o ultimo admin ativo fica) e `config.py` (cores/logo exigem plano).
 
+Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
+- `src/api/v1/medium/*` NAO e rota admin: o `medium_router` (prefixo `/api/v1/medium`) inteiro
+  passa por `Depends(require_medium)`; o medium nao tem grupo. Rotas "minhas": nunca recebem
+  `medium_id` (usam `ctx.medium.id`/`ctx.tenant_id`); escrita sob impersonacao →
+  `Depends(require_not_impersonated)`; campos internos (`observacoes`, comprovantes de outros,
+  `registrado_por`) nunca saem por ali.
+- `scripts/audit_permission_guards.py` falha se o `admin_router` perder o `require_backoffice`, se o
+  `medium_router` perder prefixo/`require_medium` ou se um router de `medium/` ficar fora dele.
+  `scripts/audit_tenant_isolation.py` (modo "medium") exige filtro por tenant e, em modelo do
+  medium (`Medium` e FK para `mediuns`), por `ctx.medium.id`; e acusa `medium_id` vindo da requisicao.
+- Papel `medium` em `users.py`: a lista de Usuarios esconde `medium` (so com `?role_filter=medium`);
+  `medium` nao se cria nem se atribui sem vinculo (422 — a conta nasce do convite, AM-03); "Adicionar"
+  com o e-mail de um `medium` do terreiro promove a MESMA conta (papel pedido, grupo padrao, senha e
+  username mantidos — quem cadastra nao fica sabendo a senha do medium; anti-escalada igual);
+  remover (DELETE) operador/admin ligado a medium ativo rebaixa para `medium` e tira dos grupos em vez
+  de excluir; excluir de verdade solta o vinculo. Medium nao entra em grupo (`add_member` → 403) e
+  `PermissionService.check_permission` nega tudo a `medium`, mesmo impersonado.
+- Inativar/excluir medium (`mediuns.py`) desativa a conta `medium` pura ligada (e derruba as sessoes);
+  reativar religa. Operador/admin ligado so perde/recupera a Area.
+- Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
+  (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
+  usuarios (`subscription_info`, dashboard e billing da plataforma).
+
 Para nova feature sem equivalente existente:
 1. Adicionar valor ao enum `PermissionFeature` em `backend/src/models/permission_groups.py`.
 2. Criar migracao Alembic para adicionar o valor ao tipo ENUM no banco (`ALTER TYPE ... ADD VALUE`, dentro de
@@ -194,6 +229,7 @@ Ao criar ou modificar qualquer funcionalidade:
 - [ ] Frontend: tela exibe mensagem de "sem permissao" (nao erro 403) quando grupo nao autoriza view.
 - [ ] Frontend: `permissionFeatures.ts` atualizado se nova feature foi criada (label + group).
 - [ ] Rotas de sistema (health, billing, subscription_info, permission_groups) sao excecao — nao precisam de guard de grupo.
+- [ ] Rota da Area do Medium: no `medium_router` (`require_medium`), sem `medium_id` da requisicao; rota admin: no `admin_router` (`require_backoffice`).
 
 ### 3.3 Integridade de emissao de senha
 
@@ -251,6 +287,8 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   por horario em config, marca do terreiro (`tema_personalizado`: so quando o PUT /tenant/config MUDA
   cor principal/de apoio/cor do texto, e no POST /tenant/logo; remover logo e os demais campos salvam
   em qualquer plano) e exportacao CSV (`export_csv`: CSV da gira e da posicao de estoque).
+  Area do Medium (`area_medium`, Basic+): checada pelo `require_medium` em todo `/api/v1/medium/*`
+  e no calculo de `areas` (AM-02).
 - Excecao no gate de plano para operadores: `view` de `MEDIUNS` NAO passa por
   `is_feature_enabled_for_plan` (`_VIEW_SEM_GATE_DE_PLANO` em `permission_service.py`) — fora do plano o
   operador com o grupo continua consultando os mediuns; insert/edit/delete seguem zerados.
@@ -275,7 +313,9 @@ crie migracao de dados como a `059_planos_limites_out_2026` e a `060_usuarios_il
 Recursos (plano minimo em `_FEATURE_MIN_TIER`):
 - **Todos**: link de senhas para enviar via WhatsApp, Porta, painel, usuarios ilimitados e
   `bulk_operations` (always-on, fora do quadro).
-- **Basic+**: `mediuns`, `relatorio_gira`, `mensalidade_mediun`.
+- **Basic+**: `mediuns`, `relatorio_gira`, `mensalidade_mediun`, `area_medium` (Area do Medium,
+  AM-02 — decisao D-01 de 2026-10-07; por ora fora do quadro: esta em `UNSOLD_FEATURES` ate o texto
+  de venda sair do estudo de UX AM-00/AM-24).
 - **Pro+**: `email_transacional`, `tema_personalizado` (no quadro: "Personalizacao da plataforma"),
   `analytics_basico`, `export_csv` (fora do quadro), `auditoria`, `site_builder` (site e cursos).
 - **So Premium**: `associados`, `mensalidade_associado`, `estoque_controle`, `contas_financeiras`
@@ -335,7 +375,7 @@ O SQLAlchemy 2.0 usa o `.name` do enum Python para lookup no banco por padrao. P
 lowercase no banco, e obrigatorio usar `values_callable=lambda x: [e.value for e in x]` no SQLEnum.
 
 **Enums com valores lowercase no banco** (obrigatorio `values_callable`):
-- `user_role`: super_admin, admin, operator
+- `user_role`: super_admin, admin, operator, medium (`medium` desde a 063, AM-02)
 - `ticket_status`: emitted, called, completed, cancelled, no_show
 - `subscription_status`: active, suspended, cancelled, expired
 - `invoice_status`: draft, sent, paid, overdue, cancelled
@@ -584,9 +624,11 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `060_usuarios_ilimitados` (2026-10-07, so dados: `max_users` = 99999 em todas as
-  assinaturas), apos `059_planos_limites_out_2026` (limites da reestruturacao de planos) e
-  `058_associados_email_unique_ativo` (2.2.0).
+- Head atual: `064_mediuns_user_id` (2026-10-07, AM-02: `mediuns.user_id` FK `users.id` ON DELETE
+  SET NULL + unico parcial `uq_mediuns_user_id_ativo` e `area_consentimento_em/_versao`), apos
+  `063_user_role_medium` (`ALTER TYPE user_role ADD VALUE 'medium'`, sozinha num
+  `autocommit_block()`), `062_permissao_site_copia`/`061_permissao_site_enum` (T-06) e
+  `060_usuarios_ilimitados` (so dados: `max_users` = 99999 em todas as assinaturas).
 - Historico com 4 merge revisions (010, 030, 037, d9fafadd9261) — prefixos numericos ja
   colidiram 3x (009, 028, 030). Por isso a regra do §4.3: `alembic heads` ANTES de criar
   qualquer migracao nova.
@@ -596,7 +638,7 @@ Incluir obrigatoriamente:
   unique), 058 (e-mail de associado unico so entre ativos — recadastrar excluido dava 500).
 
 ### 11.10 Financeiro — Controle de Mensalidade de Mediuns (branch 002-financeiro-mensalidade)
-- **Feature Premium**: `mensalidade_mediun` foi PRO+ de 2026-06-27 ate a reestruturacao de out/2026, quando voltou a ser Premium (junto com a de associados). Endpoints usam `require_plan_feature("mensalidade_mediun")`; config e relatorio ficam nesse gate e a parte de associados so vale com `mensalidade_associado` no plano.
+- **Feature Basic+**: `mensalidade_mediun` foi PRO+ de 2026-06-27 ate a reestruturacao de out/2026, quando passou a ser Basic+ (a de associados e Premium; ver §3.4). Endpoints usam `require_plan_feature("mensalidade_mediun")`; config e relatorio ficam nesse gate e a parte de associados so vale com `mensalidade_associado` no plano.
 - **Modelos**: `MensalidadeConfig` (valor_mensal, dia_vencimento, 1:1 tenant), `MensalidadePagamento` (UNIQUE mediun_id+mes, BYTEA comprovante), `MensalidadeStatus` enum (PENDENTE/PAGO/ISENTO).
 - **Endpoints** (prefixo `/api/v1/admin/financeiro`): config GET/PUT, mensalidades GET/POST por mes, comprovante GET/DELETE, resumo GET (6 hist + 3 proj), relatorio POST enviar / GET download. Associados espelham em `/associados*`.
 - **Regras de acesso** (desde 2026-10-06): so `require_group_permission(FINANCEIRO, ...)` + gate de plano — nao ha mais checagem de perfil ADMIN (`_require_admin` removido; contradizia o grupo). Registrar/editar pagamento e POST (upsert) → acao `insert`; a tela mostra "Registrar"/lote so com `canGroup('financeiro','insert')`. PUT config → `edit`.
@@ -832,6 +874,24 @@ Incluir obrigatoriamente:
   entre `/`, `/planos` e as telas de conta; sem a View Transitions API, troca direta; com
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
+
+### 11.23 Área do Médium — fundação de identidade (AM-02, 2026-10-07)
+Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Só backend até aqui; nenhuma tela.
+- **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
+  `mediuns.user_id → users.id` (migração 064), não do papel. Papel `medium` (063) só para quem não
+  tem painel; operador/admin que é médium mantém o papel e ganha a Área pelo vínculo. O vínculo só
+  nasce no aceite do convite (AM-03) — o admin nunca liga conta a médium; até lá nenhuma linha tem
+  `user_id`. `area_consentimento_em/_versao` (LGPD art. 11) também são gravados no aceite.
+- **Guards** (§3.2/§3.3): `require_backoffice` no `admin_router`; `require_medium` + `MediumContext` no
+  `medium_router`; `require_not_impersonated` para as escritas da Área (cards seguintes).
+- **API**: só `GET /api/v1/medium/me` (nome, foto da conta, terreiro, marca — o mesmo subconjunto
+  público do branding —, `areas`, `modulos` vazio até o AM-10). `areas` também em `/auth/me`,
+  `/auth/profile` e no login (front só tipou `UserAreas` em `useProfile.tsx`; quem decide a rota
+  pela área é o AM-04).
+- **Plano**: `area_medium` Basic+ no catálogo e no espelho `constants/plans.ts` (fora do quadro).
+- **Pendente nos próximos cards**: convite e ativação (AM-03), escolha de área no login (AM-04),
+  login multi-terreiro (AM-05), casca/telas (AM-06+), config da Área (AM-10, hoje sempre ligada),
+  auditor JS de `pages/medium` com `MediumLayout`, slug `escolher-area`.
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

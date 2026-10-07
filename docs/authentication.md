@@ -80,9 +80,10 @@ Usado para renovar o access token sem re-login.
   "user": {
     "id": "user-uuid",
     "email": "admin@terreiro.com",
-    "role": "ADMIN",
+    "role": "admin",
     "tenant_id": "tenant-uuid"
-  }
+  },
+  "areas": { "admin": true, "medium": null }
 }
 
 // Response 401
@@ -132,13 +133,28 @@ Usado para renovar o access token sem re-login.
 
 ## RBAC — Papéis e Permissões
 
-### 3 Papéis
+### Papéis
 
 | Papel | Descrição | Escopo |
 |-------|-----------|--------|
 | **SUPER_ADMIN** | Administrador da plataforma | Cross-tenant, gestão global |
 | **ADMIN** | Administrador do terreiro | Tenant-specific, gestão completa |
 | **OPERATOR** | Operador do terreiro | Tenant-specific, operações limitadas |
+| **MEDIUM** (`medium`, AM-02) | Conta só da Área do Médium | Tenant-specific, **sem painel**: 403 em todo `/api/v1/admin/*` (`require_backoffice`) e `/api/v1/platform/*` |
+
+### Áreas da conta (AM-02)
+
+O login, `GET /auth/me` e `GET /auth/profile` devolvem `areas: {"admin": bool, "medium": {medium_id, nome} | null}`,
+calculadas no servidor a cada chamada (nunca no JWT — o vínculo pode mudar a qualquer momento):
+
+- `admin`: papel `admin` ou `operator` (super admin usa `/platform`).
+- `medium`: médium ativo e não excluído do mesmo tenant com `mediuns.user_id = user.id` **e** plano
+  efetivo com `area_medium` (Basic+). Operador/admin ligado a um médium tem as duas áreas; o papel
+  `medium` é só para quem não tem painel.
+
+A Área do Médium usa `/api/v1/medium/*` com `require_medium` (`MediumContext`): rotas "minhas",
+sem `medium_id` da requisição. As rotas de `/auth/*` (perfil, trocar senha, logout, me) seguem
+abertas a qualquer usuário autenticado, inclusive `medium`.
 
 ### Matriz de Permissões
 
@@ -265,7 +281,7 @@ def verify_password(password: str, hashed: str) -> bool:
 | Separação de tipos | `decode_refresh_token` rejeita access tokens; `decode_token` rejeita refresh tokens |
 | CSRF | Mitigado por `SameSite=Strict` — não requer CSRF token separado |
 | CORS | Origins configuráveis via `.env` |
-| Role hierarchy | `OPERATOR=0 < ADMIN=1 < SUPER_ADMIN=2` — hierarquia explícita em `dependencies.py` |
+| Role hierarchy | `MEDIUM=-1 < OPERATOR=0 < ADMIN=1 < SUPER_ADMIN=2` — hierarquia explícita em `dependencies.py`; `medium` fica fora do back-office (`require_backoffice` no `admin_router`) |
 | Audit trail | Toda operação de login/logout/refresh registrada |
 | Monitoramento | Erros capturados via Sentry (backend + frontend) |
 

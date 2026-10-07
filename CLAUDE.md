@@ -77,6 +77,21 @@ Exceções (não precisam de guard de grupo):
   em vez de `require_group_permission`, já que essa visão é binária
   (admin vê tudo, operator não vê nada) sem granularidade de grupo. Também
   não é gateado por plano/assinatura — disponível em todos os planos.
+- **Área do Médium** (`src/api/v1/medium/*`, `/api/v1/medium/*`, AM-02) — não é
+  rota admin: o `medium_router` inteiro passa por `Depends(require_medium)`
+  (usuário logado + médium ativo ligado a ele por `mediuns.user_id` no mesmo
+  tenant + plano com `area_medium`). O médium não tem grupo; as rotas são
+  "minhas" e **nunca** recebem `medium_id` na URL/corpo (`ctx.medium`,
+  `ctx.tenant_id`). Escrita sob impersonação → `Depends(require_not_impersonated)`.
+  `audit_permission_guards.py` exige o `require_medium`; `audit_tenant_isolation.py`
+  (modo "medium") exige filtro por `ctx.tenant_id` e, em modelo com FK para
+  `mediuns`, por `ctx.medium.id`.
+
+Papel `medium` (AM-02): conta só da Área do Médium. O `admin_router` inteiro tem
+`Depends(require_backoffice)` → `medium` leva 403 em toda rota `/api/v1/admin/*`,
+inclusive nas exceções acima. Rota admin nova entra sempre no `admin_router`
+(`tests/unit/test_area_medium_rotas.py` varre o app). Consulta "qualquer usuário do
+terreiro" (contato, contagem) exclui `role = medium`. Ver AGENTS.md §3.3.
 
 ### Frontend — checklist por tela
 

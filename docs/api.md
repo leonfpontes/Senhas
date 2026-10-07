@@ -203,6 +203,10 @@ All admin endpoints require:
 - `Authorization: Bearer {token}` header
 - `tenant_id` claim must match request tenant
 
+Every `/api/v1/admin/*` route also goes through `require_backoffice` (AM-02): a user with
+`role = medium` (Área do Médium only) gets **403** (`error_code: BACKOFFICE_REQUIRED`) on all of
+them — the role is read from the database, not from the token.
+
 ---
 
 ### 1. Create Gira
@@ -577,11 +581,21 @@ Endpoints for fine-grained authorization control (Admin role only, operators res
   "user": {
     "id": "user-uuid",
     "email": "admin@example.com",
-    "role": "ADMIN",
+    "role": "admin",
     "tenant_id": "tenant-uuid"
+  },
+  "areas": {
+    "admin": true,
+    "medium": null
   }
 }
 ```
+
+`areas` (AM-02) is computed on the server on every call — never stored in the JWT:
+`admin` = role `admin`/`operator`; `medium` = an active, non-deleted médium of the same tenant
+linked to the user (`mediuns.user_id`) **and** the tenant's effective plan includes
+`area_medium` (Basic+), otherwise `null`. The same `areas` object is returned by
+`GET /auth/me` and `GET /auth/profile`.
 
 **Error Responses**:
 - `401 Unauthorized`: Invalid credentials
@@ -624,6 +638,43 @@ Authorization: Bearer {access_token}
   "message": "Logged out successfully"
 }
 ```
+
+---
+
+## Área do Médium Endpoints (AM-02)
+
+All `/api/v1/medium/*` routes go through `require_medium`: authenticated user, an active
+médium linked to that user in the user's own tenant, and a plan with `area_medium` with the
+subscription in good standing. Routes are "mine": they **never** accept `medium_id` in the
+path or body. Writes made while impersonating are refused (403, `require_not_impersonated`).
+
+| Status | When |
+|---|---|
+| 401 | No session / inactive user |
+| 403 | No active link to a médium (`error_code: MEDIUM_AREA_UNAVAILABLE`) or plan without `area_medium` |
+| 402 | Subscription suspended / expired / trial ended |
+
+### 1. Who am I
+
+**Endpoint**: `GET /api/v1/medium/me`
+
+**Response** (200 OK):
+```json
+{
+  "nome": "Maria de Oxum",
+  "foto_url": null,
+  "terreiro": { "id": "tenant-uuid", "nome": "Tenda Pai Joaquim", "slug": "tenda-pai-joaquim" },
+  "marca": { "logo_url": null, "primary_color": "#4f46e5", "secondary_color": "#818cf8", "font_color": null },
+  "areas": {
+    "admin": false,
+    "medium": { "medium_id": "medium-uuid", "nome": "Maria de Oxum" }
+  },
+  "modulos": []
+}
+```
+`marca` is the same public subset served by the branding endpoint; `modulos` stays empty
+until the Área configuration (AM-10). Internal médium fields (`observacoes`, contacts,
+payments) are never returned.
 
 ---
 
