@@ -17,6 +17,7 @@ from src.models.tickets import PriorityCategory, PRIORITY_ORDER
 from src.api.dependencies import get_current_user, require_group_permission, require_any_group_permission
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.repositories.consulente_repo import ConsulenteRepository
+from src.repositories.mediun_repo import MediumRepository
 from src.repositories.senha_control_repo import SenhaControlRepository
 from src.repositories.ticket_repo import TicketRepository
 
@@ -317,7 +318,35 @@ async def get_door_config(
     return DoorConfigResponse(enable_walk_in=bool(tenant_config and tenant_config.enable_walk_in))
 
 
-@router.get("/giras/{gira_id}/door/stats", response_model=DoorStatsResponse, dependencies=[Depends(require_any_group_permission(PermissionFeature.PORTA, PermissionFeature.RELATORIO_GIRA, action="view"))])
+class DoorMediumOption(BaseModel):
+    """Sugestão de nome para médium/cambone no AttendModal — só id e nome."""
+    id: UUID
+    nome: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+@router.get("/door/mediuns-options", response_model=List[DoorMediumOption], dependencies=[Depends(require_group_permission(PermissionFeature.PORTA, "view"))])
+async def list_door_mediuns_options(
+    only_atendimento: bool = Query(True, description="true: médiuns de atendimento; false: todos os ativos (cambone)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[DoorMediumOption]:
+    """Nomes de médiuns ativos do tenant para o AttendModal da Porta (T-05).
+
+    `/mediuns/options` exige MEDIUNS:view: o porteiro só com PORTA levava 403,
+    caía no texto livre e o relatório agrupava grafias diferentes do mesmo
+    médium. Aqui vai só id + nome (sem telefone, e-mail, nascimento etc.).
+    Sem gate de plano: listar médiuns é livre (P-09) e a Porta é de todos os
+    planos.
+    """
+    if not current_user.is_operator_or_admin:
+        raise InsufficientPermissionsError("Admin ou operador necessário")
+    mediuns = await MediumRepository(db).list(current_user.tenant_id, only_atendimento=only_atendimento)
+    return [DoorMediumOption(id=m.id, nome=m.nome) for m in mediuns]
+
+
+@router.get("/giras/{gira_id}/door/stats",response_model=DoorStatsResponse, dependencies=[Depends(require_any_group_permission(PermissionFeature.PORTA, PermissionFeature.RELATORIO_GIRA, action="view"))])
 async def get_door_stats(
     gira_id: UUID = Path(...),
     current_user: User = Depends(get_current_user),

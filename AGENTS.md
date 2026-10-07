@@ -525,6 +525,10 @@ Incluir obrigatoriamente:
   formatado, nome reduzido NO SERVIDOR (`nome_para_tv`: "Maria S."), proximas 3 senhas e a ultima
   chamada (`chamado_em`). Nunca e-mail, telefone, nome completo nem ids; nao usar `/door/queue` na TV.
   A ordem e a mesma da fila da Porta (`_ordenar_fila` em `door_control.py`).
+- Sugestoes de medium/cambone no AttendModal (T-05): `GET /door/mediuns-options` (PORTA:view; so
+  `id` + `nome` dos ativos do tenant; `only_atendimento=true` padrao = mediuns de atendimento,
+  `false` = todos os ativos para cambone). O porteiro sem MEDIUNS nao cai mais no texto livre;
+  erro real vira toast (sem catch silencioso). `/mediuns/options` segue so com MEDIUNS:view.
 - Aviso sonoro: base = primeira fila carregada de cada gira (nao toca ao abrir nem ao trocar de gira).
 - Modais: AttendModal, WalkInModal. Editar "sem senha" com `priority_category: null` tira a prioridade
   (campo omitido mantem a atual).
