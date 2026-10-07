@@ -17,6 +17,7 @@ import { ChevronDown, ChevronRight, Mail, MessageCircle, Printer } from 'lucide-
 import { cn } from '@/lib/utils';
 import { MarketingShell } from '@/components/landing/MarketingShell';
 import { supportWhatsappLink } from '@/lib/whatsapp';
+import { LEGAL_ENTITY } from '@/constants/legal';
 
 const SITE_URL = 'https://girahub.com.br';
 
@@ -221,7 +222,13 @@ export function LegalPageLayout({
         inLanguage: 'pt-BR',
         dateModified: updatedAtIso,
         isPartOf: { '@type': 'WebSite', name: 'GiraHub', url: SITE_URL },
-        publisher: { '@type': 'Organization', name: 'GiraHub', url: SITE_URL },
+        publisher: {
+          '@type': 'Organization',
+          name: 'GiraHub',
+          url: SITE_URL,
+          ...(LEGAL_ENTITY.razaoSocial && { legalName: LEGAL_ENTITY.razaoSocial }),
+          ...(LEGAL_ENTITY.cnpj && { taxID: LEGAL_ENTITY.cnpj }),
+        },
       },
       {
         '@type': 'BreadcrumbList',

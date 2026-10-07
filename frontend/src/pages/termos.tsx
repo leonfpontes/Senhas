@@ -62,7 +62,7 @@ ${PRECOS}
 • **Cobrança:** os planos pagos são mensais e renovam automaticamente. O pagamento é processado pela Stripe, com os meios de pagamento mostrados na tela de assinatura; o GiraHub não vê nem guarda o número do seu cartão.
 • **Troca de plano:** vale na hora. Na troca, a diferença do mês em curso é calculada proporcionalmente e cobrada (ou descontada) na fatura.
 • **Cancelamento:** pelo painel, a qualquer momento, sem multa. O plano continua até o fim do período já pago e depois a casa volta ao Gratuito. Dá para desfazer o cancelamento antes disso.
-• **Direito de arrependimento:** na primeira contratação de um plano pago, você pode desistir em até 7 dias e receber de volta o valor pago (Código de Defesa do Consumidor, art. 49). Fora disso, não devolvemos valores de períodos já iniciados.
+• **Sem reembolso:** valores já pagos não são devolvidos, nem em parte, inclusive quando o plano é cancelado no meio do período. É por isso que o Premium pode ser testado por 30 dias de graça e sem cartão: dá para conhecer tudo antes de pagar. Ficam ressalvados apenas os direitos que a lei garante de forma obrigatória, como o direito de arrependimento do Código de Defesa do Consumidor (art. 49), quando aplicável.
 • **Pagamento recusado:** a assinatura fica suspensa e o painel deixa de criar giras e médiuns novos até a regularização; o que já existe continua acessível. Sem regularização, a casa volta ao Gratuito.
 • **Reajustes:** mudanças de preço são avisadas com pelo menos 30 dias de antecedência e só valem a partir da renovação seguinte.`,
   },
