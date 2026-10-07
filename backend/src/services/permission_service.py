@@ -39,7 +39,7 @@ class PermissionService:
         features = get_effective_plan_features(sub)
 
         # Map our fine-grained features to subscription plan features.
-        # FINANCEIRO (mensalidades) segue mensalidade_mediun (Premium desde
+        # FINANCEIRO (mensalidades) segue mensalidade_mediun (Basic+ desde
         # out/2026); as rotas de associados exigem também mensalidade_associado
         # (Premium) via require_plan_feature no endpoint.
         mapping = {

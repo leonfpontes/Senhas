@@ -229,9 +229,9 @@ def test_effective_limit():
     assert effective_limit(ativa, "max_giras_per_month") == 15
 
     with pytest.raises(HTTPException) as exc:
-        effective_limit(make_sub(PlanType.PRO, SubscriptionStatus.SUSPENDED), "max_users")
+        effective_limit(make_sub(PlanType.PRO, SubscriptionStatus.SUSPENDED), "max_giras_per_month")
     assert exc.value.status_code == 402
-    assert "adicionar usuários" in exc.value.detail
+    assert "criar novas giras" in exc.value.detail
 
     cancelada = make_sub(PlanType.PRO, SubscriptionStatus.CANCELLED, max_giras_per_month=15)
     assert effective_limit(cancelada, "max_giras_per_month") == PLAN_LIMITS[PlanType.FREE]["max_giras_per_month"]

@@ -259,7 +259,7 @@ async def create_medium(
 
     # Create pending conta a receber for next month if mensalidade is configured
     # (isento de mensalidade não gera conta). Só com mensalidade de médiuns no
-    # plano (Premium desde out/2026): a config pode ter ficado gravada de quando o
+    # plano (Basic+ desde out/2026): a config pode ter ficado gravada de quando o
     # tenant tinha um plano maior, e o espelho em contas a receber não deve nascer.
     try:
         from src.repositories.mensalidade_repo import MensalidadeRepository

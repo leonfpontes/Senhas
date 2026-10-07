@@ -49,7 +49,7 @@ def generate_welcome_html(
                 <li>Criar até <strong>{giras_free} giras por mês</strong></li>
                 <li>Emitir senhas para consulentes</li>
                 <li>Gerenciar fila de atendimento em tempo real</li>
-                <li>Acompanhar o painel de controle</li>"""
+                <li>Quantos usuários precisar, sem limite</li>"""
         aviso = None
 
     return f"""\

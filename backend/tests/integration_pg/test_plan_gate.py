@@ -29,9 +29,9 @@ MODULOS = {
     "cursos_presenciais": ("GET", "/api/v1/admin/cursos-presenciais", PlanType.BASIC, PlanType.PRO),
     "contas_financeiras": ("GET", "/api/v1/admin/financeiro/categorias", PlanType.PRO, PlanType.PREMIUM),
     "email_transacional": ("GET", f"/api/v1/admin/tickets/{uuid.uuid4()}/email-status", PlanType.BASIC, PlanType.PRO),
-    "mensalidade_mediun": ("GET", f"/api/v1/admin/financeiro/mensalidades?mes={MES}", PlanType.PRO, PlanType.PREMIUM),
+    "mensalidade_mediun": ("GET", f"/api/v1/admin/financeiro/mensalidades?mes={MES}", PlanType.FREE, PlanType.BASIC),
     "mensalidade_associado": ("GET", f"/api/v1/admin/financeiro/associados?mes={MES}", PlanType.PRO, PlanType.PREMIUM),
-    "mensalidade_config": ("GET", "/api/v1/admin/financeiro/config", PlanType.PRO, PlanType.PREMIUM),
+    "mensalidade_config": ("GET", "/api/v1/admin/financeiro/config", PlanType.FREE, PlanType.BASIC),
     "mediuns": ("GET", "/api/v1/admin/mediuns/aniversariantes", PlanType.FREE, PlanType.BASIC),
     "analytics_basico": ("GET", "/api/v1/admin/analytics", PlanType.BASIC, PlanType.PRO),
     "auditoria": ("GET", "/api/v1/admin/audit-logs", PlanType.BASIC, PlanType.PRO),
@@ -73,7 +73,7 @@ async def test_plano_sem_a_feature_recebe_403(client, db, modulo):
 
 @pytest.mark.parametrize("modulo", list(MODULOS))
 async def test_plano_minimo_ativo_passa_pelo_gate(client, db, modulo):
-    """Controle positivo no plano mínimo de cada módulo (mensalidades: Premium desde out/2026)."""
+    """Controle positivo no plano mínimo de cada módulo (mensalidade de médiuns: Basic+ desde out/2026)."""
     method, url, _, plano = MODULOS[modulo]
     tenant, admin = await _admin(db, plano)
     if modulo == "mensalidade_associado":
@@ -112,13 +112,16 @@ async def test_suspenso_nao_cria_gira(client, db):
 
 
 async def test_pro_cancelado_volta_aos_limites_do_free(client, db):
-    """CANCELLED com plano pago (estado ainda não normalizado) usa o limite do FREE: 1 usuário."""
+    """CANCELLED com plano pago (estado ainda não normalizado) usa o limite do FREE: 2 giras/mês.
+    (Usuários não têm mais limite em nenhum plano desde out/2026.)"""
     _, admin = await _admin(db, PlanType.PRO, SubscriptionStatus.CANCELLED)
-    body = {"email": f"novo-{uuid.uuid4().hex[:6]}@example.com", "username": f"novo{uuid.uuid4().hex[:6]}",
-            "password": "SenhaForte#2026", "full_name": "Novo", "role": "operator"}
-    resp = await client.post("/api/v1/admin/users", headers=admin.headers, json=body)
+    for i in range(2):
+        body = {"nome": f"Gira {i}", "data_inicio": (datetime.now(timezone.utc) + timedelta(days=3 + i)).isoformat()}
+        assert (await client.post("/api/v1/admin/giras", headers=admin.headers, json=body)).status_code == 201
+    body = {"nome": "Gira 3", "data_inicio": (datetime.now(timezone.utc) + timedelta(days=9)).isoformat()}
+    resp = await client.post("/api/v1/admin/giras", headers=admin.headers, json=body)
     assert resp.status_code == 422, resp.text
-    assert "Limite de usuários" in resp.text
+    assert "Limite mensal de giras atingido (2)" in resp.text
 
 
 async def test_free_cancelado_segue_usando_o_free(client, db):

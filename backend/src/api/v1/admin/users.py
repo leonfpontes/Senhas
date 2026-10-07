@@ -14,12 +14,11 @@ from src.repositories.permission_group_repo import PermissionGroupRepository
 from src.security.password import hash_password, validate_password_policy
 from src.services.audit_service import AuditService
 from src.services import session_service
-from src.api.dependencies import effective_limit, get_current_user, require_group_permission
+from src.api.dependencies import get_current_user, require_group_permission
 from src.core.errors import (
     InsufficientPermissionsError,
     NotFoundError,
 )
-from src.repositories.subscription_repo import SubscriptionRepository
 from sqlalchemy import select, func, and_
 from src.core.tz import utc_now
 
@@ -73,31 +72,6 @@ def _require_can_manage_target(current_user: User, target: User) -> None:
         )
 
 
-async def _ensure_user_limit(db: AsyncSession, tenant_id: UUID) -> None:
-    """Limite de usuários ATIVOS do plano (criar e reativar contam igual)."""
-    sub = await SubscriptionRepository(db).get_by_tenant(tenant_id)
-    if sub is None:
-        return
-    # SUSPENDED → 402; cancelada/trial vencido → limite do FREE (P-05).
-    max_users = effective_limit(sub, "max_users")
-    if max_users == -1:
-        return
-    count_stmt = select(func.count()).select_from(User).where(
-        and_(
-            User.tenant_id == tenant_id,
-            User.is_active.is_(True),
-            User.deleted_at.is_(None),
-        )
-    )
-    result = await db.execute(count_stmt)
-    current_count = result.scalar() or 0
-    if current_count >= max_users:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Limite de usuários atingido ({max_users}). Faça upgrade do plano.",
-        )
-
-
 async def _ensure_other_active_admin(db: AsyncSession, tenant_id: UUID, target_id: UUID) -> None:
     """Bloqueia tirar do ar o último administrador ativo do terreiro."""
     remaining = await db.scalar(
@@ -147,8 +121,8 @@ async def create_user(
     _require_assignable_role(current_user, user_data.role)
     validate_password_policy(user_data.password)
 
-    # Enforce subscription limits server-side (frontend gates are not sufficient)
-    await _ensure_user_limit(db, current_user.tenant_id)
+    # Sem limite de usuários: ilimitados em todos os planos (out/2026) — quem
+    # opera a plataforma vira promotor do upgrade (ver PLAN_LIMITS).
 
     # Check if email already exists
     repo = UserRepository(db)
@@ -270,7 +244,7 @@ async def update_user(
     Autorização pelo grupo (USUARIOS:edit — admin faz bypass). Proteções:
     ninguém muda o próprio perfil nem se desativa por aqui; o último
     administrador ativo não pode ser rebaixado/desativado; operador não mexe
-    em administradores; reativar respeita o limite de usuários do plano.
+    em administradores. Reativar não tem limite (usuários ilimitados em todos os planos).
     """
     repo = UserRepository(db)
     existing_user = await repo.get_by_id(user_id, current_user.tenant_id)
@@ -290,7 +264,6 @@ async def update_user(
     new_role = update_data.get("role")
     role_change = new_role is not None and new_role != existing_user.role
     deactivating = update_data.get("is_active") is False and existing_user.is_active
-    reactivating = update_data.get("is_active") is True and not existing_user.is_active
 
     if role_change:
         _require_assignable_role(current_user, new_role)
@@ -310,8 +283,6 @@ async def update_user(
         and (deactivating or (role_change and new_role != UserRole.ADMIN))
     ):
         await _ensure_other_active_admin(db, current_user.tenant_id, existing_user.id)
-    if reactivating:
-        await _ensure_user_limit(db, current_user.tenant_id)
     if user_update.password:
         validate_password_policy(user_update.password)
 

@@ -5,7 +5,8 @@ Decisão do dono do produto:
   médiuns; Premium ilimitado. Usuários e preços não mudam.
 - Associados (+ mensalidade de associados), estoque, horário marcado, fila de
   espera e financeiro (contas_financeiras) saem do Pro e ficam só no Premium.
-- Mensalidade de médiuns também é Premium (decisão do dono do produto).
+- Mensalidade de médiuns a partir do Basic (gatilho de upgrade pelo nº de médiuns).
+- Usuários ilimitados em todos os planos (99999 = sentinela de "ilimitado").
 
 O frontend espelha esta matriz em frontend/src/constants/plans.ts (teste
 __tests__/constants/plans.test.ts). Mudou aqui, mude lá.
@@ -31,7 +32,7 @@ MIN_PLAN = {
     "export_csv": PlanType.PRO,
     "auditoria": PlanType.PRO,
     "site_builder": PlanType.PRO,
-    "mensalidade_mediun": PlanType.PREMIUM,
+    "mensalidade_mediun": PlanType.BASIC,
     "associados": PlanType.PREMIUM,
     "mensalidade_associado": PlanType.PREMIUM,
     "estoque_controle": PlanType.PREMIUM,
@@ -62,9 +63,9 @@ def test_feature_min_plan(feature):
 @pytest.mark.parametrize(
     "plan, users, giras, mediuns, price",
     [
-        (PlanType.FREE, 1, 2, 0, 0.0),
-        (PlanType.BASIC, 3, 3, 15, 49.0),
-        (PlanType.PRO, 10, 4, 30, 79.0),
+        (PlanType.FREE, 99999, 2, 0, 0.0),
+        (PlanType.BASIC, 99999, 3, 15, 49.0),
+        (PlanType.PRO, 99999, 4, 30, 79.0),
         (PlanType.PREMIUM, 99999, 999999, 9999999, 99.0),
     ],
 )
@@ -91,7 +92,7 @@ def test_suspenso_perde_tudo():
         ("fila_espera", "apenas no plano Premium"),
         ("agendamento_por_horario", "apenas no plano Premium"),
         ("mensalidade_associado", "apenas no plano Premium"),
-        ("mensalidade_mediun", "apenas no plano Premium"),
+        ("mensalidade_mediun", "a partir do plano Basic"),
         ("site_builder", "a partir do plano Pro"),
     ],
 )
@@ -127,3 +128,21 @@ def test_migracao_059_tem_os_mesmos_numeros_de_plan_limits():
         )
     assert module.ANTIGOS == {"FREE": (4, 0), "BASIC": (10, 50), "PRO": (15, 150)}
     assert "PREMIUM" not in module.NOVOS
+
+
+def test_migracao_060_usuarios_ilimitados():
+    path = Path(__file__).resolve().parents[2] / "alembic" / "versions" / "060_usuarios_ilimitados.py"
+    spec = importlib.util.spec_from_file_location("mig060", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.down_revision == "059_planos_limites_out_2026"
+    assert all(PLAN_LIMITS[p]["max_users"] == module.UNLIMITED_USERS for p in PlanType)
+    assert module.ANTIGOS == {"FREE": 1, "BASIC": 3, "PRO": 10, "PREMIUM": 99999}
+
+
+def test_users_py_nao_tem_mais_limite_de_usuarios():
+    from src.api.v1.admin import users
+
+    src = inspect.getsource(users)
+    assert "_ensure_user_limit" not in src
+    assert "Limite de usuários" not in src

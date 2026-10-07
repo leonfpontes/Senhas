@@ -1,4 +1,4 @@
-"""Admin Financeiro — Mensalidades (Premium feature).
+"""Admin Financeiro — Mensalidades (médiuns a partir do Basic; associados Premium).
 
 Routes:
   GET  /api/v1/admin/financeiro/config         — Get tenant mensalidade config
@@ -51,8 +51,9 @@ MAX_COMPROVANTE_BYTES = 5 * 1024 * 1024  # 5 MB
 ALLOWED_COMPROVANTE_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
 
 # ── Gate de plano (P-05) ─────────────────────────────────────────────────────
-# Médiuns: mensalidade_mediun e associados: mensalidade_associado — os dois
-# Premium desde a reestruturação de out/2026 (antes Pro+). Config e relatório servem os
+# Médiuns: mensalidade_mediun a partir do BASIC (out/2026: com o limite de 15
+# médiuns do Basic, controlar a mensalidade de todos é gatilho de upgrade).
+# Associados: mensalidade_associado, Premium. Config e relatório servem os
 # dois e ficam no recurso de entrada (mensalidade_mediun): quem tem mensalidade
 # de associados (Premium) sempre tem a de médiuns. Dentro deles, a parte de
 # associados só vale com mensalidade_associado no plano (`_assoc_enabled`).
@@ -187,7 +188,7 @@ async def get_config(
 ):
     """Return the tenant's mensalidade configuration.
     
-    Accessible to Premium (gate _GATE_CONFIG no decorator). O toggle de associados
+    Accessible a partir do Basic (gate _GATE_CONFIG no decorator). O toggle de associados
     volta efetivo (desligado se o plano não inclui mensalidade_associado).
     """
     repo = MensalidadeRepository(db)

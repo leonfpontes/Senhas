@@ -62,7 +62,7 @@ class TestPlanFeatures:
         assert f.bulk_operations is True
         assert f.mediuns is True
         assert f.relatorio_gira is True
-        assert f.mensalidade_mediun is False
+        assert f.mensalidade_mediun is True  # a partir do Basic desde out/2026
         assert f.auditoria is False
         assert f.suporte_prioritario is False
         assert f.site_builder is False
@@ -80,8 +80,8 @@ class TestPlanFeatures:
         assert f.bulk_operations is True
         assert f.auditoria is True
         assert f.site_builder is True
+        assert f.mensalidade_mediun is True  # Basic+
         # Premium only
-        assert f.mensalidade_mediun is False
         assert f.associados is False
         assert f.mensalidade_associado is False
         assert f.estoque_controle is False
@@ -106,7 +106,7 @@ class TestPlanFeatures:
 
 
 class TestPlanFeaturesMensalidade:
-    """mensalidade_mediun é só Premium desde a reestruturação de out/2026."""
+    """mensalidade_mediun a partir do Basic (out/2026)."""
 
     def _get_features(self, plan: PlanType):
         from src.api.v1.admin.subscription_info import _get_plan_features
@@ -116,13 +116,13 @@ class TestPlanFeaturesMensalidade:
         f = self._get_features(PlanType.FREE)
         assert f.mensalidade_mediun is False
 
-    def test_basic_nao_tem_mensalidade_mediun(self):
+    def test_basic_tem_mensalidade_mediun(self):
         f = self._get_features(PlanType.BASIC)
-        assert f.mensalidade_mediun is False
+        assert f.mensalidade_mediun is True
 
-    def test_pro_nao_tem_mensalidade_mediun(self):
+    def test_pro_tem_mensalidade_mediun(self):
         f = self._get_features(PlanType.PRO)
-        assert f.mensalidade_mediun is False
+        assert f.mensalidade_mediun is True
 
     def test_premium_tem_mensalidade_mediun(self):
         f = self._get_features(PlanType.PREMIUM)
@@ -166,21 +166,21 @@ class TestPlanConfig:
 
     def test_free_config(self):
         c = self._get_config(PlanType.FREE)
-        assert c["max_users"] == 1
+        assert c["max_users"] == 99999  # usuários ilimitados em todos os planos
         assert c["max_giras_per_month"] == 2
         assert c["max_mediuns"] == 0
         assert c["price"] == 0.0
 
     def test_basic_config(self):
         c = self._get_config(PlanType.BASIC)
-        assert c["max_users"] == 3
+        assert c["max_users"] == 99999  # usuários ilimitados em todos os planos
         assert c["max_giras_per_month"] == 3
         assert c["max_mediuns"] == 15
         assert c["price"] == 49.0
 
     def test_pro_config(self):
         c = self._get_config(PlanType.PRO)
-        assert c["max_users"] == 10
+        assert c["max_users"] == 99999  # usuários ilimitados em todos os planos
         assert c["max_giras_per_month"] == 4
         assert c["max_mediuns"] == 30
         assert c["price"] == 79.0

@@ -328,8 +328,8 @@ def require_plan_feature(feature: str, detail: Optional[str] = None):
 
 # ── Limites numéricos (usuários, giras/mês, médiuns) ────────────────────────
 
+# Usuários não têm mais limite (ilimitados em todos os planos desde out/2026).
 _LIMIT_BLOCK_ACTIONS = {
-    "max_users": "adicionar usuários",
     "max_giras_per_month": "criar novas giras",
     "max_mediuns": "adicionar médiuns",
 }
