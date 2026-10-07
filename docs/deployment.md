@@ -358,6 +358,15 @@ então nem quem invadir a VPS nem quem acessar o bucket consegue ler os dados (h
    /opt/senhas/devops/backup/install.sh              # instala o cron e roda um backup na hora
    ```
 
+   **Remote do R2 no rclone** (as chaves de acesso quem digita é o dono, no `rclone config`):
+   `type = s3`, `provider = Cloudflare`, `region = auto`, `endpoint = https://<account-id>.r2.cloudflarestorage.com`
+   e **`no_head = true`**. O rclone do apt (1.60) confere cada upload com `HEAD ?versionId=…`, que o R2
+   não implementa (501 `NotImplemented`); sem `no_head` o upload só passa na 2ª tentativa. O token do R2
+   precisa de **Object Read & Write** restrito ao bucket (só leitura dá `AccessDenied` no upload).
+
+**Em produção desde 2026-10-07:** bucket `girahub-backups` (R2), chave gpg `backup@girahub.com.br`
+(fingerprint `069C 2164 066B 3A25 9959  D5BB 7726 E160 726F CDC9`), cron às 03:15 UTC.
+
 **Monitorar:** `tail /var/log/senhas-backup.log` e `cat /opt/senhas/backups/daily/.last-success`
 (data do último sucesso). Se a data tiver mais de 26 h, o backup parou.
 
