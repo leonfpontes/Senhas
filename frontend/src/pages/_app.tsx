@@ -2,7 +2,6 @@ import '@/styles/globals.css';
 
 import React from 'react';
 import { AppProps } from 'next/app';
-import Script from 'next/script';
 import { TourProvider } from '@reactour/tour';
 import TenantAwareThemeProvider from '@/providers/ThemeProvider';
 import { SubscriptionProvider } from '@/hooks/useSubscription';
@@ -14,6 +13,8 @@ import { Toaster } from '@/components/ui/sonner';
 import ClarityAnalytics from '@/components/shared/ClarityAnalytics';
 import ServiceWorkerRegistrar from '@/components/shared/ServiceWorkerRegistrar';
 import PassagemDeEntrada from '@/components/shared/PassagemDeEntrada';
+import MarketingTags from '@/components/shared/MarketingTags';
+import CookieConsent from '@/components/shared/CookieConsent';
 
 /**
  * Estilos do popover do tour — responsivos.
@@ -42,16 +43,10 @@ const tourStyles = {
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <>
-      {/* Google Analytics 4 */}
-      <Script strategy="afterInteractive" src="https://www.googletagmanager.com/gtag/js?id=G-BF9G0RFCDB" />
-      <Script id="ga4-init" strategy="afterInteractive">
-        {`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', 'G-BF9G0RFCDB');
-        `}
-      </Script>
+      {/* GA4 + Google Ads (Consent Mode v2, tudo negado até a escolha) e Meta Pixel (só com
+          consentimento de marketing) — lib/marketingTags.ts. O banner registra a escolha. */}
+      <MarketingTags />
+      <CookieConsent />
       {/* PWA (P-01): registra public/sw.js em produção; em dev, desregistra */}
       <ServiceWorkerRegistrar />
       {/* Passagem animada marketing ⇄ telas de conta (só nesse trecho do site) */}
@@ -61,7 +56,7 @@ function MyApp({ Component, pageProps }: AppProps) {
           <SubscriptionProvider>
             <PermissionsProvider>
               <SnackbarProvider>
-                {/* Microsoft Clarity — só ativo com NEXT_PUBLIC_CLARITY_PROJECT_ID no build */}
+                {/* Microsoft Clarity — só com NEXT_PUBLIC_CLARITY_PROJECT_ID no build E consentimento de estatísticas */}
                 <ClarityAnalytics />
                 <BirthdayProvider>
                   {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}

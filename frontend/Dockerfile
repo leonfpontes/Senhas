@@ -31,6 +31,18 @@ ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 ARG NEXT_PUBLIC_CLARITY_PROJECT_ID=""
 ENV NEXT_PUBLIC_CLARITY_PROJECT_ID=${NEXT_PUBLIC_CLARITY_PROJECT_ID}
 
+# Tags de medição/marketing (lib/marketingTags.ts) — todas sob o consentimento do banner de cookies.
+# GA4 tem padrão no código (G-BF9G0RFCDB); Google Ads (AW-…), o rótulo da conversão de cadastro e o
+# Meta Pixel ficam desligados enquanto vazios. Build-time pelo mesmo motivo do Clarity.
+ARG NEXT_PUBLIC_GA4_ID=""
+ENV NEXT_PUBLIC_GA4_ID=${NEXT_PUBLIC_GA4_ID}
+ARG NEXT_PUBLIC_GOOGLE_ADS_ID=""
+ENV NEXT_PUBLIC_GOOGLE_ADS_ID=${NEXT_PUBLIC_GOOGLE_ADS_ID}
+ARG NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL=""
+ENV NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL=${NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL}
+ARG NEXT_PUBLIC_META_PIXEL_ID=""
+ENV NEXT_PUBLIC_META_PIXEL_ID=${NEXT_PUBLIC_META_PIXEL_ID}
+
 # WhatsApp comercial (landing, /planos e billing). Só dígitos com DDI, ex.: 5511999998888.
 # Vazio = os botões de WhatsApp não aparecem. Build-time pelo mesmo motivo do Clarity (V-06).
 ARG NEXT_PUBLIC_SUPPORT_WHATSAPP=""
