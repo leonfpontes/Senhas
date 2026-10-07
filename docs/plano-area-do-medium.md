@@ -428,13 +428,13 @@ compor grupo é mexer no cadastro da corrente, e servem a comunicados e escalas 
   `role = medium` desse fallback (senão um médium pode receber e-mail de cobrança da plataforma).
 
 ### 6.10 Frontend
-- Rotas: `/escolher-area`, `/convite/[token]`, `/medium` (início), `/medium/calendario`,
-  `/medium/calendario/[tipo]/[id]`, `/medium/comunicados`, `/medium/comunicados/[id]`, `/medium/mensalidade`,
-  `/medium/perfil`, `/medium/presencas` (minhas escalas e meu histórico, v2); fases seguintes: `/medium/estudos`,
+- Rotas (nomes da v3, D-16 e D-26): `/escolher-area`, `/convite/[token]`, `/medium` (início), `/medium/agenda`,
+  `/medium/agenda/[tipo]/[id]`, `/medium/avisos`, `/medium/avisos/[id]`, `/medium/mensalidade`,
+  `/medium/perfil`, `/medium/presencas` (minhas escalas e meu histórico, v2, aberto pelo Perfil); fases seguintes: `/medium/estudos`,
   `/medium/meus-dados`. Admin (v2): `/admin/atividades` (calendário da casa com giras e atividades, abas Atividades ·
   Escala de faxina · Tipos e funções · Relatórios), `/admin/atividades/[id]/chamada`, `/admin/mediuns/grupos`.
 - `F/components/medium/MediumLayout.tsx`: celular primeiro, cabeçalho com logo e cor do terreiro (`applyBrand`),
-  barra inferior com Início · Calendário · Avisos · Mensalidade · Perfil (mesma regra de z-index da
+  barra inferior com Início · Agenda · Avisos · Mensalidade · Perfil (D-27) (mesma regra de z-index da
   `MobileTabBar`), menu com "Trocar de área" (só se tiver as duas) e "Sair". Gate: sem área de médium →
   redireciona para a área certa.
 - Kit existente: `PageHeader`, `EmptyState`, `KpiCard`, `CrudDrawer` (perfil), `DataTable` com `renderCard`,
@@ -1483,6 +1483,28 @@ faxina fica, porque é o exemplo do dono.
 | D-11 | Como a presença é confirmada | confiança · janela de horário · QR do dia · GPS | **Configuração da casa** (padrão + ajuste por tipo): **confiança** (padrão; a confirmação do médium basta), **check-in pelo app** na janela ou **check-in com QR** (AM-28, MVP 2.4.0). GPS não, por privacidade e imprecisão |
 | D-12 | Prazos | justificativa até N dias; encerramento automático da chamada | **7 dias** para justificar (configurável); **48 h** para encerrar sozinho, só se houve alguma presença |
 | D-13 | Abonar justificativa | admin aceita/recusa · basta ter texto | **Basta ter texto no MVP**; aceitar/recusar na fase 2 (AM-27) |
+
+**Decisões de experiência (v3), tomadas pelo dono em 2026-10-07 numa rodada de produto** (substituem as fases de
+descoberta e vocabulário do AM-00; ver [estudo-ux-area-do-medium.md](estudo-ux-area-do-medium.md) §6):
+
+| # | Tema | Escolha | Efeito nos cards |
+|---|---|---|---|
+| D-14 | Nome da área | **Área do Médium** | Menu, convite, escolha de área |
+| D-15 | Valor mensal | **Mensalidade** (mesmo termo do painel) | AM-11, AM-12, AM-15 |
+| D-16 | Mensagens da casa | **Avisos** na tela (tabelas e rotas internas podem seguir `comunicados`) | AM-09 |
+| D-17 | Escala | **"Você está na escala"** (nunca "convocado" na tela do médium) | AM-17, AM-18, AM-25 |
+| D-18 | Presença no dia | Botão **"Cheguei"** | AM-17, AM-28 |
+| D-19 | Ausência | **"Não vou"** + campo **"Conte o motivo"** (com o aviso de que não precisa detalhar saúde) | AM-17 |
+| D-20 | Limpeza | **Faxina** (nome sugerido do tipo; tipos continuam livres) | AM-08, AM-25 |
+| D-21 | Termos por casa | **Fixos no MVP**; reavaliar com pedidos reais | AM-10 sem dicionário |
+| D-22 | Acesso | **E-mail + senha**, convite enviado pelo WhatsApp (texto pronto) | AM-03 |
+| D-23 | Voltar à área | **Ícone na tela inicial já no MVP**: manifesto da Área + passo guiado "Adicionar à tela inicial" no 1º acesso; push segue na fase 2 | AM-06 ganha o manifesto; AM-16 fica só com push |
+| D-24 | Início | **Pendências primeiro** (responder escala, mensalidade a vencer/vencida, aviso novo), depois a próxima gira | AM-06 |
+| D-25 | Pagamento | **Envio do comprovante** (foto ou PDF) e a casa confirma | AM-12 (sem mudança) |
+| D-26 | Tela de giras e atividades | **Agenda** (rota `/medium/agenda`) | AM-07 |
+| D-27 | Barra inferior | **Início · Agenda · Avisos · Mensalidade · Perfil**; escala aparece no Início e na Agenda; histórico de presenças no Perfil | AM-06, AM-13, AM-17 |
+| D-28 | Leitura de avisos | Dirigente vê **quem leu e quem não leu** | AM-09 (sem mudança) |
+| D-29 | Lembretes da mensalidade | **3 dias antes e 3 dias depois** do vencimento se não houver comprovante, tom gentil, a casa pode desligar | AM-15 |
 
 ---
 

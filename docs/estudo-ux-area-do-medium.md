@@ -1,6 +1,7 @@
 # Estudo de experiência e usabilidade da Área do Médium (AM-00)
 
-Criado: 2026-10-07 · Status: **preparado, não iniciado** · Card: **AM-00** · Plano técnico:
+Criado: 2026-10-07 · Status: **vocabulário e jornadas decididos pelo dono (07/10); falta o protótipo** ·
+Card: **AM-00** · Plano técnico:
 [plano-area-do-medium.md](plano-area-do-medium.md)
 
 O dono pediu um estudo completo de experiência **antes** de desenvolver a Área do Médium, com foco em
@@ -146,7 +147,35 @@ Pelo menos metade usando **Android**, com o celular de uso diário (sem aparelho
 
 ---
 
-## 6. Glossário a validar
+> **Atualização 2026-10-07.** O dono decidiu o vocabulário e as jornadas centrais numa rodada de produto, com a
+> experiência dele com as casas (decisões D-14 a D-29 do plano, §12). Isso substitui as conversas de descoberta e o
+> teste de vocabulário (semana 1). Seguem valendo o protótipo navegável (semana 2) e, como validação leve antes do
+> lançamento da 2.3.0, um teste curto com médiuns de uma casa (semana 3, opcional por decisão do dono).
+
+## 6. Glossário
+
+**Decidido em 2026-10-07** (fonte única dos textos da Área):
+
+| Conceito | Termo | Evitar |
+|---|---|---|
+| Nome da área | **Área do Médium** | Portal, Dashboard |
+| Entrar | **Entrar** (e-mail + senha) | Login, Logar |
+| Convite | **Convite da casa** (enviado pelo WhatsApp) | Cadastro, Ativação |
+| Mensagens da casa | **Avisos** | Comunicados (na tela), Notificações, Feed |
+| Giras e atividades | **Agenda** | Calendário (na tela), Eventos |
+| Valor mensal | **Mensalidade** | Cobrança, Fatura, Boleto |
+| Pagar | **Pagar com PIX** · **PIX copia e cola** | BR Code, txid |
+| Comprovante | **Enviar comprovante** | Anexar, Upload |
+| Escala | **Você está na escala** · etiqueta "Na escala" | Convocado, Alocação |
+| Resposta | **Vou** · **Não vou** | Confirmar presença / Recusar |
+| Motivo da ausência | **Conte o motivo** | Justificativa obrigatória |
+| Presença no dia | **Cheguei** | Check-in |
+| Limpeza | **Faxina** (nome sugerido; a casa pode criar outros tipos) | — |
+| Termos por casa | **Fixos no MVP** | — |
+
+Abaixo, a proposta original que serviu de base para a rodada.
+
+### 6.1 Proposta original (histórico)
 
 Proposta inicial; o teste de vocabulário decide. Coluna "Evitar" = palavras de sistema ou que soam frias.
 
