@@ -1,6 +1,6 @@
 /**
  * EmBreve — tela provisória das abas da Área do Médium que chegam nos próximos cards
- * (Agenda: AM-07, Avisos: AM-09, Mensalidade: AM-11). Título em Fraunces + EmptyState do kit.
+ * (Agenda: AM-07, Mensalidade: AM-11). Título em Fraunces + EmptyState do kit.
  */
 import React from 'react';
 import { EmptyState } from '@/components/EmptyState';

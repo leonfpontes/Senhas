@@ -28,6 +28,8 @@ export interface MediumMe {
   marca: MediumMarca;
   areas: UserAreas;
   modulos: string[];
+  /** Avisos ainda não lidos — selo da aba Avisos (AM-09). */
+  avisos_nao_lidos?: number;
 }
 
 export type MediumStatus = 'idle' | 'loading' | 'ok' | 'indisponivel' | 'erro';
