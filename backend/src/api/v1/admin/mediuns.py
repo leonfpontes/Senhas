@@ -26,6 +26,7 @@ from src.models import User, PermissionFeature
 from src.repositories.mediun_repo import MediumRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
+from src.services.medium_area import sync_pure_medium_user
 
 router = APIRouter(prefix="/api/v1/admin/mediuns", tags=["admin-mediuns"])
 logger = logging.getLogger(__name__)
@@ -344,6 +345,11 @@ async def update_medium(
     elif medium.mensalidade_isento and not was_isento:
         await _cancelar_contas_futuras(db, current_user.tenant_id, medium.id, None)
 
+    # Área do Médium (AM-02, D-08): inativar desativa a conta `medium` pura ligada
+    # (reativar devolve); operador/admin ligado só perde/recupera a Área.
+    if was_active != medium.is_active:
+        await sync_pure_medium_user(db, current_user.tenant_id, medium)
+
     await db.commit()
     await db.refresh(medium)
 
@@ -377,6 +383,9 @@ async def delete_medium(
 
     medium.deleted_at = datetime.now(timezone.utc)
     await _cancelar_contas_futuras(db, current_user.tenant_id, medium.id, None)
+    # Área do Médium (AM-02, D-08): a conta `medium` pura ligada é desativada;
+    # operador/admin ligado só perde a Área (require_medium exige médium não excluído).
+    await sync_pure_medium_user(db, current_user.tenant_id, medium)
     await db.commit()
 
     audit = AuditService(db)

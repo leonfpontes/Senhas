@@ -96,7 +96,7 @@ Herda as 3 colunas de timestamp. Adiciona método `.soft_delete()` que define `d
 | `profile_photo_data` | `LargeBinary` (BYTEA) | Sim | — | adicionado em 009; foto binária |
 | `profile_photo_content_type` | `String(50)` | Sim | — | adicionado em 009; ex.: `image/jpeg` |
 | `password_hash` | `String(255)` | Não | — | bcrypt |
-| `role` | `Enum(UserRole)` | Não | `OPERATOR` | DB enum `user_role` |
+| `role` | `Enum(UserRole)` | Não | `OPERATOR` | DB enum `user_role` (`medium` desde a 063 — conta só da Área do Médium) |
 | `is_active` | `Boolean` | Não | `True` | indexed |
 | `created_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `updated_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
@@ -108,7 +108,13 @@ Herda as 3 colunas de timestamp. Adiciona método `.soft_delete()` que define `d
 
 **Indexes:** `ix_users_tenant_id`, `ix_users_is_active`, `ix_users_email`
 
-**Properties:** `.is_super_admin`, `.is_admin`
+**Properties:** `.is_super_admin`, `.is_admin`, `.is_operator_or_admin` (falso para `medium`), `.is_medium_only`
+
+**Vínculo com médium (AM-02, migração 065):** `mediuns.user_id` (FK → `users.id` **ON DELETE SET NULL**,
+nullable) liga a conta ao cadastro do médium e é o que dá acesso à Área do Médium (`require_medium`).
+Índice único parcial `uq_mediuns_user_id_ativo` em `(user_id) WHERE user_id IS NOT NULL AND deleted_at IS NULL`
+(um usuário, no máximo um médium não excluído). `mediuns.area_consentimento_em` (`DateTime(tz)`) e
+`mediuns.area_consentimento_versao` (`String(20)`) guardam o aceite LGPD gravado no convite (AM-03).
 
 ---
 
@@ -488,7 +494,7 @@ Trail imutável de todas as operações (compliance LGPD). Herda de `Base` diret
 
 | DB Enum Name | Valores no banco (PostgreSQL) | Python `.value` | Model usa `values_callable`? | Criado em |
 |---|---|---|---|---|
-| `user_role` | `super_admin`, `admin`, `operator` | lowercase | ✅ sim | 002 (renomeado para lowercase em maio/2026) |
+| `user_role` | `super_admin`, `admin`, `operator`, `medium` | lowercase | ✅ sim | 002 (renomeado para lowercase em maio/2026); `medium` na 063 (AM-02) |
 | `ticket_status` | `emitted`, `called`, `completed`, `cancelled`, `no_show` | lowercase | ✅ sim | 002 (renomeado para lowercase em maio/2026) |
 | `audit_action` | `create`, `read`, `update`, `delete`, `login`, `logout`, `token_refresh`, `TENANT_DELETED` | lowercase (exceto TENANT_DELETED) | ✅ sim | 002 (renomeado para lowercase em maio/2026) |
 | `subscription_status` | `active`, `suspended`, `cancelled`, `expired` | lowercase | ✅ sim | 003 (renomeado para lowercase em maio/2026) |

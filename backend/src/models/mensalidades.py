@@ -1,4 +1,4 @@
-"""Mensalidade models — monthly dues control for médiuns (Premium feature)."""
+"""Mensalidade models — monthly dues control for médiuns (feature `mensalidade_mediun`, Basic+ desde out/2026)."""
 from __future__ import annotations
 
 import enum

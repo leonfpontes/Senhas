@@ -1,5 +1,7 @@
 """Admin API routes package."""
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from src.api.dependencies import require_backoffice
 
 from .giras_crud import router as giras_router
 from .gira_time_slots import router as gira_time_slots_router
@@ -27,8 +29,12 @@ from .permission_groups import router as permission_groups_router
 from .contas_financeiras import router as contas_financeiras_router
 from .support_chat import router as support_chat_router
 
-# Combine all admin routers
-admin_router = APIRouter()
+# Combine all admin routers.
+# require_backoffice (AM-02): o papel `medium` (Área do Médium) leva 403 em TODA
+# rota /api/v1/admin/* — inclusive as que só usam get_current_user. Rota admin
+# nova entra aqui, nunca direto no app (tests/unit/test_area_medium_rotas.py
+# varre o app e falha se um médium passar em qualquer rota admin/platform).
+admin_router = APIRouter(dependencies=[Depends(require_backoffice)])
 admin_router.include_router(giras_router)
 admin_router.include_router(gira_time_slots_router)
 admin_router.include_router(tickets_router)

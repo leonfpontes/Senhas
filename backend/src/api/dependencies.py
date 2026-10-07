@@ -1,22 +1,26 @@
 """FastAPI dependency injection utilities (T022)."""
+from dataclasses import dataclass
 from fastapi import Request, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import Any, Optional
 from datetime import timezone
 import uuid
 
 from ..core.database import get_db
+from ..core.auth_cookies import is_impersonated_request
 from ..core.errors import (
+    ForbiddenError,
     UnauthorizedError,
     InsufficientPermissionsError,
     MultiTenantViolationError,
     NotFoundError,
     GroupPermissionDeniedError,
 )
-from ..models import User, UserRole, PermissionFeature, PlanType
+from ..models import Medium, User, UserRole, PermissionFeature, PlanType
 from ..middleware.tenant_context import get_tenant_id
 from ..repositories.subscription_repo import PLAN_LIMITS, SubscriptionRepository
 from ..services.permission_service import PermissionService
+from ..services.medium_area import area_medium_enabled_by_tenant, get_linked_medium
 from ..services.plan_features import (
     BLOCK_INACTIVE,
     BLOCK_MESSAGES,
@@ -93,6 +97,8 @@ async def get_tenant_from_request(request: Request) -> uuid.UUID:
 
 
 _ROLE_HIERARCHY: dict[UserRole, int] = {
+    # Fora do back-office (AM-02): `medium` não passa em nenhum require_role.
+    UserRole.MEDIUM: -1,
     UserRole.OPERATOR: 0,
     UserRole.ADMIN: 1,
     UserRole.SUPER_ADMIN: 2,
@@ -209,6 +215,89 @@ def require_any_group_permission(*features: PermissionFeature, action: str):
     return dependency
 
 
+# ── Back-office × Área do Médium (AM-02) ────────────────────────────────────
+
+
+async def require_backoffice(user: User = Depends(get_current_user)) -> None:
+    """Recusa o papel `medium` (403) — vai no `admin_router` inteiro.
+
+    Fecha de uma vez todas as rotas `/api/v1/admin/*`, inclusive as que só usam
+    `get_current_user` (dashboard, branding, chat de suporte, `/me/permissions`).
+    O papel vem do usuário carregado do banco, não do token: rebaixar alguém para
+    `medium` vale na próxima requisição. Impersonar um usuário `medium` também
+    leva 403 aqui (a impersonação faria bypass dos grupos).
+    Sem sessão o `get_current_user` já responde 401.
+    """
+    if user.role == UserRole.MEDIUM:
+        raise ForbiddenError(
+            "Sua conta não tem acesso ao painel do terreiro.",
+            details={"error_code": "BACKOFFICE_REQUIRED"},
+        )
+    return None
+
+
+@dataclass(frozen=True)
+class MediumContext:
+    """Quem está usando a Área do Médium (`require_medium`).
+
+    `tenant_id` vem do usuário logado e `medium` do vínculo `mediuns.user_id` —
+    rotas de `/api/v1/medium/*` NUNCA recebem `medium_id` na URL ou no corpo:
+    tudo é "meu" (`ctx.medium.id`, `ctx.tenant_id`).
+    """
+
+    user: User
+    tenant_id: uuid.UUID
+    medium: Medium
+    token: Any = None
+
+    @property
+    def is_impersonated(self) -> bool:
+        return bool(getattr(self.token, "impersonated_by", None)) if self.token else False
+
+
+AREA_MEDIUM_INDISPONIVEL = "A Área do Médium não está disponível para a sua conta."
+
+
+async def require_medium(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MediumContext:
+    """Resolve o médium do usuário logado (docs/plano-area-do-medium.md §6.6).
+
+    1. usuário autenticado (`get_current_user`: 401 sem sessão/inativo);
+    2. tenant do próprio usuário (nunca do corpo/URL); sem tenant → 403;
+    3. médium com `user_id` = usuário, do mesmo tenant, não excluído e ativo → senão 403;
+    4. plano com `area_medium` e status da assinatura em dia (403/402, `check_plan_feature`);
+    5. Área ligada na configuração do terreiro — TODO(AM-10), hoje sempre ligada
+       (`medium_area.area_medium_enabled_by_tenant`).
+    Vale para qualquer papel: operador/admin vinculado também usa a Área.
+    """
+    tenant_id = user.tenant_id
+    # Conta excluída (soft delete) não usa a Área, mesmo com token ainda válido.
+    if tenant_id is None or user.deleted_at is not None:
+        raise ForbiddenError(AREA_MEDIUM_INDISPONIVEL, details={"error_code": "MEDIUM_AREA_UNAVAILABLE"})
+    medium = await get_linked_medium(db, tenant_id, user.id)
+    if medium is None:
+        raise ForbiddenError(AREA_MEDIUM_INDISPONIVEL, details={"error_code": "MEDIUM_AREA_UNAVAILABLE"})
+    await check_plan_feature(user, db, "area_medium")
+    if not await area_medium_enabled_by_tenant(db, tenant_id):
+        raise ForbiddenError(AREA_MEDIUM_INDISPONIVEL, details={"error_code": "MEDIUM_AREA_UNAVAILABLE"})
+    return MediumContext(user=user, tenant_id=tenant_id, medium=medium, token=getattr(request.state, "token", None))
+
+
+async def require_not_impersonated(request: Request) -> None:
+    """Recusa (403) escrita feita sob impersonação.
+
+    Na Área do Médium o suporte pode VER o que o médium vê, mas não envia
+    comprovante, não marca leitura nem edita perfil em nome dele (§6.9, D-06).
+    Uso: `@router.post(..., dependencies=[Depends(require_not_impersonated)])`.
+    """
+    if is_impersonated_request(request):
+        raise InsufficientPermissionsError("Operação não permitida durante impersonação.")
+    return None
+
+
 # ── Super admin (rotas /api/v1/platform/*) ──────────────────────────────────
 
 
@@ -248,6 +337,7 @@ _PLAN_FEATURE_LABELS: dict[str, str] = {
     "associados": "Controle de Associados",
     "fila_espera": "Fila de espera",
     "agendamento_por_horario": "Senhas com horário marcado",
+    "area_medium": "Área do Médium",
 }
 
 

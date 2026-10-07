@@ -9,7 +9,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.models import User
+from src.models import User, UserRole
 from src.models.giras import Gira
 from src.models.subscriptions import PlanType
 from src.api.dependencies import get_current_user
@@ -23,12 +23,13 @@ from src.services.plan_features import PlanFeatures, _get_plan_features, get_eff
 
 
 async def _count_active_users(db: AsyncSession, tenant_id) -> int:
-    """Count active, non-deleted users for a tenant."""
+    """Count active, non-deleted back-office users for a tenant (sem contas `medium`, AM-02)."""
     stmt = select(func.count()).select_from(User).where(
         and_(
             User.tenant_id == tenant_id,
             User.is_active.is_(True),
             User.deleted_at.is_(None),
+            User.role != UserRole.MEDIUM,
         )
     )
     result = await db.execute(stmt)
