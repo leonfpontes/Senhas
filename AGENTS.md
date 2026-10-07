@@ -133,7 +133,7 @@ Rotas existentes e suas features:
 - Configuracoes do Tenant → `PermissionFeature.CONFIGURACOES`
 - Auditoria → `PermissionFeature.AUDITORIA`
 - Analytics → `PermissionFeature.ANALYTICS`
-- Relatorio de Gira → `PermissionFeature.RELATORIO_GIRA`; export CSV de senhas (`exports.py`) → TICKETS ou RELATORIO_GIRA (+ plano `export_csv`)
+- Relatorio de Gira → `PermissionFeature.RELATORIO_GIRA`; listagem de senhas para o PDF (`exports.py`, `export-listagem`) → TICKETS ou RELATORIO_GIRA (+ plano `export_csv`)
 - Cursos Presenciais → `PermissionFeature.CURSOS_PRESENCIAIS`
 - Site do terreiro (Meu Site, `sites.py`, inclusive imagens) → `PermissionFeature.SITE` (T-06; antes usava
   CURSOS_PRESENCIAIS — as migracoes 061/062 copiaram as permissoes de Cursos para `site` em todo grupo)
@@ -543,8 +543,15 @@ Incluir obrigatoriamente:
 - Busca no servidor: `GET /giras/{id}/tickets?search=` (numero exato "42"/"0042"/"#42", "P001" =
   associado, ou trecho de nome/e-mail). Resposta traz `numero_formatado` (P001/0001).
 - Rastreio/reenvio de e-mail so para admin (`email_resend.py` exige `is_admin`).
-- "Exportar CSV": `GET /giras/{id}/export-csv` com `require_plan_feature("export_csv")` +
-  TICKETS ou RELATORIO_GIRA (view); o botao segue o mesmo plano.
+- "Exportar PDF" (substituiu o "Exportar CSV" em out/2026): `GET /giras/{id}/export-listagem`
+  (JSON com rotulos e horarios de Brasilia prontos; 404 se a gira nao e do tenant) com
+  `require_plan_feature("export_csv")` + TICKETS ou RELATORIO_GIRA (view); o botao segue o mesmo
+  plano. O PDF (A4 paisagem, listagem completa) e montado no navegador em
+  `lib/pdf/listagemSenhasPdf.ts`.
+- PDFs com tabela (`frontend/src/lib/pdf/`): jsPDF + jspdf-autotable, texto de verdade com quebra
+  de linha e de pagina automaticas. **Nunca tabela via html2canvas**: a "foto" do HTML cortava o
+  texto das celulas com `-webkit-line-clamp` e exigia limite fixo de linhas por pagina (bug do
+  Relatorio da gira, out/2026). html2canvas so para a pagina de resumo/graficos do relatorio.
 - Cancelamento em lote cancela em cascata os acompanhantes do titular e devolve as vagas (igual a
   exclusao individual).
 

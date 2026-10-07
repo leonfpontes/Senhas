@@ -1,9 +1,10 @@
 /**
  * RelatorioPDFLayout — componente oculto que renderiza o conteúdo A4 do PDF.
  *
- * Estrutura:
- *  - Seção "dashboard" (página 1): header + big numbers + 2 PieCharts + LineChart
- *  - Seções "table-N" (páginas 2+): header compacto + chunk de até ROWS_PER_PAGE linhas + footer
+ * Só a página 1 (seção "dashboard": header + big numbers + 2 PieCharts + LineChart).
+ * A tabela de senhas (páginas 2+) é desenhada como texto pelo jspdf-autotable em
+ * useRelatorioPDF — antes era HTML capturado aqui e o html2canvas cortava o texto
+ * das células (bug de out/2026).
  *
  * Renderizado fora da viewport (left: -9999px). Capturado por useRelatorioPDF com html2canvas.
  * Largura fixa 794px = A4 @ 96dpi. html2canvas usa scale: 2 → 1588×2246px = ~190dpi.
@@ -23,20 +24,12 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from 'recharts';
-import { numeroDaSenha } from '@/components/admin/senhaFormat';
 
 // ── Constantes A4 ──────────────────────────────────────────────────────────────
 const A4_WIDTH_PX = 794;
 const A4_HEIGHT_PX = 1123; // 297mm @ 96dpi (≈ 1122.5)
 const PAGE_PADDING_H = 36; // ~10mm
 const PAGE_PADDING_V = 28; // ~7.5mm
-const ROWS_PER_PAGE = 16; // linhas de tabela por página. Medido no navegador (altura real de
-// linha ≈57px com fonte 14 e clamp de 2 linhas) para garantir espaço mesmo se TODAS as
-// linhas tiverem 2 linhas de texto em Nome/Médium/Cambone/Observações — ver clamp2Style
-// abaixo. Essas colunas quebram linha em vez de truncar com "...", para não perder
-// informação impressa; por isso o orçamento de altura da linha assume o pior caso (2
-// linhas) em qualquer uma delas. Sem essa margem, o
-// `overflow: hidden` da página cortaria linhas da tabela silenciosamente.
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 export interface PdfTicket {
@@ -82,13 +75,6 @@ export interface RelatorioPDFLayoutProps {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function getTag(t: PdfTicket): { label: string; color: string; bg: string } {
-  if (t.is_sponsor)   return { label: 'Associado',    color: '#b8860b', bg: '#fef9e7' };
-  if (t.preferencial) return { label: 'Preferencial', color: '#e65100', bg: '#fff3e0' };
-  if (t.is_walk_in)   return { label: 'Walk-in',      color: '#1565c0', bg: '#e3f2fd' };
-  return                       { label: 'Comum',       color: '#546e7a', bg: '#f5f5f5' };
-}
 
 /** Agrupa checkins por slot de 30min e retorna array para LineChart */
 function buildCheckinTimeline(tickets: PdfTicket[]): { slot: string; qtd: number }[] {
@@ -210,71 +196,6 @@ function Header({ tenant, gira }: { tenant: PdfTenant; gira: { nome: string; dat
   );
 }
 
-/** Header compacto para páginas de tabela */
-function HeaderCompact({
-  tenant,
-  gira,
-}: {
-  tenant: PdfTenant;
-  gira: { nome: string; data?: string };
-}) {
-  const initial = (tenant.nome || 'T')[0].toUpperCase();
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        marginBottom: 8,
-      }}
-    >
-      {tenant.logoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={tenant.logoUrl}
-          alt="logo"
-          crossOrigin="anonymous"
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            objectFit: 'cover',
-            border: `2px solid ${tenant.primaryColor}`,
-            flexShrink: 0,
-          }}
-        />
-      ) : (
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            backgroundColor: tenant.primaryColor,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: 15,
-            flexShrink: 0,
-          }}
-        >
-          {initial}
-        </div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <span style={{ fontWeight: 700, fontSize: 14, color: tenant.primaryColor }}>
-          {tenant.nome}
-        </span>
-        <span style={{ fontSize: 12, color: '#666' }}>
-          {gira.nome}
-          {gira.data ? ` — ${formatDate(gira.data)}` : ''}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 /** Footer da página 1 (dashboard) */
 function FooterDashboard() {
   return (
@@ -291,36 +212,6 @@ function FooterDashboard() {
     >
       <span>Gerado em {now()}</span>
       <span>Senhas Admin — girahub.com.br</span>
-    </div>
-  );
-}
-
-/** Footer das páginas de tabela com numeração */
-function FooterTable({
-  gira,
-  page,
-  total,
-}: {
-  gira: { nome: string };
-  page: number;
-  total: number;
-}) {
-  return (
-    <div
-      style={{
-        marginTop: 'auto',
-        paddingTop: 8,
-        borderTop: '1px solid #e0e0e0',
-        display: 'flex',
-        justifyContent: 'space-between',
-        fontSize: 12,
-        color: '#9e9e9e',
-      }}
-    >
-      <span>{gira.nome}</span>
-      <span>
-        Página {page} de {total}
-      </span>
     </div>
   );
 }
@@ -614,186 +505,20 @@ function DashboardPage({
   );
 }
 
-// ── Páginas de Tabela ──────────────────────────────────────────────────────────
-
-function TablePage({
-  tickets,
-  gira,
-  tenant,
-  pageIndex,
-  totalPages,
-}: {
-  tickets: PdfTicket[];
-  gira: { nome: string; data?: string };
-  tenant: PdfTenant;
-  pageIndex: number;    // 0-based index desta página de tabela
-  totalPages: number;   // total geral incluindo dashboard
-}) {
-  const thStyle: React.CSSProperties = {
-    padding: '7px 7px',
-    textAlign: 'left',
-    fontSize: 12,
-    fontWeight: 700,
-    color: '#555',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    borderBottom: '1.5px solid #e0e0e0',
-    whiteSpace: 'nowrap',
-    backgroundColor: '#f5f5f5',
-  };
-
-  const tdStyle: React.CSSProperties = {
-    padding: '7px 7px',
-    fontSize: 14,
-    borderBottom: '1px solid #f0f0f0',
-    verticalAlign: 'top',
-  };
-
-  // Colunas que priorizam quebra de linha sobre truncamento: em vez de cortar o texto
-  // com "..." em 1 linha, deixa quebrar em até 2 linhas. Mantém o mesmo orçamento de
-  // altura (2 linhas) usado pela coluna Observações, para não desalinhar ROWS_PER_PAGE.
-  // O clamp fica numa <div> interna, não no <td> diretamente: aplicar `display:
-  // -webkit-box` num <td> tira a célula do algoritmo de table-layout e quebra o
-  // alinhamento das colunas quando mais de uma célula da mesma linha usa o hack.
-  const clamp2Style: React.CSSProperties = {
-    wordBreak: 'break-word',
-    overflow: 'hidden',
-    display: '-webkit-box',
-    WebkitBoxOrient: 'vertical',
-    WebkitLineClamp: 2,
-  } as React.CSSProperties;
-
-  const currentPage = pageIndex + 2; // +1 para 1-based, +1 pelo dashboard
-
-  return (
-    <div data-pdf-page={`table-${pageIndex}`} style={pageStyle}>
-      <HeaderCompact tenant={tenant} gira={gira} />
-      <div style={dividerStyle} />
-
-      <table
-        style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          tableLayout: 'fixed',
-        }}
-      >
-        <colgroup>
-          <col style={{ width: '7%' }} />   {/* Senha */}
-          <col style={{ width: '20%' }} />  {/* Nome */}
-          <col style={{ width: '11%' }} />  {/* Tag */}
-          <col style={{ width: '14%' }} />  {/* Médium */}
-          <col style={{ width: '14%' }} />  {/* Cambone */}
-          <col style={{ width: '34%' }} />  {/* Observações */}
-        </colgroup>
-        <thead>
-          <tr>
-            <th style={thStyle}>Senha</th>
-            <th style={thStyle}>Nome</th>
-            <th style={thStyle}>Tag</th>
-            <th style={thStyle}>Médium</th>
-            <th style={thStyle}>Cambone</th>
-            <th style={thStyle}>Observações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tickets.map((t, i) => {
-            const tag = getTag(t);
-            const isEven = i % 2 === 0;
-            return (
-              <tr key={t.id} style={{ backgroundColor: isEven ? '#ffffff' : '#fafafa' }}>
-                <td style={{ ...tdStyle, fontWeight: 600, whiteSpace: 'nowrap', color: '#333' }}>
-                  {numeroDaSenha(t)}
-                </td>
-                <td style={tdStyle}>
-                  <div style={clamp2Style}>{t.consulente_nome || '—'}</div>
-                </td>
-                <td style={tdStyle}>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '2px 7px',
-                      borderRadius: 10,
-                      backgroundColor: tag.bg,
-                      color: tag.color,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {tag.label}
-                  </span>
-                </td>
-                <td style={{ ...tdStyle, color: '#555' }}>
-                  <div style={clamp2Style}>{t.medium_nome || '—'}</div>
-                </td>
-                <td style={{ ...tdStyle, color: '#555' }}>
-                  <div style={clamp2Style}>{t.cambone_nome || '—'}</div>
-                </td>
-                <td style={{ ...tdStyle, color: '#555' }}>
-                  <div style={clamp2Style}>{t.atendimento_descricao || '—'}</div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-
-      <FooterTable gira={gira} page={currentPage} total={totalPages} />
-    </div>
-  );
-}
-
 // ── Componente Principal Exportado ─────────────────────────────────────────────
 
 const RelatorioPDFLayout = forwardRef<HTMLDivElement, RelatorioPDFLayoutProps>(
   function RelatorioPDFLayout({ tickets, doorStats, gira, tenant }, ref) {
-    const chunks: PdfTicket[][] = [];
-    for (let i = 0; i < tickets.length; i += ROWS_PER_PAGE) {
-      chunks.push(tickets.slice(i, i + ROWS_PER_PAGE));
-    }
-    if (chunks.length === 0) chunks.push([]); // garante ao menos 1 página de tabela
-
-    const totalTablePages = chunks.length;
-    const totalPages = 1 + totalTablePages; // 1 dashboard + N tabelas
-
     return (
       <div
         ref={ref}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          zIndex: -9999,
-          pointerEvents: 'none',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 0,
-        }}
+        style={{ position: 'fixed', top: 0, left: 0, zIndex: -9999, pointerEvents: 'none' }}
         aria-hidden="true"
       >
-        {/* Página 1 — Dashboard */}
-        <DashboardPage
-          tickets={tickets}
-          doorStats={doorStats}
-          gira={gira}
-          tenant={tenant}
-        />
-
-        {/* Páginas 2+ — Tabela */}
-        {chunks.map((chunk, i) => (
-          <TablePage
-            key={i}
-            tickets={chunk}
-            gira={gira}
-            tenant={tenant}
-            pageIndex={i}
-            totalPages={totalPages}
-          />
-        ))}
+        <DashboardPage tickets={tickets} doorStats={doorStats} gira={gira} tenant={tenant} />
       </div>
     );
   },
 );
 
 export default RelatorioPDFLayout;
-export { ROWS_PER_PAGE };
