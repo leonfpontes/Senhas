@@ -296,6 +296,13 @@ EXEMPT_PUBLIC_QUERIES: dict[tuple[str, str], str] = {
     ("api/v1/public/onboarding.py", "onboarding"): (
         "e-mail de usuário é único global (cadastro cria tenant novo); só testa existência"
     ),
+    ("api/v1/public/stats.py", "_compute_stats"): (
+        "números da landing (V-02): só COUNT somado entre todos os tenants, nenhum dado de "
+        "terreiro sai na resposta"
+    ),
+    ("api/v1/public/stats.py", "_tenant_publico"): (
+        "filtro auxiliar do _compute_stats (terreiro ativo, não demo); não consulta nada sozinho"
+    ),
 }
 
 # Checagem de FK. Chave: (arquivo admin, função, campo).

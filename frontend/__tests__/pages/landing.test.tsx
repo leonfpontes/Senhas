@@ -13,6 +13,10 @@ import { LANDING_FAQ, faqJsonLd } from '@/constants/landingFaq';
 import { instagramUrl } from '@/constants/testimonials';
 import { normalizeWhatsapp, supportWhatsappLink } from '@/lib/whatsapp';
 
+jest.mock('@/services/api_client', () => ({
+  apiClient: { get: jest.fn(() => Promise.resolve({ data: { senhas_emitidas: 0, giras_realizadas: 0, terreiros_ativos: 0 } })) },
+}));
+
 jest.mock('next/head', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -153,5 +157,38 @@ describe('V-06 WhatsApp', () => {
     );
     expect(screen.queryByRole('link', { name: /whatsapp/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /ver como funciona/i })).toHaveAttribute('href', '#como-funciona');
+  });
+});
+
+describe('V-02 números', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { formatStat, visibleStats } = require('@/constants/landingStats');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { StatsBand } = require('@/components/landing/StatsBand');
+
+  it('arredonda sempre para baixo, com +', () => {
+    expect(formatStat(3216)).toBe('3.000+');
+    expect(formatStat(70)).toBe('70+');
+    expect(formatStat(12450)).toBe('12.000+');
+  });
+
+  it('só mostra números acima do mínimo', () => {
+    expect(visibleStats({ senhas_emitidas: 3216, giras_realizadas: 70, terreiros_ativos: 15 })).toEqual([
+      { label: 'senhas emitidas pelo celular', value: '3.000+' },
+      { label: 'giras organizadas', value: '70+' },
+    ]);
+    expect(visibleStats({ senhas_emitidas: 10, giras_realizadas: 2, terreiros_ativos: 1 })).toEqual([]);
+    expect(visibleStats(null)).toEqual([]);
+  });
+
+  it('a faixa some quando nenhum número passa do mínimo', () => {
+    const { container } = render(<StatsBand initial={{ senhas_emitidas: 10, giras_realizadas: 2, terreiros_ativos: 1 }} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('a faixa mostra os números reais', () => {
+    render(<StatsBand initial={{ senhas_emitidas: 3216, giras_realizadas: 70, terreiros_ativos: 15 }} />);
+    expect(screen.getByRole('region', { name: /em números/i })).toHaveTextContent('3.000+');
+    expect(screen.queryByText(/terreiros usando/)).not.toBeInTheDocument();
   });
 });

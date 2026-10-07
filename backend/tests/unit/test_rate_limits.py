@@ -80,6 +80,9 @@ class TestRateLimitRegistration:
     def test_reset_password_limited_10_per_hour(self):
         assert _registered_limits("src.api.v1.auth.login.reset_password") == ["10 per 1 hour"]
 
+    def test_public_stats_limited_60_per_minute(self):
+        assert _registered_limits("src.api.v1.public.stats.get_public_stats") == ["60 per 1 minute"]
+
     def test_public_resend_ticket_email_limited_15_per_hour(self):
         assert _registered_limits(
             "src.api.v1.public.resend_email.resend_ticket_email"

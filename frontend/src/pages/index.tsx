@@ -16,6 +16,7 @@ import { AudienceSection } from '@/components/landing/AudienceSection';
 import { BeforeAfter } from '@/components/landing/BeforeAfter';
 import { HowItWorks } from '@/components/landing/HowItWorks';
 import { Testimonials } from '@/components/landing/Testimonials';
+import { StatsBand } from '@/components/landing/StatsBand';
 import { PlanCards } from '@/components/landing/PlanCards';
 import { ModulesSection } from '@/components/landing/ModulesSection';
 import { FaqSection } from '@/components/landing/FaqSection';
@@ -65,6 +66,7 @@ export default function HomePage() {
         <AudienceSection />
         <BeforeAfter />
         <HowItWorks />
+        <StatsBand />
         <Testimonials />
 
         <section id="planos" aria-labelledby="planos-title" className="scroll-mt-20 bg-areia-100 py-20 md:py-28">
