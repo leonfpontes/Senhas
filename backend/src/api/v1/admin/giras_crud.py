@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import List, Optional
 from uuid import UUID
 from datetime import date, datetime, time, timezone, timedelta
@@ -31,6 +31,18 @@ router = APIRouter(prefix="/api/v1/admin/giras", tags=["admin-giras"])
 logger = logging.getLogger(__name__)
 
 
+# Orientações para a corrente (AM-07): texto livre curto, editado no drawer da gira.
+ORIENTACOES_MAX = 2000
+
+
+def _texto_ou_none(value: Optional[str]) -> Optional[str]:
+    """Tira espaços das pontas; texto vazio vira None (apaga o campo)."""
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
 class GiraCreate(BaseModel):
     """Gira creation request."""
     nome: str
@@ -40,6 +52,10 @@ class GiraCreate(BaseModel):
     local: Optional[str] = None
     is_active: bool = True
     recados: Optional[str] = None
+    # Orientações para a corrente (AM-07): só aparecem na Área do Médium.
+    orientacoes_corrente: Optional[str] = Field(None, max_length=ORIENTACOES_MAX)
+
+    _normaliza_orientacoes = field_validator("orientacoes_corrente")(_texto_ou_none)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -64,6 +80,9 @@ class GiraUpdate(BaseModel):
     local: Optional[str] = None
     is_active: Optional[bool] = None
     recados: Optional[str] = None
+    orientacoes_corrente: Optional[str] = Field(None, max_length=ORIENTACOES_MAX)
+
+    _normaliza_orientacoes = field_validator("orientacoes_corrente")(_texto_ou_none)
 
 
 class GiraResponse(BaseModel):
@@ -76,6 +95,7 @@ class GiraResponse(BaseModel):
     local: Optional[str]
     is_active: bool
     recados: Optional[str] = None
+    orientacoes_corrente: Optional[str] = None
     allow_acompanhantes: bool = False
     max_acompanhantes: Optional[int] = None
     max_tickets: Optional[int] = None

@@ -67,7 +67,7 @@ export interface MediumTab {
 
 export const MEDIUM_TABS: MediumTab[] = [
   { href: '/medium', label: 'Início', icon: House },
-  { href: '/medium/agenda', label: 'Agenda', icon: CalendarDays },
+  { href: '/medium/agenda', label: 'Agenda', icon: CalendarDays, modulo: 'agenda' },
   { href: '/medium/avisos', label: 'Avisos', icon: Megaphone, modulo: 'avisos' },
   // Some quando a casa desliga o módulo ou o plano não tem `mensalidade_mediun` (AM-11).
   { href: '/medium/mensalidade', label: 'Mensalidade', icon: Wallet, modulo: 'mensalidade' },

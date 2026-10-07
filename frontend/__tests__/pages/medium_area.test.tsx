@@ -389,28 +389,6 @@ describe('gate do MediumLayout', () => {
     expect(localStorage.getItem('user')).toBeNull();
     expect(mockRouter.push).toHaveBeenCalledWith('/login');
   });
-
-  it('as abas ainda não prontas mostram "Em breve"', async () => {
-    const profile = profileOf('medium', MEDIUM_AREAS);
-    signIn(profile);
-    api({ '/api/v1/medium/me': ME }, profile);
-    for (const [path, mod, titulo] of [
-      ['/medium/agenda', '@/pages/medium/agenda', 'Agenda'],
-    ]) {
-      mockRouter.pathname = path;
-      const Page = require(mod).default;
-      const { unmount } = renderApp(<Page />);
-      expect(await screen.findByRole('heading', { name: titulo })).toBeInTheDocument();
-      expect(screen.getByText('Em breve')).toBeInTheDocument();
-      expect(
-        within(screen.getByRole('navigation', { name: 'Menu da Área do Médium' })).getByRole(
-          'link',
-          { name: titulo },
-        ),
-      ).toHaveAttribute('aria-current', 'page');
-      unmount();
-    }
-  });
 });
 
 describe('providers do painel fora do /admin', () => {

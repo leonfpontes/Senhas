@@ -264,6 +264,8 @@ Sessão/evento espiritual onde as senhas são emitidas.
 | `sponsor_max_tickets` | `Integer` | Sim | — | limite para associados; adicionado em 006 |
 | `sponsor_release_start_at` | `DateTime(tz)` | Sim | — | liberação para associados; adicionado em 006 |
 | `sponsor_release_end_at` | `DateTime(tz)` | Sim | — | adicionado em 006 |
+| `recados` | `Text` | Sim | — | vai para o consulente (e-mail da senha e bilhete) |
+| `orientacoes_corrente` | `Text` | Sim | — | 069 (AM-07): o que levar / chegada da corrente. Só na Área do Médium (Agenda, `.ics`, Início); nunca em rota pública, site, e-mail ou bilhete. ≤ 2000 na API |
 | `created_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `updated_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `deleted_at` | `DateTime(tz)` | Sim | — | soft-delete |
