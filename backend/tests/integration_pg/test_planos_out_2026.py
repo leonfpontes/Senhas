@@ -50,8 +50,6 @@ PREMIUM_ONLY = [
     ("GET", "/api/v1/admin/financeiro/contas"),
     ("GET", "/api/v1/admin/financeiro/categorias"),
     ("GET", f"/api/v1/admin/financeiro/associados?mes={MES}"),
-    ("GET", f"/api/v1/admin/financeiro/mensalidades?mes={MES}"),
-    ("GET", "/api/v1/admin/financeiro/config"),
 ]
 
 
@@ -132,9 +130,9 @@ async def test_premium_liga_fila_e_horario(client, db):
         assert await time_slot_service.time_slot_scheduling_enabled_for_tenant(fresh, tenant.id) is True
 
 
-async def test_pro_recebe_403_em_toda_a_mensalidade(client, db):
-    """Mensalidade de médiuns é Premium (decisão do dono do produto, out/2026)."""
-    _, admin = await _admin(db, PlanType.PRO)
+async def test_gratuito_recebe_403_em_toda_a_mensalidade(client, db):
+    """Mensalidade de médiuns é a partir do Basic (decisão do dono do produto, out/2026)."""
+    _, admin = await _admin(db, PlanType.FREE)
     chamadas = [
         ("GET", "/api/v1/admin/financeiro/config", {}),
         ("PUT", "/api/v1/admin/financeiro/config", {"json": {"valor_mensal": 50, "dia_vencimento": 5}}),
@@ -146,11 +144,12 @@ async def test_pro_recebe_403_em_toda_a_mensalidade(client, db):
     for method, url, kwargs in chamadas:
         resp = await client.request(method, url, headers=admin.headers, **kwargs)
         assert resp.status_code == 403, f"{method} {url}: {resp.status_code} {resp.text}"
-        assert "Premium" in resp.json()["detail"], resp.text
+        assert "Basic" in resp.json()["detail"], resp.text
 
 
-async def test_premium_configura_e_registra_mensalidade_de_medium(client, db):
-    tenant, admin = await _admin(db, PlanType.PREMIUM)
+@pytest.mark.parametrize("plan", [PlanType.BASIC, PlanType.PRO, PlanType.PREMIUM])
+async def test_basic_pro_e_premium_configuram_e_registram_mensalidade_de_medium(client, db, plan):
+    tenant, admin = await _admin(db, plan)
     resp = await client.put(
         "/api/v1/admin/financeiro/config", headers=admin.headers, json={"valor_mensal": 50, "dia_vencimento": 5}
     )
@@ -182,9 +181,9 @@ async def _contas_espelho(tenant_id):
         return list(rows.scalars())
 
 
-@pytest.mark.parametrize("plan, espelhos", [(PlanType.PRO, 0), (PlanType.PREMIUM, 1)])
-async def test_criar_medium_so_espelha_mensalidade_com_o_plano(client, db, plan, espelhos):
-    """Config de mensalidade gravada de quando o tenant era Premium não gera conta a receber no Pro."""
+@pytest.mark.parametrize("plan, espelhos", [(PlanType.BASIC, 1), (PlanType.PREMIUM, 1)])
+async def test_criar_medium_espelha_mensalidade_com_o_plano(client, db, plan, espelhos):
+    """Com mensalidade no plano (Basic+), criar médium gera a conta a receber da próxima mensalidade."""
     from decimal import Decimal
 
     from src.models.mensalidades import MensalidadeConfig
@@ -295,8 +294,10 @@ async def test_assinatura_mostra_os_novos_limites(client, db):
     body = resp.json()
     assert (body["max_giras_per_month"], body["max_mediuns"]) == (4, 30)
     assert body["features"]["site_builder"] is True
+    assert body["features"]["mensalidade_mediun"] is True
+    assert body["max_users"] == 99999
     for f in ("associados", "estoque_controle", "contas_financeiras", "fila_espera", "agendamento_por_horario",
-              "mensalidade_mediun", "mensalidade_associado"):
+              "mensalidade_associado"):
         assert body["features"][f] is False, f
 
 
@@ -318,7 +319,7 @@ async def test_migracao_059_atualiza_e_restaura_limites_das_assinaturas(db):
     for plan in (PlanType.FREE, PlanType.BASIC, PlanType.PRO, PlanType.PREMIUM):
         await create_tenant(db, f"Mig {plan.value}", plan=plan)
 
-    _alembic("downgrade", "058_associados_email_unique_ativo")
+    _alembic("downgrade", "058_associados_email_unique_ativo")  # desfaz 060 e 059
     try:
         assert await _limites() == {
             PlanType.FREE: (4, 0),
@@ -334,3 +335,37 @@ async def test_migracao_059_atualiza_e_restaura_limites_das_assinaturas(db):
         PlanType.PRO: (4, 30),
         PlanType.PREMIUM: (999999, 9999999),
     }
+
+
+# ── Usuários ilimitados (out/2026) ─────────────────────────────────────────
+
+@pytest.mark.parametrize("total", [2, 5])
+async def test_gratuito_cria_usuarios_sem_limite(client, db, total):
+    _, admin = await _admin(db, PlanType.FREE)  # o admin já é o 1º usuário
+    for i in range(total - 1):
+        body = {"email": f"op{i}-{uuid.uuid4().hex[:6]}@example.com", "username": f"Operador {i}",
+                "password": "SenhaForte#2026", "role": "operator"}
+        resp = await client.post("/api/v1/admin/users", headers=admin.headers, json=body)
+        assert resp.status_code == 201, f"usuário {i + 2}: {resp.text}"
+
+
+async def _max_users():
+    from src.core.database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as fresh:
+        rows = await fresh.execute(select(Subscription.plan, Subscription.max_users))
+        return dict(rows.all())
+
+
+async def test_migracao_060_usuarios_ilimitados(db):
+    for plan in (PlanType.FREE, PlanType.BASIC, PlanType.PRO, PlanType.PREMIUM):
+        await create_tenant(db, f"Usr {plan.value}", plan=plan)
+
+    _alembic("downgrade", "059_planos_limites_out_2026")
+    try:
+        assert await _max_users() == {
+            PlanType.FREE: 1, PlanType.BASIC: 3, PlanType.PRO: 10, PlanType.PREMIUM: 99999,
+        }
+    finally:
+        _alembic("upgrade", "head")
+    assert set((await _max_users()).values()) == {99999}

@@ -44,7 +44,7 @@ def render_trial_reminder_email(user_name: str, dias_restantes: int, billing_url
             Faltam <strong>{dias_label}</strong> para o fim do seu mês grátis no plano Premium.
             Se você não assinar um plano até lá, sua conta continua funcionando normalmente,
             mas volta para o <strong>plano gratuito</strong> — com limites bem menores de
-            usuários, giras por mês e médiuns/cambones.
+            giras por mês e médiuns/cambones (usuários continuam ilimitados).
           </p>
 
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">

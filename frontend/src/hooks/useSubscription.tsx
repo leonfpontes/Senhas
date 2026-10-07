@@ -53,8 +53,6 @@ interface SubscriptionContextValue {
   loading: boolean;
   /** Check if a feature is available on the current plan */
   can: (feature: keyof PlanFeatures) => boolean;
-  /** Check if adding one more would exceed the limit */
-  canCreateUser: (currentCount: number) => boolean;
   /** Check if the monthly gira limit allows creating another gira */
   canCreateGira: () => boolean;
   /** Check if the médium limit allows creating another médium */
@@ -90,7 +88,6 @@ const SubscriptionContext = createContext<SubscriptionContextValue>({
   subscription: null,
   loading: true,
   can: () => false,
-  canCreateUser: () => false,
   canCreateGira: () => false,
   canCreateMedium: () => false,
   refresh: () => {},
@@ -152,15 +149,6 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     [features],
   );
 
-  const canCreateUser = useCallback(
-    (currentCount: number) => {
-      if (!subscription) return false;
-      if (subscription.max_users < 0) return true;
-      return currentCount < subscription.max_users;
-    },
-    [subscription],
-  );
-
   const canCreateGira = useCallback(
     () => {
       if (!subscription) return false;
@@ -184,7 +172,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   return (
     <SubscriptionContext.Provider
-      value={{ subscription, loading, can, canCreateUser, canCreateGira, canCreateMedium, refresh: fetchSubscription, planLabel }}
+      value={{ subscription, loading, can, canCreateGira, canCreateMedium, refresh: fetchSubscription, planLabel }}
     >
       {children}
     </SubscriptionContext.Provider>

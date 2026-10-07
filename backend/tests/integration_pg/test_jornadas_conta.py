@@ -90,21 +90,22 @@ async def test_admin_nao_se_exclui_nem_se_rebaixa_e_ultimo_admin_fica(client, db
     assert resp.status_code == 204, resp.text
 
 
-async def test_reativar_respeita_limite_de_usuarios_ativos(client, db):
-    tenant = await create_tenant(db, plan=PlanType.BASIC)  # 3 usuários
+async def test_reativar_nao_tem_limite_de_usuarios(client, db):
+    """Usuários ilimitados em todos os planos (out/2026): reativar sempre pode."""
+    tenant = await create_tenant(db, plan=PlanType.FREE)
     admin = await create_user(db, tenant, UserRole.ADMIN)
     await create_user(db, tenant, UserRole.OPERATOR, name="op1")
     inativo = await create_user(db, tenant, UserRole.OPERATOR, name="op-inativo")
     inativo.user.is_active = False
     db.add(inativo.user)
     await db.commit()
-    await create_user(db, tenant, UserRole.OPERATOR, name="op2")  # 3 ativos: limite cheio
+    await create_user(db, tenant, UserRole.OPERATOR, name="op2")  # 3 ativos (antes: acima do FREE)
 
     resp = await client.put(
         f"/api/v1/admin/users/{inativo.user.id}", headers=admin.headers, json={"is_active": True}
     )
-    assert resp.status_code == 422, resp.text
-    assert "Limite de usuários" in resp.text
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["is_active"] is True
 
 
 # ── Configurações ───────────────────────────────────────────────────────────

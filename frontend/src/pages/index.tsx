@@ -4,12 +4,13 @@
  * tudo dentro do MarketingShell (cabeçalho, rodapé, WhatsApp flutuante). A marca do GiraHub não muda.
  *
  * Ordem: topo → para quem é → antes × depois → como funciona → telas reais (V-05) → números (V-02)
- * → depoimentos (V-03, só com depoimento real) → planos → módulos → dúvidas (V-04) → chamada final.
+ * → depoimentos (V-03, só com depoimento real) → planos (cartões + comparativo completo) → módulos
+ * → dúvidas (V-04) → chamada final.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { MarketingShell } from '@/components/landing/MarketingShell';
 import { Hero } from '@/components/landing/Hero';
 import { AudienceSection } from '@/components/landing/AudienceSection';
@@ -19,6 +20,7 @@ import { Testimonials } from '@/components/landing/Testimonials';
 import { StatsBand } from '@/components/landing/StatsBand';
 import { ScreensCarousel } from '@/components/landing/ScreensCarousel';
 import { PlanCards } from '@/components/landing/PlanCards';
+import { PlanComparisonTable } from '@/components/landing/PlanComparisonTable';
 import { ModulesSection } from '@/components/landing/ModulesSection';
 import { FaqSection } from '@/components/landing/FaqSection';
 import { FinalCta } from '@/components/landing/FinalCta';
@@ -41,6 +43,38 @@ function softwareJsonLd(): string {
     audience: { '@type': 'Audience', audienceType: 'Terreiros de Umbanda, Candomblé e casas de axé' },
     offers: PLAN_LIST.map((p) => ({ '@type': 'Offer', name: p.label, price: String(p.price), priceCurrency: 'BRL' })),
   }).replace(/</g, '\\u003c');
+}
+
+/**
+ * Comparativo completo logo abaixo dos cartões — o mesmo componente da página /planos
+ * (PlanComparisonTable → buildComparisonGroups, gerado de constants/plans.ts). No celular fica
+ * recolhido atrás de "Ver comparativo completo"; a partir de md aparece sempre.
+ */
+function ComparativoCompleto() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-16">
+      <h3 id="comparativo-title" className="text-center font-display text-2xl font-bold text-tinta sm:text-3xl">
+        Comparativo completo
+      </h3>
+      <p className="mt-2 text-center text-tinta-suave">Cada plano inclui tudo do anterior.</p>
+      <div className="mt-6 flex justify-center md:hidden">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="comparativo-completo"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-barro-600 px-5 py-2 font-semibold text-barro-700 hover:bg-areia-200"
+        >
+          {open ? 'Esconder comparativo' : 'Ver comparativo completo'}
+          <ChevronDown className={cn('size-4 transition-transform', open && 'rotate-180')} aria-hidden />
+        </button>
+      </div>
+      <div id="comparativo-completo" aria-labelledby="comparativo-title" className={cn('mt-8 md:block', open ? 'block' : 'hidden')}>
+        <PlanComparisonTable />
+      </div>
+    </div>
+  );
 }
 
 export default function HomePage() {
@@ -79,14 +113,7 @@ export default function HomePage() {
             <div className="mt-12">
               <PlanCards />
             </div>
-            <p className="mt-10 text-center">
-              <Link
-                href="/planos"
-                className="inline-flex items-center gap-2 font-semibold text-barro-700 underline-offset-4 hover:underline"
-              >
-                Comparar tudo o que vem em cada plano <ArrowRight className="size-4" aria-hidden />
-              </Link>
-            </p>
+            <ComparativoCompleto />
           </div>
         </section>
 

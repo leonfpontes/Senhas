@@ -83,9 +83,13 @@ PLAN_FEATURE_NAMES = frozenset(PlanFeatures.model_fields)
 # mensalidade de associados), estoque, agendamento por horário, fila de espera
 # e todo o controle financeiro (`contas_financeiras`: lançamentos, fluxo de
 # caixa, categorias, contas bancárias, configuração) passaram de PRO para
-# PREMIUM. A mensalidade de médiuns também é Premium (decisão do dono do
-# produto, out/2026) — o espelho fica em
-# `frontend/src/constants/plans.ts::FEATURE_MIN_PLAN`.
+# PREMIUM. O espelho fica em `frontend/src/constants/plans.ts::FEATURE_MIN_PLAN`.
+#
+# Mensalidade de médiuns a partir do BASIC (decisão do dono, out/2026): o 1º
+# gatilho de upgrade é o número de giras/mês; o 2º é o número de médiuns. Com a
+# mensalidade já no Basic e o limite de 15 médiuns, o dirigente sobe de plano
+# para continuar controlando a mensalidade de todo mundo. A mensalidade de
+# ASSOCIADOS segue Premium (associados são Premium).
 _PREMIUM = 3
 _PRO = 2
 _BASIC = 1
@@ -105,7 +109,7 @@ _FEATURE_MIN_TIER: dict[str, int] = {
     "mediuns": _BASIC,
     "relatorio_gira": _BASIC,
     "suporte_prioritario": _PREMIUM,
-    "mensalidade_mediun": _PREMIUM,
+    "mensalidade_mediun": _BASIC,
     "mensalidade_associado": _PREMIUM,
     "site_builder": _PRO,
     "contas_financeiras": _PREMIUM,

@@ -40,7 +40,7 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     key: 'free',
     label: 'Gratuito',
     price: 0,
-    limits: { users: 1, girasPerMonth: 2, mediuns: 0 },
+    limits: { users: UNLIMITED_THRESHOLD, girasPerMonth: 2, mediuns: 0 },
     tagline: 'Para começar a tirar senha pelo WhatsApp hoje.',
     popular: false,
     color: '#64748b',
@@ -49,8 +49,8 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     key: 'basic',
     label: 'Basic',
     price: 49,
-    limits: { users: 3, girasPerMonth: 3, mediuns: 15 },
-    tagline: 'Para quem tem corrente e quer o relatório de cada gira.',
+    limits: { users: UNLIMITED_THRESHOLD, girasPerMonth: 3, mediuns: 15 },
+    tagline: 'Corrente cadastrada, mensalidade dos médiuns e relatório de cada gira.',
     popular: false,
     color: '#3b82f6',
   },
@@ -58,8 +58,8 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     key: 'pro',
     label: 'Pro',
     price: 79,
-    limits: { users: 10, girasPerMonth: 4, mediuns: 30 },
-    tagline: 'Site do terreiro, e-mail da senha, relatórios e cores do terreiro.',
+    limits: { users: UNLIMITED_THRESHOLD, girasPerMonth: 4, mediuns: 30 },
+    tagline: 'Site do terreiro, e-mail da senha, relatórios e personalização da plataforma.',
     popular: true,
     color: '#8b5cf6',
   },
@@ -68,7 +68,7 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     label: 'Premium',
     price: 99,
     limits: { users: UNLIMITED_THRESHOLD, girasPerMonth: 999999, mediuns: 9999999 },
-    tagline: 'Tudo liberado e sem limites: financeiro e mensalidades, estoque, associados e fila de espera.',
+    tagline: 'Tudo liberado e sem limites: financeiro, estoque, associados e fila de espera.',
     popular: false,
     color: '#f59e0b',
   },
@@ -77,25 +77,38 @@ export const PLANS: Record<PlanKey, PlanDef> = {
 export const PLAN_LIST: readonly PlanDef[] = PLAN_ORDER.map((k) => PLANS[k]);
 export const PAID_PLANS: readonly PlanDef[] = PLAN_LIST.filter((p) => p.price > 0);
 
-/** O que todo plano inclui, inclusive o gratuito. */
+/**
+ * O que todo plano inclui, inclusive o gratuito (base do comparativo). Ações em lote também valem
+ * em todos os planos, mas não aparecem no quadro (não é diferencial — ver HIDDEN_FEATURES).
+ */
 export const BASE_FEATURES: readonly string[] = [
-  'Senha pelo WhatsApp (link público)',
+  'Link de senhas para enviar via WhatsApp',
   'Porta: chamada da fila ao vivo',
   'Painel com as próximas giras',
-  'Ações em lote nas senhas',
 ];
+
+/**
+ * Usuários ilimitados em todos os planos, inclusive o Gratuito (out/2026): quem opera a plataforma
+ * — muitas vezes um filho da casa, não o dirigente que assinou — é quem sente falta dos recursos
+ * novos; mais usuários = mais promotores internos do upgrade. No comparativo vira a linha
+ * "Usuários no painel" = Ilimitado; no card do Gratuito, um item da lista.
+ */
+export const UNLIMITED_USERS_LABEL = 'Usuários ilimitados';
 
 /**
  * Plano mínimo de cada recurso (= `_FEATURE_MIN_TIER` em plan_features.py).
  * Reestruturação de out/2026: associados (e a mensalidade deles), estoque, fila de espera,
- * horário marcado, o financeiro (contas a pagar/receber, caixa) e a mensalidade dos médiuns
- * passaram do Pro para o Premium.
+ * horário marcado e o financeiro (contas a pagar/receber, caixa) são só Premium. A mensalidade dos
+ * médiuns é a partir do Basic: o 1º gatilho de upgrade é giras/mês, o 2º é o número de médiuns —
+ * com a mensalidade já no Basic (limite de 15 médiuns), o dirigente sobe de plano para continuar
+ * controlando a mensalidade de todo mundo.
  */
 export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   // Ações em lote valem em todos os planos (não é recurso vendido — fica em BASE_FEATURES).
   bulk_operations: 'free',
   mediuns: 'basic',
   relatorio_gira: 'basic',
+  mensalidade_mediun: 'basic',
   email_transacional: 'pro',
   tema_personalizado: 'pro',
   analytics_basico: 'pro',
@@ -103,7 +116,6 @@ export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   export_csv: 'pro',
   auditoria: 'pro',
   site_builder: 'pro',
-  mensalidade_mediun: 'premium',
   associados: 'premium',
   mensalidade_associado: 'premium',
   estoque_controle: 'premium',
@@ -120,11 +132,19 @@ export interface FeatureCatalogItem {
 }
 
 /**
- * Recursos de `PlanFeatures` que NÃO entram no comparativo vendido: `bulk_operations` vale em
- * todos os planos (está em BASE_FEATURES); `analytics_avancado` e `suporte_prioritario` não têm
- * nada implementado por trás. Os campos continuam no backend (catálogo de `PlanFeatures`).
+ * Recursos de `PlanFeatures` que NÃO aparecem no quadro de planos (cards, comparativo, landing,
+ * tabela da plataforma). Só exibição — gate e funcionamento continuam iguais:
+ * - `bulk_operations` (ações em lote): vale em todos os planos, mas não é diferencial;
+ * - `export_csv` (exportar planilhas): segue no Pro+, mas o segmento não usa — não vende;
+ * - `analytics_avancado` e `suporte_prioritario`: nada implementado por trás.
+ * Os campos continuam no backend (catálogo de `PlanFeatures`).
  */
-export const UNSOLD_FEATURES: readonly PlanFeatureKey[] = ['bulk_operations', 'analytics_avancado', 'suporte_prioritario'];
+export const UNSOLD_FEATURES: readonly PlanFeatureKey[] = [
+  'bulk_operations',
+  'export_csv',
+  'analytics_avancado',
+  'suporte_prioritario',
+];
 
 /** Ordem e rótulos (sem jargão) do comparativo e dos cards. */
 export const FEATURE_CATALOG: readonly FeatureCatalogItem[] = [
@@ -138,10 +158,9 @@ export const FEATURE_CATALOG: readonly FeatureCatalogItem[] = [
   { key: 'contas_financeiras', label: 'Contas a pagar e a receber, fluxo de caixa e contas bancárias', group: 'Financeiro e estoque' },
   { key: 'estoque_controle', label: 'Estoque de materiais', group: 'Financeiro e estoque' },
   { key: 'email_transacional', label: 'E-mail de confirmação da senha', group: 'Comunicação e site' },
-  { key: 'tema_personalizado', label: 'Cores e logo do terreiro', group: 'Comunicação e site' },
+  { key: 'tema_personalizado', label: 'Personalização da plataforma', group: 'Comunicação e site' },
   { key: 'site_builder', label: 'Site do terreiro e cursos', group: 'Comunicação e site' },
   { key: 'analytics_basico', label: 'Relatórios de atendimento', group: 'Relatórios' },
-  { key: 'export_csv', label: 'Exportar planilhas (CSV)', group: 'Relatórios' },
   { key: 'auditoria', label: 'Histórico de alterações', group: 'Relatórios' },
 ];
 
@@ -232,11 +251,10 @@ export function planHighlights(plan: PlanKey): string[] {
   const tier = planTier(plan);
   const out: string[] = [];
   if (tier === 0) {
-    out.push(...BASE_FEATURES);
+    out.push(...BASE_FEATURES, UNLIMITED_USERS_LABEL);
   } else {
     out.push(`Tudo do ${PLANS[PLAN_ORDER[tier - 1]].label}`);
   }
-  out.push(isUnlimited(def.limits.users) ? 'Usuários ilimitados' : `${def.limits.users} ${def.limits.users === 1 ? 'usuário' : 'usuários'}`);
   out.push(isUnlimited(def.limits.girasPerMonth) ? 'Giras ilimitadas' : `${def.limits.girasPerMonth} giras por mês`);
   if (def.limits.mediuns > 0) {
     out.push(isUnlimited(def.limits.mediuns) ? 'Médiuns ilimitados' : `Até ${def.limits.mediuns} médiuns`);
@@ -248,21 +266,21 @@ export function planHighlights(plan: PlanKey): string[] {
 export interface UsageSnapshot {
   mediuns: number;
   girasPerMonth: number;
+  /** Só exibição: usuários não têm limite em nenhum plano (não pesa na recomendação). */
   users?: number;
 }
 
 /**
  * Plano recomendado pelo uso: o mais barato cujos limites comportam o que o terreiro já faz.
- * Quem cadastrou médiuns ou passou das giras do gratuito precisa de um plano pago.
+ * Quem cadastrou médiuns ou passou das giras do gratuito precisa de um plano pago. Usuários não
+ * entram: são ilimitados em todos os planos.
  */
 export function recommendPlan(usage: UsageSnapshot): PlanKey {
-  const users = usage.users ?? 1;
   for (const key of PLAN_ORDER) {
     const { limits } = PLANS[key];
     const fitsMediuns = usage.mediuns <= 0 ? true : limits.mediuns > 0 && usage.mediuns <= limits.mediuns;
     const fitsGiras = usage.girasPerMonth <= limits.girasPerMonth;
-    const fitsUsers = users <= limits.users;
-    if (fitsMediuns && fitsGiras && fitsUsers) return key;
+    if (fitsMediuns && fitsGiras) return key;
   }
   return 'premium';
 }
@@ -273,7 +291,6 @@ export function lostOnFree(usage: UsageSnapshot): string[] {
   const free = PLANS.free.limits;
   if (usage.mediuns > 0) out.push(`Cadastro de médiuns (${usage.mediuns} ${usage.mediuns === 1 ? 'cadastrado' : 'cadastrados'})`);
   if (usage.girasPerMonth > free.girasPerMonth) out.push(`Mais de ${free.girasPerMonth} giras por mês`);
-  if ((usage.users ?? 1) > free.users) out.push('Mais de um usuário no painel');
   return out;
 }
 

@@ -454,11 +454,10 @@ def _users_repo(MockRepo, target):
 
 
 class TestCreateUser:
-    @patch("src.api.v1.admin.users.SubscriptionRepository")
     @patch("src.api.v1.admin.users.AuditService")
     @patch("src.api.v1.admin.users.hash_password")
     @patch("src.api.v1.admin.users.UserRepository")
-    async def test_success(self, MockRepo, mock_hash, MockAudit, MockSubRepo):
+    async def test_success(self, MockRepo, mock_hash, MockAudit):
         from src.api.v1.admin.users import create_user, UserCreate
         db = AsyncMock()
         repo_inst = AsyncMock()
@@ -468,9 +467,6 @@ class TestCreateUser:
         MockRepo.return_value = repo_inst
         mock_hash.return_value = "hashed"
         MockAudit.return_value = AsyncMock()
-        sub_repo_inst = AsyncMock()
-        sub_repo_inst.get_by_tenant.return_value = None
-        MockSubRepo.return_value = sub_repo_inst
 
         result = await create_user(
             UserCreate(email="user@test.com", username="testuser", password="SecureP@ss1234"),
@@ -510,11 +506,10 @@ class TestCreateUser:
                 _admin_user(), AsyncMock(),
             )
 
-    @patch("src.api.v1.admin.users.SubscriptionRepository")
     @patch("src.api.v1.admin.users.AuditService")
     @patch("src.api.v1.admin.users.hash_password", return_value="hashed")
     @patch("src.api.v1.admin.users.UserRepository")
-    async def test_operator_with_group_can_create_operator(self, MockRepo, mock_hash, MockAudit, MockSubRepo):
+    async def test_operator_with_group_can_create_operator(self, MockRepo, mock_hash, MockAudit):
         from src.api.v1.admin.users import create_user, UserCreate
         db = AsyncMock()
         repo_inst = AsyncMock()
@@ -523,7 +518,6 @@ class TestCreateUser:
         repo_inst.create.return_value = _mock_user_model()
         MockRepo.return_value = repo_inst
         MockAudit.return_value = AsyncMock()
-        MockSubRepo.return_value = AsyncMock(get_by_tenant=AsyncMock(return_value=None))
 
         result = await create_user(
             UserCreate(email="user@test.com", username="testuser", password="SecureP@ss1234"),
@@ -659,22 +653,18 @@ class TestUpdateUser:
         with pytest.raises(InsufficientPermissionsError):
             await update_user(OTHER_USER_ID, UserUpdate(password="NewPass456!xy"), _operator_user(), AsyncMock())
 
-    @patch("src.api.v1.admin.users.effective_limit", return_value=2)
-    @patch("src.api.v1.admin.users.SubscriptionRepository")
+    @patch("src.api.v1.admin.users.AuditService")
     @patch("src.api.v1.admin.users.UserRepository")
-    async def test_reactivation_respects_user_limit(self, MockRepo, MockSubRepo, mock_limit):
-        from fastapi import HTTPException
+    async def test_reactivation_sem_limite_de_usuarios(self, MockRepo, MockAudit):
+        """Usuários ilimitados em todos os planos (out/2026): reativar não checa limite."""
         from src.api.v1.admin.users import update_user, UserUpdate
-        _users_repo(MockRepo, _mock_user_model(is_active=False))
-        MockSubRepo.return_value = AsyncMock(get_by_tenant=AsyncMock(return_value=MagicMock()))
+        target = _mock_user_model(is_active=False)
+        _users_repo(MockRepo, target)
+        MockAudit.return_value = AsyncMock()
         db = AsyncMock()
-        count_result = MagicMock()
-        count_result.scalar.return_value = 2  # já no limite de ativos
-        db.execute.return_value = count_result
-        with pytest.raises(HTTPException) as exc:
-            await update_user(OTHER_USER_ID, UserUpdate(is_active=True), _admin_user(), db)
-        assert exc.value.status_code == 422
-        assert "Limite de usuários" in exc.value.detail
+        await update_user(OTHER_USER_ID, UserUpdate(is_active=True), _admin_user(), db)
+        assert target.is_active is True
+        db.commit.assert_called()
 
 
 class TestDeleteUser:

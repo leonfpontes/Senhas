@@ -71,8 +71,8 @@ def render_subscription_reverted_to_free_email(
             <tr>
               <td style="background:#EFF6FF;border-left:4px solid #3B82F6;border-radius:4px;padding:12px 16px;">
                 <p style="margin:0;color:#1E40AF;font-size:13px;line-height:1.5;">
-                  No plano gratuito, os limites de usuários, giras por mês e
-                  médiuns/cambones cadastrados foram reduzidos. Dados já
+                  No plano gratuito, os limites de giras por mês e de
+                  médiuns/cambones cadastrados foram reduzidos (usuários continuam ilimitados). Dados já
                   cadastrados não foram apagados — apenas a criação de novos
                   registros acima do limite fica bloqueada.
                 </p>

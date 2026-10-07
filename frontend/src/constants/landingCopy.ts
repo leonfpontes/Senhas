@@ -118,15 +118,17 @@ export const MODULES: readonly ModuleItem[] = [
     media: { screen: 'site' },
   },
   {
-    title: 'Mensalidades e financeiro',
-    desc: 'Mensalidade da corrente e dos associados, contas a pagar e a receber e o caixa da casa.',
-    feature: 'contas_financeiras',
+    // Mensalidade dos médiuns a partir do Basic (out/2026): com o limite de médiuns do plano,
+    // controlar a mensalidade de todo mundo vira gatilho de upgrade.
+    title: 'Mensalidade da corrente',
+    desc: 'Quem pagou, quem está devendo e o comprovante de cada mês, médium por médium.',
+    feature: 'mensalidade_mediun',
     media: { screen: 'mensalidades' },
   },
   {
-    title: 'Estoque de materiais',
-    desc: 'Velas, ervas, pemba, bebidas: entradas, saídas e aviso quando está acabando.',
-    feature: 'estoque_controle',
+    title: 'Financeiro completo e estoque',
+    desc: 'Contas a pagar e a receber, fluxo de caixa, mensalidade dos associados e o estoque de velas, ervas e bebidas.',
+    feature: 'contas_financeiras',
     media: { photo: 'velasEstoque' },
   },
   {

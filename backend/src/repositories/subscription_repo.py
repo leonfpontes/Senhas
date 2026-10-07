@@ -17,11 +17,20 @@ from .base import BaseRepository
 # um número aqui, crie migração de dados para as assinaturas existentes (ex.:
 # 059_planos_limites_out_2026, reestruturação de out/2026: FREE 4→2 giras,
 # BASIC 10→3 giras e 50→15 médiuns, PRO 15→4 giras e 150→30 médiuns).
+#
+# Usuários ILIMITADOS em todos os planos, inclusive o Gratuito (decisão do dono
+# do produto, out/2026; migração 060_usuarios_ilimitados). Motivo: quem opera a
+# plataforma (muitas vezes um filho da casa, não o dirigente que assinou) é quem
+# sente falta dos recursos novos — mais usuários = mais promotores internos do
+# upgrade. Não há mais checagem de limite de usuários (criar/reativar); o campo
+# `max_users` segue na assinatura com o sentinela de "ilimitado".
+UNLIMITED_USERS = 99999
+
 PLAN_LIMITS: dict = {
-    PlanType.FREE:    {"max_users": 1,     "max_giras_per_month": 2,      "max_mediuns": 0,       "price": 0.0},
-    PlanType.BASIC:   {"max_users": 3,     "max_giras_per_month": 3,      "max_mediuns": 15,      "price": 49.0},
-    PlanType.PRO:     {"max_users": 10,    "max_giras_per_month": 4,      "max_mediuns": 30,      "price": 79.0},
-    PlanType.PREMIUM: {"max_users": 99999, "max_giras_per_month": 999999, "max_mediuns": 9999999, "price": 99.0},
+    PlanType.FREE:    {"max_users": UNLIMITED_USERS, "max_giras_per_month": 2,      "max_mediuns": 0,       "price": 0.0},
+    PlanType.BASIC:   {"max_users": UNLIMITED_USERS, "max_giras_per_month": 3,      "max_mediuns": 15,      "price": 49.0},
+    PlanType.PRO:     {"max_users": UNLIMITED_USERS, "max_giras_per_month": 4,      "max_mediuns": 30,      "price": 79.0},
+    PlanType.PREMIUM: {"max_users": UNLIMITED_USERS, "max_giras_per_month": 999999, "max_mediuns": 9999999, "price": 99.0},
 }
 
 

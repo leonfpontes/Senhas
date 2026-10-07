@@ -563,6 +563,14 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   toggles com gate só checam o plano ao ligar. Sem grandfathering: tenant Pro existente perde os
   módulos (dados preservados, tela `PlanLocked`) — decisão sobre transição pendente com o dono.
   Testes: `tests/unit/test_planos_out_2026.py`, `tests/integration_pg/test_planos_out_2026.py`.
+- **Nota (2026-10-07) — ajuste de planos**: decisões do dono. (1) Mensalidade de médiuns a partir do
+  **Basic** (gatilho de upgrade: com 15 médiuns no Basic, controlar a mensalidade de todos leva ao Pro/
+  Premium); a de associados segue Premium. (2) **Usuários ilimitados em todos os planos**, inclusive o
+  Gratuito (quem opera a plataforma vira promotor interno do upgrade) — migração de dados
+  `060_usuarios_ilimitados`, sem checagem de limite em `users.py`. (3) Quadro de planos sem "Exportar
+  planilhas (CSV)" e sem "Ações em lote" (seguem funcionando; só não aparecem), "Senha pelo WhatsApp
+  (link público)" → "Link de senhas para enviar via WhatsApp", "Cores e logo do terreiro" →
+  "Personalização da plataforma". (4) Landing com o comparativo completo abaixo dos cartões.
 
 ### P-06 — Checklist de primeira gira no dashboard — `feito` (2026-10-05)
 - **Exceção à R-01**, decidida pelo dono do produto em 2026-10-05. Motivo: análise de produção

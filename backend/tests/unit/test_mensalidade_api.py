@@ -94,9 +94,9 @@ class TestPremiumGate:
         assert plan_gate_features(router, "/relatorio/download") == ["mensalidade_mediun"]
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("sub_factory", [_mock_free_sub, _mock_basic_sub, _mock_pro_sub])
-    async def test_free_basic_e_pro_retornam_403(self, sub_factory):
-        """Mensalidade (médiuns e associados) é Premium desde out/2026."""
+    @pytest.mark.parametrize("sub_factory", [_mock_free_sub])
+    async def test_free_retorna_403(self, sub_factory):
+        """Mensalidade de médiuns é a partir do Basic (out/2026); o Gratuito não tem."""
         from fastapi import HTTPException
         from src.api.v1.admin.mensalidades import router
         from tests.plan_gate_helpers import plan_gates, run_gate

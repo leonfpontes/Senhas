@@ -724,7 +724,7 @@ export default function TenantDetailPage() {
                   <dt className="text-muted-foreground">Mensalidade</dt><dd>{fmtMoney(subscription.monthly_price)}</dd>
                   <dt className="text-muted-foreground">Trial</dt>
                   <dd>{subscription.is_trial ? `Até ${fmtDate(subscription.trial_ends_at)}${trialDays !== null ? ` (${trialDays}d)` : ''}` : 'Não'}</dd>
-                  <dt className="text-muted-foreground">Usuários</dt><dd>{subscription.current_users} / {subscription.max_users >= 99999 ? '∞' : subscription.max_users}</dd>
+                  <dt className="text-muted-foreground">Usuários</dt><dd>{subscription.current_users}</dd>
                   <dt className="text-muted-foreground">Giras por mês</dt><dd>{subscription.max_giras_per_month >= 99999 ? '∞' : subscription.max_giras_per_month}</dd>
                 </dl>
               )}

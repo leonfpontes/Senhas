@@ -24,9 +24,10 @@ import {
 
 describe('plans — espelho do backend', () => {
   it.each([
-    ['free', 1, 2, 0, 0],
-    ['basic', 3, 3, 15, 49],
-    ['pro', 10, 4, 30, 79],
+    // Usuários ilimitados em todos os planos (99999 = sentinela de "ilimitado").
+    ['free', 99999, 2, 0, 0],
+    ['basic', 99999, 3, 15, 49],
+    ['pro', 99999, 4, 30, 79],
     ['premium', 99999, 999999, 9999999, 99],
   ] as const)('%s: usuários, giras/mês, médiuns e preço iguais a PLAN_LIMITS', (key, users, giras, mediuns, price) => {
     expect(PLANS[key].limits).toEqual({ users, girasPerMonth: giras, mediuns });
@@ -36,11 +37,11 @@ describe('plans — espelho do backend', () => {
   it('plano mínimo de cada recurso igual aos tiers de plan_features.py', () => {
     // bulk_operations vale em todos os planos (plan_features.py: nível FREE).
     const tier0 = ['bulk_operations'];
-    const tier1 = ['mediuns', 'relatorio_gira'];
-    // Reestruturação de out/2026: associados, estoque, fila, horário, financeiro e mensalidades → Premium.
+    // Mensalidade dos médiuns a partir do Basic (gatilho de upgrade pelo nº de médiuns).
+    const tier1 = ['mediuns', 'relatorio_gira', 'mensalidade_mediun'];
+    // Reestruturação de out/2026: associados, estoque, fila, horário e financeiro → Premium.
     const tier3 = [
       'suporte_prioritario',
-      'mensalidade_mediun',
       'associados',
       'mensalidade_associado',
       'estoque_controle',
@@ -64,10 +65,17 @@ describe('plans — espelho do backend', () => {
   it('todo recurso vendido tem rótulo no catálogo; o que é grátis ou não existe fica fora', () => {
     const sold = Object.keys(FEATURE_MIN_PLAN).filter((k) => !UNSOLD_FEATURES.includes(k as never));
     expect(FEATURE_CATALOG.map((f) => f.key).sort()).toEqual(sold.sort());
-    for (const k of ['bulk_operations', 'analytics_avancado', 'suporte_prioritario']) {
+    // Fora do quadro: ações em lote (todos os planos), CSV (Pro+, não vende) e o que não existe.
+    for (const k of ['bulk_operations', 'export_csv', 'analytics_avancado', 'suporte_prioritario']) {
       expect(FEATURE_CATALOG.some((f) => f.key === k)).toBe(false);
     }
-    expect(BASE_FEATURES).toContain('Ações em lote nas senhas');
+    expect(FEATURE_MIN_PLAN.export_csv).toBe('pro'); // o recurso continua no Pro+
+    expect(BASE_FEATURES).toEqual([
+      'Link de senhas para enviar via WhatsApp',
+      'Porta: chamada da fila ao vivo',
+      'Painel com as próximas giras',
+    ]);
+    expect(FEATURE_CATALOG.find((f) => f.key === 'tema_personalizado')?.label).toBe('Personalização da plataforma');
     expect(FEATURE_CATALOG.some((f) => /analytics|csv export|feature/i.test(f.label))).toBe(false);
   });
 });
@@ -89,23 +97,30 @@ describe('plans — helpers', () => {
     expect(planIncludes('basic', 'estoque_controle')).toBe(false);
     expect(planIncludes('pro', 'estoque_controle')).toBe(false);
     expect(planIncludes('premium', 'estoque_controle')).toBe(true);
-    expect(planIncludes('pro', 'mensalidade_mediun')).toBe(false);
-    expect(planIncludes('premium', 'mensalidade_mediun')).toBe(true);
+    expect(planIncludes('free', 'mensalidade_mediun')).toBe(false);
+    expect(planIncludes('basic', 'mensalidade_mediun')).toBe(true);
     expect(planIncludes('pro', 'mensalidade_associado')).toBe(false);
     expect(minPlanFor('site_builder').key).toBe('pro');
     expect(minPlanFor('contas_financeiras').key).toBe('premium');
     expect(minPlanPhrase('site_builder')).toBe('a partir do Pro');
     expect(minPlanPhrase('fila_espera')).toBe('só no Premium');
+    expect(minPlanPhrase('mensalidade_mediun')).toBe('a partir do Basic');
   });
 
   it('destaques do card: limites e o que entra de novo', () => {
-    expect(planHighlights('basic')).toEqual(expect.arrayContaining(['Tudo do Gratuito', '3 usuários', '3 giras por mês', 'Até 15 médiuns']));
+    expect(planHighlights('free')).toEqual(expect.arrayContaining(['Link de senhas para enviar via WhatsApp', 'Usuários ilimitados']));
+    expect(planHighlights('basic')).toEqual(
+      expect.arrayContaining(['Tudo do Gratuito', '3 giras por mês', 'Até 15 médiuns', 'Mensalidade dos médiuns']),
+    );
     expect(planHighlights('pro')).toEqual(expect.arrayContaining(['4 giras por mês', 'Até 30 médiuns', 'Site do terreiro e cursos']));
-    expect(planHighlights('pro')).not.toEqual(expect.arrayContaining(['Mensalidade dos médiuns']));
-    expect(planHighlights('premium')).toEqual(expect.arrayContaining(['Mensalidade dos médiuns']));
+    expect(planHighlights('premium')).not.toEqual(expect.arrayContaining(['Mensalidade dos médiuns']));
     expect(planHighlights('pro')).not.toEqual(expect.arrayContaining(['Estoque de materiais']));
     expect(planHighlights('premium')).toEqual(expect.arrayContaining(['Estoque de materiais', 'Associados', 'Fila de espera quando a gira lota']));
-    expect(planHighlights('premium')).toEqual(expect.arrayContaining(['Usuários ilimitados', 'Giras ilimitadas']));
+    expect(planHighlights('premium')).toEqual(expect.arrayContaining(['Giras ilimitadas', 'Médiuns ilimitados']));
+    // Nenhum card fala em "N usuários" nem em CSV / ações em lote.
+    for (const k of ['free', 'basic', 'pro', 'premium'] as const) {
+      expect(planHighlights(k).some((h) => /\d+ usuários?|CSV|planilha|em lote/i.test(h))).toBe(false);
+    }
   });
 
   it.each([
@@ -116,7 +131,8 @@ describe('plans — helpers', () => {
     [{ mediuns: 10, girasPerMonth: 4 }, 'pro'],
     [{ mediuns: 10, girasPerMonth: 5 }, 'premium'],
     [{ mediuns: 31, girasPerMonth: 3 }, 'premium'],
-    [{ mediuns: 0, girasPerMonth: 2, users: 4 }, 'pro'],
+    // usuários não pesam: ilimitados em todos os planos
+    [{ mediuns: 0, girasPerMonth: 2, users: 40 }, 'free'],
   ] as const)('recomenda o plano mais barato que comporta o uso %#', (usage, expected) => {
     expect(recommendPlan(usage)).toBe(expected);
   });
@@ -126,7 +142,6 @@ describe('plans — helpers', () => {
     expect(lostOnFree({ mediuns: 12, girasPerMonth: 6, users: 2 })).toEqual([
       'Cadastro de médiuns (12 cadastrados)',
       'Mais de 2 giras por mês',
-      'Mais de um usuário no painel',
     ]);
   });
 });
