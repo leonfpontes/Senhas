@@ -22,6 +22,9 @@ from src.models.medium_lembretes import (
     TIPO_MENSALIDADE_ANTES,
     TIPO_MENSALIDADE_DEPOIS,
     TIPO_PIX_ALTERADO,
+    TIPO_TROCA_APROVADA,
+    TIPO_TROCA_PEDIDA,
+    TIPO_TROCA_RESPOSTA,
     TIPO_VESPERA,
 )
 from src.services.medium_lembretes import MESES, local, quando_legivel
@@ -111,6 +114,13 @@ def notificacao(tipo: str, terreiro: str, reservadas: list[Any]) -> Optional[Not
             _agenda(primeiro),
             tag=f"atividade-{primeiro.atividade_id}",
         )
+    # Troca na escala (AM-27): sem nome de colega nem de atividade — a Área mostra o resto.
+    if tipo == TIPO_TROCA_PEDIDA:
+        return Notificacao(titulo, "Um colega pediu troca na escala com você. Toque para responder.", AREA, tag="troca")
+    if tipo == TIPO_TROCA_RESPOSTA:
+        return Notificacao(titulo, "Seu pedido de troca na escala teve resposta. Toque para ver.", AREA, tag="troca")
+    if tipo == TIPO_TROCA_APROVADA:
+        return Notificacao(titulo, "A troca na escala foi confirmada. Toque para ver.", f"{AREA}/presencas", tag="troca")
     return None
 
 

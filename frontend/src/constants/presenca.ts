@@ -94,6 +94,13 @@ export const AVISO_SAUDE = 'A direção da casa vê o motivo. Não precisa detal
 // ── Área do Médium (/api/v1/medium/*) ──────────────────────────────────────
 
 export type Resposta = 'sem_resposta' | 'vou' | 'nao_vou';
+/** Abono da justificativa (AM-27). */
+export type AvaliacaoJustificativa = 'aceita' | 'recusada';
+
+export const ROTULO_AVALIACAO: Record<AvaliacaoJustificativa, string> = {
+  aceita: 'Motivo aceito',
+  recusada: 'Motivo recusado',
+};
 export type Presenca = 'nao_registrada' | 'presente' | 'ausente';
 
 export interface MinhaParticipacao {
@@ -103,6 +110,8 @@ export interface MinhaParticipacao {
   presenca: Presenca;
   presenca_em?: string | null;
   justificativa?: string | null;
+  /** Abono (AM-27): a casa aceitou ou recusou o motivo (null = ainda não avaliou). */
+  justificativa_avaliacao?: AvaliacaoJustificativa | null;
   grupo?: string | null;
   funcao?: string | null;
   pede_confirmacao: boolean;
@@ -165,7 +174,17 @@ export interface PessoaChamada {
   situacao: Situacao;
   tem_justificativa: boolean;
   justificativa?: string | null;
+  /** Abono (AM-27). */
+  justificativa_avaliacao?: AvaliacaoJustificativa | null;
   dispensado: boolean;
+  /** Troca (AM-27): quem foi no lugar dele / no lugar de quem ele está. */
+  substituido_por?: string | null;
+  no_lugar_de?: string | null;
+}
+
+/** Rota do abono (AM-27): aceitar/recusar o motivo de um médium numa atividade. */
+export function abonoHref(atividadeId: string, mediumId: string): string {
+  return `/api/v1/admin/atividades/${encodeURIComponent(atividadeId)}/justificativas/${encodeURIComponent(mediumId)}`;
 }
 
 export interface ChamadaResponse {

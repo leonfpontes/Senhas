@@ -5,7 +5,10 @@ logado, médium ativo ligado a ele (`mediuns.user_id`) no mesmo tenant e plano
 com `area_medium`. Regras (docs/plano-area-do-medium.md §6.6):
 
 - **Nada de `medium_id` na URL ou no corpo.** As rotas são "minhas": o médium
-  vem de `ctx.medium` e o tenant de `ctx.tenant_id` (`MediumContext`).
+  vem de `ctx.medium` e o tenant de `ctx.tenant_id` (`MediumContext`). Única
+  exceção: o `colega_id` do pedido de troca (AM-27, `trocas.py`), que só vale
+  se for um dos colegas da lista que o servidor montou (elegíveis, fora da
+  escala e com o opt-in do D-07) — nunca dá acesso a dado do colega.
 - Query em modelo multi-tenant filtra por `ctx.tenant_id`; query em modelo com
   FK para `mediuns` filtra também por `ctx.medium.id`
   (`scripts/audit_tenant_isolation.py`, modo "medium").
@@ -31,6 +34,7 @@ from .perfil import router as perfil_router
 from .preferencias import router as preferencias_router
 from .presencas import router as presencas_router
 from .push import router as push_router
+from .trocas import router as trocas_router
 
 medium_router = APIRouter(
     prefix="/api/v1/medium",
@@ -47,5 +51,6 @@ medium_router.include_router(presencas_router)
 medium_router.include_router(preferencias_router)
 medium_router.include_router(push_router)
 medium_router.include_router(meus_dados_router)
+medium_router.include_router(trocas_router)
 
 __all__ = ["medium_router"]

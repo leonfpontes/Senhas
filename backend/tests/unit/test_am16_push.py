@@ -142,6 +142,9 @@ def test_cada_tipo_tem_texto_discreto_e_abre_a_area():
         modelos.TIPO_FALTA: [gira],
         modelos.TIPO_AVISO: [aviso],
         modelos.TIPO_CANCELADA: [gira],
+        modelos.TIPO_TROCA_PEDIDA: [None],
+        modelos.TIPO_TROCA_RESPOSTA: [None],
+        modelos.TIPO_TROCA_APROVADA: [None],
     }
     assert set(casos) == set(modelos.PREFERENCIA_DO_TIPO)
     for tipo, reservadas in casos.items():

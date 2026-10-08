@@ -233,6 +233,16 @@ Rotas existentes e suas features:
   `PUT /{id}/escala`, `POST /{id}/escala/copiar-anterior` e `POST /{id}/escala/rodizio` = edit;
   `POST /da-gira/{gira_id}/escala` = **view** (so cria/devolve a ancora da gira, sem dado de negocio, para abrir a
   aba). Tipo sem `modo_escala = 'funcoes'` → 409
+- Troca na escala (`atividades_trocas.py`, AM-27) → `PermissionFeature.ESCALAS`, mesmo prefixo, router com
+  `require_plan_feature("area_medium")` + `("atividades_corrente")` + `("escalas")` (Pro; troca so existe nas
+  escalas): `GET /trocas` = view; `GET /trocas/{id}/substitutos`, `POST /trocas/{id}/aprovar|recusar|cancelar` =
+  edit. `substituto_id` do corpo conferido no tenant (`trocas_escala.validar_substituto_do_tenant`: ativo,
+  alcancado pelo tipo, fora da escala → 422 sem gravar); troca de outro terreiro → 404. Router registrado ANTES do
+  `atividades.py`. Abono (`PUT /{id}/justificativas/{medium_id}`, em `atividades_presenca.py`) = `ESCALAS:edit`
+  com os gates de plano da presenca (`area_medium` + `atividades_corrente`; nao exige `escalas`). Area:
+  `api/v1/medium/trocas.py` com `require_plan_feature("atividades_corrente")` + `("escalas")` e
+  `require_not_impersonated` nas escritas; `PUT /medium/preferencias/colegas` (opt-in do D-07) tambem recusa
+  impersonando
 
 Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
 leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
@@ -900,7 +910,10 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `085_assinatura_boleto` (2026-10-08, $-04: `subscriptions.collection_method`,
+- Head atual: `086_trocas_escala` (2026-10-08, AM-27: `participacao_trocas` — uma aberta por participacao,
+  indice unico parcial —, `atividade_participacoes.justificativa_avaliacao/_avaliada_em/_avaliada_por` e origem
+  `troca`, `tenant_configs.escala_troca_exige_aprovacao`, `medium_preferencias.mostrar_nome_colegas`, tipos
+  `troca_*` em `medium_lembretes_enviados`), apos `085_assinatura_boleto` (2026-10-08, $-04: `subscriptions.collection_method`,
   `pending_stripe_subscription_id` (unico), `pending_invoice_id/_url/_due_at` — assinatura do plano paga por
   fatura/boleto), apos `084_parceiros` (2026-10-08, C-06: tabela da plataforma `parceiro_interesses` — pedidos do
   Programa de Parceiros, sem `tenant_id`, `ip_hash` HMAC, CHECK de `tipo`/`status`), apos
@@ -1221,7 +1234,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, notificação no celular, Escala de gira, divulgação, Meus dados e aniversariantes (AM-02/03/04/05/06/07/08/09/10/11/12/13/14/15/16/17/18/20/23/24/25/26/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, notificação no celular, Escala de gira, divulgação, Meus dados, aniversariantes e troca na escala (AM-02/03/04/05/06/07/08/09/10/11/12/13/14/15/16/17/18/20/23/24/25/26/27/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1485,6 +1498,26 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `modo_escala = funcoes`). Area: `minha_participacao.funcao` (null quando dispensado) → `EscalaCard` "Voce e
   Cambone na gira de sabado" (`presencaApi.fraseDaFuncao`, D-17), selo da Agenda "Cambone · Vou", linha em
   "Acompanhando" no Inicio e "Funcao: Cambone" no historico de Minhas presencas.
+- **Troca na escala e abono (AM-27)**: migracao `086_trocas_escala` (§11.8; tabela em `docs/database.md`), API em
+  §3.3 e `docs/api.md` (§21 do painel, §11 da Area), regras em `services/trocas_escala.py`. Troca so na escala de
+  verdade (gira com funcao, faxina, atividade "so escalados"), antes do inicio, chamada aberta. Area: detalhe da
+  Agenda com `components/medium/troca/TrocaNaAtividade` ("Nao vou poder: pedir troca" → `PedirTrocaSheet`: colegas
+  elegiveis que ligaram o opt-in, so o PRIMEIRO nome, e sempre "Deixar a direcao escolher" — sem ninguem com
+  opt-in so essa opcao; recado ate 200), `TrocaCard` ("Aceito ir"/"Nao posso", "Cancelar pedido", frases de
+  `constants/trocas.fraseDaTroca`: "Voce trocou com Beto" / "Voce esta na escala no lugar de Ana"; sem opt-in,
+  "um colega da corrente"); Inicio: pendencia `troca` (cartoes em "Para voce ver agora") e os pedidos abertos em
+  "Acompanhando"; Perfil: "Colegas de escala" (`ColegasDeEscala`, padrao desligado); `EscalaCard` diz "Voce
+  trocou a escala" e "A casa nao aceitou o motivo". O colega chamado ve a atividade enquanto o pedido esta aberto
+  (`atividade_visivel_ao_medium`). Casa: Configuracoes → Area do Medium → "Troca combinada entre mediuns precisa
+  da aprovacao da direcao" (padrao ligado; desligado, o aceite do colega ja troca). Aprovada: a linha original
+  ganha `substituida_por_id` ("Substituido") e a do substituto nasce/volta com origem `troca`, mesma funcao/grupo e
+  "Vou". Painel: aba "Trocas" em `/admin/atividades` (`TrocasDaEscala`, selo com as que esperam a direcao;
+  Aprovar/Recusar/Cancelar com `ConfirmDialog`, "Escolher quem vai" em `CrudDrawer` + `Combobox`); chamada e
+  Confirmacoes mostram "Trocou com"/"No lugar de"; relatorio conta `substituidos` (nao e falta). Abono:
+  `components/admin/presenca/AbonoJustificativa` ("Aceitar motivo"/"Recusar motivo"/"Desfazer", `escalas:edit`) nas
+  Confirmacoes, na chamada e no detalhe do relatorio; recusado conta como falta sem justificativa; motivo novo do
+  medium volta a "nao avaliado". "Por na escala" um a um devolve quem tinha trocado. E-mails pelo agendador do
+  AM-15 (preferencia `escalas`): pedido ao colega, resposta a quem pediu, aprovada aos dois. Sem push (AM-16).
 - **Divulgação (AM-24)**: tudo atrás de UMA chave de lançamento, desligada por padrão enquanto a Área é piloto:
   `AREA_MEDIUM_DIVULGADA` (`constants/areaMedium.ts`) = `NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA === 'true'`, **ARG de
   build** do frontend (Dockerfile padrão `false`, `args:` do `docker-compose.prod.yml`, `.env.prod.example`); em

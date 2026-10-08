@@ -16,6 +16,8 @@
  *
  * Mensagem de aniversário (AM-20): o que a casa diz ao médium no Início, no dia do aniversário dele
  * (até 200; `{nome}` vira o primeiro nome). Em branco, vale o texto padrão.
+ * Troca na escala (AM-27, só com `trocas_no_plano` — plano `escalas`): "Troca combinada entre
+ * médiuns precisa da aprovação da direção" (padrão ligado; desligado, o aceite do colega já vale).
  *
  * Quem monta só renderiza com `can('area_medium')` (plano + chave do piloto) e
  * `canGroup('configuracoes', 'view')`; `canEdit` = `canGroup('configuracoes', 'edit')`
@@ -52,6 +54,8 @@ interface AreaMediumConfigApi {
   presenca_no_plano?: boolean;
   lembretes?: { mensalidade: boolean };
   aniversario_mensagem?: string | null;
+  trocas?: { exige_aprovacao: boolean };
+  trocas_no_plano?: boolean;
 }
 
 interface FormState {
@@ -63,6 +67,7 @@ interface FormState {
   prazo: string;
   lembreteMensalidade: boolean;
   aniversarioMensagem: string;
+  trocaExigeAprovacao: boolean;
 }
 
 const PRAZO_MIN = 1;
@@ -90,6 +95,7 @@ function toForm(data: AreaMediumConfigApi): FormState {
     prazo: String(data.presenca?.prazo_justificativa_dias ?? 7),
     lembreteMensalidade: data.lembretes?.mensalidade ?? true,
     aniversarioMensagem: data.aniversario_mensagem ?? '',
+    trocaExigeAprovacao: data.trocas?.exige_aprovacao ?? true,
   };
 }
 
@@ -131,6 +137,7 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
   const [saving, setSaving] = useState(false);
   const [mensalidadeNoPlano, setMensalidadeNoPlano] = useState(true);
   const [presencaNoPlano, setPresencaNoPlano] = useState(false);
+  const [trocasNoPlano, setTrocasNoPlano] = useState(false);
   const [saved, setSaved] = useState<FormState | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
 
@@ -145,6 +152,7 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
         setSaved(next);
         setMensalidadeNoPlano(res.data.mensalidade_no_plano);
         setPresencaNoPlano(Boolean(res.data.presenca_no_plano));
+        setTrocasNoPlano(Boolean(res.data.trocas_no_plano));
       })
       .catch(() => !cancelled && setLoadError(true))
       .finally(() => !cancelled && setLoading(false));
@@ -189,6 +197,7 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
         ...(presencaNoPlano
           ? { presenca: { modo_padrao: form.presencaModo, prazo_justificativa_dias: prazoNumero } }
           : {}),
+        ...(trocasNoPlano ? { trocas: { exige_aprovacao: form.trocaExigeAprovacao } } : {}),
       });
       const next = toForm(res.data);
       setForm(next);
@@ -326,6 +335,22 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
               disabled={!canEdit}
               error={prazoError}
               helperText="Depois da atividade, o médium tem esses dias para contar por que faltou."
+            />
+          </fieldset>
+        )}
+
+        {trocasNoPlano && (
+          <fieldset className="flex flex-col gap-3" data-testid="area-medium-trocas">
+            <legend className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+              Troca na escala
+            </legend>
+            <ToggleRow
+              id="area-medium-troca-aprovacao"
+              title="Troca combinada entre médiuns precisa da aprovação da direção"
+              description="Ligado: depois que o colega aceita, a troca espera a direção aprovar em Atividades e escalas → Trocas. Desligado: a troca vale assim que o colega aceita."
+              checked={form.trocaExigeAprovacao}
+              disabled={!canEdit}
+              onChange={(v) => set('trocaExigeAprovacao', v)}
             />
           </fieldset>
         )}

@@ -13,6 +13,9 @@ antes e 3 dias depois do vencimento, sem comprovante) — `tenant_configs.area_m
 AM-20: `aniversario_mensagem` (até 200, texto simples; `{nome}` vira o primeiro nome) é a mensagem da
 casa no Início do médium no dia do aniversário dele; vazio = "A <terreiro> deseja um feliz
 aniversário, <primeiro nome>! Axé!" (`tenant_configs.area_medium_aniversario_mensagem`).
+AM-27: `trocas.exige_aprovacao` — "Troca combinada entre médiuns precisa da aprovação da direção"
+(padrão ligado; `tenant_configs.escala_troca_exige_aprovacao`); `trocas_no_plano` diz se a casa tem
+troca de escala (plano `escalas`, Pro — a tela só mostra a opção com ele).
 Trocar o modo vale para as próximas chamadas; presença já registrada não muda. O gate `area_medium` já exige a chave do piloto
 (`tenants.area_medium_liberada`): sem ela, 403 aqui também.
 
@@ -78,6 +81,14 @@ class LembretesConfigUpdate(BaseModel):
     mensalidade: Optional[bool] = None
 
 
+class TrocasConfig(BaseModel):
+    exige_aprovacao: bool = True
+
+
+class TrocasConfigUpdate(BaseModel):
+    exige_aprovacao: Optional[bool] = None
+
+
 class AreaMediumConfigResponse(BaseModel):
     ativa: bool
     boas_vindas: Optional[str] = None
@@ -92,6 +103,9 @@ class AreaMediumConfigResponse(BaseModel):
     lembretes: LembretesConfig = LembretesConfig()
     # AM-20: mensagem da casa no dia do aniversário do médium (None = texto padrão).
     aniversario_mensagem: Optional[str] = None
+    trocas: TrocasConfig = TrocasConfig()
+    # Troca de escala só com o plano `escalas` (e a presença): a tela só mostra a opção com ele.
+    trocas_no_plano: bool = False
 
 
 class AreaMediumConfigUpdate(BaseModel):
@@ -103,6 +117,7 @@ class AreaMediumConfigUpdate(BaseModel):
     lembretes: Optional[LembretesConfigUpdate] = None
     # Folga para o texto com HTML/espaços que a limpeza tira; o limite real é o do texto limpo.
     aniversario_mensagem: Optional[str] = Field(None, max_length=ANIVERSARIO_MENSAGEM_MAX * 2)
+    trocas: Optional[TrocasConfigUpdate] = None
 
 
 def normalizar_whatsapp(valor: Optional[str]) -> Optional[str]:
@@ -135,6 +150,7 @@ def _snapshot(config: TenantConfig) -> dict:
         },
         "lembretes": {"mensalidade": bool(config.area_medium_lembrete_mensalidade)},
         "aniversario_mensagem": config.area_medium_aniversario_mensagem,
+        "trocas": {"exige_aprovacao": bool(config.escala_troca_exige_aprovacao)},
     }
 
 
@@ -144,6 +160,7 @@ async def _response(db: AsyncSession, tenant_id, config: TenantConfig) -> AreaMe
         **_snapshot(config),
         mensalidade_no_plano=features.mensalidade_mediun,
         presenca_no_plano=features.atividades_corrente,
+        trocas_no_plano=bool(features.escalas and features.atividades_corrente),
     )
 
 
@@ -201,6 +218,8 @@ async def update_area_medium_config(
             config.area_medium_aniversario_mensagem = limpar_mensagem(body.aniversario_mensagem)
         except ValueError as exc:
             raise ValidationError(str(exc), details={"campo": "aniversario_mensagem"})
+    if body.trocas is not None and body.trocas.exige_aprovacao is not None:
+        config.escala_troca_exige_aprovacao = body.trocas.exige_aprovacao
     await db.flush()
 
     await AuditService(db).log_config_change(

@@ -6,7 +6,7 @@ grupo de permissão `ESCALAS` (view). Regras em `services/assiduidade.py`.
 - ``GET /api/v1/admin/atividades/assiduidade?inicio&fim&tipo_id&grupo_id&agrupar=medium|grupo``
   — por médium (Basic) ou por grupo da corrente (`agrupar=grupo` exige o plano `escalas`, Pro →
   403): convocações, presenças, ausências com e sem justificativa, "sem chamada", dispensados,
-  quem veio sem estar na escala e o percentual (presentes ÷ convocações com chamada encerrada).
+  quem veio sem estar na escala, substituições (AM-27, troca aprovada — não é falta) e o percentual (presentes ÷ convocações com chamada encerrada).
   Só contagens: nada de texto de justificativa (é o que vai para o PDF).
 - ``GET /api/v1/admin/atividades/assiduidade/medium/{medium_id}?inicio&fim&tipo_id`` — as
   atividades do médium no período, com a situação e, nas ausências, o motivo (§6.8: só na tela de
@@ -80,6 +80,8 @@ class Numeros(BaseModel):
     sem_chamada: int
     dispensados: int
     avulsos: int
+    # AM-27: trocou com um colega (troca aprovada) — não é falta e não entra no percentual.
+    substituidos: int = 0
     percentual: Optional[int] = None
 
 
@@ -125,6 +127,10 @@ class ItemDetalheResponse(BaseModel):
     tem_justificativa: bool
     # Pode ter dado de saúde (§6.8): só nesta tela (ESCALAS:view).
     justificativa: Optional[str] = None
+    # Abono (AM-27): null (não avaliada), "aceita" ou "recusada".
+    justificativa_avaliacao: Optional[str] = None
+    # Origem da convocação ("troca": foi no lugar de um colega).
+    medium_origem: Optional[str] = None
 
 
 class DetalheResponse(BaseModel):

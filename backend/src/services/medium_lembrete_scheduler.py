@@ -16,6 +16,8 @@ e a Área ligada pela casa. Cada tipo só sai dentro da sua janela em Brasília
 - ausência marcada: convite para contar o motivo dentro do prazo da casa (sem o texto do motivo);
 - aviso com "Avisar por e-mail também", para o público do aviso com acesso à Área (módulo avisos);
 - atividade cancelada: quem estava na escala;
+- troca de escala (AM-27, com `escalas`): pedido ao colega chamado, resposta a quem pediu (aceito
+  esperando a direção, recusado, cancelado pela direção) e troca aprovada aos dois;
 - resumo diário (8 h) aos administradores: comprovantes para conferir, ausências avisadas e
   motivos novos — só contagens, um e-mail por terreiro por dia, e só quando há algo.
 
@@ -396,6 +398,46 @@ async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> tupl
                         ),
                     )
                 )
+
+    # ── Trocas de escala (AM-27) ────────────────────────────────────────────
+    if features.escalas and features.atividades_corrente:
+        from src.services.trocas_escala import primeiro_nome, substituto_visivel
+
+        for v in await lm.trocas_para_email(db, tenant_id, agora):
+            t = v.troca
+            item_troca = tpl.ItemAtividade(
+                titulo=v.ctx.titulo,
+                quando=lm.quando_legivel(v.ctx.inicio),
+                local=v.ctx.local,
+                grupo=v.grupo,
+                funcao=v.funcao,
+                link=area_medium_link(base, f"/agenda/{v.ctx.origem}/{v.ctx.ref_id}"),
+            )
+            nome_solicitante = primeiro_nome(v.solicitante_nome)
+            nome_substituto = (
+                primeiro_nome(v.substituto_nome)
+                if substituto_visivel(indicado_pela_direcao=t.indicado_pela_direcao, mostra_nome=v.substituto_mostra_nome)
+                else None
+            )
+            for tipo, destino, sufixo in lm.eventos_da_troca(t.status, t.fechada_por, t.substituto_id is not None, v.vigente):
+                medium_id = t.substituto_id if destino == "substituto" else t.solicitante_id
+                if medium_id is None or not lm.janela_aberta(tipo, agora) or not quer(medium_id, tipo):
+                    continue
+                d = dest[medium_id]
+                if tipo == lm.TIPO_TROCA_PEDIDA:
+                    montar = lambda _, d=d, it=item_troca, c=nome_solicitante, r=t.recado: tpl.conteudo_troca_pedida(
+                        terreiro=terreiro, nome=d.nome, colega=c, item=it, recado=r
+                    )
+                elif tipo == lm.TIPO_TROCA_RESPOSTA:
+                    montar = lambda _, d=d, it=item_troca, c=nome_substituto, res=sufixo[1:]: tpl.conteudo_troca_resposta(
+                        terreiro=terreiro, nome=d.nome, colega=c, item=it, resultado=res
+                    )
+                else:
+                    pediu = destino == "solicitante"
+                    montar = lambda _, d=d, it=item_troca, c=(nome_substituto if pediu else nome_solicitante), p=pediu: (
+                        tpl.conteudo_troca_aprovada(terreiro=terreiro, nome=d.nome, colega=c, item=it, foi_quem_pediu=p)
+                    )
+                pendentes.append(Pendente(tipo=tipo, medium_id=medium_id, partes=[(f"{t.id}{sufixo}", v)], montar=montar))
 
     # ── Avisos com "Avisar por e-mail também" ───────────────────────────────
     if "avisos" in modulos and lm.janela_aberta(lm.TIPO_AVISO, agora):

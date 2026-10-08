@@ -37,6 +37,7 @@ from .atividades import (
     EscalaPlano,
     EscalaPlanoDia,
     FuncaoCorrente,
+    ParticipacaoTroca,
 )
 from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
 from .parceiro_interesse import ParceiroInteresse
@@ -87,6 +88,7 @@ __all__ = [
     "EscalaPlano",
     "EscalaPlanoDia",
     "FuncaoCorrente",
+    "ParticipacaoTroca",
     "MensalidadeConfig",
     "MensalidadePagamento",
     "MensalidadeStatus",

@@ -24,6 +24,10 @@ porteiro faz a chamada da corrente na porta, §8.6) e o QR da gira para `PORTA:v
   os esperados, confiança + "vou" → presente, o resto → ausente.
 - ``GET  /api/v1/admin/atividades/{id}/qr``                  — código do QR do dia (rotativo, 60 s;
   `ESCALAS:edit`, ou `PORTA:view` na gira). Sem dado pessoal.
+- ``PUT  /api/v1/admin/atividades/{id}/justificativas/{medium_id}`` — abono (AM-27): aceita ou
+  recusa o motivo de uma ausência (`avaliacao` = aceita | recusada | null para desfazer;
+  `ESCALAS:edit`). Recusado conta como falta sem justificativa no relatório de assiduidade. Um
+  motivo novo do médium volta a ficar sem avaliação. Auditoria só com ids (nunca o texto).
 
 A justificativa (pode ter dado de saúde, §6.8) só sai para quem tem `ESCALAS:view`; quem abre a
 chamada só pela Porta vê que há motivo, não o texto. Nunca vai para a auditoria.
@@ -61,7 +65,9 @@ from src.models import (
 from src.services.audit_service import AuditService
 from src.services.corrente_grupos import validar_grupos_ativos_do_tenant
 from src.services.permission_service import PermissionService
+from src.services.trocas_escala import substituicoes_da_atividade
 from src.services.presenca import (
+    AVALIACAO_RECUSADA,
     MODO_CONFIANCA,
     MODO_QR,
     PRESENCA_NAO_REGISTRADA,
@@ -153,7 +159,12 @@ class Pessoa(BaseModel):
     tem_justificativa: bool
     # Só para quem tem ESCALAS:view (§6.8).
     justificativa: Optional[str] = None
+    # Abono (AM-27): null (não avaliada), "aceita" ou "recusada".
+    justificativa_avaliacao: Optional[str] = None
     dispensado: bool
+    # Troca (AM-27): quem foi no lugar dele / no lugar de quem ele está (nomes, só no painel).
+    substituido_por: Optional[str] = None
+    no_lugar_de: Optional[str] = None
 
 
 class Contadores(BaseModel):
@@ -223,6 +234,10 @@ class ChamadaUpdate(BaseModel):
     marcacoes: list[Marcacao] = Field(default_factory=list, max_length=500)
     medium_ids: list[uuid.UUID] = Field(default_factory=list, max_length=100)  # avulsos ("quem veio")
     marcar_confirmados: bool = False
+
+
+class AvaliacaoBody(BaseModel):
+    avaliacao: Optional[Literal["aceita", "recusada"]] = None
 
 
 class QrResponse(BaseModel):
@@ -335,13 +350,19 @@ async def _lista(
     modo = await modo_da_atividade(db, tenant_id, ctx.tipo)
     linhas = {p.medium_id: p for p in await participacoes_da_atividade(db, tenant_id, ctx.atividade_id)}
     esperados = {m.id: m for m in await mediuns_esperados(db, tenant_id, ctx)}
+    trocas = await substituicoes_da_atividade(db, tenant_id, ctx.atividade_id)
+    no_lugar = {sub: orig for orig, sub in trocas.items()}
     ids = set(linhas) | set(esperados)
     nomes = {}
     if ids:
         nomes = {
             mid: nome
             for mid, nome in (
-                await db.execute(select(Medium.id, Medium.nome).where(Medium.tenant_id == tenant_id, Medium.id.in_(ids)))
+                await db.execute(
+                    select(Medium.id, Medium.nome).where(
+                        Medium.tenant_id == tenant_id, Medium.id.in_(ids | set(trocas) | set(no_lugar))
+                    )
+                )
             ).all()
         }
     grupo_ids = {p.grupo_id for p in linhas.values() if p.grupo_id}
@@ -401,6 +422,7 @@ async def _lista(
             substituido=p is not None and p.substituida_por_id is not None,
             cancelada=ctx.cancelada,
             confianca_terminou=confianca_terminou,
+            justificativa_recusada=p is not None and p.justificativa_avaliacao == AVALIACAO_RECUSADA,
         )
         tem_just = bool(p is not None and (p.justificativa or "").strip())
         pessoas.append(
@@ -420,7 +442,12 @@ async def _lista(
                 situacao=sit,
                 tem_justificativa=tem_just,
                 justificativa=(p.justificativa if (ver_justificativa and p is not None) else None),
+                justificativa_avaliacao=p.justificativa_avaliacao if (p is not None and tem_just) else None,
                 dispensado=dispensado,
+                substituido_por=(
+                    nomes.get(trocas[mid]) if p is not None and p.substituida_por_id and mid in trocas else None
+                ),
+                no_lugar_de=nomes.get(no_lugar[mid]) if p is not None and p.origem == "troca" and mid in no_lugar else None,
             )
         )
     pessoas.sort(key=lambda x: x.nome.lower())
@@ -591,7 +618,7 @@ async def convocar(
 ) -> ConvocarResponse:
     """Põe na escala ("só escalados" e ritual individual): médiuns um a um e/ou grupos inteiros.
 
-    Médium pedido um a um entra sempre (quem estava dispensado volta). Grupo (AM-29): os membros
+    Médium pedido um a um entra sempre (quem estava dispensado ou tinha trocado — AM-27 — volta). Grupo (AM-29): os membros
     ATIVOS naquele momento que o tipo da atividade alcança entram com origem "grupo" e o
     `grupo_id`; quem o tipo não alcança fica de fora e volta no `resultado`. Quem já estava na
     escala fica como estava (a linha é única por atividade + médium; origem e resposta não mudam).
@@ -624,6 +651,8 @@ async def convocar(
         )
         p.convocado = True
         p.dispensado_em = None
+        # Pedido um a um: a casa escolheu a pessoa — quem tinha trocado (AM-27) volta à escala.
+        p.substituida_por_id = None
         p.updated_at = agora
     do_grupo: dict[uuid.UUID, list[uuid.UUID]] = {}
     for membro_id, gid in plano.do_grupo:
@@ -843,3 +872,54 @@ async def qr_da_atividade(
     modo = await modo_da_atividade(db, tenant_id, ctx.tipo)
     return _qr(tenant_id, ctx, modo, utc_now())
 
+
+
+# ── Rotas: abono da justificativa (AM-27) ───────────────────────────────────
+
+
+@router.put(
+    "/{atividade_id}/justificativas/{medium_id}",
+    response_model=ListaResponse,
+    dependencies=[Depends(require_group_permission(PermissionFeature.ESCALAS, "edit"))],
+)
+async def avaliar_justificativa(
+    request: Request,
+    body: AvaliacaoBody,
+    atividade_id: uuid.UUID = Path(...),
+    medium_id: uuid.UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ListaResponse:
+    """Aceita ou recusa o motivo de uma ausência ("Não vou" com motivo ou falta justificada).
+
+    Recusado: a falta conta como sem justificativa no relatório (o texto fica, para o histórico).
+    `avaliacao = null` desfaz a avaliação. Sem motivo gravado → 409.
+    """
+    tenant_id = current_user.tenant_id
+    ctx = await _ctx(db, tenant_id, atividade_id)
+    _recusar_sem_presenca(ctx)
+    await _validar_mediuns_do_tenant(db, tenant_id, [medium_id], so_ativos=False)
+    p = next(
+        (x for x in await participacoes_da_atividade(db, tenant_id, ctx.atividade_id, travar=True) if x.medium_id == medium_id),
+        None,
+    )
+    if p is None or not (p.justificativa or "").strip():
+        raise ConflictError("Este médium não contou um motivo nesta atividade.")
+    agora = utc_now()
+    antes = p.justificativa_avaliacao
+    p.justificativa_avaliacao = body.avaliacao
+    p.justificativa_avaliada_em = agora if body.avaliacao else None
+    p.justificativa_avaliada_por = current_user.id if body.avaliacao else None
+    p.updated_at = agora
+    await AuditService(db).log_update(
+        tenant_id=tenant_id,
+        user_id=current_user.id,
+        resource_type="atividade_justificativa",
+        resource_id=p.id,
+        previous_state={"avaliacao": antes},
+        # Só ids e a decisão — nunca o texto do motivo (§6.8).
+        new_state={"avaliacao": body.avaliacao, "atividade_id": str(ctx.atividade_id), "medium_id": str(medium_id)},
+    )
+    await db.commit()
+    ver = await _pode(db, request, current_user, PermissionFeature.ESCALAS, "view")
+    return await _lista(db, tenant_id, await _ctx(db, tenant_id, atividade_id), ver_justificativa=ver, com_outros=True)

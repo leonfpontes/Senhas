@@ -17,6 +17,7 @@
  * Vou / Não vou, "Cheguei", "Conte o motivo"). O QR do dia é um link para esta tela com
  * `?cheguei=<código>` (a câmera do celular abre a Área): com o "Cheguei" aberto, a presença é
  * marcada sozinha uma vez e o parâmetro sai da URL.
+ * Troca (AM-27): `TrocaNaAtividade` — "Pedir troca", o pedido em andamento e os pedidos de colegas.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -52,6 +53,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { apiClient } from '@/services/api_client';
 import { useSnackbar } from '@/contexts/SnackbarContext';
 import { EscalaCard } from '@/components/medium/presenca/EscalaCard';
+import { TrocaNaAtividade } from '@/components/medium/troca/TrocaNaAtividade';
 import { cheguei, estaImpersonando, mensagemDoErro } from '@/components/medium/presenca/presencaApi';
 
 const CARD = 'flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm';
@@ -203,6 +205,10 @@ function DetalheDoItem() {
           semCabecalho
           onAtualizado={(nova) => setItem((atual) => (atual ? ({ ...atual, minha_participacao: nova } as Detalhe) : atual))}
         />
+      )}
+      {/* Sem `minha_participacao` também: o colega chamado para uma faxina ainda não está nela. */}
+      {!cancelada && !passou && (
+        <TrocaNaAtividade origem={item.kind} id={item.id} onMudou={() => setNonce((x) => x + 1)} />
       )}
 
       {item.kind === 'atividade' && cancelada && (

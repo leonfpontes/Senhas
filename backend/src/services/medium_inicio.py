@@ -28,7 +28,8 @@ from typing import Any, Optional
 from ..models.mensalidades import MensalidadeStatus
 
 # Ordem das pendências na tela (D-24). Escala desde o AM-17 (`api/v1/medium/inicio.escalas_pendentes`).
-ORDEM_PENDENCIAS = {"escala": 0, "mensalidade": 1, "aviso": 2}
+# Troca (AM-27): pedido de um colega esperando a resposta — logo depois da escala.
+ORDEM_PENDENCIAS = {"escala": 0, "troca": 1, "mensalidade": 2, "aviso": 3}
 
 # Mensalidade em aberto só sobe para "Para você ver agora" a partir de N dias antes do
 # vencimento (decisão do dono, 07/10); antes disso fica em "Acompanhando". Atrasada sempre sobe.
@@ -154,11 +155,14 @@ def montar_pendencias(
     mensalidade: Optional[MensalidadeDoMes],
     avisos_nao_lidos: int = 0,
     escalas_a_responder: int = 0,
+    trocas_a_responder: int = 0,
 ) -> list[dict[str, Any]]:
-    """Pendências do Início, já ordenadas (D-24): escala → mensalidade → aviso novo."""
+    """Pendências do Início, já ordenadas (D-24): escala → troca → mensalidade → aviso novo."""
     itens: list[dict[str, Any]] = []
     if escalas_a_responder > 0:
         itens.append({"tipo": "escala", "quantidade": escalas_a_responder})
+    if trocas_a_responder > 0:
+        itens.append({"tipo": "troca", "quantidade": trocas_a_responder})
     dias = (mensalidade.vencimento - hoje).days if mensalidade and mensalidade.vencimento else None
     if mensalidade is not None and (
         mensalidade.status in (STATUS_ATRASADA, STATUS_NAO_CONFIRMADA)

@@ -1403,10 +1403,10 @@ opt-in (D-07, fase 2).
 - Abonar justificativa (aceitar/recusar) entra aqui também.
 
 **Aceite**
-- [ ] Médium pede troca, colega aceita e admin aprova (ou aprovação automática configurada)
-- [ ] Situação "Substituído" aparece para os dois e no relatório
-- [ ] Admin pode aceitar ou recusar uma justificativa
-- [ ] Opt-in para mostrar o primeiro nome aos colegas de escala
+- [x] Médium pede troca, colega aceita e admin aprova (ou aprovação automática configurada)
+- [x] Situação "Substituído" aparece para os dois e no relatório
+- [x] Admin pode aceitar ou recusar uma justificativa
+- [x] Opt-in para mostrar o primeiro nome aos colegas de escala
 
 ### AM-28 — Modo de presença da casa e check-in com QR do dia
 - **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-17
@@ -1464,11 +1464,12 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-16 Notificação push (desligada até gerar as chaves VAPID) | #100 | 082 | 2026-10-08 |
 | AM-14 Meus dados (exportar JSON/PDF, encerrar o acesso com a senha, "Quem vê o quê", Política 2.3) | #102 | 083 | 2026-10-08 |
 | AM-20 Aniversariantes (opt-in no Perfil, cartão da semana no Início, mensagem da casa no dia) | #102 | 083 | 2026-10-08 |
+| AM-27 Troca na escala e abono de justificativa | #106 | 086 | 2026-10-08 |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-19, AM-21, AM-22, AM-27.
+**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-19, AM-21, AM-22.
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 
