@@ -172,7 +172,9 @@ mais de uma conta, nunca quais.
 
 ### POST /api/v1/auth/login/select
 
-Pública (`public_paths` do `jwt_middleware`) e com rate limit de 10/min por IP.
+Pública (`public_paths` do `jwt_middleware`) e com rate limit de 10/min por IP em duas camadas (AM-29):
+slowapi no app e, no nginx de produção, `location = /api/v1/auth/login/select` com a mesma zona do
+login (`login_limit`, 10 r/min por IP, `burst=5 nodelay`).
 
 ```json
 // Request
@@ -386,7 +388,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
 | Controle | Descrição |
 |----------|-----------|
-| Rate limiting login | Nginx: 5 req/s por IP; App: slowapi com **Redis** (distribuído entre workers) |
+| Rate limiting login | Nginx (`nginx/conf.d/senhas.conf`): zona `login_limit` = 10 req/min por IP com `burst=5 nodelay`, em `= /api/v1/auth/login` e `= /api/v1/auth/login/select` (AM-29); App: slowapi 10/min por IP nas duas rotas, com **Redis** (distribuído entre workers) |
 | access_token | Cookie `HttpOnly; Secure; SameSite=Strict` — protegido contra XSS |
 | auth_state | Cookie não-HttpOnly `auth_state=1` — permite JS detectar login sem expor token |
 | refresh_token | Cookie `HttpOnly; Secure; SameSite=Strict`; payload com `type: refresh` |

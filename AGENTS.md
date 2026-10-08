@@ -113,7 +113,8 @@ tenant redundante (barato) a uma excecao.
   options:[{user_id, terreiro_nome, terreiro_slug, logo_url, areas:{admin, medium}}]}` SEM cookies; so lista os
   terreiros cuja senha conferiu (anti-enumeracao). `selection_token` = JWT `type=account_select`, 5 min, `uids` +
   `remember` (sem `sub`/`role`; so `decode_account_select_token` aceita). `POST /auth/login/select
-  {selection_token, user_id}` (publico, 10/min por IP): valida tipo/validade/lista, conta ainda ativa e sem
+  {selection_token, user_id}` (publico, 10/min por IP no slowapi e no nginx — `location = /api/v1/auth/login/select`
+  com a zona `login_limit` do login, `burst=5 nodelay`, AM-29): valida tipo/validade/lista, conta ainda ativa e sem
   `sessions_revoked_at` posterior ao token → `issue_session` como o login (401 `SELECTION_INVALID` em qualquer
   recusa). Nao e de uso unico. Sem nenhuma conta ativa vale a regra de conta unica do #85
   (`user_by_login_email_stmt`): conta inativa → 401 generico; terreiro desativado pelo dono → `TENANT_DEACTIVATED`
