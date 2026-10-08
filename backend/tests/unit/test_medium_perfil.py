@@ -263,6 +263,7 @@ def test_rotas_do_perfil():
         ("GET", "/api/v1/medium/perfil"),
         ("PATCH", "/api/v1/medium/perfil"),
         ("POST", "/api/v1/medium/perfil/foto"),
+        ("DELETE", "/api/v1/medium/perfil/foto"),
         ("POST", "/api/v1/medium/perfil/senha"),
         ("POST", "/api/v1/medium/perfil/email"),
         ("DELETE", "/api/v1/medium/perfil/email"),

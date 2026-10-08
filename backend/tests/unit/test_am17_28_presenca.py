@@ -324,6 +324,7 @@ def test_rotas_admin_da_presenca_por_grupo_e_plano():
         ("GET", f"{base}/da-gira/{{gira_id}}/qr"): (escalas_ou_porta, "view"),
         ("GET", f"{base}/{{atividade_id}}/confirmacoes"): (escalas, "view"),
         ("POST", f"{base}/{{atividade_id}}/convocar"): (escalas, "insert"),
+        ("GET", f"{base}/convocar/mediuns"): (escalas, "insert"),
         ("POST", f"{base}/{{atividade_id}}/dispensar"): (escalas, "edit"),
         ("GET", f"{base}/{{atividade_id}}/chamada"): (escalas_ou_porta, "edit"),
         ("PUT", f"{base}/{{atividade_id}}/chamada"): (escalas_ou_porta, "edit"),
@@ -380,9 +381,14 @@ def real_info():
     "old, new, esperado",
     [
         (
-            "    mediuns = await _validar_mediuns_do_tenant(db, tenant_id, body.medium_ids)\n    agora = utc_now()\n",
-            "    mediuns = list(body.medium_ids)\n    agora = utc_now()\n",
+            "    mediuns = await _validar_mediuns_do_tenant(db, tenant_id, pedidos)\n",
+            "    mediuns = pedidos\n",
             {("convocar", "body.medium_ids")},
+        ),
+        (
+            "    grupos = await validar_grupos_ativos_do_tenant(db, tenant_id, grupo_ids)\n",
+            "    grupos = grupo_ids\n",
+            {("convocar", "body.grupo_ids")},
         ),
         (
             "    mediuns = await _validar_mediuns_do_tenant(db, tenant_id, body.medium_ids, so_ativos=False)\n",

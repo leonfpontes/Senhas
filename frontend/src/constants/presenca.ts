@@ -203,6 +203,18 @@ export interface ChamadaResponse {
   ver_justificativa: boolean;
 }
 
+/** "Pôr na escala" com grupos (AM-29): o que aconteceu, contado por médium. */
+export interface ResultadoConvocacao {
+  novos: number;
+  ja_estavam: number;
+  fora_da_elegibilidade: number;
+  fora_da_elegibilidade_nomes: string[];
+}
+
+export interface ConvocarResponse extends ChamadaResponse {
+  resultado: ResultadoConvocacao;
+}
+
 export interface QrResponse {
   modo: ModoPresenca;
   ativo: boolean;

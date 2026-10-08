@@ -4,7 +4,9 @@
  * `GET /admin/atividades/{id}/confirmacoes` (ESCALAS:view): contadores (vão, não vão, sem
  * resposta) e a lista com o motivo de quem avisou que não vai (dado possivelmente de saúde, §6.8:
  * só aqui, para quem cuida das escalas). Com ESCALAS:insert, "Pôr na escala" (convocar à mão —
- * faxina, ritual individual, "só escalados"); com ESCALAS:edit, "Tirar da escala" (dispensar).
+ * faxina, ritual individual, "só escalados") com médiuns e/ou grupos da corrente inteiros (AM-29,
+ * `PorNaEscalaCampos`; o toast diz quantos entraram, quantos já estavam e quem o tipo não alcança);
+ * com ESCALAS:edit, "Tirar da escala" (dispensar).
  * Na gira, o painel garante a âncora antes (`POST /da-gira/{id}`).
  */
 import React, { useCallback, useEffect, useState } from 'react';
@@ -12,7 +14,6 @@ import Link from 'next/link';
 import { ClipboardCheck, UserMinus, UserPlus } from 'lucide-react';
 import { useSnackbar } from '@/contexts/SnackbarContext';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
-import { MultiCombobox } from '@/components/fields';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -27,9 +28,11 @@ import {
   ROTULO_SITUACAO,
   TOM_SITUACAO,
   type ChamadaResponse,
+  type ConvocarResponse,
 } from '@/constants/presenca';
 import { formatDateTimeBr } from '@/lib/dateBr';
 import { cn } from '@/lib/utils';
+import { PorNaEscalaCampos, textoResultadoConvocacao, useGruposDaCorrente } from './PorNaEscalaCampos';
 import { API_ATIVIDADES } from './TiposEFuncoes';
 
 export interface AlvoConfirmacoes {
@@ -54,7 +57,9 @@ export function ConfirmacoesSheet({
   const [dados, setDados] = useState<ChamadaResponse | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [convocar, setConvocar] = useState<string[]>([]);
+  const [convocarGrupos, setConvocarGrupos] = useState<string[]>([]);
   const [ocupado, setOcupado] = useState(false);
+  const grupos = useGruposDaCorrente(canInsert && alvo !== null);
 
   const carregar = useCallback(async (aid: string) => {
     const res = await apiClient.get<ChamadaResponse>(`${API_ATIVIDADES}/${aid}/confirmacoes`);
@@ -65,6 +70,7 @@ export function ConfirmacoesSheet({
     setDados(null);
     setErro(null);
     setConvocar([]);
+    setConvocarGrupos([]);
     setAtividadeId(null);
     if (!alvo) return;
     let vivo = true;
@@ -90,17 +96,39 @@ export function ConfirmacoesSheet({
     };
   }, [alvo, carregar]);
 
-  const acao = async (rota: 'convocar' | 'dispensar', ids: string[], ok: string) => {
+  const dispensar = async (ids: string[]) => {
     if (!atividadeId || ids.length === 0) return;
     setOcupado(true);
     try {
       const res = await apiClient.post<ChamadaResponse>(
-        `${API_ATIVIDADES}/${atividadeId}/${rota}`,
+        `${API_ATIVIDADES}/${atividadeId}/dispensar`,
         { medium_ids: ids },
       );
       setDados(res.data);
+      showSuccess('Fora da escala.');
+    } catch (err) {
+      showError(extractApiErrorMessage(err, 'Não foi possível salvar. Tente de novo.'));
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const porNaEscala = async () => {
+    if (!atividadeId || (convocar.length === 0 && convocarGrupos.length === 0)) return;
+    setOcupado(true);
+    try {
+      const res = await apiClient.post<ConvocarResponse>(`${API_ATIVIDADES}/${atividadeId}/convocar`, {
+        medium_ids: convocar,
+        grupo_ids: convocarGrupos,
+      });
+      setDados(res.data);
       setConvocar([]);
-      showSuccess(ok);
+      setConvocarGrupos([]);
+      showSuccess(
+        res.data.resultado
+          ? `${textoResultadoConvocacao(res.data.resultado)} Eles veem na Área do Médium.`
+          : 'Na escala. Eles veem na Área do Médium.',
+      );
     } catch (err) {
       showError(extractApiErrorMessage(err, 'Não foi possível salvar. Tente de novo.'));
     } finally {
@@ -154,29 +182,26 @@ export function ConfirmacoesSheet({
               {canInsert &&
                 !encerrada &&
                 !dados.atividade.cancelada &&
-                dados.outros_mediuns.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    <MultiCombobox
-                      label="Pôr na escala"
-                      options={dados.outros_mediuns.map((m) => ({ value: m.id, label: m.nome }))}
-                      value={convocar}
-                      onChange={setConvocar}
-                      placeholder="Escolha os médiuns"
-                      searchPlaceholder="Buscar médium..."
-                      emptyText="Ninguém encontrado."
-                      countLabel={(n) => `${n} ${n === 1 ? 'médium' : 'médiuns'}`}
+                (dados.outros_mediuns.length > 0 || grupos.length > 0) && (
+                  <fieldset className="flex flex-col gap-2" data-testid="por-na-escala">
+                    <legend className="mb-1 text-sm font-semibold">Pôr na escala</legend>
+                    <PorNaEscalaCampos
+                      mediuns={dados.outros_mediuns}
+                      grupos={grupos}
+                      mediumIds={convocar}
+                      grupoIds={convocarGrupos}
+                      onMediumIds={setConvocar}
+                      onGrupoIds={setConvocarGrupos}
                     />
                     <Button
                       type="button"
                       className="self-end"
-                      disabled={convocar.length === 0 || ocupado}
-                      onClick={() =>
-                        void acao('convocar', convocar, 'Na escala. Eles veem na Área do Médium.')
-                      }
+                      disabled={(convocar.length === 0 && convocarGrupos.length === 0) || ocupado}
+                      onClick={() => void porNaEscala()}
                     >
                       <UserPlus aria-hidden /> Pôr na escala
                     </Button>
-                  </div>
+                  </fieldset>
                 )}
 
               <ul
@@ -214,7 +239,7 @@ export function ConfirmacoesSheet({
                         title="Tirar da escala"
                         aria-label={`Tirar ${p.nome} da escala`}
                         disabled={ocupado}
-                        onClick={() => void acao('dispensar', [p.medium_id], 'Fora da escala.')}
+                        onClick={() => void dispensar([p.medium_id])}
                       >
                         <UserMinus />
                       </Button>

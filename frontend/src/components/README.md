@@ -97,6 +97,7 @@ para a confirmação de descarte, que saem por portal: a Área do Médium passa 
 
 ### `ConfirmDialog` — `src/components/admin/ConfirmDialog.tsx`
 `AlertDialog`; `destructive` usa `buttonVariants({ variant: 'destructive' })`. Mesma API.
+`className` vai para o conteúdo (portado para o `<body>`): na Área do Médium, `cn(fraunces.variable, 'medium-terra')`.
 ```tsx
 <ConfirmDialog open={!!alvo} title="Excluir médium" message={<>Excluir <strong>{alvo?.nome}</strong>?</>}
                destructive confirmText="Excluir" loading={deleting} onConfirm={del} onCancel={() => setAlvo(null)} />

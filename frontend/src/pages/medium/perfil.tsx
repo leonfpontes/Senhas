@@ -2,7 +2,8 @@
  * /medium/perfil — Perfil da Área do Médium (AM-06 + AM-13).
  *
  * - Cabeçalho: foto (ou iniciais), nome e terreiro; tocar em "Trocar foto" escolhe uma imagem,
- *   reduzida no navegador antes de enviar (`prepararFotoPerfil`).
+ *   reduzida no navegador antes de enviar (`prepararFotoPerfil`). Com foto, "Remover foto" pede
+ *   confirmação (`ConfirmDialog` com a paleta da Área) e volta às iniciais (AM-29).
  * - "Meus dados" (`GET /api/v1/medium/perfil`): telefone, endereço e nascimento, com "Editar meus
  *   dados" em `CrudDrawer` (tela cheia no celular).
  * - "Dados da casa": nome no cadastro, entrada, tipo e mensalidade — travados ("Só a direção da
@@ -29,8 +30,11 @@ import {
   MailCheck,
   Pencil,
   Smartphone,
+  Trash2,
   type LucideIcon,
 } from 'lucide-react';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { fraunces } from '@/components/landing/fonts';
 import { MediumLayout, useMediumShell } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
 import { MeusGrupos } from '@/components/medium/MeusGrupos';
@@ -158,6 +162,8 @@ function Perfil() {
   const [drawer, setDrawer] = useState<null | 'dados' | 'senha' | 'email'>(null);
   const [emailEnviado, setEmailEnviado] = useState(false);
   const [foto, setFoto] = useState<{ enviando: boolean; erro?: string }>({ enviando: false });
+  const [confirmarRemover, setConfirmarRemover] = useState(false);
+  const [removendo, setRemovendo] = useState(false);
   const [somenteLeitura, setSomenteLeitura] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -179,7 +185,8 @@ function Perfil() {
   }, [carregar]);
 
   const nome = perfil?.casa.nome || me?.nome || '';
-  const fotoUrl = perfil?.foto_url ?? me?.foto_url ?? null;
+  // Com o perfil carregado, vale o dele (inclusive sem foto depois de "Remover foto").
+  const fotoUrl = perfil ? (perfil.foto_url ?? null) : (me?.foto_url ?? null);
   const iniciais =
     nome
       .split(/\s+/)
@@ -210,6 +217,25 @@ function Perfil() {
       setFoto({ enviando: false, erro: msg });
     } finally {
       if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const removerFoto = async () => {
+    setRemovendo(true);
+    try {
+      await apiClient.delete(`${PERFIL_URL}/foto`);
+      setPerfil((p) => (p ? { ...p, foto_url: null } : p));
+      setFoto({ enviando: false });
+      refresh();
+      showSuccess('Foto removida.');
+    } catch (err) {
+      setFoto({
+        enviando: false,
+        erro: erroDaApi(err, 'Não foi possível remover a foto. Tente de novo.').message,
+      });
+    } finally {
+      setRemovendo(false);
+      setConfirmarRemover(false);
     }
   };
 
@@ -281,6 +307,17 @@ function Perfil() {
             Médium da corrente{me ? ` · ${me.terreiro.nome}` : ''}
           </p>
           <MeusGrupos grupos={me?.grupos} className="mt-1 text-areia-200" />
+          {!somenteLeitura && perfil && fotoUrl && (
+            <button
+              type="button"
+              onClick={() => setConfirmarRemover(true)}
+              disabled={foto.enviando || removendo}
+              data-testid="perfil-remover-foto"
+              className="mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-md text-sm font-semibold text-areia-200 underline underline-offset-4 outline-none hover:text-white focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
+            >
+              <Trash2 className="size-4" aria-hidden /> Remover foto
+            </button>
+          )}
         </div>
         <span
           aria-hidden
@@ -466,6 +503,17 @@ function Perfil() {
             }}
           />
           <TrocarSenhaDrawer open={drawer === 'senha'} onClose={() => setDrawer(null)} onDone={senhaTrocada} />
+          <ConfirmDialog
+            open={confirmarRemover}
+            title="Remover a foto?"
+            message="No lugar da foto aparecem as suas iniciais. Você pode pôr outra foto quando quiser."
+            confirmText="Remover foto"
+            destructive
+            loading={removendo}
+            onConfirm={() => void removerFoto()}
+            onCancel={() => setConfirmarRemover(false)}
+            className={cn(fraunces.variable, 'medium-terra')}
+          />
         </>
       )}
     </>

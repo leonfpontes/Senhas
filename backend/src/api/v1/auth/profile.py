@@ -149,6 +149,20 @@ def set_profile_photo(user: User, contents: bytes, content_type: str) -> None:
     user.profile_photo_url = None  # clear legacy path
 
 
+def has_profile_photo(user: User) -> bool:
+    return bool(user.profile_photo_data or user.profile_photo_url)
+
+
+def clear_profile_photo(user: User) -> None:
+    """Tira a foto da conta (binário e caminho legado) — volta o avatar de iniciais.
+
+    Usado pelo Perfil da Área do Médium (AM-29, `DELETE /medium/perfil/foto`).
+    """
+    user.profile_photo_data = None
+    user.profile_photo_content_type = None
+    user.profile_photo_url = None
+
+
 def _serialize_user_profile(request: Request, user: User) -> dict:
     return {
         "id": str(user.id),

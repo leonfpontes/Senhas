@@ -109,6 +109,7 @@ const INICIO_COMPLETO = {
     valor: 50,
     vencimento: '2026-10-10',
     data_pagamento: null,
+    pix_disponivel: true,
   },
   avisos: { nao_lidos: 2, ultimos: [] },
 };
@@ -207,6 +208,31 @@ describe('Início da Área do Médium', () => {
     expect(document.documentElement.style.getPropertyValue('--primary')).toBe('#2f6b4f');
     expect(document.documentElement.style.getPropertyValue('--terra-brand-text-light')).toMatch(
       /^#/,
+    );
+  });
+
+  it('casa sem chave PIX (AM-29): a pendência leva a "Ver mensalidade", não a "Pagar com PIX"', async () => {
+    const profile = profileOf('medium', MEDIUM_AREAS);
+    signIn(profile);
+    api(
+      {
+        '/api/v1/medium/me': ME,
+        '/api/v1/medium/inicio': {
+          ...INICIO_COMPLETO,
+          mensalidade: { ...INICIO_COMPLETO.mensalidade, pix_disponivel: false },
+        },
+      },
+      profile,
+    );
+    const Page = require('@/pages/medium/index').default;
+
+    renderApp(<Page />);
+
+    const mensal = await screen.findByTestId('pendencia-mensalidade');
+    expect(within(mensal).queryByRole('link', { name: 'Pagar com PIX' })).not.toBeInTheDocument();
+    expect(within(mensal).getByRole('link', { name: 'Ver mensalidade' })).toHaveAttribute(
+      'href',
+      '/medium/mensalidade',
     );
   });
 

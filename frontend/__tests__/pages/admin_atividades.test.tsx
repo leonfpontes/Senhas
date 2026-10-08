@@ -3,6 +3,7 @@
  * `atividades_corrente` com PlanLocked, grupo `escalas`), agenda da casa (giras + atividades,
  * botões só com permissão), CrudDrawer da atividade, cancelar com motivo, excluir com confirmação
  * e a aba "Tipos e funções" (tipo Gira sem arquivar, editar opções e grupos, funções).
+ * AM-29: "Pôr na escala" com grupos inteiros no painel Confirmações e na criação (tipo "só escalados").
  */
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -425,6 +426,139 @@ describe('Atividades e escalas — presença (AM-17/AM-28)', () => {
     await user.click(within(painel).getByRole('button', { name: 'Tirar Beto Souza da escala' }));
     await waitFor(() => expect(mockPost).toHaveBeenCalledWith(`${BASE}/a1/dispensar`, { medium_ids: ['m2'] }));
     expect(within(painel).getByRole('link', { name: /Abrir a chamada/ })).toHaveAttribute('href', '/admin/atividades/a1/chamada');
+  });
+
+  it('confirmações (AM-29): pôr na escala com grupos e médiuns — toast com o resumo', async () => {
+    const user = userEvent.setup();
+    mockGet.mockImplementation((url: string) => {
+      if (url === `${BASE}/calendario`) return Promise.resolve({ data: CALENDARIO });
+      if (url === `${BASE}/tipos`) return Promise.resolve({ data: TIPOS });
+      if (url === `${BASE}/a1/confirmacoes`) return Promise.resolve({ data: CONFIRMACOES });
+      if (url === '/api/v1/admin/corrente-grupos/opcoes') return Promise.resolve({ data: GRUPOS });
+      return Promise.resolve({ data: [] });
+    });
+    mockPost.mockResolvedValue({
+      data: {
+        ...CONFIRMACOES,
+        resultado: { novos: 3, ja_estavam: 1, fora_da_elegibilidade: 1, fora_da_elegibilidade_nomes: ['Dani Reis'] },
+      },
+    });
+    const Page = require('@/pages/admin/atividades').default;
+    render(<Page />);
+    await user.click(await screen.findByRole('button', { name: 'Confirmações de Faxina · G1' }));
+    const painel = await screen.findByRole('dialog');
+    const bloco = await within(painel).findByTestId('por-na-escala');
+    expect(within(bloco).getByRole('button', { name: /Pôr na escala/ })).toBeDisabled();
+
+    await user.click(within(bloco).getByRole('combobox', { name: 'Grupos' }));
+    await user.click(await screen.findByText('G1', { selector: '[cmdk-item] span' }));
+    // O grupo escolhido aparece com a etiqueta na cor do grupo.
+    expect(within(bloco).getByTestId('grupos-escolhidos')).toHaveTextContent('G1');
+    expect(within(within(bloco).getByTestId('grupos-escolhidos')).getByTestId('grupo-chip')).toBeInTheDocument();
+    await user.click(within(bloco).getByRole('combobox', { name: 'Médiuns' }));
+    await user.click(await screen.findByText('Caio Lima', { selector: '[cmdk-item] span' }));
+    await user.keyboard('{Escape}');
+
+    await user.click(within(bloco).getByRole('button', { name: /Pôr na escala/ }));
+    await waitFor(() =>
+      expect(mockPost).toHaveBeenCalledWith(`${BASE}/a1/convocar`, { medium_ids: ['m3'], grupo_ids: ['g-1'] }),
+    );
+    expect(mockSuccess).toHaveBeenCalledWith(
+      '3 médiuns postos na escala · 1 já estava · 1 fora de quem pode participar: Dani Reis. Eles veem na Área do Médium.',
+    );
+  });
+
+  it('confirmações sem ESCALAS:insert: sem "Pôr na escala" e sem buscar grupos', async () => {
+    const user = userEvent.setup();
+    mockGroupCan.mockImplementation((_f: string, a: string) => a !== 'insert');
+    mockGet.mockImplementation((url: string) => {
+      if (url === `${BASE}/calendario`) return Promise.resolve({ data: CALENDARIO });
+      if (url === `${BASE}/tipos`) return Promise.resolve({ data: TIPOS });
+      if (url === `${BASE}/a1/confirmacoes`) return Promise.resolve({ data: CONFIRMACOES });
+      if (url === '/api/v1/admin/corrente-grupos/opcoes') return Promise.resolve({ data: GRUPOS });
+      return Promise.resolve({ data: [] });
+    });
+    const Page = require('@/pages/admin/atividades').default;
+    render(<Page />);
+    await user.click(await screen.findByRole('button', { name: 'Confirmações de Faxina · G1' }));
+    const painel = await screen.findByRole('dialog');
+    expect(await within(painel).findByText('Motivo: Viagem a trabalho')).toBeInTheDocument();
+    expect(within(painel).queryByTestId('por-na-escala')).not.toBeInTheDocument();
+    expect(mockGet).not.toHaveBeenCalledWith('/api/v1/admin/corrente-grupos/opcoes');
+  });
+
+  it('nova atividade "só escalados" (AM-29): escolhe grupos e médiuns e convoca depois de criar', async () => {
+    const user = userEvent.setup();
+    mockGet.mockImplementation((url: string) => {
+      if (url === `${BASE}/calendario`) return Promise.resolve({ data: CALENDARIO });
+      if (url === `${BASE}/tipos`) return Promise.resolve({ data: TIPOS });
+      if (url === `${BASE}/convocar/mediuns`) return Promise.resolve({ data: [{ id: 'm3', nome: 'Caio Lima' }] });
+      if (url === '/api/v1/admin/corrente-grupos/opcoes') return Promise.resolve({ data: GRUPOS });
+      return Promise.resolve({ data: [] });
+    });
+    mockPost.mockImplementation((url: string) =>
+      url === BASE
+        ? Promise.resolve({ data: { ...ATIVIDADE_A1, id: 'nova-1' } })
+        : Promise.resolve({
+            data: {
+              ...CONFIRMACOES,
+              resultado: { novos: 2, ja_estavam: 0, fora_da_elegibilidade: 0, fora_da_elegibilidade_nomes: [] },
+            },
+          }),
+    );
+    const Page = require('@/pages/admin/atividades').default;
+    render(<Page />);
+    await screen.findAllByTestId('agenda-item');
+    fireEvent.click(screen.getByRole('button', { name: /Nova atividade/ }));
+    const dialog = await screen.findByRole('dialog');
+    // Faxina = "só escalados": aparece o "Pôr na escala".
+    const bloco = await within(dialog).findByTestId('criar-por-na-escala');
+    await user.click(within(bloco).getByRole('combobox', { name: 'Grupos' }));
+    await user.click(await screen.findByText('G1', { selector: '[cmdk-item] span' }));
+    await user.click(within(bloco).getByRole('combobox', { name: 'Médiuns' }));
+    await user.click(await screen.findByText('Caio Lima', { selector: '[cmdk-item] span' }));
+    await user.keyboard('{Escape}');
+
+    // Tipo "todos os elegíveis": o bloco some (e nada é convocado).
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Ritual individual' }));
+    expect(within(dialog).queryByTestId('criar-por-na-escala')).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Faxina' }));
+    expect(await within(dialog).findByTestId('criar-por-na-escala')).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText(/^Início/), { target: { value: '20/10/2026' } });
+    let el: HTMLElement | null = within(dialog).getByLabelText(/^Início/);
+    while (el && !el.querySelector('input[type="time"]')) el = el.parentElement;
+    fireEvent.change((el as HTMLElement).querySelector('input[type="time"]') as HTMLInputElement, {
+      target: { value: '09:00' },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Criar atividade' }));
+    });
+    await waitFor(() => expect(mockPost).toHaveBeenCalledTimes(2));
+    expect(mockPost.mock.calls[0][0]).toBe(BASE);
+    expect(mockPost.mock.calls[1]).toEqual([`${BASE}/nova-1/convocar`, { medium_ids: ['m3'], grupo_ids: ['g-1'] }]);
+    expect(mockSuccess).toHaveBeenCalledTimes(1);
+    expect(mockSuccess).toHaveBeenCalledWith('Atividade criada. 2 médiuns postos na escala.');
+  });
+
+  it('nova atividade "só escalados" sem escolher ninguém: só cria (um POST, toast de sempre)', async () => {
+    setup();
+    await screen.findAllByTestId('agenda-item');
+    fireEvent.click(screen.getByRole('button', { name: /Nova atividade/ }));
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByTestId('criar-por-na-escala');
+    fireEvent.change(within(dialog).getByLabelText(/^Início/), { target: { value: '20/10/2026' } });
+    let el: HTMLElement | null = within(dialog).getByLabelText(/^Início/);
+    while (el && !el.querySelector('input[type="time"]')) el = el.parentElement;
+    fireEvent.change((el as HTMLElement).querySelector('input[type="time"]') as HTMLInputElement, {
+      target: { value: '09:00' },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Criar atividade' }));
+    });
+    await waitFor(() => expect(mockPost).toHaveBeenCalledTimes(1));
+    expect(mockPost.mock.calls[0][0]).toBe(BASE);
+    expect(mockSuccess).toHaveBeenCalledWith('Atividade criada. Ela aparece na Agenda da Área do Médium.');
   });
 
   it('chamada da gira: cria a âncora e abre a tela da chamada', async () => {

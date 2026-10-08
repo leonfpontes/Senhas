@@ -48,3 +48,8 @@ export interface GrupoResumo {
   nome: string;
   cor: string;
 }
+
+/** `GET /api/v1/admin/corrente-grupos/opcoes` — grupos ativos, sem os nomes dos médiuns. */
+export interface GrupoOpcao extends GrupoResumo {
+  total_membros: number;
+}

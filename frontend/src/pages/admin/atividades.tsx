@@ -11,6 +11,9 @@
  * Presença (AM-17): em cada gira/atividade, "Confirmações" (painel com quem vai, quem não vai e o
  * motivo, "Pôr na escala"/"Tirar da escala" — `ConfirmacoesSheet`, escalas view/insert/edit) e
  * "Chamada" (`/admin/atividades/[id]/chamada`, escalas edit; a gira cria a âncora antes).
+ * AM-29: ao criar uma atividade de tipo "só escalados", o drawer já deixa escolher grupos da
+ * corrente e médiuns para pôr na escala (`PorNaEscalaCampos`, só com escalas insert): depois do
+ * `POST /admin/atividades` vem o `POST /{id}/convocar` e um toast só com o resumo.
  *
  * Gates (CLAUDE.md): sem `can('area_medium')` (plano + chave do piloto) a tela mostra só um aviso
  * neutro; sem `atividades_corrente` no plano, `PlanLocked`; grupo de permissão `escalas`: view para
@@ -44,6 +47,11 @@ import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { API_ATIVIDADES, TiposEFuncoes } from '@/components/admin/atividades/TiposEFuncoes';
 import { ConfirmacoesSheet, type AlvoConfirmacoes } from '@/components/admin/atividades/ConfirmacoesSheet';
+import {
+  PorNaEscalaCampos,
+  textoResultadoConvocacao,
+  useGruposDaCorrente,
+} from '@/components/admin/atividades/PorNaEscalaCampos';
 import { TipoChip } from '@/components/atividades/TipoChip';
 import { EmptyState } from '@/components/EmptyState';
 import { DateTimeField, TextField } from '@/components/fields';
@@ -64,6 +72,7 @@ import {
   type Visibilidade,
 } from '@/constants/atividades';
 import { minPlanFor } from '@/constants/plans';
+import type { ConvocarResponse } from '@/constants/presenca';
 import { addMonthsYm, currentMonthBr, formatDateTimeBr, monthLabelLong, monthRangeIso } from '@/lib/dateBr';
 import { cn } from '@/lib/utils';
 
@@ -204,6 +213,12 @@ function AgendaDaCasa({
   const [excluir, setExcluir] = useState<CalendarioItem | null>(null);
   const [excluindo, setExcluindo] = useState(false);
   const [confirmacoes, setConfirmacoes] = useState<AlvoConfirmacoes | null>(null);
+  // AM-29: pôr na escala já na criação (tipo "só escalados").
+  const [escalaGrupos, setEscalaGrupos] = useState<string[]>([]);
+  const [escalaMediuns, setEscalaMediuns] = useState<string[]>([]);
+  const [mediunsOpcoes, setMediunsOpcoes] = useState<{ id: string; nome: string }[]>([]);
+  const escolhendoEscala = aberto && !editando && canInsert;
+  const gruposDaCorrente = useGruposDaCorrente(escolhendoEscala);
   const router = useRouter();
 
   const carregar = useCallback(async () => {
@@ -235,6 +250,19 @@ function AgendaDaCasa({
 
   const tiposDeAtividade = useMemo(() => tipos.filter((t) => t.natureza === 'atividade' && !t.arquivado_em), [tipos]);
   const tipoDoForm = tipos.find((t) => t.id === form.tipo_id) ?? null;
+  const mostraEscala = escolhendoEscala && tipoDoForm?.convocacao_padrao === 'so_escalados';
+
+  useEffect(() => {
+    if (!escolhendoEscala) return;
+    let vivo = true;
+    apiClient
+      .get<{ id: string; nome: string }[]>(`${API_ATIVIDADES}/convocar/mediuns`)
+      .then((res) => vivo && setMediunsOpcoes(Array.isArray(res.data) ? res.data : []))
+      .catch(() => vivo && setMediunsOpcoes([]));
+    return () => {
+      vivo = false;
+    };
+  }, [escolhendoEscala]);
 
   const setField = <K extends keyof AtividadeForm>(k: K, v: AtividadeForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -260,6 +288,8 @@ function AgendaDaCasa({
     setInicial(novo);
     setTocado(false);
     setErroSalvar(null);
+    setEscalaGrupos([]);
+    setEscalaMediuns([]);
     setAberto(true);
   };
 
@@ -294,7 +324,8 @@ function AgendaDaCasa({
     tocado && form.inicio && form.fim && new Date(form.fim) <= new Date(form.inicio)
       ? 'O fim precisa ser depois do início'
       : undefined;
-  const sujo = inicial !== null && JSON.stringify(form) !== JSON.stringify(inicial);
+  const escalaEscolhida = mostraEscala && (escalaGrupos.length > 0 || escalaMediuns.length > 0);
+  const sujo = (inicial !== null && JSON.stringify(form) !== JSON.stringify(inicial)) || escalaEscolhida;
 
   const salvar = async () => {
     setTocado(true);
@@ -318,8 +349,23 @@ function AgendaDaCasa({
         await apiClient.put(`${API_ATIVIDADES}/${editando.id}`, payload);
         showSuccess('Atividade atualizada.');
       } else {
-        await apiClient.post(API_ATIVIDADES, payload);
-        showSuccess('Atividade criada. Ela aparece na Agenda da Área do Médium.');
+        const criada = await apiClient.post<Atividade>(API_ATIVIDADES, payload);
+        if (escalaEscolhida && criada.data?.id) {
+          // Um toast só: a criação e o resumo da escala (ou o que faltou).
+          try {
+            const res = await apiClient.post<ConvocarResponse>(`${API_ATIVIDADES}/${criada.data.id}/convocar`, {
+              medium_ids: escalaMediuns,
+              grupo_ids: escalaGrupos,
+            });
+            showSuccess(`Atividade criada. ${textoResultadoConvocacao(res.data.resultado)}`);
+          } catch (err) {
+            showError(
+              `Atividade criada, mas ninguém foi posto na escala: ${extractApiErrorMessage(err, 'tente pelo botão Confirmações.')}`,
+            );
+          }
+        } else {
+          showSuccess('Atividade criada. Ela aparece na Agenda da Área do Médium.');
+        }
       }
       setAberto(false);
       void carregar();
@@ -662,6 +708,23 @@ function AgendaDaCasa({
           value={form.descricao}
           onChange={(e) => setField('descricao', e.target.value)}
         />
+        {mostraEscala && (gruposDaCorrente.length > 0 || mediunsOpcoes.length > 0) && (
+          <fieldset className="flex flex-col gap-2" data-testid="criar-por-na-escala">
+            <legend className="mb-1 text-sm font-medium">Pôr na escala (opcional)</legend>
+            <p className="text-xs text-muted-foreground">
+              Este tipo é só para quem estiver na escala. Escolha grupos inteiros ou médiuns; dá para mudar
+              depois em Confirmações.
+            </p>
+            <PorNaEscalaCampos
+              mediuns={mediunsOpcoes}
+              grupos={gruposDaCorrente}
+              mediumIds={escalaMediuns}
+              grupoIds={escalaGrupos}
+              onMediumIds={setEscalaMediuns}
+              onGrupoIds={setEscalaGrupos}
+            />
+          </fieldset>
+        )}
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-sm font-medium">Quem vê na Agenda</legend>
           <RadioGroup

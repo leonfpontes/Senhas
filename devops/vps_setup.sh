@@ -276,7 +276,9 @@ server {
         add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
     }
 
-    # Login rate limiting
+    # Login rate limiting — location de PREFIXO: cobre também a escolha do terreiro
+    # (/api/v1/auth/login/select, AM-05). No nginx/conf.d/senhas.conf (produção) os dois são
+    # locations exatas (=), uma para cada rota.
     location /api/v1/auth/login {
         limit_req zone=login_limit burst=5 nodelay;
 

@@ -10,7 +10,10 @@ porteiro faz a chamada da corrente na porta, §8.6) e o QR da gira para `PORTA:v
   criar a âncora (`ESCALAS:edit` ou `PORTA:view`).
 - ``GET  /api/v1/admin/atividades/{id}/confirmacoes``        — contadores (confirmados, ausências
   avisadas, sem resposta...) e a lista com as justificativas (`ESCALAS:view`).
-- ``POST /api/v1/admin/atividades/{id}/convocar``            — "Convocar" à mão (`ESCALAS:insert`).
+- ``GET  /api/v1/admin/atividades/convocar/mediuns``         — médiuns ativos para escolher na
+  criação da atividade (`ESCALAS:insert`; só id e nome).
+- ``POST /api/v1/admin/atividades/{id}/convocar``            — "Pôr na escala" (`ESCALAS:insert`):
+  médiuns um a um e/ou grupos inteiros (AM-29; membros ativos que o tipo alcança, origem "grupo").
 - ``POST /api/v1/admin/atividades/{id}/dispensar``           — tira da escala (`ESCALAS:edit`).
 - ``GET  /api/v1/admin/atividades/{id}/chamada``             — lista da chamada (`ESCALAS:edit`; na
   gira também `PORTA:edit`).
@@ -24,7 +27,8 @@ porteiro faz a chamada da corrente na porta, §8.6) e o QR da gira para `PORTA:v
 
 A justificativa (pode ter dado de saúde, §6.8) só sai para quem tem `ESCALAS:view`; quem abre a
 chamada só pela Porta vê que há motivo, não o texto. Nunca vai para a auditoria.
-Todo `medium_id` do corpo é conferido no terreiro antes de gravar (`_validar_mediuns_do_tenant`).
+Todo `medium_id` do corpo é conferido no terreiro antes de gravar (`_validar_mediuns_do_tenant`) e
+todo `grupo_id`, no terreiro e não arquivado (`validar_grupos_ativos_do_tenant`).
 """
 from __future__ import annotations
 
@@ -33,7 +37,7 @@ from datetime import datetime, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Path, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,6 +59,7 @@ from src.models import (
     User,
 )
 from src.services.audit_service import AuditService
+from src.services.corrente_grupos import validar_grupos_ativos_do_tenant
 from src.services.permission_service import PermissionService
 from src.services.presenca import (
     MODO_CONFIANCA,
@@ -73,13 +78,16 @@ from src.services.presenca import (
     ctx_da_atividade,
     ctx_da_gira,
     dentro_da_janela,
+    elegiveis_entre,
     encerrar_chamada,
     upsert_participacao,
     janela_checkin,
     janela_qr,
     mediuns_esperados,
+    membros_ativos_dos_grupos,
     modo_da_atividade,
     participacoes_da_atividade,
+    planejar_convocacao,
     registrar_presenca,
     situacao,
 )
@@ -179,6 +187,31 @@ class AncoraResponse(BaseModel):
 
 class MediunsBody(BaseModel):
     medium_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=300)
+
+
+class ConvocarBody(BaseModel):
+    """Médiuns um a um e/ou grupos da corrente inteiros (AM-29) — pelo menos um dos dois."""
+
+    medium_ids: list[uuid.UUID] = Field(default_factory=list, max_length=300)
+    grupo_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def _algum(self) -> "ConvocarBody":
+        if not self.medium_ids and not self.grupo_ids:
+            raise ValueError("Escolha médiuns ou grupos para pôr na escala.")
+        return self
+
+
+class ConvocarResultado(BaseModel):
+    novos: int
+    ja_estavam: int
+    fora_da_elegibilidade: int
+    # Nomes de quem ficou de fora (o tipo da atividade não alcança) — para a casa conferir.
+    fora_da_elegibilidade_nomes: list[str] = []
+
+
+class ConvocarResponse(ListaResponse):
+    resultado: ConvocarResultado
 
 
 class Marcacao(BaseModel):
@@ -511,43 +544,128 @@ async def confirmacoes(
     return await _lista(db, current_user.tenant_id, ctx, ver_justificativa=True, com_outros=True)
 
 
+@router.get(
+    "/convocar/mediuns",
+    response_model=list[MediumOpcao],
+    dependencies=[Depends(require_group_permission(PermissionFeature.ESCALAS, "insert"))],
+)
+async def mediuns_para_convocar(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MediumOpcao]:
+    """Médiuns ativos (id e nome) para o "Pôr na escala" da criação da atividade (AM-29)."""
+    rows = await db.execute(
+        select(Medium.id, Medium.nome)
+        .where(
+            Medium.tenant_id == current_user.tenant_id,
+            Medium.deleted_at.is_(None),
+            Medium.is_active.is_(True),
+        )
+        .order_by(Medium.nome)
+    )
+    return [MediumOpcao(id=mid, nome=nome) for mid, nome in rows.all()]
+
+
+def _na_escala(linhas: dict, esperados: set[uuid.UUID]) -> set[uuid.UUID]:
+    """Quem já está na escala: convocado (linha ou convocação virtual), sem dispensa nem troca."""
+    out: set[uuid.UUID] = set()
+    for mid in set(linhas) | esperados:
+        p = linhas.get(mid)
+        convocado = mid in esperados or bool(p is not None and p.convocado)
+        fora = p is not None and (p.dispensado_em is not None or p.substituida_por_id is not None)
+        if convocado and not fora:
+            out.add(mid)
+    return out
+
+
 @router.post(
     "/{atividade_id}/convocar",
-    response_model=ListaResponse,
+    response_model=ConvocarResponse,
     dependencies=[Depends(require_group_permission(PermissionFeature.ESCALAS, "insert"))],
 )
 async def convocar(
-    body: MediunsBody,
+    body: ConvocarBody,
     atividade_id: uuid.UUID = Path(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> ListaResponse:
-    """Põe médiuns na escala ("só escalados" e ritual individual). Quem estava dispensado volta."""
+) -> ConvocarResponse:
+    """Põe na escala ("só escalados" e ritual individual): médiuns um a um e/ou grupos inteiros.
+
+    Médium pedido um a um entra sempre (quem estava dispensado volta). Grupo (AM-29): os membros
+    ATIVOS naquele momento que o tipo da atividade alcança entram com origem "grupo" e o
+    `grupo_id`; quem o tipo não alcança fica de fora e volta no `resultado`. Quem já estava na
+    escala fica como estava (a linha é única por atividade + médium; origem e resposta não mudam).
+    """
     tenant_id = current_user.tenant_id
     ctx = await _ctx(db, tenant_id, atividade_id)
     if ctx.cancelada:
         raise ConflictError(MSG_CANCELADA)
     if ctx.encerrada_em is not None:
         raise ConflictError("A chamada desta atividade já foi encerrada.")
-    mediuns = await _validar_mediuns_do_tenant(db, tenant_id, body.medium_ids)
+    pedidos = list(body.medium_ids)
+    grupo_ids = list(body.grupo_ids)
+    mediuns = await _validar_mediuns_do_tenant(db, tenant_id, pedidos)
+    grupos = await validar_grupos_ativos_do_tenant(db, tenant_id, grupo_ids)
+    membros = await membros_ativos_dos_grupos(db, tenant_id, grupo_ids)  # conferidos acima
+    elegiveis = await elegiveis_entre(db, tenant_id, ctx.tipo, [m for m, _ in membros])
+    linhas = {p.medium_id: p for p in await participacoes_da_atividade(db, tenant_id, ctx.atividade.id)}
+    esperados = {m.id for m in await mediuns_esperados(db, tenant_id, ctx)}
+    plano = planejar_convocacao(
+        pedidos=pedidos,
+        membros=[(m.id, gid) for m, gid in membros],
+        elegiveis=elegiveis,
+        na_escala=_na_escala(linhas, esperados),
+    )
+
     agora = utc_now()
-    for medium_id in body.medium_ids:  # conferidos no terreiro (_validar_mediuns_do_tenant acima)
+    for medium_id in pedidos:  # conferidos no terreiro (_validar_mediuns_do_tenant acima)
         p = await upsert_participacao(
             db, tenant_id, ctx.atividade.id, medium_id=medium_id, origem="manual", convocado=True
         )
         p.convocado = True
         p.dispensado_em = None
         p.updated_at = agora
+    do_grupo: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for membro_id, gid in plano.do_grupo:
+        do_grupo.setdefault(gid, []).append(membro_id)
+    for grupo_id in grupo_ids:  # conferidos no terreiro (validar_grupos_ativos_do_tenant acima)
+        for membro_id in do_grupo.pop(grupo_id, []):  # membros ativos desse grupo (uma vez)
+            p = await upsert_participacao(
+                db,
+                tenant_id,
+                ctx.atividade.id,
+                medium_id=membro_id,
+                origem="grupo",
+                convocado=True,
+                grupo_id=grupo_id,
+            )
+            p.convocado = True
+            p.dispensado_em = None
+            p.updated_at = agora
     await AuditService(db).log_update(
         tenant_id=tenant_id,
         user_id=current_user.id,
         resource_type="atividade_escala",
         resource_id=ctx.atividade.id,
         previous_state={},
-        new_state={"convocou": [str(m) for m in mediuns]},
+        new_state={
+            "convocou": [str(m) for m in mediuns],
+            "grupos": [str(g.id) for g in grupos],
+            "do_grupo": [str(m) for m, _ in plano.do_grupo],
+        },
     )
     await db.commit()
-    return await _lista(db, tenant_id, await _ctx(db, tenant_id, atividade_id), ver_justificativa=True, com_outros=True)
+    nomes = {m.id: m.nome for m, _ in membros}
+    lista = await _lista(db, tenant_id, await _ctx(db, tenant_id, atividade_id), ver_justificativa=True, com_outros=True)
+    return ConvocarResponse(
+        **lista.model_dump(),
+        resultado=ConvocarResultado(
+            novos=plano.novos,
+            ja_estavam=plano.ja_estavam,
+            fora_da_elegibilidade=len(plano.fora_da_elegibilidade),
+            fora_da_elegibilidade_nomes=sorted((nomes[m] for m in plano.fora_da_elegibilidade), key=str.lower),
+        ),
+    )
 
 
 @router.post(
