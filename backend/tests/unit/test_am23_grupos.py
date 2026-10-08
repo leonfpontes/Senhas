@@ -110,10 +110,13 @@ def test_rotas_admin_com_mediuns_por_acao_e_plano_area_medium():
     assert router.prefix == base
     assert plan_gate_features(router) == ["area_medium"]
     mediuns = frozenset({PermissionFeature.MEDIUNS})
+    # AM-08: ler grupos também com ESCALAS view (quem organiza a escala não precisa de MEDIUNS).
+    ler = frozenset({PermissionFeature.MEDIUNS, PermissionFeature.ESCALAS})
+    opcoes = frozenset({PermissionFeature.MEDIUNS, PermissionFeature.COMUNICADOS, PermissionFeature.ESCALAS})
     esperado = {
-        ("GET", base): (mediuns, "view"),
-        ("GET", f"{base}/opcoes"): (frozenset({PermissionFeature.MEDIUNS, PermissionFeature.COMUNICADOS}), "view"),
-        ("GET", f"{base}/{{grupo_id}}"): (mediuns, "view"),
+        ("GET", base): (ler, "view"),
+        ("GET", f"{base}/opcoes"): (opcoes, "view"),
+        ("GET", f"{base}/{{grupo_id}}"): (ler, "view"),
         ("POST", base): (mediuns, "insert"),
         ("PUT", f"{base}/{{grupo_id}}"): (mediuns, "edit"),
         ("POST", f"{base}/{{grupo_id}}/membros"): (mediuns, "edit"),

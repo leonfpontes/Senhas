@@ -42,6 +42,9 @@ MIN_PLAN = {
     "suporte_prioritario": PlanType.PREMIUM,
     # Área do Médium (AM-02, decisão D-01 de 2026-10-07): a partir do Basic.
     "area_medium": PlanType.BASIC,
+    # Atividades da casa (AM-08, D-10) no Basic; escalas (D-02) no Pro.
+    "atividades_corrente": PlanType.BASIC,
+    "escalas": PlanType.PRO,
 }
 ORDER = [PlanType.FREE, PlanType.BASIC, PlanType.PRO, PlanType.PREMIUM]
 

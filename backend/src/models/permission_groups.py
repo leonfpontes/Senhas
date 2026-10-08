@@ -37,6 +37,7 @@ class PermissionFeature(str, enum.Enum):
     PORTA = "porta"
     CONTAS_FINANCEIRAS = "contas_financeiras"
     COMUNICADOS = "comunicados"  # "Avisos da Área" (AM-09): avisos da casa para a corrente
+    ESCALAS = "escalas"  # "Atividades e escalas" (AM-08): tipos, funções, atividades internas e escalas
 
 
 class PermissionGroup(SoftDeleteModel):

@@ -400,6 +400,11 @@ async def onboarding(
 
         await PermissionGroupRepository(db).ensure_default_group(tenant.id)
 
+        # Tipos de atividade e funções da corrente sugeridos (AM-08): "Gira", "Faxina", "Reunião"...
+        from src.services.atividades import ensure_default_atividade_tipos
+
+        await ensure_default_atividade_tipos(db, tenant.id)
+
         # 7. Commit transaction
         await db.commit()
 

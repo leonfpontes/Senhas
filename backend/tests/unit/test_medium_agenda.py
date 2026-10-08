@@ -88,11 +88,15 @@ def test_item_da_gira_tem_o_formato_unificado_e_nada_alem():
         "inicio": g.data_inicio,
         "fim": None,
         "local": None,
+        "cancelada": False,
         "minha_participacao": None,
     }
     # Cada item tem o seu `tipo` (o AM-08 muda nome/cor por tipo sem afetar os outros).
     item["tipo"]["nome"] = "x"
     assert item_da_gira(g)["tipo"]["nome"] == "Gira"
+    # AM-08: o tipo de sistema "Gira" da casa (renomeado) vale para as giras.
+    renomeado = {"nome": "Sessão", "icone": "gira", "cor": "violeta"}
+    assert item_da_gira(g, renomeado)["tipo"] == renomeado
 
 
 # ── Senhas para o público ────────────────────────────────────────────────────
@@ -228,11 +232,14 @@ def test_rotas_da_agenda_estao_na_area_do_medium_e_nunca_recebem_medium_id():
         "/api/v1/medium/agenda",
         "/api/v1/medium/agenda/gira/{gira_id}",
         "/api/v1/medium/agenda/gira/{gira_id}/ics",
+        # AM-08: atividades internas visíveis ao médium.
+        "/api/v1/medium/agenda/atividade/{atividade_id}",
+        "/api/v1/medium/agenda/atividade/{atividade_id}/ics",
     }
     for rota in rotas.values():
         assert rota.methods == {"GET"}
         nomes = {p.name for p in rota.dependant.query_params + rota.dependant.path_params}
-        assert nomes <= {"inicio", "fim", "gira_id"}
+        assert nomes <= {"inicio", "fim", "gira_id", "atividade_id"}
         assert rota.dependant.body_params == []
         # require_medium (do medium_router e por dentro do gate do módulo) e o módulo ligado.
         chamadas = set(_todas_as_dependencias(rota.dependant))

@@ -5,13 +5,15 @@ o filtro por `ctx.tenant_id`); aqui só o que dá para testar sem Postgres:
 
 - **Período** (`periodo_da_agenda`): padrão do 1º dia do mês corrente (Brasília) até o fim do
   3º mês (mês atual + 2); no máximo 6 meses por consulta.
-- **Item unificado** (`item_da_gira`): o formato que o AM-08 (atividades) e o AM-17 (minha
-  participação) estendem sem quebrar — `{origem, id, tipo{nome, icone, cor}, titulo, inicio,
-  fim, local, minha_participacao}`. Neste card só há giras e `minha_participacao` é null.
+- **Item unificado** (`item_da_gira`, `item_da_atividade`): o formato que o AM-17 (minha
+  participação) estende sem quebrar — `{origem, id, tipo{nome, icone, cor}, titulo, inicio,
+  fim, local, cancelada, minha_participacao}`. O tipo da gira é o tipo de sistema "Gira" do
+  terreiro (AM-08, renomeável); `minha_participacao` segue null até o AM-17.
 - **Senhas para o público** (`situacao_senhas`): abertas, esgotadas, abrem em <data>,
   encerradas ou sem senhas — só a situação, nunca dado de consulente.
-- **Agenda do celular**: arquivo `.ics` (`ics_da_gira`, RFC 5545, horários em UTC) e link do
-  Google Agenda (`google_agenda_url`).
+- **Agenda do celular**: arquivo `.ics` (`ics_da_gira`, RFC 5545, horários em UTC; também para
+  atividade interna com `uid_prefixo="atividade"`, AM-08) e link do Google Agenda
+  (`google_agenda_url`).
 - **Mapa** (`mapa_url`) e **link público** da gira (`link_publico_da_gira`).
 """
 from __future__ import annotations
@@ -30,9 +32,9 @@ MESES_MAXIMO = 6
 # Gira sem horário de término: duração usada no .ics e no Google Agenda.
 DURACAO_PADRAO_GIRA = timedelta(hours=3)
 
-# Tipo da gira no formato unificado. `icone` é um nome semântico que o front traduz
-# (lib/icons: "gira" → CalendarDays); `cor` null = cor do terreiro. O AM-08 troca pelo
-# tipo "Gira" (de sistema) de `atividade_tipos`, que o terreiro pode renomear.
+# Tipo da gira no formato unificado quando o terreiro não tem o tipo de sistema. `icone` é um
+# nome semântico que o front traduz (lib/icons: "gira" → CalendarDays); `cor` null = cor do
+# terreiro. Com o AM-08 vale o tipo "Gira" (de sistema) de `atividade_tipos`, renomeável.
 TIPO_GIRA = {"nome": "Gira", "icone": "gira", "cor": None}
 
 SENHAS_ABERTAS = "abertas"
@@ -68,16 +70,35 @@ def periodo_da_agenda(hoje: date, inicio: Optional[date], fim: Optional[date]) -
     return ini, fim_
 
 
-def item_da_gira(gira) -> dict:
-    """Gira no formato unificado da agenda (só o que a corrente precisa)."""
+def item_da_gira(gira, tipo: Optional[dict] = None) -> dict:
+    """Gira no formato unificado da agenda (só o que a corrente precisa).
+
+    `tipo`: {nome, icone, cor} do tipo de sistema "Gira" do terreiro (AM-08); sem ele, o padrão.
+    """
     return {
         "origem": "gira",
         "id": str(gira.id),
-        "tipo": dict(TIPO_GIRA),
+        "tipo": dict(tipo or TIPO_GIRA),
         "titulo": gira.nome,
         "inicio": gira.data_inicio,
         "fim": gira.data_fim,
         "local": gira.local or None,
+        "cancelada": False,
+        "minha_participacao": None,
+    }
+
+
+def item_da_atividade(atividade, tipo: dict) -> dict:
+    """Atividade interna (AM-08) no formato unificado da agenda."""
+    return {
+        "origem": "atividade",
+        "id": str(atividade.id),
+        "tipo": dict(tipo),
+        "titulo": atividade.titulo or tipo.get("nome") or "",
+        "inicio": atividade.inicio,
+        "fim": atividade.fim,
+        "local": atividade.local or None,
+        "cancelada": atividade.cancelada_em is not None,
         "minha_participacao": None,
     }
 
@@ -168,6 +189,7 @@ def descricao_do_evento(orientacoes: Optional[str], link_area: Optional[str]) ->
 def ics_da_gira(
     *,
     gira_id,
+    uid_prefixo: str = "gira",
     titulo: str,
     terreiro: str,
     inicio: datetime,
@@ -185,7 +207,7 @@ def ics_da_gira(
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
         "BEGIN:VEVENT",
-        f"UID:gira-{gira_id}@girahub",
+        f"UID:{uid_prefixo}-{gira_id}@girahub",
         f"DTSTAMP:{_utc(agora)}",
         f"DTSTART:{_utc(inicio)}",
         f"DTEND:{_utc(fim_ou_padrao(inicio, fim))}",

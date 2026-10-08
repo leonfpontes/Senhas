@@ -248,3 +248,71 @@ async def test_grupos_da_corrente_cruzando_tenants_sao_recusados(client, db, cen
     assert await _count(CorrenteGrupoMembro, CorrenteGrupoMembro.grupo_id == grupo_b.id) == 0
     assert await _count(ComunicadoGrupo, ComunicadoGrupo.grupo_id == grupo_b.id) == 0
     assert await _count(CorrenteGrupo, CorrenteGrupo.tenant_id == a["medium"].tenant_id) == 0
+
+
+async def test_atividades_cruzando_tenants_sao_recusadas(client, db, cenario):
+    """AM-08: tipo_id/grupo_id no corpo e tipo/função/gira/atividade no caminho de outro terreiro."""
+    from sqlalchemy import text
+
+    from src.models.atividades import Atividade, AtividadeTipo, AtividadeTipoGrupo, FuncaoCorrente
+    from src.models.corrente_grupos import CorrenteGrupo
+    from src.services.atividades import ensure_default_atividade_tipos
+
+    admin_a, a, b = cenario
+    tenant_a, tenant_b = a["medium"].tenant_id, b["medium"].tenant_id
+    await db.execute(
+        text("UPDATE tenants SET area_medium_liberada = true WHERE id IN (:a, :b)"), {"a": tenant_a, "b": tenant_b}
+    )
+    for tid in (tenant_a, tenant_b):
+        await ensure_default_atividade_tipos(db, tid)
+    grupo_b = CorrenteGrupo(tenant_id=tenant_b, nome="G1 de B")
+    db.add(grupo_b)
+    await db.commit()
+
+    def _tipo(tid, nome):
+        return select(AtividadeTipo).where(AtividadeTipo.tenant_id == tid, AtividadeTipo.nome == nome)
+
+    reuniao_a = (await db.execute(_tipo(tenant_a, "Reunião"))).scalar_one()
+    reuniao_b = (await db.execute(_tipo(tenant_b, "Reunião"))).scalar_one()
+    funcao_b = (
+        await db.execute(select(FuncaoCorrente).where(FuncaoCorrente.tenant_id == tenant_b).limit(1))
+    ).scalar_one()
+    atividade_b = Atividade(
+        tenant_id=tenant_b, tipo_id=reuniao_b.id, titulo="Reunião de B", inicio=datetime.now(timezone.utc)
+    )
+    db.add(atividade_b)
+    await db.commit()
+    base = "/api/v1/admin/atividades"
+    h = admin_a.headers
+    inicio = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+
+    # tipo_id de B no corpo (criar e editar atividade de A)
+    resp = await client.post(base, headers=h, json={"tipo_id": str(reuniao_b.id), "titulo": "X", "inicio": inicio})
+    assert resp.status_code == 422, resp.text
+    propria = await client.post(base, headers=h, json={"tipo_id": str(reuniao_a.id), "titulo": "Minha", "inicio": inicio})
+    assert propria.status_code == 201, propria.text
+    resp = await client.put(f"{base}/{propria.json()['id']}", headers=h, json={"tipo_id": str(reuniao_b.id)})
+    assert resp.status_code == 422, resp.text
+    # grupo_id de B como grupo elegível (criar e editar tipo de A)
+    resp = await client.post(
+        f"{base}/tipos", headers=h, json={"nome": "Só G1", "elegiveis": "grupos", "grupo_ids": [str(grupo_b.id)]}
+    )
+    assert resp.status_code == 422, resp.text
+    resp = await client.put(
+        f"{base}/tipos/{reuniao_a.id}", headers=h, json={"elegiveis": "grupos", "grupo_ids": [str(grupo_b.id)]}
+    )
+    assert resp.status_code == 422, resp.text
+    # tipo, função, atividade e gira de B no caminho
+    assert (await client.put(f"{base}/tipos/{reuniao_b.id}", headers=h, json={"nome": "X"})).status_code == 404
+    assert (await client.delete(f"{base}/tipos/{reuniao_b.id}", headers=h)).status_code == 404
+    assert (await client.put(f"{base}/funcoes/{funcao_b.id}", headers=h, json={"nome": "X"})).status_code == 404
+    assert (await client.delete(f"{base}/funcoes/{funcao_b.id}", headers=h)).status_code == 404
+    assert (await client.put(f"{base}/{atividade_b.id}", headers=h, json={"titulo": "X"})).status_code == 404
+    assert (await client.post(f"{base}/{atividade_b.id}/cancelar", headers=h, json={"motivo": "x"})).status_code == 404
+    assert (await client.post(f"{base}/da-gira/{b['gira'].id}", headers=h)).status_code == 404
+
+    assert await _count(Atividade, Atividade.tenant_id == tenant_a, Atividade.tipo_id == reuniao_b.id) == 0
+    assert await _count(Atividade, Atividade.gira_id == b["gira"].id) == 0
+    assert await _count(AtividadeTipoGrupo, AtividadeTipoGrupo.grupo_id == grupo_b.id) == 0
+    assert await _count(AtividadeTipo, AtividadeTipo.tenant_id == tenant_a, AtividadeTipo.nome == "Só G1") == 0
+    assert await _count(AtividadeTipo, AtividadeTipo.id == reuniao_b.id, AtividadeTipo.arquivado_em.is_(None)) == 1

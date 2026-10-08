@@ -2,10 +2,12 @@
 
 Rotas (todas com o plano/chave do piloto `area_medium`; grupo de permissão `MEDIUNS`, §6.7 do
 plano: compor grupo é mexer no cadastro da corrente):
-- ``GET    /api/v1/admin/corrente-grupos``                       — lista com membros (`view`)
+- ``GET    /api/v1/admin/corrente-grupos``                       — lista com membros (`MEDIUNS` ou
+  `ESCALAS` `view`, AM-08)
 - ``GET    /api/v1/admin/corrente-grupos/opcoes``                — id/nome/cor/contagem, sem nomes
-  de médiuns, para escolher o público de um aviso (`MEDIUNS` OU `COMUNICADOS` `view`)
-- ``GET    /api/v1/admin/corrente-grupos/{id}``                  — detalhe (`view`)
+  de médiuns, para escolher o público de um aviso ou os grupos elegíveis de um tipo de
+  atividade (`MEDIUNS`, `COMUNICADOS` ou `ESCALAS` `view`)
+- ``GET    /api/v1/admin/corrente-grupos/{id}``                  — detalhe (`MEDIUNS` ou `ESCALAS` `view`)
 - ``POST   /api/v1/admin/corrente-grupos``                       — cria, já com membros (`insert`)
 - ``PUT    /api/v1/admin/corrente-grupos/{id}``                  — edita; `medium_ids` troca os membros (`edit`)
 - ``POST   /api/v1/admin/corrente-grupos/{id}/membros``          — põe médiuns (`edit`)
@@ -60,6 +62,8 @@ router = APIRouter(
 )
 
 MSG_NOME_REPETIDO = "Já existe um grupo com esse nome."
+# Ler grupos (com os nomes dos médiuns): MEDIUNS ou ESCALAS view (§6.7 — quem organiza a
+# corrente/escala não precisa de MEDIUNS, que abre telefone e endereço de todo mundo).
 MAX_MEMBROS_POR_PEDIDO = 500
 
 
@@ -207,7 +211,7 @@ async def _commit_ou_conflito(db: AsyncSession) -> None:
 # ── Rotas ───────────────────────────────────────────────────────────────────
 
 
-@router.get("", response_model=list[GrupoResponse], dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "view"))])
+@router.get("", response_model=list[GrupoResponse], dependencies=[Depends(require_any_group_permission(PermissionFeature.MEDIUNS, PermissionFeature.ESCALAS, action="view"))])
 async def listar_grupos(
     incluir_arquivados: bool = Query(False),
     current_user: User = Depends(get_current_user),
@@ -229,7 +233,11 @@ async def listar_grupos(
     "/opcoes",
     response_model=list[GrupoOpcao],
     dependencies=[
-        Depends(require_any_group_permission(PermissionFeature.MEDIUNS, PermissionFeature.COMUNICADOS, action="view"))
+        Depends(
+            require_any_group_permission(
+                PermissionFeature.MEDIUNS, PermissionFeature.COMUNICADOS, PermissionFeature.ESCALAS, action="view"
+            )
+        )
     ],
 )
 async def opcoes_de_grupos(
@@ -249,7 +257,7 @@ async def opcoes_de_grupos(
     return [GrupoOpcao(id=g.id, nome=g.nome, cor=g.cor, total_membros=len(membros.get(g.id, []))) for g in grupos]
 
 
-@router.get("/{grupo_id}", response_model=GrupoResponse, dependencies=[Depends(require_group_permission(PermissionFeature.MEDIUNS, "view"))])
+@router.get("/{grupo_id}", response_model=GrupoResponse, dependencies=[Depends(require_any_group_permission(PermissionFeature.MEDIUNS, PermissionFeature.ESCALAS, action="view"))])
 async def obter_grupo(
     grupo_id: uuid.UUID = Path(...),
     current_user: User = Depends(get_current_user),

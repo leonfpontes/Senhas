@@ -340,6 +340,8 @@ _PLAN_FEATURE_LABELS: dict[str, str] = {
     "fila_espera": "Fila de espera",
     "agendamento_por_horario": "Senhas com horário marcado",
     "area_medium": "Área do Médium",
+    "atividades_corrente": "Atividades da casa",
+    "escalas": "Escalas da corrente",
 }
 
 
