@@ -342,7 +342,12 @@ EXEMPT_PUBLIC_QUERIES: dict[tuple[str, str], str] = {
 EXEMPT_BODY_FKS: dict[tuple[str, str, str], str] = {}
 
 # Modo medium (src/api/v1/medium/, AM-02). Chave: (caminho relativo a src/, função).
-EXEMPT_MEDIUM_QUERIES: dict[tuple[str, str], str] = {}
+EXEMPT_MEDIUM_QUERIES: dict[tuple[str, str], str] = {
+    ("api/v1/medium/inicio.py", "_aniversariantes"): (
+        "AM-20: aniversariantes da semana da MESMA casa (filtro por ctx.tenant_id) que ligaram o "
+        "opt-in aniversario_visivel; só primeiro nome + dia/mês saem da rota"
+    ),
+}
 
 # Tabela do cadastro de médiuns e nomes que a Área nunca recebe da requisição.
 MEDIUM_TABLE = "mediuns"

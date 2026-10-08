@@ -6,7 +6,7 @@ pelo CHECK do banco), limites de texto e de quantidade, reordenar, outro terreir
 grupos de outro terreiro → 422. Área do Médium: só materiais publicados do público do médium
 (todos / atendimento / cambones / grupos), rascunho e arquivado escondidos, detalhe com o texto,
 outro terreiro → 404, `estudos` no `/medium/me`, cursos abertos da casa com o link da inscrição.
-Migração 090: sobe e desce.
+Migração 087: sobe e desce.
 """
 import subprocess
 import sys
@@ -337,14 +337,14 @@ async def test_cursos_da_casa_abertos_com_link_de_inscricao(client, db):
     assert "participantes" not in str(cursos)
 
 
-# ── Migração 090 ────────────────────────────────────────────────────────────
+# ── Migração 087 ────────────────────────────────────────────────────────────
 
 
 def _alembic(*args):
     subprocess.run([sys.executable, "-m", "alembic", *args], cwd=BACKEND_DIR, check=True, capture_output=True)
 
 
-async def test_migracao_090_sobe_e_desce(client, db):
+async def test_migracao_087_sobe_e_desce(client, db):
     from src.core.database import engine
 
     await db.close()
@@ -354,7 +354,7 @@ async def test_migracao_090_sobe_e_desce(client, db):
             return set((await conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'"))).scalars())
 
     assert {"materiais_corrente", "material_grupos"} <= await _tabelas()
-    _alembic("downgrade", "090_materiais_corrente-1")
+    _alembic("downgrade", "087_materiais_corrente-1")
     try:
         assert not ({"materiais_corrente", "material_grupos"} & await _tabelas())
     finally:

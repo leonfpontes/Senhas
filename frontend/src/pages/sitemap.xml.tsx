@@ -5,6 +5,7 @@
  * public/sitemap.xml estático (que só tinha 3 URLs).
  */
 import type { GetServerSideProps } from 'next';
+import { PARCEIROS_PATH, PARCEIROS_PUBLICADO } from '@/constants/parceiros';
 
 export const SITE_URL = 'https://girahub.com.br';
 
@@ -19,6 +20,13 @@ export const STATIC_ROUTES: { path: string; changefreq: string; priority: string
   { path: '/cookies', changefreq: 'yearly', priority: '0.2' },
 ];
 
+/** Rotas estáticas + as que dependem de chave de lançamento (/parceiros só com PARCEIROS_PUBLICADO, C-06). */
+export function staticRoutes(): { path: string; changefreq: string; priority: string }[] {
+  return PARCEIROS_PUBLICADO
+    ? [...STATIC_ROUTES, { path: PARCEIROS_PATH, changefreq: 'monthly', priority: '0.5' }]
+    : [...STATIC_ROUTES];
+}
+
 export interface SitemapSite {
   slug: string;
   updated_at: string;
@@ -30,7 +38,7 @@ function escapeXml(s: string): string {
 
 export function buildSitemap(sites: readonly SitemapSite[]): string {
   const urls = [
-    ...STATIC_ROUTES.map(
+    ...staticRoutes().map(
       (r) =>
         `  <url>\n    <loc>${SITE_URL}${r.path}</loc>\n    <changefreq>${r.changefreq}</changefreq>\n    <priority>${r.priority}</priority>\n  </url>`,
     ),

@@ -157,6 +157,43 @@ DEFAULT_TIMEZONE=America/Sao_Paulo
 chmod 600 .env
 ```
 
+### Notificação no celular da Área do Médium (AM-16 — chaves VAPID)
+
+O push (Web Push com VAPID, sem serviço pago) fica **desligado** enquanto as três variáveis estiverem vazias: a
+Área esconde "Notificações no celular" e os lembretes saem só por e-mail. Para ligar:
+
+1. **Gerar o par de chaves uma vez** (na sua máquina, nunca no repositório):
+   ```bash
+   npx web-push generate-vapid-keys
+   # Public Key:  BN...  (65 bytes em base64url)
+   # Private Key: x5...  (32 bytes em base64url)
+   ```
+   Alternativa em Python (mesmo formato), com o venv do backend:
+   ```bash
+   python -c "import base64;from cryptography.hazmat.primitives.asymmetric import ec;from cryptography.hazmat.primitives import serialization as s;k=ec.generate_private_key(ec.SECP256R1());b=lambda r:base64.urlsafe_b64encode(r).rstrip(b'=').decode();print('VAPID_PUBLIC_KEY='+b(k.public_key().public_bytes(s.Encoding.X962,s.PublicFormat.UncompressedPoint)));print('VAPID_PRIVATE_KEY='+b(k.private_numbers().private_value.to_bytes(32,'big')))"
+   ```
+2. **Gravar no `/opt/senhas/.env` da VPS** (é dele que o `docker-compose.prod.yml` lê as variáveis do backend;
+   o `deploy.yml` não passa segredos do backend pelo GitHub):
+   ```bash
+   ssh root@<vps>
+   cd /opt/senhas && nano .env   # ou: cat >> .env
+   VAPID_PUBLIC_KEY=BN...
+   VAPID_PRIVATE_KEY=x5...
+   VAPID_SUBJECT=mailto:contato@girahub.com.br
+   chmod 600 .env
+   ```
+3. **Recriar só o backend** para ler o `.env` (o próximo deploy também aplica):
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d --no-deps backend
+   docker compose -f docker-compose.prod.yml exec -T backend python -c "from src.services.web_push import disponivel; print(disponivel())"   # True
+   ```
+4. **Validar num celular de verdade**: Perfil da Área → "Notificações no celular" → ligar → "Mandar uma notificação
+   de teste" (Android/Chrome e iPhone com a Área na tela inicial, iOS 16.4+).
+
+Cuidados: a chave privada é segredo (só no `.env` da VPS, `chmod 600`). **Não troque o par depois de ligado** —
+as inscrições ficam presas à chave pública e param de receber (o médium precisa ligar de novo). Para desligar o
+push, esvazie as três variáveis e recrie o backend.
+
 ---
 
 ## 4. Deploy com Docker Compose
@@ -212,6 +249,36 @@ docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
 ```bash
 docker compose -f docker-compose.prod.yml exec backend python seed_superadmin.py
 ```
+
+### Stripe — assinatura do plano (cartão e boleto)
+
+Variáveis (`.env` de produção): `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_BASIC/PRO/PREMIUM`
+e, desde o $-04, `STRIPE_INVOICE_PAYMENT_METHODS` (padrão `boleto`) e `STRIPE_INVOICE_DAYS_UNTIL_DUE`
+(padrão `5`). O painel oferece "Cartão de crédito" (Checkout, renovação automática) e "Boleto bancário"
+(assinatura `send_invoice`: a Stripe manda a fatura por e-mail todo mês e o painel mostra "Pagar agora").
+
+O que ligar no Dashboard da Stripe (uma vez, pelo dono da conta):
+
+1. **Formas de pagamento** (Settings → Payments → Payment methods): ativar **Boleto** e conferir a validade
+   padrão do boleto (3 dias; pode ir até 60). Sem isso, "Boleto bancário" responde "ainda não está
+   liberado" e o cartão segue funcionando.
+2. **Faturas** (Settings → Billing → Invoice template → formas de pagamento padrão): incluir **Boleto**.
+3. **E-mails** (Settings → Billing → Subscriptions and emails / Customer emails): ligar o envio das
+   faturas finalizadas ao cliente, os lembretes de fatura vencida e, em Customer emails, as instruções de
+   pagamento do Boleto. Em modo de teste a Stripe só manda e-mail para endereços do próprio time.
+4. **Pagamentos com falha / fatura vencida** (Settings → Billing → Subscriptions → Manage failed payments
+   e Manage invoices sent to customers): decidir o que acontece depois do vencimento (manter `past_due`
+   ou cancelar após N dias). O GiraHub suspende na fatura vencida e reativa quando ela é paga; se a
+   Stripe cancelar, a conta volta ao gratuito.
+5. **Webhook** (Developers → Webhooks → endpoint `https://<api>/api/v1/webhooks/stripe`): além dos eventos
+   que já estavam (`checkout.session.completed`, `customer.subscription.created/updated/deleted`,
+   `invoice.payment_failed`), assinar `invoice.paid`, `invoice.finalized`, `invoice.overdue`,
+   `checkout.session.async_payment_succeeded` e `checkout.session.async_payment_failed`.
+
+**Pix**: conta Stripe do Brasil aceita Pix só em pagamento avulso (sob convite) e o Pix Automático (Pix
+recorrente) não está disponível no Brasil — então Pix não entra na assinatura por enquanto. Se a Stripe
+liberar Pix em faturas para a conta, basta `STRIPE_INVOICE_PAYMENT_METHODS=boleto,pix` (e ativar o Pix nos
+passos 1–2): o painel passa a escrever "PIX ou boleto" sozinho.
 
 ---
 
@@ -425,5 +492,6 @@ docker compose -f docker-compose.prod.yml exec backend alembic downgrade -1
 | Database connection refused | Verificar `DATABASE_URL` no `.env` e status do PostgreSQL |
 | SSL certificate error | Executar `sudo certbot renew` |
 | Email não enviado | Verificar `BREVO_API_KEY` e `RESEND_API_KEY` no `.env` |
+| "Notificações no celular" não aparece na Área | Conferir `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_SUBJECT` no `.env` e recriar o backend (seção 3) |
 | Migration falha | Verificar logs: `docker compose logs backend` |
 | Permissão negada | `sudo chown -R $USER:$USER /opt/senhas` |

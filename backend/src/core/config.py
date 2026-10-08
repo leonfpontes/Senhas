@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     STRIPE_PRICE_BASIC: str = ""
     STRIPE_PRICE_PRO: str = ""
     STRIPE_PRICE_PREMIUM: str = ""
+    # $-04 — assinatura paga por fatura (boleto) em vez de cartão: formas de pagamento
+    # oferecidas na página da fatura da Stripe (separadas por vírgula) e prazo para pagar.
+    # Pix fica de fora: conta Stripe do Brasil não tem Pix em fatura/assinatura (só pagamento
+    # avulso, sob convite; o Pix Automático não está disponível no Brasil). Quando a Stripe
+    # liberar, basta "boleto,pix" aqui — o painel passa a mostrar "PIX ou boleto".
+    STRIPE_INVOICE_PAYMENT_METHODS: str = "boleto"
+    STRIPE_INVOICE_DAYS_UNTIL_DUE: int = 5
 
     # Email — Resend (primary)
     RESEND_API_KEY: str = ""
@@ -73,6 +80,14 @@ class Settings(BaseSettings):
     BREVO_API_KEY: str = ""
     BREVO_FROM_EMAIL: str = "noreply@girahub.com.br"
     BREVO_FROM_NAME: str = "GiraHub"
+
+    # Notificação no celular da Área do Médium (AM-16) — Web Push com VAPID, sem serviço pago.
+    # Sem as três, o push fica desligado sem erro (API diz `disponivel: false`, a tela esconde a
+    # opção e o agendador só manda e-mail). Gerar: `npx web-push generate-vapid-keys`
+    # (docs/deployment.md). Nunca commitar a chave privada.
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_SUBJECT: str = ""  # "mailto:contato@girahub.com.br"
 
     # Sentry
     SENTRY_DSN: str = ""

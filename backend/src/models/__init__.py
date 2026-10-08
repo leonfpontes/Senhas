@@ -39,6 +39,8 @@ from .atividades import (
     FuncaoCorrente,
 )
 from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
+from .parceiro_interesse import ParceiroInteresse
+from .push_inscricoes import PushInscricao
 from .materiais import MaterialCorrente, MaterialGrupo, MaterialTipo
 
 __all__ = [
@@ -72,6 +74,7 @@ __all__ = [
     "MediumConvite",
     "MediumLembreteEnviado",
     "MediumPreferencia",
+    "PushInscricao",
     "MaterialCorrente",
     "MaterialGrupo",
     "MaterialTipo",
@@ -118,4 +121,5 @@ __all__ = [
     "SupportConversation",
     "SupportMessage",
     "SupportConversationStatus",
+    "ParceiroInteresse",
 ]

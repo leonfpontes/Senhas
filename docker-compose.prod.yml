@@ -123,6 +123,11 @@ services:
       RESEND_SENDER_EMAIL: ${RESEND_SENDER_EMAIL}
       # E-mails de onboarding D+1/D+3 — false desliga (restart do backend)
       ONBOARDING_EMAILS_ENABLED: ${ONBOARDING_EMAILS_ENABLED:-true}
+      # Notificação no celular da Área do Médium (AM-16, Web Push/VAPID). Vazias = push desligado
+      # (só e-mail). Gerar com `npx web-push generate-vapid-keys` — docs/deployment.md.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
 
       # Stripe
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
@@ -130,7 +135,10 @@ services:
       STRIPE_PRICE_BASIC: ${STRIPE_PRICE_BASIC:-}
       STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
       STRIPE_PRICE_PREMIUM: ${STRIPE_PRICE_PREMIUM:-}
-      
+      # $-04: assinatura paga por fatura (boleto) — ver docs/deployment.md (Stripe)
+      STRIPE_INVOICE_PAYMENT_METHODS: ${STRIPE_INVOICE_PAYMENT_METHODS:-boleto}
+      STRIPE_INVOICE_DAYS_UNTIL_DUE: ${STRIPE_INVOICE_DAYS_UNTIL_DUE:-5}
+
       # Logging
       LOG_LEVEL: INFO
       LOG_FILE: /var/log/senhas/app.log
@@ -194,6 +202,8 @@ services:
         NEXT_PUBLIC_SUPPORT_WHATSAPP: ${NEXT_PUBLIC_SUPPORT_WHATSAPP:-}
         # Divulgação da Área do Médium (AM-24) — inlined no build; "true" liga, padrão desligado
         NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA: ${NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA:-false}
+        # Programa de Parceiros (C-06) — inlined no build; "true" publica /parceiros, padrão desligado
+        NEXT_PUBLIC_PARCEIROS_PUBLICADO: ${NEXT_PUBLIC_PARCEIROS_PUBLICADO:-false}
     container_name: senhas-frontend
     restart: always
     depends_on:

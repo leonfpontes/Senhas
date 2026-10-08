@@ -137,23 +137,21 @@ export function brandTextColorOn(
 }
 
 /**
- * Superfícies da Área do Médium (paleta terra, `.medium-terra` em globals.css): claro = cartão
- * branco, fundo areia-50 e caixa areia-100; escuro = cartão café-900, fundo café-950 e caixa
- * café-800. Espelhadas em __tests__/styles/marketingContrast.test.ts.
+ * Superfícies da Área do Médium (paleta terra, `.medium-terra` em globals.css — sempre clara
+ * desde out/2026): cartão branco, fundo areia-50 e caixa/faixa de abertura areia-100.
+ * Espelhadas em __tests__/styles/marketingContrast.test.ts.
  */
 export const TERRA_SURFACES = {
   light: ['#ffffff', '#fcf8f2', '#f7eee1'],
-  dark: ['#26170f', '#180e09', '#3b2519'],
 } as const;
 
 /**
- * Cor do terreiro para texto na Área do Médium: escreve `--terra-brand-text-light`/`-dark`
- * (lidas por `.medium-terra` em `--primary-text`, ou seja, `text-brand`). As cores de fundo da
- * marca (`--primary`, `--primary-foreground`) continuam vindo do `applyBrand`.
+ * Cor do terreiro para texto na Área do Médium: escreve `--terra-brand-text-light` (lida por
+ * `.medium-terra` em `--primary-text`, ou seja, `text-brand`). As cores de fundo da marca
+ * (`--primary`, `--primary-foreground`) continuam vindo do `applyBrand`.
  */
 export function applyTerraBrandText(root: HTMLElement, primary: string): void {
   root.style.setProperty('--terra-brand-text-light', brandTextColorOn(primary, 'light', TERRA_SURFACES.light));
-  root.style.setProperty('--terra-brand-text-dark', brandTextColorOn(primary, 'dark', TERRA_SURFACES.dark));
 }
 
 /**

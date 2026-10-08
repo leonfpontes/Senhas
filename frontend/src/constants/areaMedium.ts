@@ -9,7 +9,7 @@
 /** Mesmo canal de `PRIVACY_EMAIL` (LegalPageLayout); repetido para não puxar a moldura legal para o convite. */
 const PRIVACY_EMAIL = 'privacidade@girahub.com.br';
 
-export const AREA_MEDIUM_CONSENTIMENTO_VERSAO = '1';
+export const AREA_MEDIUM_CONSENTIMENTO_VERSAO = '2';
 
 /** Rótulo da caixa de consentimento no aceite do convite. */
 export function consentimentoAreaLabel(casa: string): string {
@@ -21,10 +21,10 @@ export function termoAreaParagrafos(casa: string): string[] {
   return [
     `Ao ativar seu acesso, você autoriza ${casa} a usar seus dados na Área do Médium do GiraHub para organizar a corrente: a agenda das giras e atividades, os avisos da casa, a mensalidade e, quando a casa usar, as escalas e a presença.`,
     'Os dados usados são: seu nome, e-mail, telefone, data de aniversário e endereço (quando a casa tiver), as mensalidades e os comprovantes que você enviar, suas respostas às escalas, suas presenças e os motivos de ausência que você contar.',
-    'Quem vê: só a direção da casa e as pessoas que ela autorizar no painel. Os outros médiuns não veem nada seu.',
+    'Quem vê: só a direção da casa e as pessoas que ela autorizar no painel. Os outros médiuns não veem nada seu — a não ser que você escolha mostrar o seu aniversário (só o primeiro nome, o dia e o mês).',
     'Por que pedimos a sua autorização: fazer parte da corrente de um terreiro revela a sua religião, e a Lei Geral de Proteção de Dados (LGPD) trata isso como dado sensível. Por isso o acesso só existe com o seu sim.',
     `O papel de cada um: ${casa} decide como os seus dados são usados. O GiraHub guarda e processa os dados para a casa e não usa para nenhuma outra finalidade — nada de anúncios nem venda de dados.`,
-    `Você pode mudar de ideia: peça à casa para encerrar o seu acesso quando quiser. Para ver ou corrigir seus dados, fale com a casa; se precisar, escreva para ${PRIVACY_EMAIL}. Mais detalhes na Política de Privacidade (girahub.com.br/privacidade).`,
+    `Você pode mudar de ideia: encerre o seu acesso quando quiser, no Perfil da Área (Meus dados e privacidade), ou peça à casa. Lá você também baixa uma cópia dos seus dados. Para corrigir seus dados, fale com a casa; se precisar, escreva para ${PRIVACY_EMAIL}. Mais detalhes na Política de Privacidade (girahub.com.br/privacidade).`,
   ];
 }
 

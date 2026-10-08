@@ -300,6 +300,18 @@ async def set_bonus(
             sub.stripe_subscription_id = None
             sub.stripe_price_id = None
             sub.cancel_at_period_end = False
+        # $-04: pedido de assinatura por boleto ainda não pago também sai.
+        if isinstance(sub.pending_stripe_subscription_id, str):
+            try:
+                from src.services import stripe_service
+                await stripe_service.cancel_pending_invoice_subscription(
+                    sub.pending_stripe_subscription_id, sub.pending_invoice_id
+                )
+            except Exception:
+                pass  # best-effort, como o cancelamento acima
+        if isinstance(sub.pending_stripe_subscription_id, str) or isinstance(sub.collection_method, str):
+            from src.repositories.subscription_repo import clear_invoice_billing
+            clear_invoice_billing(sub)
 
         target_plan = body.plan or PlanType.BASIC
         limits = PLAN_LIMITS.get(target_plan, PLAN_LIMITS[PlanType.BASIC])

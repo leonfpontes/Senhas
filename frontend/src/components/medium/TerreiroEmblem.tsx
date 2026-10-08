@@ -1,5 +1,5 @@
 /**
- * TerreiroEmblem — logo do terreiro na Área do Médium (cabeçalho, faixa café, escolha de área,
+ * TerreiroEmblem — logo do terreiro na Área do Médium (cabeçalho, faixa de abertura, escolha de área,
  * ícone da tela inicial). Sem logo (ou se a imagem falhar), a inicial do terreiro sobre a cor
  * da marca (`bg-primary text-primary-foreground`, contraste garantido pelo applyBrand).
  */

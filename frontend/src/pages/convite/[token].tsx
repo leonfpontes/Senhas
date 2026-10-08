@@ -97,7 +97,7 @@ function LogoDaCasa({ convite }: { convite: ConvitePublico }) {
       ) : (
         <span
           aria-hidden
-          className="flex size-24 items-center justify-center rounded-full bg-cafe-950 font-display text-4xl font-bold text-white"
+          className="flex size-24 items-center justify-center rounded-full border border-areia-200 bg-areia-100 font-display text-4xl font-bold text-tinta shadow-sm"
         >
           {inicial || '•'}
         </span>

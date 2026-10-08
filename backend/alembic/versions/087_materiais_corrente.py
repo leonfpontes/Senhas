@@ -12,8 +12,8 @@ permissão: a gestão usa o grupo `COMUNICADOS` (já liberado no grupo padrão p
 
 Downgrade: as duas tabelas saem (os materiais são perdidos).
 
-Revision ID: 090_materiais_corrente
-Revises: 081_lembretes
+Revision ID: 087_materiais_corrente
+Revises: 086_trocas_escala
 Create Date: 2026-10-08
 """
 
@@ -21,8 +21,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "090_materiais_corrente"
-down_revision: str = "081_lembretes"
+revision: str = "087_materiais_corrente"
+down_revision: str = "086_trocas_escala"
 branch_labels = None
 depends_on = None
 

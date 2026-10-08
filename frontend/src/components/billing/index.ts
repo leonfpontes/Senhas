@@ -6,3 +6,5 @@ export { TrialSummaryCard } from './TrialSummaryCard';
 export type { TrialSummaryCardProps, TrialUsage } from './TrialSummaryCard';
 export { UsageBar } from './UsageBar';
 export type { UsageBarProps } from './UsageBar';
+export { PaymentMethodPicker, invoiceMethodLabel } from './PaymentMethodPicker';
+export type { PaymentMethodChoice, PaymentMethodPickerProps } from './PaymentMethodPicker';
