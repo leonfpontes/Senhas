@@ -26,6 +26,7 @@ from src.models import User, PermissionFeature
 from src.repositories.mediun_repo import MediumRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
+from src.services.corrente_grupos import remover_medium_dos_grupos
 from src.services.medium_area import sync_pure_medium_user
 from src.services.medium_convite import convites_em_aberto, revogar_convites_pendentes, status_acesso
 from src.api.v1.admin.mediuns_acesso import AcessoAreaResponse
@@ -364,6 +365,9 @@ async def update_medium(
     # Convite em aberto (AM-03) não vale para médium inativado nem para o e-mail antigo.
     if (was_active and not medium.is_active) or "email" in changes:
         await revogar_convites_pendentes(db, current_user.tenant_id, medium.id)
+    # Grupos da corrente (AM-23): inativo sai de todos os grupos (reativar não devolve).
+    if was_active and not medium.is_active:
+        await remover_medium_dos_grupos(db, current_user.tenant_id, medium.id)
 
     await db.commit()
     await db.refresh(medium)
@@ -402,6 +406,8 @@ async def delete_medium(
     # operador/admin ligado só perde a Área (require_medium exige médium não excluído).
     await sync_pure_medium_user(db, current_user.tenant_id, medium)
     await revogar_convites_pendentes(db, current_user.tenant_id, medium.id)
+    # Grupos da corrente (AM-23): excluído sai de todos os grupos.
+    await remover_medium_dos_grupos(db, current_user.tenant_id, medium.id)
     await db.commit()
 
     audit = AuditService(db)

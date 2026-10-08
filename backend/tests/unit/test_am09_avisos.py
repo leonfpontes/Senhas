@@ -89,7 +89,7 @@ def test_publico_do_medium_de_atendimento_e_do_cambone():
     assert medium_no_publico("todos", True) and medium_no_publico("todos", False)
     assert medium_no_publico("atendimento", True) and not medium_no_publico("atendimento", False)
     assert medium_no_publico("cambones", False) and not medium_no_publico("cambones", True)
-    assert {p.value for p in ComunicadoPublico} == {"todos", "atendimento", "cambones"}
+    assert {p.value for p in ComunicadoPublico} == {"todos", "atendimento", "cambones", "grupos"}
 
 
 # ── Agenda e validade ───────────────────────────────────────────────────────
