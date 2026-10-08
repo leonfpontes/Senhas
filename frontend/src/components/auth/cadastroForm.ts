@@ -79,6 +79,14 @@ export const cadastroSchema = z.object({
 
 export type CadastroFormValues = z.infer<typeof cadastroSchema>;
 
+/**
+ * E-mail que já tem conta no GiraHub (a API respondeu `EMAIL_JA_TEM_CONTA`): a senha é a DESSA
+ * conta — pode ser anterior à regra atual, então só não pode ficar vazia. O resto é igual.
+ */
+export const cadastroSchemaContaExistente = cadastroSchema.extend({
+  password: z.string().min(1, 'Digite a senha da sua conta GiraHub.'),
+});
+
 export const CADASTRO_DEFAULTS: CadastroFormValues = {
   terreiroNome: '',
   nome: '',
@@ -97,19 +105,22 @@ export interface OnboardingPayload {
   email: string;
   whatsapp: string;
   documento: string;
+  /** `password` é a senha da conta que o e-mail já tem em outro terreiro (sem a regra de senha nova). */
+  conta_existente: boolean;
   password: string;
   como_conheceu: string;
   principal_dor: PrincipalDor;
   aceite_termos: true;
 }
 
-export function buildOnboardingPayload(values: CadastroFormValues): OnboardingPayload {
+export function buildOnboardingPayload(values: CadastroFormValues, contaExistente = false): OnboardingPayload {
   return {
     terreiro_nome: values.terreiroNome.trim(),
     responsavel_nome: values.nome.trim(),
     email: values.email.trim(),
     whatsapp: unmaskDigits(values.whatsapp),
     documento: unmaskDigits(values.documento),
+    conta_existente: contaExistente,
     password: values.password,
     como_conheceu: values.comoConheceu,
     principal_dor: values.principalDor as PrincipalDor,
@@ -196,13 +207,27 @@ export interface OnboardingErrorTarget {
   /** Campo onde a mensagem aparece (o formulário volta para o passo dele); sem campo → aviso geral. */
   field?: CadastroField;
   message: string;
+  /** `detail.error_code` da API, quando veio (ex.: `EMAIL_JA_TEM_CONTA`). */
+  code?: string;
 }
 
 const GENERIC_ERROR = 'Não foi possível criar a conta. Tente novamente.';
 
 /**
+ * Recusas do e-mail que já tem conta em outro terreiro (2026-10-08) → campo onde aparecem.
+ * `EMAIL_JA_TEM_CONTA` (409) liga o modo "senha da sua conta GiraHub" no passo Acesso;
+ * `SENHA_CONTA_INCORRETA` (400, nunca 401) fica na senha; `LIMITE_CONTAS_EMAIL` (409) no e-mail.
+ */
+const CODE_FIELD: Record<string, CadastroField> = {
+  EMAIL_JA_TEM_CONTA: 'password',
+  SENHA_CONTA_INCORRETA: 'password',
+  LIMITE_CONTAS_EMAIL: 'email',
+};
+
+/**
  * Traduz a recusa do `POST /public/onboarding` para "qual campo, qual mensagem":
- * 409 `detail` (e-mail já cadastrado → e-mail; nome de terreiro repetido → nome do terreiro),
+ * `detail: {error_code, message}` → campo do `CODE_FIELD` (com o `code`),
+ * 409 `detail` texto (e-mail já cadastrado → e-mail; nome de terreiro repetido → nome do terreiro),
  * 422 `{error_code: VALIDATION_ERROR, details: [{loc: ['body', campo], msg}]}` → o campo apontado,
  * o resto (429, 500, rede) → aviso geral no passo atual.
  */
@@ -211,6 +236,14 @@ export function parseOnboardingError(err: unknown): OnboardingErrorTarget {
   if (!data) return { message: GENERIC_ERROR };
 
   const detail = data.detail;
+  if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+    const { error_code: code, message } = detail as { error_code?: unknown; message?: unknown };
+    if (typeof code === 'string' && code) {
+      const text = typeof message === 'string' && message ? message : GENERIC_ERROR;
+      const field = CODE_FIELD[code];
+      return field ? { field, message: text, code } : { message: text, code };
+    }
+  }
   if (typeof detail === 'string' && detail) {
     if (/e-?mail/i.test(detail)) return { field: 'email', message: detail };
     if (/nome de terreiro/i.test(detail)) return { field: 'terreiroNome', message: detail };
