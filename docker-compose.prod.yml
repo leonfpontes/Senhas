@@ -135,7 +135,10 @@ services:
       STRIPE_PRICE_BASIC: ${STRIPE_PRICE_BASIC:-}
       STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
       STRIPE_PRICE_PREMIUM: ${STRIPE_PRICE_PREMIUM:-}
-      
+      # $-04: assinatura paga por fatura (boleto) — ver docs/deployment.md (Stripe)
+      STRIPE_INVOICE_PAYMENT_METHODS: ${STRIPE_INVOICE_PAYMENT_METHODS:-boleto}
+      STRIPE_INVOICE_DAYS_UNTIL_DUE: ${STRIPE_INVOICE_DAYS_UNTIL_DUE:-5}
+
       # Logging
       LOG_LEVEL: INFO
       LOG_FILE: /var/log/senhas/app.log

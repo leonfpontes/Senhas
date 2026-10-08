@@ -1,5 +1,5 @@
 """Subscription model - tenant plans and billing (Phase 6 - T097)."""
-from sqlalchemy import Column, String, ForeignKey, Boolean, Integer, Float, Index, Enum as SQLEnum, DateTime
+from sqlalchemy import Column, String, ForeignKey, Boolean, Integer, Float, Index, Enum as SQLEnum, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime, timezone
@@ -82,6 +82,17 @@ class Subscription(TimestampedModel):
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_bonus: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # $-04 (migração 087): "charge_automatically" (cartão) ou "send_invoice" (fatura por
+    # e-mail paga com boleto). NULL = assinatura antiga/sem Stripe — tratada como cartão.
+    collection_method: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Assinatura por boleto cuja PRIMEIRA fatura ainda não foi paga: fica fora de
+    # `stripe_subscription_id` para não liberar o plano (nem mexer em acesso/métricas/trial)
+    # antes do `invoice.paid`.
+    pending_stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    # Fatura em aberto (primeira ou renovação) para o painel mostrar "Pagar agora".
+    pending_invoice_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pending_invoice_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pending_invoice_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Billing
     monthly_price: Mapped[float] = mapped_column(Float, nullable=False)

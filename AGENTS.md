@@ -900,7 +900,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `084_parceiros` (2026-10-08, C-06: tabela da plataforma `parceiro_interesses` — pedidos do
+- Head atual: `085_assinatura_boleto` (2026-10-08, $-04: `subscriptions.collection_method`,
+  `pending_stripe_subscription_id` (unico), `pending_invoice_id/_url/_due_at` — assinatura do plano paga por
+  fatura/boleto), apos `084_parceiros` (2026-10-08, C-06: tabela da plataforma `parceiro_interesses` — pedidos do
   Programa de Parceiros, sem `tenant_id`, `ip_hash` HMAC, CHECK de `tipo`/`status`), apos
   `083_meus_dados_aniversarios` (2026-10-08, AM-14/AM-20: `mediuns.area_consentimento_revogado_em`/
   `_versao`, `mediuns.aniversario_visivel` (padrao `false`) e `tenant_configs.area_medium_aniversario_mensagem`
@@ -1042,6 +1044,23 @@ Incluir obrigatoriamente:
   `/billing/reactivate` converte erro da Stripe (`_reraise_stripe_error`). Se `GET /admin/billing`
   falha, a tela mostra erro com "Tentar de novo" (nunca "Assinar agora"); `?plan=` é ignorado para
   cortesia.
+- **Assinatura por boleto ($-04, 2026-10-08)**: em `/admin/billing` o admin escolhe "Cartão de crédito"
+  (Checkout, só `card`, renovação automática) ou "Boleto bancário" (`POST /billing/subscribe-invoice`:
+  assinatura Stripe `collection_method=send_invoice`, fatura por e-mail todo mês, `days_until_due` =
+  `STRIPE_INVOICE_DAYS_UNTIL_DUE` (5), formas em `STRIPE_INVOICE_PAYMENT_METHODS` ("boleto")). Regras:
+  (1) o plano só é liberado no `invoice.paid` — antes disso a assinatura fica em
+  `pending_stripe_subscription_id`, NUNCA em `stripe_subscription_id` (acesso, MRR, trial_scheduler e
+  desativação continuam lendo só o vínculo pago); (2) boleto vencido / `invoice.payment_failed` de fatura
+  `send_invoice` não é inadimplência (não suspende nem rebaixa trial); quem suspende é `invoice.overdue` ou a
+  assinatura `past_due`, e o `invoice.paid` reativa; (3) `checkout.session.completed` com
+  `payment_status=unpaid` não libera nada (libera o `async_payment_succeeded`); (4) `subscription.created/
+  updated` de assinatura não ligada que seja `send_invoice` ou `incomplete` é ignorado; (5) o painel mostra
+  "Aguardando pagamento" + "Pagar agora" (`pending_invoice_url`, gravado no endpoint e no `invoice.finalized`)
+  e "Cancelar pedido" (o `/billing/cancel` com pedido pendente cancela na hora e anula a fatura).
+  **Pix**: conta Stripe do Brasil não tem Pix em assinatura/fatura (Pix só avulso, sob convite; Pix
+  Automático indisponível no BR — docs.stripe.com/payments/pix). O rótulo "PIX ou boleto" só aparece se
+  `pix` entrar em `STRIPE_INVOICE_PAYMENT_METHODS`; nunca escrever "PIX" fixo na tela. O que ligar no
+  Dashboard da Stripe está em docs/deployment.md (Stripe).
 - **Rótulos de plano**: fonte única `constants/plans.ts` ("Gratuito"); `useSubscription().planLabel`
   e `platform/planMeta.ts` (rótulo, preço e limites) derivam dela; a tabela de planos da plataforma
   usa `BASE_FEATURES` + `FEATURE_CATALOG`.
