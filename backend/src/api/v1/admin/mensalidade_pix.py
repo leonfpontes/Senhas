@@ -14,7 +14,8 @@ pede — no lugar de empilhar `is_admin` sobre o grupo — é:
 4. recusa sob impersonação (o suporte não troca chave em nome do terreiro);
 5. limite de 10 tentativas por hora por IP (a senha não pode ser adivinhada por aqui);
 6. `pix_alterado_em`, que a Área mostra ao médium por 30 dias ("Chave alterada em
-   dd/mm", AM-11). Aviso ativo ao médium por e-mail: TODO(AM-15).
+   dd/mm", AM-11). O e-mail aos médiuns com acesso à Área (sem a chave: "confira na Área")
+   sai pelo agendador de lembretes (AM-15, tipo `pix_alterado`), que lê `pix_alterado_em`.
 
 Quem vê a chave inteira: só quem tem FINANCEIRO:edit (admin faz bypass). Quem só tem
 FINANCEIRO:view recebe a chave mascarada e sem a prévia do QR — CPF é dado pessoal do
@@ -305,6 +306,6 @@ async def update_pix_config(
             )
         except Exception:  # o aviso não desfaz a troca já gravada e auditada
             logger.exception("Falha ao enfileirar o aviso de troca da chave PIX (tenant %s)", current_user.tenant_id)
-        # TODO(AM-15): avisar também os médiuns (e-mail/aviso na Área) da troca de chave.
+        # Os médiuns recebem o aviso pelo agendador de lembretes (AM-15, `pix_alterado`).
 
     return _response(config, True)

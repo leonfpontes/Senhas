@@ -1112,7 +1112,7 @@ async def cancelar_atividade(
     motivo = limpar_motivo(body.motivo)
     atividade.cancelada_em = atividade.cancelada_em or utc_now()
     atividade.cancelamento_motivo = motivo
-    # AM-17: a escala fica dispensada (TODO(AM-15): avisar quem estava na escala).
+    # AM-17: a escala fica dispensada; o e-mail a quem estava nela sai pelo agendador (AM-15).
     await dispensar_por_cancelamento(db, tenant_id, atividade.id, atividade.cancelada_em)
     await AuditService(db).log_update(
         tenant_id=tenant_id,

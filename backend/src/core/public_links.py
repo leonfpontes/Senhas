@@ -11,6 +11,7 @@ Os padrões abaixo espelham os nomes de arquivo do Next:
 - PUBLIC_TENANT_ROUTE  → pages/public/[tenant].tsx (redireciona à próxima gira)
 - MEDIUM_CONVITE_ROUTE → pages/convite/[token].tsx (convite da casa para a Área do Médium, AM-03)
 - CONFIRMAR_EMAIL_ROUTE → pages/confirmar-email/[token].tsx (troca do e-mail de login, AM-13)
+- DESCADASTRO_ROUTE    → pages/descadastro/[token].tsx (desligar avisos por e-mail da Área, AM-15)
 
 `tests/unit/test_public_links.py` confere que os arquivos existem.
 """
@@ -24,6 +25,7 @@ PUBLIC_CANCEL_ROUTE = "/public/ticket/{ticket_id}/cancelar"
 PUBLIC_TENANT_ROUTE = "/public/{tenant_slug}"
 MEDIUM_CONVITE_ROUTE = "/convite/{token}"
 CONFIRMAR_EMAIL_ROUTE = "/confirmar-email/{token}"
+DESCADASTRO_ROUTE = "/descadastro/{token}"
 
 
 def _base(frontend_url: str) -> str:
@@ -51,6 +53,17 @@ def medium_convite_link(frontend_url: str, token: str) -> str:
 def confirmar_email_link(frontend_url: str, token: str) -> str:
     """Confirmação do novo e-mail de login (AM-13): vai só para o endereço novo."""
     return _base(frontend_url) + CONFIRMAR_EMAIL_ROUTE.format(token=token)
+
+
+def descadastro_link(frontend_url: str, token: str, tipo: str) -> str:
+    """Rodapé dos lembretes da Área (AM-15): `tipo` = preferência (`mensalidade`...) ou `todos`.
+    A página só desliga no toque em "Desligar" (leitor de link não desliga nada sozinho)."""
+    return _base(frontend_url) + DESCADASTRO_ROUTE.format(token=token) + f"?tipo={tipo}"
+
+
+def area_medium_link(frontend_url: str, caminho: str = "") -> str:
+    """Página da Área do Médium (`/medium...`) — o login leva de volta para ela."""
+    return _base(frontend_url) + "/medium" + caminho
 
 
 def public_tenant_logo_url(frontend_url: str, tenant_config) -> str | None:

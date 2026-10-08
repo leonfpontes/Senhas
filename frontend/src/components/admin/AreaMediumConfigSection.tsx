@@ -10,6 +10,10 @@
  * pode ajustar em Atividades → Tipos e funções) e o prazo para o médium contar o motivo de uma
  * falta (1 a 30 dias). Trocar o modo vale para as próximas chamadas; presença já registrada fica.
  *
+ * Lembretes da mensalidade por e-mail (AM-15, D-29): 3 dias antes e 3 dias depois do vencimento,
+ * sem comprovante — a casa pode desligar (`lembretes.mensalidade`). Só aparece com o módulo
+ * mensalidade ligado e no plano.
+ *
  * Quem monta só renderiza com `can('area_medium')` (plano + chave do piloto) e
  * `canGroup('configuracoes', 'view')`; `canEdit` = `canGroup('configuracoes', 'edit')`
  * — sem ele os campos ficam só leitura e o botão de salvar some.
@@ -42,6 +46,7 @@ interface AreaMediumConfigApi {
   mensalidade_no_plano: boolean;
   presenca?: { modo_padrao: ModoPresenca; prazo_justificativa_dias: number };
   presenca_no_plano?: boolean;
+  lembretes?: { mensalidade: boolean };
 }
 
 interface FormState {
@@ -51,6 +56,7 @@ interface FormState {
   modulos: Record<Modulo, boolean>;
   presencaModo: ModoPresenca;
   prazo: string;
+  lembreteMensalidade: boolean;
 }
 
 const PRAZO_MIN = 1;
@@ -76,6 +82,7 @@ function toForm(data: AreaMediumConfigApi): FormState {
     modulos: { ...data.modulos },
     presencaModo: data.presenca?.modo_padrao ?? 'confianca',
     prazo: String(data.presenca?.prazo_justificativa_dias ?? 7),
+    lembreteMensalidade: data.lembretes?.mensalidade ?? true,
   };
 }
 
@@ -170,6 +177,7 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
         boas_vindas: form.boasVindas,
         whatsapp: whatsappDigits,
         modulos: form.modulos,
+        lembretes: { mensalidade: form.lembreteMensalidade },
         ...(presencaNoPlano
           ? { presenca: { modo_padrao: form.presencaModo, prazo_justificativa_dias: prazoNumero } }
           : {}),
@@ -246,6 +254,16 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
               )}
             </ToggleRow>
           ))}
+          {mensalidadeNoPlano && form.modulos.mensalidade && (
+            <ToggleRow
+              id="area-medium-lembrete-mensalidade"
+              title="Lembrete da mensalidade por e-mail"
+              description="3 dias antes e 3 dias depois do vencimento, só para quem ainda não pagou nem mandou o comprovante. Tom gentil, sem cobrança."
+              checked={form.lembreteMensalidade}
+              disabled={!canEdit}
+              onChange={(v) => set('lembreteMensalidade', v)}
+            />
+          )}
         </div>
 
         {presencaNoPlano && (

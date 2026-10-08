@@ -177,6 +177,7 @@ describe('Avisos — formulário e prévia', () => {
       corpo: 'Chegar 19h30.\n<img src=x onerror="window.__x=1">\nhttps://exemplo.com.br',
       publico: 'cambones',
       fixado: true,
+      avisar_email: false,
       expira_em: null,
       publicar_em: null,
     });
@@ -222,6 +223,41 @@ describe('Avisos — formulário e prévia', () => {
     expect(url).toBe('/api/v1/admin/comunicados/c1');
     expect(body).not.toHaveProperty('publicar_em');
     expect(body).toMatchObject({ titulo: 'Gira de sexta começa às 20h30', fixado: true, publico: 'todos' });
+  });
+});
+
+describe('Avisos — "Avisar por e-mail também" (AM-15)', () => {
+  it('marcar a caixa manda avisar_email no POST', async () => {
+    setup([]);
+    fireEvent.click(await screen.findByRole('button', { name: /Novo aviso/ }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/Título/), { target: { value: 'Mutirão' } });
+    fireEvent.change(within(dialog).getByLabelText(/Texto/), { target: { value: 'Tragam luvas' } });
+    const caixa = within(dialog).getByRole('checkbox', { name: 'Avisar por e-mail também' });
+    expect(caixa).not.toBeChecked();
+    fireEvent.click(caixa);
+    expect(within(dialog).getByText(/O assunto não mostra o título/)).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Publicar aviso' }));
+    });
+    await waitFor(() => expect(mockPost).toHaveBeenCalled());
+    expect(mockPost.mock.calls[0][1]).toMatchObject({ titulo: 'Mutirão', avisar_email: true });
+  });
+
+  it('editar traz a caixa marcada quando o aviso já pediu e-mail', async () => {
+    setup([{ ...LISTA[0], avisar_email: true }]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Gira de sexta começa às 20h30' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('checkbox', { name: 'Avisar por e-mail também' })).toBeChecked();
+  });
+
+  it('sem COMUNICADOS:insert a caixa não aparece no novo aviso (quem só edita vê na edição)', async () => {
+    mockGroupCan.mockImplementation((_f: string, a: string) => a !== 'insert');
+    setup();
+    expect(screen.queryByRole('button', { name: /Novo aviso/ })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Gira de sexta começa às 20h30' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByTestId('aviso-email')).toBeInTheDocument();
   });
 });
 
@@ -327,6 +363,7 @@ describe('Avisos — público "Grupos da corrente" (AM-23)', () => {
       publico: 'grupos',
       grupo_ids: ['g2'],
       fixado: false,
+      avisar_email: false,
       expira_em: null,
       publicar_em: null,
     });

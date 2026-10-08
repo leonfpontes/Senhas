@@ -77,6 +77,11 @@ class Comunicado(SoftDeleteModel):
     criado_por: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # "Avisar por e-mail também" (AM-15, migração 081): o agendador manda o aviso por e-mail a
+    # quem tem acesso à Área quando ele é publicado (uma vez por médium). `avisar_email_em` =
+    # quando a opção foi ligada (o envio só vale nos 3 dias seguintes à publicação ou a esse momento).
+    avisar_email: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    avisar_email_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self) -> str:
         return f"<Comunicado(id={self.id}, titulo={self.titulo!r})>"

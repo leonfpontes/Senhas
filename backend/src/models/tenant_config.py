@@ -90,6 +90,11 @@ class TenantConfig(TimestampedModel):
     presenca_prazo_justificativa_dias: Mapped[int] = mapped_column(
         Integer, default=7, server_default="7", nullable=False
     )
+    # Lembretes por e-mail (AM-15, migração 081): a casa pode desligar os lembretes da
+    # mensalidade (D-29: 3 dias antes e 3 dias depois do vencimento, sem comprovante).
+    area_medium_lembrete_mensalidade: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
 
     # Custom metadata
     custom_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)

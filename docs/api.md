@@ -261,6 +261,18 @@ convite no terreiro: o aceite pede a senha dessa conta.
   acompanha, link de "esqueci a senha" pendente deixa de valer, auditoria `medium_perfil` sem os
   endereços e aviso ao endereço ANTIGO (novo mascarado). As sessões abertas continuam.
 
+### 7. Desligar avisos por e-mail da Área (AM-15)
+
+O rodapé de todo lembrete leva a `pages/descadastro/[token].tsx?tipo=<tipo|todos>`; a página só desliga no
+toque em "Desligar" (leitor de link não muda nada).
+- **`POST /api/v1/public/avisos-email/consultar`** (30/min por IP) `{"token"}` →
+  `{ "terreiro_nome": "Tenda Luz", "preferencias": { "mensalidade": true, … } }`.
+- **`POST /api/v1/public/avisos-email/desligar`** (10/min por IP) `{"token", "tipo"}` — `tipo` =
+  `mensalidade|escalas|confirmacao|faltas|avisos|todos` (outro → 422); devolve o mesmo formato.
+- Token = `medium_preferencias.token_descadastro` (busca raiz); inexistente → 404
+  `{"detail": {"error_code": "LINK_INVALIDO", "message": "Este link não vale mais. Você pode mudar os avisos por e-mail no Perfil da Área."}}`.
+  Ligar de novo só pela Área (Perfil → Avisos por e-mail).
+
 ---
 
 ## Admin Endpoints
@@ -633,7 +645,8 @@ e chave do piloto `tenants.area_medium_liberada`; sem a chave → 403). Médium 
   "modulos": { "agenda": true, "avisos": true, "mensalidade": true },
   "mensalidade_no_plano": true,
   "presenca": { "modo_padrao": "confianca", "prazo_justificativa_dias": 7 },
-  "presenca_no_plano": true
+  "presenca_no_plano": true,
+  "lembretes": { "mensalidade": true }
 }
 ```
 **PUT body** (partial — only sent fields change): `ativa` (bool), `boas_vindas` (≤ 500, empty
@@ -643,6 +656,8 @@ invalid → 422), `modulos` (`{agenda?, avisos?, mensalidade?}`), `presenca` (AM
 house presence mode, each activity type may override it, and the days the médium has to explain an
 absence). Changing the mode applies to the next roll calls; presence already recorded never changes.
 `presenca_no_plano` = plan with `atividades_corrente` (the screen only shows the section with it).
+`lembretes` (AM-15): `{mensalidade?: bool}` — the house turns the mensalidade e-mail reminders off (D-29: 3 days
+before and 3 days after the due date, only for months open without a receipt; default on).
 Audited as `TenantConfig` / `config_type: "area_medium"`.
 
 ### 11. PIX key for the mensalidade (AM-10)
@@ -741,6 +756,7 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
   "publicar_em": "2026-10-07T12:00:00Z",
   "expira_em": null,
   "situacao": "publicado",
+  "avisar_email": false,
   "created_at": "...",
   "updated_at": "...",
   "leituras": { "lidos": 9, "total": 20 }
@@ -753,7 +769,10 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
   switching to another audience clears them), `fixado`, `publicar_em` (absent/null =
   now; future = scheduled; naive datetimes are Brasília time) and `expira_em` (optional; must be after
   `publicar_em` and, when set, in the future → else 422). On PUT, `publicar_em: null` publishes now and
-  `expira_em: null` removes the expiry.
+  `expira_em: null` removes the expiry. `avisar_email` (AM-15, default false): the reminder scheduler also
+  e-mails the aviso (subject `<terreiro>: novo aviso da casa`, never the title) to the audience with access
+  to the Área once it is published — once per médium, within 3 days of publication (or of ticking the
+  option, `avisar_email_em`); unticking before the next round sends nothing.
 - **Plain text only**: HTML tags and control characters are stripped on save (line breaks are kept);
   empty title/text after cleaning → 422. The screens render text nodes only and auto-link
   `http(s)://`/`www.` addresses.
@@ -891,7 +910,7 @@ per tenant among the active ones (409), `descricao` ≤ 300.
   AM-17; default: the type's `visibilidade_padrao`).
 - `POST /{id}/cancelar` `{ "motivo" }` (1–300, required): keeps the activity, marked as cancelled — the
   corrente sees the reason in the Área — and dispenses everyone on its schedule (`dispensado_em` = the
-  cancel time; TODO AM-15: notify them). A cancelled activity cannot be edited (409) until
+  cancel time; the reminder scheduler e-mails who was on it, AM-15). A cancelled activity cannot be edited (409) until
   `POST /{id}/reativar`, which brings back who the cancellation dispensed. `DELETE` is a soft delete (gone from the admin and the Área).
 - `POST /da-gira/{gira_id}` returns (creating on first call — `INSERT … ON CONFLICT (gira_id) DO
   NOTHING`, idempotent) the gira's **anchor** in the activity layer, used by schedule/attendance
@@ -1520,6 +1539,31 @@ participation exists here (D-07). Audited as `medium_presenca` with `{acao}` onl
   "total", "percentual", "desde" }, "prazo_justificativa_dias" }` — upcoming schedules (60 days), history
   (last 90 days, only activities with a stored participation) and the percentage = present ÷
   convocations with the roll call closed, dispensed excluded.
+
+### 8. Avisos por e-mail — preferências (AM-15)
+
+- **`GET /api/v1/medium/preferencias`** → `{ "preferencias": { "mensalidade": true, "escalas": true,
+  "confirmacao": true, "faltas": true, "avisos": true }, "disponiveis": ["mensalidade", "escalas", …] }` —
+  no stored row = everything on. `disponiveis` = the types that make sense now: `mensalidade` (module
+  visible and the médium is not exempt), `escalas`/`confirmacao` (`atividades_corrente` or `escalas`),
+  `faltas` (`atividades_corrente`), `avisos` (module visible).
+- **`PUT /api/v1/medium/preferencias`** `{ "avisos"?: bool, … }` (30/h per IP) — only the sent types change;
+  unknown field → 422; refused while impersonating (403). Audited as `medium_perfil` with
+  `{acao: "médium mudou os avisos por e-mail", campos}`.
+
+What each type covers and when it is sent (Brasília time, `services/medium_lembretes.JANELAS`):
+
+| Preference | Reminder | When |
+|---|---|---|
+| `mensalidade` | D-3 / D+3 of the due date (open month, no receipt; house toggle) · PIX key changed by the house (never the key) | 9–20 h · 7–22 h |
+| `escalas` | entered a schedule (one e-mail with all new days, activities from the day after tomorrow) · eve of the activity/gira (group, function, time) · activity cancelled | 7–22 h · 18–22 h · 7–22 h |
+| `confirmacao` | D-2 without "Vou / Não vou" (types that ask for it) | 10–20 h |
+| `faltas` | marked absent, no reason yet, within the house deadline (the text of the reason never goes by e-mail) | 9–21 h |
+| `avisos` | aviso with "Avisar por e-mail também" | 7–22 h |
+
+Schedule reminders by function/rotation/planned cleaning need the `escalas` plan; the others
+`atividades_corrente`. Nothing is sent without the pilot switch, the plan `area_medium` and the Área
+turned on by the house.
 
 ---
 

@@ -13,6 +13,9 @@
  * Público "Grupos da corrente" (AM-23): escolhe um ou mais grupos (`/corrente-grupos/opcoes`, que
  * libera para quem tem COMUNICADOS ou MEDIUNS view, sem os nomes dos médiuns); só os membros veem
  * e o "de M" conta só eles.
+ *
+ * "Avisar por e-mail também" (AM-15): caixa no drawer, só com COMUNICADOS insert (criar) ou edit
+ * (editar); o agendador de lembretes manda o aviso por e-mail ao público com acesso à Área.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -45,6 +48,7 @@ import { AvisoLeitura, AvisoTexto, FixadoBadge, dataCurtaBr, dataHoraBr } from '
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -74,6 +78,8 @@ export interface Comunicado {
   publicar_em: string;
   expira_em: string | null;
   situacao: Situacao;
+  /** AM-15: o agendador manda também por e-mail a quem tem acesso à Área (uma vez por médium). */
+  avisar_email?: boolean;
   created_at: string;
   updated_at: string;
   leituras: { lidos: number; total: number };
@@ -116,6 +122,7 @@ interface FormState {
   publico: Publico;
   grupo_ids: string[];
   fixado: boolean;
+  avisar_email: boolean;
   quando: 'agora' | 'agendar';
   /** ISO local "YYYY-MM-DDTHH:mm" (DateTimeField). */
   publicar_em: string | null;
@@ -128,6 +135,7 @@ const EMPTY_FORM: FormState = {
   publico: 'todos',
   grupo_ids: [],
   fixado: false,
+  avisar_email: false,
   quando: 'agora',
   publicar_em: null,
   expira_em: null,
@@ -282,6 +290,7 @@ function AdminComunicadosContent() {
       publico: c.publico,
       grupo_ids: (c.grupos ?? []).map((g) => g.id),
       fixado: c.fixado,
+      avisar_email: Boolean(c.avisar_email),
       quando: c.situacao === 'agendado' ? 'agendar' : 'agora',
       publicar_em: isoParaLocal(c.publicar_em),
       expira_em: isoParaLocal(c.expira_em),
@@ -327,6 +336,7 @@ function AdminComunicadosContent() {
       corpo: form.corpo,
       publico: form.publico,
       fixado: form.fixado,
+      avisar_email: form.avisar_email,
       expira_em: localParaIso(form.expira_em),
     };
     if (form.publico === 'grupos') payload.grupo_ids = form.grupo_ids;
@@ -584,6 +594,26 @@ function AdminComunicadosContent() {
           </div>
           <Switch id="aviso-fixado" checked={form.fixado} onCheckedChange={(v) => setField('fixado', v)} />
         </div>
+
+        {(editing ? canEdit : canInsert) && (
+          <div className="flex items-start gap-3 rounded-md border p-3" data-testid="aviso-email">
+            <Checkbox
+              id="aviso-avisar-email"
+              checked={form.avisar_email}
+              onCheckedChange={(v) => setField('avisar_email', v === true)}
+              className="mt-0.5"
+            />
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="aviso-avisar-email" className="font-medium">
+                Avisar por e-mail também
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Quem tem acesso à Área recebe o aviso por e-mail quando ele for publicado — uma vez só. O assunto
+                não mostra o título.
+              </p>
+            </div>
+          </div>
+        )}
 
         {podeAgendar ? (
           <fieldset className="flex flex-col gap-2">

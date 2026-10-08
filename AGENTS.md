@@ -310,8 +310,8 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `skipAutoLogout`), `require_not_impersonated`, limite 10/h por IP, auditoria `mensalidade_pix` com a
   chave antiga e a nova MASCARADAS (`pix_chave.mascarar_chave`; nunca a senha), e-mail
   (`templates/pix_chave_alterada.py`) a TODOS os admins ativos quando tipo/chave mudam, e
-  `pix_alterado_em` (a Area mostra "Chave alterada em dd/mm" por 30 dias — AM-11; aviso ativo ao
-  medium e TODO(AM-15)). Chave inteira e previa do QR so para FINANCEIRO:edit; quem so ve recebe a
+  `pix_alterado_em` (a Area mostra "Chave alterada em dd/mm" por 30 dias — AM-11; o e-mail aos
+  mediuns com acesso a Area — sem a chave, "confira na Area" — sai pelo agendador do AM-15). Chave inteira e previa do QR so para FINANCEIRO:edit; quem so ve recebe a
   mascarada. Validacao/normalizacao no formato do DICT em `services/pix_chave.py` (CPF/CNPJ com DV,
   CNPJ alfanumerico incluso; e-mail minusculo; celular `+55DD9…`; EVP com hifens) e espelho em
   `frontend/src/lib/pixChave.ts`. BR Code estatico ("PIX copia e cola") so no servidor:
@@ -359,6 +359,20 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   "Cheguei" × chamada). Justificativa (pode ter dado de saude, §6.8 do plano) ≤ 500, so com `ESCALAS:view`,
   nunca em auditoria (`medium_presenca`/`atividade_chamada` gravam so a acao/ids), e-mail, push ou exportacao.
   Encerramento automatico em 48 h: `services/presenca_scheduler.py` (chave `0x6769726168756204`, §11.9).
+- **Lembretes e avisos por e-mail (AM-15)**: `services/medium_lembrete_scheduler.py` (chave `0x6769726168756206`,
+  §11.9; regras e consultas em `services/medium_lembretes.py`, textos em
+  `services/email/templates/medium_lembretes.py`). So terreiro com a chave do piloto + plano `area_medium` + Area
+  ligada pela casa; lembrete de escala (funcao/rodizio/faxina planejada) so com `escalas`, os demais de atividade
+  com `atividades_corrente`, mensalidade com o modulo visivel e `area_medium_lembrete_mensalidade` (D-29: D-3 e
+  D+3, mes em aberto sem comprovante). Destinatario = medium ativo com vinculo a conta ativa com e-mail. Marca
+  `medium_lembretes_enviados` gravada ANTES do envio (`INSERT ... ON CONFLICT DO NOTHING RETURNING`, indice unico
+  parcial; commit e so depois enfileira) — uma vez so mesmo com 2 workers. Textos discretos (§6.8 do plano):
+  assunto/previa so com o nome do terreiro, nunca o nome da atividade/aviso; o texto do motivo de ausencia nunca
+  e lido (`justificativa IS NOT NULL`). Rotas: `GET/PUT /medium/preferencias` (`require_medium`; PUT com
+  `require_not_impersonated`, auditoria `medium_perfil` so com os tipos) e publicas `POST
+  /public/avisos-email/consultar|desligar` (token `medium_preferencias.token_descadastro` = busca raiz; 404
+  generico `LINK_INVALIDO`). Painel: `avisar_email` no aviso (COMUNICADOS insert/edit, mesmo corpo) e
+  `lembretes.mensalidade` na config da Area (CONFIGURACOES edit).
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -814,7 +828,10 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `079_presenca` (2026-10-08, AM-17/AM-28: `atividade_participacoes` — unica por atividade +
+- Head atual: `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
+  indices unicos parciais, `tenant_configs.area_medium_lembrete_mensalidade`, `comunicados.avisar_email`/
+  `avisar_email_em`; criada como 081 sobre a 079 enquanto 080/082 corriam em paralelo — o merge re-encadeia),
+  apos `079_presenca` (2026-10-08, AM-17/AM-28: `atividade_participacoes` — unica por atividade +
   medium —, `tenant_configs.presenca_modo_padrao`/`presenca_prazo_justificativa_dias`,
   `atividade_tipos.presenca_modo`; tipo com `checkin_pelo_medium` vira modo `app`), apos `078_atividades`
   (2026-10-08, AM-08: `atividade_tipos`, `atividade_tipo_grupos`,
@@ -869,8 +886,8 @@ Incluir obrigatoriamente:
   "Conferir" no `CobrancaMensal` (prop `onConferir`), sheet de conferencia com o comprovante (rota de download
   existente): "Confirmar pagamento" (POST de registro com PAGO, valor esperado e a data do envio — espelha em
   contas a receber; o arquivo do medium fica) e "Nao confirmar" (motivos rapidos + texto → `PATCH .../recusa`,
-  FINANCEIRO edit). O medium ve o motivo e pode reenviar (o reenvio limpa a recusa). E-mail ao admin quando
-  chega comprovante: AM-15.
+  FINANCEIRO edit). O medium ve o motivo e pode reenviar (o reenvio limpa a recusa). Desde o AM-15 o resumo
+  diario aos admins (8 h, um por terreiro, so contagens) traz quantos comprovantes esperam conferencia.
 - **Relatorio**: email HTML gerado por `render_mensalidade_report()` com KPI cards + tabela inadimplentes.
 - **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns / Associados / Historico; KPIs com o dia de vencimento de cada grupo, "Inadimplentes" so apos o vencimento) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`). `/admin/associados` carrega todas as paginas da API (limit 200) para a busca local.
 - **Migration 027**: ENUM `mensalidade_status`, tabelas `mensalidade_configs` + `mensalidade_pagamentos`, coluna `mediuns.mensalidade_isento BOOLEAN DEFAULT false`.
@@ -1103,7 +1120,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença e ajustes do piloto (AM-02/03/04/05/06/07/08/09/10/11/12/13/17/23/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, ajustes do piloto e lembretes por e-mail (AM-02/03/04/05/06/07/08/09/10/11/12/13/15/17/23/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1194,7 +1211,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `lib/autolink`: só `http(s)://`/`www.` viram link, `rel=noopener noreferrer nofollow`). Barra inferior:
   aba de módulo fora de `me.modulos` some (`MEDIUM_TABS[].modulo`) e a aba Avisos tem selo com
   `me.avisos_nao_lidos`. Público "cambones" = `is_atendimento` falso; público "Grupos da corrente" (AM-23,
-  abaixo) = `publico = 'grupos'` + `comunicado_grupos`. E-mail "avisar agora" é do AM-15.
+  abaixo) = `publico = 'grupos'` + `comunicado_grupos`. "Avisar por e-mail também" (AM-15): caixa no drawer
+  (só com insert ao criar / edit ao editar), `avisar_email` no corpo; o agendador manda (abaixo).
 - **Grupos da corrente (AM-23)**: migração `075_corrente_grupos` (§11.8; tabelas em `docs/database.md`), API
   `/api/v1/admin/corrente-grupos*` (MEDIUNS + `area_medium`, regras em §3.3 e `docs/api.md` §14). Cor = chave
   de paleta fechada (`ambar…grafite`, CHECK no banco) e o hex com contraste AA com branco em
@@ -1282,6 +1300,14 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `GrupoChip` dos escolhidos + `MultiCombobox` de medium) no `ConfirmacoesSheet` e no drawer de criar atividade de
   tipo "so escalados" (medium de `GET /admin/atividades/convocar/mediuns`; cria e depois chama o `convocar`, um
   toast so com o resumo `novos · ja estavam · fora de quem pode participar`); tudo so com `escalas:insert`.
+- **Lembretes e avisos por e-mail (AM-15)**: migracao `081_lembretes` (§11.8; tabelas em `docs/database.md`),
+  agendador e regras em §3.3/§11.9, API em `docs/api.md` (§8 da Area e §7 publico), textos e volume em
+  `docs/email.md`. Area: secao "Avisos por e-mail" no Perfil (`components/medium/perfil/AvisosPorEmail.tsx`:
+  um `Switch` por tipo de `disponiveis`, muda na hora, volta se der erro; impersonando mostra Ligado/Desligado
+  sem botao), nomes e textos em `constants/avisosEmail.ts`. Pagina publica `pages/descadastro/[token].tsx`
+  (`AuthShell`; abrir so consulta, "Desligar" no toque; `descadastro` em `RESERVED_SLUGS`). Painel: caixa
+  "Avisar por e-mail também" no drawer do aviso e "Lembrete da mensalidade por e-mail" em Configuracoes → Area
+  do Medium (so com o modulo mensalidade ligado e no plano).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
@@ -1409,6 +1435,13 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   48 h ou mais e tiveram presenca registrada (no modo confianca, um "vou" conta). Nao envia nada: so o
   `advisory_lock(PRESENCA_LOCK_KEY = 0x6769726168756204)` por rodada; a idempotencia vem da propria atividade
   travada com `FOR UPDATE` (`chamada_encerrada_em` preenchido nao muda mais).
+- `medium_lembrete_scheduler` (AM-15, desde 2026-10-08): a cada 15 min, so terreiros do piloto; lembretes e avisos
+  por e-mail da Area (mensalidade D-3/D+3, troca do PIX, escala nova, vespera 18 h, D-2 sem resposta, convite
+  para contar o motivo da falta, aviso com "avisar por e-mail", cancelamento) e o resumo diario aos admins
+  (8 h). `advisory_lock(MEDIUM_LEMBRETE_LOCK_KEY = 0x6769726168756206)` por rodada (a `...205` fica reservada
+  para o `retorno_scheduler`) e, em vez do `claim_once`, marca POR LINHA em `medium_lembretes_enviados`
+  (`INSERT ... ON CONFLICT DO NOTHING RETURNING`, commit antes de enfileirar). Espera a fila de e-mail ficar
+  abaixo de 300 antes de enfileirar (`email_queue.qsize()`; acima de 500 a fila descarta).
 - Regra para agendador que envia algo: usar `backend/src/services/scheduler_guard.py` — `advisory_lock(KEY)` envolvendo a rodada (só um worker processa) e `claim_once(tenant_id, namespace, item, scope)` gravado **antes** do envio (marca em `tenant_configs.custom_settings[namespace]` sob `SELECT ... FOR UPDATE`; `scope` diferente reinicia as marcas). Chaves de lock listadas no docstring do módulo; nova chave = novo número.
 - Trial: marcas em `custom_settings.trial_reminders` (escopo = `trial_ends_at`); dias restantes arredondados para cima e expiração só depois de `trial_ends_at` (antes podia expirar ~1 dia cedo). Aniversário: `custom_settings.birthday_digest` (escopo = data BRT).
 
