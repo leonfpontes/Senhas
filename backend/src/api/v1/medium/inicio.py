@@ -17,6 +17,11 @@ requisição). Devolve, numa chamada só:
   (AM-29) diz só se a casa cadastrou a chave PIX (AM-10) — a chave nunca sai no Início.
 - `avisos` (AM-09): `{nao_lidos, ultimos}` — quantos avisos o médium ainda não leu e os 3 mais
   novos deles (só título/data/fixado); zerado quando a casa desligou o módulo "avisos" (AM-10).
+- `aniversariantes` (AM-20): médiuns ATIVOS da casa, com a Área, que aceitaram mostrar o
+  aniversário (`aniversario_visivel`) e fazem aniversário nesta semana (segunda a domingo,
+  Brasília) — só primeiro nome, dia e mês (nunca o ano nem o id). Lista vazia = o cartão some.
+- `meu_aniversario` (AM-20): no dia do aniversário do próprio médium, a mensagem da casa
+  (`tenant_configs.area_medium_aniversario_mensagem` ou o texto padrão). Sem opt-in: só ele vê.
 - `trocas` (AM-27): pedidos de troca que esperam a resposta do médium (`para_responder`, viram a
   pendência `troca`) e os pedidos dele ainda abertos ou resolvidos há pouco (`minhas`). Null sem
   os planos `atividades_corrente` + `escalas`.
@@ -33,8 +38,9 @@ from src.api.dependencies import MediumContext, require_medium
 from src.api.v1.medium.avisos import avisos_do_medium
 from src.core.database import get_db
 from src.core.tz import today_local, utc_now
-from src.models import Gira, MensalidadeConfig, MensalidadePagamento
+from src.models import Gira, Medium, MensalidadeConfig, MensalidadePagamento, Tenant, TenantConfig
 from src.repositories.subscription_repo import SubscriptionRepository
+from src.services.medium_aniversarios import aniversariantes_da_semana, faz_aniversario_hoje, mensagem_aniversario
 from src.services.medium_area import get_area_medium_config
 from src.services.medium_inicio import MensalidadeDoMes, montar_pendencias, situacao_mensalidade
 from src.services.plan_features import get_effective_plan_features
@@ -86,6 +92,20 @@ class AvisosInicio(BaseModel):
     ultimos: List[AvisoInicio] = []
 
 
+class AniversarianteInicio(BaseModel):
+    """Só o que a corrente vê (AM-20): primeiro nome, dia e mês — nunca o ano nem o id."""
+
+    primeiro_nome: str
+    dia: int
+    mes: int
+    hoje: bool
+    sou_eu: bool
+
+
+class MeuAniversario(BaseModel):
+    mensagem: str
+
+
 class InicioResponse(BaseModel):
     hoje: date
     pendencias: List[dict]
@@ -93,6 +113,8 @@ class InicioResponse(BaseModel):
     mensalidade: Optional[MensalidadeInicio] = None
     avisos: AvisosInicio
     escalas: List[ItemPresenca] = []
+    aniversariantes: List[AniversarianteInicio] = []
+    meu_aniversario: Optional[MeuAniversario] = None
     trocas: Optional[MinhasTrocas] = None
 
 
@@ -203,6 +225,44 @@ async def _escalas(db: AsyncSession, ctx: MediumContext) -> list[ItemPresenca]:
     return out
 
 
+async def _aniversariantes(db: AsyncSession, ctx: MediumContext, hoje: date) -> list[AniversarianteInicio]:
+    """Quem aceitou mostrar o aniversário e faz aniversário nesta semana (AM-20).
+
+    Lê OUTROS médiuns da casa de propósito (exceção do auditor, `EXEMPT_MEDIUM_QUERIES`): só
+    ativos, com a Área (vínculo `user_id`) e com o opt-in ligado; só nome e nascimento saem do
+    banco e só primeiro nome + dia/mês saem da rota.
+    """
+    rows = await db.execute(
+        select(Medium.id, Medium.nome, Medium.data_nascimento).where(
+            Medium.tenant_id == ctx.tenant_id,
+            Medium.deleted_at.is_(None),
+            Medium.is_active.is_(True),
+            Medium.user_id.is_not(None),
+            Medium.aniversario_visivel.is_(True),
+            Medium.data_nascimento.is_not(None),
+        )
+    )
+    return [
+        AniversarianteInicio(**a.as_dict())
+        for a in aniversariantes_da_semana(hoje, [(r[0], r[1], r[2]) for r in rows.all()], ctx.medium.id)
+    ]
+
+
+async def _meu_aniversario(db: AsyncSession, ctx: MediumContext, hoje: date) -> Optional[MeuAniversario]:
+    """Mensagem da casa no dia do aniversário do próprio médium (sem opt-in: só ele vê)."""
+    if not faz_aniversario_hoje(ctx.medium.data_nascimento, hoje):
+        return None
+    terreiro = (
+        await db.execute(select(Tenant.name).where(Tenant.id == ctx.tenant_id))
+    ).scalar_one_or_none() or ""
+    personalizada = (
+        await db.execute(
+            select(TenantConfig.area_medium_aniversario_mensagem).where(TenantConfig.tenant_id == ctx.tenant_id)
+        )
+    ).scalar_one_or_none()
+    return MeuAniversario(mensagem=mensagem_aniversario(terreiro, ctx.medium.nome, personalizada))
+
+
 def escalas_pendentes(escalas: list[ItemPresenca]) -> int:
     """Escalas que pedem ação: responder (sem resposta) ou marcar "Cheguei" agora."""
     return sum(
@@ -241,5 +301,7 @@ async def get_medium_inicio(
         ),
         avisos=avisos,
         escalas=escalas,
+        aniversariantes=await _aniversariantes(db, ctx, hoje),
+        meu_aniversario=await _meu_aniversario(db, ctx, hoje),
         trocas=trocas,
     )

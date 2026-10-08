@@ -21,7 +21,7 @@ Tudo o que a corrente faz junto vira uma **atividade** (§8 do plano da Área do
   presença são a MESMA linha (§8.1): não há o que sincronizar. Única por (`atividade_id`,
   `medium_id`), o que também segura a corrida entre o "Cheguei" e a chamada.
 
-- `participacao_trocas` (AM-27, migração 082): troca de escala entre médiuns (pedido → aceito
+- `participacao_trocas` (AM-27, migração 086): troca de escala entre médiuns (pedido → aceito
   pelo colega → aprovado pela direção, ou direto sem aprovação; recusado/cancelado).
 
 - `escala_planos` / `escala_plano_dias` (AM-25, migração 080): o planejador da faxina — um
@@ -411,7 +411,7 @@ class AtividadeParticipacao(Base):
 
 
 class ParticipacaoTroca(Base):
-    """Troca de escala (AM-27, migração 082): um médium pede que um colega vá no lugar dele.
+    """Troca de escala (AM-27, migração 086): um médium pede que um colega vá no lugar dele.
 
     `participacao_id` é a linha de quem pede (escala de gira com função, faxina ou atividade "só
     escalados"); `substituto_id` null = "a direção escolhe" (ninguém aceitou aparecer para os

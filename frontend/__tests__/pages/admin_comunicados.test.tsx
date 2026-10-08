@@ -236,7 +236,7 @@ describe('Avisos — "Avisar por e-mail também" (AM-15)', () => {
     const caixa = within(dialog).getByRole('checkbox', { name: 'Avisar por e-mail também' });
     expect(caixa).not.toBeChecked();
     fireEvent.click(caixa);
-    expect(within(dialog).getByText(/O assunto não mostra o título/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/O assunto e a notificação não mostram o título/)).toBeInTheDocument();
     await act(async () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Publicar aviso' }));
     });

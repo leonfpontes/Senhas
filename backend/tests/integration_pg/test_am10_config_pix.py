@@ -89,6 +89,11 @@ async def test_config_da_area_crud_e_grupos(client, db):
         "presenca_no_plano": True,
         # AM-15: lembretes da mensalidade por e-mail (padrão ligado).
         "lembretes": {"mensalidade": True},
+        # AM-20: mensagem de aniversário da casa (None = texto padrão).
+        "aniversario_mensagem": None,
+        # AM-27: troca na escala (padrão: precisa da aprovação da direção; Basic não tem escalas).
+        "trocas": {"exige_aprovacao": True},
+        "trocas_no_plano": False,
     }
 
     salvo = await client.put(

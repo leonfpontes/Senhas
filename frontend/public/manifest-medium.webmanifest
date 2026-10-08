@@ -9,7 +9,7 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#180e09",
+  "theme_color": "#ffffff",
   "background_color": "#fcf8f2",
   "categories": ["lifestyle", "social"],
   "prefer_related_applications": false,

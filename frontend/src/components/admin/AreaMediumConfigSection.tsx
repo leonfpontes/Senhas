@@ -14,6 +14,8 @@
  * sem comprovante — a casa pode desligar (`lembretes.mensalidade`). Só aparece com o módulo
  * mensalidade ligado e no plano.
  *
+ * Mensagem de aniversário (AM-20): o que a casa diz ao médium no Início, no dia do aniversário dele
+ * (até 200; `{nome}` vira o primeiro nome). Em branco, vale o texto padrão.
  * Troca na escala (AM-27, só com `trocas_no_plano` — plano `escalas`): "Troca combinada entre
  * médiuns precisa da aprovação da direção" (padrão ligado; desligado, o aceite do colega já vale).
  *
@@ -38,6 +40,7 @@ import { useSnackbar } from '@/contexts/SnackbarContext';
 
 export const AREA_MEDIUM_CONFIG_URL = '/api/v1/admin/config/area-medium';
 const BOAS_VINDAS_MAX = 500;
+export const ANIVERSARIO_MENSAGEM_MAX = 200;
 
 type Modulo = 'agenda' | 'avisos' | 'mensalidade';
 
@@ -50,6 +53,7 @@ interface AreaMediumConfigApi {
   presenca?: { modo_padrao: ModoPresenca; prazo_justificativa_dias: number };
   presenca_no_plano?: boolean;
   lembretes?: { mensalidade: boolean };
+  aniversario_mensagem?: string | null;
   trocas?: { exige_aprovacao: boolean };
   trocas_no_plano?: boolean;
 }
@@ -62,6 +66,7 @@ interface FormState {
   presencaModo: ModoPresenca;
   prazo: string;
   lembreteMensalidade: boolean;
+  aniversarioMensagem: string;
   trocaExigeAprovacao: boolean;
 }
 
@@ -89,6 +94,7 @@ function toForm(data: AreaMediumConfigApi): FormState {
     presencaModo: data.presenca?.modo_padrao ?? 'confianca',
     prazo: String(data.presenca?.prazo_justificativa_dias ?? 7),
     lembreteMensalidade: data.lembretes?.mensalidade ?? true,
+    aniversarioMensagem: data.aniversario_mensagem ?? '',
     trocaExigeAprovacao: data.trocas?.exige_aprovacao ?? true,
   };
 }
@@ -187,6 +193,7 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
         whatsapp: whatsappDigits,
         modulos: form.modulos,
         lembretes: { mensalidade: form.lembreteMensalidade },
+        aniversario_mensagem: form.aniversarioMensagem,
         ...(presencaNoPlano
           ? { presenca: { modo_padrao: form.presencaModo, prazo_justificativa_dias: prazoNumero } }
           : {}),
@@ -232,6 +239,18 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
           disabled={!canEdit}
           placeholder="Ex.: Que bom ter você na corrente! Aqui ficam a agenda, os avisos e a mensalidade."
           helperText={`Aparece no início da Área. ${form.boasVindas.length}/${BOAS_VINDAS_MAX}`}
+        />
+
+        <TextField
+          label="Mensagem de aniversário"
+          value={form.aniversarioMensagem}
+          onChange={(e) => set('aniversarioMensagem', e.target.value.slice(0, ANIVERSARIO_MENSAGEM_MAX))}
+          multiline
+          rows={2}
+          maxLength={ANIVERSARIO_MENSAGEM_MAX}
+          disabled={!canEdit}
+          placeholder="A casa deseja um feliz aniversário, {nome}! Axé!"
+          helperText={`Aparece no início da Área no dia do aniversário do médium (só ele vê). {nome} vira o primeiro nome. Em branco, vale a mensagem padrão. ${form.aniversarioMensagem.length}/${ANIVERSARIO_MENSAGEM_MAX}`}
         />
 
         <MaskedInput

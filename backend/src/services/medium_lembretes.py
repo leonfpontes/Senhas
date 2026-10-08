@@ -192,6 +192,13 @@ def preferencia_ligada(preferencia: Optional[MediumPreferencia], tipo: str) -> b
     return preferencia.ligado(PREFERENCIA_DO_TIPO[tipo])
 
 
+def preferencia_push_ligada(preferencia: Optional[MediumPreferencia], tipo: str) -> bool:
+    """Notificação no celular (AM-16): o mesmo padrão, com os `push_*` (separados do e-mail)."""
+    if preferencia is None:
+        return True
+    return preferencia.ligado_push(PREFERENCIA_DO_TIPO[tipo])
+
+
 def quando_legivel(inicio: datetime) -> str:
     """"sábado, 12/10, às 9h" (ou "às 9h30") no horário de Brasília."""
     d = local(inicio)
@@ -791,3 +798,7 @@ async def resumo_admin(
 
 def preferencias_payload(preferencia: Optional[MediumPreferencia]) -> dict[str, bool]:
     return {p: (True if preferencia is None else preferencia.ligado(p)) for p in PREFERENCIAS}
+
+
+def preferencias_push_payload(preferencia: Optional[MediumPreferencia]) -> dict[str, bool]:
+    return {p: (True if preferencia is None else preferencia.ligado_push(p)) for p in PREFERENCIAS}

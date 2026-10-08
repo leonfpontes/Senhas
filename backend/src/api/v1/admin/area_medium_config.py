@@ -10,6 +10,9 @@ mensalidade) e — AM-17/AM-28 — a presença: modo padrão da casa (confiança
 prazo para o médium contar o motivo de uma falta (1 a 30 dias, padrão 7).
 AM-15: `lembretes.mensalidade` liga/desliga os lembretes da mensalidade por e-mail (D-29: 3 dias
 antes e 3 dias depois do vencimento, sem comprovante) — `tenant_configs.area_medium_lembrete_mensalidade`.
+AM-20: `aniversario_mensagem` (até 200, texto simples; `{nome}` vira o primeiro nome) é a mensagem da
+casa no Início do médium no dia do aniversário dele; vazio = "A <terreiro> deseja um feliz
+aniversário, <primeiro nome>! Axé!" (`tenant_configs.area_medium_aniversario_mensagem`).
 AM-27: `trocas.exige_aprovacao` — "Troca combinada entre médiuns precisa da aprovação da direção"
 (padrão ligado; `tenant_configs.escala_troca_exige_aprovacao`); `trocas_no_plano` diz se a casa tem
 troca de escala (plano `escalas`, Pro — a tela só mostra a opção com ele).
@@ -36,6 +39,8 @@ from src.models import PermissionFeature, TenantConfig, User
 from src.repositories.config_repo import TenantConfigRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
+from src.services.medium_aniversarios import MENSAGEM_MAX as ANIVERSARIO_MENSAGEM_MAX
+from src.services.medium_aniversarios import limpar_mensagem
 from src.services.plan_features import get_effective_plan_features
 from src.services.presenca import modo_efetivo, validar_modo, validar_prazo
 
@@ -96,6 +101,8 @@ class AreaMediumConfigResponse(BaseModel):
     # A presença só vale com o plano `atividades_corrente`: a tela só mostra a seção com ele.
     presenca_no_plano: bool
     lembretes: LembretesConfig = LembretesConfig()
+    # AM-20: mensagem da casa no dia do aniversário do médium (None = texto padrão).
+    aniversario_mensagem: Optional[str] = None
     trocas: TrocasConfig = TrocasConfig()
     # Troca de escala só com o plano `escalas` (e a presença): a tela só mostra a opção com ele.
     trocas_no_plano: bool = False
@@ -108,6 +115,8 @@ class AreaMediumConfigUpdate(BaseModel):
     modulos: Optional[AreaMediumModulosUpdate] = None
     presenca: Optional[PresencaConfigUpdate] = None
     lembretes: Optional[LembretesConfigUpdate] = None
+    # Folga para o texto com HTML/espaços que a limpeza tira; o limite real é o do texto limpo.
+    aniversario_mensagem: Optional[str] = Field(None, max_length=ANIVERSARIO_MENSAGEM_MAX * 2)
     trocas: Optional[TrocasConfigUpdate] = None
 
 
@@ -140,6 +149,7 @@ def _snapshot(config: TenantConfig) -> dict:
             "prazo_justificativa_dias": config.presenca_prazo_justificativa_dias,
         },
         "lembretes": {"mensalidade": bool(config.area_medium_lembrete_mensalidade)},
+        "aniversario_mensagem": config.area_medium_aniversario_mensagem,
         "trocas": {"exige_aprovacao": bool(config.escala_troca_exige_aprovacao)},
     }
 
@@ -203,6 +213,11 @@ async def update_area_medium_config(
             config.presenca_prazo_justificativa_dias = validar_prazo(body.presenca.prazo_justificativa_dias)
     if body.lembretes is not None and body.lembretes.mensalidade is not None:
         config.area_medium_lembrete_mensalidade = body.lembretes.mensalidade
+    if "aniversario_mensagem" in enviados:
+        try:
+            config.area_medium_aniversario_mensagem = limpar_mensagem(body.aniversario_mensagem)
+        except ValueError as exc:
+            raise ValidationError(str(exc), details={"campo": "aniversario_mensagem"})
     if body.trocas is not None and body.trocas.exige_aprovacao is not None:
         config.escala_troca_exige_aprovacao = body.trocas.exige_aprovacao
     await db.flush()

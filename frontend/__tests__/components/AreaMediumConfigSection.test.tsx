@@ -58,8 +58,23 @@ describe('AreaMediumConfigSection', () => {
       whatsapp: '11987654321',
       modulos: { agenda: true, avisos: false, mensalidade: true },
       lembretes: { mensalidade: true },
+      aniversario_mensagem: '',
     });
     expect(mockSuccess).toHaveBeenCalledWith('Área do Médium salva.');
+  });
+
+  it('mensagem de aniversário (AM-20): carrega, conta os caracteres e vai no salvar', async () => {
+    mockGet.mockResolvedValue({ data: { ...CONFIG, aniversario_mensagem: 'Axé, {nome}!' } });
+    render(<AreaMediumConfigSection canEdit />);
+    const campo = await screen.findByLabelText('Mensagem de aniversário');
+    expect(campo).toHaveValue('Axé, {nome}!');
+    expect(screen.getByText(/\{nome\} vira o primeiro nome/)).toBeInTheDocument();
+    fireEvent.change(campo, { target: { value: 'Parabéns, {nome}! Axé!' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Salvar Área do Médium/ }));
+    });
+    await waitFor(() => expect(mockPut).toHaveBeenCalled());
+    expect(mockPut.mock.calls[0][1]).toMatchObject({ aniversario_mensagem: 'Parabéns, {nome}! Axé!' });
   });
 
   it('sem CONFIGURACOES:edit: campos só leitura e sem botão de salvar', async () => {

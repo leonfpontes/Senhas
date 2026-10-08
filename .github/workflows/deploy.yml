@@ -83,6 +83,9 @@ jobs:
           # Divulgação da Área do Médium (AM-24): "true" liga o link "Sou médium", a linha no
           # comparativo de planos e a pergunta no FAQ. Sem a variável = desligada (padrão false).
           NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA: ${{ vars.NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA }}
+          # Programa de Parceiros (C-06): "true" publica /parceiros, o link no rodapé, a chamada na
+          # landing e a URL no sitemap. Sem a variável = desligada (padrão false, página em 404).
+          NEXT_PUBLIC_PARCEIROS_PUBLICADO: ${{ vars.NEXT_PUBLIC_PARCEIROS_PUBLICADO }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -94,7 +97,7 @@ jobs:
           # entre as migrations e o swap dos containers. timeout-minutes do job (25)
           # continua sendo o teto real.
           command_timeout: 30m
-          envs: NEXT_PUBLIC_SUPPORT_WHATSAPP,NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA
+          envs: NEXT_PUBLIC_SUPPORT_WHATSAPP,NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA,NEXT_PUBLIC_PARCEIROS_PUBLICADO
           script: |
             set -euo pipefail
             cd /opt/senhas
@@ -120,6 +123,7 @@ jobs:
             # Vazio no GitHub = vale o /opt/senhas/.env (variável de shell vence o .env no compose).
             if [ -z "${NEXT_PUBLIC_SUPPORT_WHATSAPP:-}" ]; then unset NEXT_PUBLIC_SUPPORT_WHATSAPP; fi
             if [ -z "${NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA:-}" ]; then unset NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA; fi
+            if [ -z "${NEXT_PUBLIC_PARCEIROS_PUBLICADO:-}" ]; then unset NEXT_PUBLIC_PARCEIROS_PUBLICADO; fi
             docker compose -f docker-compose.prod.yml build frontend backend
 
             echo "==> [4/6] Migrations"

@@ -422,6 +422,39 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   /public/avisos-email/consultar|desligar` (token `medium_preferencias.token_descadastro` = busca raiz; 404
   generico `LINK_INVALIDO`). Painel: `avisar_email` no aviso (COMUNICADOS insert/edit, mesmo corpo) e
   `lembretes.mensalidade` na config da Area (CONFIGURACOES edit).
+- **Notificacao no celular (AM-16, Web Push/VAPID)**: rotas `GET /medium/push`, `POST|DELETE /medium/push/inscricao`,
+  `PUT /medium/push/preferencias`, `POST /medium/push/teste` (`api/v1/medium/push.py`; `require_medium`; escritas
+  com `require_not_impersonated`; tudo filtrado por `ctx.tenant_id` + `ctx.medium.id` + `ctx.user.id`). Sem
+  `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` o push fica desligado sem erro
+  (`services/web_push.disponivel()`: GET diz `disponivel: false`, ligar/testar 409 `PUSH_INDISPONIVEL`, agendador
+  so e-mail). O `endpoint` so e aceito de servico de push conhecido (`HOSTS_PUSH`: FCM, Mozilla, WNS, Apple — o
+  servidor faz POST nele; nada de URL interna/SSRF); o mesmo endpoint inscrito por outra conta passa a ser dela
+  (`ON CONFLICT (endpoint) DO UPDATE`). Envio pelo agendador do AM-15 (mesma marca, §11.9) so para inscricoes do
+  usuario HOJE ligado ao medium (`Medium.user_id == PushInscricao.user_id`); texto discreto em
+  `services/medium_push.py` (sem nome de atividade/aviso, valor, motivo); 404/410 apagam a inscricao, outras
+  falhas somam `failures` (5 seguidas apagam).
+- **Meus dados e privacidade (AM-14)**: `api/v1/medium/meus_dados.py` — `GET /medium/meus-dados/exportar` (JSON com
+  cadastro SEM os campos internos — `observacoes`, `data_saida`, `registrado_por`, observacao do pagamento —, conta,
+  consentimento (aceite e revogacao), grupos, avisos por e-mail, mensalidades com metadados do comprovante (nunca os
+  bytes: colunas explicitas), avisos lidos e participacoes com o motivo que o PROPRIO medium contou; so
+  `ctx.tenant_id` + `ctx.medium.id`) e `POST /medium/meus-dados/encerrar` (`{senha}`; errada → 400
+  `SENHA_INCORRETA`, nunca 401). Encerrar grava `mediuns.area_consentimento_revogado_em/_versao` (o aceite fica
+  como historico), desliga `aniversario_visivel` e chama `medium_convite.tirar_acesso` (mesma regra do D-08: conta
+  `medium` pura desativada + `sessions_revoked_at` + `end_all_sessions` + `clear_auth_cookies`; operador/admin so
+  perde a Area). Cadastro e dados ficam com a casa (controlador). Auditoria `Medium` so com ids/versoes
+  (`acesso_area: encerrado_pelo_medium`) e e-mail aos admins ATIVOS (`medium_lembretes.emails_dos_admins`,
+  `templates/medium_acesso_encerrado.py`, so o primeiro nome). As duas rotas com `require_not_impersonated`. O
+  convite de novo (AM-03) reativa a conta `medium` e grava um aceite novo.
+- **Aniversariantes (AM-20)**: opt-in `mediuns.aniversario_visivel` (padrao `false`) por `PUT /medium/perfil/aniversario`
+  `{mostrar}` (sem `data_nascimento` → 422; impersonacao → 403; auditoria `medium_perfil`); `GET /medium/perfil`
+  devolve `mostrar_aniversario`. `GET /medium/inicio` ganha `aniversariantes` (ativos, com vinculo `user_id`, com o
+  opt-in, da MESMA casa, aniversario de segunda a domingo em Brasilia; so `{primeiro_nome, dia, mes, hoje, sou_eu}`,
+  nunca o ano nem o id — leitura de outros mediuns isenta em `EXEMPT_MEDIUM_QUERIES` com justificativa) e
+  `meu_aniversario` (`{mensagem}` so no dia do PROPRIO aniversario, sem opt-in). Regras puras em
+  `services/medium_aniversarios.py` (29/02 vira 01/03 fora do bissexto, semana que cruza o ano). Mensagem da casa:
+  `tenant_configs.area_medium_aniversario_mensagem` (≤ 200, texto simples, `{nome}` = primeiro nome; vazio = "A
+  <terreiro> deseja um feliz aniversario, <primeiro nome>! Axe!") em `aniversario_mensagem` da config da Area
+  (CONFIGURACOES edit).
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -877,11 +910,16 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `082_trocas_escala` (2026-10-08, AM-27: `participacao_trocas` — uma aberta por participacao,
+- Head atual: `086_trocas_escala` (2026-10-08, AM-27: `participacao_trocas` — uma aberta por participacao,
   indice unico parcial —, `atividade_participacoes.justificativa_avaliacao/_avaliada_em/_avaliada_por` e origem
   `troca`, `tenant_configs.escala_troca_exige_aprovacao`, `medium_preferencias.mostrar_nome_colegas`, tipos
-  `troca_*` em `medium_lembretes_enviados`; numero provisorio — pode ser renumerada/re-encadeada no merge), apos
-  `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
+  `troca_*` em `medium_lembretes_enviados`), apos `084_parceiros` (2026-10-08, C-06: tabela da plataforma `parceiro_interesses` — pedidos do
+  Programa de Parceiros, sem `tenant_id`, `ip_hash` HMAC, CHECK de `tipo`/`status`), apos
+  `083_meus_dados_aniversarios` (2026-10-08, AM-14/AM-20: `mediuns.area_consentimento_revogado_em`/
+  `_versao`, `mediuns.aniversario_visivel` (padrao `false`) e `tenant_configs.area_medium_aniversario_mensagem`
+  (String 200)), apos `082_push_inscricoes` (2026-10-08, AM-16: tabela `push_inscricoes` — endpoint unico, chaves
+  `p256dh`/`auth`, `user_agent` curto, `last_success_at`, `failures`, FKs CASCADE para tenant/usuario/medium — e
+  `medium_preferencias.push_<tipo>` (5 booleanos, padrao true)), apos `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
   indices unicos parciais, `tenant_configs.area_medium_lembrete_mensalidade`, `comunicados.avisar_email`/
   `avisar_email_em`; criada sobre a 079 e re-encadeada depois da 080 no merge), apos `080_escala_planos` (2026-10-08, AM-25: `escala_planos` — um por tipo e mes, rascunho/publicado,
   unico por `tenant_id, tipo_id, mes` — e `escala_plano_dias` — data x grupo x horario, `atividade_id` FK SET NULL,
@@ -1177,7 +1215,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, Escala de gira, divulgação e troca na escala (AM-02/03/04/05/06/07/08/09/10/11/12/13/15/17/18/23/24/25/26/27/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, notificação no celular, Escala de gira, divulgação, Meus dados, aniversariantes e troca na escala (AM-02/03/04/05/06/07/08/09/10/11/12/13/14/15/16/17/18/20/23/24/25/26/27/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1215,16 +1253,16 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   terreiro e linha da marca, menu "Menu" (Trocar de área, Sair = `services/authSession.logout`, que
   encerra só a impersonação quando há uma), barra inferior Início · Agenda · Avisos · Mensalidade ·
   Perfil (`z-40`, área segura, ícone + texto; aba de módulo — hoje a Mensalidade — some quando
-  `modulos` do `/medium/me` não a traz, `visibleMediumTabs`), claro/escuro do sistema, gate (sem sessão → login;
+  `modulos` do `/medium/me` não a traz, `visibleMediumTabs`), sempre clara (`useAreaClara`, §11.16), gate (sem sessão → login;
   só painel → painel). `GET /api/v1/medium/inicio` (`api/v1/medium/inicio.py`, regras puras em
   `services/medium_inicio.py`): `pendencias` já ordenadas (D-24: escala → mensalidade atrasada ou
   a até 5 dias do vencimento — antes disso vai para "Acompanhando", decisão do dono 07/10 → aviso novo (AM-09); escala desde o AM-17: `escalas` + pendência `escala`), `proxima_gira` (ativa, futura ou em
   andamento; só nome/horário/local e `orientacoes` = `giras.orientacoes_corrente`, AM-07), `mensalidade` do mês em
   Brasília (só com `mensalidade_mediun` e config ativa; regras do §11.10: isento/paga/pendente até
   o vencimento/atrasada depois; entrou depois do mês ou casa sem valor → null) e `avisos`
-  `{nao_lidos, ultimos}` (AM-09; vazio com o módulo desligado). Telas: `/medium` (faixa café "Olá, <nome>",
+  `{nao_lidos, ultimos}` (AM-09; vazio com o módulo desligado). Telas: `/medium` (faixa clara `MediumFaixa` "Olá, <nome>",
   pendências, próxima gira com "O que levar" e "Ver detalhes da gira" — só com o módulo agenda —,
-  "Acompanhando", EmptyState), `/medium/perfil` (Meus dados, dados da casa, conta de acesso — AM-13 —, Ícone na tela inicial, Trocar de área, Sair). Não há mais telas
+  "Acompanhando", EmptyState), `/medium/perfil` (Meus dados, Aniversário — AM-20 —, dados da casa, conta de acesso — AM-13 —, Meus dados e privacidade — AM-14 —, Ícone na tela inicial, Trocar de área, Sair). Não há mais telas
   provisórias ("Em breve"): Agenda, Avisos e Mensalidade saíram nos AM-07, AM-09 e AM-11.
 - **Ícone na tela inicial (D-23)**: `public/manifest-medium.webmanifest` (`id` `/medium`,
   `start_url` `/medium?source=pwa`, ícones do GiraHub), linkado só pelo `MediumLayout`; o
@@ -1314,6 +1352,21 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   Impersonando: só leitura (ações somem). Página pública `pages/confirmar-email/[token].tsx` (`AuthShell`; confirma só
   no toque — leitor de link não gasta o token; depois "Entrar" → `/login?email_confirmado=1`). `confirmar-email` está em
   `RESERVED_SLUGS`. A Auditoria do painel rotula `medium_perfil` como "Perfil do médium (Área)". Backend e regras em §3.3.
+- **Meus dados e privacidade (AM-14)**: Perfil → "Meus dados e privacidade" abre `/medium/meus-dados`
+  (`pages/medium/meus-dados.tsx`, `components/medium/meusDados/*`): "Quem vê o quê" (`quemVeOQue`: a direção da casa,
+  os outros médiuns — nada; só o aniversário se ligou o AM-20 —, ninguém de fora da casa), "Baixar meus dados" em PDF
+  (`lib/pdf/meusDadosPdf.ts`, base `pdfDoc` com logo/cor do terreiro, montado no aparelho a partir do JSON) e em JSON
+  (`baixarJson`), e "Encerrar meu acesso" (`EncerrarAcessoDrawer`: `CrudDrawer` `.medium-terra` com o que acontece +
+  senha, `skipAutoLogout`). Depois (`aposEncerrar`): conta só da Área → tira o `user` e a escolha de área do
+  localStorage e recarrega em `/login?acesso_encerrado=1` (aviso no login); operador/admin → `areas.medium = null` no
+  `user`, escolha lembrada = painel, recarrega em `/admin/dashboard`. Impersonando, baixar/encerrar somem. Backend e
+  regras em §3.3.
+- **Aniversariantes (AM-20)**: Perfil → seção "Aniversário" (`components/medium/perfil/AniversarioOptIn.tsx`: `Switch`
+  "Mostrar meu aniversário para a corrente", muda na hora e volta se der erro; sem data de nascimento fica travado e
+  manda preencher em Meus dados; impersonando mostra Ligado/Desligado). Início (`components/medium/Aniversarios.tsx`):
+  `MeuAniversarioCard` no topo no dia do próprio aniversário e "Aniversariantes da semana" depois da próxima gira
+  (primeiro nome + dd/mm ou "Hoje", "(você)"; some vazio). Painel: campo "Mensagem de aniversário" em Configurações →
+  Área do Médium (`AreaMediumConfigSection`, ≤ 200, `{nome}`).
 - **Login multi-terreiro (AM-05)**: mesmo e-mail em mais de um terreiro escolhe o terreiro no `/login` antes da
   escolha de área (regras em §3.2).
 - **Atividades da casa (AM-08)**: migracoes `077_permissao_escalas_enum` + `078_atividades` (§11.8; tabelas em
@@ -1393,6 +1446,19 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   (`AuthShell`; abrir so consulta, "Desligar" no toque; `descadastro` em `RESERVED_SLUGS`). Painel: caixa
   "Avisar por e-mail também" no drawer do aviso e "Lembrete da mensalidade por e-mail" em Configuracoes → Area
   do Medium (so com o modulo mensalidade ligado e no plano).
+- **Notificacao no celular (AM-16)**: migracao `082_push_inscricoes` (§11.8; tabela em `docs/database.md`), envio
+  e regras em §3.3/§11.9, API em `docs/api.md` (Area do Medium §9), chaves VAPID em `docs/deployment.md`. Area: secao "Notificacoes
+  no celular" no Perfil (`components/medium/perfil/NotificacoesNoCelular.tsx`), logo abaixo de "Avisos por e-mail" e
+  com o mesmo desenho: uma linha "Receber notificacoes neste celular" (a permissao e por aparelho; o pedido do
+  navegador so sai no toque) e, com algum aparelho ligado, um `Switch` por tipo (`AVISO_CELULAR_TEXTO` em
+  `constants/avisosEmail.ts`) e "Mandar uma notificacao de teste". iPhone fora da tela inicial → explica (iOS 16.4+)
+  e abre o `InstallAreaSheet`; sem suporte/permissao bloqueada → texto de como liberar. Ao abrir com o aparelho ja
+  inscrito, reenvia a inscricao (idempotente). "Sair" da Area tira o aparelho (`desligarCelularAoSair`, ate 2 s;
+  impersonando nao mexe). Helpers do navegador em `lib/webPush.ts`. `public/sw.js`: `push` (titulo/texto/url do
+  servidor, icone `/icons/icon-192.png`, `tag` substitui a anterior) e `notificationclick` (foca janela da origem e
+  navega, senao abre; `url` de fora vira `/medium`); a regra de nunca cachear `/api/*` segue e o teste
+  `__tests__/pwa/sw.test.ts` cobre as rotas `/api/v1/medium/push*`. A caixa "Avisar por e-mail também" do aviso
+  tambem dispara o push (texto de ajuda atualizado).
 - **Escala de gira por funcao (AM-18)**: sem migracao (usa `funcao_id`/`grupo_id`/`origem` da participacao do
   AM-17). API `api/v1/admin/atividades_escala.py` (gates/permissoes em §3.3, contrato em `docs/api.md` §19),
   regras em `services/escala_gira.py`: a escala grava `funcao_id` na PROPRIA participacao (uma funcao por medium
@@ -1413,8 +1479,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `modo_escala = funcoes`). Area: `minha_participacao.funcao` (null quando dispensado) → `EscalaCard` "Voce e
   Cambone na gira de sabado" (`presencaApi.fraseDaFuncao`, D-17), selo da Agenda "Cambone · Vou", linha em
   "Acompanhando" no Inicio e "Funcao: Cambone" no historico de Minhas presencas.
-- **Troca na escala e abono (AM-27)**: migracao `082_trocas_escala` (§11.8; tabela em `docs/database.md`), API em
-  §3.3 e `docs/api.md` (§20 do painel, §9 da Area), regras em `services/trocas_escala.py`. Troca so na escala de
+- **Troca na escala e abono (AM-27)**: migracao `086_trocas_escala` (§11.8; tabela em `docs/database.md`), API em
+  §3.3 e `docs/api.md` (§20 do painel, §11 da Area), regras em `services/trocas_escala.py`. Troca so na escala de
   verdade (gira com funcao, faxina, atividade "so escalados"), antes do inicio, chamada aberta. Area: detalhe da
   Agenda com `components/medium/troca/TrocaNaAtividade` ("Nao vou poder: pedir troca" → `PedirTrocaSheet`: colegas
   elegiveis que ligaram o opt-in, so o PRIMEIRO nome, e sempre "Deixar a direcao escolher" — sem ninguem com
@@ -1445,6 +1511,31 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `area_medium` segue em `UNSOLD_FEATURES`); pergunta "Os médiuns têm acesso?" no FAQ e no JSON-LD
   (`landingFaq.visibleFaq`). Sem página nova (nada em `RESERVED_SLUGS`). Componentes leem a chave na renderização
   (o teste `area_medium_divulgacao.test.tsx` troca o valor por getter).
+
+### 11.24 Programa de Parceiros GiraHub (C-06, 2026-10-08)
+- **Chave de lançamento** `PARCEIROS_PUBLICADO` (`constants/parceiros.ts`) = `NEXT_PUBLIC_PARCEIROS_PUBLICADO === 'true'`,
+  mesmo encanamento da `AREA_MEDIUM_DIVULGADA` (§11.23): ARG de build no `frontend/Dockerfile` (padrão `false`),
+  `args:` do `docker-compose.prod.yml` (`${NEXT_PUBLIC_PARCEIROS_PUBLICADO:-false}`), variável do ambiente `Hostinger`
+  repassada pelo `deploy.yml` (vazia = vale o `.env` da VPS), `.env*.example`. **Desligada por padrão** (o dono aprova
+  os números antes). Desligada: `/parceiros` é 404 (`getStaticProps → notFound`), sem link "Seja parceiro" no rodapé
+  do `MarketingShell`, sem `ParceirosChamada` na landing e fora do sitemap (`sitemap.xml.staticRoutes()`). Ligar =
+  `gh variable set NEXT_PUBLIC_PARCEIROS_PUBLICADO --env Hostinger --body true` e redeployar.
+- **Página** `pages/parceiros.tsx` (identidade da landing, `MarketingShell`): quem pode, vantagens dos dois lados,
+  exemplo "Um terreiro no plano X rende R$ Y por mês" e comissão por plano calculados de `constants/plans.ts`
+  (`planoExemplo` = plano `popular`), material, como funciona, formulário (`components/landing/ParceiroForm.tsx`) e
+  regulamento em acordeão. Regras e números só em `constants/parceiros.ts`; economia e decisões pendentes em
+  `docs/programa-parceiros.md`. `parceiros` está em `RESERVED_SLUGS`.
+- **API pública** `POST /api/v1/public/parceiros/interesse` (5/hora por IP no slowapi; campo isca `website` →
+  201 sem gravar nem avisar; aceite do regulamento obrigatório → 422; WhatsApp só dígitos, UF maiúscula, e-mail
+  minúsculo). Grava `parceiro_interesses` (tabela da plataforma, sem `tenant_id` — os auditores não exigem filtro
+  de tenant em modelo sem a coluna) com `ip_hash` = HMAC-SHA256 do IP (chave derivada do `SECRET_KEY`; IP nunca em
+  claro). Aviso à equipe por `email_queue` para o `ALERT_EMAIL` (o endereço de plataforma que já recebe os alertas
+  de 5xx; vazio = só log), `reply_to` = e-mail do interessado, link `/platform/parceiros?pedido=<id>`.
+- **Plataforma** `/platform/parceiros` (item "Parceiros" na sidebar e na paleta ⌘K): abas por status com contagem
+  (`novo · em_contato · aprovado · recusado`), busca, `DataTable` e `CrudDrawer` com contatos (WhatsApp/e-mail),
+  status, cupom (`^[A-Z0-9_-]{3,40}$`, maiúsculo) e observações. API `GET /api/v1/platform/parceiros`
+  (`status`, `q`, `limit`, `offset` → `{items, total, counts}`), `GET`/`PATCH /api/v1/platform/parceiros/{id}`, todas
+  com `require_super_admin`. Cupom criado à mão no Stripe até o $-05 (o checkout ainda não aceita código promocional).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
@@ -1480,18 +1571,25 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   que o `deploy.yml` repassa ao build — trocar o número = mudar a variável e redeployar.
   Página nova de primeiro nível → `backend/src/core/reserved_slugs.py` (teste quebra se faltar) e
   `STATIC_ROUTES` do `pages/sitemap.xml.tsx`.
-- **Área do Médium (AM-06)**: identidade do site novo (paleta terra + Fraunces) com a COR E O LOGO DO TERREIRO nos
-  detalhes. Escopo `.medium-terra` (globals.css; `MediumLayout`, `/escolher-area` e os overlays que eles abrem — Sheet,
-  DropdownMenu e `ConfirmDialog` (prop `className`, AM-29) recebem a classe e `fraunces.variable`, porque são portados
-  para o `<body>`): fundos/texto/bordas da
-  paleta terra (areia no claro, café no escuro), mas `--primary`/`--primary-foreground` continuam do `applyBrand` (botão
-  principal, aba ativa, data da gira, linha do cabeçalho) e `text-brand` lê `--terra-brand-text-light/-dark`, calculadas
-  por `applyTerraBrandText` (`lib/brand.brandTextColorOn` contra `TERRA_SURFACES`). Faixas café (`bg-cafe-950`) com título
-  branco, eyebrow `text-ouro-300` e texto `text-areia-200`, fio da marca `from-primary to-ouro-400`. Pares travados em
-  `__tests__/styles/marketingContrast.test.ts` (claro e escuro, 8 cores de terreiro difíceis). Só na Área; nunca no painel.
+- **Área do Médium (AM-06; clara desde out/2026)**: identidade do site novo (paleta terra + Fraunces), CLARA no tom
+  da landing, com a COR E O LOGO DO TERREIRO nos detalhes. Escopo `.medium-terra` (globals.css; `MediumLayout`,
+  `/escolher-area` e os overlays que eles abrem — Sheet, DropdownMenu e `ConfirmDialog`/`CrudDrawer` (prop
+  `className`, AM-29) recebem a classe e `fraunces.variable`, porque são portados para o `<body>`): fundo areia-50,
+  cartões/cabeçalho/barra inferior brancos, caixas areia-100, texto tinta, apoio tinta-suave; `--primary`/
+  `--primary-foreground` continuam do `applyBrand` (botão principal, aba ativa, data da gira, linha do cabeçalho) e
+  `text-brand` lê `--terra-brand-text-light`, calculada por `applyTerraBrandText` (`lib/brand.brandTextColorOn`
+  contra `TERRA_SURFACES`). **Sem modo escuro**: o dono achou a Área "muito escura" (ela seguia o escuro do celular
+  e abria as telas com faixa café) — o `MediumLayout` e o `/escolher-area` chamam `useAreaClara` (tira a classe
+  `dark` de `<html>` enquanto a Área está aberta e devolve ao sair) e não existe `.dark .medium-terra`. Faixa de
+  abertura (Início "Olá", Perfil, escolha de área) = `components/medium/MediumFaixa` (areia-100 com véu de até 8%
+  da cor do terreiro, rótulo `MediumFaixaRotulo` em `text-brand`, título tinta, fio `from-primary to-ouro-400`).
+  `__tests__/styles/colorUsage.test.ts` barra `bg-cafe-*`, `text-areia-*`, `text-white` e `dark:` nas telas da
+  Área (exceção: a câmera do "Cheguei"); pares travados em `__tests__/styles/marketingContrast.test.ts` (8 cores
+  de terreiro difíceis, inclusive no véu da faixa). Manifesto da Área e `<meta name="theme-color">` das rotas
+  `/medium/*` e `/escolher-area`: `#ffffff` (fundo `#fcf8f2`). Só na Área; nunca no painel.
 - **Claro/escuro**: classe `dark` em `<html>` (não no layout — Radix porta overlays para o `<body>`), aplicada por
-  `AdminThemeProvider`/`PlatformThemeProvider` (chaves `admin_theme_mode`/`platform_theme_mode`) e, na Área do Médium,
-  pelo `MediumLayout` seguindo o sistema (`prefers-color-scheme`); páginas públicas sempre claras.
+  `AdminThemeProvider`/`PlatformThemeProvider` (chaves `admin_theme_mode`/`platform_theme_mode`); páginas públicas e
+  a Área do Médium sempre claras (a Área tira a classe com `useAreaClara`).
 - **Overlays**: Sheet/Dialog/AlertDialog/Select/Popover/DropdownMenu usam o z-index padrão do Radix (`z-50`); quem abre por
   último fica por cima, então calendário e Combobox dentro do `CrudDrawer` funcionam. Barras fixas: topbar `z-30`,
   `MobileTabBar`, `BulkActionsBar` e a barra inferior da Área do Médium `z-40` (cabeçalho da Área `z-30`). Não usar `z-[1300]`/`z-[1400]` (eram para ficar acima do AppBar do MUI).
@@ -1579,6 +1677,11 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   para o `retorno_scheduler`) e, em vez do `claim_once`, marca POR LINHA em `medium_lembretes_enviados`
   (`INSERT ... ON CONFLICT DO NOTHING RETURNING`, commit antes de enfileirar). Espera a fila de e-mail ficar
   abaixo de 300 antes de enfileirar (`email_queue.qsize()`; acima de 500 a fila descarta).
+  Desde o AM-16 a mesma rodada manda a **notificacao no celular** (Web Push) para os aparelhos do medium
+  (`push_inscricoes`), com o liga/desliga proprio (`push_<tipo>`): o lembrete e planejado se e-mail OU celular
+  estiver ligado, a marca e uma so para os dois canais, e o push sai depois do commit
+  (`services/web_push.enviar`, `asyncio.to_thread` + timeout 10 s, TTL 12 h; 404/410 apagam a inscricao). Sem as
+  variaveis VAPID, nada de push (so e-mail). Ligar em producao: `docs/deployment.md` (chaves VAPID).
 - Regra para agendador que envia algo: usar `backend/src/services/scheduler_guard.py` — `advisory_lock(KEY)` envolvendo a rodada (só um worker processa) e `claim_once(tenant_id, namespace, item, scope)` gravado **antes** do envio (marca em `tenant_configs.custom_settings[namespace]` sob `SELECT ... FOR UPDATE`; `scope` diferente reinicia as marcas). Chaves de lock listadas no docstring do módulo; nova chave = novo número.
 - Trial: marcas em `custom_settings.trial_reminders` (escopo = `trial_ends_at`); dias restantes arredondados para cima e expiração só depois de `trial_ends_at` (antes podia expirar ~1 dia cedo). Aniversário: `custom_settings.birthday_digest` (escopo = data BRT).
 

@@ -13,6 +13,11 @@
  *   nem respostas autenticadas/privadas. As requisições à API passam direto para a rede.
  * - Sincronizar emissão de senhas offline (fora do escopo desta fase).
  *
+ * Notificação no celular da Área do Médium (AM-16, Web Push): `push` mostra a notificação com o
+ * ícone da Área (título, texto curto e `url` vindos do servidor — nada sensível) e
+ * `notificationclick` foca uma janela aberta do GiraHub e leva à `url`, ou abre uma nova. Só
+ * caminhos da própria origem: `url` de fora vira `/medium`.
+ *
  * Versão: o registro passa `?v=<buildId>` (ServiceWorkerRegistrar). Cada build gera caches com
  * nome novo; o `activate` apaga os caches `girahub-*` de versões anteriores.
  */
@@ -139,4 +144,72 @@ self.addEventListener('fetch', (event) => {
   if (STATIC_ASSETS.has(url.pathname)) {
     event.respondWith(staleWhileRevalidate(request, event));
   }
+});
+
+// ── Notificação no celular (AM-16) ────────────────────────────────────────────
+const PUSH_ICON = '/icons/icon-192.png';
+const PUSH_URL_PADRAO = '/medium';
+
+/** Só caminho da própria origem (nunca abre site de fora a partir de uma notificação). */
+function urlDaArea(url) {
+  try {
+    const alvo = new URL(url || PUSH_URL_PADRAO, self.location.origin);
+    if (alvo.origin !== self.location.origin) return PUSH_URL_PADRAO;
+    return alvo.pathname + alvo.search;
+  } catch {
+    return PUSH_URL_PADRAO;
+  }
+}
+
+function dadosDoPush(event) {
+  if (!event.data) return {};
+  try {
+    return event.data.json() || {};
+  } catch {
+    try {
+      return { body: event.data.text() };
+    } catch {
+      return {};
+    }
+  }
+}
+
+self.addEventListener('push', (event) => {
+  const dados = dadosDoPush(event);
+  const title = typeof dados.title === 'string' && dados.title ? dados.title : 'Área do Médium';
+  const options = {
+    body: typeof dados.body === 'string' ? dados.body : '',
+    icon: PUSH_ICON,
+    badge: PUSH_ICON,
+    lang: 'pt-BR',
+    data: { url: urlDaArea(dados.url) },
+  };
+  if (typeof dados.tag === 'string' && dados.tag) {
+    options.tag = dados.tag;
+    options.renotify = true;
+  }
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = urlDaArea(event.notification.data && event.notification.data.url);
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((janelas) => {
+      const aberta = janelas.find((c) => {
+        try {
+          return new URL(c.url).origin === self.location.origin && 'focus' in c;
+        } catch {
+          return false;
+        }
+      });
+      if (aberta) {
+        return aberta.focus().then((c) => {
+          const janela = c || aberta;
+          return 'navigate' in janela ? janela.navigate(url) : undefined;
+        });
+      }
+      return self.clients.openWindow ? self.clients.openWindow(url) : undefined;
+    }),
+  );
 });

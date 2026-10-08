@@ -63,10 +63,10 @@ def _motivo(**kw):
 
 
 def test_migracao_082_encadeada_com_as_listas_do_modelo():
-    spec = importlib.util.spec_from_file_location("m082", BACKEND_DIR / "alembic/versions/082_trocas_escala.py")
+    spec = importlib.util.spec_from_file_location("m082", BACKEND_DIR / "alembic/versions/086_trocas_escala.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    assert (mod.revision, mod.down_revision) == ("082_trocas_escala", "081_lembretes")
+    assert (mod.revision, mod.down_revision) == ("086_trocas_escala", "081_lembretes")
     assert mod.ORIGENS == modelos.ORIGENS_PARTICIPACAO
     assert mod.STATUS == modelos.STATUS_TROCA
     assert mod.FECHADA_POR == modelos.FECHADA_POR

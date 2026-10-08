@@ -15,8 +15,8 @@
 Downgrade: apaga a tabela e as colunas; linhas com origem `troca` voltam a `manual` e as marcas de
 e-mail das trocas somem (o CHECK antigo não as aceita).
 
-Revision ID: 082_trocas_escala
-Revises: 081_lembretes
+Revision ID: 086_trocas_escala
+Revises: 085_assinatura_boleto
 Create Date: 2026-10-08
 """
 
@@ -24,8 +24,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "082_trocas_escala"
-down_revision: str = "081_lembretes"
+revision: str = "086_trocas_escala"
+down_revision: str = "085_assinatura_boleto"
 branch_labels = None
 depends_on = None
 

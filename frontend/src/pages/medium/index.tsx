@@ -1,7 +1,7 @@
 /**
  * /medium — Início da Área do Médium (AM-06).
  *
- * Faixa café com "Olá, <primeiro nome>"; depois as PENDÊNCIAS primeiro (D-24: responder escala,
+ * Faixa clara (`MediumFaixa`) com "Olá, <primeiro nome>"; depois as PENDÊNCIAS primeiro (D-24: responder escala,
  * mensalidade a vencer ou vencida, aviso novo — na ordem que o backend devolve), a próxima gira
  * e o que está "Acompanhando" (mensalidade paga/isenta). Nada publicado → EmptyState amigável.
  * Só chama `GET /api/v1/medium/inicio` (e o `/medium/me` do MediumProvider).
@@ -10,6 +10,9 @@
  * modo QR abre o leitor); as já respondidas ficam em "Acompanhando".
  * Mensalidade em aberto (AM-11/AM-29): "Pagar com PIX" só quando a casa cadastrou a chave
  * (`mensalidade.pix_disponivel`); sem chave, "Ver mensalidade" (a tela diz como combinar com a casa).
+ * Aniversários (AM-20): no dia do aniversário do médium, a mensagem da casa no topo
+ * (`meu_aniversario`); e "Aniversariantes da semana" (só quem aceitou mostrar, dia e mês) depois da
+ * próxima gira — some quando a lista está vazia.
  * Troca (AM-27): pedido de um colega vira cartão em "Para você ver agora" (Aceito ir / Não posso);
  * os pedidos do médium ainda abertos ficam em "Acompanhando".
  */
@@ -24,6 +27,7 @@ import {
   TriangleAlert,
   Wallet,
 } from 'lucide-react';
+import { MediumFaixa, MediumFaixaRotulo } from '@/components/medium/MediumFaixa';
 import { MediumLayout } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
 import {
@@ -34,6 +38,11 @@ import {
   quandoBr,
   valorBr,
 } from '@/components/medium/format';
+import {
+  AniversariantesDaSemana,
+  MeuAniversarioCard,
+  type Aniversariante,
+} from '@/components/medium/Aniversarios';
 import { EscalaCard } from '@/components/medium/presenca/EscalaCard';
 import { fraseDaFuncao } from '@/components/medium/presenca/presencaApi';
 import { detalheHref } from '@/components/medium/agenda';
@@ -86,6 +95,10 @@ export interface InicioResponse {
   avisos: { nao_lidos: number; ultimos: unknown[] };
   /** AM-17: próximas escalas do médium (com a participação dele). */
   escalas?: ItemPresenca[];
+  /** AM-20: quem aceitou mostrar o aniversário e faz aniversário nesta semana (sem o ano). */
+  aniversariantes?: Aniversariante[];
+  /** AM-20: só no dia do aniversário do próprio médium. */
+  meu_aniversario?: { mensagem: string } | null;
   /** AM-27: trocas na escala (null sem o plano das escalas). */
   trocas?: MinhasTrocas | null;
 }
@@ -362,25 +375,27 @@ function Inicio() {
       (data.mensalidade.status === 'pendente' && !mensalidadeNoTopo))
       ? data.mensalidade
       : null;
+  const aniversariantes = data?.aniversariantes ?? [];
+  const meuAniversario = data?.meu_aniversario ?? null;
   const vazio =
     data &&
     n === 0 &&
     !data.proxima_gira &&
     !acompanhando &&
     escalas.length === 0 &&
-    minhasTrocasAbertas.length === 0;
+    minhasTrocasAbertas.length === 0 &&
+    aniversariantes.length === 0 &&
+    !meuAniversario;
 
   return (
     <>
-      <section className="relative bg-cafe-950 px-4 pt-6 pb-7 text-areia-100">
-        <p className="text-xs font-extrabold tracking-[0.18em] text-ouro-300 uppercase">
-          Área do Médium
-        </p>
-        <h1 className="mt-2 font-display text-[1.9rem] leading-[1.1] font-bold tracking-tight text-white">
+      <MediumFaixa>
+        <MediumFaixaRotulo>Área do Médium</MediumFaixaRotulo>
+        <h1 className="mt-2 font-display text-[1.9rem] leading-[1.1] font-bold tracking-tight">
           {nome ? `Olá, ${nome}` : 'Olá'}
         </h1>
         {data && (
-          <p className="mt-2 text-base text-areia-200">
+          <p className="mt-2 text-base text-muted-foreground">
             {n === 0
               ? 'Tudo em dia por aqui.'
               : n === 1
@@ -388,11 +403,7 @@ function Inicio() {
                 : `Você tem ${n} coisas para ver.`}
           </p>
         )}
-        <span
-          aria-hidden
-          className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-primary to-ouro-400"
-        />
-      </section>
+      </MediumFaixa>
 
       <div className="flex flex-col gap-6 px-4 pt-5 pb-8">
         {erro ? (
@@ -421,6 +432,7 @@ function Inicio() {
           />
         ) : (
           <>
+            {meuAniversario && <MeuAniversarioCard mensagem={meuAniversario.mensagem} />}
             {n > 0 && (
               <section className="flex flex-col gap-2.5" aria-labelledby="titulo-pendencias">
                 <h2 id="titulo-pendencias" className={SECTION_TITLE}>
@@ -456,6 +468,7 @@ function Inicio() {
                 comAgenda={(me?.modulos ?? []).includes('agenda')}
               />
             )}
+            <AniversariantesDaSemana lista={aniversariantes} />
             {(acompanhando || escalasRespondidas.length > 0 || minhasTrocasAbertas.length > 0) && (
               <section className="flex flex-col gap-2.5" aria-labelledby="titulo-acompanhando">
                 <h2 id="titulo-acompanhando" className={SECTION_TITLE}>

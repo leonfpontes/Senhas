@@ -23,6 +23,13 @@ e a Área ligada pela casa. Cada tipo só sai dentro da sua janela em Brasília
 
 Preferências do médium (`medium_preferencias`) desligam cada grupo de lembretes.
 
+**Notificação no celular (AM-16)**: cada lembrete do médium também vira push para os aparelhos em
+que ele ligou as notificações (`push_inscricoes`, só do usuário ligado ao médium no terreiro), com
+o liga/desliga próprio do celular (`push_<tipo>`) — e-mail e celular são independentes: o lembrete
+sai se ao menos um dos dois estiver ligado, e a mesma marca vale para os dois (uma vez só). Sem as
+chaves VAPID no servidor (`services/web_push.disponivel()`), só e-mail. Texto do push discreto
+(`services/medium_push.py`); 404/410 do serviço de push apagam a inscrição.
+
 **Uma vez só, mesmo com 2 workers**: advisory lock por rodada (`0x6769726168756206`) e, por baixo, a
 marca `medium_lembretes_enviados` gravada com `INSERT ... ON CONFLICT DO NOTHING RETURNING` e
 commitada ANTES de enfileirar (`services/medium_lembretes.reservar`). Duas rodadas ao mesmo tempo
@@ -49,6 +56,14 @@ ATRASO_INICIAL_S = 3 * 60
 FILA_LIMITE = 300
 
 Enviar = Callable[[Any], Awaitable[None]]
+# Recebe a lista de `web_push.Envio` (um por aparelho) e devolve quantos foram aceitos.
+EnviarPush = Callable[[list], Awaitable[int]]
+
+
+async def enviar_push_padrao(envios: list) -> int:
+    from src.services.web_push import enviar
+
+    return await enviar(envios)
 
 
 async def enfileirar(mensagem) -> None:
@@ -99,18 +114,27 @@ class MediumLembreteScheduler:
                 logger.exception("Lembretes da Área: erro inesperado na rodada")
             await asyncio.sleep(INTERVALO_S)
 
-    async def rodada(self, agora: Optional[datetime] = None, enviar: Enviar = enfileirar) -> int:
-        """Uma rodada (um worker por vez). Devolve quantos e-mails mandou."""
+    async def rodada(
+        self,
+        agora: Optional[datetime] = None,
+        enviar: Enviar = enfileirar,
+        enviar_push: EnviarPush = enviar_push_padrao,
+    ) -> int:
+        """Uma rodada (um worker por vez). Devolve quantos e-mails e notificações mandou."""
         from src.services.scheduler_guard import MEDIUM_LEMBRETE_LOCK_KEY, advisory_lock
 
         async with advisory_lock(MEDIUM_LEMBRETE_LOCK_KEY) as acquired:
             if not acquired:
                 logger.info("Lembretes da Área: outra instância está processando — pulando rodada.")
                 return 0
-            return await processar_todos(agora, enviar)
+            return await processar_todos(agora, enviar, enviar_push)
 
 
-async def processar_todos(agora: Optional[datetime] = None, enviar: Enviar = enfileirar) -> int:
+async def processar_todos(
+    agora: Optional[datetime] = None,
+    enviar: Enviar = enfileirar,
+    enviar_push: EnviarPush = enviar_push_padrao,
+) -> int:
     from src.core.database import AsyncSessionLocal
     from src.core.tz import utc_now
     from src.services.medium_lembretes import terreiros_do_piloto
@@ -121,28 +145,39 @@ async def processar_todos(agora: Optional[datetime] = None, enviar: Enviar = enf
     total = 0
     for tenant_id in terreiros:
         try:
-            total += await processar_terreiro(tenant_id, agora, enviar)
+            total += await processar_terreiro(tenant_id, agora, enviar, enviar_push)
         except Exception:  # noqa: BLE001
             logger.exception("Lembretes da Área: falha no terreiro %s", tenant_id)
     if total:
-        logger.info("Lembretes da Área: %d e-mail(s) enfileirado(s)", total)
+        logger.info("Lembretes da Área: %d e-mail(s)/notificação(ões) enviado(s)", total)
     return total
 
 
-async def processar_terreiro(tenant_id: uuid.UUID, agora: datetime, enviar: Enviar = enfileirar) -> int:
-    """Planeja, reserva (commit) e só então envia. Seguro para chamar em paralelo."""
+async def processar_terreiro(
+    tenant_id: uuid.UUID,
+    agora: datetime,
+    enviar: Enviar = enfileirar,
+    enviar_push: EnviarPush = enviar_push_padrao,
+) -> int:
+    """Planeja, reserva (commit) e só então envia. Seguro para chamar em paralelo. Devolve
+    e-mails + notificações (uma por aparelho) que saíram."""
     from src.core.database import AsyncSessionLocal
 
     async with AsyncSessionLocal() as db:
-        mensagens = await planejar_e_reservar(db, tenant_id, agora)
+        mensagens, envios = await planejar_e_reservar(db, tenant_id, agora)
     for mensagem in mensagens:
         await enviar(mensagem)
-    return len(mensagens)
+    if envios:
+        try:
+            await enviar_push(envios)
+        except Exception:  # noqa: BLE001 — push nunca derruba o e-mail
+            logger.exception("Lembretes da Área: falha ao mandar notificações no terreiro %s", tenant_id)
+    return len(mensagens) + len(envios)
 
 
-async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> list:
+async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> tuple[list, list]:
     """Tudo o que o terreiro tem para mandar agora, já reservado (commit feito). Devolve as
-    `EmailMessage` prontas."""
+    `EmailMessage` prontas e os `web_push.Envio` (um por aparelho)."""
     from src.core.config import settings
     from src.core.public_links import area_medium_link, descadastro_link, public_tenant_logo_url
     from src.models import Tenant, TenantConfig
@@ -152,6 +187,7 @@ async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> list
     from src.services.email.base import EmailMessage
     from src.services.email.templates import medium_lembretes as tpl
     from src.services.medium_area import get_area_medium_config, modulos_visiveis
+    from src.services import medium_push, web_push
     from src.services.plan_features import get_effective_plan_features
 
     tenant = (
@@ -165,13 +201,13 @@ async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> list
         )
     ).scalar_one_or_none()
     if tenant is None:
-        return []
+        return [], []
     features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(tenant_id))
     if not features.area_medium:
-        return []
+        return [], []
     area = await get_area_medium_config(db, tenant_id)
     if not area.ativa:
-        return []
+        return [], []
     modulos = modulos_visiveis(area, features.mensalidade_mediun)
     config = (
         await db.execute(select(TenantConfig).where(TenantConfig.tenant_id == tenant_id))
@@ -187,10 +223,17 @@ async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> list
 
     dest = await lm.destinatarios(db, tenant_id)
     prefs = await lm.preferencias_do_terreiro(db, tenant_id)
+    inscricoes = await web_push.inscricoes_do_terreiro(db, tenant_id) if web_push.disponivel() else {}
     pendentes: list[Pendente] = []
 
-    def quer(medium_id: uuid.UUID, tipo: str) -> bool:
+    def quer_email(medium_id: uuid.UUID, tipo: str) -> bool:
         return medium_id in dest and lm.preferencia_ligada(prefs.get(medium_id), tipo)
+
+    def quer_push(medium_id: uuid.UUID, tipo: str) -> bool:
+        return medium_id in dest and medium_id in inscricoes and lm.preferencia_push_ligada(prefs.get(medium_id), tipo)
+
+    def quer(medium_id: uuid.UUID, tipo: str) -> bool:
+        return quer_email(medium_id, tipo) or quer_push(medium_id, tipo)
 
     def item_de(p: lm.ParticipacaoLembrete) -> tpl.ItemAtividade:
         return tpl.ItemAtividade(
@@ -453,7 +496,7 @@ async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> list
             )
 
     if not pendentes:
-        return []
+        return [], []
 
     # ── Reserva (ordem fixa: duas rodadas em paralelo travam na mesma ordem, sem deadlock) ──
     pendentes.sort(key=lambda x: (x.tipo, str(x.medium_id or ""), x.partes[0][0]))
@@ -468,12 +511,22 @@ async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> list
             prontos.append((pend, reservadas))
     tokens: dict[uuid.UUID, str] = {}
     for pend, _ in prontos:
-        if pend.medium_id is not None and pend.medium_id not in tokens:
+        if pend.medium_id is not None and pend.medium_id not in tokens and quer_email(pend.medium_id, pend.tipo):
             tokens[pend.medium_id] = (await lm.garantir_preferencia(db, tenant_id, pend.medium_id)).token_descadastro
     await db.commit()
 
     mensagens = []
+    envios: list[web_push.Envio] = []
     for pend, reservadas in prontos:
+        if pend.medium_id is not None and quer_push(pend.medium_id, pend.tipo):
+            notificacao = medium_push.notificacao(pend.tipo, terreiro, reservadas)
+            if notificacao is not None:
+                envios.extend(
+                    web_push.Envio(i.id, tenant_id, i.endpoint, i.p256dh, i.auth, notificacao)
+                    for i in inscricoes[pend.medium_id]
+                )
+        if pend.medium_id is not None and not quer_email(pend.medium_id, pend.tipo):
+            continue
         conteudo = pend.montar(reservadas)
         links = None
         destinos = pend.destinos
@@ -490,7 +543,7 @@ async def planejar_e_reservar(db, tenant_id: uuid.UUID, agora: datetime) -> list
         texto = tpl.render_texto(conteudo, visual, links)
         for email in destinos:
             mensagens.append(EmailMessage(to_email=email, subject=conteudo.assunto, html_body=html, text_body=texto))
-    return mensagens
+    return mensagens, envios
 
 
 medium_lembrete_scheduler = MediumLembreteScheduler()

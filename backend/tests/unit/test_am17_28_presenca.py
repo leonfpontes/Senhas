@@ -43,7 +43,7 @@ def test_migracao_079_depois_da_078_com_as_listas_do_modelo():
     mig = _migracao("079_presenca")
     assert (mig.revision, mig.down_revision) == ("079_presenca", "078_atividades")
     assert mig.MODOS == modelos.MODOS_PRESENCA
-    # A 082 (AM-27) acrescentou "troca"; a 079 congela as de antes.
+    # A 086 (AM-27) acrescentou "troca"; a 079 congela as de antes.
     assert mig.ORIGENS == tuple(o for o in modelos.ORIGENS_PARTICIPACAO if o != "troca")
     assert mig.RESPOSTAS == modelos.RESPOSTAS
     assert mig.PRESENCAS == modelos.PRESENCAS
