@@ -326,6 +326,11 @@ EXEMPT_PUBLIC_QUERIES: dict[tuple[str, str], str] = {
         "sha256 (token_hash == hash_token(token)) — o hash esconde do auditor o parâmetro da "
         "requisição; o tenant passa a ser o do convite e as queries seguintes filtram por ele"
     ),
+    ("api/v1/public/email_confirmacao.py", "_conta_pelo_token"): (
+        "busca raiz da confirmação do novo e-mail de login (AM-13): token opaco de 256 bits pelo "
+        "sha256 (email_pendente_token_hash == hash_token(token)); o tenant passa a ser o da conta "
+        "e as queries seguintes filtram por user.tenant_id"
+    ),
 }
 
 # Checagem de FK. Chave: (arquivo admin, função, campo).

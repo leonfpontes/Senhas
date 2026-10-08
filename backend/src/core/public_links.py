@@ -10,6 +10,7 @@ Os padrões abaixo espelham os nomes de arquivo do Next:
 - PUBLIC_CANCEL_ROUTE  → pages/public/ticket/[ticketId]/cancelar.tsx
 - PUBLIC_TENANT_ROUTE  → pages/public/[tenant].tsx (redireciona à próxima gira)
 - MEDIUM_CONVITE_ROUTE → pages/convite/[token].tsx (convite da casa para a Área do Médium, AM-03)
+- CONFIRMAR_EMAIL_ROUTE → pages/confirmar-email/[token].tsx (troca do e-mail de login, AM-13)
 
 `tests/unit/test_public_links.py` confere que os arquivos existem.
 """
@@ -22,6 +23,7 @@ PUBLIC_TICKET_ROUTE = "/public/{tenant_slug}/ticket/{ticket_id}"
 PUBLIC_CANCEL_ROUTE = "/public/ticket/{ticket_id}/cancelar"
 PUBLIC_TENANT_ROUTE = "/public/{tenant_slug}"
 MEDIUM_CONVITE_ROUTE = "/convite/{token}"
+CONFIRMAR_EMAIL_ROUTE = "/confirmar-email/{token}"
 
 
 def _base(frontend_url: str) -> str:
@@ -44,6 +46,11 @@ def public_tenant_link(frontend_url: str, tenant_slug: str) -> str:
 def medium_convite_link(frontend_url: str, token: str) -> str:
     """Convite da casa para a Área do Médium: o token opaco vai em claro só aqui."""
     return _base(frontend_url) + MEDIUM_CONVITE_ROUTE.format(token=token)
+
+
+def confirmar_email_link(frontend_url: str, token: str) -> str:
+    """Confirmação do novo e-mail de login (AM-13): vai só para o endereço novo."""
+    return _base(frontend_url) + CONFIRMAR_EMAIL_ROUTE.format(token=token)
 
 
 def public_tenant_logo_url(frontend_url: str, tenant_config) -> str | None:
