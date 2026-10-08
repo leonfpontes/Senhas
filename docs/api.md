@@ -778,9 +778,65 @@ linked to the user (`mediuns.user_id`) **and** the tenant's effective plan inclu
 `area_medium` (Basic+), otherwise `null`. The same `areas` object is returned by
 `GET /auth/me` and `GET /auth/profile`.
 
+**Same e-mail in more than one terreiro (AM-05)**: users are unique per `(tenant_id, email)`, so
+the password is checked against **every** active account with that e-mail (active, non-deleted
+user in a tenant that is not self-deactivated/deleted), at most **5**, oldest first. One match →
+the response above (cookies set). More than one match → `200` with **no cookies**:
+
+```json
+{
+  "choose_account": true,
+  "selection_token": "eyJhbGc...",
+  "options": [
+    {
+      "user_id": "user-uuid",
+      "terreiro_nome": "Casa da Ana",
+      "terreiro_slug": "casa-da-ana",
+      "logo_url": null,
+      "areas": { "admin": true, "medium": false }
+    }
+  ]
+}
+```
+
+Only terreiros whose password matched are listed (anti-enumeration). `selection_token` is a JWT
+with `type: "account_select"`, valid for 5 minutes, carrying the allowed `user_id`s and the
+"remember me" flag; it is rejected as an access or refresh token. Cost: one bcrypt verification per
+active account (max 5); an unknown e-mail runs one dummy verification (same as a wrong password on
+a single account). No active account → single-account rule (`TENANT_DEACTIVATED` for a
+self-deactivated terreiro, after the password is checked).
+
 **Error Responses**:
-- `401 Unauthorized`: Invalid credentials
-- `429 Too Many Requests`: Too many failed login attempts
+- `401 Unauthorized`: Invalid credentials (or `detail.error_code = "TENANT_DEACTIVATED"`)
+- `429 Too Many Requests`: Too many login attempts (10/minute per IP)
+
+---
+
+### 1b. Choose the terreiro (AM-05)
+
+**Endpoint**: `POST /auth/login/select` (public, 10/minute per IP)
+
+**Request Body**:
+```json
+{ "selection_token": "eyJhbGc...", "user_id": "user-uuid" }
+```
+
+**Response** (200 OK): same as a direct login (3 cookies in the login's "remember me" mode,
+`user`, `areas`).
+
+**Error Responses**:
+- `401 Unauthorized` with `detail.error_code = "SELECTION_INVALID"`: invalid/expired token,
+  `user_id` not in the token's list, account no longer active, or sessions revoked after the token
+  was issued (password change/reset).
+
+---
+
+### 1c. Forgot password
+
+**Endpoint**: `POST /auth/forgot-password` (public, 5/hour per IP) — always the same generic
+message. With several active accounts for the e-mail (AM-05), **one** e-mail lists each terreiro
+with its own reset link (one token per account); `POST /auth/reset-password` resets only the
+account that owns the token.
 
 ---
 
@@ -1101,7 +1157,9 @@ exempt), 403 while impersonating, 429 above 20 uploads/hour per IP. Audited as
 
 | Endpoint | Limit | Window |
 |----------|-------|--------|
-| `/auth/login` | 10 | 15 minutes |
+| `/auth/login` | 10 | 1 minute per IP |
+| `/auth/login/select` | 10 | 1 minute per IP |
+| `/auth/forgot-password` | 5 | 1 hour per IP |
 | `/public/convite/{token}` | 30 | 1 minute per IP |
 | `/public/convite/{token}/aceitar` | 10 | 1 minute per IP |
 | `/public/*/emit-ticket` | 5 | 1 hour per email |
