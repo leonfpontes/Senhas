@@ -232,6 +232,77 @@ def conteudo_cancelada(*, terreiro: str, nome: str, item: ItemAtividade, motivo:
     )
 
 
+def conteudo_troca_pedida(
+    *, terreiro: str, nome: str, colega: Optional[str], item: ItemAtividade, recado: Optional[str]
+) -> Conteudo:
+    """Ao colega chamado (AM-27): alguém pediu que ele vá no lugar. Só o primeiro nome de quem pediu."""
+    quem = colega or "Um colega da corrente"
+    detalhes = _detalhes_item(item)
+    if recado:
+        detalhes.append(("Recado", recado))
+    return Conteudo(
+        assunto=f"{terreiro}: pedido de troca na escala",
+        preheader="Um colega perguntou se você pode ir no lugar dele.",
+        titulo="Pedido de troca na escala",
+        paragrafos=[
+            _saudacao(nome),
+            f"{quem} perguntou se você pode ir no lugar dele(a). Abra a Área para responder: Aceito ir ou Não posso.",
+        ],
+        detalhes=detalhes,
+        botao_texto="Responder na Área",
+        botao_url=item.link,
+        motivo_rodape="Você recebe este aviso porque um colega pediu troca na escala da casa.",
+    )
+
+
+def conteudo_troca_resposta(
+    *, terreiro: str, nome: str, colega: Optional[str], item: ItemAtividade, resultado: str
+) -> Conteudo:
+    """A quem pediu (AM-27): `resultado` = aceito (falta a direção) · recusado_colega ·
+    recusado_direcao · cancelado_direcao."""
+    quem = colega or "O colega"
+    frases = {
+        "aceito": f"{quem} aceitou ir no seu lugar. Agora falta a direção da casa aprovar; até lá, você continua na escala.",
+        "recusado_colega": f"{quem} não pode ir no seu lugar. Você continua na escala — se precisar, peça a outro colega.",
+        "recusado_direcao": "A direção da casa não aprovou a troca. Você continua na escala.",
+        "cancelado_direcao": "A direção da casa cancelou o seu pedido de troca. Você continua na escala.",
+    }
+    return Conteudo(
+        assunto=f"{terreiro}: resposta ao seu pedido de troca",
+        preheader="Seu pedido de troca na escala teve resposta.",
+        titulo="Resposta ao seu pedido de troca",
+        paragrafos=[_saudacao(nome), frases.get(resultado, frases["recusado_direcao"])],
+        detalhes=_detalhes_item(item),
+        botao_texto="Ver na Área",
+        botao_url=item.link,
+        motivo_rodape="Você recebe este aviso porque pediu troca na escala da casa.",
+    )
+
+
+def conteudo_troca_aprovada(
+    *, terreiro: str, nome: str, colega: Optional[str], item: ItemAtividade, foi_quem_pediu: bool
+) -> Conteudo:
+    """Aos dois (AM-27): a troca valeu. Quem pediu sai da escala; o colega entra no lugar."""
+    if foi_quem_pediu:
+        quem = colega or "um colega da corrente"
+        frase = f"A troca foi confirmada: {quem} vai no seu lugar. Você não está mais nesta escala."
+        titulo = "Troca confirmada"
+    else:
+        quem = colega or "um colega"
+        frase = f"A troca foi confirmada: você está na escala no lugar de {quem}."
+        titulo = "Você está na escala"
+    return Conteudo(
+        assunto=f"{terreiro}: troca na escala confirmada",
+        preheader="Uma troca na escala foi confirmada.",
+        titulo=titulo,
+        paragrafos=[_saudacao(nome), frase],
+        detalhes=_detalhes_item(item),
+        botao_texto="Ver na Área",
+        botao_url=item.link,
+        motivo_rodape="Você recebe este aviso porque participou de uma troca na escala da casa.",
+    )
+
+
 def conteudo_aviso(*, terreiro: str, nome: str, titulo: str, texto: str, link: str) -> Conteudo:
     return Conteudo(
         assunto=f"{terreiro}: novo aviso da casa",

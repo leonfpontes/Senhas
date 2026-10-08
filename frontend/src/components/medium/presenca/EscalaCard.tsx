@@ -86,12 +86,15 @@ export function EscalaCard({
   const leitura = estaImpersonando();
   if (!p || item.cancelada) return null;
   if (p.situacao === 'dispensado' || p.situacao === 'substituido') {
+    const onde = item.origem === 'gira' ? 'gira' : 'atividade';
     return (
       <p
         className="rounded-2xl bg-muted px-4 py-3 text-base text-muted-foreground"
         data-testid="escala-fora"
       >
-        A casa tirou você da escala desta {item.origem === 'gira' ? 'gira' : 'atividade'}.
+        {p.situacao === 'substituido'
+          ? `Você trocou a escala desta ${onde} com um colega.`
+          : `A casa tirou você da escala desta ${onde}.`}
       </p>
     );
   }
@@ -182,8 +185,14 @@ export function EscalaCard({
       ) : null}
 
       {p.presenca === 'ausente' && (
-        <Status tom={p.justificativa ? 'warn' : 'bad'}>
-          <b>{p.justificativa ? 'Ausência com motivo.' : 'A casa registrou sua ausência.'}</b>
+        <Status tom={p.justificativa && p.justificativa_avaliacao !== 'recusada' ? 'warn' : 'bad'}>
+          <b>
+            {!p.justificativa
+              ? 'A casa registrou sua ausência.'
+              : p.justificativa_avaliacao === 'recusada'
+                ? 'A casa não aceitou o motivo desta falta.'
+                : 'Ausência com motivo.'}
+          </b>
           {p.justificativa && <span className="block">Motivo: {p.justificativa}</span>}
         </Status>
       )}

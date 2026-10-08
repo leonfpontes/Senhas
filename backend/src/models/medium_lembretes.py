@@ -39,6 +39,10 @@ TIPO_FALTA = "falta"  # marcado ausente: convite para contar o motivo (sem o tex
 TIPO_AVISO = "aviso"  # aviso da casa com "Avisar por e-mail também"
 TIPO_CANCELADA = "cancelada"  # atividade cancelada: avisa quem estava na escala
 TIPO_RESUMO_ADMIN = "resumo_admin"  # resumo diário aos administradores (sem médium)
+# Troca de escala (AM-27): pedido ao colega, resposta a quem pediu e troca aprovada (os dois).
+TIPO_TROCA_PEDIDA = "troca_pedida"
+TIPO_TROCA_RESPOSTA = "troca_resposta"
+TIPO_TROCA_APROVADA = "troca_aprovada"
 
 TIPOS_LEMBRETE = (
     TIPO_MENSALIDADE_ANTES,
@@ -51,6 +55,9 @@ TIPOS_LEMBRETE = (
     TIPO_AVISO,
     TIPO_CANCELADA,
     TIPO_RESUMO_ADMIN,
+    TIPO_TROCA_PEDIDA,
+    TIPO_TROCA_RESPOSTA,
+    TIPO_TROCA_APROVADA,
 )
 
 # ── Preferências do médium (um liga/desliga por grupo de lembretes) ─────────
@@ -72,6 +79,9 @@ PREFERENCIA_DO_TIPO = {
     TIPO_CONFIRMACAO: PREF_CONFIRMACAO,
     TIPO_FALTA: PREF_FALTAS,
     TIPO_AVISO: PREF_AVISOS,
+    TIPO_TROCA_PEDIDA: PREF_ESCALAS,
+    TIPO_TROCA_RESPOSTA: PREF_ESCALAS,
+    TIPO_TROCA_APROVADA: PREF_ESCALAS,
 }
 
 REFERENCIA_MAX = 80
@@ -109,6 +119,11 @@ class MediumPreferencia(Base):
     push_confirmacao: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
     push_faltas: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
     push_avisos: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    # D-07 (AM-27, migração 086): mostrar o primeiro nome aos colegas de escala na hora de pedir
+    # troca. Padrão desligado — sem isso, ninguém vê o nome dele.
+    mostrar_nome_colegas: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     token_descadastro: Mapped[str] = mapped_column(String(TOKEN_MAX), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

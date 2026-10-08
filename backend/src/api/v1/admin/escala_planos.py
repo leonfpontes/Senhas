@@ -531,7 +531,9 @@ async def _convocar_grupo(
     linhas = {p.medium_id: p for p in await participacoes_da_atividade(db, tenant_id, atividade_id, travar=True)}
     novos = set(membros)
     for p in linhas.values():
-        saiu = p.origem == "grupo" and p.grupo_id in {grupo_anterior, grupo_id} and p.medium_id not in novos
+        # `troca` (AM-27): o substituto foi no lugar de alguém do grupo — sai junto se o grupo do dia mudar.
+        do_grupo = p.origem == "grupo" or (p.origem == "troca" and grupo_anterior is not None)
+        saiu = do_grupo and p.grupo_id in {grupo_anterior, grupo_id} and p.medium_id not in novos
         if saiu and p.dispensado_em is None:
             p.dispensado_em = agora
             p.updated_at = agora

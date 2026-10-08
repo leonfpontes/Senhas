@@ -1413,10 +1413,10 @@ opt-in (D-07, fase 2).
 - Abonar justificativa (aceitar/recusar) entra aqui também.
 
 **Aceite**
-- [ ] Médium pede troca, colega aceita e admin aprova (ou aprovação automática configurada)
-- [ ] Situação "Substituído" aparece para os dois e no relatório
-- [ ] Admin pode aceitar ou recusar uma justificativa
-- [ ] Opt-in para mostrar o primeiro nome aos colegas de escala
+- [x] Médium pede troca, colega aceita e admin aprova (ou aprovação automática configurada)
+- [x] Situação "Substituído" aparece para os dois e no relatório
+- [x] Admin pode aceitar ou recusar uma justificativa
+- [x] Opt-in para mostrar o primeiro nome aos colegas de escala
 
 ### AM-28 — Modo de presença da casa e check-in com QR do dia
 - **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-17
@@ -1474,6 +1474,7 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-16 Notificação push (desligada até gerar as chaves VAPID) | #100 | 082 | 2026-10-08 |
 | AM-14 Meus dados (exportar JSON/PDF, encerrar o acesso com a senha, "Quem vê o quê", Política 2.3) | #102 | 083 | 2026-10-08 |
 | AM-20 Aniversariantes (opt-in no Perfil, cartão da semana no Início, mensagem da casa no dia) | #102 | 083 | 2026-10-08 |
+| AM-27 Troca na escala e abono de justificativa | #106 | 086 | 2026-10-08 |
 | AM-21 Estudos e documentos | #107 | 087 | 2026-10-08 |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e

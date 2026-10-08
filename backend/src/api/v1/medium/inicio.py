@@ -22,6 +22,9 @@ requisição). Devolve, numa chamada só:
   Brasília) — só primeiro nome, dia e mês (nunca o ano nem o id). Lista vazia = o cartão some.
 - `meu_aniversario` (AM-20): no dia do aniversário do próprio médium, a mensagem da casa
   (`tenant_configs.area_medium_aniversario_mensagem` ou o texto padrão). Sem opt-in: só ele vê.
+- `trocas` (AM-27): pedidos de troca que esperam a resposta do médium (`para_responder`, viram a
+  pendência `troca`) e os pedidos dele ainda abertos ou resolvidos há pouco (`minhas`). Null sem
+  os planos `atividades_corrente` + `escalas`.
 """
 from datetime import date, datetime, timedelta
 from typing import List, Optional
@@ -44,6 +47,7 @@ from src.services.plan_features import get_effective_plan_features
 from src.services.presenca import SITUACAO_DISPENSADO, SITUACAO_SUBSTITUIDO
 
 from .presencas import ItemPresenca, item_de, itens_do_periodo, participacoes_do_medium, presenca_no_plano
+from .trocas import MinhasTrocas, minhas_trocas, trocas_no_plano
 
 router = APIRouter()
 
@@ -111,6 +115,7 @@ class InicioResponse(BaseModel):
     escalas: List[ItemPresenca] = []
     aniversariantes: List[AniversarianteInicio] = []
     meu_aniversario: Optional[MeuAniversario] = None
+    trocas: Optional[MinhasTrocas] = None
 
 
 async def _proxima_gira(db: AsyncSession, ctx: MediumContext) -> Optional[ProximaGira]:
@@ -280,6 +285,7 @@ async def get_medium_inicio(
     mensalidade, pix_disponivel = await _mensalidade(db, ctx, hoje)
     avisos = await _avisos(db, ctx)
     escalas = await _escalas(db, ctx)
+    trocas = await minhas_trocas(db, ctx) if await trocas_no_plano(db, ctx) else None
     return InicioResponse(
         hoje=hoje,
         pendencias=montar_pendencias(
@@ -287,6 +293,7 @@ async def get_medium_inicio(
             mensalidade=mensalidade,
             avisos_nao_lidos=avisos.nao_lidos,
             escalas_a_responder=escalas_pendentes(escalas),
+            trocas_a_responder=len(trocas.para_responder) if trocas else 0,
         ),
         proxima_gira=await _proxima_gira(db, ctx),
         mensalidade=(
@@ -296,4 +303,5 @@ async def get_medium_inicio(
         escalas=escalas,
         aniversariantes=await _aniversariantes(db, ctx, hoje),
         meu_aniversario=await _meu_aniversario(db, ctx, hoje),
+        trocas=trocas,
     )

@@ -1465,6 +1465,54 @@ the list) and `invoice_days_until_due`.
 | `invoice.paid` (boleto) | Retrieves the subscription, checks `active`/`trialing`, links it and grants the plan; clears the pending invoice; reactivates `SUSPENDED`. Card invoices are ignored here |
 | `invoice.payment_failed` | Card: as before (trial → FREE, otherwise SUSPENDED). **Boleto: no effect** — an expired voucher is not a default; the invoice stays open until the due date |
 | `invoice.overdue` (boleto) | Linked subscription → `SUSPENDED` (paying later reactivates via `invoice.paid`). Pending order → no effect |
+### 21. Troca na escala e abono da justificativa (AM-27)
+
+Same prefix as §15; plan gates `area_medium` + `atividades_corrente` + **`escalas`** (Pro — trocas only
+exist in the scales of AM-18/AM-25; outside the plan → 403). File `src/api/v1/admin/atividades_trocas.py`
+(router registered before `atividades.py`); rules in `src/services/trocas_escala.py`.
+
+| Method | Path | Group action |
+|---|---|---|
+| GET | `/api/v1/admin/atividades/trocas?abertas=true&atividade_id=` | `ESCALAS:view` |
+| GET | `/api/v1/admin/atividades/trocas/{id}/substitutos` → `[{ "id", "nome" }]` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/trocas/{id}/aprovar` `{ "substituto_id"? }` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/trocas/{id}/recusar` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/trocas/{id}/cancelar` | `ESCALAS:edit` |
+
+**List** → `{ "trocas": [...], "aguardando_direcao": 1, "exige_aprovacao": true }`; each troca:
+`{ "id", "status": "pedido"|"aceito"|"aprovado"|"recusado"|"cancelado", "aguardando": "colega"|"direcao"|null,
+"vigente", "atividade": { "origem", "id", "atividade_id", "titulo", "inicio", "tipo", "cancelada" }, "funcao",
+"grupo", "solicitante": { "id", "nome" }, "substituto": { "id", "nome" } | null, "indicado_pela_direcao",
+"recado", "criada_em", "respondido_em", "fechada_em", "fechada_por": "solicitante"|"substituto"|"direcao" }`.
+`abertas=false` = also the closed ones of the last 60 days. `vigente = false`: the request no longer applies
+(activity started/cancelled, roll call closed, the requester left the scale) — only "cancelar" makes sense.
+
+- **aprovar**: status `aceito` (the colleague accepted) → approves; `pedido` WITHOUT colleague ("a direção
+  escolhe") → `substituto_id` required (active médium of the tenant that the type reaches and not yet in this
+  scale — else 422, nothing stored; `GET …/substitutos` lists them); `pedido` with a colleague who did not
+  answer yet → 409 (`AGUARDANDO_COLEGA`). Approval re-checks everything (409 `TROCA_VENCIDA`): the original
+  row gets `substituida_por_id` (situation `substituido`, out of the attendance percentage, counted as
+  `substituidos`) and the substitute's row is created or reused with `origem = troca`, the same `funcao_id`/
+  `grupo_id` and `resposta = vou`.
+- **recusar**: only when waiting for the direction (`aceito`, or `pedido` without colleague) → else 409.
+- **cancelar**: any open request (`pedido`/`aceito`).
+- Audited as `atividade_troca` (ids only). E-mails go through the AM-15 scheduler (Área §11).
+
+**Abono** (router of §16, plans `area_medium` + `atividades_corrente`, no `escalas` needed):
+`PUT /api/v1/admin/atividades/{id}/justificativas/{medium_id}` `{ "avaliacao": "aceita"|"recusada"|null }`
+(`ESCALAS:edit`) → the §16 list. No reason stored → 409; other tenant → 404. `recusada` makes the absence
+count as **without** justification in the roll-call situation and in the attendance report (§18); `null`
+undoes (not evaluated = justified, D-13). A new reason written by the médium resets the evaluation. Audited
+as `atividade_justificativa` (ids and the decision — never the text). The §16 rows now carry
+`justificativa_avaliacao`, `substituido_por` and `no_lugar_de` (names, painel only); §18 rows carry
+`substituidos` and the detail items `justificativa_avaliacao` + `medium_origem`.
+
+Manual "Pôr na escala" (§16 `convocar`) of a médium one by one also clears `substituida_por_id` (the house
+puts back who had swapped). In the cleaning planner (§17), when the group of a day changes, the substitute
+of a troca (`origem = troca`) leaves together with the old group.
+
+---
+
 ### 22. Estudos e documentos da casa (materiais, AM-21)
 
 On screen it is **"Estudos e documentos"**; the API is `materiais`. Every route requires the plan
@@ -2034,25 +2082,47 @@ again (AM-03): accepting reactivates the same `medium` account with a new passwo
 
 Rotas `/api/v1/platform/*` exigem `require_super_admin` (403 para qualquer outro papel, 401 sem login).
 
-### Programa de Parceiros — pedidos (C-06)
+### 11. Troca na escala (AM-27)
 
-- **`GET /api/v1/platform/parceiros`** — query `status` (`novo|em_contato|aprovado|recusado`; outro → 422),
-  `q` (busca em nome, loja, cidade, e-mail e cupom), `limit` (1–200, padrão 50), `offset`. Mais recentes primeiro.
-  ```json
-  {
-    "items": [{ "id": "…", "nome": "Maria das Ervas", "tipo": "loja", "nome_negocio": "Casa de Artigos Pai Joaquim",
-                "cidade": "Niterói", "uf": "RJ", "whatsapp": "21998765432", "email": "maria@exemplo.com",
-                "como_divulgar": "…", "aceite_regulamento_em": "2026-10-08T15:00:00Z", "status": "novo",
-                "cupom": null, "observacoes": null, "created_at": "…", "updated_at": "…" }],
-    "total": 1,
-    "counts": { "novo": 1, "em_contato": 0, "aprovado": 0, "recusado": 0 }
-  }
-  ```
-  `counts` é a contagem geral por status (ignora os filtros). `ip_hash` nunca sai na API.
-- **`GET /api/v1/platform/parceiros/{id}`** — um pedido (404 se não existe).
-- **`PATCH /api/v1/platform/parceiros/{id}`** — `{"status"?, "cupom"?, "observacoes"?}` (só os campos enviados).
-  `cupom` é normalizado em maiúsculas e precisa casar `^[A-Z0-9_-]{3,40}$` (422); `""` limpa. `observacoes` até
-  2000 caracteres; vazio limpa. Devolve o pedido atualizado.
+Plans `atividades_corrente` + `escalas` (else 403); writes refused while impersonating (403). File
+`src/api/v1/medium/trocas.py`. Only the médium's own participation; the only other médium id that enters is
+`colega_id`, accepted only if it is one of the colleagues the server listed.
+
+- **`GET /api/v1/medium/atividades/{origem}/{id}/troca`** → `{ "pode_pedir", "motivo", "exige_aprovacao",
+  "colegas": [{ "id", "nome" }], "pedido": Troca | null, "para_mim": [Troca] }`. `colegas` = eligible
+  colleagues (active, reached by the type, not in this scale) who turned on "Mostrar meu primeiro nome para
+  os colegas de escala" — FIRST name only (D-07). `motivo` explains why not (not in the scale, gira without a
+  function, cancelled, started, roll call closed). `para_mim` = open requests where I am the colleague, and
+  approved ones where I went in someone's place.
+- **`POST /api/v1/medium/atividades/{origem}/{id}/troca`** `{ "colega_id"?, "recado"? (≤ 200, plain text) }` →
+  same shape. No `colega_id` = "a direção escolhe". Only the scales that have a troca: gira with a function
+  (AM-18), cleaning (AM-25), "só escalados" activity → else 409 (`SEM_TROCA`); one open request per
+  participation (409 `TROCA_ABERTA`); a colleague not in the list → 422, nothing stored.
+- **`GET /api/v1/medium/trocas`** → `{ "para_responder": [Troca], "minhas": [Troca], "exige_aprovacao" }`.
+- **`POST /api/v1/medium/trocas/{id}/aceitar` · `/recusar`** — only the called colleague (else 404). Accept:
+  house requiring approval → `aceito`; otherwise → `aprovado` at once (the scale changes). Resolved → 409.
+- **`POST /api/v1/medium/trocas/{id}/cancelar`** — only the requester, while open.
+
+Troca (médium view): `{ "id", "papel": "pedi"|"para_mim", "status", "aguardando", "vigente", "atividade":
+{ "origem", "id", "titulo", "inicio", "tipo", "cancelada" }, "funcao", "grupo", "colega", "direcao_escolhe",
+"recado", "criada_em", "fechada_em", "fechada_por", "pode_aceitar", "pode_recusar", "pode_cancelar" }`.
+`colega` = first name of the other side: the called colleague always sees the requester's first name; the
+requester sees the substitute's name only if he was picked from the list or (chosen by the direction) has the
+opt-in on — else null ("um colega da corrente"). Audited as `medium_troca` (ids only).
+
+Also: `GET /medium/inicio` gains `trocas` (null without the plans) and the pending item `{ "tipo": "troca",
+"quantidade" }` (right after `escala`); `minha_participacao` gains `justificativa_avaliacao`; an activity
+visible only to the scale is also visible to the colleague called for an open troca;
+`GET /medium/preferencias` gains `mostrar_nome_colegas` + `colegas_disponivel`, and
+**`PUT /api/v1/medium/preferencias/colegas`** `{ "mostrar_nome": bool }` (30/h, refused while impersonating,
+audited as `medium_perfil`) turns the D-07 opt-in on/off (default off).
+
+E-mails (preference `escalas`, 7–22 h): `troca_pedida` → the called colleague; `troca_resposta` → the
+requester (accepted waiting for the direction, refused by the colleague or the direction, cancelled by the
+direction); `troca_aprovada` → both.
+
+---
+
 ### 12. Estudos (AM-21)
 
 Both routes require the plan feature `biblioteca_medium` (Pro; otherwise 403 — the Área shows a neutral
@@ -2072,6 +2142,25 @@ notice, never an upgrade offer).
 
 ---
 
+### Programa de Parceiros — pedidos (C-06)
+
+- **`GET /api/v1/platform/parceiros`** — query `status` (`novo|em_contato|aprovado|recusado`; outro → 422),
+  `q` (busca em nome, loja, cidade, e-mail e cupom), `limit` (1–200, padrão 50), `offset`. Mais recentes primeiro.
+  ```json
+  {
+    "items": [{ "id": "…", "nome": "Maria das Ervas", "tipo": "loja", "nome_negocio": "Casa de Artigos Pai Joaquim",
+                "cidade": "Niterói", "uf": "RJ", "whatsapp": "21998765432", "email": "maria@exemplo.com",
+                "como_divulgar": "…", "aceite_regulamento_em": "2026-10-08T15:00:00Z", "status": "novo",
+                "cupom": null, "observacoes": null, "created_at": "…", "updated_at": "…" }],
+    "total": 1,
+    "counts": { "novo": 1, "em_contato": 0, "aprovado": 0, "recusado": 0 }
+  }
+  ```
+  `counts` é a contagem geral por status (ignora os filtros). `ip_hash` nunca sai na API.
+- **`GET /api/v1/platform/parceiros/{id}`** — um pedido (404 se não existe).
+- **`PATCH /api/v1/platform/parceiros/{id}`** — `{"status"?, "cupom"?, "observacoes"?}` (só os campos enviados).
+  `cupom` é normalizado em maiúsculas e precisa casar `^[A-Z0-9_-]{3,40}$` (422); `""` limpa. `observacoes` até
+  2000 caracteres; vazio limpa. Devolve o pedido atualizado.
 ## Error Handling
 
 ### Standard Error Response

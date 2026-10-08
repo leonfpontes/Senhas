@@ -21,6 +21,7 @@
  * - "Aniversário" (AM-20): opt-in "Mostrar meu aniversário para a corrente" (`AniversarioOptIn`).
  * - "Meus dados e privacidade" (AM-14): leva a `/medium/meus-dados` (quem vê o quê, baixar meus
  *   dados, encerrar meu acesso).
+ * - "Colegas de escala" (AM-27, D-07): opt-in do primeiro nome na troca de escala (`ColegasDeEscala`).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
@@ -51,6 +52,7 @@ import { MeusGrupos } from '@/components/medium/MeusGrupos';
 import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 import { AniversarioOptIn } from '@/components/medium/perfil/AniversarioOptIn';
 import { AvisosPorEmail } from '@/components/medium/perfil/AvisosPorEmail';
+import { ColegasDeEscala } from '@/components/medium/perfil/ColegasDeEscala';
 import { MeusDadosDrawer } from '@/components/medium/perfil/MeusDadosDrawer';
 import { NotificacoesNoCelular } from '@/components/medium/perfil/NotificacoesNoCelular';
 import { TrocarEmailDrawer } from '@/components/medium/perfil/TrocarEmailDrawer';
@@ -453,6 +455,7 @@ function Perfil() {
             </Secao>
             <AvisosPorEmail somenteLeitura={somenteLeitura} />
             <NotificacoesNoCelular somenteLeitura={somenteLeitura} onInstalar={openInstall} />
+            <ColegasDeEscala somenteLeitura={somenteLeitura} />
           </>
         )}
 

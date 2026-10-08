@@ -275,8 +275,9 @@ def test_rotas_entram_no_app_pelo_admin_router():
     }
     # 19 do AM-08 + 9 da presença (AM-17/AM-28, admin/atividades_presenca.py) + 1 do AM-29
     # (`GET /convocar/mediuns`) + 2 da assiduidade (AM-26, admin/atividades_assiduidade.py) + 5 da escala
-    # por função (AM-18, admin/atividades_escala.py) no mesmo prefixo.
-    assert len(rotas) == 36
+    # por função (AM-18, admin/atividades_escala.py) + 5 das trocas (AM-27, admin/atividades_trocas.py) + 1 do
+    # abono da justificativa (AM-27, admin/atividades_presenca.py) no mesmo prefixo.
+    assert len(rotas) == 42
 
 
 @pytest.mark.parametrize(

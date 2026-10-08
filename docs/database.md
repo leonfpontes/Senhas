@@ -392,7 +392,9 @@ presente, ausente com/sem justificativa, dispensado, substituído) é **derivada
 | `presenca_origem` | `String(20)` NULL | CHECK `checkin_medium/chamada/encerramento/confianca` (`confianca` = "vou" que virou presente no encerramento) |
 | `presenca_registrada_em` / `presenca_registrada_por` | `DateTime(tz)` NULL / UUID FK → `users.id` SET NULL | quem marcou (correções do admin ficam registradas) |
 | `dispensado_em` | `DateTime(tz)` NULL | tirado da escala ou atividade cancelada (= `cancelada_em`; reativar devolve) |
-| `substituida_por_id` | UUID FK → `atividade_participacoes.id` SET NULL | troca de escala (fase 2, AM-27) |
+| `substituida_por_id` | UUID FK → `atividade_participacoes.id` SET NULL | troca de escala (AM-27): a linha do substituto — situação "Substituído" |
+| `justificativa_avaliacao` | VARCHAR(10) NULL | abono (AM-27, migração 086): `aceita` \| `recusada`; null = não avaliada (vale) |
+| `justificativa_avaliada_em` / `_por` | TIMESTAMPTZ / UUID FK → `users.id` SET NULL | quando e quem avaliou |
 | `lembrete_enviado_em` | `DateTime(tz)` NULL | avisos (AM-15) |
 | `created_at` / `updated_at` | `DateTime(tz)` | |
 
@@ -400,7 +402,39 @@ presente, ausente com/sem justificativa, dispensado, substituído) é **derivada
 o "Cheguei" e a chamada ao mesmo tempo nunca duplicam a linha (`services/presenca.upsert_participacao`:
 `INSERT … ON CONFLICT DO NOTHING` + `SELECT … FOR UPDATE`); `ix_atividade_participacoes_tenant_medium`
 (`tenant_id, medium_id`), `ix_atividade_participacoes_tenant_atividade` (`tenant_id, atividade_id`); CHECKs
-`ck_atividade_participacoes_origem/_resposta/_presenca/_presenca_origem`.
+`ck_atividade_participacoes_origem/_resposta/_presenca/_presenca_origem/_justificativa_avaliacao`. Origem
+`troca` (AM-27, migração 086): a linha do substituto de uma troca aprovada.
+
+### `participacao_trocas` (AM-27, migração 086)
+
+Troca de escala entre médiuns. Modelo em `src/models/atividades.py` (`ParticipacaoTroca`); regras em
+`src/services/trocas_escala.py`; API em `src/api/v1/medium/trocas.py` e `src/api/v1/admin/atividades_trocas.py`.
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `atividade_id` | UUID FK → `atividades.id` CASCADE | a atividade (ou âncora da gira) |
+| `participacao_id` | UUID FK → `atividade_participacoes.id` CASCADE | a linha de quem pede |
+| `solicitante_id` | UUID FK → `mediuns.id` CASCADE | quem pede |
+| `substituto_id` | UUID FK → `mediuns.id` CASCADE, NULL | o colega; null = "a direção escolhe" |
+| `indicado_pela_direcao` | BOOLEAN default false | a direção escolheu o substituto (o nome só aparece a quem pediu com o opt-in do D-07) |
+| `status` | VARCHAR(20) | `pedido` \| `aceito` \| `aprovado` \| `recusado` \| `cancelado` |
+| `recado` | VARCHAR(200) NULL | texto simples de quem pede |
+| `respondido_em` | TIMESTAMPTZ NULL | resposta do colega |
+| `fechada_em` / `fechada_por` | TIMESTAMPTZ / VARCHAR(20) NULL | `solicitante` \| `substituto` \| `direcao` |
+| `decidido_por` | UUID FK → `users.id` SET NULL | usuário do painel que aprovou, recusou ou cancelou |
+| `nova_participacao_id` | UUID FK → `atividade_participacoes.id` SET NULL | a linha do substituto, ao aprovar |
+| `created_at` / `updated_at` | TIMESTAMPTZ | |
+
+**Constraints/Indexes:** UNIQUE parcial `uq_participacao_trocas_aberta` (`participacao_id`) WHERE status IN
+(`pedido`, `aceito`) — uma troca aberta por participação; `ix_participacao_trocas_tenant_status`,
+`ix_participacao_trocas_tenant_atividade`, `ix_participacao_trocas_solicitante`, `ix_participacao_trocas_substituto`;
+CHECKs `ck_participacao_trocas_status/_fechada_por/_outro_medium` (substituto ≠ solicitante).
+
+Também na 082: `tenant_configs.escala_troca_exige_aprovacao` (BOOLEAN default true — troca combinada entre
+médiuns precisa da aprovação da direção), `medium_preferencias.mostrar_nome_colegas` (BOOLEAN default false — opt-in
+do D-07) e os tipos `troca_pedida`/`troca_resposta`/`troca_aprovada` em `medium_lembretes_enviados.tipo`.
 
 **Convocação virtual:** tipo "todos os elegíveis" não grava linha para quem só é esperado — ela nasce quando o
 médium responde, faz o "Cheguei", é escalado ou quando a chamada é encerrada (aí para todos os esperados).

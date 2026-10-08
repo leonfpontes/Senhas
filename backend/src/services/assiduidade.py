@@ -8,7 +8,9 @@ Regra (§8.5 e §8.10 do plano da Área do Médium, a MESMA do "Minhas presença
 - **Percentual = presentes ÷ convocações** de atividades com a **chamada encerrada**, sem
   dispensados, substituídos e atividades canceladas.
 - Cada linha de `atividade_participacoes` cai numa **categoria** (`categoria`):
-  - `dispensado`: tirado da escala, substituído ou atividade (ou gira) cancelada — fora da conta;
+  - `dispensado`: tirado da escala ou atividade (ou gira) cancelada — fora da conta;
+  - `substituido` (AM-27): trocou com um colega (troca aprovada) — fora da conta e contado à parte,
+    não é falta (o substituto ganha a convocação dele);
   - `avulso`: veio sem estar na escala (`convocado = false`, "Adicionar quem veio") — informativo,
     não é convocação nem entra no percentual;
   - `futura`: convocação de atividade que ainda não começou — fora da conta;
@@ -16,7 +18,8 @@ Regra (§8.5 e §8.10 do plano da Área do Médium, a MESMA do "Minhas presença
     entra no percentual (mostrada à parte);
   - com chamada encerrada: `presente` (inclusive o "vou" do modo confiança, gravado como presente
     no encerramento ou, se a presença foi limpa depois, o "vou" com a atividade terminada),
-    `ausente_justificado` (ausente com motivo, dado antes ou depois) ou `ausente`.
+    `ausente_justificado` (ausente com motivo, dado antes ou depois, que a direção não recusou —
+    abono do AM-27) ou `ausente` (sem motivo, ou motivo recusado).
   Convocações = presentes + ausências com e sem justificativa.
 - Só tipos que controlam presença; atividade ou gira excluída não aparece. A convocação virtual
   dos "todos os elegíveis" vira linha quando a chamada é encerrada (`encerrar_chamada`), então
@@ -51,6 +54,7 @@ from ..models.giras import Gira
 from ..models.mediuns import Medium
 from .medium_agenda import PeriodoInvalido
 from .presenca import (
+    AVALIACAO_RECUSADA,
     MODO_CONFIANCA,
     PRESENCA_NAO_REGISTRADA,
     PRESENCA_PRESENTE,
@@ -58,6 +62,7 @@ from .presenca import (
     SITUACAO_PRESENTE,
     config_presenca,
     ctx_de,
+    justificativa_vale,
     situacao,
 )
 
@@ -69,6 +74,7 @@ CAT_AUSENTE_JUSTIFICADO = "ausente_justificado"
 CAT_AUSENTE = "ausente"
 CAT_SEM_CHAMADA = "sem_chamada"
 CAT_DISPENSADO = "dispensado"
+CAT_SUBSTITUIDO = "substituido"
 CAT_AVULSO = "avulso"
 CAT_FUTURA = "futura"
 CAT_IGNORADA = "ignorada"  # sem convocação e sem presença (avulso desfeito): não aparece
@@ -78,6 +84,7 @@ CATEGORIAS = (
     CAT_AUSENTE,
     CAT_SEM_CHAMADA,
     CAT_DISPENSADO,
+    CAT_SUBSTITUIDO,
     CAT_AVULSO,
     CAT_FUTURA,
 )
@@ -116,9 +123,16 @@ def categoria(
     resposta: str = RESPOSTA_SEM,
     tem_justificativa: bool = False,
     confianca_terminou: bool = False,
+    substituido: bool = False,
 ) -> str:
-    """Em que conta uma linha de participação entra (ver o docstring do módulo)."""
-    if cancelada or dispensado:
+    """Em que conta uma linha de participação entra (ver o docstring do módulo).
+
+    `tem_justificativa` = há motivo e a direção não o recusou (abono, AM-27)."""
+    if cancelada:
+        return CAT_DISPENSADO
+    if substituido:
+        return CAT_SUBSTITUIDO
+    if dispensado:
         return CAT_DISPENSADO
     if not convocado:
         return CAT_AVULSO if presenca == PRESENCA_PRESENTE else CAT_IGNORADA
@@ -147,6 +161,7 @@ class Contagem:
     sem_chamada: int = 0
     dispensados: int = 0
     avulsos: int = 0
+    substituidos: int = 0
 
     def somar(self, cat: str, n: int = 1) -> None:
         if cat == CAT_PRESENTE:
@@ -161,6 +176,8 @@ class Contagem:
             self.dispensados += n
         elif cat == CAT_AVULSO:
             self.avulsos += n
+        elif cat == CAT_SUBSTITUIDO:
+            self.substituidos += n
         if cat in CATEGORIAS_DA_CONTA:
             self.convocacoes += n
 
@@ -267,19 +284,22 @@ def _base(f: Filtros, *colunas):
 def _fatos(f: Filtros):
     """Colunas booleanas/enums de cada linha que decidem a categoria."""
     cancelada = or_(Atividade.cancelada_em.is_not(None), and_(Gira.id.is_not(None), Gira.is_active.is_(False)))
-    dispensado = or_(
-        AtividadeParticipacao.dispensado_em.is_not(None), AtividadeParticipacao.substituida_por_id.is_not(None)
-    )
+    dispensado = AtividadeParticipacao.dispensado_em.is_not(None)
+    substituido = AtividadeParticipacao.substituida_por_id.is_not(None)
+    tem_motivo = func.length(func.trim(func.coalesce(AtividadeParticipacao.justificativa, ""))) > 0
+    # Abono (AM-27): motivo recusado pela direção conta como falta sem justificativa.
+    nao_recusada = func.coalesce(AtividadeParticipacao.justificativa_avaliacao, "") != AVALIACAO_RECUSADA
     modo = func.coalesce(AtividadeTipo.presenca_modo, literal(f.modo_casa))
     return [
         AtividadeParticipacao.convocado.label("convocado"),
         cancelada.label("cancelada"),
         dispensado.label("dispensado"),
+        substituido.label("substituido"),
         Atividade.chamada_encerrada_em.is_not(None).label("encerrada"),
         (_inicio_efetivo() <= f.agora).label("iniciou"),
         AtividadeParticipacao.presenca.label("presenca"),
         AtividadeParticipacao.resposta.label("resposta"),
-        (func.length(func.trim(func.coalesce(AtividadeParticipacao.justificativa, ""))) > 0).label("tem_justificativa"),
+        and_(tem_motivo, nao_recusada).label("tem_justificativa"),
         and_(modo == MODO_CONFIANCA, _fim_efetivo() < f.agora).label("confianca_terminou"),
     ]
 
@@ -288,6 +308,7 @@ _FATOS = (
     "convocado",
     "cancelada",
     "dispensado",
+    "substituido",
     "encerrada",
     "iniciou",
     "presenca",
@@ -434,6 +455,10 @@ class ItemDetalhe:
     cancelada: bool
     tem_justificativa: bool
     justificativa: Optional[str] = None
+    # Abono (AM-27): null (não avaliada), "aceita" ou "recusada" — e de onde veio a convocação
+    # ("troca": foi no lugar de um colega).
+    justificativa_avaliacao: Optional[str] = None
+    medium_origem: Optional[str] = None
 
 
 async def detalhe_do_medium(db: AsyncSession, f: Filtros) -> tuple[Contagem, list[ItemDetalhe]]:
@@ -449,13 +474,16 @@ async def detalhe_do_medium(db: AsyncSession, f: Filtros) -> tuple[Contagem, lis
     for p, a, t, g in (await db.execute(stmt)).all():
         ctx = ctx_de(a, t, g)
         modo = t.presenca_modo if t.presenca_modo else f.modo_casa
-        dispensado = p.dispensado_em is not None or p.substituida_por_id is not None
-        tem_just = bool((p.justificativa or "").strip())
+        dispensado = p.dispensado_em is not None
+        substituido = p.substituida_por_id is not None
+        tem_texto = bool((p.justificativa or "").strip())
+        tem_just = justificativa_vale(p.justificativa, p.justificativa_avaliacao)
         conf_terminou = modo == MODO_CONFIANCA and ctx.fim_efetivo < f.agora
         cat = categoria(
             convocado=bool(p.convocado),
             cancelada=ctx.cancelada,
             dispensado=dispensado,
+            substituido=substituido,
             encerrada=ctx.encerrada_em is not None,
             iniciou=ctx.inicio <= f.agora,
             presenca=p.presenca,
@@ -480,16 +508,19 @@ async def detalhe_do_medium(db: AsyncSession, f: Filtros) -> tuple[Contagem, lis
                     presenca=p.presenca,
                     justificativa=p.justificativa,
                     dispensado=dispensado,
-                    substituido=p.substituida_por_id is not None,
+                    substituido=substituido,
                     cancelada=ctx.cancelada,
                     confianca_terminou=conf_terminou and bool(t.controla_presenca),
+                    justificativa_recusada=p.justificativa_avaliacao == AVALIACAO_RECUSADA,
                 ),
                 categoria=cat,
                 conta_no_percentual=cat in CATEGORIAS_DA_CONTA,
                 chamada_encerrada=ctx.encerrada_em is not None,
                 cancelada=ctx.cancelada,
-                tem_justificativa=tem_just,
-                justificativa=p.justificativa if tem_just else None,
+                tem_justificativa=tem_texto,
+                justificativa=p.justificativa if tem_texto else None,
+                justificativa_avaliacao=p.justificativa_avaliacao if tem_texto else None,
+                medium_origem=p.origem,
             )
         )
     return resumo, itens
