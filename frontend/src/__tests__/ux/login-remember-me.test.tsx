@@ -13,6 +13,9 @@ jest.mock('../../services/api_client', () => ({
 const mockCompleteLogin = jest.fn();
 jest.mock('../../services/authSession', () => ({
   completeLogin: (...args: unknown[]) => mockCompleteLogin(...args),
+  // AM-05: resposta sem `choose_account` segue direto (escolha do terreiro em login-escolha-terreiro.test.tsx).
+  isAccountChoice: () => false,
+  selectAccount: jest.fn(),
 }));
 jest.mock('next/router', () => ({
   useRouter: () => ({ query: {}, push: jest.fn(), replace: jest.fn() }),

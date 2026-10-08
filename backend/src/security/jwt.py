@@ -13,6 +13,11 @@ from ..core.errors import InvalidTokenError
 # vão existir (`account_select`, `mfa_pending`, convite...) — é recusado.
 ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_TYPE = "refresh"
+# Escolha do terreiro no login (AM-05): prova curta de que a senha conferiu em
+# mais de uma conta com o mesmo e-mail. Não autentica nada sozinho — só o
+# POST /auth/login/select aceita (decode_account_select_token).
+ACCOUNT_SELECT_TOKEN_TYPE = "account_select"
+ACCOUNT_SELECT_TOKEN_TTL = timedelta(minutes=5)
 
 # Janela de compatibilidade (T-02, out/2026). Antes do T-02 o access token
 # não tinha `type`. Um token SEM `type` só é aceito se foi emitido antes deste
@@ -292,3 +297,64 @@ def decode_refresh_token(token: str) -> TokenPayload:
         raise
     except Exception as e:
         raise InvalidTokenError(f"Erro ao decodificar refresh token: {str(e)}")
+
+
+class AccountSelectPayload(BaseModel):
+    """Conteúdo do token de escolha de terreiro (AM-05)."""
+
+    user_ids: list[uuid.UUID]
+    remember_me: bool = True
+    iat: datetime
+    exp: datetime
+
+
+def create_account_select_token(
+    user_ids: list[uuid.UUID],
+    remember_me: bool,
+    expires_delta: Optional[timedelta] = None,
+) -> str:
+    """Token de escolha de terreiro (AM-05): `type=account_select`, 5 min.
+
+    Carrega só as contas cuja senha conferiu no login (`uids`) e o "Lembrar-me"
+    (`remember`). Sem `sub`/`role`/`tenant_id`: mesmo que um decoder errado o
+    aceitasse, não haveria identidade para autenticar. `decode_token` e
+    `decode_refresh_token` o recusam pelo `type` (allowlist do T-02).
+    """
+    if expires_delta is None:
+        expires_delta = ACCOUNT_SELECT_TOKEN_TTL
+    now = datetime.now(timezone.utc)
+    payload = {
+        "type": ACCOUNT_SELECT_TOKEN_TYPE,
+        "uids": [str(u) for u in user_ids],
+        "remember": bool(remember_me),
+        "iat": now,
+        "exp": now + expires_delta,
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_account_select_token(token: str) -> AccountSelectPayload:
+    """Valida o token de escolha de terreiro: assinatura, validade e `type`.
+
+    Raises:
+        InvalidTokenError: token inválido, expirado, de outro tipo ou sem contas.
+    """
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if payload.get("type") != ACCOUNT_SELECT_TOKEN_TYPE:
+            raise InvalidTokenError("Token não é de escolha de conta")
+        raw_ids = payload.get("uids")
+        if not isinstance(raw_ids, list) or not raw_ids:
+            raise InvalidTokenError("Token de escolha sem contas")
+        return AccountSelectPayload(
+            user_ids=[uuid.UUID(str(u)) for u in raw_ids],
+            remember_me=payload.get("remember", True) is not False,
+            iat=datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
+            exp=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
+        )
+    except jwt.PyJWTError as e:
+        raise InvalidTokenError(f"Token de escolha inválido: {str(e)}")
+    except InvalidTokenError:
+        raise
+    except Exception as e:
+        raise InvalidTokenError(f"Erro ao decodificar token de escolha: {str(e)}")

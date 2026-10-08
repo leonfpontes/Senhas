@@ -97,13 +97,30 @@ tenant redundante (barato) a uma excecao.
 - `/auth/refresh` implementado: le `refresh_token` do cookie, valida com `decode_refresh_token` (requer `type=refresh`), emite novo access + rotaciona refresh.
 - Claim `type` do JWT (T-02): todo access token sai de `create_access_token` com `type=access`
   (login, refresh, impersonacao, reativacao, cadastro). `decode_token` (usado pelo `jwt_middleware`)
-  e ALLOWLIST: so `type=access`; `refresh` e tipos desconhecidos (`account_select`, `mfa_pending`,
+  e ALLOWLIST: so `type=access`; `refresh`, `account_select` (AM-05) e tipos desconhecidos (`mfa_pending`,
   convite...) dao 401. Tipo novo de JWT = `type` proprio + decoder proprio, nunca `decode_token`.
   Janela de compatibilidade: token SEM `type` so passa se `iat < LEGACY_UNTYPED_ACCESS_CUTOFF`
   (2026-10-08T00:00Z) e ainda dentro de `ACCESS_TOKEN_EXPIRE_HOURS` do `iat`; ramo legado
   removivel a partir de 2026-10-10 (detalhes em `docs/authentication.md`).
 - `jwt_middleware` extrai token do header `Authorization: Bearer` primeiro (impersonacao via sessionStorage), depois fallback para cookie `access_token`.
-- `jwt_middleware` public_paths inclui `/auth/refresh`, `/auth/forgot-password`, `/auth/reset-password`.
+- `jwt_middleware` public_paths inclui `/auth/login`, `/auth/login/select`, `/auth/refresh`, `/auth/logout`,
+  `/auth/forgot-password`, `/auth/reset-password`, `/auth/reactivate-account`.
+- **Mesmo e-mail em mais de um terreiro (AM-05)**: usuario e unico por `(tenant_id, email)`. O login confere a
+  senha em TODAS as contas ativas com o e-mail (`login.active_login_accounts_stmt`: usuario ativo e nao excluido,
+  terreiro sem `self_deactivated_at`/`deleted_at`; max. `MAX_LOGIN_ACCOUNTS = 5`, mais antigas primeiro) — uma
+  verificacao bcrypt por conta; sem conta ativa, 1 verificacao (falsa ou a da conta inativa), o mesmo custo de
+  senha errada numa conta so. Confere em uma → sessao direta. Em mais de uma → 200 `{choose_account, selection_token,
+  options:[{user_id, terreiro_nome, terreiro_slug, logo_url, areas:{admin, medium}}]}` SEM cookies; so lista os
+  terreiros cuja senha conferiu (anti-enumeracao). `selection_token` = JWT `type=account_select`, 5 min, `uids` +
+  `remember` (sem `sub`/`role`; so `decode_account_select_token` aceita). `POST /auth/login/select
+  {selection_token, user_id}` (publico, 10/min por IP): valida tipo/validade/lista, conta ainda ativa e sem
+  `sessions_revoked_at` posterior ao token → `issue_session` como o login (401 `SELECTION_INVALID` em qualquer
+  recusa). Nao e de uso unico. Sem nenhuma conta ativa vale a regra de conta unica do #85
+  (`user_by_login_email_stmt`): conta inativa → 401 generico; terreiro desativado pelo dono → `TENANT_DEACTIVATED`
+  so depois de conferir a senha (a reativacao usa a mesma regra). Esqueci a senha com varias contas → UM e-mail com
+  um link por terreiro (um `reset_token_hash` por conta; `render_password_reset_multi_email`). Front: passo "Em qual
+  terreiro voce quer entrar?" no `/login` (`components/auth/AccountChoiceList`, `authSession.selectAccount` com
+  `skipAutoLogout`) e depois o mesmo `completeLogin` por `areas`.
 - Frontend usa `withCredentials: true` no axios — nao ha token no header para sessoes normais.
 - Impersonacao usa sessionStorage e header Bearer — fluxo preservado separado.
 - `hasAuthToken()` checa: `sessionStorage.getItem('access_token')` OR `document.cookie.includes('auth_state=1')` OR `localStorage.getItem('user')`.
@@ -958,10 +975,13 @@ Incluir obrigatoriamente:
   conheceu" só é exigido quando "Já conhece o terreiro" = Sim; perguntas de saúde começam sem resposta.
 - **Conta**: e-mail de login sem diferença de maiúsculas (`func.lower(User.email)`; cadastro e
   `UserRepository.create` gravam minúsculo — sem migração, linhas antigas cobertas pela comparação).
-  Login, esqueci a senha e reativação usam `login.user_by_login_email_stmt`: se o e-mail existir em
+  A reativação (e o login quando não há conta ativa) usa `login.user_by_login_email_stmt`: se o e-mail existir em
   mais de um terreiro, ganha a conta ativa (usuário ativo, terreiro sem `self_deactivated_at`) e, entre
   elas, a mais antiga — conta inativa só quando não há ativa (terreiro de teste desativado não "rouba"
-  o login do médium/operador de outro terreiro). Duas contas ativas: ainda a mais antiga, sem escolha. Cadastro valida a senha com `validate_password_policy`.
+  o login do médium/operador de outro terreiro). Desde o AM-05 o login e o esqueci a senha olham todas as contas
+  ativas (escolha do terreiro no login, um link por terreiro no e-mail — §3.2); a regra de conta única ficou para a
+  reativação e para o login sem nenhuma conta ativa. Cadastro valida a senha com `validate_password_policy` e
+  recusa e-mail que já existe em qualquer terreiro (409).
   Sessão aberta por `login.issue_session` + `core/auth_cookies.set_auth_cookies` em login, cadastro e
   reativação (3 cookies, `secure=not DEBUG`). "Lembrar-me" desmarcado (`remember_me=false`) → cookies
   sem `max_age`; o refresh token carrega `persist: false` e o `/auth/refresh` renova no mesmo modo.
@@ -1099,7 +1119,9 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   vão no texto); dentro do navegador do WhatsApp/Instagram mostra como abrir no navegador). Tipos e textos em
   `components/medium/agenda.ts`. "A corrente chega às…" não é derivável (sem campo próprio): fica no texto
   das orientações.
-- **Pendente nos próximos cards**: login multi-terreiro (AM-05), atividades da casa na Agenda (AM-08).
+- **Login multi-terreiro (AM-05)**: mesmo e-mail em mais de um terreiro escolhe o terreiro no `/login` antes da
+  escolha de área (regras em §3.2).
+- **Pendente nos próximos cards**: atividades da casa na Agenda (AM-08).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

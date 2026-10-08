@@ -12,8 +12,10 @@ Login Request (email + password)
     ▼
 POST /api/v1/auth/login
     │
-    ├── Busca user por email + tenant
-    ├── Verifica password com bcrypt
+    ├── Busca as contas ATIVAS com o e-mail (uma por terreiro; máx. 5, mais antigas primeiro)
+    ├── Verifica password com bcrypt em cada uma (sem conta: 1 verificação falsa)
+    ├── Senha confere em mais de uma → 200 choose_account + selection_token (SEM cookies)
+    │       └── POST /api/v1/auth/login/select {selection_token, user_id} → segue abaixo
     ├── Gera access_token (JWT, 24h)
     ├── Gera refresh_token (JWT, 30d)
     ├── Seta cookie HttpOnly: access_token
@@ -59,8 +61,8 @@ POST /api/v1/auth/login
 #### Claim `type` — allowlist (T-02, out/2026)
 
 `decode_token` — o que o `jwt_middleware` usa para autenticar — aceita **só** `type == "access"`.
-`refresh` e qualquer outro tipo (os futuros `account_select`, `mfa_pending`, convite...) dão 401.
-Tipo novo de JWT deve ter `type` próprio e decoder próprio, nunca passar por `decode_token`.
+`refresh`, `account_select` (AM-05) e qualquer outro tipo (os futuros `mfa_pending`, convite...)
+dão 401. Tipo novo de JWT deve ter `type` próprio e decoder próprio, nunca passar por `decode_token`.
 
 **Janela de compatibilidade:** access tokens emitidos antes do T-02 não têm `type`. Um token
 **sem** `type` só é aceito se `iat < LEGACY_UNTYPED_ACCESS_CUTOFF` (**2026-10-08T00:00Z**) **e**
@@ -78,6 +80,26 @@ legado (`_legacy_untyped_access_allowed`) pode ser removido a partir de 2026-10-
 | Transporte | HTTP-only cookie (`SameSite=Strict`) |
 
 Usado para renovar o access token sem re-login.
+
+### Token de escolha de terreiro (`account_select`, AM-05)
+
+| Campo | Valor |
+|-------|-------|
+| Algoritmo | HS256 |
+| Expiração | 5 minutos (`ACCOUNT_SELECT_TOKEN_TTL`) |
+| Transporte | Corpo da resposta do `/auth/login` → corpo do `/auth/login/select` (nunca cookie) |
+
+```json
+{ "type": "account_select", "uids": ["user-uuid-1", "user-uuid-2"], "remember": true, "iat": 0, "exp": 0 }
+```
+
+- Sai só de `create_account_select_token` e só é lido por `decode_account_select_token`
+  (`backend/src/security/jwt.py`). Sem `sub`/`role`/`tenant_id`: não carrega identidade de acesso.
+- `decode_token` e `decode_refresh_token` o recusam pelo `type` (testes em
+  `tests/unit/test_am05_login_multi.py` e `tests/integration_pg/test_am05_login_multi.py`).
+- `uids` = só as contas cuja senha conferiu; `remember` = o "Lembrar-me" do login.
+- Não é de uso único (pode escolher de novo dentro dos 5 min); vale até expirar, desde que a conta
+  continue ativa e sem `sessions_revoked_at` posterior ao `iat` (troca/redefinição de senha).
 
 ---
 
@@ -113,6 +135,65 @@ Usado para renovar o access token sem re-login.
   "message": "Invalid credentials"
 }
 ```
+
+**Mesmo e-mail em mais de um terreiro (AM-05).** O usuário é único por `(tenant_id, email)`, então
+uma pessoa pode ter conta em vários terreiros (admin da própria casa e médium de outra, por
+exemplo). O login confere a senha em **todas** as contas ativas com o e-mail (usuário ativo e não
+excluído, terreiro sem `self_deactivated_at`/`deleted_at`), no máximo **5**, mais antigas primeiro
+(`login.active_login_accounts_stmt`, `MAX_LOGIN_ACCOUNTS`):
+
+- nenhuma conta ativa → regra de conta única (`user_by_login_email_stmt`): conta inativa → 401
+  genérico; terreiro desativado pelo dono → 401 `TENANT_DEACTIVATED` só depois de conferir a senha;
+- senha não confere em nenhuma → 401 "Credenciais inválidas";
+- confere em **uma** → sessão nela, como sempre;
+- confere em **mais de uma** → 200 sem cookies:
+
+```json
+{
+  "choose_account": true,
+  "selection_token": "eyJ...",
+  "options": [
+    {
+      "user_id": "user-uuid",
+      "terreiro_nome": "Casa da Ana",
+      "terreiro_slug": "casa-da-ana",
+      "logo_url": "https://girahub.com.br/api/v1/public/tenant/<id>/logo",
+      "areas": { "admin": true, "medium": false }
+    }
+  ]
+}
+```
+
+Só entram em `options` os terreiros cuja senha conferiu (quem não tem a senha não descobre em quais
+terreiros o e-mail existe). **Custo/tempo:** uma verificação bcrypt por conta ativa (máx. 5);
+e-mail inexistente faz 1 verificação falsa (`DUMMY_BCRYPT_HASH`), o mesmo custo de senha errada
+numa conta só. E-mail com várias contas custa uma verificação por conta — o tempo revela que há
+mais de uma conta, nunca quais.
+
+### POST /api/v1/auth/login/select
+
+Pública (`public_paths` do `jwt_middleware`) e com rate limit de 10/min por IP.
+
+```json
+// Request
+{ "selection_token": "eyJ...", "user_id": "user-uuid" }
+
+// Response 200 — igual ao login direto: 3 cookies (no modo do "Lembrar-me" do login) + user + areas
+
+// Response 401 — token inválido/expirado, user_id fora da lista, conta que deixou de estar ativa
+// ou sessões revogadas depois da emissão do token
+{ "detail": { "error_code": "SELECTION_INVALID", "message": "O tempo para escolher o terreiro acabou. ..." } }
+```
+
+No front, o `/login` mostra "Em qual terreiro você quer entrar?" (`components/auth/AccountChoiceList`)
+e chama `services/authSession.selectAccount` (com `skipAutoLogout`: o 401 aqui é "escolha
+expirada", não sessão vencida); a rota depois segue `completeLogin` pelas `areas`.
+
+### POST /api/v1/auth/forgot-password (várias contas)
+
+Resposta sempre genérica. Com uma conta ativa, o e-mail de sempre. Com mais de uma (AM-05), **um**
+e-mail listando cada terreiro com o link da própria conta — cada conta ganha o seu
+`reset_token_hash`, e o `/auth/reset-password` (por token) redefine só aquela conta.
 
 ### POST /api/v1/auth/refresh
 

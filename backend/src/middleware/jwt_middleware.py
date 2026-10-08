@@ -33,7 +33,8 @@ async def jwt_middleware(request: Request, call_next: Callable) -> any:
     # Note: /docs and /openapi.json are disabled in production (FastAPI config);
     # they are kept here only for local DEBUG use.
     public_paths = ["/health", "/docs", "/redoc", "/openapi.json",
-                    "/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout",
+                    "/api/v1/auth/login", "/api/v1/auth/login/select",  # escolha do terreiro (AM-05)
+                    "/api/v1/auth/refresh", "/api/v1/auth/logout",
                     "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password",
                     "/api/v1/auth/reactivate-account",
                     "/api/v1/webhooks/stripe"]

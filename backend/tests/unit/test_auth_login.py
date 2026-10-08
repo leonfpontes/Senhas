@@ -28,6 +28,16 @@ def _not_impersonated_request():
     return req
 
 
+def _login_db(session, candidates, fallback=None):
+    """1ª query do login: contas ativas (scalars().all()); a seguinte, se houver,
+    é a conta única do #85 (scalar_one_or_none) — ver login.active_login_accounts_stmt."""
+    first = MagicMock()
+    first.scalars.return_value.all.return_value = candidates
+    second = MagicMock()
+    second.scalar_one_or_none.return_value = fallback
+    session.execute.side_effect = [first, second]
+
+
 @pytest.fixture(autouse=True)
 def _bypass_rate_limit():
     """Disable slowapi rate-limit enforcement for all tests in this module.
@@ -75,9 +85,7 @@ class TestLoginEndpoint:
     @patch("src.api.v1.auth.login.create_access_token", return_value="access-jwt")
     @patch("src.api.v1.auth.login.verify_password", return_value=True)
     async def test_successful_login(self, mock_verify, mock_access, mock_refresh, mock_log, admin_user, mock_db_session):
-        result_mock = MagicMock()
-        result_mock.scalar_one_or_none.return_value = admin_user
-        mock_db_session.execute.return_value = result_mock
+        _login_db(mock_db_session, [admin_user])
 
         request = LoginRequest(
             email="admin@test.com",
@@ -103,9 +111,7 @@ class TestLoginEndpoint:
 
     @patch("src.api.v1.auth.login.log_security_event")
     async def test_user_not_found_raises(self, mock_log, mock_db_session):
-        result_mock = MagicMock()
-        result_mock.scalar_one_or_none.return_value = None
-        mock_db_session.execute.return_value = result_mock
+        _login_db(mock_db_session, [], None)
 
         request = LoginRequest(
             email="noone@test.com",
@@ -122,9 +128,7 @@ class TestLoginEndpoint:
         user.is_active = False
         user.email = "inactive@test.com"
 
-        result_mock = MagicMock()
-        result_mock.scalar_one_or_none.return_value = user
-        mock_db_session.execute.return_value = result_mock
+        _login_db(mock_db_session, [], user)
 
         request = LoginRequest(
             email="inactive@test.com",
@@ -137,9 +141,7 @@ class TestLoginEndpoint:
     @patch("src.api.v1.auth.login.log_security_event")
     @patch("src.api.v1.auth.login.verify_password", return_value=False)
     async def test_wrong_password_raises(self, mock_verify, mock_log, admin_user, mock_db_session):
-        result_mock = MagicMock()
-        result_mock.scalar_one_or_none.return_value = admin_user
-        mock_db_session.execute.return_value = result_mock
+        _login_db(mock_db_session, [admin_user])
 
         request = LoginRequest(
             email="admin@test.com",
