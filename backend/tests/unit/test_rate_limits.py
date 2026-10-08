@@ -90,3 +90,21 @@ class TestRateLimitRegistration:
         assert _registered_limits(
             "src.api.v1.public.resend_email.resend_ticket_email"
         ) == ["15 per 1 hour"]
+
+    def test_public_onboarding_limited_like_login(self):
+        """Com `conta_existente` o cadastro confere a senha de uma conta (2026-10-08):
+        mesmo limite do login, para não virar oráculo de senha."""
+        import src.api.v1.public.onboarding  # noqa: F401
+
+        assert _registered_limits("src.api.v1.public.onboarding.onboarding") == ["10 per 1 minute"]
+
+
+def test_nginx_puts_onboarding_in_the_login_zone():
+    """O prefixo /api/v1/public/ está na public_limit (30/min); o cadastro tem bloco exato na login_limit."""
+    import re
+    from pathlib import Path
+
+    conf = (Path(__file__).resolve().parents[3] / "nginx" / "conf.d" / "senhas.conf").read_text(encoding="utf-8")
+    bloco = re.search(r"location = /api/v1/public/onboarding \{(.*?)\}", conf, re.S)
+    assert bloco, "falta o bloco `location = /api/v1/public/onboarding` no nginx"
+    assert "limit_req zone=login_limit" in bloco.group(1)

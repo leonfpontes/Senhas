@@ -50,6 +50,7 @@ import {
   CADASTRO_STEPS,
   buildOnboardingPayload,
   cadastroSchema,
+  cadastroSchemaContaExistente,
   parseOnboardingError,
   previewSlug,
   readDraft,
@@ -105,6 +106,8 @@ describe('Cadastro em passos', () => {
     jest.clearAllMocks();
     sessionStorage.clear();
     Object.keys(mockQuery).forEach((k) => delete mockQuery[k]);
+    // mockReset: um `mockRejectedValueOnce` não consumido (teste que falhou no meio) não vaza para o próximo.
+    (apiClient.post as jest.Mock).mockReset();
     (apiClient.post as jest.Mock).mockResolvedValue({ data: { user: { id: 'u1' } } });
     // jsdom não implementa navegação: troca window.location por um objeto simples
     delete (window as unknown as { location?: unknown }).location;
@@ -288,6 +291,7 @@ describe('Cadastro em passos', () => {
       email: 'maria@example.com',
       whatsapp: '11999998888',
       documento: '52998224725',
+      conta_existente: false,
       password: STRONG,
       principal_dor: 'mediuns',
       como_conheceu: 'instagram',
@@ -324,6 +328,127 @@ describe('Cadastro em passos', () => {
     await waitFor(() => expect(email).toHaveFocus());
     expect(screen.getByRole('link', { name: 'Entrar com este e-mail' })).toHaveAttribute('href', '/login');
     expect(window.location.href).toBe('');
+  });
+
+  describe('e-mail que já tem conta em outro terreiro', () => {
+    // Percorrem os 4 passos duas vezes: com a máquina carregada passam dos 5 s padrão.
+    const LONGO = 20000;
+    const JA_TEM_CONTA = {
+      response: {
+        status: 409,
+        data: {
+          detail: {
+            error_code: 'EMAIL_JA_TEM_CONTA',
+            message: 'Você já tem conta no GiraHub com este e-mail. Digite a senha dessa conta para criar a casa nova.',
+          },
+        },
+      },
+    };
+    const criar = async () => {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Criar minha conta/ }));
+      });
+    };
+
+    /** Envio com e-mail que já tem conta → volta ao "Acesso" no modo "senha da sua conta". */
+    async function ateASenhaDaConta() {
+      (apiClient.post as jest.Mock).mockRejectedValueOnce(JA_TEM_CONTA);
+      render(<Cadastro />);
+      await preencherAteOFim();
+      await responderPerguntas();
+      await criar();
+      expect(await screen.findByText('Passo 3 de 4')).toBeInTheDocument();
+    }
+
+    it('volta ao "Acesso" com o aviso e um campo só, sem a regra de senha nova', async () => {
+      await ateASenhaDaConta();
+      expect(screen.getByRole('status')).toHaveTextContent('Você já tem conta no GiraHub com maria@example.com');
+      expect(screen.getByRole('heading', { name: 'Use a senha que você já tem' })).toBeInTheDocument();
+      const senha = screen.getByLabelText(/Senha da sua conta GiraHub/);
+      expect(senha).toHaveValue(''); // a senha nova digitada antes não é a da conta
+      expect(senha).toHaveAttribute('autocomplete', 'current-password');
+      expect(senha).not.toHaveAttribute('aria-invalid', 'true');
+      await waitFor(() => expect(senha).toHaveFocus());
+      expect(screen.queryByRole('list', { name: 'Regras da senha' })).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Esqueci a senha' })).toHaveAttribute('href', '/forgot-password');
+      expect(trackEvent).toHaveBeenCalledWith('signup_email_ja_tem_conta');
+      expect(window.location.href).toBe('');
+    }, LONGO);
+
+    it('aceita a senha antiga (fora da regra atual) e reenvia com conta_existente', async () => {
+      await ateASenhaDaConta();
+      await continuar();
+      expect(await screen.findByText('Digite a senha da sua conta GiraHub.')).toBeInTheDocument();
+
+      type(/Senha da sua conta GiraHub/, 'antiga123');
+      await continuar();
+      expect(screen.getByText('Passo 4 de 4')).toBeInTheDocument();
+      await criar();
+
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(2));
+      const [, primeiro] = (apiClient.post as jest.Mock).mock.calls[0];
+      const [, segundo] = (apiClient.post as jest.Mock).mock.calls[1];
+      expect(primeiro).toMatchObject({ conta_existente: false, password: STRONG });
+      expect(segundo).toMatchObject({ conta_existente: true, password: 'antiga123', email: 'maria@example.com' });
+      await waitFor(() => expect(window.location.href).toBe('/admin/giras?nova=1'));
+    }, LONGO);
+
+    it('senha errada fica no campo da senha da conta', async () => {
+      await ateASenhaDaConta();
+      type(/Senha da sua conta GiraHub/, 'errada');
+      await continuar();
+      (apiClient.post as jest.Mock).mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: { detail: { error_code: 'SENHA_CONTA_INCORRETA', message: 'Senha incorreta. Use a senha com que você já entra no GiraHub.' } },
+        },
+      });
+      await criar();
+
+      expect(await screen.findByText('Passo 3 de 4')).toBeInTheDocument();
+      const senha = screen.getByLabelText(/Senha da sua conta GiraHub/);
+      expect(senha).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByText(/Senha incorreta/)).toBeInTheDocument();
+    }, LONGO);
+
+    it('limite de terreiros por e-mail volta ao e-mail com a mensagem', async () => {
+      await ateASenhaDaConta();
+      type(/Senha da sua conta GiraHub/, 'antiga123');
+      await continuar();
+      (apiClient.post as jest.Mock).mockRejectedValueOnce({
+        response: {
+          status: 409,
+          data: {
+            detail: {
+              error_code: 'LIMITE_CONTAS_EMAIL',
+              message: 'Este e-mail já está em 5 terreiros, o máximo do GiraHub. Use outro e-mail para a casa nova.',
+            },
+          },
+        },
+      });
+      await criar();
+
+      expect(await screen.findByText('Passo 2 de 4')).toBeInTheDocument();
+      expect(screen.getByLabelText(/^E-mail/)).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByText(/já está em 5 terreiros/)).toBeInTheDocument();
+    }, LONGO);
+
+    it('"Usar outro e-mail" e trocar o e-mail volta à senha nova com a regra', async () => {
+      await ateASenhaDaConta();
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Usar outro e-mail' }));
+      });
+      expect(screen.getByText('Passo 2 de 4')).toBeInTheDocument();
+      await act(async () => {
+        type(/^E-mail/, 'outra@example.com');
+      });
+      await continuar();
+      expect(screen.getByText('Passo 3 de 4')).toBeInTheDocument();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/^Senha/)).not.toHaveAccessibleName(/sua conta/);
+      expect(screen.getByRole('list', { name: 'Regras da senha' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Crie sua senha' })).toBeInTheDocument();
+    }, LONGO);
   });
 
   it('erro sem campo (ex.: limite de tentativas) aparece no passo atual', async () => {
@@ -448,6 +573,30 @@ describe('cadastroForm', () => {
     expect(parseOnboardingError(new Error('Network Error'))).toEqual({
       message: 'Não foi possível criar a conta. Tente novamente.',
     });
+  });
+
+  it('recusas com error_code do e-mail que já tem conta (2026-10-08)', () => {
+    const recusa = (error_code: string, message = 'msg') => ({ response: { data: { detail: { error_code, message } } } });
+    expect(parseOnboardingError(recusa('EMAIL_JA_TEM_CONTA'))).toEqual({ field: 'password', message: 'msg', code: 'EMAIL_JA_TEM_CONTA' });
+    expect(parseOnboardingError(recusa('SENHA_CONTA_INCORRETA'))).toEqual({
+      field: 'password',
+      message: 'msg',
+      code: 'SENHA_CONTA_INCORRETA',
+    });
+    expect(parseOnboardingError(recusa('LIMITE_CONTAS_EMAIL'))).toEqual({ field: 'email', message: 'msg', code: 'LIMITE_CONTAS_EMAIL' });
+    expect(parseOnboardingError(recusa('OUTRO', ''))).toEqual({
+      message: 'Não foi possível criar a conta. Tente novamente.',
+      code: 'OUTRO',
+    });
+  });
+
+  it('senha da conta existente só não pode ficar vazia; o payload leva conta_existente', () => {
+    expect(cadastroSchemaContaExistente.safeParse({ ...valid, password: 'antiga123' }).success).toBe(true);
+    const vazia = cadastroSchemaContaExistente.safeParse({ ...valid, password: '' });
+    expect(vazia.success ? [] : vazia.error.issues.map((i) => i.path[0])).toEqual(['password']);
+    expect(cadastroSchema.safeParse({ ...valid, password: 'antiga123' }).success).toBe(false);
+    expect(buildOnboardingPayload(valid).conta_existente).toBe(false);
+    expect(buildOnboardingPayload(valid, true).conta_existente).toBe(true);
   });
 
   it('prévia do link segue o slug do backend', () => {

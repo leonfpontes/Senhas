@@ -147,20 +147,20 @@ export function InstallAreaSheet({
 
         <div
           aria-hidden
-          className="flex justify-center gap-5 rounded-2xl bg-gradient-to-br from-cafe-800 to-cafe-950 p-4"
+          className="flex justify-center gap-5 rounded-2xl border border-border bg-gradient-to-br from-areia-100 to-areia-200 p-4"
         >
-          <span className="flex flex-col items-center gap-1.5 text-xs font-semibold text-areia-100">
-            <span className="size-16 rounded-2xl bg-white/10" />
+          <span className="flex flex-col items-center gap-1.5 text-xs font-semibold text-foreground">
+            <span className="size-16 rounded-2xl bg-card shadow-sm" />
             Banco
           </span>
-          <span className="flex flex-col items-center gap-1.5 text-xs font-semibold text-areia-100">
+          <span className="flex flex-col items-center gap-1.5 text-xs font-semibold text-foreground">
             <span className="flex size-16 items-center justify-center rounded-2xl bg-primary shadow-lg">
               <TerreiroEmblem nome={terreiroNome} logoUrl={logoUrl} className="size-12 ring-0" />
             </span>
             <span className="max-w-20 truncate">{terreiroNome || 'Sua casa'}</span>
           </span>
-          <span className="flex flex-col items-center gap-1.5 text-xs font-semibold text-areia-100">
-            <span className="size-16 rounded-2xl bg-white/10" />
+          <span className="flex flex-col items-center gap-1.5 text-xs font-semibold text-foreground">
+            <span className="size-16 rounded-2xl bg-card shadow-sm" />
             Fotos
           </span>
         </div>

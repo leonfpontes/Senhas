@@ -81,4 +81,4 @@ cupom na plataforma, display A4 em PDF gerado com QR para `/cadastro?cupom=X`.
 - API pública: `POST /api/v1/public/parceiros/interesse` (`backend/src/api/v1/public/parceiros.py`).
 - Plataforma: `GET/PATCH /api/v1/platform/parceiros*` (`backend/src/api/v1/platform/parceiros.py`) e
   `frontend/src/pages/platform/parceiros.tsx`.
-- Tabela: `parceiro_interesses` (migração `086_parceiros`).
+- Tabela: `parceiro_interesses` (migração `084_parceiros`).

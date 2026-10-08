@@ -311,8 +311,9 @@ EXEMPT_PUBLIC_QUERIES: dict[tuple[str, str], str] = {
         "TrialGrant é global por design (CPF/CNPJ ou e-mail que já ganhou trial em qualquer "
         "tenant não ganha outro); só testa existência"
     ),
-    ("api/v1/public/onboarding.py", "onboarding"): (
-        "e-mail de usuário é único global (cadastro cria tenant novo); só testa existência"
+    ("api/v1/public/onboarding.py", "_email_em_conta_nao_excluida"): (
+        "cadastro cria tenant novo: e-mail sem conta ativa mas com conta inativa/terreiro desativado em "
+        "qualquer tenant barra (409); só testa existência"
     ),
     ("api/v1/public/stats.py", "_compute_stats"): (
         "números da landing (V-02): só COUNT somado entre todos os tenants, nenhum dado de "
@@ -341,7 +342,12 @@ EXEMPT_PUBLIC_QUERIES: dict[tuple[str, str], str] = {
 EXEMPT_BODY_FKS: dict[tuple[str, str, str], str] = {}
 
 # Modo medium (src/api/v1/medium/, AM-02). Chave: (caminho relativo a src/, função).
-EXEMPT_MEDIUM_QUERIES: dict[tuple[str, str], str] = {}
+EXEMPT_MEDIUM_QUERIES: dict[tuple[str, str], str] = {
+    ("api/v1/medium/inicio.py", "_aniversariantes"): (
+        "AM-20: aniversariantes da semana da MESMA casa (filtro por ctx.tenant_id) que ligaram o "
+        "opt-in aniversario_visivel; só primeiro nome + dia/mês saem da rota"
+    ),
+}
 
 # Tabela do cadastro de médiuns e nomes que a Área nunca recebe da requisição.
 MEDIUM_TABLE = "mediuns"

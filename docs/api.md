@@ -220,9 +220,12 @@ Terreiro sem a Área (plano sem `area_medium`, assinatura bloqueada ou chave do 
   "email_mascarado": "an•••••••@gmail.com",
   "conta_existente": false,
   "expira_em": "2026-10-14T12:00:00Z",
-  "consentimento_versao": "1"
+  "consentimento_versao": "2"
 }
 ```
+`consentimento_versao`: versão do termo da Área (`CONSENTIMENTO_AREA_VERSAO`; "2" desde o AM-14/AM-20 — o
+médium encerra o acesso e baixa os dados sozinho, e os outros médiuns só veem o aniversário de quem escolher
+mostrar). Quem aceitou a "1" segue com a "1" gravada; nada pede novo aceite.
 `conta_existente` = já existe conta do painel (admin/operador, não excluída) com o e-mail do
 convite no terreiro: o aceite pede a senha dessa conta.
 
@@ -274,7 +277,36 @@ toque em "Desligar" (leitor de link não muda nada).
   `{"detail": {"error_code": "LINK_INVALIDO", "message": "Este link não vale mais. Você pode mudar os avisos por e-mail no Perfil da Área."}}`.
   Ligar de novo só pela Área (Perfil → Avisos por e-mail).
 
-### 8. Programa de Parceiros — pedido de interesse (C-06)
+### 8. Cadastro de terreiro (onboarding)
+
+**`POST /api/v1/public/onboarding`** (10/min por IP no slowapi e zona `login_limit` no nginx —
+`location = /api/v1/public/onboarding`, a mesma do login). Cria o terreiro, o admin, a assinatura
+(Premium de 30 dias se o CPF/CNPJ e o e-mail nunca ganharam o mês grátis — `trial_grants`; senão
+Free), o aceite dos termos (`legal_acceptances`) e abre a sessão (`issue_session`: os 3 cookies do login).
+```json
+{
+  "terreiro_nome": "Tenda Luz da Mata", "responsavel_nome": "Ana", "email": "ana@example.com",
+  "whatsapp": "11999998888", "documento": "52998224725", "conta_existente": false,
+  "password": "...", "como_conheceu": "indicacao", "principal_dor": "mediuns", "aceite_termos": true
+}
+```
+- E-mail novo: `password` segue a regra de senha (`validate_password_policy`, 422 no campo).
+- **E-mail que já tem conta ATIVA em outro terreiro** (decisão do dono, 2026-10-08; "ativa" = a mesma
+  noção do login AM-05, `active_login_accounts_stmt` — inclusive conta `medium`):
+  - sem `conta_existente` → **409** `{"detail": {"error_code": "EMAIL_JA_TEM_CONTA", "message": "Você já tem conta no GiraHub com este e-mail. Digite a senha dessa conta para criar a casa nova."}}`;
+  - com `conta_existente: true`, `password` é a senha dessa conta (sem a regra de senha nova — só o
+    teto de 72 bytes do bcrypt), conferida em todas as contas ativas do e-mail (no máximo 5, como no
+    login; basta uma conferir). Errada → **400** `SENHA_CONTA_INCORRETA` (nunca 401) e nada é criado;
+  - certa, mas o e-mail já tem **5** contas ativas (`MAX_LOGIN_ACCOUNTS`) → **409**
+    `LIMITE_CONTAS_EMAIL` (só depois da senha certa);
+  - certa → o admin novo nasce com o **mesmo hash de senha** da conta conferida (uma senha só); o login
+    passa a responder `choose_account` com os terreiros.
+- Sem conta ativa, mas com conta inativa ou de terreiro desativado pelo dono → **409**
+  `{"detail": "Este email já está cadastrado"}` (como antes; o login oferece reativar). Só conta
+  excluída não barra. `conta_existente: true` com e-mail sem conta ativa vira cadastro comum (regra de senha).
+- Não existe consulta de "este e-mail tem conta?" antes do envio (seria um oráculo): só a resposta acima,
+  depois do formulário inteiro válido.
+### 9. Programa de Parceiros — pedido de interesse (C-06)
 
 **`POST /api/v1/public/parceiros/interesse`** (sem login; 5/hora por IP) — formulário da página `/parceiros`
 (a página fica atrás de `NEXT_PUBLIC_PARCEIROS_PUBLICADO`; o endpoint aceita sempre).
@@ -676,7 +708,8 @@ e chave do piloto `tenants.area_medium_liberada`; sem a chave → 403). Médium 
   "mensalidade_no_plano": true,
   "presenca": { "modo_padrao": "confianca", "prazo_justificativa_dias": 7 },
   "presenca_no_plano": true,
-  "lembretes": { "mensalidade": true }
+  "lembretes": { "mensalidade": true },
+  "aniversario_mensagem": null
 }
 ```
 **PUT body** (partial — only sent fields change): `ativa` (bool), `boas_vindas` (≤ 500, empty
@@ -688,6 +721,10 @@ absence). Changing the mode applies to the next roll calls; presence already rec
 `presenca_no_plano` = plan with `atividades_corrente` (the screen only shows the section with it).
 `lembretes` (AM-15): `{mensalidade?: bool}` — the house turns the mensalidade e-mail reminders off (D-29: 3 days
 before and 3 days after the due date, only for months open without a receipt; default on).
+`aniversario_mensagem` (AM-20): the house's message on the médium's Início on his birthday — plain text (HTML and
+control characters are stripped), ≤ 200 after cleaning (else 422), `{nome}` becomes the first name; empty/`null`
+clears it and the default applies ("A <terreiro> deseja um feliz aniversário, <primeiro nome>! Axé!"). The response
+brings it too (`null` = default).
 Audited as `TenantConfig` / `config_type: "area_medium"`.
 
 ### 11. PIX key for the mensalidade (AM-10)
@@ -1022,7 +1059,9 @@ with `type: "account_select"`, valid for 5 minutes, carrying the allowed `user_i
 "remember me" flag; it is rejected as an access or refresh token. Cost: one bcrypt verification per
 active account (max 5); an unknown e-mail runs one dummy verification (same as a wrong password on
 a single account). No active account → single-account rule (`TENANT_DEACTIVATED` for a
-self-deactivated terreiro, after the password is checked).
+self-deactivated terreiro, after the password is checked). A new terreiro can be signed up with an
+e-mail that already has an active account (`conta_existente` in `POST /public/onboarding`, Public
+Endpoints §8): the new admin reuses that account's password hash, so the same password lists both.
 
 **Error Responses**:
 - `401 Unauthorized`: Invalid credentials (or `detail.error_code = "TENANT_DEACTIVATED"`)
@@ -1493,6 +1532,13 @@ médium come from the session; a `medium_id` in the query string is ignored).
   screen shows "Pagar com PIX" only when true, else "Ver mensalidade".
 - `avisos` (AM-09): `{nao_lidos, ultimos}` — unread count and the 3 newest unread
   (`{id, titulo, fixado, publicado_em}`); `{0, []}` when the house turned the "avisos" module off.
+- `aniversariantes` (AM-20): `[{ "primeiro_nome": "Bia", "dia": 12, "mes": 10, "hoje": false, "sou_eu": false }]`
+  — active médiuns of the SAME terreiro, linked to an account (with the Área), who turned on "Mostrar meu
+  aniversário para a corrente", with the birthday in the current week (Monday to Sunday, Brasília; 29/02 counts
+  as 01/03 outside leap years), ordered by date. Never the year, the surname or an id. `[]` → the card is hidden.
+- `meu_aniversario` (AM-20): `{ "mensagem": "A Tenda Luz deseja um feliz aniversário, Ana! Axé!" }` only on the
+  médium's own birthday (no opt-in needed — only he sees it); the house text from
+  `/admin/config/area-medium` → `aniversario_mensagem` when set. `null` on other days.
 
 ### 3. Avisos (AM-09)
 
@@ -1680,7 +1726,8 @@ never the values (phone, address, e-mail).
   "foto_url": "https://.../api/v1/public/user/{user_id}/photo",
   "email": "ana@example.com",
   "email_pendente": null,
-  "email_pendente_expira_em": null
+  "email_pendente_expira_em": null,
+  "mostrar_aniversario": false
 }
 ```
 - `casa` is read-only for the médium (only the house edits name, entry date, type and exemption).
@@ -1723,6 +1770,13 @@ terreiro — deleted ones included — already uses it; other terreiros may use 
 
 **`DELETE /api/v1/medium/perfil/email`** → 204: gives up the pending change (the link stops
 working).
+
+**`PUT /api/v1/medium/perfil/aniversario`** (30/hour; AM-20) — `{"mostrar": true|false}` (any other field → 422).
+Opt-in "Mostrar meu aniversário para a corrente": only first name + day/month appear to the corrente
+(`/inicio` → `aniversariantes`). Turning it on without `data_nascimento` → **422** ("preencha a data de nascimento
+em Meus dados"). Returns the profile, which carries `"mostrar_aniversario": bool` (default `false`). Audited as
+`medium_perfil` ("médium passou a mostrar / deixou de mostrar o aniversário para a corrente"); no change → no
+audit entry. Refused while impersonating (403).
 
 ### 7. Presença — Vou / Não vou, Cheguei, Conte o motivo (AM-17/AM-28)
 
@@ -1785,6 +1839,92 @@ What each type covers and when it is sent (Brasília time, `services/medium_lemb
 Schedule reminders by function/rotation/planned cleaning need the `escalas` plan; the others
 `atividades_corrente`. Nothing is sent without the pilot switch, the plan `area_medium` and the Área
 turned on by the house.
+
+### 9. Notificação no celular — Web Push (AM-16)
+
+Push with VAPID, no paid service (`services/web_push.py`). **Off without the server keys**
+(`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`; see `docs/deployment.md`): `disponivel: false`,
+writes that need it answer **409** `PUSH_INDISPONIVEL`, and the scheduler sends e-mail only.
+
+- **`GET /api/v1/medium/push`** → `{ "disponivel": true, "chave_publica": "<VAPID public key, base64url>",
+  "aparelhos": 1, "preferencias": { "mensalidade": true, "escalas": true, "confirmacao": true, "faltas": true,
+  "avisos": true }, "disponiveis": ["mensalidade", …] }` — `aparelhos` = this médium's subscribed devices
+  (own user only); `preferencias` are the phone toggles (`medium_preferencias.push_*`, independent from the
+  e-mail ones); `disponiveis` is the same list as §8.
+- **`POST /api/v1/medium/push/inscricao`** (60/h per IP) — body = the browser's `PushSubscription.toJSON()`:
+  `{ "endpoint": "https://fcm.googleapis.com/fcm/send/…", "keys": { "p256dh": "…", "auth": "…" } }`
+  (extra fields ignored). Idempotent: the same endpoint renews the keys; an endpoint subscribed by another
+  account becomes this one's (the device owns it). The endpoint must be `https` on a known push service
+  (FCM, Mozilla, Windows WNS, Apple) → else **422** `PUSH_ENDPOINT_INVALIDO` (the server POSTs to it).
+  Returns the same body as the GET. A new device is audited as `medium_perfil` (`{acao}` only).
+- **`DELETE /api/v1/medium/push/inscricao`** `{ "endpoint" }` (60/h) → **204**. Removes only the caller's own
+  subscription (tenant + médium + user); someone else's endpoint is a no-op.
+- **`PUT /api/v1/medium/push/preferencias`** `{ "avisos"?: bool, … }` (30/h) — same fields as §8, changes only
+  the phone toggles; unknown field → 422. Audited as `medium_perfil` (`campos` only).
+- **`POST /api/v1/medium/push/teste`** (10/h) → `{ "enviadas": 1 }` — a test notification to the caller's
+  devices; no device → **409** `PUSH_SEM_APARELHO`.
+
+All writes are refused while impersonating (**403**). Sending: the AM-15 scheduler (`services/
+medium_lembrete_scheduler.py`) plans each reminder when e-mail **or** phone is on for that type, reserves the
+same mark (once per reminder for both channels) and, after the commit, sends one push per device of the
+médium's current user. Payload (encrypted, TTL 12 h): `{ "title": "<terreiro>", "body": "A mensalidade de
+outubro vence em 3 dias.", "url": "/medium/mensalidade?pagar=1", "tag": "mensalidade" }` — never the activity
+or aviso title, amounts, the PIX key, the cancellation or absence reason (`services/medium_push.py`). A
+404/410 from the push service deletes the subscription; other failures add to `failures` (5 in a row delete).
+### 10. Meus dados e privacidade — exportar e encerrar o acesso (AM-14)
+
+Both routes are the médium's own (LGPD art. 18): refused while impersonating (**403**); tenant and médium come
+from the session only.
+
+**`GET /api/v1/medium/meus-dados/exportar`** (20/hour per IP) — everything the house keeps about the médium in
+the Área. The screen builds the JSON file and a readable PDF from it on the device.
+```json
+{
+  "formato": 1,
+  "gerado_em": "2026-10-08T15:00:00+00:00",
+  "terreiro": "Tenda Luz",
+  "sobre": "Estes são os dados que Tenda Luz guarda sobre você no GiraHub. …",
+  "cadastro": { "nome": "Ana Paula Ribeiro", "na_corrente": "cambone", "data_entrada": "2019-03-10",
+    "telefone": "11987654321", "email_do_cadastro": "ana@example.com", "data_nascimento": "1985-04-20",
+    "endereco": { "cep": "01310100", "logradouro": "Avenida Paulista", "numero": "1000", "bairro": "Bela Vista", "cidade": "São Paulo" },
+    "isento_de_mensalidade": false, "mostrar_aniversario_para_a_corrente": false },
+  "conta": { "email_de_acesso": "ana@example.com", "nome": "Ana Paula Ribeiro", "tem_foto": false,
+    "tambem_acessa_o_painel": false, "criada_em": "2026-10-07T12:00:00+00:00" },
+  "consentimento": { "aceito_em": "2026-10-07T12:00:00+00:00", "versao_aceita": "1", "revogado_em": null, "versao_revogada": null },
+  "grupos": [{ "nome": "G2", "desde": "2026-10-08T10:00:00+00:00" }],
+  "avisos_por_email": { "mensalidade": true, "escalas": true, "confirmacao": true, "faltas": true, "avisos": true },
+  "mensalidades": [{ "mes": "2026-09", "situacao": "PAGO", "valor": 50.0, "valor_pago": 50.0,
+    "pago_em": "2026-09-10T12:00:00+00:00",
+    "comprovante": { "arquivo": "comprovante.jpg", "tipo": "image/jpeg", "enviado_pela_area_em": "2026-09-09T20:00:00+00:00" },
+    "motivo_nao_confirmado": null, "nao_confirmado_em": null }],
+  "avisos_lidos": [{ "aviso": "Gira de sábado", "lido_em": "2026-10-05T21:00:00+00:00" }],
+  "participacoes": [{ "atividade": "Faxina · G2", "tipo": "Faxina", "quando": "2026-10-03T12:00:00+00:00",
+    "cancelada": false, "na_escala": true, "funcao": null, "resposta": "nao_vou", "respondido_em": "…",
+    "motivo_contado": "Viagem a trabalho", "motivo_contado_em": "…", "presenca": "ausente",
+    "presenca_registrada_em": null, "saiu_da_escala_em": null }]
+}
+```
+Never: the house's internal fields (`observacoes`, `data_saida`, `registrado_por`, the payment `observacao`), the
+receipt file bytes, or anything of another médium/terreiro. `motivo_contado` is the text the médium HIMSELF wrote
+(it still never goes to e-mail, push, audit or the house's reports).
+
+**`POST /api/v1/medium/meus-dados/encerrar`** (5/hour per IP) — `{"senha": "..."}` (the current password). Wrong
+password → **400** `SENHA_INCORRETA` (never 401) and nothing changes. On success:
+- records the revocation of the Área consent (`mediuns.area_consentimento_revogado_em` + `_versao` = the accepted
+  version; the acceptance stays as history), turns `aniversario_visivel` off, revokes any open invite and unlinks
+  `mediuns.user_id`;
+- account with role `medium` → deactivated, every session revoked (`sessions_revoked_at`, `user_sessions`) and the
+  3 auth cookies cleared in this response; operator/admin who is also a médium → only loses the Área (panel and
+  session untouched);
+- the médium record and the house's data stay with the terreiro (controller);
+- e-mail to every ACTIVE admin of the terreiro ("<primeiro nome> encerrou o acesso à Área do Médium");
+- audit `resource_type = "Medium"` with `{acesso_area: "encerrado_pelo_medium", consentimento_revogado_versao,
+  conta_desativada}` (no name or e-mail).
+```json
+{ "message": "Seu acesso à Área do Médium foi encerrado.", "conta_desativada": true, "redirect": "/login?acesso_encerrado=1" }
+```
+(operator/admin: `"conta_desativada": false, "redirect": "/admin/dashboard"`). The house can invite the person
+again (AM-03): accepting reactivates the same `medium` account with a new password and records a new consent.
 
 ---
 
@@ -1857,6 +1997,7 @@ Rotas `/api/v1/platform/*` exigem `require_super_admin` (403 para qualquer outro
 | `/public/convite/{token}` | 30 | 1 minute per IP |
 | `/public/convite/{token}/aceitar` | 10 | 1 minute per IP |
 | `/public/parceiros/interesse` | 5 | 1 hour per IP |
+| `/public/onboarding` | 10 | 1 minute per IP (nginx: `login_limit`) |
 | `/public/*/emit-ticket` | 5 | 1 hour per email |
 | `/admin/*` | 100 | 1 minute |
 | `/admin/audit-logs` | 50 | 1 minute |

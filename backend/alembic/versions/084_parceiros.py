@@ -7,8 +7,8 @@
 
 Downgrade: apaga a tabela (os pedidos se perdem).
 
-Revision ID: 086_parceiros
-Revises: 081_lembretes
+Revision ID: 084_parceiros
+Revises: 083_meus_dados_aniversarios
 Create Date: 2026-10-08
 """
 
@@ -16,8 +16,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "086_parceiros"
-down_revision: str = "081_lembretes"
+revision: str = "084_parceiros"
+down_revision: str = "083_meus_dados_aniversarios"
 branch_labels = None
 depends_on = None
 

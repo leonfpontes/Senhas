@@ -123,6 +123,11 @@ services:
       RESEND_SENDER_EMAIL: ${RESEND_SENDER_EMAIL}
       # E-mails de onboarding D+1/D+3 — false desliga (restart do backend)
       ONBOARDING_EMAILS_ENABLED: ${ONBOARDING_EMAILS_ENABLED:-true}
+      # Notificação no celular da Área do Médium (AM-16, Web Push/VAPID). Vazias = push desligado
+      # (só e-mail). Gerar com `npx web-push generate-vapid-keys` — docs/deployment.md.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
 
       # Stripe
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}

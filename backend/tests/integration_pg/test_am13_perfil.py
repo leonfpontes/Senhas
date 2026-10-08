@@ -41,7 +41,7 @@ JPEG = b"\xff\xd8\xff\xe0" + b"foto-de-teste" * 20
 
 CAMPOS_DA_RESPOSTA = {
     "casa", "telefone", "data_nascimento", "cep", "logradouro", "numero", "bairro", "cidade",
-    "foto_url", "email", "email_pendente", "email_pendente_expira_em",
+    "foto_url", "email", "email_pendente", "email_pendente_expira_em", "mostrar_aniversario",
 }
 
 

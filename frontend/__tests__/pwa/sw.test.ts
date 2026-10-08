@@ -2,6 +2,7 @@
  * public/sw.js (P-01): roda o service worker num sandbox com `caches`/`fetch` falsos e confere
  * as regras — nunca interceptar `/api/*` (nem POST, nem outra origem), navegação com fallback
  * para /offline sem guardar HTML, `/_next/static` em cache-first e limpeza de versões antigas.
+ * AM-16: `push` mostra a notificação da Área e `notificationclick` abre só caminho da origem.
  */
 import fs from 'fs';
 import path from 'path';
@@ -59,8 +60,15 @@ function setup(version = 'build-2') {
       listeners[type] = fn;
     },
     skipWaiting: jest.fn(() => Promise.resolve()),
-    clients: { claim: jest.fn(() => Promise.resolve()) },
-    registration: { navigationPreload: { enable: jest.fn(() => Promise.resolve()) } },
+    clients: {
+      claim: jest.fn(() => Promise.resolve()),
+      matchAll: jest.fn(async (): Promise<any[]> => []),
+      openWindow: jest.fn(async (url: string) => ({ url })),
+    },
+    registration: {
+      navigationPreload: { enable: jest.fn(() => Promise.resolve()) },
+      showNotification: jest.fn(() => Promise.resolve()),
+    },
   };
   class FakeRequest {
     url: string;
@@ -106,7 +114,13 @@ function setup(version = 'build-2') {
     await pending;
   }
 
-  return { stores, fetchMock, self, dispatchFetch, lifecycle };
+  async function dispatch(type: 'push' | 'notificationclick', extra: Record<string, unknown>) {
+    let pending: Promise<unknown> = Promise.resolve();
+    listeners[type]({ ...extra, waitUntil: (p: Promise<unknown>) => (pending = p) });
+    await pending;
+  }
+
+  return { stores, fetchMock, self, dispatchFetch, lifecycle, dispatch };
 }
 
 describe('service worker', () => {
@@ -181,5 +195,65 @@ describe('service worker', () => {
     expect(Array.from(sw.stores.keys()).sort()).toEqual(['girahub-shell-build-2', 'outro-cache']);
     expect(sw.self.clients.claim).toHaveBeenCalled();
     expect(sw.self.registration.navigationPreload.enable).toHaveBeenCalled();
+  });
+
+  it('/api/* da Área (push, preferências) também passa direto, sem cache', async () => {
+    const sw = setup();
+    await sw.lifecycle('install');
+    for (const [url, init] of [
+      ['/api/v1/medium/push', {}],
+      ['/api/v1/medium/push/inscricao', { method: 'POST' }],
+      ['/api/v1/medium/push/inscricao', { method: 'DELETE' }],
+      ['/api/v1/medium/preferencias', {}],
+    ] as const) {
+      const { respondWith } = await sw.dispatchFetch(url, init as any);
+      expect(respondWith).not.toHaveBeenCalled();
+    }
+    expect(Array.from(sw.stores.get('girahub-shell-build-2')!.keys()).some((k) => k.startsWith('/api/'))).toBe(false);
+  });
+
+  it('push mostra a notificação com o ícone da Área e guarda só o caminho da origem', async () => {
+    const sw = setup();
+    await sw.dispatch('push', {
+      data: {
+        json: () => ({ title: 'Casa Luz', body: 'A mensalidade de outubro vence em 3 dias.', url: '/medium/mensalidade?pagar=1', tag: 'mensalidade' }),
+      },
+    });
+    expect(sw.self.registration.showNotification).toHaveBeenCalledWith('Casa Luz', {
+      body: 'A mensalidade de outubro vence em 3 dias.',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      lang: 'pt-BR',
+      data: { url: '/medium/mensalidade?pagar=1' },
+      tag: 'mensalidade',
+      renotify: true,
+    });
+
+    sw.self.registration.showNotification.mockClear();
+    await sw.dispatch('push', { data: { json: () => ({ title: 'X', body: 'Y', url: 'https://golpe.example/pix' }) } });
+    expect(sw.self.registration.showNotification.mock.calls[0][1].data).toEqual({ url: '/medium' });
+
+    sw.self.registration.showNotification.mockClear();
+    await sw.dispatch('push', { data: null });
+    expect(sw.self.registration.showNotification).toHaveBeenCalledWith(
+      'Área do Médium',
+      expect.objectContaining({ body: '', data: { url: '/medium' } }),
+    );
+  });
+
+  it('tocar na notificação foca a janela aberta e leva ao caminho; sem janela, abre uma', async () => {
+    const sw = setup();
+    const close = jest.fn();
+    const navigate = jest.fn(async () => undefined);
+    const janela: any = { url: `${ORIGIN}/medium`, focus: jest.fn(async () => janela), navigate };
+    sw.self.clients.matchAll.mockResolvedValueOnce([{ url: 'https://outro.site/', focus: jest.fn() }, janela]);
+    await sw.dispatch('notificationclick', { notification: { close, data: { url: '/medium/avisos/a1' } } });
+    expect(close).toHaveBeenCalled();
+    expect(janela.focus).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith('/medium/avisos/a1');
+    expect(sw.self.clients.openWindow).not.toHaveBeenCalled();
+
+    await sw.dispatch('notificationclick', { notification: { close, data: { url: '//golpe.example/x' } } });
+    expect(sw.self.clients.openWindow).toHaveBeenCalledWith('/medium');
   });
 });

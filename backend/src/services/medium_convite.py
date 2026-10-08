@@ -37,7 +37,9 @@ CONVITE_VALIDADE_DIAS = 7
 # Versão do texto de consentimento mostrado no aceite ("Autorizo a casa a usar meu nome,
 # contato e mensalidades..."). Mudou o texto → suba aqui E em frontend/src/constants/areaMedium.ts
 # (tests/unit/test_medium_convite.py confere o espelho).
-CONSENTIMENTO_AREA_VERSAO = "1"
+# v2 (AM-14/AM-20, 08/10/2026): o médium encerra o próprio acesso e baixa os dados no Perfil; os outros
+# médiuns só veem o aniversário de quem escolher mostrar. Quem aceitou a v1 segue com a v1 gravada.
+CONSENTIMENTO_AREA_VERSAO = "2"
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 

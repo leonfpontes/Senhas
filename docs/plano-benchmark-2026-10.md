@@ -1418,7 +1418,7 @@ a loja, com saque por PIX. As lojas de artigos religiosos falam com todos os ter
 **Status (2026-10-08).** Página e formulário prontos atrás da chave `NEXT_PUBLIC_PARCEIROS_PUBLICADO`
 (desligada; `/parceiros` em 404); cupom manual no Stripe até o $-05. Proposta de regras na página: terreiro com 20%
 de desconto nos 3 primeiros meses; parceiro com 20% de comissão por 12 meses, PIX mensal a partir de R$ 30. Pedidos
-gravados em `parceiro_interesses` (migração 086) e listados em `/platform/parceiros` (status, cupom, observações),
+gravados em `parceiro_interesses` (migração 084) e listados em `/platform/parceiros` (status, cupom, observações),
 com aviso por e-mail ao `ALERT_EMAIL`. Regras, economia por plano e decisões pendentes em `docs/programa-parceiros.md`.
 
 **Aceite**
