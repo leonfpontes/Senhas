@@ -170,8 +170,10 @@ describe('Atividades e escalas — agenda da casa', () => {
     // Cancelada: desfaz o cancelamento, não edita.
     expect(within(itens[2]).queryByRole('button', { name: /^Editar/ })).not.toBeInTheDocument();
     expect(within(itens[2]).getByRole('button', { name: 'Desfazer cancelamento de Ritual da Ana' })).toBeInTheDocument();
-    // Gira não tem ações de atividade.
-    expect(within(itens[1]).queryByRole('button')).not.toBeInTheDocument();
+    // Gira não tem as ações de atividade; tem Confirmações e Chamada (AM-17).
+    expect(within(itens[1]).queryByRole('button', { name: /^(Editar|Cancelar|Excluir)/ })).not.toBeInTheDocument();
+    expect(within(itens[1]).getByRole('button', { name: 'Chamada de Gira de Caboclos' })).toBeInTheDocument();
+    expect(within(itens[1]).getByRole('button', { name: 'Confirmações de Gira de Caboclos' })).toBeInTheDocument();
     const cal = mockGet.mock.calls.find((c) => c[0] === `${BASE}/calendario`);
     expect(cal?.[1]?.params).toMatchObject({ inicio: expect.stringMatching(/^\d{4}-\d{2}-01$/) });
   });
@@ -365,5 +367,80 @@ describe('Atividades e escalas — tipos e funções', () => {
     expect(screen.queryByRole('button', { name: /^Editar/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Arquivar/ })).not.toBeInTheDocument();
     expect(mockGet).not.toHaveBeenCalledWith('/api/v1/admin/corrente-grupos/opcoes');
+  });
+});
+
+describe('Atividades e escalas — presença (AM-17/AM-28)', () => {
+  const CONFIRMACOES = {
+    atividade: {
+      atividade_id: 'a1', origem: 'atividade', ref_id: 'a1', titulo: 'Faxina · G1', inicio: '2026-10-10T12:00:00Z',
+      tipo: { id: 't-faxina', nome: 'Faxina', icone: 'faxina', cor: 'petroleo' }, modo_presenca: 'confianca',
+      controla_presenca: true, pede_confirmacao: true, exige_justificativa: true, convocacao_padrao: 'so_escalados',
+      cancelada: false, chamada_encerrada_em: null, pode_encerrar: false,
+    },
+    contadores: { esperados: 2, confirmados: 1, ausencias_avisadas: 1, sem_resposta: 0, presentes: 0, ausentes: 0, sem_registro: 2, dispensados: 0 },
+    pessoas: [
+      { medium_id: 'm1', nome: 'Ana Paula', convocado: true, origem: 'manual', resposta: 'nao_vou', presenca: 'nao_registrada', situacao: 'ausencia_avisada', tem_justificativa: true, justificativa: 'Viagem a trabalho', dispensado: false },
+      { medium_id: 'm2', nome: 'Beto Souza', convocado: true, origem: 'manual', resposta: 'vou', presenca: 'nao_registrada', situacao: 'confirmado', tem_justificativa: false, justificativa: null, dispensado: false },
+    ],
+    outros_mediuns: [{ id: 'm3', nome: 'Caio Lima' }],
+    ver_justificativa: true,
+  };
+
+  it('tipo: escolhe como a presença é marcada e manda presenca_modo', async () => {
+    const user = userEvent.setup();
+    setup();
+    await screen.findAllByTestId('agenda-item');
+    await user.click(screen.getByRole('tab', { name: 'Tipos e funções' }));
+    await user.click(await screen.findByRole('button', { name: 'Editar Faxina' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('radio', { name: /O padrão da casa/ })).toHaveAttribute('aria-checked', 'true');
+    await user.click(within(dialog).getByRole('radio', { name: /“Cheguei” com o QR do dia/ }));
+    expect(within(dialog).getByLabelText('Minutos antes do início')).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    });
+    await waitFor(() => expect(mockPut).toHaveBeenCalled());
+    expect(mockPut.mock.calls[0][1]).toMatchObject({ presenca_modo: 'qr', checkin_antes_min: 60 });
+    expect(mockPut.mock.calls[0][1]).not.toHaveProperty('checkin_pelo_medium');
+  });
+
+  it('confirmações: contadores, o motivo de quem não vai, pôr e tirar da escala', async () => {
+    const user = userEvent.setup();
+    mockGet.mockImplementation((url: string) => {
+      if (url === `${BASE}/calendario`) return Promise.resolve({ data: CALENDARIO });
+      if (url === `${BASE}/tipos`) return Promise.resolve({ data: TIPOS });
+      if (url === `${BASE}/a1/confirmacoes`) return Promise.resolve({ data: CONFIRMACOES });
+      return Promise.resolve({ data: [] });
+    });
+    mockPost.mockResolvedValue({ data: CONFIRMACOES });
+    const Page = require('@/pages/admin/atividades').default;
+    render(<Page />);
+    await user.click(await screen.findByRole('button', { name: 'Confirmações de Faxina · G1' }));
+    const painel = await screen.findByRole('dialog');
+    expect(await within(painel).findByText('Motivo: Viagem a trabalho')).toBeInTheDocument();
+    const contadores = within(painel).getByTestId('confirmacoes-contadores');
+    expect(contadores).toHaveTextContent('1Vão');
+    expect(contadores).toHaveTextContent('1Não vão');
+    await user.click(within(painel).getByRole('button', { name: 'Tirar Beto Souza da escala' }));
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith(`${BASE}/a1/dispensar`, { medium_ids: ['m2'] }));
+    expect(within(painel).getByRole('link', { name: /Abrir a chamada/ })).toHaveAttribute('href', '/admin/atividades/a1/chamada');
+  });
+
+  it('chamada da gira: cria a âncora e abre a tela da chamada', async () => {
+    const user = userEvent.setup();
+    mockPost.mockResolvedValue({ data: { atividade_id: 'anc-1' } });
+    setup();
+    await user.click(await screen.findByRole('button', { name: 'Chamada de Gira de Caboclos' }));
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith(`${BASE}/da-gira/g1/chamada`));
+  });
+
+  it('sem ESCALAS:edit não mostra "Chamada"; sem insert não abre confirmações da gira', async () => {
+    mockGroupCan.mockImplementation((_f: string, a: string) => a === 'view');
+    setup();
+    await screen.findAllByTestId('agenda-item');
+    expect(screen.queryByRole('button', { name: /^Chamada de/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirmações de Gira de Caboclos' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirmações de Faxina · G1' })).toBeInTheDocument();
   });
 });

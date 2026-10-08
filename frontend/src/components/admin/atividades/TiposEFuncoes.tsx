@@ -3,7 +3,8 @@
  *
  * Tipos de atividade da casa (Gira, Faxina, Ritual coletivo...): renomear, ícone e cor de listas
  * fechadas, arquivar (o tipo Gira é da casa: renomeia, não arquiva) e as opções de cada tipo —
- * presença, "Vou / Não vou", motivo de quem não vai, "Cheguei" pelo médium + janela, quem pode
+ * presença, "Vou / Não vou", motivo de quem não vai, como a presença é marcada (AM-28: padrão da casa,
+ * confiança, "Cheguei" pelo app ou com o QR do dia) + janela do "Cheguei", quem pode
  * participar (toda a corrente, atendimento, cambones ou grupos da corrente), convocação padrão,
  * modo de escala, horário/duração e visibilidade padrão. Funções da corrente (Cambone, Porteiro,
  * Ogã/Atabaque...) para a escala de gira.
@@ -45,6 +46,7 @@ import {
   type Visibilidade,
 } from '@/constants/atividades';
 import { corDoGrupo } from '@/constants/correnteGrupos';
+import { OPCOES_MODO_PRESENCA, type ModoPresenca } from '@/constants/presenca';
 import { iconeDaAtividade } from '@/lib/icons';
 import { cn } from '@/lib/utils';
 
@@ -71,7 +73,8 @@ interface TipoForm {
   controla_presenca: boolean;
   pede_confirmacao: boolean;
   exige_justificativa: boolean;
-  checkin_pelo_medium: boolean;
+  /** AM-28: '' = padrão da casa. */
+  presenca_modo: ModoPresenca | '';
   checkin_antes_min: string;
   checkin_depois_min: string;
   elegiveis: Elegiveis;
@@ -90,7 +93,7 @@ const TIPO_NOVO: TipoForm = {
   controla_presenca: true,
   pede_confirmacao: true,
   exige_justificativa: false,
-  checkin_pelo_medium: false,
+  presenca_modo: '',
   checkin_antes_min: '60',
   checkin_depois_min: '180',
   elegiveis: 'todos',
@@ -110,7 +113,7 @@ function formDoTipo(t: TipoAtividade): TipoForm {
     controla_presenca: t.controla_presenca,
     pede_confirmacao: t.pede_confirmacao,
     exige_justificativa: t.exige_justificativa,
-    checkin_pelo_medium: t.checkin_pelo_medium,
+    presenca_modo: t.presenca_modo ?? '',
     checkin_antes_min: String(t.checkin_antes_min),
     checkin_depois_min: String(t.checkin_depois_min),
     elegiveis: t.elegiveis,
@@ -123,13 +126,21 @@ function formDoTipo(t: TipoAtividade): TipoForm {
   };
 }
 
+/** Modo de presença do tipo (AM-28): o padrão da casa (Configurações da Área) ou um dos três. */
+const OPCOES_MODO_TIPO: readonly Opcao<'padrao' | ModoPresenca>[] = [
+  { valor: 'padrao', rotulo: 'O padrão da casa', ajuda: 'O que estiver em Configurações → Área do Médium.' },
+  ...OPCOES_MODO_PRESENCA,
+];
+
 /** Resumo do tipo em linguagem da casa: "Presença · Vou/Não vou · Motivo · Toda a corrente". */
 export function resumoDoTipo(t: TipoAtividade): string {
   const partes: string[] = [];
   if (t.controla_presenca) partes.push('Presença');
   if (t.pede_confirmacao) partes.push('Vou / Não vou');
   if (t.exige_justificativa) partes.push('Pede o motivo');
-  if (t.checkin_pelo_medium) partes.push('“Cheguei” no app');
+  if (t.controla_presenca && t.presenca_modo === 'app') partes.push('“Cheguei” no app');
+  if (t.controla_presenca && t.presenca_modo === 'qr') partes.push('“Cheguei” com QR');
+  if (t.controla_presenca && t.presenca_modo === 'confianca') partes.push('Presença por confiança');
   partes.push(
     t.elegiveis === 'grupos' && t.grupos.length > 0
       ? t.grupos.map((g) => g.nome).join(', ')
@@ -298,7 +309,7 @@ export function TiposEFuncoes({ canInsert, canEdit, canDelete }: PermissoesEscal
       controla_presenca: tipoForm.controla_presenca,
       pede_confirmacao: tipoForm.pede_confirmacao,
       exige_justificativa: tipoForm.exige_justificativa,
-      checkin_pelo_medium: tipoForm.checkin_pelo_medium,
+      presenca_modo: tipoForm.presenca_modo || null,
       checkin_antes_min: Number(tipoForm.checkin_antes_min) || 0,
       checkin_depois_min: Number(tipoForm.checkin_depois_min) || 0,
       elegiveis: tipoForm.elegiveis,
@@ -735,14 +746,16 @@ export function TiposEFuncoes({ canInsert, canEdit, canDelete }: PermissoesEscal
             checked={tipoForm.exige_justificativa}
             onChange={(v) => setTipo('exige_justificativa', v)}
           />
-          <Interruptor
-            id="tipo-checkin"
-            rotulo="Médium marca “Cheguei” no app"
-            ajuda="Só dentro da janela de horário abaixo."
-            checked={tipoForm.checkin_pelo_medium}
-            onChange={(v) => setTipo('checkin_pelo_medium', v)}
-          />
-          {tipoForm.checkin_pelo_medium && (
+          {tipoForm.controla_presenca && (
+            <OpcoesRadio
+              id="tipo-modo-presenca"
+              legenda="Como a presença é marcada"
+              opcoes={OPCOES_MODO_TIPO}
+              valor={tipoForm.presenca_modo === '' ? 'padrao' : tipoForm.presenca_modo}
+              onChange={(v) => setTipo('presenca_modo', v === 'padrao' ? '' : (v as ModoPresenca))}
+            />
+          )}
+          {tipoForm.controla_presenca && tipoForm.presenca_modo !== 'confianca' && (
             <div className="grid grid-cols-2 gap-3">
               <TextField
                 label="Minutos antes do início"

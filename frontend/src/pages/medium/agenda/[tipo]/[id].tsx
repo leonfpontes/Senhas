@@ -12,8 +12,13 @@
  *   no iPhone o Safari oferece "Adicionar à agenda"; no Android o Chrome baixa e abre a agenda;
  * - "Abrir no Google Agenda": link comum, funciona até no navegador do WhatsApp.
  * Aberto dentro do WhatsApp/Instagram, mostra como abrir no navegador (baixar pode falhar).
+ *
+ * Escala (AM-17/AM-28): com `minha_participacao`, o cartão "Você está na escala" (`EscalaCard`:
+ * Vou / Não vou, "Cheguei", "Conte o motivo"). O QR do dia é um link para esta tela com
+ * `?cheguei=<código>` (a câmera do celular abre a Área): com o "Cheguei" aberto, a presença é
+ * marcada sozinha uma vez e o parâmetro sai da URL.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
@@ -45,6 +50,9 @@ import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiClient } from '@/services/api_client';
+import { useSnackbar } from '@/contexts/SnackbarContext';
+import { EscalaCard } from '@/components/medium/presenca/EscalaCard';
+import { cheguei, estaImpersonando, mensagemDoErro } from '@/components/medium/presenca/presencaApi';
 
 const CARD = 'flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm';
 
@@ -78,8 +86,26 @@ function DetalheDoItem() {
   const [erro, setErro] = useState<'rede' | 'nao_encontrada' | 'indisponivel' | null>(null);
   const [nonce, setNonce] = useState(0);
   const [noApp, setNoApp] = useState(false);
+  const { showSuccess, showError } = useSnackbar();
+  const codigoQr = typeof router.query.cheguei === 'string' ? router.query.cheguei : null;
+  const usouQr = useRef(false);
 
   useEffect(() => setNoApp(isInAppBrowser()), []);
+
+  // QR do dia lido pela câmera do celular: marca o "Cheguei" uma vez e limpa a URL.
+  useEffect(() => {
+    const p = item?.minha_participacao;
+    if (!item || !codigoQr || usouQr.current || !p || estaImpersonando()) return;
+    usouQr.current = true;
+    void router.replace(`/medium/agenda/${item.kind}/${encodeURIComponent(item.id)}`, undefined, { shallow: true });
+    if (!p.pode_checkin || p.modo_presenca !== 'qr') return;
+    cheguei(item, codigoQr)
+      .then((nova) => {
+        setItem((atual) => (atual ? ({ ...atual, minha_participacao: nova } as Detalhe) : atual));
+        showSuccess('Presença marcada. Bom trabalho!');
+      })
+      .catch((err) => showError(mensagemDoErro(err, 'Não conseguimos marcar sua presença. Tente pelo botão “Cheguei”.')));
+  }, [item, codigoQr, router, showSuccess, showError]);
 
   useEffect(() => {
     if (!router.isReady || !tipo || !id) return;
@@ -169,6 +195,15 @@ function DetalheDoItem() {
           <h1 className="font-display text-[1.6rem] leading-tight font-bold tracking-tight">{item.titulo}</h1>
         </div>
       </header>
+
+      {item.minha_participacao && (
+        <EscalaCard
+          key={`${item.minha_participacao.resposta}-${item.minha_participacao.presenca}`}
+          item={{ ...item, origem: item.kind, minha_participacao: item.minha_participacao }}
+          semCabecalho
+          onAtualizado={(nova) => setItem((atual) => (atual ? ({ ...atual, minha_participacao: nova } as Detalhe) : atual))}
+        />
+      )}
 
       {item.kind === 'atividade' && cancelada && (
         <p

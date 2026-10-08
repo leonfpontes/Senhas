@@ -159,6 +159,8 @@ export interface GiraCardProps {
   onDelete: (gira: GiraCardData) => void;
   /** Endereço do terreiro: mostrado quando a gira não tem "local" próprio. */
   fallbackLocal?: string | null;
+  /** Ação extra ao lado do botão primário (ex.: "Chamada" da corrente, AM-17). */
+  extraAction?: React.ReactNode;
   now?: Date;
   className?: string;
 }
@@ -239,6 +241,7 @@ export function GiraCard({
   onEdit,
   onDelete,
   fallbackLocal,
+  extraAction,
   now = new Date(),
   className,
 }: GiraCardProps) {
@@ -416,7 +419,12 @@ export function GiraCard({
           </div>
         )}
 
-        {primaryButton && <div className="flex justify-end">{primaryButton}</div>}
+        {(primaryButton || extraAction) && (
+          <div className="flex flex-wrap justify-end gap-2">
+            {extraAction}
+            {primaryButton}
+          </div>
+        )}
       </div>
     </Card>
   );

@@ -27,7 +27,8 @@ export const OPCOES_MODO_PRESENCA: readonly Opcao<ModoPresenca>[] = [
   {
     valor: 'qr',
     rotulo: '“Cheguei” com o QR do dia',
-    ajuda: 'O “Cheguei” pede o QR que aparece na Porta, no modo TV e na tela da chamada. Evita marcar de casa.',
+    ajuda:
+      'O “Cheguei” pede o QR que aparece na Porta, no modo TV e na tela da chamada. Evita marcar de casa.',
   },
 ];
 
@@ -138,7 +139,11 @@ export interface PresencasResponse {
 }
 
 /** Rota base das ações da Área numa gira/atividade. */
-export function acaoHref(origem: string, id: string, acao: 'resposta' | 'checkin' | 'justificativa'): string {
+export function acaoHref(
+  origem: string,
+  id: string,
+  acao: 'resposta' | 'checkin' | 'justificativa',
+): string {
   return `/api/v1/medium/atividades/${origem}/${encodeURIComponent(id)}/${acao}`;
 }
 
@@ -211,7 +216,9 @@ export interface QrResponse {
 }
 
 /** Origem da presença registrada, em palavras da casa. */
-export function textoOrigemPresenca(p: Pick<PessoaChamada, 'presenca_origem' | 'presenca_registrada_por'>): string | null {
+export function textoOrigemPresenca(
+  p: Pick<PessoaChamada, 'presenca_origem' | 'presenca_registrada_por'>,
+): string | null {
   switch (p.presenca_origem) {
     case 'checkin_medium':
       return 'Marcou “Cheguei”';
@@ -220,7 +227,9 @@ export function textoOrigemPresenca(p: Pick<PessoaChamada, 'presenca_origem' | '
     case 'encerramento':
       return 'Sem marcação no encerramento';
     case 'chamada':
-      return p.presenca_registrada_por ? `Marcado por ${p.presenca_registrada_por}` : 'Marcado na chamada';
+      return p.presenca_registrada_por
+        ? `Marcado por ${p.presenca_registrada_por}`
+        : 'Marcado na chamada';
     default:
       return null;
   }

@@ -83,3 +83,54 @@ describe('AreaMediumConfigSection', () => {
     expect(screen.getByRole('button', { name: /Salvar Área do Médium/ })).toBeDisabled();
   });
 });
+
+describe('AreaMediumConfigSection — presença (AM-17/AM-28)', () => {
+  const COM_PRESENCA = {
+    ...CONFIG,
+    presenca: { modo_padrao: 'confianca', prazo_justificativa_dias: 7 },
+    presenca_no_plano: true,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPut.mockImplementation((_url: string, body: Record<string, unknown>) =>
+      Promise.resolve({ data: { ...COM_PRESENCA, ...body, whatsapp: '5511987654321' } }),
+    );
+  });
+
+  it('modo padrão da casa e prazo do motivo vão no salvar', async () => {
+    mockGet.mockResolvedValue({ data: COM_PRESENCA });
+    render(<AreaMediumConfigSection canEdit />);
+    const secao = await screen.findByTestId('area-medium-presenca');
+    expect(screen.getByRole('radio', { name: /Confiança/ })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('radio', { name: /“Cheguei” com o QR do dia/ }));
+    fireEvent.change(screen.getByLabelText(/Prazo para contar o motivo/), { target: { value: '10' } });
+    expect(secao).toHaveTextContent(/presença já registrada não muda/);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Salvar Área do Médium/ }));
+    });
+    await waitFor(() => expect(mockPut).toHaveBeenCalled());
+    expect(mockPut.mock.calls[0][1]).toMatchObject({ presenca: { modo_padrao: 'qr', prazo_justificativa_dias: 10 } });
+  });
+
+  it('prazo fora de 1 a 30 bloqueia o salvar', async () => {
+    mockGet.mockResolvedValue({ data: COM_PRESENCA });
+    render(<AreaMediumConfigSection canEdit />);
+    fireEvent.change(await screen.findByLabelText(/Prazo para contar o motivo/), { target: { value: '45' } });
+    expect(await screen.findByText('De 1 a 30 dias.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Salvar Área do Médium/ })).toBeDisabled();
+  });
+
+  it('sem a presença no plano: seção escondida e nada de presença no PUT', async () => {
+    mockGet.mockResolvedValue({ data: { ...COM_PRESENCA, presenca_no_plano: false } });
+    render(<AreaMediumConfigSection canEdit />);
+    await screen.findByDisplayValue('(11) 98765-4321');
+    expect(screen.queryByTestId('area-medium-presenca')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('switch', { name: 'Avisos' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Salvar Área do Médium/ }));
+    });
+    await waitFor(() => expect(mockPut).toHaveBeenCalled());
+    expect(mockPut.mock.calls[0][1]).not.toHaveProperty('presenca');
+  });
+});
