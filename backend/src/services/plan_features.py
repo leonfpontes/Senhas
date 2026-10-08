@@ -77,6 +77,8 @@ class PlanFeatures(BaseModel):
     atividades_corrente: bool = False
     # Escalas (AM-25/AM-18): planejador da faxina, escala de gira por função, rodízio.
     escalas: bool = False
+    # Ficha espiritual do médium (F-05/AM-19): campos por tradição, consentimento, caminhada.
+    ficha_espiritual: bool = False
 
 
 # Nomes válidos para require_plan_feature(feature) — erro na importação se houver typo.
@@ -130,6 +132,9 @@ _FEATURE_MIN_TIER: dict[str, int] = {
     # (atividades internas, presença); no Pro ela planeja quem vem (escalas).
     "atividades_corrente": _BASIC,
     "escalas": _PRO,
+    # Ficha espiritual (F-05, decisão de 2026-10-08): recurso de gestão mais profundo da corrente,
+    # no Pro junto com as escalas. Na Área (AM-19) vale também o `area_medium`.
+    "ficha_espiritual": _PRO,
 }
 
 # Toda feature do catálogo precisa de nível — erro na importação se faltar.

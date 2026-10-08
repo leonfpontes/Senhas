@@ -67,6 +67,9 @@ class MediumMeResponse(BaseModel):
     avisos_nao_lidos: int = 0
     # Grupos da corrente em que o médium está (AM-23), por nome. Sem os outros membros (D-07).
     grupos: List[MeuGrupo] = []
+    # Ficha espiritual na Área (AM-19): o plano da casa tem `ficha_espiritual` (Pro). Sem ele o
+    # Perfil não mostra "Minha caminhada".
+    ficha: bool = False
 
 
 async def meus_grupos(db: AsyncSession, ctx: MediumContext) -> List[MeuGrupo]:
@@ -109,7 +112,8 @@ async def get_medium_me(
             fc = config.custom_settings.get("font_color")
             font_color = fc if isinstance(fc, str) else None
 
-    modulos = modulos_visiveis(area, get_effective_plan_features(sub).mensalidade_mediun)
+    features = get_effective_plan_features(sub)
+    modulos = modulos_visiveis(area, features.mensalidade_mediun)
     avisos_nao_lidos = 0
     if "avisos" in modulos:
         avisos_nao_lidos = sum(1 for _, lido_em in await avisos_do_medium(db, ctx) if lido_em is None)
@@ -130,4 +134,5 @@ async def get_medium_me(
         whatsapp_casa=area.whatsapp,
         avisos_nao_lidos=avisos_nao_lidos,
         grupos=await meus_grupos(db, ctx),
+        ficha=features.ficha_espiritual,
     )

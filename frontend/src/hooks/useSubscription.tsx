@@ -31,6 +31,8 @@ export interface PlanFeatures {
   atividades_corrente: boolean;
   /** Escalas (faxina por grupos, escala de gira por função). Pro+. */
   escalas: boolean;
+  /** Ficha espiritual do médium (F-05/AM-19, Pro). */
+  ficha_espiritual: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -92,6 +94,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   area_medium: false,
   atividades_corrente: false,
   escalas: false,
+  ficha_espiritual: false,
 };
 
 const SubscriptionContext = createContext<SubscriptionContextValue>({

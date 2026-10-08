@@ -10,7 +10,7 @@ from src.models.users import UserRole
 
 from .conftest import BACKEND_DIR
 from .factories import create_tenant, create_user, grant
-from src.models.permission_groups import PermissionFeature
+from src.models.permission_groups import FEATURES_FORA_DO_GRUPO_PADRAO, GroupPermission, PermissionFeature
 
 
 async def _q(stmt):
@@ -135,4 +135,26 @@ async def test_migracao_poe_operadores_sem_grupo_no_padrao_e_preserva_os_demais(
 
     async with engine.connect() as conn:
         n = (await conn.execute(text("SELECT count(*) FROM group_permissions WHERE group_id = :g"), {"g": grupo.id})).scalar()
-    assert n == len(list(PermissionFeature))
+        ficha = (
+            await conn.execute(
+                text("SELECT count(*) FROM group_permissions WHERE group_id = :g AND feature = 'ficha_espiritual'"),
+                {"g": grupo.id},
+            )
+        ).scalar()
+    # Exceção consciente (F-05): o grupo padrão tem todas as features menos as de dado religioso.
+    assert n == len(list(PermissionFeature)) - len(FEATURES_FORA_DO_GRUPO_PADRAO)
+    assert ficha == 0
+
+
+async def test_grupo_padrao_criado_pelo_app_nao_ganha_a_ficha_espiritual(client, db):
+    """`ensure_default_group` completa as features novas, menos a ficha espiritual (F-05)."""
+    from src.repositories.permission_group_repo import PermissionGroupRepository
+
+    tenant = await create_tenant(db)
+    grupo = await PermissionGroupRepository(db).ensure_default_group(tenant.id)
+    await db.commit()
+    features = set(
+        (await db.execute(select(GroupPermission.feature).where(GroupPermission.group_id == grupo.id))).scalars().all()
+    )
+    assert PermissionFeature.FICHA_ESPIRITUAL not in features
+    assert features == set(PermissionFeature) - FEATURES_FORA_DO_GRUPO_PADRAO

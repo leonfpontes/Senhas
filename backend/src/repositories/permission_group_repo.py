@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.errors import NotFoundError, ConflictError, ForbiddenError
 from ..models import User, UserRole, PermissionGroup, GroupPermission, UserGroupMembership, PermissionFeature
+from ..models.permission_groups import FEATURES_FORA_DO_GRUPO_PADRAO
 from .base import BaseRepository
 
 
@@ -59,6 +60,9 @@ class PermissionGroupRepository(BaseRepository[PermissionGroup]):
         )
         have = set(existing.scalars().all())
         for feature in PermissionFeature:
+            # Ficha espiritual (F-05): exceção consciente — dado religioso não entra no padrão.
+            if feature in FEATURES_FORA_DO_GRUPO_PADRAO:
+                continue
             if feature not in have:
                 self.db.add(
                     GroupPermission(

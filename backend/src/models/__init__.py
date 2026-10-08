@@ -39,6 +39,7 @@ from .atividades import (
     FuncaoCorrente,
 )
 from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
+from .ficha_espiritual import FichaCampo, FichaSugestao, FichaValor, MediumMarco
 
 __all__ = [
     "Base",
@@ -71,6 +72,10 @@ __all__ = [
     "MediumConvite",
     "MediumLembreteEnviado",
     "MediumPreferencia",
+    "FichaCampo",
+    "FichaSugestao",
+    "FichaValor",
+    "MediumMarco",
     "Comunicado",
     "ComunicadoLeitura",
     "ComunicadoPublico",

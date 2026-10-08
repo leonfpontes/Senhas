@@ -45,6 +45,8 @@ MIN_PLAN = {
     # Atividades da casa (AM-08, D-10) no Basic; escalas (D-02) no Pro.
     "atividades_corrente": PlanType.BASIC,
     "escalas": PlanType.PRO,
+    # Ficha espiritual do médium (F-05/AM-19): Pro.
+    "ficha_espiritual": PlanType.PRO,
 }
 ORDER = [PlanType.FREE, PlanType.BASIC, PlanType.PRO, PlanType.PREMIUM]
 

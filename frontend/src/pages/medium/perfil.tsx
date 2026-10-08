@@ -15,6 +15,8 @@
  * - "Minhas presenças" (AM-17, D-27): leva a `/medium/presencas` (percentual, próximas escalas e
  *   histórico; só a própria presença).
  * - "Avisos por e-mail" (AM-15): liga/desliga cada tipo de lembrete (`AvisosPorEmail`).
+ * - "Minha caminhada" (AM-19): leva a `/medium/caminhada` (ficha espiritual liberada pela casa e
+ *   linha do tempo), só quando o plano da casa tem a ficha (`me.ficha`).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
@@ -30,6 +32,7 @@ import {
   LogOut,
   MailCheck,
   Pencil,
+  ScrollText,
   Smartphone,
   Trash2,
   type LucideIcon,
@@ -458,6 +461,15 @@ function Perfil() {
             onClick={() => void router.push('/medium/presencas')}
             testId="perfil-presencas"
           />
+          {me?.ficha && (
+            <Item
+              icon={ScrollText}
+              title="Minha caminhada"
+              description="Sua ficha espiritual e os marcos na casa"
+              onClick={() => void router.push('/medium/caminhada')}
+              testId="perfil-caminhada"
+            />
+          )}
           <Item
             icon={Smartphone}
             title="Ícone na tela inicial"

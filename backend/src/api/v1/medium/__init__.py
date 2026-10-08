@@ -23,6 +23,7 @@ from src.api.dependencies import require_medium
 
 from .agenda import router as agenda_router
 from .avisos import router as avisos_router
+from .ficha import router as ficha_router
 from .inicio import router as inicio_router
 from .me import router as me_router
 from .mensalidades import router as mensalidades_router
@@ -43,5 +44,6 @@ medium_router.include_router(avisos_router)
 medium_router.include_router(perfil_router)
 medium_router.include_router(presencas_router)
 medium_router.include_router(preferencias_router)
+medium_router.include_router(ficha_router)
 
 __all__ = ["medium_router"]

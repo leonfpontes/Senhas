@@ -6,7 +6,7 @@ import PermissionMatrix, {
   normalizePermissions,
   togglePermission,
 } from '../../src/components/PermissionMatrix';
-import { FEATURE_LABELS } from '../../src/constants/permissionFeatures';
+import { FEATURE_LABELS, SENSITIVE_FEATURES } from '../../src/constants/permissionFeatures';
 import { GroupPermission } from '../../src/services/permissionGroupsService';
 
 const TOTAL = Object.keys(FEATURE_LABELS).length;
@@ -81,7 +81,7 @@ describe('PermissionMatrix', () => {
 
   it('presets', () => {
     const op = applyPreset([], 'operacional');
-    expect(op.every((p) => p.can_view)).toBe(true);
+    expect(op.filter((p) => !SENSITIVE_FEATURES.includes(p.feature)).every((p) => p.can_view)).toBe(true);
     expect(op.find((p) => p.feature === 'tickets')?.can_insert).toBe(true);
     expect(op.find((p) => p.feature === 'financeiro')?.can_insert).toBe(false);
     expect(applyPreset(op, 'nenhum').some((p) => p.can_view)).toBe(false);
@@ -89,7 +89,32 @@ describe('PermissionMatrix', () => {
     const handleChange = jest.fn();
     render(<PermissionMatrix value={[]} onChange={handleChange} />);
     fireEvent.click(screen.getByRole('button', { name: 'Tudo' }));
-    expect((handleChange.mock.calls[0][0] as GroupPermission[]).every((p) => p.can_delete)).toBe(true);
+    const tudo = handleChange.mock.calls[0][0] as GroupPermission[];
+    expect(tudo.filter((p) => !SENSITIVE_FEATURES.includes(p.feature)).every((p) => p.can_delete)).toBe(true);
+  });
+
+  it('ficha espiritual (dado religioso, F-05): atalhos e "Tudo" da área não ligam; marcar à mão liga', () => {
+    expect(FEATURE_LABELS.ficha_espiritual).toEqual({ label: 'Ficha espiritual', group: 'Corrente' });
+    for (const preset of ['leitura', 'operacional', 'completo'] as const) {
+      expect(applyPreset([], preset).find((p) => p.feature === 'ficha_espiritual')?.can_view).toBe(false);
+    }
+    const marcada: GroupPermission[] = [
+      { feature: 'ficha_espiritual', can_view: true, can_insert: true, can_edit: true, can_delete: true },
+    ];
+    expect(applyPreset(marcada, 'leitura').find((p) => p.feature === 'ficha_espiritual')?.can_delete).toBe(true);
+    expect(applyPreset(marcada, 'nenhum').find((p) => p.feature === 'ficha_espiritual')?.can_view).toBe(false);
+
+    const handleChange = jest.fn();
+    render(<PermissionMatrix value={[]} onChange={handleChange} />);
+    expect(screen.getByText(/Dado religioso/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Tudo em Corrente' }));
+    const area = handleChange.mock.calls[0][0] as GroupPermission[];
+    expect(area.find((p) => p.feature === 'escalas')?.can_view).toBe(true);
+    expect(area.find((p) => p.feature === 'ficha_espiritual')?.can_view).toBe(false);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Ficha espiritual: Ver' }));
+    expect(
+      (handleChange.mock.calls[1][0] as GroupPermission[]).find((p) => p.feature === 'ficha_espiritual')?.can_view,
+    ).toBe(true);
   });
 
   it('normalizes missing modules and respects disabled', () => {

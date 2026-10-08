@@ -337,7 +337,7 @@ Degraus (D-02, decidido):
 | `atividades_corrente` (nova, v2) | Basic | Tipos de atividade, atividades internas, grupos da corrente, convocação, vou/não vou com justificativa, check-in no app, lista de chamada, histórico do médium, relatório de assiduidade por médium |
 | `escalas` (nova) | **Pro** | Escala de faxina por grupos e dias do mês, escala de gira por função, rodízio, copiar mês, relatório por grupo, lembrete de escala, troca de escala (fase 2) |
 | `biblioteca_medium` (nova, fase 3) | **Pro** | Estudos e documentos (AM-21) |
-| ficha | segue o F-05 | AM-19 |
+| `ficha_espiritual` (F-05) | **Pro** | Ficha espiritual e caminhada no painel e "Minha caminhada" na Área (AM-19) |
 | baixa automática | segue F-01/F-02 | AM-22 (taxa paga pelo terreiro) |
 
 A mensalidade na Área exige também `mensalidade_mediun` (Basic) e a config de mensalidade ativa. Presença fica no
@@ -1231,9 +1231,9 @@ na Minha Gira, "Diário & Entidades" na Quartinha).
 - Respeita o consentimento e a feature `FICHA_ESPIRITUAL` do F-05 do lado admin.
 
 **Aceite**
-- [ ] Médium vê só os campos que a casa liberou e a própria linha do tempo
-- [ ] Sugestão do médium só entra depois de aprovada
-- [ ] Nada da ficha em exportação, log ou e-mail
+- [x] Médium vê só os campos que a casa liberou e a própria linha do tempo
+- [x] Sugestão do médium só entra depois de aprovada
+- [x] Nada da ficha em exportação, log ou e-mail
 
 ### AM-20 — Aniversariantes da corrente
 - **Prioridade:** P3 · **Fase:** Fase 2 · **Esforço:** P · **Tipo:** dev · **Depende de:** AM-13
@@ -1448,11 +1448,12 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-15 Lembretes e avisos por e-mail (mensalidade D-3/D+3, véspera, D-2, escala nova, falta, aviso, cancelamento, PIX, resumo do admin) | #96 | 081 | 2026-10-08 |
 | AM-18 Escala de gira por função (grupos inteiros, copiar da anterior, rodízio) | #97 | — (usa as colunas da 079) | 2026-10-08 |
 | AM-24 Divulgação (atrás da chave NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA, desligada) | #98 | — | 2026-10-08 |
+| F-05 Ficha espiritual (painel) + AM-19 Minha caminhada | este PR | 088, 089 | — |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
+**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-14, AM-16 (push), AM-20, AM-21, AM-22, AM-27 (AM-19 com o F-05, acima).
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 

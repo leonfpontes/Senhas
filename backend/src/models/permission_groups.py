@@ -38,6 +38,13 @@ class PermissionFeature(str, enum.Enum):
     CONTAS_FINANCEIRAS = "contas_financeiras"
     COMUNICADOS = "comunicados"  # "Avisos da Área" (AM-09): avisos da casa para a corrente
     ESCALAS = "escalas"  # "Atividades e escalas" (AM-08): tipos, funções, atividades internas e escalas
+    FICHA_ESPIRITUAL = "ficha_espiritual"  # "Ficha espiritual" (F-05): dado religioso, LGPD art. 11
+
+
+# Features que o grupo padrão "Acesso total" NÃO ganha (exceção consciente ao roteiro do CLAUDE.md,
+# F-05): dado religioso só com grupo marcado à mão pela casa. `ensure_default_group` pula estas e a
+# migração da feature (088/089) não dá acesso a nenhum grupo. Admin continua vendo (bypass).
+FEATURES_FORA_DO_GRUPO_PADRAO = frozenset({PermissionFeature.FICHA_ESPIRITUAL})
 
 
 class PermissionGroup(SoftDeleteModel):

@@ -34,6 +34,8 @@ export interface MediumMe {
   avisos_nao_lidos?: number;
   /** Grupos da corrente em que o médium está (AM-23) — só nome e cor, nunca os outros membros. */
   grupos?: { id: string; nome: string; cor: string }[];
+  /** O plano da casa tem a ficha espiritual (AM-19): mostra "Minha caminhada" no Perfil. */
+  ficha?: boolean;
 }
 
 export type MediumStatus = 'idle' | 'loading' | 'ok' | 'indisponivel' | 'erro';

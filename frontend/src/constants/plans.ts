@@ -114,6 +114,8 @@ export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   // Atividades da casa (AM-08, D-10): no Basic a casa marca quem veio; escalas (D-02) no Pro.
   atividades_corrente: 'basic',
   escalas: 'pro',
+  // Ficha espiritual do médium (F-05/AM-19): campos por tradição, consentimento e caminhada.
+  ficha_espiritual: 'pro',
   email_transacional: 'pro',
   tema_personalizado: 'pro',
   analytics_basico: 'pro',
@@ -165,6 +167,7 @@ export const FEATURE_CATALOG: readonly FeatureCatalogItem[] = [
   { key: 'agendamento_por_horario', label: 'Senha com horário marcado', group: 'Giras e senhas' },
   { key: 'mediuns', label: 'Cadastro de médiuns e cambones', group: 'Pessoas' },
   { key: 'mensalidade_mediun', label: 'Mensalidade dos médiuns', group: 'Pessoas' },
+  { key: 'ficha_espiritual', label: 'Ficha espiritual e caminhada dos médiuns', group: 'Pessoas' },
   { key: 'associados', label: 'Associados', group: 'Pessoas' },
   { key: 'mensalidade_associado', label: 'Mensalidade dos associados', group: 'Pessoas' },
   { key: 'contas_financeiras', label: 'Contas a pagar e a receber, fluxo de caixa e contas bancárias', group: 'Financeiro e estoque' },

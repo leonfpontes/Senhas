@@ -61,7 +61,8 @@ describe('plans — espelho do backend', () => {
             : 'pro';
       expect([feature, plan]).toEqual([feature, expected]);
     });
-    expect(Object.keys(FEATURE_MIN_PLAN)).toHaveLength(21);
+    expect(Object.keys(FEATURE_MIN_PLAN)).toHaveLength(22);
+    expect(FEATURE_MIN_PLAN.ficha_espiritual).toBe('pro');
     expect(FEATURE_MIN_PLAN.escalas).toBe('pro');
   });
 
