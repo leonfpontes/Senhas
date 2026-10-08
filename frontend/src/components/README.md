@@ -57,6 +57,8 @@ Este é o kit que **todas as telas** usam. O MUI não existe mais no projeto. Re
 - **PWA (P-01)**: `shared/ServiceWorkerRegistrar` (já montado no `_app.tsx` — não montar outro) registra
   `public/sw.js`; helpers em `src/lib/pwa.ts`, `useOnlineStatus()` em `src/hooks`. Na Porta,
   `admin/PortaOfflineNotice` (aviso "Sem conexão") e `admin/InstallPortaHint`. O SW nunca cacheia `/api/*`.
+  Notificação no celular da Área (AM-16): o SW trata `push`/`notificationclick`; helpers do navegador em
+  `src/lib/webPush.ts` e a tela em `medium/perfil/NotificacoesNoCelular`.
 - **Formulários**: `react-hook-form` + `zod` com os componentes de `ui/form.tsx` quando houver
   validação de verdade; para formulários de 2–3 campos, `useState` + `TextField` com `error` basta.
 - **Modo escuro**: classe `dark` em `<html>` (os providers já fazem). Use só tokens (`bg-card`,

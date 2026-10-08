@@ -55,6 +55,7 @@ import { cn } from '@/lib/utils';
 import { logout } from '@/services/authSession';
 import { useMedium } from './MediumProvider';
 import { InstallAreaSheet, installAreaSeen } from './InstallAreaSheet';
+import { desligarCelularAoSair } from './perfil/NotificacoesNoCelular';
 import { TerreiroEmblem } from './TerreiroEmblem';
 
 export interface MediumTab {
@@ -293,7 +294,12 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
     if (!installAreaSeen()) setInstallOpen(true);
   }, [status]);
 
-  const sair = useCallback(() => void logout((url) => router.push(url)), [router]);
+  // Antes de sair, tira este aparelho das notificações no celular (AM-16): quem entrar depois no
+  // mesmo celular não recebe os avisos de quem saiu. Impersonando, não mexe (o aparelho é do admin).
+  const sair = useCallback(() => {
+    const antes = isImpersonating() ? Promise.resolve() : desligarCelularAoSair();
+    void antes.finally(() => logout((url) => router.push(url)));
+  }, [router]);
   const goToPainel = useCallback(() => {
     void router.push(switchArea(profile?.id, 'admin'));
   }, [router, profile?.id]);

@@ -29,6 +29,7 @@ from .mensalidades import router as mensalidades_router
 from .perfil import router as perfil_router
 from .preferencias import router as preferencias_router
 from .presencas import router as presencas_router
+from .push import router as push_router
 
 medium_router = APIRouter(
     prefix="/api/v1/medium",
@@ -43,5 +44,6 @@ medium_router.include_router(avisos_router)
 medium_router.include_router(perfil_router)
 medium_router.include_router(presencas_router)
 medium_router.include_router(preferencias_router)
+medium_router.include_router(push_router)
 
 __all__ = ["medium_router"]

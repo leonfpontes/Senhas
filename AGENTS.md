@@ -412,6 +412,17 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   /public/avisos-email/consultar|desligar` (token `medium_preferencias.token_descadastro` = busca raiz; 404
   generico `LINK_INVALIDO`). Painel: `avisar_email` no aviso (COMUNICADOS insert/edit, mesmo corpo) e
   `lembretes.mensalidade` na config da Area (CONFIGURACOES edit).
+- **Notificacao no celular (AM-16, Web Push/VAPID)**: rotas `GET /medium/push`, `POST|DELETE /medium/push/inscricao`,
+  `PUT /medium/push/preferencias`, `POST /medium/push/teste` (`api/v1/medium/push.py`; `require_medium`; escritas
+  com `require_not_impersonated`; tudo filtrado por `ctx.tenant_id` + `ctx.medium.id` + `ctx.user.id`). Sem
+  `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` o push fica desligado sem erro
+  (`services/web_push.disponivel()`: GET diz `disponivel: false`, ligar/testar 409 `PUSH_INDISPONIVEL`, agendador
+  so e-mail). O `endpoint` so e aceito de servico de push conhecido (`HOSTS_PUSH`: FCM, Mozilla, WNS, Apple — o
+  servidor faz POST nele; nada de URL interna/SSRF); o mesmo endpoint inscrito por outra conta passa a ser dela
+  (`ON CONFLICT (endpoint) DO UPDATE`). Envio pelo agendador do AM-15 (mesma marca, §11.9) so para inscricoes do
+  usuario HOJE ligado ao medium (`Medium.user_id == PushInscricao.user_id`); texto discreto em
+  `services/medium_push.py` (sem nome de atividade/aviso, valor, motivo); 404/410 apagam a inscricao, outras
+  falhas somam `failures` (5 seguidas apagam).
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -867,7 +878,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
+- Head atual: `082_push_inscricoes` (2026-10-08, AM-16: tabela `push_inscricoes` — endpoint unico, chaves
+  `p256dh`/`auth`, `user_agent` curto, `last_success_at`, `failures`, FKs CASCADE para tenant/usuario/medium — e
+  `medium_preferencias.push_<tipo>` (5 booleanos, padrao true)), apos `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
   indices unicos parciais, `tenant_configs.area_medium_lembrete_mensalidade`, `comunicados.avisar_email`/
   `avisar_email_em`; criada sobre a 079 e re-encadeada depois da 080 no merge), apos `080_escala_planos` (2026-10-08, AM-25: `escala_planos` — um por tipo e mes, rascunho/publicado,
   unico por `tenant_id, tipo_id, mes` — e `escala_plano_dias` — data x grupo x horario, `atividade_id` FK SET NULL,
@@ -1163,7 +1176,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, Escala de gira e divulgação (AM-02/03/04/05/06/07/08/09/10/11/12/13/15/17/18/23/24/25/26/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, notificação no celular, Escala de gira e divulgação (AM-02/03/04/05/06/07/08/09/10/11/12/13/15/16/17/18/23/24/25/26/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1379,6 +1392,19 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   (`AuthShell`; abrir so consulta, "Desligar" no toque; `descadastro` em `RESERVED_SLUGS`). Painel: caixa
   "Avisar por e-mail também" no drawer do aviso e "Lembrete da mensalidade por e-mail" em Configuracoes → Area
   do Medium (so com o modulo mensalidade ligado e no plano).
+- **Notificacao no celular (AM-16)**: migracao `082_push_inscricoes` (§11.8; tabela em `docs/database.md`), envio
+  e regras em §3.3/§11.9, API em `docs/api.md` (Area do Medium §9), chaves VAPID em `docs/deployment.md`. Area: secao "Notificacoes
+  no celular" no Perfil (`components/medium/perfil/NotificacoesNoCelular.tsx`), logo abaixo de "Avisos por e-mail" e
+  com o mesmo desenho: uma linha "Receber notificacoes neste celular" (a permissao e por aparelho; o pedido do
+  navegador so sai no toque) e, com algum aparelho ligado, um `Switch` por tipo (`AVISO_CELULAR_TEXTO` em
+  `constants/avisosEmail.ts`) e "Mandar uma notificacao de teste". iPhone fora da tela inicial → explica (iOS 16.4+)
+  e abre o `InstallAreaSheet`; sem suporte/permissao bloqueada → texto de como liberar. Ao abrir com o aparelho ja
+  inscrito, reenvia a inscricao (idempotente). "Sair" da Area tira o aparelho (`desligarCelularAoSair`, ate 2 s;
+  impersonando nao mexe). Helpers do navegador em `lib/webPush.ts`. `public/sw.js`: `push` (titulo/texto/url do
+  servidor, icone `/icons/icon-192.png`, `tag` substitui a anterior) e `notificationclick` (foca janela da origem e
+  navega, senao abre; `url` de fora vira `/medium`); a regra de nunca cachear `/api/*` segue e o teste
+  `__tests__/pwa/sw.test.ts` cobre as rotas `/api/v1/medium/push*`. A caixa "Avisar por e-mail também" do aviso
+  tambem dispara o push (texto de ajuda atualizado).
 - **Escala de gira por funcao (AM-18)**: sem migracao (usa `funcao_id`/`grupo_id`/`origem` da participacao do
   AM-17). API `api/v1/admin/atividades_escala.py` (gates/permissoes em §3.3, contrato em `docs/api.md` §19),
   regras em `services/escala_gira.py`: a escala grava `funcao_id` na PROPRIA participacao (uma funcao por medium
@@ -1545,6 +1571,11 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   para o `retorno_scheduler`) e, em vez do `claim_once`, marca POR LINHA em `medium_lembretes_enviados`
   (`INSERT ... ON CONFLICT DO NOTHING RETURNING`, commit antes de enfileirar). Espera a fila de e-mail ficar
   abaixo de 300 antes de enfileirar (`email_queue.qsize()`; acima de 500 a fila descarta).
+  Desde o AM-16 a mesma rodada manda a **notificacao no celular** (Web Push) para os aparelhos do medium
+  (`push_inscricoes`), com o liga/desliga proprio (`push_<tipo>`): o lembrete e planejado se e-mail OU celular
+  estiver ligado, a marca e uma so para os dois canais, e o push sai depois do commit
+  (`services/web_push.enviar`, `asyncio.to_thread` + timeout 10 s, TTL 12 h; 404/410 apagam a inscricao). Sem as
+  variaveis VAPID, nada de push (so e-mail). Ligar em producao: `docs/deployment.md` (chaves VAPID).
 - Regra para agendador que envia algo: usar `backend/src/services/scheduler_guard.py` — `advisory_lock(KEY)` envolvendo a rodada (só um worker processa) e `claim_once(tenant_id, namespace, item, scope)` gravado **antes** do envio (marca em `tenant_configs.custom_settings[namespace]` sob `SELECT ... FOR UPDATE`; `scope` diferente reinicia as marcas). Chaves de lock listadas no docstring do módulo; nova chave = novo número.
 - Trial: marcas em `custom_settings.trial_reminders` (escopo = `trial_ends_at`); dias restantes arredondados para cima e expiração só depois de `trial_ends_at` (antes podia expirar ~1 dia cedo). Aniversário: `custom_settings.birthday_digest` (escopo = data BRT).
 

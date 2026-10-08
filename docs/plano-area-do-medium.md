@@ -1153,9 +1153,18 @@ O manifesto atual abre a Porta.
   mesmo agendador do AM-15, handler `push`/`notificationclick` no `sw.js` (sem cachear `/api/*`, regra mantida).
   iPhone só recebe com o app instalado (iOS 16.4+).
 
+**Feito (AM-16, migração 082).** Tabela `push_inscricoes` (+ `tenant_id`, `medium_id`, `user_agent` curto,
+`last_success_at`, `failures`) e liga/desliga por tipo próprio do celular (`medium_preferencias.push_*`); API
+`/api/v1/medium/push*` (chave pública, ligar/desligar o aparelho, tipos, teste); envio pelo agendador do AM-15 com a
+mesma marca (uma vez só nos dois canais), texto discreto sem nome de atividade/aviso; 404/410 apagam a inscrição.
+Sem as chaves VAPID no servidor fica desligado (só e-mail) — ligar: `docs/deployment.md`. Perfil → "Notificações no
+celular" (permissão só no toque; iPhone fora da tela inicial abre o passo de instalação). A caixa "Avisar por
+e-mail também" do aviso também dispara o push.
+
 **Aceite**
-- [ ] Push de comunicado e de mensalidade chega no Android e no iPhone instalado
-- [ ] Teste do SW continua garantindo que `/api/*` não é cacheado
+- [ ] Push de comunicado e de mensalidade chega no Android e no iPhone instalado (validar no aparelho, com as chaves
+  VAPID ligadas, pelo "Mandar uma notificação de teste" e por um aviso/lembrete real)
+- [x] Teste do SW continua garantindo que `/api/*` não é cacheado (`__tests__/pwa/sw.test.ts`, inclusive `/api/v1/medium/push*`)
 
 ### AM-17 — Presença: convocação, vou/não vou com justificativa, check-in e lista de chamada
 - **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** G · **Tipo:** dev · **Depende de:** AM-08, AM-06
@@ -1452,11 +1461,12 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-15 Lembretes e avisos por e-mail (mensalidade D-3/D+3, véspera, D-2, escala nova, falta, aviso, cancelamento, PIX, resumo do admin) | #96 | 081 | 2026-10-08 |
 | AM-18 Escala de gira por função (grupos inteiros, copiar da anterior, rodízio) | #97 | — (usa as colunas da 079) | 2026-10-08 |
 | AM-24 Divulgação (atrás da chave NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA, desligada) | #98 | — | 2026-10-08 |
+| AM-16 Notificação push | este PR | 082 | — |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
+**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-14, AM-19, AM-20, AM-21, AM-22, AM-27.
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 

@@ -1788,6 +1788,38 @@ Schedule reminders by function/rotation/planned cleaning need the `escalas` plan
 `atividades_corrente`. Nothing is sent without the pilot switch, the plan `area_medium` and the Área
 turned on by the house.
 
+### 9. Notificação no celular — Web Push (AM-16)
+
+Push with VAPID, no paid service (`services/web_push.py`). **Off without the server keys**
+(`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`; see `docs/deployment.md`): `disponivel: false`,
+writes that need it answer **409** `PUSH_INDISPONIVEL`, and the scheduler sends e-mail only.
+
+- **`GET /api/v1/medium/push`** → `{ "disponivel": true, "chave_publica": "<VAPID public key, base64url>",
+  "aparelhos": 1, "preferencias": { "mensalidade": true, "escalas": true, "confirmacao": true, "faltas": true,
+  "avisos": true }, "disponiveis": ["mensalidade", …] }` — `aparelhos` = this médium's subscribed devices
+  (own user only); `preferencias` are the phone toggles (`medium_preferencias.push_*`, independent from the
+  e-mail ones); `disponiveis` is the same list as §8.
+- **`POST /api/v1/medium/push/inscricao`** (60/h per IP) — body = the browser's `PushSubscription.toJSON()`:
+  `{ "endpoint": "https://fcm.googleapis.com/fcm/send/…", "keys": { "p256dh": "…", "auth": "…" } }`
+  (extra fields ignored). Idempotent: the same endpoint renews the keys; an endpoint subscribed by another
+  account becomes this one's (the device owns it). The endpoint must be `https` on a known push service
+  (FCM, Mozilla, Windows WNS, Apple) → else **422** `PUSH_ENDPOINT_INVALIDO` (the server POSTs to it).
+  Returns the same body as the GET. A new device is audited as `medium_perfil` (`{acao}` only).
+- **`DELETE /api/v1/medium/push/inscricao`** `{ "endpoint" }` (60/h) → **204**. Removes only the caller's own
+  subscription (tenant + médium + user); someone else's endpoint is a no-op.
+- **`PUT /api/v1/medium/push/preferencias`** `{ "avisos"?: bool, … }` (30/h) — same fields as §8, changes only
+  the phone toggles; unknown field → 422. Audited as `medium_perfil` (`campos` only).
+- **`POST /api/v1/medium/push/teste`** (10/h) → `{ "enviadas": 1 }` — a test notification to the caller's
+  devices; no device → **409** `PUSH_SEM_APARELHO`.
+
+All writes are refused while impersonating (**403**). Sending: the AM-15 scheduler (`services/
+medium_lembrete_scheduler.py`) plans each reminder when e-mail **or** phone is on for that type, reserves the
+same mark (once per reminder for both channels) and, after the commit, sends one push per device of the
+médium's current user. Payload (encrypted, TTL 12 h): `{ "title": "<terreiro>", "body": "A mensalidade de
+outubro vence em 3 dias.", "url": "/medium/mensalidade?pagar=1", "tag": "mensalidade" }` — never the activity
+or aviso title, amounts, the PIX key, the cancellation or absence reason (`services/medium_push.py`). A
+404/410 from the push service deletes the subscription; other failures add to `failures` (5 in a row delete).
+
 ---
 
 ## Error Handling
