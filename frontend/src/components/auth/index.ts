@@ -5,4 +5,6 @@ export type { PasswordRulesProps } from './PasswordRules';
 export { SignupProgress } from './SignupProgress';
 export type { SignupProgressProps } from './SignupProgress';
 export { ChoiceCards } from './ChoiceCards';
+export { AccountChoiceList, areasHint } from './AccountChoiceList';
+export type { AccountChoiceListProps } from './AccountChoiceList';
 export type { ChoiceCardOption, ChoiceCardsProps } from './ChoiceCards';
