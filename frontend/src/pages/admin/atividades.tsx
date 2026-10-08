@@ -10,6 +10,7 @@
  * Aba "Tipos e funções": `components/admin/atividades/TiposEFuncoes`.
  * Aba "Escala de faxina" (AM-25): `components/admin/atividades/EscalaFaxina` (planejador do mês por
  * grupos; sem o plano `escalas`, `PlanLocked` dentro da aba).
+ * Aba "Relatórios" (AM-26): assiduidade por médium e por grupo — `RelatorioAssiduidade`.
  * Presença (AM-17): em cada gira/atividade, "Confirmações" (painel com quem vai, quem não vai e o
  * motivo, "Pôr na escala"/"Tirar da escala" — `ConfirmacoesSheet`, escalas view/insert/edit) e
  * "Chamada" (`/admin/atividades/[id]/chamada`, escalas edit; a gira cria a âncora antes).
@@ -50,6 +51,7 @@ import { PageHeader } from '@/components/admin/PageHeader';
 import { API_ATIVIDADES, TiposEFuncoes } from '@/components/admin/atividades/TiposEFuncoes';
 import { ConfirmacoesSheet, type AlvoConfirmacoes } from '@/components/admin/atividades/ConfirmacoesSheet';
 import { EscalaFaxina } from '@/components/admin/atividades/EscalaFaxina';
+import { RelatorioAssiduidade } from '@/components/admin/atividades/RelatorioAssiduidade';
 import {
   PorNaEscalaCampos,
   textoResultadoConvocacao,
@@ -171,6 +173,7 @@ function AtividadesContent() {
           <TabsTrigger value="agenda">Agenda da casa</TabsTrigger>
           <TabsTrigger value="faxina">Escala de faxina</TabsTrigger>
           <TabsTrigger value="tipos">Tipos e funções</TabsTrigger>
+          <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
         </TabsList>
         <TabsContent value="agenda" className="pt-4">
           <AgendaDaCasa canInsert={canInsert} canEdit={canEdit} canDelete={canDelete} canVerGiras={canGroup('giras', 'view')} />
@@ -180,6 +183,9 @@ function AtividadesContent() {
         </TabsContent>
         <TabsContent value="tipos" className="pt-4">
           <TiposEFuncoes canInsert={canInsert} canEdit={canEdit} canDelete={canDelete} />
+        </TabsContent>
+        <TabsContent value="relatorios" className="pt-4">
+          <RelatorioAssiduidade />
         </TabsContent>
       </Tabs>
     </div>

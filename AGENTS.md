@@ -211,6 +211,11 @@ Rotas existentes e suas features:
   atividades/convocam e cancelam/dispensam). `tipo_id` do caminho buscado no tenant (404) e com modo "grupos por
   dia" (422); `grupo_id` do corpo conferido no tenant e nao arquivado (`validar_grupos_ativos_do_tenant` /
   `_validar_grupos_do_plano`) antes de gravar
+- Assiduidade (`atividades_assiduidade.py`, AM-26) → `PermissionFeature.ESCALAS` view, mesmo prefixo e mesmos
+  gates de plano: `GET /assiduidade` (por medium; `agrupar=grupo` exige tambem o plano `escalas` (Pro) via
+  `check_plan_feature` → 403) e `GET /assiduidade/medium/{medium_id}` (detalhe com o texto da justificativa —
+  so na tela; o agregado, que vai para o PDF, so tem contagens). `tipo_id`/`grupo_id`/`medium_id` conferidos
+  no tenant (404). Router registrado ANTES do `atividades.py` (senao `/assiduidade` cai no `GET /{atividade_id}`)
 
 Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
 leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
@@ -365,6 +370,11 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   "Cheguei" × chamada). Justificativa (pode ter dado de saude, §6.8 do plano) ≤ 500, so com `ESCALAS:view`,
   nunca em auditoria (`medium_presenca`/`atividade_chamada` gravam so a acao/ids), e-mail, push ou exportacao.
   Encerramento automatico em 48 h: `services/presenca_scheduler.py` (chave `0x6769726168756204`, §11.9).
+- **Assiduidade (AM-26)**: `services/assiduidade.py` — percentual = presentes ÷ convocacoes de atividades com a
+  chamada ENCERRADA, sem dispensados/substituidos/cancelados (a mesma regra do "Minhas presencas"); "sem chamada"
+  (ja comecou, chamada aberta), avulso (`convocado = false`) e futuras ficam fora da conta. Uma regra so
+  (`categoria`, testada sem banco) aplicada a um `GROUP BY` dos fatos de cada linha. Por grupo = membros ATUAIS.
+  Justificativa so no detalhe por medium (ESCALAS:view, tela); PDF, CSV, e-mail e auditoria nunca.
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -1112,7 +1122,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, ajustes do piloto e Escala de faxina (AM-02/03/04/05/06/07/08/09/10/11/12/13/17/23/25/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto e Escala de faxina (AM-02/03/04/05/06/07/08/09/10/11/12/13/17/23/25/26/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1310,6 +1320,15 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   Publicar / Publicar as mudancas (`ConfirmDialog` com as contagens do servidor; `escalas:insert`+`edit`), "Atualizar
   convocacoes das proximas faxinas". Area: nada novo — a faxina publicada aparece na Agenda e no Inicio como
   "Voce esta na escala · G2" com o horario (AM-17), o rascunho nunca.
+- **Assiduidade (AM-26)**: aba "Relatorios" em `/admin/atividades` (`components/admin/atividades/RelatorioAssiduidade.tsx`;
+  so monta quando a aba abre): periodo (este mes · ultimos 3 meses · este ano · datas, ate 1 ano), tipo (so os que
+  controlam presenca, arquivados inclusos), grupo, "Por medium"/"Por grupo" (`ToggleGroup`; sem `can('escalas')`
+  → `PlanLocked` com `minPlanFor('escalas').label` e nada de busca), `DataTable` com `renderCard` no celular e
+  ordem pelo percentual (clicar de novo inverte, nunca tira a ordem), detalhe por medium num `Sheet` com cada
+  atividade, a situacao e o motivo das faltas ("so aqui, nao vai para o PDF"). "Baixar PDF" =
+  `lib/pdf/assiduidadePdf.ts` (base `pdfDoc`: logo/cor do terreiro, periodo, filtros, tabela e total) com
+  `dadosDoPdf` (`constants/assiduidade.ts`), que copia SO nomes e contagens campo a campo — teste jest trava que o
+  texto da justificativa nunca chega ao gerador. API em §3.3 e `docs/api.md` §18.
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

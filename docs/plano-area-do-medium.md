@@ -241,7 +241,7 @@ Premium"; o código (`_FEATURE_MIN_TIER`) e a matriz da §3.4 dizem **Basic**. O
 | **T-02** Token tipado | **Dependência dura** de AM-03 e AM-05 (token de convite e de seleção de conta não podem passar como access). | Subir o T-02 no ranking, antes do AM-02. |
 | **T-01** Slugs reservados | Feito. Falta só `escolher-area`. | Nada; o AM-04 acrescenta o slug. |
 | **F-05** Ficha espiritual | **AM-19 depende** do F-05 (o F-05 cria campos, marcos e consentimento; o AM-19 mostra ao médium e libera edição de alguns campos). | Manter F-05; tirar "Destrava F-04" e pôr "Destrava AM-19". |
-| **F-06** Presença | **Substituído (v2)** por **AM-17** (convocação, vou/não vou, justificativa, check-in e lista de chamada, para giras **e** atividades) e **AM-26** (relatório de assiduidade com PDF). A tabela `gira_presencas` do F-06 não é criada: a presença mora em `atividade_participacoes` (§8). Mantido do F-06: unicidade por atividade+médium, validação de FK entre tenants, PDF com `useRelatorioPDF`, componente próprio fora do `giras.tsx`. Mudou: plano `atividades_corrente` (Basic) em vez de `mediuns`, e feature de grupo `ESCALAS` em vez de GIRAS/MEDIUNS. | Arquivar F-06 apontando para AM-17 e AM-26. |
+| **F-06** Presença | **Substituído (v2)** por **AM-17** (convocação, vou/não vou, justificativa, check-in e lista de chamada, para giras **e** atividades) e **AM-26** (relatório de assiduidade com PDF). A tabela `gira_presencas` do F-06 não é criada: a presença mora em `atividade_participacoes` (§8). Mantido do F-06: unicidade por atividade+médium, validação de FK entre tenants, PDF na base `lib/pdf/pdfDoc` (AM-26), componente próprio fora do `giras.tsx`. Mudou: plano `atividades_corrente` (Basic) em vez de `mediuns`, e feature de grupo `ESCALAS` em vez de GIRAS/MEDIUNS. | Arquivar F-06 apontando para AM-17 e AM-26. |
 | **F-07** Escalas de zeladoria | **Substituído (v2)** por **AM-25** (escala de faxina por grupos e dias do mês), **AM-18** (escala de gira por função, com o rodízio do F-07) e **AM-15** (aviso da véspera, com o `scheduler_guard` e marca por linha que o F-07 previa). As tabelas `escala_tipos`/`escala_alocacoes` do F-07 viram `atividade_tipos`, `funcoes_corrente`, `escala_planos` e `atividade_participacoes`. Plano `escalas` (Pro), como o F-07 sugeria. | Arquivar F-07 apontando para AM-25, AM-18 e AM-15. |
 | **F-09** Importar médiuns | **Sinergia**, não dependência: depois de importar, "Convidar todos com e-mail" (AM-03, convite em lote). | Manter. |
 | **F-01** Gateway | **AM-22 depende**. Também decide se a chave estática continua como alternativa. | Manter; destrava F-02. |
@@ -675,7 +675,8 @@ Fluxo do admin (tipo com modo "grupos por dia", ex.: Faxina):
   justificativas.
 - **Relatório de assiduidade** (AM-26): por médium e por grupo, período e tipo; colunas convocações, presenças,
   ausências com e sem justificativa, percentual (presentes ÷ convocações com chamada encerrada, sem dispensados);
-  PDF com `useRelatorioPDF`.
+  PDF na base dos PDFs de listagem (`lib/pdf/pdfDoc`, jspdf-autotable; o `useRelatorioPDF` é o do Relatório
+  de gira, com a página 1 em imagem), só com contagens.
 
 ### 8.11 Avisos (AM-15)
 - Véspera, às 18 h: "Amanhã você está na faxina (G2), 9h" e "Amanhã tem gira, você é Cambone".
@@ -1358,7 +1359,8 @@ o ORI gera PDF por médium; Meu Axé (benchmark) tem relatório de ausentes.
   `agrupar=grupo` exige `escalas`, Pro): convocações, presenças, ausências com e sem justificativa e percentual
   (presentes ÷ convocações com chamada encerrada, sem dispensados).
 - Detalhe por médium com a lista de ausências e as justificativas (só na tela, nunca no PDF/CSV).
-- Aba "Relatórios" com `DataTable` (`renderCard` no celular) e PDF via `useRelatorioPDF`.
+- Aba "Relatórios" com `DataTable` (`renderCard` no celular) e PDF na base `lib/pdf/pdfDoc`
+  (`lib/pdf/assiduidadePdf.ts`; feito em vez do `useRelatorioPDF`, que é o do Relatório de gira).
 
 **Aceite**
 - [ ] Relatório por médium e período, filtrável por tipo de atividade, com PDF
@@ -1436,7 +1438,8 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-08 Atividades da casa (feature de grupo `ESCALAS`) | #91 | 077, 078 | 2026-10-08 |
 | AM-17 Presença + AM-28 Modo de presença e QR do dia | #92 | 079 | 2026-10-08 |
 | AM-29 Ajustes do piloto (convocar grupos, QR no iPhone, PIX no Início, remover foto, limite no login) | #93 | — | 2026-10-08 |
-| AM-25 Escala de faxina (planejador do mês por grupos) | este PR | 080 | — |
+| AM-26 Relatório de assiduidade e justificativas (aba Relatórios, PDF sem justificativa) | #94 | — | 2026-10-08 |
+| AM-25 Escala de faxina (planejador do mês por grupos) | #95 | 080 | 2026-10-08 |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
