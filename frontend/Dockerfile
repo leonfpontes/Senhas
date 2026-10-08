@@ -48,6 +48,12 @@ ENV NEXT_PUBLIC_META_PIXEL_ID=${NEXT_PUBLIC_META_PIXEL_ID}
 ARG NEXT_PUBLIC_SUPPORT_WHATSAPP=""
 ENV NEXT_PUBLIC_SUPPORT_WHATSAPP=${NEXT_PUBLIC_SUPPORT_WHATSAPP}
 
+# Divulgação da Área do Médium na landing, /planos e /login (AM-24). "true" mostra o link
+# "Sou médium", a linha no comparativo e a pergunta no FAQ; qualquer outro valor esconde.
+# Build-time pelo mesmo motivo do WhatsApp. Padrão desligado enquanto a Área está em piloto.
+ARG NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA="false"
+ENV NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA=${NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA}
+
 # Sentry (browser + server bundles). Também build-time: sem isto o DSN sai vazio
 # do bundle e o Sentry do frontend fica desligado em produção, mesmo com a
 # variável no environment do container.

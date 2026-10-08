@@ -1319,9 +1319,9 @@ dos tipos de atividade.
 - Entrada nas novidades da versão (`releaseNotes.ts`) e uma pergunta no FAQ ("Os médiuns têm acesso?").
 
 **Aceite**
-- [ ] Link na landing e no login
-- [ ] Quadro de planos com a Área
-- [ ] Novidades da versão escritas em linguagem de terreiro
+- [x] Link na landing e no login (atrás da chave `NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA`, desligada no piloto)
+- [x] Quadro de planos com a Área (mesma chave) e a pergunta no FAQ
+- [ ] Novidades da versão escritas em linguagem de terreiro (vão com a versão 2.5.0)
 
 ### AM-25 — Escala de faxina: grupos por dias do mês
 - **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** G · **Tipo:** dev · **Depende de:** AM-08, AM-17, AM-23
@@ -1445,12 +1445,13 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-26 Relatório de assiduidade e justificativas (aba Relatórios, PDF sem justificativa) | #94 | — | 2026-10-08 |
 | AM-25 Escala de faxina (planejador do mês por grupos) | #95 | 080 | 2026-10-08 |
 | AM-15 Lembretes e avisos por e-mail (mensalidade D-3/D+3, véspera, D-2, escala nova, falta, aviso, cancelamento, PIX, resumo do admin) | #96 | 081 | 2026-10-08 |
+| AM-24 Divulgação (atrás da chave NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA) | este PR | — | — |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
 **Falta da 2.4.0 do plano:** AM-18
-(escala de gira), AM-24 (divulgação). **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
+(escala de gira) e ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 

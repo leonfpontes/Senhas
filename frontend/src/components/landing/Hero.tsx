@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Reveal } from '@/components/landing/Reveal';
 import { Photo } from '@/components/landing/Photo';
 import { BilheteMock } from '@/components/landing/BilheteMock';
+import { SouMediumDialog } from '@/components/landing/SouMedium';
 import { HERO } from '@/constants/landingCopy';
+import { AREA_MEDIUM_DIVULGADA } from '@/constants/areaMedium';
 import { supportWhatsappLink } from '@/lib/whatsapp';
 import { trackEvent } from '@/services/analytics';
 
@@ -69,6 +71,8 @@ export function Hero({ whatsapp = supportWhatsappLink() }: { whatsapp?: string }
               </Button>
             )}
           </div>
+          {/* Divulgação da Área do Médium (AM-24) — só com a chave de lançamento ligada. */}
+          {AREA_MEDIUM_DIVULGADA && <SouMediumDialog className="mt-4 text-ouro-300 hover:text-white" />}
           <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-areia-200">
             {HERO.proof.map((p) => (
               <li key={p} className="flex items-center gap-1.5">

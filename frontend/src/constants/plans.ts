@@ -142,8 +142,8 @@ export interface FeatureCatalogItem {
  * - `bulk_operations` (ações em lote): vale em todos os planos, mas não é diferencial;
  * - `export_csv` (exportar listagens — PDF das senhas, CSV do estoque): segue no Pro+, mas não vende;
  * - `analytics_avancado` e `suporte_prioritario`: nada implementado por trás;
- * - `area_medium` (Área do Médium, Basic+): por enquanto fora do quadro — o texto de venda
- *   espera o estudo de experiência (AM-00) e entra com a divulgação (AM-24);
+ * - `area_medium` (Área do Médium, Basic+): fora do quadro do painel; no comparativo público
+ *   (`PlanComparisonTable`) entra só com a chave de divulgação `AREA_MEDIUM_DIVULGADA` (AM-24);
  * - `atividades_corrente` (Basic+) e `escalas` (Pro+), da Área do Médium (AM-08/AM-25): fora do
  *   quadro enquanto a Área está em piloto.
  * Os campos continuam no backend (catálogo de `PlanFeatures`).

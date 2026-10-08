@@ -27,6 +27,8 @@ import {
   type AccountChoice,
   type SessionUser,
 } from '@/services/authSession';
+import { SouMediumPassos } from '@/components/landing/SouMedium';
+import { AREA_MEDIUM_DIVULGADA, SOU_MEDIUM_LABEL } from '@/constants/areaMedium';
 
 type Notice = { key: string; variant: 'success' | 'info'; text: string };
 
@@ -320,9 +322,12 @@ export default function LoginPage() {
 /**
  * "Recebi um convite da casa" (AM-04): o médium não cria conta aqui — o primeiro acesso começa
  * pelo link do convite que a casa mandou (WhatsApp ou e-mail, AM-03). Depois disso, entra aqui.
+ * Com a chave de divulgação da Área (AM-24, `AREA_MEDIUM_DIVULGADA`) o link vira "Sou médium /
+ * Recebi um convite" e abre a explicação completa (os mesmos passos do topo da landing).
  */
 function ConviteDaCasa() {
   const [aberto, setAberto] = useState(false);
+  const divulgada = AREA_MEDIUM_DIVULGADA;
   return (
     <div className="-mt-2 flex flex-col">
       <button
@@ -331,23 +336,28 @@ function ConviteDaCasa() {
         aria-controls="convite-da-casa"
         onClick={() => setAberto((v) => !v)}
         className={cn(
-          'inline-flex min-h-12 items-center gap-2 self-center rounded-md text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          'inline-flex min-h-12 items-center gap-2 self-center rounded-md text-center text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
           AUTH_LINK,
         )}
       >
-        <Mail className="size-4" aria-hidden />
-        Recebi um convite da casa
-        <ChevronDown className={cn('size-4 transition-transform', aberto && 'rotate-180')} aria-hidden />
+        <Mail className="size-4 shrink-0" aria-hidden />
+        {divulgada ? SOU_MEDIUM_LABEL : 'Recebi um convite da casa'}
+        <ChevronDown className={cn('size-4 shrink-0 transition-transform', aberto && 'rotate-180')} aria-hidden />
       </button>
-      {aberto && (
-        <div id="convite-da-casa" className="rounded-xl bg-areia-100 px-4 py-3 text-sm text-tinta">
-          <p className="font-bold">O primeiro acesso começa pelo link da casa.</p>
-          <p className="mt-1 text-tinta-suave">
-            Toque no link do convite que a casa mandou no WhatsApp ou no e-mail e crie sua senha de acesso. Depois,
-            é só entrar aqui com seu e-mail e essa senha.
-          </p>
-        </div>
-      )}
+      {aberto &&
+        (divulgada ? (
+          <div id="convite-da-casa" className="rounded-xl bg-areia-100 px-4 py-3">
+            <SouMediumPassos entrar="Já criou o seu login? É só entrar acima com o seu e-mail e senha." />
+          </div>
+        ) : (
+          <div id="convite-da-casa" className="rounded-xl bg-areia-100 px-4 py-3 text-sm text-tinta">
+            <p className="font-bold">O primeiro acesso começa pelo link da casa.</p>
+            <p className="mt-1 text-tinta-suave">
+              Toque no link do convite que a casa mandou no WhatsApp ou no e-mail e crie sua senha de acesso. Depois,
+              é só entrar aqui com seu e-mail e essa senha.
+            </p>
+          </div>
+        ))}
     </div>
   );
 }

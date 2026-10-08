@@ -32,3 +32,16 @@ export const TERMO_AREA_RODAPE = `Versão ${AREA_MEDIUM_CONSENTIMENTO_VERSAO} ·
 
 /** Para onde o aceite leva (casca da Área, AM-06). */
 export const AREA_MEDIUM_HOME = '/medium';
+
+/**
+ * Chave de lançamento da divulgação pública da Área (AM-24): link "Sou médium / Recebi um convite"
+ * no topo da landing e no /login, linha "Área do Médium" no comparativo de planos e a pergunta
+ * "Os médiuns têm acesso?" no FAQ. DESLIGADA por padrão — a Área está em piloto (chave por terreiro).
+ * `NEXT_PUBLIC_*` entra no bundle no build: em produção vem da variável homônima do ambiente
+ * `Hostinger` no GitHub (deploy.yml → ARG do frontend/Dockerfile). Ligar = `true` e redeployar.
+ * Leia na renderização (nunca numa constante de módulo): os testes trocam o valor por um getter.
+ */
+export const AREA_MEDIUM_DIVULGADA = process.env.NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA === 'true';
+
+/** Texto do link público que leva à explicação de como o médium entra (AM-24). */
+export const SOU_MEDIUM_LABEL = 'Sou médium / Recebi um convite';

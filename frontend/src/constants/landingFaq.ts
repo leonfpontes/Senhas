@@ -3,6 +3,9 @@
  * do JSON-LD precisa ser idêntico ao visível. Cada resposta foi conferida com o código em 2026-10-06;
  * ao mudar o comportamento do produto, atualize aqui (R-02).
  */
+import { AREA_MEDIUM_DIVULGADA } from '@/constants/areaMedium';
+import { minPlanPhrase } from '@/constants/plans';
+
 export interface FaqItem {
   q: string;
   a: string;
@@ -43,8 +46,23 @@ export const LANDING_FAQ: readonly FaqItem[] = [
   },
 ];
 
+/**
+ * "Os médiuns têm acesso?" (AM-24) — só com a chave de lançamento da Área (`AREA_MEDIUM_DIVULGADA`).
+ * O plano mínimo sai de constants/plans.ts (`area_medium`); escala e presença dependem do que a casa usa.
+ */
+export const FAQ_AREA_MEDIUM: FaqItem = {
+  q: 'Os médiuns têm acesso?',
+  a: `Sim. A Área do Médium está disponível ${minPlanPhrase('area_medium')}: nela, cada médium da corrente acompanha pelo celular a agenda das giras, os avisos da casa e a própria mensalidade — e, quando a casa usa, a escala e a presença. O acesso vem do terreiro: a direção manda o convite pelo WhatsApp e o médium cria o próprio login. Um médium não vê nada dos outros.`,
+};
+
+/** Perguntas que a landing mostra agora (a da Área entra depois da 2ª, só com a chave ligada). */
+export function visibleFaq(divulgarArea: boolean = AREA_MEDIUM_DIVULGADA): readonly FaqItem[] {
+  if (!divulgarArea) return LANDING_FAQ;
+  return [...LANDING_FAQ.slice(0, 2), FAQ_AREA_MEDIUM, ...LANDING_FAQ.slice(2)];
+}
+
 /** JSON-LD FAQPage gerado da mesma lista (com `<` escapado para não fechar o <script>). */
-export function faqJsonLd(items: readonly FaqItem[] = LANDING_FAQ): string {
+export function faqJsonLd(items: readonly FaqItem[] = visibleFaq()): string {
   return JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
