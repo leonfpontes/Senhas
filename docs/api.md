@@ -1351,6 +1351,52 @@ another function there keeps it (`em_outra_funcao_nomes`). Response = this scale
 
 Notifications ("Você é Cambone na gira de sábado") are AM-15's job — nothing is sent here.
 
+### 20. Billing — plano e assinatura na Stripe (cartão ou boleto, $-04)
+
+`/api/v1/admin/billing*` — account screen: `ADMIN`/`SUPER_ADMIN` only (`_require_admin`), no group
+feature (exempt in `scripts/audit_permission_guards.py`).
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/admin/billing` | Plan, status, Stripe ids, period, trial and the $-04 fields below |
+| POST | `/admin/billing/checkout` `{ "plan" }` | **Card**: Stripe Checkout (`mode=subscription`, `payment_method_types=["card"]`), automatic renewal → `{ "checkout_url" }`. Keeps the remaining local trial days. 409 while a boleto order is pending |
+| POST | `/admin/billing/subscribe-invoice` `{ "plan" }` | **Boleto**: creates the Stripe subscription with `collection_method=send_invoice`, `days_until_due=STRIPE_INVOICE_DAYS_UNTIL_DUE` (5) and `payment_settings.payment_method_types=STRIPE_INVOICE_PAYMENT_METHODS` ("boleto"). No Checkout: Stripe e-mails one invoice per period with the hosted payment page |
+| POST | `/admin/billing/change-plan` `{ "plan" }` | Up/downgrade of the linked subscription (keeps its payment method; with boleto the proration invoice is e-mailed) |
+| POST | `/admin/billing/cancel` | Cancel at period end. With a **pending boleto order** (first invoice never paid): cancels it at Stripe right away and voids the open invoice |
+| POST | `/admin/billing/reactivate` | Undo a scheduled cancellation |
+
+`subscribe-invoice` response: `{ "status": "pending" | "trialing", "hosted_invoice_url", "due_at",
+"trial_ends_at", "detail" }`.
+- `pending` (no local trial left): the plan is **not** granted. The Stripe subscription goes to
+  `subscriptions.pending_stripe_subscription_id` (never to `stripe_subscription_id`, so access rules,
+  MRR and the trial scheduler are untouched) and the first invoice to `pending_invoice_*`. The plan is
+  granted by the `invoice.paid` webhook.
+- `trialing` (local trial with days left): the days become a Stripe trial; the subscription is linked
+  and the chosen plan applies at once, as with the card checkout mid-trial. The first invoice is e-mailed
+  when the trial ends.
+- Errors: 400 invalid plan / bonus tenant / a Stripe subscription is already linked (even suspended — no
+  second subscription; switching method goes through support); 409 boleto order already
+  pending; **400 "O pagamento por boleto ainda não está liberado…"** when the Stripe account doesn't have
+  the method enabled (the card keeps working); 403 operator.
+
+New `GET /admin/billing` fields: `collection_method` (`charge_automatically` | `send_invoice` | null =
+card/legacy), `awaiting_first_payment`, `pending_invoice_url`, `pending_invoice_due_at`,
+`invoice_payment_methods` (the screen writes "Boleto bancário", or "PIX ou boleto" only when `pix` is in
+the list) and `invoice_days_until_due`.
+
+**Stripe webhook** (`POST /api/v1/webhooks/stripe`, signed, deduplicated by `event_id`):
+
+| Event | Effect |
+|---|---|
+| `checkout.session.completed` | Links the subscription and grants the plan — **except** `payment_status=unpaid` (async method), which does nothing |
+| `checkout.session.async_payment_succeeded` / `_failed` | Same as completed / nothing (no plan was granted) |
+| `customer.subscription.created/updated` | Syncs plan, period, trial and status of the **linked** subscription. A boleto subscription not yet paid (or any `incomplete` one) that isn't the linked one is ignored |
+| `customer.subscription.deleted` | Linked one → back to FREE (as before). Pending boleto order → only clears the order (no downgrade, no e-mail) |
+| `invoice.finalized` (boleto) | Stores the open invoice link (`pending_invoice_*`) for "Pagar agora" |
+| `invoice.paid` (boleto) | Retrieves the subscription, checks `active`/`trialing`, links it and grants the plan; clears the pending invoice; reactivates `SUSPENDED`. Card invoices are ignored here |
+| `invoice.payment_failed` | Card: as before (trial → FREE, otherwise SUSPENDED). **Boleto: no effect** — an expired voucher is not a default; the invoice stays open until the due date |
+| `invoice.overdue` (boleto) | Linked subscription → `SUSPENDED` (paying later reactivates via `invoice.paid`). Pending order → no effect |
+
 ---
 
 ## Área do Médium Endpoints (AM-02)

@@ -213,6 +213,36 @@ docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
 docker compose -f docker-compose.prod.yml exec backend python seed_superadmin.py
 ```
 
+### Stripe — assinatura do plano (cartão e boleto)
+
+Variáveis (`.env` de produção): `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_BASIC/PRO/PREMIUM`
+e, desde o $-04, `STRIPE_INVOICE_PAYMENT_METHODS` (padrão `boleto`) e `STRIPE_INVOICE_DAYS_UNTIL_DUE`
+(padrão `5`). O painel oferece "Cartão de crédito" (Checkout, renovação automática) e "Boleto bancário"
+(assinatura `send_invoice`: a Stripe manda a fatura por e-mail todo mês e o painel mostra "Pagar agora").
+
+O que ligar no Dashboard da Stripe (uma vez, pelo dono da conta):
+
+1. **Formas de pagamento** (Settings → Payments → Payment methods): ativar **Boleto** e conferir a validade
+   padrão do boleto (3 dias; pode ir até 60). Sem isso, "Boleto bancário" responde "ainda não está
+   liberado" e o cartão segue funcionando.
+2. **Faturas** (Settings → Billing → Invoice template → formas de pagamento padrão): incluir **Boleto**.
+3. **E-mails** (Settings → Billing → Subscriptions and emails / Customer emails): ligar o envio das
+   faturas finalizadas ao cliente, os lembretes de fatura vencida e, em Customer emails, as instruções de
+   pagamento do Boleto. Em modo de teste a Stripe só manda e-mail para endereços do próprio time.
+4. **Pagamentos com falha / fatura vencida** (Settings → Billing → Subscriptions → Manage failed payments
+   e Manage invoices sent to customers): decidir o que acontece depois do vencimento (manter `past_due`
+   ou cancelar após N dias). O GiraHub suspende na fatura vencida e reativa quando ela é paga; se a
+   Stripe cancelar, a conta volta ao gratuito.
+5. **Webhook** (Developers → Webhooks → endpoint `https://<api>/api/v1/webhooks/stripe`): além dos eventos
+   que já estavam (`checkout.session.completed`, `customer.subscription.created/updated/deleted`,
+   `invoice.payment_failed`), assinar `invoice.paid`, `invoice.finalized`, `invoice.overdue`,
+   `checkout.session.async_payment_succeeded` e `checkout.session.async_payment_failed`.
+
+**Pix**: conta Stripe do Brasil aceita Pix só em pagamento avulso (sob convite) e o Pix Automático (Pix
+recorrente) não está disponível no Brasil — então Pix não entra na assinatura por enquanto. Se a Stripe
+liberar Pix em faturas para a conta, basta `STRIPE_INVOICE_PAYMENT_METHODS=boleto,pix` (e ativar o Pix nos
+passos 1–2): o painel passa a escrever "PIX ou boleto" sozinho.
+
 ---
 
 ## 5. Configurar Nginx + SSL

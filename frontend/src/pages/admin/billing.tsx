@@ -9,10 +9,29 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { CircleAlert, CircleCheck, CreditCard, Info, MessageCircle, RefreshCw, Star, XCircle } from 'lucide-react';
+import {
+  CircleAlert,
+  CircleCheck,
+  CreditCard,
+  ExternalLink,
+  Info,
+  MessageCircle,
+  Receipt,
+  RefreshCw,
+  Star,
+  XCircle,
+} from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { PageHeader, ConfirmDialog } from '@/components/admin';
-import { PlanCard, PlanComparison, TrialSummaryCard, UsageBar } from '@/components/billing';
+import {
+  PaymentMethodPicker,
+  PlanCard,
+  PlanComparison,
+  TrialSummaryCard,
+  UsageBar,
+  invoiceMethodLabel,
+  type PaymentMethodChoice,
+} from '@/components/billing';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,6 +66,21 @@ interface BillingInfo {
   currency: string;
   is_trial?: boolean;
   trial_ends_at?: string | null;
+  // $-04 — cobrança por fatura (boleto)
+  collection_method?: string | null;
+  awaiting_first_payment?: boolean;
+  pending_invoice_url?: string | null;
+  pending_invoice_due_at?: string | null;
+  invoice_payment_methods?: string[];
+  invoice_days_until_due?: number;
+}
+
+interface SubscribeInvoiceResult {
+  status: 'pending' | 'trialing';
+  hosted_invoice_url?: string | null;
+  due_at?: string | null;
+  trial_ends_at?: string | null;
+  detail: string;
 }
 
 interface DashboardSummaryLite {
@@ -90,6 +124,8 @@ function BillingContent() {
   const [cancelDialog, setCancelDialog] = useState(false);
   const [reactivateDialog, setReactivateDialog] = useState(false);
   const [changePlanTarget, setChangePlanTarget] = useState<PlanKey | null>(null);
+  const [cancelPendingDialog, setCancelPendingDialog] = useState(false);
+  const [payMethod, setPayMethod] = useState<PaymentMethodChoice>('card');
   const [tab, setTab] = useState<'assinatura' | 'planos'>('assinatura');
 
   const queryPlan = normalizePlanKey(router.query.plan);
@@ -160,6 +196,12 @@ function BillingContent() {
   const trialEndShort = billing?.trial_ends_at
     ? new Date(billing.trial_ends_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
     : null;
+  // $-04: pedido de assinatura por boleto emitido e ainda não pago (plano não liberado).
+  const awaitingFirstPayment = !!billing?.awaiting_first_payment;
+  const invoiceLabel = invoiceMethodLabel(billing?.invoice_payment_methods);
+  const paysByInvoice = billing?.collection_method === 'send_invoice';
+  // Escolha de forma de pagamento só faz sentido antes de existir assinatura na Stripe.
+  const showPaymentPicker = isFreePlan && !billing?.is_bonus && !awaitingFirstPayment;
 
   // Resumo do painel só importa no teste (senhas emitidas); se falhar, omite.
   useEffect(() => {
@@ -190,7 +232,32 @@ function BillingContent() {
   const recommended = PLANS[recommendPlan(usage)];
 
   // ── ações ──
+  /** $-04: assina por fatura (boleto). Sem redirecionar: o painel mostra o "Pagar agora". */
+  const handleSubscribeInvoice = async (plan: PlanKey) => {
+    setActionLoading(plan);
+    setError(null);
+    try {
+      const res = await apiClient.post<SubscribeInvoiceResult>('/api/v1/admin/billing/subscribe-invoice', { plan });
+      setSuccess(
+        res.data.status === 'trialing'
+          ? `Assinatura do ${planLabel(plan)} registrada. Os dias de teste continuam grátis; a primeira fatura chega por e-mail no fim do teste.`
+          : `Fatura do ${planLabel(plan)} emitida e enviada por e-mail. Use "Pagar agora" — o plano é liberado assim que o pagamento for confirmado.`,
+      );
+      setTab('assinatura');
+      await fetchBilling();
+      refreshSubscription();
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Não foi possível emitir a fatura.'));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleCheckout = async (plan: PlanKey) => {
+    if (payMethod === 'invoice') {
+      await handleSubscribeInvoice(plan);
+      return;
+    }
     setActionLoading(plan);
     setError(null);
     try {
@@ -198,6 +265,22 @@ function BillingContent() {
       window.location.href = res.data.checkout_url;
     } catch (err) {
       setError(extractApiErrorMessage(err, 'Não foi possível abrir o pagamento.'));
+      setActionLoading(null);
+    }
+  };
+
+  const handleCancelPending = async () => {
+    setCancelPendingDialog(false);
+    setActionLoading('cancel-pending');
+    setError(null);
+    try {
+      await apiClient.post('/api/v1/admin/billing/cancel');
+      setSuccess('Pedido cancelado. Nenhuma cobrança foi feita — você pode escolher outra forma de pagamento.');
+      await fetchBilling();
+      refreshSubscription();
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Não foi possível cancelar o pedido.'));
+    } finally {
       setActionLoading(null);
     }
   };
@@ -258,6 +341,7 @@ function BillingContent() {
       return isCurrent ? { label: 'Plano atual', disabled: true, variant: 'outline' as const } : null;
     }
     if (isCurrent) return { label: 'Plano atual', disabled: true, variant: 'outline' as const };
+    if (awaitingFirstPayment) return { label: 'Aguardando pagamento', disabled: true, variant: 'outline' as const };
     if (isFreePlan) {
       return {
         label: isTrialPlan ? 'Continuar neste plano' : 'Assinar agora',
@@ -339,6 +423,44 @@ function BillingContent() {
         </Alert>
       )}
 
+      {(billing.pending_invoice_url || awaitingFirstPayment) && (
+        <Alert variant="warning" role="status" data-tour="billing-aguardando-pagamento">
+          <Receipt aria-hidden />
+          <AlertDescription className="flex flex-col gap-3">
+            <span>
+              <strong>Aguardando pagamento da fatura ({invoiceLabel.toLowerCase()}).</strong>{' '}
+              {billing.pending_invoice_due_at ? (
+                <>
+                  Vence em <strong>{formatDate(billing.pending_invoice_due_at)}</strong>.{' '}
+                </>
+              ) : null}
+              {awaitingFirstPayment
+                ? 'O plano é liberado assim que o pagamento for confirmado (boleto leva até 1 dia útil). A fatura também foi enviada por e-mail.'
+                : 'A fatura também foi enviada por e-mail. Depois do vencimento sem pagamento, o acesso fica suspenso até a confirmação.'}
+            </span>
+            <span className="flex flex-wrap gap-2">
+              {billing.pending_invoice_url && (
+                <Button asChild size="sm">
+                  <a href={billing.pending_invoice_url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink aria-hidden /> Pagar agora
+                  </a>
+                </Button>
+              )}
+              {awaitingFirstPayment && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={actionLoading === 'cancel-pending'}
+                  onClick={() => setCancelPendingDialog(true)}
+                >
+                  {actionLoading === 'cancel-pending' ? 'Cancelando…' : 'Cancelar pedido'}
+                </Button>
+              )}
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Tabs value={tab} onValueChange={(v) => setTab(v as 'assinatura' | 'planos')}>
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="assinatura">Assinatura</TabsTrigger>
@@ -403,6 +525,12 @@ function BillingContent() {
                       </p>
                       <p className="mt-0.5 text-sm font-bold">{formatDate(billing.current_period_end)}</p>
                     </div>
+                    <div>
+                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Forma de pagamento</p>
+                      <p className="mt-0.5 text-sm font-bold">
+                        {paysByInvoice ? `${invoiceLabel} (fatura por e-mail)` : 'Cartão de crédito'}
+                      </p>
+                    </div>
                     {billing.cancel_at_period_end && (
                       <Alert variant="warning" className="sm:col-span-3">
                         <Info aria-hidden />
@@ -439,6 +567,16 @@ function BillingContent() {
             </Card>
           )}
 
+          {showPaymentPicker && (inLocalTrial || currentPlanKey === 'free') && (
+            <PaymentMethodPicker
+              value={payMethod}
+              onChange={setPayMethod}
+              invoiceMethods={billing.invoice_payment_methods}
+              daysUntilDue={billing.invoice_days_until_due}
+              disabled={!!actionLoading}
+            />
+          )}
+
           {inLocalTrial && billing && (
             <TrialSummaryCard
               data-tour="billing-trial"
@@ -448,7 +586,7 @@ function BillingContent() {
               recommended={recommended}
               onKeep={(p) => handleCheckout(p.key)}
               loading={actionLoading === recommended.key}
-              disabled={!!actionLoading}
+              disabled={!!actionLoading || awaitingFirstPayment}
             />
           )}
 
@@ -463,7 +601,7 @@ function BillingContent() {
                     ? {
                         label: 'Continuar neste plano',
                         onClick: () => handleCheckout(currentPlan.key),
-                        disabled: !!actionLoading && actionLoading !== currentPlan.key,
+                        disabled: (!!actionLoading && actionLoading !== currentPlan.key) || awaitingFirstPayment,
                         loading: actionLoading === currentPlan.key,
                       }
                     : { label: 'Plano atual', disabled: true, variant: 'outline' }
@@ -496,6 +634,16 @@ function BillingContent() {
               {inLocalTrial ? ' Durante o teste, os dias que faltam continuam grátis depois de assinar.' : ''}
             </p>
           </div>
+
+          {showPaymentPicker && (
+            <PaymentMethodPicker
+              value={payMethod}
+              onChange={setPayMethod}
+              invoiceMethods={billing.invoice_payment_methods}
+              daysUntilDue={billing.invoice_days_until_due}
+              disabled={!!actionLoading}
+            />
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {PLAN_LIST.map((plan) => {
@@ -540,6 +688,17 @@ function BillingContent() {
         destructive
         onConfirm={handleCancel}
         onCancel={() => setCancelDialog(false)}
+      />
+
+      <ConfirmDialog
+        open={cancelPendingDialog}
+        title="Cancelar o pedido de assinatura?"
+        message="A fatura em aberto é anulada e nada é cobrado. Depois você pode assinar de novo, com cartão ou com outra fatura."
+        confirmText="Cancelar pedido"
+        cancelText="Voltar"
+        destructive
+        onConfirm={handleCancelPending}
+        onCancel={() => setCancelPendingDialog(false)}
       />
 
       <ConfirmDialog
