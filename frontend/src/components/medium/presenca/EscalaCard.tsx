@@ -7,6 +7,7 @@
  * - "Você confirmou: Vou." / "Você avisou que não vai." com "Mudar resposta";
  * - "Presença marcada às 9h04."; ausência com "Conte o motivo (até 14/10)".
  * Impersonando (suporte), só leitura: as ações somem. Só a própria participação (D-07).
+ * Com função na escala (AM-18), o cabeçalho vira "Você é Cambone na gira de sábado".
  */
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -24,6 +25,7 @@ import {
   cheguei,
   contarMotivo,
   estaImpersonando,
+  fraseDaFuncao,
   janelaTexto,
   mensagemDoErro,
   prazoTexto,
@@ -125,8 +127,10 @@ export function EscalaCard({
   };
 
   const hoje = ehHoje(item.inicio);
-  // "grupo G2" (§8.9 do plano; escala de faxina, AM-25) e a função da escala de gira.
-  const complemento = [p.grupo ? `grupo ${p.grupo}` : null, p.funcao].filter(Boolean).join(' · ');
+  // AM-18 (D-17): com função, o cabeçalho diz qual ("Você é Cambone na gira de sábado"); o complemento
+  // traz o "grupo G2" (§8.9 do plano; escala de faxina, AM-25) e a função só quando não há frase.
+  const frase = fraseDaFuncao({ ...item, minha_participacao: p });
+  const complemento = [p.grupo ? `grupo ${p.grupo}` : null, frase ? null : p.funcao].filter(Boolean).join(' · ');
   const quando = `${quandoBr(item.inicio)}${item.fim ? ` às ${horaBr(item.fim)}` : ''}`;
   const janela = janelaTexto(p);
   const prazo = prazoTexto(p);
@@ -140,7 +144,7 @@ export function EscalaCard({
         <>
           <p className="flex flex-wrap items-center gap-1.5 text-sm font-bold text-brand">
             <TipoChip tipo={item.tipo} size="sm" />
-            {hoje ? 'Hoje · você está na escala' : 'Você está na escala'}
+            {frase ?? (hoje ? 'Hoje · você está na escala' : 'Você está na escala')}
             {complemento && <span className="text-muted-foreground">· {complemento}</span>}
           </p>
           <div>
@@ -151,7 +155,8 @@ export function EscalaCard({
       )}
       {semCabecalho && (
         <p className="text-sm font-bold text-brand">
-          Você está na escala{complemento ? ` · ${complemento}` : ''}
+          {frase ? `Você é ${p.funcao}` : 'Você está na escala'}
+          {complemento ? ` · ${complemento}` : ''}
         </p>
       )}
 

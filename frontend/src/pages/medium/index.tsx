@@ -33,6 +33,7 @@ import {
   valorBr,
 } from '@/components/medium/format';
 import { EscalaCard } from '@/components/medium/presenca/EscalaCard';
+import { fraseDaFuncao } from '@/components/medium/presenca/presencaApi';
 import { detalheHref } from '@/components/medium/agenda';
 import { EmptyState } from '@/components/EmptyState';
 import { ROTULO_SITUACAO_MEDIUM, type ItemPresenca } from '@/constants/presenca';
@@ -112,6 +113,11 @@ function EscalasAcompanhando({ escalas }: { escalas: ItemPresenca[] }) {
             <span className="block text-base font-bold">
               {e.titulo} · {quandoBr(e.inicio).split(' · ')[0]}
             </span>
+            {fraseDaFuncao(e) && (
+              <span className="block text-sm font-semibold text-brand" data-testid="escala-funcao">
+                {fraseDaFuncao(e)}
+              </span>
+            )}
             <span className="block text-sm text-muted-foreground">
               {e.minha_participacao?.resposta === 'vou'
                 ? 'Você confirmou: Vou'

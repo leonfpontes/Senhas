@@ -12,7 +12,7 @@ import {
   type MinhaParticipacao,
   type TomSituacao,
 } from '@/constants/presenca';
-import { diaMesCurto, horaBr } from '@/components/medium/format';
+import { diaMesCurto, horaBr, quandoBr } from '@/components/medium/format';
 
 export type AlvoPresenca = Pick<ItemPresenca, 'origem' | 'id'>;
 
@@ -69,11 +69,41 @@ export function estaImpersonando(): boolean {
   }
 }
 
-/** Selo curto da Agenda para quem está na escala (null = não mostra). */
+/** Dia em palavras de casa: "hoje", "amanhã" ou o dia da semana ("sábado"). */
+function diaFalado(iso: string, agora: Date): string {
+  const dia = (d: string) => quandoBr(d).split(' · ')[0];
+  const alvo = dia(iso);
+  if (alvo === dia(agora.toISOString())) return 'hoje';
+  if (alvo === dia(new Date(agora.getTime() + 24 * 3600 * 1000).toISOString())) return 'amanhã';
+  return alvo.split(',')[0];
+}
+
+/**
+ * AM-18 (D-17): "Você é Cambone na gira de sábado" — null sem função (ou fora da escala).
+ * Atividade com escala por função: "Você é Cozinha em Reunião de hoje".
+ */
+export function fraseDaFuncao(
+  item: Pick<ItemPresenca, 'origem' | 'titulo' | 'inicio' | 'minha_participacao'>,
+  agora: Date = new Date(),
+): string | null {
+  const p = item.minha_participacao;
+  if (!p?.funcao || p.situacao === 'dispensado' || p.situacao === 'substituido') return null;
+  const onde = item.origem === 'gira' ? 'na gira' : `em ${item.titulo}`;
+  return `Você é ${p.funcao} ${onde} de ${diaFalado(item.inicio, agora)}`;
+}
+
+/** Selo curto da Agenda para quem está na escala (null = não mostra). AM-18: com a função na
+ * frente ("Cambone · Vou"). */
 export function seloDaAgenda(
   p: MinhaParticipacao | null | undefined,
 ): { texto: string; tom: TomSituacao } | null {
   if (!p) return null;
+  const base = seloDaSituacao(p);
+  if (!p.funcao || p.situacao === 'dispensado' || p.situacao === 'substituido') return base;
+  return base ? { texto: `${p.funcao} · ${base.texto}`, tom: base.tom } : { texto: p.funcao, tom: 'brand' };
+}
+
+function seloDaSituacao(p: MinhaParticipacao): { texto: string; tom: TomSituacao } | null {
   switch (p.situacao) {
     case 'presente':
       return { texto: 'Presente', tom: 'ok' };

@@ -1204,17 +1204,18 @@ espirituais e administrativas do terreiro"); o F-07 previa limpeza, cozinha e po
   grupo inteiro; "Copiar da gira anterior"; **Rodízio** para as próximas N giras (função pura testada, ordem
   circular entre médiuns ou grupos).
 - `GET/PUT /api/v1/admin/atividades/{id}/escala` (`ESCALAS` view/edit + `escalas`); grava `funcao_id`,
-  `grupo_id` e `origem` na participação (a mesma linha da presença); trocar alguém de função ou tirar da escala
-  marca `dispensado_em` e avisa.
+  `grupo_id` e `origem` na participação (a mesma linha da presença); trocar alguém de função muda a linha; tirar da
+  função numa gira ("todos os elegíveis") só limpa a função (segue esperado) e, em tipo "só escalados", marca
+  `dispensado_em` (decisão do piloto, 08/10).
 - Médium: função aparece no Início ("Você é Cambone na gira de sábado"), no calendário e em "Minhas presenças".
 - Fora do plano `escalas`: aba com `PlanLocked`; giras continuam com presença (Basic).
 
 **Aceite**
-- [ ] Admin monta a escala da gira por função, com médiuns ou grupo inteiro
-- [ ] Copiar da gira anterior e rodízio para as próximas giras funcionam
-- [ ] Um médium tem no máximo uma função por gira
-- [ ] Médium vê a própria função no Início e no calendário
-- [ ] Sem o plano Pro, a aba mostra o bloqueio com o plano mínimo e a API responde 403
+- [x] Admin monta a escala da gira por função, com médiuns ou grupo inteiro
+- [x] Copiar da gira anterior e rodízio para as próximas giras funcionam
+- [x] Um médium tem no máximo uma função por gira
+- [x] Médium vê a própria função no Início e no calendário
+- [x] Sem o plano Pro, a aba mostra o bloqueio com o plano mínimo e a API responde 403
 
 ### AM-19 — Minha ficha e minha caminhada
 - **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** F-05, AM-13
@@ -1445,13 +1446,13 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-26 Relatório de assiduidade e justificativas (aba Relatórios, PDF sem justificativa) | #94 | — | 2026-10-08 |
 | AM-25 Escala de faxina (planejador do mês por grupos) | #95 | 080 | 2026-10-08 |
 | AM-15 Lembretes e avisos por e-mail (mensalidade D-3/D+3, véspera, D-2, escala nova, falta, aviso, cancelamento, PIX, resumo do admin) | #96 | 081 | 2026-10-08 |
-| AM-24 Divulgação (atrás da chave NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA) | este PR | — | — |
+| AM-18 Escala de gira por função (grupos inteiros, copiar da anterior, rodízio) | #97 | — (usa as colunas da 079) | 2026-10-08 |
+| AM-24 Divulgação (atrás da chave NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA, desligada) | #98 | — | 2026-10-08 |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** AM-18
-(escala de gira) e ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
+**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 
