@@ -142,6 +142,7 @@ Todos aceitam `label`, `helperText`, `error` (bool ou string), `required`, `disa
 <DateField label="Data" value={data} onChange={setData} min="2026-01-01" />     // ISO "YYYY-MM-DD"; digita dd/mm/aaaa ou abre o calendário
 <DateTimeField label="Início" value={inicio} onChange={setInicio} />            // ISO local "YYYY-MM-DDTHH:mm"
 <Combobox label="Médium" options={opts} value={id} onChange={setId} clearable />// Popover + Command com busca
+<MultiCombobox label="Médiuns" options={opts} value={ids} onChange={setIds} />  // vários itens; etiquetas removíveis; `dot` = bolinha de cor
 ```
 
 ### `Stepper` — `src/components/Stepper.tsx`

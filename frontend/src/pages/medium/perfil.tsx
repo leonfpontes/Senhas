@@ -7,6 +7,7 @@ import React from 'react';
 import { ArrowLeftRight, ChevronRight, LogOut, Smartphone, type LucideIcon } from 'lucide-react';
 import { MediumLayout, useMediumShell } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
+import { MeusGrupos } from '@/components/medium/MeusGrupos';
 import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 import { cn } from '@/lib/utils';
 
@@ -78,6 +79,7 @@ function Perfil() {
           <p className="text-base text-areia-200">
             Médium da corrente{me ? ` · ${me.terreiro.nome}` : ''}
           </p>
+          <MeusGrupos grupos={me?.grupos} className="mt-1 text-areia-200" />
         </div>
         <span
           aria-hidden
