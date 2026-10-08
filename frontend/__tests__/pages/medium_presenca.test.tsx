@@ -174,7 +174,7 @@ describe('Início — Você está na escala', () => {
     renderApp(<Page />);
     const card = await screen.findByTestId('escala-card');
     expect(within(card).getByText(/Você está na escala/)).toBeInTheDocument();
-    expect(within(card).getByText('· G2')).toBeInTheDocument();
+    expect(within(card).getByText('· grupo G2')).toBeInTheDocument();
     expect(within(card).getByText(/Responda até/)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/convocad|check-in/i);
     await act(async () => {

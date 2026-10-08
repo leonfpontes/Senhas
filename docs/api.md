@@ -1162,7 +1162,81 @@ HMAC-SHA256 of (tenant, origem, gira/activity id, 60-second window) with a sub-k
 `SECRET_KEY` — no table — and `conteudo` = `{FRONTEND_URL}/medium/agenda/{origem}/{id}?cheguei={codigo}`
 (the phone camera opens the Área and marks "Cheguei"). No personal data.
 
-### 17. Assiduidade — relatório por médium e por grupo (AM-26)
+### 17. Escala de faxina — planner by groups and days of the month (AM-25)
+
+Router `src/api/v1/admin/escala_planos.py` (prefix `/api/v1/admin/escala-planos`), plan gates
+`area_medium` (pilot key) + **`escalas`** (Pro) on the router → 403 otherwise. Group feature `ESCALAS`.
+Pure rules in `src/services/escala_planos.py`. `{tipo_id}` = an activity type of the tenant (else 404),
+active, `natureza = atividade` and `modo_escala = grupos_por_dia` (else 422); `{mes}` = `AAAA-MM` (else 422).
+
+| Method | Path | Group action |
+|---|---|---|
+| GET | `/api/v1/admin/escala-planos/{tipo_id}/{mes}` | `ESCALAS:view` |
+| PUT | `/api/v1/admin/escala-planos/{tipo_id}/{mes}` `{ "dias": [{ "data", "grupo_id", "hora_inicio"?, "hora_fim"? }] }` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/escala-planos/{tipo_id}/{mes}/copiar-mes-anterior` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/escala-planos/{tipo_id}/{mes}/girar-grupos` `{ "grupo_ids"?: [...] }` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/escala-planos/{tipo_id}/{mes}/distribuir` `{ "dias_semana": [6], "grupo_ids": [...], "hora_inicio"?, "hora_fim"? }` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/escala-planos/{tipo_id}/{mes}/publicar` | `ESCALAS:insert` **and** `ESCALAS:edit` |
+| POST | `/api/v1/admin/escala-planos/{tipo_id}/{mes}/atualizar-convocacoes` | `ESCALAS:insert` **and** `ESCALAS:edit` |
+
+**Response** (all routes; `existe = false` and `dias = []` when the month has no plan yet):
+```json
+{ "tipo": { "id", "nome", "icone", "cor" }, "mes": "2026-11", "hoje": "2026-10-08", "existe": true,
+  "status": "rascunho"|"publicado"|null, "publicado_em", "publicado_por": "Nome",
+  "hora_inicio_padrao": "09:00", "hora_fim_padrao": "12:00",
+  "grupos": [{ "id", "nome", "cor", "total_membros", "arquivado" }],
+  "dias": [{ "data": "2026-11-07", "grupo_id", "hora_inicio": "09:00", "hora_fim": "12:00", "publicado": true }],
+  "pendencias": { "criar", "cancelar", "trocar", "reagendar", "ignorados_passado", "tem_mudancas" },
+  "mes_anterior_dias": 5, "proximas_publicadas": 4 }
+```
+- `grupos` (the chips): the groups the type calls (`elegiveis = grupos`) or every active corrente group,
+  plus groups already in the plan (even archived), natural order (G2 before G10); `total_membros` =
+  active médiuns.
+- `pendencias`: what `publicar` would do now (same pure diff); `proximas_publicadas` = published
+  activities not cancelled that have not started (the "Atualizar convocações" button).
+- `copiar-mes-anterior`, `girar-grupos` and `distribuir` also return `descartados` (copy only).
+
+**PUT (draft)**: replaces the whole draft. Every `grupo_id` must be an active group of the tenant (an
+archived one only if it is already in this plan) → else 422 and nothing is stored; every `data` inside the
+month → else 422. Times: `HH:MM`; missing → the type default (`hora_padrao` or 09:00; end = start +
+`duracao_min`, none if it would pass midnight); end ≤ start → 422. A published day removed from the draft
+is kept with `removido = true` until the next publish. The médium never sees a draft.
+
+**Shortcuts** (all save the draft and return the plan):
+- `copiar-mes-anterior`: previous month's draft **by weekday order** (1st Saturday → 1st Saturday …);
+  a 5th occurrence the target month lacks, and days of archived groups, are dropped (`descartados`).
+  Previous month empty → 409. Replaces the draft.
+- `girar-grupos`: rotation in the given order (default: the active chips) — G2 takes G1's days, G3 takes
+  G2's, G1 takes the last group's; groups outside the order stay. No plan → 409.
+- `distribuir`: the chosen weekdays (`0` = Sunday … `6` = Saturday) of the month, in date order, get the
+  groups in cycle. Replaces the draft. Group of another tenant/archived → 422.
+
+**Publicar** (idempotent; `SELECT … FOR UPDATE` on the plan, so concurrent publishes never duplicate):
+creates one activity per day × group (`origem = plano_escala`, `titulo` = "Faxina · G2", type visibility,
+`escala_plano_dias.atividade_id`) and convokes the group's members **active now** that the type reaches
+(`atividade_participacoes`: `origem = grupo`, `grupo_id`, `convocado`). Republishing applies the diff:
+- unchanged day/group → nothing (answers, justifications and presences stay); new time → `reagendadas`;
+- day removed → activity cancelled (`cancelamento_motivo` "Dia tirado da escala.") and everyone dispensed;
+- group changed on a day → the SAME activity is renamed, members of the old group not in the new one are
+  dispensed and the new group's members convoked (a member of both stays, answer kept);
+- days before today (Brasília) or with the roll call closed never change; draft changes there are
+  dropped (`ignorados_passado`) and the draft goes back to what was published;
+- an activity deleted by hand in the Agenda makes its day "unpublished" again (recreated); one cancelled
+  by hand is never reused.
+No plan → 409; never published and no day → 409. Response = plan + `resultado { criadas, canceladas,
+trocadas, reagendadas, atividades, convocados, dispensados, ignorados_passado, fora_da_elegibilidade }`.
+Audited as `escala_plano` (counts and ids only).
+
+**Atualizar convocações** (after group membership changes): only published activities that have not
+started, not cancelled, roll call open: active members missing from the schedule are convoked (`origem =
+grupo`), members with `origem = grupo` of that group who left it are dispensed; someone the house dispensed
+by hand stays out. Plan not published → 409. Same response with `resultado.atividades` = activities checked.
+
+**Notifications** are AM-15's: `services/escala_planos.escala_publicada(db, tenant_id, plano_id, resultado)`
+is called after each publish/update commit with `convocados`/`dispensados` (`(atividade_id, medium_id)`),
+`atividades_canceladas` and `atividades_reagendadas`; today it sends nothing.
+
+### 18. Assiduidade — relatório por médium e por grupo (AM-26)
 
 Same prefix and plan gates as §15 (`area_medium` + `atividades_corrente`). File
 `src/api/v1/admin/atividades_assiduidade.py` (router registered **before** `atividades.py`, so

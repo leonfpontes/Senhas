@@ -187,8 +187,6 @@ Model `Comunicado(SoftDeleteModel)` e `ComunicadoLeitura(Base)` (`src/models/com
 | `publicar_em` | `DateTime(tz)` | agora ou agendado |
 | `expira_em` | `DateTime(tz)` NULL | sai do ar nessa hora |
 | `criado_por` | UUID FK → `users.id` SET NULL | |
-| `avisar_email` | `Boolean`, padrão `false` | 081 (AM-15): "Avisar por e-mail também" — o agendador manda o aviso por e-mail ao público com acesso à Área (uma vez por médium) |
-| `avisar_email_em` | `DateTime(tz)` NULL | 081: quando a opção foi ligada; o envio vale nos 3 dias seguintes à publicação ou a esse momento |
 | `created_at` / `updated_at` / `deleted_at` | `DateTime(tz)` | soft delete = arquivado |
 
 **Indexes:** `ix_comunicados_tenant_id`, `ix_comunicados_tenant_publicar_em` (`tenant_id, publicar_em`).
@@ -315,7 +313,7 @@ IS NULL`; `ix_funcoes_corrente_tenant_id`.
 | `descricao` / `orientacoes` | `Text` NULL | orientações só na Área do Médium |
 | `visibilidade` | `String(20)`, padrão `corrente` | CHECK `corrente/convocados` |
 | `origem` | `String(20)`, padrão `manual` | CHECK `manual/plano_escala/gira` |
-| `escala_plano_dia_id` | UUID NULL | sem FK até a tabela `escala_plano_dias` (AM-25) |
+| `escala_plano_dia_id` | UUID NULL | dia do planejador da faxina que gerou a atividade (AM-25). **Sem FK de propósito** (o vínculo com FK é `escala_plano_dias.atividade_id`; FK nos dois sentidos seria um ciclo) — o serviço limpa quando o dia sai do plano |
 | `cancelada_em` / `cancelamento_motivo` | `DateTime(tz)` NULL / `String(300)` NULL | cancelar com motivo |
 | `chamada_encerrada_em` / `chamada_encerrada_por` | `DateTime(tz)` NULL / UUID FK → `users.id` SET NULL | lista de chamada (AM-17) |
 | `created_by` | UUID FK → `users.id` SET NULL | |
@@ -331,7 +329,7 @@ NULL)`); CHECK `ck_atividades_fim_depois_do_inicio`; `ix_atividades_tenant_id`, 
 "Desenvolvimento" fica para `atendimento` ou, se a casa já tem um grupo "Desenvolvimento", para ele) e dá acesso
 total a `escalas` nos grupos padrão "Acesso total". Downgrade da 078: apaga as linhas `escalas` de
 `group_permissions` e as quatro tabelas (o valor do ENUM fica). O planejador da faxina
-(`escala_planos`/`escala_plano_dias`, AM-25) chega num próximo card.
+(`escala_planos`/`escala_plano_dias`) veio no AM-25 (migração 080, abaixo).
 
 ### `atividade_participacoes` (AM-17/AM-28, migração 079)
 
@@ -358,7 +356,7 @@ presente, ausente com/sem justificativa, dispensado, substituído) é **derivada
 | `presenca_registrada_em` / `presenca_registrada_por` | `DateTime(tz)` NULL / UUID FK → `users.id` SET NULL | quem marcou (correções do admin ficam registradas) |
 | `dispensado_em` | `DateTime(tz)` NULL | tirado da escala ou atividade cancelada (= `cancelada_em`; reativar devolve) |
 | `substituida_por_id` | UUID FK → `atividade_participacoes.id` SET NULL | troca de escala (fase 2, AM-27) |
-| `lembrete_enviado_em` | `DateTime(tz)` NULL | sem uso: a marca de envio de cada lembrete (véspera, D-2, escala nova, falta, cancelamento) fica em `medium_lembretes_enviados` (AM-15, uma por tipo) |
+| `lembrete_enviado_em` | `DateTime(tz)` NULL | avisos (AM-15) |
 | `created_at` / `updated_at` | `DateTime(tz)` | |
 
 **Constraints/Indexes:** UNIQUE `uq_atividade_participacoes_atividade_medium` (`atividade_id, medium_id`) —
@@ -376,7 +374,52 @@ médium responde, faz o "Cheguei", é escalado ou quando a chamada é encerrada 
 7, CHECK 1–30 `ck_tenant_configs_presenca_prazo`); `atividade_tipos.presenca_modo` + CHECK; dados: tipo com
 `checkin_pelo_medium` ligado vira `presenca_modo = 'app'`. Downgrade apaga a tabela e as colunas.
 
-### `medium_preferencias` e `medium_lembretes_enviados` (AM-15, migração 081)
+### `escala_planos` e `escala_plano_dias` (AM-25, migração 080)
+
+Planejador do mês da faxina (e de qualquer tipo com `modo_escala = 'grupos_por_dia'`). Model em
+`src/models/atividades.py`; regras puras em `src/services/escala_planos.py`; API em
+`src/api/v1/admin/escala_planos.py`. O rascunho nunca chega ao médium: só a publicação cria atividades
+(`atividades.origem = 'plano_escala'`, título "Faxina · G2") e participações (`origem = 'grupo'`).
+
+`escala_planos` (um por tipo e mês):
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `tipo_id` | UUID FK → `atividade_tipos.id` CASCADE | tipo do terreiro com escala "grupos por dia" (conferido na API) |
+| `mes` | `Date` | sempre o 1º dia do mês (CHECK `ck_escala_planos_mes_dia_1`, só na migração) |
+| `status` | `String(20)`, padrão `rascunho` | CHECK `rascunho/publicado`; publicado continua publicado depois de mexer ("mudanças por publicar") |
+| `publicado_em` / `publicado_por` | `DateTime(tz)` NULL / UUID FK → `users.id` SET NULL | última publicação |
+| `created_at` / `updated_at` | `DateTime(tz)` | |
+
+**Constraints/Indexes:** UNIQUE `uq_escala_planos_tenant_tipo_mes` (`tenant_id, tipo_id, mes`) — a API cria
+com `INSERT … ON CONFLICT DO NOTHING` e trava com `SELECT … FOR UPDATE` (publicar e salvar em série);
+`ix_escala_planos_tenant_id`.
+
+`escala_plano_dias` (um grupo num dia; um dia pode ter mais de um grupo):
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `plano_id` | UUID FK → `escala_planos.id` CASCADE | |
+| `data` | `Date` | dia de Brasília, dentro do mês do plano (conferido na API) |
+| `grupo_id` | UUID FK → `corrente_grupos.id` CASCADE | grupo ativo do terreiro (arquivado só se já estava no plano) |
+| `hora_inicio` / `hora_fim` | `Time` / `Time` NULL | padrão do tipo (`hora_padrao`, `duracao_min`); CHECK `ck_escala_plano_dias_horario` (`hora_fim > hora_inicio`) |
+| `atividade_id` | UUID FK → `atividades.id` SET NULL | a atividade gerada ao publicar (NULL = ainda não publicado) |
+| `removido` | `Boolean`, padrão false | dia tirado do rascunho DEPOIS de publicado: a linha fica até a próxima publicação, que cancela (ou reaproveita, na troca de grupo) a atividade e apaga a linha |
+| `created_at` / `updated_at` | `DateTime(tz)` | |
+
+**Constraints/Indexes:** UNIQUE `uq_escala_plano_dias_plano_data_grupo` (`plano_id, data, grupo_id`);
+`ix_escala_plano_dias_tenant_id`, `ix_escala_plano_dias_atividade_id`.
+
+**Migração 080 (`080_escala_planos`, após `079_presenca`):** cria as duas tabelas; nada de permissão nova (feature
+`ESCALAS` da 077, plano `escalas`). Downgrade apaga as tabelas (as atividades geradas ficam).
+
+---
+
+### `medium_preferencias` e `medium_lembretes_enviados` (AM-15, migração 081 — encadeada depois da 080)
 
 Lembretes e avisos por e-mail da Área do Médium (`services/medium_lembrete_scheduler.py`). Models em
 `src/models/medium_lembretes.py`.
@@ -447,7 +490,6 @@ Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`
 | `area_medium_agenda` / `area_medium_avisos` / `area_medium_mensalidade` | `Boolean` | Não | `true` | 067: módulos visíveis na Área (mensalidade também exige `mensalidade_mediun` no plano) |
 | `presenca_modo_padrao` | `String(20)` | Não | `confianca` | 079 (AM-28): CHECK `confianca/app/qr` — como a presença é marcada na casa; o tipo pode ajustar |
 | `presenca_prazo_justificativa_dias` | `Integer` | Não | `7` | 079 (AM-17): CHECK 1–30 — dias depois da atividade para o médium contar o motivo de uma falta |
-| `area_medium_lembrete_mensalidade` | `Boolean` | Não | `true` | 081 (AM-15, D-29): a casa desliga os lembretes da mensalidade por e-mail (3 dias antes e 3 dias depois do vencimento) |
 | `created_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `updated_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `deleted_at` | `DateTime(tz)` | Sim | — | soft-delete |

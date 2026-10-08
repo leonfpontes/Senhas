@@ -14,7 +14,7 @@
 Downgrade: apaga as tabelas e as colunas (marcas e preferências se perdem).
 
 Revision ID: 081_lembretes
-Revises: 079_presenca
+Revises: 080_escala_planos
 Create Date: 2026-10-08
 """
 
@@ -23,7 +23,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "081_lembretes"
-down_revision: str = "079_presenca"
+down_revision: str = "080_escala_planos"
 branch_labels = None
 depends_on = None
 
