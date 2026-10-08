@@ -39,6 +39,7 @@ from .atividades import (
     FuncaoCorrente,
 )
 from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
+from .parceiro_interesse import ParceiroInteresse
 
 __all__ = [
     "Base",
@@ -114,4 +115,5 @@ __all__ = [
     "SupportConversation",
     "SupportMessage",
     "SupportConversationStatus",
+    "ParceiroInteresse",
 ]

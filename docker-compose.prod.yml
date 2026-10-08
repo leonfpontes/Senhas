@@ -194,6 +194,8 @@ services:
         NEXT_PUBLIC_SUPPORT_WHATSAPP: ${NEXT_PUBLIC_SUPPORT_WHATSAPP:-}
         # Divulgação da Área do Médium (AM-24) — inlined no build; "true" liga, padrão desligado
         NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA: ${NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA:-false}
+        # Programa de Parceiros (C-06) — inlined no build; "true" publica /parceiros, padrão desligado
+        NEXT_PUBLIC_PARCEIROS_PUBLICADO: ${NEXT_PUBLIC_PARCEIROS_PUBLICADO:-false}
     container_name: senhas-frontend
     restart: always
     depends_on:

@@ -1415,9 +1415,16 @@ a loja, com saque por PIX. As lojas de artigos religiosos falam com todos os ter
 - Display A4 em PDF com QR para `/cadastro?cupom=X`.
 - Pagamento da comissão é manual, fora do Stripe.
 
+**Status (2026-10-08).** Página e formulário prontos atrás da chave `NEXT_PUBLIC_PARCEIROS_PUBLICADO`
+(desligada; `/parceiros` em 404); cupom manual no Stripe até o $-05. Proposta de regras na página: terreiro com 20%
+de desconto nos 3 primeiros meses; parceiro com 20% de comissão por 12 meses, PIX mensal a partir de R$ 30. Pedidos
+gravados em `parceiro_interesses` (migração 086) e listados em `/platform/parceiros` (status, cupom, observações),
+com aviso por e-mail ao `ALERT_EMAIL`. Regras, economia por plano e decisões pendentes em `docs/programa-parceiros.md`.
+
 **Aceite**
-- [ ] Regras de comissão decididas
-- [ ] Cupom por loja, display A4 e relatório de indicações e conversões
+- [ ] Regras de comissão decididas (proposta em `docs/programa-parceiros.md`, aguardando o dono)
+- [x] Página pública com convite, regulamento e formulário de interesse + lista na plataforma (atrás da chave)
+- [ ] Cupom por loja no cadastro/checkout ($-05), display A4 e relatório de indicações e conversões
 
 ### C-07 — Oferta para federações
 - **Ranking:** 47 · **Prioridade:** P3 · **Onda:** 5 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Landing & Marketing · **Épico:** Crescimento

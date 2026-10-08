@@ -855,7 +855,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
+- Head atual: `086_parceiros` (2026-10-08, C-06: tabela da plataforma `parceiro_interesses` — pedidos do
+  Programa de Parceiros, sem `tenant_id`, `ip_hash` HMAC, CHECK de `tipo`/`status`; numerada 086 em paralelo com
+  as 082–087 e criada sobre a 081 — o merge pode reencadear), apos `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
   indices unicos parciais, `tenant_configs.area_medium_lembrete_mensalidade`, `comunicados.avisar_email`/
   `avisar_email_em`; criada sobre a 079 e re-encadeada depois da 080 no merge), apos `080_escala_planos` (2026-10-08, AM-25: `escala_planos` — um por tipo e mes, rascunho/publicado,
   unico por `tenant_id, tipo_id, mes` — e `escala_plano_dias` — data x grupo x horario, `atividade_id` FK SET NULL,
@@ -1397,6 +1399,31 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `area_medium` segue em `UNSOLD_FEATURES`); pergunta "Os médiuns têm acesso?" no FAQ e no JSON-LD
   (`landingFaq.visibleFaq`). Sem página nova (nada em `RESERVED_SLUGS`). Componentes leem a chave na renderização
   (o teste `area_medium_divulgacao.test.tsx` troca o valor por getter).
+
+### 11.24 Programa de Parceiros GiraHub (C-06, 2026-10-08)
+- **Chave de lançamento** `PARCEIROS_PUBLICADO` (`constants/parceiros.ts`) = `NEXT_PUBLIC_PARCEIROS_PUBLICADO === 'true'`,
+  mesmo encanamento da `AREA_MEDIUM_DIVULGADA` (§11.23): ARG de build no `frontend/Dockerfile` (padrão `false`),
+  `args:` do `docker-compose.prod.yml` (`${NEXT_PUBLIC_PARCEIROS_PUBLICADO:-false}`), variável do ambiente `Hostinger`
+  repassada pelo `deploy.yml` (vazia = vale o `.env` da VPS), `.env*.example`. **Desligada por padrão** (o dono aprova
+  os números antes). Desligada: `/parceiros` é 404 (`getStaticProps → notFound`), sem link "Seja parceiro" no rodapé
+  do `MarketingShell`, sem `ParceirosChamada` na landing e fora do sitemap (`sitemap.xml.staticRoutes()`). Ligar =
+  `gh variable set NEXT_PUBLIC_PARCEIROS_PUBLICADO --env Hostinger --body true` e redeployar.
+- **Página** `pages/parceiros.tsx` (identidade da landing, `MarketingShell`): quem pode, vantagens dos dois lados,
+  exemplo "Um terreiro no plano X rende R$ Y por mês" e comissão por plano calculados de `constants/plans.ts`
+  (`planoExemplo` = plano `popular`), material, como funciona, formulário (`components/landing/ParceiroForm.tsx`) e
+  regulamento em acordeão. Regras e números só em `constants/parceiros.ts`; economia e decisões pendentes em
+  `docs/programa-parceiros.md`. `parceiros` está em `RESERVED_SLUGS`.
+- **API pública** `POST /api/v1/public/parceiros/interesse` (5/hora por IP no slowapi; campo isca `website` →
+  201 sem gravar nem avisar; aceite do regulamento obrigatório → 422; WhatsApp só dígitos, UF maiúscula, e-mail
+  minúsculo). Grava `parceiro_interesses` (tabela da plataforma, sem `tenant_id` — os auditores não exigem filtro
+  de tenant em modelo sem a coluna) com `ip_hash` = HMAC-SHA256 do IP (chave derivada do `SECRET_KEY`; IP nunca em
+  claro). Aviso à equipe por `email_queue` para o `ALERT_EMAIL` (o endereço de plataforma que já recebe os alertas
+  de 5xx; vazio = só log), `reply_to` = e-mail do interessado, link `/platform/parceiros?pedido=<id>`.
+- **Plataforma** `/platform/parceiros` (item "Parceiros" na sidebar e na paleta ⌘K): abas por status com contagem
+  (`novo · em_contato · aprovado · recusado`), busca, `DataTable` e `CrudDrawer` com contatos (WhatsApp/e-mail),
+  status, cupom (`^[A-Z0-9_-]{3,40}$`, maiúsculo) e observações. API `GET /api/v1/platform/parceiros`
+  (`status`, `q`, `limit`, `offset` → `{items, total, counts}`), `GET`/`PATCH /api/v1/platform/parceiros/{id}`, todas
+  com `require_super_admin`. Cupom criado à mão no Stripe até o $-05 (o checkout ainda não aceita código promocional).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
