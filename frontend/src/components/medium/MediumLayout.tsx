@@ -11,6 +11,9 @@
  * `MobileTabBar`; overlays do Radix ficam por cima com `z-50`). Aba de módulo que a casa desligou
  * (`me.modulos`, AM-10) some; a de Avisos mostra o selo de não lidos (`me.avisos_nao_lidos`, AM-09).
  *
+ * "Estudos" (AM-21) fica no menu do cabeçalho (e no Perfil), não na barra: só com `me.estudos`
+ * (plano `biblioteca_medium`).
+ *
  * Gate (AM-04): sem sessão → /login; sem Área do Médium mas com painel → painel; sem nenhuma
  * área (ou 403/402 do /medium/me) → aviso neutro, sem oferta de upgrade. Só chama
  * `/api/v1/medium/*` (MediumProvider) — nunca `/api/v1/admin/*`.
@@ -22,6 +25,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   ArrowLeftRight,
+  BookOpen,
   CalendarDays,
   House,
   Loader2,
@@ -330,6 +334,18 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
             >
               <ArrowLeftRight aria-hidden /> Trocar de área
               <span className="ml-auto text-xs text-muted-foreground">Painel</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {me?.estudos && (
+          <>
+            <DropdownMenuItem
+              className="min-h-12 text-base"
+              onSelect={() => void router.push('/medium/estudos')}
+              data-testid="medium-menu-estudos"
+            >
+              <BookOpen aria-hidden /> Estudos e documentos
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>

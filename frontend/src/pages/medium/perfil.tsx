@@ -14,6 +14,7 @@
  * Impersonando, a Área é só leitura (§6.9): as ações de alterar somem.
  * - "Minhas presenças" (AM-17, D-27): leva a `/medium/presencas` (percentual, próximas escalas e
  *   histórico; só a própria presença).
+ * - "Estudos e documentos" (AM-21): leva a `/medium/estudos`, só com `me.estudos` (plano Pro).
  * - "Avisos por e-mail" (AM-15): liga/desliga cada tipo de lembrete (`AvisosPorEmail`).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -21,6 +22,7 @@ import { useRouter } from 'next/router';
 import {
   ArrowLeftRight,
   AtSign,
+  BookOpen,
   CalendarCheck,
   Camera,
   ChevronRight,
@@ -458,6 +460,15 @@ function Perfil() {
             onClick={() => void router.push('/medium/presencas')}
             testId="perfil-presencas"
           />
+          {me?.estudos && (
+            <Item
+              icon={BookOpen}
+              title="Estudos e documentos"
+              description="Estudos, pontos cantados e cursos da casa"
+              onClick={() => void router.push('/medium/estudos')}
+              testId="perfil-estudos"
+            />
+          )}
           <Item
             icon={Smartphone}
             title="Ícone na tela inicial"

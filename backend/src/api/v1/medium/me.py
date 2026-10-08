@@ -4,7 +4,7 @@ Devolve só o que o próprio médium pode ver: nome, foto da conta, terreiro,
 marca (o mesmo subconjunto público de `GET /admin/tenant/branding`, que já é
 servido sem autenticação nas páginas de senha), áreas, módulos ligados e a
 configuração da Área (boas-vindas e WhatsApp da casa, AM-10), quantos avisos ainda não foram
-lidos (selo da aba Avisos, AM-09) e os grupos da corrente em que o médium está (AM-23: só nome e
+lidos (selo da aba Avisos, AM-09), se a casa tem os estudos no plano (`estudos`, AM-21) e os grupos da corrente em que o médium está (AM-23: só nome e
 cor dos PRÓPRIOS grupos — nunca quem mais está neles, D-07).
 Campos internos do cadastro (`observacoes`, contatos, mensalidade) ficam fora.
 """
@@ -67,6 +67,9 @@ class MediumMeResponse(BaseModel):
     avisos_nao_lidos: int = 0
     # Grupos da corrente em que o médium está (AM-23), por nome. Sem os outros membros (D-07).
     grupos: List[MeuGrupo] = []
+    # Estudos e documentos da casa (AM-21): o plano tem `biblioteca_medium` (Pro). Sem ele o menu
+    # da Área não mostra a entrada "Estudos".
+    estudos: bool = False
 
 
 async def meus_grupos(db: AsyncSession, ctx: MediumContext) -> List[MeuGrupo]:
@@ -109,7 +112,8 @@ async def get_medium_me(
             fc = config.custom_settings.get("font_color")
             font_color = fc if isinstance(fc, str) else None
 
-    modulos = modulos_visiveis(area, get_effective_plan_features(sub).mensalidade_mediun)
+    features = get_effective_plan_features(sub)
+    modulos = modulos_visiveis(area, features.mensalidade_mediun)
     avisos_nao_lidos = 0
     if "avisos" in modulos:
         avisos_nao_lidos = sum(1 for _, lido_em in await avisos_do_medium(db, ctx) if lido_em is None)
@@ -130,4 +134,5 @@ async def get_medium_me(
         whatsapp_casa=area.whatsapp,
         avisos_nao_lidos=avisos_nao_lidos,
         grupos=await meus_grupos(db, ctx),
+        estudos=features.biblioteca_medium,
     )

@@ -190,9 +190,12 @@ Rotas existentes e suas features:
 - Cursos Presenciais → `PermissionFeature.CURSOS_PRESENCIAIS`
 - Site do terreiro (Meu Site, `sites.py`, inclusive imagens) → `PermissionFeature.SITE` (T-06; antes usava
   CURSOS_PRESENCIAIS — as migracoes 061/062 copiaram as permissoes de Cursos para `site` em todo grupo)
-- Avisos da Area do Medium (`comunicados.py`, AM-09) → `PermissionFeature.COMUNICADOS` ("Avisos da Area",
-  grupo "Corrente" na tela de perfis; publicar = insert, editar = edit, arquivar = delete, lista e quem
+- Avisos da Area do Medium (`comunicados.py`, AM-09) → `PermissionFeature.COMUNICADOS` ("Avisos e estudos da
+  Area", grupo "Corrente" na tela de perfis; publicar = insert, editar = edit, arquivar = delete, lista e quem
   leu = view) + `require_plan_feature("area_medium")` no router (migracoes 070/071)
+- Estudos e documentos da casa (`materiais.py`, AM-21) → `PermissionFeature.COMUNICADOS` (sem feature nova:
+  listar/detalhe = view, criar = insert, editar e reordenar (`PUT /ordem`) = edit, arquivar = delete) +
+  `require_plan_feature("area_medium")` e `require_plan_feature("biblioteca_medium")` no router (migracao 090)
 - Grupos da corrente (`corrente_grupos.py`, AM-23) → `PermissionFeature.MEDIUNS` (sem feature nova, §6.7 do
   plano: listar/detalhe = view, criar = insert, editar/por e tirar medium/desarquivar/campo "Grupos" do medium =
   edit, arquivar = delete; `GET /opcoes` = MEDIUNS **ou** COMUNICADOS view via `require_any_group_permission`,
@@ -303,6 +306,9 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `GET /{id}/leituras` = quem leu e quem nao leu, so nomes) e `/api/v1/medium/avisos*` (so publicados, nao
   expirados, do publico do medium; `POST /{id}/lido` com `require_not_impersonated`; leituras sempre por
   `ctx.medium.id`). O medium nunca ve quem mais leu (D-07). Detalhes em §11.23.
+- **Estudos (AM-21)**: `/api/v1/admin/materiais*` (COMUNICADOS + `area_medium` + `biblioteca_medium`) e
+  `/api/v1/medium/materiais*` (`require_plan_feature("biblioteca_medium")` no router; so publicados, nao
+  arquivados, do publico do medium — mesma regra dos avisos). Detalhes em §11.23.
 - **Grupos da corrente (AM-23)**: `/api/v1/admin/corrente-grupos*` (MEDIUNS + `area_medium`, acima). Todo
   `grupo_id`/`medium_id` da requisicao passa por `services/corrente_grupos.validar_*_do_tenant` (ou busca
   escopada) antes de gravar — checagem 4 do auditor, com teste de mutacao em `tests/unit/test_am23_grupos.py`
@@ -560,7 +566,8 @@ Recursos (plano minimo em `_FEATURE_MIN_TIER`):
 - **Pro+**: `email_transacional`, `tema_personalizado` (no quadro: "Personalizacao da plataforma"),
   `analytics_basico`, `export_csv` (fora do quadro), `auditoria`, `site_builder` (site e cursos), `escalas`
   (planejador da faxina, escala de gira por funcao — AM-25/AM-18, decisao D-02; catalogo criado no AM-08; primeira
-  rota no AM-18, `atividades_escala.py`; fora do quadro no piloto).
+  rota no AM-18, `atividades_escala.py`; fora do quadro no piloto), `biblioteca_medium` (estudos e documentos da
+  casa na Area — AM-21, decisao D-02; em `UNSOLD_FEATURES` no piloto).
 - **So Premium**: `associados`, `mensalidade_associado`, `estoque_controle`, `contas_financeiras`
   (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`, `agendamento_por_horario`.
 - Fora do quadro (`UNSOLD_FEATURES`): `bulk_operations`, `export_csv`, `analytics_avancado` (Pro+ no
@@ -1163,7 +1170,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, Escala de gira e divulgação (AM-02/03/04/05/06/07/08/09/10/11/12/13/15/17/18/23/24/25/26/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, Escala de gira, divulgação e Estudos (AM-02/03/04/05/06/07/08/09/10/11/12/13/15/17/18/21/23/24/25/26/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1411,6 +1418,24 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `area_medium` segue em `UNSOLD_FEATURES`); pergunta "Os médiuns têm acesso?" no FAQ e no JSON-LD
   (`landingFaq.visibleFaq`). Sem página nova (nada em `RESERVED_SLUGS`). Componentes leem a chave na renderização
   (o teste `area_medium_divulgacao.test.tsx` troca o valor por getter).
+- **Estudos e documentos (AM-21)**: tabelas `materiais_corrente` e `material_grupos` (migração 090). Tipos `link`
+  (Drive, YouTube, site), `texto` e `ponto` (letra + link opcional de áudio/vídeo); categoria em texto livre
+  (sugestões Estudos, Pontos cantados, Fundamentos, Rezas, Avisos gerais); público como nos avisos (`todos |
+  atendimento | cambones | grupos`, grupos conferidos no terreiro); `publicado` (rascunho só no painel); `ordem`
+  (setas no painel → `PUT /admin/materiais/ordem` com todos os ids); excluir = `arquivado_em`. **Sem upload**: o
+  banco tem limite de 8 GB e as imagens já ficam em BYTEA — PDF entra como link do Drive (a tela diz isso); upload
+  espera armazenamento de objetos. Limites medidos em teste: título 120, categoria 60, link 500, texto 15 000
+  caracteres, 300 materiais ativos por casa (~4,5 MB de texto no pior caso). Link: só `http(s)` com domínio, sem
+  espaço/aspas/`<>`, sem usuário:senha (`services/materiais.validar_url`; `javascript:`/`data:`/`file:` → 422) e
+  CHECK `ck_materiais_corrente_url` no banco. YouTube: o backend extrai o id de 11 caracteres (`youtube_id`) e a
+  Área toca no `youtube-nocookie` (o `frame-src` do nginx já libera); outro link abre em outra aba com
+  `noopener noreferrer`. Texto: mesma limpeza dos avisos (`limpar_corpo`) e `AvisoTexto` na tela. Plano
+  `biblioteca_medium` (Pro): `GET /medium/me` devolve `estudos` e a entrada "Estudos e documentos" aparece no menu
+  do cabeçalho e no Perfil (não na barra inferior, que já tem 5 abas); sem o plano a tela da Área mostra aviso
+  neutro e o painel `PlanLocked`. Área: `/medium/estudos` (por categoria, busca sem acento) e
+  `/medium/estudos/[id]`; seção "Cursos da casa" com os cursos presenciais ativos que não terminaram (só com
+  `site_builder` no plano) e o link da inscrição pública (`/public/cursos/{id}/inscricao`), com vagas restantes.
+  Painel: `/admin/materiais` (menu Corrente → "Estudos e documentos"; `DataTable` + `CrudDrawer`).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

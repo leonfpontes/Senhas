@@ -28,6 +28,7 @@ import {
   Headset,
   HeartHandshake,
   LayoutDashboard,
+  Library,
   Megaphone,
   Package,
   QrCode,
@@ -180,6 +181,14 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     // Avisos da Área do Médium (AM-09): só com `area_medium` (plano + chave do piloto) — sem oferta de plano.
     if (can('area_medium') && view('comunicados')) {
       corrente.push(link('/admin/comunicados', 'Avisos', Megaphone, { keywords: ['comunicados', 'recados', 'área do médium', 'quem leu'] }));
+    }
+    // Estudos e documentos (AM-21): grupo `comunicados`, só com `area_medium` (piloto) — a tela mostra PlanLocked sem `biblioteca_medium`.
+    if (can('area_medium') && view('comunicados')) {
+      corrente.push(
+        link('/admin/materiais', 'Estudos e documentos', Library, {
+          keywords: ['biblioteca', 'pontos cantados', 'apostila', 'fundamentos', 'rezas', 'pdf', 'drive', 'youtube'],
+        }),
+      );
     }
     // Atividades da casa (AM-08): grupo `escalas`, só com `area_medium` (piloto) — a tela mostra PlanLocked sem `atividades_corrente`.
     if (can('area_medium') && view('escalas')) {

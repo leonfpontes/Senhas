@@ -763,7 +763,7 @@ The file is the existing `GET .../mensalidades/{mediun_id}/{mes}/comprovante`.
 
 On screen it is **"Avisos"** (decision D-16); the API keeps `comunicados`. Every route requires the
 plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium_liberada`, otherwise
-403) and the permission group `COMUNICADOS` ("Avisos da Área"):
+403) and the permission group `COMUNICADOS` ("Avisos e estudos da Área"):
 
 | Method | Path | Group action |
 |---|---|---|
@@ -1383,6 +1383,60 @@ another function there keeps it (`em_outra_funcao_nomes`). Response = this scale
 
 Notifications ("Você é Cambone na gira de sábado") are AM-15's job — nothing is sent here.
 
+### 20. Estudos e documentos da casa (materiais, AM-21)
+
+On screen it is **"Estudos e documentos"**; the API is `materiais`. Every route requires the plan
+features `area_medium` (Basic+ **and** the pilot switch) and `biblioteca_medium` (**Pro**+, decision
+D-02; otherwise 403 "Estudos e documentos da casa disponível a partir do plano Pro.") and the permission
+group `COMUNICADOS` (the same as the avisos — no new feature):
+
+| Method | Path | Group action |
+|---|---|---|
+| GET | `/api/v1/admin/materiais` | `view` |
+| GET | `/api/v1/admin/materiais/{id}` | `view` |
+| POST | `/api/v1/admin/materiais` (201) | `insert` |
+| PUT | `/api/v1/admin/materiais/ordem` | `edit` |
+| PUT | `/api/v1/admin/materiais/{id}` | `edit` |
+| DELETE | `/api/v1/admin/materiais/{id}` (204, archives) | `delete` |
+
+**List** → `{ "itens": [Item], "categorias": ["Estudos", "Pontos cantados", "Fundamentos", "Rezas",
+"Avisos gerais", ...the ones in use], "limite": 300 }`, ordered by `ordem` (drafts included).
+
+**Item**:
+```json
+{
+  "id": "uuid",
+  "titulo": "Ponto de Ogum",
+  "tipo": "ponto",
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "texto": "Ogum ê\nPatacori",
+  "fonte": "youtube",
+  "youtube_id": "dQw4w9WgXcQ",
+  "categoria": "Pontos cantados",
+  "publico": "todos",
+  "grupos": [],
+  "ordem": 0,
+  "publicado": true,
+  "created_at": "...",
+  "updated_at": "..."
+}
+```
+- **Body** (POST; PUT is partial): `titulo` (≤ 120), `tipo` (`link` | `texto` | `ponto`), `url` (≤ 500;
+  required for `link`, optional for `ponto`/`texto`), `texto` (≤ 15 000 characters; required for `texto`
+  and `ponto` — the lyrics; optional description for `link`), `categoria` (free text ≤ 60; empty →
+  `Estudos`), `publico` + `grupo_ids` (same rules as the avisos: `grupos` needs at least one active group
+  of the tenant — another tenant's group → 422), `publicado` (default `true`; `false` = draft, never shown
+  in the Área). **No file upload** (the database is capped at 8 GB): PDFs go in as a Drive link.
+- **Links**: only `http://`/`https://` with a domain, no spaces/quotes/`<>`, no `user:password@` →
+  else 422 (`javascript:`, `data:`, `file:`, `ftp:` refused; the DB has CHECK `ck_materiais_corrente_url`
+  too). `fonte` = `youtube` | `drive` | `link`; `youtube_id` = the 11-character video id (watch, youtu.be,
+  embed, shorts, live) or `null`.
+- **Text**: plain text, same cleaning as the avisos (HTML and control characters stripped, line breaks kept).
+- `PUT /ordem` body `{ "ids": [...] }` = **all** active materials of the tenant in the new order (missing,
+  repeated or foreign ids → 422 "A lista mudou..."); answers like the list.
+- Up to 300 active materials per tenant (→ 422). Another tenant's id → 404. Audited as
+  `material_corrente` (title, type, link, category, audience, groups, published — not the text).
+
 ---
 
 ## Área do Médium Endpoints (AM-02)
@@ -1417,7 +1471,8 @@ path or body. Writes made while impersonating are refused (403, `require_not_imp
   "boas_vindas": "Que bom ter você na corrente!",
   "whatsapp_casa": "5511987654321",
   "avisos_nao_lidos": 2,
-  "grupos": [{ "id": "grupo-uuid", "nome": "G2", "cor": "petroleo" }]
+  "grupos": [{ "id": "grupo-uuid", "nome": "G2", "cor": "petroleo" }],
+  "estudos": true
 }
 ```
 `marca` is the same public subset served by the branding endpoint. `modulos` lists the modules
@@ -1426,6 +1481,8 @@ in the plan. `boas_vindas` and `whatsapp_casa` (digits with country code, for "F
 come from the Área configuration and may be `null`. `avisos_nao_lidos` feeds the badge on the
 "Avisos" tab (AM-09; `0` when the module is off). `grupos` (AM-23) lists the active groups of the
 corrente the médium is in, by name — only name and color, never the other members (D-07).
+`estudos` (AM-21) is `true` when the plan has `biblioteca_medium` (Pro): the Área shows "Estudos e
+documentos" in the header menu and in Perfil.
 Internal médium fields (`observacoes`, contacts, payments) are never returned.
 
 If the terreiro turns the Área off (`PUT /api/v1/admin/config/area-medium` with `"ativa": false`),
@@ -1787,6 +1844,23 @@ What each type covers and when it is sent (Brasília time, `services/medium_lemb
 Schedule reminders by function/rotation/planned cleaning need the `escalas` plan; the others
 `atividades_corrente`. Nothing is sent without the pilot switch, the plan `area_medium` and the Área
 turned on by the house.
+
+### 9. Estudos (AM-21)
+
+Both routes require the plan feature `biblioteca_medium` (Pro; otherwise 403 — the Área shows a neutral
+notice, never an upgrade offer).
+
+- `GET /api/v1/medium/materiais` → `{ "itens": [{ "id", "titulo", "tipo", "categoria", "resumo", "url",
+  "fonte", "youtube_id" }], "categorias": [...in the house order], "cursos": [Curso] }` — published, not
+  archived, for the médium's audience (same rule as the avisos: `todos` plus `atendimento`/`cambones` by
+  `mediuns.is_atendimento`, plus `grupos` when the médium is in one of the material's active groups);
+  ordered by `ordem`. The list carries only a summary of the text.
+- `GET /api/v1/medium/materiais/{id}` → the item plus `texto`. Draft, archived, other audience or other
+  tenant → 404.
+- `cursos` ("Cursos da casa"): only when the plan has `site_builder` (the courses module) — active courses
+  of the tenant that have not ended (`data_fim` in the future, or no end date and starting from yesterday
+  on), up to 20: `{ "id", "titulo", "resumo", "data_inicio", "data_fim", "local", "vagas_restantes"
+  (null = no limit), "inscricao_path": "/public/cursos/{id}/inscricao" }`. No participant data.
 
 ---
 

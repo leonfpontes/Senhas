@@ -40,12 +40,12 @@ describe('PermissionMatrix', () => {
     expect(next.find((p) => p.feature === 'cursos_presenciais')).toMatchObject({ can_view: false });
   });
 
-  it('"Avisos da Área" (comunicados, AM-09) fica no grupo "Corrente"', () => {
+  it('"Avisos e estudos da Área" (comunicados, AM-09/AM-21) fica no grupo "Corrente"', () => {
     const handleChange = jest.fn();
     render(<PermissionMatrix value={[]} onChange={handleChange} />);
-    expect(FEATURE_LABELS.comunicados).toEqual({ label: 'Avisos da Área', group: 'Corrente' });
+    expect(FEATURE_LABELS.comunicados).toEqual({ label: 'Avisos e estudos da Área', group: 'Corrente' });
     expect(screen.getByText('Corrente')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Avisos da Área: Criar' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Avisos e estudos da Área: Criar' }));
     const next: GroupPermission[] = handleChange.mock.calls[0][0];
     expect(next.find((p) => p.feature === 'comunicados')).toMatchObject({ can_view: true, can_insert: true });
   });
