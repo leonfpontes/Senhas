@@ -20,7 +20,7 @@ Regras (§8.8 do plano da Área do Médium):
 - **Rodízio** (`rodizio`, herdado do F-07): para uma função, distribui em ordem circular entre
   médiuns ou grupos pelas próximas N atividades do mesmo tipo — função pura.
 - **Copiar da anterior**: a última atividade do mesmo tipo (gira: a última gira) com escala.
-- Avisos (AM-15): `PlanoEscala.novos/trocados/tirados` é o gancho — aqui nada é enviado.
+- Avisos (AM-15): o agendador manda o "escala nova"; aqui nada é enviado.
 """
 from __future__ import annotations
 
@@ -279,8 +279,7 @@ async def aplicar_plano(
             # A função fica gravada (histórico de quem estava escalado e saiu).
             p.dispensado_em = p.dispensado_em or agora
         p.updated_at = agora
-    # TODO(AM-15): avisar `plano.novos` ("Você é Cambone na gira de sábado"), `plano.trocados`
-    # e `plano.tirados` — este card não envia nada.
+    # Nada é enviado aqui: o "escala nova" do AM-15 sai pelo agendador (`medium_lembrete_scheduler`).
 
 
 async def linhas_da_escala(

@@ -1,217 +1,124 @@
 # Sistema de E-mail
 
-Envio de e-mails com dual-provider para alta disponibilidade.
+Envio de e-mails com dois providers (Resend primário, Brevo de reserva) por uma fila em memória.
 
 ---
 
 ## Arquitetura
 
+Todo e-mail passa pela fila em memória `services/email/email_queue.py` (`email_queue.enqueue(EmailQueueItem(message=EmailMessage(...)))`),
+iniciada no lifespan de `main.py` — um worker por processo, um envio a cada 200 ms (≤ 5/s).
+
 ```
-Emissão de Senha
+EmailMessage (to_email, subject, html_body, text_body?, reply_to?)
        │
        ▼
-  EmailService (Interface)
+  email_queue (asyncio.Queue, até 500 itens — acima disso o enqueue DESCARTA e loga)
        │
-       ├── Tenta Brevo (primário)
-       │       │
-       │       ├── Sucesso → Retorna ✅
-       │       │
-       │       └── Falha ──┐
-       │                   │
-       │                   ▼
-       └── Tenta Resend (fallback)
-               │
-               ├── Sucesso → Retorna ✅
-               │
-               └── Falha → Log error, ticket emitido sem email
+       ├── Resend (primário) ── sucesso → grava provider/id no ticket (se houver ticket_id)
+       │
+       └── 429 ou falha → Brevo (reserva) ── sucesso → grava "brevo"
+                                     └── falha → loga erro, grava "failed"
 ```
+
+A fila é em memória: o que estiver nela num deploy/restart se perde. Quem enfileira muitos e-mails de uma vez
+(agendadores) espera a fila esvaziar (`email_queue.qsize()`, ver o agendador da Área abaixo).
 
 ---
 
 ## Providers
 
-### Brevo (SendinBlue) — Provider Primário
+### Resend — Provider Primário
 
 | Item | Valor |
 |------|-------|
-| API | REST v3 |
-| Endpoint | `https://api.brevo.com/v3/smtp/email` |
-| Auth | Header `api-key: {BREVO_API_KEY}` |
-| Limite free | 300 emails/dia |
-| SLA | 99.9% |
-
-**Configuração (.env):**
-```env
-BREVO_API_KEY=xkeysib-...
-BREVO_SENDER_EMAIL=noreply@senhas.app
-BREVO_SENDER_NAME=Sistema de Senhas
-```
-
-### Resend — Provider Fallback
-
-| Item | Valor |
-|------|-------|
-| API | REST v1 |
+| Classe | `ResendEmailService` (`services/email/resend_fallback.py` — o nome do arquivo é histórico) |
 | Endpoint | `https://api.resend.com/emails` |
-| Auth | Header `Authorization: Bearer {RESEND_API_KEY}` |
-| Limite free | 100 emails/dia |
-| SLA | 99.9% |
+| Config | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (padrão `noreply@girahub.com.br`) |
+| Limite do plano gratuito | 3.000 e-mails/mês e 100/dia |
 
-**Configuração (.env):**
-```env
-RESEND_API_KEY=re_...
-```
+### Brevo — Provider de Reserva
+
+| Item | Valor |
+|------|-------|
+| Classe | `BrevoEmailService` (`services/email/brevo_provider.py`) |
+| Endpoint | `https://api.brevo.com/v3/smtp/email` |
+| Config | `BREVO_API_KEY`, `BREVO_FROM_EMAIL`, `BREVO_FROM_NAME` |
+| Limite do plano gratuito | 300 e-mails/dia |
+
+Sem a chave de um provider, ele é pulado (log de aviso).
 
 ---
 
 ## Interface Base
 
-```python
-class EmailService(ABC):
-    """Interface abstrata para providers de email."""
-
-    @abstractmethod
-    async def send_email(
-        self,
-        to: str,
-        subject: str,
-        html_content: str,
-        plain_text: str | None = None,
-    ) -> bool:
-        """Envia email. Retorna True se sucesso."""
-        ...
-
-    @abstractmethod
-    async def is_healthy(self) -> bool:
-        """Verifica se o provider está respondendo."""
-        ...
-```
+`services/email/base.py`: `EmailMessage` (dataclass com `to_email`, `subject`, `html_body`, `text_body`,
+`reply_to`) e `EmailService` (`send_async(message) -> bool`, `send_batch`). Os templates ficam em
+`services/email/templates/` e devolvem HTML com CSS inline; todo texto variável passa por `html.escape`.
 
 ---
 
-## Implementação: Brevo
+## E-mails da Área do Médium — lembretes e avisos (AM-15)
 
-```python
-class BrevoEmailService(EmailService):
-    def __init__(self, api_key: str, sender_email: str, sender_name: str):
-        self.api_key = api_key
-        self.sender_email = sender_email
-        self.sender_name = sender_name
-        self.base_url = "https://api.brevo.com/v3/smtp/email"
+Agendador `services/medium_lembrete_scheduler.py` (a cada 15 min; chave `0x6769726168756206`), regras em
+`services/medium_lembretes.py`, textos em `services/email/templates/medium_lembretes.py`. Só para terreiros com a
+chave do piloto (`tenants.area_medium_liberada`), o plano `area_medium` e a Área ligada pela casa.
 
-    async def send_email(self, to, subject, html_content, plain_text=None):
-        payload = {
-            "sender": {"email": self.sender_email, "name": self.sender_name},
-            "to": [{"email": to}],
-            "subject": subject,
-            "htmlContent": html_content,
-        }
-        if plain_text:
-            payload["textContent"] = plain_text
+| Tipo | Para quem | Quando (Brasília) | Assunto |
+|---|---|---|---|
+| Mensalidade D-3 / D+3 (D-29) | médium com o mês em aberto e sem comprovante (não isento); casa pode desligar | 9–20 h | `<terreiro>: sua mensalidade vence em 3 dias` / `<terreiro>: lembrete da mensalidade` |
+| Chave PIX trocada | médiuns não isentos (sem a chave no e-mail) | 7–22 h, até 2 dias depois | `<terreiro>: a chave PIX da mensalidade mudou` |
+| Escala nova | quem entrou na escala de algo de depois de amanhã em diante (um e-mail com todos os dias) | 7–22 h | `<terreiro>: você está na escala` |
+| Véspera | quem está na escala ou disse "Vou" para amanhã (grupo, função, horário, local) | 18–22 h | `<terreiro>: lembrete para amanhã` |
+| D-2 | na escala, sem "Vou / Não vou" | 10–20 h | `<terreiro>: responda se você vai` |
+| Falta | marcado ausente, sem motivo, dentro do prazo da casa (o texto do motivo nunca vai) | 9–21 h | `<terreiro>: sentimos sua falta` |
+| Aviso da casa | público do aviso com "Avisar por e-mail também" | 7–22 h, até 3 dias depois | `<terreiro>: novo aviso da casa` |
+| Cancelamento | quem estava na escala de uma atividade cancelada | 7–22 h, até 2 dias depois | `<terreiro>: uma atividade foi cancelada` |
+| Resumo do dia | administradores ativos (comprovantes para conferir, ausências avisadas, motivos novos — só contagens, só quando há algo) | 8–12 h, um por terreiro por dia | `Resumo do dia na Área do Médium — <terreiro>` |
 
-        # POST usando httpx ou aiohttp
-        response = await self._post(payload)
-        return response.status_code == 201
+- **Discretos** (LGPD art. 11, §6.8 do plano): assunto e prévia (texto escondido do topo) só com o nome do
+  terreiro, nunca o nome da atividade nem o título do aviso; vocabulário do glossário da Área.
+- **Uma vez só** com 2 workers: marca em `medium_lembretes_enviados` gravada antes de enfileirar
+  (`INSERT … ON CONFLICT DO NOTHING RETURNING`).
+- **Descadastro**: rodapé com "Desligar estes avisos" e "Desligar todos os e-mails da Área"
+  (`/descadastro/<token>?tipo=…`); o médium também muda no Perfil da Área. O cabeçalho `List-Unsubscribe` ainda
+  não é enviado (o `EmailMessage` não tem cabeçalhos).
 
-    async def is_healthy(self):
-        # GET /v3/account para verificar API key
-        ...
-```
+### Volume estimado (risco R-08 do plano)
 
----
+Não há acesso aos números de produção daqui; a estimativa usa hipóteses e deve ser conferida com a consulta
+abaixo antes de ligar a Área para todos.
 
-## Implementação: Resend
+Por médium com acesso à Área, por mês, com tudo ligado:
 
-```python
-class ResendEmailService(EmailService):
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.base_url = "https://api.resend.com/emails"
+| Tipo | E-mails/mês |
+|---|---|
+| Mensalidade (D-3 sempre; D+3 para quem não pagou, ~1/3) | ~1,3 |
+| Escala nova (um por publicação) | ~1 |
+| Véspera (2 faxinas + 2 giras com função) | ~4 |
+| D-2 sem resposta (~1/3 das escalas) | ~1,3 |
+| Falta (convite) | ~0,3 |
+| Avisos com e-mail (casa usa ~2/mês) | ~2 |
+| Cancelamento e troca do PIX | ~0,1 |
+| **Total** | **~10** |
 
-    async def send_email(self, to, subject, html_content, plain_text=None):
-        payload = {
-            "from": "noreply@senhas.app",
-            "to": [to],
-            "subject": subject,
-            "html": html_content,
-        }
-        if plain_text:
-            payload["text"] = plain_text
+Mais o resumo do admin: até ~20 dias com algo × 2 admins ≈ 40/mês por terreiro.
 
-        response = await self._post(payload)
-        return response.status_code == 200
-```
+- Piloto (3–4 casas, ~30 médiuns com acesso cada): 4 × (30 × 10 + 40) ≈ **1.400/mês** — cabe nos 3.000/mês do
+  Resend gratuito, mas divide a cota com as senhas emitidas aos consulentes (o maior volume) e com os demais
+  e-mails do sistema.
+- Pico diário: um aviso por e-mail numa casa de 60 médiuns + a véspera de uma gira com 30 na escala = 90 e-mails no
+  mesmo dia, perto do teto de 100/dia do Resend; o que passar volta 429 e sai pelo Brevo (300/dia).
+- Ligando para todos os terreiros, o volume cresce ~10 × médiuns com acesso: 300 médiuns já dão ~3.000/mês só de
+  lembretes — antes disso, plano pago do Resend, push (AM-16) como canal principal ou lembretes mais agregados.
 
----
+Consulta para medir (por terreiro, últimos 30 dias):
 
-## Template de E-mail
-
-O template HTML é gerado por `ticket_emission.py`:
-
-```python
-def generate_ticket_email_html(
-    consulente_nome: str,
-    ticket_numero: int,
-    gira_nome: str,
-    gira_data: str,
-    tenant_name: str,
-    primary_color: str = "#6B46C1",
-) -> str:
-    """Gera HTML do email com informações da senha."""
-    return f"""
-    <div style="font-family: Arial; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: {primary_color}">Sua Senha foi Emitida!</h1>
-        <p>Olá {consulente_nome},</p>
-        <div style="background: {primary_color}; color: white; padding: 20px; text-align: center;">
-            <h2>Senha Nº {ticket_numero}</h2>
-        </div>
-        <p><strong>Gira:</strong> {gira_nome}</p>
-        <p><strong>Data:</strong> {gira_data}</p>
-        <p><strong>Terreiro:</strong> {tenant_name}</p>
-        <hr>
-        <p style="font-size: 12px; color: #666;">
-            E-mail enviado automaticamente pelo Sistema de Senhas.
-            Guarde este e-mail como comprovante.
-        </p>
-    </div>
-    """
-```
-
-**Versão plain-text** também é gerada para clients que não suportam HTML.
-
----
-
-## Fluxo de Envio
-
-```python
-async def _send_ticket_email(ticket, consulente, gira, tenant):
-    """Tenta enviar email com fallback automático."""
-    html = generate_ticket_email_html(
-        consulente_nome=consulente.nome,
-        ticket_numero=ticket.numero,
-        gira_nome=gira.nome,
-        gira_data=gira.data_inicio.strftime("%d/%m/%Y %H:%M"),
-        tenant_name=tenant.name,
-    )
-
-    # 1. Tenta Brevo
-    try:
-        brevo = BrevoEmailService(settings.BREVO_API_KEY, ...)
-        if await brevo.send_email(consulente.email, subject, html):
-            return "brevo"
-    except Exception as e:
-        logger.warning(f"Brevo failed: {e}")
-
-    # 2. Fallback: Resend
-    try:
-        resend = ResendEmailService(settings.RESEND_API_KEY)
-        if await resend.send_email(consulente.email, subject, html):
-            return "resend"
-    except Exception as e:
-        logger.error(f"Resend also failed: {e}")
-
-    # 3. Ambos falharam — ticket emitido, email pendente
-    return None
+```sql
+SELECT tenant_id, tipo, count(*)
+  FROM medium_lembretes_enviados
+ WHERE enviado_em >= now() - interval '30 days'
+ GROUP BY tenant_id, tipo ORDER BY tenant_id, tipo;
 ```
 
 ---

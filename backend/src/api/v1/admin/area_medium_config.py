@@ -8,6 +8,8 @@ casa ("Falar com a casa"), quais módulos o médium vê (agenda, avisos,
 mensalidade) e — AM-17/AM-28 — a presença: modo padrão da casa (confiança ·
 "Cheguei" pelo app · "Cheguei" com QR; cada tipo de atividade pode ajustar) e o
 prazo para o médium contar o motivo de uma falta (1 a 30 dias, padrão 7).
+AM-15: `lembretes.mensalidade` liga/desliga os lembretes da mensalidade por e-mail (D-29: 3 dias
+antes e 3 dias depois do vencimento, sem comprovante) — `tenant_configs.area_medium_lembrete_mensalidade`.
 Trocar o modo vale para as próximas chamadas; presença já registrada não muda. O gate `area_medium` já exige a chave do piloto
 (`tenants.area_medium_liberada`): sem ela, 403 aqui também.
 
@@ -62,6 +64,15 @@ class PresencaConfigUpdate(BaseModel):
     prazo_justificativa_dias: Optional[int] = None
 
 
+class LembretesConfig(BaseModel):
+    # D-29: 3 dias antes e 3 dias depois do vencimento, sem comprovante (padrão ligado).
+    mensalidade: bool = True
+
+
+class LembretesConfigUpdate(BaseModel):
+    mensalidade: Optional[bool] = None
+
+
 class AreaMediumConfigResponse(BaseModel):
     ativa: bool
     boas_vindas: Optional[str] = None
@@ -73,6 +84,7 @@ class AreaMediumConfigResponse(BaseModel):
     presenca: PresencaConfig
     # A presença só vale com o plano `atividades_corrente`: a tela só mostra a seção com ele.
     presenca_no_plano: bool
+    lembretes: LembretesConfig = LembretesConfig()
 
 
 class AreaMediumConfigUpdate(BaseModel):
@@ -81,6 +93,7 @@ class AreaMediumConfigUpdate(BaseModel):
     whatsapp: Optional[str] = None
     modulos: Optional[AreaMediumModulosUpdate] = None
     presenca: Optional[PresencaConfigUpdate] = None
+    lembretes: Optional[LembretesConfigUpdate] = None
 
 
 def normalizar_whatsapp(valor: Optional[str]) -> Optional[str]:
@@ -111,6 +124,7 @@ def _snapshot(config: TenantConfig) -> dict:
             "modo_padrao": modo_efetivo(None, config.presenca_modo_padrao),
             "prazo_justificativa_dias": config.presenca_prazo_justificativa_dias,
         },
+        "lembretes": {"mensalidade": bool(config.area_medium_lembrete_mensalidade)},
     }
 
 
@@ -170,6 +184,8 @@ async def update_area_medium_config(
             config.presenca_modo_padrao = validar_modo(body.presenca.modo_padrao)
         if body.presenca.prazo_justificativa_dias is not None:
             config.presenca_prazo_justificativa_dias = validar_prazo(body.presenca.prazo_justificativa_dias)
+    if body.lembretes is not None and body.lembretes.mensalidade is not None:
+        config.area_medium_lembrete_mensalidade = body.lembretes.mensalidade
     await db.flush()
 
     await AuditService(db).log_config_change(

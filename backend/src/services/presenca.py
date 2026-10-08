@@ -837,7 +837,8 @@ async def dispensar_por_cancelamento(
     for p in linhas:
         p.dispensado_em = quando
         p.updated_at = utc_now()
-    # TODO(AM-15): avisar os convocados do cancelamento.
+    # O e-mail a quem estava na escala sai pelo agendador de lembretes (AM-15, tipo `cancelada`): ele
+    # procura as linhas com `dispensado_em` igual ao `cancelada_em` da atividade.
     return len(linhas)
 
 

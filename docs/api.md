@@ -261,6 +261,18 @@ convite no terreiro: o aceite pede a senha dessa conta.
   acompanha, link de "esqueci a senha" pendente deixa de valer, auditoria `medium_perfil` sem os
   endereços e aviso ao endereço ANTIGO (novo mascarado). As sessões abertas continuam.
 
+### 7. Desligar avisos por e-mail da Área (AM-15)
+
+O rodapé de todo lembrete leva a `pages/descadastro/[token].tsx?tipo=<tipo|todos>`; a página só desliga no
+toque em "Desligar" (leitor de link não muda nada).
+- **`POST /api/v1/public/avisos-email/consultar`** (30/min por IP) `{"token"}` →
+  `{ "terreiro_nome": "Tenda Luz", "preferencias": { "mensalidade": true, … } }`.
+- **`POST /api/v1/public/avisos-email/desligar`** (10/min por IP) `{"token", "tipo"}` — `tipo` =
+  `mensalidade|escalas|confirmacao|faltas|avisos|todos` (outro → 422); devolve o mesmo formato.
+- Token = `medium_preferencias.token_descadastro` (busca raiz); inexistente → 404
+  `{"detail": {"error_code": "LINK_INVALIDO", "message": "Este link não vale mais. Você pode mudar os avisos por e-mail no Perfil da Área."}}`.
+  Ligar de novo só pela Área (Perfil → Avisos por e-mail).
+
 ---
 
 ## Admin Endpoints
@@ -633,7 +645,8 @@ e chave do piloto `tenants.area_medium_liberada`; sem a chave → 403). Médium 
   "modulos": { "agenda": true, "avisos": true, "mensalidade": true },
   "mensalidade_no_plano": true,
   "presenca": { "modo_padrao": "confianca", "prazo_justificativa_dias": 7 },
-  "presenca_no_plano": true
+  "presenca_no_plano": true,
+  "lembretes": { "mensalidade": true }
 }
 ```
 **PUT body** (partial — only sent fields change): `ativa` (bool), `boas_vindas` (≤ 500, empty
@@ -643,6 +656,8 @@ invalid → 422), `modulos` (`{agenda?, avisos?, mensalidade?}`), `presenca` (AM
 house presence mode, each activity type may override it, and the days the médium has to explain an
 absence). Changing the mode applies to the next roll calls; presence already recorded never changes.
 `presenca_no_plano` = plan with `atividades_corrente` (the screen only shows the section with it).
+`lembretes` (AM-15): `{mensalidade?: bool}` — the house turns the mensalidade e-mail reminders off (D-29: 3 days
+before and 3 days after the due date, only for months open without a receipt; default on).
 Audited as `TenantConfig` / `config_type: "area_medium"`.
 
 ### 11. PIX key for the mensalidade (AM-10)
@@ -741,6 +756,7 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
   "publicar_em": "2026-10-07T12:00:00Z",
   "expira_em": null,
   "situacao": "publicado",
+  "avisar_email": false,
   "created_at": "...",
   "updated_at": "...",
   "leituras": { "lidos": 9, "total": 20 }
@@ -753,7 +769,10 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
   switching to another audience clears them), `fixado`, `publicar_em` (absent/null =
   now; future = scheduled; naive datetimes are Brasília time) and `expira_em` (optional; must be after
   `publicar_em` and, when set, in the future → else 422). On PUT, `publicar_em: null` publishes now and
-  `expira_em: null` removes the expiry.
+  `expira_em: null` removes the expiry. `avisar_email` (AM-15, default false): the reminder scheduler also
+  e-mails the aviso (subject `<terreiro>: novo aviso da casa`, never the title) to the audience with access
+  to the Área once it is published — once per médium, within 3 days of publication (or of ticking the
+  option, `avisar_email_em`); unticking before the next round sends nothing.
 - **Plain text only**: HTML tags and control characters are stripped on save (line breaks are kept);
   empty title/text after cleaning → 422. The screens render text nodes only and auto-link
   `http(s)://`/`www.` addresses.
@@ -891,7 +910,7 @@ per tenant among the active ones (409), `descricao` ≤ 300.
   AM-17; default: the type's `visibilidade_padrao`).
 - `POST /{id}/cancelar` `{ "motivo" }` (1–300, required): keeps the activity, marked as cancelled — the
   corrente sees the reason in the Área — and dispenses everyone on its schedule (`dispensado_em` = the
-  cancel time; TODO AM-15: notify them). A cancelled activity cannot be edited (409) until
+  cancel time; the reminder scheduler e-mails who was on it, AM-15). A cancelled activity cannot be edited (409) until
   `POST /{id}/reativar`, which brings back who the cancellation dispensed. `DELETE` is a soft delete (gone from the admin and the Área).
 - `POST /da-gira/{gira_id}` returns (creating on first call — `INSERT … ON CONFLICT (gira_id) DO
   NOTHING`, idempotent) the gira's **anchor** in the activity layer, used by schedule/attendance
@@ -1143,7 +1162,81 @@ HMAC-SHA256 of (tenant, origem, gira/activity id, 60-second window) with a sub-k
 `SECRET_KEY` — no table — and `conteudo` = `{FRONTEND_URL}/medium/agenda/{origem}/{id}?cheguei={codigo}`
 (the phone camera opens the Área and marks "Cheguei"). No personal data.
 
-### 17. Assiduidade — relatório por médium e por grupo (AM-26)
+### 17. Escala de faxina — planner by groups and days of the month (AM-25)
+
+Router `src/api/v1/admin/escala_planos.py` (prefix `/api/v1/admin/escala-planos`), plan gates
+`area_medium` (pilot key) + **`escalas`** (Pro) on the router → 403 otherwise. Group feature `ESCALAS`.
+Pure rules in `src/services/escala_planos.py`. `{tipo_id}` = an activity type of the tenant (else 404),
+active, `natureza = atividade` and `modo_escala = grupos_por_dia` (else 422); `{mes}` = `AAAA-MM` (else 422).
+
+| Method | Path | Group action |
+|---|---|---|
+| GET | `/api/v1/admin/escala-planos/{tipo_id}/{mes}` | `ESCALAS:view` |
+| PUT | `/api/v1/admin/escala-planos/{tipo_id}/{mes}` `{ "dias": [{ "data", "grupo_id", "hora_inicio"?, "hora_fim"? }] }` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/escala-planos/{tipo_id}/{mes}/copiar-mes-anterior` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/escala-planos/{tipo_id}/{mes}/girar-grupos` `{ "grupo_ids"?: [...] }` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/escala-planos/{tipo_id}/{mes}/distribuir` `{ "dias_semana": [6], "grupo_ids": [...], "hora_inicio"?, "hora_fim"? }` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/escala-planos/{tipo_id}/{mes}/publicar` | `ESCALAS:insert` **and** `ESCALAS:edit` |
+| POST | `/api/v1/admin/escala-planos/{tipo_id}/{mes}/atualizar-convocacoes` | `ESCALAS:insert` **and** `ESCALAS:edit` |
+
+**Response** (all routes; `existe = false` and `dias = []` when the month has no plan yet):
+```json
+{ "tipo": { "id", "nome", "icone", "cor" }, "mes": "2026-11", "hoje": "2026-10-08", "existe": true,
+  "status": "rascunho"|"publicado"|null, "publicado_em", "publicado_por": "Nome",
+  "hora_inicio_padrao": "09:00", "hora_fim_padrao": "12:00",
+  "grupos": [{ "id", "nome", "cor", "total_membros", "arquivado" }],
+  "dias": [{ "data": "2026-11-07", "grupo_id", "hora_inicio": "09:00", "hora_fim": "12:00", "publicado": true }],
+  "pendencias": { "criar", "cancelar", "trocar", "reagendar", "ignorados_passado", "tem_mudancas" },
+  "mes_anterior_dias": 5, "proximas_publicadas": 4 }
+```
+- `grupos` (the chips): the groups the type calls (`elegiveis = grupos`) or every active corrente group,
+  plus groups already in the plan (even archived), natural order (G2 before G10); `total_membros` =
+  active médiuns.
+- `pendencias`: what `publicar` would do now (same pure diff); `proximas_publicadas` = published
+  activities not cancelled that have not started (the "Atualizar convocações" button).
+- `copiar-mes-anterior`, `girar-grupos` and `distribuir` also return `descartados` (copy only).
+
+**PUT (draft)**: replaces the whole draft. Every `grupo_id` must be an active group of the tenant (an
+archived one only if it is already in this plan) → else 422 and nothing is stored; every `data` inside the
+month → else 422. Times: `HH:MM`; missing → the type default (`hora_padrao` or 09:00; end = start +
+`duracao_min`, none if it would pass midnight); end ≤ start → 422. A published day removed from the draft
+is kept with `removido = true` until the next publish. The médium never sees a draft.
+
+**Shortcuts** (all save the draft and return the plan):
+- `copiar-mes-anterior`: previous month's draft **by weekday order** (1st Saturday → 1st Saturday …);
+  a 5th occurrence the target month lacks, and days of archived groups, are dropped (`descartados`).
+  Previous month empty → 409. Replaces the draft.
+- `girar-grupos`: rotation in the given order (default: the active chips) — G2 takes G1's days, G3 takes
+  G2's, G1 takes the last group's; groups outside the order stay. No plan → 409.
+- `distribuir`: the chosen weekdays (`0` = Sunday … `6` = Saturday) of the month, in date order, get the
+  groups in cycle. Replaces the draft. Group of another tenant/archived → 422.
+
+**Publicar** (idempotent; `SELECT … FOR UPDATE` on the plan, so concurrent publishes never duplicate):
+creates one activity per day × group (`origem = plano_escala`, `titulo` = "Faxina · G2", type visibility,
+`escala_plano_dias.atividade_id`) and convokes the group's members **active now** that the type reaches
+(`atividade_participacoes`: `origem = grupo`, `grupo_id`, `convocado`). Republishing applies the diff:
+- unchanged day/group → nothing (answers, justifications and presences stay); new time → `reagendadas`;
+- day removed → activity cancelled (`cancelamento_motivo` "Dia tirado da escala.") and everyone dispensed;
+- group changed on a day → the SAME activity is renamed, members of the old group not in the new one are
+  dispensed and the new group's members convoked (a member of both stays, answer kept);
+- days before today (Brasília) or with the roll call closed never change; draft changes there are
+  dropped (`ignorados_passado`) and the draft goes back to what was published;
+- an activity deleted by hand in the Agenda makes its day "unpublished" again (recreated); one cancelled
+  by hand is never reused.
+No plan → 409; never published and no day → 409. Response = plan + `resultado { criadas, canceladas,
+trocadas, reagendadas, atividades, convocados, dispensados, ignorados_passado, fora_da_elegibilidade }`.
+Audited as `escala_plano` (counts and ids only).
+
+**Atualizar convocações** (after group membership changes): only published activities that have not
+started, not cancelled, roll call open: active members missing from the schedule are convoked (`origem =
+grupo`), members with `origem = grupo` of that group who left it are dispensed; someone the house dispensed
+by hand stays out. Plan not published → 409. Same response with `resultado.atividades` = activities checked.
+
+**Notifications** are AM-15's: `services/escala_planos.escala_publicada(db, tenant_id, plano_id, resultado)`
+is called after each publish/update commit with `convocados`/`dispensados` (`(atividade_id, medium_id)`),
+`atividades_canceladas` and `atividades_reagendadas`; today it sends nothing.
+
+### 18. Assiduidade — relatório por médium e por grupo (AM-26)
 
 Same prefix and plan gates as §15 (`area_medium` + `atividades_corrente`). File
 `src/api/v1/admin/atividades_assiduidade.py` (router registered **before** `atividades.py`, so
@@ -1195,7 +1288,7 @@ by name.
 data, plan §6.8) only here, on the screen of whoever has `ESCALAS:view` — never in PDF, CSV, e-mail or
 audit (these routes audit nothing).
 
-### 18. Escala por função — quem trabalha em cada gira (AM-18)
+### 19. Escala por função — quem trabalha em cada gira (AM-18)
 
 Same prefix as §15; plan gates `area_medium` + `atividades_corrente` + **`escalas`** (Pro — outside the plan
 → 403). `{id}` is the activity id (internal activity or gira anchor). Only for types with
@@ -1227,7 +1320,8 @@ Same prefix as §15; plan gates `area_medium` + `atividades_corrente` + **`escal
 ```
 - `funcoes` = the house functions (not archived; an archived one only while still in use), each with the
   active médiuns chosen one by one and the whole groups (rows with `origem = grupo`). `tirados` = who had a
-  function and was taken out (`dispensado_em`, function kept for history). `elegiveis` = active médiuns
+  function and was taken out of the activity (`dispensado_em`, function kept for history) — only in
+  "só escalados" types; in a gira ("todos os elegíveis") they just lose the function. `elegiveis` = active médiuns
   the type reaches (the picker). `anterior` = the last earlier activity of the same type (gira: the last
   gira) that has a scale.
 - Médiuns without a function stay convoked by the type (gira = "todos os elegíveis").
@@ -1239,7 +1333,9 @@ activity + médium row carries `funcao_id`): the same médium one by one in two 
 function twice → 422. A group expands to its members ACTIVE now that the type reaches (`origem = grupo`,
 `grupo_id`); one by one wins over a group; a member of two groups in different functions stays in the
 first. Changing someone's function updates the row (answer and presence kept); who had a function and is
-missing gets `dispensado_em`; who comes back loses it. Cancelled activity or closed roll call → 409.
+missing: in a "todos os elegíveis" type (gira) and reached by the type → only `funcao_id` is cleared
+(`origem = elegivel`, still expected, counted in `resultado.tirados`); otherwise (`so_escalados`) →
+`dispensado_em` (function kept). Who comes back loses the dispensation. Cancelled activity or closed roll call → 409.
 `resultado`: `{ "novos", "trocados", "mantidos", "tirados", "fora_da_elegibilidade_nomes",
 "repetidos_nomes", "em_outra_funcao_nomes" }`. Audited as `atividade_escala` (ids only).
 
@@ -1634,6 +1730,31 @@ scale ("Você é Cambone na gira de sábado"); `null` without a function or once
   "total", "percentual", "desde" }, "prazo_justificativa_dias" }` — upcoming schedules (60 days), history
   (last 90 days, only activities with a stored participation) and the percentage = present ÷
   convocations with the roll call closed, dispensed excluded.
+
+### 8. Avisos por e-mail — preferências (AM-15)
+
+- **`GET /api/v1/medium/preferencias`** → `{ "preferencias": { "mensalidade": true, "escalas": true,
+  "confirmacao": true, "faltas": true, "avisos": true }, "disponiveis": ["mensalidade", "escalas", …] }` —
+  no stored row = everything on. `disponiveis` = the types that make sense now: `mensalidade` (module
+  visible and the médium is not exempt), `escalas`/`confirmacao` (`atividades_corrente` or `escalas`),
+  `faltas` (`atividades_corrente`), `avisos` (module visible).
+- **`PUT /api/v1/medium/preferencias`** `{ "avisos"?: bool, … }` (30/h per IP) — only the sent types change;
+  unknown field → 422; refused while impersonating (403). Audited as `medium_perfil` with
+  `{acao: "médium mudou os avisos por e-mail", campos}`.
+
+What each type covers and when it is sent (Brasília time, `services/medium_lembretes.JANELAS`):
+
+| Preference | Reminder | When |
+|---|---|---|
+| `mensalidade` | D-3 / D+3 of the due date (open month, no receipt; house toggle) · PIX key changed by the house (never the key) | 9–20 h · 7–22 h |
+| `escalas` | entered a schedule (one e-mail with all new days, activities from the day after tomorrow) · eve of the activity/gira (group, function, time) · activity cancelled | 7–22 h · 18–22 h · 7–22 h |
+| `confirmacao` | D-2 without "Vou / Não vou" (types that ask for it) | 10–20 h |
+| `faltas` | marked absent, no reason yet, within the house deadline (the text of the reason never goes by e-mail) | 9–21 h |
+| `avisos` | aviso with "Avisar por e-mail também" | 7–22 h |
+
+Schedule reminders by function/rotation/planned cleaning need the `escalas` plan; the others
+`atividades_corrente`. Nothing is sent without the pilot switch, the plan `area_medium` and the Área
+turned on by the house.
 
 ---
 

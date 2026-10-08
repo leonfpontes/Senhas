@@ -29,7 +29,16 @@ from .support_chat import SupportConversation, SupportMessage, SupportConversati
 from .medium_convites import MediumConvite
 from .comunicados import Comunicado, ComunicadoLeitura, ComunicadoPublico
 from .corrente_grupos import ComunicadoGrupo, CorrenteGrupo, CorrenteGrupoMembro
-from .atividades import Atividade, AtividadeParticipacao, AtividadeTipo, AtividadeTipoGrupo, FuncaoCorrente
+from .atividades import (
+    Atividade,
+    AtividadeParticipacao,
+    AtividadeTipo,
+    AtividadeTipoGrupo,
+    EscalaPlano,
+    EscalaPlanoDia,
+    FuncaoCorrente,
+)
+from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
 
 __all__ = [
     "Base",
@@ -60,6 +69,8 @@ __all__ = [
     "EstoqueMovimentacaoTipo",
     "Medium",
     "MediumConvite",
+    "MediumLembreteEnviado",
+    "MediumPreferencia",
     "Comunicado",
     "ComunicadoLeitura",
     "ComunicadoPublico",
@@ -70,6 +81,8 @@ __all__ = [
     "AtividadeParticipacao",
     "AtividadeTipo",
     "AtividadeTipoGrupo",
+    "EscalaPlano",
+    "EscalaPlanoDia",
     "FuncaoCorrente",
     "MensalidadeConfig",
     "MensalidadePagamento",

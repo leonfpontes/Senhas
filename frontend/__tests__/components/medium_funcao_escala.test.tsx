@@ -97,7 +97,7 @@ describe('EscalaCard com função', () => {
     render(<EscalaCard item={item({ grupo: 'G2' })} compacto />);
     const card = screen.getByTestId('escala-card');
     expect(card).toHaveTextContent(/Você é Cambone na gira de \w+/);
-    expect(card).toHaveTextContent('· G2');
+    expect(card).toHaveTextContent('· grupo G2');
     expect(card).not.toHaveTextContent('Você está na escala');
   });
 

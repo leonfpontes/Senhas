@@ -38,6 +38,7 @@ from .atividades_assiduidade import router as atividades_assiduidade_router
 from .atividades import router as atividades_router
 from .atividades_presenca import router as atividades_presenca_router
 from .atividades_escala import router as atividades_escala_router
+from .escala_planos import router as escala_planos_router
 
 # Combine all admin routers.
 # require_backoffice (AM-02): o papel `medium` (Área do Médium) leva 403 em TODA
@@ -81,5 +82,6 @@ admin_router.include_router(atividades_assiduidade_router)
 admin_router.include_router(atividades_router)
 admin_router.include_router(atividades_presenca_router)
 admin_router.include_router(atividades_escala_router)
+admin_router.include_router(escala_planos_router)
 
 __all__ = ["admin_router"]

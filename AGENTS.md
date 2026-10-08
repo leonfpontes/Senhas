@@ -205,6 +205,12 @@ Rotas existentes e suas features:
   (`corrente_grupos.validar_grupos_ativos_do_tenant`, checagem 4 do auditor) antes de gravar; expande para os
   membros ATIVOS que o tipo alcanca (`presenca.planejar_convocacao`, origem "grupo" + `grupo_id`), sem
   duplicar nem rebaixar quem ja estava na escala
+- Escala de faxina (`escala_planos.py`, AM-25) → `PermissionFeature.ESCALAS` + `require_plan_feature("area_medium")`
+  E `require_plan_feature("escalas")` (Pro) no router: ver o mes = view; rascunho (PUT), copiar do mes anterior,
+  girar e distribuir = edit; publicar e "Atualizar convocacoes" = insert E edit (dois guards empilhados: criam
+  atividades/convocam e cancelam/dispensam). `tipo_id` do caminho buscado no tenant (404) e com modo "grupos por
+  dia" (422); `grupo_id` do corpo conferido no tenant e nao arquivado (`validar_grupos_ativos_do_tenant` /
+  `_validar_grupos_do_plano`) antes de gravar
 - Assiduidade (`atividades_assiduidade.py`, AM-26) → `PermissionFeature.ESCALAS` view, mesmo prefixo e mesmos
   gates de plano: `GET /assiduidade` (por medium; `agrupar=grupo` exige tambem o plano `escalas` (Pro) via
   `check_plan_feature` → 403) e `GET /assiduidade/medium/{medium_id}` (detalhe com o texto da justificativa —
@@ -326,8 +332,8 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `skipAutoLogout`), `require_not_impersonated`, limite 10/h por IP, auditoria `mensalidade_pix` com a
   chave antiga e a nova MASCARADAS (`pix_chave.mascarar_chave`; nunca a senha), e-mail
   (`templates/pix_chave_alterada.py`) a TODOS os admins ativos quando tipo/chave mudam, e
-  `pix_alterado_em` (a Area mostra "Chave alterada em dd/mm" por 30 dias — AM-11; aviso ativo ao
-  medium e TODO(AM-15)). Chave inteira e previa do QR so para FINANCEIRO:edit; quem so ve recebe a
+  `pix_alterado_em` (a Area mostra "Chave alterada em dd/mm" por 30 dias — AM-11; o e-mail aos
+  mediuns com acesso a Area — sem a chave, "confira na Area" — sai pelo agendador do AM-15). Chave inteira e previa do QR so para FINANCEIRO:edit; quem so ve recebe a
   mascarada. Validacao/normalizacao no formato do DICT em `services/pix_chave.py` (CPF/CNPJ com DV,
   CNPJ alfanumerico incluso; e-mail minusculo; celular `+55DD9…`; EVP com hifens) e espelho em
   `frontend/src/lib/pixChave.ts`. BR Code estatico ("PIX copia e cola") so no servidor:
@@ -380,6 +386,20 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   (ja comecou, chamada aberta), avulso (`convocado = false`) e futuras ficam fora da conta. Uma regra so
   (`categoria`, testada sem banco) aplicada a um `GROUP BY` dos fatos de cada linha. Por grupo = membros ATUAIS.
   Justificativa so no detalhe por medium (ESCALAS:view, tela); PDF, CSV, e-mail e auditoria nunca.
+- **Lembretes e avisos por e-mail (AM-15)**: `services/medium_lembrete_scheduler.py` (chave `0x6769726168756206`,
+  §11.9; regras e consultas em `services/medium_lembretes.py`, textos em
+  `services/email/templates/medium_lembretes.py`). So terreiro com a chave do piloto + plano `area_medium` + Area
+  ligada pela casa; lembrete de escala (funcao/rodizio/faxina planejada) so com `escalas`, os demais de atividade
+  com `atividades_corrente`, mensalidade com o modulo visivel e `area_medium_lembrete_mensalidade` (D-29: D-3 e
+  D+3, mes em aberto sem comprovante). Destinatario = medium ativo com vinculo a conta ativa com e-mail. Marca
+  `medium_lembretes_enviados` gravada ANTES do envio (`INSERT ... ON CONFLICT DO NOTHING RETURNING`, indice unico
+  parcial; commit e so depois enfileira) — uma vez so mesmo com 2 workers. Textos discretos (§6.8 do plano):
+  assunto/previa so com o nome do terreiro, nunca o nome da atividade/aviso; o texto do motivo de ausencia nunca
+  e lido (`justificativa IS NOT NULL`). Rotas: `GET/PUT /medium/preferencias` (`require_medium`; PUT com
+  `require_not_impersonated`, auditoria `medium_perfil` so com os tipos) e publicas `POST
+  /public/avisos-email/consultar|desligar` (token `medium_preferencias.token_descadastro` = busca raiz; 404
+  generico `LINK_INVALIDO`). Painel: `avisar_email` no aviso (COMUNICADOS insert/edit, mesmo corpo) e
+  `lembretes.mensalidade` na config da Area (CONFIGURACOES edit).
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -835,7 +855,12 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `079_presenca` (2026-10-08, AM-17/AM-28: `atividade_participacoes` — unica por atividade +
+- Head atual: `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
+  indices unicos parciais, `tenant_configs.area_medium_lembrete_mensalidade`, `comunicados.avisar_email`/
+  `avisar_email_em`; criada sobre a 079 e re-encadeada depois da 080 no merge), apos `080_escala_planos` (2026-10-08, AM-25: `escala_planos` — um por tipo e mes, rascunho/publicado,
+  unico por `tenant_id, tipo_id, mes` — e `escala_plano_dias` — data x grupo x horario, `atividade_id` FK SET NULL,
+  `removido`; `atividades.escala_plano_dia_id` segue sem FK de proposito; criada em paralelo com 081/082 a partir da
+  079 e pode ser reencadeada no merge), apos `079_presenca` (2026-10-08, AM-17/AM-28: `atividade_participacoes` — unica por atividade +
   medium —, `tenant_configs.presenca_modo_padrao`/`presenca_prazo_justificativa_dias`,
   `atividade_tipos.presenca_modo`; tipo com `checkin_pelo_medium` vira modo `app`), apos `078_atividades`
   (2026-10-08, AM-08: `atividade_tipos`, `atividade_tipo_grupos`,
@@ -890,8 +915,8 @@ Incluir obrigatoriamente:
   "Conferir" no `CobrancaMensal` (prop `onConferir`), sheet de conferencia com o comprovante (rota de download
   existente): "Confirmar pagamento" (POST de registro com PAGO, valor esperado e a data do envio — espelha em
   contas a receber; o arquivo do medium fica) e "Nao confirmar" (motivos rapidos + texto → `PATCH .../recusa`,
-  FINANCEIRO edit). O medium ve o motivo e pode reenviar (o reenvio limpa a recusa). E-mail ao admin quando
-  chega comprovante: AM-15.
+  FINANCEIRO edit). O medium ve o motivo e pode reenviar (o reenvio limpa a recusa). Desde o AM-15 o resumo
+  diario aos admins (8 h, um por terreiro, so contagens) traz quantos comprovantes esperam conferencia.
 - **Relatorio**: email HTML gerado por `render_mensalidade_report()` com KPI cards + tabela inadimplentes.
 - **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns / Associados / Historico; KPIs com o dia de vencimento de cada grupo, "Inadimplentes" so apos o vencimento) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`). `/admin/associados` carrega todas as paginas da API (limit 200) para a busca local.
 - **Migration 027**: ENUM `mensalidade_status`, tabelas `mensalidade_configs` + `mensalidade_pagamentos`, coluna `mediuns.mensalidade_isento BOOLEAN DEFAULT false`.
@@ -1124,7 +1149,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto e Escala de gira (AM-02/03/04/05/06/07/08/09/10/11/12/13/17/18/23/26/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail e Escala de gira (AM-02/03/04/05/06/07/08/09/10/11/12/13/15/17/18/23/25/26/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1215,7 +1240,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `lib/autolink`: só `http(s)://`/`www.` viram link, `rel=noopener noreferrer nofollow`). Barra inferior:
   aba de módulo fora de `me.modulos` some (`MEDIUM_TABS[].modulo`) e a aba Avisos tem selo com
   `me.avisos_nao_lidos`. Público "cambones" = `is_atendimento` falso; público "Grupos da corrente" (AM-23,
-  abaixo) = `publico = 'grupos'` + `comunicado_grupos`. E-mail "avisar agora" é do AM-15.
+  abaixo) = `publico = 'grupos'` + `comunicado_grupos`. "Avisar por e-mail também" (AM-15): caixa no drawer
+  (só com insert ao criar / edit ao editar), `avisar_email` no corpo; o agendador manda (abaixo).
 - **Grupos da corrente (AM-23)**: migração `075_corrente_grupos` (§11.8; tabelas em `docs/database.md`), API
   `/api/v1/admin/corrente-grupos*` (MEDIUNS + `area_medium`, regras em §3.3 e `docs/api.md` §14). Cor = chave
   de paleta fechada (`ambar…grafite`, CHECK no banco) e o hex com contraste AA com branco em
@@ -1276,8 +1302,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   horario/duracao, visibilidade padrao; funcoes). Area: Agenda com o chip "Atividades", `TipoChip`
   (`components/atividades/TipoChip.tsx`, icone e cor do tipo) e "Cancelada"; detalhe
   `pages/medium/agenda/[tipo]/[id].tsx` com `tipo = atividade` (orientacoes, local, .ics e Google Agenda, motivo do
-  cancelamento; sem link publico nem "Divulgar"). Presenca no AM-17/AM-28 e escala de gira no AM-18 (abaixo);
-  ainda nao: planejador da faxina (AM-25) — as tabelas ja tem as colunas/ancora para isso.
+  cancelamento; sem link publico nem "Divulgar"). Presenca no AM-17/AM-28, planejador da faxina no AM-25 e escala
+  de gira no AM-18 (abaixo).
 - **Presenca (AM-17/AM-28)**: migracao `079_presenca` (§11.8; tabela em `docs/database.md`), API em §3.3 e
   `docs/api.md` (§16 do painel, §7 da Area). Modo da casa em Configuracoes → Area do Medium
   (`AreaMediumConfigSection`, so com `presenca_no_plano`: confianca · "Cheguei" pelo app · "Cheguei" com QR + prazo
@@ -1303,6 +1329,25 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `GrupoChip` dos escolhidos + `MultiCombobox` de medium) no `ConfirmacoesSheet` e no drawer de criar atividade de
   tipo "so escalados" (medium de `GET /admin/atividades/convocar/mediuns`; cria e depois chama o `convocar`, um
   toast so com o resumo `novos · ja estavam · fora de quem pode participar`); tudo so com `escalas:insert`.
+- **Escala de faxina (AM-25)**: migracao `080_escala_planos` (§11.8; tabelas em `docs/database.md`), API
+  `/api/v1/admin/escala-planos/{tipo_id}/{AAAA-MM}*` (§3.3 e `docs/api.md` §17), regras puras em
+  `services/escala_planos.py` (copiar pela ordem do dia da semana — a 5ª ocorrencia some —, girar G1→G2→…→G1,
+  distribuir em ciclo, diff da publicacao). Vale para todo tipo com `modo_escala = grupos_por_dia`. Publicar cria uma
+  atividade por dia x grupo (`origem = plano_escala`, "Faxina · G2") e convoca os membros ATIVOS do grupo que o tipo
+  alcanca (`origem = grupo`); republicar: dia removido → cancelada + dispensados; grupo trocado → mesma atividade, os do
+  grupo antigo dispensados e os do novo convocados; o resto mantem respostas e presencas; dia que ja passou (ou com a
+  chamada encerrada) nao muda. Plano travado com `FOR UPDATE` (publicar/salvar em serie, publicar de novo nao faz
+  nada). "Atualizar convocacoes das proximas faxinas" so mexe no que ainda nao comecou. Avisos: gancho
+  `escala_publicada(...)` chamado depois do commit — o envio e do AM-15. Painel: aba "Escala de faxina" em
+  `/admin/atividades` (`components/admin/atividades/EscalaFaxina.tsx`, regras/tipos em `lib/escalaFaxina.ts`): sem
+  `escalas` no plano → `PlanLocked` (`minPlanFor('escalas')`); mes + tipo, "Copiar do mes anterior"/"Comecar vazio",
+  fichas dos grupos com a contagem de dias e "Novo grupo" (`mediuns:insert`, abre Grupos da corrente em outra aba; ao
+  voltar, a tela recarrega as fichas), grade do mes 7 colunas com celulas de 44 px (dia passado nao toca), atalhos
+  Copiar · Girar grupos (salva antes) · Distribuir (`CrudDrawer`: dias da semana + grupos em ordem + horario),
+  "Dias e horarios" com o horario por dia (`CrudDrawer`), resumo em texto, Salvar rascunho (`escalas:edit`) e
+  Publicar / Publicar as mudancas (`ConfirmDialog` com as contagens do servidor; `escalas:insert`+`edit`), "Atualizar
+  convocacoes das proximas faxinas". Area: nada novo — a faxina publicada aparece na Agenda e no Inicio como
+  "Voce esta na escala · G2" com o horario (AM-17), o rascunho nunca.
 - **Assiduidade (AM-26)**: aba "Relatorios" em `/admin/atividades` (`components/admin/atividades/RelatorioAssiduidade.tsx`;
   so monta quando a aba abre): periodo (este mes · ultimos 3 meses · este ano · datas, ate 1 ano), tipo (so os que
   controlam presenca, arquivados inclusos), grupo, "Por medium"/"Por grupo" (`ToggleGroup`; sem `can('escalas')`
@@ -1311,16 +1356,27 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   atividade, a situacao e o motivo das faltas ("so aqui, nao vai para o PDF"). "Baixar PDF" =
   `lib/pdf/assiduidadePdf.ts` (base `pdfDoc`: logo/cor do terreiro, periodo, filtros, tabela e total) com
   `dadosDoPdf` (`constants/assiduidade.ts`), que copia SO nomes e contagens campo a campo — teste jest trava que o
-  texto da justificativa nunca chega ao gerador. API em §3.3 e `docs/api.md` §17.
+  texto da justificativa nunca chega ao gerador. API em §3.3 e `docs/api.md` §18.
+- **Lembretes e avisos por e-mail (AM-15)**: migracao `081_lembretes` (§11.8; tabelas em `docs/database.md`),
+  agendador e regras em §3.3/§11.9, API em `docs/api.md` (§8 da Area e §7 publico), textos e volume em
+  `docs/email.md`. Area: secao "Avisos por e-mail" no Perfil (`components/medium/perfil/AvisosPorEmail.tsx`:
+  um `Switch` por tipo de `disponiveis`, muda na hora, volta se der erro; impersonando mostra Ligado/Desligado
+  sem botao), nomes e textos em `constants/avisosEmail.ts`. Pagina publica `pages/descadastro/[token].tsx`
+  (`AuthShell`; abrir so consulta, "Desligar" no toque; `descadastro` em `RESERVED_SLUGS`). Painel: caixa
+  "Avisar por e-mail também" no drawer do aviso e "Lembrete da mensalidade por e-mail" em Configuracoes → Area
+  do Medium (so com o modulo mensalidade ligado e no plano).
 - **Escala de gira por funcao (AM-18)**: sem migracao (usa `funcao_id`/`grupo_id`/`origem` da participacao do
-  AM-17). API `api/v1/admin/atividades_escala.py` (gates/permissoes em §3.3, contrato em `docs/api.md` §18),
+  AM-17). API `api/v1/admin/atividades_escala.py` (gates/permissoes em §3.3, contrato em `docs/api.md` §19),
   regras em `services/escala_gira.py`: a escala grava `funcao_id` na PROPRIA participacao (uma funcao por medium
   por atividade); por funcao, medium um a um (`origem = funcao`, `rodizio` no rodizio) ou grupo inteiro
   (`origem = grupo` + `grupo_id`, membros ATIVOS que o tipo alcanca); pedido um a um ganha do grupo; salvar
-  substitui a escala e quem tinha funcao e saiu fica com `dispensado_em` (a funcao fica gravada); "Copiar da
+  substitui a escala; quem tinha funcao e saiu: em tipo "so escalados" fica com `dispensado_em` (a funcao fica
+  gravada), em tipo "todos os elegiveis" (gira) e alcancado pelo tipo so perde a funcao e segue esperado
+  (`PlanoEscala.so_sem_funcao`, calculado com `mediuns_esperados`); "Copiar da
   anterior" = ultima do mesmo tipo com escala (grupos com os membros de hoje); rodizio (`escala_gira.rodizio`,
   funcao pura, espelho em `constants/escalaGira.ts`) pelas proximas N (≤ 12) do tipo, so mexendo na funcao do
-  rodizio (quem tem outra funcao fica nela). Avisos ficam para o AM-15 (gancho `aplicar_plano`, nada enviado).
+  rodizio (quem tem outra funcao fica nela). O e-mail de "escala nova" sai pelo agendador do AM-15 (a linha nova
+  da participacao), nada e enviado no salvar.
   Painel: `pages/admin/atividades/[id]/escala.tsx` (gates `area_medium` → `escalas` com
   `PlanLocked minPlanFor('escalas')` → `escalas:view`; editar com `escalas:edit`; por funcao o
   `PorNaEscalaCampos` com so os elegiveis e sem quem ja esta em outra funcao; resumo em texto; "Copiar da gira
@@ -1456,6 +1512,13 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   48 h ou mais e tiveram presenca registrada (no modo confianca, um "vou" conta). Nao envia nada: so o
   `advisory_lock(PRESENCA_LOCK_KEY = 0x6769726168756204)` por rodada; a idempotencia vem da propria atividade
   travada com `FOR UPDATE` (`chamada_encerrada_em` preenchido nao muda mais).
+- `medium_lembrete_scheduler` (AM-15, desde 2026-10-08): a cada 15 min, so terreiros do piloto; lembretes e avisos
+  por e-mail da Area (mensalidade D-3/D+3, troca do PIX, escala nova, vespera 18 h, D-2 sem resposta, convite
+  para contar o motivo da falta, aviso com "avisar por e-mail", cancelamento) e o resumo diario aos admins
+  (8 h). `advisory_lock(MEDIUM_LEMBRETE_LOCK_KEY = 0x6769726168756206)` por rodada (a `...205` fica reservada
+  para o `retorno_scheduler`) e, em vez do `claim_once`, marca POR LINHA em `medium_lembretes_enviados`
+  (`INSERT ... ON CONFLICT DO NOTHING RETURNING`, commit antes de enfileirar). Espera a fila de e-mail ficar
+  abaixo de 300 antes de enfileirar (`email_queue.qsize()`; acima de 500 a fila descarta).
 - Regra para agendador que envia algo: usar `backend/src/services/scheduler_guard.py` — `advisory_lock(KEY)` envolvendo a rodada (só um worker processa) e `claim_once(tenant_id, namespace, item, scope)` gravado **antes** do envio (marca em `tenant_configs.custom_settings[namespace]` sob `SELECT ... FOR UPDATE`; `scope` diferente reinicia as marcas). Chaves de lock listadas no docstring do módulo; nova chave = novo número.
 - Trial: marcas em `custom_settings.trial_reminders` (escopo = `trial_ends_at`); dias restantes arredondados para cima e expiração só depois de `trial_ends_at` (antes podia expirar ~1 dia cedo). Aniversário: `custom_settings.birthday_digest` (escopo = data BRT).
 

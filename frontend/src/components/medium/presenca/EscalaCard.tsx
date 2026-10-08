@@ -127,9 +127,10 @@ export function EscalaCard({
   };
 
   const hoje = ehHoje(item.inicio);
-  // AM-18 (D-17): com função, o cabeçalho diz qual ("Você é Cambone na gira de sábado").
+  // AM-18 (D-17): com função, o cabeçalho diz qual ("Você é Cambone na gira de sábado"); o complemento
+  // traz o "grupo G2" (§8.9 do plano; escala de faxina, AM-25) e a função só quando não há frase.
   const frase = fraseDaFuncao({ ...item, minha_participacao: p });
-  const complemento = (frase ? [p.grupo] : [p.grupo, p.funcao]).filter(Boolean).join(' · ');
+  const complemento = [p.grupo ? `grupo ${p.grupo}` : null, frase ? null : p.funcao].filter(Boolean).join(' · ');
   const quando = `${quandoBr(item.inicio)}${item.fim ? ` às ${horaBr(item.fim)}` : ''}`;
   const janela = janelaTexto(p);
   const prazo = prazoTexto(p);

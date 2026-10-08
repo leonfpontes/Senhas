@@ -86,6 +86,11 @@ class EmailQueueService:
     # Public API
     # ------------------------------------------------------------------
 
+    def qsize(self) -> int:
+        """Itens esperando envio (o agendador de lembretes, AM-15, espera a fila esvaziar antes
+        de enfileirar muitos de uma vez — acima de 500 o `enqueue` descarta)."""
+        return self._queue.qsize()
+
     def enqueue(self, item: EmailQueueItem) -> None:
         """Non-blocking enqueue. Safe to call from any async handler.
 

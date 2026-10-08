@@ -57,6 +57,7 @@ describe('AreaMediumConfigSection', () => {
       boas_vindas: 'Axé, corrente!',
       whatsapp: '11987654321',
       modulos: { agenda: true, avisos: false, mensalidade: true },
+      lembretes: { mensalidade: true },
     });
     expect(mockSuccess).toHaveBeenCalledWith('Área do Médium salva.');
   });
@@ -132,5 +133,41 @@ describe('AreaMediumConfigSection — presença (AM-17/AM-28)', () => {
     });
     await waitFor(() => expect(mockPut).toHaveBeenCalled());
     expect(mockPut.mock.calls[0][1]).not.toHaveProperty('presenca');
+  });
+});
+
+describe('AreaMediumConfigSection — lembrete da mensalidade por e-mail (AM-15)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPut.mockImplementation((_url: string, body: Record<string, unknown>) =>
+      Promise.resolve({ data: { ...CONFIG, ...body, whatsapp: '5511987654321' } }),
+    );
+  });
+
+  it('a casa desliga o lembrete e ele vai no salvar', async () => {
+    mockGet.mockResolvedValue({ data: { ...CONFIG, lembretes: { mensalidade: true } } });
+    render(<AreaMediumConfigSection canEdit />);
+    const lembrete = await screen.findByRole('switch', { name: 'Lembrete da mensalidade por e-mail' });
+    expect(lembrete).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText(/3 dias antes e 3 dias depois do vencimento/)).toBeInTheDocument();
+    fireEvent.click(lembrete);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Salvar Área do Médium/ }));
+    });
+    await waitFor(() => expect(mockPut).toHaveBeenCalled());
+    expect(mockPut.mock.calls[0][1]).toMatchObject({ lembretes: { mensalidade: false } });
+  });
+
+  it('some com o módulo mensalidade desligado ou fora do plano', async () => {
+    mockGet.mockResolvedValue({ data: { ...CONFIG, mensalidade_no_plano: false } });
+    const { unmount } = render(<AreaMediumConfigSection canEdit />);
+    await screen.findByDisplayValue('(11) 98765-4321');
+    expect(screen.queryByRole('switch', { name: 'Lembrete da mensalidade por e-mail' })).not.toBeInTheDocument();
+    unmount();
+    mockGet.mockResolvedValue({ data: CONFIG });
+    render(<AreaMediumConfigSection canEdit />);
+    await screen.findByRole('switch', { name: 'Lembrete da mensalidade por e-mail' });
+    fireEvent.click(screen.getByRole('switch', { name: 'Mensalidade' }));
+    expect(screen.queryByRole('switch', { name: 'Lembrete da mensalidade por e-mail' })).not.toBeInTheDocument();
   });
 });
