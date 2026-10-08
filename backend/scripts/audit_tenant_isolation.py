@@ -311,8 +311,9 @@ EXEMPT_PUBLIC_QUERIES: dict[tuple[str, str], str] = {
         "TrialGrant é global por design (CPF/CNPJ ou e-mail que já ganhou trial em qualquer "
         "tenant não ganha outro); só testa existência"
     ),
-    ("api/v1/public/onboarding.py", "onboarding"): (
-        "e-mail de usuário é único global (cadastro cria tenant novo); só testa existência"
+    ("api/v1/public/onboarding.py", "_email_em_conta_nao_excluida"): (
+        "cadastro cria tenant novo: e-mail sem conta ativa mas com conta inativa/terreiro desativado em "
+        "qualquer tenant barra (409); só testa existência"
     ),
     ("api/v1/public/stats.py", "_compute_stats"): (
         "números da landing (V-02): só COUNT somado entre todos os tenants, nenhum dado de "

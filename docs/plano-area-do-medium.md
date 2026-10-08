@@ -871,6 +871,10 @@ médium em duas casas) nunca entraria na Área nova. Convidar médiuns aumenta m
 
 **Riscos.** Enumeração de terreiros pelo e-mail: só listar terreiros cuja senha conferiu.
 
+**Depois (D-36, 08/10).** O cadastro de terreiro aceita e-mail que já tem conta ativa, confirmando a senha
+dessa conta (`conta_existente` no `POST /public/onboarding`, mesmo rate limit do login); limite de 5 contas
+ativas por e-mail mantido.
+
 ### AM-06 — Casca da Área do Médium e tela Início
 - **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, AM-04
 
@@ -1568,6 +1572,7 @@ descoberta e vocabulário do AM-00; ver [estudo-ux-area-do-medium.md](estudo-ux-
 | D-33 | WhatsApp do convite | Texto simpático com o vocabulário do terreiro ("A nossa casa, <nome>, agora tem a Área do Médium… Axé!"); o e-mail segue discreto |
 | D-34 | Textos legais | Termo do médium (v1) e Política de Privacidade 2.2 escritos pelo Claude a pedido do dono (ajustes depois, se ele quiser) |
 | D-35 | Convocação | Além de médium por médium, **grupos inteiros** podem ser convocados para uma atividade (AM-29) |
+| D-36 | Casa nova com e-mail que já tem conta (ex.: médium abrindo o próprio terreiro) | **Permitido com a senha da conta existente** (08/10): o cadastro pede a senha dessa conta e o admin novo usa a mesma senha; o login pergunta o terreiro (AM-05). **Limite de 5 contas ativas por e-mail mantido** (`MAX_LOGIN_ACCOUNTS`) |
 
 ## 13. Riscos gerais
 

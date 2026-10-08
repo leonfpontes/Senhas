@@ -122,6 +122,18 @@ tenant redundante (barato) a uma excecao.
   um link por terreiro (um `reset_token_hash` por conta; `render_password_reset_multi_email`). Front: passo "Em qual
   terreiro voce quer entrar?" no `/login` (`components/auth/AccountChoiceList`, `authSession.selectAccount` com
   `skipAutoLogout`) e depois o mesmo `completeLogin` por `areas`.
+- **Casa nova com e-mail que ja tem conta (decisao do dono, 2026-10-08)**: `POST /public/onboarding` com e-mail
+  que tem conta ATIVA (mesma `active_login_accounts_stmt`, inclusive `medium`) exige `conta_existente: true` +
+  a senha dessa conta (sem a regra de senha nova; `matching_accounts`, ate 5 bcrypt). Sem a marca → 409
+  `EMAIL_JA_TEM_CONTA`; senha errada → 400 `SENHA_CONTA_INCORRETA` (nunca 401), nada criado; 5 contas ativas →
+  409 `LIMITE_CONTAS_EMAIL` (so depois da senha certa; limite = `MAX_LOGIN_ACCOUNTS`, mantido em 5). Admin novo
+  com o MESMO `password_hash` da conta conferida (uma senha; o login pergunta o terreiro). Sem conta ativa mas
+  com conta inativa/terreiro desativado → 409 "Este email ja esta cadastrado" de sempre (o login oferece
+  reativar); so conta excluida nao barra. Rate limit igual ao do login: `@limiter.limit("10/minute")` +
+  `location = /api/v1/public/onboarding` na zona `login_limit` do nginx. Trial segue por documento/e-mail.
+  Front (`/cadastro`): a resposta `EMAIL_JA_TEM_CONTA` volta ao passo Acesso com aviso e campo unico "Senha da
+  sua conta GiraHub" (`cadastroSchemaContaExistente`, "Esqueci a senha", "Usar outro e-mail"); trocar o e-mail
+  desliga o modo. Sem consulta antecipada de e-mail (seria oraculo). Detalhes em `docs/api.md` (Public §8).
 - Frontend usa `withCredentials: true` no axios — nao ha token no header para sessoes normais.
 - Impersonacao usa sessionStorage e header Bearer — fluxo preservado separado.
 - `hasAuthToken()` checa: `sessionStorage.getItem('access_token')` OR `document.cookie.includes('auth_state=1')` OR `localStorage.getItem('user')`.
@@ -1133,8 +1145,9 @@ Incluir obrigatoriamente:
   elas, a mais antiga — conta inativa só quando não há ativa (terreiro de teste desativado não "rouba"
   o login do médium/operador de outro terreiro). Desde o AM-05 o login e o esqueci a senha olham todas as contas
   ativas (escolha do terreiro no login, um link por terreiro no e-mail — §3.2); a regra de conta única ficou para a
-  reativação e para o login sem nenhuma conta ativa. Cadastro valida a senha com `validate_password_policy` e
-  recusa e-mail que já existe em qualquer terreiro (409).
+  reativação e para o login sem nenhuma conta ativa. Cadastro valida a senha com `validate_password_policy`;
+  e-mail com conta ativa em outro terreiro só entra confirmando a senha dessa conta (`conta_existente`, desde
+  2026-10-08 — §3.2), e e-mail só com conta inativa/terreiro desativado segue recusado (409).
   Sessão aberta por `login.issue_session` + `core/auth_cookies.set_auth_cookies` em login, cadastro e
   reativação (3 cookies, `secure=not DEBUG`). "Lembrar-me" desmarcado (`remember_me=false`) → cookies
   sem `max_age`; o refresh token carrega `persist: false` e o `/auth/refresh` renova no mesmo modo.
@@ -1153,7 +1166,8 @@ Incluir obrigatoriamente:
   (`?passo=N`, shallow; voltar do navegador volta um passo; `?plan=` preservado), rascunho na aba
   (sessionStorage, **sem senha, CPF/CNPJ nem aceite**). Recusa do backend volta ao passo do campo
   (`parseOnboardingError`: 409 e-mail → passo Você com "Entrar com este e-mail"; 409 nome de terreiro →
-  passo 1; 422 → campo do `loc`). Payload igual (`buildOnboardingPayload`). Evento `signup_step_completed
+  passo 1; 422 → campo do `loc`; `detail.error_code` → campo do `CODE_FIELD`: `EMAIL_JA_TEM_CONTA` liga o modo
+  "Senha da sua conta GiraHub" no passo Acesso, `SENHA_CONTA_INCORRETA` → senha, `LIMITE_CONTAS_EMAIL` → e-mail). Payload igual (`buildOnboardingPayload`). Evento `signup_step_completed
   {passo, etapa}` a cada passo, além do `signup_completed`.
 - **Passagem marketing ⇄ conta** (`lib/passagem.ts` + `components/shared/PassagemDeEntrada`, no `_app`):
   desenho da entrada do ATRAIR — a marca voa entre as páginas (`.marca-girahub` = `view-transition-name`), na

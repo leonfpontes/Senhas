@@ -69,6 +69,32 @@ class TestSignupPasswordAndEmail:
         assert _req(email="Maria.Silva@Example.COM").email == "maria.silva@example.com"
 
 
+class TestContaExistente:
+    """`conta_existente=True`: `password` é a senha de uma conta que já existe em outro
+    terreiro (2026-10-08) — pode ser anterior à regra atual, então a regra não se aplica."""
+
+    def test_default_is_false_and_policy_applies(self):
+        assert _req().conta_existente is False
+        with pytest.raises(ValidationError, match="política de segurança"):
+            _req(password="antiga123")
+
+    def test_existing_account_password_skips_policy(self):
+        r = _req(conta_existente=True, password="antiga123")
+        assert (r.conta_existente, r.password) == (True, "antiga123")
+
+    def test_existing_account_password_cannot_be_empty_or_beyond_bcrypt(self):
+        with pytest.raises(ValidationError, match="Digite a senha da sua conta GiraHub") as exc:
+            _req(conta_existente=True, password="")
+        assert [e["loc"] for e in exc.value.errors()] == [("password",)]
+        with pytest.raises(ValidationError, match="Senha muito longa"):
+            _req(conta_existente=True, password="a" * 73)
+
+    def test_flag_is_declared_before_password(self):
+        # O validador da senha lê `conta_existente` em info.data: a ordem dos campos importa.
+        campos = list(OnboardingRequest.model_fields)
+        assert campos.index("conta_existente") < campos.index("password")
+
+
 class TestCustomSettings:
     def test_stores_both_answers(self):
         assert _build_custom_settings(_req(como_conheceu="instagram", principal_dor="mediuns")) == {
