@@ -244,6 +244,25 @@ convite no terreiro: o aceite pede a senha dessa conta.
 
 ---
 
+### 6. Confirmação do novo e-mail de login (AM-13)
+
+**`POST /api/v1/public/email/confirmar`** (10/min por IP) — `{"token": "..."}`. A página
+`pages/confirmar-email/[token].tsx` só chama depois de um toque em "Confirmar meu novo e-mail"
+(leitor de link de e-mail não gasta o token).
+```json
+{ "email": "nova@example.com", "terreiro_nome": "Tenda Luz da Mata" }
+```
+- O token (sha256 em `users.email_pendente_token_hash`) é a busca raiz; vale 24 h e é de uso único
+  (as colunas `email_pendente*` são limpas). Token inexistente, vencido, já usado, substituído por
+  um pedido novo ou de conta inativa/excluída → sempre 404
+  `{"detail": {"error_code": "LINK_INVALIDO", "message": "Este link não vale mais. Peça a troca de novo pelo seu perfil."}}`.
+- E-mail tomado por outra conta do terreiro entre o pedido e o clique → 409 `EMAIL_EM_USO`.
+- Sucesso: `users.email` = novo (login passa a ser com ele), `mediuns.email` do médium ligado
+  acompanha, link de "esqueci a senha" pendente deixa de valer, auditoria `medium_perfil` sem os
+  endereços e aviso ao endereço ANTIGO (novo mascarado). As sessões abertas continuam.
+
+---
+
 ## Admin Endpoints
 
 ### Authentication Required
@@ -1117,6 +1136,62 @@ becomes `em_conferencia`; the response is the month item. Errors: 422 `COMPROVAN
 `COMPROVANTE_TIPO` / `COMPROVANTE_VAZIO`, 404 `MES_SEM_MENSALIDADE`, 409 `MES_FECHADO` (paid or
 exempt), 403 while impersonating, 429 above 20 uploads/hour per IP. Audited as
 `mensalidade_comprovante_medium` with month, type and size only (never the file).
+
+### 6. Perfil — "Meus dados" (AM-13)
+
+Everything is "mine" (`ctx.medium`, `ctx.user`): no id in the URL or body. Every write is refused
+while impersonating (**403**) and goes to the terreiro audit log as `resource_type =
+"medium_perfil"` with `new_state = {"acao": "médium atualizou o telefone", "campos": [...]}` —
+never the values (phone, address, e-mail).
+
+**`GET /api/v1/medium/perfil`**
+```json
+{
+  "casa": { "nome": "Ana Paula Ribeiro", "data_entrada": "2019-03-10", "tipo": "cambone", "isento_mensalidade": false },
+  "telefone": "11987654321",
+  "data_nascimento": "1985-04-20",
+  "cep": "01310100", "logradouro": "Avenida Paulista", "numero": "1000", "bairro": "Bela Vista", "cidade": "São Paulo",
+  "foto_url": "https://.../api/v1/public/user/{user_id}/photo",
+  "email": "ana@example.com",
+  "email_pendente": null,
+  "email_pendente_expira_em": null
+}
+```
+- `casa` is read-only for the médium (only the house edits name, entry date, type and exemption).
+- Closed list: `observacoes`, `data_saida`, `registrado_por` and any internal field never appear
+  (`tests/unit/test_medium_perfil.py` locks the schema).
+- `email_pendente` only while a change request is still valid (24 h).
+
+**`PATCH /api/v1/medium/perfil`** (30/hour per IP) — any subset of `telefone`, `data_nascimento`,
+`cep`, `logradouro`, `numero`, `bairro`, `cidade` (`""`/`null` clears). Phone and CEP are stored
+digits-only like the panel (phone 10–13 digits, CEP 8); birth date not in the future. Any other
+field (`nome`, `data_entrada`, `is_atendimento`, `mensalidade_isento`, `observacoes`...) → **422**
+and nothing changes. Invalid value → 422 `VALIDATION_ERROR` with a field message
+(`details.campo`). Returns the profile; no change → no audit entry.
+
+**`POST /api/v1/medium/perfil/foto`** (multipart, field `file`; 20/hour) — the account photo (the
+same as the panel profile): JPG/PNG/WEBP up to 5 MB (`auth/profile.read_profile_photo`).
+`{"message": "Foto atualizada.", "foto_url": "..."}`.
+
+**`POST /api/v1/medium/perfil/senha`** (10/hour) — `{"senha_atual", "nova_senha"}`. Same rules as
+`POST /auth/change-password` (`auth/profile.apply_password_change`): password policy, must differ,
+revokes **every** session (this one included: `sessions_revoked_at`, `user_sessions`) and clears
+the 3 auth cookies. Wrong current password → **400** `SENHA_INCORRETA` (never 401, so the front
+does not log out by mistake).
+
+**`POST /api/v1/medium/perfil/email`** (5/hour) — `{"novo_email", "senha_atual"}`. Stores the
+request on the user (`email_pendente`, sha256 of an opaque `token_urlsafe(32)`, 24 h — a new
+request replaces the previous link) and e-mails the link `{FRONTEND_URL}/confirmar-email/{token}`
+to the **new** address only. The login e-mail does not change yet.
+```json
+{ "message": "Enviamos um link para o novo e-mail. O e-mail só muda depois que você confirmar.",
+  "email_pendente": "nova@example.com", "email_pendente_expira_em": "2026-10-08T12:00:00Z" }
+```
+Errors: 400 `SENHA_INCORRETA`, 400 `MESMO_EMAIL`, 409 `EMAIL_EM_USO` (another account of the
+terreiro — deleted ones included — already uses it; other terreiros may use the same e-mail).
+
+**`DELETE /api/v1/medium/perfil/email`** → 204: gives up the pending change (the link stops
+working).
 
 ---
 
