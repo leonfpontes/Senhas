@@ -1390,10 +1390,10 @@ opt-in (D-07, fase 2).
 - Abonar justificativa (aceitar/recusar) entra aqui também.
 
 **Aceite**
-- [ ] Médium pede troca, colega aceita e admin aprova (ou aprovação automática configurada)
-- [ ] Situação "Substituído" aparece para os dois e no relatório
-- [ ] Admin pode aceitar ou recusar uma justificativa
-- [ ] Opt-in para mostrar o primeiro nome aos colegas de escala
+- [x] Médium pede troca, colega aceita e admin aprova (ou aprovação automática configurada)
+- [x] Situação "Substituído" aparece para os dois e no relatório
+- [x] Admin pode aceitar ou recusar uma justificativa
+- [x] Opt-in para mostrar o primeiro nome aos colegas de escala
 
 ### AM-28 — Modo de presença da casa e check-in com QR do dia
 - **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-17
@@ -1448,11 +1448,12 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-15 Lembretes e avisos por e-mail (mensalidade D-3/D+3, véspera, D-2, escala nova, falta, aviso, cancelamento, PIX, resumo do admin) | #96 | 081 | 2026-10-08 |
 | AM-18 Escala de gira por função (grupos inteiros, copiar da anterior, rodízio) | #97 | — (usa as colunas da 079) | 2026-10-08 |
 | AM-24 Divulgação (atrás da chave NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA, desligada) | #98 | — | 2026-10-08 |
+| AM-27 Troca na escala | este PR | 082 | — |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
+**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22 (AM-27 neste PR).
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 

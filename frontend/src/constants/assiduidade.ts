@@ -23,6 +23,8 @@ export interface NumerosAssiduidade {
   sem_chamada: number;
   dispensados: number;
   avulsos: number;
+  /** AM-27: trocou com um colega (troca aprovada) — não é falta, fora do percentual. */
+  substituidos?: number;
   percentual: number | null;
 }
 
@@ -54,6 +56,7 @@ export type CategoriaAssiduidade =
   | 'ausente'
   | 'sem_chamada'
   | 'dispensado'
+  | 'substituido'
   | 'avulso'
   | 'futura';
 
@@ -72,6 +75,10 @@ export interface ItemAssiduidade {
   tem_justificativa: boolean;
   /** Só nesta tela (ESCALAS:view) — nunca no PDF. */
   justificativa: string | null;
+  /** Abono (AM-27): null (não avaliada), "aceita" ou "recusada". */
+  justificativa_avaliacao?: 'aceita' | 'recusada' | null;
+  /** De onde veio a convocação ("troca": foi no lugar de um colega). */
+  medium_origem?: string | null;
 }
 
 export interface DetalheAssiduidade {
@@ -87,6 +94,7 @@ export interface DetalheAssiduidade {
 export const NOTA_CATEGORIA: Partial<Record<CategoriaAssiduidade, string>> = {
   sem_chamada: 'Sem chamada encerrada — fora do percentual',
   dispensado: 'Fora da escala ou cancelada — fora do percentual',
+  substituido: 'Trocou com um colega — não é falta, fora do percentual',
   avulso: 'Veio sem estar na escala — fora do percentual',
   futura: 'Ainda não aconteceu',
 };

@@ -17,6 +17,9 @@ requisição). Devolve, numa chamada só:
   (AM-29) diz só se a casa cadastrou a chave PIX (AM-10) — a chave nunca sai no Início.
 - `avisos` (AM-09): `{nao_lidos, ultimos}` — quantos avisos o médium ainda não leu e os 3 mais
   novos deles (só título/data/fixado); zerado quando a casa desligou o módulo "avisos" (AM-10).
+- `trocas` (AM-27): pedidos de troca que esperam a resposta do médium (`para_responder`, viram a
+  pendência `troca`) e os pedidos dele ainda abertos ou resolvidos há pouco (`minhas`). Null sem
+  os planos `atividades_corrente` + `escalas`.
 """
 from datetime import date, datetime, timedelta
 from typing import List, Optional
@@ -38,6 +41,7 @@ from src.services.plan_features import get_effective_plan_features
 from src.services.presenca import SITUACAO_DISPENSADO, SITUACAO_SUBSTITUIDO
 
 from .presencas import ItemPresenca, item_de, itens_do_periodo, participacoes_do_medium, presenca_no_plano
+from .trocas import MinhasTrocas, minhas_trocas, trocas_no_plano
 
 router = APIRouter()
 
@@ -89,6 +93,7 @@ class InicioResponse(BaseModel):
     mensalidade: Optional[MensalidadeInicio] = None
     avisos: AvisosInicio
     escalas: List[ItemPresenca] = []
+    trocas: Optional[MinhasTrocas] = None
 
 
 async def _proxima_gira(db: AsyncSession, ctx: MediumContext) -> Optional[ProximaGira]:
@@ -220,6 +225,7 @@ async def get_medium_inicio(
     mensalidade, pix_disponivel = await _mensalidade(db, ctx, hoje)
     avisos = await _avisos(db, ctx)
     escalas = await _escalas(db, ctx)
+    trocas = await minhas_trocas(db, ctx) if await trocas_no_plano(db, ctx) else None
     return InicioResponse(
         hoje=hoje,
         pendencias=montar_pendencias(
@@ -227,6 +233,7 @@ async def get_medium_inicio(
             mensalidade=mensalidade,
             avisos_nao_lidos=avisos.nao_lidos,
             escalas_a_responder=escalas_pendentes(escalas),
+            trocas_a_responder=len(trocas.para_responder) if trocas else 0,
         ),
         proxima_gira=await _proxima_gira(db, ctx),
         mensalidade=(
@@ -234,4 +241,5 @@ async def get_medium_inicio(
         ),
         avisos=avisos,
         escalas=escalas,
+        trocas=trocas,
     )

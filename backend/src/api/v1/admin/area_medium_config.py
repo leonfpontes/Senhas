@@ -10,6 +10,9 @@ mensalidade) e — AM-17/AM-28 — a presença: modo padrão da casa (confiança
 prazo para o médium contar o motivo de uma falta (1 a 30 dias, padrão 7).
 AM-15: `lembretes.mensalidade` liga/desliga os lembretes da mensalidade por e-mail (D-29: 3 dias
 antes e 3 dias depois do vencimento, sem comprovante) — `tenant_configs.area_medium_lembrete_mensalidade`.
+AM-27: `trocas.exige_aprovacao` — "Troca combinada entre médiuns precisa da aprovação da direção"
+(padrão ligado; `tenant_configs.escala_troca_exige_aprovacao`); `trocas_no_plano` diz se a casa tem
+troca de escala (plano `escalas`, Pro — a tela só mostra a opção com ele).
 Trocar o modo vale para as próximas chamadas; presença já registrada não muda. O gate `area_medium` já exige a chave do piloto
 (`tenants.area_medium_liberada`): sem ela, 403 aqui também.
 
@@ -73,6 +76,14 @@ class LembretesConfigUpdate(BaseModel):
     mensalidade: Optional[bool] = None
 
 
+class TrocasConfig(BaseModel):
+    exige_aprovacao: bool = True
+
+
+class TrocasConfigUpdate(BaseModel):
+    exige_aprovacao: Optional[bool] = None
+
+
 class AreaMediumConfigResponse(BaseModel):
     ativa: bool
     boas_vindas: Optional[str] = None
@@ -85,6 +96,9 @@ class AreaMediumConfigResponse(BaseModel):
     # A presença só vale com o plano `atividades_corrente`: a tela só mostra a seção com ele.
     presenca_no_plano: bool
     lembretes: LembretesConfig = LembretesConfig()
+    trocas: TrocasConfig = TrocasConfig()
+    # Troca de escala só com o plano `escalas` (e a presença): a tela só mostra a opção com ele.
+    trocas_no_plano: bool = False
 
 
 class AreaMediumConfigUpdate(BaseModel):
@@ -94,6 +108,7 @@ class AreaMediumConfigUpdate(BaseModel):
     modulos: Optional[AreaMediumModulosUpdate] = None
     presenca: Optional[PresencaConfigUpdate] = None
     lembretes: Optional[LembretesConfigUpdate] = None
+    trocas: Optional[TrocasConfigUpdate] = None
 
 
 def normalizar_whatsapp(valor: Optional[str]) -> Optional[str]:
@@ -125,6 +140,7 @@ def _snapshot(config: TenantConfig) -> dict:
             "prazo_justificativa_dias": config.presenca_prazo_justificativa_dias,
         },
         "lembretes": {"mensalidade": bool(config.area_medium_lembrete_mensalidade)},
+        "trocas": {"exige_aprovacao": bool(config.escala_troca_exige_aprovacao)},
     }
 
 
@@ -134,6 +150,7 @@ async def _response(db: AsyncSession, tenant_id, config: TenantConfig) -> AreaMe
         **_snapshot(config),
         mensalidade_no_plano=features.mensalidade_mediun,
         presenca_no_plano=features.atividades_corrente,
+        trocas_no_plano=bool(features.escalas and features.atividades_corrente),
     )
 
 
@@ -186,6 +203,8 @@ async def update_area_medium_config(
             config.presenca_prazo_justificativa_dias = validar_prazo(body.presenca.prazo_justificativa_dias)
     if body.lembretes is not None and body.lembretes.mensalidade is not None:
         config.area_medium_lembrete_mensalidade = body.lembretes.mensalidade
+    if body.trocas is not None and body.trocas.exige_aprovacao is not None:
+        config.escala_troca_exige_aprovacao = body.trocas.exige_aprovacao
     await db.flush()
 
     await AuditService(db).log_config_change(

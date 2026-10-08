@@ -21,6 +21,9 @@ Tudo o que a corrente faz junto vira uma **atividade** (§8 do plano da Área do
   presença são a MESMA linha (§8.1): não há o que sincronizar. Única por (`atividade_id`,
   `medium_id`), o que também segura a corrida entre o "Cheguei" e a chamada.
 
+- `participacao_trocas` (AM-27, migração 082): troca de escala entre médiuns (pedido → aceito
+  pelo colega → aprovado pela direção, ou direto sem aprovação; recusado/cancelado).
+
 - `escala_planos` / `escala_plano_dias` (AM-25, migração 080): o planejador da faxina — um
   plano por tipo (modo "grupos por dia") e mês, rascunho ou publicado, e os dias × grupo × horário.
   Publicar cria uma atividade por dia e grupo (`origem = 'plano_escala'`) e grava o id dela em
@@ -96,12 +99,29 @@ STATUS_PLANO = ("rascunho", "publicado")
 # na janela do tipo, ou "Cheguei" com o QR do dia. `atividade_tipos.presenca_modo` null = o
 # padrão da casa (`tenant_configs.presenca_modo_padrao`).
 MODOS_PRESENCA = ("confianca", "app", "qr")
-ORIGENS_PARTICIPACAO = ("elegivel", "grupo", "funcao", "rodizio", "manual", "avulso")
+# `troca` (AM-27): a linha nasceu de uma troca aprovada — o substituto no lugar de quem pediu.
+ORIGENS_PARTICIPACAO = ("elegivel", "grupo", "funcao", "rodizio", "manual", "avulso", "troca")
 RESPOSTAS = ("sem_resposta", "vou", "nao_vou")
 PRESENCAS = ("nao_registrada", "presente", "ausente")
 # `confianca`: presente no encerramento porque confirmou "vou" no modo confiança.
 PRESENCA_ORIGENS = ("checkin_medium", "chamada", "encerramento", "confianca")
 JUSTIFICATIVA_MAX = 500
+# Abono da justificativa (AM-27): null = ainda não avaliada (vale como justificada), `aceita` ou
+# `recusada` (recusada conta como falta sem justificativa no relatório de assiduidade).
+AVALIACOES_JUSTIFICATIVA = ("aceita", "recusada")
+
+# Troca de escala (AM-27): pedido → (colega aceita) aceito → (direção aprova) aprovado; ou
+# recusado / cancelado. Sem aprovação da casa, o aceite do colega já aprova.
+TROCA_PEDIDO = "pedido"
+TROCA_ACEITO = "aceito"
+TROCA_APROVADO = "aprovado"
+TROCA_RECUSADO = "recusado"
+TROCA_CANCELADO = "cancelado"
+STATUS_TROCA = (TROCA_PEDIDO, TROCA_ACEITO, TROCA_APROVADO, TROCA_RECUSADO, TROCA_CANCELADO)
+STATUS_TROCA_ABERTOS = (TROCA_PEDIDO, TROCA_ACEITO)
+# Quem fechou a troca (recusou, cancelou ou aprovou).
+FECHADA_POR = ("solicitante", "substituto", "direcao")
+RECADO_MAX = 200
 
 NOME_MAX = 60
 DESCRICAO_FUNCAO_MAX = 300
@@ -333,6 +353,10 @@ class AtividadeParticipacao(Base):
             "presenca_origem IS NULL OR " + _in("presenca_origem", PRESENCA_ORIGENS),
             name="ck_atividade_participacoes_presenca_origem",
         ),
+        CheckConstraint(
+            "justificativa_avaliacao IS NULL OR " + _in("justificativa_avaliacao", AVALIACOES_JUSTIFICATIVA),
+            name="ck_atividade_participacoes_justificativa_avaliacao",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -365,8 +389,14 @@ class AtividadeParticipacao(Base):
     presenca_registrada_por: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # Abono (AM-27): a direção aceita ou recusa a justificativa. Null = não avaliada (vale).
+    justificativa_avaliacao: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    justificativa_avaliada_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    justificativa_avaliada_por: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     dispensado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    # Troca de escala (fase 2, AM-27).
+    # Troca de escala (AM-27): a linha do substituto (situação "Substituído").
     substituida_por_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("atividade_participacoes.id", ondelete="SET NULL"), nullable=True
     )
@@ -378,6 +408,81 @@ class AtividadeParticipacao(Base):
 
     def __repr__(self) -> str:
         return f"<AtividadeParticipacao(atividade_id={self.atividade_id}, medium_id={self.medium_id})>"
+
+
+class ParticipacaoTroca(Base):
+    """Troca de escala (AM-27, migração 082): um médium pede que um colega vá no lugar dele.
+
+    `participacao_id` é a linha de quem pede (escala de gira com função, faxina ou atividade "só
+    escalados"); `substituto_id` null = "a direção escolhe" (ninguém aceitou aparecer para os
+    colegas ou o médium preferiu assim). Aprovada: a linha original ganha `substituida_por_id` e
+    nasce (ou volta) a do substituto (`nova_participacao_id`, origem `troca`, mesma função/grupo).
+    Só uma troca aberta (pedido/aceito) por participação (`uq_participacao_trocas_aberta`).
+    """
+
+    __tablename__ = "participacao_trocas"
+    __table_args__ = (
+        Index("ix_participacao_trocas_tenant_status", "tenant_id", "status"),
+        Index("ix_participacao_trocas_tenant_atividade", "tenant_id", "atividade_id"),
+        Index("ix_participacao_trocas_solicitante", "solicitante_id"),
+        Index("ix_participacao_trocas_substituto", "substituto_id"),
+        Index(
+            "uq_participacao_trocas_aberta",
+            "participacao_id",
+            unique=True,
+            postgresql_where=text("status IN ('pedido', 'aceito')"),
+            sqlite_where=text("status IN ('pedido', 'aceito')"),
+        ),
+        CheckConstraint(_in("status", STATUS_TROCA), name="ck_participacao_trocas_status"),
+        CheckConstraint("fechada_por IS NULL OR " + _in("fechada_por", FECHADA_POR), name="ck_participacao_trocas_fechada_por"),
+        CheckConstraint(
+            "substituto_id IS NULL OR substituto_id <> solicitante_id", name="ck_participacao_trocas_outro_medium"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    atividade_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("atividades.id", ondelete="CASCADE"), nullable=False
+    )
+    participacao_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("atividade_participacoes.id", ondelete="CASCADE"), nullable=False
+    )
+    solicitante_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("mediuns.id", ondelete="CASCADE"), nullable=False
+    )
+    substituto_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("mediuns.id", ondelete="CASCADE"), nullable=True
+    )
+    # A direção escolheu o substituto (pedido "a direção escolhe"): o nome dele só aparece para
+    # quem pediu se ele aceitou mostrar o primeiro nome aos colegas (D-07).
+    indicado_pela_direcao: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default=TROCA_PEDIDO)
+    # Recado curto de quem pede (texto simples). Não é motivo de saúde: a tela pede só um recado.
+    recado: Mapped[Optional[str]] = mapped_column(String(RECADO_MAX), nullable=True)
+    respondido_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    fechada_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    fechada_por: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Usuário do painel que aprovou, recusou ou cancelou.
+    decidido_por: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    nova_participacao_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("atividade_participacoes.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    @property
+    def aberta(self) -> bool:
+        return self.status in STATUS_TROCA_ABERTOS
+
+    def __repr__(self) -> str:
+        return f"<ParticipacaoTroca(id={self.id}, status={self.status})>"
 
 
 class EscalaPlano(Base):

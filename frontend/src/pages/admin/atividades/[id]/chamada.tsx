@@ -41,6 +41,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { Combobox } from '@/components/fields';
 import { PermissionDenied, PlanLocked } from '@/components/gates';
 import { Button } from '@/components/ui/button';
+import { AbonoJustificativa } from '@/components/admin/presenca/AbonoJustificativa';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -106,12 +107,15 @@ function Pessoa({
   podeMarcar,
   ocupado,
   onMarcar,
+  abono,
 }: {
   p: PessoaChamada;
   verMotivo: boolean;
   podeMarcar: boolean;
   ocupado: boolean;
   onMarcar: (p: PessoaChamada, presenca: Presenca) => void;
+  /** Abono do motivo (AM-27): só com `escalas:edit` e quem vê o motivo. */
+  abono?: { atividadeId: string; onAtualizado: (d: ChamadaResponse) => void } | null;
 }) {
   const resp = respostaTexto(p);
   const origem = p.presenca !== 'nao_registrada' ? textoOrigemPresenca(p) : null;
@@ -142,9 +146,31 @@ function Pessoa({
               Fora da escala
             </span>
           )}
+          {p.substituido_por && (
+            <span className={cn('rounded-full px-2 py-0.5 font-semibold', CLASSE_TOM.muted)}>
+              Trocou com {p.substituido_por}
+            </span>
+          )}
+          {p.no_lugar_de && (
+            <span className={cn('rounded-full px-2 py-0.5 font-semibold', CLASSE_TOM.brand)}>
+              No lugar de {p.no_lugar_de}
+            </span>
+          )}
         </span>
         {verMotivo && p.justificativa ? (
-          <span className="text-sm">Motivo: {p.justificativa}</span>
+          <>
+            <span className="text-sm">Motivo: {p.justificativa}</span>
+            {abono && (
+              <AbonoJustificativa
+                atividadeId={abono.atividadeId}
+                mediumId={p.medium_id}
+                nome={p.nome}
+                avaliacao={p.justificativa_avaliacao}
+                canEdit
+                onAtualizado={abono.onAtualizado}
+              />
+            )}
+          </>
         ) : p.tem_justificativa ? (
           <span className="flex items-center gap-1 text-sm text-muted-foreground">
             <Lock className="size-3.5" aria-hidden /> Contou o motivo (só quem cuida das escalas vê)
@@ -438,6 +464,11 @@ function Chamada() {
                 ocupado={ocupado}
                 onMarcar={(pessoa, presenca) =>
                   void enviar({ marcacoes: [{ medium_id: pessoa.medium_id, presenca }] })
+                }
+                abono={
+                  canGroup('escalas', 'edit') && dados.ver_justificativa
+                    ? { atividadeId: dados.atividade.atividade_id, onAtualizado: setDados }
+                    : null
                 }
               />
             ))}

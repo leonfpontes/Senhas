@@ -11,6 +11,9 @@
  * Aba "Escala de faxina" (AM-25): `components/admin/atividades/EscalaFaxina` (planejador do mês por
  * grupos; sem o plano `escalas`, `PlanLocked` dentro da aba).
  * Aba "Relatórios" (AM-26): assiduidade por médium e por grupo — `RelatorioAssiduidade`.
+ * Aba "Trocas" (AM-27): pedidos de troca na escala feitos na Área — aprovar, recusar, cancelar ou
+ * escolher quem vai (`TrocasDaEscala`; sem o plano `escalas`, `PlanLocked` dentro da aba). O selo
+ * da aba conta as que esperam a direção.
  * Presença (AM-17): em cada gira/atividade, "Confirmações" (painel com quem vai, quem não vai e o
  * motivo, "Pôr na escala"/"Tirar da escala" — `ConfirmacoesSheet`, escalas view/insert/edit) e
  * "Chamada" (`/admin/atividades/[id]/chamada`, escalas edit; a gira cria a âncora antes).
@@ -55,6 +58,8 @@ import { API_ATIVIDADES, TiposEFuncoes } from '@/components/admin/atividades/Tip
 import { ConfirmacoesSheet, type AlvoConfirmacoes } from '@/components/admin/atividades/ConfirmacoesSheet';
 import { EscalaFaxina } from '@/components/admin/atividades/EscalaFaxina';
 import { RelatorioAssiduidade } from '@/components/admin/atividades/RelatorioAssiduidade';
+import { TrocasDaEscala } from '@/components/admin/atividades/TrocasDaEscala';
+import { TROCAS_ADMIN_URL, type TrocasAdminResponse } from '@/constants/trocas';
 import {
   PorNaEscalaCampos,
   textoResultadoConvocacao,
@@ -148,6 +153,21 @@ function AtividadesContent() {
   const canEdit = canGroup('escalas', 'edit');
   const canDelete = canGroup('escalas', 'delete');
   const [aba, setAba] = useState('agenda');
+  const [trocasPendentes, setTrocasPendentes] = useState(0);
+  const comTrocas = liberado && noPlano && can('escalas') && canView;
+
+  // Selo da aba "Trocas" (AM-27): quantas trocas esperam a direção.
+  useEffect(() => {
+    if (!comTrocas) return;
+    let vivo = true;
+    apiClient
+      .get<TrocasAdminResponse>(TROCAS_ADMIN_URL)
+      .then((res) => vivo && setTrocasPendentes(res.data.aguardando_direcao))
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, [comTrocas]);
 
   if (subLoading) return <ListaSkeleton />;
   if (!liberado) {
@@ -177,6 +197,18 @@ function AtividadesContent() {
           <TabsTrigger value="faxina">Escala de faxina</TabsTrigger>
           <TabsTrigger value="tipos">Tipos e funções</TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
+          <TabsTrigger value="trocas">
+            Trocas
+            {trocasPendentes > 0 && (
+              <span
+                className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground"
+                aria-label={`${trocasPendentes} esperando a direção`}
+                data-testid="selo-trocas"
+              >
+                {trocasPendentes}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="agenda" className="pt-4">
           <AgendaDaCasa canInsert={canInsert} canEdit={canEdit} canDelete={canDelete} canVerGiras={canGroup('giras', 'view')} />
@@ -189,6 +221,9 @@ function AtividadesContent() {
         </TabsContent>
         <TabsContent value="relatorios" className="pt-4">
           <RelatorioAssiduidade />
+        </TabsContent>
+        <TabsContent value="trocas" className="pt-4">
+          <TrocasDaEscala onContagem={setTrocasPendentes} />
         </TabsContent>
       </Tabs>
     </div>

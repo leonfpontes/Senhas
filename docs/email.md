@@ -74,6 +74,9 @@ chave do piloto (`tenants.area_medium_liberada`), o plano `area_medium` e a Áre
 | Falta | marcado ausente, sem motivo, dentro do prazo da casa (o texto do motivo nunca vai) | 9–21 h | `<terreiro>: sentimos sua falta` |
 | Aviso da casa | público do aviso com "Avisar por e-mail também" | 7–22 h, até 3 dias depois | `<terreiro>: novo aviso da casa` |
 | Cancelamento | quem estava na escala de uma atividade cancelada | 7–22 h, até 2 dias depois | `<terreiro>: uma atividade foi cancelada` |
+| Troca pedida (AM-27) | o colega chamado para ir no lugar (primeiro nome de quem pediu, recado) | 7–22 h, até 2 dias depois | `<terreiro>: pedido de troca na escala` |
+| Resposta da troca (AM-27) | quem pediu: o colega aceitou (falta a direção), não pode, a direção recusou ou cancelou | 7–22 h, até 2 dias depois | `<terreiro>: resposta ao seu pedido de troca` |
+| Troca aprovada (AM-27) | os dois (nome do substituto só com o opt-in do D-07 quando a direção escolheu) | 7–22 h, até 2 dias depois | `<terreiro>: troca na escala confirmada` |
 | Resumo do dia | administradores ativos (comprovantes para conferir, ausências avisadas, motivos novos — só contagens, só quando há algo) | 8–12 h, um por terreiro por dia | `Resumo do dia na Área do Médium — <terreiro>` |
 
 - **Discretos** (LGPD art. 11, §6.8 do plano): assunto e prévia (texto escondido do topo) só com o nome do

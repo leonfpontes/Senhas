@@ -15,6 +15,7 @@
  * - "Minhas presenças" (AM-17, D-27): leva a `/medium/presencas` (percentual, próximas escalas e
  *   histórico; só a própria presença).
  * - "Avisos por e-mail" (AM-15): liga/desliga cada tipo de lembrete (`AvisosPorEmail`).
+ * - "Colegas de escala" (AM-27, D-07): opt-in do primeiro nome na troca de escala (`ColegasDeEscala`).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
@@ -41,6 +42,7 @@ import { useMedium } from '@/components/medium/MediumProvider';
 import { MeusGrupos } from '@/components/medium/MeusGrupos';
 import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 import { AvisosPorEmail } from '@/components/medium/perfil/AvisosPorEmail';
+import { ColegasDeEscala } from '@/components/medium/perfil/ColegasDeEscala';
 import { MeusDadosDrawer } from '@/components/medium/perfil/MeusDadosDrawer';
 import { TrocarEmailDrawer } from '@/components/medium/perfil/TrocarEmailDrawer';
 import { TrocarSenhaDrawer } from '@/components/medium/perfil/TrocarSenhaDrawer';
@@ -443,6 +445,7 @@ function Perfil() {
               </ul>
             </Secao>
             <AvisosPorEmail somenteLeitura={somenteLeitura} />
+            <ColegasDeEscala somenteLeitura={somenteLeitura} />
           </>
         )}
 

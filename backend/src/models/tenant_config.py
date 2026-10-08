@@ -95,6 +95,11 @@ class TenantConfig(TimestampedModel):
     area_medium_lembrete_mensalidade: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    # Troca de escala (AM-27, migração 082): troca combinada entre médiuns precisa da aprovação
+    # da direção (padrão sim). Desligado, o aceite do colega já vale.
+    escala_troca_exige_aprovacao: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
 
     # Custom metadata
     custom_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)

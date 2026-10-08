@@ -35,7 +35,8 @@ def test_migracao_081_encadeada_e_lista_de_tipos_congelada():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     assert (mod.revision, mod.down_revision) == ("081_lembretes", "080_escala_planos")
-    assert mod.TIPOS == modelos.TIPOS_LEMBRETE
+    # A 082 (AM-27) acrescentou os tipos da troca no fim; a 081 congela os de antes.
+    assert mod.TIPOS == modelos.TIPOS_LEMBRETE[: len(mod.TIPOS)]
     assert set(modelos.PREFERENCIA_DO_TIPO) == set(modelos.TIPOS_LEMBRETE) - {modelos.TIPO_RESUMO_ADMIN}
     assert set(modelos.PREFERENCIA_DO_TIPO.values()) == set(modelos.PREFERENCIAS)
     assert set(lm.JANELAS) == set(modelos.TIPOS_LEMBRETE)

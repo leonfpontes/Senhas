@@ -10,6 +10,8 @@
  * modo QR abre o leitor); as já respondidas ficam em "Acompanhando".
  * Mensalidade em aberto (AM-11/AM-29): "Pagar com PIX" só quando a casa cadastrou a chave
  * (`mensalidade.pix_disponivel`); sem chave, "Ver mensalidade" (a tela diz como combinar com a casa).
+ * Troca (AM-27): pedido de um colega vira cartão em "Para você ver agora" (Aceito ir / Não posso);
+ * os pedidos do médium ainda abertos ficam em "Acompanhando".
  */
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -37,6 +39,8 @@ import { fraseDaFuncao } from '@/components/medium/presenca/presencaApi';
 import { detalheHref } from '@/components/medium/agenda';
 import { EmptyState } from '@/components/EmptyState';
 import { ROTULO_SITUACAO_MEDIUM, type ItemPresenca } from '@/constants/presenca';
+import { trocaAberta, type MinhasTrocas } from '@/constants/trocas';
+import { TrocaCard } from '@/components/medium/troca/TrocaCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -63,6 +67,7 @@ export interface InicioMensalidade {
 
 export type InicioPendencia =
   | { tipo: 'escala'; quantidade: number }
+  | { tipo: 'troca'; quantidade: number }
   | { tipo: 'aviso'; quantidade: number }
   | {
       tipo: 'mensalidade';
@@ -81,6 +86,8 @@ export interface InicioResponse {
   avisos: { nao_lidos: number; ultimos: unknown[] };
   /** AM-17: próximas escalas do médium (com a participação dele). */
   escalas?: ItemPresenca[];
+  /** AM-27: trocas na escala (null sem o plano das escalas). */
+  trocas?: MinhasTrocas | null;
 }
 
 /** A escala pede ação agora: responder (sem resposta) ou marcar "Cheguei". */
@@ -333,8 +340,16 @@ function Inicio() {
   const escalas = data?.escalas ?? [];
   const escalasComAcao = escalas.filter(escalaPedeAcao);
   const escalasRespondidas = escalas.filter((e) => !escalaPedeAcao(e));
+  const trocasParaResponder = data?.trocas?.para_responder ?? [];
+  const minhasTrocasAbertas = (data?.trocas?.minhas ?? []).filter((t) => t.papel === 'pedi' && trocaAberta(t));
   const n = pendencias.reduce(
-    (t, p) => t + (p.tipo === 'escala' ? Math.max(1, escalasComAcao.length) : 1),
+    (t, p) =>
+      t +
+      (p.tipo === 'escala'
+        ? Math.max(1, escalasComAcao.length)
+        : p.tipo === 'troca'
+          ? Math.max(1, trocasParaResponder.length)
+          : 1),
     0,
   );
   const recarregar = () => setNonce((x) => x + 1);
@@ -347,7 +362,13 @@ function Inicio() {
       (data.mensalidade.status === 'pendente' && !mensalidadeNoTopo))
       ? data.mensalidade
       : null;
-  const vazio = data && n === 0 && !data.proxima_gira && !acompanhando && escalas.length === 0;
+  const vazio =
+    data &&
+    n === 0 &&
+    !data.proxima_gira &&
+    !acompanhando &&
+    escalas.length === 0 &&
+    minhasTrocasAbertas.length === 0;
 
   return (
     <>
@@ -406,7 +427,11 @@ function Inicio() {
                   Para você ver agora
                 </h2>
                 {pendencias.map((p, i) =>
-                  p.tipo === 'escala' && escalasComAcao.length > 0 ? (
+                  p.tipo === 'troca' ? (
+                    trocasParaResponder.map((t) => (
+                      <TrocaCard key={t.id} troca={t} comAtividade onAtualizado={recarregar} />
+                    ))
+                  ) : p.tipo === 'escala' && escalasComAcao.length > 0 ? (
                     escalasComAcao.map((e) => (
                       <EscalaCard
                         key={`${e.origem}-${e.id}-${e.minha_participacao?.resposta}`}
@@ -431,11 +456,14 @@ function Inicio() {
                 comAgenda={(me?.modulos ?? []).includes('agenda')}
               />
             )}
-            {(acompanhando || escalasRespondidas.length > 0) && (
+            {(acompanhando || escalasRespondidas.length > 0 || minhasTrocasAbertas.length > 0) && (
               <section className="flex flex-col gap-2.5" aria-labelledby="titulo-acompanhando">
                 <h2 id="titulo-acompanhando" className={SECTION_TITLE}>
                   Acompanhando
                 </h2>
+                {minhasTrocasAbertas.map((t) => (
+                  <TrocaCard key={`${t.id}-${t.status}`} troca={t} comAtividade onAtualizado={recarregar} />
+                ))}
                 <EscalasAcompanhando escalas={escalasRespondidas} />
                 {acompanhando && <Acompanhando mensalidade={acompanhando} />}
               </section>

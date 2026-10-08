@@ -6,7 +6,9 @@
  * só aqui, para quem cuida das escalas). Com ESCALAS:insert, "Pôr na escala" (convocar à mão —
  * faxina, ritual individual, "só escalados") com médiuns e/ou grupos da corrente inteiros (AM-29,
  * `PorNaEscalaCampos`; o toast diz quantos entraram, quantos já estavam e quem o tipo não alcança);
- * com ESCALAS:edit, "Tirar da escala" (dispensar).
+ * com ESCALAS:edit, "Tirar da escala" (dispensar) e o abono do motivo (AM-27: "Aceitar motivo" /
+ * "Recusar motivo" — `AbonoJustificativa`; recusado conta como falta sem justificativa).
+ * Troca (AM-27): "Trocou com Beto" / "No lugar de Ana" na linha de quem trocou.
  * Na gira, o painel garante a âncora antes (`POST /da-gira/{id}`).
  */
 import React, { useCallback, useEffect, useState } from 'react';
@@ -15,6 +17,7 @@ import { ClipboardCheck, UserMinus, UserPlus } from 'lucide-react';
 import { useSnackbar } from '@/contexts/SnackbarContext';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { Button } from '@/components/ui/button';
+import { AbonoJustificativa } from '@/components/admin/presenca/AbonoJustificativa';
 import {
   Sheet,
   SheetContent,
@@ -227,8 +230,24 @@ export function ConfirmacoesSheet({
                       >
                         {ROTULO_SITUACAO[p.situacao]}
                       </span>
+                      {p.substituido_por && (
+                        <span className="text-sm text-muted-foreground">Trocou com {p.substituido_por}</span>
+                      )}
+                      {p.no_lugar_de && (
+                        <span className="text-sm text-muted-foreground">No lugar de {p.no_lugar_de}</span>
+                      )}
                       {p.justificativa && (
                         <span className="text-sm">Motivo: {p.justificativa}</span>
+                      )}
+                      {p.justificativa && atividadeId && dados.atividade.controla_presenca && (
+                        <AbonoJustificativa
+                          atividadeId={atividadeId}
+                          mediumId={p.medium_id}
+                          nome={p.nome}
+                          avaliacao={p.justificativa_avaliacao}
+                          canEdit={canEdit}
+                          onAtualizado={setDados}
+                        />
                       )}
                     </div>
                     {canEdit && !encerrada && !p.dispensado && (

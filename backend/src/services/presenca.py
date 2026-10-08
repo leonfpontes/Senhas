@@ -170,13 +170,15 @@ def situacao(
     substituido: bool = False,
     cancelada: bool = False,
     confianca_terminou: bool = False,
+    justificativa_recusada: bool = False,
 ) -> str:
     """Situação na tela (§8.5). Ordem: substituído → dispensado (ou atividade cancelada) →
     presente (vale mesmo com "não vou") → ausente com/sem justificativa → ausência avisada →
     confirmado → convocado.
 
     `confianca_terminou`: modo confiança e a atividade já acabou — "vou" sem ausência marcada já
-    conta como presente (o encerramento grava isso).
+    conta como presente (o encerramento grava isso). `justificativa_recusada` (abono, AM-27): a
+    direção não aceitou o motivo — a falta conta como sem justificativa.
     """
     if substituido:
         return SITUACAO_SUBSTITUIDO
@@ -185,7 +187,8 @@ def situacao(
     if presenca == PRESENCA_PRESENTE:
         return SITUACAO_PRESENTE
     if presenca == PRESENCA_AUSENTE:
-        return SITUACAO_AUSENTE_JUSTIFICADO if (justificativa or "").strip() else SITUACAO_AUSENTE
+        tem = bool((justificativa or "").strip()) and not justificativa_recusada
+        return SITUACAO_AUSENTE_JUSTIFICADO if tem else SITUACAO_AUSENTE
     if resposta == RESPOSTA_NAO_VOU:
         return SITUACAO_AUSENCIA_AVISADA
     if resposta == RESPOSTA_VOU:
@@ -200,6 +203,24 @@ def prazo_justificativa(fim: datetime, dias: int) -> date:
 
 def dentro_do_prazo(hoje: date, prazo: date) -> bool:
     return hoje <= prazo
+
+
+AVALIACAO_ACEITA = "aceita"
+AVALIACAO_RECUSADA = "recusada"
+
+
+def justificativa_vale(justificativa: Optional[str], avaliacao: Optional[str]) -> bool:
+    """Há motivo e a direção não o recusou (não avaliado vale — D-13)."""
+    return bool((justificativa or "").strip()) and avaliacao != AVALIACAO_RECUSADA
+
+
+def gravar_justificativa(p: AtividadeParticipacao, texto: Optional[str], agora: datetime) -> None:
+    """Grava (ou limpa) o motivo; um motivo novo volta a esperar a avaliação da direção."""
+    p.justificativa = texto
+    p.justificativa_em = agora if texto else None
+    p.justificativa_avaliacao = None
+    p.justificativa_avaliada_em = None
+    p.justificativa_avaliada_por = None
 
 
 def limpar_justificativa(texto: Optional[str], *, obrigatoria: bool) -> Optional[str]:
@@ -957,6 +978,7 @@ def minha_participacao(
         substituido=substituido,
         cancelada=ctx.cancelada,
         confianca_terminou=controla and modo == MODO_CONFIANCA and terminou,
+        justificativa_recusada=getattr(linha, "justificativa_avaliacao", None) == AVALIACAO_RECUSADA,
     )
     pode_responder = ativa and convocado and bool(tipo.pede_confirmacao) and agora < ctx.inicio and not encerrada
 
@@ -987,6 +1009,8 @@ def minha_participacao(
             linha.presenca_registrada_em if linha is not None and presenca != PRESENCA_NAO_REGISTRADA else None
         ),
         "justificativa": justificativa,
+        # Abono (AM-27): null (a casa não avaliou), "aceita" ou "recusada".
+        "justificativa_avaliacao": getattr(linha, "justificativa_avaliacao", None) if justificativa else None,
         "grupo": grupo,
         # AM-18: "Você é Cambone" — só enquanto está na escala (dispensado não mostra a função).
         "funcao": funcao if not (dispensado or substituido) else None,
