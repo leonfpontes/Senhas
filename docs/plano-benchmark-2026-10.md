@@ -155,6 +155,7 @@ plataforma, `B/api/v1/platform/dashboard.py` e `tenant_observatory.py`.
 ### $-01 — Decidir a resposta ao "tudo incluso" dos concorrentes
 - **Ranking:** 3 · **Prioridade:** P0 · **Onda:** 1 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Planos & Assinatura · **Épico:** Planos
 - **Depende de:** X-01 (mesma conversa) · **Destrava:** $-02, $-03, textos da landing
+- **Status (2026-10-08):** **decidido — opção (a)**: manter os preços e vender o Gratuito e a senha/porta como diferencial.
 
 **Por quê.** AxéCloud cobra R$ 69,90 com tudo incluso (ou R$ 699/ano); Kanzuá, R$ 41,90/mês no anual, com equipe
 ilimitada; ORI, a partir de R$ 24,90. Todos sem cobrar por módulo. A página de comparativo do AxéCloud diz
@@ -950,6 +951,7 @@ em memória e perde envios num restart.
 ### P-02 — Decidir o caminho do WhatsApp
 - **Ranking:** 28 · **Prioridade:** P1 · **Onda:** 4 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Comunicação · **Épico:** Funcionalidade
 - **Depende de:** — · **Destrava:** F-03
+- **Status (2026-10-08):** o dono quer a API oficial da Meta; custos e caminho em `docs/custos-whatsapp-meta.md` (falta: CNPJ + verificação do negócio na Meta, número dedicado, modelo de cobrança).
 
 **Por quê.** Item herdado do `plano-execucao.md` (Fase 3). O público é mobile-first e não lê e-mail. O AxéCloud usa a
 API oficial da Meta; o ORI vende WhatsApp como add-on por volume (R$ 24,90 a R$ 149,90).
@@ -972,6 +974,7 @@ custo.
 ### F-01 — Decidir o gateway da mensalidade
 - **Ranking:** 29 · **Prioridade:** P1 · **Onda:** 4 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Financeiro · **Épico:** Funcionalidade
 - **Depende de:** — · **Destrava:** F-02
+- **Status (2026-10-08):** explicação do fluxo e comparativo em `docs/fluxo-pagamento-mensalidade.md`; recomendação Mercado Pago com OAuth; decisão do dono pendente.
 
 **Por quê.** PIX integrado na mensalidade é o gap mais repetido entre os concorrentes fortes: AxéCloud (PIX no portal
 do filho), ORI (Mercado Pago, add-on de R$ 9,90), Minha Gira (Asaas), Quartinha (banco parceiro). O nosso é baixa
