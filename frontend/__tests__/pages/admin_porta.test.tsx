@@ -61,13 +61,21 @@ const item = (id: string, numero: number, extra: Record<string, unknown> = {}) =
 });
 
 let QUEUE: any[] = [];
+let MEDIUNS: { id: string; nome: string }[] = [];
+let CAMBONES: { id: string; nome: string }[] = [];
+let MEDIUNS_FALHA = false;
 
 function mockApi() {
   const { apiClient } = require('@/services/api_client');
   apiClient.get.mockImplementation((url: string) => {
     if (url === '/api/v1/admin/giras') return Promise.resolve({ data: [GIRA] });
     if (url === '/api/v1/admin/door/config') return Promise.resolve({ data: { enable_walk_in: true } });
-    if (url.startsWith('/api/v1/admin/mediuns/options')) return Promise.resolve({ data: [] });
+    if (url.startsWith('/api/v1/admin/door/mediuns-options')) {
+      if (MEDIUNS_FALHA) return Promise.reject(new Error('Network Error'));
+      return Promise.resolve({ data: url.endsWith('only_atendimento=true') ? MEDIUNS : CAMBONES });
+    }
+    // A Porta não usa o endpoint de Médiuns (exige MEDIUNS:view — T-05).
+    if (url.startsWith('/api/v1/admin/mediuns')) return Promise.reject(new Error('403'));
     if (url.endsWith('/door/stats')) {
       return Promise.resolve({
         data: { total: 5, checked_in: 2, awaiting: 1, in_progress: 0, completed: 1, no_show: 1, walk_in: 1, preferenciais: 0, patrocinados: 0 },
@@ -96,6 +104,9 @@ describe('Porta — modo operação', () => {
     jest.clearAllMocks();
     mockCan.mockImplementation(() => true);
     mockRouter.query = {};
+    MEDIUNS = [];
+    CAMBONES = [];
+    MEDIUNS_FALHA = false;
     window.localStorage.clear();
     window.sessionStorage.clear();
     QUEUE = [
@@ -119,6 +130,44 @@ describe('Porta — modo operação', () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Atendido' }));
     });
     expect(api.patch).toHaveBeenCalledWith('/api/v1/admin/door/tickets/t2/attend', expect.objectContaining({ medium_nome: 'Mãe Joana' }));
+  });
+
+  it('porteiro só com Porta escolhe o médium da lista (endpoint da Porta, não o de Médiuns)', async () => {
+    mockCan.mockImplementation((feature: string) => feature === 'porta');
+    MEDIUNS = [{ id: 'm1', nome: 'Pai João' }];
+    CAMBONES = [
+      { id: 'm1', nome: 'Pai João' },
+      { id: 'm2', nome: 'Cambone Rita' },
+    ];
+    const api = mockApi();
+    await renderPorta();
+
+    const urls = api.get.mock.calls.map((c: any[]) => String(c[0]));
+    expect(urls).toContain('/api/v1/admin/door/mediuns-options?only_atendimento=true');
+    expect(urls).toContain('/api/v1/admin/door/mediuns-options?only_atendimento=false');
+    expect(urls.some((u: string) => u.startsWith('/api/v1/admin/mediuns'))).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: /Chamar próximo · 0002/ }));
+    const dialog = await screen.findByTestId('attend-modal');
+    // Com sugestões, Médium e Cambone viram lista (Combobox), não texto livre.
+    expect(within(dialog).getAllByRole('combobox')).toHaveLength(2);
+    expect(mockToast.error).not.toHaveBeenCalled();
+  });
+
+  it('erro ao carregar os médiuns avisa com toast (sem catch silencioso) e deixa digitar o nome', async () => {
+    MEDIUNS_FALHA = true;
+    mockApi();
+    await renderPorta();
+
+    await waitFor(() =>
+      expect(mockToast.error).toHaveBeenCalledWith(
+        'Não foi possível carregar a lista de médiuns. Dá para digitar o nome ao chamar.',
+      ),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Chamar próximo · 0002/ }));
+    const dialog = await screen.findByTestId('attend-modal');
+    expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText(/^Médium/)).toBeInTheDocument();
   });
 
   it('sem ninguém marcado como chegou, chama o primeiro da fila', async () => {

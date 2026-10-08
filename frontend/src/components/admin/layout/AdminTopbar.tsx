@@ -1,14 +1,15 @@
 /**
  * AdminTopbar — barra superior do admin: gatilho da sidebar, breadcrumb, nome do terreiro,
  * seletor da gira de hoje (quando há várias), busca de ações (⌘K), guia da tela, modo
- * claro/escuro e menu do usuário (Perfil, versão, primeiros passos, Sair).
+ * claro/escuro e menu do usuário (Perfil, versão, primeiros passos, Trocar de área, Sair).
+ * "Trocar de área" (AM-04) só aparece para quem também tem a Área do Médium (`areas.medium`).
  */
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useTour } from '@reactour/tour';
-import * as Sentry from '@sentry/nextjs';
-import { BookOpen, CircleHelp, LogOut, MessageCircle, Moon, Search, Sparkles, Sun, User } from 'lucide-react';
-import { apiClient, endImpersonation } from '@/services/api_client';
+import { ArrowLeftRight, BookOpen, CircleHelp, LogOut, MessageCircle, Moon, Search, Sparkles, Sun, User } from 'lucide-react';
+import { logout } from '@/services/authSession';
+import { switchArea } from '@/lib/areas';
 import { useTenant } from '@/providers/ThemeProvider';
 import { useProfile } from '@/hooks/useProfile';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
@@ -257,6 +258,15 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
             <Sparkles aria-hidden /> Novidades da versão
             <span className="ml-auto text-xs text-muted-foreground">v{APP_VERSION}</span>
           </DropdownMenuItem>
+          {profile?.areas?.medium && (
+            <DropdownMenuItem
+              onSelect={() => router.push(switchArea(profile.id, 'medium'))}
+              data-testid="menu-trocar-area"
+            >
+              <ArrowLeftRight aria-hidden /> Trocar de área
+              <span className="ml-auto text-xs text-muted-foreground">Área do Médium</span>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => void handleLogout()} variant="destructive">
             <LogOut aria-hidden /> Sair
@@ -278,26 +288,12 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
 };
 
 /**
- * "Sair" do menu do usuário.
- *
- * Impersonação: os cookies deste navegador são do SUPER-ADMIN — o /auth/logout
- * revogaria e apagaria a sessão dele na plataforma. Sair aqui = encerrar só a
- * impersonação (limpa o sessionStorage desta aba e fecha/volta ao login).
+ * "Sair" do menu do usuário — `logout` de services/authSession (impersonação encerra só a
+ * impersonação; sessão normal chama /auth/logout e limpa o `user`). Aqui também esquece o
+ * modal de novidades desta sessão.
  */
 export async function adminLogout(push: (url: string) => unknown, profileId?: string): Promise<void> {
-  if (safeSessionItem('impersonating')) {
-    endImpersonation();
-    return;
-  }
-  try {
-    await apiClient.post('/api/v1/auth/logout');
-  } catch {
-    /* non-critical */
-  }
-  localStorage.removeItem('user');
-  clearReleaseNotesSession(profileId);
-  Sentry.setUser(null);
-  push('/login');
+  await logout(push, () => clearReleaseNotesSession(profileId));
 }
 
 function safeSessionItem(key: string): string | null {

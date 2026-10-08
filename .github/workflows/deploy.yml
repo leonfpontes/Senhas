@@ -76,6 +76,10 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          # WhatsApp comercial (V-06): variável do ambiente Hostinger no GitHub. É ARG de build do
+          # frontend; quando preenchida, sobrescreve a do /opt/senhas/.env no docker compose build.
+          NEXT_PUBLIC_SUPPORT_WHATSAPP: ${{ vars.NEXT_PUBLIC_SUPPORT_WHATSAPP }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -87,6 +91,7 @@ jobs:
           # entre as migrations e o swap dos containers. timeout-minutes do job (25)
           # continua sendo o teto real.
           command_timeout: 30m
+          envs: NEXT_PUBLIC_SUPPORT_WHATSAPP
           script: |
             set -euo pipefail
             cd /opt/senhas
@@ -109,6 +114,8 @@ jobs:
             git reset --hard origin/master
 
             echo "==> [3/6] Build das novas imagens (containers antigos ainda rodando)"
+            # Vazio no GitHub = vale o /opt/senhas/.env (variável de shell vence o .env no compose).
+            if [ -z "${NEXT_PUBLIC_SUPPORT_WHATSAPP:-}" ]; then unset NEXT_PUBLIC_SUPPORT_WHATSAPP; fi
             docker compose -f docker-compose.prod.yml build frontend backend
 
             echo "==> [4/6] Migrations"

@@ -31,6 +31,11 @@ import {
   type CobrancaPagamento,
 } from '@/components/financeiro/CobrancaMensal';
 import { baixarComprovante, montarFormPagamento, MULTIPART } from '@/components/financeiro/comprovante';
+import {
+  ComprovantesParaConferir,
+  ConferirComprovanteSheet,
+  type ComprovanteAlvo,
+} from '@/components/financeiro/ComprovantesParaConferir';
 import { currentMonthBr, formatBRL, monthLabelShort } from '@/lib/dateBr';
 import { minPlanFor } from '@/constants/plans';
 
@@ -47,6 +52,9 @@ interface MensalidadeItem {
   valor_pago: number | null;
   comprovante_filename: string | null;
   observacao: string | null;
+  /** AM-12: comprovante enviado pelo médium na Área, esperando conferência. */
+  comprovante_para_conferir?: boolean;
+  comprovante_enviado_em?: string | null;
 }
 
 interface AssociadoMensalidadeItem {
@@ -87,6 +95,8 @@ const toCobranca = (i: MensalidadeItem): CobrancaItem => ({
   valor_pago: i.valor_pago,
   comprovante_filename: i.comprovante_filename,
   observacao: i.observacao,
+  comprovanteParaConferir: i.comprovante_para_conferir,
+  comprovanteEnviadoEm: i.comprovante_enviado_em,
 });
 
 const assocToCobranca = (i: AssociadoMensalidadeItem): CobrancaItem => ({
@@ -122,6 +132,10 @@ function MensalidadesContent() {
   const canRegistrar = canGroup('financeiro', 'insert');
   const planMediuns = can('mensalidade_mediun');
   const planAssoc = can('mensalidade_associado');
+  // AM-12: comprovantes enviados pelos médiuns na Área — só com a Área no plano (piloto).
+  const conferencia = can('area_medium') && planMediuns && canView;
+  const [alvo, setAlvo] = useState<ComprovanteAlvo | null>(null);
+  const [filaKey, setFilaKey] = useState(0);
 
   const [mes, setMes] = useState<string>(currentMonthBr());
   const [config, setConfig] = useState<Config | null>(null);
@@ -219,9 +233,16 @@ function MensalidadesContent() {
   }, [tab, fetchResumos]);
 
   const reloadAll = () => {
+    setFilaKey((k) => k + 1);
     fetchItems();
     fetchAssocItems();
     if (tab === 'historico') fetchResumos();
+  };
+
+  // Depois de registrar/conferir um médium: a lista do mês e (com a Área) a fila de comprovantes.
+  const aposMudarMedium = () => {
+    fetchItems();
+    if (conferencia) setFilaKey((k) => k + 1);
   };
 
   // ── Ações ────────────────────────────────────────────────────────────
@@ -320,6 +341,7 @@ function MensalidadesContent() {
       )}
 
       <CobrancaKpisGrid kpis={kpis} loading={!kpisReady} />
+      <ComprovantesParaConferir enabled={conferencia} refreshKey={filaKey} onConferir={setAlvo} />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full sm:w-auto">
@@ -340,8 +362,21 @@ function MensalidadesContent() {
               canEdit={canRegistrar}
               entidade="médium"
               onRegistrar={registrarMedium}
-              onChanged={fetchItems}
+              onChanged={aposMudarMedium}
               onDownloadComprovante={baixarMedium}
+              onConferir={
+                conferencia
+                  ? (i) =>
+                      setAlvo({
+                        mediun_id: i.id,
+                        mediun_nome: i.nome,
+                        mes,
+                        valor: i.valor_vigente ?? config?.valor_mensal,
+                        comprovante_enviado_em: i.comprovanteEnviadoEm,
+                        comprovante_filename: i.comprovante_filename,
+                      })
+                  : undefined
+              }
             />
           </TabsContent>
         )}
@@ -408,6 +443,15 @@ function MensalidadesContent() {
           )}
         </TabsContent>
       </Tabs>
+
+      <ConferirComprovanteSheet
+        alvo={alvo}
+        onClose={() => setAlvo(null)}
+        canInsert={canRegistrar}
+        canEdit={canGroup('financeiro', 'edit')}
+        valorPadrao={config?.valor_mensal}
+        onDone={aposMudarMedium}
+      />
     </div>
   );
 }

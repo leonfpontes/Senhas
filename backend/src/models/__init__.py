@@ -24,7 +24,12 @@ from .contas_financeiras import ContaFinanceira, CategoriaFinanceira, ContaBanca
 from .user_sessions import UserSession
 from .stripe_events import StripeEventProcessed
 from .trial_grants import TrialGrant
+from .legal_acceptances import LegalAcceptance
 from .support_chat import SupportConversation, SupportMessage, SupportConversationStatus
+from .medium_convites import MediumConvite
+from .comunicados import Comunicado, ComunicadoLeitura, ComunicadoPublico
+from .corrente_grupos import ComunicadoGrupo, CorrenteGrupo, CorrenteGrupoMembro
+from .atividades import Atividade, AtividadeParticipacao, AtividadeTipo, AtividadeTipoGrupo, FuncaoCorrente
 
 __all__ = [
     "Base",
@@ -54,6 +59,18 @@ __all__ = [
     "EstoqueMovimentacao",
     "EstoqueMovimentacaoTipo",
     "Medium",
+    "MediumConvite",
+    "Comunicado",
+    "ComunicadoLeitura",
+    "ComunicadoPublico",
+    "ComunicadoGrupo",
+    "CorrenteGrupo",
+    "CorrenteGrupoMembro",
+    "Atividade",
+    "AtividadeParticipacao",
+    "AtividadeTipo",
+    "AtividadeTipoGrupo",
+    "FuncaoCorrente",
     "MensalidadeConfig",
     "MensalidadePagamento",
     "MensalidadeStatus",
@@ -80,6 +97,7 @@ __all__ = [
     "UserSession",
     "StripeEventProcessed",
     "TrialGrant",
+    "LegalAcceptance",
     "SupportConversation",
     "SupportMessage",
     "SupportConversationStatus",

@@ -2,6 +2,7 @@
  * Subscription context — provides plan info and feature gates to all admin pages.
  */
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useAdminDataEnabled } from '@/hooks/useAdminDataEnabled';
 import { apiClient } from '../services/api_client';
 import { planLabel as planDisplayLabel } from '@/constants/plans';
 
@@ -24,6 +25,12 @@ export interface PlanFeatures {
   site_builder: boolean;
   fila_espera: boolean;
   agendamento_por_horario: boolean;
+  /** Área do Médium (AM-02): login do médium e /api/v1/medium/*. */
+  area_medium: boolean;
+  /** Atividades da casa (AM-08): tipos, atividades internas, presença. Basic+. */
+  atividades_corrente: boolean;
+  /** Escalas (faxina por grupos, escala de gira por função). Pro+. */
+  escalas: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -82,6 +89,9 @@ const DEFAULT_FEATURES: PlanFeatures = {
   site_builder: false,
   fila_espera: false,
   agendamento_por_horario: false,
+  area_medium: false,
+  atividades_corrente: false,
+  escalas: false,
 };
 
 const SubscriptionContext = createContext<SubscriptionContextValue>({
@@ -106,10 +116,12 @@ const hasAuthToken = (): boolean => {
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  // Só no painel (/admin/*) e para quem tem o painel (AM-04): a Área do Médium não chama /admin.
+  const enabled = useAdminDataEnabled();
 
   const fetchSubscription = useCallback(async () => {
     // Skip the fetch on public pages (no token) to avoid unnecessary 401s.
-    if (!hasAuthToken()) {
+    if (!enabled || !hasAuthToken()) {
       setLoading(false);
       return;
     }
@@ -123,7 +135,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
     fetchSubscription();

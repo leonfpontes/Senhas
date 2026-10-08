@@ -36,7 +36,7 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   can_delete: 'Excluir',
 };
 
-const AREAS = ['Operacional', 'Cadastros', 'Financeiro', 'Administração', 'Relatórios'];
+const AREAS = ['Operacional', 'Cadastros', 'Corrente', 'Financeiro', 'Administração', 'Relatórios'];
 
 // Módulos do dia a dia de uma gira: no atalho "Operação do dia" ganham Criar.
 const DAY_TO_DAY: PermissionFeature[] = ['giras', 'tickets', 'porta', 'estoque'];

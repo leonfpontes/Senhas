@@ -1,6 +1,7 @@
 /**
  * senhaFormat — como uma senha aparece na interface (número sem cerquilha, status em palavras
- * do terreiro). Compartilhado por Porta, modo TV, Senhas e Relatório.
+ * do terreiro). Compartilhado por Porta, Senhas e Relatório. O nome reduzido do modo TV
+ * ("Maria S.") é calculado no servidor (`GET /giras/{id}/door/tv`, T-04).
  *
  * A Porta tem fluxo de um passo: "Chamar" já registra o atendimento (emitted → completed).
  * O status `called` não é mais gravado; um `called` antigo aparece como "Aguardando".
@@ -39,16 +40,4 @@ export function senhaStatusLabel(status: string, checkedIn = false): string {
 /** `called` legado vira `emitted`: quem foi "chamado" no fluxo antigo continua na fila. */
 export function normalizeLegacyStatus<T extends { status: string }>(item: T): T {
   return item.status === 'called' ? { ...item, status: 'emitted' } : item;
-}
-
-/**
- * Nome para a TV da sala de espera: primeiro nome + inicial do sobrenome ("Maria S."), para
- * não expor o nome completo do consulente em tela pública.
- */
-export function nomeParaTv(nome: string | null | undefined): string {
-  const partes = (nome ?? '').trim().split(/\s+/).filter(Boolean);
-  if (partes.length === 0) return '';
-  const primeiro = partes[0];
-  const ultimo = partes.length > 1 ? partes[partes.length - 1] : '';
-  return ultimo ? `${primeiro} ${ultimo.charAt(0).toUpperCase()}.` : primeiro;
 }

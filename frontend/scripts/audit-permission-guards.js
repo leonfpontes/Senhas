@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * Audita se toda tela admin usa usePermissions (RBAC de grupo).
+ * Audita se toda tela admin usa usePermissions (RBAC de grupo) e se toda tela da Área do
+ * Médium usa o MediumLayout (que faz o gate de área — AM-06, plano §6.6).
  *
  * Falha (exit 1) se encontrar página em src/pages/admin/ sem `usePermissions`,
- * fora da lista de exceções (telas de sistema/conta, sem módulo de RBAC).
+ * fora da lista de exceções (telas de sistema/conta, sem módulo de RBAC), ou página em
+ * src/pages/medium/ que não renderize `<MediumLayout` (sem exceções: o médium não tem grupo,
+ * quem barra a tela é o layout).
  *
  * Uso: node scripts/audit-permission-guards.js
  */
@@ -11,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'src', 'pages', 'admin');
+const MEDIUM_DIR = path.join(__dirname, '..', 'src', 'pages', 'medium');
 
 // Telas de sistema/conta sem feature de RBAC de grupo associada.
 const EXEMPT_FILES = new Set([
@@ -22,7 +26,6 @@ const EXEMPT_FILES = new Set([
   'impersonate.tsx', // ferramenta de super admin, mecanismo próprio
   path.join('permission-groups', 'index.tsx'), // gestão de RBAC em si, checagem is_admin própria
   path.join('permission-groups', '[id].tsx'),
-  path.join('porta', 'kiosk.tsx'), // tela pública de TV, sem sessão de usuário normal
   path.join('tickets', '[ticketId]', 'email.tsx'), // backend email_resend.py é is_admin-only, sem RBAC de grupo (ver CLAUDE.md)
   'suporte.tsx', // chat de suporte é canal universal, checagem própria de is_admin (ver CLAUDE.md)
 ]);
@@ -40,6 +43,15 @@ function listTsxFiles(dir, base = '') {
   return out;
 }
 
+function mediumViolations() {
+  if (!fs.existsSync(MEDIUM_DIR)) return [];
+  return listTsxFiles(MEDIUM_DIR).filter((rel) => {
+    const content = fs.readFileSync(path.join(MEDIUM_DIR, rel), 'utf8');
+    return !/import\s*\{[^}]*\bMediumLayout\b[^}]*\}\s*from\s*'@\/components\/medium\/MediumLayout'/.test(content) ||
+      !content.includes('<MediumLayout');
+  });
+}
+
 function main() {
   const files = listTsxFiles(ADMIN_DIR).filter((f) => !EXEMPT_FILES.has(f));
   const violations = [];
@@ -50,21 +62,35 @@ function main() {
       violations.push(rel);
     }
   }
+  const medium = mediumViolations();
 
-  if (violations.length === 0) {
-    console.log('OK: todas as telas admin usam usePermissions.');
+  if (violations.length === 0 && medium.length === 0) {
+    console.log('OK: todas as telas admin usam usePermissions e todas as telas da Área do Médium usam MediumLayout.');
     return 0;
   }
 
-  console.log('Telas admin SEM usePermissions (RBAC de grupo):\n');
-  for (const rel of violations) {
-    console.log(`  pages/admin/${rel}`);
+  if (violations.length > 0) {
+    console.log('Telas admin SEM usePermissions (RBAC de grupo):\n');
+    for (const rel of violations) {
+      console.log(`  pages/admin/${rel}`);
+    }
+    console.log(
+      '\nSe alguma destas é intencional (tela de sistema/conta), adicione o arquivo a ' +
+        'EXEMPT_FILES neste script.'
+    );
   }
-  console.log(
-    '\nSe alguma destas é intencional (tela de sistema/conta), adicione o arquivo a ' +
-      'EXEMPT_FILES neste script.'
-  );
+  if (medium.length > 0) {
+    console.log('\nTelas da Área do Médium SEM MediumLayout (gate de área):\n');
+    for (const rel of medium) {
+      console.log(`  pages/medium/${rel}`);
+    }
+    console.log("\nEnvolva a tela em <MediumLayout> (import de '@/components/medium/MediumLayout').");
+  }
   return 1;
 }
 
-process.exit(main());
+if (require.main === module) {
+  process.exit(main());
+}
+
+module.exports = { mediumViolations, main };

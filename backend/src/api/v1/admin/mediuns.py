@@ -26,6 +26,10 @@ from src.models import User, PermissionFeature
 from src.repositories.mediun_repo import MediumRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
+from src.services.corrente_grupos import remover_medium_dos_grupos
+from src.services.medium_area import sync_pure_medium_user
+from src.services.medium_convite import convites_em_aberto, revogar_convites_pendentes, status_acesso
+from src.api.v1.admin.mediuns_acesso import AcessoAreaResponse
 
 router = APIRouter(prefix="/api/v1/admin/mediuns", tags=["admin-mediuns"])
 logger = logging.getLogger(__name__)
@@ -147,6 +151,9 @@ class MediumResponse(BaseModel):
     cidade: Optional[str] = None
     observacoes: Optional[str] = None
     created_at: datetime
+    # Área do Médium (AM-03): só na listagem (GET /mediuns); a tela mostra a coluna
+    # "Acesso à Área" só com a feature `area_medium` e MEDIUNS:edit.
+    acesso_area: Optional[AcessoAreaResponse] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -206,11 +213,18 @@ async def list_mediuns(
     if not current_user.is_operator_or_admin:
         raise InsufficientPermissionsError("Admin required")
     repo = MediumRepository(db)
-    return await repo.list(
+    mediuns = await repo.list(
         current_user.tenant_id,
         search=search,
         include_inactive=include_inactive,
     )
+    abertos = await convites_em_aberto(db, current_user.tenant_id, [m.id for m in mediuns])
+    return [
+        MediumResponse.model_validate(m).model_copy(
+            update={"acesso_area": AcessoAreaResponse(**status_acesso(m, abertos.get(m.id)))}
+        )
+        for m in mediuns
+    ]
 
 
 @router.post("", response_model=MediumResponse, status_code=status.HTTP_201_CREATED, dependencies=[_GATE_PLANO, Depends(require_group_permission(PermissionFeature.MEDIUNS, "insert"))])
@@ -344,6 +358,17 @@ async def update_medium(
     elif medium.mensalidade_isento and not was_isento:
         await _cancelar_contas_futuras(db, current_user.tenant_id, medium.id, None)
 
+    # Área do Médium (AM-02, D-08): inativar desativa a conta `medium` pura ligada
+    # (reativar devolve); operador/admin ligado só perde/recupera a Área.
+    if was_active != medium.is_active:
+        await sync_pure_medium_user(db, current_user.tenant_id, medium)
+    # Convite em aberto (AM-03) não vale para médium inativado nem para o e-mail antigo.
+    if (was_active and not medium.is_active) or "email" in changes:
+        await revogar_convites_pendentes(db, current_user.tenant_id, medium.id)
+    # Grupos da corrente (AM-23): inativo sai de todos os grupos (reativar não devolve).
+    if was_active and not medium.is_active:
+        await remover_medium_dos_grupos(db, current_user.tenant_id, medium.id)
+
     await db.commit()
     await db.refresh(medium)
 
@@ -377,6 +402,12 @@ async def delete_medium(
 
     medium.deleted_at = datetime.now(timezone.utc)
     await _cancelar_contas_futuras(db, current_user.tenant_id, medium.id, None)
+    # Área do Médium (AM-02, D-08): a conta `medium` pura ligada é desativada;
+    # operador/admin ligado só perde a Área (require_medium exige médium não excluído).
+    await sync_pure_medium_user(db, current_user.tenant_id, medium)
+    await revogar_convites_pendentes(db, current_user.tenant_id, medium.id)
+    # Grupos da corrente (AM-23): excluído sai de todos os grupos.
+    await remover_medium_dos_grupos(db, current_user.tenant_id, medium.id)
     await db.commit()
 
     audit = AuditService(db)

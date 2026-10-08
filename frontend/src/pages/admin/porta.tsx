@@ -60,6 +60,7 @@ import { Toggle } from '@/components/ui/toggle';
 import { cn } from '@/lib/utils';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { usePermissions } from '@/hooks/usePermissions';
+import { ChamadaDaGiraButton } from '@/components/admin/presenca/ChamadaDaGiraButton';
 import { giraLabel, pickTodayGira, useGiraContext } from '@/components/admin/GiraContext';
 import { PORTA_WALK_IN_EVENT } from '@/components/admin/MobileTabBar';
 import PortaOfflineNotice from '@/components/admin/PortaOfflineNotice';
@@ -75,7 +76,6 @@ const MUTE_STORAGE_KEY = 'girahub:porta-som-mudo';
 interface MediumOption {
   id: string;
   nome: string;
-  is_atendimento: boolean;
 }
 interface Gira {
   id: string;
@@ -420,16 +420,19 @@ function PortaContent() {
     }
   };
 
+  // Sugestões do AttendModal pela própria Porta (PORTA:view): o porteiro sem acesso a Médiuns
+  // também escolhe da lista, em vez de digitar nomes com grafias diferentes (T-05).
   const loadMediunOptions = async () => {
     try {
       const [mRes, cRes] = await Promise.all([
-        apiClient.get<MediumOption[]>('/api/v1/admin/mediuns/options?only_atendimento=true'),
-        apiClient.get<MediumOption[]>('/api/v1/admin/mediuns/options'),
+        apiClient.get<MediumOption[]>('/api/v1/admin/door/mediuns-options?only_atendimento=true'),
+        apiClient.get<MediumOption[]>('/api/v1/admin/door/mediuns-options?only_atendimento=false'),
       ]);
       setMediumOptions(Array.isArray(mRes?.data) ? mRes.data : []);
       setCamboneOptions(Array.isArray(cRes?.data) ? cRes.data : []);
-    } catch {
-      /* opcional */
+    } catch (err) {
+      console.error('Erro ao carregar médiuns para a Porta:', err);
+      toast.error('Não foi possível carregar a lista de médiuns. Dá para digitar o nome ao chamar.');
     }
   };
 
@@ -735,6 +738,8 @@ function PortaContent() {
           >
             {muted ? <VolumeX className="size-5" aria-hidden /> : <Volume2 className="size-5" aria-hidden />}
           </Toggle>
+          {/* AM-17: chamada da corrente pela porta (PORTA:edit ou ESCALAS:edit; some sem o plano). */}
+          {selectedGiraId && <ChamadaDaGiraButton giraId={selectedGiraId} variant="ghost" className="h-12 shrink-0" />}
           {selectedGiraId && (
             <Button asChild variant="ghost" size="icon-touch" aria-label="Abrir modo TV" title="Modo TV">
               <a href={`/admin/porta/kiosk?gira=${encodeURIComponent(selectedGiraId)}`} target="_blank" rel="noopener noreferrer">

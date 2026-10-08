@@ -18,6 +18,8 @@ import React, {
 
 import { apiClient } from '@/services/api_client';
 import { applyBrand } from '@/lib/brand';
+import { isAdminRoute, knownWithoutAdminArea, readStoredUser } from '@/lib/areas';
+import { useCurrentPathname } from '@/hooks/useAdminDataEnabled';
 
 // Igual ao default do backend (TenantConfig.primary_color) e ao theme-color do _document.
 const DEFAULT_PRIMARY = '#4f46e5';
@@ -154,9 +156,18 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
   ({ children }) => {
     const [tenantConfig, setTenantConfig] = useState<TenantThemeConfig | undefined>(undefined);
     const [isBrandingReady, setIsBrandingReady] = useState(false);
+    // O branding vem de /api/v1/admin/tenant/branding: só no painel e para quem tem o painel
+    // (AM-04). Na Área do Médium a marca vem de /api/v1/medium/me (MediumProvider).
+    const pathname = useCurrentPathname();
+    const brandingRoute = pathname === null || isAdminRoute(pathname);
 
     const refreshBranding = useCallback(async () => {
       if (typeof window === 'undefined') {
+        return;
+      }
+
+      if (!brandingRoute || knownWithoutAdminArea(readStoredUser())) {
+        setIsBrandingReady(true);
         return;
       }
 
@@ -179,7 +190,7 @@ export const TenantAwareThemeProvider: React.FC<TenantAwareThemeProviderProps> =
       } finally {
         setIsBrandingReady(true);
       }
-    }, []);
+    }, [brandingRoute]);
 
     useEffect(() => {
       void refreshBranding();

@@ -109,6 +109,11 @@ export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   mediuns: 'basic',
   relatorio_gira: 'basic',
   mensalidade_mediun: 'basic',
+  // Área do Médium (AM-02, decisão D-01 de 2026-10-07): a partir do Basic.
+  area_medium: 'basic',
+  // Atividades da casa (AM-08, D-10): no Basic a casa marca quem veio; escalas (D-02) no Pro.
+  atividades_corrente: 'basic',
+  escalas: 'pro',
   email_transacional: 'pro',
   tema_personalizado: 'pro',
   analytics_basico: 'pro',
@@ -135,8 +140,12 @@ export interface FeatureCatalogItem {
  * Recursos de `PlanFeatures` que NÃO aparecem no quadro de planos (cards, comparativo, landing,
  * tabela da plataforma). Só exibição — gate e funcionamento continuam iguais:
  * - `bulk_operations` (ações em lote): vale em todos os planos, mas não é diferencial;
- * - `export_csv` (exportar planilhas): segue no Pro+, mas o segmento não usa — não vende;
- * - `analytics_avancado` e `suporte_prioritario`: nada implementado por trás.
+ * - `export_csv` (exportar listagens — PDF das senhas, CSV do estoque): segue no Pro+, mas não vende;
+ * - `analytics_avancado` e `suporte_prioritario`: nada implementado por trás;
+ * - `area_medium` (Área do Médium, Basic+): por enquanto fora do quadro — o texto de venda
+ *   espera o estudo de experiência (AM-00) e entra com a divulgação (AM-24);
+ * - `atividades_corrente` (Basic+) e `escalas` (Pro+), da Área do Médium (AM-08/AM-25): fora do
+ *   quadro enquanto a Área está em piloto.
  * Os campos continuam no backend (catálogo de `PlanFeatures`).
  */
 export const UNSOLD_FEATURES: readonly PlanFeatureKey[] = [
@@ -144,6 +153,9 @@ export const UNSOLD_FEATURES: readonly PlanFeatureKey[] = [
   'export_csv',
   'analytics_avancado',
   'suporte_prioritario',
+  'area_medium',
+  'atividades_corrente',
+  'escalas',
 ];
 
 /** Ordem e rótulos (sem jargão) do comparativo e dos cards. */

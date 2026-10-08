@@ -59,6 +59,9 @@ export interface CobrancaItem {
   valor_pago: number | null;
   comprovante_filename: string | null;
   observacao: string | null;
+  /** Comprovante enviado pelo médium na Área, esperando a casa conferir (AM-12). */
+  comprovanteParaConferir?: boolean;
+  comprovanteEnviadoEm?: string | null;
 }
 
 export interface CobrancaPagamento {
@@ -76,7 +79,7 @@ export interface CobrancaKpis {
   emAberto: number;
 }
 
-export type CobrancaFiltro = 'TODOS' | 'PENDENTE' | 'PAGO' | 'ISENTO';
+export type CobrancaFiltro = 'TODOS' | 'PENDENTE' | 'PAGO' | 'ISENTO' | 'CONFERIR';
 
 export interface CobrancaMensalProps {
   /** Mês de referência "YYYY-MM". */
@@ -96,6 +99,11 @@ export interface CobrancaMensalProps {
   /** Chamado uma vez após salvar ou após o lote — a tela recarrega os dados. */
   onChanged?: () => void | Promise<void>;
   onDownloadComprovante?: (item: CobrancaItem) => void | Promise<void>;
+  /**
+   * Conferir o comprovante enviado pelo médium (AM-12). Com ele, a tabela ganha o filtro e o
+   * selo "Comprovante enviado" e o botão "Conferir" nas linhas marcadas.
+   */
+  onConferir?: (item: CobrancaItem) => void;
   emptyMessage?: string;
   showSearch?: boolean;
   showFilter?: boolean;
@@ -173,6 +181,11 @@ const STATUS_CLASS: Record<CobrancaStatusEfetivo, string> = {
   INADIMPLENTE: 'border-transparent bg-destructive text-destructive-foreground',
 };
 
+/** Selo "Comprovante enviado" (médium mandou pela Área, falta a casa conferir — AM-12). */
+export function ComprovanteEnviadoBadge() {
+  return <Badge className="border-transparent bg-info/15 text-[0.65rem] text-info-strong">Comprovante enviado</Badge>;
+}
+
 export function CobrancaStatusBadge({ status }: { status: CobrancaStatusEfetivo }) {
   return <Badge className={STATUS_CLASS[status]}>{STATUS_LABEL[status]}</Badge>;
 }
@@ -207,6 +220,7 @@ export function CobrancaMensal({
   onRegistrar,
   onChanged,
   onDownloadComprovante,
+  onConferir,
   emptyMessage,
   showSearch = true,
   showFilter = true,
@@ -243,7 +257,11 @@ export function CobrancaMensal({
       const efetivo = cobrancaStatusEfetivo(i, mes, diaVencimento, hoje);
       const matchStatus =
         filtro === 'TODOS' ||
-        (filtro === 'PENDENTE' ? efetivo === 'PENDENTE' || efetivo === 'INADIMPLENTE' : efetivo === filtro);
+        (filtro === 'CONFERIR'
+          ? Boolean(i.comprovanteParaConferir)
+          : filtro === 'PENDENTE'
+            ? efetivo === 'PENDENTE' || efetivo === 'INADIMPLENTE'
+            : efetivo === filtro);
       const matchSearch = !term || i.nome.toLowerCase().includes(term);
       return matchStatus && matchSearch;
     });
@@ -329,6 +347,7 @@ export function CobrancaMensal({
           <div className="flex min-w-0 flex-col">
             <span className="flex flex-wrap items-center gap-1.5 font-medium">
               <span className="truncate">{row.original.nome}</span>
+              {onConferir && row.original.comprovanteParaConferir && <ComprovanteEnviadoBadge />}
               {row.original.isentoPermanente && (
                 <Badge variant="outline" className="text-[0.65rem]">
                   isenção permanente
@@ -389,13 +408,26 @@ export function CobrancaMensal({
           ),
       },
     ];
-    if (canEdit) {
+    if (canEdit || onConferir) {
       cols.push({
         id: 'acoes',
         header: '',
         enableSorting: false,
         meta: { align: 'right' },
         cell: ({ row }) => (
+          <div className="flex justify-end gap-1">
+            {onConferir && row.original.comprovanteParaConferir && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label={`Conferir comprovante de ${row.original.nome}`}
+                onClick={() => onConferir(row.original)}
+              >
+                Conferir
+              </Button>
+            )}
+            {canEdit && (
           <Button
             type="button"
             variant="ghost"
@@ -406,12 +438,14 @@ export function CobrancaMensal({
             <Pencil />
             Registrar
           </Button>
+            )}
+          </div>
         ),
       });
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mes, diaVencimento, hoje, vencimentoLabel, canEdit, onDownloadComprovante, valorPadrao]);
+  }, [mes, diaVencimento, hoje, vencimentoLabel, canEdit, onDownloadComprovante, onConferir, valorPadrao]);
 
   const renderCard = (item: CobrancaItem, ctx: { selected: boolean; toggleSelected: () => void }) => {
     const efetivo = cobrancaStatusEfetivo(item, mes, diaVencimento, hoje);
@@ -430,6 +464,7 @@ export function CobrancaMensal({
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="flex flex-wrap items-center gap-1.5 font-medium">
               <span className="truncate">{item.nome}</span>
+              {onConferir && item.comprovanteParaConferir && <ComprovanteEnviadoBadge />}
               {item.isentoPermanente && (
                 <Badge variant="outline" className="text-[0.65rem]">
                   isenção permanente
@@ -448,8 +483,13 @@ export function CobrancaMensal({
           <dt className="text-muted-foreground">Valor pago</dt>
           <dd className="text-right">{item.status === 'PAGO' ? formatBRL(item.valor_pago) : '—'}</dd>
         </dl>
-        {(canEdit || item.comprovante_filename) && (
+        {(canEdit || item.comprovante_filename || (onConferir && item.comprovanteParaConferir)) && (
           <div className="flex justify-end gap-2">
+            {onConferir && item.comprovanteParaConferir && (
+              <Button type="button" variant="outline" size="sm" onClick={() => onConferir(item)}>
+                Conferir
+              </Button>
+            )}
             {item.comprovante_filename && onDownloadComprovante && (
               <Button type="button" variant="outline" size="sm" onClick={() => onDownloadComprovante(item)}>
                 <Download />
@@ -496,6 +536,7 @@ export function CobrancaMensal({
                 <SelectItem value="PENDENTE">Pendentes e inadimplentes</SelectItem>
                 <SelectItem value="PAGO">Pagos</SelectItem>
                 <SelectItem value="ISENTO">Isentos</SelectItem>
+                {onConferir && <SelectItem value="CONFERIR">Comprovante enviado</SelectItem>}
               </SelectContent>
             </Select>
           )}

@@ -28,6 +28,16 @@ def _not_impersonated_request():
     return req
 
 
+def _login_db(session, candidates, fallback=None):
+    """1ª query do login: contas ativas (scalars().all()); a seguinte, se houver,
+    é a conta única do #85 (scalar_one_or_none) — ver login.active_login_accounts_stmt."""
+    first = MagicMock()
+    first.scalars.return_value.all.return_value = candidates
+    second = MagicMock()
+    second.scalar_one_or_none.return_value = fallback
+    session.execute.side_effect = [first, second]
+
+
 @pytest.fixture(autouse=True)
 def _bypass_rate_limit():
     """Disable slowapi rate-limit enforcement for all tests in this module.
@@ -64,15 +74,18 @@ class TestLoginRequest:
 # ── Login endpoint ───────────────────────────────────────────────────────────
 
 class TestLoginEndpoint:
+    # Áreas (AM-02) têm teste próprio (test_area_medium.py); aqui o banco é um mock genérico.
+    @patch(
+        "src.api.v1.auth.login.compute_areas",
+        new=AsyncMock(return_value={"admin": True, "medium": None}),
+    )
     @patch("src.api.v1.auth.login.settings.DEBUG", False)
     @patch("src.api.v1.auth.login.log_security_event")
     @patch("src.api.v1.auth.login.create_refresh_token", return_value="refresh-jwt")
     @patch("src.api.v1.auth.login.create_access_token", return_value="access-jwt")
     @patch("src.api.v1.auth.login.verify_password", return_value=True)
     async def test_successful_login(self, mock_verify, mock_access, mock_refresh, mock_log, admin_user, mock_db_session):
-        result_mock = MagicMock()
-        result_mock.scalar_one_or_none.return_value = admin_user
-        mock_db_session.execute.return_value = result_mock
+        _login_db(mock_db_session, [admin_user])
 
         request = LoginRequest(
             email="admin@test.com",
@@ -85,6 +98,7 @@ class TestLoginEndpoint:
         assert result.access_token == "access-jwt"
         assert result.token_type == "bearer"
         assert result.user["email"] == "admin@test.com"
+        assert result.areas == {"admin": True, "medium": None}
         assert response.set_cookie.call_count == 3
         response.set_cookie.assert_any_call(
             key="access_token", value="access-jwt", httponly=True,
@@ -97,9 +111,7 @@ class TestLoginEndpoint:
 
     @patch("src.api.v1.auth.login.log_security_event")
     async def test_user_not_found_raises(self, mock_log, mock_db_session):
-        result_mock = MagicMock()
-        result_mock.scalar_one_or_none.return_value = None
-        mock_db_session.execute.return_value = result_mock
+        _login_db(mock_db_session, [], None)
 
         request = LoginRequest(
             email="noone@test.com",
@@ -116,9 +128,7 @@ class TestLoginEndpoint:
         user.is_active = False
         user.email = "inactive@test.com"
 
-        result_mock = MagicMock()
-        result_mock.scalar_one_or_none.return_value = user
-        mock_db_session.execute.return_value = result_mock
+        _login_db(mock_db_session, [], user)
 
         request = LoginRequest(
             email="inactive@test.com",
@@ -131,9 +141,7 @@ class TestLoginEndpoint:
     @patch("src.api.v1.auth.login.log_security_event")
     @patch("src.api.v1.auth.login.verify_password", return_value=False)
     async def test_wrong_password_raises(self, mock_verify, mock_log, admin_user, mock_db_session):
-        result_mock = MagicMock()
-        result_mock.scalar_one_or_none.return_value = admin_user
-        mock_db_session.execute.return_value = result_mock
+        _login_db(mock_db_session, [admin_user])
 
         request = LoginRequest(
             email="admin@test.com",
@@ -210,6 +218,27 @@ class TestRefreshEndpoint:
 
         with patch("src.security.jwt.decode_refresh_token", return_value=payload), \
              patch("src.services.session_service.rotate_session", new=AsyncMock(return_value=rotation_result)):
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_token(_mock_request(cookies={"refresh_token": "raw"}), MagicMock(), mock_db_session)
+        assert exc_info.value.status_code == 401
+
+    async def test_soft_deleted_user_raises_401(self, admin_user, mock_db_session):
+        from fastapi import HTTPException
+
+        payload = MagicMock(
+            sub=str(admin_user.id),
+            iat=datetime.now(timezone.utc) - timedelta(minutes=5),
+            session_id=str(uuid.uuid4()),
+            jti=str(uuid.uuid4()),
+        )
+        admin_user.sessions_revoked_at = None
+        admin_user.deleted_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = admin_user
+        mock_db_session.execute.return_value = result_mock
+
+        with patch("src.security.jwt.decode_refresh_token", return_value=payload):
             with pytest.raises(HTTPException) as exc_info:
                 await refresh_token(_mock_request(cookies={"refresh_token": "raw"}), MagicMock(), mock_db_session)
         assert exc_info.value.status_code == 401

@@ -1,8 +1,8 @@
 /**
- * Helpers das jornadas de operação: número/status da senha, nome na TV, gira de hoje em
+ * Helpers das jornadas de operação: número/status da senha, gira de hoje em
  * andamento, data do gráfico do dashboard e texto do WhatsApp por gira.
  */
-import { nomeParaTv, normalizeLegacyStatus, numeroDaSenha, senhaStatusLabel } from '@/components/admin/senhaFormat';
+import { normalizeLegacyStatus, numeroDaSenha, senhaStatusLabel } from '@/components/admin/senhaFormat';
 import { pickTodayGira, type GiraSummary } from '@/components/admin/GiraContext';
 import { buildWhatsAppShareUrl } from '@/components/admin/ShareLinkDialog';
 
@@ -19,12 +19,6 @@ describe('senhaFormat', () => {
     expect(senhaStatusLabel('called')).toBe('Aguardando');
     expect(normalizeLegacyStatus({ id: 'x', status: 'called' }).status).toBe('emitted');
     expect(normalizeLegacyStatus({ id: 'x', status: 'completed' }).status).toBe('completed');
-  });
-
-  it('na TV aparece só o primeiro nome e a inicial do sobrenome', () => {
-    expect(nomeParaTv('Maria da Silva Souza')).toBe('Maria S.');
-    expect(nomeParaTv('  joão  ')).toBe('joão');
-    expect(nomeParaTv(null)).toBe('');
   });
 });
 

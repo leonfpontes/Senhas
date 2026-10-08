@@ -12,8 +12,10 @@ Login Request (email + password)
     ▼
 POST /api/v1/auth/login
     │
-    ├── Busca user por email + tenant
-    ├── Verifica password com bcrypt
+    ├── Busca as contas ATIVAS com o e-mail (uma por terreiro; máx. 5, mais antigas primeiro)
+    ├── Verifica password com bcrypt em cada uma (sem conta: 1 verificação falsa)
+    ├── Senha confere em mais de uma → 200 choose_account + selection_token (SEM cookies)
+    │       └── POST /api/v1/auth/login/select {selection_token, user_id} → segue abaixo
     ├── Gera access_token (JWT, 24h)
     ├── Gera refresh_token (JWT, 30d)
     ├── Seta cookie HttpOnly: access_token
@@ -42,12 +44,32 @@ POST /api/v1/auth/login
 {
   "sub": "user-uuid",
   "tenant_id": "tenant-uuid",
-  "email": "admin@terreiro.com",
-  "role": "ADMIN",
+  "role": "admin",
   "iat": 1709740800,
-  "exp": 1709827200
+  "exp": 1709827200,
+  "type": "access"
 }
 ```
+
+- `tenant_id` é `null` para `super_admin`.
+- Impersonação acrescenta `"impersonated_by": "<super-admin-uuid>"` e expira em 1h; o token
+  continua com `"type": "access"` e vai como `Authorization: Bearer` (sessionStorage).
+- Todo access token sai de `create_access_token` (`backend/src/security/jwt.py`) — login,
+  `/auth/refresh`, impersonação, reativação de conta e cadastro (`issue_session`). Nenhum outro
+  módulo chama `jwt.encode` (travado em `test_security_jwt.py::test_so_security_jwt_assina_tokens`).
+
+#### Claim `type` — allowlist (T-02, out/2026)
+
+`decode_token` — o que o `jwt_middleware` usa para autenticar — aceita **só** `type == "access"`.
+`refresh`, `account_select` (AM-05) e qualquer outro tipo (os futuros `mfa_pending`, convite...)
+dão 401. Tipo novo de JWT deve ter `type` próprio e decoder próprio, nunca passar por `decode_token`.
+
+**Janela de compatibilidade:** access tokens emitidos antes do T-02 não têm `type`. Um token
+**sem** `type` só é aceito se `iat < LEGACY_UNTYPED_ACCESS_CUTOFF` (**2026-10-08T00:00Z**) **e**
+agora `< iat + ACCESS_TOKEN_EXPIRE_HOURS` — os tokens legados morrem pelo TTL normal e, a partir
+de corte + TTL (2026-10-09T00:00Z com o TTL padrão de 24h), o decode é allowlist pura. Token sem
+`type` recusado vira 401 e o front renova sozinho via `/auth/refresh` (sem deslogar). O ramo
+legado (`_legacy_untyped_access_allowed`) pode ser removido a partir de 2026-10-10 (TODO no código).
 
 ### Refresh Token
 
@@ -58,6 +80,26 @@ POST /api/v1/auth/login
 | Transporte | HTTP-only cookie (`SameSite=Strict`) |
 
 Usado para renovar o access token sem re-login.
+
+### Token de escolha de terreiro (`account_select`, AM-05)
+
+| Campo | Valor |
+|-------|-------|
+| Algoritmo | HS256 |
+| Expiração | 5 minutos (`ACCOUNT_SELECT_TOKEN_TTL`) |
+| Transporte | Corpo da resposta do `/auth/login` → corpo do `/auth/login/select` (nunca cookie) |
+
+```json
+{ "type": "account_select", "uids": ["user-uuid-1", "user-uuid-2"], "remember": true, "iat": 0, "exp": 0 }
+```
+
+- Sai só de `create_account_select_token` e só é lido por `decode_account_select_token`
+  (`backend/src/security/jwt.py`). Sem `sub`/`role`/`tenant_id`: não carrega identidade de acesso.
+- `decode_token` e `decode_refresh_token` o recusam pelo `type` (testes em
+  `tests/unit/test_am05_login_multi.py` e `tests/integration_pg/test_am05_login_multi.py`).
+- `uids` = só as contas cuja senha conferiu; `remember` = o "Lembrar-me" do login.
+- Não é de uso único (pode escolher de novo dentro dos 5 min); vale até expirar, desde que a conta
+  continue ativa e sem `sessions_revoked_at` posterior ao `iat` (troca/redefinição de senha).
 
 ---
 
@@ -80,9 +122,10 @@ Usado para renovar o access token sem re-login.
   "user": {
     "id": "user-uuid",
     "email": "admin@terreiro.com",
-    "role": "ADMIN",
+    "role": "admin",
     "tenant_id": "tenant-uuid"
-  }
+  },
+  "areas": { "admin": true, "medium": null }
 }
 
 // Response 401
@@ -92,6 +135,65 @@ Usado para renovar o access token sem re-login.
   "message": "Invalid credentials"
 }
 ```
+
+**Mesmo e-mail em mais de um terreiro (AM-05).** O usuário é único por `(tenant_id, email)`, então
+uma pessoa pode ter conta em vários terreiros (admin da própria casa e médium de outra, por
+exemplo). O login confere a senha em **todas** as contas ativas com o e-mail (usuário ativo e não
+excluído, terreiro sem `self_deactivated_at`/`deleted_at`), no máximo **5**, mais antigas primeiro
+(`login.active_login_accounts_stmt`, `MAX_LOGIN_ACCOUNTS`):
+
+- nenhuma conta ativa → regra de conta única (`user_by_login_email_stmt`): conta inativa → 401
+  genérico; terreiro desativado pelo dono → 401 `TENANT_DEACTIVATED` só depois de conferir a senha;
+- senha não confere em nenhuma → 401 "Credenciais inválidas";
+- confere em **uma** → sessão nela, como sempre;
+- confere em **mais de uma** → 200 sem cookies:
+
+```json
+{
+  "choose_account": true,
+  "selection_token": "eyJ...",
+  "options": [
+    {
+      "user_id": "user-uuid",
+      "terreiro_nome": "Casa da Ana",
+      "terreiro_slug": "casa-da-ana",
+      "logo_url": "https://girahub.com.br/api/v1/public/tenant/<id>/logo",
+      "areas": { "admin": true, "medium": false }
+    }
+  ]
+}
+```
+
+Só entram em `options` os terreiros cuja senha conferiu (quem não tem a senha não descobre em quais
+terreiros o e-mail existe). **Custo/tempo:** uma verificação bcrypt por conta ativa (máx. 5);
+e-mail inexistente faz 1 verificação falsa (`DUMMY_BCRYPT_HASH`), o mesmo custo de senha errada
+numa conta só. E-mail com várias contas custa uma verificação por conta — o tempo revela que há
+mais de uma conta, nunca quais.
+
+### POST /api/v1/auth/login/select
+
+Pública (`public_paths` do `jwt_middleware`) e com rate limit de 10/min por IP.
+
+```json
+// Request
+{ "selection_token": "eyJ...", "user_id": "user-uuid" }
+
+// Response 200 — igual ao login direto: 3 cookies (no modo do "Lembrar-me" do login) + user + areas
+
+// Response 401 — token inválido/expirado, user_id fora da lista, conta que deixou de estar ativa
+// ou sessões revogadas depois da emissão do token
+{ "detail": { "error_code": "SELECTION_INVALID", "message": "O tempo para escolher o terreiro acabou. ..." } }
+```
+
+No front, o `/login` mostra "Em qual terreiro você quer entrar?" (`components/auth/AccountChoiceList`)
+e chama `services/authSession.selectAccount` (com `skipAutoLogout`: o 401 aqui é "escolha
+expirada", não sessão vencida); a rota depois segue `completeLogin` pelas `areas`.
+
+### POST /api/v1/auth/forgot-password (várias contas)
+
+Resposta sempre genérica. Com uma conta ativa, o e-mail de sempre. Com mais de uma (AM-05), **um**
+e-mail listando cada terreiro com o link da própria conta — cada conta ganha o seu
+`reset_token_hash`, e o `/auth/reset-password` (por token) redefine só aquela conta.
 
 ### POST /api/v1/auth/refresh
 
@@ -132,13 +234,28 @@ Usado para renovar o access token sem re-login.
 
 ## RBAC — Papéis e Permissões
 
-### 3 Papéis
+### Papéis
 
 | Papel | Descrição | Escopo |
 |-------|-----------|--------|
 | **SUPER_ADMIN** | Administrador da plataforma | Cross-tenant, gestão global |
 | **ADMIN** | Administrador do terreiro | Tenant-specific, gestão completa |
 | **OPERATOR** | Operador do terreiro | Tenant-specific, operações limitadas |
+| **MEDIUM** (`medium`, AM-02) | Conta só da Área do Médium | Tenant-specific, **sem painel**: 403 em todo `/api/v1/admin/*` (`require_backoffice`) e `/api/v1/platform/*` |
+
+### Áreas da conta (AM-02)
+
+O login, `GET /auth/me` e `GET /auth/profile` devolvem `areas: {"admin": bool, "medium": {medium_id, nome} | null}`,
+calculadas no servidor a cada chamada (nunca no JWT — o vínculo pode mudar a qualquer momento):
+
+- `admin`: papel `admin` ou `operator` (super admin usa `/platform`).
+- `medium`: médium ativo e não excluído do mesmo tenant com `mediuns.user_id = user.id` **e** plano
+  efetivo com `area_medium` (Basic+). Operador/admin ligado a um médium tem as duas áreas; o papel
+  `medium` é só para quem não tem painel.
+
+A Área do Médium usa `/api/v1/medium/*` com `require_medium` (`MediumContext`): rotas "minhas",
+sem `medium_id` da requisição. As rotas de `/auth/*` (perfil, trocar senha, logout, me) seguem
+abertas a qualquer usuário autenticado, inclusive `medium`.
 
 ### Matriz de Permissões
 
@@ -150,7 +267,7 @@ Usado para renovar o access token sem re-login.
 | Ver tickets | ✅ | ✅ | ✅ |
 | Marcar ticket como usado | ✅ | ✅ | ✅ |
 | Bulk operations (tickets) | ❌ | ✅ | ✅ |
-| Exportar CSV | ❌ | ✅ | ✅ |
+| Exportar PDF das senhas | ❌ | ✅ | ✅ |
 | Ver analytics | ✅ | ✅ | ✅ |
 | Ver audit trail | ❌ | ✅ | ✅ |
 | Configurar tenant | ❌ | ✅ | ✅ |
@@ -182,6 +299,17 @@ async def platform_endpoint(
 ```
 
 ---
+
+## Quando um token deixa de valer antes de expirar
+
+`get_current_user` (toda rota autenticada) e `POST /auth/refresh` carregam o usuário do banco e recusam com 401:
+- conta inativa (`is_active = false`);
+- conta excluída (`deleted_at` preenchido);
+- token emitido antes de `sessions_revoked_at` (troca de senha, "sair de todos os dispositivos" e exclusão).
+
+Excluir um usuário (`User.soft_delete()`, usado pela tela Usuários e pela plataforma) marca `deleted_at`, desativa a
+conta e grava `sessions_revoked_at`. O corte vale na próxima requisição, sem esperar as 24 h do access token, e
+continua valendo se a conta for recriada com o mesmo e-mail.
 
 ## Middleware de Autenticação
 
@@ -262,10 +390,10 @@ def verify_password(password: str, hashed: str) -> bool:
 | access_token | Cookie `HttpOnly; Secure; SameSite=Strict` — protegido contra XSS |
 | auth_state | Cookie não-HttpOnly `auth_state=1` — permite JS detectar login sem expor token |
 | refresh_token | Cookie `HttpOnly; Secure; SameSite=Strict`; payload com `type: refresh` |
-| Separação de tipos | `decode_refresh_token` rejeita access tokens; `decode_token` rejeita refresh tokens |
+| Separação de tipos | `decode_token` é allowlist: só `type: access` (tokens sem `type` só na janela de compatibilidade do T-02); `decode_refresh_token` exige `type: refresh` |
 | CSRF | Mitigado por `SameSite=Strict` — não requer CSRF token separado |
 | CORS | Origins configuráveis via `.env` |
-| Role hierarchy | `OPERATOR=0 < ADMIN=1 < SUPER_ADMIN=2` — hierarquia explícita em `dependencies.py` |
+| Role hierarchy | `MEDIUM=-1 < OPERATOR=0 < ADMIN=1 < SUPER_ADMIN=2` — hierarquia explícita em `dependencies.py`; `medium` fica fora do back-office (`require_backoffice` no `admin_router`) |
 | Audit trail | Toda operação de login/logout/refresh registrada |
 | Monitoramento | Erros capturados via Sentry (backend + frontend) |
 

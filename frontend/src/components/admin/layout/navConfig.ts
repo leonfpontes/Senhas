@@ -16,6 +16,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   ArrowDownUp,
   BookOpen,
+  CalendarCheck,
   CalendarDays,
   ChartColumn,
   ChartLine,
@@ -27,6 +28,7 @@ import {
   Headset,
   HeartHandshake,
   LayoutDashboard,
+  Megaphone,
   Package,
   QrCode,
   Receipt,
@@ -166,10 +168,26 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     if (can('mediuns') && view('mediuns')) {
       corrente.push(link('/admin/mediuns', 'Médiuns', Flower2, { badge: birthdayCount, keywords: ['cambones', 'aniversariantes'] }));
     }
+    // Grupos da corrente (AM-23): grupo de permissão `mediuns`, só com `area_medium` (piloto, sem oferta de plano).
+    if (can('area_medium') && view('mediuns')) {
+      corrente.push(link('/admin/mediuns/grupos', 'Grupos da corrente', Users, { keywords: ['g1', 'g2', 'ogãs', 'escala', 'faxina'] }));
+    }
     if (can('associados') && view('associados')) corrente.push(link('/admin/associados', 'Associados', HeartHandshake));
     const planMensalidade = can('mensalidade_mediun') || can('mensalidade_associado');
     if (planMensalidade && view('financeiro')) {
       corrente.push(link('/admin/financeiro/mensalidades', 'Mensalidades', Receipt, { keywords: ['pagamentos', 'contribuição'] }));
+    }
+    // Avisos da Área do Médium (AM-09): só com `area_medium` (plano + chave do piloto) — sem oferta de plano.
+    if (can('area_medium') && view('comunicados')) {
+      corrente.push(link('/admin/comunicados', 'Avisos', Megaphone, { keywords: ['comunicados', 'recados', 'área do médium', 'quem leu'] }));
+    }
+    // Atividades da casa (AM-08): grupo `escalas`, só com `area_medium` (piloto) — a tela mostra PlanLocked sem `atividades_corrente`.
+    if (can('area_medium') && view('escalas')) {
+      corrente.push(
+        link('/admin/atividades', 'Atividades e escalas', CalendarCheck, {
+          keywords: ['faxina', 'ritual', 'reunião', 'desenvolvimento', 'tipos de atividade', 'funções', 'escala'],
+        }),
+      );
     }
 
     const casa: NavEntry[] = [];
@@ -203,7 +221,8 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
         ],
       });
     }
-    if (can('site_builder') && view('cursos_presenciais')) {
+    // Mesmo gate da tela (plano site_builder + grupo site — separado de Cursos desde o T-06).
+    if (can('site_builder') && view('site')) {
       casa.push(link('/admin/meu-site', 'Site do terreiro', Globe, { keywords: ['meu site', 'página pública'] }));
     }
     // Mesmo gate da tela (plano site_builder + grupo cursos_presenciais).

@@ -12,12 +12,17 @@ a partir dos payloads literais de `_PAYLOADS`, no mesmo formato que
 Além disso, `_assinar_na_mao` monta um JWT HS256 só com a stdlib (base64url +
 hmac/sha256), sem biblioteca JWT nenhuma — prova que o decode depende só do
 formato padrão (RFC 7519), não de detalhe de implementação.
+
+T-02: os access tokens da era jose não têm claim `type`. Eles só passam pela
+janela de compatibilidade (emitidos antes de LEGACY_UNTYPED_ACCESS_CUTOFF e
+dentro do TTL de access contado do `iat`), então o relógio da janela fica
+congelado em IAT + 1h nestes testes (`AGORA_NA_JANELA`).
 """
 import base64
 import hashlib
 import hmac
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import jwt  # PyJWT
@@ -25,6 +30,7 @@ import pytest
 
 from src.core.config import settings
 from src.core.errors import InvalidTokenError
+import src.security.jwt as jwt_module
 from src.security.jwt import decode_refresh_token, decode_token
 
 SEGREDO_TESTE = "chave-de-teste-compat-jose-nao-e-segredo-0123456789"
@@ -36,6 +42,7 @@ SESSION = "44444444-4444-4444-4444-444444444444"
 JTI = "55555555-5555-5555-5555-555555555555"
 IAT = 1790856000  # 2026-10-01T12:00:00Z
 EXP = 4070908800  # 2099-01-01T00:00:00Z
+AGORA_NA_JANELA = datetime.fromtimestamp(IAT, tz=timezone.utc) + timedelta(hours=1)
 
 # Payloads no formato antigo: exatamente as claims que create_access_token /
 # create_refresh_token gravavam com o jose (exp/iat viram inteiros epoch).
@@ -77,7 +84,9 @@ def _assinar_na_mao(payload: dict, segredo: str = SEGREDO_TESTE) -> str:
 
 @pytest.fixture(autouse=True)
 def segredo_fixo():
-    with patch.object(settings, "SECRET_KEY", SEGREDO_TESTE), patch.object(settings, "ALGORITHM", "HS256"):
+    with patch.object(settings, "SECRET_KEY", SEGREDO_TESTE), patch.object(settings, "ALGORITHM", "HS256"), \
+            patch.object(jwt_module, "_utcnow", return_value=AGORA_NA_JANELA), \
+            patch.object(settings, "ACCESS_TOKEN_EXPIRE_HOURS", 24):
         yield
 
 
@@ -145,3 +154,20 @@ def test_token_antigo_adulterado_e_rejeitado():
     corpo_adulterado = _b64url(json.dumps({**_PAYLOADS["access"], "role": "super_admin"}, separators=(",", ":")).encode())
     with pytest.raises(InvalidTokenError, match="Token inválido"):
         decode_token(f"{header}.{corpo_adulterado}.{assinatura}")
+
+
+@pytest.mark.parametrize("nome", ["access", "impersonation", "super_admin"])
+def test_access_antigo_sem_type_morre_depois_da_janela(nome):
+    """T-02: passado o TTL de access contado do iat, o token legado (sem
+    `type`) é recusado mesmo com `exp` lá em 2099 — allowlist estrita."""
+    depois = datetime.fromtimestamp(IAT, tz=timezone.utc) + timedelta(hours=24, seconds=1)
+    with patch.object(jwt_module, "_utcnow", return_value=depois):
+        with pytest.raises(InvalidTokenError, match="tipo de token ausente"):
+            decode_token(GOLDEN[nome])
+
+
+def test_refresh_antigo_nao_depende_da_janela_do_access():
+    """A janela é só do access: o refresh já tinha `type` e segue valendo."""
+    depois = datetime(2026, 11, 1, tzinfo=timezone.utc)
+    with patch.object(jwt_module, "_utcnow", return_value=depois):
+        assert decode_refresh_token(GOLDEN["refresh"]).session_id == SESSION

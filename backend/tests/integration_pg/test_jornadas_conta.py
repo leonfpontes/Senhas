@@ -186,6 +186,38 @@ async def test_logout_all_recusa_impersonacao(client, db):
     assert admin.user.sessions_revoked_at is None
 
 
+async def test_usuario_excluido_perde_acesso_na_hora(client, db):
+    """Antes, a exclusão (soft delete) não desativava a conta e o get_current_user não
+    olhava deleted_at: o excluído seguia usando o painel até o token vencer (24 h)."""
+    import uuid
+
+    from src.security.jwt import create_refresh_token
+
+    tenant = await create_tenant(db, plan=PlanType.PREMIUM)
+    admin = await create_user(db, tenant, UserRole.ADMIN)
+    operador = await create_user(db, tenant, UserRole.OPERATOR, name="operador")
+    refresh = create_refresh_token(operador.user.id, tenant.id, "operator", uuid.uuid4(), uuid.uuid4())
+    email = operador.user.email
+
+    assert (await client.get("/api/v1/auth/me", headers=operador.headers)).status_code == 200
+
+    resp = await client.delete(f"/api/v1/admin/users/{operador.user.id}", headers=admin.headers)
+    assert resp.status_code == 204, resp.text
+
+    assert (await client.get("/api/v1/auth/me", headers=operador.headers)).status_code == 401
+    renovar = await client.post("/api/v1/auth/refresh", headers={"Cookie": f"refresh_token={refresh}"})
+    assert renovar.status_code == 401, renovar.text
+
+    await db.refresh(operador.user)
+    assert operador.user.is_active is False
+    assert operador.user.sessions_revoked_at is not None
+
+    # Recriar a conta com o mesmo e-mail ressuscita a linha, mas o token antigo continua morto.
+    recriar = await client.post("/api/v1/admin/users", headers=admin.headers, json=_novo_usuario("operator", email=email))
+    assert recriar.status_code == 201, recriar.text
+    assert (await client.get("/api/v1/auth/me", headers=operador.headers)).status_code == 401
+
+
 # ── Plataforma / assinatura ─────────────────────────────────────────────────
 
 

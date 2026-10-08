@@ -1,4 +1,4 @@
-"""Mensalidade models — monthly dues control for médiuns (Premium feature)."""
+"""Mensalidade models — monthly dues control for médiuns (feature `mensalidade_mediun`, Basic+ desde out/2026)."""
 from __future__ import annotations
 
 import enum
@@ -9,6 +9,7 @@ from typing import Optional
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Enum as SAEnum,
@@ -19,6 +20,7 @@ from sqlalchemy import (
     Text,
     Time,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID, BYTEA
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -36,7 +38,13 @@ class MensalidadeConfig(TimestampedModel):
     """Per-tenant configuration for mensalidade module (1:1 with tenant)."""
 
     __tablename__ = "mensalidade_configs"
-    __table_args__ = (Index("ix_mensalidade_configs_tenant_id", "tenant_id"),)
+    __table_args__ = (
+        Index("ix_mensalidade_configs_tenant_id", "tenant_id"),
+        CheckConstraint(
+            "pix_tipo IS NULL OR pix_tipo IN ('cpf', 'cnpj', 'email', 'telefone', 'aleatoria')",
+            name="ck_mensalidade_configs_pix_tipo",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -62,6 +70,17 @@ class MensalidadeConfig(TimestampedModel):
     # Preferred time for scheduled report email (stored only — no auto-scheduler yet)
     relatorio_hora_envio: Mapped[Optional[datetime]] = mapped_column(Time, nullable=True)
 
+    # Chave PIX da mensalidade (AM-10, migração 068). Trocar exige FINANCEIRO:edit +
+    # senha + e-mail a todos os admins (PUT /admin/financeiro/config/pix). A chave fica
+    # normalizada no formato do DICT (services/pix_chave.py) e vira o BR Code
+    # estático em services/pix_brcode.py.
+    pix_tipo: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    pix_chave: Mapped[Optional[str]] = mapped_column(String(77), nullable=True)
+    pix_nome_recebedor: Mapped[Optional[str]] = mapped_column(String(25), nullable=True)
+    pix_cidade: Mapped[Optional[str]] = mapped_column(String(15), nullable=True)
+    pix_instrucoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    pix_alterado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     tenant = relationship("Tenant", backref="mensalidade_config")
 
     def __repr__(self) -> str:
@@ -80,6 +99,13 @@ class MensalidadePagamento(TimestampedModel):
         UniqueConstraint("mediun_id", "mes_referencia", name="uq_mensalidade_mediun_mes"),
         Index("ix_mensalidade_pagamentos_tenant_mes", "tenant_id", "mes_referencia"),
         Index("ix_mensalidade_pagamentos_mediun_id", "mediun_id"),
+        # Fila "Comprovantes para conferir" do painel (AM-12, migração 072).
+        Index(
+            "ix_mensalidade_pagamentos_conferir",
+            "tenant_id",
+            "comprovante_enviado_em",
+            postgresql_where=text("comprovante_enviado_em IS NOT NULL AND status = 'PENDENTE'"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -116,6 +142,26 @@ class MensalidadePagamento(TimestampedModel):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Comprovante enviado pelo próprio médium na Área (AM-12, migração 072). O status
+    # continua PENDENTE até a casa confirmar; "em conferência"/"não confirmada" saem
+    # destas colunas (services/medium_inicio.situacao_mensalidade). Comprovante anexado
+    # pelo painel não preenche `comprovante_enviado_em`.
+    comprovante_enviado_em: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    comprovante_enviado_por: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "users.id",
+            ondelete="SET NULL",
+            name="fk_mensalidade_pagamentos_comprovante_enviado_por",
+        ),
+        nullable=True,
+    )
+    # A casa não confirmou o comprovante: o médium vê o motivo e pode reenviar
+    # (o reenvio limpa os dois campos).
+    recusa_motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    recusado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     mediun = relationship("Medium", backref="mensalidade_pagamentos")
 

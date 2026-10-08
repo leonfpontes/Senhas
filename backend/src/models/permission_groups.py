@@ -33,8 +33,11 @@ class PermissionFeature(str, enum.Enum):
     ANALYTICS = "analytics"
     RELATORIO_GIRA = "relatorio_gira"
     CURSOS_PRESENCIAIS = "cursos_presenciais"
+    SITE = "site"  # "Site do terreiro" (Meu Site) — separado de Cursos no T-06
     PORTA = "porta"
     CONTAS_FINANCEIRAS = "contas_financeiras"
+    COMUNICADOS = "comunicados"  # "Avisos da Área" (AM-09): avisos da casa para a corrente
+    ESCALAS = "escalas"  # "Atividades e escalas" (AM-08): tipos, funções, atividades internas e escalas
 
 
 class PermissionGroup(SoftDeleteModel):

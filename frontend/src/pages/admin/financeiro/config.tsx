@@ -1,6 +1,7 @@
 /**
  * Admin Financeiro — Configuração
- * Abas: Categorias | Contas bancárias (contas_financeiras, Premium) | Mensalidade (Basic+)
+ * Abas: Categorias | Contas bancárias (contas_financeiras, Premium) | Mensalidade (Basic+,
+ * com a chave PIX da mensalidade — `PixConfigCard`, AM-10)
  * (Card + Switch, salvar fixo no rodapé).
  */
 'use client';
@@ -35,6 +36,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatBRL } from '@/lib/dateBr';
 import { minPlanFor, minPlanPhrase } from '@/constants/plans';
+import { PixConfigCard } from '@/components/financeiro/PixConfigCard';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -719,6 +721,9 @@ function MensalidadeTab() {
           </CardContent>
         </Card>
       )}
+
+      {/* Chave PIX (AM-10): salva à parte, com senha — fora da barra "Salvar configuração". */}
+      {planMediuns && <PixConfigCard canEdit={canEdit} />}
 
       {planAssoc && (
         <Card>

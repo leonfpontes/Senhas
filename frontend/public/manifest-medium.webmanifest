@@ -1,0 +1,52 @@
+{
+  "id": "/medium",
+  "name": "Área do Médium · GiraHub",
+  "short_name": "Área do Médium",
+  "description": "Área do Médium no GiraHub: agenda da casa, avisos e mensalidade no celular.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/medium?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#180e09",
+  "background_color": "#fcf8f2",
+  "categories": ["lifestyle", "social"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Agenda",
+      "short_name": "Agenda",
+      "description": "Giras e atividades da casa",
+      "url": "/medium/agenda?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Mensalidade",
+      "short_name": "Mensalidade",
+      "description": "Sua mensalidade do mês",
+      "url": "/medium/mensalidade?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

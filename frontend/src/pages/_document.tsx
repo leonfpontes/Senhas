@@ -1,6 +1,10 @@
-import { Html, Head, Main, NextScript } from 'next/document';
+import { Html, Head, Main, NextScript, type DocumentProps } from 'next/document';
 
-export default function Document() {
+export default function Document(props: DocumentProps) {
+  // Área do Médium (AM-06, D-23): o MediumLayout linka o próprio manifesto
+  // (o da Área, que abre em /medium); o da Porta não pode vir antes dele.
+  const page = props.__NEXT_DATA__?.page ?? '';
+  const areaDoMedium = page === '/medium' || page.startsWith('/medium/');
   return (
     <Html lang="pt-BR">
       <Head>
@@ -10,7 +14,7 @@ export default function Document() {
         <meta name="theme-color" content="#4f46e5" />
         {/* PWA (P-01): a Porta instalada na tela inicial. Service worker em public/sw.js,
             registrado por components/shared/ServiceWorkerRegistrar (só em produção). */}
-        <link rel="manifest" href="/manifest.webmanifest" />
+        {!areaDoMedium && <link rel="manifest" href="/manifest.webmanifest" />}
         <meta name="application-name" content="GiraHub" />
         <meta name="mobile-web-app-capable" content="yes" />
         {/* iOS/iPadOS: Safari ignora boa parte do manifest — ícone, título e barra vêm daqui. */}

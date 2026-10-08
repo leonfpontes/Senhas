@@ -4,7 +4,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import User, PermissionFeature
+from ..models import User, UserRole, PermissionFeature
 from ..repositories.permission_group_repo import PermissionGroupRepository
 from ..repositories.subscription_repo import SubscriptionRepository
 from src.services.plan_features import get_effective_plan_features
@@ -52,6 +52,9 @@ class PermissionService:
             PermissionFeature.ANALYTICS: "analytics_basico",
             PermissionFeature.RELATORIO_GIRA: "relatorio_gira",
             PermissionFeature.CURSOS_PRESENCIAIS: "site_builder",  # Cursos uses site builder / pro elements
+            PermissionFeature.SITE: "site_builder",  # Site do terreiro (T-06)
+            PermissionFeature.COMUNICADOS: "area_medium",  # Avisos da Área do Médium (AM-09)
+            PermissionFeature.ESCALAS: "atividades_corrente",  # Atividades e escalas (AM-08)
         }
 
         flag_attr = mapping.get(feature)
@@ -77,6 +80,12 @@ class PermissionService:
           default "Acesso total" group that new operators join automatically.
         - Operators with groups are restricted according to OR-consolidated group permissions.
         """
+        # 0. Papel `medium` (Área do Médium, AM-02) nunca tem permissão de grupo —
+        # nem impersonado. O admin_router já o barra (require_backoffice); isto é
+        # defesa em profundidade para quem chamar o serviço fora do router.
+        if user.role == UserRole.MEDIUM:
+            return False
+
         # 1. Role bypass
         if user.is_admin:
             return True

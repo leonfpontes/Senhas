@@ -5,6 +5,7 @@
  */
 
 import axios, { AxiosInstance, AxiosError, AxiosResponse, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
+import { knownWithoutAdminArea, readStoredUser } from '@/lib/areas';
 
 
 interface APIError {
@@ -40,6 +41,18 @@ interface ErrorResponseBody {
 const AUTH_BROADCAST_CHANNEL = 'senhas-auth';
 const REFRESH_PATH = '/api/v1/auth/refresh';
 const LOGIN_PATH = '/api/v1/auth/login';
+const ADMIN_API_PREFIX = '/api/v1/admin/';
+
+/**
+ * Conta sem o painel (médium puro, AM-04) nunca chama `/api/v1/admin/*`: o backend responderia
+ * 403 (`require_backoffice`) e o console/Sentry encheriam de erro enquanto a tela redireciona
+ * para a Área do Médium. A chamada é cancelada no navegador (`CanceledError`, que as telas já
+ * ignoram como um AbortController).
+ */
+export function isBlockedAdminCall(url: string | undefined): boolean {
+  if (!url || !url.includes(ADMIN_API_PREFIX)) return false;
+  return knownWithoutAdminArea(readStoredUser());
+}
 
 
 class APIClient {
@@ -90,6 +103,9 @@ class APIClient {
     // Request interceptor for logging
     this.instance.interceptors.request.use(
       (config) => {
+        if (isBlockedAdminCall(config.url)) {
+          throw new axios.CanceledError('Conta sem acesso ao painel do terreiro');
+        }
         // Impersonation token fica no sessionStorage e deve ir como Authorization header.
         // Autenticação normal usa cookie HttpOnly (access_token) enviado automaticamente
         // pelo browser via withCredentials — não precisa de header manual.

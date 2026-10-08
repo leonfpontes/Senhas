@@ -23,7 +23,8 @@ from .middleware import jwt_middleware, tenant_context_middleware, audit_logging
 from .api import auth_router
 from .api.v1.admin import admin_router
 from .api.v1.platform import platform_router
-from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router, public_sites_router, curso_inscricao_router, waitlist_confirm_router, cancel_ticket_router, public_stats_router, public_sitemap_router
+from .api.v1.medium import medium_router
+from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router, public_sites_router, curso_inscricao_router, waitlist_confirm_router, cancel_ticket_router, public_stats_router, public_sitemap_router, medium_convite_router, email_confirmacao_router
 from .api.v1.webhooks import router as webhooks_router
 from .models import (
     Tenant,
@@ -75,6 +76,7 @@ async def lifespan(app: FastAPI):
     from .services.birthday_scheduler import birthday_scheduler
     from .services.trial_scheduler import trial_scheduler
     from .services.onboarding_email_scheduler import onboarding_email_scheduler
+    from .services.presenca_scheduler import presenca_scheduler
 
     # Startup
     logger.info("Starting Senhas API...")
@@ -89,12 +91,14 @@ async def lifespan(app: FastAPI):
     birthday_scheduler.start()
     trial_scheduler.start()
     onboarding_email_scheduler.start()
+    presenca_scheduler.start()
     logger.info("Senhas API started successfully")
 
     yield
 
     # Shutdown
     logger.info("Shutting down Senhas API...")
+    await presenca_scheduler.stop()
     await onboarding_email_scheduler.stop()
     await trial_scheduler.stop()
     await birthday_scheduler.stop()
@@ -278,6 +282,9 @@ def create_app() -> FastAPI:
     
     # Platform routes (SUPER_ADMIN only)
     app.include_router(platform_router)
+
+    # Área do Médium (AM-02) — require_medium no router inteiro
+    app.include_router(medium_router)
     
     # Public routes (no auth required)
     app.include_router(next_gira_router)
@@ -291,6 +298,8 @@ def create_app() -> FastAPI:
     app.include_router(cancel_ticket_router)
     app.include_router(public_stats_router)
     app.include_router(public_sitemap_router)
+    app.include_router(medium_convite_router)
+    app.include_router(email_confirmacao_router)
 
     # Stripe webhooks (no JWT required — validated by Stripe signature)
     app.include_router(webhooks_router)

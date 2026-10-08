@@ -132,6 +132,22 @@ describe('AdminSidebar', () => {
     expect(within(nav).queryByText('Perfis de acesso')).not.toBeInTheDocument();
   });
 
+  it('"Site do terreiro" segue o grupo site e "Cursos" o grupo cursos_presenciais (T-06)', () => {
+    const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');
+    mockGroupCan.mockImplementation((f: string, a: string) => f === 'site' && a === 'view');
+    const { unmount } = withSidebar(<AdminSidebar isOperator />);
+    let nav = screen.getByTestId('admin-sidebar');
+    expect(within(nav).getByRole('link', { name: /Site do terreiro/ })).toHaveAttribute('href', '/admin/meu-site');
+    expect(within(nav).queryByRole('link', { name: /^Cursos$/ })).not.toBeInTheDocument();
+    unmount();
+
+    mockGroupCan.mockImplementation((f: string, a: string) => f === 'cursos_presenciais' && a === 'view');
+    withSidebar(<AdminSidebar isOperator />);
+    nav = screen.getByTestId('admin-sidebar');
+    expect(within(nav).getByRole('link', { name: /^Cursos$/ })).toHaveAttribute('href', '/admin/cursos-presenciais');
+    expect(within(nav).queryByRole('link', { name: /Site do terreiro/ })).not.toBeInTheDocument();
+  });
+
   it('sem o plano do site, Cursos some (a tela é bloqueada por plano)', () => {
     mockPlanCan.mockImplementation((f: string) => f !== 'site_builder');
     const { AdminSidebar } = require('@/components/admin/layout/AdminSidebar');

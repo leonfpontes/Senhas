@@ -3,14 +3,16 @@
  * Barra "Salvar" fixa no rodapé quando há alteração; 6 paletas prontas além do hex; recurso
  * fora do plano abre um Dialog com link para /admin/billing?plan=<mínimo>.
  * Nome do terreiro é só leitura: `PUT /tenant/config` não aceita `name`.
+ * Aba "Área do Médium" (AM-10) só com `can('area_medium')`; salva à parte (AreaMediumConfigSection).
  */
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Check, CircleAlert, CloudUpload, DoorOpen, Lock, Palette, Plus, Save, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
+import { Check, CircleAlert, CloudUpload, DoorOpen, HeartHandshake, Lock, Palette, Plus, Save, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { PageHeader } from '@/components/admin';
+import { AreaMediumConfigSection } from '@/components/admin/AreaMediumConfigSection';
 import { PermissionDenied, ReadOnlyNotice } from '@/components/gates';
 import { TextField } from '@/components/fields';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -593,6 +595,8 @@ function AdminConfigContent() {
   }
 
   const showSaveBar = isDirty && canEdit;
+  // Área do Médium em piloto: some sem a feature (plano Basic+ e chave da plataforma), sem oferta de upgrade.
+  const showAreaMedium = can('area_medium');
   const lockedPlan = lockedFeature ? minPlanFor(lockedFeature.gate) : null;
 
   return (
@@ -604,7 +608,7 @@ function AdminConfigContent() {
       {!canEdit && <ReadOnlyNotice />}
 
       <Tabs defaultValue="identidade" data-tour="config-tabs">
-        <TabsList className="grid w-full max-w-lg grid-cols-3">
+        <TabsList className={cn('grid w-full', showAreaMedium ? 'max-w-2xl grid-cols-4' : 'max-w-lg grid-cols-3')}>
           <TabsTrigger value="identidade">
             <Palette aria-hidden /> <span className="hidden sm:inline">Identidade</span>
             <span className="sm:hidden">Visual</span>
@@ -616,6 +620,12 @@ function AdminConfigContent() {
             <DoorOpen aria-hidden /> <span className="hidden sm:inline">Atendimento</span>
             <span className="sm:hidden">Regras</span>
           </TabsTrigger>
+          {showAreaMedium && (
+            <TabsTrigger value="area-medium">
+              <HeartHandshake aria-hidden /> <span className="hidden sm:inline">Área do Médium</span>
+              <span className="sm:hidden">Médium</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ══ Identidade visual ══ */}
@@ -899,6 +909,13 @@ function AdminConfigContent() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ══ Área do Médium (AM-10) — só com a feature (plano + chave do piloto), sem PlanLocked ══ */}
+        {showAreaMedium && (
+          <TabsContent value="area-medium" className="mt-4">
+            <AreaMediumConfigSection canEdit={canEdit} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Barra fixa de salvar */}

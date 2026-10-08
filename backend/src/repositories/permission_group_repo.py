@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.errors import NotFoundError, ConflictError, ForbiddenError
-from ..models import User, PermissionGroup, GroupPermission, UserGroupMembership, PermissionFeature
+from ..models import User, UserRole, PermissionGroup, GroupPermission, UserGroupMembership, PermissionFeature
 from .base import BaseRepository
 
 
@@ -76,9 +76,10 @@ class PermissionGroupRepository(BaseRepository[PermissionGroup]):
     async def assign_default_group_if_groupless(self, user: User) -> bool:
         """Coloca o operador sem grupo ativo no grupo padrão, sem commit.
 
-        Retorna True se o vínculo foi criado. Admins não entram em grupo.
+        Retorna True se o vínculo foi criado. Admins e contas `medium` (Área do
+        Médium, sem painel) não entram em grupo.
         """
-        if user.is_admin or user.tenant_id is None:
+        if user.is_admin or user.tenant_id is None or user.role == UserRole.MEDIUM:
             return False
         if await self.get_user_groups(user.id, user.tenant_id):
             return False
@@ -255,6 +256,12 @@ class PermissionGroupRepository(BaseRepository[PermissionGroup]):
         # Prevent adding administrators to groups (as they bypass group checks anyway)
         if user.is_admin:
             raise ForbiddenError("Administradores não precisam pertencer a grupos de permissão.")
+        # Conta só da Área do Médium (AM-02) não tem acesso ao painel: grupo não faz
+        # sentido. Para dar acesso, adicione-a em Usuários (vira operador).
+        if user.role == UserRole.MEDIUM:
+            raise ForbiddenError(
+                "Esta conta é só da Área do Médium. Para dar acesso ao painel, adicione-a em Usuários."
+            )
 
         # Check duplicate membership (T12)
         existing_stmt = select(UserGroupMembership).where(
@@ -288,6 +295,17 @@ class PermissionGroupRepository(BaseRepository[PermissionGroup]):
         await self.db.delete(membership)
         await self.db.commit()
         return True
+
+    async def remove_all_memberships(self, user_id: UUID, tenant_id: UUID) -> int:
+        """Tira o usuário de todos os grupos do tenant, sem commit (AM-02: operador
+        rebaixado para `medium` perde o painel e não fica com grupo pendurado)."""
+        result = await self.db.execute(
+            delete(UserGroupMembership).where(
+                (UserGroupMembership.user_id == user_id) & (UserGroupMembership.tenant_id == tenant_id)
+            )
+        )
+        await self.db.flush()
+        return result.rowcount or 0
 
     async def list_members(self, group_id: UUID, tenant_id: UUID) -> List[User]:
         """List active users that belong to a group, filtering out soft-deleted users (T6)."""

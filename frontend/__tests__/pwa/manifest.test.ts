@@ -76,3 +76,27 @@ describe('manifest.webmanifest', () => {
     expect(doc).toContain('name="apple-mobile-web-app-title"');
   });
 });
+
+// Área do Médium (AM-06, D-23): o ícone na tela inicial abre a Área, não a Porta.
+describe('manifest-medium.webmanifest', () => {
+  const medium = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, 'manifest-medium.webmanifest'), 'utf8'));
+
+  it('tem id e start_url da Área, instalável, com os ícones do GiraHub', () => {
+    expect(medium.id).toBe('/medium');
+    expect(medium.start_url).toBe('/medium?source=pwa');
+    expect(medium.id).not.toBe(manifest.id);
+    expect(['standalone', 'fullscreen']).toContain(medium.display);
+    expect(medium.lang).toBe('pt-BR');
+    expect(medium.name).toMatch(/Área do Médium/);
+    expect(medium.icons).toEqual(manifest.icons);
+    for (const s of medium.shortcuts ?? []) expect(s.url.startsWith('/medium/')).toBe(true);
+  });
+
+  it('só o MediumLayout linka o manifesto da Área; o _document não põe o da Porta nas rotas /medium', () => {
+    const layout = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'components', 'medium', 'MediumLayout.tsx'), 'utf8');
+    expect(layout).toContain('rel="manifest" href="/manifest-medium.webmanifest"');
+    const doc = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'pages', '_document.tsx'), 'utf8');
+    expect(doc).not.toContain('manifest-medium');
+    expect(doc).toMatch(/!areaDoMedium && <link rel="manifest" href="\/manifest.webmanifest" \/>/);
+  });
+});

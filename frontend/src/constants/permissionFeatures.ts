@@ -6,13 +6,16 @@ export type PermissionFeature =
   | 'associados'
   | 'usuarios'
   | 'cursos_presenciais'
+  | 'site'
   | 'estoque'
   | 'financeiro'
   | 'configuracoes'
   | 'auditoria'
   | 'analytics'
   | 'relatorio_gira'
-  | 'contas_financeiras';
+  | 'contas_financeiras'
+  | 'comunicados'
+  | 'escalas';
 
 /** Rótulos dos módulos na tela de grupos (português, sem jargão). */
 export interface FeatureMeta {
@@ -28,6 +31,7 @@ export const FEATURE_LABELS: Record<PermissionFeature, FeatureMeta> = {
   associados: { label: 'Associados', group: 'Cadastros' },
   usuarios: { label: 'Pessoas e acessos', group: 'Cadastros' },
   cursos_presenciais: { label: 'Cursos Presenciais', group: 'Cadastros' },
+  site: { label: 'Site do terreiro', group: 'Cadastros' },
   estoque: { label: 'Estoque', group: 'Operacional' },
   financeiro: { label: 'Mensalidades', group: 'Financeiro' },
   configuracoes: { label: 'Configurações', group: 'Administração' },
@@ -35,4 +39,6 @@ export const FEATURE_LABELS: Record<PermissionFeature, FeatureMeta> = {
   analytics: { label: 'Indicadores', group: 'Relatórios' },
   relatorio_gira: { label: 'Relatório de Gira', group: 'Relatórios' },
   contas_financeiras: { label: 'Contas a Pagar / Receber', group: 'Financeiro' },
+  comunicados: { label: 'Avisos da Área', group: 'Corrente' },
+  escalas: { label: 'Atividades e escalas', group: 'Corrente' },
 };

@@ -15,6 +15,8 @@ import { WhatsAppFab } from '@/components/landing/WhatsAppFab';
 import { PHOTO_CREDITS } from '@/constants/landingPhotos';
 import { supportWhatsappLink } from '@/lib/whatsapp';
 import { fraunces, MARKETING_RESET as RESET } from '@/components/landing/fonts';
+import { abrirPreferenciasDeCookies } from '@/lib/consent';
+import { LEGAL_ENTITY } from '@/constants/legal';
 
 export const MARKETING_NAV = [
   { label: 'Para quem é', href: '/#para-quem' },
@@ -45,7 +47,8 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
         Pular para o conteúdo
       </a>
 
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-cafe-950/95 text-white backdrop-blur">
+      {/* cabecalho-marketing: fica parado nas passagens para os documentos (globals.css) */}
+      <header className="cabecalho-marketing sticky top-0 z-40 border-b border-white/10 bg-cafe-950/95 text-white backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link
             href="/"
@@ -149,13 +152,22 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
             <ul className="flex flex-col gap-2 text-sm">
               <li><Link href="/privacidade" className="hover:text-white">Privacidade</Link></li>
               <li><Link href="/termos" className="hover:text-white">Termos de uso</Link></li>
+              <li><Link href="/cookies" className="hover:text-white">Política de cookies</Link></li>
+              <li>
+                <button type="button" onClick={abrirPreferenciasDeCookies} className="cursor-pointer text-left hover:text-white">
+                  Preferências de cookies
+                </button>
+              </li>
               <li><Link href="/status" className="hover:text-white">Status do sistema</Link></li>
             </ul>
           </nav>
         </div>
         <div className="mx-auto mt-10 flex max-w-6xl flex-col gap-2 border-t border-white/10 px-4 pt-6 text-xs sm:px-6">
           <div className="flex flex-wrap justify-between gap-2">
-            <span>© {new Date().getFullYear()} GiraHub. Todos os direitos reservados.</span>
+            <span>
+              © {new Date().getFullYear()} GiraHub{LEGAL_ENTITY.razaoSocial && ` · ${LEGAL_ENTITY.razaoSocial}`}
+              {LEGAL_ENTITY.cnpj && ` · CNPJ ${LEGAL_ENTITY.cnpj}`}. Todos os direitos reservados.
+            </span>
             <span>Feito com axé para a comunidade dos terreiros</span>
           </div>
           <p>

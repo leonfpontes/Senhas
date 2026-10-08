@@ -22,6 +22,44 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.4.0',
+    date: '2026-10-07',
+    title: 'Área do Médium chegando',
+    highlights: [
+      'Vem aí a Área do Médium: um espaço da corrente no celular de cada médium, com a agenda das giras, os avisos da casa e a mensalidade pelo PIX. Ela começa em teste com algumas casas e será liberada para todas em breve.',
+      'Nas casas do teste: convite dos médiuns pela tela Médiuns, com a mensagem pronta para mandar no WhatsApp; avisos para a corrente, com a lista de quem leu e de quem ainda não leu; e conferência dos comprovantes de mensalidade enviados pelos próprios médiuns.',
+      'Também nas casas do teste: campo "Orientações para a corrente" na gira (o que levar, horário de chegada), que só a corrente vê, e chave PIX da casa nas configurações do Financeiro.',
+      'Política de Privacidade atualizada (versão 2.2) com as regras da Área do Médium.',
+    ],
+    fixes: [
+      'Quem é removido na tela Usuários perde o acesso na hora, sem esperar a sessão vencer.',
+      'Desativar um operador que também é médium tira só o acesso ao painel; ele continua com a Área do Médium.',
+    ],
+  },
+  {
+    version: '2.3.0',
+    date: '2026-10-07',
+    title: 'Privacidade de cara nova',
+    highlights: [
+      'Termos de Uso e Política de Privacidade reescritos em linguagem direta, com um resumo "em poucas palavras" no começo e índice para pular direto ao assunto.',
+      'Nova Política de Cookies e um aviso de cookies em todo o site: os consulentes da sua casa escolhem o que aceitam, e recusar é tão fácil quanto aceitar.',
+      'Mudou de ideia? "Preferências de cookies" no rodapé do site reabre as opções a qualquer momento.',
+    ],
+  },
+  {
+    version: '2.2.1',
+    date: '2026-10-07',
+    title: 'Listagem de senhas em PDF',
+    highlights: [
+      'Senhas: o botão "Exportar CSV" virou "Exportar PDF" — baixa a listagem completa da gira, com a logo do terreiro, nome, telefone, prioridade, status, médium, cambone e observações.',
+    ],
+    fixes: [
+      'Relatório da gira em PDF: os nomes não saem mais cortados na tabela de senhas, e cabem mais senhas por página.',
+      'Ao pegar a senha, o nome digitado passa a valer, mesmo que o e-mail já tenha sido usado antes com outro nome.',
+      'Pedir senha preferencial com um e-mail que já tem senha de outra pessoa não passa mais a preferência para a senha errada — o sistema pede o e-mail da própria pessoa.',
+    ],
+  },
+  {
     version: '2.2.0',
     date: '2026-10-07',
     title: 'Revisão completa das jornadas',

@@ -102,3 +102,112 @@ def render_password_reset_email(reset_url: str, user_name: str) -> str:
 </table>
 </body>
 </html>"""
+
+
+def render_password_reset_multi_email(links: list[tuple[str, str]], user_name: str) -> str:
+    """E-mail de redefinição quando o e-mail tem conta em mais de um terreiro (AM-05).
+
+    Um bloco por terreiro, cada um com o link da própria conta (cada conta tem o
+    seu token — redefinir uma não muda a senha das outras). Texto discreto: só
+    vai para a caixa de quem é dono do e-mail, então listar os terreiros aqui
+    não enumera nada para terceiros.
+
+    Args:
+        links: [(nome do terreiro, URL de redefinição)] — URLs de settings.FRONTEND_URL.
+        user_name: Nome de exibição (escapado).
+    """
+    name = _esc(user_name) or "usuário"
+    rows = []
+    for terreiro, url in links:
+        safe_url = escape(url)
+        rows.append(f"""\
+            <tr>
+              <td style="padding:0 0 12px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                       style="border:1px solid #E5E7EB;border-radius:8px;">
+                  <tr>
+                    <td style="padding:14px 16px;color:#111827;font-size:15px;font-weight:700;line-height:1.4;">
+                      {_esc(terreiro)}
+                    </td>
+                    <td align="right" style="padding:10px 16px;">
+                      <a href="{safe_url}"
+                         style="display:inline-block;background:#6366f1;color:#FFFFFF;text-decoration:none;
+                                font-size:14px;font-weight:700;padding:10px 18px;border-radius:6px;">
+                        Redefinir senha
+                      </a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="padding:0 16px 12px;color:#9CA3AF;font-size:11px;word-break:break-all;">
+                      {safe_url}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>""")
+    rows_html = "\n".join(rows)
+
+    return f"""\
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background-color:#F4F4F8;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F4F4F8;">
+  <tr><td align="center" style="padding:32px 16px;">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0"
+           style="background-color:#FFFFFF;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+      <tr>
+        <td style="background:linear-gradient(135deg,#6366f1 0%,#ec4899 100%);padding:36px 40px;text-align:center;">
+          <h1 style="margin:0;color:#FFFFFF;font-size:28px;font-weight:700;letter-spacing:-0.5px;">GiraHub</h1>
+          <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Redefinição de senha</p>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:40px 40px 24px;">
+          <p style="margin:0 0 16px;color:#374151;font-size:16px;line-height:1.6;">
+            Olá, <strong>{name}</strong>!
+          </p>
+          <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
+            Recebemos um pedido para redefinir a senha. Este e-mail tem acesso a mais de um terreiro
+            no GiraHub, e cada um tem a sua própria senha. Escolha o terreiro abaixo — o link muda
+            só a senha daquela conta.
+          </p>
+
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+{rows_html}
+          </table>
+
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
+            <tr>
+              <td style="background:#FEF3C7;border-left:4px solid #F59E0B;border-radius:4px;padding:12px 16px;">
+                <p style="margin:0;color:#92400E;font-size:13px;line-height:1.5;">
+                  ⏱ Os links valem por <strong>1 hora</strong>.
+                  Depois disso, peça um novo link.
+                </p>
+              </td>
+            </tr>
+          </table>
+
+          <p style="margin:24px 0 0;color:#6B7280;font-size:13px;line-height:1.6;">
+            Se você não pediu para redefinir a senha, ignore este e-mail.
+            Nenhuma senha foi alterada.
+          </p>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="background:#F9FAFB;border-top:1px solid #E5E7EB;padding:20px 40px;text-align:center;">
+          <p style="margin:0;color:#9CA3AF;font-size:12px;">
+            GiraHub — Gestão de Atendimento em Giras<br>
+            Este é um e-mail automático, por favor não responda.
+          </p>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>"""

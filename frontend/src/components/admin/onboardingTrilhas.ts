@@ -153,14 +153,14 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
     description: 'Escolha o modelo, a foto de capa e o texto de apresentação. Tudo pelo celular.',
     cta: { label: 'Abrir Meu Site', href: '/admin/meu-site' },
     plan: 'site_builder',
-    perm: ['cursos_presenciais', 'edit'],
+    perm: ['site', 'edit'],
   },
   publicar: {
     title: 'Publique o site',
     description: 'Um toque em "Publicar" e o endereço do terreiro já pode ir para o Instagram e o WhatsApp.',
     cta: { label: 'Publicar', href: '/admin/meu-site' },
     plan: 'site_builder',
-    perm: ['cursos_presenciais', 'edit'],
+    perm: ['site', 'edit'],
   },
   grupo: {
     title: 'Crie o primeiro grupo do estoque',

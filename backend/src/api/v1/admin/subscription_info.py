@@ -9,7 +9,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.models import User
+from src.models import User, UserRole
 from src.models.giras import Gira
 from src.models.subscriptions import PlanType
 from src.api.dependencies import get_current_user
@@ -19,16 +19,18 @@ from src.repositories.mediun_repo import MediumRepository
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-subscription"])
 logger = logging.getLogger(__name__)
 
+from src.services.medium_area import area_medium_liberada
 from src.services.plan_features import PlanFeatures, _get_plan_features, get_effective_plan_features
 
 
 async def _count_active_users(db: AsyncSession, tenant_id) -> int:
-    """Count active, non-deleted users for a tenant."""
+    """Count active, non-deleted back-office users for a tenant (sem contas `medium`, AM-02)."""
     stmt = select(func.count()).select_from(User).where(
         and_(
             User.tenant_id == tenant_id,
             User.is_active.is_(True),
             User.deleted_at.is_(None),
+            User.role != UserRole.MEDIUM,
         )
     )
     result = await db.execute(stmt)
@@ -55,6 +57,15 @@ class SubscriptionInfoResponse(BaseModel):
     has_stripe_subscription: bool = False
     is_bonus: bool = False
     features: PlanFeatures
+
+
+async def _features_do_terreiro(db: AsyncSession, sub) -> PlanFeatures:
+    """Features do plano efetivo, com a Área do Médium só onde a plataforma liberou
+    (lançamento em piloto — mesma regra do `check_plan_feature`)."""
+    features = get_effective_plan_features(sub)
+    if features.area_medium and not await area_medium_liberada(db, sub.tenant_id):
+        features = features.model_copy(update={"area_medium": False})
+    return features
 
 
 @router.get("/subscription", response_model=SubscriptionInfoResponse)
@@ -124,5 +135,5 @@ async def get_tenant_subscription(
         has_stripe_subscription=bool(sub.stripe_subscription_id) if isinstance(sub.stripe_subscription_id, str) else False,
         is_bonus=sub.is_bonus is True,
         # Mesma semântica do require_plan_feature (P-05): a UI esconde o que o backend nega.
-        features=get_effective_plan_features(sub),
+        features=await _features_do_terreiro(db, sub),
     )

@@ -375,27 +375,57 @@ class TestUpdateTenantConfig:
 
 # ── exports.py ───────────────────────────────────────────────────────────────
 
-class TestExportsCSV:
+class TestExportListagem:
     async def test_non_admin_raises(self):
-        from src.api.v1.admin.exports import export_tickets_csv
+        from src.api.v1.admin.exports import export_listagem_senhas
         with pytest.raises(InsufficientPermissionsError):
-            await export_tickets_csv(GIRA_ID, _operator_user(), AsyncMock())
+            await export_listagem_senhas(GIRA_ID, _operator_user(), AsyncMock())
+
+    async def test_gira_not_found(self):
+        from src.api.v1.admin.exports import export_listagem_senhas
+        db = AsyncMock()
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = None
+        db.execute.return_value = result_mock
+        with pytest.raises(NotFoundError):
+            await export_listagem_senhas(GIRA_ID, _admin_user(), db)
 
     async def test_success(self):
-        from src.api.v1.admin.exports import export_tickets_csv
+        from src.api.v1.admin.exports import export_listagem_senhas
         db = AsyncMock()
+        gira = MagicMock()
+        gira.nome = "Gira de Pretos Velhos"
+        gira.data_inicio = datetime(2026, 10, 8, 22, 30, tzinfo=timezone.utc)
+        gira_result = MagicMock()
+        gira_result.scalar_one_or_none.return_value = gira
         ticket = MagicMock()
-        ticket.numero = 1
-        ticket.consulente_nome = "Test"
-        ticket.consulente_email = "t@t.com"
+        ticket.numero = 10
+        ticket.is_sponsor = False
+        ticket.is_walk_in = False
+        ticket.is_acompanhante = False
+        ticket.priority_category = "ELDERLY"
         ticket.status = MagicMock(value="emitted")
-        ticket.emitted_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
-        ticket.used_at = None
-        result_mock = MagicMock()
-        result_mock.scalars.return_value.all.return_value = [ticket]
-        db.execute.return_value = result_mock
-        resp = await export_tickets_csv(GIRA_ID, _admin_user(), db)
-        assert resp.media_type.startswith("text/csv")
+        ticket.created_at = datetime(2026, 10, 7, 15, 1, tzinfo=timezone.utc)
+        ticket.checkin_em = None
+        ticket.finalizado_em = None
+        ticket.medium_nome = None
+        ticket.cambone_nome = None
+        ticket.atendimento_descricao = None
+        ticket.consulente.nome = "Maria Conga"
+        ticket.consulente.email = "maria@t.com"
+        ticket.consulente.telefone = "(35) 99999-0000"
+        tickets_result = MagicMock()
+        tickets_result.scalars.return_value.all.return_value = [ticket]
+        db.execute.side_effect = [gira_result, tickets_result]
+        resp = await export_listagem_senhas(GIRA_ID, _admin_user(), db)
+        assert resp.gira.nome == "Gira de Pretos Velhos"
+        item = resp.items[0]
+        assert item.senha == "0010"
+        assert item.nome == "Maria Conga"
+        assert item.prioridade == "Idoso (60+)"
+        assert item.status_label == "Aguardando"
+        assert item.tipo == "Comum"
+        assert item.emitida_em == "07/10/2026 12:01"
 
 
 # ── health.py ────────────────────────────────────────────────────────────────
@@ -532,12 +562,15 @@ class TestListUsers:
         from src.api.v1.admin.users import list_users
         repo_inst = AsyncMock()
         user_mock = _mock_user_model()
-        repo_inst.list.return_value = [user_mock]
+        repo_inst.list_backoffice.return_value = [user_mock]
         MockRepo.return_value = repo_inst
 
         result = await list_users(0, 50, None, _admin_user(), AsyncMock())
         assert len(result) == 1
         assert result[0].email == "user@test.com"
+        # Sem filtro, a lista é a do painel (contas `medium` ficam fora — AM-02).
+        repo_inst.list_backoffice.assert_awaited_once()
+        repo_inst.list.assert_not_called()
 
 
 class TestGetUser:

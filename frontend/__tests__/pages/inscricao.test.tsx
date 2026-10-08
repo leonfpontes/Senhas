@@ -79,7 +79,7 @@ describe('Inscrição em curso', () => {
 
     fireEvent.change(screen.getByLabelText(/Nome completo/i), { target: { value: 'Maria Silva' } });
     fireEvent.change(screen.getByLabelText(/^E-mail/i), { target: { value: 'maria@example.com' } });
-    fireEvent.click(screen.getByRole('checkbox', { name: /uso dos meus dados pessoais/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /usar os dados pessoais desta ficha/i }));
     fireEvent.click(screen.getByRole('checkbox', { name: /uso da minha imagem/i }));
     fireEvent.click(screen.getByRole('button', { name: /confirmar inscrição/i }));
 

@@ -1,125 +1,163 @@
 /**
- * Girahub — Política de Privacidade
+ * GiraHub — Política de Privacidade (v2.0, out/2026). Conferida contra o código: operadores reais
+ * (Hostinger, Cloudflare R2, Stripe, Resend, Brevo, Sentry, Google, Microsoft, Meta), dados de cada
+ * módulo e retenção que o sistema de fato pratica (sem promessas sem código por trás — R-02).
  */
 import React from 'react';
-import { LegalPageLayout } from '@/components/public/LegalPageLayout';
+import { LegalPageLayout, PRIVACY_EMAIL, type LegalHighlight } from '@/components/public/LegalPageLayout';
+import { LEGAL_VERSIONS, identificacaoDoFornecedor } from '@/constants/legal';
 
-// ─── Legal sections ──────────────────────────────────────────────
+const HIGHLIGHTS: LegalHighlight[] = [
+  { title: 'Não vendemos dados', text: 'Nem os seus, nem os dos consulentes, médiuns ou associados da sua casa.' },
+  { title: 'Cada casa no seu espaço', text: 'Os dados de um terreiro nunca aparecem para outro. Senhas de acesso são guardadas com criptografia.' },
+  { title: 'Cookies só com a sua escolha', text: 'Estatísticas e marketing ficam desligados até você aceitar — e você muda isso quando quiser em [Cookies](/cookies).' },
+  { title: 'Seus direitos, sem burocracia', text: `Acesso, correção, cópia ou exclusão: peça em ${PRIVACY_EMAIL} e respondemos em até 15 dias.` },
+];
+
 const SECTIONS = [
   {
-    title: '1. Dados que Coletamos',
-    body: `Coletamos os seguintes tipos de dados pessoais:
+    title: '1. Quem cuida dos seus dados',
+    body: `Esta Política explica como o GiraHub trata dados pessoais na plataforma, no site girahub.com.br e nos sites dos terreiros hospedados aqui, conforme a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018). O responsável é ${identificacaoDoFornecedor()}.
 
-• **Dados de cadastro:** nome, e-mail, telefone e informações do terreiro (nome, endereço) ao criar uma conta administrativa.
-• **Dados de consulentes:** nome e e-mail fornecidos voluntariamente ao emitir uma senha para participação em giras.
-• **Dados de uso:** páginas acessadas, horários de acesso, ações realizadas no painel administrativo (registradas em trilha de auditoria).
-• **Dados técnicos:** endereço IP, tipo de navegador e sistema operacional, coletados automaticamente para garantir segurança e desempenho.
-• **Dados de comunicação:** conteúdo de e-mails enviados pela plataforma (confirmações de senha, notificações).`,
+Há dois papéis diferentes:
+
+• **GiraHub como controlador:** dados de quem visita o nosso site, cria conta, assina um plano ou fala com o suporte.
+• **Terreiro como controlador, GiraHub como operador:** dados que a casa cadastra ou recebe pelo sistema — consulentes, médiuns, associados, inscritos em cursos. Aqui quem decide é o terreiro; nós tratamos esses dados só para prestar o serviço a ele. Para exercer seus direitos sobre esses dados, fale primeiro com a casa — e, se precisar, conosco.`,
   },
   {
-    title: '2. Finalidade do Uso dos Dados',
-    body: `Utilizamos seus dados para:
+    title: '2. Quais dados tratamos',
+    body: `**Visitantes do site:** páginas vistas, origem da visita, aparelho, navegador e endereço IP; com o seu consentimento, também cookies de estatísticas e de marketing (veja a [Política de Cookies](/cookies)).
 
-• Prover e manter o funcionamento da plataforma Girahub.
-• Emitir, reenviar e gerenciar senhas para giras.
-• Enviar confirmações e notificações por e-mail aos consulentes e administradores.
-• Manter a trilha de auditoria de operações para segurança e conformidade.
-• Gerar relatórios e analytics agregados para os administradores do terreiro.
-• Melhorar a experiência do usuário e a segurança da plataforma.`,
+**Quem cria a conta do terreiro:** nome do terreiro, seu nome, e-mail, WhatsApp, CPF ou CNPJ, como conheceu o GiraHub e a principal necessidade da casa. A senha é guardada só em formato criptografado (hash), nunca em texto.
+
+**Usuários do painel:** nome, e-mail, telefone, foto de perfil (opcional), papel e grupo de permissão, sessões abertas (aparelho e navegador) e as ações registradas na trilha de auditoria (com data, hora, endereço IP e navegador).
+
+**Consulentes que pegam senha:** nome e e-mail (obrigatórios), telefone (opcional), categoria de prioridade quando informada (idoso, PcD/TEA, gestante/lactante/criança de colo, mobilidade reduzida), nomes de acompanhantes e o horário escolhido. Não pedimos CPF nem data de nascimento para emitir senha.
+
+**Médiuns e associados (cadastrados pela casa):** nome, contatos, data de nascimento e endereço dos médiuns; mensalidades, pagamentos e comprovantes enviados.
+
+**Médiuns com acesso à Área do Médium:** quando a casa convida, o médium cria uma conta com e-mail e senha (guardada só em formato criptografado) e registramos a data e a versão da autorização dada no convite. Na Área ficam a agenda da casa, os avisos e quem os leu, a mensalidade e os comprovantes enviados pelo próprio médium e, quando a casa usa, as escalas, as presenças e os motivos de ausência que ele informar.
+
+**Inscritos em cursos presenciais:** os dados da ficha definida pela casa, que pode incluir documentos (CPF, RG), endereço, contato de emergência e, nas fichas completas, informações de saúde — sempre com consentimento específico.
+
+**Assinatura:** plano, situação dos pagamentos e identificadores da Stripe. Os dados do cartão ficam só com a Stripe.
+
+**Suporte:** as mensagens trocadas no chat do painel e por e-mail.`,
   },
   {
-    title: '3. Isolamento Multi-Tenant',
-    body: `O Girahub opera com arquitetura multi-tenant, garantindo isolamento total dos dados entre diferentes terreiros. Isso significa que:
-
-• Cada terreiro (tenant) possui um identificador único atrelado a todos os seus dados.
-• A autenticação via JWT carrega o identificador do tenant no payload.
-• Toda consulta ao banco de dados filtra obrigatoriamente pelo tenant, impedindo acesso cruzado entre organizações.
-• Administradores de um terreiro jamais têm acesso aos dados de outro terreiro.`,
+    title: '3. Para que usamos e com qual base legal',
+    body: `• **Prestar o serviço** (emitir senhas, organizar giras, cadastros, site da casa, e-mails de confirmação e avisos): execução de contrato (art. 7º, V) e, para os dados das casas, as instruções do terreiro controlador.
+• **Segurança e prevenção a fraudes** (trilha de auditoria, controle de sessões, monitoramento de erros, impedir que o teste grátis seja repetido): legítimo interesse (art. 7º, IX) e proteção do crédito.
+• **Guardar registros de acesso** por no mínimo 6 meses: obrigação legal (Marco Civil da Internet, art. 15).
+• **Cobrança e obrigações fiscais:** execução de contrato e obrigação legal (art. 7º, II e V).
+• **E-mails sobre a conta** (fim do teste, dicas para a primeira gira, novidades do sistema): legítimo interesse, sempre relacionados ao serviço que você usa.
+• **Estatísticas de uso do site e do painel** e **medição de anúncios**: consentimento (art. 7º, I), dado no aviso de cookies e revogável a qualquer momento.
+• **Dados sensíveis** (saúde em fichas de curso, prioridade de atendimento): consentimento específico ou proteção da vida e da saúde, conforme o caso (art. 11).
+• **Área do Médium:** o acesso só existe com a autorização que o médium dá ao aceitar o convite da casa (consentimento específico, art. 11, I). Ele pode revogá-la pedindo à casa o encerramento do acesso.`,
   },
   {
-    title: '4. Armazenamento e Segurança',
-    body: `Adotamos as seguintes medidas de segurança:
+    title: '4. Dados sensíveis e religião',
+    body: `Constar como consulente, médium ou associado de um terreiro pode revelar convicção religiosa, que a LGPD trata como dado sensível. Por isso:
 
-• **Criptografia em trânsito:** toda comunicação entre seu navegador e nossos servidores utiliza HTTPS/TLS.
-• **Senhas protegidas:** senhas de acesso são armazenadas com hash bcrypt, nunca em texto puro.
-• **Controle de acesso (RBAC):** permissões diferenciadas por papel (Super Admin, Administrador, Operador).
-• **Trilha de auditoria:** todas as operações sensíveis são registradas com data, hora, usuário e ação realizada.
-• **Monitoramento contínuo:** a plataforma conta com monitoramento 24/7 para detecção de anomalias.`,
+• Os dados de cada casa ficam isolados e só são vistos por quem a casa autorizou.
+• Não usamos dados das casas para anúncios, perfis de comportamento ou qualquer finalidade nossa.
+• As ferramentas de estatística mascaram campos de formulário — nomes, e-mails, telefones e documentos não chegam a elas.
+• Na Área do Médium, cada médium vê só os próprios dados; os outros médiuns não veem nada dele. Os convites e avisos por e-mail não citam religião, entidade nem valores.`,
   },
   {
-    title: '5. Compartilhamento de Dados',
-    body: `Não vendemos, alugamos ou compartilhamos seus dados pessoais para fins de marketing. Dados podem ser compartilhados apenas nos seguintes casos:
+    title: '5. Com quem compartilhamos',
+    body: `Não vendemos nem alugamos dados pessoais. Compartilhamos apenas com fornecedores que nos ajudam a operar o GiraHub, sob contrato e só no necessário:
 
-• **Provedores de e-mail:** utilizamos serviços de envio de e-mail (ex.: Brevo, Resend) exclusivamente para entregar notificações e confirmações da plataforma.
-• **Obrigação legal:** quando exigido por lei, ordem judicial ou autoridade reguladora competente.
-• **Proteção de direitos:** para proteger os direitos, propriedade ou segurança do Girahub, de nossos usuários ou do público.`,
+• **Hostinger** — servidor onde o sistema e o banco de dados funcionam.
+• **Cloudflare (R2)** — cópias de segurança diárias do banco, criptografadas antes de sair do servidor.
+• **Stripe** — pagamento das assinaturas (nome e e-mail do responsável e identificador do terreiro).
+• **Resend** e, como reserva, **Brevo** — envio dos e-mails do sistema (confirmação de senha, avisos, recuperação de acesso).
+• **Sentry** — registro de erros técnicos, sem dados pessoais (só identificadores internos do usuário e da casa).
+• **Google (Analytics e Ads)**, **Microsoft (Clarity)** e **Meta (Pixel)** — estatísticas e medição de anúncios, apenas com o seu consentimento. O Clarity recebe só um identificador interno embaralhado do usuário e o nome do terreiro, nunca e-mail, telefone ou documento.
+
+Nos **sites dos terreiros**, conforme o que a casa escolheu exibir, o seu navegador também acessa: Google Fonts (fontes do site), OpenStreetMap (mapa do endereço), YouTube no modo de privacidade aprimorada (vídeos) e ViaCEP (para completar o endereço pelo CEP em formulários).
+
+Também podemos compartilhar dados quando a lei, uma ordem judicial ou uma autoridade competente exigir, ou para defender direitos em processo.`,
   },
   {
-    title: '6. Seus Direitos (LGPD — Art. 18)',
-    body: `De acordo com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), você tem direito a:
-
-• **Confirmação e acesso:** saber se tratamos seus dados e acessar uma cópia.
-• **Correção:** solicitar a correção de dados incompletos, inexatos ou desatualizados.
-• **Anonimização ou eliminação:** solicitar a anonimização, bloqueio ou eliminação de dados desnecessários ou excessivos.
-• **Portabilidade:** solicitar a portabilidade de seus dados a outro fornecedor de serviço.
-• **Revogação do consentimento:** retirar seu consentimento a qualquer momento, sem prejuízo ao tratamento realizado anteriormente.
-• **Informação:** ser informado sobre entidades públicas e privadas com as quais compartilhamos dados.
-• **Oposição:** opor-se ao tratamento quando realizado em descumprimento à LGPD.
-
-Para exercer qualquer destes direitos, entre em contato pelo e-mail leonfpontes@gmail.com.`,
+    title: '6. Transferência internacional',
+    body: `Alguns fornecedores acima (como Stripe, Resend, Brevo, Sentry, Google, Microsoft, Meta e Cloudflare) processam dados fora do Brasil, principalmente nos Estados Unidos e na União Europeia. Essas transferências seguem o art. 33 da LGPD, com contratos que exigem nível de proteção compatível com a lei brasileira, e envolvem apenas os dados necessários para cada serviço.`,
   },
   {
-    title: '7. Cookies e Tecnologias de Rastreamento',
-    body: `O Girahub utiliza apenas cookies essenciais para o funcionamento da plataforma:
-
-• **Cookies de sessão:** para manter sua autenticação ativa durante o uso do painel.
-• **Cookies de preferência:** para lembrar configurações de interface como tema e idioma.
-
-Não utilizamos cookies de publicidade, rastreamento de terceiros ou ferramentas de marketing comportamental.`,
+    title: '7. Cookies',
+    body: `Usamos cookies necessários para o login e a segurança, e — só se você aceitar — cookies de estatísticas e de marketing. Sem a sua escolha, nada opcional é gravado. A lista completa, com fornecedor, finalidade e duração de cada cookie, e o botão para mudar a sua escolha estão na [Política de Cookies](/cookies).`,
   },
   {
-    title: '8. Retenção de Dados',
-    body: `• **Dados de conta:** mantidos enquanto sua conta estiver ativa. Após solicitação de exclusão, dados são removidos em até 30 dias.
-• **Dados de auditoria:** mantidos por 12 meses para fins de segurança e conformidade, sendo eliminados automaticamente após este período.
-• **Dados de consulentes:** mantidos enquanto o terreiro associado mantiver conta ativa. Podem ser eliminados a pedido do consulente ou do administrador do terreiro.`,
+    title: '8. Como protegemos',
+    body: `• Conexão sempre criptografada (HTTPS/TLS).
+• Senhas de acesso guardadas com hash bcrypt; sessão em cookie que o JavaScript da página não consegue ler (HttpOnly), com tempo máximo de duração.
+• Isolamento por terreiro em todas as consultas ao banco, verificado automaticamente a cada mudança no código.
+• Controle de acesso por papéis e grupos de permissão, e trilha de auditoria das ações sensíveis.
+• Cópias de segurança diárias criptografadas, com teste de restauração.
+• Monitoramento de erros e de disponibilidade.
+
+Nenhum sistema é 100% invulnerável. Se acontecer um incidente de segurança com risco relevante, avisaremos os afetados e a ANPD, como manda a lei.`,
   },
   {
-    title: '9. Menores de Idade',
-    body: `A plataforma Girahub não é direcionada a menores de 18 anos. Não coletamos intencionalmente dados de menores. Caso identifiquemos dados de menores em nossos sistemas, eles serão eliminados prontamente.`,
+    title: '9. Por quanto tempo guardamos',
+    body: `• **Conta e dados da casa:** enquanto a conta estiver ativa. Se o terreiro desativar a conta, os dados ficam guardados para permitir a reativação, até que a casa peça a exclusão definitiva.
+• **Exclusão definitiva:** a pedido do terreiro, apagamos os dados do sistema em até 30 dias. Nas cópias de segurança, eles somem conforme as cópias expiram — diárias em até 30 dias e mensais em até 12 meses.
+• **Registros de acesso e trilha de auditoria:** no mínimo 6 meses (Marco Civil da Internet) e, depois, enquanto a conta existir, para a segurança da própria casa.
+• **Dados de cobrança e notas:** pelo prazo exigido pela legislação fiscal (em geral, 5 anos).
+• **Controle do teste grátis:** guardamos o e-mail e uma versão embaralhada (hash) do CPF/CNPJ de quem já usou o teste, para que ele não seja repetido.
+• **Dados de consulentes, médiuns e associados:** pelo tempo que o terreiro definir; a casa pode apagá-los no painel ou nos pedir a exclusão.
+• **Estatísticas e marketing:** pelo prazo de cada cookie (veja a Política de Cookies) e pelo período de retenção configurado em cada ferramenta.`,
   },
   {
-    title: '10. Alterações nesta Política',
-    body: `Podemos atualizar esta Política de Privacidade periodicamente. Alterações significativas serão notificadas por e-mail ou aviso na plataforma. Recomendamos revisar esta página regularmente.
+    title: '10. Seus direitos',
+    body: `Pela LGPD (art. 18), você pode pedir a qualquer momento:
 
-A data da última atualização será sempre indicada no topo desta página.`,
+• Confirmação de que tratamos seus dados e acesso a eles.
+• Correção de dados incompletos, errados ou desatualizados.
+• Anonimização, bloqueio ou eliminação de dados desnecessários ou tratados em desacordo com a lei.
+• Portabilidade para outro fornecedor.
+• Informação sobre com quem compartilhamos.
+• Revogação do consentimento — para cookies, direto em [Cookies](/cookies); para o resto, pelo e-mail abaixo.
+• Revisão de decisões tomadas só por meios automatizados.
+• Oposição a tratamentos feitos sem respeitar a lei.
+
+**Como pedir:** envie e-mail para ${PRIVACY_EMAIL}. Podemos pedir uma confirmação de identidade antes de atender. Respondemos em até 15 dias. Usuários do painel também podem corrigir o próprio cadastro e excluir o próprio acesso em Perfil. Se os dados foram cadastrados por um terreiro, encaminharemos o pedido à casa e a ajudaremos a atendê-lo.
+
+Você também pode reclamar à Autoridade Nacional de Proteção de Dados (ANPD), em gov.br/anpd.`,
   },
   {
-    title: '11. Contato',
-    body: `Para questões relacionadas a esta política ou ao tratamento de seus dados pessoais:
-
-• **E-mail:** leonfpontes@gmail.com
-• **WhatsApp:** (16) 99109-1234
-
-Responderemos sua solicitação em até 15 dias úteis, conforme previsto pela LGPD.`,
+    title: '11. Crianças e adolescentes',
+    body: `A conta do terreiro só pode ser criada por maiores de 18 anos. Quando uma casa cadastra dados de crianças ou adolescentes (por exemplo, uma criança de colo como prioridade ou acompanhante), ela deve fazê-lo no melhor interesse deles e com a autorização de um dos pais ou responsável (LGPD, art. 14).`,
+  },
+  {
+    title: '12. Encarregado (DPO)',
+    body: `O canal do encarregado pelo tratamento de dados pessoais do GiraHub é o e-mail **${PRIVACY_EMAIL}**. Por ele você fala sobre esta Política, faz pedidos de titular e nos avisa de qualquer suspeita de uso indevido de dados.`,
+  },
+  {
+    title: '13. Mudanças nesta Política',
+    body: `Esta Política muda quando o GiraHub muda — por exemplo, ao entrar um fornecedor novo. A versão e a data de vigência ficam no topo da página, e mudanças relevantes são avisadas por e-mail ou no painel. Se uma mudança depender do seu consentimento, pediremos de novo.`,
   },
 ];
 
-// ═════════════════════════════════════════════════════════════════
 export default function PrivacidadePage() {
+  const v = LEGAL_VERSIONS.privacidade;
   return (
     <LegalPageLayout
-      pageTitle="Política de Privacidade — Girahub"
-      description="Política de Privacidade da plataforma Girahub. Saiba como tratamos seus dados pessoais em conformidade com a LGPD."
+      path="/privacidade"
+      pageTitle="Política de Privacidade — GiraHub"
+      description="Como o GiraHub trata dados de terreiros, consulentes, médiuns e visitantes conforme a LGPD: o que coletamos, com quem compartilhamos, por quanto tempo e como exercer seus direitos."
       heading="Política de Privacidade"
-      updatedAt="Março de 2026"
+      lead="O que coletamos, para quê, com quem compartilhamos e como você exerce os seus direitos — incluindo os dados que o seu terreiro guarda aqui."
+      updatedAt={v.updatedAt}
+      updatedAtIso={v.updatedAtIso}
+      version={v.version}
       intro={
-        <>
-          A Girahub (&quot;nós&quot;, &quot;nosso&quot;) tem o compromisso de proteger a privacidade e os dados pessoais de
-          nossos usuários. Esta Política de Privacidade descreve como coletamos, usamos, armazenamos e protegemos suas
-          informações ao utilizar nossa plataforma, em conformidade com a Lei Geral de Proteção de Dados (LGPD — Lei nº
-          13.709/2018).
-        </>
+        <p>
+          Cuidar de uma casa de axé é cuidar de gente — e de informação sobre gente. Esta Política mostra, sem rodeios,
+          como o GiraHub trata dados pessoais e o que você pode exigir de nós.
+        </p>
       }
+      highlights={HIGHLIGHTS}
       sections={SECTIONS}
     />
   );

@@ -36,6 +36,7 @@ import AdminLayout from './admin_layout';
 import { PageHeader, ConfirmDialog } from '@/components/admin';
 import GirasEmptyState from '@/components/admin/GirasEmptyState';
 import { GiraCard, giraPhase, type GiraCardData } from '@/components/admin/GiraCard';
+import { ChamadaDaGiraButton, giraTemChamada } from '@/components/admin/presenca/ChamadaDaGiraButton';
 import { ShareLinkDialog } from '@/components/admin/ShareLinkDialog';
 import { PermissionDenied } from '@/components/gates';
 import { Stepper } from '@/components/Stepper';
@@ -63,12 +64,14 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useGiraContext } from '@/components/admin/GiraContext';
 import { useProfile } from '@/hooks/useProfile';
 import { minPlanFor, type PlanFeatureKey } from '@/constants/plans';
+import { OrientacoesCorrenteField } from '@/components/admin/giras/OrientacoesCorrenteField';
 
 interface Gira extends GiraCardData {
   descricao?: string;
   data_fim?: string;
   local?: string;
   recados?: string;
+  orientacoes_corrente?: string | null;
   allow_acompanhantes?: boolean;
   max_acompanhantes?: number | null;
 }
@@ -105,7 +108,14 @@ interface UnifiedLinks {
 const timeToInputValue = (horario: string): string => horario.slice(0, 5);
 const emptySlotRow = (): TimeSlotRow => ({ horario: '', capacidade_maxima: '' });
 
-const EMPTY_FORM = { nome: '', descricao: '', data_inicio: '', recados: '', local: '' };
+const EMPTY_FORM = {
+  nome: '',
+  descricao: '',
+  data_inicio: '',
+  recados: '',
+  local: '',
+  orientacoes_corrente: '',
+};
 const EMPTY_SENHA_FORM = {
   max_tickets: '',
   release_start_at: '',
@@ -274,6 +284,8 @@ function AdminGirasContent() {
   const canDelete = canGroup('giras', 'delete');
   const canViewPorta = canGroup('porta', 'view');
   const canViewTickets = canGroup('tickets', 'view');
+  // Orientações para a corrente (AM-07): só com a Área do Médium; sem ela o valor nem vai.
+  const comAreaMedium = can('area_medium');
   const router = useRouter();
   const giraCtx = useGiraContext({ load: false });
   const { profile } = useProfile();
@@ -583,6 +595,7 @@ function AdminGirasContent() {
         recados: createForm.recados,
         local: createForm.local.trim() || null,
         data_inicio: toUtcIso(createForm.data_inicio),
+        ...(comAreaMedium ? { orientacoes_corrente: createForm.orientacoes_corrente.trim() || null } : {}),
       };
       const response = await apiClient.post('/api/v1/admin/giras', payload);
       const created: Gira | null = response?.data?.id ? (response.data as Gira) : null;
@@ -630,6 +643,7 @@ function AdminGirasContent() {
       data_inicio: isoToLocalDatetimeInput(gira.data_inicio),
       recados: gira.recados || '',
       local: gira.local || '',
+      orientacoes_corrente: gira.orientacoes_corrente || '',
     });
     setTouched({});
     setEditOpen(true);
@@ -653,6 +667,7 @@ function AdminGirasContent() {
       formData.descricao !== (currentGira.descricao || '') ||
       formData.recados !== (currentGira.recados || '') ||
       formData.local !== (currentGira.local || '') ||
+      formData.orientacoes_corrente !== (currentGira.orientacoes_corrente || '') ||
       formData.data_inicio !== isoToLocalDatetimeInput(currentGira.data_inicio));
   const nomeError = touched.nome && !formData.nome.trim() ? 'Nome é obrigatório' : '';
   const dataError = touched.data_inicio && !formData.data_inicio ? 'Informe o dia e a hora da gira' : '';
@@ -663,10 +678,12 @@ function AdminGirasContent() {
     if (editSaveDisabled || !canEdit || !currentGira) return;
     setSaving(true);
     try {
+      const { orientacoes_corrente, ...campos } = formData;
       await apiClient.put(`/api/v1/admin/giras/${currentGira.id}`, {
-        ...formData,
+        ...campos,
         local: formData.local.trim() || null,
         data_inicio: toUtcIso(formData.data_inicio),
+        ...(comAreaMedium ? { orientacoes_corrente: orientacoes_corrente.trim() || null } : {}),
       });
       closeEdit();
       toast.success('Gira atualizada!');
@@ -972,6 +989,7 @@ function AdminGirasContent() {
       onRelease={(g) => setReleaseTarget(g as Gira)}
       onEdit={(g) => openEdit(g as Gira)}
       onDelete={(g) => setDeleteTarget(g as Gira)}
+      extraAction={giraTemChamada(gira) ? <ChamadaDaGiraButton giraId={gira.id} /> : undefined}
     />
   );
 
@@ -1243,6 +1261,10 @@ function AdminGirasContent() {
               onChange={(e) => setCreateField('recados', e.target.value)}
               helperText="Opcional. Vai no e-mail da senha — investimento, itens de doação, avisos."
             />
+            <OrientacoesCorrenteField
+              value={createForm.orientacoes_corrente}
+              onChange={(v) => setCreateField('orientacoes_corrente', v)}
+            />
           </div>
         )}
 
@@ -1309,6 +1331,10 @@ function AdminGirasContent() {
             value={formData.recados}
             onChange={(e) => handleChange('recados', e.target.value)}
             helperText="Opcional. Vai no e-mail da senha — investimento, itens de doação, avisos."
+          />
+          <OrientacoesCorrenteField
+            value={formData.orientacoes_corrente}
+            onChange={(v) => handleChange('orientacoes_corrente', v)}
           />
         </div>
       </CrudDrawer>

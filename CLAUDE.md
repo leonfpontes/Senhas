@@ -1,6 +1,6 @@
 # CLAUDE.md — Instruções para Claude Code
 
-Last Updated: 2026-10-05
+Last Updated: 2026-10-07
 Projeto: Senhas — SaaS multi-tenant de emissão de tickets para giras
 
 Este arquivo é lido automaticamente pelo Claude Code em toda sessão. Contém regras não negociáveis
@@ -51,13 +51,22 @@ Feature por módulo:
 - Associados → `ASSOCIADOS`
 - Usuários → `USUARIOS`
 - Estoque → `ESTOQUE`
-- Mensalidades (config/resumo/relatorio/pagamentos) → `FINANCEIRO`
+- Mensalidades (config/resumo/relatorio/pagamentos; comprovantes enviados pela Área: fila = `view`, confirmar = `insert`, não confirmar = `edit`) → `FINANCEIRO`
 - Contas a Pagar/Receber, Fluxo de Caixa, Config Financeira → `CONTAS_FINANCEIRAS`
 - Configurações do Tenant → `CONFIGURACOES`
 - Auditoria → `AUDITORIA`
 - Analytics → `ANALYTICS`
 - Relatório de Gira → `RELATORIO_GIRA`; export CSV da gira → `TICKETS` ou `RELATORIO_GIRA` (+ plano `export_csv`)
-- Cursos Presenciais / Sites → `CURSOS_PRESENCIAIS`
+- Cursos Presenciais → `CURSOS_PRESENCIAIS`
+- Atividades da casa, escalas, confirmações e chamada (AM-08/AM-17) → `ESCALAS`; a chamada de uma **gira**
+  também aceita `PORTA:edit` (e o QR da gira `PORTA:view`) — `require_any_group_permission(ESCALAS, PORTA)`
+  + checagem interna de que é âncora de gira (AGENTS.md §3.3)
+- Site do terreiro (Meu Site, `sites.py`, inclusive imagens) → `SITE` (separado de Cursos desde o T-06)
+- Avisos da Área do Médium (`comunicados.py`) → `COMUNICADOS` ("Avisos da Área", grupo "Corrente") + plano `area_medium`
+- Grupos da corrente (`corrente_grupos.py`) → `MEDIUNS` (ler: `MEDIUNS` ou `ESCALAS` view) + plano `area_medium`
+- Atividades da casa — tipos, funções, atividades internas, calendário (`atividades.py`) → `ESCALAS`
+  ("Atividades e escalas", grupo "Corrente") + planos `area_medium` e `atividades_corrente`; escalas, confirmações
+  e chamada (AM-17/18/25) usam a mesma feature (escala no plano `escalas`, Pro)
 
 Exceções (não precisam de guard de grupo):
 - `health.py`, `billing_stripe.py`, `subscription_info.py`, `permission_groups.py` — rotas de sistema/plataforma
@@ -76,6 +85,26 @@ Exceções (não precisam de guard de grupo):
   em vez de `require_group_permission`, já que essa visão é binária
   (admin vê tudo, operator não vê nada) sem granularidade de grupo. Também
   não é gateado por plano/assinatura — disponível em todos os planos.
+- **Área do Médium** (`src/api/v1/medium/*`, `/api/v1/medium/*`, AM-02) — não é
+  rota admin: o `medium_router` inteiro passa por `Depends(require_medium)`
+  (usuário logado + médium ativo ligado a ele por `mediuns.user_id` no mesmo
+  tenant + plano com `area_medium`). O médium não tem grupo; as rotas são
+  "minhas" e **nunca** recebem `medium_id` na URL/corpo (`ctx.medium`,
+  `ctx.tenant_id`). Escrita sob impersonação → `Depends(require_not_impersonated)`.
+  `audit_permission_guards.py` exige o `require_medium`; `audit_tenant_isolation.py`
+  (modo "medium") exige filtro por `ctx.tenant_id` e, em modelo com FK para
+  `mediuns`, por `ctx.medium.id`.
+
+Papel `medium` (AM-02): conta só da Área do Médium. O `admin_router` inteiro tem
+`Depends(require_backoffice)` → `medium` leva 403 em toda rota `/api/v1/admin/*`,
+inclusive nas exceções acima. Rota admin nova entra sempre no `admin_router`
+(`tests/unit/test_area_medium_rotas.py` varre o app). Consulta "qualquer usuário do
+terreiro" (contato, contagem) exclui `role = medium`. Ver AGENTS.md §3.3.
+
+Tela da Área do Médium (`frontend/src/pages/medium/*`, AM-06): não usa `useSubscription`/
+`usePermissions`; envolve tudo em `<MediumLayout>` (gate de área — `audit-permission-guards.js`
+exige) e só chama `/api/v1/medium/*`. Médium puro nunca chama `/api/v1/admin/*`: os providers
+do painel só buscam em `/admin/*` e o `api_client` cancela a chamada (AGENTS.md §11.23).
 
 ### Frontend — checklist por tela
 
@@ -115,7 +144,10 @@ Se o módulo novo não se encaixa em nenhuma feature existente:
 
 2. **Backend** — criar migração Alembic para adicionar o valor ao tipo ENUM:
    ```python
-   op.execute("ALTER TYPE permission_feature ADD VALUE 'nova_feature'")
+   # O env.py roda todas as migrações numa transação só: o ADD VALUE precisa do autocommit_block
+   # para o valor existir (commitado) quando a segunda migração rodar no mesmo `upgrade head`.
+   with op.get_context().autocommit_block():
+       op.execute("ALTER TYPE permission_feature ADD VALUE IF NOT EXISTS 'nova_feature'")
    ```
    E, numa **segunda migração** (o Postgres só deixa usar o valor novo depois do commit), dar
    acesso total à feature nos grupos padrão "Acesso total" (Q-05 — operador sem grupo não

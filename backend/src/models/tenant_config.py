@@ -1,5 +1,5 @@
 """TenantConfig model - organization branding and settings (T052)."""
-from sqlalchemy import Column, String, ForeignKey, Boolean, Index, LargeBinary, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, String, ForeignKey, Boolean, Index, Integer, LargeBinary, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from datetime import datetime
@@ -22,6 +22,12 @@ class TenantConfig(TimestampedModel):
     __table_args__ = (
         UniqueConstraint("tenant_id", name="uq_tenant_configs_tenant_id"),
         Index("ix_tenant_configs_tenant_id", "tenant_id"),
+        CheckConstraint(
+            "presenca_modo_padrao IN ('confianca', 'app', 'qr')", name="ck_tenant_configs_presenca_modo"
+        ),
+        CheckConstraint(
+            "presenca_prazo_justificativa_dias BETWEEN 1 AND 30", name="ck_tenant_configs_presenca_prazo"
+        ),
     )
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -65,6 +71,25 @@ class TenantConfig(TimestampedModel):
     # emissão pública). Default desabilitado — cada gira ainda decide via
     # Gira.use_time_slots se usa ou não.
     enable_time_slot_scheduling: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+
+    # Área do Médium (AM-10) — o que a casa mostra ao médium. A chave da plataforma
+    # (`tenants.area_medium_liberada`) e o plano (`area_medium`) valem por cima.
+    area_medium_ativa: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    area_medium_boas_vindas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Só dígitos, com DDI (ex.: 5511987654321) — botão "Falar com a casa".
+    area_medium_whatsapp: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    area_medium_agenda: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    area_medium_avisos: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    area_medium_mensalidade: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    # Presença (AM-17/AM-28, migração 079): modo padrão da casa (confianca | app | qr — cada tipo
+    # de atividade pode ajustar em `atividade_tipos.presenca_modo`) e prazo, em dias depois da
+    # atividade, para o médium contar o motivo de uma ausência.
+    presenca_modo_padrao: Mapped[str] = mapped_column(
+        String(20), default="confianca", server_default="confianca", nullable=False
+    )
+    presenca_prazo_justificativa_dias: Mapped[int] = mapped_column(
+        Integer, default=7, server_default="7", nullable=False
+    )
 
     # Custom metadata
     custom_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)

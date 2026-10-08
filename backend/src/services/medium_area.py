@@ -1,0 +1,220 @@
+"""Área do Médium — vínculo médium↔usuário e áreas de acesso (AM-02).
+
+Regras (docs/plano-area-do-medium.md §6.2/§6.3):
+- **Área administrativa** = papel `admin` ou `operator` (super admin vai para
+  `/platform` e não conta aqui).
+- **Área do Médium** = existe `Medium` com `user_id = user.id`, do MESMO tenant,
+  não excluído e ativo, **e** o plano efetivo do terreiro (plano × status da
+  assinatura) tem `area_medium`, **e** a Área está ligada na configuração do
+  terreiro (AM-10, `tenant_configs.area_medium_ativa`).
+- As áreas são calculadas no servidor a cada chamada — nunca vão no JWT (o
+  access token vale 24 h e o vínculo pode mudar a qualquer momento).
+
+`require_medium` (src/api/dependencies.py) usa `get_linked_medium` e o gate de
+plano HTTP; `GET /auth/me`, `GET /auth/profile` e o login usam `compute_areas`.
+"""
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass
+from typing import Optional
+
+from datetime import datetime, timezone
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..models import Medium, Tenant, TenantConfig, User, UserRole
+from ..repositories.subscription_repo import SubscriptionRepository
+from .plan_features import get_effective_plan_features
+from . import session_service
+
+# Papéis com acesso ao painel do terreiro (back-office). SUPER_ADMIN fica fora:
+# usa /platform e só entra num tenant impersonando (o token passa a ser do alvo).
+BACKOFFICE_ROLES = frozenset({UserRole.ADMIN, UserRole.OPERATOR})
+
+
+async def get_linked_medium(db: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID) -> Optional[Medium]:
+    """Médium ativo e não excluído ligado ao usuário, dentro do tenant (ou None)."""
+    result = await db.execute(
+        select(Medium).where(
+            Medium.user_id == user_id,
+            Medium.tenant_id == tenant_id,
+            Medium.deleted_at.is_(None),
+            Medium.is_active.is_(True),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+# Módulos da Área que a casa liga/desliga (AM-10), na ordem da barra inferior.
+MODULOS_AREA = ("agenda", "avisos", "mensalidade")
+
+
+@dataclass(frozen=True)
+class AreaMediumConfig:
+    """O que a casa configurou para a Área (colunas `area_medium_*` de `tenant_configs`).
+
+    Terreiro sem linha de config usa os padrões da migração 068: ligada, os três
+    módulos visíveis, sem boas-vindas e sem WhatsApp.
+    """
+
+    ativa: bool = True
+    boas_vindas: Optional[str] = None
+    whatsapp: Optional[str] = None
+    agenda: bool = True
+    avisos: bool = True
+    mensalidade: bool = True
+
+
+async def get_area_medium_config(db: AsyncSession, tenant_id: uuid.UUID) -> AreaMediumConfig:
+    """Configuração da Área do terreiro (padrões se não houver `tenant_configs`)."""
+    row = (
+        await db.execute(
+            select(
+                TenantConfig.area_medium_ativa,
+                TenantConfig.area_medium_boas_vindas,
+                TenantConfig.area_medium_whatsapp,
+                TenantConfig.area_medium_agenda,
+                TenantConfig.area_medium_avisos,
+                TenantConfig.area_medium_mensalidade,
+            ).where(TenantConfig.tenant_id == tenant_id)
+        )
+    ).one_or_none()
+    if row is None:
+        return AreaMediumConfig()
+    return AreaMediumConfig(
+        ativa=bool(row[0]),
+        boas_vindas=row[1],
+        whatsapp=row[2],
+        agenda=bool(row[3]),
+        avisos=bool(row[4]),
+        mensalidade=bool(row[5]),
+    )
+
+
+async def area_medium_enabled_by_tenant(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
+    """A casa deixou a Área ligada (`tenant_configs.area_medium_ativa`, AM-10).
+
+    É o liga/desliga do próprio terreiro; a chave da plataforma
+    (`area_medium_liberada`) e o plano são checados à parte. Sem linha de config,
+    vale o padrão da coluna (ligada).
+    """
+    result = await db.execute(
+        select(TenantConfig.area_medium_ativa).where(TenantConfig.tenant_id == tenant_id)
+    )
+    value = result.scalar_one_or_none()
+    return True if value is None else bool(value)
+
+
+def modulos_visiveis(config: AreaMediumConfig, mensalidade_no_plano: bool) -> list[str]:
+    """Módulos que o médium vê, na ordem de `MODULOS_AREA`.
+
+    A mensalidade também depende do plano (`mensalidade_mediun`): módulo ligado num
+    plano sem a feature não aparece (mesma regra dos toggles: sem plano vale como
+    desligado). Agenda e avisos só dependem da casa.
+    """
+    ligados = {
+        "agenda": config.agenda,
+        "avisos": config.avisos,
+        "mensalidade": config.mensalidade and mensalidade_no_plano,
+    }
+    return [m for m in MODULOS_AREA if ligados[m]]
+
+
+async def area_medium_modulos(db: AsyncSession, tenant_id: uuid.UUID) -> list[str]:
+    """Módulos visíveis da Área no terreiro (`GET /medium/me` e cards seguintes)."""
+    config = await get_area_medium_config(db, tenant_id)
+    sub = await SubscriptionRepository(db).get_by_tenant(tenant_id)
+    return modulos_visiveis(config, get_effective_plan_features(sub).mensalidade_mediun)
+
+
+async def area_medium_liberada(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
+    """A plataforma liberou a Área do Médium para o terreiro (chave do lançamento em piloto)."""
+    result = await db.execute(select(Tenant.area_medium_liberada).where(Tenant.id == tenant_id))
+    return bool(result.scalar_one_or_none())
+
+
+async def tenant_has_area_medium(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
+    """Plano efetivo (plano × status da assinatura) inclui `area_medium`, a plataforma
+    liberou a Área para o terreiro e a Área está ligada na configuração."""
+    sub = await SubscriptionRepository(db).get_by_tenant(tenant_id)
+    if not get_effective_plan_features(sub).area_medium:
+        return False
+    if not await area_medium_liberada(db, tenant_id):
+        return False
+    return await area_medium_enabled_by_tenant(db, tenant_id)
+
+
+def areas_payload(user: User, medium: Optional[Medium]) -> dict:
+    """Formato único de `areas` (login, /auth/me, /auth/profile, /medium/me)."""
+    return {
+        "admin": user.role in BACKOFFICE_ROLES,
+        "medium": {"medium_id": str(medium.id), "nome": medium.nome} if medium is not None else None,
+    }
+
+
+async def compute_areas(db: AsyncSession, user: User) -> dict:
+    """``{"admin": bool, "medium": {"medium_id", "nome"} | None}`` do usuário.
+
+    `medium` só vem preenchido quando o vínculo está ativo E o plano/status do
+    terreiro libera a Área — médium cujo terreiro perdeu o plano recebe `None`
+    (a tela mostra o aviso neutro, sem oferta de upgrade ao médium — AM-04).
+    """
+    if user.tenant_id is None:
+        return areas_payload(user, None)
+    medium = await get_linked_medium(db, user.tenant_id, user.id)
+    if medium is None or not await tenant_has_area_medium(db, user.tenant_id):
+        return areas_payload(user, None)
+    return areas_payload(user, medium)
+
+
+# ── Efeitos colaterais no cadastro (Usuários × Médiuns) ─────────────────────
+
+
+async def unlink_user(db: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    """Desfaz o vínculo `mediuns.user_id` do usuário no tenant (sem commit).
+
+    Usado quando a conta é excluída (soft delete não dispara o ON DELETE SET NULL
+    da FK): o médium fica livre para um convite novo (AM-03).
+    """
+    await db.execute(
+        update(Medium)
+        .where(Medium.tenant_id == tenant_id, Medium.user_id == user_id)
+        .values(user_id=None)
+    )
+
+
+async def sync_pure_medium_user(db: AsyncSession, tenant_id: uuid.UUID, medium: Medium) -> Optional[User]:
+    """Acompanha o médium na conta `medium` pura ligada a ele (sem commit; D-08).
+
+    - Médium inativado ou excluído → a conta `medium` é desativada e as sessões
+      dela caem na hora (o `require_medium` já falharia; isto tira o login).
+    - Médium reativado → a conta `medium` volta a entrar.
+    Operador/admin ligado ao médium não muda: só perde (ou recupera) a Área,
+    porque o `require_medium` confere o médium a cada requisição.
+    Retorna o usuário alterado, ou None.
+    """
+    if medium.user_id is None:
+        return None
+    user = (
+        await db.execute(
+            select(User).where(
+                User.id == medium.user_id,
+                User.tenant_id == tenant_id,
+                User.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if user is None or user.role != UserRole.MEDIUM:
+        return None
+    should_be_active = medium.deleted_at is None and medium.is_active
+    if user.is_active == should_be_active:
+        return None
+    user.is_active = should_be_active
+    if not should_be_active:
+        user.sessions_revoked_at = datetime.now(timezone.utc)
+        await session_service.end_all_sessions(db, user.id)
+    db.add(user)
+    await db.flush()
+    return user

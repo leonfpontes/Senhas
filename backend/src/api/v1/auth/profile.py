@@ -21,6 +21,7 @@ from src.models.audit_logs import AuditLog, AuditAction
 from src.security.password import verify_password, hash_password, validate_password_policy
 from src.core.auth_cookies import clear_auth_cookies, is_impersonated_request
 from src.services import session_service
+from src.services.medium_area import compute_areas
 from src.services.email.base import EmailMessage
 from src.services.email.resend_fallback import ResendEmailService
 from src.services.email.brevo_provider import BrevoEmailService
@@ -100,6 +101,54 @@ def _build_photo_url(request: Request, user: User) -> Optional[str]:
     return stored_value
 
 
+async def apply_password_change(db: AsyncSession, user: User, current_password: str, new_password: str) -> None:
+    """Regras da troca de senha (perfil do painel e Perfil da Área do Médium, AM-13).
+
+    Confere a senha atual (401), exige senha nova diferente e dentro da política e revoga
+    TODA sessão (esta inclusive: `sessions_revoked_at` + `user_sessions`). Não faz commit nem
+    apaga cookies — quem chama faz os dois (`clear_auth_cookies`).
+    """
+    if not verify_password(current_password, user.password_hash):
+        raise UnauthorizedError("Senha atual inválida")
+
+    if current_password == new_password:
+        raise ValidationError("A nova senha deve ser diferente da senha atual")
+
+    validate_password_policy(new_password)
+
+    user.password_hash = hash_password(new_password)
+    # Invalidate every other session (device/tab) using the old password —
+    # otherwise a device that had the old credentials keeps working via its
+    # still-valid access/refresh tokens.
+    user.sessions_revoked_at = datetime.now(timezone.utc)
+    db.add(user)
+    await session_service.end_all_sessions(db, user.id)
+
+
+async def read_profile_photo(file: UploadFile) -> tuple[bytes, str]:
+    """Confere a foto de perfil (JPG/PNG/WEBP, até 5 MB) e devolve (bytes, content_type).
+
+    Usado pelo upload do perfil do painel e pelo Perfil da Área do Médium (AM-13).
+    """
+    if file.content_type not in ALLOWED_PROFILE_CONTENT_TYPES:
+        raise ValidationError("Formato de imagem inválido. Use JPG, PNG ou WEBP")
+
+    contents = await file.read(MAX_PROFILE_IMAGE_BYTES + 1)
+    if len(contents) == 0:
+        raise ValidationError("Arquivo de imagem vazio")
+
+    if len(contents) > MAX_PROFILE_IMAGE_BYTES:
+        raise ValidationError("Imagem excede o limite de 5MB")
+
+    return contents, file.content_type
+
+
+def set_profile_photo(user: User, contents: bytes, content_type: str) -> None:
+    user.profile_photo_data = contents
+    user.profile_photo_content_type = content_type
+    user.profile_photo_url = None  # clear legacy path
+
+
 def _serialize_user_profile(request: Request, user: User) -> dict:
     return {
         "id": str(user.id),
@@ -119,9 +168,10 @@ def _serialize_user_profile(request: Request, user: User) -> dict:
 async def get_profile(
     request: Request,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Return current authenticated user profile."""
-    return _serialize_user_profile(request, current_user)
+    """Return current authenticated user profile (+ `areas`, AM-02)."""
+    return {**_serialize_user_profile(request, current_user), "areas": await compute_areas(db, current_user)}
 
 
 @router.put("/profile")
@@ -164,21 +214,7 @@ async def change_password(
     if is_impersonated_request(request):
         raise InsufficientPermissionsError("Operação não permitida durante impersonação.")
 
-    if not verify_password(payload.current_password, current_user.password_hash):
-        raise UnauthorizedError("Senha atual inválida")
-
-    if payload.current_password == payload.new_password:
-        raise ValidationError("A nova senha deve ser diferente da senha atual")
-
-    validate_password_policy(payload.new_password)
-
-    current_user.password_hash = hash_password(payload.new_password)
-    # Invalidate every other session (device/tab) using the old password —
-    # otherwise a device that had the old credentials keeps working via its
-    # still-valid access/refresh tokens.
-    current_user.sessions_revoked_at = datetime.now(timezone.utc)
-    db.add(current_user)
-    await session_service.end_all_sessions(db, current_user.id)
+    await apply_password_change(db, current_user, payload.current_password, payload.new_password)
     await db.commit()
 
     clear_auth_cookies(response)
@@ -194,19 +230,8 @@ async def upload_profile_photo(
     db: AsyncSession = Depends(get_db),
 ):
     """Upload current user profile photo (stored as binary in database)."""
-    if file.content_type not in ALLOWED_PROFILE_CONTENT_TYPES:
-        raise ValidationError("Formato de imagem inválido. Use JPG, PNG ou WEBP")
-
-    contents = await file.read()
-    if len(contents) == 0:
-        raise ValidationError("Arquivo de imagem vazio")
-
-    if len(contents) > MAX_PROFILE_IMAGE_BYTES:
-        raise ValidationError("Imagem excede o limite de 5MB")
-
-    current_user.profile_photo_data = contents
-    current_user.profile_photo_content_type = file.content_type
-    current_user.profile_photo_url = None  # clear legacy path
+    contents, content_type = await read_profile_photo(file)
+    set_profile_photo(current_user, contents, content_type)
 
     db.add(current_user)
     await db.commit()
@@ -234,7 +259,11 @@ async def _send_account_deleted_email(email: str, username: str) -> None:
         f"<p>Olá, {username}.</p>"
         f"<p>Confirmamos que sua conta no <strong>GiraHub</strong> foi excluída permanentemente "
         f"conforme solicitado, em cumprimento ao Art. 18, VI da LGPD.</p>"
-        f"<p>Todos os seus dados pessoais foram removidos de nossos sistemas.</p>"
+        f"<p>Seu acesso e seus dados de usuário (nome, e-mail, telefone e foto) foram apagados do "
+        f"sistema. Os dados cadastrados pelo terreiro continuam sob responsabilidade da casa. "
+        f"Cópias de segurança criptografadas expiram em até 12 meses, e registros que a lei manda "
+        f"guardar ficam só pelo prazo legal — veja a "
+        f"<a href='https://girahub.com.br/privacidade'>Política de Privacidade</a>.</p>"
         f"<p>Se você não solicitou essa exclusão, entre em contato imediatamente com "
         f"<a href='mailto:privacidade@girahub.com.br'>privacidade@girahub.com.br</a>.</p>"
     )
@@ -246,7 +275,10 @@ async def _send_account_deleted_email(email: str, username: str) -> None:
             f"Olá, {username}.\n\n"
             "Confirmamos que sua conta no GiraHub foi excluída permanentemente conforme solicitado, "
             "em cumprimento ao Art. 18, VI da LGPD.\n\n"
-            "Todos os seus dados pessoais foram removidos de nossos sistemas.\n\n"
+            "Seu acesso e seus dados de usuário (nome, e-mail, telefone e foto) foram apagados do sistema. "
+            "Os dados cadastrados pelo terreiro continuam sob responsabilidade da casa. Cópias de segurança "
+            "criptografadas expiram em até 12 meses, e registros que a lei manda guardar ficam só pelo prazo "
+            "legal — veja https://girahub.com.br/privacidade.\n\n"
             "Se você não solicitou essa exclusão, entre em contato imediatamente com "
             "privacidade@girahub.com.br."
         ),
@@ -278,7 +310,7 @@ async def delete_own_account(
     - Impersonated sessions are blocked.
     - Last ADMIN of a tenant is blocked (would orphan the tenant).
     - Password confirmation required.
-    - Rate-limited to 3 requests/hour per IP.
+    - Rate-limited to 5 requests/hour per IP.
 
     On success:
     - User row is hard-deleted from the database.

@@ -111,6 +111,11 @@ class TenantService:
         from src.repositories.permission_group_repo import PermissionGroupRepository
 
         await PermissionGroupRepository(self.db).ensure_default_group(tenant.id)
+
+        # Tipos de atividade e funções da corrente sugeridos (AM-08): "Gira", "Faxina", "Reunião"...
+        from src.services.atividades import ensure_default_atividade_tipos
+
+        await ensure_default_atividade_tipos(self.db, tenant.id)
         
         return {
             "id": str(tenant.id),
@@ -151,6 +156,7 @@ class TenantService:
             "name": tenant.name,
             "description": tenant.description,
             "is_active": tenant.is_active,
+            "area_medium_liberada": bool(tenant.area_medium_liberada),
             "created_at": tenant.created_at.isoformat(),
             "updated_at": tenant.updated_at.isoformat(),
         }
@@ -170,7 +176,7 @@ class TenantService:
             Updated tenant dict or None
         """
         # Only allow certain fields
-        allowed_fields = {"name", "description", "is_active"}
+        allowed_fields = {"name", "description", "is_active", "area_medium_liberada"}
         update_data = {k: v for k, v in kwargs.items() if k in allowed_fields}
         
         if not update_data:
@@ -187,6 +193,7 @@ class TenantService:
             "name": tenant.name,
             "description": tenant.description,
             "is_active": tenant.is_active,
+            "area_medium_liberada": bool(tenant.area_medium_liberada),
             "created_at": tenant.created_at.isoformat(),
             "updated_at": tenant.updated_at.isoformat(),
         }

@@ -55,10 +55,10 @@ Quando um usuário faz login, o `tenant_id` é incluído no token JWT:
 {
   "sub": "user-uuid",
   "tenant_id": "terreiro-abc-uuid",
-  "email": "admin@terreiro-abc.com",
-  "role": "ADMIN",
+  "role": "admin",
   "iat": 1709740800,
-  "exp": 1709827200
+  "exp": 1709827200,
+  "type": "access"
 }
 ```
 

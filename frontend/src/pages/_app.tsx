@@ -2,18 +2,20 @@ import '@/styles/globals.css';
 
 import React from 'react';
 import { AppProps } from 'next/app';
-import Script from 'next/script';
 import { TourProvider } from '@reactour/tour';
 import TenantAwareThemeProvider from '@/providers/ThemeProvider';
 import { SubscriptionProvider } from '@/hooks/useSubscription';
 import { ProfileProvider } from '@/hooks/useProfile';
 import { BirthdayProvider } from '@/providers/BirthdayProvider';
 import { PermissionsProvider } from '@/hooks/usePermissions';
+import { MediumProvider } from '@/components/medium/MediumProvider';
 import { SnackbarProvider } from '@/contexts/SnackbarContext';
 import { Toaster } from '@/components/ui/sonner';
 import ClarityAnalytics from '@/components/shared/ClarityAnalytics';
 import ServiceWorkerRegistrar from '@/components/shared/ServiceWorkerRegistrar';
 import PassagemDeEntrada from '@/components/shared/PassagemDeEntrada';
+import MarketingTags from '@/components/shared/MarketingTags';
+import CookieConsent from '@/components/shared/CookieConsent';
 
 /**
  * Estilos do popover do tour — responsivos.
@@ -42,38 +44,37 @@ const tourStyles = {
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <>
-      {/* Google Analytics 4 */}
-      <Script strategy="afterInteractive" src="https://www.googletagmanager.com/gtag/js?id=G-BF9G0RFCDB" />
-      <Script id="ga4-init" strategy="afterInteractive">
-        {`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', 'G-BF9G0RFCDB');
-        `}
-      </Script>
+      {/* GA4 + Google Ads (Consent Mode v2, tudo negado até a escolha) e Meta Pixel (só com
+          consentimento de marketing) — lib/marketingTags.ts. O banner registra a escolha. */}
+      <MarketingTags />
+      <CookieConsent />
       {/* PWA (P-01): registra public/sw.js em produção; em dev, desregistra */}
       <ServiceWorkerRegistrar />
       {/* Passagem animada marketing ⇄ telas de conta (só nesse trecho do site) */}
       <PassagemDeEntrada />
+      {/* Providers do painel (tema do terreiro, assinatura, permissões, aniversariantes) só chamam
+          /api/v1/admin/* em rota /admin/* e para quem tem o painel; o MediumProvider só chama
+          /api/v1/medium/me em /medium/* (AM-04/AM-06 — médium puro nunca chama o admin). */}
       <TenantAwareThemeProvider>
         <ProfileProvider>
-          <SubscriptionProvider>
-            <PermissionsProvider>
-              <SnackbarProvider>
-                {/* Microsoft Clarity — só ativo com NEXT_PUBLIC_CLARITY_PROJECT_ID no build */}
-                <ClarityAnalytics />
-                <BirthdayProvider>
-                  {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}
-                  <TourProvider steps={[]} styles={tourStyles}>
-                    <Component {...pageProps} />
-                  </TourProvider>
-                </BirthdayProvider>
-                {/* Toasts (Sonner) — `useSnackbar()` e `toast()` desembocam aqui */}
-                <Toaster />
-              </SnackbarProvider>
-            </PermissionsProvider>
-          </SubscriptionProvider>
+          <MediumProvider>
+            <SubscriptionProvider>
+              <PermissionsProvider>
+                <SnackbarProvider>
+                  {/* Microsoft Clarity — só com NEXT_PUBLIC_CLARITY_PROJECT_ID no build E consentimento de estatísticas */}
+                  <ClarityAnalytics />
+                  <BirthdayProvider>
+                    {/* steps=[] pois cada página os injeta via useTour() ao clicar no ícone ? */}
+                    <TourProvider steps={[]} styles={tourStyles}>
+                      <Component {...pageProps} />
+                    </TourProvider>
+                  </BirthdayProvider>
+                  {/* Toasts (Sonner) — `useSnackbar()` e `toast()` desembocam aqui */}
+                  <Toaster />
+                </SnackbarProvider>
+              </PermissionsProvider>
+            </SubscriptionProvider>
+          </MediumProvider>
         </ProfileProvider>
       </TenantAwareThemeProvider>
     </>

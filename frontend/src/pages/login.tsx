@@ -1,14 +1,18 @@
 /**
- * /login — entrada de admins e operadores (e da plataforma).
- * Sessão em cookie HttpOnly; o frontend só guarda `user` no localStorage (ver CLAUDE.md).
+ * /login — entrada de admins, operadores, médiuns (Área do Médium) e da plataforma.
+ * Sessão em cookie HttpOnly; o frontend só guarda `user` (com as `areas`) no localStorage (ver
+ * CLAUDE.md). Para onde vai depois decide `completeLogin` pelas áreas da conta (AM-04).
+ * Mesmo e-mail com conta em mais de um terreiro (AM-05): se a senha abrir mais de uma, o login
+ * devolve `choose_account` (sem cookies) e a tela pergunta "Em qual terreiro você quer entrar?";
+ * o cartão tocado chama `/auth/login/select` e segue o mesmo `completeLogin`.
  */
 'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { CircleCheck, Info, Loader2, TriangleAlert, CircleAlert } from 'lucide-react';
-import { AuthShell, AUTH_INPUT, AUTH_LINK } from '@/components/auth';
+import { ArrowLeft, ChevronDown, CircleCheck, Info, Loader2, Mail, TriangleAlert, CircleAlert } from 'lucide-react';
+import { AccountChoiceList, AuthShell, AUTH_INPUT, AUTH_LINK } from '@/components/auth';
 import { cn } from '@/lib/utils';
 import { TextField, PasswordField } from '@/components/fields';
 import { Button } from '@/components/ui/button';
@@ -16,9 +20,17 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { apiClient, extractApiErrorMessage, type ApiRequestConfig } from '@/services/api_client';
-import { completeLogin, type SessionUser } from '@/services/authSession';
+import {
+  completeLogin,
+  isAccountChoice,
+  selectAccount,
+  type AccountChoice,
+  type SessionUser,
+} from '@/services/authSession';
 
 type Notice = { key: string; variant: 'success' | 'info'; text: string };
+
+const SELECTION_EXPIRED = 'O tempo para escolher o terreiro acabou. Entre de novo com seu e-mail e senha.';
 
 const QUERY_NOTICES: Record<string, Notice> = {
   account_deleted: {
@@ -38,6 +50,9 @@ const QUERY_NOTICES: Record<string, Notice> = {
     text: 'Todas as sessões foram encerradas por segurança. Entre novamente.',
   },
   reactivated: { key: 'reactivated', variant: 'success', text: 'Conta reativada! Entre para continuar.' },
+  // Perfil do médium (AM-13): trocar a senha derruba todas as sessões; o novo e-mail vale depois do link.
+  senha_alterada: { key: 'senha_alterada', variant: 'success', text: 'Senha alterada. Entre com a nova senha.' },
+  email_confirmado: { key: 'email_confirmado', variant: 'success', text: 'E-mail confirmado. Entre com o novo e-mail.' },
 };
 
 export default function LoginPage() {
@@ -50,6 +65,10 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [notices, setNotices] = useState<Notice[]>([]);
+  // AM-05: a senha abriu mais de um terreiro — passo de escolha (sem sessão aberta ainda).
+  const [choice, setChoice] = useState<AccountChoice | null>(null);
+  const [selectingId, setSelectingId] = useState<string | null>(null);
+  const [choiceError, setChoiceError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -72,8 +91,15 @@ export default function LoginPage() {
         remember_me: rememberMe,
       });
 
+      if (isAccountChoice(response.data)) {
+        setChoiceError(null);
+        setChoice(response.data);
+        return;
+      }
+
       // "Lembrar-me" desmarcado: o backend devolve cookies de sessão (somem ao fechar o navegador).
-      completeLogin(response.data.user as SessionUser);
+      // `areas` (AM-02) decide a rota: painel, Área do Médium ou a escolha entre as duas (AM-04).
+      completeLogin({ ...(response.data.user as SessionUser), areas: response.data.areas });
     } catch (err) {
       const e = err as { response?: { data?: { detail?: unknown; message?: unknown } } } | undefined;
       const detail = e?.response?.data?.detail;
@@ -89,6 +115,38 @@ export default function LoginPage() {
     }
   };
 
+  // Escolha do terreiro (AM-05). Escolha recusada (expirou em 5 min, a conta deixou de estar
+  // ativa) → volta ao e-mail e senha com o motivo; falha de rede → fica no passo para tentar de novo.
+  const handleSelect = async (userId: string) => {
+    if (!choice) return;
+    setSelectingId(userId);
+    setChoiceError(null);
+    try {
+      completeLogin(await selectAccount(choice, userId));
+    } catch (err) {
+      const res = (err as { response?: { status?: number; data?: { detail?: unknown } } } | undefined)?.response;
+      if (res?.status === 401 || res?.status === 422) {
+        const detail = res.data?.detail;
+        const message =
+          detail && typeof detail === 'object' ? (detail as { message?: unknown }).message : undefined;
+        setChoice(null);
+        setPassword('');
+        setErrorCode(null);
+        setError(typeof message === 'string' && message ? message : SELECTION_EXPIRED);
+      } else {
+        setChoiceError('Não foi possível entrar agora. Confira a internet e tente de novo.');
+      }
+    } finally {
+      setSelectingId(null);
+    }
+  };
+
+  const backToForm = () => {
+    setChoice(null);
+    setChoiceError(null);
+    setPassword('');
+  };
+
   // Conta desativada pelo próprio admin: a senha já foi conferida no login — reativa com os
   // mesmos dados e já entra, sem pedir a senha de novo.
   const handleReactivate = async () => {
@@ -99,7 +157,7 @@ export default function LoginPage() {
         { email, password, remember_me: rememberMe },
         { skipAutoLogout: true } as ApiRequestConfig,
       );
-      completeLogin(res.data.user as SessionUser);
+      completeLogin({ ...(res.data.user as SessionUser), areas: res.data.areas });
     } catch (err) {
       setErrorCode(null);
       setError(extractApiErrorMessage(err, 'Não foi possível reativar a conta. Tente novamente.'));
@@ -107,6 +165,44 @@ export default function LoginPage() {
       setReactivating(false);
     }
   };
+
+  if (choice) {
+    return (
+      <AuthShell
+        headTitle="Escolha o terreiro — GiraHub"
+        title="Em qual terreiro você quer entrar?"
+        subtitle="Seu e-mail tem acesso a mais de um terreiro. Escolha onde entrar agora."
+        footer={
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={backToForm}
+              className={cn(
+                'inline-flex min-h-12 items-center gap-2 rounded-md text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                AUTH_LINK,
+              )}
+            >
+              <ArrowLeft className="size-4" aria-hidden />
+              Entrar com outro e-mail
+            </button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          {choiceError ? (
+            <Alert variant="destructive" role="alert">
+              <CircleAlert aria-hidden />
+              <AlertDescription>{choiceError}</AlertDescription>
+            </Alert>
+          ) : null}
+          <p className="truncate text-sm text-tinta-suave">
+            Entrando como <strong className="font-semibold text-tinta">{email}</strong>
+          </p>
+          <AccountChoiceList options={choice.options} onSelect={handleSelect} selectingId={selectingId} />
+        </div>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell
@@ -214,7 +310,44 @@ export default function LoginPage() {
           {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
           {loading ? 'Entrando…' : 'Entrar'}
         </Button>
+
+        <ConviteDaCasa />
       </form>
     </AuthShell>
+  );
+}
+
+/**
+ * "Recebi um convite da casa" (AM-04): o médium não cria conta aqui — o primeiro acesso começa
+ * pelo link do convite que a casa mandou (WhatsApp ou e-mail, AM-03). Depois disso, entra aqui.
+ */
+function ConviteDaCasa() {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="-mt-2 flex flex-col">
+      <button
+        type="button"
+        aria-expanded={aberto}
+        aria-controls="convite-da-casa"
+        onClick={() => setAberto((v) => !v)}
+        className={cn(
+          'inline-flex min-h-12 items-center gap-2 self-center rounded-md text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          AUTH_LINK,
+        )}
+      >
+        <Mail className="size-4" aria-hidden />
+        Recebi um convite da casa
+        <ChevronDown className={cn('size-4 transition-transform', aberto && 'rotate-180')} aria-hidden />
+      </button>
+      {aberto && (
+        <div id="convite-da-casa" className="rounded-xl bg-areia-100 px-4 py-3 text-sm text-tinta">
+          <p className="font-bold">O primeiro acesso começa pelo link da casa.</p>
+          <p className="mt-1 text-tinta-suave">
+            Toque no link do convite que a casa mandou no WhatsApp ou no e-mail e crie sua senha de acesso. Depois,
+            é só entrar aqui com seu e-mail e essa senha.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

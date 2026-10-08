@@ -16,6 +16,7 @@ import {
   ArrowDownUp,
   ArrowLeft,
   ArrowUp,
+  BookOpen,
   Building2,
   Calendar,
   CalendarDays,
@@ -28,15 +29,19 @@ import {
   CircleAlert,
   CircleCheck,
   CircleX,
+  ClipboardList,
   Clock,
+  CookingPot,
   Copy,
   CreditCard,
   DoorOpen,
+  Drum,
   Download,
   EllipsisVertical,
   ExternalLink,
   Eye,
   EyeOff,
+  Flame,
   Flower2,
   Globe,
   GraduationCap,
@@ -47,6 +52,7 @@ import {
   Info,
   Landmark,
   LayoutDashboard,
+  Leaf,
   Lock,
   LogOut,
   Mail,
@@ -68,6 +74,8 @@ import {
   Shield,
   SlidersHorizontal,
   Sparkles,
+  SprayCan,
+  Sprout,
   Star,
   Sun,
   Tag,
@@ -81,6 +89,7 @@ import {
   UserPlus,
   Users,
   Wallet,
+  Waves,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -260,5 +269,29 @@ export const IconDesceu = TrendingDown;
 export const IconEstavel = MoveRight;
 export const IconClaro = Sun;
 export const IconEscuro = Moon;
+
+// Ícones dos tipos de atividade da casa (AM-08) — lista fechada, chaves espelhadas em
+// `constants/atividades.ts` e no CHECK `ck_atividade_tipos_icone` (migração 078).
+export const ICONES_DE_ATIVIDADE: Record<string, LucideIcon> = {
+  gira: CalendarDays,
+  faxina: SprayCan,
+  vela: Flame,
+  flor: Flower2,
+  organizacao: ClipboardList,
+  curso: GraduationCap,
+  desenvolvimento: Sprout,
+  reuniao: Users,
+  atabaque: Drum,
+  cozinha: CookingPot,
+  estudo: BookOpen,
+  estrela: Star,
+  folha: Leaf,
+  agua: Waves,
+};
+
+/** Ícone do tipo de atividade (chave desconhecida → estrela). */
+export function iconeDaAtividade(chave: string | null | undefined): LucideIcon {
+  return (chave && ICONES_DE_ATIVIDADE[chave]) || Star;
+}
 
 export type { LucideIcon };

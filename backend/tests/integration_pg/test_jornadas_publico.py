@@ -6,10 +6,13 @@
 - Reenvio de e-mail só das senhas ativas da gira informada.
 - Logo enviada (logo_data) aparece na página de emissão; agenda pública sem giras inativas.
 - Login / esqueci a senha / cadastro sem diferença de maiúsculas no e-mail;
-  e-mail repetido em dois terreiros não derruba o esqueci a senha.
+  e-mail repetido em dois terreiros não derruba o esqueci a senha (AM-05: um link por conta); terreiro desativado mais
+  antigo não ganha da conta ativa em outro terreiro (login, esqueci a senha, reativação).
+- Cadastro grava a prova do aceite dos Termos e da Privacidade (versão, data, IP, navegador).
 - Cadastro e reativação abrem a sessão com os 3 cookies; "Lembrar-me"
   desmarcado gera cookies de sessão e o refresh mantém o modo.
-- Inscrição em curso enfileira o e-mail de confirmação.
+- Inscrição em curso enfileira o e-mail de confirmação; autorizar imagem e voz é opcional
+  (LGPD, art. 8º, §4º) e a escolha fica gravada; o consentimento de dados continua obrigatório.
 """
 from __future__ import annotations
 
@@ -23,11 +26,14 @@ from sqlalchemy import select, update
 from src.models.consulentes import Consulente
 from src.models.cursos_presenciais import CursoPresencial
 from src.models.gira_time_slots import GiraTimeSlot
+from src.models.legal_acceptances import LegalAcceptance
 from src.models.tenant_config import TenantConfig
 from src.models.tenants import Tenant
 from src.models.tickets import Ticket, TicketStatus
 from src.models.users import User, UserRole
 from src.security.password import hash_password
+
+from src.core.legal_versions import LEGAL_VERSIONS
 
 from .factories import create_gira, create_tenant
 
@@ -241,7 +247,7 @@ async def test_esqueci_a_senha_com_email_em_dois_terreiros_nao_quebra(client, db
     antigo, novo = await create_tenant(db, name="Terreiro Antigo"), await create_tenant(db, name="Terreiro Novo")
     agora = datetime.now(timezone.utc)
     primeiro = await _user(db, antigo, "dono@example.com", created_at=agora - timedelta(days=30))
-    await _user(db, novo, "Dono@example.com", created_at=agora)
+    segundo = await _user(db, novo, "Dono@example.com", created_at=agora)
 
     resp = await client.post("/api/v1/auth/forgot-password", json={"email": "DONO@example.com"})
 
@@ -251,8 +257,11 @@ async def test_esqueci_a_senha_com_email_em_dois_terreiros_nao_quebra(client, db
     async with AsyncSessionLocal() as fresh:
         rows = (await fresh.execute(select(User.id, User.reset_token_hash))).all()
     resets = {uid: token for uid, token in rows}
-    assert resets[primeiro.id] is not None, resets  # a conta mais antiga — a mesma que o login autentica
-    assert sum(1 for t in resets.values() if t) == 1
+    # AM-05: as duas contas ativas recebem o próprio link (um e-mail só, um link por
+    # terreiro — ver test_am05_login_multi.py).
+    assert resets[primeiro.id] is not None, resets
+    assert resets[segundo.id] is not None, resets
+    assert resets[primeiro.id] != resets[segundo.id]
 
 
 async def test_cadastro_seta_3_cookies_e_barra_email_com_maiusculas(client, db, monkeypatch):
@@ -291,6 +300,46 @@ async def test_cadastro_seta_3_cookies_e_barra_email_com_maiusculas(client, db, 
     assert me.status_code == 200, me.text
 
 
+async def test_cadastro_grava_o_aceite_dos_termos_e_da_privacidade(client, db, monkeypatch):
+    monkeypatch.setattr("src.api.v1.public.onboarding._send_welcome_email", AsyncMock())
+    body = {
+        "terreiro_nome": "Casa do Aceite",
+        "responsavel_nome": "Maria",
+        "email": "aceite@example.com",
+        "whatsapp": "11999998888",
+        "documento": "52998224725",
+        "password": SENHA,
+        "como_conheceu": "indicacao",
+        "principal_dor": "senhas",
+        "aceite_termos": True,
+    }
+    sem_aceite = await client.post("/api/v1/public/onboarding", json={**body, "aceite_termos": False})
+    assert sem_aceite.status_code == 422
+    assert (await db.execute(select(LegalAcceptance))).scalars().all() == []
+
+    ok = await client.post(
+        "/api/v1/public/onboarding",
+        json=body,
+        headers={"user-agent": "Navegador de Teste/1.0", "x-real-ip": "203.0.113.7"},
+    )
+    assert ok.status_code == 201, ok.text
+    user_id = uuid.UUID(ok.json()["user"]["id"])
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one()
+
+    aceites = (
+        await db.execute(select(LegalAcceptance).where(LegalAcceptance.user_id == user_id))
+    ).scalars().all()
+    assert {(a.document, a.version) for a in aceites} == {
+        ("termos", LEGAL_VERSIONS["termos"]),
+        ("privacidade", LEGAL_VERSIONS["privacidade"]),
+    }
+    for a in aceites:
+        assert a.tenant_id == user.tenant_id
+        assert a.ip_address == "203.0.113.7"
+        assert a.user_agent == "Navegador de Teste/1.0"
+        assert a.accepted_at is not None
+
+
 async def test_reativacao_abre_sessao_e_mostra_o_resultado_real(client, db, monkeypatch):
     monkeypatch.setattr("src.api.v1.auth.deactivation._send_account_reactivated_email", AsyncMock())
     tenant = await create_tenant(db)
@@ -311,6 +360,51 @@ async def test_reativacao_abre_sessao_e_mostra_o_resultado_real(client, db, monk
     de_novo = await client.post("/api/v1/auth/reactivate-account", json={"email": "voltei@example.com", "password": SENHA})
     assert de_novo.status_code == 409
     assert de_novo.json()["error_code"] == "NOT_DEACTIVATED"
+
+
+async def _terreiro_desativado_mais_antigo_e_conta_ativa_em_outro(db, email):
+    """Terreiro de teste desativado (conta mais antiga) + conta ativa em outro terreiro."""
+    velho, atual = await create_tenant(db, name="Terreiro de Teste"), await create_tenant(db, name="Terreiro Atual")
+    await db.execute(
+        update(Tenant).where(Tenant.id == velho.id).values(is_active=False, self_deactivated_at=datetime.now(timezone.utc))
+    )
+    await db.commit()
+    agora = datetime.now(timezone.utc)
+    await _user(db, velho, email, created_at=agora - timedelta(days=90), is_active=False)
+    ativa = await _user(db, atual, email, created_at=agora)
+    return velho, atual, ativa
+
+
+async def test_login_prefere_conta_ativa_a_terreiro_desativado_mais_antigo(client, db):
+    velho, atual, ativa = await _terreiro_desativado_mais_antigo_e_conta_ativa_em_outro(db, "medium@example.com")
+
+    resp = await client.post("/api/v1/auth/login", json={"email": "medium@example.com", "password": SENHA})
+
+    assert resp.status_code == 200, resp.text  # antes: 401 TENANT_DEACTIVATED do terreiro velho
+    assert resp.json()["user"]["id"] == str(ativa.id)
+    assert resp.json()["user"]["tenant_id"] == str(atual.id)
+
+    # E a reativação não religa o terreiro velho por engano: a conta escolhida é a ativa.
+    reativa = await client.post("/api/v1/auth/reactivate-account", json={"email": "medium@example.com", "password": SENHA})
+    assert reativa.status_code == 409
+    assert reativa.json()["error_code"] == "NOT_DEACTIVATED"
+    await db.refresh(velho)
+    assert velho.self_deactivated_at is not None
+
+
+async def test_esqueci_a_senha_vai_para_a_conta_ativa(client, db, monkeypatch):
+    monkeypatch.setattr("src.services.email.resend_fallback.ResendEmailService.send_async", AsyncMock(return_value=True))
+    monkeypatch.setattr("src.services.email.brevo_provider.BrevoEmailService.send_async", AsyncMock(return_value=True))
+    _, _, ativa = await _terreiro_desativado_mais_antigo_e_conta_ativa_em_outro(db, "esqueci@example.com")
+
+    resp = await client.post("/api/v1/auth/forgot-password", json={"email": "esqueci@example.com"})
+
+    assert resp.status_code == 200, resp.text
+    from src.core.database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as fresh:
+        token = (await fresh.execute(select(User.reset_token_hash).where(User.id == ativa.id))).scalar_one()
+    assert token is not None  # antes: escolhia a conta inativa e nenhum link saía
 
 
 # ── Curso ─────────────────────────────────────────────────────────────────────
@@ -347,3 +441,39 @@ async def test_inscricao_em_curso_enfileira_email_de_confirmacao(client, db, enq
     assert msg.to_email == "participante@example.com"
     assert "Curso de Desenvolvimento" in msg.subject
     assert "52998224725" not in msg.html_body  # CPF fora do e-mail (minimização)
+
+
+async def test_inscricao_em_curso_imagem_e_opcional_e_dados_obrigatorio(client, db, enqueued):
+    import json
+
+    from src.models.cursos_presenciais import CursoParticipante
+
+    tenant = await create_tenant(db)
+    curso = CursoPresencial(
+        tenant_id=tenant.id,
+        titulo="Curso de Passes",
+        data_inicio=datetime.now(timezone.utc) + timedelta(days=10),
+        is_active=True,
+        gerar_mensalidade=False,
+    )
+    db.add(curso)
+    await db.commit()
+    url = f"/api/v1/public/cursos/{curso.id}/inscricao"
+
+    sem_dados = await client.post(url, data={"data": json.dumps({"nome": "Sem Aceite", "email": "sem@example.com", "aceita_uso_dados": False})})
+    assert sem_dados.status_code == 422
+
+    # Sem o campo de imagem (formulário antigo) e com imagem recusada: os dois inscrevem.
+    sem_campo = await client.post(url, data={"data": json.dumps({"nome": "Sem Campo", "email": "a@example.com", "aceita_uso_dados": True})})
+    assert sem_campo.status_code == 201, sem_campo.text
+    recusou = await client.post(
+        url,
+        data={"data": json.dumps({"nome": "Recusou Imagem", "email": "b@example.com", "aceita_uso_dados": True, "aceita_uso_imagem": False})},
+    )
+    assert recusou.status_code == 201, recusou.text
+
+    gravados = {
+        p.email: p.aceita_uso_imagem
+        for p in (await db.execute(select(CursoParticipante).where(CursoParticipante.curso_id == curso.id))).scalars()
+    }
+    assert gravados == {"a@example.com": False, "b@example.com": False}
