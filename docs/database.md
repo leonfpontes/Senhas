@@ -125,6 +125,10 @@ nullable) liga a conta ao cadastro do médium e é o que dá acesso à Área do 
 Índice único parcial `uq_mediuns_user_id_ativo` em `(user_id) WHERE user_id IS NOT NULL AND deleted_at IS NULL`
 (um usuário, no máximo um médium não excluído). `mediuns.area_consentimento_em` (`DateTime(tz)`) e
 `mediuns.area_consentimento_versao` (`String(20)`) guardam o aceite LGPD gravado no convite (AM-03).
+`mediuns.area_consentimento_revogado_em` (`DateTime(tz)`) e `mediuns.area_consentimento_revogado_versao`
+(`String(20)`) guardam a revogação feita pelo próprio médium em "Encerrar meu acesso" (AM-14, migração 083; o aceite
+fica como histórico e um convite aceito depois grava outro). `mediuns.aniversario_visivel` (`Boolean`, padrão
+`false`, migração 083) é o opt-in "Mostrar meu aniversário para a corrente" (AM-20: só primeiro nome, dia e mês).
 
 **Chave do piloto (migração 066):** `tenants.area_medium_liberada` (`Boolean`, padrão `false`). A plataforma liga por
 terreiro no Tenant 360; sem ela a Área do Médium não vale, mesmo com plano Basic+ (`check_plan_feature`).
@@ -458,6 +462,11 @@ recebe a linha (teste com duas sessões em `tests/integration_pg/test_am15_lembr
 tabelas, `tenant_configs.area_medium_lembrete_mensalidade` (`Boolean`, padrão `true`) e
 `comunicados.avisar_email`/`avisar_email_em`. Downgrade apaga tabelas e colunas.
 
+**Migração 083 (`083_meus_dados_aniversarios`, encadeada na `082_push_inscricoes`,
+AM-14/AM-20):** `mediuns.area_consentimento_revogado_em`/`_versao`, `mediuns.aniversario_visivel` (padrão `false`)
+e `tenant_configs.area_medium_aniversario_mensagem` (`String(200)`, mensagem da casa no Início do aniversariante;
+`NULL` = texto padrão). Downgrade apaga as quatro colunas.
+
 ---
 
 ### `push_inscricoes` (AM-16, migração 082 — encadeada depois da 081)
@@ -520,6 +529,7 @@ Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`
 | `area_medium_agenda` / `area_medium_avisos` / `area_medium_mensalidade` | `Boolean` | Não | `true` | 067: módulos visíveis na Área (mensalidade também exige `mensalidade_mediun` no plano) |
 | `presenca_modo_padrao` | `String(20)` | Não | `confianca` | 079 (AM-28): CHECK `confianca/app/qr` — como a presença é marcada na casa; o tipo pode ajustar |
 | `presenca_prazo_justificativa_dias` | `Integer` | Não | `7` | 079 (AM-17): CHECK 1–30 — dias depois da atividade para o médium contar o motivo de uma falta |
+| `area_medium_aniversario_mensagem` | `String(200)` | Sim | — | 083 (AM-20): mensagem da casa no Início do médium no dia do aniversário (`{nome}` = primeiro nome); `NULL` = texto padrão |
 | `created_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `updated_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `deleted_at` | `DateTime(tz)` | Sim | — | soft-delete |

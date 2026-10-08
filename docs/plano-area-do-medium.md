@@ -1103,9 +1103,9 @@ privacidade como argumento ("ambiente isolado, com autenticação e acesso aos p
 - Texto "Quem vê o quê" na tela.
 
 **Aceite**
-- [ ] Médium baixa os próprios dados
-- [ ] Encerrar acesso desvincula e desativa a conta, com aviso aos admins
-- [ ] Política de privacidade descreve os dois fluxos
+- [x] Médium baixa os próprios dados
+- [x] Encerrar acesso desvincula e desativa a conta, com aviso aos admins
+- [x] Política de privacidade descreve os dois fluxos
 
 ### AM-15 — Lembretes e avisos por e-mail
 - **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-09, AM-11, AM-12, AM-17
@@ -1259,8 +1259,8 @@ na Minha Gira, "Diário & Entidades" na Quartinha).
   aniversariante (sem opt-in, é só para ele).
 
 **Aceite**
-- [ ] Só aparece quem aceitou, sem o ano
-- [ ] Aniversariante vê a mensagem da casa no dia
+- [x] Só aparece quem aceitou, sem o ano
+- [x] Aniversariante vê a mensagem da casa no dia
 
 ### AM-21 — Estudos e documentos da casa
 - **Prioridade:** P3 · **Fase:** Fase 3 · **Esforço:** G · **Tipo:** dev · **Depende de:** AM-09, AM-01 (D-02)
@@ -1461,12 +1461,14 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-15 Lembretes e avisos por e-mail (mensalidade D-3/D+3, véspera, D-2, escala nova, falta, aviso, cancelamento, PIX, resumo do admin) | #96 | 081 | 2026-10-08 |
 | AM-18 Escala de gira por função (grupos inteiros, copiar da anterior, rodízio) | #97 | — (usa as colunas da 079) | 2026-10-08 |
 | AM-24 Divulgação (atrás da chave NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA, desligada) | #98 | — | 2026-10-08 |
-| AM-16 Notificação push | este PR | 082 | — |
+| AM-16 Notificação push (desligada até gerar as chaves VAPID) | #100 | 082 | 2026-10-08 |
+| AM-14 Meus dados (exportar JSON/PDF, encerrar o acesso com a senha, "Quem vê o quê", Política 2.3) | #102 | 083 | 2026-10-08 |
+| AM-20 Aniversariantes (opt-in no Perfil, cartão da semana no Início, mensagem da casa no dia) | #102 | 083 | 2026-10-08 |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-14, AM-19, AM-20, AM-21, AM-22, AM-27.
+**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-19, AM-21, AM-22, AM-27.
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 

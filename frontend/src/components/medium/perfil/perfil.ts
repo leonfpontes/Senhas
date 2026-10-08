@@ -29,6 +29,8 @@ export interface MediumPerfil {
   email: string;
   email_pendente?: string | null;
   email_pendente_expira_em?: string | null;
+  /** AM-20: "Mostrar meu aniversário para a corrente" (dia e mês, nunca o ano). */
+  mostrar_aniversario?: boolean;
 }
 
 export const MSG_EMAIL_ENVIADO =
