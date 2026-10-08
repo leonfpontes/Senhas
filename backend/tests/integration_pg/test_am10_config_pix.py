@@ -84,6 +84,9 @@ async def test_config_da_area_crud_e_grupos(client, db):
         "whatsapp": None,
         "modulos": {"agenda": True, "avisos": True, "mensalidade": True},
         "mensalidade_no_plano": True,
+        # AM-17/AM-28: presença da casa.
+        "presenca": {"modo_padrao": "confianca", "prazo_justificativa_dias": 7},
+        "presenca_no_plano": True,
     }
 
     salvo = await client.put(

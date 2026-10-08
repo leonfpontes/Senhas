@@ -231,6 +231,10 @@ EXEMPT_SCOPED_QUERIES: dict[tuple[str, str], str] = {
     ("services/trial_scheduler.py", "TrialScheduler._process_trials_locked"): (
         "scheduler de trials: varre assinaturas de todos os tenants para expirar/avisar"
     ),
+    ("services/presenca.py", "candidatos_ao_encerramento"): (
+        "agendador da presença (AM-17): varre as chamadas abertas de todos os tenants; cada "
+        "encerramento depois roda com o tenant da atividade (ctx_da_atividade/encerrar_chamada)"
+    ),
     # ── sites públicos: busca raiz por slug, sem tenant do chamador ──
     ("repositories/site_repo.py", "SiteRepository.get_published_by_slug"): (
         "site público publicado é endereçado por slug único global (rota public/sites.py); "

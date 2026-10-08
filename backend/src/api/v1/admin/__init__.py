@@ -35,6 +35,7 @@ from .mensalidade_comprovantes import router as mensalidade_comprovantes_router
 from .comunicados import router as comunicados_router
 from .corrente_grupos import router as corrente_grupos_router
 from .atividades import router as atividades_router
+from .atividades_presenca import router as atividades_presenca_router
 
 # Combine all admin routers.
 # require_backoffice (AM-02): o papel `medium` (Área do Médium) leva 403 em TODA
@@ -74,5 +75,6 @@ admin_router.include_router(mensalidade_comprovantes_router)
 admin_router.include_router(comunicados_router)
 admin_router.include_router(corrente_grupos_router)
 admin_router.include_router(atividades_router)
+admin_router.include_router(atividades_presenca_router)
 
 __all__ = ["admin_router"]

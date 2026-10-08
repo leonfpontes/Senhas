@@ -16,10 +16,14 @@ Tudo o que a corrente faz junto vira uma **atividade** (§8 do plano da Área do
   criada por `services/atividades.atividade_da_gira` quando a escala/presença precisar — AM-17).
   A âncora não copia nome, data nem local: lê da gira.
 
+- `atividade_participacoes` (AM-17, migração 079): uma linha por médium por atividade — a
+  convocação (de onde veio), a resposta (vou/não vou), a justificativa e a presença. Escala e
+  presença são a MESMA linha (§8.1): não há o que sincronizar. Única por (`atividade_id`,
+  `medium_id`), o que também segura a corrida entre o "Cheguei" e a chamada.
+
 Colunas "enum" são texto com CHECK e valores minúsculos (como `comunicados.publico`): crescem
-sem `ALTER TYPE`. As participações (`atividade_participacoes`, AM-17) e o planejador da faxina
-(`escala_planos`/`escala_plano_dias`, AM-25) chegam nos próximos cards; `escala_plano_dia_id`
-já existe aqui, sem FK, e ganha a FK com a tabela do AM-25.
+sem `ALTER TYPE`. O planejador da faxina (`escala_planos`/`escala_plano_dias`, AM-25) chega
+num próximo card; `escala_plano_dia_id` já existe aqui, sem FK, e ganha a FK com a tabela do AM-25.
 """
 from __future__ import annotations
 
@@ -37,6 +41,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -77,6 +82,17 @@ CONVOCACOES = ("todos_elegiveis", "so_escalados")
 MODOS_ESCALA = ("nenhuma", "grupos_por_dia", "funcoes")
 VISIBILIDADES = ("corrente", "convocados")
 ORIGENS_ATIVIDADE = ("manual", "plano_escala", "gira")
+
+# Presença (AM-17/AM-28, D-11). Modo: confiança (a confirmação "vou" basta), "Cheguei" pelo app
+# na janela do tipo, ou "Cheguei" com o QR do dia. `atividade_tipos.presenca_modo` null = o
+# padrão da casa (`tenant_configs.presenca_modo_padrao`).
+MODOS_PRESENCA = ("confianca", "app", "qr")
+ORIGENS_PARTICIPACAO = ("elegivel", "grupo", "funcao", "rodizio", "manual", "avulso")
+RESPOSTAS = ("sem_resposta", "vou", "nao_vou")
+PRESENCAS = ("nao_registrada", "presente", "ausente")
+# `confianca`: presente no encerramento porque confirmou "vou" no modo confiança.
+PRESENCA_ORIGENS = ("checkin_medium", "chamada", "encerramento", "confianca")
+JUSTIFICATIVA_MAX = 500
 
 NOME_MAX = 60
 DESCRICAO_FUNCAO_MAX = 300
@@ -131,6 +147,9 @@ class AtividadeTipo(Base):
             name="ck_atividade_tipos_duracao",
         ),
         CheckConstraint("natureza <> 'gira' OR arquivado_em IS NULL", name="ck_atividade_tipos_gira_nao_arquiva"),
+        CheckConstraint(
+            "presenca_modo IS NULL OR " + _in("presenca_modo", MODOS_PRESENCA), name="ck_atividade_tipos_presenca_modo"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -147,6 +166,9 @@ class AtividadeTipo(Base):
     checkin_pelo_medium: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     checkin_antes_min: Mapped[int] = mapped_column(Integer, nullable=False, default=CHECKIN_ANTES_PADRAO)
     checkin_depois_min: Mapped[int] = mapped_column(Integer, nullable=False, default=CHECKIN_DEPOIS_PADRAO)
+    # AM-28: modo de presença do tipo; null = padrão da casa. `checkin_pelo_medium` (AM-08) fica
+    # em sincronia (modo app/qr) por compatibilidade, mas a regra lê só o modo efetivo.
+    presenca_modo: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     elegiveis: Mapped[str] = mapped_column(String(20), nullable=False, default="todos")
     convocacao_padrao: Mapped[str] = mapped_column(String(20), nullable=False, default="todos_elegiveis")
     modo_escala: Mapped[str] = mapped_column(String(20), nullable=False, default="nenhuma")
@@ -280,3 +302,69 @@ class Atividade(Base):
 
     def __repr__(self) -> str:
         return f"<Atividade(id={self.id}, titulo={self.titulo!r}, gira_id={self.gira_id})>"
+
+
+class AtividadeParticipacao(Base):
+    """Médium numa atividade: convocação, resposta, justificativa e presença (§8.3 a §8.5).
+
+    A situação mostrada na tela é derivada (`services/presenca.situacao`). O `tenant_id` é sempre
+    o da atividade (que é o da gira âncora); o serviço confere os três.
+    """
+
+    __tablename__ = "atividade_participacoes"
+    __table_args__ = (
+        UniqueConstraint("atividade_id", "medium_id", name="uq_atividade_participacoes_atividade_medium"),
+        Index("ix_atividade_participacoes_tenant_medium", "tenant_id", "medium_id"),
+        Index("ix_atividade_participacoes_tenant_atividade", "tenant_id", "atividade_id"),
+        CheckConstraint(_in("origem", ORIGENS_PARTICIPACAO), name="ck_atividade_participacoes_origem"),
+        CheckConstraint(_in("resposta", RESPOSTAS), name="ck_atividade_participacoes_resposta"),
+        CheckConstraint(_in("presenca", PRESENCAS), name="ck_atividade_participacoes_presenca"),
+        CheckConstraint(
+            "presenca_origem IS NULL OR " + _in("presenca_origem", PRESENCA_ORIGENS),
+            name="ck_atividade_participacoes_presenca_origem",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    atividade_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("atividades.id", ondelete="CASCADE"), nullable=False
+    )
+    medium_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("mediuns.id", ondelete="CASCADE"), nullable=False
+    )
+    convocado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    origem: Mapped[str] = mapped_column(String(20), nullable=False, default="elegivel")
+    grupo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("corrente_grupos.id", ondelete="SET NULL"), nullable=True
+    )
+    funcao_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("funcoes_corrente.id", ondelete="SET NULL"), nullable=True
+    )
+    resposta: Mapped[str] = mapped_column(String(20), nullable=False, default="sem_resposta")
+    respondido_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Pode conter dado de saúde (§6.8): só para quem tem ESCALAS:view; nunca em e-mail, push,
+    # auditoria ou exportação.
+    justificativa: Mapped[Optional[str]] = mapped_column(String(JUSTIFICATIVA_MAX), nullable=True)
+    justificativa_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    presenca: Mapped[str] = mapped_column(String(20), nullable=False, default="nao_registrada")
+    presenca_origem: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    presenca_registrada_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    presenca_registrada_por: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    dispensado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Troca de escala (fase 2, AM-27).
+    substituida_por_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("atividade_participacoes.id", ondelete="SET NULL"), nullable=True
+    )
+    lembrete_enviado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<AtividadeParticipacao(atividade_id={self.atividade_id}, medium_id={self.medium_id})>"

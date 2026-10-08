@@ -76,6 +76,7 @@ async def lifespan(app: FastAPI):
     from .services.birthday_scheduler import birthday_scheduler
     from .services.trial_scheduler import trial_scheduler
     from .services.onboarding_email_scheduler import onboarding_email_scheduler
+    from .services.presenca_scheduler import presenca_scheduler
 
     # Startup
     logger.info("Starting Senhas API...")
@@ -90,12 +91,14 @@ async def lifespan(app: FastAPI):
     birthday_scheduler.start()
     trial_scheduler.start()
     onboarding_email_scheduler.start()
+    presenca_scheduler.start()
     logger.info("Senhas API started successfully")
 
     yield
 
     # Shutdown
     logger.info("Shutting down Senhas API...")
+    await presenca_scheduler.stop()
     await onboarding_email_scheduler.stop()
     await trial_scheduler.stop()
     await birthday_scheduler.stop()
