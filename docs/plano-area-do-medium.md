@@ -1114,7 +1114,7 @@ esquecer.
 **Implementação** (§8.11)
 - `B/services/medium_lembrete_scheduler.py` no padrão `scheduler_guard` (advisory lock + marca por linha,
   `UPDATE ... WHERE lembrete_enviado_em IS NULL RETURNING`), registrado no lifespan:
-  - mensalidade: D-3 e no vencimento;
+  - mensalidade: D-3 e D+3 sem comprovante (D-29 substituiu o "no vencimento"; a casa pode desligar);
   - véspera, 18 h: escala do médium (faxina com o grupo, função na gira) e atividade/gira de amanhã;
   - D-2: confirmação (vou/não vou) pendente;
   - depois de marcado ausente: convite para justificar, dentro do prazo;
@@ -1124,6 +1124,10 @@ esquecer.
 - Preferências do médium (`medium_preferencias`: por tipo de aviso, opt-out) e link de descadastro.
 - Lembrete de escala só com `escalas` (Pro); os demais com o plano do módulo.
 - Volume de e-mail: medir contra o plano gratuito do Resend antes de ligar para todos.
+- (Implementado, ver §11.0) Também: escala nova (um e-mail com os dias novos), atividade cancelada e troca da
+  chave PIX (sem a chave). Volume estimado: ~10 e-mails/mês por médium com tudo ligado + ~40/mês de resumo por
+  terreiro → piloto (3–4 casas, ~30 médiuns cada) ≈ 1.400/mês, dentro dos 3.000/mês do Resend gratuito, mas
+  dividindo a cota com as senhas dos consulentes; conta e consulta de medição em `docs/email.md`.
 
 **Aceite**
 - [ ] Lembretes chegam uma vez só, mesmo com 2 workers (teste)
@@ -1440,11 +1444,12 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-29 Ajustes do piloto (convocar grupos, QR no iPhone, PIX no Início, remover foto, limite no login) | #93 | — | 2026-10-08 |
 | AM-26 Relatório de assiduidade e justificativas (aba Relatórios, PDF sem justificativa) | #94 | — | 2026-10-08 |
 | AM-25 Escala de faxina (planejador do mês por grupos) | #95 | 080 | 2026-10-08 |
+| AM-15 Lembretes e avisos por e-mail (mensalidade D-3/D+3, véspera, D-2, escala nova, falta, aviso, cancelamento, PIX, resumo do admin) | #96 | 081 | 2026-10-08 |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** AM-15 (lembretes por e-mail), AM-26 (assiduidade), AM-18
+**Falta da 2.4.0 do plano:** AM-18
 (escala de gira), AM-24 (divulgação). **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.

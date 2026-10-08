@@ -38,6 +38,7 @@ from .atividades import (
     EscalaPlanoDia,
     FuncaoCorrente,
 )
+from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
 
 __all__ = [
     "Base",
@@ -68,6 +69,8 @@ __all__ = [
     "EstoqueMovimentacaoTipo",
     "Medium",
     "MediumConvite",
+    "MediumLembreteEnviado",
+    "MediumPreferencia",
     "Comunicado",
     "ComunicadoLeitura",
     "ComunicadoPublico",

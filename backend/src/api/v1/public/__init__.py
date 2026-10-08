@@ -12,6 +12,7 @@ from src.api.v1.public.stats import router as public_stats_router
 from src.api.v1.public.sitemap import router as public_sitemap_router
 from src.api.v1.public.convite import router as medium_convite_router
 from src.api.v1.public.email_confirmacao import router as email_confirmacao_router
+from src.api.v1.public.avisos_email import router as avisos_email_router
 
 __all__ = [
     "next_gira_router",
@@ -27,4 +28,5 @@ __all__ = [
     "public_sitemap_router",
     "medium_convite_router",
     "email_confirmacao_router",
+    "avisos_email_router",
 ]

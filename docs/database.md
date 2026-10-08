@@ -419,6 +419,47 @@ com `INSERT … ON CONFLICT DO NOTHING` e trava com `SELECT … FOR UPDATE` (pub
 
 ---
 
+### `medium_preferencias` e `medium_lembretes_enviados` (AM-15, migração 081 — encadeada depois da 080)
+
+Lembretes e avisos por e-mail da Área do Médium (`services/medium_lembrete_scheduler.py`). Models em
+`src/models/medium_lembretes.py`.
+
+`medium_preferencias` (uma linha por médium; sem linha = tudo ligado):
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `medium_id` | UUID FK → `mediuns.id` CASCADE | UNIQUE `uq_medium_preferencias_medium` |
+| `email_mensalidade` / `email_escalas` / `email_confirmacao` / `email_faltas` / `email_avisos` | `Boolean`, padrão `true` | liga/desliga por grupo de lembretes (Perfil da Área ou link do rodapé) |
+| `token_descadastro` | `String(64)` | UNIQUE `uq_medium_preferencias_token`; `token_urlsafe(32)` em claro (vai em todo e-mail; só desliga e-mail) |
+| `created_at` / `updated_at` | `DateTime(tz)` | |
+
+**Indexes:** `ix_medium_preferencias_tenant_id`.
+
+`medium_lembretes_enviados` (marca "já mandei", gravada ANTES do envio):
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `medium_id` | UUID FK → `mediuns.id` CASCADE NULL | NULL = do terreiro (resumo diário dos administradores) |
+| `tipo` | `String(30)` | CHECK `ck_medium_lembretes_enviados_tipo`: `mensalidade_antes`, `mensalidade_depois`, `pix_alterado`, `escala_nova`, `vespera`, `confirmacao`, `falta`, `aviso`, `cancelada`, `resumo_admin` |
+| `referencia` | `String(80)` | o que o lembrete cobre: mês `AAAA-MM`, id da atividade/aviso, data do resumo, instante da troca do PIX |
+| `enviado_em` | `DateTime(tz)` | `server_default now()` |
+
+**Constraints/Indexes:** índice único parcial `uq_medium_lembretes_enviados_medium` (`tenant_id, tipo,
+referencia, medium_id`) `WHERE medium_id IS NOT NULL` e `uq_medium_lembretes_enviados_terreiro` (`tenant_id,
+tipo, referencia`) `WHERE medium_id IS NULL`; `ix_medium_lembretes_enviados_medium_id`. Uma vez só com 2
+workers: `INSERT … ON CONFLICT DO NOTHING RETURNING` — a segunda transação espera a primeira no índice e não
+recebe a linha (teste com duas sessões em `tests/integration_pg/test_am15_lembretes.py`).
+
+**Migração 081 (`081_lembretes`, encadeada na `079_presenca`; pode ser re-encadeada no merge):** cria as duas
+tabelas, `tenant_configs.area_medium_lembrete_mensalidade` (`Boolean`, padrão `true`) e
+`comunicados.avisar_email`/`avisar_email_em`. Downgrade apaga tabelas e colunas.
+
+---
+
 ### `tenant_configs`
 
 Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`.
@@ -866,7 +907,7 @@ Ao criar um novo enum em Alembic + model Python:
 | 18 | `018_estoque` | `017_default_brand_colors` | Cria `estoque_grupos`, `estoque_itens`, `estoque_movimentacoes`; enum `estoque_movimentacao_tipo`; `tenant_configs.enable_estoque_log` |
 | 19 | `019_fix_movimentacoes_fk` | `018_estoque` | `estoque_movimentacoes.item_id` FK: `CASCADE` → `RESTRICT` (protege integridade do ledger) |
 
-A tabela acima vai até a 019. A cadeia completa e a head atual (`080_escala_planos`, AM-25) estão em
+A tabela acima vai até a 019. A cadeia completa e a head atual (`081_lembretes`, AM-15) estão em
 AGENTS.md §11.8.
 
 ### Comandos Alembic

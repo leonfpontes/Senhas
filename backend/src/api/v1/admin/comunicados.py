@@ -13,6 +13,11 @@ Rotas (todas com o plano/chave do piloto `area_medium` e o grupo `COMUNICADOS`, 
 (grupos ativos do terreiro, conferidos antes de gravar em `comunicado_grupos`); o "M" são só os
 membros desses grupos (grupo arquivado não conta). O médium nunca vê quem mais leu (D-07); só quem
 tem `COMUNICADOS:view` no painel vê os nomes.
+
+"Avisar por e-mail também" (AM-15): `avisar_email` no corpo (quem cria/edita, `insert`/`edit`). O
+agendador `services/medium_lembrete_scheduler.py` manda o aviso por e-mail ao público com acesso à
+Área quando ele está publicado — uma vez por médium (marca em `medium_lembretes_enviados`), nos 3 dias
+seguintes à publicação ou a ligar a opção (`avisar_email_em`). Desligar antes da rodada não manda.
 """
 from __future__ import annotations
 
@@ -72,6 +77,8 @@ class ComunicadoCreate(BaseModel):
     # None = publicar agora; data futura = agendado. Sem fuso = horário de Brasília.
     publicar_em: Optional[datetime] = None
     expira_em: Optional[datetime] = None
+    # AM-15: manda também por e-mail a quem tem acesso à Área (assunto discreto).
+    avisar_email: bool = False
 
 
 class ComunicadoUpdate(BaseModel):
@@ -85,6 +92,7 @@ class ComunicadoUpdate(BaseModel):
     publicar_em: Optional[datetime] = None
     # Enviado como null = nunca sai do ar. Ausente = não muda.
     expira_em: Optional[datetime] = None
+    avisar_email: Optional[bool] = None
 
 
 class LeiturasResumo(BaseModel):
@@ -108,6 +116,7 @@ class ComunicadoResponse(BaseModel):
     publicar_em: datetime
     expira_em: Optional[datetime] = None
     situacao: str  # agendado | publicado | expirado
+    avisar_email: bool = False
     created_at: datetime
     updated_at: datetime
     leituras: LeiturasResumo
@@ -239,6 +248,7 @@ def _resposta(
         publicar_em=comunicado.publicar_em,
         expira_em=comunicado.expira_em,
         situacao=situacao(comunicado.publicar_em, comunicado.expira_em, agora),
+        avisar_email=bool(comunicado.avisar_email),
         created_at=comunicado.created_at,
         updated_at=comunicado.updated_at,
         leituras=LeiturasResumo(lidos=sum(1 for m in publico if m[0] in lidos), total=len(publico)),
@@ -261,6 +271,7 @@ def _snapshot(c: Comunicado, grupos: Optional[list[CorrenteGrupo]] = None) -> di
         "fixado": c.fixado,
         "publicar_em": c.publicar_em.isoformat() if c.publicar_em else None,
         "expira_em": c.expira_em.isoformat() if c.expira_em else None,
+        "avisar_email": bool(c.avisar_email),
     }
 
 
@@ -356,6 +367,8 @@ async def criar_comunicado(
         publicar_em=publicar_em,
         expira_em=expira_em,
         criado_por=current_user.id,
+        avisar_email=body.avisar_email,
+        avisar_email_em=agora if body.avisar_email else None,
     )
     db.add(comunicado)
     await db.flush()
@@ -425,6 +438,10 @@ async def editar_comunicado(
         comunicado.publicar_em = normalizar_data(body.publicar_em) or agora
     if "expira_em" in enviados:
         comunicado.expira_em = normalizar_data(body.expira_em)
+    if "avisar_email" in enviados and body.avisar_email is not None:
+        if body.avisar_email and not comunicado.avisar_email:
+            comunicado.avisar_email_em = agora
+        comunicado.avisar_email = body.avisar_email
     _validar_janela(
         comunicado.publicar_em,
         comunicado.expira_em,

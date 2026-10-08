@@ -14,6 +14,7 @@
  * Impersonando, a Área é só leitura (§6.9): as ações de alterar somem.
  * - "Minhas presenças" (AM-17, D-27): leva a `/medium/presencas` (percentual, próximas escalas e
  *   histórico; só a própria presença).
+ * - "Avisos por e-mail" (AM-15): liga/desliga cada tipo de lembrete (`AvisosPorEmail`).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
@@ -39,6 +40,7 @@ import { MediumLayout, useMediumShell } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
 import { MeusGrupos } from '@/components/medium/MeusGrupos';
 import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
+import { AvisosPorEmail } from '@/components/medium/perfil/AvisosPorEmail';
 import { MeusDadosDrawer } from '@/components/medium/perfil/MeusDadosDrawer';
 import { TrocarEmailDrawer } from '@/components/medium/perfil/TrocarEmailDrawer';
 import { TrocarSenhaDrawer } from '@/components/medium/perfil/TrocarSenhaDrawer';
@@ -440,6 +442,7 @@ function Perfil() {
                 )}
               </ul>
             </Secao>
+            <AvisosPorEmail somenteLeitura={somenteLeitura} />
           </>
         )}
 
