@@ -769,9 +769,9 @@ and the permission group `MEDIUNS` (no new feature — §6.7 of the Área plan):
 
 | Method | Path | Group action |
 |---|---|---|
-| GET | `/api/v1/admin/corrente-grupos[?incluir_arquivados=true]` | `MEDIUNS:view` |
-| GET | `/api/v1/admin/corrente-grupos/opcoes` | `MEDIUNS:view` **or** `COMUNICADOS:view` |
-| GET | `/api/v1/admin/corrente-grupos/{id}` | `MEDIUNS:view` |
+| GET | `/api/v1/admin/corrente-grupos[?incluir_arquivados=true]` | `MEDIUNS:view` **or** `ESCALAS:view` (AM-08) |
+| GET | `/api/v1/admin/corrente-grupos/opcoes` | `MEDIUNS:view` **or** `COMUNICADOS:view` **or** `ESCALAS:view` |
+| GET | `/api/v1/admin/corrente-grupos/{id}` | `MEDIUNS:view` **or** `ESCALAS:view` (AM-08) |
 | POST | `/api/v1/admin/corrente-grupos` (201) | `MEDIUNS:insert` |
 | PUT | `/api/v1/admin/corrente-grupos/{id}` | `MEDIUNS:edit` |
 | POST | `/api/v1/admin/corrente-grupos/{id}/membros` | `MEDIUNS:edit` |
@@ -804,6 +804,97 @@ last and only with `incluir_arquivados=true`; members are active médiuns, by na
   from every group (reactivating does not put them back).
 - Another tenant's id → 404 (path) / 422 (body). Audited as `corrente_grupo` (name, color, description,
   member counts) and, for the médium field, as `Medium` with the group names.
+
+### 15. Atividades da casa (AM-08)
+
+Faxina, ritual coletivo/individual, organização interna, preparação de curso, desenvolvimento,
+reunião… Internal activities live in their own table (`atividades`, decision D-03): they **never**
+count toward the monthly gira limit and **never** reach the public site, the public agenda or the
+sitemap. Every route requires the plan features `area_medium` (Basic+ **and** the pilot switch)
+**and** `atividades_corrente` (Basic+), plus the permission group `ESCALAS` ("Atividades e escalas",
+group "Corrente" in the profiles screen). Every `tipo_id`/`grupo_id`/`gira_id` and path id is checked
+in the tenant before writing (another tenant's id → 404 in the path / 422 in the body).
+
+| Method | Path | Group action |
+|---|---|---|
+| GET | `/api/v1/admin/atividades/calendario?inicio&fim[&tipo_id]` | `ESCALAS:view` |
+| GET | `/api/v1/admin/atividades/tipos[?incluir_arquivados=true]` | `ESCALAS:view` |
+| POST | `/api/v1/admin/atividades/tipos` (201) | `ESCALAS:insert` |
+| PUT | `/api/v1/admin/atividades/tipos/{id}` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/tipos/{id}/desarquivar` | `ESCALAS:edit` |
+| DELETE | `/api/v1/admin/atividades/tipos/{id}` (204, archive) | `ESCALAS:delete` |
+| GET | `/api/v1/admin/atividades/funcoes[?incluir_arquivadas=true]` | `ESCALAS:view` |
+| POST | `/api/v1/admin/atividades/funcoes` (201) | `ESCALAS:insert` |
+| PUT | `/api/v1/admin/atividades/funcoes/{id}` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/funcoes/{id}/desarquivar` | `ESCALAS:edit` |
+| DELETE | `/api/v1/admin/atividades/funcoes/{id}` (204, archive) | `ESCALAS:delete` |
+| POST | `/api/v1/admin/atividades/da-gira/{gira_id}` | `ESCALAS:insert` |
+| GET | `/api/v1/admin/atividades?inicio&fim` | `ESCALAS:view` |
+| GET | `/api/v1/admin/atividades/{id}` | `ESCALAS:view` |
+| POST | `/api/v1/admin/atividades` (201) | `ESCALAS:insert` |
+| PUT | `/api/v1/admin/atividades/{id}` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/{id}/cancelar` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/{id}/reativar` | `ESCALAS:edit` |
+| DELETE | `/api/v1/admin/atividades/{id}` (204, soft delete) | `ESCALAS:delete` |
+
+`inicio`/`fim` (Brasília days) follow the Área agenda rule: default current month + 2, at most 6
+months, bad range → 400.
+
+**Type** (`/tipos`): `{ "id", "nome", "natureza": "gira"|"atividade", "icone", "cor", "controla_presenca",
+"pede_confirmacao", "exige_justificativa", "checkin_pelo_medium", "checkin_antes_min",
+"checkin_depois_min", "elegiveis", "grupos": [{ "id", "nome", "cor" }], "convocacao_padrao",
+"modo_escala", "hora_padrao": "HH:MM"|null, "duracao_min", "visibilidade_padrao", "is_sistema",
+"visivel_no_site", "ordem", "arquivado_em" }` — ordered by `ordem` (Gira first), archived last.
+- Every tenant has the 8 suggested types (plan §8.2: Gira, Faxina, Ritual coletivo, Ritual individual,
+  Organização interna, Preparação de curso, Desenvolvimento, Reunião) and the suggested functions
+  (Cambone, Porteiro, Ogã/Atabaque, Cozinha, Limpeza pós-gira): migration 078 for existing tenants,
+  `ensure_default_atividade_tipos` on signup and on platform creation (and, as a safety net, on
+  `GET /tipos` of a tenant with no types at all).
+- **Gira** (`natureza = gira`, `is_sistema`, `visivel_no_site: true`) is the house type: it can be
+  renamed and get another icon/colour/options, but `DELETE` → **422** (and a DB CHECK). It is the only
+  type that corresponds to what goes to the site (the real gira, table `giras`); it cannot be used for
+  an internal activity (422).
+- Body (POST; PUT is partial — field absent = unchanged): `nome` (1–60, no HTML), `icone` (closed list
+  `gira` · `faxina` · `vela` · `flor` · `organizacao` · `curso` · `desenvolvimento` · `reuniao` ·
+  `atabaque` · `cozinha` · `estudo` · `estrela` · `folha` · `agua`), `cor` (the corrente-group palette or
+  `null` = terreiro colour), the four booleans, `checkin_antes_min`/`checkin_depois_min` (0–1440, default
+  60/180), `elegiveis` (`todos` · `atendimento` · `cambones` · `grupos`), `grupo_ids` (required — at least
+  one ACTIVE group of the tenant — when `elegiveis = grupos`; switching to another value clears them),
+  `convocacao_padrao` (`todos_elegiveis` · `so_escalados`), `modo_escala` (`nenhuma` · `grupos_por_dia` ·
+  `funcoes`), `hora_padrao` (`HH:MM` or null), `duracao_min` (15–1440 or null), `visibilidade_padrao`
+  (`corrente` · `convocados`). Any value outside the lists → 422. Name already used by another
+  non-archived type of the tenant, ignoring case → **409** (archived names are free;
+  `desarquivar` → 409 if the name was taken meanwhile).
+- `DELETE /tipos/{id}` archives: the type leaves the options for new activities; existing activities
+  keep it.
+
+**Function** (`/funcoes`): `{ "id", "nome", "descricao", "ordem", "arquivado_em" }` — `nome` 1–60, unique
+per tenant among the active ones (409), `descricao` ≤ 300.
+
+**Activity**: `{ "id", "tipo": { "id", "nome", "icone", "cor" }, "gira_id", "titulo", "inicio", "fim",
+"local", "descricao", "orientacoes", "visibilidade", "origem": "manual"|"plano_escala"|"gira",
+"cancelada_em", "cancelamento_motivo", "created_at", "updated_at" }`.
+- Body: `tipo_id` (active type of the tenant with `natureza = atividade`; else 422), `titulo` (≤ 120;
+  empty → the type name), `inicio` (required; naive = Brasília), `fim` (optional, after `inicio`; empty →
+  `inicio + duracao_min` of the type when it has one), `local` (≤ 200), `descricao`/`orientacoes` (plain
+  text), `visibilidade` (`corrente` = whoever the type reaches sees it in the Área agenda;
+  `convocados` = only who is on the schedule — hidden from everyone until AM-17 creates participations;
+  default: the type's `visibilidade_padrao`).
+- `POST /{id}/cancelar` `{ "motivo" }` (1–300, required): keeps the activity, marked as cancelled — the
+  corrente sees the reason in the Área. A cancelled activity cannot be edited (409) until
+  `POST /{id}/reativar`. `DELETE` is a soft delete (gone from the admin and the Área).
+- `POST /da-gira/{gira_id}` returns (creating on first call — `INSERT … ON CONFLICT (gira_id) DO
+  NOTHING`, idempotent) the gira's **anchor** in the activity layer, used by schedule/attendance
+  (AM-17/AM-18). Title, date and place come from the gira. Anchors are not internal activities: the
+  routes `/{id}` answer 404 for them.
+
+**Calendar** (`/calendario`): `{ "inicio", "fim", "itens": [{ "origem": "gira"|"atividade", "id", "tipo":
+{ "id", "nome", "icone", "cor" }, "titulo", "inicio", "fim", "local", "visibilidade", "cancelada" }] }` —
+active giras (typed with the house Gira type) and internal activities (cancelled ones marked), by start.
+`tipo_id` = the Gira type → only giras; another type → only its activities.
+
+Audited as `atividade_tipo`, `funcao_corrente` and `atividade` (title, dates, place, visibility; the
+cancel reason).
 
 ---
 
@@ -1069,13 +1160,21 @@ médium come from the session; a `medium_id` in the query string is ignored).
 All three routes also require the house to keep the **agenda** module on (AM-10,
 `tenant_configs.area_medium_agenda`); otherwise **403** with the neutral message "A agenda não
 está disponível na Área do Médium desta casa." (`details.error_code: MEDIUM_MODULO_INDISPONIVEL`).
-Giras are the tenant's own, active and not deleted; anything else → **404**.
+Giras are the tenant's own, active and not deleted; anything else → **404**. Internal activities
+(AM-08) follow the visibility rule below; anything else → **404**.
 
 **Endpoint**: `GET /api/v1/medium/agenda?inicio=YYYY-MM-DD&fim=YYYY-MM-DD`
 
 Both optional, Brasília days, inclusive. Default: first day of the current month → end of the
 third month (current + 2). `inicio` alone → 3 months from it. `fim < inicio`, a range of 6 months
-or more, or a bad date → **400**. Past and future giras of the range, ordered by start.
+or more, or a bad date → **400**. Past and future giras and visible activities of the range,
+ordered by start.
+
+An internal activity (AM-08) is visible to the médium when it is not deleted, `visibilidade =
+corrente` and its type reaches them: `elegiveis = todos`; `atendimento` for médiuns de atendimento;
+`cambones` for cambones; `grupos` for members of one of the type's ACTIVE corrente groups. Cancelled
+activities stay listed with `cancelada: true`. `visibilidade = convocados` ("só quem estiver na
+escala") is hidden until AM-17 (it will show through an `EXISTS` on the médium's own participation).
 
 ```json
 {
@@ -1090,13 +1189,25 @@ or more, or a bad date → **400**. Past and future giras of the range, ordered 
       "inicio": "2026-10-09T23:30:00Z",
       "fim": null,
       "local": null,
+      "cancelada": false,
+      "minha_participacao": null
+    },
+    {
+      "origem": "atividade",
+      "id": "atividade-uuid",
+      "tipo": { "nome": "Faxina", "icone": "faxina", "cor": "petroleo" },
+      "titulo": "Faxina · G1",
+      "inicio": "2026-10-10T12:00:00Z",
+      "fim": "2026-10-10T15:00:00Z",
+      "local": "Terreiro",
+      "cancelada": false,
       "minha_participacao": null
     }
   ]
 }
 ```
-Unified item shape (plan §8.2/§8.3): AM-08 adds `origem: "atividade"` items (house activities)
-and AM-17 fills `minha_participacao`, without changing the shape. `cor: null` = terreiro colour.
+Unified item shape (plan §8.2/§8.3): `tipo` of giras is the house's system type "Gira" (renameable,
+AM-08); `cor: null` = terreiro colour. AM-17 fills `minha_participacao` without changing the shape.
 
 **Endpoint**: `GET /api/v1/medium/agenda/gira/{gira_id}` — the item above plus:
 
@@ -1125,6 +1236,12 @@ times, 3 h when the gira has no end), `Content-Disposition: inline; filename="<g
 `Cache-Control: private, no-store`. Inline on purpose: Safari on iPhone offers "Add to Calendar";
 Chrome on Android downloads it and opens the calendar app. The description carries the
 orientações and the link to the gira in the Área.
+
+**Endpoint**: `GET /api/v1/medium/agenda/atividade/{atividade_id}` (AM-08) — the item plus
+`descricao`, `orientacoes_corrente`, `endereco`, `mapa_url`, `cancelamento_motivo` (only when
+cancelled) and `agenda_celular` (`ics_path`, `google_url`). No `link_publico` and no `senhas`:
+activities are internal. `GET /api/v1/medium/agenda/atividade/{atividade_id}/ics` — same as the
+gira one (`UID:atividade-<id>@girahub`). Same visibility rule → otherwise 404.
 
 ### 5. Mensalidade (AM-11/AM-12)
 

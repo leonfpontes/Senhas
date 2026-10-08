@@ -26,7 +26,7 @@ from .factories import create_gira, create_tenant, create_user
 
 AGENDA = "/api/v1/medium/agenda"
 ORIENTACOES = "Roupa branca, guias e uma vela branca. A corrente chega às 19h30."
-ITEM_KEYS = {"origem", "id", "tipo", "titulo", "inicio", "fim", "local", "minha_participacao"}
+ITEM_KEYS = {"origem", "id", "tipo", "titulo", "inicio", "fim", "local", "cancelada", "minha_participacao"}
 
 
 @pytest.fixture

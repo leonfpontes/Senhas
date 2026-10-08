@@ -73,6 +73,10 @@ class PlanFeatures(BaseModel):
     agendamento_por_horario: bool = False
     # Área do Médium (AM-02): login do médium e /api/v1/medium/* (require_medium).
     area_medium: bool = False
+    # Atividades da casa (AM-08): tipos, atividades internas, grupos, convocação, presença.
+    atividades_corrente: bool = False
+    # Escalas (AM-25/AM-18): planejador da faxina, escala de gira por função, rodízio.
+    escalas: bool = False
 
 
 # Nomes válidos para require_plan_feature(feature) — erro na importação se houver typo.
@@ -122,6 +126,10 @@ _FEATURE_MIN_TIER: dict[str, int] = {
     # de upgrade continua sendo o número de médiuns (15/30/ilimitado) — a Área
     # faz a casa cadastrar a corrente inteira e bater no limite.
     "area_medium": _BASIC,
+    # Degraus da v2 (decisão D-02/D-10, §6.5 do plano): no Basic a casa marca quem veio
+    # (atividades internas, presença); no Pro ela planeja quem vem (escalas).
+    "atividades_corrente": _BASIC,
+    "escalas": _PRO,
 }
 
 # Toda feature do catálogo precisa de nível — erro na importação se faltar.

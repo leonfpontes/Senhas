@@ -60,6 +60,10 @@ Feature por módulo:
 - Cursos Presenciais → `CURSOS_PRESENCIAIS`
 - Site do terreiro (Meu Site, `sites.py`, inclusive imagens) → `SITE` (separado de Cursos desde o T-06)
 - Avisos da Área do Médium (`comunicados.py`) → `COMUNICADOS` ("Avisos da Área", grupo "Corrente") + plano `area_medium`
+- Grupos da corrente (`corrente_grupos.py`) → `MEDIUNS` (ler: `MEDIUNS` ou `ESCALAS` view) + plano `area_medium`
+- Atividades da casa — tipos, funções, atividades internas, calendário (`atividades.py`) → `ESCALAS`
+  ("Atividades e escalas", grupo "Corrente") + planos `area_medium` e `atividades_corrente`; escalas, confirmações
+  e chamada (AM-17/18/25) usam a mesma feature (escala no plano `escalas`, Pro)
 
 Exceções (não precisam de guard de grupo):
 - `health.py`, `billing_stripe.py`, `subscription_info.py`, `permission_groups.py` — rotas de sistema/plataforma

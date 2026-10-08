@@ -27,6 +27,10 @@ export interface PlanFeatures {
   agendamento_por_horario: boolean;
   /** Área do Médium (AM-02): login do médium e /api/v1/medium/*. */
   area_medium: boolean;
+  /** Atividades da casa (AM-08): tipos, atividades internas, presença. Basic+. */
+  atividades_corrente: boolean;
+  /** Escalas (faxina por grupos, escala de gira por função). Pro+. */
+  escalas: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -86,6 +90,8 @@ const DEFAULT_FEATURES: PlanFeatures = {
   fila_espera: false,
   agendamento_por_horario: false,
   area_medium: false,
+  atividades_corrente: false,
+  escalas: false,
 };
 
 const SubscriptionContext = createContext<SubscriptionContextValue>({

@@ -111,6 +111,11 @@ class TenantService:
         from src.repositories.permission_group_repo import PermissionGroupRepository
 
         await PermissionGroupRepository(self.db).ensure_default_group(tenant.id)
+
+        # Tipos de atividade e funções da corrente sugeridos (AM-08): "Gira", "Faxina", "Reunião"...
+        from src.services.atividades import ensure_default_atividade_tipos
+
+        await ensure_default_atividade_tipos(self.db, tenant.id)
         
         return {
             "id": str(tenant.id),

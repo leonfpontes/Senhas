@@ -184,7 +184,15 @@ Rotas existentes e suas features:
   plano: listar/detalhe = view, criar = insert, editar/por e tirar medium/desarquivar/campo "Grupos" do medium =
   edit, arquivar = delete; `GET /opcoes` = MEDIUNS **ou** COMUNICADOS view via `require_any_group_permission`,
   sem nomes de mediuns, para quem so publica avisos) + `require_plan_feature("area_medium")` no router (075).
-  Quando o AM-08 criar `ESCALAS`, a leitura passa a aceitar tambem `ESCALAS:view`
+  Desde o AM-08 a leitura (`GET` lista/detalhe) aceita tambem `ESCALAS:view` e `GET /opcoes` aceita
+  MEDIUNS, COMUNICADOS ou ESCALAS view
+- Atividades da casa (`atividades.py`, AM-08) → `PermissionFeature.ESCALAS` ("Atividades e escalas", grupo
+  "Corrente"; migracoes 077/078): tipos e funcoes (listar = view, criar = insert, editar/desarquivar = edit,
+  arquivar = delete), atividades internas (view/insert/edit/delete; cancelar e reativar = edit), calendario da
+  casa (view) e ancora da gira `POST /da-gira/{gira_id}` (insert) + `require_plan_feature("area_medium")` E
+  `require_plan_feature("atividades_corrente")` no router. Operador: `ESCALAS` segue `atividades_corrente` em
+  `PermissionService.is_feature_enabled_for_plan`. Escalas, confirmacoes e chamada (AM-17/AM-18/AM-25) usam a
+  mesma feature
 
 Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
 leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
@@ -262,9 +270,24 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `remover_medium_dos_grupos`. Publico `grupos` dos avisos: `comunicado_grupos` + filtro `EXISTS` por
   `ctx.medium.id` em `api/v1/medium/avisos._no_publico_do_medium` (grupo arquivado nao conta). `GET /medium/me`
   devolve `grupos` = so nome/cor dos PROPRIOS grupos, nunca os outros membros (D-07).
+- **Atividades da casa (AM-08)**: tipos (`atividade_tipos`, 8 sugeridos; "Gira" e de sistema — renomeia, nunca
+  arquiva: API 422 + CHECK), funcoes da corrente e atividades internas em `/api/v1/admin/atividades*` (ESCALAS +
+  `area_medium` + `atividades_corrente`). Todo `tipo_id`/`grupo_id` do corpo passa por
+  `services/atividades.validar_tipo_ativo_do_tenant` / `_validar_grupos_elegiveis_do_tenant` antes de gravar
+  (checagem 4, teste de mutacao em `tests/unit/test_am08_atividades.py`, regressao em
+  `test_fk_cross_tenant.py`); ids de caminho (tipo, funcao, atividade, gira) sao buscados no tenant. Atividade
+  interna e tabela propria (D-03): nunca conta no limite de giras/mes e nenhuma rota publica, site ou sitemap
+  le `atividades` (teste em `tests/integration_pg/test_am08_atividades.py`). Terreiro novo ganha tipos e
+  funcoes em `ensure_default_atividade_tipos` (cadastro `public/onboarding.py` e `tenant_service.create_tenant`,
+  como o grupo padrao). Ancora da gira: `services/atividades.atividade_da_gira` (`ON CONFLICT (gira_id) DO
+  NOTHING`).
 - **Agenda (AM-07)**: `GET /medium/agenda` (+ `/agenda/gira/{id}` e `/agenda/gira/{id}/ics`) so le giras
   ativas do tenant do `ctx`; formato unificado `{origem, id, tipo{nome, icone, cor}, titulo, inicio, fim,
-  local, minha_participacao}` que o AM-08/AM-17 estendem. `giras.orientacoes_corrente` (073) e dado SO da
+  local, cancelada, minha_participacao}` que o AM-17 estende. Desde o AM-08 traz tambem as atividades internas
+  visiveis ao medium (`/agenda/atividade/{id}` e `/ics`): nao excluida, `visibilidade = 'corrente'` e o tipo
+  alcanca o medium (`elegiveis` todos · atendimento · cambones · grupos ATIVOS dele, por `EXISTS` filtrado por
+  `ctx.medium.id`); `convocados` fica escondida ate o AM-17 (participacao do proprio medium). O tipo das giras
+  e o tipo de sistema "Gira" da casa. `giras.orientacoes_corrente` (073) e dado SO da
   Area: nunca em `public/*`, site, e-mail ou bilhete (o consulente ve `recados`) — teste em
   `tests/integration_pg/test_am07_agenda.py`. Detalhe nunca devolve contagem/dado de consulente (so a
   situacao das senhas).
@@ -421,7 +444,8 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   cor principal/de apoio/cor do texto, e no POST /tenant/logo; remover logo e os demais campos salvam
   em qualquer plano) e exportacao CSV (`export_csv`: CSV da gira e da posicao de estoque).
   Area do Medium (`area_medium`, Basic+): checada pelo `require_medium` em todo `/api/v1/medium/*`
-  e no calculo de `areas` (AM-02).
+  e no calculo de `areas` (AM-02). Atividades da casa (`atividades_corrente`, Basic+): router
+  `admin/atividades.py`, junto com `area_medium` (AM-08).
 - Excecao no gate de plano para operadores: `view` de `MEDIUNS` NAO passa por
   `is_feature_enabled_for_plan` (`_VIEW_SEM_GATE_DE_PLANO` em `permission_service.py`) — fora do plano o
   operador com o grupo continua consultando os mediuns; insert/edit/delete seguem zerados.
@@ -448,9 +472,12 @@ Recursos (plano minimo em `_FEATURE_MIN_TIER`):
   `bulk_operations` (always-on, fora do quadro).
 - **Basic+**: `mediuns`, `relatorio_gira`, `mensalidade_mediun`, `area_medium` (Area do Medium,
   AM-02 — decisao D-01 de 2026-10-07; por ora fora do quadro: esta em `UNSOLD_FEATURES` ate o texto
-  de venda sair do estudo de UX AM-00/AM-24).
+  de venda sair do estudo de UX AM-00/AM-24), `atividades_corrente` (atividades da casa, tipos, presenca —
+  AM-08, decisao D-10; tambem em `UNSOLD_FEATURES` no piloto).
 - **Pro+**: `email_transacional`, `tema_personalizado` (no quadro: "Personalizacao da plataforma"),
-  `analytics_basico`, `export_csv` (fora do quadro), `auditoria`, `site_builder` (site e cursos).
+  `analytics_basico`, `export_csv` (fora do quadro), `auditoria`, `site_builder` (site e cursos), `escalas`
+  (planejador da faxina, escala de gira por funcao — AM-25/AM-18, decisao D-02; catalogo criado no AM-08, sem
+  rota ainda; fora do quadro no piloto).
 - **So Premium**: `associados`, `mensalidade_associado`, `estoque_controle`, `contas_financeiras`
   (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`, `agendamento_por_horario`.
 - Fora do quadro (`UNSOLD_FEATURES`): `bulk_operations`, `export_csv`, `analytics_avancado` (Pro+ no
@@ -757,7 +784,11 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `076_medium_email_pendente` (2026-10-08, AM-13: `users.email_pendente`, `email_pendente_token_hash`
+- Head atual: `078_atividades` (2026-10-08, AM-08: `atividade_tipos`, `atividade_tipo_grupos`,
+  `funcoes_corrente`, `atividades`, os 8 tipos e as funcoes sugeridos para todo terreiro e acesso total a
+  `escalas` nos grupos padrao), apos `077_permissao_escalas_enum` (`ALTER TYPE permission_feature ADD VALUE
+  'escalas'`, sozinha num `autocommit_block()`; criada depois da 075 e reencadeada na 076 no merge), apos
+  `076_medium_email_pendente` (2026-10-08, AM-13: `users.email_pendente`, `email_pendente_token_hash`
   (indice unico `uq_users_email_pendente_token_hash`) e `email_pendente_expira_em` — troca do e-mail de login com
   confirmacao no endereco novo; criada como 074 e renumerada no merge), apos `075_corrente_grupos` (2026-10-08, AM-23:
   `corrente_grupos`, `corrente_grupo_membros`, `comunicado_grupos` e `grupos` no CHECK `ck_comunicados_publico`), apos
@@ -1039,7 +1070,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente e Perfil (AM-02/03/04/05/06/07/09/10/11/12/13/23, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil e Atividades da casa (AM-02/03/04/05/06/07/08/09/10/11/12/13/23, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1175,7 +1206,22 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `RESERVED_SLUGS`. A Auditoria do painel rotula `medium_perfil` como "Perfil do médium (Área)". Backend e regras em §3.3.
 - **Login multi-terreiro (AM-05)**: mesmo e-mail em mais de um terreiro escolhe o terreiro no `/login` antes da
   escolha de área (regras em §3.2).
-- **Pendente nos próximos cards**: atividades da casa na Agenda (AM-08).
+- **Atividades da casa (AM-08)**: migracoes `077_permissao_escalas_enum` + `078_atividades` (§11.8; tabelas em
+  `docs/database.md`), API `/api/v1/admin/atividades*` (ESCALAS + `area_medium` + `atividades_corrente`; regras em
+  §3.3 e `docs/api.md` §15), planos `atividades_corrente` (Basic) e `escalas` (Pro, sem rota ainda) no catalogo e
+  em `constants/plans.ts` (ambos em `UNSOLD_FEATURES` no piloto). Icone = chave de lista fechada
+  (`constants/atividades.ts` + desenho em `lib/icons.ts` → `ICONES_DE_ATIVIDADE`, CHECK no banco); cor = paleta
+  dos grupos ou `null` (cor do terreiro). Painel: `/admin/atividades` (menu Corrente → "Atividades e escalas",
+  so com `can('area_medium')` e `escalas` view; sem `atividades_corrente` → `PlanLocked`): aba "Agenda da casa"
+  (mes a mes, filtro por tipo, giras + atividades, `CrudDrawer` com tipo, titulo, inicio/fim, local, orientacoes,
+  descricao e "Quem ve na Agenda"; cancelar pede o motivo num `CrudDrawer`; excluir com `ConfirmDialog`) e aba
+  "Tipos e funcoes" (`components/admin/atividades/TiposEFuncoes.tsx`: icone, cor, presenca, "Vou / Nao vou",
+  motivo, "Cheguei" + janela, quem pode participar com `MultiCombobox` de grupos, convocacao, escala,
+  horario/duracao, visibilidade padrao; funcoes). Area: Agenda com o chip "Atividades", `TipoChip`
+  (`components/atividades/TipoChip.tsx`, icone e cor do tipo) e "Cancelada"; detalhe
+  `pages/medium/agenda/[tipo]/[id].tsx` com `tipo = atividade` (orientacoes, local, .ics e Google Agenda, motivo do
+  cancelamento; sem link publico nem "Divulgar"). Ainda nao: participacao, vou/nao vou, chamada (AM-17), escala
+  de gira (AM-18) e planejador da faxina (AM-25) — as tabelas ja tem as colunas/ancora para isso.
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

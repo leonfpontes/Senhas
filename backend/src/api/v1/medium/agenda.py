@@ -1,10 +1,17 @@
-"""Agenda da casa para a corrente — /api/v1/medium/agenda* (AM-07).
+"""Agenda da casa para a corrente — /api/v1/medium/agenda* (AM-07, atividades no AM-08).
 
-- `GET /agenda?inicio&fim`: giras ativas do terreiro no período (padrão: mês corrente + 2,
-  em Brasília; até 6 meses), passadas e futuras, na ordem do dia. Formato unificado
-  `{origem, id, tipo{nome, icone, cor}, titulo, inicio, fim, local, minha_participacao}`:
-  o AM-08 soma as atividades internas e o AM-17 preenche `minha_participacao` sem mudar o
-  formato (hoje só giras, `minha_participacao` null).
+- `GET /agenda?inicio&fim`: giras ativas do terreiro e atividades internas visíveis ao médium
+  no período (padrão: mês corrente + 2, em Brasília; até 6 meses), passadas e futuras, na
+  ordem do dia. Formato unificado `{origem, id, tipo{nome, icone, cor}, titulo, inicio, fim,
+  local, cancelada, minha_participacao}`; o AM-17 preenche `minha_participacao` sem mudar o
+  formato (hoje null). O tipo das giras é o tipo de sistema "Gira" da casa (renomeável).
+- Atividade interna visível (AM-08): não excluída, `visibilidade = 'corrente'` e o tipo alcança
+  o médium (`elegiveis`: todos · só atendimento · só cambones · grupos da corrente em que ele
+  está, grupo arquivado não conta). Cancelada continua na lista, marcada (`cancelada`).
+  `visibilidade = 'convocados'` ("só quem estiver na escala") fica fora até existir a
+  participação do AM-17 — aí entra por `EXISTS` da participação do próprio médium.
+- `GET /agenda/atividade/{id}` e `/agenda/atividade/{id}/ics`: detalhe e .ics da atividade,
+  com a mesma regra de visibilidade (fora dela → 404). Atividade nunca tem link público.
 - `GET /agenda/gira/{id}`: detalhe — horário, local ou endereço do terreiro com link do mapa,
   descrição, `orientacoes_corrente` (só aqui e no Início; nunca em rota pública, e-mail ou
   bilhete), situação das senhas para o público (sem dado de consulente), link público da
@@ -22,7 +29,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import and_, select
+from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import MediumContext, require_medium
@@ -30,13 +37,24 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.core.errors import ForbiddenError
 from src.core.tz import APP_TZ, local_day_bounds_utc, today_local, utc_now
-from src.models import Gira, Tenant, TenantConfig
+from src.models import (
+    Atividade,
+    AtividadeTipo,
+    AtividadeTipoGrupo,
+    CorrenteGrupo,
+    CorrenteGrupoMembro,
+    Gira,
+    Tenant,
+    TenantConfig,
+)
 from src.models.senha_controls import SenhaControl
+from src.services.atividades import elegiveis_fixos_do_medium, tipo_da_gira, tipo_resumo
 from src.services.medium_agenda import (
     PeriodoInvalido,
     descricao_do_evento,
     google_agenda_url,
     ics_da_gira,
+    item_da_atividade,
     item_da_gira,
     link_publico_da_gira,
     mapa_url,
@@ -75,6 +93,8 @@ class AgendaItem(BaseModel):
     inicio: datetime
     fim: Optional[datetime] = None
     local: Optional[str] = None
+    # Atividade cancelada pela casa continua na agenda, marcada (gira desmarcada sai).
+    cancelada: bool = False
     # AM-17: convocado, função, grupo, resposta. Null enquanto não houver escala.
     minha_participacao: Optional[dict] = None
 
@@ -94,6 +114,15 @@ class SenhasPublico(BaseModel):
 class AgendaCelular(BaseModel):
     ics_path: str
     google_url: str
+
+
+class AtividadeDetalhe(AgendaItem):
+    descricao: Optional[str] = None
+    orientacoes_corrente: Optional[str] = None
+    endereco: Optional[str] = None
+    mapa_url: Optional[str] = None
+    cancelamento_motivo: Optional[str] = None
+    agenda_celular: AgendaCelular
 
 
 class GiraDetalhe(AgendaItem):
@@ -157,6 +186,58 @@ def _local_do_evento(gira: Gira, endereco: Optional[str]) -> Optional[str]:
     return " · ".join(p for p in ((gira.local or "").strip(), endereco or "") if p) or None
 
 
+def _local_da_atividade(atividade: Atividade, endereco: Optional[str]) -> Optional[str]:
+    return " · ".join(p for p in ((atividade.local or "").strip(), endereco or "") if p) or None
+
+
+def _atividade_visivel(ctx: MediumContext):
+    """Condição "a atividade interna é para mim" (sem participação ainda — ver docstring).
+
+    Quem usa junta `Atividade.tenant_id == ctx.tenant_id` e `AtividadeTipo.tenant_id ==
+    ctx.tenant_id` na mesma query (o auditor confere ali)."""
+    nos_meus_grupos = exists(
+        select(AtividadeTipoGrupo.tipo_id)
+        .join(CorrenteGrupoMembro, CorrenteGrupoMembro.grupo_id == AtividadeTipoGrupo.grupo_id)
+        .join(CorrenteGrupo, CorrenteGrupo.id == AtividadeTipoGrupo.grupo_id)
+        .where(
+            AtividadeTipoGrupo.tipo_id == AtividadeTipo.id,
+            AtividadeTipoGrupo.tenant_id == ctx.tenant_id,
+            CorrenteGrupoMembro.tenant_id == ctx.tenant_id,
+            CorrenteGrupoMembro.medium_id == ctx.medium.id,
+            CorrenteGrupo.tenant_id == ctx.tenant_id,
+            CorrenteGrupo.arquivado_em.is_(None),
+        )
+    )
+    return and_(
+        Atividade.deleted_at.is_(None),
+        Atividade.gira_id.is_(None),
+        # "Só quem estiver na escala": entra com a participação do próprio médium (AM-17).
+        Atividade.visibilidade == "corrente",
+        or_(
+            AtividadeTipo.elegiveis.in_(elegiveis_fixos_do_medium(ctx.medium.is_atendimento)),
+            and_(AtividadeTipo.elegiveis == "grupos", nos_meus_grupos),
+        ),
+    )
+
+
+async def _atividade_do_medium(db: AsyncSession, ctx: MediumContext, atividade_id: UUID) -> tuple[Atividade, AtividadeTipo]:
+    row = (
+        await db.execute(
+            select(Atividade, AtividadeTipo)
+            .join(AtividadeTipo, AtividadeTipo.id == Atividade.tipo_id)
+            .where(
+                Atividade.id == atividade_id,
+                Atividade.tenant_id == ctx.tenant_id,
+                AtividadeTipo.tenant_id == ctx.tenant_id,
+                _atividade_visivel(ctx),
+            )
+        )
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Atividade não encontrada")
+    return row[0], row[1]
+
+
 @router.get("/agenda", response_model=AgendaResponse)
 async def get_agenda(
     inicio: Optional[str] = Query(None, description="Primeiro dia (AAAA-MM-DD, Brasília)"),
@@ -184,7 +265,25 @@ async def get_agenda(
             .order_by(Gira.data_inicio.asc(), Gira.nome.asc())
         )
     ).scalars().all()
-    return AgendaResponse(inicio=ini, fim=fim_, itens=[AgendaItem(**item_da_gira(g)) for g in giras])
+    tipo_gira = tipo_resumo(await tipo_da_gira(db, ctx.tenant_id))
+    atividades = (
+        await db.execute(
+            select(Atividade, AtividadeTipo)
+            .join(AtividadeTipo, AtividadeTipo.id == Atividade.tipo_id)
+            .where(
+                Atividade.tenant_id == ctx.tenant_id,
+                AtividadeTipo.tenant_id == ctx.tenant_id,
+                _atividade_visivel(ctx),
+                Atividade.inicio >= de,
+                Atividade.inicio < ate,
+            )
+            .order_by(Atividade.inicio.asc())
+        )
+    ).all()
+    itens = [AgendaItem(**item_da_gira(g, tipo_gira)) for g in giras]
+    itens += [AgendaItem(**item_da_atividade(a, tipo_resumo(t))) for a, t in atividades]
+    itens.sort(key=lambda i: (i.inicio, i.titulo.lower()))
+    return AgendaResponse(inicio=ini, fim=fim_, itens=itens)
 
 
 @router.get("/agenda/gira/{gira_id}", response_model=GiraDetalhe)
@@ -206,7 +305,7 @@ async def get_agenda_gira(
     base = settings.FRONTEND_URL.rstrip("/")
     descricao_evento = descricao_do_evento(orientacoes, f"{base}/medium/agenda/gira/{gira.id}")
     return GiraDetalhe(
-        **item_da_gira(gira),
+        **item_da_gira(gira, tipo_resumo(await tipo_da_gira(db, ctx.tenant_id))),
         descricao=(gira.descricao or "").strip() or None,
         orientacoes_corrente=orientacoes,
         endereco=endereco,
@@ -256,6 +355,72 @@ async def get_agenda_gira_ics(
         media_type="text/calendar; charset=utf-8",
         headers={
             # inline: o Safari do iPhone abre "Adicionar à agenda"; o Chrome do Android baixa.
+            "Content-Disposition": f'inline; filename="{arquivo}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+@router.get("/agenda/atividade/{atividade_id}", response_model=AtividadeDetalhe)
+async def get_agenda_atividade(
+    atividade_id: UUID,
+    ctx: MediumContext = Depends(require_agenda_ligada),
+    db: AsyncSession = Depends(get_db),
+) -> AtividadeDetalhe:
+    atividade, tipo = await _atividade_do_medium(db, ctx, atividade_id)
+    tenant, endereco = await _terreiro(db, ctx)
+    orientacoes = (atividade.orientacoes or "").strip() or None
+    base = settings.FRONTEND_URL.rstrip("/")
+    item = item_da_atividade(atividade, tipo_resumo(tipo))
+    return AtividadeDetalhe(
+        **item,
+        descricao=(atividade.descricao or "").strip() or None,
+        orientacoes_corrente=orientacoes,
+        endereco=endereco,
+        mapa_url=mapa_url(endereco or atividade.local),
+        cancelamento_motivo=atividade.cancelamento_motivo if atividade.cancelada_em else None,
+        agenda_celular=AgendaCelular(
+            ics_path=f"/api/v1/medium/agenda/atividade/{atividade.id}/ics",
+            google_url=google_agenda_url(
+                titulo=item["titulo"],
+                terreiro=tenant.name,
+                inicio=atividade.inicio,
+                fim=atividade.fim,
+                local=_local_da_atividade(atividade, endereco),
+                descricao=descricao_do_evento(orientacoes, f"{base}/medium/agenda/atividade/{atividade.id}"),
+            ),
+        ),
+    )
+
+
+@router.get("/agenda/atividade/{atividade_id}/ics", response_class=Response)
+async def get_agenda_atividade_ics(
+    atividade_id: UUID,
+    ctx: MediumContext = Depends(require_agenda_ligada),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    atividade, tipo = await _atividade_do_medium(db, ctx, atividade_id)
+    tenant, endereco = await _terreiro(db, ctx)
+    orientacoes = (atividade.orientacoes or "").strip() or None
+    link_area = f"{settings.FRONTEND_URL.rstrip('/')}/medium/agenda/atividade/{atividade.id}"
+    titulo = atividade.titulo or tipo.nome
+    corpo = ics_da_gira(
+        gira_id=atividade.id,
+        uid_prefixo="atividade",
+        titulo=titulo,
+        terreiro=tenant.name,
+        inicio=atividade.inicio,
+        fim=atividade.fim,
+        local=_local_da_atividade(atividade, endereco),
+        descricao=descricao_do_evento(orientacoes, link_area),
+        url=link_area,
+        agora=utc_now(),
+    )
+    arquivo = nome_arquivo_ics(titulo, atividade.inicio.astimezone(APP_TZ).date())
+    return Response(
+        content=corpo,
+        media_type="text/calendar; charset=utf-8",
+        headers={
             "Content-Disposition": f'inline; filename="{arquivo}"',
             "Cache-Control": "private, no-store",
         },

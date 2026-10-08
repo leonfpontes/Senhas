@@ -2,8 +2,9 @@
  * Agenda da Área do Médium (AM-07) — tipos da API e textos prontos.
  *
  * Formato unificado (`GET /api/v1/medium/agenda`): `{origem, id, tipo{nome, icone, cor}, titulo,
- * inicio, fim, local, minha_participacao}`. Hoje só giras; o AM-08 soma as atividades da casa e o
- * AM-17 preenche `minha_participacao` sem mudar o formato.
+ * inicio, fim, local, cancelada, minha_participacao}`. Giras e, desde o AM-08, as atividades da casa
+ * que o médium pode ver (tipo com ícone e cor). O AM-17 preenche `minha_participacao` sem mudar o
+ * formato.
  */
 import { BR_TIME_ZONE, monthLabelLong } from '@/lib/dateBr';
 import { whatsappShareUrl } from '@/components/public/bilhete-utils';
@@ -19,6 +20,8 @@ export interface AgendaItem {
   inicio: string;
   fim?: string | null;
   local?: string | null;
+  /** Atividade cancelada pela casa: continua na agenda, marcada. */
+  cancelada?: boolean;
   minha_participacao?: Record<string, unknown> | null;
 }
 
@@ -37,6 +40,16 @@ export interface GiraDetalhe extends AgendaItem {
   mapa_url?: string | null;
   senhas: { situacao: SituacaoSenhas; abrem_em?: string | null };
   link_publico: string;
+  agenda_celular: { ics_path: string; google_url: string };
+}
+
+/** Atividade da casa (AM-08) — `GET /api/v1/medium/agenda/atividade/{id}`. Nunca tem link público. */
+export interface AtividadeDetalhe extends AgendaItem {
+  descricao?: string | null;
+  orientacoes_corrente?: string | null;
+  endereco?: string | null;
+  mapa_url?: string | null;
+  cancelamento_motivo?: string | null;
   agenda_celular: { ics_path: string; google_url: string };
 }
 
