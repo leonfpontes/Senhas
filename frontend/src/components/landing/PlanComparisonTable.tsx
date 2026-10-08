@@ -7,10 +7,41 @@
 import React from 'react';
 import { Check, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { buildComparisonGroups, type Cell } from '@/components/billing/PlanComparison';
-import { PLAN_LIST, PLAN_ORDER, formatPricePerMonth, type PlanKey } from '@/constants/plans';
+import { buildComparisonGroups, type Cell, type GroupDef } from '@/components/billing/PlanComparison';
+import {
+  FEATURE_CATALOG,
+  PLAN_LIST,
+  PLAN_ORDER,
+  formatPricePerMonth,
+  planIncludes,
+  type PlanKey,
+} from '@/constants/plans';
+import { AREA_MEDIUM_DIVULGADA } from '@/constants/areaMedium';
 
-const GROUPS = buildComparisonGroups();
+export const AREA_MEDIUM_ROW_LABEL = 'Área do Médium: agenda, avisos e mensalidade no celular do médium';
+
+/**
+ * Linhas do comparativo público. A Área do Médium está em `UNSOLD_FEATURES` (fora do quadro do
+ * painel) e só entra aqui com a chave de lançamento (AM-24), logo depois da mensalidade dos
+ * médiuns; o plano mínimo sai de `FEATURE_MIN_PLAN.area_medium` (constants/plans.ts).
+ */
+export function publicComparisonGroups(divulgarArea: boolean = AREA_MEDIUM_DIVULGADA): GroupDef[] {
+  const groups = buildComparisonGroups();
+  if (!divulgarArea) return groups;
+  const anchor = FEATURE_CATALOG.find((f) => f.key === 'mensalidade_mediun');
+  if (!anchor) return groups;
+  const row = {
+    label: AREA_MEDIUM_ROW_LABEL,
+    cells: Object.fromEntries(PLAN_ORDER.map((p) => [p, planIncludes(p, 'area_medium')])) as Record<PlanKey, Cell>,
+  };
+  return groups.map((g) => {
+    if (g.group !== anchor.group) return g;
+    const at = g.rows.findIndex((r) => r.label === anchor.label);
+    const rows = [...g.rows];
+    rows.splice(at < 0 ? rows.length : at + 1, 0, row);
+    return { ...g, rows };
+  });
+}
 
 function CellValue({ value, highlight }: { value: Cell; highlight: boolean }) {
   if (typeof value === 'string') {
@@ -24,6 +55,7 @@ function CellValue({ value, highlight }: { value: Cell; highlight: boolean }) {
 }
 
 export function PlanComparisonTable() {
+  const groups = publicComparisonGroups();
   const popular = PLAN_LIST.find((p) => p.popular)?.key;
   return (
     <>
@@ -50,7 +82,7 @@ export function PlanComparisonTable() {
               ))}
             </tr>
           </thead>
-          {GROUPS.map((g) => (
+          {groups.map((g) => (
             <tbody key={g.group}>
               <tr>
                 <th
@@ -96,7 +128,7 @@ export function PlanComparisonTable() {
               </span>
             </summary>
             <ul className="mt-4 grid gap-2 text-sm">
-              {GROUPS.flatMap((g) =>
+              {groups.flatMap((g) =>
                 g.rows
                   .filter((r) => r.cells[p.key as PlanKey] !== false)
                   .map((r) => (

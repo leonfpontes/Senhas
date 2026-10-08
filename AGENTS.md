@@ -1149,7 +1149,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail e Escala de gira (AM-02/03/04/05/06/07/08/09/10/11/12/13/15/17/18/23/25/26/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, Escala de gira e divulgação (AM-02/03/04/05/06/07/08/09/10/11/12/13/15/17/18/23/24/25/26/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1162,7 +1162,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   público do branding —, `areas`, `modulos`, `boas_vindas` e `whatsapp_casa` da config da Área, AM-10). `areas` também em `/auth/me`,
   `/auth/profile` e no login (front só tipou `UserAreas` em `useProfile.tsx`; quem decide a rota
   pela área é o AM-04).
-- **Plano**: `area_medium` Basic+ no catálogo e no espelho `constants/plans.ts` (fora do quadro).
+- **Plano**: `area_medium` Basic+ no catálogo e no espelho `constants/plans.ts` (fora do quadro do painel; no comparativo público só com a chave do AM-24).
 - **Escolha de área (AM-04)**: `services/authSession.completeLogin` guarda o `user` COM as `areas`
   e manda pela tabela do plano §6.4 (`lib/areas.routeAfterLogin`): super admin → `/platform`; só
   painel → `/admin/dashboard`; só médium → `/medium`; as duas → escolha lembrada
@@ -1385,6 +1385,18 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `modo_escala = funcoes`). Area: `minha_participacao.funcao` (null quando dispensado) → `EscalaCard` "Voce e
   Cambone na gira de sabado" (`presencaApi.fraseDaFuncao`, D-17), selo da Agenda "Cambone · Vou", linha em
   "Acompanhando" no Inicio e "Funcao: Cambone" no historico de Minhas presencas.
+- **Divulgação (AM-24)**: tudo atrás de UMA chave de lançamento, desligada por padrão enquanto a Área é piloto:
+  `AREA_MEDIUM_DIVULGADA` (`constants/areaMedium.ts`) = `NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA === 'true'`, **ARG de
+  build** do frontend (Dockerfile padrão `false`, `args:` do `docker-compose.prod.yml`, `.env.prod.example`); em
+  produção vem da variável homônima do ambiente `Hostinger` no GitHub, que o `deploy.yml` repassa (vazia = vale o
+  `.env` da VPS, senão `false`). Ligar = `gh variable set NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA --env Hostinger --body true`
+  e redeployar. Ligada: link "Sou médium / Recebi um convite" no topo da landing (`components/landing/SouMedium.tsx`,
+  diálogo com os passos e "Entrar") e no `/login` (o "Recebi um convite da casa" do AM-04 vira esse link e abre os
+  mesmos passos); linha "Área do Médium" no comparativo público (`PlanComparisonTable.publicComparisonGroups`, depois
+  da mensalidade dos médiuns, plano mínimo de `FEATURE_MIN_PLAN.area_medium`; o quadro do painel não muda —
+  `area_medium` segue em `UNSOLD_FEATURES`); pergunta "Os médiuns têm acesso?" no FAQ e no JSON-LD
+  (`landingFaq.visibleFaq`). Sem página nova (nada em `RESERVED_SLUGS`). Componentes leem a chave na renderização
+  (o teste `area_medium_divulgacao.test.tsx` troca o valor por getter).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

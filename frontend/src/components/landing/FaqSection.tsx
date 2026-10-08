@@ -1,10 +1,10 @@
-/** V-04 — dúvidas frequentes. O JSON-LD FAQPage sai da mesma constante (landingFaq.ts). */
+/** V-04 — dúvidas frequentes. O JSON-LD FAQPage sai da mesma lista (`visibleFaq`, landingFaq.ts). */
 import React from 'react';
 import Link from 'next/link';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Reveal } from '@/components/landing/Reveal';
 import { SectionHeading } from '@/components/landing/SectionHeading';
-import { LANDING_FAQ } from '@/constants/landingFaq';
+import { visibleFaq } from '@/constants/landingFaq';
 
 export function FaqSection() {
   return (
@@ -15,7 +15,7 @@ export function FaqSection() {
         </SectionHeading>
         <Reveal className="mt-12">
           <Accordion type="single" collapsible className="rounded-3xl border border-areia-200 bg-white px-5 shadow-sm">
-            {LANDING_FAQ.map((f) => (
+            {visibleFaq().map((f) => (
               <AccordionItem key={f.q} value={f.q} className="border-areia-200">
                 <AccordionTrigger className="text-left text-base font-semibold text-tinta hover:no-underline">
                   {f.q}

@@ -22,6 +22,19 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.5.0',
+    date: '2026-10-08',
+    title: 'Escalas, presença e lembretes',
+    highlights: [
+      'Tem conta em mais de um terreiro com o mesmo e-mail? Agora, ao entrar, você escolhe em qual casa quer entrar.',
+      'Nas casas do teste da Área do Médium: grupos da corrente (para mandar avisos e montar escalas por grupo) e atividades da casa na agenda — faxina, rituais, reuniões e desenvolvimento.',
+      'Presença da corrente: o médium responde "Vou" ou "Não vou", marca "Cheguei" pelo QR do dia e a casa faz a chamada pelo painel. O relatório de assiduidade mostra a frequência por médium e por grupo, com PDF.',
+      'Escala de gira por função (Cambone, Ogã, Porteiro...): monte com médiuns um a um ou com o grupo inteiro, copie da gira anterior ou faça o rodízio das próximas giras. E a escala de faxina do mês, por grupos e dias.',
+      'Lembretes por e-mail: véspera da gira, mensalidade perto de vencer e escala nova. Cada médium escolhe no Perfil quais quer receber.',
+      'Perfil do médium: dados, foto, troca de e-mail e de senha, direto no celular. A Área do Médium segue em teste com algumas casas e será liberada para todas em breve.',
+    ],
+  },
+  {
     version: '2.4.0',
     date: '2026-10-07',
     title: 'Área do Médium chegando',
