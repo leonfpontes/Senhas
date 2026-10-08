@@ -121,6 +121,14 @@ SELECT tenant_id, tipo, count(*)
  GROUP BY tenant_id, tipo ORDER BY tenant_id, tipo;
 ```
 
+### Médium encerrou o acesso (AM-14)
+
+Fora do agendador: `POST /api/v1/medium/meus-dados/encerrar` enfileira, depois do commit, um e-mail para cada
+administrador ATIVO do terreiro (`medium_lembretes.emails_dos_admins`), texto em
+`services/email/templates/medium_acesso_encerrado.py`. Assunto `<primeiro nome> encerrou o acesso à Área do
+Médium`; corpo só com o primeiro nome, o terreiro e a data, explicando que o cadastro continua com a casa e que dá
+para convidar de novo (Médiuns → Acesso à Área). Volume desprezível (um por encerramento).
+
 ---
 
 ## Reenvio de E-mail

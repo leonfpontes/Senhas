@@ -400,6 +400,28 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   /public/avisos-email/consultar|desligar` (token `medium_preferencias.token_descadastro` = busca raiz; 404
   generico `LINK_INVALIDO`). Painel: `avisar_email` no aviso (COMUNICADOS insert/edit, mesmo corpo) e
   `lembretes.mensalidade` na config da Area (CONFIGURACOES edit).
+- **Meus dados e privacidade (AM-14)**: `api/v1/medium/meus_dados.py` — `GET /medium/meus-dados/exportar` (JSON com
+  cadastro SEM os campos internos — `observacoes`, `data_saida`, `registrado_por`, observacao do pagamento —, conta,
+  consentimento (aceite e revogacao), grupos, avisos por e-mail, mensalidades com metadados do comprovante (nunca os
+  bytes: colunas explicitas), avisos lidos e participacoes com o motivo que o PROPRIO medium contou; so
+  `ctx.tenant_id` + `ctx.medium.id`) e `POST /medium/meus-dados/encerrar` (`{senha}`; errada → 400
+  `SENHA_INCORRETA`, nunca 401). Encerrar grava `mediuns.area_consentimento_revogado_em/_versao` (o aceite fica
+  como historico), desliga `aniversario_visivel` e chama `medium_convite.tirar_acesso` (mesma regra do D-08: conta
+  `medium` pura desativada + `sessions_revoked_at` + `end_all_sessions` + `clear_auth_cookies`; operador/admin so
+  perde a Area). Cadastro e dados ficam com a casa (controlador). Auditoria `Medium` so com ids/versoes
+  (`acesso_area: encerrado_pelo_medium`) e e-mail aos admins ATIVOS (`medium_lembretes.emails_dos_admins`,
+  `templates/medium_acesso_encerrado.py`, so o primeiro nome). As duas rotas com `require_not_impersonated`. O
+  convite de novo (AM-03) reativa a conta `medium` e grava um aceite novo.
+- **Aniversariantes (AM-20)**: opt-in `mediuns.aniversario_visivel` (padrao `false`) por `PUT /medium/perfil/aniversario`
+  `{mostrar}` (sem `data_nascimento` → 422; impersonacao → 403; auditoria `medium_perfil`); `GET /medium/perfil`
+  devolve `mostrar_aniversario`. `GET /medium/inicio` ganha `aniversariantes` (ativos, com vinculo `user_id`, com o
+  opt-in, da MESMA casa, aniversario de segunda a domingo em Brasilia; so `{primeiro_nome, dia, mes, hoje, sou_eu}`,
+  nunca o ano nem o id — leitura de outros mediuns isenta em `EXEMPT_MEDIUM_QUERIES` com justificativa) e
+  `meu_aniversario` (`{mensagem}` so no dia do PROPRIO aniversario, sem opt-in). Regras puras em
+  `services/medium_aniversarios.py` (29/02 vira 01/03 fora do bissexto, semana que cruza o ano). Mensagem da casa:
+  `tenant_configs.area_medium_aniversario_mensagem` (≤ 200, texto simples, `{nome}` = primeiro nome; vazio = "A
+  <terreiro> deseja um feliz aniversario, <primeiro nome>! Axe!") em `aniversario_mensagem` da config da Area
+  (CONFIGURACOES edit).
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -855,7 +877,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
+- Head atual: `083_meus_dados_aniversarios` (2026-10-08, AM-14/AM-20: `mediuns.area_consentimento_revogado_em`/
+  `_versao`, `mediuns.aniversario_visivel` (padrao `false`) e `tenant_configs.area_medium_aniversario_mensagem`
+  (String 200); criada sobre a 081 em paralelo com a 082 e pode ser re-encadeada no merge), apos `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
   indices unicos parciais, `tenant_configs.area_medium_lembrete_mensalidade`, `comunicados.avisar_email`/
   `avisar_email_em`; criada sobre a 079 e re-encadeada depois da 080 no merge), apos `080_escala_planos` (2026-10-08, AM-25: `escala_planos` — um por tipo e mes, rascunho/publicado,
   unico por `tenant_id, tipo_id, mes` — e `escala_plano_dias` — data x grupo x horario, `atividade_id` FK SET NULL,
@@ -1149,7 +1173,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, Escala de gira e divulgação (AM-02/03/04/05/06/07/08/09/10/11/12/13/15/17/18/23/24/25/26/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, Escala de gira, divulgação, Meus dados e aniversariantes (AM-02/03/04/05/06/07/08/09/10/11/12/13/14/15/17/18/20/23/24/25/26/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1196,7 +1220,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   o vencimento/atrasada depois; entrou depois do mês ou casa sem valor → null) e `avisos`
   `{nao_lidos, ultimos}` (AM-09; vazio com o módulo desligado). Telas: `/medium` (faixa café "Olá, <nome>",
   pendências, próxima gira com "O que levar" e "Ver detalhes da gira" — só com o módulo agenda —,
-  "Acompanhando", EmptyState), `/medium/perfil` (Meus dados, dados da casa, conta de acesso — AM-13 —, Ícone na tela inicial, Trocar de área, Sair). Não há mais telas
+  "Acompanhando", EmptyState), `/medium/perfil` (Meus dados, Aniversário — AM-20 —, dados da casa, conta de acesso — AM-13 —, Meus dados e privacidade — AM-14 —, Ícone na tela inicial, Trocar de área, Sair). Não há mais telas
   provisórias ("Em breve"): Agenda, Avisos e Mensalidade saíram nos AM-07, AM-09 e AM-11.
 - **Ícone na tela inicial (D-23)**: `public/manifest-medium.webmanifest` (`id` `/medium`,
   `start_url` `/medium?source=pwa`, ícones do GiraHub), linkado só pelo `MediumLayout`; o
@@ -1286,6 +1310,21 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   Impersonando: só leitura (ações somem). Página pública `pages/confirmar-email/[token].tsx` (`AuthShell`; confirma só
   no toque — leitor de link não gasta o token; depois "Entrar" → `/login?email_confirmado=1`). `confirmar-email` está em
   `RESERVED_SLUGS`. A Auditoria do painel rotula `medium_perfil` como "Perfil do médium (Área)". Backend e regras em §3.3.
+- **Meus dados e privacidade (AM-14)**: Perfil → "Meus dados e privacidade" abre `/medium/meus-dados`
+  (`pages/medium/meus-dados.tsx`, `components/medium/meusDados/*`): "Quem vê o quê" (`quemVeOQue`: a direção da casa,
+  os outros médiuns — nada; só o aniversário se ligou o AM-20 —, ninguém de fora da casa), "Baixar meus dados" em PDF
+  (`lib/pdf/meusDadosPdf.ts`, base `pdfDoc` com logo/cor do terreiro, montado no aparelho a partir do JSON) e em JSON
+  (`baixarJson`), e "Encerrar meu acesso" (`EncerrarAcessoDrawer`: `CrudDrawer` `.medium-terra` com o que acontece +
+  senha, `skipAutoLogout`). Depois (`aposEncerrar`): conta só da Área → tira o `user` e a escolha de área do
+  localStorage e recarrega em `/login?acesso_encerrado=1` (aviso no login); operador/admin → `areas.medium = null` no
+  `user`, escolha lembrada = painel, recarrega em `/admin/dashboard`. Impersonando, baixar/encerrar somem. Backend e
+  regras em §3.3.
+- **Aniversariantes (AM-20)**: Perfil → seção "Aniversário" (`components/medium/perfil/AniversarioOptIn.tsx`: `Switch`
+  "Mostrar meu aniversário para a corrente", muda na hora e volta se der erro; sem data de nascimento fica travado e
+  manda preencher em Meus dados; impersonando mostra Ligado/Desligado). Início (`components/medium/Aniversarios.tsx`):
+  `MeuAniversarioCard` no topo no dia do próprio aniversário e "Aniversariantes da semana" depois da próxima gira
+  (primeiro nome + dd/mm ou "Hoje", "(você)"; some vazio). Painel: campo "Mensagem de aniversário" em Configurações →
+  Área do Médium (`AreaMediumConfigSection`, ≤ 200, `{nome}`).
 - **Login multi-terreiro (AM-05)**: mesmo e-mail em mais de um terreiro escolhe o terreiro no `/login` antes da
   escolha de área (regras em §3.2).
 - **Atividades da casa (AM-08)**: migracoes `077_permissao_escalas_enum` + `078_atividades` (§11.8; tabelas em

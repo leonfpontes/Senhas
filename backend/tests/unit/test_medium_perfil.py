@@ -58,6 +58,7 @@ CAMPOS_DA_RESPOSTA = {
     "email",
     "email_pendente",
     "email_pendente_expira_em",
+    "mostrar_aniversario",  # AM-20: o opt-in do próprio médium (só sim/não)
 }
 INTERNOS = {"observacoes", "data_saida", "registrado_por", "user_id", "tenant_id", "deleted_at",
             "area_consentimento_em", "password_hash", "reset_token_hash", "email_pendente_token_hash"}
@@ -267,6 +268,7 @@ def test_rotas_do_perfil():
         ("POST", "/api/v1/medium/perfil/senha"),
         ("POST", "/api/v1/medium/perfil/email"),
         ("DELETE", "/api/v1/medium/perfil/email"),
+        ("PUT", "/api/v1/medium/perfil/aniversario"),  # AM-20
     }
     for (metodo, _), rota in rotas.items():
         deps = _deps(rota)

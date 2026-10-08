@@ -15,6 +15,9 @@
  * - "Minhas presenças" (AM-17, D-27): leva a `/medium/presencas` (percentual, próximas escalas e
  *   histórico; só a própria presença).
  * - "Avisos por e-mail" (AM-15): liga/desliga cada tipo de lembrete (`AvisosPorEmail`).
+ * - "Aniversário" (AM-20): opt-in "Mostrar meu aniversário para a corrente" (`AniversarioOptIn`).
+ * - "Meus dados e privacidade" (AM-14): leva a `/medium/meus-dados` (quem vê o quê, baixar meus
+ *   dados, encerrar meu acesso).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
@@ -30,6 +33,7 @@ import {
   LogOut,
   MailCheck,
   Pencil,
+  ShieldCheck,
   Smartphone,
   Trash2,
   type LucideIcon,
@@ -40,6 +44,7 @@ import { MediumLayout, useMediumShell } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
 import { MeusGrupos } from '@/components/medium/MeusGrupos';
 import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
+import { AniversarioOptIn } from '@/components/medium/perfil/AniversarioOptIn';
 import { AvisosPorEmail } from '@/components/medium/perfil/AvisosPorEmail';
 import { MeusDadosDrawer } from '@/components/medium/perfil/MeusDadosDrawer';
 import { TrocarEmailDrawer } from '@/components/medium/perfil/TrocarEmailDrawer';
@@ -376,6 +381,8 @@ function Perfil() {
               </dl>
             </Secao>
 
+            <AniversarioOptIn perfil={perfil} somenteLeitura={somenteLeitura} onChange={setPerfil} />
+
             <Secao titulo="Dados da casa" icone={Lock} testId="perfil-dados-casa">
               <dl>
                 <Linha rotulo="Nome no cadastro da casa" valor={perfil.casa.nome} />
@@ -457,6 +464,13 @@ function Perfil() {
             description="Suas escalas e o histórico de presença"
             onClick={() => void router.push('/medium/presencas')}
             testId="perfil-presencas"
+          />
+          <Item
+            icon={ShieldCheck}
+            title="Meus dados e privacidade"
+            description="Quem vê o quê, baixar meus dados e encerrar o acesso"
+            onClick={() => void router.push('/medium/meus-dados')}
+            testId="perfil-meus-dados-privacidade"
           />
           <Item
             icon={Smartphone}

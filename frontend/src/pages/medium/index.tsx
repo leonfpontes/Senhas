@@ -10,6 +10,9 @@
  * modo QR abre o leitor); as já respondidas ficam em "Acompanhando".
  * Mensalidade em aberto (AM-11/AM-29): "Pagar com PIX" só quando a casa cadastrou a chave
  * (`mensalidade.pix_disponivel`); sem chave, "Ver mensalidade" (a tela diz como combinar com a casa).
+ * Aniversários (AM-20): no dia do aniversário do médium, a mensagem da casa no topo
+ * (`meu_aniversario`); e "Aniversariantes da semana" (só quem aceitou mostrar, dia e mês) depois da
+ * próxima gira — some quando a lista está vazia.
  */
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -32,6 +35,11 @@ import {
   quandoBr,
   valorBr,
 } from '@/components/medium/format';
+import {
+  AniversariantesDaSemana,
+  MeuAniversarioCard,
+  type Aniversariante,
+} from '@/components/medium/Aniversarios';
 import { EscalaCard } from '@/components/medium/presenca/EscalaCard';
 import { fraseDaFuncao } from '@/components/medium/presenca/presencaApi';
 import { detalheHref } from '@/components/medium/agenda';
@@ -81,6 +89,10 @@ export interface InicioResponse {
   avisos: { nao_lidos: number; ultimos: unknown[] };
   /** AM-17: próximas escalas do médium (com a participação dele). */
   escalas?: ItemPresenca[];
+  /** AM-20: quem aceitou mostrar o aniversário e faz aniversário nesta semana (sem o ano). */
+  aniversariantes?: Aniversariante[];
+  /** AM-20: só no dia do aniversário do próprio médium. */
+  meu_aniversario?: { mensagem: string } | null;
 }
 
 /** A escala pede ação agora: responder (sem resposta) ou marcar "Cheguei". */
@@ -347,7 +359,16 @@ function Inicio() {
       (data.mensalidade.status === 'pendente' && !mensalidadeNoTopo))
       ? data.mensalidade
       : null;
-  const vazio = data && n === 0 && !data.proxima_gira && !acompanhando && escalas.length === 0;
+  const aniversariantes = data?.aniversariantes ?? [];
+  const meuAniversario = data?.meu_aniversario ?? null;
+  const vazio =
+    data &&
+    n === 0 &&
+    !data.proxima_gira &&
+    !acompanhando &&
+    escalas.length === 0 &&
+    aniversariantes.length === 0 &&
+    !meuAniversario;
 
   return (
     <>
@@ -400,6 +421,7 @@ function Inicio() {
           />
         ) : (
           <>
+            {meuAniversario && <MeuAniversarioCard mensagem={meuAniversario.mensagem} />}
             {n > 0 && (
               <section className="flex flex-col gap-2.5" aria-labelledby="titulo-pendencias">
                 <h2 id="titulo-pendencias" className={SECTION_TITLE}>
@@ -431,6 +453,7 @@ function Inicio() {
                 comAgenda={(me?.modulos ?? []).includes('agenda')}
               />
             )}
+            <AniversariantesDaSemana lista={aniversariantes} />
             {(acompanhando || escalasRespondidas.length > 0) && (
               <section className="flex flex-col gap-2.5" aria-labelledby="titulo-acompanhando">
                 <h2 id="titulo-acompanhando" className={SECTION_TITLE}>
