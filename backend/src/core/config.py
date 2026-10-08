@@ -81,6 +81,14 @@ class Settings(BaseSettings):
     BREVO_FROM_EMAIL: str = "noreply@girahub.com.br"
     BREVO_FROM_NAME: str = "GiraHub"
 
+    # Notificação no celular da Área do Médium (AM-16) — Web Push com VAPID, sem serviço pago.
+    # Sem as três, o push fica desligado sem erro (API diz `disponivel: false`, a tela esconde a
+    # opção e o agendador só manda e-mail). Gerar: `npx web-push generate-vapid-keys`
+    # (docs/deployment.md). Nunca commitar a chave privada.
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_SUBJECT: str = ""  # "mailto:contato@girahub.com.br"
+
     # Sentry
     SENTRY_DSN: str = ""
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1   # 10% das transações em prod

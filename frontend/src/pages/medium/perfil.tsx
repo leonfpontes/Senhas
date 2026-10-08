@@ -15,6 +15,11 @@
  * - "Minhas presenças" (AM-17, D-27): leva a `/medium/presencas` (percentual, próximas escalas e
  *   histórico; só a própria presença).
  * - "Avisos por e-mail" (AM-15): liga/desliga cada tipo de lembrete (`AvisosPorEmail`).
+ * - "Notificações no celular" (AM-16): liga este aparelho (permissão só no toque) e cada tipo
+ *   (`NotificacoesNoCelular`); no iPhone fora da tela inicial, abre o passo de instalação.
+ * - "Aniversário" (AM-20): opt-in "Mostrar meu aniversário para a corrente" (`AniversarioOptIn`).
+ * - "Meus dados e privacidade" (AM-14): leva a `/medium/meus-dados` (quem vê o quê, baixar meus
+ *   dados, encerrar meu acesso).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
@@ -30,18 +35,22 @@ import {
   LogOut,
   MailCheck,
   Pencil,
+  ShieldCheck,
   Smartphone,
   Trash2,
   type LucideIcon,
 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { fraunces } from '@/components/landing/fonts';
+import { MediumFaixa } from '@/components/medium/MediumFaixa';
 import { MediumLayout, useMediumShell } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
 import { MeusGrupos } from '@/components/medium/MeusGrupos';
 import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
+import { AniversarioOptIn } from '@/components/medium/perfil/AniversarioOptIn';
 import { AvisosPorEmail } from '@/components/medium/perfil/AvisosPorEmail';
 import { MeusDadosDrawer } from '@/components/medium/perfil/MeusDadosDrawer';
+import { NotificacoesNoCelular } from '@/components/medium/perfil/NotificacoesNoCelular';
 import { TrocarEmailDrawer } from '@/components/medium/perfil/TrocarEmailDrawer';
 import { TrocarSenhaDrawer } from '@/components/medium/perfil/TrocarSenhaDrawer';
 import {
@@ -258,7 +267,7 @@ function Perfil() {
 
   return (
     <>
-      <section className="relative flex items-center gap-4 bg-cafe-950 px-4 pt-6 pb-7 text-areia-100">
+      <MediumFaixa className="flex items-center gap-4">
         <div className="relative shrink-0">
           {fotoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -283,7 +292,7 @@ function Perfil() {
               disabled={foto.enviando}
               aria-label="Trocar foto"
               data-testid="perfil-trocar-foto"
-              className="absolute -right-1 -bottom-1 flex size-8 items-center justify-center rounded-full bg-ouro-300 text-cafe-950 shadow outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
+              className="absolute -right-1 -bottom-1 flex size-8 items-center justify-center rounded-full bg-ouro-300 text-cafe-950 shadow ring-2 ring-card outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               {foto.enviando ? (
                 <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -304,28 +313,24 @@ function Perfil() {
           />
         </div>
         <div className="min-w-0">
-          <h1 className="font-display text-2xl leading-tight font-bold text-white">{nome}</h1>
-          <p className="text-base text-areia-200">
+          <h1 className="font-display text-2xl leading-tight font-bold">{nome}</h1>
+          <p className="text-base text-muted-foreground">
             Médium da corrente{me ? ` · ${me.terreiro.nome}` : ''}
           </p>
-          <MeusGrupos grupos={me?.grupos} className="mt-1 text-areia-200" />
+          <MeusGrupos grupos={me?.grupos} className="mt-1 text-muted-foreground" />
           {!somenteLeitura && perfil && fotoUrl && (
             <button
               type="button"
               onClick={() => setConfirmarRemover(true)}
               disabled={foto.enviando || removendo}
               data-testid="perfil-remover-foto"
-              className="mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-md text-sm font-semibold text-areia-200 underline underline-offset-4 outline-none hover:text-white focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
+              className="mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-md text-sm font-semibold text-brand underline underline-offset-4 outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               <Trash2 className="size-4" aria-hidden /> Remover foto
             </button>
           )}
         </div>
-        <span
-          aria-hidden
-          className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-primary to-ouro-400"
-        />
-      </section>
+      </MediumFaixa>
 
       <div className="flex flex-col gap-6 px-4 pt-5 pb-8">
         {foto.erro && (
@@ -375,6 +380,8 @@ function Perfil() {
                 <Linha rotulo="Data de nascimento" valor={nascimentoLegivel(perfil)} testId="perfil-valor-nascimento" />
               </dl>
             </Secao>
+
+            <AniversarioOptIn perfil={perfil} somenteLeitura={somenteLeitura} onChange={setPerfil} />
 
             <Secao titulo="Dados da casa" icone={Lock} testId="perfil-dados-casa">
               <dl>
@@ -443,6 +450,7 @@ function Perfil() {
               </ul>
             </Secao>
             <AvisosPorEmail somenteLeitura={somenteLeitura} />
+            <NotificacoesNoCelular somenteLeitura={somenteLeitura} onInstalar={openInstall} />
           </>
         )}
 
@@ -457,6 +465,13 @@ function Perfil() {
             description="Suas escalas e o histórico de presença"
             onClick={() => void router.push('/medium/presencas')}
             testId="perfil-presencas"
+          />
+          <Item
+            icon={ShieldCheck}
+            title="Meus dados e privacidade"
+            description="Quem vê o quê, baixar meus dados e encerrar o acesso"
+            onClick={() => void router.push('/medium/meus-dados')}
+            testId="perfil-meus-dados-privacidade"
           />
           <Item
             icon={Smartphone}

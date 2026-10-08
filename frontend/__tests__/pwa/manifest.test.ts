@@ -92,6 +92,13 @@ describe('manifest-medium.webmanifest', () => {
     for (const s of medium.shortcuts ?? []) expect(s.url.startsWith('/medium/')).toBe(true);
   });
 
+  it('tem as cores claras da Área (cabeçalho branco, fundo areia-50), também na barra do navegador', () => {
+    expect(medium.theme_color).toBe('#ffffff');
+    expect(medium.background_color).toBe('#fcf8f2');
+    const doc = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'pages', '_document.tsx'), 'utf8');
+    expect(doc).toContain(`content={barraClara ? '${medium.theme_color}' : '${manifest.theme_color}'}`);
+  });
+
   it('só o MediumLayout linka o manifesto da Área; o _document não põe o da Porta nas rotas /medium', () => {
     const layout = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'components', 'medium', 'MediumLayout.tsx'), 'utf8');
     expect(layout).toContain('rel="manifest" href="/manifest-medium.webmanifest"');

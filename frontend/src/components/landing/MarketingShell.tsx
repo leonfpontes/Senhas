@@ -17,6 +17,7 @@ import { supportWhatsappLink } from '@/lib/whatsapp';
 import { fraunces, MARKETING_RESET as RESET } from '@/components/landing/fonts';
 import { abrirPreferenciasDeCookies } from '@/lib/consent';
 import { LEGAL_ENTITY } from '@/constants/legal';
+import { PARCEIROS_PATH, PARCEIROS_PUBLICADO } from '@/constants/parceiros';
 
 export const MARKETING_NAV = [
   { label: 'Para quem é', href: '/#para-quem' },
@@ -144,6 +145,9 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
               <li><Link href="/planos" className="hover:text-white">Planos e preços</Link></li>
               <li><Link href="/#duvidas" className="hover:text-white">Dúvidas frequentes</Link></li>
               <li><Link href="/cadastro" className="hover:text-white">Criar conta</Link></li>
+              {PARCEIROS_PUBLICADO && (
+                <li><Link href={PARCEIROS_PATH} className="hover:text-white">Seja parceiro</Link></li>
+              )}
               <li><Link href="/login" className="hover:text-white">Entrar</Link></li>
             </ul>
           </nav>

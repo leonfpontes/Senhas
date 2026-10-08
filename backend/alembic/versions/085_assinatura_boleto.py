@@ -15,16 +15,16 @@ Colunas novas em `subscriptions` (todas opcionais; linhas existentes ficam como 
 Downgrade: apaga as colunas (o vínculo com faturas pendentes se perde; a Stripe continua
 mandando as faturas por e-mail).
 
-Revision ID: 087_assinatura_boleto
-Revises: 081_lembretes
+Revision ID: 085_assinatura_boleto
+Revises: 084_parceiros
 Create Date: 2026-10-08
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "087_assinatura_boleto"
-down_revision: str = "081_lembretes"
+revision: str = "085_assinatura_boleto"
+down_revision: str = "084_parceiros"
 branch_labels = None
 depends_on = None
 

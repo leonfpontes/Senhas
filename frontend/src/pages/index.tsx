@@ -5,7 +5,7 @@
  *
  * Ordem: topo → para quem é → antes × depois → como funciona → telas reais (V-05) → números (V-02)
  * → depoimentos (V-03, só com depoimento real) → planos (cartões + comparativo completo) → módulos
- * → dúvidas (V-04) → chamada final.
+ * → dúvidas (V-04) → chamada do Programa de Parceiros (C-06, só com PARCEIROS_PUBLICADO) → chamada final.
  */
 import React, { useState } from 'react';
 import Head from 'next/head';
@@ -24,6 +24,7 @@ import { PlanComparisonTable } from '@/components/landing/PlanComparisonTable';
 import { ModulesSection } from '@/components/landing/ModulesSection';
 import { FaqSection } from '@/components/landing/FaqSection';
 import { FinalCta } from '@/components/landing/FinalCta';
+import { ParceirosChamada } from '@/components/landing/ParceirosChamada';
 import { SectionHeading } from '@/components/landing/SectionHeading';
 import { faqJsonLd } from '@/constants/landingFaq';
 import { PLAN_LIST } from '@/constants/plans';
@@ -119,6 +120,7 @@ export default function HomePage() {
 
         <ModulesSection />
         <FaqSection />
+        <ParceirosChamada />
         <FinalCta />
       </MarketingShell>
     </>

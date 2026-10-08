@@ -608,8 +608,8 @@ function AdminComunicadosContent() {
                 Avisar por e-mail também
               </Label>
               <p className="text-xs text-muted-foreground">
-                Quem tem acesso à Área recebe o aviso por e-mail quando ele for publicado — uma vez só. O assunto
-                não mostra o título.
+                Quem tem acesso à Área recebe o aviso por e-mail (e no celular, se ligou as notificações) quando
+                ele for publicado — uma vez só. O assunto e a notificação não mostram o título.
               </p>
             </div>
           </div>

@@ -155,6 +155,7 @@ plataforma, `B/api/v1/platform/dashboard.py` e `tenant_observatory.py`.
 ### $-01 — Decidir a resposta ao "tudo incluso" dos concorrentes
 - **Ranking:** 3 · **Prioridade:** P0 · **Onda:** 1 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Planos & Assinatura · **Épico:** Planos
 - **Depende de:** X-01 (mesma conversa) · **Destrava:** $-02, $-03, textos da landing
+- **Status (2026-10-08):** **decidido — opção (a)**: manter os preços e vender o Gratuito e a senha/porta como diferencial.
 
 **Por quê.** AxéCloud cobra R$ 69,90 com tudo incluso (ou R$ 699/ano); Kanzuá, R$ 41,90/mês no anual, com equipe
 ilimitada; ORI, a partir de R$ 24,90. Todos sem cobrar por módulo. A página de comparativo do AxéCloud diz
@@ -703,7 +704,7 @@ brasileira (docs.stripe.com, consultado em 08/10):
 - **Implementado (boleto)**: escolha "Cartão de crédito" × "Boleto bancário" em `/admin/billing`; boleto =
   assinatura `collection_method=send_invoice` (fatura por e-mail todo mês, 5 dias para pagar, link
   "Pagar agora" no painel); plano liberado só no `invoice.paid`; boleto em aberto não suspende nem rebaixa;
-  fatura vencida suspende e o pagamento reativa. Migração `087_assinatura_boleto`. Detalhes em AGENTS.md
+  fatura vencida suspende e o pagamento reativa. Migração `085_assinatura_boleto`. Detalhes em AGENTS.md
   §11.18 e docs/api.md §20; passos do Dashboard em docs/deployment.md (Stripe).
 - **Pix depois**: se a Stripe liberar Pix em faturas para a conta, é só `STRIPE_INVOICE_PAYMENT_METHODS=
   boleto,pix` — o painel passa a mostrar "PIX ou boleto" sem mudar código. Alternativa para ter Pix já:
@@ -968,6 +969,7 @@ em memória e perde envios num restart.
 ### P-02 — Decidir o caminho do WhatsApp
 - **Ranking:** 28 · **Prioridade:** P1 · **Onda:** 4 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Comunicação · **Épico:** Funcionalidade
 - **Depende de:** — · **Destrava:** F-03
+- **Status (2026-10-08):** o dono quer a API oficial da Meta; custos e caminho em `docs/custos-whatsapp-meta.md` (falta: CNPJ + verificação do negócio na Meta, número dedicado, modelo de cobrança).
 
 **Por quê.** Item herdado do `plano-execucao.md` (Fase 3). O público é mobile-first e não lê e-mail. O AxéCloud usa a
 API oficial da Meta; o ORI vende WhatsApp como add-on por volume (R$ 24,90 a R$ 149,90).
@@ -990,6 +992,7 @@ custo.
 ### F-01 — Decidir o gateway da mensalidade
 - **Ranking:** 29 · **Prioridade:** P1 · **Onda:** 4 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Financeiro · **Épico:** Funcionalidade
 - **Depende de:** — · **Destrava:** F-02
+- **Status (2026-10-08):** explicação do fluxo e comparativo em `docs/fluxo-pagamento-mensalidade.md`; recomendação Mercado Pago com OAuth; decisão do dono pendente.
 
 **Por quê.** PIX integrado na mensalidade é o gap mais repetido entre os concorrentes fortes: AxéCloud (PIX no portal
 do filho), ORI (Mercado Pago, add-on de R$ 9,90), Minha Gira (Asaas), Quartinha (banco parceiro). O nosso é baixa
@@ -1430,9 +1433,16 @@ a loja, com saque por PIX. As lojas de artigos religiosos falam com todos os ter
 - Display A4 em PDF com QR para `/cadastro?cupom=X`.
 - Pagamento da comissão é manual, fora do Stripe.
 
+**Status (2026-10-08).** Página e formulário prontos atrás da chave `NEXT_PUBLIC_PARCEIROS_PUBLICADO`
+(desligada; `/parceiros` em 404); cupom manual no Stripe até o $-05. Proposta de regras na página: terreiro com 20%
+de desconto nos 3 primeiros meses; parceiro com 20% de comissão por 12 meses, PIX mensal a partir de R$ 30. Pedidos
+gravados em `parceiro_interesses` (migração 084) e listados em `/platform/parceiros` (status, cupom, observações),
+com aviso por e-mail ao `ALERT_EMAIL`. Regras, economia por plano e decisões pendentes em `docs/programa-parceiros.md`.
+
 **Aceite**
-- [ ] Regras de comissão decididas
-- [ ] Cupom por loja, display A4 e relatório de indicações e conversões
+- [ ] Regras de comissão decididas (proposta em `docs/programa-parceiros.md`, aguardando o dono)
+- [x] Página pública com convite, regulamento e formulário de interesse + lista na plataforma (atrás da chave)
+- [ ] Cupom por loja no cadastro/checkout ($-05), display A4 e relatório de indicações e conversões
 
 ### C-07 — Oferta para federações
 - **Ranking:** 47 · **Prioridade:** P3 · **Onda:** 5 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Landing & Marketing · **Épico:** Crescimento

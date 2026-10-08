@@ -7,6 +7,7 @@
     POST   /api/v1/medium/perfil/senha    trocar a senha (regras do perfil do painel: derruba as sessões)
     POST   /api/v1/medium/perfil/email    pedir a troca do e-mail de login (link no endereço novo)
     DELETE /api/v1/medium/perfil/email    desistir da troca pendente
+    PUT    /api/v1/medium/perfil/aniversario  "Mostrar meu aniversário para a corrente" (AM-20)
 
 A confirmação do e-mail novo é pública (quem abre o link prova que recebe nele):
 `POST /api/v1/public/email/confirmar` (`api/v1/public/email_confirmacao.py`).
@@ -67,6 +68,7 @@ router = APIRouter()
 RESOURCE_TYPE = "medium_perfil"
 
 SENHA_INCORRETA = "A senha atual não confere."
+SEM_NASCIMENTO = "Para mostrar o seu aniversário, preencha a data de nascimento em Meus dados."
 EMAIL_EM_USO = "Este e-mail já é usado por outra conta da casa. Use outro e-mail ou fale com a direção."
 
 
@@ -97,6 +99,8 @@ class MediumPerfilResponse(BaseModel):
     email: str
     email_pendente: Optional[str] = None
     email_pendente_expira_em: Optional[datetime] = None
+    # AM-20: opt-in de mostrar o aniversário (dia e mês) para a corrente. Padrão desligado.
+    mostrar_aniversario: bool = False
 
 
 class MediumPerfilUpdate(BaseModel):
@@ -133,6 +137,12 @@ class TrocarEmailResponse(BaseModel):
     email_pendente_expira_em: datetime
 
 
+class AniversarioRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mostrar: bool
+
+
 class FotoResponse(BaseModel):
     message: str
     foto_url: Optional[str] = None
@@ -162,6 +172,7 @@ def _perfil(request: Request, ctx: MediumContext) -> MediumPerfilResponse:
         email=u.email,
         email_pendente=u.email_pendente if pendente else None,
         email_pendente_expira_em=u.email_pendente_expira_em if pendente else None,
+        mostrar_aniversario=bool(m.aniversario_visivel),
     )
 
 
@@ -352,3 +363,36 @@ async def cancelar_troca_email(
         await _auditar(db, ctx, "médium cancelou a troca do e-mail de login", ["email"])
         await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put(
+    "/perfil/aniversario",
+    response_model=MediumPerfilResponse,
+    dependencies=[Depends(require_not_impersonated)],
+)
+@limiter.limit("30/hour")
+async def mostrar_aniversario(
+    request: Request,
+    body: AniversarioRequest,
+    ctx: MediumContext = Depends(require_medium),
+    db: AsyncSession = Depends(get_db),
+) -> MediumPerfilResponse:
+    """Opt-in "Mostrar meu aniversário para a corrente" (AM-20): só dia e mês, nunca o ano.
+
+    Ligar sem data de nascimento → 422 (o médium preenche em "Meus dados", regra do AM-13).
+    Sem mudança → sem auditoria."""
+    if body.mostrar and ctx.medium.data_nascimento is None:
+        raise ValidationError(SEM_NASCIMENTO, details={"campo": "data_nascimento"})
+    if bool(ctx.medium.aniversario_visivel) != body.mostrar:
+        ctx.medium.aniversario_visivel = body.mostrar
+        ctx.medium.updated_at = utc_now()
+        db.add(ctx.medium)
+        acao = (
+            "médium passou a mostrar o aniversário para a corrente"
+            if body.mostrar
+            else "médium deixou de mostrar o aniversário para a corrente"
+        )
+        await _auditar(db, ctx, acao, ["aniversario_visivel"])
+        await db.commit()
+        await db.refresh(ctx.medium)
+    return _perfil(request, ctx)

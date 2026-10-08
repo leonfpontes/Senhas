@@ -54,6 +54,12 @@ ENV NEXT_PUBLIC_SUPPORT_WHATSAPP=${NEXT_PUBLIC_SUPPORT_WHATSAPP}
 ARG NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA="false"
 ENV NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA=${NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA}
 
+# Programa de Parceiros (C-06): "true" publica a página /parceiros, o link "Seja parceiro" no
+# rodapé, a chamada na landing e a URL no sitemap; qualquer outro valor deixa /parceiros em 404.
+# Build-time pelo mesmo motivo do WhatsApp. Padrão desligado até o dono aprovar os números.
+ARG NEXT_PUBLIC_PARCEIROS_PUBLICADO="false"
+ENV NEXT_PUBLIC_PARCEIROS_PUBLICADO=${NEXT_PUBLIC_PARCEIROS_PUBLICADO}
+
 # Sentry (browser + server bundles). Também build-time: sem isto o DSN sai vazio
 # do bundle e o Sentry do frontend fica desligado em produção, mesmo com a
 # variável no environment do container.
