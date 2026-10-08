@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { fraunces } from '@/components/landing/fonts';
+import { MediumFaixa } from '@/components/medium/MediumFaixa';
 import { MediumLayout, useMediumShell } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
 import { MeusGrupos } from '@/components/medium/MeusGrupos';
@@ -266,7 +267,7 @@ function Perfil() {
 
   return (
     <>
-      <section className="relative flex items-center gap-4 bg-cafe-950 px-4 pt-6 pb-7 text-areia-100">
+      <MediumFaixa className="flex items-center gap-4">
         <div className="relative shrink-0">
           {fotoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -291,7 +292,7 @@ function Perfil() {
               disabled={foto.enviando}
               aria-label="Trocar foto"
               data-testid="perfil-trocar-foto"
-              className="absolute -right-1 -bottom-1 flex size-8 items-center justify-center rounded-full bg-ouro-300 text-cafe-950 shadow outline-none focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
+              className="absolute -right-1 -bottom-1 flex size-8 items-center justify-center rounded-full bg-ouro-300 text-cafe-950 shadow ring-2 ring-card outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               {foto.enviando ? (
                 <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -312,28 +313,24 @@ function Perfil() {
           />
         </div>
         <div className="min-w-0">
-          <h1 className="font-display text-2xl leading-tight font-bold text-white">{nome}</h1>
-          <p className="text-base text-areia-200">
+          <h1 className="font-display text-2xl leading-tight font-bold">{nome}</h1>
+          <p className="text-base text-muted-foreground">
             Médium da corrente{me ? ` · ${me.terreiro.nome}` : ''}
           </p>
-          <MeusGrupos grupos={me?.grupos} className="mt-1 text-areia-200" />
+          <MeusGrupos grupos={me?.grupos} className="mt-1 text-muted-foreground" />
           {!somenteLeitura && perfil && fotoUrl && (
             <button
               type="button"
               onClick={() => setConfirmarRemover(true)}
               disabled={foto.enviando || removendo}
               data-testid="perfil-remover-foto"
-              className="mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-md text-sm font-semibold text-areia-200 underline underline-offset-4 outline-none hover:text-white focus-visible:ring-[3px] focus-visible:ring-ouro-300/60"
+              className="mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-md text-sm font-semibold text-brand underline underline-offset-4 outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               <Trash2 className="size-4" aria-hidden /> Remover foto
             </button>
           )}
         </div>
-        <span
-          aria-hidden
-          className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-primary to-ouro-400"
-        />
-      </section>
+      </MediumFaixa>
 
       <div className="flex flex-col gap-6 px-4 pt-5 pb-8">
         {foto.erro && (

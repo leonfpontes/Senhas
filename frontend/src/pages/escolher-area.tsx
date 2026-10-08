@@ -13,7 +13,8 @@ import { useRouter } from 'next/router';
 import { ChevronRight, LayoutDashboard, Loader2, UserRound, type LucideIcon } from 'lucide-react';
 import { fraunces } from '@/components/landing/fonts';
 import { applyMediumBrand, type MediumMe } from '@/components/medium/MediumProvider';
-import { useSystemDarkMode } from '@/components/medium/MediumLayout';
+import { MediumFaixa } from '@/components/medium/MediumFaixa';
+import { useAreaClara } from '@/components/medium/MediumLayout';
 import { TerreiroEmblem } from '@/components/medium/TerreiroEmblem';
 import { primeiroNome } from '@/components/medium/format';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -63,7 +64,7 @@ export default function EscolherAreaPage() {
   const { profile, loading } = useProfile();
   const [me, setMe] = useState<MediumMe | null>(null);
   const [lembrar, setLembrar] = useState(true);
-  useSystemDarkMode();
+  useAreaClara();
 
   const duas = hasAdminArea(profile) && hasMediumArea(profile);
   const destino = !profile
@@ -124,21 +125,17 @@ export default function EscolherAreaPage() {
         </div>
       ) : (
         <>
-          <section className="relative bg-cafe-950 px-4 pt-8 pb-8 text-areia-100">
+          <MediumFaixa className="pt-8 pb-8">
             <div className="mx-auto flex max-w-xl flex-col gap-4">
-              <p className="flex items-center gap-2.5 text-base font-bold text-areia-200">
+              <p className="flex items-center gap-2.5 text-base font-bold text-muted-foreground">
                 <TerreiroEmblem nome={terreiro} logoUrl={me?.marca.logo_url} className="size-9" />
                 <span className="truncate">{terreiro}</span>
               </p>
-              <h1 className="font-display text-[1.9rem] leading-[1.1] font-bold tracking-tight text-white">
+              <h1 className="font-display text-[1.9rem] leading-[1.1] font-bold tracking-tight">
                 {nome ? `Olá, ${nome}. Para onde você quer ir?` : 'Para onde você quer ir?'}
               </h1>
             </div>
-            <span
-              aria-hidden
-              className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-primary to-ouro-400"
-            />
-          </section>
+          </MediumFaixa>
           <main className="mx-auto flex w-full max-w-xl flex-col gap-5 px-4 pt-6 pb-10">
             <div className="flex flex-col gap-3">
               <AreaCard

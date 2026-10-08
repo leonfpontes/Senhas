@@ -1238,14 +1238,14 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   terreiro e linha da marca, menu "Menu" (Trocar de área, Sair = `services/authSession.logout`, que
   encerra só a impersonação quando há uma), barra inferior Início · Agenda · Avisos · Mensalidade ·
   Perfil (`z-40`, área segura, ícone + texto; aba de módulo — hoje a Mensalidade — some quando
-  `modulos` do `/medium/me` não a traz, `visibleMediumTabs`), claro/escuro do sistema, gate (sem sessão → login;
+  `modulos` do `/medium/me` não a traz, `visibleMediumTabs`), sempre clara (`useAreaClara`, §11.16), gate (sem sessão → login;
   só painel → painel). `GET /api/v1/medium/inicio` (`api/v1/medium/inicio.py`, regras puras em
   `services/medium_inicio.py`): `pendencias` já ordenadas (D-24: escala → mensalidade atrasada ou
   a até 5 dias do vencimento — antes disso vai para "Acompanhando", decisão do dono 07/10 → aviso novo (AM-09); escala desde o AM-17: `escalas` + pendência `escala`), `proxima_gira` (ativa, futura ou em
   andamento; só nome/horário/local e `orientacoes` = `giras.orientacoes_corrente`, AM-07), `mensalidade` do mês em
   Brasília (só com `mensalidade_mediun` e config ativa; regras do §11.10: isento/paga/pendente até
   o vencimento/atrasada depois; entrou depois do mês ou casa sem valor → null) e `avisos`
-  `{nao_lidos, ultimos}` (AM-09; vazio com o módulo desligado). Telas: `/medium` (faixa café "Olá, <nome>",
+  `{nao_lidos, ultimos}` (AM-09; vazio com o módulo desligado). Telas: `/medium` (faixa clara `MediumFaixa` "Olá, <nome>",
   pendências, próxima gira com "O que levar" e "Ver detalhes da gira" — só com o módulo agenda —,
   "Acompanhando", EmptyState), `/medium/perfil` (Meus dados, Aniversário — AM-20 —, dados da casa, conta de acesso — AM-13 —, Meus dados e privacidade — AM-14 —, Ícone na tela inicial, Trocar de área, Sair). Não há mais telas
   provisórias ("Em breve"): Agenda, Avisos e Mensalidade saíram nos AM-07, AM-09 e AM-11.
@@ -1511,18 +1511,25 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   que o `deploy.yml` repassa ao build — trocar o número = mudar a variável e redeployar.
   Página nova de primeiro nível → `backend/src/core/reserved_slugs.py` (teste quebra se faltar) e
   `STATIC_ROUTES` do `pages/sitemap.xml.tsx`.
-- **Área do Médium (AM-06)**: identidade do site novo (paleta terra + Fraunces) com a COR E O LOGO DO TERREIRO nos
-  detalhes. Escopo `.medium-terra` (globals.css; `MediumLayout`, `/escolher-area` e os overlays que eles abrem — Sheet,
-  DropdownMenu e `ConfirmDialog` (prop `className`, AM-29) recebem a classe e `fraunces.variable`, porque são portados
-  para o `<body>`): fundos/texto/bordas da
-  paleta terra (areia no claro, café no escuro), mas `--primary`/`--primary-foreground` continuam do `applyBrand` (botão
-  principal, aba ativa, data da gira, linha do cabeçalho) e `text-brand` lê `--terra-brand-text-light/-dark`, calculadas
-  por `applyTerraBrandText` (`lib/brand.brandTextColorOn` contra `TERRA_SURFACES`). Faixas café (`bg-cafe-950`) com título
-  branco, eyebrow `text-ouro-300` e texto `text-areia-200`, fio da marca `from-primary to-ouro-400`. Pares travados em
-  `__tests__/styles/marketingContrast.test.ts` (claro e escuro, 8 cores de terreiro difíceis). Só na Área; nunca no painel.
+- **Área do Médium (AM-06; clara desde out/2026)**: identidade do site novo (paleta terra + Fraunces), CLARA no tom
+  da landing, com a COR E O LOGO DO TERREIRO nos detalhes. Escopo `.medium-terra` (globals.css; `MediumLayout`,
+  `/escolher-area` e os overlays que eles abrem — Sheet, DropdownMenu e `ConfirmDialog`/`CrudDrawer` (prop
+  `className`, AM-29) recebem a classe e `fraunces.variable`, porque são portados para o `<body>`): fundo areia-50,
+  cartões/cabeçalho/barra inferior brancos, caixas areia-100, texto tinta, apoio tinta-suave; `--primary`/
+  `--primary-foreground` continuam do `applyBrand` (botão principal, aba ativa, data da gira, linha do cabeçalho) e
+  `text-brand` lê `--terra-brand-text-light`, calculada por `applyTerraBrandText` (`lib/brand.brandTextColorOn`
+  contra `TERRA_SURFACES`). **Sem modo escuro**: o dono achou a Área "muito escura" (ela seguia o escuro do celular
+  e abria as telas com faixa café) — o `MediumLayout` e o `/escolher-area` chamam `useAreaClara` (tira a classe
+  `dark` de `<html>` enquanto a Área está aberta e devolve ao sair) e não existe `.dark .medium-terra`. Faixa de
+  abertura (Início "Olá", Perfil, escolha de área) = `components/medium/MediumFaixa` (areia-100 com véu de até 8%
+  da cor do terreiro, rótulo `MediumFaixaRotulo` em `text-brand`, título tinta, fio `from-primary to-ouro-400`).
+  `__tests__/styles/colorUsage.test.ts` barra `bg-cafe-*`, `text-areia-*`, `text-white` e `dark:` nas telas da
+  Área (exceção: a câmera do "Cheguei"); pares travados em `__tests__/styles/marketingContrast.test.ts` (8 cores
+  de terreiro difíceis, inclusive no véu da faixa). Manifesto da Área e `<meta name="theme-color">` das rotas
+  `/medium/*` e `/escolher-area`: `#ffffff` (fundo `#fcf8f2`). Só na Área; nunca no painel.
 - **Claro/escuro**: classe `dark` em `<html>` (não no layout — Radix porta overlays para o `<body>`), aplicada por
-  `AdminThemeProvider`/`PlatformThemeProvider` (chaves `admin_theme_mode`/`platform_theme_mode`) e, na Área do Médium,
-  pelo `MediumLayout` seguindo o sistema (`prefers-color-scheme`); páginas públicas sempre claras.
+  `AdminThemeProvider`/`PlatformThemeProvider` (chaves `admin_theme_mode`/`platform_theme_mode`); páginas públicas e
+  a Área do Médium sempre claras (a Área tira a classe com `useAreaClara`).
 - **Overlays**: Sheet/Dialog/AlertDialog/Select/Popover/DropdownMenu usam o z-index padrão do Radix (`z-50`); quem abre por
   último fica por cima, então calendário e Combobox dentro do `CrudDrawer` funcionam. Barras fixas: topbar `z-30`,
   `MobileTabBar`, `BulkActionsBar` e a barra inferior da Área do Médium `z-40` (cabeçalho da Área `z-30`). Não usar `z-[1300]`/`z-[1400]` (eram para ficar acima do AppBar do MUI).
