@@ -6,7 +6,7 @@
 - Reenvio de e-mail só das senhas ativas da gira informada.
 - Logo enviada (logo_data) aparece na página de emissão; agenda pública sem giras inativas.
 - Login / esqueci a senha / cadastro sem diferença de maiúsculas no e-mail;
-  e-mail repetido em dois terreiros não derruba o esqueci a senha; terreiro desativado mais
+  e-mail repetido em dois terreiros não derruba o esqueci a senha (AM-05: um link por conta); terreiro desativado mais
   antigo não ganha da conta ativa em outro terreiro (login, esqueci a senha, reativação).
 - Cadastro grava a prova do aceite dos Termos e da Privacidade (versão, data, IP, navegador).
 - Cadastro e reativação abrem a sessão com os 3 cookies; "Lembrar-me"
@@ -247,7 +247,7 @@ async def test_esqueci_a_senha_com_email_em_dois_terreiros_nao_quebra(client, db
     antigo, novo = await create_tenant(db, name="Terreiro Antigo"), await create_tenant(db, name="Terreiro Novo")
     agora = datetime.now(timezone.utc)
     primeiro = await _user(db, antigo, "dono@example.com", created_at=agora - timedelta(days=30))
-    await _user(db, novo, "Dono@example.com", created_at=agora)
+    segundo = await _user(db, novo, "Dono@example.com", created_at=agora)
 
     resp = await client.post("/api/v1/auth/forgot-password", json={"email": "DONO@example.com"})
 
@@ -257,8 +257,11 @@ async def test_esqueci_a_senha_com_email_em_dois_terreiros_nao_quebra(client, db
     async with AsyncSessionLocal() as fresh:
         rows = (await fresh.execute(select(User.id, User.reset_token_hash))).all()
     resets = {uid: token for uid, token in rows}
-    assert resets[primeiro.id] is not None, resets  # a conta mais antiga — a mesma que o login autentica
-    assert sum(1 for t in resets.values() if t) == 1
+    # AM-05: as duas contas ativas recebem o próprio link (um e-mail só, um link por
+    # terreiro — ver test_am05_login_multi.py).
+    assert resets[primeiro.id] is not None, resets
+    assert resets[segundo.id] is not None, resets
+    assert resets[primeiro.id] != resets[segundo.id]
 
 
 async def test_cadastro_seta_3_cookies_e_barra_email_com_maiusculas(client, db, monkeypatch):
