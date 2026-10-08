@@ -52,7 +52,7 @@ function ehPdf(file: File): boolean {
   return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 }
 
-function ehImagem(file: File): boolean {
+export function ehImagem(file: File): boolean {
   return file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name);
 }
 
@@ -72,7 +72,7 @@ function carregarImagem(file: File): Promise<HTMLImageElement> {
   });
 }
 
-async function redesenharComoJpeg(
+export async function redesenharComoJpeg(
   file: File,
   ladoMax: number,
   qualidade: number,

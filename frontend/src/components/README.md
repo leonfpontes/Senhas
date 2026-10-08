@@ -86,7 +86,8 @@ Ajustes locais sobre o que o CLI gera (React 18): `forwardRef` em `Button`, `Inp
 
 ### `CrudDrawer` — `src/components/CrudDrawer.tsx`
 Sheet à direita (480px; tela cheia < 640px) com cabeçalho, corpo rolável, rodapé fixo e guarda de
-alteração não salva (`AlertDialog`). **Mesma API** de antes.
+alteração não salva (`AlertDialog`). **Mesma API** de antes. `className` (opcional) vai para o painel e
+para a confirmação de descarte, que saem por portal: a Área do Médium passa `cn(fraunces.variable, 'medium-terra')`.
 ```tsx
 <CrudDrawer open={crud.open} onClose={crud.close} title="Novo médium" icon={<IconMedium />}
             onSave={crud.handleSave} saving={crud.saving} isDirty={dirty} error={crud.saveError}>
