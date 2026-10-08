@@ -50,6 +50,9 @@ const QUERY_NOTICES: Record<string, Notice> = {
     text: 'Todas as sessões foram encerradas por segurança. Entre novamente.',
   },
   reactivated: { key: 'reactivated', variant: 'success', text: 'Conta reativada! Entre para continuar.' },
+  // Perfil do médium (AM-13): trocar a senha derruba todas as sessões; o novo e-mail vale depois do link.
+  senha_alterada: { key: 'senha_alterada', variant: 'success', text: 'Senha alterada. Entre com a nova senha.' },
+  email_confirmado: { key: 'email_confirmado', variant: 'success', text: 'E-mail confirmado. Entre com o novo e-mail.' },
 };
 
 export default function LoginPage() {

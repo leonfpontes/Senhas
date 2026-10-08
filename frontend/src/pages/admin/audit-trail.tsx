@@ -63,6 +63,7 @@ export const RESOURCE_TYPES: Array<{ value: string; label: string; automatico?: 
   { value: 'Gira', label: 'Gira' },
   { value: 'GiraSenhaConfig', label: 'Configuração de senhas da gira' },
   { value: 'Medium', label: 'Médium' },
+  { value: 'medium_perfil', label: 'Perfil do médium (Área)' },
   { value: 'Associado', label: 'Associado' },
   { value: 'mensalidade', label: 'Mensalidade' },
   { value: 'mensalidade_config', label: 'Configuração de mensalidade' },
@@ -161,6 +162,7 @@ const FIELD_LABELS: Record<string, string> = {
   release_end_at: 'Liberação fim', error: 'Erro', operation_type: 'Tipo de operação',
   count: 'Quantidade', resource_ids: 'IDs afetados', config_type: 'Tipo de config.',
   mes_referencia: 'Mês de referência', competencia: 'Mês de referência',
+  acao: 'O que foi feito', campos: 'Campos alterados',
 };
 
 const HIDDEN_FIELDS = new Set([

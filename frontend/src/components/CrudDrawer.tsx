@@ -48,6 +48,11 @@ export interface CrudDrawerProps {
   isDirty?: boolean;
   /** Mensagem de erro exibida dentro do drawer, acima do formulário. */
   error?: string | null;
+  /**
+   * Classes extras no painel e na confirmação de descarte (os dois vão para o <body> por portal).
+   * A Área do Médium passa a paleta `.medium-terra` + a fonte Fraunces.
+   */
+  className?: string;
 }
 
 export default function CrudDrawer({
@@ -63,6 +68,7 @@ export default function CrudDrawer({
   saveDisabled = false,
   isDirty = false,
   error,
+  className,
 }: CrudDrawerProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -94,6 +100,7 @@ export default function CrudDrawer({
           className={cn(
             'flex w-full max-w-full flex-col gap-0 p-0',
             'min-[640px]:w-[480px] min-[640px]:max-w-[480px]',
+            className,
           )}
           onInteractOutside={(e) => {
             // Enquanto salva, não deixa fechar clicando fora.
@@ -160,7 +167,7 @@ export default function CrudDrawer({
 
       {/* Confirmação de alterações não salvas */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent size="sm">
+        <AlertDialogContent size="sm" className={className}>
           <AlertDialogHeader>
             <AlertDialogTitle>Descartar alterações?</AlertDialogTitle>
             <AlertDialogDescription>

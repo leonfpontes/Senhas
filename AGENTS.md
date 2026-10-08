@@ -295,6 +295,19 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   FINANCEIRO + `mensalidade_mediun`): fila `GET .../mensalidades/comprovantes-para-conferir` (view),
   "Confirmar pagamento" = o POST de registro de sempre com PAGO (insert; espelha em contas a
   receber) e "Nao confirmar" = `PATCH .../mensalidades/{mediun_id}/{mes}/recusa` com motivo (edit).
+- **Perfil do medium (AM-13)**: `api/v1/medium/perfil.py` — `GET/PATCH /medium/perfil`, `POST /medium/perfil/foto`,
+  `POST /medium/perfil/senha`, `POST|DELETE /medium/perfil/email`; regras puras em `services/medium_perfil.py`. O medium
+  edita telefone, endereco e nascimento (`mediuns`, so digitos como o painel), a foto e a senha da conta (helpers
+  `auth/profile.read_profile_photo`/`set_profile_photo`/`apply_password_change`, os mesmos do perfil do painel: a troca de
+  senha derruba TODAS as sessoes e apaga os cookies; senha atual errada → 400 `SENHA_INCORRETA`) e o e-mail de login.
+  Nome, entrada, tipo e isencao vem em `casa` (travados); campo da casa ou desconhecido no PATCH → 422
+  (`extra="forbid"`); a resposta e lista fechada (teste do schema). Toda escrita: `require_not_impersonated`, limite
+  por IP e auditoria `medium_perfil` com `{acao: "medium atualizou o telefone", campos}` — nunca o valor. Troca de
+  e-mail: pede a senha atual; `users.email_pendente` + sha256 do `token_urlsafe(32)` (24 h, uso unico; pedir de novo
+  troca o link); e-mail unico no terreiro (conta excluida conta; 409 `EMAIL_EM_USO`); link so para o endereco NOVO
+  (`/confirmar-email/{token}`, `templates/email_troca.py`, discreto); `POST /public/email/confirmar` (busca raiz
+  isenta em `EXEMPT_PUBLIC_QUERIES`) troca `users.email`, espelha em `mediuns.email`, invalida o reset de senha
+  pendente, audita sem enderecos e avisa o endereco antigo (novo mascarado). Sessoes continuam (a senha nao mudou).
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -744,10 +757,12 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `075_corrente_grupos` (2026-10-07, AM-23: `corrente_grupos`, `corrente_grupo_membros`,
-  `comunicado_grupos` e `grupos` no CHECK `ck_comunicados_publico`; `down_revision` = 073 — a 074 do AM-13 e
-  feita em paralelo e o encadeamento e refeito no merge), apos `073_giras_orientacoes_corrente` (2026-10-07,
-  AM-07: `giras.orientacoes_corrente`, so na Area do Medium), apos `072_mensalidade_comprovante_medium` (2026-10-07, AM-11/AM-12: `comprovante_enviado_em/_por`,
+- Head atual: `076_medium_email_pendente` (2026-10-08, AM-13: `users.email_pendente`, `email_pendente_token_hash`
+  (indice unico `uq_users_email_pendente_token_hash`) e `email_pendente_expira_em` — troca do e-mail de login com
+  confirmacao no endereco novo; criada como 074 e renumerada no merge), apos `075_corrente_grupos` (2026-10-08, AM-23:
+  `corrente_grupos`, `corrente_grupo_membros`, `comunicado_grupos` e `grupos` no CHECK `ck_comunicados_publico`), apos
+  `073_giras_orientacoes_corrente` (2026-10-07, AM-07: `giras.orientacoes_corrente`, so na Area do
+  Medium), apos `072_mensalidade_comprovante_medium` (2026-10-07, AM-11/AM-12: `comprovante_enviado_em/_por`,
   `recusa_motivo`, `recusado_em` e o indice parcial `ix_mensalidade_pagamentos_conferir` em
   `mensalidade_pagamentos`), apos `071_comunicados` (2026-10-07, AM-09: tabelas `comunicados` e `comunicado_leituras`
   + acesso total a `comunicados` nos grupos padrao), apos `070_permissao_comunicados_enum` (`ALTER TYPE
@@ -1024,7 +1039,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda e Grupos da corrente (AM-02/03/04/06/07/09/10/11/12/23, 2026-10-07)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente e Perfil (AM-02/03/04/05/06/07/09/10/11/12/13/23, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1071,7 +1086,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   o vencimento/atrasada depois; entrou depois do mês ou casa sem valor → null) e `avisos`
   `{nao_lidos, ultimos}` (AM-09; vazio com o módulo desligado). Telas: `/medium` (faixa café "Olá, <nome>",
   pendências, próxima gira com "O que levar" e "Ver detalhes da gira" — só com o módulo agenda —,
-  "Acompanhando", EmptyState), `/medium/perfil` (Ícone na tela inicial, Trocar de área, Sair). Não há mais telas
+  "Acompanhando", EmptyState), `/medium/perfil` (Meus dados, dados da casa, conta de acesso — AM-13 —, Ícone na tela inicial, Trocar de área, Sair). Não há mais telas
   provisórias ("Em breve"): Agenda, Avisos e Mensalidade saíram nos AM-07, AM-09 e AM-11.
 - **Ícone na tela inicial (D-23)**: `public/manifest-medium.webmanifest` (`id` `/medium`,
   `start_url` `/medium?source=pwa`, ícones do GiraHub), linkado só pelo `MediumLayout`; o
@@ -1147,6 +1162,17 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   vão no texto); dentro do navegador do WhatsApp/Instagram mostra como abrir no navegador). Tipos e textos em
   `components/medium/agenda.ts`. "A corrente chega às…" não é derivável (sem campo próprio): fica no texto
   das orientações.
+- **Perfil (AM-13)**: `/medium/perfil` (`components/medium/perfil/*`): cabeçalho com a foto (ou iniciais) e "Trocar foto"
+  (foto reduzida no navegador para JPEG de até 800 px, `prepararFotoPerfil`, reaproveitando `redesenharComoJpeg` da
+  mensalidade); "Meus dados" (telefone, endereço, nascimento; "Não informado" quando vazio) com "Editar" →
+  `MeusDadosDrawer` (`CrudDrawer` com a paleta `.medium-terra` — prop nova `className` do kit, tela cheia no celular —,
+  `MaskedInput` de telefone e de CEP, busca no ViaCEP por `lib/cep.ts`, `DateField` sem data futura); "Dados da casa"
+  travados ("Só a direção da casa altera estes dados"); "Conta de acesso": e-mail (→ `TrocarEmailDrawer`: novo e-mail +
+  senha; depois "Enviamos um link para o novo e-mail. O e-mail só muda depois que você confirmar." com "Desistir da
+  troca") e "Trocar senha" (`TrocarSenhaDrawer` com `PasswordRules`; deu certo → `logout` → `/login?senha_alterada=1`).
+  Impersonando: só leitura (ações somem). Página pública `pages/confirmar-email/[token].tsx` (`AuthShell`; confirma só
+  no toque — leitor de link não gasta o token; depois "Entrar" → `/login?email_confirmado=1`). `confirmar-email` está em
+  `RESERVED_SLUGS`. A Auditoria do painel rotula `medium_perfil` como "Perfil do médium (Área)". Backend e regras em §3.3.
 - **Login multi-terreiro (AM-05)**: mesmo e-mail em mais de um terreiro escolhe o terreiro no `/login` antes da
   escolha de área (regras em §3.2).
 - **Pendente nos próximos cards**: atividades da casa na Agenda (AM-08).
