@@ -14,10 +14,11 @@
 1. [Authentication](#authentication)
 2. [Public Endpoints](#public-endpoints)
 3. [Admin Endpoints](#admin-endpoints)
-4. [Webhook Endpoints](#webhook-endpoints)
-5. [Error Handling](#error-handling)
-6. [Rate Limiting](#rate-limiting)
-7. [Examples](#examples)
+4. [Platform Endpoints (super-admin)](#platform-endpoints-super-admin)
+5. [Webhook Endpoints](#webhook-endpoints)
+6. [Error Handling](#error-handling)
+7. [Rate Limiting](#rate-limiting)
+8. [Examples](#examples)
 
 ---
 
@@ -305,6 +306,34 @@ Free), o aceite dos termos (`legal_acceptances`) e abre a sessão (`issue_sessio
   excluída não barra. `conta_existente: true` com e-mail sem conta ativa vira cadastro comum (regra de senha).
 - Não existe consulta de "este e-mail tem conta?" antes do envio (seria um oráculo): só a resposta acima,
   depois do formulário inteiro válido.
+### 9. Programa de Parceiros — pedido de interesse (C-06)
+
+**`POST /api/v1/public/parceiros/interesse`** (sem login; 5/hora por IP) — formulário da página `/parceiros`
+(a página fica atrás de `NEXT_PUBLIC_PARCEIROS_PUBLICADO`; o endpoint aceita sempre).
+
+```json
+{
+  "nome": "Maria das Ervas",
+  "tipo": "loja",
+  "nome_negocio": "Casa de Artigos Pai Joaquim",
+  "cidade": "Niterói",
+  "uf": "RJ",
+  "whatsapp": "(21) 99876-5432",
+  "email": "maria@exemplo.com",
+  "como_divulgar": "Display no balcão e grupo de WhatsApp dos clientes",
+  "aceite_regulamento": true,
+  "website": ""
+}
+```
+
+- `tipo` = `loja|dirigente_medium|criador_conteudo|federacao|outro`; `uf` = sigla (qualquer caixa);
+  `whatsapp` com DDD (10–13 dígitos, gravado só com dígitos); `nome_negocio` opcional; `como_divulgar` 3–500.
+  Campo inválido ou ausente → 422.
+- `aceite_regulamento: false` → 422 `{"detail": "Para enviar, aceite o regulamento do Programa de Parceiros."}`.
+- `website` é campo isca (escondido na página): preenchido → 201 com a mesma mensagem, nada gravado nem enviado.
+- **201** `{"message": "Recebemos o seu pedido! A equipe GiraHub responde em até 2 dias úteis, …"}`. Grava em
+  `parceiro_interesses` (status `novo`, `ip_hash` = HMAC do IP, nunca o IP) e avisa a equipe no `ALERT_EMAIL`
+  (reply-to = e-mail do interessado; link `/platform/parceiros?pedido=<id>`).
 
 ---
 
@@ -1899,6 +1928,32 @@ again (AM-03): accepting reactivates the same `medium` account with a new passwo
 
 ---
 
+## Platform Endpoints (super-admin)
+
+Rotas `/api/v1/platform/*` exigem `require_super_admin` (403 para qualquer outro papel, 401 sem login).
+
+### Programa de Parceiros — pedidos (C-06)
+
+- **`GET /api/v1/platform/parceiros`** — query `status` (`novo|em_contato|aprovado|recusado`; outro → 422),
+  `q` (busca em nome, loja, cidade, e-mail e cupom), `limit` (1–200, padrão 50), `offset`. Mais recentes primeiro.
+  ```json
+  {
+    "items": [{ "id": "…", "nome": "Maria das Ervas", "tipo": "loja", "nome_negocio": "Casa de Artigos Pai Joaquim",
+                "cidade": "Niterói", "uf": "RJ", "whatsapp": "21998765432", "email": "maria@exemplo.com",
+                "como_divulgar": "…", "aceite_regulamento_em": "2026-10-08T15:00:00Z", "status": "novo",
+                "cupom": null, "observacoes": null, "created_at": "…", "updated_at": "…" }],
+    "total": 1,
+    "counts": { "novo": 1, "em_contato": 0, "aprovado": 0, "recusado": 0 }
+  }
+  ```
+  `counts` é a contagem geral por status (ignora os filtros). `ip_hash` nunca sai na API.
+- **`GET /api/v1/platform/parceiros/{id}`** — um pedido (404 se não existe).
+- **`PATCH /api/v1/platform/parceiros/{id}`** — `{"status"?, "cupom"?, "observacoes"?}` (só os campos enviados).
+  `cupom` é normalizado em maiúsculas e precisa casar `^[A-Z0-9_-]{3,40}$` (422); `""` limpa. `observacoes` até
+  2000 caracteres; vazio limpa. Devolve o pedido atualizado.
+
+---
+
 ## Error Handling
 
 ### Standard Error Response
@@ -1941,6 +1996,7 @@ again (AM-03): accepting reactivates the same `medium` account with a new passwo
 | `/auth/forgot-password` | 5 | 1 hour per IP |
 | `/public/convite/{token}` | 30 | 1 minute per IP |
 | `/public/convite/{token}/aceitar` | 10 | 1 minute per IP |
+| `/public/parceiros/interesse` | 5 | 1 hour per IP |
 | `/public/onboarding` | 10 | 1 minute per IP (nginx: `login_limit`) |
 | `/public/*/emit-ticket` | 5 | 1 hour per email |
 | `/admin/*` | 100 | 1 minute |

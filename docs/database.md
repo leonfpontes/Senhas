@@ -785,6 +785,37 @@ Feature flags por tenant. Permite ativar/desativar capacidades específicas com 
 
 ---
 
+### `parceiro_interesses`
+
+Pedidos do Programa de Parceiros GiraHub (C-06), vindos do formulário público `/parceiros`. Tabela da
+**plataforma**, sem `tenant_id` (o interessado ainda não tem conta); só o super-admin lê e altera
+(`/api/v1/platform/parceiros`). Regras e economia do programa em `docs/programa-parceiros.md`.
+
+| Coluna | Tipo SA | Nullable | Default | Notas |
+|---|---|---|---|---|
+| `id` | `UUID` | Não | `uuid4` | PK |
+| `nome` | `String(120)` | Não | — | — |
+| `tipo` | `String(30)` | Não | — | CHECK `ck_parceiro_interesses_tipo`: `loja`, `dirigente_medium`, `criador_conteudo`, `federacao`, `outro` |
+| `nome_negocio` | `String(160)` | Sim | — | loja/casa/perfil (opcional) |
+| `cidade` | `String(100)` | Não | — | — |
+| `uf` | `String(2)` | Não | — | sigla maiúscula |
+| `whatsapp` | `String(20)` | Não | — | só dígitos |
+| `email` | `String(255)` | Não | — | minúsculo |
+| `como_divulgar` | `Text` | Não | — | até 500 caracteres na API |
+| `aceite_regulamento_em` | `DateTime(tz)` | Não | — | momento do aceite do regulamento |
+| `ip_hash` | `String(64)` | Sim | — | HMAC-SHA256 do IP (chave derivada do `SECRET_KEY`); o IP nunca é gravado |
+| `status` | `String(20)` | Não | `'novo'` | CHECK `ck_parceiro_interesses_status`: `novo`, `em_contato`, `aprovado`, `recusado` |
+| `cupom` | `String(40)` | Sim | — | preenchido pela plataforma (`^[A-Z0-9_-]{3,40}$`) |
+| `observacoes` | `Text` | Sim | — | notas da equipe |
+| `created_at` | `DateTime(tz)` | Não | `now()` | — |
+| `updated_at` | `DateTime(tz)` | Não | `now()` | `onupdate` |
+
+**Indexes:** `ix_parceiro_interesses_status_created` (`status, created_at`), `ix_parceiro_interesses_email`
+
+**Migração 084 (`084_parceiros`, encadeada na `083_meus_dados_aniversarios`).**
+
+---
+
 ## Domain 4 — Estoque
 
 ### `estoque_grupos`
@@ -947,7 +978,7 @@ Ao criar um novo enum em Alembic + model Python:
 | 18 | `018_estoque` | `017_default_brand_colors` | Cria `estoque_grupos`, `estoque_itens`, `estoque_movimentacoes`; enum `estoque_movimentacao_tipo`; `tenant_configs.enable_estoque_log` |
 | 19 | `019_fix_movimentacoes_fk` | `018_estoque` | `estoque_movimentacoes.item_id` FK: `CASCADE` → `RESTRICT` (protege integridade do ledger) |
 
-A tabela acima vai até a 019. A cadeia completa e a head atual (`081_lembretes`, AM-15) estão em
+A tabela acima vai até a 019. A cadeia completa e a head atual (`084_parceiros`, C-06) estão em
 AGENTS.md §11.8.
 
 ### Comandos Alembic
