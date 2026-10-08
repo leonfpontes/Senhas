@@ -243,6 +243,83 @@ próximos cards, para escalas e elegibilidade de atividades (AM-08/AM-25). Model
 Downgrade da 075: avisos com público `grupos` são arquivados (soft delete) e voltam a `todos` só para caber
 no CHECK antigo — nunca ficam visíveis para a corrente inteira.
 
+### `atividade_tipos`, `atividade_tipo_grupos`, `funcoes_corrente` e `atividades` (AM-08, migrações 077/078)
+
+Atividades da casa (§8 do plano da Área do Médium): faxina, rituais, reuniões, desenvolvimento… e a âncora das
+giras na camada de escala/presença. Models em `src/models/atividades.py`; regras em `src/services/atividades.py`.
+Colunas "enum" são texto com CHECK, valores minúsculos (como `comunicados.publico`). Atividade interna é tabela
+própria (D-03): fora do limite de giras/mês, do site, da agenda pública e do sitemap.
+
+`atividade_tipos` (livres por terreiro; 8 sugeridos na 078 e no cadastro/criação pela plataforma —
+`ensure_default_atividade_tipos`):
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `nome` | `String(60)` | texto simples numa linha |
+| `natureza` | `String(20)`, padrão `atividade` | CHECK `gira`/`atividade`; um `gira` por terreiro (o tipo de sistema) |
+| `icone` | `String(30)` | CHECK na lista fechada (`gira`, `faxina`, `vela`, `flor`, `organizacao`, `curso`, `desenvolvimento`, `reuniao`, `atabaque`, `cozinha`, `estudo`, `estrela`, `folha`, `agua`; desenho em `frontend/src/lib/icons.ts`) |
+| `cor` | `String(20)` NULL | CHECK na paleta dos grupos da corrente; NULL = cor do terreiro |
+| `controla_presenca` / `pede_confirmacao` / `exige_justificativa` / `checkin_pelo_medium` | `Boolean` | opções de presença (AM-17) |
+| `checkin_antes_min` / `checkin_depois_min` | `Integer`, padrão 60/180 | CHECK 0–1440 (janela do "Cheguei") |
+| `elegiveis` | `String(20)`, padrão `todos` | CHECK `todos/atendimento/cambones/grupos` |
+| `convocacao_padrao` | `String(20)` | CHECK `todos_elegiveis/so_escalados` |
+| `modo_escala` | `String(20)` | CHECK `nenhuma/grupos_por_dia/funcoes` |
+| `hora_padrao` | `Time` NULL | |
+| `duracao_min` | `Integer` NULL | CHECK 15–1440 |
+| `visibilidade_padrao` | `String(20)` | CHECK `corrente/convocados` |
+| `is_sistema` | `Boolean` | o tipo "Gira" |
+| `ordem` | `Integer` | ordem na tela |
+| `arquivado_em` | `DateTime(tz)` NULL | arquivado sai das opções de atividade nova |
+| `created_at` / `updated_at` | `DateTime(tz)` | |
+
+**Constraints/Indexes:** UNIQUE parcial `uq_atividade_tipos_tenant_nome_ativo` (`tenant_id, lower(nome)`)
+`WHERE arquivado_em IS NULL`; UNIQUE parcial `uq_atividade_tipos_gira` (`tenant_id`) `WHERE natureza = 'gira'`;
+CHECK `ck_atividade_tipos_gira_nao_arquiva` (`natureza <> 'gira' OR arquivado_em IS NULL`);
+`ix_atividade_tipos_tenant_id`.
+
+`atividade_tipo_grupos` (grupos elegíveis quando `elegiveis = 'grupos'`): `tipo_id` (FK → `atividade_tipos.id`
+CASCADE, PK), `grupo_id` (FK → `corrente_grupos.id` CASCADE, PK; grupo ativo do mesmo terreiro, conferido na
+API), `tenant_id`. **Indexes:** `ix_atividade_tipo_grupos_tenant_id`, `ix_atividade_tipo_grupos_grupo_id`.
+
+`funcoes_corrente` (Cambone, Porteiro, Ogã/Atabaque, Cozinha, Limpeza pós-gira — sugeridas): `id`, `tenant_id`,
+`nome` (`String(60)`), `descricao` (`String(300)` NULL), `ordem`, `arquivado_em`, timestamps. **Constraints/
+Indexes:** UNIQUE parcial `uq_funcoes_corrente_tenant_nome_ativo` (`tenant_id, lower(nome)`) `WHERE arquivado_em
+IS NULL`; `ix_funcoes_corrente_tenant_id`.
+
+`atividades`:
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `tipo_id` | UUID FK → `atividade_tipos.id` | tipo ativo do mesmo terreiro, natureza `atividade` (interna) ou o tipo Gira (âncora) |
+| `gira_id` | UUID FK → `giras.id` CASCADE NULL | âncora da gira (`services/atividades.atividade_da_gira`, `ON CONFLICT DO NOTHING`); não copia nome/data/local |
+| `titulo` | `String(120)` NULL | obrigatório na interna (CHECK) |
+| `inicio` / `fim` | `DateTime(tz)` NULL | `inicio` obrigatório na interna; CHECK `fim > inicio` |
+| `local` | `String(200)` NULL | |
+| `descricao` / `orientacoes` | `Text` NULL | orientações só na Área do Médium |
+| `visibilidade` | `String(20)`, padrão `corrente` | CHECK `corrente/convocados` |
+| `origem` | `String(20)`, padrão `manual` | CHECK `manual/plano_escala/gira` |
+| `escala_plano_dia_id` | UUID NULL | sem FK até a tabela `escala_plano_dias` (AM-25) |
+| `cancelada_em` / `cancelamento_motivo` | `DateTime(tz)` NULL / `String(300)` NULL | cancelar com motivo |
+| `chamada_encerrada_em` / `chamada_encerrada_por` | `DateTime(tz)` NULL / UUID FK → `users.id` SET NULL | lista de chamada (AM-17) |
+| `created_by` | UUID FK → `users.id` SET NULL | |
+| `created_at` / `updated_at` / `deleted_at` | `DateTime(tz)` | soft delete |
+
+**Constraints/Indexes:** UNIQUE parcial `uq_atividades_gira_id` (`gira_id`) `WHERE gira_id IS NOT NULL`;
+CHECK `ck_atividades_gira_ou_titulo_inicio` (`gira_id IS NOT NULL OR (titulo IS NOT NULL AND inicio IS NOT
+NULL)`); CHECK `ck_atividades_fim_depois_do_inicio`; `ix_atividades_tenant_id`, `ix_atividades_tenant_inicio`
+(`tenant_id, inicio`), `ix_atividades_tipo_id`.
+
+**Dados e permissão:** a 077 só acrescenta `escalas` ao ENUM `permission_feature` (`ADD VALUE` em
+`autocommit_block`); a 078 cria as tabelas, os 8 tipos e as funções sugeridos para todo terreiro (o tipo
+"Desenvolvimento" fica para `atendimento` ou, se a casa já tem um grupo "Desenvolvimento", para ele) e dá acesso
+total a `escalas` nos grupos padrão "Acesso total". Downgrade da 078: apaga as linhas `escalas` de
+`group_permissions` e as quatro tabelas (o valor do ENUM fica). As participações (`atividade_participacoes`,
+AM-17) e o planejador da faxina (`escala_planos`/`escala_plano_dias`, AM-25) chegam nos próximos cards.
+
 ---
 
 ### `tenant_configs`
@@ -747,3 +824,12 @@ alembic current
 | `corrente_grupo_membros` | `tenant_id`, `medium_id` | B-tree |
 | `comunicado_grupos` | `(comunicado_id, grupo_id)` | PK |
 | `comunicado_grupos` | `tenant_id`, `grupo_id` | B-tree |
+| `atividade_tipos` | `(tenant_id, lower(nome)) WHERE arquivado_em IS NULL` | UNIQUE parcial (`uq_atividade_tipos_tenant_nome_ativo`) |
+| `atividade_tipos` | `(tenant_id) WHERE natureza = 'gira'` | UNIQUE parcial (`uq_atividade_tipos_gira`) |
+| `atividade_tipos` | `tenant_id` | B-tree |
+| `atividade_tipo_grupos` | `(tipo_id, grupo_id)` | PK |
+| `atividade_tipo_grupos` | `tenant_id`, `grupo_id` | B-tree |
+| `funcoes_corrente` | `(tenant_id, lower(nome)) WHERE arquivado_em IS NULL` | UNIQUE parcial (`uq_funcoes_corrente_tenant_nome_ativo`) |
+| `funcoes_corrente` | `tenant_id` | B-tree |
+| `atividades` | `(gira_id) WHERE gira_id IS NOT NULL` | UNIQUE parcial (`uq_atividades_gira_id`) |
+| `atividades` | `tenant_id`, `(tenant_id, inicio)`, `tipo_id` | B-tree |
