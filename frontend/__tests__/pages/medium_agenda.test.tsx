@@ -2,6 +2,8 @@
  * AM-07 — Agenda da Área do Médium: lista por mês com filtro, detalhe da gira (orientações,
  * mapa, senhas, .ics, Google Agenda e WhatsApp), aba "Agenda" escondida com o módulo desligado e
  * o cartão "Próxima gira" do Início levando ao detalhe. Só chama /api/v1/medium/*.
+ * AM-08 — atividades da casa na lista (filtro "Atividades", ícone e cor do tipo, cancelada) e o
+ * detalhe da atividade (sem link público nem divulgação; cancelada mostra o motivo).
  */
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -50,7 +52,7 @@ jest.mock('@/services/api_client', () => ({
 import { ProfileProvider } from '@/hooks/useProfile';
 import { MediumProvider } from '@/components/medium/MediumProvider';
 import { INSTALL_AREA_SEEN_KEY } from '@/components/medium/InstallAreaSheet';
-import { textoDivulgar, type GiraDetalhe } from '@/components/medium/agenda';
+import { textoDivulgar, type AtividadeDetalhe, type GiraDetalhe } from '@/components/medium/agenda';
 
 const AREAS = { admin: false, medium: { medium_id: 'm1', nome: 'Ana Paula Ribeiro' } };
 const PROFILE = {
@@ -167,7 +169,7 @@ describe('Agenda (lista)', () => {
     );
     expect(within(novembro).getByText(/Cachoeira do Parque/)).toBeInTheDocument();
 
-    // Só existem giras: Tudo · Giras (Atividades chegam com o AM-08).
+    // Só existem giras: Tudo · Giras (o chip "Atividades" só aparece quando há atividade).
     const filtro = screen.getByRole('group', { name: 'Filtrar agenda' });
     const botoes = within(filtro).getAllByRole('button');
     expect(botoes.map((b) => b.textContent)).toEqual(['Tudo', 'Giras']);
@@ -204,6 +206,132 @@ describe('Agenda (lista)', () => {
     const Page = require('@/pages/medium/agenda').default;
     renderApp(<Page />);
     expect(await screen.findByText('Nada na agenda por enquanto')).toBeInTheDocument();
+  });
+});
+
+const tipoFaxina = { nome: 'Faxina', icone: 'faxina', cor: 'petroleo' };
+const AGENDA_COM_ATIVIDADES = {
+  ...AGENDA,
+  itens: [
+    AGENDA.itens[0],
+    {
+      origem: 'atividade',
+      id: 'a1',
+      tipo: tipoFaxina,
+      titulo: 'Faxina · G1',
+      inicio: '2099-10-10T12:00:00Z',
+      fim: null,
+      local: 'Terreiro',
+      cancelada: false,
+      minha_participacao: null,
+    },
+    {
+      origem: 'atividade',
+      id: 'a2',
+      tipo: { nome: 'Reunião', icone: 'reuniao', cor: 'ambar' },
+      titulo: 'Reunião da corrente',
+      inicio: '2099-10-20T22:30:00Z',
+      fim: null,
+      local: null,
+      cancelada: true,
+      minha_participacao: null,
+    },
+    AGENDA.itens[1],
+  ],
+};
+
+const ATIVIDADE: AtividadeDetalhe = {
+  origem: 'atividade',
+  id: 'a1',
+  tipo: tipoFaxina,
+  titulo: 'Faxina · G1',
+  inicio: '2099-10-10T12:00:00Z',
+  fim: '2099-10-10T15:00:00Z',
+  local: 'Terreiro',
+  cancelada: false,
+  minha_participacao: null,
+  descricao: null,
+  orientacoes_corrente: 'Leve luvas e pano.',
+  endereco: 'Rua das Palmeiras, 120',
+  mapa_url: 'https://www.google.com/maps/search/?api=1&query=Rua',
+  cancelamento_motivo: null,
+  agenda_celular: {
+    ics_path: '/api/v1/medium/agenda/atividade/a1/ics',
+    google_url: 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=Faxina',
+  },
+};
+
+describe('Agenda com atividades da casa (AM-08)', () => {
+  it('filtro "Atividades", tipo com ícone e cor, cancelada marcada', async () => {
+    api({ '/api/v1/medium/me': ME, '/api/v1/medium/agenda': AGENDA_COM_ATIVIDADES });
+    const Page = require('@/pages/medium/agenda').default;
+    renderApp(<Page />);
+
+    const outubro = await screen.findByRole('region', { name: 'Outubro de 2099' });
+    const faxina = within(outubro).getByRole('link', { name: /Faxina · G1/ });
+    expect(faxina).toHaveAttribute('href', '/medium/agenda/atividade/a1');
+    const chip = within(faxina).getByTestId('tipo-chip');
+    expect(chip).toHaveTextContent('Faxina');
+    expect(chip).toHaveStyle({ backgroundColor: '#0f766e' });
+    expect(chip.querySelector('svg')).not.toBeNull();
+    const reuniao = within(outubro).getByRole('link', { name: /Reunião da corrente/ });
+    expect(within(reuniao).getByText('Cancelada')).toBeInTheDocument();
+
+    const filtro = screen.getByRole('group', { name: 'Filtrar agenda' });
+    expect(within(filtro).getAllByRole('button').map((b) => b.textContent)).toEqual(['Tudo', 'Giras', 'Atividades']);
+    fireEvent.click(within(filtro).getByRole('button', { name: 'Atividades' }));
+    expect(screen.getAllByRole('link', { name: /Faxina|Reunião/ })).toHaveLength(2);
+    expect(screen.queryByRole('link', { name: /Gira de/ })).not.toBeInTheDocument();
+    fireEvent.click(within(filtro).getByRole('button', { name: 'Giras' }));
+    expect(screen.queryByRole('link', { name: /Faxina/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('Detalhe da atividade (AM-08)', () => {
+  beforeEach(() => {
+    mockRouter.pathname = '/medium/agenda/[tipo]/[id]';
+    mockRouter.query = { tipo: 'atividade', id: 'a1' };
+  });
+
+  it('mostra horário, local, orientações e a agenda do celular, sem divulgar', async () => {
+    api({ '/api/v1/medium/me': ME, '/api/v1/medium/agenda/atividade/a1': ATIVIDADE });
+    const Page = require('@/pages/medium/agenda/[tipo]/[id]').default;
+    renderApp(<Page />);
+
+    expect(await screen.findByRole('heading', { name: 'Faxina · G1' })).toBeInTheDocument();
+    expect(calledUrls()).toContain('/api/v1/medium/agenda/atividade/a1');
+    expect(screen.getByTestId('tipo-chip')).toHaveTextContent('Faxina');
+    expect(screen.getByText(/10 de outubro · 9h às 12h/i)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Orientações para a corrente/ })).toHaveTextContent('Leve luvas e pano.');
+    expect(screen.getByText('Terreiro')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Adicionar à agenda do celular/ })).toHaveAttribute(
+      'href',
+      '/api/v1/medium/agenda/atividade/a1/ics',
+    );
+    expect(screen.getByRole('link', { name: /Abrir no Google Agenda/ })).toBeInTheDocument();
+    // Atividade é interna: sem senhas, sem divulgar.
+    expect(screen.queryByTestId('gira-senhas')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Divulgar/ })).not.toBeInTheDocument();
+  });
+
+  it('cancelada mostra o motivo e esconde as ações', async () => {
+    api({
+      '/api/v1/medium/me': ME,
+      '/api/v1/medium/agenda/atividade/a1': { ...ATIVIDADE, cancelada: true, cancelamento_motivo: 'Chuva forte' },
+    });
+    const Page = require('@/pages/medium/agenda/[tipo]/[id]').default;
+    renderApp(<Page />);
+    const aviso = await screen.findByTestId('atividade-cancelada');
+    expect(aviso).toHaveTextContent('A casa cancelou esta atividade.');
+    expect(aviso).toHaveTextContent('Chuva forte');
+    expect(screen.queryByRole('link', { name: /Adicionar à agenda do celular/ })).not.toBeInTheDocument();
+  });
+
+  it('atividade que o médium não pode ver (404) mostra aviso', async () => {
+    api({ '/api/v1/medium/me': ME, '/api/v1/medium/agenda/atividade/a1': { status: 404 } });
+    const Page = require('@/pages/medium/agenda/[tipo]/[id]').default;
+    renderApp(<Page />);
+    expect(await screen.findByText('Não encontramos esta atividade')).toBeInTheDocument();
   });
 });
 

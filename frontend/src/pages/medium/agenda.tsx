@@ -1,17 +1,19 @@
 /**
  * /medium/agenda — Agenda da casa para a corrente (AM-07, decisão D-26).
  *
- * Lista por mês (Brasília) das giras do mês corrente e dos dois seguintes (`GET
- * /api/v1/medium/agenda`), com "Ver os próximos meses" para continuar. Filtro Tudo · Giras —
- * só aparecem as origens que existem (Atividades chegam com o AM-08). Cada item abre o detalhe
- * (`/medium/agenda/[tipo]/[id]`); a data fica na cor do terreiro e o que já passou fica neutro.
- * Só chama `/api/v1/medium/*`.
+ * Lista por mês (Brasília) das giras e das atividades da casa (AM-08: faxina, ritual, reunião...
+ * que o tipo deixa o médium ver) do mês corrente e dos dois seguintes (`GET
+ * /api/v1/medium/agenda`), com "Ver os próximos meses" para continuar. Filtro Tudo · Giras ·
+ * Atividades — só aparecem as origens que existem. Cada item mostra o tipo com o ícone e a cor que
+ * a casa escolheu e abre o detalhe (`/medium/agenda/[tipo]/[id]`); a data fica na cor do terreiro,
+ * o que já passou fica neutro e a atividade cancelada aparece riscada. Só chama `/api/v1/medium/*`.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CalendarDays, ChevronRight, TriangleAlert } from 'lucide-react';
 import { MediumLayout } from '@/components/medium/MediumLayout';
 import { DataChip } from '@/components/medium/DataChip';
+import { TipoChip } from '@/components/atividades/TipoChip';
 import {
   agruparPorMes,
   detalheHref,
@@ -48,18 +50,23 @@ function Item({ item }: { item: AgendaItem }) {
         href={detalheHref(item)}
         className="flex min-h-[4.5rem] items-center gap-3 rounded-2xl border border-border bg-card p-3 text-card-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
-        <DataChip iso={item.inicio} passado={passou} />
+        <DataChip iso={item.inicio} passado={passou || Boolean(item.cancelada)} />
         <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <strong className="font-display text-lg leading-tight font-semibold">{item.titulo}</strong>
+          <strong className={cn('font-display text-lg leading-tight font-semibold', item.cancelada && 'line-through')}>
+            {item.titulo}
+          </strong>
           <span className="text-base text-muted-foreground first-letter:uppercase">
             {semana} · {horaBr(item.inicio)}
             {item.local ? ` · ${item.local}` : ''}
           </span>
           <span className="flex flex-wrap gap-1.5">
-            <span className="rounded-full border border-primary bg-card px-2.5 py-0.5 text-sm font-bold text-brand">
-              {item.tipo.nome}
-            </span>
-            {passou && (
+            <TipoChip tipo={item.tipo} />
+            {item.cancelada && (
+              <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-sm font-semibold text-destructive-strong">
+                Cancelada
+              </span>
+            )}
+            {passou && !item.cancelada && (
               <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-semibold text-muted-foreground">
                 Já aconteceu
               </span>
@@ -178,7 +185,7 @@ function Agenda() {
               icon={<CalendarDays />}
               title="Nada na agenda por enquanto"
               description={
-                <span className="text-base">Quando a casa marcar uma gira, ela aparece aqui.</span>
+                <span className="text-base">Quando a casa marcar uma gira ou atividade, ela aparece aqui.</span>
               }
             />
           ) : (

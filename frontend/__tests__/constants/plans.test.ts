@@ -39,7 +39,8 @@ describe('plans — espelho do backend', () => {
     const tier0 = ['bulk_operations'];
     // Mensalidade dos médiuns a partir do Basic (gatilho de upgrade pelo nº de médiuns).
     // Área do Médium (AM-02) também a partir do Basic.
-    const tier1 = ['mediuns', 'relatorio_gira', 'mensalidade_mediun', 'area_medium'];
+    // Atividades da casa (AM-08) também; escalas no Pro (cai no "pro" do else abaixo).
+    const tier1 = ['mediuns', 'relatorio_gira', 'mensalidade_mediun', 'area_medium', 'atividades_corrente'];
     // Reestruturação de out/2026: associados, estoque, fila, horário e financeiro → Premium.
     const tier3 = [
       'suporte_prioritario',
@@ -60,7 +61,8 @@ describe('plans — espelho do backend', () => {
             : 'pro';
       expect([feature, plan]).toEqual([feature, expected]);
     });
-    expect(Object.keys(FEATURE_MIN_PLAN)).toHaveLength(19);
+    expect(Object.keys(FEATURE_MIN_PLAN)).toHaveLength(21);
+    expect(FEATURE_MIN_PLAN.escalas).toBe('pro');
   });
 
   it('todo recurso vendido tem rótulo no catálogo; o que é grátis ou não existe fica fora', () => {
@@ -68,7 +70,15 @@ describe('plans — espelho do backend', () => {
     expect(FEATURE_CATALOG.map((f) => f.key).sort()).toEqual(sold.sort());
     // Fora do quadro: ações em lote (todos os planos), CSV (Pro+, não vende), o que não existe e a
     // Área do Médium (texto de venda espera o estudo de UX — AM-00/AM-24).
-    for (const k of ['bulk_operations', 'export_csv', 'analytics_avancado', 'suporte_prioritario', 'area_medium']) {
+    for (const k of [
+      'bulk_operations',
+      'export_csv',
+      'analytics_avancado',
+      'suporte_prioritario',
+      'area_medium',
+      'atividades_corrente',
+      'escalas',
+    ]) {
       expect(FEATURE_CATALOG.some((f) => f.key === k)).toBe(false);
     }
     expect(FEATURE_MIN_PLAN.export_csv).toBe('pro'); // o recurso continua no Pro+
