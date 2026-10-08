@@ -21,19 +21,26 @@ Tudo o que a corrente faz junto vira uma **atividade** (§8 do plano da Área do
   presença são a MESMA linha (§8.1): não há o que sincronizar. Única por (`atividade_id`,
   `medium_id`), o que também segura a corrida entre o "Cheguei" e a chamada.
 
+- `escala_planos` / `escala_plano_dias` (AM-25, migração 080): o planejador da faxina — um
+  plano por tipo (modo "grupos por dia") e mês, rascunho ou publicado, e os dias × grupo × horário.
+  Publicar cria uma atividade por dia e grupo (`origem = 'plano_escala'`) e grava o id dela em
+  `escala_plano_dias.atividade_id` (o vínculo forte, com FK). `atividades.escala_plano_dia_id`
+  fica só como referência, SEM FK de propósito (FK nos dois sentidos seria um ciclo): o serviço
+  limpa a coluna quando o dia sai do plano.
+
 Colunas "enum" são texto com CHECK e valores minúsculos (como `comunicados.publico`): crescem
-sem `ALTER TYPE`. O planejador da faxina (`escala_planos`/`escala_plano_dias`, AM-25) chega
-num próximo card; `escala_plano_dia_id` já existe aqui, sem FK, e ganha a FK com a tabela do AM-25.
+sem `ALTER TYPE`.
 """
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, time
+from datetime import date, datetime, time
 from typing import Optional
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -82,6 +89,8 @@ CONVOCACOES = ("todos_elegiveis", "so_escalados")
 MODOS_ESCALA = ("nenhuma", "grupos_por_dia", "funcoes")
 VISIBILIDADES = ("corrente", "convocados")
 ORIGENS_ATIVIDADE = ("manual", "plano_escala", "gira")
+# Planejador da faxina (AM-25).
+STATUS_PLANO = ("rascunho", "publicado")
 
 # Presença (AM-17/AM-28, D-11). Modo: confiança (a confirmação "vou" basta), "Cheguei" pelo app
 # na janela do tipo, ou "Cheguei" com o QR do dia. `atividade_tipos.presenca_modo` null = o
@@ -283,7 +292,8 @@ class Atividade(Base):
     orientacoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     visibilidade: Mapped[str] = mapped_column(String(20), nullable=False, default="corrente")
     origem: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
-    # FK para escala_plano_dias chega com a tabela (AM-25).
+    # Dia do planejador que gerou a atividade (AM-25). Sem FK de propósito: o vínculo com FK é
+    # `escala_plano_dias.atividade_id` (FK nos dois sentidos seria um ciclo).
     escala_plano_dia_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     cancelada_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelamento_motivo: Mapped[Optional[str]] = mapped_column(String(MOTIVO_MAX), nullable=True)
@@ -368,3 +378,83 @@ class AtividadeParticipacao(Base):
 
     def __repr__(self) -> str:
         return f"<AtividadeParticipacao(atividade_id={self.atividade_id}, medium_id={self.medium_id})>"
+
+
+class EscalaPlano(Base):
+    """Planejador do mês (AM-25, §8.7): um plano por tipo de atividade (modo "grupos por dia") e mês.
+
+    `mes` é sempre o 1º dia do mês. `status`: `rascunho` (o médium não vê nada) ou `publicado`
+    (já gerou as atividades; mexer depois deixa "mudanças por publicar" até publicar de novo).
+    """
+
+    __tablename__ = "escala_planos"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "tipo_id", "mes", name="uq_escala_planos_tenant_tipo_mes"),
+        Index("ix_escala_planos_tenant_id", "tenant_id"),
+        CheckConstraint(_in("status", STATUS_PLANO), name="ck_escala_planos_status"),
+        # `ck_escala_planos_mes_dia_1` (EXTRACT(DAY FROM mes) = 1) só na migração 080: a sintaxe
+        # não existe no SQLite dos testes de API (create_all).
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    tipo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("atividade_tipos.id", ondelete="CASCADE"), nullable=False
+    )
+    mes: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="rascunho")
+    publicado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    publicado_por: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<EscalaPlano(id={self.id}, tipo_id={self.tipo_id}, mes={self.mes}, status={self.status})>"
+
+
+class EscalaPlanoDia(Base):
+    """Um grupo num dia do plano (um dia pode ter mais de um grupo), com o horário.
+
+    `atividade_id`: a atividade gerada ao publicar (null = ainda não publicado). `removido`: o dia
+    foi tirado do rascunho depois de publicado — a linha fica até a próxima publicação, que
+    cancela (ou reaproveita, na troca de grupo) a atividade e então apaga a linha.
+    """
+
+    __tablename__ = "escala_plano_dias"
+    __table_args__ = (
+        UniqueConstraint("plano_id", "data", "grupo_id", name="uq_escala_plano_dias_plano_data_grupo"),
+        Index("ix_escala_plano_dias_tenant_id", "tenant_id"),
+        Index("ix_escala_plano_dias_atividade_id", "atividade_id"),
+        CheckConstraint("hora_fim IS NULL OR hora_fim > hora_inicio", name="ck_escala_plano_dias_horario"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    plano_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("escala_planos.id", ondelete="CASCADE"), nullable=False
+    )
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+    grupo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("corrente_grupos.id", ondelete="CASCADE"), nullable=False
+    )
+    hora_inicio: Mapped[time] = mapped_column(Time, nullable=False)
+    hora_fim: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    atividade_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("atividades.id", ondelete="SET NULL"), nullable=True
+    )
+    removido: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<EscalaPlanoDia(plano_id={self.plano_id}, data={self.data}, grupo_id={self.grupo_id})>"

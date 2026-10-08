@@ -125,7 +125,8 @@ export function EscalaCard({
   };
 
   const hoje = ehHoje(item.inicio);
-  const complemento = [p.grupo, p.funcao].filter(Boolean).join(' · ');
+  // "grupo G2" (§8.9 do plano; escala de faxina, AM-25) e a função da escala de gira.
+  const complemento = [p.grupo ? `grupo ${p.grupo}` : null, p.funcao].filter(Boolean).join(' · ');
   const quando = `${quandoBr(item.inicio)}${item.fim ? ` às ${horaBr(item.fim)}` : ''}`;
   const janela = janelaTexto(p);
   const prazo = prazoTexto(p);

@@ -1435,12 +1435,13 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-13 Perfil do médium | #90 | 076 | 2026-10-08 |
 | AM-08 Atividades da casa (feature de grupo `ESCALAS`) | #91 | 077, 078 | 2026-10-08 |
 | AM-17 Presença + AM-28 Modo de presença e QR do dia | #92 | 079 | 2026-10-08 |
-| AM-29 Ajustes do piloto (convocar grupos, QR no iPhone, PIX no Início, remover foto, limite no login) | este PR | — | 2026-10-08 |
+| AM-29 Ajustes do piloto (convocar grupos, QR no iPhone, PIX no Início, remover foto, limite no login) | #93 | — | 2026-10-08 |
+| AM-25 Escala de faxina (planejador do mês por grupos) | este PR | 080 | — |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** AM-25 (escala de faxina), AM-15 (lembretes por e-mail), AM-26 (assiduidade), AM-18
+**Falta da 2.4.0 do plano:** AM-15 (lembretes por e-mail), AM-26 (assiduidade), AM-18
 (escala de gira), AM-24 (divulgação). **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.

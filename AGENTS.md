@@ -205,6 +205,12 @@ Rotas existentes e suas features:
   (`corrente_grupos.validar_grupos_ativos_do_tenant`, checagem 4 do auditor) antes de gravar; expande para os
   membros ATIVOS que o tipo alcanca (`presenca.planejar_convocacao`, origem "grupo" + `grupo_id`), sem
   duplicar nem rebaixar quem ja estava na escala
+- Escala de faxina (`escala_planos.py`, AM-25) → `PermissionFeature.ESCALAS` + `require_plan_feature("area_medium")`
+  E `require_plan_feature("escalas")` (Pro) no router: ver o mes = view; rascunho (PUT), copiar do mes anterior,
+  girar e distribuir = edit; publicar e "Atualizar convocacoes" = insert E edit (dois guards empilhados: criam
+  atividades/convocam e cancelam/dispensam). `tipo_id` do caminho buscado no tenant (404) e com modo "grupos por
+  dia" (422); `grupo_id` do corpo conferido no tenant e nao arquivado (`validar_grupos_ativos_do_tenant` /
+  `_validar_grupos_do_plano`) antes de gravar
 
 Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
 leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
@@ -814,7 +820,10 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `079_presenca` (2026-10-08, AM-17/AM-28: `atividade_participacoes` — unica por atividade +
+- Head atual: `080_escala_planos` (2026-10-08, AM-25: `escala_planos` — um por tipo e mes, rascunho/publicado,
+  unico por `tenant_id, tipo_id, mes` — e `escala_plano_dias` — data x grupo x horario, `atividade_id` FK SET NULL,
+  `removido`; `atividades.escala_plano_dia_id` segue sem FK de proposito; criada em paralelo com 081/082 a partir da
+  079 e pode ser reencadeada no merge), apos `079_presenca` (2026-10-08, AM-17/AM-28: `atividade_participacoes` — unica por atividade +
   medium —, `tenant_configs.presenca_modo_padrao`/`presenca_prazo_justificativa_dias`,
   `atividade_tipos.presenca_modo`; tipo com `checkin_pelo_medium` vira modo `app`), apos `078_atividades`
   (2026-10-08, AM-08: `atividade_tipos`, `atividade_tipo_grupos`,
@@ -1103,7 +1112,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença e ajustes do piloto (AM-02/03/04/05/06/07/08/09/10/11/12/13/17/23/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, ajustes do piloto e Escala de faxina (AM-02/03/04/05/06/07/08/09/10/11/12/13/17/23/25/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1255,8 +1264,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   horario/duracao, visibilidade padrao; funcoes). Area: Agenda com o chip "Atividades", `TipoChip`
   (`components/atividades/TipoChip.tsx`, icone e cor do tipo) e "Cancelada"; detalhe
   `pages/medium/agenda/[tipo]/[id].tsx` com `tipo = atividade` (orientacoes, local, .ics e Google Agenda, motivo do
-  cancelamento; sem link publico nem "Divulgar"). Presenca no AM-17/AM-28 (abaixo); ainda nao: escala de gira
-  (AM-18) e planejador da faxina (AM-25) — as tabelas ja tem as colunas/ancora para isso.
+  cancelamento; sem link publico nem "Divulgar"). Presenca no AM-17/AM-28 e planejador da faxina no AM-25 (abaixo);
+  ainda nao: escala de gira (AM-18) — as tabelas ja tem as colunas/ancora para isso.
 - **Presenca (AM-17/AM-28)**: migracao `079_presenca` (§11.8; tabela em `docs/database.md`), API em §3.3 e
   `docs/api.md` (§16 do painel, §7 da Area). Modo da casa em Configuracoes → Area do Medium
   (`AreaMediumConfigSection`, so com `presenca_no_plano`: confianca · "Cheguei" pelo app · "Cheguei" com QR + prazo
@@ -1282,6 +1291,25 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `GrupoChip` dos escolhidos + `MultiCombobox` de medium) no `ConfirmacoesSheet` e no drawer de criar atividade de
   tipo "so escalados" (medium de `GET /admin/atividades/convocar/mediuns`; cria e depois chama o `convocar`, um
   toast so com o resumo `novos · ja estavam · fora de quem pode participar`); tudo so com `escalas:insert`.
+- **Escala de faxina (AM-25)**: migracao `080_escala_planos` (§11.8; tabelas em `docs/database.md`), API
+  `/api/v1/admin/escala-planos/{tipo_id}/{AAAA-MM}*` (§3.3 e `docs/api.md` §17), regras puras em
+  `services/escala_planos.py` (copiar pela ordem do dia da semana — a 5ª ocorrencia some —, girar G1→G2→…→G1,
+  distribuir em ciclo, diff da publicacao). Vale para todo tipo com `modo_escala = grupos_por_dia`. Publicar cria uma
+  atividade por dia x grupo (`origem = plano_escala`, "Faxina · G2") e convoca os membros ATIVOS do grupo que o tipo
+  alcanca (`origem = grupo`); republicar: dia removido → cancelada + dispensados; grupo trocado → mesma atividade, os do
+  grupo antigo dispensados e os do novo convocados; o resto mantem respostas e presencas; dia que ja passou (ou com a
+  chamada encerrada) nao muda. Plano travado com `FOR UPDATE` (publicar/salvar em serie, publicar de novo nao faz
+  nada). "Atualizar convocacoes das proximas faxinas" so mexe no que ainda nao comecou. Avisos: gancho
+  `escala_publicada(...)` chamado depois do commit — o envio e do AM-15. Painel: aba "Escala de faxina" em
+  `/admin/atividades` (`components/admin/atividades/EscalaFaxina.tsx`, regras/tipos em `lib/escalaFaxina.ts`): sem
+  `escalas` no plano → `PlanLocked` (`minPlanFor('escalas')`); mes + tipo, "Copiar do mes anterior"/"Comecar vazio",
+  fichas dos grupos com a contagem de dias e "Novo grupo" (`mediuns:insert`, abre Grupos da corrente em outra aba; ao
+  voltar, a tela recarrega as fichas), grade do mes 7 colunas com celulas de 44 px (dia passado nao toca), atalhos
+  Copiar · Girar grupos (salva antes) · Distribuir (`CrudDrawer`: dias da semana + grupos em ordem + horario),
+  "Dias e horarios" com o horario por dia (`CrudDrawer`), resumo em texto, Salvar rascunho (`escalas:edit`) e
+  Publicar / Publicar as mudancas (`ConfirmDialog` com as contagens do servidor; `escalas:insert`+`edit`), "Atualizar
+  convocacoes das proximas faxinas". Area: nada novo — a faxina publicada aparece na Agenda e no Inicio como
+  "Voce esta na escala · G2" com o horario (AM-17), o rascunho nunca.
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
