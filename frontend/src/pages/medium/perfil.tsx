@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { MediumLayout, useMediumShell } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
+import { MeusGrupos } from '@/components/medium/MeusGrupos';
 import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 import { MeusDadosDrawer } from '@/components/medium/perfil/MeusDadosDrawer';
 import { TrocarEmailDrawer } from '@/components/medium/perfil/TrocarEmailDrawer';
@@ -277,6 +278,7 @@ function Perfil() {
           <p className="text-base text-areia-200">
             Médium da corrente{me ? ` · ${me.terreiro.nome}` : ''}
           </p>
+          <MeusGrupos grupos={me?.grupos} className="mt-1 text-areia-200" />
         </div>
         <span
           aria-hidden

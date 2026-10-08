@@ -730,6 +730,7 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
   "titulo": "Gira de sexta começa às 20h30",
   "corpo": "A corrente chega às 19h30.\nVeja https://exemplo.com.br",
   "publico": "todos",
+  "grupos": [],
   "fixado": true,
   "publicar_em": "2026-10-07T12:00:00Z",
   "expira_em": null,
@@ -740,7 +741,10 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
 }
 ```
 - **Body** (POST; PUT is partial): `titulo` (≤ 120), `corpo` (≤ 5000), `publico`
-  (`todos` | `atendimento` | `cambones`; other values → 422), `fixado`, `publicar_em` (absent/null =
+  (`todos` | `atendimento` | `cambones` | `grupos`; other values → 422), `grupo_ids` (only with
+  `publico: "grupos"`, AM-23: at least one active group of the tenant — empty, archived or another
+  tenant's group → 422; ignored for the other audiences; on PUT, sent = replaces the groups, and
+  switching to another audience clears them), `fixado`, `publicar_em` (absent/null =
   now; future = scheduled; naive datetimes are Brasília time) and `expira_em` (optional; must be after
   `publicar_em` and, when set, in the future → else 422). On PUT, `publicar_em: null` publishes now and
   `expira_em: null` removes the expiry.
@@ -748,13 +752,58 @@ plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium
   empty title/text after cleaning → 422. The screens render text nodes only and auto-link
   `http(s)://`/`www.` addresses.
 - `situacao`: `agendado` (before `publicar_em`), `publicado`, `expirado` (after `expira_em`).
+- `grupos`: `[{ "id", "nome", "cor" }]` — the active groups chosen (empty for the other audiences).
 - `leituras.total` ("lido por N de M") counts only médiuns who can read it: active, in the audience
-  (`atendimento` = `mediuns.is_atendimento`, `cambones` = not), and with access to the Área (linked to
-  an active account).
+  (`atendimento` = `mediuns.is_atendimento`, `cambones` = not, `grupos` = members of at least one of the
+  aviso's active groups), and with access to the Área (linked to an active account).
 - `GET /{id}/leituras` → `{ "total", "lidos", "leram": [{ "medium_id", "nome", "lido_em" }],
   "nao_leram": [{ "medium_id", "nome", "lido_em": null }] }` (D-28; only names — no contact data).
-- Another tenant's id → 404. Audited as `comunicado` (create/update/delete; title, audience and
-  dates — not the text).
+- Another tenant's id → 404. Audited as `comunicado` (create/update/delete; title, audience, group
+  names and dates — not the text).
+
+### 14. Grupos da corrente (AM-23)
+
+G1, G2, "Ogãs", "Desenvolvimento": one concept for the audience of avisos and, next, for schedules
+(AM-08/AM-25). Every route requires the plan feature `area_medium` (Basic+ **and** the pilot switch)
+and the permission group `MEDIUNS` (no new feature — §6.7 of the Área plan):
+
+| Method | Path | Group action |
+|---|---|---|
+| GET | `/api/v1/admin/corrente-grupos[?incluir_arquivados=true]` | `MEDIUNS:view` |
+| GET | `/api/v1/admin/corrente-grupos/opcoes` | `MEDIUNS:view` **or** `COMUNICADOS:view` |
+| GET | `/api/v1/admin/corrente-grupos/{id}` | `MEDIUNS:view` |
+| POST | `/api/v1/admin/corrente-grupos` (201) | `MEDIUNS:insert` |
+| PUT | `/api/v1/admin/corrente-grupos/{id}` | `MEDIUNS:edit` |
+| POST | `/api/v1/admin/corrente-grupos/{id}/membros` | `MEDIUNS:edit` |
+| DELETE | `/api/v1/admin/corrente-grupos/{id}/membros/{medium_id}` (204) | `MEDIUNS:edit` |
+| POST | `/api/v1/admin/corrente-grupos/{id}/desarquivar` | `MEDIUNS:edit` |
+| DELETE | `/api/v1/admin/corrente-grupos/{id}` (204, archive) | `MEDIUNS:delete` |
+| PUT | `/api/v1/admin/corrente-grupos/mediuns/{medium_id}` | `MEDIUNS:edit` |
+
+**Group**: `{ "id", "nome", "cor", "descricao", "arquivado_em", "total_membros", "membros": [{ "medium_id",
+"nome", "desde" }], "created_at", "updated_at" }` — list ordered by name (case-insensitive), archived
+last and only with `incluir_arquivados=true`; members are active médiuns, by name.
+
+- **Body** (POST; PUT is partial): `nome` (1–60 after removing HTML/control chars), `cor` (closed palette
+  `ambar` | `petroleo` | `violeta` | `azul` | `verde` | `vinho` | `terra` | `grafite`, default `ambar`;
+  other → 422), `descricao` (≤ 300, optional), `medium_ids` (POST: initial members; PUT: when sent,
+  replaces the member set). Name already used by another non-archived group of the tenant, ignoring case
+  → **409**. Members must be active, non-deleted médiuns of the tenant → else **422** (nothing is saved).
+- `POST /{id}/membros` `{ "medium_ids": [...] }` adds (idempotent); `DELETE /{id}/membros/{medium_id}`
+  removes one (not a member → 404).
+- `DELETE /{id}` archives: the group leaves the lists, the options and the audience of avisos; members
+  stay stored and come back with `POST /{id}/desarquivar` (409 if the name was taken meanwhile). An
+  archived group cannot be edited or receive members (404).
+- `GET /opcoes` → `[{ "id", "nome", "cor", "total_membros" }]` (active groups, no médium names) — for the
+  "Grupos" audience of avisos, so whoever only has `COMUNICADOS` can choose a group.
+- `PUT /mediuns/{medium_id}` `{ "grupo_ids": [...] }` — the "Grupos" field of the médium form: sets the
+  active groups the médium is in (memberships in archived groups are kept). Médium of another tenant or
+  deleted → 404; active groups only → else 422; groups for an inactive médium → 422 (`[]` is allowed).
+  Returns `[{ "id", "nome", "cor", "total_membros" }]`.
+- Inactivating (`PATCH /admin/mediuns/{id}` with `is_active: false`) or deleting a médium removes them
+  from every group (reactivating does not put them back).
+- Another tenant's id → 404 (path) / 422 (body). Audited as `corrente_grupo` (name, color, description,
+  member counts) and, for the médium field, as `Medium` with the group names.
 
 ---
 
@@ -928,15 +977,17 @@ path or body. Writes made while impersonating are refused (403, `require_not_imp
   "modulos": ["agenda", "avisos", "mensalidade"],
   "boas_vindas": "Que bom ter você na corrente!",
   "whatsapp_casa": "5511987654321",
-  "avisos_nao_lidos": 2
+  "avisos_nao_lidos": 2,
+  "grupos": [{ "id": "grupo-uuid", "nome": "G2", "cor": "petroleo" }]
 }
 ```
 `marca` is the same public subset served by the branding endpoint. `modulos` lists the modules
 the terreiro left on (AM-10, in bottom-bar order); `mensalidade` also requires `mensalidade_mediun`
 in the plan. `boas_vindas` and `whatsapp_casa` (digits with country code, for "Falar com a casa")
 come from the Área configuration and may be `null`. `avisos_nao_lidos` feeds the badge on the
-"Avisos" tab (AM-09; `0` when the module is off). Internal médium fields (`observacoes`,
-contacts, payments) are never returned.
+"Avisos" tab (AM-09; `0` when the module is off). `grupos` (AM-23) lists the active groups of the
+corrente the médium is in, by name — only name and color, never the other members (D-07).
+Internal médium fields (`observacoes`, contacts, payments) are never returned.
 
 If the terreiro turns the Área off (`PUT /api/v1/admin/config/area-medium` with `"ativa": false`),
 every `/api/v1/medium/*` route answers 403 (`MEDIUM_AREA_UNAVAILABLE`) and `areas.medium` becomes
@@ -1003,7 +1054,8 @@ médium come from the session; a `medium_id` in the query string is ignored).
 
 - `GET /api/v1/medium/avisos` → `{ "itens": [{ "id", "titulo", "resumo", "fixado", "publicado_em",
   "lido" }], "nao_lidos": N }` — published, not expired, not archived, for the médium's audience
-  (`todos` plus `atendimento` or `cambones` by `mediuns.is_atendimento`); pinned first, then newest.
+  (`todos` plus `atendimento` or `cambones` by `mediuns.is_atendimento`, plus `grupos` when the médium
+  is in one of the aviso's active groups — AM-23); pinned first, then newest.
 - `GET /api/v1/medium/avisos/{id}` → `{ "id", "titulo", "corpo", "fixado", "publicado_em", "lido",
   "lido_em" }`. Scheduled, expired, archived, other audience or other tenant → 404.
 - `POST /api/v1/medium/avisos/{id}/lido` → `{ "lido": true, "lido_em": "..." }` — idempotent (keeps

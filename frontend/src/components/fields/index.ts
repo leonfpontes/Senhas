@@ -14,3 +14,5 @@ export { DateTimeField } from './DateTimeField';
 export type { DateTimeFieldProps } from './DateTimeField';
 export { Combobox } from './Combobox';
 export type { ComboboxProps, ComboboxOption } from './Combobox';
+export { MultiCombobox } from './MultiCombobox';
+export type { MultiComboboxProps, MultiComboboxOption } from './MultiCombobox';

@@ -12,11 +12,13 @@ jest.mock('next/router', () => ({
 const mockGet = jest.fn();
 const mockPost = jest.fn().mockResolvedValue({ data: {} });
 const mockPatch = jest.fn().mockResolvedValue({ data: {} });
+const mockPut = jest.fn().mockResolvedValue({ data: [] });
 jest.mock('@/services/api_client', () => ({
   apiClient: {
     get: (...a: unknown[]) => mockGet(...a),
     post: (...a: unknown[]) => mockPost(...a),
     patch: (...a: unknown[]) => mockPatch(...a),
+    put: (...a: unknown[]) => mockPut(...a),
     delete: jest.fn().mockResolvedValue({ data: {} }),
   },
   extractApiErrorMessage: (_e: unknown, f: string) => f,
@@ -157,6 +159,60 @@ describe('Médiuns', () => {
       await screen.findByText('Pai Antônio');
       expect(screen.queryByRole('columnheader', { name: /Acesso à Área/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Convidar todos/ })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Grupos da corrente (AM-23)', () => {
+    const GRUPOS = [
+      { id: 'g1', nome: 'G1', cor: 'ambar', membros: [{ medium_id: 'm1' }] },
+      { id: 'g2', nome: 'Ogãs', cor: 'petroleo', membros: [] },
+    ];
+
+    beforeEach(() => {
+      mockGet.mockImplementation((url: string) => {
+        if (url.startsWith('/api/v1/admin/mediuns?')) return Promise.resolve({ data: MEDIUNS });
+        if (url === '/api/v1/admin/corrente-grupos') return Promise.resolve({ data: GRUPOS });
+        return Promise.resolve({ data: [] });
+      });
+    });
+
+    it('com a Área: etiqueta do grupo na lista, link para Grupos e campo "Grupos" que grava à parte', async () => {
+      mockArea = true;
+      render(<AdminMediunsPage />);
+      await screen.findByText('Pai Antônio');
+      expect(await screen.findByTestId('grupo-chip')).toHaveTextContent('G1');
+      expect(screen.getByRole('link', { name: /Grupos/ })).toHaveAttribute('href', '/admin/mediuns/grupos');
+
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Ações de Pai Antônio' }), { key: 'Enter' });
+      fireEvent.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /Editar/ }));
+      const dialog = await screen.findByRole('dialog');
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Tirar G1' }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+
+      await waitFor(() => expect(mockPut).toHaveBeenCalled());
+      expect(mockPatch.mock.calls[0][0]).toBe('/api/v1/admin/mediuns/m1');
+      expect(mockPut).toHaveBeenCalledWith('/api/v1/admin/corrente-grupos/mediuns/m1', { grupo_ids: [] });
+    });
+
+    it('sem mexer nos grupos, não chama o PUT dos grupos', async () => {
+      mockArea = true;
+      render(<AdminMediunsPage />);
+      await screen.findByText('Pai Antônio');
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Ações de Pai Antônio' }), { key: 'Enter' });
+      fireEvent.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /Editar/ }));
+      const dialog = await screen.findByRole('dialog');
+      fireEvent.change(within(dialog).getByLabelText(/^Nome/), { target: { value: 'Pai Antônio de Ogum' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+      await waitFor(() => expect(mockPatch).toHaveBeenCalled());
+      expect(mockPut).not.toHaveBeenCalled();
+    });
+
+    it('sem a Área: nada de grupos (nem busca)', async () => {
+      render(<AdminMediunsPage />);
+      await screen.findByText('Pai Antônio');
+      expect(screen.queryByTestId('grupo-chip')).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /Grupos/ })).not.toBeInTheDocument();
+      expect(mockGet).not.toHaveBeenCalledWith('/api/v1/admin/corrente-grupos');
     });
   });
 });

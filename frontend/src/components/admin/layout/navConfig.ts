@@ -167,6 +167,10 @@ export function useAdminNav({ isOperator, tenantId }: UseAdminNavOptions): NavGr
     if (can('mediuns') && view('mediuns')) {
       corrente.push(link('/admin/mediuns', 'Médiuns', Flower2, { badge: birthdayCount, keywords: ['cambones', 'aniversariantes'] }));
     }
+    // Grupos da corrente (AM-23): grupo de permissão `mediuns`, só com `area_medium` (piloto, sem oferta de plano).
+    if (can('area_medium') && view('mediuns')) {
+      corrente.push(link('/admin/mediuns/grupos', 'Grupos da corrente', Users, { keywords: ['g1', 'g2', 'ogãs', 'escala', 'faxina'] }));
+    }
     if (can('associados') && view('associados')) corrente.push(link('/admin/associados', 'Associados', HeartHandshake));
     const planMensalidade = can('mensalidade_mediun') || can('mensalidade_associado');
     if (planMensalidade && view('financeiro')) {

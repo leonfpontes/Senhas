@@ -180,6 +180,11 @@ Rotas existentes e suas features:
 - Avisos da Area do Medium (`comunicados.py`, AM-09) → `PermissionFeature.COMUNICADOS` ("Avisos da Area",
   grupo "Corrente" na tela de perfis; publicar = insert, editar = edit, arquivar = delete, lista e quem
   leu = view) + `require_plan_feature("area_medium")` no router (migracoes 070/071)
+- Grupos da corrente (`corrente_grupos.py`, AM-23) → `PermissionFeature.MEDIUNS` (sem feature nova, §6.7 do
+  plano: listar/detalhe = view, criar = insert, editar/por e tirar medium/desarquivar/campo "Grupos" do medium =
+  edit, arquivar = delete; `GET /opcoes` = MEDIUNS **ou** COMUNICADOS view via `require_any_group_permission`,
+  sem nomes de mediuns, para quem so publica avisos) + `require_plan_feature("area_medium")` no router (075).
+  Quando o AM-08 criar `ESCALAS`, a leitura passa a aceitar tambem `ESCALAS:view`
 
 Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
 leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
@@ -250,6 +255,13 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `GET /{id}/leituras` = quem leu e quem nao leu, so nomes) e `/api/v1/medium/avisos*` (so publicados, nao
   expirados, do publico do medium; `POST /{id}/lido` com `require_not_impersonated`; leituras sempre por
   `ctx.medium.id`). O medium nunca ve quem mais leu (D-07). Detalhes em §11.23.
+- **Grupos da corrente (AM-23)**: `/api/v1/admin/corrente-grupos*` (MEDIUNS + `area_medium`, acima). Todo
+  `grupo_id`/`medium_id` da requisicao passa por `services/corrente_grupos.validar_*_do_tenant` (ou busca
+  escopada) antes de gravar — checagem 4 do auditor, com teste de mutacao em `tests/unit/test_am23_grupos.py`
+  e regressao em `test_fk_cross_tenant.py`. So medium ativo entra; inativar/excluir medium (`mediuns.py`) chama
+  `remover_medium_dos_grupos`. Publico `grupos` dos avisos: `comunicado_grupos` + filtro `EXISTS` por
+  `ctx.medium.id` em `api/v1/medium/avisos._no_publico_do_medium` (grupo arquivado nao conta). `GET /medium/me`
+  devolve `grupos` = so nome/cor dos PROPRIOS grupos, nunca os outros membros (D-07).
 - **Agenda (AM-07)**: `GET /medium/agenda` (+ `/agenda/gira/{id}` e `/agenda/gira/{id}/ics`) so le giras
   ativas do tenant do `ctx`; formato unificado `{origem, id, tipo{nome, icone, cor}, titulo, inicio, fim,
   local, minha_participacao}` que o AM-08/AM-17 estendem. `giras.orientacoes_corrente` (073) e dado SO da
@@ -745,9 +757,11 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `074_medium_email_pendente` (2026-10-07, AM-13: `users.email_pendente`, `email_pendente_token_hash`
+- Head atual: `076_medium_email_pendente` (2026-10-08, AM-13: `users.email_pendente`, `email_pendente_token_hash`
   (indice unico `uq_users_email_pendente_token_hash`) e `email_pendente_expira_em` — troca do e-mail de login com
-  confirmacao no endereco novo), apos `073_giras_orientacoes_corrente` (2026-10-07, AM-07: `giras.orientacoes_corrente`, so na Area do
+  confirmacao no endereco novo; criada como 074 e renumerada no merge), apos `075_corrente_grupos` (2026-10-08, AM-23:
+  `corrente_grupos`, `corrente_grupo_membros`, `comunicado_grupos` e `grupos` no CHECK `ck_comunicados_publico`), apos
+  `073_giras_orientacoes_corrente` (2026-10-07, AM-07: `giras.orientacoes_corrente`, so na Area do
   Medium), apos `072_mensalidade_comprovante_medium` (2026-10-07, AM-11/AM-12: `comprovante_enviado_em/_por`,
   `recusa_motivo`, `recusado_em` e o indice parcial `ix_mensalidade_pagamentos_conferir` em
   `mensalidade_pagamentos`), apos `071_comunicados` (2026-10-07, AM-09: tabelas `comunicados` e `comunicado_leituras`
@@ -1025,7 +1039,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda e Perfil (AM-02/03/04/06/07/09/10/11/12/13, 2026-10-07)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente e Perfil (AM-02/03/04/05/06/07/09/10/11/12/13/23, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1114,8 +1128,22 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   (`services/comunicados.limpar_*`) e o front só renderiza nós de texto (`components/avisos/AvisoLeitura`,
   `lib/autolink`: só `http(s)://`/`www.` viram link, `rel=noopener noreferrer nofollow`). Barra inferior:
   aba de módulo fora de `me.modulos` some (`MEDIUM_TABS[].modulo`) e a aba Avisos tem selo com
-  `me.avisos_nao_lidos`. Público "cambones" = `is_atendimento` falso; grupos da corrente entram com o AM-23
-  (`publico = 'grupos'` + `comunicado_grupos`, a coluna é texto com CHECK). E-mail "avisar agora" é do AM-15.
+  `me.avisos_nao_lidos`. Público "cambones" = `is_atendimento` falso; público "Grupos da corrente" (AM-23,
+  abaixo) = `publico = 'grupos'` + `comunicado_grupos`. E-mail "avisar agora" é do AM-15.
+- **Grupos da corrente (AM-23)**: migração `075_corrente_grupos` (§11.8; tabelas em `docs/database.md`), API
+  `/api/v1/admin/corrente-grupos*` (MEDIUNS + `area_medium`, regras em §3.3 e `docs/api.md` §14). Cor = chave
+  de paleta fechada (`ambar…grafite`, CHECK no banco) e o hex com contraste AA com branco em
+  `constants/correnteGrupos.ts` (teste de contraste; chaves conferidas contra o backend). Painel:
+  `/admin/mediuns/grupos` (menu Corrente → "Grupos da corrente" e botão "Grupos" na tela Médiuns, só com
+  `can('area_medium')`; gates `mediuns` view/insert/edit/delete): cartões com cor, contagem e nomes,
+  `CrudDrawer` (nome, cor sugerida = primeira livre, descrição, `MultiCombobox` de médiuns ativos), arquivar com
+  `ConfirmDialog` e "Mostrar arquivados"/"Trazer de volta". Tela Médiuns: etiquetas dos grupos na linha e campo
+  "Grupos" no drawer (só com MEDIUNS:edit e médium ativo; grava à parte em `PUT /corrente-grupos/mediuns/{id}`
+  quando mudou — `components/admin/mediuns/GruposDoMedium.tsx`). Avisos: opção "Grupos da corrente" no "Para
+  quem" com `MultiCombobox` de `/corrente-grupos/opcoes`, etiquetas na lista e "Só G1, G2" na descrição. Área:
+  "Seu grupo: G2" no Perfil (`components/medium/MeusGrupos.tsx`, de `me.grupos`). Kit novo:
+  `components/fields/MultiCombobox` e `components/grupos/GrupoChip`. Escalas, tipos de atividade e
+  `atividade_tipo_grupos` usam estes grupos no AM-08/AM-25.
 - **Agenda (AM-07)**: migração `073_giras_orientacoes_corrente` (`giras.orientacoes_corrente`, Text). Painel:
   campo "Orientações para a corrente" no drawer da gira (criar e editar; GIRAS insert/edit como os demais
   campos), componente `components/admin/giras/OrientacoesCorrenteField` — só aparece e só é enviado com

@@ -3,8 +3,9 @@
 Devolve só o que o próprio médium pode ver: nome, foto da conta, terreiro,
 marca (o mesmo subconjunto público de `GET /admin/tenant/branding`, que já é
 servido sem autenticação nas páginas de senha), áreas, módulos ligados e a
-configuração da Área (boas-vindas e WhatsApp da casa, AM-10) e quantos avisos ainda não foram
-lidos (selo da aba Avisos, AM-09).
+configuração da Área (boas-vindas e WhatsApp da casa, AM-10), quantos avisos ainda não foram
+lidos (selo da aba Avisos, AM-09) e os grupos da corrente em que o médium está (AM-23: só nome e
+cor dos PRÓPRIOS grupos — nunca quem mais está neles, D-07).
 Campos internos do cadastro (`observacoes`, contatos, mensalidade) ficam fora.
 """
 from typing import List, Optional
@@ -18,7 +19,7 @@ from src.api.dependencies import MediumContext, require_medium
 from src.api.v1.medium.avisos import avisos_do_medium
 from src.api.v1.auth.profile import _build_photo_url
 from src.core.database import get_db
-from src.models import Tenant, TenantConfig
+from src.models import CorrenteGrupo, CorrenteGrupoMembro, Tenant, TenantConfig
 from src.services.medium_area import areas_payload, get_area_medium_config, modulos_visiveis
 from src.services.plan_features import get_effective_plan_features
 from src.repositories.subscription_repo import SubscriptionRepository
@@ -43,6 +44,12 @@ class MarcaInfo(BaseModel):
     font_color: Optional[str] = None
 
 
+class MeuGrupo(BaseModel):
+    id: str
+    nome: str
+    cor: str
+
+
 class MediumMeResponse(BaseModel):
     nome: str
     foto_url: Optional[str] = None
@@ -58,6 +65,23 @@ class MediumMeResponse(BaseModel):
     whatsapp_casa: Optional[str] = None
     # Avisos que o médium ainda não leu (selo da aba Avisos, AM-09); 0 com o módulo desligado.
     avisos_nao_lidos: int = 0
+    # Grupos da corrente em que o médium está (AM-23), por nome. Sem os outros membros (D-07).
+    grupos: List[MeuGrupo] = []
+
+
+async def meus_grupos(db: AsyncSession, ctx: MediumContext) -> List[MeuGrupo]:
+    rows = await db.execute(
+        select(CorrenteGrupo.id, CorrenteGrupo.nome, CorrenteGrupo.cor)
+        .join(CorrenteGrupoMembro, CorrenteGrupoMembro.grupo_id == CorrenteGrupo.id)
+        .where(
+            CorrenteGrupoMembro.tenant_id == ctx.tenant_id,
+            CorrenteGrupoMembro.medium_id == ctx.medium.id,
+            CorrenteGrupo.tenant_id == ctx.tenant_id,
+            CorrenteGrupo.arquivado_em.is_(None),
+        )
+        .order_by(CorrenteGrupo.nome)
+    )
+    return [MeuGrupo(id=str(r[0]), nome=r[1], cor=r[2]) for r in rows.all()]
 
 
 @router.get("/me", response_model=MediumMeResponse)
@@ -105,4 +129,5 @@ async def get_medium_me(
         boas_vindas=area.boas_vindas,
         whatsapp_casa=area.whatsapp,
         avisos_nao_lidos=avisos_nao_lidos,
+        grupos=await meus_grupos(db, ctx),
     )

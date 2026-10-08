@@ -41,7 +41,7 @@ class User(SoftDeleteModel):
         Index("ix_users_is_active", "is_active"),
         Index("ix_users_email", "email"),
         Index("ix_users_reset_token_hash", "reset_token_hash"),
-        # Link de confirmação da troca de e-mail (AM-13, migração 074): um token, uma conta.
+        # Link de confirmação da troca de e-mail (AM-13, migração 076): um token, uma conta.
         Index("uq_users_email_pendente_token_hash", "email_pendente_token_hash", unique=True),
         # Super admins (tenant_id NULL) têm e-mail globalmente único (migração 039).
         # sqlite_where espelha o predicado para os testes que compilam em SQLite.
@@ -79,7 +79,7 @@ class User(SoftDeleteModel):
     # Bumped on password change / "logout all devices". Access tokens issued
     # before this timestamp are rejected on their next use (see get_current_user).
     sessions_revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # Troca do e-mail de login pedida pelo Perfil da Área do Médium (AM-13, migração 074): o
+    # Troca do e-mail de login pedida pelo Perfil da Área do Médium (AM-13, migração 076): o
     # e-mail só muda depois que o link enviado ao endereço NOVO é aberto. Token opaco guardado
     # como sha256, vale 24 h, uso único (as três colunas são limpas na confirmação); pedir de
     # novo troca o token e o link anterior deixa de valer.

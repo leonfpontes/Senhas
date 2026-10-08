@@ -7,16 +7,16 @@ as três colunas são limpas na confirmação (uso único) e trocadas a cada nov
 
 Criada em paralelo com a 075 (AM-23): no merge, a ordem final é acertada pelo orquestrador.
 
-Revision ID: 074_medium_email_pendente
-Revises: 073_giras_orientacoes_corrente
+Revision ID: 076_medium_email_pendente
+Revises: 075_corrente_grupos
 Create Date: 2026-10-07
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "074_medium_email_pendente"
-down_revision: str = "073_giras_orientacoes_corrente"
+revision: str = "076_medium_email_pendente"
+down_revision: str = "075_corrente_grupos"
 branch_labels = None
 depends_on = None
 

@@ -28,6 +28,7 @@ from .legal_acceptances import LegalAcceptance
 from .support_chat import SupportConversation, SupportMessage, SupportConversationStatus
 from .medium_convites import MediumConvite
 from .comunicados import Comunicado, ComunicadoLeitura, ComunicadoPublico
+from .corrente_grupos import ComunicadoGrupo, CorrenteGrupo, CorrenteGrupoMembro
 
 __all__ = [
     "Base",
@@ -61,6 +62,9 @@ __all__ = [
     "Comunicado",
     "ComunicadoLeitura",
     "ComunicadoPublico",
+    "ComunicadoGrupo",
+    "CorrenteGrupo",
+    "CorrenteGrupoMembro",
     "MensalidadeConfig",
     "MensalidadePagamento",
     "MensalidadeStatus",
