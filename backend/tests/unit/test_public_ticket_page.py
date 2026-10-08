@@ -57,7 +57,7 @@ def _gira(starts_in_hours=48.0):
     g.id = GIRA_ID
     g.tenant_id = TENANT_ID
     g.nome = "Gira de Pretos-Velhos"
-    g.data_inicio = datetime(2026, 10, 8, 22, 0, tzinfo=timezone.utc) + timedelta(hours=0)
+    g.data_inicio = datetime(2099, 10, 8, 22, 0, tzinfo=timezone.utc)  # data fixa no futuro (antes 2026 virou bomba-relógio)
     if starts_in_hours < 0:
         g.data_inicio = datetime.now(timezone.utc) + timedelta(hours=starts_in_hours)
     g.local = "Salão principal"
@@ -95,8 +95,8 @@ async def test_bilhete_completo():
     assert resp.status == "emitted" and resp.status_label == "Confirmada"
     assert resp.cancellable is True and resp.cancel_reason is None
     assert resp.gira_name == "Gira de Pretos-Velhos"
-    assert resp.gira_date == "08/10/2026 às 19:00"  # 22:00 UTC em Brasília
-    assert resp.gira_date_iso.startswith("2026-10-08T22:00:00")
+    assert resp.gira_date == "08/10/2099 às 19:00"  # 22:00 UTC em Brasília
+    assert resp.gira_date_iso.startswith("2099-10-08T22:00:00")
     assert resp.gira_local == "Salão principal"
     assert resp.recados == "Traga uma vela branca."
     assert resp.tenant_address == "Rua das Flores, 123 - São Paulo"
