@@ -1103,7 +1103,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa e Presença (AM-02/03/04/05/06/07/08/09/10/11/12/13/17/23/28, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença e ajustes do piloto (AM-02/03/04/05/06/07/08/09/10/11/12/13/17/23/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1178,7 +1178,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   abrir o banco, enviar comprovante; QR (`qrcode.react`) e chave recolhidos; "A casa trocou a chave PIX em dd/mm"
   por 30 dias. `EnviarComprovanteSheet`: câmera ou foto/PDF, prévia, foto reduzida no navegador para JPEG
   (`prepararComprovante`, até 2 MB), erros com a próxima ação. Início: o botão da pendência é "Pagar com PIX"
-  (`/medium/mensalidade?pagar=1` abre o sheet); "não confirmado" vira pendência ("Ver o motivo"); em conferência
+  (`/medium/mensalidade?pagar=1` abre o sheet) só quando `mensalidade.pix_disponivel` (AM-29: a casa tem chave
+  PIX; só o sim/não sai no `/medium/inicio`) — sem chave, "Ver mensalidade"; "não confirmado" vira pendência ("Ver o motivo"); em conferência
   fica em "Acompanhando". Backend e regras em §3.3 e §11.10.
 - **Avisos (AM-09; "Avisos" na tela, D-16 — tabelas e API admin `comunicados`)**: migrações 070 (ENUM) e 071
   (tabelas + acesso total no grupo padrão). Painel `/admin/comunicados` (menu Corrente → "Avisos", só com
@@ -1228,7 +1229,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   das orientações.
 - **Perfil (AM-13)**: `/medium/perfil` (`components/medium/perfil/*`): cabeçalho com a foto (ou iniciais) e "Trocar foto"
   (foto reduzida no navegador para JPEG de até 800 px, `prepararFotoPerfil`, reaproveitando `redesenharComoJpeg` da
-  mensalidade); "Meus dados" (telefone, endereço, nascimento; "Não informado" quando vazio) com "Editar" →
+  mensalidade) e, com foto, "Remover foto" (AM-29: `ConfirmDialog` com a paleta `.medium-terra` — prop nova
+  `className` do kit — e `DELETE /medium/perfil/foto`; volta às iniciais); "Meus dados" (telefone, endereço, nascimento; "Não informado" quando vazio) com "Editar" →
   `MeusDadosDrawer` (`CrudDrawer` com a paleta `.medium-terra` — prop nova `className` do kit, tela cheia no celular —,
   `MaskedInput` de telefone e de CEP, busca no ViaCEP por `lib/cep.ts`, `DateField` sem data futura); "Dados da casa"
   travados ("Só a direção da casa altera estes dados"); "Conta de acesso": e-mail (→ `TrocarEmailDrawer`: novo e-mail +
@@ -1263,9 +1265,11 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   vocabulario D-17/18/19 — "Voce esta na escala", "Vou"/"Nao vou", "Cheguei", "Conte o motivo"; nunca
   "convocado"/"check-in"; `constants/presenca.ts`): `EscalaCard` no Inicio (escalas que pedem acao no topo; ja
   respondidas em "Acompanhando") e no detalhe da Agenda; `MotivoSheet` (≤ 500, aviso "nao precisa detalhar
-  saude"); `ChegueiSheet` (modo QR: camera + `BarcodeDetector` nativo quando o navegador tem; senao a camera do
-  proprio celular le o QR, que e um link `/medium/agenda/{origem}/{id}?cheguei=<codigo>` — o detalhe marca
-  sozinho uma vez —, ou o codigo digitado; sem biblioteca nova); selo "Na escala"/"Vou"/"Nao vou" na lista da
+  saude"); `ChegueiSheet` (modo QR: camera dentro da Area + `lib/leitorQr` — `BarcodeDetector` nativo quando o
+  navegador tem (e le QR); senao (iPhone/Safari, AM-29) o `jsqr` (Apache-2.0) carregado so nessa hora por `import()`
+  dinamico, chunk proprio (~130 KB, ~47 KB gzip) fora das rotas, depois de a camera ser liberada; sem camera ou sem
+  rede para o chunk, a camera do proprio celular le o QR, que e um link `/medium/agenda/{origem}/{id}?cheguei=<codigo>`
+  — o detalhe marca sozinho uma vez —, ou o codigo digitado); selo "Na escala"/"Vou"/"Nao vou" na lista da
   Agenda; `pages/medium/presencas.tsx` (Perfil → "Minhas presencas": percentual, proximas, historico, "Conte o
   motivo (ate dd/mm)"). Impersonando, as acoes somem. Painel: `pages/admin/atividades/[id]/chamada.tsx`
   (gates `area_medium` + `atividades_corrente` + `escalas:edit` ou `porta:edit`; lista com busca, Presente/Ausente
@@ -1273,7 +1277,11 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   chamada" com `ConfirmDialog`, QR do dia com "Mostrar o QR em tela cheia"), `ConfirmacoesSheet` e botoes
   "Confirmacoes"/"Chamada" na Agenda da casa, `ChamadaDaGiraButton` no cartao da gira (`GiraCard.extraAction`,
   do dia da gira em diante) e na Porta, e o QR no canto do modo TV (`components/admin/presenca/QrPresenca`,
-  sem dado pessoal; so com a Area liberada e a presenca no plano).
+  sem dado pessoal; so com a Area liberada e a presenca no plano). "Por na escala" com grupos (AM-29):
+  `components/admin/atividades/PorNaEscalaCampos` (`MultiCombobox` de grupos de `/corrente-grupos/opcoes` com
+  `GrupoChip` dos escolhidos + `MultiCombobox` de medium) no `ConfirmacoesSheet` e no drawer de criar atividade de
+  tipo "so escalados" (medium de `GET /admin/atividades/convocar/mediuns`; cria e depois chama o `convocar`, um
+  toast so com o resumo `novos · ja estavam · fora de quem pode participar`); tudo so com `escalas:insert`.
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
@@ -1310,8 +1318,9 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   Página nova de primeiro nível → `backend/src/core/reserved_slugs.py` (teste quebra se faltar) e
   `STATIC_ROUTES` do `pages/sitemap.xml.tsx`.
 - **Área do Médium (AM-06)**: identidade do site novo (paleta terra + Fraunces) com a COR E O LOGO DO TERREIRO nos
-  detalhes. Escopo `.medium-terra` (globals.css; `MediumLayout`, `/escolher-area` e os overlays que eles abrem — Sheet e
-  DropdownMenu recebem a classe e `fraunces.variable`, porque são portados para o `<body>`): fundos/texto/bordas da
+  detalhes. Escopo `.medium-terra` (globals.css; `MediumLayout`, `/escolher-area` e os overlays que eles abrem — Sheet,
+  DropdownMenu e `ConfirmDialog` (prop `className`, AM-29) recebem a classe e `fraunces.variable`, porque são portados
+  para o `<body>`): fundos/texto/bordas da
   paleta terra (areia no claro, café no escuro), mas `--primary`/`--primary-foreground` continuam do `applyBrand` (botão
   principal, aba ativa, data da gira, linha do cabeçalho) e `text-brand` lê `--terra-brand-text-light/-dark`, calculadas
   por `applyTerraBrandText` (`lib/brand.brandTextColorOn` contra `TERRA_SURFACES`). Faixas café (`bg-cafe-950`) com título

@@ -1,10 +1,11 @@
 /**
  * "Cheguei" com o QR do dia (AM-28) — folha da Área do Médium.
  *
- * Três caminhos, sem biblioteca nova (bundle sem mudança):
- * 1. Leitor dentro da Área: câmera traseira (`getUserMedia`) + `BarcodeDetector` nativo do
- *    navegador (Chrome/Edge no Android). Leu o QR → manda o código.
- * 2. Câmera do próprio celular (iPhone e quem não tem o leitor nativo): o QR é um link da Área com
+ * Três caminhos:
+ * 1. Leitor dentro da Área: câmera traseira (`getUserMedia`) + `lib/leitorQr` — o
+ *    `BarcodeDetector` nativo (Chrome/Edge no Android) ou, sem ele (iPhone, AM-29), o `jsqr`
+ *    baixado só nessa hora (chunk próprio). Leu o QR → manda o código.
+ * 2. Câmera do próprio celular (sem câmera na Área ou sem os leitores): o QR é um link da Área com
  *    `?cheguei=<código>` — a câmera abre a Área e o detalhe da atividade já marca o "Cheguei".
  * 3. Sem câmera ou sem permissão: digitar o código curto que aparece embaixo do QR.
  *
@@ -17,20 +18,8 @@ import { MediumSheet } from '@/components/medium/mensalidade/MediumSheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { criarLeitorQr, temCamera } from '@/lib/leitorQr';
 import { codigoDoErro, codigoDoQr, mensagemDoErro } from './presencaApi';
-
-interface DetectorDeCodigo {
-  detect: (fonte: CanvasImageSource) => Promise<{ rawValue: string }[]>;
-}
-type DetectorCtor = new (opcoes?: { formats?: string[] }) => DetectorDeCodigo;
-
-function detectorNativo(): DetectorCtor | null {
-  if (typeof window === 'undefined') return null;
-  const ctor = (window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector;
-  if (!ctor || typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia)
-    return null;
-  return ctor;
-}
 
 export interface ChegueiSheetProps {
   open: boolean;
@@ -88,12 +77,12 @@ export function ChegueiSheet({ open, onOpenChange, titulo, onCodigo }: ChegueiSh
     }
     setCodigo('');
     setErro(null);
-    const Ctor = detectorNativo();
-    if (!Ctor) {
+    if (!temCamera()) {
       setCamera('sem_leitor');
       return;
     }
     let ativo = true;
+    let lendo = false;
     let timer: ReturnType<typeof setInterval> | null = null;
     setCamera('abrindo');
     navigator.mediaDevices
@@ -104,23 +93,35 @@ export function ChegueiSheet({ open, onOpenChange, titulo, onCodigo }: ChegueiSh
           return;
         }
         streamRef.current = stream;
+        // Câmera liberada: só agora escolhe o leitor (no iPhone baixa o jsqr; negar a câmera
+        // não baixa nada).
+        const leitor = await criarLeitorQr();
+        if (!ativo) return;
+        if (!leitor) {
+          pararCamera();
+          setCamera('sem_leitor');
+          return;
+        }
         const video = videoRef.current;
         if (video) {
           video.srcObject = stream;
           await video.play().catch(() => undefined);
         }
+        if (!ativo) return;
         setCamera('lendo');
-        const detector = new Ctor({ formats: ['qr_code'] });
         timer = setInterval(() => {
           const v = videoRef.current;
-          if (!v || v.readyState < 2 || ocupadoRef.current) return;
-          detector
-            .detect(v)
-            .then((achados) => {
-              const lido = achados[0]?.rawValue;
+          if (!v || v.readyState < 2 || ocupadoRef.current || lendo) return;
+          lendo = true;
+          leitor
+            .ler(v)
+            .then((lido) => {
               if (lido) void enviar(lido);
             })
-            .catch(() => undefined);
+            .catch(() => undefined)
+            .finally(() => {
+              lendo = false;
+            });
         }, 350);
       })
       .catch(() => ativo && setCamera('negada'));

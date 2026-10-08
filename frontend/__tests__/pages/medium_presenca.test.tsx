@@ -4,6 +4,8 @@
  * ausente → câmera do celular ou código), selo da escala na Agenda, "Cheguei" pelo link do QR no
  * detalhe (`?cheguei=`), "Minhas presenças" (percentual, histórico, "Conte o motivo" no prazo) e
  * impersonação só leitura. Só chama /api/v1/medium/*; nunca "convocado" nem "check-in" na tela.
+ * AM-29: sem BarcodeDetector (iPhone) a câmera abre dentro da Área e o jsQR (baixado sob demanda,
+ * aqui mockado) lê o QR.
  */
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -18,6 +20,8 @@ const mockRouter: any = {
   events: { on: jest.fn(), off: jest.fn() },
 };
 jest.mock('next/router', () => ({ useRouter: () => mockRouter }));
+const mockJsQr = jest.fn();
+jest.mock('jsqr', () => ({ __esModule: true, default: (...a: unknown[]) => mockJsQr(...a) }));
 jest.mock('next/compat/router', () => ({ useRouter: () => mockRouter }));
 jest.mock('next/head', () => ({
   __esModule: true,
@@ -302,6 +306,73 @@ describe('Início — Você está na escala', () => {
       { timeout: 3000 },
     );
     await waitFor(() => expect(stop).toHaveBeenCalled());
+  });
+
+  it('sem BarcodeDetector (iPhone): a câmera abre na Área e o jsQR lê o QR', async () => {
+    const stop = jest.fn();
+    const antes = (navigator as any).mediaDevices;
+    (navigator as any).mediaDevices = {
+      getUserMedia: jest.fn(() => Promise.resolve({ getTracks: () => [{ stop }] })),
+    };
+    mockJsQr.mockReturnValue({ data: 'https://girahub.com.br/medium/agenda/atividade/f1?cheguei=XYZ789' });
+    const getContext = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      () =>
+        ({
+          drawImage: jest.fn(),
+          getImageData: (_x: number, _y: number, w: number, h: number) => ({
+            data: new Uint8ClampedArray(w * h * 4),
+            width: w,
+            height: h,
+          }),
+        }) as unknown as CanvasRenderingContext2D,
+    );
+    Object.defineProperty(HTMLMediaElement.prototype, 'readyState', { configurable: true, get: () => 4 });
+    Object.defineProperty(HTMLVideoElement.prototype, 'videoWidth', { configurable: true, get: () => 640 });
+    Object.defineProperty(HTMLVideoElement.prototype, 'videoHeight', { configurable: true, get: () => 480 });
+    HTMLMediaElement.prototype.play = jest.fn(() => Promise.resolve());
+    try {
+      api({
+        '/api/v1/medium/me': ME,
+        '/api/v1/medium/inicio': inicio([escala({ modo_presenca: 'qr', pode_checkin: true })]),
+      });
+      mockPost.mockResolvedValue({ data: participacao({ presenca: 'presente', situacao: 'presente' }) });
+      const Page = require('@/pages/medium/index').default;
+      renderApp(<Page />);
+      const card = await screen.findByTestId('escala-card');
+      fireEvent.click(within(card).getByRole('button', { name: 'Cheguei' }));
+      const sheet = await screen.findByTestId('cheguei-sheet');
+      expect(within(sheet).queryByTestId('cheguei-sem-leitor')).not.toBeInTheDocument();
+      await waitFor(
+        () => expect(mockPost).toHaveBeenCalledWith(`${ACAO}/checkin`, { codigo: 'XYZ789' }),
+        { timeout: 3000 },
+      );
+      expect(mockJsQr).toHaveBeenCalled();
+      await waitFor(() => expect(stop).toHaveBeenCalled());
+    } finally {
+      getContext.mockRestore();
+      (navigator as any).mediaDevices = antes;
+    }
+  });
+
+  it('sem câmera nenhuma: não baixa o jsQR; câmera do celular ou código', async () => {
+    const antes = (navigator as any).mediaDevices;
+    (navigator as any).mediaDevices = undefined;
+    try {
+      api({
+        '/api/v1/medium/me': ME,
+        '/api/v1/medium/inicio': inicio([escala({ modo_presenca: 'qr', pode_checkin: true })]),
+      });
+      const Page = require('@/pages/medium/index').default;
+      renderApp(<Page />);
+      const card = await screen.findByTestId('escala-card');
+      fireEvent.click(within(card).getByRole('button', { name: 'Cheguei' }));
+      const sheet = await screen.findByTestId('cheguei-sheet');
+      expect(within(sheet).getByTestId('cheguei-sem-leitor')).toBeInTheDocument();
+      expect(within(sheet).getByLabelText('Código embaixo do QR')).toBeInTheDocument();
+      expect(mockJsQr).not.toHaveBeenCalled();
+    } finally {
+      (navigator as any).mediaDevices = antes;
+    }
   });
 
   it('impersonando: só leitura (sem Vou/Não vou)', async () => {

@@ -252,6 +252,38 @@ describe('foto', () => {
     expect(mockPost).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent('Escolha uma foto');
   });
+
+  it('remover foto (AM-29): confirma na paleta da Área e volta às iniciais', async () => {
+    mockDelete.mockResolvedValue({ data: { message: 'Foto removida.', foto_url: null } });
+    montar({ ...PERFIL, foto_url: 'https://api/photo' });
+    expect(await screen.findByTestId('perfil-foto')).toHaveAttribute('src', 'https://api/photo');
+
+    // Cancelar não apaga.
+    fireEvent.click(screen.getByTestId('perfil-remover-foto'));
+    let dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveClass('medium-terra');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(mockDelete).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('perfil-remover-foto'));
+    dialog = await screen.findByRole('alertdialog');
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Remover foto' }));
+    });
+    expect(mockDelete).toHaveBeenCalledWith('/api/v1/medium/perfil/foto');
+    await waitFor(() => expect(screen.queryByTestId('perfil-foto')).not.toBeInTheDocument());
+    expect(screen.getByText('AP')).toBeInTheDocument();
+    expect(screen.queryByTestId('perfil-remover-foto')).not.toBeInTheDocument();
+    expect(mockSuccess).toHaveBeenCalledWith('Foto removida.');
+    expect(calledUrls().every((u) => !u.startsWith('/api/v1/admin'))).toBe(true);
+  });
+
+  it('sem foto não há "Remover foto"', async () => {
+    montar();
+    await screen.findByTestId('perfil-meus-dados');
+    expect(screen.queryByTestId('perfil-remover-foto')).not.toBeInTheDocument();
+  });
 });
 
 describe('trocar e-mail', () => {
@@ -364,8 +396,9 @@ describe('trocar senha', () => {
 describe('impersonando', () => {
   it('só leitura: sem editar, trocar foto, e-mail ou senha', async () => {
     sessionStorage.setItem('impersonating', '1');
-    montar();
+    montar({ ...PERFIL, foto_url: 'https://api/photo' });
     await screen.findByTestId('perfil-meus-dados');
+    expect(screen.queryByTestId('perfil-remover-foto')).not.toBeInTheDocument();
     expect(screen.getByTestId('perfil-somente-leitura')).toBeInTheDocument();
     expect(screen.queryByTestId('perfil-editar-dados')).not.toBeInTheDocument();
     expect(screen.queryByTestId('perfil-trocar-foto')).not.toBeInTheDocument();

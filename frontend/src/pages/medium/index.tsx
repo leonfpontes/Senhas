@@ -8,6 +8,8 @@
  * Escala (AM-17/AM-28): cada escala que pede ação vira um cartão "Você está na escala" no topo
  * (`EscalaCard`: Vou / Não vou com "Conte o motivo", "Responda até…", "Cheguei" na janela — no
  * modo QR abre o leitor); as já respondidas ficam em "Acompanhando".
+ * Mensalidade em aberto (AM-11/AM-29): "Pagar com PIX" só quando a casa cadastrou a chave
+ * (`mensalidade.pix_disponivel`); sem chave, "Ver mensalidade" (a tela diz como combinar com a casa).
  */
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -54,6 +56,8 @@ export interface InicioMensalidade {
   valor?: number | null;
   vencimento?: string | null;
   data_pagamento?: string | null;
+  /** AM-29: a casa cadastrou a chave PIX (só o sim/não; a chave nunca vem no Início). */
+  pix_disponivel?: boolean;
 }
 
 export type InicioPendencia =
@@ -123,7 +127,7 @@ function EscalasAcompanhando({ escalas }: { escalas: ItemPresenca[] }) {
   );
 }
 
-function Pendencia({ p }: { p: InicioPendencia }) {
+function Pendencia({ p, pixDisponivel }: { p: InicioPendencia; pixDisponivel: boolean }) {
   if (p.tipo === 'mensalidade' && p.situacao === 'nao_confirmada') {
     return (
       <article className={CARD} data-testid="pendencia-mensalidade">
@@ -168,8 +172,12 @@ function Pendencia({ p }: { p: InicioPendencia }) {
           )}
         </div>
         <Button asChild size="touch" className="w-full font-bold">
-          {/* AM-11: abre direto o "Pagar com PIX" do mês. */}
-          <Link href="/medium/mensalidade?pagar=1">Pagar com PIX</Link>
+          {/* AM-11: abre direto o "Pagar com PIX" do mês — só se a casa tem chave (AM-29). */}
+          {pixDisponivel ? (
+            <Link href="/medium/mensalidade?pagar=1">Pagar com PIX</Link>
+          ) : (
+            <Link href="/medium/mensalidade">Ver mensalidade</Link>
+          )}
         </Button>
       </article>
     );
@@ -402,7 +410,11 @@ function Inicio() {
                       />
                     ))
                   ) : (
-                    <Pendencia key={`${p.tipo}-${i}`} p={p} />
+                    <Pendencia
+                      key={`${p.tipo}-${i}`}
+                      p={p}
+                      pixDisponivel={Boolean(data?.mensalidade?.pix_disponivel)}
+                    />
                   ),
                 )}
               </section>

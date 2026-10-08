@@ -1,6 +1,8 @@
 /**
  * ConfirmDialog — confirmação simples (excluir, cancelar, etc.) sobre o AlertDialog do shadcn.
  * Mesma API da versão MUI; `destructive` usa `buttonVariants({ variant: 'destructive' })`.
+ * `className` vai para o conteúdo (portado para o `<body>`): a Área do Médium passa
+ * `medium-terra` + a Fraunces, como no `CrudDrawer`.
  */
 import React from 'react';
 import { cn } from '@/lib/utils';
@@ -26,6 +28,7 @@ export interface ConfirmDialogProps {
   loading?:     boolean;
   onConfirm:   () => void;
   onCancel:    () => void;
+  className?:  string;
 }
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -38,6 +41,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   loading     = false,
   onConfirm,
   onCancel,
+  className,
 }) => (
   <AlertDialog
     open={open}
@@ -45,7 +49,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       if (!next && !loading) onCancel();
     }}
   >
-    <AlertDialogContent size="sm">
+    <AlertDialogContent size="sm" className={className}>
       <AlertDialogHeader>
         <AlertDialogTitle className="font-bold">{title}</AlertDialogTitle>
         {typeof message === 'string' ? (
