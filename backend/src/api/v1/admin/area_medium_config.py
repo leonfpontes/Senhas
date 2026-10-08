@@ -4,8 +4,11 @@
     PUT /api/v1/admin/config/area-medium   — CONFIGURACOES:edit + plano `area_medium`
 
 O terreiro decide se a Área fica ligada, a mensagem de boas-vindas, o WhatsApp da
-casa ("Falar com a casa") e quais módulos o médium vê (agenda, avisos,
-mensalidade). O gate `area_medium` já exige a chave do piloto
+casa ("Falar com a casa"), quais módulos o médium vê (agenda, avisos,
+mensalidade) e — AM-17/AM-28 — a presença: modo padrão da casa (confiança ·
+"Cheguei" pelo app · "Cheguei" com QR; cada tipo de atividade pode ajustar) e o
+prazo para o médium contar o motivo de uma falta (1 a 30 dias, padrão 7).
+Trocar o modo vale para as próximas chamadas; presença já registrada não muda. O gate `area_medium` já exige a chave do piloto
 (`tenants.area_medium_liberada`): sem ela, 403 aqui também.
 
 Os valores ficam em colunas `area_medium_*` de `tenant_configs` (migração 068) e são
@@ -29,6 +32,7 @@ from src.repositories.config_repo import TenantConfigRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.audit_service import AuditService
 from src.services.plan_features import get_effective_plan_features
+from src.services.presenca import modo_efetivo, validar_modo, validar_prazo
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-area-medium"])
 
@@ -48,6 +52,16 @@ class AreaMediumModulosUpdate(BaseModel):
     mensalidade: Optional[bool] = None
 
 
+class PresencaConfig(BaseModel):
+    modo_padrao: str = "confianca"
+    prazo_justificativa_dias: int = 7
+
+
+class PresencaConfigUpdate(BaseModel):
+    modo_padrao: Optional[str] = None
+    prazo_justificativa_dias: Optional[int] = None
+
+
 class AreaMediumConfigResponse(BaseModel):
     ativa: bool
     boas_vindas: Optional[str] = None
@@ -56,6 +70,9 @@ class AreaMediumConfigResponse(BaseModel):
     modulos: AreaMediumModulos
     # A mensalidade na Área também depende do plano (`mensalidade_mediun`): a tela avisa.
     mensalidade_no_plano: bool
+    presenca: PresencaConfig
+    # A presença só vale com o plano `atividades_corrente`: a tela só mostra a seção com ele.
+    presenca_no_plano: bool
 
 
 class AreaMediumConfigUpdate(BaseModel):
@@ -63,6 +80,7 @@ class AreaMediumConfigUpdate(BaseModel):
     boas_vindas: Optional[str] = Field(None, max_length=BOAS_VINDAS_MAX)
     whatsapp: Optional[str] = None
     modulos: Optional[AreaMediumModulosUpdate] = None
+    presenca: Optional[PresencaConfigUpdate] = None
 
 
 def normalizar_whatsapp(valor: Optional[str]) -> Optional[str]:
@@ -89,12 +107,20 @@ def _snapshot(config: TenantConfig) -> dict:
             "avisos": config.area_medium_avisos,
             "mensalidade": config.area_medium_mensalidade,
         },
+        "presenca": {
+            "modo_padrao": modo_efetivo(None, config.presenca_modo_padrao),
+            "prazo_justificativa_dias": config.presenca_prazo_justificativa_dias,
+        },
     }
 
 
 async def _response(db: AsyncSession, tenant_id, config: TenantConfig) -> AreaMediumConfigResponse:
     features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(tenant_id))
-    return AreaMediumConfigResponse(**_snapshot(config), mensalidade_no_plano=features.mensalidade_mediun)
+    return AreaMediumConfigResponse(
+        **_snapshot(config),
+        mensalidade_no_plano=features.mensalidade_mediun,
+        presenca_no_plano=features.atividades_corrente,
+    )
 
 
 @router.get(
@@ -139,6 +165,11 @@ async def update_area_medium_config(
             config.area_medium_avisos = body.modulos.avisos
         if body.modulos.mensalidade is not None:
             config.area_medium_mensalidade = body.modulos.mensalidade
+    if body.presenca is not None:
+        if body.presenca.modo_padrao is not None:
+            config.presenca_modo_padrao = validar_modo(body.presenca.modo_padrao)
+        if body.presenca.prazo_justificativa_dias is not None:
+            config.presenca_prazo_justificativa_dias = validar_prazo(body.presenca.prazo_justificativa_dias)
     await db.flush()
 
     await AuditService(db).log_config_change(

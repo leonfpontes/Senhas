@@ -3,11 +3,12 @@
  *
  * Formato unificado (`GET /api/v1/medium/agenda`): `{origem, id, tipo{nome, icone, cor}, titulo,
  * inicio, fim, local, cancelada, minha_participacao}`. Giras e, desde o AM-08, as atividades da casa
- * que o médium pode ver (tipo com ícone e cor). O AM-17 preenche `minha_participacao` sem mudar o
- * formato.
+ * que o médium pode ver (tipo com ícone e cor). `minha_participacao` (AM-17): na escala ou não,
+ * resposta, presença e o que dá para fazer agora (`constants/presenca.MinhaParticipacao`).
  */
 import { BR_TIME_ZONE, monthLabelLong } from '@/lib/dateBr';
 import { whatsappShareUrl } from '@/components/public/bilhete-utils';
+import type { MinhaParticipacao } from '@/constants/presenca';
 import { horaBr, quandoBr } from './format';
 
 export type AgendaOrigem = 'gira' | 'atividade';
@@ -22,7 +23,7 @@ export interface AgendaItem {
   local?: string | null;
   /** Atividade cancelada pela casa: continua na agenda, marcada. */
   cancelada?: boolean;
-  minha_participacao?: Record<string, unknown> | null;
+  minha_participacao?: MinhaParticipacao | null;
 }
 
 export interface AgendaResponse {

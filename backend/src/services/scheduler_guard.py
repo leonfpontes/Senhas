@@ -17,6 +17,7 @@ Chaves de lock em uso (bigint, prefixo "girahub"):
   0x6769726168756201 onboarding_email_scheduler
   0x6769726168756202 trial_scheduler
   0x6769726168756203 birthday_scheduler
+  0x6769726168756204 presenca_scheduler (encerramento automático da chamada, AM-17)
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 TRIAL_LOCK_KEY = 0x6769726168756202
 BIRTHDAY_LOCK_KEY = 0x6769726168756203
+PRESENCA_LOCK_KEY = 0x6769726168756204
 
 
 @asynccontextmanager

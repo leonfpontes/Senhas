@@ -29,6 +29,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { addDaysIso } from '@/lib/dateBr';
 import { cn } from '@/lib/utils';
+import { CLASSE_TOM } from '@/constants/presenca';
+import { seloDaAgenda } from '@/components/medium/presenca/presencaApi';
 import { apiClient } from '@/services/api_client';
 
 type Filtro = 'tudo' | AgendaOrigem;
@@ -43,6 +45,8 @@ export default function MediumAgendaPage() {
 
 function Item({ item }: { item: AgendaItem }) {
   const passou = jaPassou(item);
+  // AM-17: "Na escala" / "Vou" / "Não vou" / "Presente" — só a participação do próprio médium.
+  const selo = item.cancelada ? null : seloDaAgenda(item.minha_participacao);
   const semana = quandoBr(item.inicio).split(',')[0];
   return (
     <li>
@@ -61,12 +65,20 @@ function Item({ item }: { item: AgendaItem }) {
           </span>
           <span className="flex flex-wrap gap-1.5">
             <TipoChip tipo={item.tipo} />
+            {selo && (
+              <span
+                className={cn('rounded-full px-2.5 py-0.5 text-sm font-semibold', CLASSE_TOM[selo.tom])}
+                data-testid="selo-escala"
+              >
+                {selo.texto}
+              </span>
+            )}
             {item.cancelada && (
               <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-sm font-semibold text-destructive-strong">
                 Cancelada
               </span>
             )}
-            {passou && !item.cancelada && (
+            {passou && !item.cancelada && !selo && (
               <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-semibold text-muted-foreground">
                 Já aconteceu
               </span>

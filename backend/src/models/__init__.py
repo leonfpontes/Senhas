@@ -29,7 +29,7 @@ from .support_chat import SupportConversation, SupportMessage, SupportConversati
 from .medium_convites import MediumConvite
 from .comunicados import Comunicado, ComunicadoLeitura, ComunicadoPublico
 from .corrente_grupos import ComunicadoGrupo, CorrenteGrupo, CorrenteGrupoMembro
-from .atividades import Atividade, AtividadeTipo, AtividadeTipoGrupo, FuncaoCorrente
+from .atividades import Atividade, AtividadeParticipacao, AtividadeTipo, AtividadeTipoGrupo, FuncaoCorrente
 
 __all__ = [
     "Base",
@@ -67,6 +67,7 @@ __all__ = [
     "CorrenteGrupo",
     "CorrenteGrupoMembro",
     "Atividade",
+    "AtividadeParticipacao",
     "AtividadeTipo",
     "AtividadeTipoGrupo",
     "FuncaoCorrente",

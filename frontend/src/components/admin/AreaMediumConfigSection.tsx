@@ -5,6 +5,11 @@
  * (botão "Falar com a casa") e escolhe os módulos que o médium vê. Salva sozinha em
  * `PUT /api/v1/admin/config/area-medium` (fora da barra "Salvar" da página).
  *
+ * Presença (AM-17/AM-28, só com `presenca_no_plano` — plano `atividades_corrente`): modo padrão
+ * da casa (confiança · "Cheguei" pelo app · "Cheguei" com o QR do dia; cada tipo de atividade
+ * pode ajustar em Atividades → Tipos e funções) e o prazo para o médium contar o motivo de uma
+ * falta (1 a 30 dias). Trocar o modo vale para as próximas chamadas; presença já registrada fica.
+ *
  * Quem monta só renderiza com `can('area_medium')` (plano + chave do piloto) e
  * `canGroup('configuracoes', 'view')`; `canEdit` = `canGroup('configuracoes', 'edit')`
  * — sem ele os campos ficam só leitura e o botão de salvar some.
@@ -17,7 +22,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
+import { OPCOES_MODO_PRESENCA, type ModoPresenca } from '@/constants/presenca';
 import { cn } from '@/lib/utils';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { useSnackbar } from '@/contexts/SnackbarContext';
@@ -33,6 +40,8 @@ interface AreaMediumConfigApi {
   whatsapp: string | null;
   modulos: Record<Modulo, boolean>;
   mensalidade_no_plano: boolean;
+  presenca?: { modo_padrao: ModoPresenca; prazo_justificativa_dias: number };
+  presenca_no_plano?: boolean;
 }
 
 interface FormState {
@@ -40,7 +49,12 @@ interface FormState {
   boasVindas: string;
   whatsapp: string;
   modulos: Record<Modulo, boolean>;
+  presencaModo: ModoPresenca;
+  prazo: string;
 }
+
+const PRAZO_MIN = 1;
+const PRAZO_MAX = 30;
 
 const MODULOS: { key: Modulo; title: string; description: string }[] = [
   { key: 'agenda', title: 'Agenda', description: 'Giras e atividades da casa.' },
@@ -60,6 +74,8 @@ function toForm(data: AreaMediumConfigApi): FormState {
     boasVindas: data.boas_vindas ?? '',
     whatsapp: whatsappParaCampo(data.whatsapp),
     modulos: { ...data.modulos },
+    presencaModo: data.presenca?.modo_padrao ?? 'confianca',
+    prazo: String(data.presenca?.prazo_justificativa_dias ?? 7),
   };
 }
 
@@ -100,6 +116,7 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mensalidadeNoPlano, setMensalidadeNoPlano] = useState(true);
+  const [presencaNoPlano, setPresencaNoPlano] = useState(false);
   const [saved, setSaved] = useState<FormState | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
 
@@ -113,6 +130,7 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
         setForm(next);
         setSaved(next);
         setMensalidadeNoPlano(res.data.mensalidade_no_plano);
+        setPresencaNoPlano(Boolean(res.data.presenca_no_plano));
       })
       .catch(() => !cancelled && setLoadError(true))
       .finally(() => !cancelled && setLoading(false));
@@ -124,6 +142,11 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
   const isDirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(saved), [form, saved]);
   const whatsappDigits = form ? unmask(form.whatsapp) : '';
   const whatsappError = whatsappDigits && !/^[1-9][1-9]\d{8,9}$/.test(whatsappDigits) ? 'Número com DDD, ex.: (11) 98765-4321.' : undefined;
+  const prazoNumero = form ? Number(form.prazo) : 7;
+  const prazoError =
+    presencaNoPlano && (!Number.isInteger(prazoNumero) || prazoNumero < PRAZO_MIN || prazoNumero > PRAZO_MAX)
+      ? `De ${PRAZO_MIN} a ${PRAZO_MAX} dias.`
+      : undefined;
 
   if (loading) return <Skeleton className="h-72 w-full" aria-label="Carregando a Área do Médium" />;
   if (loadError || !form) {
@@ -139,7 +162,7 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
   const setModulo = (key: Modulo, value: boolean) => setForm((f) => (f ? { ...f, modulos: { ...f.modulos, [key]: value } } : f));
 
   const handleSave = async () => {
-    if (!canEdit || whatsappError) return;
+    if (!canEdit || whatsappError || prazoError) return;
     setSaving(true);
     try {
       const res = await apiClient.put<AreaMediumConfigApi>(AREA_MEDIUM_CONFIG_URL, {
@@ -147,6 +170,9 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
         boas_vindas: form.boasVindas,
         whatsapp: whatsappDigits,
         modulos: form.modulos,
+        ...(presencaNoPlano
+          ? { presenca: { modo_padrao: form.presencaModo, prazo_justificativa_dias: prazoNumero } }
+          : {}),
       });
       const next = toForm(res.data);
       setForm(next);
@@ -222,10 +248,54 @@ export function AreaMediumConfigSection({ canEdit }: { canEdit: boolean }) {
           ))}
         </div>
 
+        {presencaNoPlano && (
+          <fieldset className="flex flex-col gap-3" data-testid="area-medium-presenca">
+            <legend className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+              Presença nas giras e atividades
+            </legend>
+            <RadioGroup
+              value={form.presencaModo}
+              onValueChange={(v) => set('presencaModo', v as ModoPresenca)}
+              disabled={!canEdit}
+              className="flex flex-col gap-2"
+              aria-label="Como a presença é marcada"
+            >
+              {OPCOES_MODO_PRESENCA.map((o) => (
+                <Label
+                  key={o.valor}
+                  htmlFor={`area-medium-presenca-${o.valor}`}
+                  className="flex cursor-pointer items-start gap-2 rounded-xl border bg-card p-4 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
+                >
+                  <RadioGroupItem id={`area-medium-presenca-${o.valor}`} value={o.valor} className="mt-0.5" />
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-sm font-semibold">{o.rotulo}</span>
+                    {o.ajuda && <span className="text-xs font-normal text-muted-foreground">{o.ajuda}</span>}
+                  </span>
+                </Label>
+              ))}
+            </RadioGroup>
+            <p className="text-xs text-muted-foreground">
+              Cada tipo de atividade pode usar outro modo (Atividades e escalas → Tipos e funções). Trocar o modo vale
+              para as próximas chamadas; presença já registrada não muda.
+            </p>
+            <TextField
+              label="Prazo para contar o motivo de uma falta (dias)"
+              type="number"
+              min={PRAZO_MIN}
+              max={PRAZO_MAX}
+              value={form.prazo}
+              onChange={(e) => set('prazo', e.target.value)}
+              disabled={!canEdit}
+              error={prazoError}
+              helperText="Depois da atividade, o médium tem esses dias para contar por que faltou."
+            />
+          </fieldset>
+        )}
+
         {canEdit && (
           <div className="flex items-center justify-end gap-3">
             {isDirty && <span className="text-sm text-muted-foreground">Alterações não salvas</span>}
-            <Button type="button" onClick={handleSave} disabled={saving || !isDirty || Boolean(whatsappError)}>
+            <Button type="button" onClick={handleSave} disabled={saving || !isDirty || Boolean(whatsappError) || Boolean(prazoError)}>
               {saving ? <Loader2 className="animate-spin" aria-hidden /> : <Save aria-hidden />}
               Salvar Área do Médium
             </Button>

@@ -8,6 +8,9 @@
  * vê); excluir pede confirmação. Atividade interna nunca conta no limite de giras do plano e nunca
  * vai ao site (D-03). A gira de verdade continua na tela Giras.
  * Aba "Tipos e funções": `components/admin/atividades/TiposEFuncoes`.
+ * Presença (AM-17): em cada gira/atividade, "Confirmações" (painel com quem vai, quem não vai e o
+ * motivo, "Pôr na escala"/"Tirar da escala" — `ConfirmacoesSheet`, escalas view/insert/edit) e
+ * "Chamada" (`/admin/atividades/[id]/chamada`, escalas edit; a gira cria a âncora antes).
  *
  * Gates (CLAUDE.md): sem `can('area_medium')` (plano + chave do piloto) a tela mostra só um aviso
  * neutro; sem `atividades_corrente` no plano, `PlanLocked`; grupo de permissão `escalas`: view para
@@ -16,9 +19,12 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import {
   Ban,
   CalendarDays,
+  ClipboardCheck,
+  Users,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -37,6 +43,7 @@ import CrudDrawer from '@/components/CrudDrawer';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { API_ATIVIDADES, TiposEFuncoes } from '@/components/admin/atividades/TiposEFuncoes';
+import { ConfirmacoesSheet, type AlvoConfirmacoes } from '@/components/admin/atividades/ConfirmacoesSheet';
 import { TipoChip } from '@/components/atividades/TipoChip';
 import { EmptyState } from '@/components/EmptyState';
 import { DateTimeField, TextField } from '@/components/fields';
@@ -196,6 +203,8 @@ function AgendaDaCasa({
   const [cancelando, setCancelando] = useState(false);
   const [excluir, setExcluir] = useState<CalendarioItem | null>(null);
   const [excluindo, setExcluindo] = useState(false);
+  const [confirmacoes, setConfirmacoes] = useState<AlvoConfirmacoes | null>(null);
+  const router = useRouter();
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -369,6 +378,22 @@ function AgendaDaCasa({
     }
   };
 
+  const controlaPresenca = (item: CalendarioItem) =>
+    item.origem === 'gira' || Boolean(tipos.find((t) => t.id === item.tipo.id)?.controla_presenca);
+
+  const abrirChamada = async (item: CalendarioItem) => {
+    if (item.origem === 'atividade') {
+      await router.push(`/admin/atividades/${item.id}/chamada`);
+      return;
+    }
+    try {
+      const res = await apiClient.post<{ atividade_id: string }>(`${API_ATIVIDADES}/da-gira/${item.id}/chamada`);
+      await router.push(`/admin/atividades/${res.data.atividade_id}/chamada`);
+    } catch (err) {
+      showError(extractApiErrorMessage(err, 'Não foi possível abrir a chamada da gira.'));
+    }
+  };
+
   const rotuloMes = monthLabelLong(mes);
   const itens = cal?.itens ?? [];
   const algumaAcao = canEdit || canDelete;
@@ -464,6 +489,30 @@ function AgendaDaCasa({
                     {formatDateTimeBr(item.inicio)}
                     {item.local ? ` · ${item.local}` : ''}
                   </span>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  {(item.origem === 'atividade' || canInsert) && !item.cancelada && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setConfirmacoes({ origem: item.origem, id: item.id, titulo: item.titulo })}
+                      title="Confirmações"
+                      aria-label={`Confirmações de ${item.titulo}`}
+                    >
+                      <Users />
+                    </Button>
+                  )}
+                  {canEdit && !item.cancelada && controlaPresenca(item) && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => void abrirChamada(item)}
+                      title="Chamada"
+                      aria-label={`Chamada de ${item.titulo}`}
+                    >
+                      <ClipboardCheck />
+                    </Button>
+                  )}
                 </div>
                 {item.origem === 'gira' ? (
                   canVerGiras && (
@@ -662,6 +711,13 @@ function AgendaDaCasa({
           error={motivoTocado && !motivo.trim() ? 'Conte o motivo do cancelamento' : undefined}
         />
       </CrudDrawer>
+
+      <ConfirmacoesSheet
+        alvo={confirmacoes}
+        onClose={() => setConfirmacoes(null)}
+        canInsert={canInsert}
+        canEdit={canEdit}
+      />
 
       <ConfirmDialog
         open={excluir !== null}

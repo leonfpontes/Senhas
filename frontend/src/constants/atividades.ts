@@ -76,7 +76,7 @@ export const OPCOES_VISIBILIDADE: readonly Opcao<Visibilidade>[] = [
   {
     valor: 'convocados',
     rotulo: 'Só quem estiver na escala',
-    ajuda: 'Por enquanto ninguém da corrente vê: aparece quando a escala chegar à Área',
+    ajuda: 'Na Agenda da Área, só quem a casa puser na escala (botão “Na escala” da atividade)',
   },
 ];
 
@@ -113,7 +113,11 @@ export interface TipoAtividade {
   controla_presenca: boolean;
   pede_confirmacao: boolean;
   exige_justificativa: boolean;
+  /** Legado do AM-08, em sincronia com o modo (app/qr). */
   checkin_pelo_medium: boolean;
+  /** AM-28: null = padrão da casa. */
+  presenca_modo?: 'confianca' | 'app' | 'qr' | null;
+  presenca_modo_efetivo?: 'confianca' | 'app' | 'qr';
   checkin_antes_min: number;
   checkin_depois_min: number;
   elegiveis: Elegiveis;

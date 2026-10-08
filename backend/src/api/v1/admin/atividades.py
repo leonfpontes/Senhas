@@ -36,6 +36,11 @@ Atividades internas:
 
 Todo `tipo_id`/`grupo_id`/`gira_id` e id de caminho é conferido no terreiro antes de gravar
 (checagem 4 do auditor de tenant).
+
+Presença (AM-17/AM-28): o tipo ganha `presenca_modo` (null = padrão da casa; `confianca` · `app` ·
+`qr`) — `checkin_pelo_medium` segue em sincronia (modo app/qr). Cancelar a atividade dispensa a
+escala; desfazer o cancelamento devolve quem o cancelamento dispensou. Confirmações, convocação,
+chamada e QR ficam em `atividades_presenca.py`.
 """
 from __future__ import annotations
 
@@ -90,6 +95,15 @@ from src.services.atividades import (
 from src.services.audit_service import AuditService
 from src.services.corrente_grupos import validar_grupos_ativos_do_tenant
 from src.services.medium_agenda import PeriodoInvalido, periodo_da_agenda
+from src.services.presenca import (
+    MODO_APP,
+    MODO_QR,
+    config_presenca,
+    desfazer_dispensa_do_cancelamento,
+    dispensar_por_cancelamento,
+    modo_efetivo,
+    validar_modo,
+)
 
 router = APIRouter(
     prefix="/api/v1/admin/atividades",
@@ -126,6 +140,8 @@ class TipoBase(BaseModel):
     checkin_pelo_medium: Optional[bool] = None
     checkin_antes_min: Optional[int] = None
     checkin_depois_min: Optional[int] = None
+    # AM-28: null = padrão da casa.
+    presenca_modo: Optional[str] = None
     elegiveis: Optional[str] = None
     grupo_ids: Optional[list[uuid.UUID]] = Field(None, max_length=100)
     convocacao_padrao: Optional[str] = None
@@ -157,6 +173,9 @@ class TipoResponse(BaseModel):
     checkin_pelo_medium: bool
     checkin_antes_min: int
     checkin_depois_min: int
+    # AM-28: modo do tipo (null = padrão da casa) e o que vale de fato.
+    presenca_modo: Optional[str] = None
+    presenca_modo_efetivo: str = "confianca"
     elegiveis: str
     grupos: list[GrupoResumo]
     convocacao_padrao: str
@@ -272,7 +291,7 @@ def _hora_texto(tipo: AtividadeTipo) -> Optional[str]:
     return tipo.hora_padrao.strftime("%H:%M") if tipo.hora_padrao else None
 
 
-def _tipo_resposta(tipo: AtividadeTipo, grupos: list) -> TipoResponse:
+def _tipo_resposta(tipo: AtividadeTipo, grupos: list, modo_casa: Optional[str] = None) -> TipoResponse:
     return TipoResponse(
         id=tipo.id,
         nome=tipo.nome,
@@ -285,6 +304,8 @@ def _tipo_resposta(tipo: AtividadeTipo, grupos: list) -> TipoResponse:
         checkin_pelo_medium=tipo.checkin_pelo_medium,
         checkin_antes_min=tipo.checkin_antes_min,
         checkin_depois_min=tipo.checkin_depois_min,
+        presenca_modo=tipo.presenca_modo,
+        presenca_modo_efetivo=modo_efetivo(tipo.presenca_modo, modo_casa),
         elegiveis=tipo.elegiveis,
         grupos=[GrupoResumo(id=g.id, nome=g.nome, cor=g.cor) for g in grupos],
         convocacao_padrao=tipo.convocacao_padrao,
@@ -313,6 +334,7 @@ def _snapshot_tipo(t: AtividadeTipo) -> dict:
         "convocacao_padrao": t.convocacao_padrao,
         "modo_escala": t.modo_escala,
         "visibilidade_padrao": t.visibilidade_padrao,
+        "presenca_modo": t.presenca_modo,
     }
 
 
@@ -384,7 +406,8 @@ async def _nome_tipo_livre(
 
 async def _resposta_tipo(db: AsyncSession, tenant_id: uuid.UUID, tipo: AtividadeTipo) -> TipoResponse:
     grupos = await grupos_dos_tipos(db, tenant_id, [tipo.id])
-    return _tipo_resposta(tipo, grupos.get(tipo.id, []))
+    modo_casa, _ = await config_presenca(db, tenant_id)
+    return _tipo_resposta(tipo, grupos.get(tipo.id, []), modo_casa)
 
 
 async def _validar_grupos_elegiveis_do_tenant(
@@ -424,9 +447,21 @@ def _aplicar_opcoes(tipo: AtividadeTipo, body: TipoBase, enviados: set[str]) -> 
         tipo.icone = validar_icone(body.icone)
     if "cor" in enviados:
         tipo.cor = validar_cor_tipo(body.cor)
-    for campo in ("controla_presenca", "pede_confirmacao", "exige_justificativa", "checkin_pelo_medium"):
+    for campo in ("controla_presenca", "pede_confirmacao", "exige_justificativa"):
         if campo in enviados and getattr(body, campo) is not None:
             setattr(tipo, campo, bool(getattr(body, campo)))
+    # Modo de presença (AM-28). `checkin_pelo_medium` (AM-08) segue em sincronia; quem ainda
+    # manda só ele: ligar = "Cheguei" pelo app, desligar = confiança.
+    if "presenca_modo" in enviados:
+        tipo.presenca_modo = validar_modo(body.presenca_modo, permite_nulo=True)
+        tipo.checkin_pelo_medium = tipo.presenca_modo in (MODO_APP, MODO_QR)
+    elif "checkin_pelo_medium" in enviados and body.checkin_pelo_medium is not None:
+        ligado = bool(body.checkin_pelo_medium)
+        if ligado and tipo.presenca_modo not in (MODO_APP, MODO_QR):
+            tipo.presenca_modo = MODO_APP
+        elif not ligado and tipo.presenca_modo in (MODO_APP, MODO_QR):
+            tipo.presenca_modo = "confianca"
+        tipo.checkin_pelo_medium = ligado
     if "checkin_antes_min" in enviados and body.checkin_antes_min is not None:
         tipo.checkin_antes_min = validar_minutos_checkin(body.checkin_antes_min)
     if "checkin_depois_min" in enviados and body.checkin_depois_min is not None:
@@ -639,7 +674,8 @@ async def listar_tipos(
         )
     ).scalars().all()
     grupos = await grupos_dos_tipos(db, tenant_id, [t.id for t in tipos])
-    return [_tipo_resposta(t, grupos.get(t.id, [])) for t in tipos]
+    modo_casa, _ = await config_presenca(db, tenant_id)
+    return [_tipo_resposta(t, grupos.get(t.id, []), modo_casa) for t in tipos]
 
 
 @router.post("/tipos", response_model=TipoResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_group_permission(PermissionFeature.ESCALAS, "insert"))])
@@ -1076,7 +1112,8 @@ async def cancelar_atividade(
     motivo = limpar_motivo(body.motivo)
     atividade.cancelada_em = atividade.cancelada_em or utc_now()
     atividade.cancelamento_motivo = motivo
-    # TODO(AM-17/AM-15): dispensar os convocados e avisar quem estava na escala.
+    # AM-17: a escala fica dispensada (TODO(AM-15): avisar quem estava na escala).
+    await dispensar_por_cancelamento(db, tenant_id, atividade.id, atividade.cancelada_em)
     await AuditService(db).log_update(
         tenant_id=tenant_id,
         user_id=current_user.id,
@@ -1099,6 +1136,7 @@ async def reativar_atividade(
     tenant_id = current_user.tenant_id
     atividade = await _atividade_do_tenant(db, tenant_id, atividade_id)
     if atividade.cancelada_em is not None:
+        await desfazer_dispensa_do_cancelamento(db, tenant_id, atividade.id, atividade.cancelada_em)
         atividade.cancelada_em = None
         atividade.cancelamento_motivo = None
         await AuditService(db).log_update(

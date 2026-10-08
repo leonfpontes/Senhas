@@ -11,13 +11,15 @@
  *   pendente) e "Trocar senha" (derruba as sessões → login).
  * - Itens de sempre: Ícone na tela inicial, Trocar de área (só com as duas áreas) e Sair.
  * Impersonando, a Área é só leitura (§6.9): as ações de alterar somem.
- * "Minhas presenças" entra com o AM-17.
+ * - "Minhas presenças" (AM-17, D-27): leva a `/medium/presencas` (percentual, próximas escalas e
+ *   histórico; só a própria presença).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   ArrowLeftRight,
   AtSign,
+  CalendarCheck,
   Camera,
   ChevronRight,
   KeyRound,
@@ -409,6 +411,13 @@ function Perfil() {
             'overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm',
           )}
         >
+          <Item
+            icon={CalendarCheck}
+            title="Minhas presenças"
+            description="Suas escalas e o histórico de presença"
+            onClick={() => void router.push('/medium/presencas')}
+            testId="perfil-presencas"
+          />
           <Item
             icon={Smartphone}
             title="Ícone na tela inicial"

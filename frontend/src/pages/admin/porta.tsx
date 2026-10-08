@@ -60,6 +60,7 @@ import { Toggle } from '@/components/ui/toggle';
 import { cn } from '@/lib/utils';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { usePermissions } from '@/hooks/usePermissions';
+import { ChamadaDaGiraButton } from '@/components/admin/presenca/ChamadaDaGiraButton';
 import { giraLabel, pickTodayGira, useGiraContext } from '@/components/admin/GiraContext';
 import { PORTA_WALK_IN_EVENT } from '@/components/admin/MobileTabBar';
 import PortaOfflineNotice from '@/components/admin/PortaOfflineNotice';
@@ -737,6 +738,8 @@ function PortaContent() {
           >
             {muted ? <VolumeX className="size-5" aria-hidden /> : <Volume2 className="size-5" aria-hidden />}
           </Toggle>
+          {/* AM-17: chamada da corrente pela porta (PORTA:edit ou ESCALAS:edit; some sem o plano). */}
+          {selectedGiraId && <ChamadaDaGiraButton giraId={selectedGiraId} variant="ghost" className="h-12 shrink-0" />}
           {selectedGiraId && (
             <Button asChild variant="ghost" size="icon-touch" aria-label="Abrir modo TV" title="Modo TV">
               <a href={`/admin/porta/kiosk?gira=${encodeURIComponent(selectedGiraId)}`} target="_blank" rel="noopener noreferrer">

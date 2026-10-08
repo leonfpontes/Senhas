@@ -510,7 +510,8 @@ async def test_agenda_do_medium_mostra_so_atividades_que_o_tipo_deixa_ver(client
     assert itens["Ensaio"]["tipo"] == {"nome": "Ensaio de cambones", "icone": "estrela", "cor": "azul"}
     assert itens["Reunião cancelada"]["cancelada"] is True and itens["Reunião geral"]["cancelada"] is False
     assert itens["Gira de Caboclos"]["tipo"] == {"nome": "Sessão", "icone": "gira", "cor": None}
-    assert itens["Reunião geral"]["minha_participacao"] is None
+    # AM-17: a Reunião ("todos os elegíveis") já põe o médium na escala, sem resposta ainda.
+    assert itens["Reunião geral"]["minha_participacao"]["situacao"] == "convocado"
 
     # Detalhe e .ics: mesma regra; nada de link público.
     reuniao_id = itens["Reunião geral"]["id"]

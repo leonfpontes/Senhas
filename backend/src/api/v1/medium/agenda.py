@@ -3,13 +3,15 @@
 - `GET /agenda?inicio&fim`: giras ativas do terreiro e atividades internas visíveis ao médium
   no período (padrão: mês corrente + 2, em Brasília; até 6 meses), passadas e futuras, na
   ordem do dia. Formato unificado `{origem, id, tipo{nome, icone, cor}, titulo, inicio, fim,
-  local, cancelada, minha_participacao}`; o AM-17 preenche `minha_participacao` sem mudar o
-  formato (hoje null). O tipo das giras é o tipo de sistema "Gira" da casa (renomeável).
-- Atividade interna visível (AM-08): não excluída, `visibilidade = 'corrente'` e o tipo alcança
-  o médium (`elegiveis`: todos · só atendimento · só cambones · grupos da corrente em que ele
-  está, grupo arquivado não conta). Cancelada continua na lista, marcada (`cancelada`).
-  `visibilidade = 'convocados'` ("só quem estiver na escala") fica fora até existir a
-  participação do AM-17 — aí entra por `EXISTS` da participação do próprio médium.
+  local, cancelada, minha_participacao}`. O tipo das giras é o tipo de sistema "Gira" da casa
+  (renomeável). `minha_participacao` (AM-17): na escala ou não, resposta, presença, o que dá para
+  fazer agora (Vou/Não vou, "Cheguei", "Conte o motivo") — só a do próprio médium, só com o plano
+  `atividades_corrente` (senão null); regras em `services/presenca.minha_participacao`.
+- Atividade interna visível (AM-08/AM-17, `presencas.atividade_visivel_ao_medium`): não
+  excluída e (`visibilidade = 'corrente'` e o tipo alcança o médium — todos · só atendimento · só
+  cambones · grupos da corrente em que ele está, grupo arquivado não conta — OU o médium tem
+  participação nela: "só quem estiver na escala" aparece para quem está na escala). Cancelada
+  continua na lista, marcada (`cancelada`).
 - `GET /agenda/atividade/{id}` e `/agenda/atividade/{id}/ics`: detalhe e .ics da atividade,
   com a mesma regra de visibilidade (fora dela → 404). Atividade nunca tem link público.
 - `GET /agenda/gira/{id}`: detalhe — horário, local ou endereço do terreiro com link do mapa,
@@ -29,7 +31,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import and_, exists, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import MediumContext, require_medium
@@ -37,18 +39,9 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.core.errors import ForbiddenError
 from src.core.tz import APP_TZ, local_day_bounds_utc, today_local, utc_now
-from src.models import (
-    Atividade,
-    AtividadeTipo,
-    AtividadeTipoGrupo,
-    CorrenteGrupo,
-    CorrenteGrupoMembro,
-    Gira,
-    Tenant,
-    TenantConfig,
-)
+from src.models import Atividade, AtividadeTipo, Gira, Tenant, TenantConfig
 from src.models.senha_controls import SenhaControl
-from src.services.atividades import elegiveis_fixos_do_medium, tipo_da_gira, tipo_resumo
+from src.services.atividades import tipo_da_gira, tipo_resumo
 from src.services.medium_agenda import (
     PeriodoInvalido,
     descricao_do_evento,
@@ -63,6 +56,16 @@ from src.services.medium_agenda import (
     situacao_senhas,
 )
 from src.services.medium_area import get_area_medium_config
+from src.services.presenca import AtividadeCtx, ctx_de
+
+from .presencas import (
+    MinhaParticipacao,
+    atividade_visivel_ao_medium,
+    item_de,
+    itens_do_periodo,
+    participacoes_do_medium,
+    presenca_no_plano,
+)
 
 router = APIRouter()
 
@@ -95,8 +98,9 @@ class AgendaItem(BaseModel):
     local: Optional[str] = None
     # Atividade cancelada pela casa continua na agenda, marcada (gira desmarcada sai).
     cancelada: bool = False
-    # AM-17: convocado, função, grupo, resposta. Null enquanto não houver escala.
-    minha_participacao: Optional[dict] = None
+    # AM-17: na escala, resposta, presença e o que dá para fazer agora. Null: fora da escala
+    # (ou plano sem `atividades_corrente`).
+    minha_participacao: Optional[MinhaParticipacao] = None
 
 
 class AgendaResponse(BaseModel):
@@ -190,36 +194,6 @@ def _local_da_atividade(atividade: Atividade, endereco: Optional[str]) -> Option
     return " · ".join(p for p in ((atividade.local or "").strip(), endereco or "") if p) or None
 
 
-def _atividade_visivel(ctx: MediumContext):
-    """Condição "a atividade interna é para mim" (sem participação ainda — ver docstring).
-
-    Quem usa junta `Atividade.tenant_id == ctx.tenant_id` e `AtividadeTipo.tenant_id ==
-    ctx.tenant_id` na mesma query (o auditor confere ali)."""
-    nos_meus_grupos = exists(
-        select(AtividadeTipoGrupo.tipo_id)
-        .join(CorrenteGrupoMembro, CorrenteGrupoMembro.grupo_id == AtividadeTipoGrupo.grupo_id)
-        .join(CorrenteGrupo, CorrenteGrupo.id == AtividadeTipoGrupo.grupo_id)
-        .where(
-            AtividadeTipoGrupo.tipo_id == AtividadeTipo.id,
-            AtividadeTipoGrupo.tenant_id == ctx.tenant_id,
-            CorrenteGrupoMembro.tenant_id == ctx.tenant_id,
-            CorrenteGrupoMembro.medium_id == ctx.medium.id,
-            CorrenteGrupo.tenant_id == ctx.tenant_id,
-            CorrenteGrupo.arquivado_em.is_(None),
-        )
-    )
-    return and_(
-        Atividade.deleted_at.is_(None),
-        Atividade.gira_id.is_(None),
-        # "Só quem estiver na escala": entra com a participação do próprio médium (AM-17).
-        Atividade.visibilidade == "corrente",
-        or_(
-            AtividadeTipo.elegiveis.in_(elegiveis_fixos_do_medium(ctx.medium.is_atendimento)),
-            and_(AtividadeTipo.elegiveis == "grupos", nos_meus_grupos),
-        ),
-    )
-
-
 async def _atividade_do_medium(db: AsyncSession, ctx: MediumContext, atividade_id: UUID) -> tuple[Atividade, AtividadeTipo]:
     row = (
         await db.execute(
@@ -229,13 +203,28 @@ async def _atividade_do_medium(db: AsyncSession, ctx: MediumContext, atividade_i
                 Atividade.id == atividade_id,
                 Atividade.tenant_id == ctx.tenant_id,
                 AtividadeTipo.tenant_id == ctx.tenant_id,
-                _atividade_visivel(ctx),
+                atividade_visivel_ao_medium(ctx),
             )
         )
     ).first()
     if row is None:
         raise HTTPException(status_code=404, detail="Atividade não encontrada")
     return row[0], row[1]
+
+
+async def _participacao(db: AsyncSession, ctx: MediumContext, item: AtividadeCtx) -> Optional[dict]:
+    """Minha participação num item (null sem o plano `atividades_corrente`)."""
+    if not await presenca_no_plano(db, ctx):
+        return None
+    return (await participacoes_do_medium(db, ctx, [item])).get((item.origem, item.ref_id), (None, False))[0]
+
+
+async def _ancora(db: AsyncSession, ctx: MediumContext, gira: Gira) -> Optional[Atividade]:
+    return (
+        await db.execute(
+            select(Atividade).where(Atividade.tenant_id == ctx.tenant_id, Atividade.gira_id == gira.id)
+        )
+    ).scalar_one_or_none()
 
 
 @router.get("/agenda", response_model=AgendaResponse)
@@ -250,39 +239,11 @@ async def get_agenda(
     except PeriodoInvalido as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     de, ate = local_day_bounds_utc(ini, fim_)
-    giras = (
-        await db.execute(
-            select(Gira)
-            .where(
-                and_(
-                    Gira.tenant_id == ctx.tenant_id,
-                    Gira.deleted_at.is_(None),
-                    Gira.is_active.is_(True),
-                    Gira.data_inicio >= de,
-                    Gira.data_inicio < ate,
-                )
-            )
-            .order_by(Gira.data_inicio.asc(), Gira.nome.asc())
-        )
-    ).scalars().all()
-    tipo_gira = tipo_resumo(await tipo_da_gira(db, ctx.tenant_id))
-    atividades = (
-        await db.execute(
-            select(Atividade, AtividadeTipo)
-            .join(AtividadeTipo, AtividadeTipo.id == Atividade.tipo_id)
-            .where(
-                Atividade.tenant_id == ctx.tenant_id,
-                AtividadeTipo.tenant_id == ctx.tenant_id,
-                _atividade_visivel(ctx),
-                Atividade.inicio >= de,
-                Atividade.inicio < ate,
-            )
-            .order_by(Atividade.inicio.asc())
-        )
-    ).all()
-    itens = [AgendaItem(**item_da_gira(g, tipo_gira)) for g in giras]
-    itens += [AgendaItem(**item_da_atividade(a, tipo_resumo(t))) for a, t in atividades]
-    itens.sort(key=lambda i: (i.inicio, i.titulo.lower()))
+    itens_ctx = await itens_do_periodo(db, ctx, de, ate)
+    participacoes = await participacoes_do_medium(db, ctx, itens_ctx) if await presenca_no_plano(db, ctx) else {}
+    itens = [
+        AgendaItem(**item_de(c, participacoes.get((c.origem, c.ref_id), (None, False))[0])) for c in itens_ctx
+    ]
     return AgendaResponse(inicio=ini, fim=fim_, itens=itens)
 
 
@@ -304,8 +265,11 @@ async def get_agenda_gira(
     orientacoes = (gira.orientacoes_corrente or "").strip() or None
     base = settings.FRONTEND_URL.rstrip("/")
     descricao_evento = descricao_do_evento(orientacoes, f"{base}/medium/agenda/gira/{gira.id}")
+    tipo_gira = await tipo_da_gira(db, ctx.tenant_id)
+    item = item_da_gira(gira, tipo_resumo(tipo_gira))
+    item["minha_participacao"] = await _participacao(db, ctx, ctx_de(await _ancora(db, ctx, gira), tipo_gira, gira))
     return GiraDetalhe(
-        **item_da_gira(gira, tipo_resumo(await tipo_da_gira(db, ctx.tenant_id))),
+        **item,
         descricao=(gira.descricao or "").strip() or None,
         orientacoes_corrente=orientacoes,
         endereco=endereco,
@@ -372,6 +336,7 @@ async def get_agenda_atividade(
     orientacoes = (atividade.orientacoes or "").strip() or None
     base = settings.FRONTEND_URL.rstrip("/")
     item = item_da_atividade(atividade, tipo_resumo(tipo))
+    item["minha_participacao"] = await _participacao(db, ctx, ctx_de(atividade, tipo, None))
     return AtividadeDetalhe(
         **item,
         descricao=(atividade.descricao or "").strip() or None,

@@ -4,7 +4,11 @@ Tudo é "meu": o terreiro vem de `ctx.tenant_id` e o médium de `ctx.medium` (nu
 requisição). Devolve, numa chamada só:
 
 - `pendencias`: o que o médium precisa resolver, já na ordem da tela (D-24: escala → mensalidade
-  a vencer/vencida → aviso novo). Escala entra no AM-17.
+  a vencer/vencida → aviso novo). Escala (AM-17): quantas escalas pedem "Vou / Não vou" ou estão
+  com o "Cheguei" aberto agora.
+- `escalas` (AM-17): as próximas giras/atividades em que o médium está na escala (até 21 dias, e
+  as que estão acontecendo), com `minha_participacao` — o Início mostra "Você está na escala" com
+  Vou / Não vou, "Responda até…" e o "Cheguei" na janela. Vazio sem o plano `atividades_corrente`.
 - `proxima_gira`: a próxima gira ativa do terreiro (ou a que está acontecendo agora), só com o
   que a corrente precisa — nome, horário e local. Nada de senhas ou consulentes.
   `orientacoes` = `giras.orientacoes_corrente` (AM-07: o que levar, só na Área).
@@ -30,12 +34,18 @@ from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.medium_area import get_area_medium_config
 from src.services.medium_inicio import MensalidadeDoMes, montar_pendencias, situacao_mensalidade
 from src.services.plan_features import get_effective_plan_features
+from src.services.presenca import SITUACAO_DISPENSADO, SITUACAO_SUBSTITUIDO
+
+from .presencas import ItemPresenca, item_de, itens_do_periodo, participacoes_do_medium, presenca_no_plano
 
 router = APIRouter()
 
 # Gira sem horário de término: continua sendo "a próxima" até algumas horas depois do início
 # (a corrente abre a Área durante a gira para ver o que precisa).
 GIRA_SEM_FIM_DURACAO = timedelta(hours=6)
+# Escalas que aparecem no Início: as que estão acontecendo e as dos próximos 21 dias.
+ESCALAS_HORIZONTE = timedelta(days=21)
+ESCALAS_PASSADO = timedelta(days=2)
 
 
 class ProximaGira(BaseModel):
@@ -74,6 +84,7 @@ class InicioResponse(BaseModel):
     proxima_gira: Optional[ProximaGira] = None
     mensalidade: Optional[MensalidadeInicio] = None
     avisos: AvisosInicio
+    escalas: List[ItemPresenca] = []
 
 
 async def _proxima_gira(db: AsyncSession, ctx: MediumContext) -> Optional[ProximaGira]:
@@ -159,6 +170,40 @@ async def _avisos(db: AsyncSession, ctx: MediumContext) -> AvisosInicio:
     )
 
 
+async def _escalas(db: AsyncSession, ctx: MediumContext) -> list[ItemPresenca]:
+    """Próximas escalas do médium (e as em andamento), sem dispensadas — AM-17."""
+    if not await presenca_no_plano(db, ctx):
+        return []
+    agora = utc_now()
+    itens = await itens_do_periodo(db, ctx, agora - ESCALAS_PASSADO, agora + ESCALAS_HORIZONTE)
+    participacoes = await participacoes_do_medium(db, ctx, itens, agora)
+    out = []
+    for item in itens:
+        participacao, _ = participacoes.get((item.origem, item.ref_id), (None, False))
+        if participacao is None or item.cancelada:
+            continue
+        if participacao["situacao"] in (SITUACAO_DISPENSADO, SITUACAO_SUBSTITUIDO):
+            continue
+        # Já acabou: só fica enquanto o "Cheguei" ainda está aberto.
+        if item.fim_efetivo < agora and not participacao["pode_checkin"]:
+            continue
+        out.append(ItemPresenca(**item_de(item, participacao)))
+    return out
+
+
+def escalas_pendentes(escalas: list[ItemPresenca]) -> int:
+    """Escalas que pedem ação: responder (sem resposta) ou marcar "Cheguei" agora."""
+    return sum(
+        1
+        for e in escalas
+        if e.minha_participacao is not None
+        and (
+            (e.minha_participacao.pode_responder and e.minha_participacao.resposta == "sem_resposta")
+            or e.minha_participacao.pode_checkin
+        )
+    )
+
+
 @router.get("/inicio", response_model=InicioResponse)
 async def get_medium_inicio(
     ctx: MediumContext = Depends(require_medium),
@@ -167,10 +212,17 @@ async def get_medium_inicio(
     hoje = today_local()
     mensalidade = await _mensalidade(db, ctx, hoje)
     avisos = await _avisos(db, ctx)
+    escalas = await _escalas(db, ctx)
     return InicioResponse(
         hoje=hoje,
-        pendencias=montar_pendencias(hoje=hoje, mensalidade=mensalidade, avisos_nao_lidos=avisos.nao_lidos),
+        pendencias=montar_pendencias(
+            hoje=hoje,
+            mensalidade=mensalidade,
+            avisos_nao_lidos=avisos.nao_lidos,
+            escalas_a_responder=escalas_pendentes(escalas),
+        ),
         proxima_gira=await _proxima_gira(db, ctx),
         mensalidade=MensalidadeInicio(**mensalidade.as_dict()) if mensalidade else None,
         avisos=avisos,
+        escalas=escalas,
     )

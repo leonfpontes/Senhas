@@ -5,7 +5,9 @@
  * mensalidade a vencer ou vencida, aviso novo — na ordem que o backend devolve), a próxima gira
  * e o que está "Acompanhando" (mensalidade paga/isenta). Nada publicado → EmptyState amigável.
  * Só chama `GET /api/v1/medium/inicio` (e o `/medium/me` do MediumProvider).
- * Os cartões da v2 ("Sua próxima escala", "Cheguei") entram aqui pelo AM-17/AM-25.
+ * Escala (AM-17/AM-28): cada escala que pede ação vira um cartão "Você está na escala" no topo
+ * (`EscalaCard`: Vou / Não vou com "Conte o motivo", "Responda até…", "Cheguei" na janela — no
+ * modo QR abre o leitor); as já respondidas ficam em "Acompanhando".
  */
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -28,7 +30,10 @@ import {
   quandoBr,
   valorBr,
 } from '@/components/medium/format';
+import { EscalaCard } from '@/components/medium/presenca/EscalaCard';
+import { detalheHref } from '@/components/medium/agenda';
 import { EmptyState } from '@/components/EmptyState';
+import { ROTULO_SITUACAO_MEDIUM, type ItemPresenca } from '@/constants/presenca';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -69,11 +74,54 @@ export interface InicioResponse {
   proxima_gira: InicioGira | null;
   mensalidade: InicioMensalidade | null;
   avisos: { nao_lidos: number; ultimos: unknown[] };
+  /** AM-17: próximas escalas do médium (com a participação dele). */
+  escalas?: ItemPresenca[];
+}
+
+/** A escala pede ação agora: responder (sem resposta) ou marcar "Cheguei". */
+export function escalaPedeAcao(e: ItemPresenca): boolean {
+  const p = e.minha_participacao;
+  return Boolean(p && ((p.pode_responder && p.resposta === 'sem_resposta') || p.pode_checkin));
 }
 
 const SECTION_TITLE = 'text-xs font-extrabold tracking-[0.16em] text-brand uppercase';
 const CARD =
   'flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm';
+
+function EscalasAcompanhando({ escalas }: { escalas: ItemPresenca[] }) {
+  return (
+    <>
+      {escalas.map((e) => (
+        <Link
+          key={`${e.origem}-${e.id}`}
+          href={detalheHref(e)}
+          className={cn(
+            CARD,
+            'flex-row items-center outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          )}
+          data-testid="escala-acompanhando"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-success/15 text-success-strong">
+            <CircleCheck className="size-5" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-base font-bold">
+              {e.titulo} · {quandoBr(e.inicio).split(' · ')[0]}
+            </span>
+            <span className="block text-sm text-muted-foreground">
+              {e.minha_participacao?.resposta === 'vou'
+                ? 'Você confirmou: Vou'
+                : e.minha_participacao
+                  ? ROTULO_SITUACAO_MEDIUM[e.minha_participacao.situacao]
+                  : ''}
+            </span>
+          </span>
+          <ArrowRight className="size-5 text-muted-foreground" aria-hidden />
+        </Link>
+      ))}
+    </>
+  );
+}
 
 function Pendencia({ p }: { p: InicioPendencia }) {
   if (p.tipo === 'mensalidade' && p.situacao === 'nao_confirmada') {
@@ -204,34 +252,29 @@ function Acompanhando({ mensalidade }: { mensalidade: InicioMensalidade }) {
   // Em aberto e longe do vencimento (mais de 5 dias): acompanha aqui, sem subir para o topo.
   const aVencer = mensalidade.status === 'pendente' || conferencia;
   return (
-    <section className="flex flex-col gap-2.5" aria-labelledby="titulo-acompanhando">
-      <h2 id="titulo-acompanhando" className={SECTION_TITLE}>
-        Acompanhando
-      </h2>
-      <div className={cn(CARD, 'flex-row items-center')}>
-        {aVencer ? (
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-            <Clock className="size-5" aria-hidden />
-          </span>
-        ) : (
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-success/15 text-success-strong">
-            <CircleCheck className="size-5" aria-hidden />
-          </span>
-        )}
-        <div className="min-w-0">
-          <p className="text-base font-bold">Mensalidade de {nomeDoMes(mensalidade.mes)}</p>
-          <p className="text-sm text-muted-foreground">
-            {conferencia
-              ? 'Comprovante enviado · aguardando a casa confirmar'
-              : aVencer
-                ? `${mensalidade.valor != null ? `${valorBr(mensalidade.valor)} · ` : ''}vence em ${mensalidade.vencimento ? diaMesCurto(mensalidade.vencimento) : 'breve'}`
-                : isento
-                  ? 'Você está isento de mensalidade'
-                  : 'Paga · confirmada pela casa'}
-          </p>
-        </div>
+    <div className={cn(CARD, 'flex-row items-center')}>
+      {aVencer ? (
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+          <Clock className="size-5" aria-hidden />
+        </span>
+      ) : (
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-success/15 text-success-strong">
+          <CircleCheck className="size-5" aria-hidden />
+        </span>
+      )}
+      <div className="min-w-0">
+        <p className="text-base font-bold">Mensalidade de {nomeDoMes(mensalidade.mes)}</p>
+        <p className="text-sm text-muted-foreground">
+          {conferencia
+            ? 'Comprovante enviado · aguardando a casa confirmar'
+            : aVencer
+              ? `${mensalidade.valor != null ? `${valorBr(mensalidade.valor)} · ` : ''}vence em ${mensalidade.vencimento ? diaMesCurto(mensalidade.vencimento) : 'breve'}`
+              : isento
+                ? 'Você está isento de mensalidade'
+                : 'Paga · confirmada pela casa'}
+        </p>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -273,7 +316,14 @@ function Inicio() {
 
   const nome = primeiroNome(me?.nome);
   const pendencias = data?.pendencias ?? [];
-  const n = pendencias.length;
+  const escalas = data?.escalas ?? [];
+  const escalasComAcao = escalas.filter(escalaPedeAcao);
+  const escalasRespondidas = escalas.filter((e) => !escalaPedeAcao(e));
+  const n = pendencias.reduce(
+    (t, p) => t + (p.tipo === 'escala' ? Math.max(1, escalasComAcao.length) : 1),
+    0,
+  );
+  const recarregar = () => setNonce((x) => x + 1);
   const mensalidadeNoTopo = pendencias.some((p) => p.tipo === 'mensalidade');
   const acompanhando =
     data?.mensalidade &&
@@ -283,7 +333,7 @@ function Inicio() {
       (data.mensalidade.status === 'pendente' && !mensalidadeNoTopo))
       ? data.mensalidade
       : null;
-  const vazio = data && n === 0 && !data.proxima_gira && !acompanhando;
+  const vazio = data && n === 0 && !data.proxima_gira && !acompanhando && escalas.length === 0;
 
   return (
     <>
@@ -341,9 +391,20 @@ function Inicio() {
                 <h2 id="titulo-pendencias" className={SECTION_TITLE}>
                   Para você ver agora
                 </h2>
-                {pendencias.map((p, i) => (
-                  <Pendencia key={`${p.tipo}-${i}`} p={p} />
-                ))}
+                {pendencias.map((p, i) =>
+                  p.tipo === 'escala' && escalasComAcao.length > 0 ? (
+                    escalasComAcao.map((e) => (
+                      <EscalaCard
+                        key={`${e.origem}-${e.id}-${e.minha_participacao?.resposta}`}
+                        item={e}
+                        compacto
+                        onAtualizado={recarregar}
+                      />
+                    ))
+                  ) : (
+                    <Pendencia key={`${p.tipo}-${i}`} p={p} />
+                  ),
+                )}
               </section>
             )}
             {data.proxima_gira && (
@@ -352,7 +413,15 @@ function Inicio() {
                 comAgenda={(me?.modulos ?? []).includes('agenda')}
               />
             )}
-            {acompanhando && <Acompanhando mensalidade={acompanhando} />}
+            {(acompanhando || escalasRespondidas.length > 0) && (
+              <section className="flex flex-col gap-2.5" aria-labelledby="titulo-acompanhando">
+                <h2 id="titulo-acompanhando" className={SECTION_TITLE}>
+                  Acompanhando
+                </h2>
+                <EscalasAcompanhando escalas={escalasRespondidas} />
+                {acompanhando && <Acompanhando mensalidade={acompanhando} />}
+              </section>
+            )}
           </>
         )}
       </div>

@@ -929,7 +929,7 @@ medium_nome (snapshot), unidade (`giras` | `semanas`), quantidade, data_prevista
   - `GET/PATCH /api/v1/admin/retornos` (CONSULENTES).
 - Badge "Retorno" na fila da Porta; `RetornosEsperadosSheet.tsx`.
 - E-mail quando a gira de retorno abrir:
-  - `retorno_scheduler.py` no padrão do `birthday_scheduler.py`, com `advisory_lock` chave `0x6769726168756204` e
+  - `retorno_scheduler.py` no padrão do `birthday_scheduler.py`, com `advisory_lock` chave `0x6769726168756205` (a `...204` ficou com o `presenca_scheduler`, AM-17) e
     marca por linha (`notificado_em`);
   - template `retorno_aberto.py`;
   - gate `email_transacional` (PRO).

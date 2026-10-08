@@ -9,6 +9,9 @@
  * `GET /giras/{id}/door/tv`, que só traz número, nome reduzido no servidor ("Maria S."),
  * próximas senhas e a última chamada — nunca e-mail, telefone, nome completo ou ids. Não usar
  * `/door/queue` aqui.
+ * Presença (AM-28): com o modo "Cheguei com QR" e a janela aberta, o QR do dia aparece no canto
+ * (`QrPresenca` → `GET /admin/atividades/da-gira/{id}/qr`): só um link da Área com o código curto,
+ * nenhum dado de médium. Precisa da Área liberada e da presença no plano.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
@@ -18,6 +21,8 @@ import { apiClient } from '@/services/api_client';
 import { pickTodayGira } from '@/components/admin/GiraContext';
 import { PermissionDenied } from '@/components/gates';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useSubscription } from '@/hooks/useSubscription';
+import { QrPresenca } from '@/components/admin/presenca/QrPresenca';
 
 const POLLING_INTERVAL_MS = 8000;
 
@@ -58,6 +63,19 @@ export default function PortaKioskPage() {
     );
   }
   return <KioskContent canView={canView} />;
+}
+
+/** QR do "Cheguei" no canto da TV (AM-28) — só com a Área liberada e a presença no plano. */
+function QrDaPresencaNaTv({ giraId }: { giraId: string }) {
+  const { can } = useSubscription();
+  if (!giraId || !can('area_medium') || !can('atividades_corrente')) return null;
+  return (
+    <QrPresenca
+      url={`/api/v1/admin/atividades/da-gira/${encodeURIComponent(giraId)}/qr`}
+      variante="tv"
+      className="absolute right-4 bottom-16 w-[min(34vw,320px)] md:right-8"
+    />
+  );
 }
 
 function KioskContent({ canView }: { canView: boolean }) {
@@ -198,6 +216,8 @@ function KioskContent({ canView }: { canView: boolean }) {
                 </ol>
               </section>
             )}
+
+            <QrDaPresencaNaTv giraId={giraId} />
 
             {ultima && (
               <p

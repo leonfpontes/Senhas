@@ -273,7 +273,8 @@ def test_rotas_entram_no_app_pelo_admin_router():
         if isinstance(ctx.original_route, APIRoute) and ctx.path.startswith("/api/v1/admin/atividades")
         for metodo in ctx.original_route.methods
     }
-    assert len(rotas) == 19
+    # 19 do AM-08 + 9 da presença (AM-17/AM-28, admin/atividades_presenca.py) no mesmo prefixo.
+    assert len(rotas) == 28
 
 
 @pytest.mark.parametrize(
