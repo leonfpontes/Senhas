@@ -9,6 +9,10 @@
  * `can('area_medium')` — plano Basic+ E a chave do piloto; sem ela, aviso neutro, sem PlanLocked.
  * Sem `COMUNICADOS:view` → `PermissionDenied`. Botões de criar/editar/excluir só aparecem com
  * insert/edit/delete. Backend: `api/v1/admin/comunicados.py`.
+ *
+ * Público "Grupos da corrente" (AM-23): escolhe um ou mais grupos (`/corrente-grupos/opcoes`, que
+ * libera para quem tem COMUNICADOS ou MEDIUNS view, sem os nomes dos médiuns); só os membros veem
+ * e o "de M" conta só eles.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -33,7 +37,9 @@ import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { PermissionDenied } from '@/components/gates';
-import { DateTimeField, TextField } from '@/components/fields';
+import { DateTimeField, MultiCombobox, TextField } from '@/components/fields';
+import { GrupoChip } from '@/components/grupos/GrupoChip';
+import { corDoGrupo, type GrupoResumo } from '@/constants/correnteGrupos';
 import { fraunces } from '@/components/landing/fonts';
 import { AvisoLeitura, AvisoTexto, FixadoBadge, dataCurtaBr, dataHoraBr } from '@/components/avisos/AvisoLeitura';
 import { Badge } from '@/components/ui/badge';
@@ -54,7 +60,7 @@ const API = '/api/v1/admin/comunicados';
 const TITULO_MAX = 120;
 const CORPO_MAX = 5000;
 
-export type Publico = 'todos' | 'atendimento' | 'cambones';
+export type Publico = 'todos' | 'atendimento' | 'cambones' | 'grupos';
 export type Situacao = 'agendado' | 'publicado' | 'expirado';
 
 export interface Comunicado {
@@ -62,6 +68,8 @@ export interface Comunicado {
   titulo: string;
   corpo: string;
   publico: Publico;
+  /** Só com publico "grupos" (AM-23): grupos ativos escolhidos. */
+  grupos?: GrupoResumo[];
   fixado: boolean;
   publicar_em: string;
   expira_em: string | null;
@@ -88,18 +96,25 @@ export const PUBLICO_LABEL: Record<Publico, string> = {
   todos: 'Toda a corrente',
   atendimento: 'Médiuns de atendimento',
   cambones: 'Cambones',
+  grupos: 'Grupos da corrente',
 };
 
 const PUBLICO_AJUDA: Record<Publico, string> = {
   todos: 'Todos os médiuns e cambones com acesso à Área',
   atendimento: 'Só quem atende na gira',
   cambones: 'Só quem é cambone',
+  grupos: 'Só quem está nos grupos escolhidos (G1, Ogãs…)',
 };
+
+interface GrupoOpcao extends GrupoResumo {
+  total_membros: number;
+}
 
 interface FormState {
   titulo: string;
   corpo: string;
   publico: Publico;
+  grupo_ids: string[];
   fixado: boolean;
   quando: 'agora' | 'agendar';
   /** ISO local "YYYY-MM-DDTHH:mm" (DateTimeField). */
@@ -111,6 +126,7 @@ const EMPTY_FORM: FormState = {
   titulo: '',
   corpo: '',
   publico: 'todos',
+  grupo_ids: [],
   fixado: false,
   quando: 'agora',
   publicar_em: null,
@@ -133,7 +149,18 @@ function localParaIso(local: string | null): string | null {
 }
 
 /** Linha de situação do aviso na lista e no detalhe. */
-export function descreverAviso(c: Pick<Comunicado, 'situacao' | 'publicar_em' | 'expira_em' | 'publico'>): string {
+export function descreverPublico(c: Pick<Comunicado, 'publico' | 'grupos'>): string {
+  if (c.publico === 'todos') return 'Toda a corrente';
+  if (c.publico === 'grupos') {
+    const nomes = (c.grupos ?? []).map((g) => g.nome);
+    return nomes.length ? `Só ${nomes.join(', ')}` : 'Só grupos da corrente';
+  }
+  return `Só ${PUBLICO_LABEL[c.publico].toLowerCase()}`;
+}
+
+export function descreverAviso(
+  c: Pick<Comunicado, 'situacao' | 'publicar_em' | 'expira_em' | 'publico' | 'grupos'>,
+): string {
   const partes: string[] = [];
   if (c.situacao === 'agendado') partes.push(`Agendado para ${dataHoraBr(c.publicar_em)}`);
   else if (c.situacao === 'expirado') partes.push(`Saiu do ar em ${dataCurtaBr(c.expira_em)}`);
@@ -141,7 +168,7 @@ export function descreverAviso(c: Pick<Comunicado, 'situacao' | 'publicar_em' | 
     partes.push(`Publicado em ${dataCurtaBr(c.publicar_em)}`);
     if (c.expira_em) partes.push(`sai do ar em ${dataCurtaBr(c.expira_em)}`);
   }
-  partes.push(c.publico === 'todos' ? 'Toda a corrente' : `Só ${PUBLICO_LABEL[c.publico].toLowerCase()}`);
+  partes.push(descreverPublico(c));
   return partes.join(' · ');
 }
 
@@ -203,6 +230,7 @@ function AdminComunicadosContent() {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const [detalhe, setDetalhe] = useState<Comunicado | null>(null);
+  const [grupoOpcoes, setGrupoOpcoes] = useState<GrupoOpcao[]>([]);
   const [excluir, setExcluir] = useState<Comunicado | null>(null);
   const [excluindo, setExcluindo] = useState(false);
 
@@ -227,6 +255,15 @@ function AdminComunicadosContent() {
     void carregar();
   }, [carregar]);
 
+  // Grupos da corrente para o público "Grupos" (AM-23) — só para quem publica ou edita.
+  useEffect(() => {
+    if (!liberado || !canView || !(canInsert || canEdit)) return;
+    apiClient
+      .get<GrupoOpcao[]>('/api/v1/admin/corrente-grupos/opcoes')
+      .then((res) => setGrupoOpcoes(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setGrupoOpcoes([]));
+  }, [liberado, canView, canInsert, canEdit]);
+
   const setField = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const abrirNovo = () => {
@@ -243,6 +280,7 @@ function AdminComunicadosContent() {
       titulo: c.titulo,
       corpo: c.corpo,
       publico: c.publico,
+      grupo_ids: (c.grupos ?? []).map((g) => g.id),
       fixado: c.fixado,
       quando: c.situacao === 'agendado' ? 'agendar' : 'agora',
       publicar_em: isoParaLocal(c.publicar_em),
@@ -258,6 +296,8 @@ function AdminComunicadosContent() {
   const agora = Date.now();
   const tituloErro = touched && !form.titulo.trim() ? 'Escreva o título do aviso' : undefined;
   const corpoErro = touched && !form.corpo.trim() ? 'Escreva o texto do aviso' : undefined;
+  const semGrupo = form.publico === 'grupos' && form.grupo_ids.length === 0;
+  const gruposErro = touched && semGrupo ? 'Escolha pelo menos um grupo' : undefined;
   const publicarMs = form.quando === 'agendar' && form.publicar_em ? new Date(form.publicar_em).getTime() : null;
   const agendarErro =
     touched && podeAgendar && form.quando === 'agendar'
@@ -277,6 +317,7 @@ function AdminComunicadosContent() {
   const salvar = async () => {
     setTouched(true);
     if (!form.titulo.trim() || !form.corpo.trim()) return;
+    if (semGrupo) return;
     if (podeAgendar && form.quando === 'agendar' && (!form.publicar_em || (publicarMs ?? 0) <= Date.now())) return;
     if (expiraMs !== null && (expiraMs <= baseMs || expiraMs <= Date.now())) return;
     if (editing ? !canEdit : !canInsert) return;
@@ -288,6 +329,7 @@ function AdminComunicadosContent() {
       fixado: form.fixado,
       expira_em: localParaIso(form.expira_em),
     };
+    if (form.publico === 'grupos') payload.grupo_ids = form.grupo_ids;
     if (podeAgendar) payload.publicar_em = form.quando === 'agendar' ? localParaIso(form.publicar_em) : null;
 
     setSaving(true);
@@ -409,6 +451,13 @@ function AdminComunicadosContent() {
                     {c.situacao === 'expirado' && <Badge variant="outline">Saiu do ar</Badge>}
                   </span>
                   <span className="text-sm text-muted-foreground">{descreverAviso(c)}</span>
+                  {c.publico === 'grupos' && (c.grupos?.length ?? 0) > 0 && (
+                    <span className="flex flex-wrap gap-1" data-testid="aviso-grupos">
+                      {(c.grupos ?? []).map((g) => (
+                        <GrupoChip key={g.id} grupo={g} size="sm" />
+                      ))}
+                    </span>
+                  )}
                   {c.situacao !== 'agendado' && <LidoPor lidos={c.leituras.lidos} total={c.leituras.total} />}
                 </button>
                 {(canEdit || canDelete) && (
@@ -500,6 +549,30 @@ function AdminComunicadosContent() {
               </Label>
             ))}
           </RadioGroup>
+          {form.publico === 'grupos' &&
+            (grupoOpcoes.length > 0 ? (
+              <MultiCombobox
+                label="Grupos"
+                required
+                options={grupoOpcoes.map((g) => ({
+                  value: g.id,
+                  label: g.nome,
+                  description: `${g.total_membros} ${g.total_membros === 1 ? 'médium' : 'médiuns'}`,
+                  dot: corDoGrupo(g.cor),
+                }))}
+                value={form.grupo_ids}
+                onChange={(v) => setField('grupo_ids', v)}
+                placeholder="Escolha os grupos"
+                searchPlaceholder="Buscar grupo..."
+                emptyText="Nenhum grupo encontrado."
+                countLabel={(n) => `${n} ${n === 1 ? 'grupo' : 'grupos'}`}
+                error={gruposErro}
+              />
+            ) : (
+              <p className="rounded-md border p-3 text-sm text-muted-foreground" data-testid="aviso-sem-grupos">
+                Nenhum grupo da corrente ainda. Crie em Médiuns → Grupos.
+              </p>
+            ))}
         </fieldset>
 
         <div className="flex items-start justify-between gap-4 rounded-md border p-3">

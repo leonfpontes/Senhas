@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 jest.mock('next/router', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), pathname: '/admin/comunicados', query: {}, asPath: '/admin/comunicados' }),
@@ -262,5 +263,99 @@ describe('Avisos — quem leu', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
     });
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('/api/v1/admin/comunicados/c2'));
+  });
+});
+
+describe('Avisos — público "Grupos da corrente" (AM-23)', () => {
+  const OPCOES = [
+    { id: 'g1', nome: 'G1', cor: 'ambar', total_membros: 4 },
+    { id: 'g2', nome: 'Ogãs', cor: 'petroleo', total_membros: 2 },
+  ];
+  const AVISO_GRUPO = {
+    ...LISTA[0],
+    id: 'c3',
+    titulo: 'Faxina de sábado',
+    publico: 'grupos',
+    fixado: false,
+    grupos: [{ id: 'g1', nome: 'G1', cor: 'ambar' }],
+    leituras: { lidos: 1, total: 4 },
+  };
+
+  function setupGrupos(lista: unknown[] = [AVISO_GRUPO], opcoes = OPCOES) {
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/api/v1/admin/comunicados') return Promise.resolve({ data: lista });
+      if (url === '/api/v1/admin/corrente-grupos/opcoes') return Promise.resolve({ data: opcoes });
+      if (url.endsWith('/leituras')) return Promise.resolve({ data: LEITURAS });
+      return Promise.resolve({ data: {} });
+    });
+    const Page = require('@/pages/admin/comunicados').default;
+    return render(<Page />);
+  }
+
+  it('lista mostra "Só G1" e a etiqueta do grupo', async () => {
+    setupGrupos();
+    const [item] = await screen.findAllByTestId('comunicado-item');
+    expect(within(item).getByText(/Só G1/)).toBeInTheDocument();
+    expect(within(within(item).getByTestId('aviso-grupos')).getByText('G1')).toBeInTheDocument();
+    expect(within(item).getByText('lido por 1 de 4')).toBeInTheDocument();
+  });
+
+  it('publicar para grupos exige grupo e manda grupo_ids', async () => {
+    const user = userEvent.setup();
+    setupGrupos([]);
+    await user.click(await screen.findByRole('button', { name: /Novo aviso/ }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/Título/), { target: { value: 'Faxina' } });
+    fireEvent.change(within(dialog).getByLabelText(/Texto/), { target: { value: 'Sábado às 9h.' } });
+    await user.click(within(dialog).getByLabelText(/Grupos da corrente/));
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Publicar aviso' }));
+    });
+    expect(await within(dialog).findByText('Escolha pelo menos um grupo')).toBeInTheDocument();
+    expect(mockPost).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole('combobox', { name: /Grupos/ }));
+    await user.click(await screen.findByText('Ogãs'));
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Publicar aviso' }));
+    });
+    await waitFor(() => expect(mockPost).toHaveBeenCalled());
+    expect(mockPost).toHaveBeenCalledWith('/api/v1/admin/comunicados', {
+      titulo: 'Faxina',
+      corpo: 'Sábado às 9h.',
+      publico: 'grupos',
+      grupo_ids: ['g2'],
+      fixado: false,
+      expira_em: null,
+      publicar_em: null,
+    });
+  });
+
+  it('editar aviso de grupo vem com o grupo escolhido', async () => {
+    setupGrupos();
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Faxina de sábado' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Tirar G1' })).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    });
+    await waitFor(() => expect(mockPut).toHaveBeenCalled());
+    expect(mockPut.mock.calls[0][1]).toMatchObject({ publico: 'grupos', grupo_ids: ['g1'] });
+  });
+
+  it('sem grupos cadastrados, explica onde criar', async () => {
+    setupGrupos([], []);
+    fireEvent.click(await screen.findByRole('button', { name: /Novo aviso/ }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByLabelText(/Grupos da corrente/));
+    expect(await within(dialog).findByTestId('aviso-sem-grupos')).toHaveTextContent('Crie em Médiuns → Grupos');
+  });
+
+  it('quem só vê avisos não busca as opções de grupo', async () => {
+    mockGroupCan.mockImplementation((_f: string, a: string) => a === 'view');
+    setupGrupos();
+    await screen.findAllByTestId('comunicado-item');
+    expect(mockGet).not.toHaveBeenCalledWith('/api/v1/admin/corrente-grupos/opcoes');
   });
 });

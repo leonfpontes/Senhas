@@ -203,3 +203,48 @@ async def test_permissoes_efetivas_ignoram_usuario_de_outro_tenant(db, cenario):
     assert proprio["giras"]["view"] is True
     cruzado = await service.get_user_effective_permissions(b["user"].id, a["user"].tenant_id)
     assert not any(v for feature in cruzado.values() for v in feature.values())
+
+
+async def test_grupos_da_corrente_cruzando_tenants_sao_recusados(client, db, cenario):
+    """AM-23: grupo_id/medium_id de outro terreiro no corpo ou no caminho (checagem 4)."""
+    from sqlalchemy import text
+
+    from src.models.corrente_grupos import ComunicadoGrupo, CorrenteGrupo, CorrenteGrupoMembro
+
+    admin_a, a, b = cenario
+    await db.execute(
+        text("UPDATE tenants SET area_medium_liberada = true WHERE id IN (:a, :b)"),
+        {"a": a["medium"].tenant_id, "b": b["medium"].tenant_id},
+    )
+    grupo_b = CorrenteGrupo(tenant_id=b["medium"].tenant_id, nome="G1 de B")
+    db.add(grupo_b)
+    await db.commit()
+    base = "/api/v1/admin/corrente-grupos"
+
+    # médium de B num grupo novo de A
+    resp = await client.post(base, headers=admin_a.headers, json={"nome": "G1", "medium_ids": [str(b["medium"].id)]})
+    assert resp.status_code == 422, resp.text
+    # médium de A no grupo de B
+    resp = await client.post(
+        f"{base}/{grupo_b.id}/membros", headers=admin_a.headers, json={"medium_ids": [str(a["medium"].id)]}
+    )
+    assert resp.status_code == 404, resp.text
+    # grupos do médium de B / grupo de B para o médium de A
+    resp = await client.put(f"{base}/mediuns/{b['medium'].id}", headers=admin_a.headers, json={"grupo_ids": []})
+    assert resp.status_code == 404, resp.text
+    resp = await client.put(
+        f"{base}/mediuns/{a['medium'].id}", headers=admin_a.headers, json={"grupo_ids": [str(grupo_b.id)]}
+    )
+    assert resp.status_code == 422, resp.text
+    # aviso de A para o grupo de B
+    resp = await client.post(
+        "/api/v1/admin/comunicados",
+        headers=admin_a.headers,
+        json={"titulo": "X", "corpo": "Y", "publico": "grupos", "grupo_ids": [str(grupo_b.id)]},
+    )
+    assert resp.status_code == 422, resp.text
+
+    assert await _count(CorrenteGrupoMembro, CorrenteGrupoMembro.medium_id == b["medium"].id) == 0
+    assert await _count(CorrenteGrupoMembro, CorrenteGrupoMembro.grupo_id == grupo_b.id) == 0
+    assert await _count(ComunicadoGrupo, ComunicadoGrupo.grupo_id == grupo_b.id) == 0
+    assert await _count(CorrenteGrupo, CorrenteGrupo.tenant_id == a["medium"].tenant_id) == 0

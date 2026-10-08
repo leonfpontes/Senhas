@@ -32,6 +32,8 @@ export interface MediumMe {
   whatsapp_casa?: string | null;
   /** Avisos ainda não lidos — selo da aba Avisos (AM-09). */
   avisos_nao_lidos?: number;
+  /** Grupos da corrente em que o médium está (AM-23) — só nome e cor, nunca os outros membros. */
+  grupos?: { id: string; nome: string; cor: string }[];
 }
 
 export type MediumStatus = 'idle' | 'loading' | 'ok' | 'indisponivel' | 'erro';

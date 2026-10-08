@@ -18,6 +18,7 @@ import {
   Search,
   Sparkles,
   Trash2,
+  Users,
 } from 'lucide-react';
 import AdminLayout from './admin_layout';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -48,6 +49,13 @@ import { maskTelefone } from '@/components/fields/MaskedInput';
 import { todayBr } from '@/lib/dateBr';
 import { minPlanFor } from '@/constants/plans';
 import { AcessoAreaBadge, AcessoAreaSheet, ConvidarTodosButton, type AcessoArea } from '@/components/admin/mediuns';
+import {
+  GruposDoMediumChips,
+  GruposDoMediumField,
+  mesmosGrupos,
+  salvarGruposDoMedium,
+  useGruposDaCorrente,
+} from '@/components/admin/mediuns/GruposDoMedium';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -219,6 +227,12 @@ function MediunsContent() {
   // Área do Médium (AM-03): coluna e ações só com a feature (plano + chave do piloto) e MEDIUNS:edit.
   const canAcesso = can('area_medium') && canGroup('mediuns', 'edit');
   const [acessoTarget, setAcessoTarget] = useState<Medium | null>(null);
+  // Grupos da corrente (AM-23): só com `area_medium`; ver = MEDIUNS:view, o campo do cadastro = edit.
+  const canGrupos = can('area_medium') && canView;
+  const canGruposEditar = can('area_medium') && canEdit;
+  const { grupos, porMedium, recarregar: recarregarGrupos } = useGruposDaCorrente(canGrupos);
+  const [grupoIds, setGrupoIds] = useState<string[]>([]);
+  const [grupoIdsOriginal, setGrupoIdsOriginal] = useState<string[]>([]);
 
   const [mediuns, setMediuns] = useState<Medium[]>([]);
   const [loading, setLoading] = useState(true);
@@ -343,6 +357,8 @@ function MediunsContent() {
   });
 
   const openCreate = () => {
+    setGrupoIds([]);
+    setGrupoIdsOriginal([]);
     setFormData(EMPTY_FORM);
     setOriginalData(EMPTY_FORM);
     setCurrentItem(null);
@@ -356,6 +372,9 @@ function MediunsContent() {
     const f = toForm(m);
     setFormData(f);
     setOriginalData(f);
+    const atuais = (porMedium.get(m.id) ?? []).map((g) => g.id);
+    setGrupoIds(atuais);
+    setGrupoIdsOriginal(atuais);
     setCurrentItem(m);
     setTouched({});
     setCepError('');
@@ -383,10 +402,12 @@ function MediunsContent() {
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
+  const gruposMudaram = canGruposEditar && formData.is_active && !mesmosGrupos(grupoIds, grupoIdsOriginal);
   const isDirty =
-    drawerMode === 'create'
+    gruposMudaram ||
+    (drawerMode === 'create'
       ? Object.entries(formData).some(([k, v]) => v !== EMPTY_FORM[k as keyof FormData])
-      : JSON.stringify(formData) !== JSON.stringify(originalData);
+      : JSON.stringify(formData) !== JSON.stringify(originalData));
 
   const nomeError = touched.nome && !formData.nome.trim() ? 'Nome é obrigatório' : '';
   const saveDisabled = !formData.nome.trim();
@@ -414,8 +435,10 @@ function MediunsContent() {
         observacoes: formData.observacoes.trim() || null,
       };
 
+      let salvoId: string | null = null;
       if (drawerMode === 'create') {
-        await apiClient.post('/api/v1/admin/mediuns', payload);
+        const res = await apiClient.post<Medium>('/api/v1/admin/mediuns', payload);
+        salvoId = res.data?.id ?? null;
         showSuccess('Médium criado com sucesso!');
       } else if (currentItem) {
         await apiClient.patch(`/api/v1/admin/mediuns/${currentItem.id}`, {
@@ -423,8 +446,18 @@ function MediunsContent() {
           is_active: formData.is_active,
           data_saida: formData.data_saida || null,
         });
+        salvoId = currentItem.id;
         showSuccess('Médium atualizado com sucesso!');
       }
+      // Grupos da corrente (AM-23): gravados à parte, só quando mudaram (inativar já tira de todos).
+      if (gruposMudaram && salvoId) {
+        try {
+          await salvarGruposDoMedium(salvoId, grupoIds);
+        } catch {
+          showError('O médium foi salvo, mas os grupos não. Tente de novo.');
+        }
+      }
+      if (canGrupos) void recarregarGrupos();
       closeDrawer();
       load();
       // A cota (current_mediuns) conta os ativos: criar, inativar e reativar mudam a barra.
@@ -520,6 +553,7 @@ function MediunsContent() {
                 )}
               </span>
               {m.email && <span className="truncate text-xs text-muted-foreground">{m.email}</span>}
+              {canGrupos && <GruposDoMediumChips grupos={porMedium.get(m.id)} />}
             </div>
           );
         },
@@ -576,7 +610,7 @@ function MediunsContent() {
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [birthdayMap, showActions, canEdit, canDelete, canAcesso]);
+  }, [birthdayMap, showActions, canEdit, canDelete, canAcesso, canGrupos, porMedium]);
 
   const renderCard = (m: Medium) => {
     const bday = birthdayLabel(m.id);
@@ -600,6 +634,7 @@ function MediunsContent() {
             )}
             {canAcesso && <AcessoAreaBadge acesso={m.acesso_area} />}
           </span>
+          {canGrupos && <GruposDoMediumChips grupos={porMedium.get(m.id)} />}
           <span className="text-xs text-muted-foreground">
             {m.telefone ? maskTelefone(m.telefone) : 'Sem telefone'}
             {m.cidade ? ` · ${m.cidade}` : ''}
@@ -640,6 +675,14 @@ function MediunsContent() {
                 <RefreshCw className={loading ? 'animate-spin' : undefined} />
                 <span className="hidden sm:inline">Atualizar</span>
               </Button>
+              {canGrupos && (
+                <Button asChild variant="outline">
+                  <Link href="/admin/mediuns/grupos">
+                    <Users />
+                    Grupos
+                  </Link>
+                </Button>
+              )}
               {canAcesso && !debouncedSearch && <ConvidarTodosButton mediuns={mediuns} onDone={load} />}
               {canInsert && (
                 <Button
@@ -814,6 +857,10 @@ function MediunsContent() {
                 onCheckedChange={(v) => handleChange('is_active', v)}
               />
             </div>
+          )}
+
+          {canGruposEditar && formData.is_active && (
+            <GruposDoMediumField grupos={grupos} value={grupoIds} onChange={setGrupoIds} />
           )}
 
           <Accordion type="multiple" defaultValue={['vinculo', 'contato']} className="w-full">

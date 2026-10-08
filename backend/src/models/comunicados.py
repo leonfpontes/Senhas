@@ -7,9 +7,9 @@ seguem `comunicados`.
 - `comunicado_leituras`: quem leu e quando (`lido_em`), um registro por aviso + médium
   (`uq_comunicado_leituras_comunicado_medium`). O dirigente vê quem leu e quem não leu (D-28).
 
-`publico` é texto com CHECK (não ENUM do Postgres) para crescer sem `ALTER TYPE`: hoje
-`todos | atendimento | cambones`; quando os grupos da corrente existirem (AM-23), entra o valor
-`grupos` e a tabela `comunicado_grupos`.
+`publico` é texto com CHECK (não ENUM do Postgres) para crescer sem `ALTER TYPE`:
+`todos | atendimento | cambones | grupos`. Com `grupos` (AM-23, migração 075) os grupos escolhidos
+ficam em `comunicado_grupos` (`models/corrente_grupos.py`).
 """
 from __future__ import annotations
 
@@ -38,11 +38,13 @@ from .base import Base, SoftDeleteModel
 
 class ComunicadoPublico(str, enum.Enum):
     """Quem recebe o aviso. `atendimento` = médiuns de atendimento (`is_atendimento`);
-    `cambones` = quem é só cambone (`is_atendimento` falso)."""
+    `cambones` = quem é só cambone (`is_atendimento` falso); `grupos` = quem está em algum dos
+    grupos da corrente escolhidos (`comunicado_grupos`, AM-23)."""
 
     TODOS = "todos"
     ATENDIMENTO = "atendimento"
     CAMBONES = "cambones"
+    GRUPOS = "grupos"
 
 
 PUBLICOS = tuple(p.value for p in ComunicadoPublico)
@@ -56,7 +58,7 @@ class Comunicado(SoftDeleteModel):
         Index("ix_comunicados_tenant_id", "tenant_id"),
         Index("ix_comunicados_tenant_publicar_em", "tenant_id", "publicar_em"),
         CheckConstraint(
-            "publico IN ('todos', 'atendimento', 'cambones')", name="ck_comunicados_publico"
+            "publico IN ('todos', 'atendimento', 'cambones', 'grupos')", name="ck_comunicados_publico"
         ),
     )
 

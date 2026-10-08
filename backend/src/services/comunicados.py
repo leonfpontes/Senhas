@@ -9,7 +9,8 @@ onde o auditor de tenant confere os filtros; aqui só o que dá para testar sem 
   autolinka `http(s)://`/`www.`), nunca no banco.
 - **Público** (`publicos_do_medium`, `medium_no_publico`): `todos` vale para todo médium;
   `atendimento` para quem é médium de atendimento (`mediuns.is_atendimento`); `cambones` para
-  quem é só cambone. Quando os grupos da corrente existirem (AM-23), entra `grupos`.
+  quem é só cambone; `grupos` (AM-23) para quem está em pelo menos um dos grupos da corrente
+  escolhidos no aviso (`comunicado_grupos`), não importa se atende ou é cambone.
 - **Agenda e validade** (`situacao`, `normalizar_data`): publicado = `publicar_em` já chegou e
   `expira_em` (se houver) ainda não; antes disso "agendado", depois "expirado".
 """
@@ -17,7 +18,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Optional
+from typing import AbstractSet, Optional
 
 from ..core.tz import APP_TZ
 from ..models.comunicados import ComunicadoPublico
@@ -66,7 +67,14 @@ def publicos_do_medium(is_atendimento: bool) -> tuple[str, ...]:
     return (ComunicadoPublico.TODOS.value, especifico.value)
 
 
-def medium_no_publico(publico: str, is_atendimento: bool) -> bool:
+def medium_no_publico(
+    publico: str,
+    is_atendimento: bool,
+    grupos_do_medium: AbstractSet = frozenset(),
+    grupos_do_aviso: AbstractSet = frozenset(),
+) -> bool:
+    if publico == ComunicadoPublico.GRUPOS.value:
+        return bool(set(grupos_do_medium) & set(grupos_do_aviso))
     return publico in publicos_do_medium(is_atendimento)
 
 
