@@ -52,6 +52,10 @@ def _make_sub(
     current_period_end: datetime | None = None,
     is_trial: bool = False,
     trial_ends_at: datetime | None = None,
+    collection_method: str | None = None,
+    pending_stripe_subscription_id: str | None = None,
+    pending_invoice_id: str | None = None,
+    pending_invoice_url: str | None = None,
 ):
     sub = MagicMock()
     sub.id = SUB_ID
@@ -67,6 +71,12 @@ def _make_sub(
     sub.currency = "brl"
     sub.is_trial = is_trial
     sub.trial_ends_at = trial_ends_at
+    # $-04 — cobrança por fatura (boleto)
+    sub.collection_method = collection_method
+    sub.pending_stripe_subscription_id = pending_stripe_subscription_id
+    sub.pending_invoice_id = pending_invoice_id
+    sub.pending_invoice_url = pending_invoice_url
+    sub.pending_invoice_due_at = None
     return sub
 
 

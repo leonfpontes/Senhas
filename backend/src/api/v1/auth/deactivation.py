@@ -197,6 +197,17 @@ async def deactivate_account(
                 "Failed to cancel Stripe subscription %s for tenant %s on deactivation: %s",
                 sub.stripe_subscription_id, tenant_id, exc,
             )
+    # $-04: assinatura por boleto ainda não paga — sem isso a Stripe seguiria mandando faturas.
+    if sub and isinstance(sub.pending_stripe_subscription_id, str):
+        try:
+            await stripe_service.cancel_pending_invoice_subscription(
+                sub.pending_stripe_subscription_id, sub.pending_invoice_id
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to cancel pending Stripe subscription %s for tenant %s on deactivation: %s",
+                sub.pending_stripe_subscription_id, tenant_id, exc,
+            )
 
     try:
         tenant.soft_delete()
