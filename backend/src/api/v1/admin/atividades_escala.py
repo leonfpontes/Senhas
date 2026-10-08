@@ -65,6 +65,7 @@ from src.services.presenca import (
     ctx_da_atividade,
     ctx_da_gira,
     elegiveis_entre,
+    mediuns_esperados,
     membros_ativos_dos_grupos,
 )
 
@@ -261,7 +262,7 @@ async def _planejar(
         membros.setdefault(gid, []).append(medium.id)
     elegiveis = await elegiveis_entre(db, tenant_id, ctx.tipo, [m for m, _ in membros_rows])
     linhas = await linhas_da_escala(db, tenant_id, ctx.atividade_id)
-    return planejar_escala(
+    plano = planejar_escala(
         pedidos,
         membros=membros,
         elegiveis=elegiveis,
@@ -269,6 +270,11 @@ async def _planejar(
         funcoes_afetadas=funcoes_afetadas,
         origem_individual=origem_individual,
     )
+    if plano.tirados:
+        # Tipo "todos os elegíveis": quem o tipo alcança no dia só perde a função (segue esperado).
+        esperados = {m.id for m in await mediuns_esperados(db, tenant_id, ctx)}
+        plano.so_sem_funcao = set(plano.tirados) & esperados
+    return plano
 
 
 async def _resultado(db: AsyncSession, tenant_id: uuid.UUID, plano: PlanoEscala) -> EscalaResultado:

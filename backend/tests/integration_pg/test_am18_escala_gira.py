@@ -3,7 +3,8 @@
 - Monta a escala da gira por função, com médiuns um a um e com um grupo inteiro (membros ativos
   que o tipo alcança, origem "grupo"), pela âncora da gira.
 - Um médium tem uma função por gira (a mesma linha da presença); trocar de função muda a linha;
-  tirar da escala marca `dispensado_em` e guarda a função; voltar tira a dispensa.
+  tirar da função numa gira ("todos os elegíveis") só limpa a função — segue esperado; em tipo
+  "só escalados" marca `dispensado_em` e guarda a função; voltar tira a dispensa.
 - "Copiar da gira anterior" e rodízio de uma função entre médiuns ou grupos pelas próximas giras.
 - O médium vê a própria função (Agenda, Início, Minhas presenças) — e não a vê depois de tirado.
 - Tipo sem escala por função → 409; outro terreiro → 404/422 sem gravar; sem o plano `escalas`
@@ -160,7 +161,7 @@ async def test_escala_por_funcao_com_mediuns_e_grupo_inteiro(client, db):
     assert log.details["new_state"]["funcoes"][str(ana.id)] == str(funcoes["Cambone"]) and "Ana" not in str(log.details)
 
 
-# ── 2. Uma função por médium; trocar; tirar → dispensado ────────────────────
+# ── 2. Uma função por médium; trocar; tirar da função (segue esperado) ─────
 
 
 async def test_uma_funcao_por_medium_trocar_e_tirar_da_escala(client, db):
@@ -190,16 +191,17 @@ async def test_uma_funcao_por_medium_trocar_e_tirar_da_escala(client, db):
     assert len(linhas) == 2 and linhas[ana.id].id == linha_ana.id  # a mesma linha, só mudou a função
     assert linhas[ana.id].funcao_id == funcoes["Porteiro"] and linhas[beto.id].resposta == "vou"
 
-    # Tirar a Ana: fica dispensada, com a função guardada para o histórico.
+    # Tirar a Ana da função: a gira é "todos os elegíveis" — ela só perde a função e segue esperada.
     tirar = await _salvar(client, admin, atividade_id, _pedido(funcoes["Cambone"], [beto]))
     assert tirar.json()["resultado"]["tirados"] == 1
     linhas = await _linhas(atividade_id)
-    assert linhas[ana.id].dispensado_em is not None and linhas[ana.id].funcao_id == funcoes["Porteiro"]
+    assert (linhas[ana.id].dispensado_em, linhas[ana.id].funcao_id, linhas[ana.id].origem) == (None, None, "elegivel")
     escala = tirar.json()
-    assert [(t["nome"], t["funcao"]) for t in escala["tirados"]] == [("Ana Paula", "Porteiro")]
+    assert escala["tirados"] == []
     assert _nomes(_na_funcao(escala, "Porteiro")) == []
     det = (await client.get(f"{MEDIUM}/agenda/gira/{gira.id}", headers=ana_actor.headers)).json()
-    assert det["minha_participacao"]["situacao"] == "dispensado" and det["minha_participacao"]["funcao"] is None
+    assert det["minha_participacao"]["situacao"] != "dispensado" and det["minha_participacao"]["funcao"] is None
+    assert det["minha_participacao"]["convocado"]
 
     # Voltar para a escala tira a dispensa.
     volta = await _salvar(client, admin, atividade_id, _pedido(funcoes["Cambone"], [beto]), _pedido(funcoes["Ogã/Atabaque"], [ana]))
@@ -301,14 +303,15 @@ async def test_rodizio_entre_mediuns_e_entre_grupos_pelas_proximas_giras(client,
     assert (l1[caio.id].funcao_id, l1[caio.id].origem, str(l1[caio.id].grupo_id)) == (funcoes["Ogã/Atabaque"], "grupo", g1)
     assert l2[dani.id].funcao_id == funcoes["Ogã/Atabaque"] and l1[ana.id].funcao_id == funcoes["Cambone"]
 
-    # Rodízio de novo no Cambone, só com o Beto: na 1ª a Ana sai (dispensada) e o Beto entra.
+    # Rodízio de novo no Cambone, só com o Beto: na 1ª a Ana sai da função (segue na gira) e o Beto entra.
     resp = await client.post(
         f"{ADMIN}/{primeira}/escala/rodizio",
         headers=admin.headers,
         json={"funcao_id": str(funcoes["Cambone"]), "medium_ids": [str(beto.id)], "quantidade": 1},
     )
     l1 = await _linhas(ancoras[giras[0].id])
-    assert l1[ana.id].dispensado_em is not None and l1[beto.id].funcao_id == funcoes["Cambone"]
+    assert (l1[ana.id].dispensado_em, l1[ana.id].funcao_id) == (None, None)
+    assert l1[beto.id].funcao_id == funcoes["Cambone"]
 
 
 async def test_atividade_com_escala_por_funcao_e_tipo_sem_escala(client, db):
@@ -343,6 +346,33 @@ async def test_atividade_com_escala_por_funcao_e_tipo_sem_escala(client, db):
     # Cancelada: a escala não muda (409).
     assert (await client.post(f"{ADMIN}/{r2}/cancelar", headers=admin.headers, json={"motivo": "Chuva"})).status_code == 200
     assert (await _salvar(client, admin, r2, _pedido(funcoes["Cozinha"], [ana]))).status_code == 409
+
+
+async def test_tipo_so_escalados_tirar_da_funcao_dispensa(client, db):
+    tenant, admin = await _cenario(db)
+    ana_actor, ana = await _medium(db, tenant, "Ana Paula")
+    _, beto = await _medium(db, tenant, "Beto Lima")
+    funcoes = await _funcoes(db, tenant)
+    tipo = (
+        await db.execute(
+            select(AtividadeTipo).where(AtividadeTipo.tenant_id == tenant.id, AtividadeTipo.nome == "Organização interna")
+        )
+    ).scalar_one()
+    assert tipo.convocacao_padrao == "so_escalados"
+    await db.execute(update(AtividadeTipo).where(AtividadeTipo.id == tipo.id).values(modo_escala="funcoes"))
+    await db.commit()
+    inicio = (_agora() + timedelta(days=4)).isoformat()
+    resp = await client.post(ADMIN, headers=admin.headers, json={"tipo_id": str(tipo.id), "titulo": "Mutirão", "inicio": inicio})
+    assert resp.status_code == 201, resp.text
+    atividade_id = resp.json()["id"]
+
+    assert (await _salvar(client, admin, atividade_id, _pedido(funcoes["Cozinha"], [ana, beto]))).status_code == 200
+    tirar = await _salvar(client, admin, atividade_id, _pedido(funcoes["Cozinha"], [beto]))
+    assert tirar.status_code == 200, tirar.text
+    linhas = await _linhas(atividade_id)
+    # Só escalados: quem sai da função sai da atividade (dispensado, função guardada no histórico).
+    assert linhas[ana.id].dispensado_em is not None and linhas[ana.id].funcao_id == funcoes["Cozinha"]
+    assert [(t["nome"], t["funcao"]) for t in tirar.json()["tirados"]] == [("Ana Paula", "Cozinha")]
 
 
 # ── 5. O médium vê a própria função ─────────────────────────────────────────

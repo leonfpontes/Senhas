@@ -12,9 +12,11 @@ Regras (§8.8 do plano da Área do Médium):
   grupo da corrente inteiro (`origem = 'grupo'` + `grupo_id`: os membros ATIVOS que o tipo alcança,
   com a função como padrão). Pedido um a um ganha do grupo; membro de dois grupos em funções
   diferentes fica na primeira (e volta no resultado).
-- Salvar a escala substitui as funções pedidas: quem tinha função e saiu fica com `dispensado_em`
-  (a linha e a função ficam, para o histórico); trocar de função só muda a linha; quem volta perde
-  o `dispensado_em`. Médiuns sem função continuam convocados pelo tipo (gira = "todos os elegíveis").
+- Salvar a escala substitui as funções pedidas; trocar de função só muda a linha; quem volta perde
+  o `dispensado_em`. Quem tinha função e saiu: em tipo "só escalados" fica com `dispensado_em` (a
+  linha e a função ficam, para o histórico); em tipo "todos os elegíveis" (gira) e alcançado pelo
+  tipo, só perde a função — continua esperado, como qualquer médium da corrente
+  (`PlanoEscala.so_sem_funcao`). Médiuns sem função continuam convocados pelo tipo.
 - **Rodízio** (`rodizio`, herdado do F-07): para uma função, distribui em ordem circular entre
   médiuns ou grupos pelas próximas N atividades do mesmo tipo — função pura.
 - **Copiar da anterior**: a última atividade do mesmo tipo (gira: a última gira) com escala.
@@ -43,6 +45,7 @@ MODO_FUNCOES = "funcoes"
 ORIGEM_FUNCAO = "funcao"
 ORIGEM_GRUPO = "grupo"
 ORIGEM_RODIZIO = "rodizio"
+ORIGEM_ELEGIVEL = "elegivel"
 
 RODIZIO_MAX_ATIVIDADES = 12
 RODIZIO_MAX_POR_VEZ = 20
@@ -117,6 +120,8 @@ class PlanoEscala:
     repetidos: list[uuid.UUID] = field(default_factory=list)
     # Rodízio: já tinha outra função nesta atividade (fora da que o rodízio mexe) e ficou nela.
     em_outra_funcao: list[uuid.UUID] = field(default_factory=list)
+    # Tirados que o tipo convoca mesmo sem função ("todos os elegíveis"): perdem só a função.
+    so_sem_funcao: set[uuid.UUID] = field(default_factory=set)
 
 
 def planejar_escala(
@@ -265,8 +270,14 @@ async def aplicar_plano(
         p = await upsert_participacao(
             db, tenant_id, atividade_id, medium_id, origem=ORIGEM_FUNCAO, convocado=True
         )
-        # A função fica gravada (histórico de quem estava escalado e saiu).
-        p.dispensado_em = p.dispensado_em or agora
+        if medium_id in plano.so_sem_funcao:
+            # Gira "todos os elegíveis": sai da função e continua esperado, como os demais.
+            p.funcao_id = None
+            p.origem = ORIGEM_ELEGIVEL
+            p.grupo_id = None
+        else:
+            # A função fica gravada (histórico de quem estava escalado e saiu).
+            p.dispensado_em = p.dispensado_em or agora
         p.updated_at = agora
     # TODO(AM-15): avisar `plano.novos` ("Você é Cambone na gira de sábado"), `plano.trocados`
     # e `plano.tirados` — este card não envia nada.
