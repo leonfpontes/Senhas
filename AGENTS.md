@@ -868,8 +868,7 @@ Incluir obrigatoriamente:
 ### 11.8 Cadeia de Migracoes Alembic
 - Head atual: `082_push_inscricoes` (2026-10-08, AM-16: tabela `push_inscricoes` — endpoint unico, chaves
   `p256dh`/`auth`, `user_agent` curto, `last_success_at`, `failures`, FKs CASCADE para tenant/usuario/medium — e
-  `medium_preferencias.push_<tipo>` (5 booleanos, padrao true); criada sobre a 081 (numero 082)
-  enquanto 082–087 corriam em paralelo; pode ser reencadeada no merge), apos `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
+  `medium_preferencias.push_<tipo>` (5 booleanos, padrao true)), apos `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
   indices unicos parciais, `tenant_configs.area_medium_lembrete_mensalidade`, `comunicados.avisar_email`/
   `avisar_email_em`; criada sobre a 079 e re-encadeada depois da 080 no merge), apos `080_escala_planos` (2026-10-08, AM-25: `escala_planos` — um por tipo e mes, rascunho/publicado,
   unico por `tenant_id, tipo_id, mes` — e `escala_plano_dias` — data x grupo x horario, `atividade_id` FK SET NULL,
