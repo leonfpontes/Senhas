@@ -1162,6 +1162,58 @@ HMAC-SHA256 of (tenant, origem, gira/activity id, 60-second window) with a sub-k
 `SECRET_KEY` — no table — and `conteudo` = `{FRONTEND_URL}/medium/agenda/{origem}/{id}?cheguei={codigo}`
 (the phone camera opens the Área and marks "Cheguei"). No personal data.
 
+### 17. Assiduidade — relatório por médium e por grupo (AM-26)
+
+Same prefix and plan gates as §15 (`area_medium` + `atividades_corrente`). File
+`src/api/v1/admin/atividades_assiduidade.py` (router registered **before** `atividades.py`, so
+`/assiduidade` never falls into `GET /{atividade_id}`); rules in `src/services/assiduidade.py`.
+
+| Method | Path | Group action |
+|---|---|---|
+| GET | `/api/v1/admin/atividades/assiduidade?inicio&fim&tipo_id&grupo_id&agrupar=medium\|grupo` | `ESCALAS:view` (+ plan `escalas`, Pro, for `agrupar=grupo` → else 403) |
+| GET | `/api/v1/admin/atividades/assiduidade/medium/{medium_id}?inicio&fim&tipo_id` | `ESCALAS:view` |
+
+- `inicio`/`fim`: Brasília days (`AAAA-MM-DD`, inclusive) on the activity start (the gira's for an
+  anchor). Default: the current month (or the month of `inicio`). `fim` before `inicio` or more than one
+  year → 400. Malformed date/uuid → 422.
+- `tipo_id` (archived types allowed), `grupo_id` (archived groups allowed) and `medium_id` (not deleted;
+  inactive allowed) must belong to the tenant → else 404.
+- `grupo_id` = only the **current** members of the group. `agrupar=grupo`: one line per active group
+  (or only the filtered one), summing the rows of its current members (a médium in two groups counts in
+  both lines, once in `totais`).
+
+**Rule** (the same as the médium's "Minhas presenças"): every participation row of a type that controls
+attendance, of a non-deleted activity/gira and a non-deleted médium, falls in one category —
+`presente` / `ausente_justificado` / `ausente` (roll call closed; a "vou" in confiança mode counts as
+present), `sem_chamada` (activity already started, roll call not closed), `dispensado` (dispensed,
+substituted, or activity/gira cancelled), `avulso` (walk-in without convocation, `convocado = false`) or
+`futura`. `convocacoes` = presentes + ausências (with and without justification); `percentual` =
+`round(presencas × 100 ÷ convocacoes)` or `null` without convocations. `sem_chamada`, `dispensados`,
+`avulsos` and future activities never enter the percentage. One `GROUP BY` over the per-row facts
+(uses the `(tenant_id, medium_id)` / `(tenant_id, atividade_id)` indexes).
+
+**Aggregate response** (only counts — this is what goes into the PDF; never the justification text):
+```json
+{
+  "inicio": "2026-10-01", "fim": "2026-10-31", "agrupar": "medium"|"grupo",
+  "tipo": { "id", "nome", "icone", "cor" } | null, "grupo": { "id", "nome", "cor" } | null,
+  "atividades_com_chamada": 4, "atividades_sem_chamada": 1,
+  "totais": { "convocacoes", "presencas", "ausencias_justificadas", "ausencias_sem_justificativa",
+              "sem_chamada", "dispensados", "avulsos", "percentual" },
+  "linhas": [{ "id", "nome", "ativo" /* médium */, "cor", "membros" /* grupo */, ...same numbers }]
+}
+```
+`atividades_com_chamada`/`_sem_chamada`: activities already started in the period (not cancelled, type
+with attendance, tipo filter applied). Médium lines only for médiuns with something to show, ordered
+by name.
+
+**Detail** (`/assiduidade/medium/{id}`): `{ "medium": { "id", "nome", "ativo" }, "inicio", "fim",
+"tipo", "resumo": {numbers}, "itens": [{ "atividade_id", "origem", "ref_id", "titulo", "inicio",
+"tipo", "situacao", "categoria", "conta_no_percentual", "chamada_encerrada", "cancelada",
+"tem_justificativa", "justificativa" }] }` (most recent first). `justificativa` (may contain health
+data, plan §6.8) only here, on the screen of whoever has `ESCALAS:view` — never in PDF, CSV, e-mail or
+audit (these routes audit nothing).
+
 ---
 
 ## Área do Médium Endpoints (AM-02)
