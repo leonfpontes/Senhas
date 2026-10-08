@@ -3,6 +3,7 @@
     GET    /api/v1/medium/perfil          meus dados (os da casa travados) + e-mail de login
     PATCH  /api/v1/medium/perfil          telefone, endereço e data de nascimento
     POST   /api/v1/medium/perfil/foto     foto da conta (multipart `file`, regras do perfil do painel)
+    DELETE /api/v1/medium/perfil/foto     tirar a foto (volta o avatar de iniciais; AM-29)
     POST   /api/v1/medium/perfil/senha    trocar a senha (regras do perfil do painel: derruba as sessões)
     POST   /api/v1/medium/perfil/email    pedir a troca do e-mail de login (link no endereço novo)
     DELETE /api/v1/medium/perfil/email    desistir da troca pendente
@@ -31,6 +32,8 @@ from src.api.v1.auth.login import normalize_login_email
 from src.api.v1.auth.profile import (
     _build_photo_url,
     apply_password_change,
+    clear_profile_photo,
+    has_profile_photo,
     read_profile_photo,
     set_profile_photo,
 )
@@ -251,6 +254,26 @@ async def enviar_foto(
     await db.commit()
     await db.refresh(ctx.user)
     return FotoResponse(message="Foto atualizada.", foto_url=_build_photo_url(request, ctx.user))
+
+
+@router.delete(
+    "/perfil/foto",
+    response_model=FotoResponse,
+    dependencies=[Depends(require_not_impersonated)],
+)
+@limiter.limit("20/hour")
+async def remover_foto(
+    request: Request,
+    ctx: MediumContext = Depends(require_medium),
+    db: AsyncSession = Depends(get_db),
+) -> FotoResponse:
+    """Tira a foto da conta (a mesma do perfil do painel). Sem foto → nada muda, sem auditoria."""
+    if has_profile_photo(ctx.user):
+        clear_profile_photo(ctx.user)
+        db.add(ctx.user)
+        await _auditar(db, ctx, "médium removeu a foto", ["foto"])
+        await db.commit()
+    return FotoResponse(message="Foto removida.", foto_url=None)
 
 
 @router.post("/perfil/senha", dependencies=[Depends(require_not_impersonated)])

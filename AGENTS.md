@@ -195,12 +195,16 @@ Rotas existentes e suas features:
   `PermissionService.is_feature_enabled_for_plan`. Escalas, confirmacoes e chamada (AM-17/AM-18/AM-25) usam a
   mesma feature
 - Presenca (`atividades_presenca.py`, AM-17/AM-28) → `PermissionFeature.ESCALAS`, mesmo prefixo e mesmos gates
-  de plano: confirmacoes = view, convocar = insert, dispensar = edit, chamada (GET/PUT/encerrar) = edit, QR =
+  de plano: confirmacoes = view, convocar (e `GET /convocar/mediuns`, AM-29) = insert, dispensar = edit, chamada (GET/PUT/encerrar) = edit, QR =
   edit. **Excecao da gira**: a chamada de uma gira aceita tambem `PORTA:edit` e o QR da gira `PORTA:view` —
   guard `require_any_group_permission(ESCALAS, PORTA, action=...)` + checagem interna (`_exigir_chamada`/
   `_exigir_qr`: PORTA so vale quando a atividade e ancora de gira). `POST /da-gira/{id}/chamada` (ESCALAS ou
   PORTA edit) cria a ancora para o porteiro abrir a chamada; `GET /da-gira/{id}/qr` serve a Porta/TV sem
   criar ancora. A justificativa so sai com `ESCALAS:view` (quem abriu pela Porta ve `tem_justificativa`)
+  Convocar grupos inteiros (AM-29): `grupo_ids` no corpo, cada um conferido no terreiro e nao arquivado
+  (`corrente_grupos.validar_grupos_ativos_do_tenant`, checagem 4 do auditor) antes de gravar; expande para os
+  membros ATIVOS que o tipo alcanca (`presenca.planejar_convocacao`, origem "grupo" + `grupo_id`), sem
+  duplicar nem rebaixar quem ja estava na escala
 
 Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
 leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
@@ -327,7 +331,8 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   FINANCEIRO + `mensalidade_mediun`): fila `GET .../mensalidades/comprovantes-para-conferir` (view),
   "Confirmar pagamento" = o POST de registro de sempre com PAGO (insert; espelha em contas a
   receber) e "Nao confirmar" = `PATCH .../mensalidades/{mediun_id}/{mes}/recusa` com motivo (edit).
-- **Perfil do medium (AM-13)**: `api/v1/medium/perfil.py` — `GET/PATCH /medium/perfil`, `POST /medium/perfil/foto`,
+- **Perfil do medium (AM-13)**: `api/v1/medium/perfil.py` — `GET/PATCH /medium/perfil`, `POST|DELETE /medium/perfil/foto`
+  (DELETE = tirar a foto, AM-29: `auth/profile.clear_profile_photo`, sem foto → 200 sem auditoria),
   `POST /medium/perfil/senha`, `POST|DELETE /medium/perfil/email`; regras puras em `services/medium_perfil.py`. O medium
   edita telefone, endereco e nascimento (`mediuns`, so digitos como o painel), a foto e a senha da conta (helpers
   `auth/profile.read_profile_photo`/`set_profile_photo`/`apply_password_change`, os mesmos do perfil do painel: a troca de

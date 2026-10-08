@@ -1058,7 +1058,8 @@ an internal activity or a gira **anchor** (`POST /da-gira/{gira_id}/chamada` ret
 | POST | `/api/v1/admin/atividades/da-gira/{gira_id}/chamada` → `{ "atividade_id" }` | `ESCALAS:edit` **or** `PORTA:edit` |
 | GET | `/api/v1/admin/atividades/da-gira/{gira_id}/qr` (no anchor created) | `ESCALAS:edit` **or** `PORTA:view` |
 | GET | `/api/v1/admin/atividades/{id}/confirmacoes` | `ESCALAS:view` |
-| POST | `/api/v1/admin/atividades/{id}/convocar` `{ "medium_ids": [...] }` | `ESCALAS:insert` |
+| POST | `/api/v1/admin/atividades/{id}/convocar` `{ "medium_ids": [...], "grupo_ids": [...] }` | `ESCALAS:insert` |
+| GET | `/api/v1/admin/atividades/convocar/mediuns` → `[{ "id", "nome" }]` (active médiuns, AM-29) | `ESCALAS:insert` |
 | POST | `/api/v1/admin/atividades/{id}/dispensar` `{ "medium_ids": [...] }` | `ESCALAS:edit` |
 | GET | `/api/v1/admin/atividades/{id}/chamada` | `ESCALAS:edit`; on a gira also `PORTA:edit` |
 | PUT | `/api/v1/admin/atividades/{id}/chamada` | `ESCALAS:edit`; on a gira also `PORTA:edit` |
@@ -1098,6 +1099,23 @@ the activity is a gira anchor (an internal activity without ESCALAS → 403).
 else 422. Convocar creates/updates the row (`convocado`, `origem = manual`, clears a dispensation);
 dispensar sets `dispensado_em`. Closed roll call → 409; cancelled activity → 409 (convocar). Audited as
 `atividade_escala` with the ids only.
+
+**Convocar with whole groups (AM-29)**: the body takes `medium_ids` (≤ 300) and/or `grupo_ids` (≤ 50;
+at least one of the two, else 422). Every `grupo_id` must be a corrente group (AM-23) of the tenant and
+not archived → else 422 and nothing is stored (médiuns sent in the same call included). Each group
+expands to its members **active at that moment** (inactive/deleted médiuns are skipped); members the
+activity type does not reach (`elegiveis`: atendimento · cambones · groups of the type) are skipped and
+reported. New rows get `origem = "grupo"` and `grupo_id` (the first requested group of a médium in two
+of them). A médium already on the schedule (stored row convocada and not dispensed, or the virtual
+convocation of `todos_elegiveis`) is left as is — one row per activity + médium, origin and answer
+never downgraded; a dispensed member comes back (origin and answer kept). A médium sent one by one wins
+over the group (`origem = manual`, no eligibility check — the house chose the person). The response is
+the **List** plus:
+```json
+"resultado": { "novos": 3, "ja_estavam": 1, "fora_da_elegibilidade": 1,
+               "fora_da_elegibilidade_nomes": ["Beto Lima"] }
+```
+counted per médium (nobody twice). The audit entry gains `grupos` and `do_grupo` (ids only).
 
 **PUT chamada** body: `{ "marcacoes": [{ "medium_id", "presenca": "presente"|"ausente"|"nao_registrada" }],
 "medium_ids": [...], "marcar_confirmados": bool }` — `marcacoes` only for who is on the list (else 422
@@ -1206,7 +1224,8 @@ médium come from the session; a `medium_id` in the query string is ignored).
     "status": "atrasada",
     "valor": 50.0,
     "vencimento": "2026-10-10",
-    "data_pagamento": null
+    "data_pagamento": null,
+    "pix_disponivel": true
   },
   "avisos": { "nao_lidos": 0, "ultimos": [] }
 }
@@ -1231,7 +1250,9 @@ médium come from the session; a `medium_id` in the query string is ignored).
   waiting for the house — AM-12), `nao_confirmada` (the house did not confirm it), `pendente`
   (until the due day, inclusive) or `atrasada` (after it). `valor` is the amount captured on the
   month's first record, else the configured monthly value. Same rule as the Mensalidade screen
-  (`services/medium_inicio.situacao_mensalidade`).
+  (`services/medium_inicio.situacao_mensalidade`). `pix_disponivel` (AM-29): whether the house
+  registered the mensalidade PIX key (AM-10) — only the yes/no, the key never appears here; the
+  screen shows "Pagar com PIX" only when true, else "Ver mensalidade".
 - `avisos` (AM-09): `{nao_lidos, ultimos}` — unread count and the 3 newest unread
   (`{id, titulo, fixado, publicado_em}`); `{0, []}` when the house turned the "avisos" module off.
 
@@ -1439,6 +1460,11 @@ and nothing changes. Invalid value → 422 `VALIDATION_ERROR` with a field messa
 **`POST /api/v1/medium/perfil/foto`** (multipart, field `file`; 20/hour) — the account photo (the
 same as the panel profile): JPG/PNG/WEBP up to 5 MB (`auth/profile.read_profile_photo`).
 `{"message": "Foto atualizada.", "foto_url": "..."}`.
+
+**`DELETE /api/v1/medium/perfil/foto`** (20/hour; AM-29) — removes the account photo (binary and
+legacy path, `auth/profile.clear_profile_photo`); the Área and the panel go back to the initials.
+`{"message": "Foto removida.", "foto_url": null}`. Audited as `medium_perfil` "médium removeu a
+foto" (no values); no photo → 200 and no audit entry. Refused under impersonation (403).
 
 **`POST /api/v1/medium/perfil/senha`** (10/hour) — `{"senha_atual", "nova_senha"}`. Same rules as
 `POST /auth/change-password` (`auth/profile.apply_password_change`): password policy, must differ,

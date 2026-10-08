@@ -13,7 +13,8 @@ requisição). Devolve, numa chamada só:
   que a corrente precisa — nome, horário e local. Nada de senhas ou consulentes.
   `orientacoes` = `giras.orientacoes_corrente` (AM-07: o que levar, só na Área).
 - `mensalidade`: a do mês corrente (Brasília), só com o plano `mensalidade_mediun` e a
-  configuração de mensalidade ativa; regras em `services/medium_inicio.py`.
+  configuração de mensalidade ativa; regras em `services/medium_inicio.py`. `pix_disponivel`
+  (AM-29) diz só se a casa cadastrou a chave PIX (AM-10) — a chave nunca sai no Início.
 - `avisos` (AM-09): `{nao_lidos, ultimos}` — quantos avisos o médium ainda não leu e os 3 mais
   novos deles (só título/data/fixado); zerado quando a casa desligou o módulo "avisos" (AM-10).
 """
@@ -64,6 +65,9 @@ class MensalidadeInicio(BaseModel):
     valor: Optional[float] = None
     vencimento: Optional[date] = None
     data_pagamento: Optional[datetime] = None
+    # A casa cadastrou a chave PIX da mensalidade (AM-10)? Só o sim/não — a chave nunca sai
+    # aqui. Sem chave, o Início mostra "Ver mensalidade" no lugar de "Pagar com PIX" (AM-29).
+    pix_disponivel: bool = False
 
 
 class AvisoInicio(BaseModel):
@@ -118,15 +122,18 @@ async def _proxima_gira(db: AsyncSession, ctx: MediumContext) -> Optional[Proxim
     )
 
 
-async def _mensalidade(db: AsyncSession, ctx: MediumContext, hoje: date) -> Optional[MensalidadeDoMes]:
+async def _mensalidade(
+    db: AsyncSession, ctx: MediumContext, hoje: date
+) -> tuple[Optional[MensalidadeDoMes], bool]:
+    """Mensalidade do mês e se a casa tem chave PIX cadastrada (sem revelar a chave)."""
     sub = await SubscriptionRepository(db).get_by_tenant(ctx.tenant_id)
     if not get_effective_plan_features(sub).mensalidade_mediun:
-        return None
+        return None, False
     config = (
         await db.execute(select(MensalidadeConfig).where(MensalidadeConfig.tenant_id == ctx.tenant_id))
     ).scalar_one_or_none()
     if config is None or not config.ativo:
-        return None
+        return None, False
     pagamento = (
         await db.execute(
             select(MensalidadePagamento).where(
@@ -152,7 +159,7 @@ async def _mensalidade(db: AsyncSession, ctx: MediumContext, hoje: date) -> Opti
         comprovante_presente=bool(pagamento and pagamento.comprovante_filename),
         recusado_em=pagamento.recusado_em if pagamento else None,
     )
-    return situacao
+    return situacao, bool((config.pix_chave or "").strip())
 
 
 async def _avisos(db: AsyncSession, ctx: MediumContext) -> AvisosInicio:
@@ -210,7 +217,7 @@ async def get_medium_inicio(
     db: AsyncSession = Depends(get_db),
 ) -> InicioResponse:
     hoje = today_local()
-    mensalidade = await _mensalidade(db, ctx, hoje)
+    mensalidade, pix_disponivel = await _mensalidade(db, ctx, hoje)
     avisos = await _avisos(db, ctx)
     escalas = await _escalas(db, ctx)
     return InicioResponse(
@@ -222,7 +229,9 @@ async def get_medium_inicio(
             escalas_a_responder=escalas_pendentes(escalas),
         ),
         proxima_gira=await _proxima_gira(db, ctx),
-        mensalidade=MensalidadeInicio(**mensalidade.as_dict()) if mensalidade else None,
+        mensalidade=(
+            MensalidadeInicio(**mensalidade.as_dict(), pix_disponivel=pix_disponivel) if mensalidade else None
+        ),
         avisos=avisos,
         escalas=escalas,
     )

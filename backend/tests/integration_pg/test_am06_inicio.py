@@ -80,6 +80,7 @@ async def test_pendencias_proxima_gira_e_mensalidade_atrasada(client, db, hoje):
         "valor": 50.0,
         "vencimento": "2026-10-10",
         "data_pagamento": None,
+        "pix_disponivel": False,  # AM-29: a casa ainda não cadastrou a chave PIX
     }
     assert body["pendencias"] == [
         {

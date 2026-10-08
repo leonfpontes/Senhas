@@ -36,7 +36,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import AbstractSet, Optional
+from typing import AbstractSet, Optional, Sequence
 from urllib.parse import parse_qs, urlparse
 
 from sqlalchemy import and_, exists, func, or_, select
@@ -537,6 +537,120 @@ async def mediuns_esperados(db: AsyncSession, tenant_id: uuid.UUID, ctx: Ativida
     return list((await db.execute(stmt.order_by(func.lower(Medium.nome)))).scalars().all())
 
 
+# ── Convocar grupos inteiros (AM-29) ────────────────────────────────────────
+
+
+@dataclass
+class PlanoConvocacao:
+    """O que o "Pôr na escala" faz com médiuns pedidos um a um e com os membros dos grupos.
+
+    - `manuais`: os pedidos um a um (todos recebem a linha, como sempre — quem estava
+      dispensado volta);
+    - `do_grupo`: (medium_id, grupo_id) dos membros elegíveis que ainda não estão na escala;
+    - `novos`/`ja_estavam`: contagem por médium (sem repetir quem veio por dois caminhos);
+    - `fora_da_elegibilidade`: membros que o tipo da atividade não alcança (ficam de fora).
+    """
+
+    manuais: list[uuid.UUID]
+    do_grupo: list[tuple[uuid.UUID, uuid.UUID]]
+    novos: int
+    ja_estavam: int
+    fora_da_elegibilidade: list[uuid.UUID]
+
+
+def planejar_convocacao(
+    *,
+    pedidos: Sequence[uuid.UUID],
+    membros: Sequence[tuple[uuid.UUID, uuid.UUID]],
+    elegiveis: AbstractSet[uuid.UUID],
+    na_escala: AbstractSet[uuid.UUID],
+) -> PlanoConvocacao:
+    """Regra pura do "Pôr na escala" com grupos.
+
+    `membros` = (medium_id, grupo_id) dos membros ATIVOS na ordem dos grupos pedidos (o primeiro
+    grupo de quem está em dois fica gravado); `elegiveis` = quais desses membros o tipo alcança;
+    `na_escala` = médiuns que já estão na escala (linha convocada e não dispensada, ou a
+    convocação virtual dos elegíveis). Quem foi pedido um a um ganha do grupo (vira "manual") e
+    não passa pela elegibilidade — a casa escolheu a pessoa.
+    """
+    manuais = list(dict.fromkeys(pedidos))
+    vistos = set(manuais)
+    do_grupo: list[tuple[uuid.UUID, uuid.UUID]] = []
+    fora: list[uuid.UUID] = []
+    ja = sum(1 for m in manuais if m in na_escala)
+    for medium_id, grupo_id in membros:
+        if medium_id in vistos:
+            continue
+        vistos.add(medium_id)
+        if medium_id not in elegiveis:
+            fora.append(medium_id)
+        elif medium_id in na_escala:
+            ja += 1
+        else:
+            do_grupo.append((medium_id, grupo_id))
+    novos = sum(1 for m in manuais if m not in na_escala) + len(do_grupo)
+    return PlanoConvocacao(
+        manuais=manuais, do_grupo=do_grupo, novos=novos, ja_estavam=ja, fora_da_elegibilidade=fora
+    )
+
+
+async def membros_ativos_dos_grupos(
+    db: AsyncSession, tenant_id: uuid.UUID, grupo_ids: Sequence[uuid.UUID]
+) -> list[tuple[Medium, uuid.UUID]]:
+    """(médium, grupo_id) dos membros ATIVOS e não excluídos, na ordem dos grupos pedidos.
+
+    Os grupos já foram conferidos no terreiro e não arquivados por quem chama; o filtro de
+    tenant fica nas duas tabelas de novo (barato) para não depender disso.
+    """
+    ids = list(dict.fromkeys(grupo_ids))
+    if not ids:
+        return []
+    rows = (
+        await db.execute(
+            select(Medium, CorrenteGrupoMembro.grupo_id)
+            .join(CorrenteGrupoMembro, CorrenteGrupoMembro.medium_id == Medium.id)
+            .where(
+                CorrenteGrupoMembro.tenant_id == tenant_id,
+                CorrenteGrupoMembro.grupo_id.in_(ids),
+                Medium.tenant_id == tenant_id,
+                Medium.deleted_at.is_(None),
+                Medium.is_active.is_(True),
+            )
+        )
+    ).all()
+    ordem = {gid: i for i, gid in enumerate(ids)}
+    return sorted(((m, gid) for m, gid in rows), key=lambda x: (ordem[x[1]], x[0].nome.lower()))
+
+
+async def elegiveis_entre(
+    db: AsyncSession, tenant_id: uuid.UUID, tipo: AtividadeTipo, mediuns: Sequence[Medium]
+) -> set[uuid.UUID]:
+    """Quais destes médiuns o tipo alcança (todos · atendimento · cambones · grupos ATIVOS do tipo)."""
+    if not mediuns:
+        return set()
+    grupos_do_tipo: set[uuid.UUID] = set()
+    grupos_por_medium: dict[uuid.UUID, set[uuid.UUID]] = {}
+    if tipo.elegiveis == "grupos":
+        grupos_do_tipo = await grupos_elegiveis_do_tipo(db, tenant_id, tipo.id)
+        if grupos_do_tipo:
+            rows = await db.execute(
+                select(CorrenteGrupoMembro.medium_id, CorrenteGrupoMembro.grupo_id).where(
+                    CorrenteGrupoMembro.tenant_id == tenant_id,
+                    CorrenteGrupoMembro.medium_id.in_([m.id for m in mediuns]),
+                    CorrenteGrupoMembro.grupo_id.in_(grupos_do_tipo),
+                )
+            )
+            for medium_id, grupo_id in rows.all():
+                grupos_por_medium.setdefault(medium_id, set()).add(grupo_id)
+    return {
+        m.id
+        for m in mediuns
+        if medium_elegivel(
+            tipo.elegiveis, bool(m.is_atendimento), grupos_por_medium.get(m.id, set()), grupos_do_tipo
+        )
+    }
+
+
 # ── Participações ───────────────────────────────────────────────────────────
 
 
@@ -548,10 +662,12 @@ async def upsert_participacao(
     *,
     origem: str,
     convocado: bool,
+    grupo_id: Optional[uuid.UUID] = None,
 ) -> AtividadeParticipacao:
     """Linha do médium na atividade, criada se faltar, e travada (`FOR UPDATE`) até o commit.
 
-    Quem chama já conferiu atividade e médium no terreiro. O `INSERT ... ON CONFLICT DO NOTHING`
+    Quem chama já conferiu atividade, médium (e o grupo, quando vem) no terreiro. `origem` e
+    `grupo_id` só valem para a linha NOVA: a que já existia fica como estava. O `INSERT ... ON CONFLICT DO NOTHING`
     + `SELECT ... FOR UPDATE` deixa o "Cheguei" e a chamada simultâneos seguros: a segunda
     transação espera a primeira e trabalha sobre a mesma linha.
     """
@@ -565,6 +681,7 @@ async def upsert_participacao(
             medium_id=medium_id,
             convocado=convocado,
             origem=origem,
+            grupo_id=grupo_id,
             resposta=RESPOSTA_SEM,
             presenca=PRESENCA_NAO_REGISTRADA,
             created_at=agora,
