@@ -13,7 +13,7 @@ Postgres:
   não tem mensalidade nele. Serve ao Início (mês corrente) e à tela Mensalidade (AM-11, qualquer
   mês — `services/medium_mensalidade.py`).
 - **Pendências** (`montar_pendencias`, decisão D-24): o que o médium precisa resolver vem
-  primeiro, já na ordem da tela — responder escala (AM-17, ainda vazio), mensalidade vencida,
+  primeiro, já na ordem da tela — escala (AM-17: responder "Vou / Não vou" ou marcar "Cheguei"), mensalidade vencida,
   a até 5 dias do vencimento (`DIAS_AVISO_MENSALIDADE`) ou com comprovante não confirmado, aviso
   novo (AM-09). Comprovante em conferência não é pendência (não há o que fazer).
 """
@@ -27,7 +27,7 @@ from typing import Any, Optional
 
 from ..models.mensalidades import MensalidadeStatus
 
-# Ordem das pendências na tela (D-24). Escala fica reservada para o AM-17.
+# Ordem das pendências na tela (D-24). Escala desde o AM-17 (`api/v1/medium/inicio.escalas_pendentes`).
 ORDEM_PENDENCIAS = {"escala": 0, "mensalidade": 1, "aviso": 2}
 
 # Mensalidade em aberto só sobe para "Para você ver agora" a partir de N dias antes do

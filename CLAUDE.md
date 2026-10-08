@@ -58,6 +58,9 @@ Feature por módulo:
 - Analytics → `ANALYTICS`
 - Relatório de Gira → `RELATORIO_GIRA`; export CSV da gira → `TICKETS` ou `RELATORIO_GIRA` (+ plano `export_csv`)
 - Cursos Presenciais → `CURSOS_PRESENCIAIS`
+- Atividades da casa, escalas, confirmações e chamada (AM-08/AM-17) → `ESCALAS`; a chamada de uma **gira**
+  também aceita `PORTA:edit` (e o QR da gira `PORTA:view`) — `require_any_group_permission(ESCALAS, PORTA)`
+  + checagem interna de que é âncora de gira (AGENTS.md §3.3)
 - Site do terreiro (Meu Site, `sites.py`, inclusive imagens) → `SITE` (separado de Cursos desde o T-06)
 - Avisos da Área do Médium (`comunicados.py`) → `COMUNICADOS` ("Avisos da Área", grupo "Corrente") + plano `area_medium`
 - Grupos da corrente (`corrente_grupos.py`) → `MEDIUNS` (ler: `MEDIUNS` ou `ESCALAS` view) + plano `area_medium`

@@ -193,6 +193,13 @@ Rotas existentes e suas features:
   `require_plan_feature("atividades_corrente")` no router. Operador: `ESCALAS` segue `atividades_corrente` em
   `PermissionService.is_feature_enabled_for_plan`. Escalas, confirmacoes e chamada (AM-17/AM-18/AM-25) usam a
   mesma feature
+- Presenca (`atividades_presenca.py`, AM-17/AM-28) → `PermissionFeature.ESCALAS`, mesmo prefixo e mesmos gates
+  de plano: confirmacoes = view, convocar = insert, dispensar = edit, chamada (GET/PUT/encerrar) = edit, QR =
+  edit. **Excecao da gira**: a chamada de uma gira aceita tambem `PORTA:edit` e o QR da gira `PORTA:view` —
+  guard `require_any_group_permission(ESCALAS, PORTA, action=...)` + checagem interna (`_exigir_chamada`/
+  `_exigir_qr`: PORTA so vale quando a atividade e ancora de gira). `POST /da-gira/{id}/chamada` (ESCALAS ou
+  PORTA edit) cria a ancora para o porteiro abrir a chamada; `GET /da-gira/{id}/qr` serve a Porta/TV sem
+  criar ancora. A justificativa so sai com `ESCALAS:view` (quem abriu pela Porta ve `tem_justificativa`)
 
 Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
 leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
@@ -286,7 +293,8 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   local, cancelada, minha_participacao}` que o AM-17 estende. Desde o AM-08 traz tambem as atividades internas
   visiveis ao medium (`/agenda/atividade/{id}` e `/ics`): nao excluida, `visibilidade = 'corrente'` e o tipo
   alcanca o medium (`elegiveis` todos · atendimento · cambones · grupos ATIVOS dele, por `EXISTS` filtrado por
-  `ctx.medium.id`); `convocados` fica escondida ate o AM-17 (participacao do proprio medium). O tipo das giras
+  `ctx.medium.id`) — ou o medium tem participacao nela (AM-17: assim `convocados` chega a quem esta na escala).
+  Cada item traz `minha_participacao` (AM-17, com o plano `atividades_corrente`). O tipo das giras
   e o tipo de sistema "Gira" da casa. `giras.orientacoes_corrente` (073) e dado SO da
   Area: nunca em `public/*`, site, e-mail ou bilhete (o consulente ve `recados`) — teste em
   `tests/integration_pg/test_am07_agenda.py`. Detalhe nunca devolve contagem/dado de consulente (so a
@@ -331,6 +339,20 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   (`/confirmar-email/{token}`, `templates/email_troca.py`, discreto); `POST /public/email/confirmar` (busca raiz
   isenta em `EXEMPT_PUBLIC_QUERIES`) troca `users.email`, espelha em `mediuns.email`, invalida o reset de senha
   pendente, audita sem enderecos e avisa o endereco antigo (novo mascarado). Sessoes continuam (a senha nao mudou).
+- **Presenca (AM-17/AM-28)**: `api/v1/medium/presencas.py` — `POST /medium/atividades/{origem}/{id}/resposta`
+  (vou/nao vou; motivo obrigatorio quando o tipo exige; ate o inicio), `.../checkin` ("Cheguei": modo `app` na
+  janela do tipo; modo `qr` com o codigo do QR do dia conferido no servidor para AQUELA atividade e janela;
+  modo `confianca` → 409; 60/min por IP), `.../justificativa` ("Conte o motivo" depois de ausente, ate o prazo
+  da casa) e `GET /medium/presencas`. Todas com `require_plan_feature("atividades_corrente")`; escritas com
+  `require_not_impersonated`; so a propria linha (`AtividadeParticipacao.medium_id == ctx.medium.id`, modo
+  "medium" do auditor). `origem = gira` usa o id da gira e cria a ancora (`atividade_da_gira`). Atividade
+  `convocados` aparece para quem tem participacao (`presencas.atividade_visivel_ao_medium`, usada tambem pela
+  Agenda). Regras em `services/presenca.py` (situacao derivada, convocacao virtual dos elegiveis
+  materializada no encerramento, janela, prazo, QR por HMAC de 60 s sem tabela, `upsert_participacao` com
+  `INSERT ... ON CONFLICT DO NOTHING` + `FOR UPDATE` — a unica (`atividade_id`, `medium_id`) segura a corrida
+  "Cheguei" × chamada). Justificativa (pode ter dado de saude, §6.8 do plano) ≤ 500, so com `ESCALAS:view`,
+  nunca em auditoria (`medium_presenca`/`atividade_chamada` gravam so a acao/ids), e-mail, push ou exportacao.
+  Encerramento automatico em 48 h: `services/presenca_scheduler.py` (chave `0x6769726168756204`, §11.9).
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -445,7 +467,9 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   em qualquer plano) e exportacao CSV (`export_csv`: CSV da gira e da posicao de estoque).
   Area do Medium (`area_medium`, Basic+): checada pelo `require_medium` em todo `/api/v1/medium/*`
   e no calculo de `areas` (AM-02). Atividades da casa (`atividades_corrente`, Basic+): router
-  `admin/atividades.py`, junto com `area_medium` (AM-08).
+  `admin/atividades.py` e `admin/atividades_presenca.py`, junto com `area_medium` (AM-08/AM-17); na Area,
+  rota a rota em `medium/presencas.py` (resposta, checkin, justificativa, presencas) — Agenda/Inicio so
+  trazem `minha_participacao`/`escalas` com o plano (sem ele, null/vazio).
 - Excecao no gate de plano para operadores: `view` de `MEDIUNS` NAO passa por
   `is_feature_enabled_for_plan` (`_VIEW_SEM_GATE_DE_PLANO` em `permission_service.py`) — fora do plano o
   operador com o grupo continua consultando os mediuns; insert/edit/delete seguem zerados.
@@ -784,7 +808,10 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `078_atividades` (2026-10-08, AM-08: `atividade_tipos`, `atividade_tipo_grupos`,
+- Head atual: `079_presenca` (2026-10-08, AM-17/AM-28: `atividade_participacoes` — unica por atividade +
+  medium —, `tenant_configs.presenca_modo_padrao`/`presenca_prazo_justificativa_dias`,
+  `atividade_tipos.presenca_modo`; tipo com `checkin_pelo_medium` vira modo `app`), apos `078_atividades`
+  (2026-10-08, AM-08: `atividade_tipos`, `atividade_tipo_grupos`,
   `funcoes_corrente`, `atividades`, os 8 tipos e as funcoes sugeridos para todo terreiro e acesso total a
   `escalas` nos grupos padrao), apos `077_permissao_escalas_enum` (`ALTER TYPE permission_feature ADD VALUE
   'escalas'`, sozinha num `autocommit_block()`; criada depois da 075 e reencadeada na 076 no merge), apos
@@ -1070,7 +1097,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil e Atividades da casa (AM-02/03/04/05/06/07/08/09/10/11/12/13/23, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa e Presença (AM-02/03/04/05/06/07/08/09/10/11/12/13/17/23/28, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1111,7 +1138,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `modulos` do `/medium/me` não a traz, `visibleMediumTabs`), claro/escuro do sistema, gate (sem sessão → login;
   só painel → painel). `GET /api/v1/medium/inicio` (`api/v1/medium/inicio.py`, regras puras em
   `services/medium_inicio.py`): `pendencias` já ordenadas (D-24: escala → mensalidade atrasada ou
-  a até 5 dias do vencimento — antes disso vai para "Acompanhando", decisão do dono 07/10 → aviso novo (AM-09); escala vazia até o AM-17), `proxima_gira` (ativa, futura ou em
+  a até 5 dias do vencimento — antes disso vai para "Acompanhando", decisão do dono 07/10 → aviso novo (AM-09); escala desde o AM-17: `escalas` + pendência `escala`), `proxima_gira` (ativa, futura ou em
   andamento; só nome/horário/local e `orientacoes` = `giras.orientacoes_corrente`, AM-07), `mensalidade` do mês em
   Brasília (só com `mensalidade_mediun` e config ativa; regras do §11.10: isento/paga/pendente até
   o vencimento/atrasada depois; entrou depois do mês ou casa sem valor → null) e `avisos`
@@ -1220,8 +1247,27 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   horario/duracao, visibilidade padrao; funcoes). Area: Agenda com o chip "Atividades", `TipoChip`
   (`components/atividades/TipoChip.tsx`, icone e cor do tipo) e "Cancelada"; detalhe
   `pages/medium/agenda/[tipo]/[id].tsx` com `tipo = atividade` (orientacoes, local, .ics e Google Agenda, motivo do
-  cancelamento; sem link publico nem "Divulgar"). Ainda nao: participacao, vou/nao vou, chamada (AM-17), escala
-  de gira (AM-18) e planejador da faxina (AM-25) — as tabelas ja tem as colunas/ancora para isso.
+  cancelamento; sem link publico nem "Divulgar"). Presenca no AM-17/AM-28 (abaixo); ainda nao: escala de gira
+  (AM-18) e planejador da faxina (AM-25) — as tabelas ja tem as colunas/ancora para isso.
+- **Presenca (AM-17/AM-28)**: migracao `079_presenca` (§11.8; tabela em `docs/database.md`), API em §3.3 e
+  `docs/api.md` (§16 do painel, §7 da Area). Modo da casa em Configuracoes → Area do Medium
+  (`AreaMediumConfigSection`, so com `presenca_no_plano`: confianca · "Cheguei" pelo app · "Cheguei" com QR + prazo
+  do motivo 1–30 dias) e ajuste por tipo na aba "Tipos e funcoes" ("Como a presenca e marcada": padrao da casa ou
+  um dos tres; a janela so aparece fora da confianca). Area (`components/medium/presenca/*`, `.medium-terra`,
+  vocabulario D-17/18/19 — "Voce esta na escala", "Vou"/"Nao vou", "Cheguei", "Conte o motivo"; nunca
+  "convocado"/"check-in"; `constants/presenca.ts`): `EscalaCard` no Inicio (escalas que pedem acao no topo; ja
+  respondidas em "Acompanhando") e no detalhe da Agenda; `MotivoSheet` (≤ 500, aviso "nao precisa detalhar
+  saude"); `ChegueiSheet` (modo QR: camera + `BarcodeDetector` nativo quando o navegador tem; senao a camera do
+  proprio celular le o QR, que e um link `/medium/agenda/{origem}/{id}?cheguei=<codigo>` — o detalhe marca
+  sozinho uma vez —, ou o codigo digitado; sem biblioteca nova); selo "Na escala"/"Vou"/"Nao vou" na lista da
+  Agenda; `pages/medium/presencas.tsx` (Perfil → "Minhas presencas": percentual, proximas, historico, "Conte o
+  motivo (ate dd/mm)"). Impersonando, as acoes somem. Painel: `pages/admin/atividades/[id]/chamada.tsx`
+  (gates `area_medium` + `atividades_corrente` + `escalas:edit` ou `porta:edit`; lista com busca, Presente/Ausente
+  — tocar de novo desfaz —, "Marcar todos os confirmados como presentes", "Adicionar quem veio", "Encerrar
+  chamada" com `ConfirmDialog`, QR do dia com "Mostrar o QR em tela cheia"), `ConfirmacoesSheet` e botoes
+  "Confirmacoes"/"Chamada" na Agenda da casa, `ChamadaDaGiraButton` no cartao da gira (`GiraCard.extraAction`,
+  do dia da gira em diante) e na Porta, e o QR no canto do modo TV (`components/admin/presenca/QrPresenca`,
+  sem dado pessoal; so com a Area liberada e a presenca no plano).
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
@@ -1344,6 +1390,10 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
 
 **Agendadores in-process e múltiplos workers (desde 2026-10-05):**
 - O backend roda `uvicorn --workers 2` e **cada worker executa o lifespan de `main.py`**, então todo agendador asyncio (`trial_scheduler`, `birthday_scheduler`, ...) existe uma vez por worker. Estado em memória não evita envio duplicado nem sobrevive a deploy — até 2026-10-05 os lembretes/avisos de trial e o digest de aniversários saíam uma vez por worker.
+- `presenca_scheduler` (AM-17, desde 2026-10-08): a cada 30 min encerra as chamadas abertas que terminaram ha
+  48 h ou mais e tiveram presenca registrada (no modo confianca, um "vou" conta). Nao envia nada: so o
+  `advisory_lock(PRESENCA_LOCK_KEY = 0x6769726168756204)` por rodada; a idempotencia vem da propria atividade
+  travada com `FOR UPDATE` (`chamada_encerrada_em` preenchido nao muda mais).
 - Regra para agendador que envia algo: usar `backend/src/services/scheduler_guard.py` — `advisory_lock(KEY)` envolvendo a rodada (só um worker processa) e `claim_once(tenant_id, namespace, item, scope)` gravado **antes** do envio (marca em `tenant_configs.custom_settings[namespace]` sob `SELECT ... FOR UPDATE`; `scope` diferente reinicia as marcas). Chaves de lock listadas no docstring do módulo; nova chave = novo número.
 - Trial: marcas em `custom_settings.trial_reminders` (escopo = `trial_ends_at`); dias restantes arredondados para cima e expiração só depois de `trial_ends_at` (antes podia expirar ~1 dia cedo). Aniversário: `custom_settings.birthday_digest` (escopo = data BRT).
 

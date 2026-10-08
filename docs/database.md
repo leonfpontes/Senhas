@@ -273,6 +273,7 @@ própria (D-03): fora do limite de giras/mês, do site, da agenda pública e do 
 | `cor` | `String(20)` NULL | CHECK na paleta dos grupos da corrente; NULL = cor do terreiro |
 | `controla_presenca` / `pede_confirmacao` / `exige_justificativa` / `checkin_pelo_medium` | `Boolean` | opções de presença (AM-17) |
 | `checkin_antes_min` / `checkin_depois_min` | `Integer`, padrão 60/180 | CHECK 0–1440 (janela do "Cheguei") |
+| `presenca_modo` | `String(20)` NULL | AM-28 (079): CHECK `confianca/app/qr`; NULL = padrão da casa (`tenant_configs.presenca_modo_padrao`). `checkin_pelo_medium` fica em sincronia (app/qr) por compatibilidade |
 | `elegiveis` | `String(20)`, padrão `todos` | CHECK `todos/atendimento/cambones/grupos` |
 | `convocacao_padrao` | `String(20)` | CHECK `todos_elegiveis/so_escalados` |
 | `modo_escala` | `String(20)` | CHECK `nenhuma/grupos_por_dia/funcoes` |
@@ -327,8 +328,51 @@ NULL)`); CHECK `ck_atividades_fim_depois_do_inicio`; `ix_atividades_tenant_id`, 
 `autocommit_block`); a 078 cria as tabelas, os 8 tipos e as funções sugeridos para todo terreiro (o tipo
 "Desenvolvimento" fica para `atendimento` ou, se a casa já tem um grupo "Desenvolvimento", para ele) e dá acesso
 total a `escalas` nos grupos padrão "Acesso total". Downgrade da 078: apaga as linhas `escalas` de
-`group_permissions` e as quatro tabelas (o valor do ENUM fica). As participações (`atividade_participacoes`,
-AM-17) e o planejador da faxina (`escala_planos`/`escala_plano_dias`, AM-25) chegam nos próximos cards.
+`group_permissions` e as quatro tabelas (o valor do ENUM fica). O planejador da faxina
+(`escala_planos`/`escala_plano_dias`, AM-25) chega num próximo card.
+
+### `atividade_participacoes` (AM-17/AM-28, migração 079)
+
+Uma linha por médium por atividade: convocação, resposta, justificativa e presença na MESMA linha (escala
+e presença não se sincronizam — são a mesma coisa, §8.1 do plano). Model em `src/models/atividades.py`;
+regras em `src/services/presenca.py`. A situação mostrada (convocado, confirmado, ausência avisada,
+presente, ausente com/sem justificativa, dispensado, substituído) é **derivada**, nunca gravada.
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | sempre o da atividade (que é o da gira âncora) |
+| `atividade_id` | UUID FK → `atividades.id` CASCADE | interna ou âncora da gira |
+| `medium_id` | UUID FK → `mediuns.id` CASCADE | médium do mesmo terreiro (conferido na API) |
+| `convocado` | `Boolean`, padrão false | false só no avulso ("Adicionar quem veio") |
+| `origem` | `String(20)`, padrão `elegivel` | CHECK `elegivel/grupo/funcao/rodizio/manual/avulso` |
+| `grupo_id` / `funcao_id` | UUID FK → `corrente_grupos.id` / `funcoes_corrente.id` SET NULL | escala (AM-18/AM-25) |
+| `resposta` | `String(20)`, padrão `sem_resposta` | CHECK `sem_resposta/vou/nao_vou`; muda até o início |
+| `respondido_em` | `DateTime(tz)` NULL | |
+| `justificativa` | `String(500)` NULL | pode ter dado de saúde (§6.8): só com `ESCALAS:view`; nunca em auditoria, e-mail, push ou exportação |
+| `justificativa_em` | `DateTime(tz)` NULL | |
+| `presenca` | `String(20)`, padrão `nao_registrada` | CHECK `nao_registrada/presente/ausente` |
+| `presenca_origem` | `String(20)` NULL | CHECK `checkin_medium/chamada/encerramento/confianca` (`confianca` = "vou" que virou presente no encerramento) |
+| `presenca_registrada_em` / `presenca_registrada_por` | `DateTime(tz)` NULL / UUID FK → `users.id` SET NULL | quem marcou (correções do admin ficam registradas) |
+| `dispensado_em` | `DateTime(tz)` NULL | tirado da escala ou atividade cancelada (= `cancelada_em`; reativar devolve) |
+| `substituida_por_id` | UUID FK → `atividade_participacoes.id` SET NULL | troca de escala (fase 2, AM-27) |
+| `lembrete_enviado_em` | `DateTime(tz)` NULL | avisos (AM-15) |
+| `created_at` / `updated_at` | `DateTime(tz)` | |
+
+**Constraints/Indexes:** UNIQUE `uq_atividade_participacoes_atividade_medium` (`atividade_id, medium_id`) —
+o "Cheguei" e a chamada ao mesmo tempo nunca duplicam a linha (`services/presenca.upsert_participacao`:
+`INSERT … ON CONFLICT DO NOTHING` + `SELECT … FOR UPDATE`); `ix_atividade_participacoes_tenant_medium`
+(`tenant_id, medium_id`), `ix_atividade_participacoes_tenant_atividade` (`tenant_id, atividade_id`); CHECKs
+`ck_atividade_participacoes_origem/_resposta/_presenca/_presenca_origem`.
+
+**Convocação virtual:** tipo "todos os elegíveis" não grava linha para quem só é esperado — ela nasce quando o
+médium responde, faz o "Cheguei", é escalado ou quando a chamada é encerrada (aí para todos os esperados).
+**QR do dia** (AM-28): sem tabela — HMAC do (tenant, origem, id, janela de 60 s) com subchave da `SECRET_KEY`.
+
+**Migração 079 (`079_presenca`):** cria a tabela; `tenant_configs.presenca_modo_padrao` (`String(20)`, padrão
+`confianca`, CHECK `ck_tenant_configs_presenca_modo`) e `presenca_prazo_justificativa_dias` (`Integer`, padrão
+7, CHECK 1–30 `ck_tenant_configs_presenca_prazo`); `atividade_tipos.presenca_modo` + CHECK; dados: tipo com
+`checkin_pelo_medium` ligado vira `presenca_modo = 'app'`. Downgrade apaga a tabela e as colunas.
 
 ---
 
@@ -360,6 +404,8 @@ Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`
 | `area_medium_boas_vindas` | `Text` | Sim | — | 067: mensagem de boas-vindas da Área (≤ 500 na API) |
 | `area_medium_whatsapp` | `String(20)` | Sim | — | 067: WhatsApp da casa, só dígitos com DDI (`5511987654321`) |
 | `area_medium_agenda` / `area_medium_avisos` / `area_medium_mensalidade` | `Boolean` | Não | `true` | 067: módulos visíveis na Área (mensalidade também exige `mensalidade_mediun` no plano) |
+| `presenca_modo_padrao` | `String(20)` | Não | `confianca` | 079 (AM-28): CHECK `confianca/app/qr` — como a presença é marcada na casa; o tipo pode ajustar |
+| `presenca_prazo_justificativa_dias` | `Integer` | Não | `7` | 079 (AM-17): CHECK 1–30 — dias depois da atividade para o médium contar o motivo de uma falta |
 | `created_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `updated_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `deleted_at` | `DateTime(tz)` | Sim | — | soft-delete |
@@ -777,7 +823,7 @@ Ao criar um novo enum em Alembic + model Python:
 | 18 | `018_estoque` | `017_default_brand_colors` | Cria `estoque_grupos`, `estoque_itens`, `estoque_movimentacoes`; enum `estoque_movimentacao_tipo`; `tenant_configs.enable_estoque_log` |
 | 19 | `019_fix_movimentacoes_fk` | `018_estoque` | `estoque_movimentacoes.item_id` FK: `CASCADE` → `RESTRICT` (protege integridade do ledger) |
 
-A tabela acima vai até a 019. A cadeia completa e a head atual (`076_medium_email_pendente`, AM-13) estão em
+A tabela acima vai até a 019. A cadeia completa e a head atual (`079_presenca`, AM-17/AM-28) estão em
 AGENTS.md §11.8.
 
 ### Comandos Alembic

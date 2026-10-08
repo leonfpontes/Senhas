@@ -631,13 +631,19 @@ e chave do piloto `tenants.area_medium_liberada`; sem a chave → 403). Médium 
   "boas_vindas": "Que bom ter você na corrente!",
   "whatsapp": "5511987654321",
   "modulos": { "agenda": true, "avisos": true, "mensalidade": true },
-  "mensalidade_no_plano": true
+  "mensalidade_no_plano": true,
+  "presenca": { "modo_padrao": "confianca", "prazo_justificativa_dias": 7 },
+  "presenca_no_plano": true
 }
 ```
 **PUT body** (partial — only sent fields change): `ativa` (bool), `boas_vindas` (≤ 500, empty
 clears), `whatsapp` (Brazilian number with DDD, any mask; stored as digits with `55`; empty clears;
-invalid → 422), `modulos` (`{agenda?, avisos?, mensalidade?}`). Audited as `TenantConfig` /
-`config_type: "area_medium"`.
+invalid → 422), `modulos` (`{agenda?, avisos?, mensalidade?}`), `presenca` (AM-17/AM-28:
+`{modo_padrao?: "confianca"|"app"|"qr", prazo_justificativa_dias?: 1–30}`; anything else → 422 — the
+house presence mode, each activity type may override it, and the days the médium has to explain an
+absence). Changing the mode applies to the next roll calls; presence already recorded never changes.
+`presenca_no_plano` = plan with `atividades_corrente` (the screen only shows the section with it).
+Audited as `TenantConfig` / `config_type: "area_medium"`.
 
 ### 11. PIX key for the mensalidade (AM-10)
 
@@ -842,7 +848,7 @@ months, bad range → 400.
 
 **Type** (`/tipos`): `{ "id", "nome", "natureza": "gira"|"atividade", "icone", "cor", "controla_presenca",
 "pede_confirmacao", "exige_justificativa", "checkin_pelo_medium", "checkin_antes_min",
-"checkin_depois_min", "elegiveis", "grupos": [{ "id", "nome", "cor" }], "convocacao_padrao",
+"checkin_depois_min", "presenca_modo", "presenca_modo_efetivo", "elegiveis", "grupos": [{ "id", "nome", "cor" }], "convocacao_padrao",
 "modo_escala", "hora_padrao": "HH:MM"|null, "duracao_min", "visibilidade_padrao", "is_sistema",
 "visivel_no_site", "ordem", "arquivado_em" }` — ordered by `ordem` (Gira first), archived last.
 - Every tenant has the 8 suggested types (plan §8.2: Gira, Faxina, Ritual coletivo, Ritual individual,
@@ -858,7 +864,10 @@ months, bad range → 400.
   `gira` · `faxina` · `vela` · `flor` · `organizacao` · `curso` · `desenvolvimento` · `reuniao` ·
   `atabaque` · `cozinha` · `estudo` · `estrela` · `folha` · `agua`), `cor` (the corrente-group palette or
   `null` = terreiro colour), the four booleans, `checkin_antes_min`/`checkin_depois_min` (0–1440, default
-  60/180), `elegiveis` (`todos` · `atendimento` · `cambones` · `grupos`), `grupo_ids` (required — at least
+  60/180 — the "Cheguei" window), `presenca_modo` (AM-28: `confianca` · `app` · `qr`, `null` = the house
+  default from `/admin/config/area-medium`; the response also brings `presenca_modo_efetivo`).
+  `checkin_pelo_medium` is legacy (AM-08) and kept in sync with the mode (`app`/`qr` → true); a client
+  that still sends only it gets `app` (true) or `confianca` (false), `elegiveis` (`todos` · `atendimento` · `cambones` · `grupos`), `grupo_ids` (required — at least
   one ACTIVE group of the tenant — when `elegiveis = grupos`; switching to another value clears them),
   `convocacao_padrao` (`todos_elegiveis` · `so_escalados`), `modo_escala` (`nenhuma` · `grupos_por_dia` ·
   `funcoes`), `hora_padrao` (`HH:MM` or null), `duracao_min` (15–1440 or null), `visibilidade_padrao`
@@ -878,11 +887,12 @@ per tenant among the active ones (409), `descricao` ≤ 300.
   empty → the type name), `inicio` (required; naive = Brasília), `fim` (optional, after `inicio`; empty →
   `inicio + duracao_min` of the type when it has one), `local` (≤ 200), `descricao`/`orientacoes` (plain
   text), `visibilidade` (`corrente` = whoever the type reaches sees it in the Área agenda;
-  `convocados` = only who is on the schedule — hidden from everyone until AM-17 creates participations;
-  default: the type's `visibilidade_padrao`).
+  `convocados` = only who is on the schedule — the médium sees it once they have a participation,
+  AM-17; default: the type's `visibilidade_padrao`).
 - `POST /{id}/cancelar` `{ "motivo" }` (1–300, required): keeps the activity, marked as cancelled — the
-  corrente sees the reason in the Área. A cancelled activity cannot be edited (409) until
-  `POST /{id}/reativar`. `DELETE` is a soft delete (gone from the admin and the Área).
+  corrente sees the reason in the Área — and dispenses everyone on its schedule (`dispensado_em` = the
+  cancel time; TODO AM-15: notify them). A cancelled activity cannot be edited (409) until
+  `POST /{id}/reativar`, which brings back who the cancellation dispensed. `DELETE` is a soft delete (gone from the admin and the Área).
 - `POST /da-gira/{gira_id}` returns (creating on first call — `INSERT … ON CONFLICT (gira_id) DO
   NOTHING`, idempotent) the gira's **anchor** in the activity layer, used by schedule/attendance
   (AM-17/AM-18). Title, date and place come from the gira. Anchors are not internal activities: the
@@ -1037,6 +1047,86 @@ Authorization: Bearer {access_token}
 
 ---
 
+### 16. Presença — confirmações, escala manual, chamada e QR do dia (AM-17/AM-28)
+
+Same prefix and plan gates as §15 (`area_medium` + `atividades_corrente`). `{id}` is the activity id —
+an internal activity or a gira **anchor** (`POST /da-gira/{gira_id}/chamada` returns it). File
+`src/api/v1/admin/atividades_presenca.py`; rules in `src/services/presenca.py`.
+
+| Method | Path | Group action |
+|---|---|---|
+| POST | `/api/v1/admin/atividades/da-gira/{gira_id}/chamada` → `{ "atividade_id" }` | `ESCALAS:edit` **or** `PORTA:edit` |
+| GET | `/api/v1/admin/atividades/da-gira/{gira_id}/qr` (no anchor created) | `ESCALAS:edit` **or** `PORTA:view` |
+| GET | `/api/v1/admin/atividades/{id}/confirmacoes` | `ESCALAS:view` |
+| POST | `/api/v1/admin/atividades/{id}/convocar` `{ "medium_ids": [...] }` | `ESCALAS:insert` |
+| POST | `/api/v1/admin/atividades/{id}/dispensar` `{ "medium_ids": [...] }` | `ESCALAS:edit` |
+| GET | `/api/v1/admin/atividades/{id}/chamada` | `ESCALAS:edit`; on a gira also `PORTA:edit` |
+| PUT | `/api/v1/admin/atividades/{id}/chamada` | `ESCALAS:edit`; on a gira also `PORTA:edit` |
+| POST | `/api/v1/admin/atividades/{id}/chamada/encerrar` | `ESCALAS:edit`; on a gira also `PORTA:edit` |
+| GET | `/api/v1/admin/atividades/{id}/qr` | `ESCALAS:edit`; on a gira also `PORTA:view` |
+
+The route guard is `require_any_group_permission(ESCALAS, PORTA, …)`; inside, PORTA only counts when
+the activity is a gira anchor (an internal activity without ESCALAS → 403).
+
+**List** (confirmações, chamada, convocar, dispensar, encerrar all answer it):
+```json
+{
+  "atividade": { "atividade_id", "origem": "gira"|"atividade", "ref_id", "titulo", "inicio", "fim", "local",
+                 "tipo": { "id", "nome", "icone", "cor" }, "modo_presenca": "confianca"|"app"|"qr",
+                 "controla_presenca", "pede_confirmacao", "exige_justificativa", "convocacao_padrao",
+                 "cancelada", "chamada_encerrada_em", "chamada_encerrada_por", "pode_encerrar" },
+  "contadores": { "esperados", "confirmados", "ausencias_avisadas", "sem_resposta", "presentes", "ausentes",
+                  "sem_registro", "dispensados" },
+  "pessoas": [{ "medium_id", "nome", "convocado", "origem", "grupo", "funcao", "resposta", "respondido_em",
+                "presenca", "presenca_origem", "presenca_registrada_em", "presenca_registrada_por", "situacao",
+                "tem_justificativa", "justificativa", "dispensado" }],
+  "outros_mediuns": [{ "id", "nome" }],
+  "ver_justificativa": true
+}
+```
+- `pessoas` = the expected médiuns (type with `convocacao_padrao = todos_elegiveis`: active médiuns the
+  type reaches, who had joined by the activity day — a **virtual** convocation) ∪ the stored
+  participations (schedule, manual convocation, answers, check-ins, walk-ins). `situacao` is derived:
+  `convocado` · `confirmado` · `ausencia_avisada` · `presente` · `ausente_justificado` · `ausente` ·
+  `dispensado` · `substituido` (in confiança mode, after the end, a "vou" already shows `presente`).
+- `justificativa` (may contain health data, plan §6.8) only for `ESCALAS:view`; who opened the roll
+  call only through the Porta gets `tem_justificativa` and `justificativa: null`. Never in audit,
+  e-mail, push or export.
+- `outros_mediuns`: active médiuns outside the list ("Adicionar quem veio" / "Pôr na escala").
+
+**Convocar / dispensar**: every `medium_id` must be a médium of the tenant (active, for convocar) →
+else 422. Convocar creates/updates the row (`convocado`, `origem = manual`, clears a dispensation);
+dispensar sets `dispensado_em`. Closed roll call → 409; cancelled activity → 409 (convocar). Audited as
+`atividade_escala` with the ids only.
+
+**PUT chamada** body: `{ "marcacoes": [{ "medium_id", "presenca": "presente"|"ausente"|"nao_registrada" }],
+"medium_ids": [...], "marcar_confirmados": bool }` — `marcacoes` only for who is on the list (else 422
+"Use Adicionar quem veio"); `medium_ids` = walk-ins, added present (`origem = avulso`, `convocado` =
+false unless expected); `marcar_confirmados` marks every "vou" without a mark as present. Each mark
+records `presenca_origem = chamada`, who and when (a later "nao_registrada" clears them). Still allowed
+after closing (correction). Type without attendance → 409; cancelled → 409. Audited as
+`atividade_chamada` (ids and marks, never the justification).
+
+**Encerrar** (idempotent): refused before the start (409). Locks the activity (`FOR UPDATE`), creates
+the rows of the expected médiuns that had none, then for every row without presence: confiança mode +
+"vou" → `presente` (`presenca_origem = confianca`); convocado → `ausente` (`encerramento`). Rows already
+marked and dispensed ones never change. Sets `chamada_encerrada_em/_por`. A second call changes nothing
+(and is not audited again).
+
+**Auto close** (`services/presenca_scheduler.py`, every 30 min, `advisory_lock` key
+`0x6769726168756204`): open roll calls of types with attendance, not cancelled/deleted, that ended 48 h
+ago or more, are closed with `chamada_encerrada_por = null` **only** if some presence was recorded — in
+confiança mode a "vou" counts. Otherwise the activity stays "sem chamada".
+
+**QR** (`/qr`): `{ "modo", "ativo", "codigo", "conteudo", "expira_em", "intervalo_s": 60,
+"janela_abre_em", "janela_fecha_em", "titulo" }`. `ativo` only in `qr` mode, inside the "Cheguei" window,
+not cancelled and not closed; then `codigo` (6 characters from `23456789ABCDEFGHJKMNPQRSTUVWXYZ`) =
+HMAC-SHA256 of (tenant, origem, gira/activity id, 60-second window) with a sub-key of the server
+`SECRET_KEY` — no table — and `conteudo` = `{FRONTEND_URL}/medium/agenda/{origem}/{id}?cheguei={codigo}`
+(the phone camera opens the Área and marks "Cheguei"). No personal data.
+
+---
+
 ## Área do Médium Endpoints (AM-02)
 
 All `/api/v1/medium/*` routes go through `require_medium`: authenticated user, an active
@@ -1125,7 +1215,11 @@ médium come from the session; a `medium_id` in the query string is ignored).
   (`situacao` `atrasada` or `nao_confirmada` (the house did not confirm the receipt, AM-12), or
   `pendente` only from 5 days before the due date — `DIAS_AVISO_MENSALIDADE`; earlier it stays out
   and the screen shows it under "Acompanhando"; `em_conferencia` is never a pendência) → `aviso`
-  (AM-09: `{"tipo": "aviso", "quantidade": N}` with the unread count). Escala is never returned yet.
+  (AM-09: `{"tipo": "aviso", "quantidade": N}` with the unread count). `{"tipo": "escala",
+  "quantidade": N}` (AM-17) = schedules waiting for "Vou / Não vou" or with "Cheguei" open now.
+- `escalas` (AM-17): the médium's schedules happening now or in the next 21 days (not dispensed, not
+  cancelled), each in the agenda format with `minha_participacao` (§7) — `[]` without the plan
+  `atividades_corrente`.
 - `proxima_gira`: the tenant's next active gira (future, or in progress: `data_fim` not reached,
   or started less than 6 h ago when there is no `data_fim`). Only name, times and place — no
   tickets, consulente data or `recados`. `orientacoes` = `giras.orientacoes_corrente` (AM-07,
@@ -1173,8 +1267,12 @@ ordered by start.
 An internal activity (AM-08) is visible to the médium when it is not deleted, `visibilidade =
 corrente` and its type reaches them: `elegiveis = todos`; `atendimento` for médiuns de atendimento;
 `cambones` for cambones; `grupos` for members of one of the type's ACTIVE corrente groups. Cancelled
-activities stay listed with `cancelada: true`. `visibilidade = convocados` ("só quem estiver na
-escala") is hidden until AM-17 (it will show through an `EXISTS` on the médium's own participation).
+activities stay listed with `cancelada: true`. Since AM-17 an activity is also visible when the médium
+has a participation in it (`EXISTS` filtered by `ctx.medium.id`) — that is how `visibilidade =
+convocados` ("só quem estiver na escala") reaches who is on the schedule.
+
+`minha_participacao` (AM-17, plan `atividades_corrente`; else `null`): `null` when the médium is not on
+the schedule; otherwise the object of §7.
 
 ```json
 {
@@ -1361,6 +1459,41 @@ terreiro — deleted ones included — already uses it; other terreiros may use 
 
 **`DELETE /api/v1/medium/perfil/email`** → 204: gives up the pending change (the link stops
 working).
+
+### 7. Presença — Vou / Não vou, Cheguei, Conte o motivo (AM-17/AM-28)
+
+All require the plan `atividades_corrente` (else **403**); writes are refused while impersonating
+(**403**, D-06). `{origem}` = `gira` (the gira id — its anchor is created on the first write) or
+`atividade`. The activity must be visible to the médium (§4); otherwise **404**. Only the médium's own
+participation exists here (D-07). Audited as `medium_presenca` with `{acao}` only (never the text).
+
+**`minha_participacao`** (also in the agenda, the agenda details and `/inicio` → `escalas`):
+```json
+{ "convocado": true, "situacao": "convocado", "resposta": "sem_resposta", "presenca": "nao_registrada",
+  "presenca_em": null, "justificativa": null, "grupo": "G2", "funcao": null,
+  "pede_confirmacao": true, "exige_justificativa": true, "controla_presenca": true, "modo_presenca": "app",
+  "pode_responder": true, "responder_ate": "2026-10-10T12:00:00Z",
+  "pode_checkin": false, "checkin_abre_em": "2026-10-10T11:00:00Z", "checkin_fecha_em": "2026-10-10T15:00:00Z",
+  "pode_justificar": false, "justificar_ate": null, "chamada_encerrada": false }
+```
+`grupo` is only the name of the médium's OWN group. `checkin_*` only in `app`/`qr` modes.
+
+- **`POST /api/v1/medium/atividades/{origem}/{id}/resposta`** `{ "resposta": "vou"|"nao_vou",
+  "justificativa"? }` — until the start (else 409); `nao_vou` requires the text when the type has
+  `exige_justificativa` (≤ 500, plain text; empty → 422); `vou` clears it. Not on the schedule → 403
+  `FORA_DA_ESCALA`; dispensed/cancelled/closed → 409; type without "Vou / Não vou" → 409.
+- **`POST /api/v1/medium/atividades/{origem}/{id}/checkin`** `{ "codigo"? }` (60/min per IP) — "Cheguei".
+  Mode `confianca` → 409 `MODO_CONFIANCA`; outside the type window → 409 `FORA_DA_JANELA`; mode `qr`
+  needs the current code of THAT activity (the previous minute still counts; the full QR link is
+  accepted) → else 422 `QR_INVALIDO`. Already present → 200 (idempotent); marked absent by the roll call
+  → 409. Records `presenca_origem = checkin_medium`.
+- **`POST /api/v1/medium/atividades/{origem}/{id}/justificativa`** `{ "justificativa" }` — "Conte o
+  motivo" after an absence was recorded (else 409), until the house deadline: the activity's end day
+  (Brasília) + `presenca_prazo_justificativa_dias` (default 7) → else 409.
+- **`GET /api/v1/medium/presencas`** → `{ "proximas": [item], "historico": [item], "resumo": { "presentes",
+  "total", "percentual", "desde" }, "prazo_justificativa_dias" }` — upcoming schedules (60 days), history
+  (last 90 days, only activities with a stored participation) and the percentage = present ÷
+  convocations with the roll call closed, dispensed excluded.
 
 ---
 
