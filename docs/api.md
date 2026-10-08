@@ -273,6 +273,36 @@ toque em "Desligar" (leitor de link não muda nada).
   `{"detail": {"error_code": "LINK_INVALIDO", "message": "Este link não vale mais. Você pode mudar os avisos por e-mail no Perfil da Área."}}`.
   Ligar de novo só pela Área (Perfil → Avisos por e-mail).
 
+### 8. Cadastro de terreiro (onboarding)
+
+**`POST /api/v1/public/onboarding`** (10/min por IP no slowapi e zona `login_limit` no nginx —
+`location = /api/v1/public/onboarding`, a mesma do login). Cria o terreiro, o admin, a assinatura
+(Premium de 30 dias se o CPF/CNPJ e o e-mail nunca ganharam o mês grátis — `trial_grants`; senão
+Free), o aceite dos termos (`legal_acceptances`) e abre a sessão (`issue_session`: os 3 cookies do login).
+```json
+{
+  "terreiro_nome": "Tenda Luz da Mata", "responsavel_nome": "Ana", "email": "ana@example.com",
+  "whatsapp": "11999998888", "documento": "52998224725", "conta_existente": false,
+  "password": "...", "como_conheceu": "indicacao", "principal_dor": "mediuns", "aceite_termos": true
+}
+```
+- E-mail novo: `password` segue a regra de senha (`validate_password_policy`, 422 no campo).
+- **E-mail que já tem conta ATIVA em outro terreiro** (decisão do dono, 2026-10-08; "ativa" = a mesma
+  noção do login AM-05, `active_login_accounts_stmt` — inclusive conta `medium`):
+  - sem `conta_existente` → **409** `{"detail": {"error_code": "EMAIL_JA_TEM_CONTA", "message": "Você já tem conta no GiraHub com este e-mail. Digite a senha dessa conta para criar a casa nova."}}`;
+  - com `conta_existente: true`, `password` é a senha dessa conta (sem a regra de senha nova — só o
+    teto de 72 bytes do bcrypt), conferida em todas as contas ativas do e-mail (no máximo 5, como no
+    login; basta uma conferir). Errada → **400** `SENHA_CONTA_INCORRETA` (nunca 401) e nada é criado;
+  - certa, mas o e-mail já tem **5** contas ativas (`MAX_LOGIN_ACCOUNTS`) → **409**
+    `LIMITE_CONTAS_EMAIL` (só depois da senha certa);
+  - certa → o admin novo nasce com o **mesmo hash de senha** da conta conferida (uma senha só); o login
+    passa a responder `choose_account` com os terreiros.
+- Sem conta ativa, mas com conta inativa ou de terreiro desativado pelo dono → **409**
+  `{"detail": "Este email já está cadastrado"}` (como antes; o login oferece reativar). Só conta
+  excluída não barra. `conta_existente: true` com e-mail sem conta ativa vira cadastro comum (regra de senha).
+- Não existe consulta de "este e-mail tem conta?" antes do envio (seria um oráculo): só a resposta acima,
+  depois do formulário inteiro válido.
+
 ---
 
 ## Admin Endpoints
@@ -992,7 +1022,9 @@ with `type: "account_select"`, valid for 5 minutes, carrying the allowed `user_i
 "remember me" flag; it is rejected as an access or refresh token. Cost: one bcrypt verification per
 active account (max 5); an unknown e-mail runs one dummy verification (same as a wrong password on
 a single account). No active account → single-account rule (`TENANT_DEACTIVATED` for a
-self-deactivated terreiro, after the password is checked).
+self-deactivated terreiro, after the password is checked). A new terreiro can be signed up with an
+e-mail that already has an active account (`conta_existente` in `POST /public/onboarding`, Public
+Endpoints §8): the new admin reuses that account's password hash, so the same password lists both.
 
 **Error Responses**:
 - `401 Unauthorized`: Invalid credentials (or `detail.error_code = "TENANT_DEACTIVATED"`)
@@ -1832,6 +1864,7 @@ or aviso title, amounts, the PIX key, the cancellation or absence reason (`servi
 | `/auth/forgot-password` | 5 | 1 hour per IP |
 | `/public/convite/{token}` | 30 | 1 minute per IP |
 | `/public/convite/{token}/aceitar` | 10 | 1 minute per IP |
+| `/public/onboarding` | 10 | 1 minute per IP (nginx: `login_limit`) |
 | `/public/*/emit-ticket` | 5 | 1 hour per email |
 | `/admin/*` | 100 | 1 minute |
 | `/admin/audit-logs` | 50 | 1 minute |

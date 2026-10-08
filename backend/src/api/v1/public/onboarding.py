@@ -3,6 +3,12 @@
 New tenants are eligible for a 1-month Premium trial (no credit card
 required) unless their CPF/CNPJ or e-mail already claimed one before — see
 _check_trial_eligibility / TrialGrant.
+
+E-mail que já tem conta ATIVA em outro terreiro (decisão do dono, 2026-10-08):
+a casa nova é permitida, confirmando a senha dessa conta (`conta_existente`).
+O admin novo nasce com o MESMO hash de senha — uma senha só para a pessoa, e o
+login passa a perguntar "Em qual terreiro você quer entrar?" (AM-05). Limite de
+MAX_LOGIN_ACCOUNTS (5) contas ativas por e-mail, o mesmo teto do login.
 """
 import hashlib
 import re
@@ -12,12 +18,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, EmailStr, Field, ValidationInfo, field_validator
 
 from src.core.onboarding import COMO_CONHECEU_VALUES, PRINCIPAL_DOR_VALUES
 from src.core.reserved_slugs import is_reserved_slug
 from src.core.legal_versions import DOCUMENTOS_DO_CADASTRO, LEGAL_VERSIONS
-from src.core.limiter import get_client_ip
+from src.core.limiter import get_client_ip, limiter
+from src.core.logging import log_security_event
 from sqlalchemy import func, select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,7 +47,13 @@ from src.repositories.tenant_repo import TenantRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.core.errors import ValidationError as AppValidationError
 from src.security.password import hash_password, validate_password_policy
-from src.api.v1.auth.login import issue_session, normalize_login_email
+from src.api.v1.auth.login import (
+    MAX_LOGIN_ACCOUNTS,
+    active_login_accounts_stmt,
+    issue_session,
+    matching_accounts,
+    normalize_login_email,
+)
 from src.services.email.base import EmailMessage
 from src.services.email.resend_fallback import ResendEmailService
 from src.services.email.brevo_provider import BrevoEmailService
@@ -48,6 +62,25 @@ from src.services.email.templates.welcome import generate_welcome_html
 logger = logging.getLogger(__name__)
 
 TRIAL_DAYS = 30
+
+# Recusas do e-mail que já tem conta ativa em outro terreiro. Nunca 401: no front,
+# 401 dispara o "sessão expirada" (mesma regra do aceite do convite, SENHA_INCORRETA).
+EMAIL_JA_TEM_CONTA = {
+    "message": "Você já tem conta no GiraHub com este e-mail. Digite a senha dessa conta para criar a casa nova.",
+    "error_code": "EMAIL_JA_TEM_CONTA",
+}
+SENHA_CONTA_INCORRETA = {
+    "message": "Senha incorreta. Use a senha com que você já entra no GiraHub.",
+    "error_code": "SENHA_CONTA_INCORRETA",
+}
+LIMITE_CONTAS_EMAIL = {
+    "message": (
+        f"Este e-mail já está em {MAX_LOGIN_ACCOUNTS} terreiros, o máximo do GiraHub. "
+        "Use outro e-mail para a casa nova."
+    ),
+    "error_code": "LIMITE_CONTAS_EMAIL",
+}
+EMAIL_JA_CADASTRADO = "Este email já está cadastrado"
 
 router = APIRouter(prefix="/api/v1/public", tags=["onboarding"])
 
@@ -81,6 +114,17 @@ def _validar_cnpj(cnpj: str) -> bool:
     return True
 
 
+def _validar_senha_nova(v: str) -> str:
+    """Mesma política do resto do sistema (troca/redefinição de senha) e do
+    formulário de cadastro — antes o backend aceitava qualquer senha de 8 caracteres."""
+    try:
+        validate_password_policy(v)
+    except AppValidationError as exc:
+        motivos = (exc.details or {}).get("errors") or []
+        raise ValueError(f"{exc.message}: {', '.join(motivos)}" if motivos else exc.message) from exc
+    return v
+
+
 class OnboardingRequest(BaseModel):
     terreiro_nome: str
     endereco: Optional[str] = None
@@ -88,6 +132,10 @@ class OnboardingRequest(BaseModel):
     email: EmailStr
     whatsapp: str
     documento: str
+    # True = a pessoa já tem conta no GiraHub com este e-mail (o front liga depois do 409
+    # EMAIL_JA_TEM_CONTA) e `password` é a senha DESSA conta — sem a regra de senha nova.
+    # Declarado antes de `password`: o validador da senha lê este valor.
+    conta_existente: bool = False
     password: str
     # Obrigatórias desde 2026-10-07 (decisão do dono): "Ainda estou conhecendo" (`outro`) e "Outro"
     # continuam valendo. `validate_default` faz a ausência passar pelo validador e sair como 422
@@ -143,16 +191,16 @@ class OnboardingRequest(BaseModel):
 
     @field_validator("password")
     @classmethod
-    def password_policy(cls, v: str) -> str:
-        # Mesma política do resto do sistema (troca/redefinição de senha) e do
-        # formulário de cadastro — antes o backend aceitava qualquer senha de
-        # 8 caracteres.
-        try:
-            validate_password_policy(v)
-        except AppValidationError as exc:
-            motivos = (exc.details or {}).get("errors") or []
-            raise ValueError(f"{exc.message}: {', '.join(motivos)}" if motivos else exc.message) from exc
-        return v
+    def password_policy(cls, v: str, info: ValidationInfo) -> str:
+        if info.data.get("conta_existente"):
+            # Senha de uma conta que já existe: pode ser anterior à regra atual. Só o
+            # teto do bcrypt (72 bytes) — senha maior nunca foi gravada.
+            if not v:
+                raise ValueError("Digite a senha da sua conta GiraHub")
+            if len(v.encode("utf-8")) > 72:
+                raise ValueError("Senha muito longa")
+            return v
+        return _validar_senha_nova(v)
 
     @field_validator("como_conheceu")
     @classmethod
@@ -295,11 +343,79 @@ async def _check_trial_eligibility(db: AsyncSession, documento: str, email: str)
     return result.scalar_one_or_none() is None
 
 
+async def _contas_ativas_do_email(db: AsyncSession, email: str) -> list[User]:
+    """Contas ATIVAS com o e-mail, na mesma noção do login (AM-05): usuário ativo e
+    não excluído num terreiro não desativado/excluído — inclusive papel `medium`.
+    No máximo MAX_LOGIN_ACCOUNTS (mais antigas primeiro): o mesmo teto de bcrypt do login."""
+    return list((await db.execute(active_login_accounts_stmt(email))).scalars().all())
+
+
+async def _email_em_conta_nao_excluida(db: AsyncSession, email: str) -> bool:
+    """Regra de antes de 2026-10-08, que segue valendo quando NÃO há conta ativa:
+    conta inativa ou de terreiro desativado (que o login oferece reativar) barra o
+    cadastro com 409 "Este email já está cadastrado". Conta excluída não barra."""
+    stmt = select(User.id).where(
+        func.lower(User.email) == normalize_login_email(email), User.deleted_at.is_(None)
+    ).limit(1)
+    return (await db.execute(stmt)).scalar_one_or_none() is not None
+
+
+def _erro_senha(mensagem: str) -> RequestValidationError:
+    """422 no mesmo formato do validador do pydantic (`loc` no campo `password`)."""
+    return RequestValidationError(
+        [{"type": "value_error", "loc": ("body", "password"), "msg": f"Value error, {mensagem}", "input": None}]
+    )
+
+
+async def _senha_do_cadastro(db: AsyncSession, body: "OnboardingRequest") -> tuple[str, bool]:
+    """(hash de senha do admin novo, se é o de uma conta existente) — ou a recusa do e-mail.
+
+    - E-mail com conta ativa (qualquer papel, inclusive médium):
+      sem `conta_existente` → 409 EMAIL_JA_TEM_CONTA; com ele, confere a senha em cada
+      conta (`matching_accounts`, a mesma do login: todas, sem parar na primeira) →
+      nenhuma confere: 400 SENHA_CONTA_INCORRETA; confere, mas o e-mail já está em
+      MAX_LOGIN_ACCOUNTS terreiros: 409 LIMITE_CONTAS_EMAIL (só depois da senha certa,
+      para não contar a quem não tem a senha quantas contas o e-mail tem); senão, o hash
+      da conta conferida (uma senha só para a pessoa).
+    - Sem conta ativa, mas com conta inativa/terreiro desativado → 409 de sempre.
+    - E-mail novo → hash da senha digitada. Com `conta_existente` (a pessoa trocou o
+      e-mail depois do aviso, ou a conta foi desativada no meio), vira cadastro comum:
+      a senha passa pela regra de senha nova (422 no campo, como no validador).
+    """
+    contas = await _contas_ativas_do_email(db, body.email)
+    if contas:
+        if not body.conta_existente:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=EMAIL_JA_TEM_CONTA)
+        conferidas = matching_accounts(body.password, contas)
+        if not conferidas:
+            log_security_event(
+                "onboarding_conta_existente",
+                success=False,
+                user_id=contas[0].id if len(contas) == 1 else None,
+                details={"reason": "invalid_password", "accounts": len(contas)},
+            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=SENHA_CONTA_INCORRETA)
+        if len(contas) >= MAX_LOGIN_ACCOUNTS:
+            log_security_event("onboarding_conta_existente", success=False, details={"reason": "account_limit"})
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=LIMITE_CONTAS_EMAIL)
+        return conferidas[0].password_hash, True
+
+    if await _email_em_conta_nao_excluida(db, body.email):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=EMAIL_JA_CADASTRADO)
+    if body.conta_existente:
+        try:
+            _validar_senha_nova(body.password)
+        except ValueError as exc:
+            raise _erro_senha(str(exc)) from exc
+    return hash_password(body.password), False
+
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
 
 @router.post("/onboarding", response_model=OnboardingResponse, status_code=201)
+@limiter.limit("10/minute")
 async def onboarding(
     body: OnboardingRequest,
     response: Response,
@@ -310,19 +426,14 @@ async def onboarding(
 
     New tenants get a 1-month Premium trial (no card required) unless their
     CPF/CNPJ or e-mail already claimed one before.
+
+    Rate limit por IP igual ao do login (10/min aqui e a zona `login_limit` no nginx):
+    com `conta_existente` a rota confere senha e não pode virar oráculo de senha.
     """
 
-    # 1. Check email uniqueness (sem diferença de maiúsculas — contas antigas
-    # podem ter sido gravadas com maiúsculas)
-    stmt = select(User.id).where(
-        func.lower(User.email) == normalize_login_email(body.email), User.deleted_at.is_(None)
-    ).limit(1)
-    result = await db.execute(stmt)
-    if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Este email já está cadastrado",
-        )
+    # 1. E-mail (sem diferença de maiúsculas): novo, ou conta ativa em outro
+    # terreiro confirmada pela senha dela — ver _senha_do_cadastro.
+    password_hash, conta_reaproveitada = await _senha_do_cadastro(db, body)
 
     # 2. Generate unique slug
     tenant_repo = TenantRepository(db)
@@ -375,7 +486,7 @@ async def onboarding(
             username=username,
             full_name=body.responsavel_nome.strip(),
             phone=body.whatsapp,
-            password_hash=hash_password(body.password),
+            password_hash=password_hash,
             role=UserRole.ADMIN,
             is_active=True,
         )
@@ -411,15 +522,13 @@ async def onboarding(
     except IntegrityError as exc:
         await db.rollback()
         logger.warning("Onboarding IntegrityError for email=%s: %s", body.email, exc)
-        # Re-check email conflict (most likely cause)
-        stmt2 = select(User.id).where(
-            func.lower(User.email) == normalize_login_email(body.email), User.deleted_at.is_(None)
-        ).limit(1)
-        result2 = await db.execute(stmt2)
-        if result2.scalar_one_or_none():
+        # E-mail novo que outra requisição cadastrou no meio do caminho. Com conta
+        # existente confirmada o e-mail não é a causa (é único por terreiro, e o
+        # terreiro é novo) — sobra o slug.
+        if not conta_reaproveitada and await _email_em_conta_nao_excluida(db, body.email):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Este email já está cadastrado",
+                detail=EMAIL_JA_CADASTRADO,
             )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -430,6 +539,8 @@ async def onboarding(
     # refresh_token e auth_state; secure=not DEBUG). Antes só o refresh_token
     # era setado — a primeira tela pós-cadastro rodava sem access_token.
     access_token = await issue_session(db, user, request, response)
+    if conta_reaproveitada:
+        log_security_event("onboarding_conta_existente", success=True, user_id=user.id, tenant_id=tenant.id)
 
     # 9. Send welcome email (best-effort, don't block response)
     try:
