@@ -77,6 +77,11 @@ function Historico({
         >
           {ROTULO_SITUACAO_MEDIUM[p.situacao]}
         </span>
+        {p.funcao && p.situacao !== 'dispensado' && (
+          <span className="text-sm text-muted-foreground" data-testid="historico-funcao">
+            Função: {p.funcao}
+          </span>
+        )}
         {p.justificativa && <span className="text-sm">Motivo: {p.justificativa}</span>}
         {!p.chamada_encerrada && p.situacao !== 'presente' && p.situacao !== 'ausente' && (
           <span className="text-sm text-muted-foreground">A casa ainda não fechou a chamada.</span>

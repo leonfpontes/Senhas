@@ -1195,6 +1195,66 @@ by name.
 data, plan §6.8) only here, on the screen of whoever has `ESCALAS:view` — never in PDF, CSV, e-mail or
 audit (these routes audit nothing).
 
+### 18. Escala por função — quem trabalha em cada gira (AM-18)
+
+Same prefix as §15; plan gates `area_medium` + `atividades_corrente` + **`escalas`** (Pro — outside the plan
+→ 403). `{id}` is the activity id (internal activity or gira anchor). Only for types with
+`modo_escala = "funcoes"` (the system "Gira" type by default) → else 409 (`SEM_ESCALA_POR_FUNCAO`). File
+`src/api/v1/admin/atividades_escala.py`; rules in `src/services/escala_gira.py`.
+
+| Method | Path | Group action |
+|---|---|---|
+| POST | `/api/v1/admin/atividades/da-gira/{gira_id}/escala` → `{ "atividade_id" }` (creates the anchor) | `ESCALAS:view` |
+| GET | `/api/v1/admin/atividades/{id}/escala` | `ESCALAS:view` |
+| PUT | `/api/v1/admin/atividades/{id}/escala` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/{id}/escala/copiar-anterior` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/{id}/escala/rodizio` | `ESCALAS:edit` |
+
+**Scale** (GET; PUT/copy also add `resultado`, rodízio adds `rodizio`):
+```json
+{
+  "atividade": { "atividade_id", "origem": "gira"|"atividade", "ref_id", "titulo", "inicio", "fim", "local",
+                 "tipo": { "id", "nome", "icone", "cor" }, "convocacao_padrao", "cancelada",
+                 "chamada_encerrada", "pode_editar" },
+  "funcoes": [{ "id", "nome", "descricao", "arquivada",
+                "mediuns": [{ "medium_id", "nome", "origem": "funcao"|"rodizio", "resposta" }],
+                "grupos": [{ "id", "nome", "cor", "mediuns": [{ "medium_id", "nome", "origem": "grupo", "resposta" }] }] }],
+  "tirados": [{ "medium_id", "nome", "funcao" }],
+  "elegiveis": [{ "id", "nome" }],
+  "anterior": { "atividade_id", "titulo", "inicio" } | null,
+  "total_na_escala": 3
+}
+```
+- `funcoes` = the house functions (not archived; an archived one only while still in use), each with the
+  active médiuns chosen one by one and the whole groups (rows with `origem = grupo`). `tirados` = who had a
+  function and was taken out (`dispensado_em`, function kept for history). `elegiveis` = active médiuns
+  the type reaches (the picker). `anterior` = the last earlier activity of the same type (gira: the last
+  gira) that has a scale.
+- Médiuns without a function stay convoked by the type (gira = "todos os elegíveis").
+
+**PUT** `{ "funcoes": [{ "funcao_id", "medium_ids": [...], "grupo_ids": [...] }] }` replaces the whole
+scale. Every `funcao_id` must be a function of the tenant, `medium_id` an active médium, `grupo_id` a
+non-archived group → else 422, nothing stored. One function per médium per activity (the unique
+activity + médium row carries `funcao_id`): the same médium one by one in two functions or the same
+function twice → 422. A group expands to its members ACTIVE now that the type reaches (`origem = grupo`,
+`grupo_id`); one by one wins over a group; a member of two groups in different functions stays in the
+first. Changing someone's function updates the row (answer and presence kept); who had a function and is
+missing gets `dispensado_em`; who comes back loses it. Cancelled activity or closed roll call → 409.
+`resultado`: `{ "novos", "trocados", "mantidos", "tirados", "fora_da_elegibilidade_nomes",
+"repetidos_nomes", "em_outra_funcao_nomes" }`. Audited as `atividade_escala` (ids only).
+
+**copiar-anterior**: copies `anterior` (one-by-one médiuns still active, groups not archived — with
+today's members —, functions not archived) and replaces this scale; none → 409 (`SEM_ANTERIOR`).
+
+**rodizio** `{ "funcao_id", "medium_ids": [...] | "grupo_ids": [...], "quantidade": 1–12, "por_vez": 1–20 }`
+(médiuns OR groups, in rotation order): this activity and the next ones of the same type (gira: next active
+giras, anchors created; cancelled / closed ones skipped) get, in circular order, `por_vez` items each
+(`services/escala_gira.rodizio`). Only that function changes in each activity; a médium who already has
+another function there keeps it (`em_outra_funcao_nomes`). Response = this scale + `"rodizio": [{
+"atividade_id", "origem", "ref_id", "titulo", "inicio", "escolhidos": [names], "em_outra_funcao_nomes" }]`.
+
+Notifications ("Você é Cambone na gira de sábado") are AM-15's job — nothing is sent here.
+
 ---
 
 ## Área do Médium Endpoints (AM-02)
@@ -1554,7 +1614,9 @@ participation exists here (D-07). Audited as `medium_presenca` with `{acao}` onl
   "pode_checkin": false, "checkin_abre_em": "2026-10-10T11:00:00Z", "checkin_fecha_em": "2026-10-10T15:00:00Z",
   "pode_justificar": false, "justificar_ate": null, "chamada_encerrada": false }
 ```
-`grupo` is only the name of the médium's OWN group. `checkin_*` only in `app`/`qr` modes.
+`grupo` is only the name of the médium's OWN group. `funcao` (AM-18) is the médium's OWN function in the
+scale ("Você é Cambone na gira de sábado"); `null` without a function or once dispensed. `checkin_*` only in
+`app`/`qr` modes.
 
 - **`POST /api/v1/medium/atividades/{origem}/{id}/resposta`** `{ "resposta": "vou"|"nao_vou",
   "justificativa"? }` — until the start (else 409); `nao_vou` requires the text when the type has

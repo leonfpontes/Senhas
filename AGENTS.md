@@ -210,6 +210,11 @@ Rotas existentes e suas features:
   `check_plan_feature` → 403) e `GET /assiduidade/medium/{medium_id}` (detalhe com o texto da justificativa —
   so na tela; o agregado, que vai para o PDF, so tem contagens). `tipo_id`/`grupo_id`/`medium_id` conferidos
   no tenant (404). Router registrado ANTES do `atividades.py` (senao `/assiduidade` cai no `GET /{atividade_id}`)
+- Escala por funcao (`atividades_escala.py`, AM-18) → `PermissionFeature.ESCALAS`, mesmo prefixo, e o router
+  exige tambem `require_plan_feature("escalas")` (Pro; fora do plano → 403): `GET /{id}/escala` = view,
+  `PUT /{id}/escala`, `POST /{id}/escala/copiar-anterior` e `POST /{id}/escala/rodizio` = edit;
+  `POST /da-gira/{gira_id}/escala` = **view** (so cria/devolve a ancora da gira, sem dado de negocio, para abrir a
+  aba). Tipo sem `modo_escala = 'funcoes'` → 409
 
 Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
 leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
@@ -298,6 +303,12 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   funcoes em `ensure_default_atividade_tipos` (cadastro `public/onboarding.py` e `tenant_service.create_tenant`,
   como o grupo padrao). Ancora da gira: `services/atividades.atividade_da_gira` (`ON CONFLICT (gira_id) DO
   NOTHING`).
+- **Escala por funcao (AM-18)**: `api/v1/admin/atividades_escala.py` confere todo `funcao_id` (no terreiro;
+  rodizio so nao arquivada — `_validar_funcoes_do_tenant`), `medium_id` (ativo, `validar_mediuns_ativos_do_tenant`)
+  e `grupo_id` (nao arquivado, `validar_grupos_ativos_do_tenant`) do corpo antes de gravar; atividade/gira do
+  caminho buscadas no tenant (404). O corpo do PUT e aninhado (`funcoes[].medium_ids`) e o rodizio passa os ids
+  por um plano puro, entao a checagem 4 do auditor NAO rastreia essas gravacoes: a cobertura e o teste
+  cross-tenant em `tests/integration_pg/test_am18_escala_gira.py` (422/404 sem gravar nada).
 - **Agenda (AM-07)**: `GET /medium/agenda` (+ `/agenda/gira/{id}` e `/agenda/gira/{id}/ics`) so le giras
   ativas do tenant do `ctx`; formato unificado `{origem, id, tipo{nome, icone, cor}, titulo, inicio, fim,
   local, cancelada, minha_participacao}` que o AM-17 estende. Desde o AM-08 traz tambem as atividades internas
@@ -516,8 +527,8 @@ Recursos (plano minimo em `_FEATURE_MIN_TIER`):
   AM-08, decisao D-10; tambem em `UNSOLD_FEATURES` no piloto).
 - **Pro+**: `email_transacional`, `tema_personalizado` (no quadro: "Personalizacao da plataforma"),
   `analytics_basico`, `export_csv` (fora do quadro), `auditoria`, `site_builder` (site e cursos), `escalas`
-  (planejador da faxina, escala de gira por funcao — AM-25/AM-18, decisao D-02; catalogo criado no AM-08, sem
-  rota ainda; fora do quadro no piloto).
+  (planejador da faxina, escala de gira por funcao — AM-25/AM-18, decisao D-02; catalogo criado no AM-08; primeira
+  rota no AM-18, `atividades_escala.py`; fora do quadro no piloto).
 - **So Premium**: `associados`, `mensalidade_associado`, `estoque_controle`, `contas_financeiras`
   (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`, `agendamento_por_horario`.
 - Fora do quadro (`UNSOLD_FEATURES`): `bulk_operations`, `export_csv`, `analytics_avancado` (Pro+ no
@@ -1113,7 +1124,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade e ajustes do piloto (AM-02/03/04/05/06/07/08/09/10/11/12/13/17/23/26/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto e Escala de gira (AM-02/03/04/05/06/07/08/09/10/11/12/13/17/18/23/26/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1265,8 +1276,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   horario/duracao, visibilidade padrao; funcoes). Area: Agenda com o chip "Atividades", `TipoChip`
   (`components/atividades/TipoChip.tsx`, icone e cor do tipo) e "Cancelada"; detalhe
   `pages/medium/agenda/[tipo]/[id].tsx` com `tipo = atividade` (orientacoes, local, .ics e Google Agenda, motivo do
-  cancelamento; sem link publico nem "Divulgar"). Presenca no AM-17/AM-28 (abaixo); ainda nao: escala de gira
-  (AM-18) e planejador da faxina (AM-25) — as tabelas ja tem as colunas/ancora para isso.
+  cancelamento; sem link publico nem "Divulgar"). Presenca no AM-17/AM-28 e escala de gira no AM-18 (abaixo);
+  ainda nao: planejador da faxina (AM-25) — as tabelas ja tem as colunas/ancora para isso.
 - **Presenca (AM-17/AM-28)**: migracao `079_presenca` (§11.8; tabela em `docs/database.md`), API em §3.3 e
   `docs/api.md` (§16 do painel, §7 da Area). Modo da casa em Configuracoes → Area do Medium
   (`AreaMediumConfigSection`, so com `presenca_no_plano`: confianca · "Cheguei" pelo app · "Cheguei" com QR + prazo
@@ -1301,6 +1312,23 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `lib/pdf/assiduidadePdf.ts` (base `pdfDoc`: logo/cor do terreiro, periodo, filtros, tabela e total) com
   `dadosDoPdf` (`constants/assiduidade.ts`), que copia SO nomes e contagens campo a campo — teste jest trava que o
   texto da justificativa nunca chega ao gerador. API em §3.3 e `docs/api.md` §17.
+- **Escala de gira por funcao (AM-18)**: sem migracao (usa `funcao_id`/`grupo_id`/`origem` da participacao do
+  AM-17). API `api/v1/admin/atividades_escala.py` (gates/permissoes em §3.3, contrato em `docs/api.md` §18),
+  regras em `services/escala_gira.py`: a escala grava `funcao_id` na PROPRIA participacao (uma funcao por medium
+  por atividade); por funcao, medium um a um (`origem = funcao`, `rodizio` no rodizio) ou grupo inteiro
+  (`origem = grupo` + `grupo_id`, membros ATIVOS que o tipo alcanca); pedido um a um ganha do grupo; salvar
+  substitui a escala e quem tinha funcao e saiu fica com `dispensado_em` (a funcao fica gravada); "Copiar da
+  anterior" = ultima do mesmo tipo com escala (grupos com os membros de hoje); rodizio (`escala_gira.rodizio`,
+  funcao pura, espelho em `constants/escalaGira.ts`) pelas proximas N (≤ 12) do tipo, so mexendo na funcao do
+  rodizio (quem tem outra funcao fica nela). Avisos ficam para o AM-15 (gancho `aplicar_plano`, nada enviado).
+  Painel: `pages/admin/atividades/[id]/escala.tsx` (gates `area_medium` → `escalas` com
+  `PlanLocked minPlanFor('escalas')` → `escalas:view`; editar com `escalas:edit`; por funcao o
+  `PorNaEscalaCampos` com so os elegiveis e sem quem ja esta em outra funcao; resumo em texto; "Copiar da gira
+  anterior" com `ConfirmDialog`; `RodizioDrawer` com previa), aberto pelo `EscalaDaGiraButton` no cartao da gira
+  (`?origem=gira` → `POST /da-gira/{id}/escala` e troca a URL) e pelo botao "Escala" da Agenda da casa (tipos com
+  `modo_escala = funcoes`). Area: `minha_participacao.funcao` (null quando dispensado) → `EscalaCard` "Voce e
+  Cambone na gira de sabado" (`presencaApi.fraseDaFuncao`, D-17), selo da Agenda "Cambone · Vou", linha em
+  "Acompanhando" no Inicio e "Funcao: Cambone" no historico de Minhas presencas.
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

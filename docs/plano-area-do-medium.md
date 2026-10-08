@@ -1206,11 +1206,11 @@ espirituais e administrativas do terreiro"); o F-07 previa limpeza, cozinha e po
 - Fora do plano `escalas`: aba com `PlanLocked`; giras continuam com presença (Basic).
 
 **Aceite**
-- [ ] Admin monta a escala da gira por função, com médiuns ou grupo inteiro
-- [ ] Copiar da gira anterior e rodízio para as próximas giras funcionam
-- [ ] Um médium tem no máximo uma função por gira
-- [ ] Médium vê a própria função no Início e no calendário
-- [ ] Sem o plano Pro, a aba mostra o bloqueio com o plano mínimo e a API responde 403
+- [x] Admin monta a escala da gira por função, com médiuns ou grupo inteiro
+- [x] Copiar da gira anterior e rodízio para as próximas giras funcionam
+- [x] Um médium tem no máximo uma função por gira
+- [x] Médium vê a própria função no Início e no calendário
+- [x] Sem o plano Pro, a aba mostra o bloqueio com o plano mínimo e a API responde 403
 
 ### AM-19 — Minha ficha e minha caminhada
 - **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** F-05, AM-13
@@ -1439,12 +1439,13 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-17 Presença + AM-28 Modo de presença e QR do dia | #92 | 079 | 2026-10-08 |
 | AM-29 Ajustes do piloto (convocar grupos, QR no iPhone, PIX no Início, remover foto, limite no login) | este PR | — | 2026-10-08 |
 | AM-26 Relatório de assiduidade e justificativas (aba Relatórios, PDF sem justificativa) | este PR | — | — |
+| AM-18 Escala de gira por função (grupos inteiros, copiar da anterior, rodízio) | este PR | — (usa as colunas da 079) | — |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** AM-25 (escala de faxina), AM-15 (lembretes por e-mail), AM-26 (assiduidade), AM-18
-(escala de gira), AM-24 (divulgação). **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
+**Falta da 2.4.0 do plano:** AM-25 (escala de faxina), AM-15 (lembretes por e-mail, inclusive o aviso da escala
+de gira do AM-18), AM-26 (assiduidade), AM-24 (divulgação). **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 

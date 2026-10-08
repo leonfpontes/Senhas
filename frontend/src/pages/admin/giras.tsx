@@ -37,6 +37,7 @@ import { PageHeader, ConfirmDialog } from '@/components/admin';
 import GirasEmptyState from '@/components/admin/GirasEmptyState';
 import { GiraCard, giraPhase, type GiraCardData } from '@/components/admin/GiraCard';
 import { ChamadaDaGiraButton, giraTemChamada } from '@/components/admin/presenca/ChamadaDaGiraButton';
+import { EscalaDaGiraButton } from '@/components/admin/atividades/EscalaDaGiraButton';
 import { ShareLinkDialog } from '@/components/admin/ShareLinkDialog';
 import { PermissionDenied } from '@/components/gates';
 import { Stepper } from '@/components/Stepper';
@@ -989,7 +990,12 @@ function AdminGirasContent() {
       onRelease={(g) => setReleaseTarget(g as Gira)}
       onEdit={(g) => openEdit(g as Gira)}
       onDelete={(g) => setDeleteTarget(g as Gira)}
-      extraAction={giraTemChamada(gira) ? <ChamadaDaGiraButton giraId={gira.id} /> : undefined}
+      extraAction={
+        <>
+          <EscalaDaGiraButton giraId={gira.id} />
+          {giraTemChamada(gira) && <ChamadaDaGiraButton giraId={gira.id} />}
+        </>
+      }
     />
   );
 

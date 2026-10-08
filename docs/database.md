@@ -346,7 +346,7 @@ presente, ausente com/sem justificativa, dispensado, substituído) é **derivada
 | `medium_id` | UUID FK → `mediuns.id` CASCADE | médium do mesmo terreiro (conferido na API) |
 | `convocado` | `Boolean`, padrão false | false só no avulso ("Adicionar quem veio") |
 | `origem` | `String(20)`, padrão `elegivel` | CHECK `elegivel/grupo/funcao/rodizio/manual/avulso` |
-| `grupo_id` / `funcao_id` | UUID FK → `corrente_grupos.id` / `funcoes_corrente.id` SET NULL | escala (AM-18/AM-25) |
+| `grupo_id` / `funcao_id` | UUID FK → `corrente_grupos.id` / `funcoes_corrente.id` SET NULL | escala (AM-18/AM-25): a função da escala por função (uma por médium por atividade); `grupo_id` com `origem = grupo` = veio de um grupo inteiro; tirado da escala mantém a função e ganha `dispensado_em` |
 | `resposta` | `String(20)`, padrão `sem_resposta` | CHECK `sem_resposta/vou/nao_vou`; muda até o início |
 | `respondido_em` | `DateTime(tz)` NULL | |
 | `justificativa` | `String(500)` NULL | pode ter dado de saúde (§6.8): só com `ESCALAS:view`; nunca em auditoria, e-mail, push ou exportação |

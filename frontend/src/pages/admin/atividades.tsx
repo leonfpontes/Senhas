@@ -12,6 +12,8 @@
  * Presença (AM-17): em cada gira/atividade, "Confirmações" (painel com quem vai, quem não vai e o
  * motivo, "Pôr na escala"/"Tirar da escala" — `ConfirmacoesSheet`, escalas view/insert/edit) e
  * "Chamada" (`/admin/atividades/[id]/chamada`, escalas edit; a gira cria a âncora antes).
+ * Escala por função (AM-18): na gira e nos tipos com escala "por função", "Escala" abre
+ * `/admin/atividades/[id]/escala` (gira com `?origem=gira`; plano `escalas` cuidado na tela).
  * AM-29: ao criar uma atividade de tipo "só escalados", o drawer já deixa escolher grupos da
  * corrente e médiuns para pôr na escala (`PorNaEscalaCampos`, só com escalas insert): depois do
  * `POST /admin/atividades` vem o `POST /{id}/convocar` e um toast só com o resumo.
@@ -33,6 +35,7 @@ import {
   ChevronRight,
   ExternalLink,
   EyeOff,
+  ListOrdered,
   Pencil,
   Plus,
   RotateCcw,
@@ -432,6 +435,11 @@ function AgendaDaCasa({
 
   const controlaPresenca = (item: CalendarioItem) =>
     item.origem === 'gira' || Boolean(tipos.find((t) => t.id === item.tipo.id)?.controla_presenca);
+  // AM-18: escala por função (a gira e tipos com modo "por função"); a tela cuida do plano `escalas`.
+  const temEscalaPorFuncao = (item: CalendarioItem) =>
+    tipos.find((t) => t.id === item.tipo.id)?.modo_escala === 'funcoes';
+  const escalaHref = (item: CalendarioItem) =>
+    `/admin/atividades/${encodeURIComponent(item.id)}/escala${item.origem === 'gira' ? '?origem=gira' : ''}`;
 
   const abrirChamada = async (item: CalendarioItem) => {
     if (item.origem === 'atividade') {
@@ -563,6 +571,13 @@ function AgendaDaCasa({
                       aria-label={`Chamada de ${item.titulo}`}
                     >
                       <ClipboardCheck />
+                    </Button>
+                  )}
+                  {!item.cancelada && temEscalaPorFuncao(item) && (
+                    <Button asChild variant="ghost" size="icon-sm" title="Escala">
+                      <Link href={escalaHref(item)} aria-label={`Escala de ${item.titulo}`}>
+                        <ListOrdered />
+                      </Link>
                     </Button>
                   )}
                 </div>

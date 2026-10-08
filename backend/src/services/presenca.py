@@ -987,7 +987,8 @@ def minha_participacao(
         ),
         "justificativa": justificativa,
         "grupo": grupo,
-        "funcao": funcao,
+        # AM-18: "Você é Cambone" — só enquanto está na escala (dispensado não mostra a função).
+        "funcao": funcao if not (dispensado or substituido) else None,
         "pede_confirmacao": bool(tipo.pede_confirmacao),
         "exige_justificativa": bool(tipo.exige_justificativa),
         "controla_presenca": controla,
