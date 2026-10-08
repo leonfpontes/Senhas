@@ -1,6 +1,6 @@
 # Estudo de experiência e usabilidade da Área do Médium (AM-00)
 
-Criado: 2026-10-07 · Status: **vocabulário e jornadas decididos pelo dono (07/10); falta o protótipo** ·
+Criado: 2026-10-07 · Status: **concluído** — vocabulário e jornadas decididos pelo dono (07/10), protótipo v2 validado e telas em produção em piloto (ver plano §11.0) ·
 Card: **AM-00** · Plano técnico:
 [plano-area-do-medium.md](plano-area-do-medium.md)
 

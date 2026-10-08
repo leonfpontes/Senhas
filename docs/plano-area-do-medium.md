@@ -1,6 +1,6 @@
 # Plano da Área do Médium (outubro/2026)
 
-Criado: 2026-10-07 · Status: **planejamento aprovado, nada implementado** · Prefixo dos cards: **AM-**
+Criado: 2026-10-07 · Status: **em produção em piloto** (entrega 2.3.0 completa e parte da 2.4.0 — ver §11.0) · Prefixo dos cards: **AM-**
 
 Histórico:
 - 2026-10-07 (v1): plano inicial, cards AM-01 a AM-24.
@@ -1412,6 +1412,40 @@ com a presença. Conversa com o N-06 (check-in do consulente por QR).
 
 ## 11. Ordem de execução
 
+### 11.0 Status de implementação (atualizado em 2026-10-08)
+
+Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a plataforma ligou a chave do piloto
+(`tenants.area_medium_liberada`, Tenant 360) e com plano Basic ou superior (D-30).
+
+| Card | PR | Migração | Em produção |
+|---|---|---|---|
+| T-02 Token tipado | #69 | — | 2026-10-07 |
+| AM-00 Estudo de experiência (protótipo validado) | este plano | — | 2026-10-07 |
+| AM-02 Fundação de identidade | #71, #76 (rec. 2) | 064, 065 | 2026-10-07 |
+| Chave do piloto (AM-01b) | #78 | 066 | 2026-10-07 |
+| AM-03 Convite e ativação | #81 | 067 | 2026-10-07 |
+| AM-10 Configuração da Área e chave PIX | #80 | 068 | 2026-10-07 |
+| AM-04 Escolha de área + AM-06 Casca e Início | #82 | — | 2026-10-07 |
+| AM-09 Avisos | #84 | 070, 071 | 2026-10-07 |
+| AM-11 Pague aqui + AM-12 Comprovante | #83 | 072 | 2026-10-07 |
+| AM-07 Agenda | #86 | 073 | 2026-10-07 |
+| Versão 2.4.0 do app (notas "em teste em algumas casas") | #87 | — | 2026-10-07 |
+| AM-05 Mesmo e-mail em vários terreiros | #88 | — | 2026-10-08 |
+| AM-23 Grupos da corrente | #89 | 075 | 2026-10-08 |
+| AM-13 Perfil do médium | #90 | 076 | 2026-10-08 |
+| AM-08 Atividades da casa (feature de grupo `ESCALAS`) | #91 | 077, 078 | 2026-10-08 |
+| AM-17 Presença + AM-28 Modo de presença e QR do dia | #92 | 079 | 2026-10-08 |
+| AM-29 Ajustes do piloto (convocar grupos, QR no iPhone, PIX no Início, remover foto, limite no login) | este PR | — | 2026-10-08 |
+
+Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
+re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
+
+**Falta da 2.4.0 do plano:** AM-25 (escala de faxina), AM-15 (lembretes por e-mail), AM-26 (assiduidade), AM-18
+(escala de gira), AM-24 (divulgação). **Fase 2/3:** AM-14, AM-16 (push), AM-19, AM-20, AM-21, AM-22, AM-27.
+**Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
+QR de presença no Android e no iPhone.
+
+
 **Fase 0 — estudo de experiência (3 semanas, v3).** O AM-00 vem antes de qualquer tela. Enquanto ele roda, só
 anda o que não tem tela e que nenhum resultado do estudo muda: o T-02 (token tipado) e a parte de backend do AM-02
 (vínculo, papel `medium`, trava do painel, auditores). As telas do AM-02 em diante só começam com o protótipo
@@ -1511,6 +1545,17 @@ descoberta e vocabulário do AM-00; ver [estudo-ux-area-do-medium.md](estudo-ux-
 | D-29 | Lembretes da mensalidade | **3 dias antes e 3 dias depois** do vencimento se não houver comprovante, tom gentil, a casa pode desligar | AM-15 |
 
 ---
+
+**Decisões tomadas durante a implementação (2026-10-07 e 2026-10-08):**
+
+| # | Tema | Escolha |
+|---|---|---|
+| D-30 | Lançamento | **Chave por terreiro (piloto)**: tudo vai desligado; a plataforma liga casa a casa e, no lançamento, para todos |
+| D-31 | Mensalidade no Início | Sobe para "Para você ver agora" só **a partir de 5 dias antes do vencimento** ou atrasada; antes fica em "Acompanhando" |
+| D-32 | Operador que também é médium | Desativar no painel tira **só o painel**; continua com a Área |
+| D-33 | WhatsApp do convite | Texto simpático com o vocabulário do terreiro ("A nossa casa, <nome>, agora tem a Área do Médium… Axé!"); o e-mail segue discreto |
+| D-34 | Textos legais | Termo do médium (v1) e Política de Privacidade 2.2 escritos pelo Claude a pedido do dono (ajustes depois, se ele quiser) |
+| D-35 | Convocação | Além de médium por médium, **grupos inteiros** podem ser convocados para uma atividade (AM-29) |
 
 ## 13. Riscos gerais
 
