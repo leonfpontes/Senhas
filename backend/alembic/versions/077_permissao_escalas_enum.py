@@ -14,14 +14,14 @@ Downgrade: no-op. O Postgres não remove valor de ENUM; o valor fica sem uso —
 usam são apagadas no downgrade da 078, e um novo upgrade usa `ADD VALUE IF NOT EXISTS`.
 
 Revision ID: 077_permissao_escalas_enum
-Revises: 075_corrente_grupos
+Revises: 076_medium_email_pendente
 Create Date: 2026-10-07
 """
 
 from alembic import op
 
 revision: str = "077_permissao_escalas_enum"
-down_revision: str = "075_corrente_grupos"
+down_revision: str = "076_medium_email_pendente"
 branch_labels = None
 depends_on = None
 

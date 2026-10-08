@@ -585,7 +585,7 @@ async def test_migracoes_077_078_sobem_e_descem_com_dados_e_acesso(client, db):
             return set((await conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'"))).scalars())
 
     novas = {"atividade_tipos", "atividade_tipo_grupos", "funcoes_corrente", "atividades"}
-    _alembic("downgrade", "075_corrente_grupos")
+    _alembic("downgrade", "076_medium_email_pendente")
     try:
         assert not (novas & await _tabelas())
         async with engine.connect() as conn:

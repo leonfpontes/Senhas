@@ -88,7 +88,7 @@ Herda as 3 colunas de timestamp. Adiciona método `.soft_delete()` que define `d
 |---|---|---|---|---|
 | `id` | `UUID` | Não | `uuid4` | PK |
 | `tenant_id` | `UUID` | **Sim** | — | FK → `tenants.id CASCADE`; NULL para SUPER_ADMIN |
-| `email` | `String(255)` | Não | — | `UNIQUE`, indexed |
+| `email` | `String(255)` | Não | — | indexed; único por tenant (`uq_users_tenant_email`, abaixo) |
 | `username` | `String(255)` | Não | — | — |
 | `full_name` | `String(255)` | Sim | — | adicionado em 008 |
 | `phone` | `String(20)` | Sim | — | adicionado em 008 |
@@ -98,6 +98,12 @@ Herda as 3 colunas de timestamp. Adiciona método `.soft_delete()` que define `d
 | `password_hash` | `String(255)` | Não | — | bcrypt |
 | `role` | `Enum(UserRole)` | Não | `OPERATOR` | DB enum `user_role` (`medium` desde a 063 — conta só da Área do Médium) |
 | `is_active` | `Boolean` | Não | `True` | indexed |
+| `reset_token_hash` | `String(255)` | Sim | — | sha256 do token do "esqueci a senha"; indexed |
+| `reset_token_expires_at` | `DateTime(tz)` | Sim | — | validade do link de redefinição |
+| `sessions_revoked_at` | `DateTime(tz)` | Sim | — | token emitido antes disto é recusado (troca de senha, "sair de todos") |
+| `email_pendente` | `String(255)` | Sim | — | 074 (AM-13): e-mail de login pedido pelo Perfil do médium, ainda não confirmado |
+| `email_pendente_token_hash` | `String(64)` | Sim | — | 074: sha256 do token do link enviado ao endereço novo; índice único `uq_users_email_pendente_token_hash` |
+| `email_pendente_expira_em` | `DateTime(tz)` | Sim | — | 074: validade (24 h); as três colunas `email_pendente*` são limpas na confirmação (uso único) |
 | `created_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `updated_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `deleted_at` | `DateTime(tz)` | Sim | — | soft-delete |
@@ -106,7 +112,11 @@ Herda as 3 colunas de timestamp. Adiciona método `.soft_delete()` que define `d
 - `uq_users_tenant_email` em `(tenant_id, email)` — e-mail único por tenant (multi-tenant)
 - `uq_users_email_superadmin` (partial index) em `(email) WHERE tenant_id IS NULL` — e-mail globalmente único para SUPER_ADMIN
 
-**Indexes:** `ix_users_tenant_id`, `ix_users_is_active`, `ix_users_email`
+**Indexes:** `ix_users_tenant_id`, `ix_users_is_active`, `ix_users_email`, `ix_users_reset_token_hash`, `uq_users_email_pendente_token_hash` (único, 074)
+
+**Troca do e-mail de login (AM-13, migração 076):** `users.email` só muda quando o link mandado ao endereço novo é
+aberto (`POST /api/v1/public/email/confirmar`); aí `mediuns.email` do médium ligado acompanha e o endereço antigo é
+avisado. Pedir de novo troca o token (o link anterior deixa de valer).
 
 **Properties:** `.is_super_admin`, `.is_admin`, `.is_operator_or_admin` (falso para `medium`), `.is_medium_only`
 
@@ -767,6 +777,9 @@ Ao criar um novo enum em Alembic + model Python:
 | 18 | `018_estoque` | `017_default_brand_colors` | Cria `estoque_grupos`, `estoque_itens`, `estoque_movimentacoes`; enum `estoque_movimentacao_tipo`; `tenant_configs.enable_estoque_log` |
 | 19 | `019_fix_movimentacoes_fk` | `018_estoque` | `estoque_movimentacoes.item_id` FK: `CASCADE` → `RESTRICT` (protege integridade do ledger) |
 
+A tabela acima vai até a 019. A cadeia completa e a head atual (`076_medium_email_pendente`, AM-13) estão em
+AGENTS.md §11.8.
+
 ### Comandos Alembic
 
 ```bash
@@ -794,7 +807,7 @@ alembic current
 |---|---|---|
 | `tenants` | `slug` | UNIQUE + B-tree |
 | `tenants` | `is_active` | B-tree |
-| `users` | `(email)` | UNIQUE |
+| `users` | `(tenant_id, email)`; `(email) WHERE tenant_id IS NULL`; `(email_pendente_token_hash)` | UNIQUE |
 | `users` | `tenant_id`, `is_active`, `email` | B-tree |
 | `tenant_configs` | `(tenant_id)` | UNIQUE |
 | `giras` | `tenant_id`, `data_inicio`, `is_active` | B-tree |

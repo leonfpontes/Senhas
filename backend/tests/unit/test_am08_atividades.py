@@ -50,7 +50,7 @@ def test_feature_escalas_no_enum_e_planos():
 def test_migracoes_077_e_078_encadeadas_e_lista_congelada_igual_ao_servico():
     m077 = _migracao("077_permissao_escalas_enum")
     m078 = _migracao("078_atividades")
-    assert (m077.revision, m077.down_revision) == ("077_permissao_escalas_enum", "075_corrente_grupos")
+    assert (m077.revision, m077.down_revision) == ("077_permissao_escalas_enum", "076_medium_email_pendente")
     assert (m078.revision, m078.down_revision) == ("078_atividades", "077_permissao_escalas_enum")
     assert m078.TIPOS_SUGERIDOS == svc.TIPOS_SUGERIDOS
     assert m078.FUNCOES_SUGERIDAS == svc.FUNCOES_SUGERIDAS
