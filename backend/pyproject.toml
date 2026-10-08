@@ -56,6 +56,10 @@ dependencies = [
     # path prefixado via effective_route_context e sem double-wrap de handler
     # sync). Abaixo disso as transacoes viram URL concreta (alta cardinalidade).
     "sentry-sdk[fastapi]>=2.63.0",
+    # Web Push com VAPID (AM-16): notificacao no celular da Area do Medium, sem
+    # servico pago. Traz py-vapid, http-ece, requests e aiohttp (este so no
+    # webpush_async, que nao usamos). Envio em services/web_push.py.
+    "pywebpush==2.5.0",
 ]
 
 [project.optional-dependencies]

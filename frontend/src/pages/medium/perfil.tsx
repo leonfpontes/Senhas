@@ -15,6 +15,8 @@
  * - "Minhas presenças" (AM-17, D-27): leva a `/medium/presencas` (percentual, próximas escalas e
  *   histórico; só a própria presença).
  * - "Avisos por e-mail" (AM-15): liga/desliga cada tipo de lembrete (`AvisosPorEmail`).
+ * - "Notificações no celular" (AM-16): liga este aparelho (permissão só no toque) e cada tipo
+ *   (`NotificacoesNoCelular`); no iPhone fora da tela inicial, abre o passo de instalação.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
@@ -42,6 +44,7 @@ import { MeusGrupos } from '@/components/medium/MeusGrupos';
 import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 import { AvisosPorEmail } from '@/components/medium/perfil/AvisosPorEmail';
 import { MeusDadosDrawer } from '@/components/medium/perfil/MeusDadosDrawer';
+import { NotificacoesNoCelular } from '@/components/medium/perfil/NotificacoesNoCelular';
 import { TrocarEmailDrawer } from '@/components/medium/perfil/TrocarEmailDrawer';
 import { TrocarSenhaDrawer } from '@/components/medium/perfil/TrocarSenhaDrawer';
 import {
@@ -443,6 +446,7 @@ function Perfil() {
               </ul>
             </Secao>
             <AvisosPorEmail somenteLeitura={somenteLeitura} />
+            <NotificacoesNoCelular somenteLeitura={somenteLeitura} onInstalar={openInstall} />
           </>
         )}
 

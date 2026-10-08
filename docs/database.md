@@ -460,6 +460,36 @@ tabelas, `tenant_configs.area_medium_lembrete_mensalidade` (`Boolean`, padrão `
 
 ---
 
+### `push_inscricoes` (AM-16, migração 085 — encadeada depois da 081)
+
+Notificação no celular da Área do Médium (Web Push com VAPID). Uma linha por aparelho/navegador em que o médium
+ligou as notificações. Model em `src/models/push_inscricoes.py`; envio em `services/web_push.py`.
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `user_id` | UUID FK → `users.id` CASCADE | a conta que inscreveu; o envio exige `mediuns.user_id = user_id` |
+| `medium_id` | UUID FK → `mediuns.id` CASCADE | |
+| `endpoint` | `Text` | UNIQUE `uq_push_inscricoes_endpoint`; só serviço de push conhecido (FCM, Mozilla, WNS, Apple) |
+| `p256dh` / `auth` | `String(200)` | chaves da inscrição (cifram a mensagem) |
+| `user_agent` | `String(120)` NULL | curto, só para reconhecer o aparelho |
+| `created_at` | `DateTime(tz)` | `server_default now()` |
+| `last_success_at` | `DateTime(tz)` NULL | último envio aceito |
+| `failures` | `Integer`, padrão 0 | falhas seguidas (zera no sucesso; 5 apagam a linha; 404/410 apagam na hora) |
+
+**Indexes:** `ix_push_inscricoes_tenant_medium` (`tenant_id, medium_id`), `ix_push_inscricoes_user_id`.
+
+A migração também cria em `medium_preferencias` os liga/desliga do celular: `push_mensalidade`, `push_escalas`,
+`push_confirmacao`, `push_faltas`, `push_avisos` (`Boolean`, padrão `true`; separados dos `email_*`; o link do
+rodapé do e-mail não mexe neles). Sem tipo novo de lembrete: o push usa a mesma marca
+`medium_lembretes_enviados` do e-mail.
+
+**Migração 085 (`085_push_inscricoes`, encadeada na `081_lembretes`; pode ser re-encadeada no merge):** downgrade
+apaga a tabela e as 5 colunas (as inscrições se perdem; o médium liga de novo no Perfil).
+
+---
+
 ### `tenant_configs`
 
 Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`.
