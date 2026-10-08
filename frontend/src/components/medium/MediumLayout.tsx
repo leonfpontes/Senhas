@@ -2,10 +2,12 @@
  * MediumLayout — casca da Área do Médium (AM-06). Toda página em `src/pages/medium/` usa este
  * layout (scripts/audit-permission-guards.js exige).
  *
- * Identidade: a do site novo (paleta "terra": areia, tinta, café, ouro e títulos em Fraunces —
- * classe `.medium-terra` em globals.css) com a cor e o logo do terreiro nos detalhes: logo no
- * cabeçalho, linha da marca embaixo dele, botão principal, aba ativa e datas (`applyBrand`, via
- * MediumProvider). Claro/escuro segue o sistema (classe `dark` em <html>, removida ao sair).
+ * Identidade: a do site novo, CLARA como a landing (paleta "terra": fundo areia, cartões
+ * brancos, texto tinta, ouro nos detalhes e títulos em Fraunces — classe `.medium-terra` em
+ * globals.css) com a cor e o logo do terreiro nos detalhes: logo no cabeçalho, linha da marca
+ * embaixo dele, botão principal, aba ativa e datas (`applyBrand`, via MediumProvider). Sempre
+ * clara (out/2026, o dono achou a Área "muito escura" no celular em modo escuro): não segue o
+ * escuro do sistema e tira a classe `dark` de <html> enquanto está na Área (`useAreaClara`).
  * Celular primeiro: uma coluna, alvos de 48px+, barra inferior Início · Agenda · Avisos ·
  * Mensalidade · Perfil (D-27) com ícone E texto, respeitando a área segura (`z-40`, como a
  * `MobileTabBar`; overlays do Radix ficam por cima com `z-50`). Aba de módulo que a casa desligou
@@ -106,18 +108,17 @@ function isImpersonating(): boolean {
   }
 }
 
-/** Claro/escuro da Área: segue o sistema; tira a classe ao sair da Área. */
-export function useSystemDarkMode(): void {
+/**
+ * A Área é sempre clara, no tom da landing (out/2026): tira a classe `dark` de <html> (que o
+ * painel em modo escuro pode ter deixado) enquanto a Área está aberta e a devolve ao sair.
+ */
+export function useAreaClara(): void {
   useEffect(() => {
     const root = document.documentElement;
-    if (typeof window.matchMedia !== 'function') return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const sync = () => root.classList.toggle('dark', mq.matches);
-    sync();
-    mq.addEventListener?.('change', sync);
+    const estavaEscuro = root.classList.contains('dark');
+    root.classList.remove('dark');
     return () => {
-      mq.removeEventListener?.('change', sync);
-      root.classList.remove('dark');
+      if (estavaEscuro) root.classList.add('dark');
     };
   }, []);
 }
@@ -150,7 +151,7 @@ function TabBar({
     <nav
       aria-label="Menu da Área do Médium"
       data-testid="medium-tab-bar"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_8px_rgb(43_29_20/0.06)] backdrop-blur"
     >
       <ul className={cn('mx-auto grid max-w-xl', GRID_COLS[tabs.length] ?? 'grid-cols-5')}>
         {tabs.map(({ href, label, icon: Icon }) => {
@@ -234,7 +235,7 @@ function Shell({
       >
         Pular para o conteúdo
       </a>
-      <header className="sticky top-0 z-30 border-b-[3px] border-primary bg-background/95 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b-[3px] border-primary bg-card/95 shadow-[0_1px_8px_rgb(43_29_20/0.06)] backdrop-blur">
         <div className="mx-auto flex min-h-16 max-w-xl items-center gap-3 px-4 py-2.5">
           <TerreiroEmblem nome={terreiro} logoUrl={logoUrl} />
           <div className="min-w-0 flex-1">
@@ -268,7 +269,7 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
   const { profile, loading: profileLoading } = useProfile();
   const { me, status } = useMedium();
   const [installOpen, setInstallOpen] = useState(false);
-  useSystemDarkMode();
+  useAreaClara();
 
   const temArea = hasMediumArea(profile);
   const temPainel = hasAdminArea(profile);

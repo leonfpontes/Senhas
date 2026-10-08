@@ -879,7 +879,7 @@ celular.
 
 **Implementação**
 - `F/components/medium/MediumLayout.tsx` e `MediumProvider` (§6.10), marca do terreiro via `applyBrand`,
-  claro/escuro seguindo o sistema.
+  claro/escuro seguindo o sistema (out/2026: a Área passou a ser sempre clara, no tom da landing — AGENTS.md §11.16).
 - `GET /api/v1/medium/inicio`: próxima gira/evento, comunicados não lidos (contagem + 3 últimos), mensalidade do
   mês (status, valor, vencimento), aviso de aniversário do próprio médium, módulos ligados (AM-10).
 - `F/pages/medium/index.tsx`: cartões com ação direta ("Ver gira", "Ler aviso", "Pagar"), `EmptyState` amigável
