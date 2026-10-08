@@ -1322,7 +1322,7 @@ dos tipos de atividade.
 **Aceite**
 - [x] Link na landing e no login (atrás da chave `NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA`, desligada no piloto)
 - [x] Quadro de planos com a Área (mesma chave) e a pergunta no FAQ
-- [ ] Novidades da versão escritas em linguagem de terreiro (vão com a versão 2.5.0)
+- [x] Novidades da versão escritas em linguagem de terreiro (2.5.0) (vão com a versão 2.5.0)
 
 ### AM-25 — Escala de faxina: grupos por dias do mês
 - **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** G · **Tipo:** dev · **Depende de:** AM-08, AM-17, AM-23
