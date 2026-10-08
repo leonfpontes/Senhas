@@ -52,11 +52,11 @@ def vapid(monkeypatch):
 # ── Migração, dependência e configuração ────────────────────────────────────
 
 
-def test_migracao_085_encadeada_e_preferencias_iguais_ao_modelo():
-    spec = importlib.util.spec_from_file_location("m085", BACKEND_DIR / "alembic/versions/085_push_inscricoes.py")
+def test_migracao_082_encadeada_e_preferencias_iguais_ao_modelo():
+    spec = importlib.util.spec_from_file_location("m082", BACKEND_DIR / "alembic/versions/082_push_inscricoes.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    assert (mod.revision, mod.down_revision) == ("085_push_inscricoes", "081_lembretes")
+    assert (mod.revision, mod.down_revision) == ("082_push_inscricoes", "081_lembretes")
     assert mod.PREFERENCIAS == modelos.PREFERENCIAS
     for p in modelos.PREFERENCIAS:
         assert hasattr(modelos.MediumPreferencia, f"push_{p}")

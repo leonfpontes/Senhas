@@ -1149,7 +1149,7 @@ O manifesto atual abre a Porta.
   mesmo agendador do AM-15, handler `push`/`notificationclick` no `sw.js` (sem cachear `/api/*`, regra mantida).
   iPhone só recebe com o app instalado (iOS 16.4+).
 
-**Feito (AM-16, migração 085).** Tabela `push_inscricoes` (+ `tenant_id`, `medium_id`, `user_agent` curto,
+**Feito (AM-16, migração 082).** Tabela `push_inscricoes` (+ `tenant_id`, `medium_id`, `user_agent` curto,
 `last_success_at`, `failures`) e liga/desliga por tipo próprio do celular (`medium_preferencias.push_*`); API
 `/api/v1/medium/push*` (chave pública, ligar/desligar o aparelho, tipos, teste); envio pelo agendador do AM-15 com a
 mesma marca (uma vez só nos dois canais), texto discreto sem nome de atividade/aviso; 404/410 apagam a inscrição.
@@ -1457,7 +1457,7 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-15 Lembretes e avisos por e-mail (mensalidade D-3/D+3, véspera, D-2, escala nova, falta, aviso, cancelamento, PIX, resumo do admin) | #96 | 081 | 2026-10-08 |
 | AM-18 Escala de gira por função (grupos inteiros, copiar da anterior, rodízio) | #97 | — (usa as colunas da 079) | 2026-10-08 |
 | AM-24 Divulgação (atrás da chave NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA, desligada) | #98 | — | 2026-10-08 |
-| AM-16 Notificação push | este PR | 085 | — |
+| AM-16 Notificação push | este PR | 082 | — |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).

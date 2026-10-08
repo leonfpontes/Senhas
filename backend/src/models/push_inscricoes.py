@@ -1,4 +1,4 @@
-"""Notificação no celular da Área do Médium (AM-16, migração 085) — inscrições de Web Push.
+"""Notificação no celular da Área do Médium (AM-16, migração 082) — inscrições de Web Push.
 
 Uma linha por aparelho/navegador em que o médium tocou em "Receber notificações neste celular":
 o `endpoint` do serviço de push do navegador (FCM, Mozilla, Apple) e as duas chaves da inscrição

@@ -12,7 +12,7 @@ marca `medium_lembretes_enviados` (uma vez só por lembrete, nos dois canais).
 
 Downgrade: apaga a tabela e as colunas (as inscrições se perdem; o médium liga de novo no Perfil).
 
-Revision ID: 085_push_inscricoes
+Revision ID: 082_push_inscricoes
 Revises: 081_lembretes
 Create Date: 2026-10-08
 """
@@ -21,7 +21,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "085_push_inscricoes"
+revision: str = "082_push_inscricoes"
 down_revision: str = "081_lembretes"
 branch_labels = None
 depends_on = None

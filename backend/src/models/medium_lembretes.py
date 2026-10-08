@@ -4,7 +4,7 @@
   (padrão: tudo ligado — a linha só nasce quando o médium mexe ou quando o primeiro e-mail sai) e o
   token do link "Não quero mais receber" do rodapé (`token_descadastro`). O token só desliga
   avisos por e-mail; por isso fica em claro (precisa ir em todo e-mail) e é único no banco.
-- (AM-16, 085) `push_<tipo>`: o mesmo liga/desliga para a notificação no celular. O link do rodapé
+- (AM-16, 082) `push_<tipo>`: o mesmo liga/desliga para a notificação no celular. O link do rodapé
   do e-mail só mexe nos `email_*`.
 - `medium_lembretes_enviados`: a marca "já mandei" de cada lembrete, por (terreiro, tipo,
   referência, médium). A marca é gravada ANTES do envio com `INSERT ... ON CONFLICT DO NOTHING
@@ -102,7 +102,7 @@ class MediumPreferencia(Base):
     email_confirmacao: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
     email_faltas: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
     email_avisos: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
-    # Notificação no celular (AM-16, migração 085): o mesmo liga/desliga por tipo, separado do e-mail.
+    # Notificação no celular (AM-16, migração 082): o mesmo liga/desliga por tipo, separado do e-mail.
     # Só vale para quem ligou as notificações num aparelho (`push_inscricoes`).
     push_mensalidade: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
     push_escalas: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))

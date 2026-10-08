@@ -866,9 +866,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `085_push_inscricoes` (2026-10-08, AM-16: tabela `push_inscricoes` — endpoint unico, chaves
+- Head atual: `082_push_inscricoes` (2026-10-08, AM-16: tabela `push_inscricoes` — endpoint unico, chaves
   `p256dh`/`auth`, `user_agent` curto, `last_success_at`, `failures`, FKs CASCADE para tenant/usuario/medium — e
-  `medium_preferencias.push_<tipo>` (5 booleanos, padrao true); criada sobre a 081 com o numero 085 reservado
+  `medium_preferencias.push_<tipo>` (5 booleanos, padrao true); criada sobre a 081 (numero 082)
   enquanto 082–087 corriam em paralelo; pode ser reencadeada no merge), apos `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
   indices unicos parciais, `tenant_configs.area_medium_lembrete_mensalidade`, `comunicados.avisar_email`/
   `avisar_email_em`; criada sobre a 079 e re-encadeada depois da 080 no merge), apos `080_escala_planos` (2026-10-08, AM-25: `escala_planos` — um por tipo e mes, rascunho/publicado,
@@ -1379,7 +1379,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   (`AuthShell`; abrir so consulta, "Desligar" no toque; `descadastro` em `RESERVED_SLUGS`). Painel: caixa
   "Avisar por e-mail também" no drawer do aviso e "Lembrete da mensalidade por e-mail" em Configuracoes → Area
   do Medium (so com o modulo mensalidade ligado e no plano).
-- **Notificacao no celular (AM-16)**: migracao `085_push_inscricoes` (§11.8; tabela em `docs/database.md`), envio
+- **Notificacao no celular (AM-16)**: migracao `082_push_inscricoes` (§11.8; tabela em `docs/database.md`), envio
   e regras em §3.3/§11.9, API em `docs/api.md` (Area do Medium §9), chaves VAPID em `docs/deployment.md`. Area: secao "Notificacoes
   no celular" no Perfil (`components/medium/perfil/NotificacoesNoCelular.tsx`), logo abaixo de "Avisos por e-mail" e
   com o mesmo desenho: uma linha "Receber notificacoes neste celular" (a permissao e por aparelho; o pedido do

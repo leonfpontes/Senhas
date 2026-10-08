@@ -460,7 +460,7 @@ tabelas, `tenant_configs.area_medium_lembrete_mensalidade` (`Boolean`, padrão `
 
 ---
 
-### `push_inscricoes` (AM-16, migração 085 — encadeada depois da 081)
+### `push_inscricoes` (AM-16, migração 082 — encadeada depois da 081)
 
 Notificação no celular da Área do Médium (Web Push com VAPID). Uma linha por aparelho/navegador em que o médium
 ligou as notificações. Model em `src/models/push_inscricoes.py`; envio em `services/web_push.py`.
@@ -485,7 +485,7 @@ A migração também cria em `medium_preferencias` os liga/desliga do celular: `
 rodapé do e-mail não mexe neles). Sem tipo novo de lembrete: o push usa a mesma marca
 `medium_lembretes_enviados` do e-mail.
 
-**Migração 085 (`085_push_inscricoes`, encadeada na `081_lembretes`; pode ser re-encadeada no merge):** downgrade
+**Migração 082 (`082_push_inscricoes`, encadeada na `081_lembretes`):** downgrade
 apaga a tabela e as 5 colunas (as inscrições se perdem; o médium liga de novo no Perfil).
 
 ---
