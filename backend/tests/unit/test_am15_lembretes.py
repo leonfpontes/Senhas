@@ -34,7 +34,7 @@ def test_migracao_081_encadeada_e_lista_de_tipos_congelada():
     spec = importlib.util.spec_from_file_location("m081", BACKEND_DIR / "alembic/versions/081_lembretes.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    assert (mod.revision, mod.down_revision) == ("081_lembretes", "079_presenca")
+    assert (mod.revision, mod.down_revision) == ("081_lembretes", "080_escala_planos")
     assert mod.TIPOS == modelos.TIPOS_LEMBRETE
     assert set(modelos.PREFERENCIA_DO_TIPO) == set(modelos.TIPOS_LEMBRETE) - {modelos.TIPO_RESUMO_ADMIN}
     assert set(modelos.PREFERENCIA_DO_TIPO.values()) == set(modelos.PREFERENCIAS)
