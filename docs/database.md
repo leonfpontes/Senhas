@@ -172,7 +172,7 @@ Model `Comunicado(SoftDeleteModel)` e `ComunicadoLeitura(Base)` (`src/models/com
 | `tenant_id` | UUID FK → `tenants.id` CASCADE | |
 | `titulo` | `String(120)` | texto simples (HTML e controle removidos ao salvar) |
 | `corpo` | `Text` | texto simples com quebras de linha; ≤ 5000 na API; links só viram clicáveis na tela |
-| `publico` | `String(20)`, padrão `todos` | CHECK `ck_comunicados_publico` em `todos/atendimento/cambones` — string, não ENUM do PG, para entrar `grupos` (AM-23, tabela `comunicado_grupos`) sem `ALTER TYPE` |
+| `publico` | `String(20)`, padrão `todos` | CHECK `ck_comunicados_publico` em `todos/atendimento/cambones/grupos` (`grupos` entrou na 075, AM-23, com a tabela `comunicado_grupos`) — string, não ENUM do PG, para crescer sem `ALTER TYPE` |
 | `fixado` | `Boolean`, padrão `false` | primeiro da lista |
 | `publicar_em` | `DateTime(tz)` | agora ou agendado |
 | `expira_em` | `DateTime(tz)` NULL | sai do ar nessa hora |
@@ -197,6 +197,51 @@ Model `Comunicado(SoftDeleteModel)` e `ComunicadoLeitura(Base)` (`src/models/com
 **Permissão:** valor `comunicados` no ENUM `permission_feature` (070, `ADD VALUE` em `autocommit_block`); a 071
 cria as tabelas e dá acesso total à feature nos grupos padrão "Acesso total" (grupos criados pelo admin ficam
 sem a feature até ele marcar).
+
+### `corrente_grupos`, `corrente_grupo_membros` e `comunicado_grupos` (AM-23, migração 075)
+
+Grupos da corrente (G1, G2, "Ogãs", "Desenvolvimento"): um conceito só para o público dos avisos e, nos
+próximos cards, para escalas e elegibilidade de atividades (AM-08/AM-25). Models em
+`src/models/corrente_grupos.py`. Sem feature nova de permissão: usam `MEDIUNS` (§6.7 do plano da Área).
+
+`corrente_grupos`:
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `nome` | `String(60)` | texto simples numa linha |
+| `cor` | `String(20)`, padrão `ambar` | CHECK `ck_corrente_grupos_cor` na paleta fechada `ambar/petroleo/violeta/azul/verde/vinho/terra/grafite` (chave, não hex — o hex com contraste AA fica em `frontend/src/constants/correnteGrupos.ts`) |
+| `descricao` | `String(300)` NULL | |
+| `arquivado_em` | `DateTime(tz)` NULL | arquivado sai das telas e do público dos avisos; os membros ficam gravados |
+| `created_at` / `updated_at` | `DateTime(tz)` | |
+
+**Constraints/Indexes:** UNIQUE parcial `uq_corrente_grupos_tenant_nome_ativo` (`tenant_id, lower(nome)`)
+`WHERE arquivado_em IS NULL`; `ix_corrente_grupos_tenant_id`.
+
+`corrente_grupo_membros`:
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `grupo_id` | UUID FK → `corrente_grupos.id` CASCADE, PK | |
+| `medium_id` | UUID FK → `mediuns.id` CASCADE, PK | só médium ativo e não excluído do mesmo terreiro; inativar/excluir o médium apaga as linhas dele |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `desde` | `DateTime(tz)` | `server_default now()` |
+
+**Indexes:** `ix_corrente_grupo_membros_tenant_id`, `ix_corrente_grupo_membros_medium_id`.
+
+`comunicado_grupos` (avisos com `publico = 'grupos'`):
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `comunicado_id` | UUID FK → `comunicados.id` CASCADE, PK | |
+| `grupo_id` | UUID FK → `corrente_grupos.id` CASCADE, PK | grupo ativo do mesmo terreiro (conferido na API) |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+
+**Indexes:** `ix_comunicado_grupos_tenant_id`, `ix_comunicado_grupos_grupo_id`.
+
+Downgrade da 075: avisos com público `grupos` são arquivados (soft delete) e voltam a `todos` só para caber
+no CHECK antigo — nunca ficam visíveis para a corrente inteira.
 
 ---
 
@@ -696,3 +741,9 @@ alembic current
 | `comunicados` | `tenant_id`, `(tenant_id, publicar_em)` | B-tree |
 | `comunicado_leituras` | `(comunicado_id, medium_id)` | UNIQUE (`uq_comunicado_leituras_comunicado_medium`) |
 | `comunicado_leituras` | `tenant_id`, `medium_id` | B-tree |
+| `corrente_grupos` | `(tenant_id, lower(nome)) WHERE arquivado_em IS NULL` | UNIQUE parcial (`uq_corrente_grupos_tenant_nome_ativo`) |
+| `corrente_grupos` | `tenant_id` | B-tree |
+| `corrente_grupo_membros` | `(grupo_id, medium_id)` | PK |
+| `corrente_grupo_membros` | `tenant_id`, `medium_id` | B-tree |
+| `comunicado_grupos` | `(comunicado_id, grupo_id)` | PK |
+| `comunicado_grupos` | `tenant_id`, `grupo_id` | B-tree |
