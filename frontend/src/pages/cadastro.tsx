@@ -10,6 +10,12 @@
  * - Rascunho na aba (sessionStorage) sem senha, CPF/CNPJ nem aceite — quem sai e volta não perde
  *   o que já digitou. Apagado ao criar a conta.
  * - Recusa do backend volta ao passo do campo (e-mail já cadastrado → passo "Você").
+ * - E-mail que já tem conta ativa em outro terreiro (409 `EMAIL_JA_TEM_CONTA`, 2026-10-08): volta ao
+ *   passo "Acesso" com um aviso e um campo só, "Senha da sua conta GiraHub" (sem a regra de senha
+ *   nova; "Esqueci a senha" e "Usar outro e-mail"), e reenvia com `conta_existente: true`. Senha errada
+ *   (400 `SENHA_CONTA_INCORRETA`) fica no campo; limite de 5 terreiros por e-mail
+ *   (409 `LIMITE_CONTAS_EMAIL`) volta ao e-mail. Trocar o e-mail desliga o modo. Não há consulta
+ *   antecipada de e-mail (seria um oráculo de "este e-mail tem conta"): só a resposta do envio.
  * Mesmo payload de antes (`buildOnboardingPayload`) e, depois de criar a conta, direto para a
  * primeira gira — ou para o pagamento, com `?plan=` pago.
  */
@@ -32,6 +38,7 @@ import {
   Gift,
   Globe,
   Handshake,
+  Info,
   Loader2,
   Package,
   Search,
@@ -48,6 +55,7 @@ import {
   CADASTRO_STEPS,
   buildOnboardingPayload,
   cadastroSchema,
+  cadastroSchemaContaExistente,
   maskDocumento,
   parseOnboardingError,
   pickDraft,
@@ -82,6 +90,11 @@ const DOR_CARDS = PRINCIPAL_DOR_OPTIONS.map((o) => ({ value: o.value, label: o.l
 const COMO_CONHECEU_CARDS = COMO_CONHECEU_OPTIONS.map((o) => ({ value: o.value, label: o.label, icon: COMO_ICONS[o.value] }));
 
 const LAST_STEP = CADASTRO_STEPS.length - 1;
+const ACESSO_STEP = stepOfField('password');
+
+// Senha nova (regra visível) ou senha da conta que o e-mail já tem (só não pode ficar vazia).
+const resolverSenhaNova = zodResolver(cadastroSchema);
+const resolverContaExistente = zodResolver(cadastroSchemaContaExistente);
 
 function session(): Storage | undefined {
   try {
@@ -113,16 +126,26 @@ export default function CadastroPage() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
+  /** O e-mail já tem conta no GiraHub: a senha do passo "Acesso" é a dessa conta. Ref para o resolver. */
+  const [contaExistente, setContaExistente] = useState(false);
+  const contaExistenteRef = useRef(false);
+  const setModoContaExistente = useCallback((value: boolean) => {
+    contaExistenteRef.current = value;
+    setContaExistente(value);
+  }, []);
 
   const form = useForm<CadastroFormValues>({
-    resolver: zodResolver(cadastroSchema),
+    resolver: (values, context, options) =>
+      (contaExistenteRef.current ? resolverContaExistente : resolverSenhaNova)(values, context, options),
     mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: CADASTRO_DEFAULTS,
   });
-  const { register, control, handleSubmit, watch, trigger, setError, setFocus, reset, formState } = form;
+  const { register, control, handleSubmit, watch, trigger, setError, setFocus, setValue, clearErrors, reset, formState } =
+    form;
   const { errors, isSubmitting } = formState;
   const password = watch('password');
+  const email = watch('email');
   const terreiroNome = watch('terreiroNome');
   const slug = previewSlug(terreiroNome ?? '');
 
@@ -141,10 +164,12 @@ export default function CadastroPage() {
         /* armazenamento indisponível: segue sem rascunho */
       }
       const field = name as CadastroField | undefined;
+      // Outro e-mail: volta a ser senha nova (a conta existente era do e-mail anterior).
+      if (field === 'email' && contaExistenteRef.current) setModoContaExistente(false);
       if (field && attempted.current.has(stepOfField(field))) void trigger(field);
     });
     return () => sub.unsubscribe();
-  }, [watch, trigger]);
+  }, [watch, trigger, setModoContaExistente]);
 
   // Foco no primeiro campo (ou no campo com erro do servidor) a cada troca de passo.
   useEffect(() => {
@@ -253,7 +278,7 @@ export default function CadastroPage() {
 
   const onSubmit = async (values: CadastroFormValues) => {
     setSubmitError(null);
-    const payload = buildOnboardingPayload(values);
+    const payload = buildOnboardingPayload(values, contaExistenteRef.current);
     try {
       const res = await apiClient.post('/api/v1/public/onboarding', payload);
 
@@ -286,6 +311,22 @@ export default function CadastroPage() {
       window.location.href = AFTER_SIGNUP_PATH;
     } catch (err) {
       const target = parseOnboardingError(err);
+      if (target.code === 'EMAIL_JA_TEM_CONTA') {
+        // Não é erro: a pessoa já tem conta. O passo "Acesso" passa a pedir a senha dessa conta
+        // (o aviso explica). A senha nova digitada sai do campo, sem erro até a próxima tentativa.
+        trackEvent('signup_email_ja_tem_conta');
+        setModoContaExistente(true);
+        attempted.current.delete(ACESSO_STEP);
+        setValue('password', '');
+        clearErrors('password');
+        if (ACESSO_STEP < step) {
+          pendingFocus.current = 'password';
+          goTo(ACESSO_STEP);
+        } else {
+          setFocus('password');
+        }
+        return;
+      }
       if (!target.field) {
         setSubmitError(target.message);
         return;
@@ -312,6 +353,17 @@ export default function CadastroPage() {
   };
 
   const current = CADASTRO_STEPS[step];
+  const senhaDaConta = current.key === 'acesso' && contaExistente;
+  const stepTitle = senhaDaConta ? 'Use a senha que você já tem' : current.title;
+  const stepHint = senhaDaConta
+    ? 'Uma senha só: com ela você entra no terreiro novo e nos que já usa.'
+    : current.hint;
+
+  /** "Usar outro e-mail": volta ao passo "Você" com o foco no e-mail (trocar desliga o modo). */
+  const usarOutroEmail = () => {
+    pendingFocus.current = 'email';
+    goTo(stepOfField('email'));
+  };
   const emailTaken = errors.email?.type === 'server' && /cadastrad/i.test(errors.email.message ?? '');
 
   return (
@@ -380,9 +432,9 @@ export default function CadastroPage() {
         <form onSubmit={onFormSubmit} noValidate aria-labelledby="passo-titulo">
           <div ref={sectionRef} key={current.key}>
             <h2 id="passo-titulo" className="font-display text-2xl leading-tight font-bold text-tinta">
-              {current.title}
+              {stepTitle}
             </h2>
-            <p className="mt-1.5 text-sm text-tinta-suave">{current.hint}</p>
+            <p className="mt-1.5 text-sm text-tinta-suave">{stepHint}</p>
 
             <div className="mt-6 flex flex-col gap-6">
               {current.key === 'terreiro' && (
@@ -466,16 +518,41 @@ export default function CadastroPage() {
 
               {current.key === 'acesso' && (
                 <>
+                  {contaExistente && (
+                    <Alert variant="info" role="status">
+                      <Info aria-hidden />
+                      <AlertDescription>
+                        <span>
+                          Você já tem conta no GiraHub com <strong className="break-all">{email}</strong>. Digite a
+                          senha dessa conta para criar a casa nova. Depois, na hora de entrar, é só escolher o terreiro.
+                        </span>
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   <div className="flex flex-col gap-3">
                     <PasswordField
-                      label="Senha"
+                      // Troca de modo remonta o campo (autocomplete e nome acessível novos).
+                      key={contaExistente ? 'senha-da-conta' : 'senha-nova'}
+                      label={contaExistente ? 'Senha da sua conta GiraHub' : 'Senha'}
                       required
-                      autoComplete="new-password"
+                      autoComplete={contaExistente ? 'current-password' : 'new-password'}
                       inputClassName={AUTH_INPUT}
                       error={errors.password?.message}
                       {...register('password')}
                     />
-                    <PasswordRules value={password} />
+                    {contaExistente ? (
+                      <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                        {/* Nova aba: o cadastro (senha e documento não vão para o rascunho) continua aqui. */}
+                        <a href="/forgot-password" target="_blank" rel="noopener noreferrer" className={AUTH_LINK}>
+                          Esqueci a senha
+                        </a>
+                        <button type="button" className={AUTH_LINK} onClick={usarOutroEmail}>
+                          Usar outro e-mail
+                        </button>
+                      </p>
+                    ) : (
+                      <PasswordRules value={password} />
+                    )}
                   </div>
                   <Controller
                     control={control}

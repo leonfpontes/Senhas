@@ -15,6 +15,8 @@
  * - "Minhas presenças" (AM-17, D-27): leva a `/medium/presencas` (percentual, próximas escalas e
  *   histórico; só a própria presença).
  * - "Avisos por e-mail" (AM-15): liga/desliga cada tipo de lembrete (`AvisosPorEmail`).
+ * - "Notificações no celular" (AM-16): liga este aparelho (permissão só no toque) e cada tipo
+ *   (`NotificacoesNoCelular`); no iPhone fora da tela inicial, abre o passo de instalação.
  * - "Aniversário" (AM-20): opt-in "Mostrar meu aniversário para a corrente" (`AniversarioOptIn`).
  * - "Meus dados e privacidade" (AM-14): leva a `/medium/meus-dados` (quem vê o quê, baixar meus
  *   dados, encerrar meu acesso).
@@ -47,6 +49,7 @@ import { GiraHubLogo } from '@/components/landing/GiraHubLogo';
 import { AniversarioOptIn } from '@/components/medium/perfil/AniversarioOptIn';
 import { AvisosPorEmail } from '@/components/medium/perfil/AvisosPorEmail';
 import { MeusDadosDrawer } from '@/components/medium/perfil/MeusDadosDrawer';
+import { NotificacoesNoCelular } from '@/components/medium/perfil/NotificacoesNoCelular';
 import { TrocarEmailDrawer } from '@/components/medium/perfil/TrocarEmailDrawer';
 import { TrocarSenhaDrawer } from '@/components/medium/perfil/TrocarSenhaDrawer';
 import {
@@ -450,6 +453,7 @@ function Perfil() {
               </ul>
             </Secao>
             <AvisosPorEmail somenteLeitura={somenteLeitura} />
+            <NotificacoesNoCelular somenteLeitura={somenteLeitura} onInstalar={openInstall} />
           </>
         )}
 

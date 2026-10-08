@@ -12,7 +12,7 @@
 Downgrade: apaga as quatro colunas (a revogação registrada e os opt-ins se perdem).
 
 Revision ID: 083_meus_dados_aniversarios
-Revises: 081_lembretes
+Revises: 082_push_inscricoes
 Create Date: 2026-10-08
 """
 
@@ -20,7 +20,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "083_meus_dados_aniversarios"
-down_revision: str = "081_lembretes"
+down_revision: str = "082_push_inscricoes"
 branch_labels = None
 depends_on = None
 

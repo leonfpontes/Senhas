@@ -83,6 +83,11 @@ chave do piloto (`tenants.area_medium_liberada`), o plano `area_medium` e a Áre
 - **Descadastro**: rodapé com "Desligar estes avisos" e "Desligar todos os e-mails da Área"
   (`/descadastro/<token>?tipo=…`); o médium também muda no Perfil da Área. O cabeçalho `List-Unsubscribe` ainda
   não é enviado (o `EmailMessage` não tem cabeçalhos).
+- **No celular também (AM-16)**: cada um desses lembretes do médium também sai como notificação (Web Push) para
+  os aparelhos em que ele ligou as notificações, com liga/desliga próprio por tipo; e-mail e celular são
+  independentes e a marca é a mesma (uma vez só). Texto do push ainda mais curto (sem nome de atividade/aviso,
+  valor ou motivo) em `services/medium_push.py`. Sem as chaves VAPID, só e-mail. O descadastro do rodapé só
+  desliga e-mail. Push não tem custo por envio — reduz a pressão do R-08 conforme os médiuns ligam.
 
 ### Volume estimado (risco R-08 do plano)
 

@@ -276,6 +276,36 @@ toque em "Desligar" (leitor de link não muda nada).
   `{"detail": {"error_code": "LINK_INVALIDO", "message": "Este link não vale mais. Você pode mudar os avisos por e-mail no Perfil da Área."}}`.
   Ligar de novo só pela Área (Perfil → Avisos por e-mail).
 
+### 8. Cadastro de terreiro (onboarding)
+
+**`POST /api/v1/public/onboarding`** (10/min por IP no slowapi e zona `login_limit` no nginx —
+`location = /api/v1/public/onboarding`, a mesma do login). Cria o terreiro, o admin, a assinatura
+(Premium de 30 dias se o CPF/CNPJ e o e-mail nunca ganharam o mês grátis — `trial_grants`; senão
+Free), o aceite dos termos (`legal_acceptances`) e abre a sessão (`issue_session`: os 3 cookies do login).
+```json
+{
+  "terreiro_nome": "Tenda Luz da Mata", "responsavel_nome": "Ana", "email": "ana@example.com",
+  "whatsapp": "11999998888", "documento": "52998224725", "conta_existente": false,
+  "password": "...", "como_conheceu": "indicacao", "principal_dor": "mediuns", "aceite_termos": true
+}
+```
+- E-mail novo: `password` segue a regra de senha (`validate_password_policy`, 422 no campo).
+- **E-mail que já tem conta ATIVA em outro terreiro** (decisão do dono, 2026-10-08; "ativa" = a mesma
+  noção do login AM-05, `active_login_accounts_stmt` — inclusive conta `medium`):
+  - sem `conta_existente` → **409** `{"detail": {"error_code": "EMAIL_JA_TEM_CONTA", "message": "Você já tem conta no GiraHub com este e-mail. Digite a senha dessa conta para criar a casa nova."}}`;
+  - com `conta_existente: true`, `password` é a senha dessa conta (sem a regra de senha nova — só o
+    teto de 72 bytes do bcrypt), conferida em todas as contas ativas do e-mail (no máximo 5, como no
+    login; basta uma conferir). Errada → **400** `SENHA_CONTA_INCORRETA` (nunca 401) e nada é criado;
+  - certa, mas o e-mail já tem **5** contas ativas (`MAX_LOGIN_ACCOUNTS`) → **409**
+    `LIMITE_CONTAS_EMAIL` (só depois da senha certa);
+  - certa → o admin novo nasce com o **mesmo hash de senha** da conta conferida (uma senha só); o login
+    passa a responder `choose_account` com os terreiros.
+- Sem conta ativa, mas com conta inativa ou de terreiro desativado pelo dono → **409**
+  `{"detail": "Este email já está cadastrado"}` (como antes; o login oferece reativar). Só conta
+  excluída não barra. `conta_existente: true` com e-mail sem conta ativa vira cadastro comum (regra de senha).
+- Não existe consulta de "este e-mail tem conta?" antes do envio (seria um oráculo): só a resposta acima,
+  depois do formulário inteiro válido.
+
 ---
 
 ## Admin Endpoints
@@ -1000,7 +1030,9 @@ with `type: "account_select"`, valid for 5 minutes, carrying the allowed `user_i
 "remember me" flag; it is rejected as an access or refresh token. Cost: one bcrypt verification per
 active account (max 5); an unknown e-mail runs one dummy verification (same as a wrong password on
 a single account). No active account → single-account rule (`TENANT_DEACTIVATED` for a
-self-deactivated terreiro, after the password is checked).
+self-deactivated terreiro, after the password is checked). A new terreiro can be signed up with an
+e-mail that already has an active account (`conta_existente` in `POST /public/onboarding`, Public
+Endpoints §8): the new admin reuses that account's password hash, so the same password lists both.
 
 **Error Responses**:
 - `401 Unauthorized`: Invalid credentials (or `detail.error_code = "TENANT_DEACTIVATED"`)
@@ -1779,7 +1811,38 @@ Schedule reminders by function/rotation/planned cleaning need the `escalas` plan
 `atividades_corrente`. Nothing is sent without the pilot switch, the plan `area_medium` and the Área
 turned on by the house.
 
-### 9. Meus dados e privacidade — exportar e encerrar o acesso (AM-14)
+### 9. Notificação no celular — Web Push (AM-16)
+
+Push with VAPID, no paid service (`services/web_push.py`). **Off without the server keys**
+(`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`; see `docs/deployment.md`): `disponivel: false`,
+writes that need it answer **409** `PUSH_INDISPONIVEL`, and the scheduler sends e-mail only.
+
+- **`GET /api/v1/medium/push`** → `{ "disponivel": true, "chave_publica": "<VAPID public key, base64url>",
+  "aparelhos": 1, "preferencias": { "mensalidade": true, "escalas": true, "confirmacao": true, "faltas": true,
+  "avisos": true }, "disponiveis": ["mensalidade", …] }` — `aparelhos` = this médium's subscribed devices
+  (own user only); `preferencias` are the phone toggles (`medium_preferencias.push_*`, independent from the
+  e-mail ones); `disponiveis` is the same list as §8.
+- **`POST /api/v1/medium/push/inscricao`** (60/h per IP) — body = the browser's `PushSubscription.toJSON()`:
+  `{ "endpoint": "https://fcm.googleapis.com/fcm/send/…", "keys": { "p256dh": "…", "auth": "…" } }`
+  (extra fields ignored). Idempotent: the same endpoint renews the keys; an endpoint subscribed by another
+  account becomes this one's (the device owns it). The endpoint must be `https` on a known push service
+  (FCM, Mozilla, Windows WNS, Apple) → else **422** `PUSH_ENDPOINT_INVALIDO` (the server POSTs to it).
+  Returns the same body as the GET. A new device is audited as `medium_perfil` (`{acao}` only).
+- **`DELETE /api/v1/medium/push/inscricao`** `{ "endpoint" }` (60/h) → **204**. Removes only the caller's own
+  subscription (tenant + médium + user); someone else's endpoint is a no-op.
+- **`PUT /api/v1/medium/push/preferencias`** `{ "avisos"?: bool, … }` (30/h) — same fields as §8, changes only
+  the phone toggles; unknown field → 422. Audited as `medium_perfil` (`campos` only).
+- **`POST /api/v1/medium/push/teste`** (10/h) → `{ "enviadas": 1 }` — a test notification to the caller's
+  devices; no device → **409** `PUSH_SEM_APARELHO`.
+
+All writes are refused while impersonating (**403**). Sending: the AM-15 scheduler (`services/
+medium_lembrete_scheduler.py`) plans each reminder when e-mail **or** phone is on for that type, reserves the
+same mark (once per reminder for both channels) and, after the commit, sends one push per device of the
+médium's current user. Payload (encrypted, TTL 12 h): `{ "title": "<terreiro>", "body": "A mensalidade de
+outubro vence em 3 dias.", "url": "/medium/mensalidade?pagar=1", "tag": "mensalidade" }` — never the activity
+or aviso title, amounts, the PIX key, the cancellation or absence reason (`services/medium_push.py`). A
+404/410 from the push service deletes the subscription; other failures add to `failures` (5 in a row delete).
+### 10. Meus dados e privacidade — exportar e encerrar o acesso (AM-14)
 
 Both routes are the médium's own (LGPD art. 18): refused while impersonating (**403**); tenant and médium come
 from the session only.
@@ -1878,6 +1941,7 @@ again (AM-03): accepting reactivates the same `medium` account with a new passwo
 | `/auth/forgot-password` | 5 | 1 hour per IP |
 | `/public/convite/{token}` | 30 | 1 minute per IP |
 | `/public/convite/{token}/aceitar` | 10 | 1 minute per IP |
+| `/public/onboarding` | 10 | 1 minute per IP (nginx: `login_limit`) |
 | `/public/*/emit-ticket` | 5 | 1 hour per email |
 | `/admin/*` | 100 | 1 minute |
 | `/admin/audit-logs` | 50 | 1 minute |
