@@ -59,7 +59,7 @@ class MaterialCorrente(Base):
             "publico IN ('todos', 'atendimento', 'cambones', 'grupos')", name="ck_materiais_corrente_publico"
         ),
         # Defesa em profundidade: só http(s) no banco (a API já valida e recusa javascript: etc.).
-        CheckConstraint("url IS NULL OR url ~* '^https?://'", name="ck_materiais_corrente_url"),
+        CheckConstraint("url IS NULL OR lower(substr(url, 1, 7)) = 'http://' OR lower(substr(url, 1, 8)) = 'https://'", name="ck_materiais_corrente_url"),
         CheckConstraint("tipo <> 'link' OR url IS NOT NULL", name="ck_materiais_corrente_link_url"),
         CheckConstraint("tipo = 'link' OR texto IS NOT NULL", name="ck_materiais_corrente_texto"),
     )

@@ -52,7 +52,7 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "publico IN ('todos', 'atendimento', 'cambones', 'grupos')", name="ck_materiais_corrente_publico"
         ),
-        sa.CheckConstraint("url IS NULL OR url ~* '^https?://'", name="ck_materiais_corrente_url"),
+        sa.CheckConstraint("url IS NULL OR lower(substr(url, 1, 7)) = 'http://' OR lower(substr(url, 1, 8)) = 'https://'", name="ck_materiais_corrente_url"),
         sa.CheckConstraint("tipo <> 'link' OR url IS NOT NULL", name="ck_materiais_corrente_link_url"),
         sa.CheckConstraint("tipo = 'link' OR texto IS NOT NULL", name="ck_materiais_corrente_texto"),
     )
