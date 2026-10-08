@@ -122,6 +122,18 @@ tenant redundante (barato) a uma excecao.
   um link por terreiro (um `reset_token_hash` por conta; `render_password_reset_multi_email`). Front: passo "Em qual
   terreiro voce quer entrar?" no `/login` (`components/auth/AccountChoiceList`, `authSession.selectAccount` com
   `skipAutoLogout`) e depois o mesmo `completeLogin` por `areas`.
+- **Casa nova com e-mail que ja tem conta (decisao do dono, 2026-10-08)**: `POST /public/onboarding` com e-mail
+  que tem conta ATIVA (mesma `active_login_accounts_stmt`, inclusive `medium`) exige `conta_existente: true` +
+  a senha dessa conta (sem a regra de senha nova; `matching_accounts`, ate 5 bcrypt). Sem a marca → 409
+  `EMAIL_JA_TEM_CONTA`; senha errada → 400 `SENHA_CONTA_INCORRETA` (nunca 401), nada criado; 5 contas ativas →
+  409 `LIMITE_CONTAS_EMAIL` (so depois da senha certa; limite = `MAX_LOGIN_ACCOUNTS`, mantido em 5). Admin novo
+  com o MESMO `password_hash` da conta conferida (uma senha; o login pergunta o terreiro). Sem conta ativa mas
+  com conta inativa/terreiro desativado → 409 "Este email ja esta cadastrado" de sempre (o login oferece
+  reativar); so conta excluida nao barra. Rate limit igual ao do login: `@limiter.limit("10/minute")` +
+  `location = /api/v1/public/onboarding` na zona `login_limit` do nginx. Trial segue por documento/e-mail.
+  Front (`/cadastro`): a resposta `EMAIL_JA_TEM_CONTA` volta ao passo Acesso com aviso e campo unico "Senha da
+  sua conta GiraHub" (`cadastroSchemaContaExistente`, "Esqueci a senha", "Usar outro e-mail"); trocar o e-mail
+  desliga o modo. Sem consulta antecipada de e-mail (seria oraculo). Detalhes em `docs/api.md` (Public §8).
 - Frontend usa `withCredentials: true` no axios — nao ha token no header para sessoes normais.
 - Impersonacao usa sessionStorage e header Bearer — fluxo preservado separado.
 - `hasAuthToken()` checa: `sessionStorage.getItem('access_token')` OR `document.cookie.includes('auth_state=1')` OR `localStorage.getItem('user')`.
@@ -400,6 +412,39 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   /public/avisos-email/consultar|desligar` (token `medium_preferencias.token_descadastro` = busca raiz; 404
   generico `LINK_INVALIDO`). Painel: `avisar_email` no aviso (COMUNICADOS insert/edit, mesmo corpo) e
   `lembretes.mensalidade` na config da Area (CONFIGURACOES edit).
+- **Notificacao no celular (AM-16, Web Push/VAPID)**: rotas `GET /medium/push`, `POST|DELETE /medium/push/inscricao`,
+  `PUT /medium/push/preferencias`, `POST /medium/push/teste` (`api/v1/medium/push.py`; `require_medium`; escritas
+  com `require_not_impersonated`; tudo filtrado por `ctx.tenant_id` + `ctx.medium.id` + `ctx.user.id`). Sem
+  `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` o push fica desligado sem erro
+  (`services/web_push.disponivel()`: GET diz `disponivel: false`, ligar/testar 409 `PUSH_INDISPONIVEL`, agendador
+  so e-mail). O `endpoint` so e aceito de servico de push conhecido (`HOSTS_PUSH`: FCM, Mozilla, WNS, Apple — o
+  servidor faz POST nele; nada de URL interna/SSRF); o mesmo endpoint inscrito por outra conta passa a ser dela
+  (`ON CONFLICT (endpoint) DO UPDATE`). Envio pelo agendador do AM-15 (mesma marca, §11.9) so para inscricoes do
+  usuario HOJE ligado ao medium (`Medium.user_id == PushInscricao.user_id`); texto discreto em
+  `services/medium_push.py` (sem nome de atividade/aviso, valor, motivo); 404/410 apagam a inscricao, outras
+  falhas somam `failures` (5 seguidas apagam).
+- **Meus dados e privacidade (AM-14)**: `api/v1/medium/meus_dados.py` — `GET /medium/meus-dados/exportar` (JSON com
+  cadastro SEM os campos internos — `observacoes`, `data_saida`, `registrado_por`, observacao do pagamento —, conta,
+  consentimento (aceite e revogacao), grupos, avisos por e-mail, mensalidades com metadados do comprovante (nunca os
+  bytes: colunas explicitas), avisos lidos e participacoes com o motivo que o PROPRIO medium contou; so
+  `ctx.tenant_id` + `ctx.medium.id`) e `POST /medium/meus-dados/encerrar` (`{senha}`; errada → 400
+  `SENHA_INCORRETA`, nunca 401). Encerrar grava `mediuns.area_consentimento_revogado_em/_versao` (o aceite fica
+  como historico), desliga `aniversario_visivel` e chama `medium_convite.tirar_acesso` (mesma regra do D-08: conta
+  `medium` pura desativada + `sessions_revoked_at` + `end_all_sessions` + `clear_auth_cookies`; operador/admin so
+  perde a Area). Cadastro e dados ficam com a casa (controlador). Auditoria `Medium` so com ids/versoes
+  (`acesso_area: encerrado_pelo_medium`) e e-mail aos admins ATIVOS (`medium_lembretes.emails_dos_admins`,
+  `templates/medium_acesso_encerrado.py`, so o primeiro nome). As duas rotas com `require_not_impersonated`. O
+  convite de novo (AM-03) reativa a conta `medium` e grava um aceite novo.
+- **Aniversariantes (AM-20)**: opt-in `mediuns.aniversario_visivel` (padrao `false`) por `PUT /medium/perfil/aniversario`
+  `{mostrar}` (sem `data_nascimento` → 422; impersonacao → 403; auditoria `medium_perfil`); `GET /medium/perfil`
+  devolve `mostrar_aniversario`. `GET /medium/inicio` ganha `aniversariantes` (ativos, com vinculo `user_id`, com o
+  opt-in, da MESMA casa, aniversario de segunda a domingo em Brasilia; so `{primeiro_nome, dia, mes, hoje, sou_eu}`,
+  nunca o ano nem o id — leitura de outros mediuns isenta em `EXEMPT_MEDIUM_QUERIES` com justificativa) e
+  `meu_aniversario` (`{mensagem}` so no dia do PROPRIO aniversario, sem opt-in). Regras puras em
+  `services/medium_aniversarios.py` (29/02 vira 01/03 fora do bissexto, semana que cruza o ano). Mensagem da casa:
+  `tenant_configs.area_medium_aniversario_mensagem` (≤ 200, texto simples, `{nome}` = primeiro nome; vazio = "A
+  <terreiro> deseja um feliz aniversario, <primeiro nome>! Axe!") em `aniversario_mensagem` da config da Area
+  (CONFIGURACOES edit).
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -855,7 +900,11 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
+- Head atual: `083_meus_dados_aniversarios` (2026-10-08, AM-14/AM-20: `mediuns.area_consentimento_revogado_em`/
+  `_versao`, `mediuns.aniversario_visivel` (padrao `false`) e `tenant_configs.area_medium_aniversario_mensagem`
+  (String 200)), apos `082_push_inscricoes` (2026-10-08, AM-16: tabela `push_inscricoes` — endpoint unico, chaves
+  `p256dh`/`auth`, `user_agent` curto, `last_success_at`, `failures`, FKs CASCADE para tenant/usuario/medium — e
+  `medium_preferencias.push_<tipo>` (5 booleanos, padrao true)), apos `081_lembretes` (2026-10-08, AM-15: `medium_preferencias`, `medium_lembretes_enviados` com
   indices unicos parciais, `tenant_configs.area_medium_lembrete_mensalidade`, `comunicados.avisar_email`/
   `avisar_email_em`; criada sobre a 079 e re-encadeada depois da 080 no merge), apos `080_escala_planos` (2026-10-08, AM-25: `escala_planos` — um por tipo e mes, rascunho/publicado,
   unico por `tenant_id, tipo_id, mes` — e `escala_plano_dias` — data x grupo x horario, `atividade_id` FK SET NULL,
@@ -1119,8 +1168,9 @@ Incluir obrigatoriamente:
   elas, a mais antiga — conta inativa só quando não há ativa (terreiro de teste desativado não "rouba"
   o login do médium/operador de outro terreiro). Desde o AM-05 o login e o esqueci a senha olham todas as contas
   ativas (escolha do terreiro no login, um link por terreiro no e-mail — §3.2); a regra de conta única ficou para a
-  reativação e para o login sem nenhuma conta ativa. Cadastro valida a senha com `validate_password_policy` e
-  recusa e-mail que já existe em qualquer terreiro (409).
+  reativação e para o login sem nenhuma conta ativa. Cadastro valida a senha com `validate_password_policy`;
+  e-mail com conta ativa em outro terreiro só entra confirmando a senha dessa conta (`conta_existente`, desde
+  2026-10-08 — §3.2), e e-mail só com conta inativa/terreiro desativado segue recusado (409).
   Sessão aberta por `login.issue_session` + `core/auth_cookies.set_auth_cookies` em login, cadastro e
   reativação (3 cookies, `secure=not DEBUG`). "Lembrar-me" desmarcado (`remember_me=false`) → cookies
   sem `max_age`; o refresh token carrega `persist: false` e o `/auth/refresh` renova no mesmo modo.
@@ -1139,7 +1189,8 @@ Incluir obrigatoriamente:
   (`?passo=N`, shallow; voltar do navegador volta um passo; `?plan=` preservado), rascunho na aba
   (sessionStorage, **sem senha, CPF/CNPJ nem aceite**). Recusa do backend volta ao passo do campo
   (`parseOnboardingError`: 409 e-mail → passo Você com "Entrar com este e-mail"; 409 nome de terreiro →
-  passo 1; 422 → campo do `loc`). Payload igual (`buildOnboardingPayload`). Evento `signup_step_completed
+  passo 1; 422 → campo do `loc`; `detail.error_code` → campo do `CODE_FIELD`: `EMAIL_JA_TEM_CONTA` liga o modo
+  "Senha da sua conta GiraHub" no passo Acesso, `SENHA_CONTA_INCORRETA` → senha, `LIMITE_CONTAS_EMAIL` → e-mail). Payload igual (`buildOnboardingPayload`). Evento `signup_step_completed
   {passo, etapa}` a cada passo, além do `signup_completed`.
 - **Passagem marketing ⇄ conta** (`lib/passagem.ts` + `components/shared/PassagemDeEntrada`, no `_app`):
   desenho da entrada do ATRAIR — a marca voa entre as páginas (`.marca-girahub` = `view-transition-name`), na
@@ -1149,7 +1200,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, Escala de gira e divulgação (AM-02/03/04/05/06/07/08/09/10/11/12/13/15/17/18/23/24/25/26/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, notificação no celular, Escala de gira, divulgação, Meus dados e aniversariantes (AM-02/03/04/05/06/07/08/09/10/11/12/13/14/15/16/17/18/20/23/24/25/26/28/29, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1196,7 +1247,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   o vencimento/atrasada depois; entrou depois do mês ou casa sem valor → null) e `avisos`
   `{nao_lidos, ultimos}` (AM-09; vazio com o módulo desligado). Telas: `/medium` (faixa clara `MediumFaixa` "Olá, <nome>",
   pendências, próxima gira com "O que levar" e "Ver detalhes da gira" — só com o módulo agenda —,
-  "Acompanhando", EmptyState), `/medium/perfil` (Meus dados, dados da casa, conta de acesso — AM-13 —, Ícone na tela inicial, Trocar de área, Sair). Não há mais telas
+  "Acompanhando", EmptyState), `/medium/perfil` (Meus dados, Aniversário — AM-20 —, dados da casa, conta de acesso — AM-13 —, Meus dados e privacidade — AM-14 —, Ícone na tela inicial, Trocar de área, Sair). Não há mais telas
   provisórias ("Em breve"): Agenda, Avisos e Mensalidade saíram nos AM-07, AM-09 e AM-11.
 - **Ícone na tela inicial (D-23)**: `public/manifest-medium.webmanifest` (`id` `/medium`,
   `start_url` `/medium?source=pwa`, ícones do GiraHub), linkado só pelo `MediumLayout`; o
@@ -1286,6 +1337,21 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   Impersonando: só leitura (ações somem). Página pública `pages/confirmar-email/[token].tsx` (`AuthShell`; confirma só
   no toque — leitor de link não gasta o token; depois "Entrar" → `/login?email_confirmado=1`). `confirmar-email` está em
   `RESERVED_SLUGS`. A Auditoria do painel rotula `medium_perfil` como "Perfil do médium (Área)". Backend e regras em §3.3.
+- **Meus dados e privacidade (AM-14)**: Perfil → "Meus dados e privacidade" abre `/medium/meus-dados`
+  (`pages/medium/meus-dados.tsx`, `components/medium/meusDados/*`): "Quem vê o quê" (`quemVeOQue`: a direção da casa,
+  os outros médiuns — nada; só o aniversário se ligou o AM-20 —, ninguém de fora da casa), "Baixar meus dados" em PDF
+  (`lib/pdf/meusDadosPdf.ts`, base `pdfDoc` com logo/cor do terreiro, montado no aparelho a partir do JSON) e em JSON
+  (`baixarJson`), e "Encerrar meu acesso" (`EncerrarAcessoDrawer`: `CrudDrawer` `.medium-terra` com o que acontece +
+  senha, `skipAutoLogout`). Depois (`aposEncerrar`): conta só da Área → tira o `user` e a escolha de área do
+  localStorage e recarrega em `/login?acesso_encerrado=1` (aviso no login); operador/admin → `areas.medium = null` no
+  `user`, escolha lembrada = painel, recarrega em `/admin/dashboard`. Impersonando, baixar/encerrar somem. Backend e
+  regras em §3.3.
+- **Aniversariantes (AM-20)**: Perfil → seção "Aniversário" (`components/medium/perfil/AniversarioOptIn.tsx`: `Switch`
+  "Mostrar meu aniversário para a corrente", muda na hora e volta se der erro; sem data de nascimento fica travado e
+  manda preencher em Meus dados; impersonando mostra Ligado/Desligado). Início (`components/medium/Aniversarios.tsx`):
+  `MeuAniversarioCard` no topo no dia do próprio aniversário e "Aniversariantes da semana" depois da próxima gira
+  (primeiro nome + dd/mm ou "Hoje", "(você)"; some vazio). Painel: campo "Mensagem de aniversário" em Configurações →
+  Área do Médium (`AreaMediumConfigSection`, ≤ 200, `{nome}`).
 - **Login multi-terreiro (AM-05)**: mesmo e-mail em mais de um terreiro escolhe o terreiro no `/login` antes da
   escolha de área (regras em §3.2).
 - **Atividades da casa (AM-08)**: migracoes `077_permissao_escalas_enum` + `078_atividades` (§11.8; tabelas em
@@ -1365,6 +1431,19 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   (`AuthShell`; abrir so consulta, "Desligar" no toque; `descadastro` em `RESERVED_SLUGS`). Painel: caixa
   "Avisar por e-mail também" no drawer do aviso e "Lembrete da mensalidade por e-mail" em Configuracoes → Area
   do Medium (so com o modulo mensalidade ligado e no plano).
+- **Notificacao no celular (AM-16)**: migracao `082_push_inscricoes` (§11.8; tabela em `docs/database.md`), envio
+  e regras em §3.3/§11.9, API em `docs/api.md` (Area do Medium §9), chaves VAPID em `docs/deployment.md`. Area: secao "Notificacoes
+  no celular" no Perfil (`components/medium/perfil/NotificacoesNoCelular.tsx`), logo abaixo de "Avisos por e-mail" e
+  com o mesmo desenho: uma linha "Receber notificacoes neste celular" (a permissao e por aparelho; o pedido do
+  navegador so sai no toque) e, com algum aparelho ligado, um `Switch` por tipo (`AVISO_CELULAR_TEXTO` em
+  `constants/avisosEmail.ts`) e "Mandar uma notificacao de teste". iPhone fora da tela inicial → explica (iOS 16.4+)
+  e abre o `InstallAreaSheet`; sem suporte/permissao bloqueada → texto de como liberar. Ao abrir com o aparelho ja
+  inscrito, reenvia a inscricao (idempotente). "Sair" da Area tira o aparelho (`desligarCelularAoSair`, ate 2 s;
+  impersonando nao mexe). Helpers do navegador em `lib/webPush.ts`. `public/sw.js`: `push` (titulo/texto/url do
+  servidor, icone `/icons/icon-192.png`, `tag` substitui a anterior) e `notificationclick` (foca janela da origem e
+  navega, senao abre; `url` de fora vira `/medium`); a regra de nunca cachear `/api/*` segue e o teste
+  `__tests__/pwa/sw.test.ts` cobre as rotas `/api/v1/medium/push*`. A caixa "Avisar por e-mail também" do aviso
+  tambem dispara o push (texto de ajuda atualizado).
 - **Escala de gira por funcao (AM-18)**: sem migracao (usa `funcao_id`/`grupo_id`/`origem` da participacao do
   AM-17). API `api/v1/admin/atividades_escala.py` (gates/permissoes em §3.3, contrato em `docs/api.md` §19),
   regras em `services/escala_gira.py`: a escala grava `funcao_id` na PROPRIA participacao (uma funcao por medium
@@ -1538,6 +1617,11 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   para o `retorno_scheduler`) e, em vez do `claim_once`, marca POR LINHA em `medium_lembretes_enviados`
   (`INSERT ... ON CONFLICT DO NOTHING RETURNING`, commit antes de enfileirar). Espera a fila de e-mail ficar
   abaixo de 300 antes de enfileirar (`email_queue.qsize()`; acima de 500 a fila descarta).
+  Desde o AM-16 a mesma rodada manda a **notificacao no celular** (Web Push) para os aparelhos do medium
+  (`push_inscricoes`), com o liga/desliga proprio (`push_<tipo>`): o lembrete e planejado se e-mail OU celular
+  estiver ligado, a marca e uma so para os dois canais, e o push sai depois do commit
+  (`services/web_push.enviar`, `asyncio.to_thread` + timeout 10 s, TTL 12 h; 404/410 apagam a inscricao). Sem as
+  variaveis VAPID, nada de push (so e-mail). Ligar em producao: `docs/deployment.md` (chaves VAPID).
 - Regra para agendador que envia algo: usar `backend/src/services/scheduler_guard.py` — `advisory_lock(KEY)` envolvendo a rodada (só um worker processa) e `claim_once(tenant_id, namespace, item, scope)` gravado **antes** do envio (marca em `tenant_configs.custom_settings[namespace]` sob `SELECT ... FOR UPDATE`; `scope` diferente reinicia as marcas). Chaves de lock listadas no docstring do módulo; nova chave = novo número.
 - Trial: marcas em `custom_settings.trial_reminders` (escopo = `trial_ends_at`); dias restantes arredondados para cima e expiração só depois de `trial_ends_at` (antes podia expirar ~1 dia cedo). Aniversário: `custom_settings.birthday_digest` (escopo = data BRT).
 

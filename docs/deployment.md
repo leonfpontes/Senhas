@@ -157,6 +157,43 @@ DEFAULT_TIMEZONE=America/Sao_Paulo
 chmod 600 .env
 ```
 
+### Notificação no celular da Área do Médium (AM-16 — chaves VAPID)
+
+O push (Web Push com VAPID, sem serviço pago) fica **desligado** enquanto as três variáveis estiverem vazias: a
+Área esconde "Notificações no celular" e os lembretes saem só por e-mail. Para ligar:
+
+1. **Gerar o par de chaves uma vez** (na sua máquina, nunca no repositório):
+   ```bash
+   npx web-push generate-vapid-keys
+   # Public Key:  BN...  (65 bytes em base64url)
+   # Private Key: x5...  (32 bytes em base64url)
+   ```
+   Alternativa em Python (mesmo formato), com o venv do backend:
+   ```bash
+   python -c "import base64;from cryptography.hazmat.primitives.asymmetric import ec;from cryptography.hazmat.primitives import serialization as s;k=ec.generate_private_key(ec.SECP256R1());b=lambda r:base64.urlsafe_b64encode(r).rstrip(b'=').decode();print('VAPID_PUBLIC_KEY='+b(k.public_key().public_bytes(s.Encoding.X962,s.PublicFormat.UncompressedPoint)));print('VAPID_PRIVATE_KEY='+b(k.private_numbers().private_value.to_bytes(32,'big')))"
+   ```
+2. **Gravar no `/opt/senhas/.env` da VPS** (é dele que o `docker-compose.prod.yml` lê as variáveis do backend;
+   o `deploy.yml` não passa segredos do backend pelo GitHub):
+   ```bash
+   ssh root@<vps>
+   cd /opt/senhas && nano .env   # ou: cat >> .env
+   VAPID_PUBLIC_KEY=BN...
+   VAPID_PRIVATE_KEY=x5...
+   VAPID_SUBJECT=mailto:contato@girahub.com.br
+   chmod 600 .env
+   ```
+3. **Recriar só o backend** para ler o `.env` (o próximo deploy também aplica):
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d --no-deps backend
+   docker compose -f docker-compose.prod.yml exec -T backend python -c "from src.services.web_push import disponivel; print(disponivel())"   # True
+   ```
+4. **Validar num celular de verdade**: Perfil da Área → "Notificações no celular" → ligar → "Mandar uma notificação
+   de teste" (Android/Chrome e iPhone com a Área na tela inicial, iOS 16.4+).
+
+Cuidados: a chave privada é segredo (só no `.env` da VPS, `chmod 600`). **Não troque o par depois de ligado** —
+as inscrições ficam presas à chave pública e param de receber (o médium precisa ligar de novo). Para desligar o
+push, esvazie as três variáveis e recrie o backend.
+
 ---
 
 ## 4. Deploy com Docker Compose
@@ -425,5 +462,6 @@ docker compose -f docker-compose.prod.yml exec backend alembic downgrade -1
 | Database connection refused | Verificar `DATABASE_URL` no `.env` e status do PostgreSQL |
 | SSL certificate error | Executar `sudo certbot renew` |
 | Email não enviado | Verificar `BREVO_API_KEY` e `RESEND_API_KEY` no `.env` |
+| "Notificações no celular" não aparece na Área | Conferir `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_SUBJECT` no `.env` e recriar o backend (seção 3) |
 | Migration falha | Verificar logs: `docker compose logs backend` |
 | Permissão negada | `sudo chown -R $USER:$USER /opt/senhas` |

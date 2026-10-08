@@ -83,6 +83,11 @@ chave do piloto (`tenants.area_medium_liberada`), o plano `area_medium` e a Áre
 - **Descadastro**: rodapé com "Desligar estes avisos" e "Desligar todos os e-mails da Área"
   (`/descadastro/<token>?tipo=…`); o médium também muda no Perfil da Área. O cabeçalho `List-Unsubscribe` ainda
   não é enviado (o `EmailMessage` não tem cabeçalhos).
+- **No celular também (AM-16)**: cada um desses lembretes do médium também sai como notificação (Web Push) para
+  os aparelhos em que ele ligou as notificações, com liga/desliga próprio por tipo; e-mail e celular são
+  independentes e a marca é a mesma (uma vez só). Texto do push ainda mais curto (sem nome de atividade/aviso,
+  valor ou motivo) em `services/medium_push.py`. Sem as chaves VAPID, só e-mail. O descadastro do rodapé só
+  desliga e-mail. Push não tem custo por envio — reduz a pressão do R-08 conforme os médiuns ligam.
 
 ### Volume estimado (risco R-08 do plano)
 
@@ -120,6 +125,14 @@ SELECT tenant_id, tipo, count(*)
  WHERE enviado_em >= now() - interval '30 days'
  GROUP BY tenant_id, tipo ORDER BY tenant_id, tipo;
 ```
+
+### Médium encerrou o acesso (AM-14)
+
+Fora do agendador: `POST /api/v1/medium/meus-dados/encerrar` enfileira, depois do commit, um e-mail para cada
+administrador ATIVO do terreiro (`medium_lembretes.emails_dos_admins`), texto em
+`services/email/templates/medium_acesso_encerrado.py`. Assunto `<primeiro nome> encerrou o acesso à Área do
+Médium`; corpo só com o primeiro nome, o terreiro e a data, explicando que o cadastro continua com a casa e que dá
+para convidar de novo (Médiuns → Acesso à Área). Volume desprezível (um por encerramento).
 
 ---
 

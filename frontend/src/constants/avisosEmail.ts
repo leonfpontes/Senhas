@@ -33,3 +33,17 @@ export const AVISO_EMAIL_TEXTO: Record<TipoAvisoEmail, { titulo: string; descric
 export type PreferenciasEmail = Record<TipoAvisoEmail, boolean>;
 
 export const PREFERENCIAS_URL = '/api/v1/medium/preferencias';
+
+// ── Notificação no celular (AM-16) ───────────────────────────────────────────
+// Os mesmos tipos, com liga/desliga próprio (`medium_preferencias.push_*`): Perfil → "Notificações
+// no celular" (`components/medium/perfil/NotificacoesNoCelular.tsx`).
+export const AVISO_CELULAR_TEXTO: Record<TipoAvisoEmail, { titulo: string; descricao: string }> = {
+  ...AVISO_EMAIL_TEXTO,
+  avisos: {
+    titulo: 'Avisos da casa',
+    descricao: 'Quando a casa pedir para avisar',
+  },
+};
+
+export const PUSH_URL = '/api/v1/medium/push';
+export const PUSH_INSCRICAO_URL = `${PUSH_URL}/inscricao`;

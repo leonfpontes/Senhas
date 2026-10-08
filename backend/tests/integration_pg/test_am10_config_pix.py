@@ -89,6 +89,8 @@ async def test_config_da_area_crud_e_grupos(client, db):
         "presenca_no_plano": True,
         # AM-15: lembretes da mensalidade por e-mail (padrão ligado).
         "lembretes": {"mensalidade": True},
+        # AM-20: mensagem de aniversário da casa (None = texto padrão).
+        "aniversario_mensagem": None,
     }
 
     salvo = await client.put(
