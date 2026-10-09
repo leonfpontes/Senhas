@@ -1,15 +1,9 @@
 /**
- * MediumFaixa — faixa de abertura das telas da Área do Médium (Início "Olá, <nome>", Perfil,
- * escolha de área). Clara, no tom da landing: creme (`bg-muted` = areia-100 no `.medium-terra`)
- * com um véu leve da cor do terreiro, título em `text-foreground` (tinta, Fraunces na página),
- * apoio em `text-muted-foreground`, rótulo em `text-brand` e o fio da marca embaixo
- * (`from-primary to-ouro-400`). Antes era uma faixa café escura — o dono achou a Área "muito
- * escura" (out/2026). Tela nova da Área com faixa de abertura usa este componente, nunca
- * `bg-cafe-*` (o teste `__tests__/styles/colorUsage.test.ts` barra).
- *
- * Contraste: o véu é no máximo 8% da cor do terreiro sobre areia-100; tinta, tinta-suave e o
- * `text-brand` calculado por `applyTerraBrandText` são travados até 10% em
- * `__tests__/styles/marketingContrast.test.ts` (8 cores de terreiro difíceis).
+ * MediumFaixa — faixa de abertura de tela fora da casca da Área do Médium (escolha de área): fundo
+ * de cartão (branco) com um fio embaixo, título em `text-foreground` e apoio em
+ * `text-muted-foreground`. Sem gradiente, véu da marca nem rótulo em caixa-alta desde o redesenho
+ * de out/2026 (o dono achou a Área "com cara de IA"); dentro da casca, as telas usam
+ * `MediumPageHeader` (`./ui`). Nunca `bg-cafe-*` (o teste `__tests__/styles/colorUsage.test.ts` barra).
  */
 import React from 'react';
 import { cn } from '@/lib/utils';
@@ -22,29 +16,11 @@ export function MediumFaixa({ className, children, ...rest }: MediumFaixaProps) 
   return (
     <section
       data-slot="medium-faixa"
-      className={cn(
-        'relative overflow-hidden bg-muted px-4 pt-6 pb-7 text-foreground',
-        'bg-[linear-gradient(135deg,color-mix(in_oklab,var(--primary)_8%,var(--muted))_0%,var(--muted)_65%)]',
-        className,
-      )}
+      className={cn('border-b border-border bg-card px-4 pt-6 pb-7 text-foreground', className)}
       {...rest}
     >
       {children}
-      <span
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-primary to-ouro-400"
-      />
     </section>
-  );
-}
-
-/** Rótulo pequeno em caixa-alta acima do título da faixa (cor do terreiro). */
-export function MediumFaixaRotulo({ className, ...rest }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return (
-    <p
-      className={cn('text-xs font-extrabold tracking-[0.18em] text-brand uppercase', className)}
-      {...rest}
-    />
   );
 }
 

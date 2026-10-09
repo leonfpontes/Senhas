@@ -114,7 +114,7 @@ export function PagarPixSheet({
             <span>{erro}</span>
           </p>
           {whatsapp && (
-            <Button asChild variant="outline" size="touch" className="w-full font-bold">
+            <Button asChild variant="outline" size="touch" className="w-full font-semibold">
               <a href={whatsapp} target="_blank" rel="noopener noreferrer">
                 <MessageCircle aria-hidden /> Falar com a casa
               </a>
@@ -146,7 +146,7 @@ export function PagarPixSheet({
               <Button
                 type="button"
                 size="touch"
-                className="w-full font-bold"
+                className="w-full font-semibold"
                 onClick={() => void copiar('codigo', pix.copia_e_cola)}
               >
                 {copiado === 'codigo' ? <Check aria-hidden /> : <Copy aria-hidden />}
@@ -172,7 +172,7 @@ export function PagarPixSheet({
                 type="button"
                 variant="outline"
                 size="touch"
-                className="w-full font-bold"
+                className="w-full font-semibold"
                 onClick={onEnviarComprovante}
               >
                 <Upload aria-hidden /> Enviar comprovante
@@ -182,16 +182,16 @@ export function PagarPixSheet({
 
           {pix.instrucoes && (
             <p className="rounded-xl bg-muted px-3.5 py-3 text-sm whitespace-pre-line">
-              <strong className="block text-xs tracking-wider text-muted-foreground uppercase">
+              <strong className="block text-sm font-medium text-muted-foreground">
                 Recado da casa
               </strong>
               {pix.instrucoes}
             </p>
           )}
 
-          <Accordion type="multiple" className="rounded-2xl border border-border px-4">
+          <Accordion type="multiple" className="rounded-xl border border-border px-4">
             <AccordionItem value="qr">
-              <AccordionTrigger className="min-h-12 items-center text-base font-bold">
+              <AccordionTrigger className="min-h-12 items-center text-base font-semibold">
                 Pagar de outro aparelho (QR Code)
               </AccordionTrigger>
               <AccordionContent className="flex flex-col items-center gap-2">
@@ -204,7 +204,7 @@ export function PagarPixSheet({
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="chave">
-              <AccordionTrigger className="min-h-12 items-center text-base font-bold">
+              <AccordionTrigger className="min-h-12 items-center text-base font-semibold">
                 Prefere usar a chave PIX?
               </AccordionTrigger>
               <AccordionContent className="flex flex-col gap-2">
@@ -215,7 +215,7 @@ export function PagarPixSheet({
                   type="button"
                   variant="outline"
                   size="touch"
-                  className="w-full font-bold"
+                  className="w-full font-semibold"
                   onClick={() => void copiar('chave', pix.chave)}
                 >
                   {copiado === 'chave' ? <Check aria-hidden /> : <Copy aria-hidden />}

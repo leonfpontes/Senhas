@@ -66,7 +66,7 @@ export function PedirTrocaSheet({ open, onOpenChange, colegas, exigeAprovacao, o
         escolha === valor ? 'border-primary bg-primary/10' : 'border-border bg-card',
       )}
     >
-      <span className="text-base font-bold">{titulo}</span>
+      <span className="text-base font-semibold">{titulo}</span>
       {ajuda && <span className="text-sm text-muted-foreground">{ajuda}</span>}
     </button>
   );
@@ -81,7 +81,7 @@ export function PedirTrocaSheet({ open, onOpenChange, colegas, exigeAprovacao, o
     >
       <div className="flex flex-col gap-2.5" role="radiogroup" aria-label="Quem vai no seu lugar">
         {colegas.length > 0 ? (
-          <p className="text-base font-bold">Colegas que podem ir</p>
+          <p className="text-base font-semibold">Colegas que podem ir</p>
         ) : (
           <p className="flex items-start gap-2 rounded-xl bg-muted p-3 text-base text-muted-foreground">
             <Users className="mt-0.5 size-5 shrink-0" aria-hidden />
@@ -92,7 +92,7 @@ export function PedirTrocaSheet({ open, onOpenChange, colegas, exigeAprovacao, o
         {opcao(DIRECAO, 'Deixar a direção escolher', 'A direção da casa vê o pedido e escolhe quem vai.')}
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="troca-recado" className="text-base font-bold">
+        <Label htmlFor="troca-recado" className="text-base font-semibold">
           Recado (se quiser)
         </Label>
         <Textarea
@@ -125,7 +125,7 @@ export function PedirTrocaSheet({ open, onOpenChange, colegas, exigeAprovacao, o
         <Button
           type="button"
           size="touch"
-          className="w-full font-bold"
+          className="w-full font-semibold"
           disabled={enviando || !escolha}
           onClick={() => void enviar()}
         >
@@ -136,7 +136,7 @@ export function PedirTrocaSheet({ open, onOpenChange, colegas, exigeAprovacao, o
           type="button"
           variant="outline"
           size="touch"
-          className="w-full font-bold"
+          className="w-full font-semibold"
           onClick={() => onOpenChange(false)}
         >
           Cancelar

@@ -137,12 +137,12 @@ export function brandTextColorOn(
 }
 
 /**
- * Superfícies da Área do Médium (paleta terra, `.medium-terra` em globals.css — sempre clara
- * desde out/2026): cartão branco, fundo areia-50 e caixa/faixa de abertura areia-100.
+ * Superfícies da Área do Médium (`.medium-terra` em globals.css — neutra e sempre clara desde
+ * out/2026): cartão branco, fundo cinza-claro e caixa cinza.
  * Espelhadas em __tests__/styles/marketingContrast.test.ts.
  */
 export const TERRA_SURFACES = {
-  light: ['#ffffff', '#fcf8f2', '#f7eee1'],
+  light: ['#ffffff', '#f4f5f7', '#eef0f3'],
 } as const;
 
 /**

@@ -1341,7 +1341,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `pages/convite/[token].tsx` (`AuthShell`): logo e nome da casa, "Crie sua senha de acesso" (ou a senha
   do painel), consentimento + "Ler o termo"; no aceite já entra e vai para `/medium`. Backend em §3.3.
 - **Mensalidade (AM-11/AM-12)**: `/medium/mensalidade` (`components/medium/mensalidade/*`): cartão do mês
-  (valor em Fraunces, etiqueta, vencimento) com uma ação principal por situação — em aberto/atrasada → "Pagar com
+  (valor em destaque, etiqueta, vencimento) com uma ação principal por situação — em aberto/atrasada → "Pagar com
   PIX" (+ "Já paguei: enviar comprovante"); "Aguardando a casa confirmar"; não confirmado → motivo + "Enviar outro
   comprovante" + "Falar com a casa" (WhatsApp da casa do `/medium/me`); paga; "Você é isento de mensalidade"; sem
   chave PIX → "Combine o pagamento com a casa". Depois: meses em aberto (tocar troca o cartão), "Quer pagar todo mês
@@ -1666,22 +1666,26 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   que o `deploy.yml` repassa ao build — trocar o número = mudar a variável e redeployar.
   Página nova de primeiro nível → `backend/src/core/reserved_slugs.py` (teste quebra se faltar) e
   `STATIC_ROUTES` do `pages/sitemap.xml.tsx`.
-- **Área do Médium (AM-06; clara desde out/2026)**: identidade do site novo (paleta terra + Fraunces), CLARA no tom
-  da landing, com a COR E O LOGO DO TERREIRO nos detalhes. Escopo `.medium-terra` (globals.css; `MediumLayout`,
+- **Área do Médium (AM-06; visual de aplicativo desde out/2026)**: neutra e sempre clara, com a COR E O LOGO DO
+  TERREIRO como único destaque — o dono achou a versão anterior (paleta terra da landing, Fraunces, rótulos em
+  caixa-alta, faixas com véu) "com cara de IA" e pediu algo perto dos apps de terreiro (Kanzuá: listas agrupadas,
+  cartão da próxima gira na cor da casa). Escopo `.medium-terra` (nome histórico; globals.css — `MediumLayout`,
   `/escolher-area` e os overlays que eles abrem — Sheet, DropdownMenu e `ConfirmDialog`/`CrudDrawer` (prop
-  `className`, AM-29) recebem a classe e `fraunces.variable`, porque são portados para o `<body>`): fundo areia-50,
-  cartões/cabeçalho/barra inferior brancos, caixas areia-100, texto tinta, apoio tinta-suave; `--primary`/
-  `--primary-foreground` continuam do `applyBrand` (botão principal, aba ativa, data da gira, linha do cabeçalho) e
-  `text-brand` lê `--terra-brand-text-light`, calculada por `applyTerraBrandText` (`lib/brand.brandTextColorOn`
-  contra `TERRA_SURFACES`). **Sem modo escuro**: o dono achou a Área "muito escura" (ela seguia o escuro do celular
-  e abria as telas com faixa café) — o `MediumLayout` e o `/escolher-area` chamam `useAreaClara` (tira a classe
-  `dark` de `<html>` enquanto a Área está aberta e devolve ao sair) e não existe `.dark .medium-terra`. Faixa de
-  abertura (Início "Olá", Perfil, escolha de área) = `components/medium/MediumFaixa` (areia-100 com véu de até 8%
-  da cor do terreiro, rótulo `MediumFaixaRotulo` em `text-brand`, título tinta, fio `from-primary to-ouro-400`).
-  `__tests__/styles/colorUsage.test.ts` barra `bg-cafe-*`, `text-areia-*`, `text-white` e `dark:` nas telas da
-  Área (exceção: a câmera do "Cheguei"); pares travados em `__tests__/styles/marketingContrast.test.ts` (8 cores
-  de terreiro difíceis, inclusive no véu da faixa). Manifesto da Área e `<meta name="theme-color">` das rotas
-  `/medium/*` e `/escolher-area`: `#ffffff` (fundo `#fcf8f2`). Só na Área; nunca no painel.
+  `className`, AM-29) recebem a classe, porque são portados para o `<body>`): fundo `#f4f5f7`, cartões/cabeçalho/
+  barra inferior brancos, caixas `#eef0f3`, texto `#111827`, apoio `#4b5563`, sem serifa (não usar `font-display`
+  na Área). `--primary`/`--primary-foreground` continuam do `applyBrand` (botão principal, pílula da aba ativa,
+  cartão "Próxima gira" — sem véu por cima da cor, só fio) e `text-brand` lê `--terra-brand-text-light`, calculada
+  por `applyTerraBrandText` (`lib/brand.brandTextColorOn` contra `TERRA_SURFACES`). **Peças de tela** em
+  `components/medium/ui.tsx` (toda tela nova da Área usa): `MediumPage`/`MediumPageHeader` (título da tela),
+  `MediumSection` (+ `MediumSectionLink`), `MediumList`/`MediumListItem` (lista agrupada sobre o `Item` do
+  shadcn, `components/ui/item.tsx`: ícone em caixinha + título + descrição + seta), `IconTile`, `StatusBadge`.
+  **Sem modo escuro**: o `MediumLayout` e o `/escolher-area` chamam `useAreaClara` (tira a classe `dark` de
+  `<html>` enquanto a Área está aberta e devolve ao sair) e não existe `.dark .medium-terra`. `MediumFaixa` ficou
+  só na escolha de área (cartão branco com fio, sem gradiente). `__tests__/styles/colorUsage.test.ts` barra
+  `bg-cafe-*`, `text-areia-*`, `text-white` e `dark:` nas telas da Área (exceção: a câmera do "Cheguei"); pares
+  travados em `__tests__/styles/marketingContrast.test.ts` (8 cores de terreiro difíceis). Manifesto da Área e
+  `<meta name="theme-color">` das rotas `/medium/*` e `/escolher-area`: `#ffffff` (fundo `#f4f5f7`). Só na Área;
+  nunca no painel.
 - **Claro/escuro**: classe `dark` em `<html>` (não no layout — Radix porta overlays para o `<body>`), aplicada por
   `AdminThemeProvider`/`PlatformThemeProvider` (chaves `admin_theme_mode`/`platform_theme_mode`); páginas públicas e
   a Área do Médium sempre claras (a Área tira a classe com `useAreaClara`).

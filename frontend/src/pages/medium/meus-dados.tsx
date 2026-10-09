@@ -12,9 +12,10 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { ArrowLeft, DoorOpen, FileDown, FileJson, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, DoorOpen, FileDown, FileJson, Loader2 } from 'lucide-react';
 import { MediumLayout } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
+import { MediumPage, MediumPageHeader, MediumSection } from '@/components/medium/ui';
 import { EncerrarAcessoDrawer } from '@/components/medium/meusDados/EncerrarAcessoDrawer';
 import {
   EXPORTAR_URL,
@@ -105,18 +106,16 @@ function MeusDados() {
   };
 
   return (
-    <div className="flex flex-col gap-6 px-4 pt-5 pb-8">
+    <MediumPage>
       <button
         type="button"
         onClick={() => void router.push('/medium/perfil')}
-        className="inline-flex min-h-11 items-center gap-1.5 self-start font-bold text-brand outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="-my-2 inline-flex min-h-12 items-center gap-1.5 self-start text-sm font-semibold text-brand outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
         <ArrowLeft className="size-4" aria-hidden /> Perfil
       </button>
 
-      <h1 className="flex items-center gap-2 font-display text-2xl leading-tight font-bold">
-        <ShieldCheck className="size-6 text-brand" aria-hidden /> Meus dados e privacidade
-      </h1>
+      <MediumPageHeader title="Meus dados e privacidade" />
 
       {somenteLeitura && (
         <Alert variant="warning" role="status" data-testid="meus-dados-somente-leitura">
@@ -124,19 +123,16 @@ function MeusDados() {
         </Alert>
       )}
 
-      <section className="flex flex-col gap-2" aria-labelledby="titulo-quem-ve" data-testid="quem-ve-o-que">
-        <h2 id="titulo-quem-ve" className="px-1 font-display text-xl font-bold">
-          Quem vê o quê
-        </h2>
-        <dl className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm">
+      <MediumSection id="titulo-quem-ve" title="Quem vê o quê" data-testid="quem-ve-o-que">
+        <dl className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xs">
           {quemVeOQue(casa, aniversarioLigado).map((q) => (
             <div key={q.titulo} className="flex flex-col gap-0.5 border-b border-border px-4 py-3 last:border-b-0">
-              <dt className="text-base font-bold">{q.titulo}</dt>
+              <dt className="text-base font-semibold">{q.titulo}</dt>
               <dd className="text-sm text-muted-foreground">{q.texto}</dd>
             </div>
           ))}
         </dl>
-      </section>
+      </MediumSection>
 
       {erro && (
         <Alert variant="destructive" role="alert">
@@ -146,18 +142,15 @@ function MeusDados() {
 
       {!somenteLeitura && (
         <>
-          <section className="flex flex-col gap-2" aria-labelledby="titulo-baixar" data-testid="baixar-meus-dados">
-            <h2 id="titulo-baixar" className="px-1 font-display text-xl font-bold">
-              Baixar meus dados
-            </h2>
-            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm">
+          <MediumSection id="titulo-baixar" title="Baixar meus dados" data-testid="baixar-meus-dados">
+            <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-card-foreground shadow-xs">
               <p className="text-sm text-muted-foreground">
                 Tudo o que a casa guarda sobre você na Área: cadastro, mensalidades, avisos lidos, escalas e presenças.
               </p>
               <Button
                 type="button"
                 size="touch"
-                className="w-full font-bold"
+                className="w-full font-semibold"
                 onClick={() => void baixar('pdf')}
                 disabled={baixando !== null}
                 data-testid="baixar-pdf"
@@ -169,7 +162,7 @@ function MeusDados() {
                 type="button"
                 size="touch"
                 variant="outline"
-                className="w-full font-bold"
+                className="w-full font-semibold"
                 onClick={() => void baixar('json')}
                 disabled={baixando !== null}
                 data-testid="baixar-json"
@@ -178,13 +171,10 @@ function MeusDados() {
                 Baixar arquivo de dados (JSON)
               </Button>
             </div>
-          </section>
+          </MediumSection>
 
-          <section className="flex flex-col gap-2" aria-labelledby="titulo-encerrar" data-testid="encerrar-acesso">
-            <h2 id="titulo-encerrar" className="px-1 font-display text-xl font-bold">
-              Encerrar meu acesso
-            </h2>
-            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm">
+          <MediumSection id="titulo-encerrar" title="Encerrar meu acesso" data-testid="encerrar-acesso">
+            <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-card-foreground shadow-xs">
               <p className="text-sm text-muted-foreground">
                 {temPainel
                   ? 'Você sai da Área do Médium. O painel do terreiro continua como está.'
@@ -195,7 +185,7 @@ function MeusDados() {
                 type="button"
                 size="touch"
                 variant="outline"
-                className="w-full font-bold text-destructive-strong"
+                className="w-full font-semibold text-destructive-strong"
                 onClick={() => setEncerrar(true)}
                 data-testid="abrir-encerrar"
               >
@@ -203,7 +193,7 @@ function MeusDados() {
                 Encerrar meu acesso
               </Button>
             </div>
-          </section>
+          </MediumSection>
 
           <EncerrarAcessoDrawer
             open={encerrar}
@@ -214,6 +204,6 @@ function MeusDados() {
           />
         </>
       )}
-    </div>
+    </MediumPage>
   );
 }

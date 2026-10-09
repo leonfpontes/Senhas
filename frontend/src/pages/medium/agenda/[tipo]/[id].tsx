@@ -37,6 +37,7 @@ import {
 import { MediumLayout } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
 import { DataChip } from '@/components/medium/DataChip';
+import { MediumPage, MediumSection } from '@/components/medium/ui';
 import { TipoChip } from '@/components/atividades/TipoChip';
 import {
   divulgarUrl,
@@ -56,7 +57,7 @@ import { EscalaCard } from '@/components/medium/presenca/EscalaCard';
 import { TrocaNaAtividade } from '@/components/medium/troca/TrocaNaAtividade';
 import { cheguei, estaImpersonando, mensagemDoErro } from '@/components/medium/presenca/presencaApi';
 
-const CARD = 'flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm';
+const CARD = 'flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-card-foreground shadow-xs';
 
 type Detalhe = ({ kind: 'gira' } & GiraDetalhe) | ({ kind: 'atividade' } & AtividadeDetalhe);
 
@@ -72,9 +73,9 @@ function Voltar() {
   return (
     <Link
       href="/medium/agenda"
-      className="inline-flex min-h-12 items-center gap-1.5 self-start font-bold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      className="-my-2 inline-flex min-h-12 items-center gap-1.5 self-start text-sm font-semibold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
     >
-      <ArrowLeft className="size-5" aria-hidden /> Voltar para a agenda
+      <ArrowLeft className="size-4" aria-hidden /> Voltar para a agenda
     </Link>
   );
 }
@@ -140,7 +141,7 @@ function DetalheDoItem() {
 
   if (erro) {
     return (
-      <div className="flex flex-col gap-4 px-4 pt-4 pb-8">
+      <MediumPage>
         <Voltar />
         {erro === 'rede' ? (
           <EmptyState
@@ -148,7 +149,7 @@ function DetalheDoItem() {
             title={`Não conseguimos abrir ${ehGira ? 'a gira' : 'a atividade'}`}
             description="Confira a internet e tente de novo."
             action={
-              <Button type="button" size="touch" className="font-bold" onClick={() => setNonce((n) => n + 1)}>
+              <Button type="button" size="touch" className="font-semibold" onClick={() => setNonce((n) => n + 1)}>
                 Tentar de novo
               </Button>
             }
@@ -166,17 +167,17 @@ function DetalheDoItem() {
             }
           />
         )}
-      </div>
+      </MediumPage>
     );
   }
 
   if (!item) {
     return (
-      <div className="flex flex-col gap-4 px-4 pt-4 pb-8" role="status" aria-label={`Carregando a ${nomeDoItem}`}>
+      <MediumPage role="status" aria-label={`Carregando a ${nomeDoItem}`}>
         <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-20 w-full rounded-2xl" />
-        <Skeleton className="h-40 w-full rounded-2xl" />
-      </div>
+        <Skeleton className="h-20 w-full rounded-xl" />
+        <Skeleton className="h-40 w-full rounded-xl" />
+      </MediumPage>
     );
   }
 
@@ -187,14 +188,14 @@ function DetalheDoItem() {
   const lugar = [item.local, item.endereco].filter(Boolean) as string[];
 
   return (
-    <div className="flex flex-col gap-5 px-4 pt-4 pb-8">
+    <MediumPage>
       <Voltar />
 
       <header className="flex items-center gap-3.5">
         <DataChip iso={item.inicio} passado={passou || cancelada} />
         <div className="flex min-w-0 flex-col items-start gap-1.5">
           <TipoChip tipo={item.tipo} />
-          <h1 className="font-display text-[1.6rem] leading-tight font-bold tracking-tight">{item.titulo}</h1>
+          <h1 className="text-2xl leading-tight font-semibold tracking-tight">{item.titulo}</h1>
         </div>
       </header>
 
@@ -213,13 +214,13 @@ function DetalheDoItem() {
 
       {item.kind === 'atividade' && cancelada && (
         <p
-          className="flex items-start gap-3 rounded-2xl bg-destructive/10 px-4 py-3.5 text-base text-destructive-strong"
+          className="flex items-start gap-3 rounded-xl bg-destructive/10 px-4 py-3.5 text-base text-destructive-strong"
           role="status"
           data-testid="atividade-cancelada"
         >
           <Ban className="mt-0.5 size-5 shrink-0" aria-hidden />
           <span>
-            <strong className="block">A casa cancelou esta atividade.</strong>
+            <strong className="block font-semibold">A casa cancelou esta atividade.</strong>
             {item.cancelamento_motivo && <span className="block">{item.cancelamento_motivo}</span>}
           </span>
         </p>
@@ -229,7 +230,7 @@ function DetalheDoItem() {
         <p className="flex items-start gap-3 text-base">
           <Clock className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
           <span>
-            <strong className="block first-letter:uppercase">{horarioCompleto(item)}</strong>
+            <strong className="block font-semibold first-letter:uppercase">{horarioCompleto(item)}</strong>
             {passou && (
               <span className="block text-sm text-muted-foreground">
                 {item.kind === 'gira' ? 'Esta gira já aconteceu.' : 'Esta atividade já aconteceu.'}
@@ -249,7 +250,7 @@ function DetalheDoItem() {
                   href={item.mapa_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-12 items-center font-bold text-brand underline underline-offset-4 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  className="inline-flex min-h-12 items-center font-semibold text-brand underline underline-offset-4 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 >
                   Abrir no mapa
                 </a>
@@ -266,10 +267,10 @@ function DetalheDoItem() {
       </div>
 
       <section
-        className="flex flex-col gap-1.5 rounded-2xl bg-muted px-4 py-3.5"
+        className="flex flex-col gap-1.5 rounded-xl border border-border bg-card px-4 py-3.5 text-card-foreground shadow-xs"
         aria-labelledby="titulo-orientacoes"
       >
-        <h2 id="titulo-orientacoes" className="text-xs font-extrabold tracking-wider text-muted-foreground uppercase">
+        <h2 id="titulo-orientacoes" className="text-sm font-medium text-muted-foreground">
           O que levar · Orientações para a corrente
         </h2>
         {item.orientacoes_corrente ? (
@@ -282,28 +283,25 @@ function DetalheDoItem() {
       </section>
 
       {item.descricao && (
-        <section className="flex flex-col gap-1.5" aria-labelledby="titulo-sobre">
-          <h2 id="titulo-sobre" className="text-xs font-extrabold tracking-[0.16em] text-brand uppercase">
-            {item.kind === 'gira' ? 'Sobre a gira' : 'Sobre a atividade'}
-          </h2>
+        <MediumSection id="titulo-sobre" title={item.kind === 'gira' ? 'Sobre a gira' : 'Sobre a atividade'}>
           <p className="text-base whitespace-pre-line">{item.descricao}</p>
-        </section>
+        </MediumSection>
       )}
 
       {!passou && !cancelada && (
         <section className="flex flex-col gap-2.5" aria-label={item.kind === 'gira' ? 'Ações da gira' : 'Ações da atividade'}>
-          <Button asChild size="touch" className="w-full font-bold">
+          <Button asChild size="touch" className="w-full font-semibold">
             <a href={icsHref} data-testid={item.kind === 'gira' ? 'gira-ics' : 'atividade-ics'}>
               <CalendarPlus aria-hidden /> Adicionar à agenda do celular
             </a>
           </Button>
-          <Button asChild variant="outline" size="touch" className="w-full font-bold">
+          <Button asChild variant="outline" size="touch" className="w-full font-semibold">
             <a href={item.agenda_celular.google_url} target="_blank" rel="noopener noreferrer">
               <CalendarDays aria-hidden /> Abrir no Google Agenda
             </a>
           </Button>
           {item.kind === 'gira' && (
-            <Button asChild variant="outline" size="touch" className="w-full font-bold">
+            <Button asChild variant="outline" size="touch" className="w-full font-semibold">
               <a href={divulgarUrl(item, me?.terreiro.nome)} target="_blank" rel="noopener noreferrer">
                 <Share2 aria-hidden /> Divulgar a gira no WhatsApp
               </a>
@@ -320,6 +318,6 @@ function DetalheDoItem() {
           )}
         </section>
       )}
-    </div>
+    </MediumPage>
   );
 }

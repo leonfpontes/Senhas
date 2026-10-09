@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { MediumLayout } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
+import { MediumList, MediumPage, MediumPageHeader, MediumSection } from '@/components/medium/ui';
 import { dataCurtaBr } from '@/components/avisos/AvisoLeitura';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
@@ -70,8 +71,6 @@ export interface MateriaisResponse {
   cursos: CursoAberto[];
 }
 
-const SECTION_TITLE = 'text-xs font-extrabold tracking-[0.16em] text-brand uppercase';
-
 export default function MediumEstudosPage() {
   return (
     <MediumLayout title="Estudos">
@@ -106,17 +105,17 @@ function detalheDo(m: MaterialItem): string {
 }
 
 const ITEM_CLASS =
-  'flex min-h-[72px] items-center gap-3 px-4 py-3 outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset';
+  'flex min-h-16 items-center gap-3.5 px-4 py-3.5 outline-none hover:bg-accent/50 active:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset';
 
 function Item({ m }: { m: MaterialItem }) {
   const Icon = iconeDo(m);
   const corpo = (
     <>
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-brand">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand">
         <Icon className="size-5" aria-hidden />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <strong className="text-base leading-snug font-bold">{m.titulo}</strong>
+        <strong className="text-base leading-snug font-semibold">{m.titulo}</strong>
         {m.resumo && <span className="line-clamp-2 text-sm text-muted-foreground">{m.resumo}</span>}
         <span className="text-sm text-muted-foreground">{detalheDo(m)}</span>
       </span>
@@ -149,23 +148,20 @@ function Item({ m }: { m: MaterialItem }) {
 function Cursos({ cursos }: { cursos: CursoAberto[] }) {
   if (cursos.length === 0) return null;
   return (
-    <section className="flex flex-col gap-2" aria-labelledby="cursos-da-casa">
-      <h2 id="cursos-da-casa" className={SECTION_TITLE}>
-        Cursos da casa
-      </h2>
+    <MediumSection id="cursos-da-casa" title="Cursos da casa">
       <ul className="flex flex-col gap-3">
         {cursos.map((c) => {
           const esgotado = c.vagas_restantes === 0;
           return (
             <li
               key={c.id}
-              className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm"
+              className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 text-card-foreground shadow-xs"
               data-testid="curso-item"
             >
               <span className="flex items-start gap-3">
                 <GraduationCap className="mt-0.5 size-5 shrink-0 text-brand" aria-hidden />
                 <span className="flex min-w-0 flex-col gap-1">
-                  <strong className="text-base leading-snug">{c.titulo}</strong>
+                  <strong className="text-base leading-snug font-semibold">{c.titulo}</strong>
                   {c.resumo && <span className="text-sm text-muted-foreground">{c.resumo}</span>}
                   <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <CalendarDays className="size-4" aria-hidden />
@@ -186,7 +182,7 @@ function Cursos({ cursos }: { cursos: CursoAberto[] }) {
                 </span>
               </span>
               {!esgotado && (
-                <Button asChild size="touch" className="self-start font-bold">
+                <Button asChild size="touch" className="self-start font-semibold">
                   <a href={c.inscricao_path} target="_blank" rel="noopener noreferrer">
                     Fazer a inscrição
                     <ExternalLink aria-hidden />
@@ -197,7 +193,7 @@ function Cursos({ cursos }: { cursos: CursoAberto[] }) {
           );
         })}
       </ul>
-    </section>
+    </MediumSection>
   );
 }
 
@@ -258,7 +254,7 @@ function Estudos() {
         title="Não conseguimos carregar os estudos"
         description="Confira a internet e tente de novo."
         action={
-          <Button type="button" size="touch" className="font-bold" onClick={() => setNonce((n) => n + 1)}>
+          <Button type="button" size="touch" className="font-semibold" onClick={() => setNonce((n) => n + 1)}>
             Tentar de novo
           </Button>
         }
@@ -267,8 +263,8 @@ function Estudos() {
   } else if (estado === 'carregando' || !data) {
     conteudo = (
       <div className="flex flex-col gap-3" role="status" aria-label="Carregando os estudos">
-        <Skeleton className="h-20 w-full rounded-2xl" />
-        <Skeleton className="h-20 w-full rounded-2xl" />
+        <Skeleton className="h-20 w-full rounded-xl" />
+        <Skeleton className="h-20 w-full rounded-xl" />
       </div>
     );
   } else {
@@ -304,17 +300,14 @@ function Estudos() {
                 Nada encontrado para &ldquo;{busca.trim()}&rdquo;.
               </p>
             ) : (
-              porCategoria.map((g) => (
-                <section key={g.categoria} className="flex flex-col gap-2" aria-label={g.categoria}>
-                  <h2 className={SECTION_TITLE}>{g.categoria}</h2>
-                  <ul className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card">
+              porCategoria.map((g, i) => (
+                <MediumSection key={g.categoria} id={`estudos-cat-${i}`} title={g.categoria}>
+                  <MediumList aria-label={g.categoria}>
                     {g.itens.map((m) => (
-                      <li key={m.id} className="border-b border-border last:border-b-0">
-                        <Item m={m} />
-                      </li>
+                      <Item key={m.id} m={m} />
                     ))}
-                  </ul>
-                </section>
+                  </MediumList>
+                </MediumSection>
               ))
             )}
           </>
@@ -326,9 +319,9 @@ function Estudos() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 px-4 pt-6 pb-8">
-      <h1 className="font-display text-[1.75rem] leading-tight font-bold tracking-tight">Estudos</h1>
+    <MediumPage className="flex-1">
+      <MediumPageHeader title="Estudos" />
       {conteudo}
-    </div>
+    </MediumPage>
   );
 }

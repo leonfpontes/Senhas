@@ -33,7 +33,6 @@ import {
   BookOpen,
   CalendarCheck,
   Camera,
-  ChevronRight,
   KeyRound,
   Loader2,
   Lock,
@@ -47,8 +46,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
-import { fraunces } from '@/components/landing/fonts';
-import { MediumFaixa } from '@/components/medium/MediumFaixa';
+import { MediumListItem } from '@/components/medium/ui';
 import { MediumLayout, useMediumShell } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
 import { MeusGrupos } from '@/components/medium/MeusGrupos';
@@ -78,7 +76,6 @@ import { useSnackbar } from '@/contexts/SnackbarContext';
 import { apiClient } from '@/services/api_client';
 import { logout } from '@/services/authSession';
 import { isoToBrDate } from '@/lib/dateIso';
-import { cn } from '@/lib/utils';
 
 export default function MediumPerfilPage() {
   return (
@@ -97,7 +94,7 @@ function impersonando(): boolean {
 }
 
 function Item({
-  icon: Icon,
+  icon,
   title,
   description,
   onClick,
@@ -111,21 +108,7 @@ function Item({
 }) {
   return (
     <li className="border-b border-border last:border-b-0">
-      <button
-        type="button"
-        onClick={onClick}
-        data-testid={testId}
-        className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
-      >
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand">
-          <Icon className="size-5" aria-hidden />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <strong className="text-base leading-snug">{title}</strong>
-          {description && <span className="text-sm break-words text-muted-foreground">{description}</span>}
-        </span>
-        <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-      </button>
+      <MediumListItem icon={icon} title={title} description={description} onClick={onClick} data-testid={testId} />
     </li>
   );
 }
@@ -157,13 +140,13 @@ function Secao({
   return (
     <section className="flex flex-col gap-2" data-testid={testId} aria-label={titulo}>
       <div className="flex items-center justify-between gap-3 px-1">
-        <h2 className="flex items-center gap-2 font-display text-xl font-bold">
+        <h2 className="flex items-center gap-2 text-base font-semibold">
           {Icone && <Icone className="size-4 text-muted-foreground" aria-hidden />}
           {titulo}
         </h2>
         {acao}
       </div>
-      <div className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xs">
         {children}
       </div>
     </section>
@@ -274,7 +257,7 @@ function Perfil() {
 
   return (
     <>
-      <MediumFaixa className="flex items-center gap-4">
+      <section className="flex items-center gap-4 border-b border-border bg-card px-4 pt-5 pb-6" aria-label="Seu perfil">
         <div className="relative shrink-0">
           {fotoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -282,12 +265,12 @@ function Perfil() {
               src={fotoUrl}
               alt=""
               data-testid="perfil-foto"
-              className="size-16 rounded-full object-cover ring-[3px] ring-ouro-400"
+              className="size-16 rounded-full object-cover ring-1 ring-border"
             />
           ) : (
             <span
               aria-hidden
-              className="flex size-16 items-center justify-center rounded-full bg-primary font-display text-2xl font-bold text-primary-foreground ring-[3px] ring-ouro-400"
+              className="flex size-16 items-center justify-center rounded-full bg-primary text-xl font-semibold text-primary-foreground"
             >
               {iniciais}
             </span>
@@ -299,7 +282,7 @@ function Perfil() {
               disabled={foto.enviando}
               aria-label="Trocar foto"
               data-testid="perfil-trocar-foto"
-              className="absolute -right-1 -bottom-1 flex size-8 items-center justify-center rounded-full bg-ouro-300 text-cafe-950 shadow ring-2 ring-card outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              className="absolute -right-1 -bottom-1 flex size-8 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               {foto.enviando ? (
                 <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -320,8 +303,8 @@ function Perfil() {
           />
         </div>
         <div className="min-w-0">
-          <h1 className="font-display text-2xl leading-tight font-bold">{nome}</h1>
-          <p className="text-base text-muted-foreground">
+          <h1 className="text-xl leading-tight font-semibold tracking-tight">{nome}</h1>
+          <p className="text-sm text-muted-foreground">
             Médium da corrente{me ? ` · ${me.terreiro.nome}` : ''}
           </p>
           <MeusGrupos grupos={me?.grupos} className="mt-1 text-muted-foreground" />
@@ -337,7 +320,7 @@ function Perfil() {
             </button>
           )}
         </div>
-      </MediumFaixa>
+      </section>
 
       <div className="flex flex-col gap-6 px-4 pt-5 pb-8">
         {foto.erro && (
@@ -462,11 +445,7 @@ function Perfil() {
           </>
         )}
 
-        <ul
-          className={cn(
-            'overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm',
-          )}
-        >
+        <ul className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xs">
           <Item
             icon={CalendarCheck}
             title="Minhas presenças"
@@ -556,7 +535,7 @@ function Perfil() {
             loading={removendo}
             onConfirm={() => void removerFoto()}
             onCancel={() => setConfirmarRemover(false)}
-            className={cn(fraunces.variable, 'medium-terra')}
+            className="medium-terra"
           />
         </>
       )}

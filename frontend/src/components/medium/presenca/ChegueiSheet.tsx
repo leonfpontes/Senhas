@@ -141,7 +141,7 @@ export function ChegueiSheet({ open, onOpenChange, titulo, onCodigo }: ChegueiSh
       data-testid="cheguei-sheet"
     >
       {(camera === 'abrindo' || camera === 'lendo') && (
-        <div className="relative overflow-hidden rounded-2xl bg-black">
+        <div className="relative overflow-hidden rounded-xl bg-black">
           <video
             ref={videoRef}
             className="aspect-square w-full object-cover"
@@ -151,7 +151,7 @@ export function ChegueiSheet({ open, onOpenChange, titulo, onCodigo }: ChegueiSh
           />
           <span
             aria-hidden
-            className="pointer-events-none absolute inset-[18%] rounded-2xl border-4 border-white/80"
+            className="pointer-events-none absolute inset-[18%] rounded-xl border-4 border-white/80"
           />
           {camera === 'abrindo' && (
             <span className="absolute inset-0 flex items-center justify-center text-white">
@@ -162,7 +162,7 @@ export function ChegueiSheet({ open, onOpenChange, titulo, onCodigo }: ChegueiSh
       )}
       {camera === 'sem_leitor' && (
         <p
-          className="flex items-start gap-3 rounded-2xl bg-muted p-4 text-base"
+          className="flex items-start gap-3 rounded-xl bg-muted p-4 text-base"
           data-testid="cheguei-sem-leitor"
         >
           <Camera className="mt-0.5 size-5 shrink-0 text-brand" aria-hidden />
@@ -173,7 +173,7 @@ export function ChegueiSheet({ open, onOpenChange, titulo, onCodigo }: ChegueiSh
         </p>
       )}
       {camera === 'negada' && (
-        <p className="rounded-2xl bg-warning/15 p-4 text-base text-warning-strong" role="status">
+        <p className="rounded-xl bg-warning/15 p-4 text-base text-warning-strong" role="status">
           Não conseguimos abrir a câmera. Digite o código que aparece embaixo do QR.
         </p>
       )}
@@ -185,7 +185,7 @@ export function ChegueiSheet({ open, onOpenChange, titulo, onCodigo }: ChegueiSh
           void enviar(codigo);
         }}
       >
-        <Label htmlFor="cheguei-codigo" className="text-base font-bold">
+        <Label htmlFor="cheguei-codigo" className="text-base font-semibold">
           Código embaixo do QR
         </Label>
         <Input
@@ -209,7 +209,7 @@ export function ChegueiSheet({ open, onOpenChange, titulo, onCodigo }: ChegueiSh
         <Button
           type="submit"
           size="touch"
-          className="w-full font-bold"
+          className="w-full font-semibold"
           disabled={enviando || codigo.trim().length < 6}
         >
           {enviando ? <Loader2 className="animate-spin" aria-hidden /> : <QrCode aria-hidden />}

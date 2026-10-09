@@ -13,6 +13,7 @@ import { useRouter } from 'next/router';
 import { ArrowLeft, Megaphone, TriangleAlert } from 'lucide-react';
 import { MediumLayout } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
+import { MediumPage } from '@/components/medium/ui';
 import { AVISOS_INDISPONIVEIS, AvisoLeitura, dataCurtaBr } from '@/components/avisos/AvisoLeitura';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
@@ -94,7 +95,7 @@ function Aviso() {
   const voltar = (
     <Link
       href="/medium/avisos"
-      className="inline-flex min-h-12 items-center gap-1.5 self-start font-bold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      className="-my-2 inline-flex min-h-12 items-center gap-1.5 self-start text-sm font-semibold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
     >
       <ArrowLeft className="size-4" aria-hidden /> Voltar aos avisos
     </Link>
@@ -124,7 +125,7 @@ function Aviso() {
         title="Não conseguimos abrir o aviso"
         description="Confira a internet e tente de novo."
         action={
-          <Button type="button" size="touch" className="font-bold" onClick={() => setNonce((n) => n + 1)}>
+          <Button type="button" size="touch" className="font-semibold" onClick={() => setNonce((n) => n + 1)}>
             Tentar de novo
           </Button>
         }
@@ -135,7 +136,7 @@ function Aviso() {
       <div className="flex flex-col gap-3" role="status" aria-label="Carregando o aviso">
         <Skeleton className="h-8 w-3/4" />
         <Skeleton className="h-4 w-1/2" />
-        <Skeleton className="h-32 w-full rounded-2xl" />
+        <Skeleton className="h-32 w-full rounded-xl" />
       </div>
     );
   } else {
@@ -151,9 +152,9 @@ function Aviso() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 px-4 pt-4 pb-8">
+    <MediumPage className="flex-1">
       {voltar}
       {conteudo}
-    </div>
+    </MediumPage>
   );
 }

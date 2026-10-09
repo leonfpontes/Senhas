@@ -33,7 +33,7 @@ import {
 } from './presencaApi';
 
 const CARD =
-  'flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm';
+  'flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-card-foreground shadow-xs';
 
 function ehHoje(iso: string, agora = new Date()): boolean {
   return quandoBr(iso).split(' · ')[0] === quandoBr(agora.toISOString()).split(' · ')[0];
@@ -89,7 +89,7 @@ export function EscalaCard({
     const onde = item.origem === 'gira' ? 'gira' : 'atividade';
     return (
       <p
-        className="rounded-2xl bg-muted px-4 py-3 text-base text-muted-foreground"
+        className="rounded-lg bg-muted px-4 py-3 text-base text-muted-foreground"
         data-testid="escala-fora"
       >
         {p.situacao === 'substituido'
@@ -142,22 +142,22 @@ export function EscalaCard({
   const nomeCurto = item.titulo;
 
   return (
-    <article className={cn(CARD, 'border-primary/40 bg-primary/5')} data-testid="escala-card">
+    <article className={cn(CARD, 'border-l-4 border-l-primary')} data-testid="escala-card">
       {!semCabecalho && (
         <>
-          <p className="flex flex-wrap items-center gap-1.5 text-sm font-bold text-brand">
+          <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-brand">
             <TipoChip tipo={item.tipo} size="sm" />
             {frase ?? (hoje ? 'Hoje · você está na escala' : 'Você está na escala')}
             {complemento && <span className="text-muted-foreground">· {complemento}</span>}
           </p>
           <div>
-            <h3 className="font-display text-xl leading-tight font-semibold">{item.titulo}</h3>
-            <p className="text-base text-muted-foreground first-letter:uppercase">{quando}</p>
+            <h3 className="text-lg leading-snug font-semibold">{item.titulo}</h3>
+            <p className="text-sm text-muted-foreground first-letter:uppercase">{quando}</p>
           </div>
         </>
       )}
       {semCabecalho && (
-        <p className="text-sm font-bold text-brand">
+        <p className="text-sm font-semibold text-brand">
           {frase ? `Você é ${p.funcao}` : 'Você está na escala'}
           {complemento ? ` · ${complemento}` : ''}
         </p>
@@ -174,7 +174,7 @@ export function EscalaCard({
           <Button
             type="button"
             size="touch"
-            className="h-14 w-full text-lg font-bold"
+            className="h-14 w-full text-lg font-semibold"
             disabled={enviando}
             onClick={() => (p.modo_presenca === 'qr' ? setQr(true) : void chegueiPeloApp())}
           >
@@ -201,7 +201,7 @@ export function EscalaCard({
           type="button"
           variant="outline"
           size="touch"
-          className="w-full font-bold"
+          className="w-full font-semibold"
           onClick={() => setMotivo(true)}
         >
           <MessageSquareText aria-hidden />
@@ -251,7 +251,7 @@ export function EscalaCard({
             <Button
               type="button"
               size="touch"
-              className="font-bold"
+              className="font-semibold"
               disabled={enviando}
               onClick={() => void vou()}
             >
@@ -261,7 +261,7 @@ export function EscalaCard({
               type="button"
               variant="outline"
               size="touch"
-              className="font-bold"
+              className="font-semibold"
               disabled={enviando}
               onClick={() => setNaoVou(true)}
             >
@@ -284,7 +284,7 @@ export function EscalaCard({
       {compacto && (
         <Link
           href={detalheHref(item)}
-          className="inline-flex min-h-12 items-center gap-1.5 self-start font-bold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="inline-flex min-h-12 items-center gap-1.5 self-start font-semibold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
           Ver detalhes <ArrowRight className="size-4" aria-hidden />
         </Link>

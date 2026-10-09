@@ -208,7 +208,7 @@ export function NotificacoesNoCelular({
     aparelho = (
       <div className="flex min-h-16 items-center gap-3 px-4 py-3">
         <span className="flex min-w-0 flex-1 flex-col">
-          <strong className="text-base leading-snug">Aparelhos com notificação</strong>
+          <strong className="text-base leading-snug font-semibold">Aparelhos com notificação</strong>
           <span className="text-sm text-muted-foreground">Ligadas pelo próprio médium no celular</span>
         </span>
         <span className="shrink-0 text-sm text-muted-foreground" data-testid="push-aparelhos">
@@ -220,14 +220,14 @@ export function NotificacoesNoCelular({
     aparelho = (
       <div className="flex flex-col gap-3 px-4 py-3" data-testid="push-iphone">
         <span className="flex flex-col">
-          <strong className="text-base leading-snug">Receber notificações no iPhone</strong>
+          <strong className="text-base leading-snug font-semibold">Receber notificações no iPhone</strong>
           <span className="text-sm text-muted-foreground">
             No iPhone, as notificações só chegam com a Área na tela inicial (iOS 16.4 ou mais novo). Depois de
             adicionar, abra a Área pelo ícone e volte aqui.
           </span>
         </span>
         {onInstalar && (
-          <Button type="button" variant="outline" size="touch" className="w-full font-bold" onClick={onInstalar}>
+          <Button type="button" variant="outline" size="touch" className="w-full font-semibold" onClick={onInstalar}>
             <Smartphone aria-hidden />
             Pôr a Área na tela inicial
           </Button>
@@ -245,7 +245,7 @@ export function NotificacoesNoCelular({
       <div className="flex items-start gap-3 px-4 py-3" data-testid="push-bloqueado" role="status">
         <BellOff className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
         <span className="flex flex-col">
-          <strong className="text-base leading-snug">Notificações bloqueadas neste celular</strong>
+          <strong className="text-base leading-snug font-semibold">Notificações bloqueadas neste celular</strong>
           <span className="text-sm text-muted-foreground">
             Para receber, abra as configurações do navegador, procure Notificações e permita para este site. Depois
             volte aqui.
@@ -257,7 +257,7 @@ export function NotificacoesNoCelular({
     aparelho = (
       <div className="flex min-h-16 items-center gap-3 px-4 py-3">
         <label htmlFor="push-aparelho" className="flex min-w-0 flex-1 flex-col">
-          <strong className="text-base leading-snug">Receber notificações neste celular</strong>
+          <strong className="text-base leading-snug font-semibold">Receber notificações neste celular</strong>
           <span className="text-sm text-muted-foreground">
             {sub ? 'Ligado neste celular' : 'Toque para ligar. O celular vai pedir sua permissão.'}
           </span>
@@ -281,12 +281,12 @@ export function NotificacoesNoCelular({
       aria-label="Notificações no celular"
     >
       <div className="flex items-center gap-2 px-1">
-        <h2 className="flex items-center gap-2 font-display text-xl font-bold">
+        <h2 className="flex items-center gap-2 text-base font-semibold">
           <Bell className="size-4 text-muted-foreground" aria-hidden />
           Notificações no celular
         </h2>
       </div>
-      <div className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xs">
         <div className="border-b border-border">{aparelho}</div>
         {mostrarTipos && (
           <ul aria-label="O que chega no celular">
@@ -298,7 +298,7 @@ export function NotificacoesNoCelular({
                 <li key={tipo} className="border-b border-border last:border-b-0">
                   <div className="flex min-h-16 items-center gap-3 px-4 py-3">
                     <label htmlFor={id} className="flex min-w-0 flex-1 flex-col">
-                      <strong className="text-base leading-snug">{texto.titulo}</strong>
+                      <strong className="text-base leading-snug font-semibold">{texto.titulo}</strong>
                       <span className="text-sm text-muted-foreground">{texto.descricao}</span>
                     </label>
                     {somenteLeitura ? (

@@ -18,8 +18,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { fraunces } from '@/components/landing/fonts';
-import { cn } from '@/lib/utils';
 import {
   consumeInstallPrompt,
   getInstallPrompt,
@@ -129,15 +127,12 @@ export function InstallAreaSheet({
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        // Portado para o <body>: leva a paleta da Área e a Fraunces junto.
-        className={cn(
-          fraunces.variable,
-          'medium-terra mx-auto max-h-[92dvh] max-w-xl gap-5 overflow-y-auto rounded-t-3xl bg-card px-4 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-foreground',
-        )}
+        // Portado para o <body>: leva a paleta da Área junto.
+        className="medium-terra mx-auto max-h-[92dvh] max-w-xl gap-5 overflow-y-auto rounded-t-3xl bg-card px-4 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-foreground"
       >
         <span aria-hidden className="mx-auto h-1.5 w-11 rounded-full bg-border" />
         <SheetHeader className="gap-2 p-0 text-left">
-          <SheetTitle className="font-display text-2xl leading-tight font-bold">
+          <SheetTitle className="text-xl leading-tight font-semibold tracking-tight">
             Deixe a Área na tela inicial
           </SheetTitle>
           <SheetDescription className="text-base">
@@ -147,20 +142,20 @@ export function InstallAreaSheet({
 
         <div
           aria-hidden
-          className="flex justify-center gap-5 rounded-2xl border border-border bg-gradient-to-br from-areia-100 to-areia-200 p-4"
+          className="flex justify-center gap-5 rounded-xl border border-border bg-muted p-4"
         >
           <span className="flex flex-col items-center gap-1.5 text-xs font-semibold text-foreground">
-            <span className="size-16 rounded-2xl bg-card shadow-sm" />
+            <span className="size-16 rounded-xl bg-card shadow-sm" />
             Banco
           </span>
           <span className="flex flex-col items-center gap-1.5 text-xs font-semibold text-foreground">
-            <span className="flex size-16 items-center justify-center rounded-2xl bg-primary shadow-lg">
+            <span className="flex size-16 items-center justify-center rounded-xl bg-primary shadow-lg">
               <TerreiroEmblem nome={terreiroNome} logoUrl={logoUrl} className="size-12 ring-0" />
             </span>
             <span className="max-w-20 truncate">{terreiroNome || 'Sua casa'}</span>
           </span>
           <span className="flex flex-col items-center gap-1.5 text-xs font-semibold text-foreground">
-            <span className="size-16 rounded-2xl bg-card shadow-sm" />
+            <span className="size-16 rounded-xl bg-card shadow-sm" />
             Fotos
           </span>
         </div>
@@ -173,10 +168,10 @@ export function InstallAreaSheet({
           className="w-full"
           aria-label="Tipo de celular"
         >
-          <ToggleGroupItem value="android" className="h-12 flex-1 text-base font-bold">
+          <ToggleGroupItem value="android" className="h-12 flex-1 text-base font-semibold">
             Android
           </ToggleGroupItem>
-          <ToggleGroupItem value="iphone" className="h-12 flex-1 text-base font-bold">
+          <ToggleGroupItem value="iphone" className="h-12 flex-1 text-base font-semibold">
             iPhone
           </ToggleGroupItem>
         </ToggleGroup>
@@ -189,7 +184,7 @@ export function InstallAreaSheet({
             <li key={i} className="flex items-start gap-3 text-base">
               <span
                 aria-hidden
-                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary font-display text-sm font-bold text-primary-foreground"
+                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground"
               >
                 {i + 1}
               </span>
@@ -211,13 +206,13 @@ export function InstallAreaSheet({
             <Button
               type="button"
               size="touch"
-              className="w-full font-bold"
+              className="w-full font-semibold"
               onClick={() => void instalar()}
             >
               Adicionar à tela inicial
             </Button>
           ) : (
-            <Button type="button" size="touch" className="w-full font-bold" onClick={fechar}>
+            <Button type="button" size="touch" className="w-full font-semibold" onClick={fechar}>
               Pronto, adicionei
             </Button>
           )}
@@ -225,7 +220,7 @@ export function InstallAreaSheet({
             type="button"
             variant="outline"
             size="touch"
-            className="w-full font-bold"
+            className="w-full font-semibold"
             onClick={fechar}
           >
             Agora não
