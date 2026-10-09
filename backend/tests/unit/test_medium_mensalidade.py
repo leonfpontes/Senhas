@@ -302,17 +302,21 @@ def test_rotas_da_mensalidade_so_recebem_o_mes():
         ("GET", "/api/v1/medium/mensalidades"),
         ("GET", "/api/v1/medium/mensalidades/{mes}/pix"),
         ("POST", "/api/v1/medium/mensalidades/{mes}/comprovante"),
+        # Baixa automática (F-02/AM-22): cobrança dinâmica na conta da casa.
+        ("POST", "/api/v1/medium/mensalidades/{mes}/cobranca"),
+        ("GET", "/api/v1/medium/mensalidades/{mes}/cobranca"),
     }
     for (_, _), rota in rotas.items():
         assert require_medium in _deps(rota)
         nomes = {p.name for p in rota.dependant.query_params + rota.dependant.path_params}
-        assert nomes <= {"mes"}
+        assert nomes <= {"mes", "metodo"}
         assert not {"medium_id", "mediun_id"} & nomes
 
 
 def test_envio_do_comprovante_e_recusado_sob_impersonacao():
     rota = _rotas()[("POST", "/api/v1/medium/mensalidades/{mes}/comprovante")]
     assert require_not_impersonated in _deps(rota)
+    assert require_not_impersonated in _deps(_rotas()[("POST", "/api/v1/medium/mensalidades/{mes}/cobranca")])
     for (m, _), r in _rotas().items():
         if m == "GET":
             assert require_not_impersonated not in _deps(r)

@@ -7,6 +7,11 @@
  * Casa sem chave PIX → "Combine o pagamento com a casa" + WhatsApp da casa. Depois: meses em
  * aberto, "Quer pagar todo mês sem lembrar?" (Pix Agendado Recorrente) e meses anteriores.
  *
+ * Baixa automática (F-02/AM-22): quando a casa conectou Stripe/Mercado Pago
+ * (`cobranca_automatica`), "Pagar com PIX" abre o `PagarAutomaticoSheet` (cobrança dinâmica na
+ * conta da casa, "Paga" sozinha pelo webhook) e o boleto aparece se a casa tiver; o comprovante
+ * fica só como "Já paguei de outro jeito". Sem gateway, nada muda.
+ *
  * Só chama `/api/v1/medium/mensalidades*` (e o `/medium/me` do MediumProvider). `?pagar=1`
  * (botão do Início) abre direto o "Pagar com PIX" do mês. 403 (módulo desligado pela casa ou
  * fora do plano) → aviso neutro, sem oferta de plano.
@@ -18,14 +23,17 @@ import { MediumLayout } from '@/components/medium/MediumLayout';
 import { useMedium } from '@/components/medium/MediumProvider';
 import { diaMesCurto, nomeDoMes, primeiroNome, valorBr } from '@/components/medium/format';
 import { PagarPixSheet } from '@/components/medium/mensalidade/PagarPixSheet';
+import { PagarAutomaticoSheet } from '@/components/medium/mensalidade/PagarAutomaticoSheet';
 import { EnviarComprovanteSheet } from '@/components/medium/mensalidade/EnviarComprovanteSheet';
 import { Passo } from '@/components/medium/mensalidade/MediumSheet';
 import {
   EM_ABERTO,
   PILL,
   whatsappDaCasa,
+  type CobrancaAutomaticaInfo,
   type MensalidadesResponse,
   type MesMensalidade,
+  type MetodoCobranca,
 } from '@/components/medium/mensalidade/tipos';
 import { EmptyState } from '@/components/EmptyState';
 import {
@@ -111,7 +119,8 @@ function Mensalidade() {
   const [estado, setEstado] = useState<Estado>('carregando');
   const [nonce, setNonce] = useState(0);
   const [foco, setFoco] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<'pagar' | 'comprovante' | null>(null);
+  const [sheet, setSheet] = useState<'pagar' | 'comprovante' | 'automatico' | null>(null);
+  const [metodoAuto, setMetodoAuto] = useState<MetodoCobranca>('pix');
   const [abriuDoInicio, setAbriuDoInicio] = useState(false);
 
   useEffect(() => {
@@ -146,6 +155,16 @@ function Mensalidade() {
     (m) => m !== cartao && (m.status === 'paga' || m.status === 'isento'),
   );
   const temPix = Boolean(data?.pix);
+  const auto = data?.cobranca_automatica ?? null;
+  const pagarAutomatico = useCallback((metodo: MetodoCobranca) => {
+    setMetodoAuto(metodo);
+    setSheet('automatico');
+  }, []);
+  // "Pagar com PIX": cobrança automática quando a casa tem (PIX liberado), senão o PIX da chave.
+  const pagarComPix = useCallback(() => {
+    if (auto?.pix) pagarAutomatico('pix');
+    else setSheet('pagar');
+  }, [auto, pagarAutomatico]);
   const nome = primeiroNome(me?.nome);
   const whatsapp = whatsappDaCasa(
     me?.whatsapp_casa,
@@ -158,9 +177,9 @@ function Mensalidade() {
   useEffect(() => {
     if (abriuDoInicio || estado !== 'ok' || router.query?.pagar !== '1') return;
     setAbriuDoInicio(true);
-    if (cartao && EM_ABERTO.has(cartao.status) && temPix) setSheet('pagar');
+    if (cartao && EM_ABERTO.has(cartao.status) && (temPix || auto?.pix)) pagarComPix();
     void router.replace('/medium/mensalidade', undefined, { shallow: true });
-  }, [abriuDoInicio, estado, router, cartao, temPix]);
+  }, [abriuDoInicio, estado, router, cartao, temPix, auto, pagarComPix]);
 
   const abrirMes = (m: MesMensalidade) => {
     setFoco(m.mes);
@@ -226,8 +245,10 @@ function Mensalidade() {
             mes={cartao}
             isento={data.isento}
             temPix={temPix}
+            auto={auto}
             whatsapp={whatsapp}
-            onPagar={() => setSheet('pagar')}
+            onPagar={pagarComPix}
+            onBoleto={() => pagarAutomatico('boleto')}
             onComprovante={() => setSheet('comprovante')}
           />
         )}
@@ -249,7 +270,7 @@ function Mensalidade() {
           </MediumSection>
         )}
 
-        {temPix && !data.isento && data.pix && (
+        {temPix && !auto && !data.isento && data.pix && (
           <Accordion
             type="single"
             collapsible
@@ -330,6 +351,16 @@ function Mensalidade() {
         whatsapp={whatsapp}
         onEnviarComprovante={() => setSheet('comprovante')}
       />
+      <PagarAutomaticoSheet
+        open={sheet === 'automatico'}
+        onOpenChange={(v) => setSheet(v ? 'automatico' : null)}
+        mes={cartao}
+        metodo={metodoAuto}
+        terreiroNome={me?.terreiro.nome}
+        logoUrl={me?.marca.logo_url}
+        whatsapp={whatsapp}
+        onPaga={recarregar}
+      />
       <EnviarComprovanteSheet
         open={sheet === 'comprovante'}
         onOpenChange={(v) => setSheet(v ? 'comprovante' : null)}
@@ -344,15 +375,19 @@ function CartaoDoMes({
   mes,
   isento,
   temPix,
+  auto,
   whatsapp,
   onPagar,
+  onBoleto,
   onComprovante,
 }: {
   mes: MesMensalidade;
   isento: boolean;
   temPix: boolean;
+  auto: CobrancaAutomaticaInfo | null;
   whatsapp: string | null;
   onPagar: () => void;
+  onBoleto: () => void;
   onComprovante: () => void;
 }) {
   const falar = whatsapp ? (
@@ -402,7 +437,37 @@ function CartaoDoMes({
 
       {EM_ABERTO.has(mes.status) &&
         mes.status !== 'nao_confirmada' &&
-        (temPix ? (
+        (auto && (auto.pix || auto.boleto) ? (
+          <>
+            {auto.pix && (
+              <Button type="button" size="touch" className="w-full font-bold" onClick={onPagar}>
+                Pagar com PIX
+              </Button>
+            )}
+            {auto.boleto && (
+              <Button
+                type="button"
+                variant={auto.pix ? 'outline' : 'default'}
+                size="touch"
+                className="w-full font-bold"
+                onClick={onBoleto}
+              >
+                Pagar com boleto
+              </Button>
+            )}
+            <p className="text-sm text-muted-foreground">
+              A mensalidade aparece como paga sozinha, sem comprovante.
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              className="min-h-12 self-start font-bold text-brand"
+              onClick={onComprovante}
+            >
+              Já paguei de outro jeito: enviar comprovante
+            </Button>
+          </>
+        ) : temPix ? (
           <>
             <Button type="button" size="touch" className="w-full font-semibold" onClick={onPagar}>
               Pagar com PIX
@@ -482,7 +547,7 @@ function CartaoDoMes({
           <Button type="button" size="touch" className="w-full font-semibold" onClick={onComprovante}>
             <Upload aria-hidden /> Enviar outro comprovante
           </Button>
-          {temPix && (
+          {(temPix || auto?.pix) && (
             <Button
               type="button"
               variant="outline"
@@ -501,7 +566,15 @@ function CartaoDoMes({
         <div className={cn(STATUS_BOX, 'bg-success/10 text-success-strong')}>
           <CircleCheck className="mt-0.5 size-5 shrink-0" aria-hidden />
           <span>
-            <strong>Paga.</strong> A casa confirmou seu pagamento. Obrigado!
+            {mes.pago_automatico ? (
+              <>
+                <strong>Paga.</strong> Recebemos seu pagamento automaticamente. Obrigado!
+              </>
+            ) : (
+              <>
+                <strong>Paga.</strong> A casa confirmou seu pagamento. Obrigado!
+              </>
+            )}
           </span>
         </div>
       )}

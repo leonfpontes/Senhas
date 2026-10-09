@@ -118,6 +118,8 @@ export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   biblioteca_medium: 'pro',
   // Ficha espiritual do médium (F-05/AM-19): campos por tradição, consentimento e caminhada.
   ficha_espiritual: 'pro',
+  // Mensalidade com baixa automática (F-02/AM-22, decisão de 09/10): Pro.
+  mensalidade_automatica: 'pro',
   email_transacional: 'pro',
   tema_personalizado: 'pro',
   analytics_basico: 'pro',
@@ -171,6 +173,7 @@ export const FEATURE_CATALOG: readonly FeatureCatalogItem[] = [
   { key: 'mediuns', label: 'Cadastro de médiuns e cambones', group: 'Pessoas' },
   { key: 'mensalidade_mediun', label: 'Mensalidade dos médiuns', group: 'Pessoas' },
   { key: 'ficha_espiritual', label: 'Ficha espiritual e caminhada dos médiuns', group: 'Pessoas' },
+  { key: 'mensalidade_automatica', label: 'Mensalidade com baixa automática (PIX/boleto)', group: 'Pessoas' },
   { key: 'associados', label: 'Associados', group: 'Pessoas' },
   { key: 'mensalidade_associado', label: 'Mensalidade dos associados', group: 'Pessoas' },
   { key: 'contas_financeiras', label: 'Contas a pagar e a receber, fluxo de caixa e contas bancárias', group: 'Financeiro e estoque' },

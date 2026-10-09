@@ -35,6 +35,8 @@ export interface PlanFeatures {
   biblioteca_medium: boolean;
   /** Ficha espiritual do médium (F-05/AM-19, Pro). */
   ficha_espiritual: boolean;
+  /** Mensalidade com baixa automática — Stripe ou Mercado Pago (F-02/AM-22, Pro). */
+  mensalidade_automatica: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -102,6 +104,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   escalas: false,
   biblioteca_medium: false,
   ficha_espiritual: false,
+  mensalidade_automatica: false,
 };
 
 const SubscriptionContext = createContext<SubscriptionContextValue>({

@@ -1636,6 +1636,78 @@ Rules:
   counts and field configuration only — never a value nor a milestone's content. Nothing from the ficha is in
   `GET /mediuns` (`MediumResponse`), exports, CSV or e-mail.
 
+### 24. Mensalidade com baixa automática — conta da casa no gateway (F-02/AM-22)
+
+Each house chooses where it receives (owner decision of 2026-10-09): **Stripe** (Stripe Connect, this
+section) or Mercado Pago (next PR). Screen: Financeiro → Configuração → Mensalidade, card "Receber a
+mensalidade automaticamente" (below the PIX key). Connecting decides where the médiuns' money goes — same
+protection as the PIX key (AM-10): password of who does it (wrong → **400** `SENHA_INCORRETA`, never 401),
+403 while impersonating, 10 attempts/hour per IP, audit `mensalidade_gateway` and an e-mail to **every active
+admin** on connect (or resuming the sign-up) and on disconnect (no account id/token in the e-mail).
+
+`GET /api/v1/admin/financeiro/gateway` (FINANCEIRO `view` + plan `mensalidade_mediun`):
+```json
+{
+  "provedores_disponiveis": ["stripe"],
+  "plano_inclui": true,
+  "gateway": {
+    "provedor": "stripe", "provedor_label": "Stripe", "status": "ativo",
+    "pix_disponivel": true, "boleto_disponivel": false,
+    "cadastro_completo": true, "recebimentos_ativos": true, "cobrando": true,
+    "conectado_em": "2026-10-09T12:00:00Z", "conectado_por_nome": "Mãe Joana", "desconectado_em": null
+  }
+}
+```
+- `provedores_disponiveis`: providers the platform configured (Stripe needs `STRIPE_SECRET_KEY` **and**
+  `STRIPE_CONNECT_WEBHOOK_SECRET`); empty → the card is hidden. `plano_inclui`: effective plan has
+  `mensalidade_automatica` (Pro). `gateway`: `null` when never connected; `status` `pendente` (sign-up in
+  progress at the provider) | `ativo` | `desconectado`. `cobrando`: the Área's "Pagar com PIX" already uses the
+  automatic charge (active gateway + PIX or boleto enabled + plan + provider configured).
+
+`POST /api/v1/admin/financeiro/gateway/stripe/conectar` (FINANCEIRO `edit` + plan `mensalidade_automatica`),
+body `{"senha": "..."}` → `{"url": "https://connect.stripe.com/...", "gateway": {...}}`. Creates the house's
+connected account (Express dashboard, `controller.fees.payer = account`, `controller.losses.payments = stripe`,
+`requirement_collection = stripe`; capabilities `card_payments`, `transfers`, `pix_payments`,
+`boleto_payments`) or reuses the one already stored, and returns the single-use Account Link of the Stripe-hosted
+sign-up (`url: null` when the sign-up is already complete). Return URL
+`/admin/financeiro/config?tab=mensalidade&stripe=retorno`, refresh URL `...&stripe=renovar`. Errors: 400
+`SENHA_INCORRETA`, 409 `PROVEDOR_INDISPONIVEL`, 409 `OUTRO_PROVEDOR_CONECTADO` (disconnect Mercado Pago first),
+409 `STRIPE_ERRO`.
+
+`POST /api/v1/admin/financeiro/gateway/stripe/atualizar` (FINANCEIRO `edit` + `mensalidade_automatica`) — reads
+the connected account at Stripe (`details_submitted`, `charges_enabled`, capabilities `pix_payments` /
+`boleto_payments` = `active`) and returns the `gateway` object. The Connect webhook `account.updated` does the
+same automatically.
+
+`POST /api/v1/admin/financeiro/gateway/desconectar` (FINANCEIRO `edit` + plan `mensalidade_mediun` — a house that
+lost Pro can still disconnect), body `{"senha": "..."}` → same shape as the GET. Stops charging through the
+account (the Área goes back to the static PIX key + receipt); the Stripe account stays the house's. Charges
+already created and paid later still mark the month paid. 409 `SEM_GATEWAY` when nothing is connected.
+
+`GET /api/v1/admin/financeiro/mensalidades/cobrancas?mes=AAAA-MM` (FINANCEIRO `view` + `mensalidade_mediun`) —
+automatic charges of the month, newest first:
+```json
+[{ "id": "uuid", "mediun_id": "uuid", "mediun_nome": "Ana Paula Ribeiro", "mes": "2026-10", "valor": 50.0,
+   "provedor": "stripe", "metodo": "pix", "status": "paga", "criada_em": "...", "expira_em": "...",
+   "pago_em": "...", "valor_pago": 50.0 }]
+```
+`status`: `pendente` | `paga` | `expirada` | `cancelada` (replaced by a newer charge) | `estornada`.
+`GET /api/v1/admin/financeiro/mensalidades?mes=` items carry `origem`: `gateway` ("Paga pelo PIX
+(automático)") | `direcao` ("Confirmada pela direção") | `null` (records before migration 091). The panel's
+`POST .../mensalidades/{mediun_id}/{mes}` sets `origem = "direcao"` when the status is `PAGO`.
+
+**Webhook — `POST /api/v1/webhooks/stripe-connect`** (no JWT; public path). Separate endpoint from
+`/api/v1/webhooks/stripe` (the GiraHub subscription), with its own signing secret
+`STRIPE_CONNECT_WEBHOOK_SECRET`. Events: `payment_intent.succeeded` (month → PAGO, `origem = gateway`,
+account receivable mirror, audit `mensalidade_gateway_baixa`), `payment_intent.payment_failed` (charge →
+`expirada`), `payment_intent.canceled` (→ `cancelada`), `account.updated` (status/capabilities). Invalid
+signature or empty secret → 400. Idempotent: the event id is claimed in `stripe_events_processed` in the same
+transaction as the effect (repeated delivery → `{"duplicate": true}`); a second event for an already paid charge
+→ `ja_paga`. The tenant comes from **our** charge (PaymentIntent id, unique per provider) and the event's
+`account` must match the account stored on the charge — never from metadata. Unknown charge/account → 200
+(ignored). If the board already registered the month (PAID/EXEMPT), its record is kept and the duplicate goes to
+the audit log.
+
 ---
 
 ## Área do Médium Endpoints (AM-02)
@@ -1927,6 +1999,34 @@ becomes `em_conferencia`; the response is the month item. Errors: 422 `COMPROVAN
 `COMPROVANTE_TIPO` / `COMPROVANTE_VAZIO`, 404 `MES_SEM_MENSALIDADE`, 409 `MES_FECHADO` (paid or
 exempt), 403 while impersonating, 429 above 20 uploads/hour per IP. Audited as
 `mensalidade_comprovante_medium` with month, type and size only (never the file).
+
+**Automatic payment (F-02/AM-22).** When the house connected a gateway (Stripe today, Mercado Pago next) and the
+plan has `mensalidade_automatica`, `GET /api/v1/medium/mensalidades` returns
+`"cobranca_automatica": {"provedor": "stripe", "provedor_label": "Stripe", "pix": true, "boleto": false}`
+(otherwise `null` — the static key + receipt flow above is untouched) and each month item carries
+`pago_automatico` (paid by the automatic charge).
+
+**`POST /api/v1/medium/mensalidades/{AAAA-MM}/cobranca`** — body `{"metodo": "pix"}` (default) or
+`{"metodo": "boleto", "cpf": "123.456.789-09", "endereco": {"logradouro": "Rua A, 10", "cidade": "São Paulo",
+"uf": "SP", "cep": "01310-000"}}`. Creates a **direct charge on the house's account** (Stripe PaymentIntent with
+`stripe_account`, no platform fee, PIX valid 24 h, boleto 3 days) for an open month of the logged médium, or reuses
+the pending one while it is valid (same provider/account/value, more than 10 min left). Response:
+```json
+{ "mes": "2026-10", "valor": 50.0, "metodo": "pix", "provedor": "stripe", "provedor_label": "Stripe",
+  "status": "pendente", "mes_status": "pendente", "copia_e_cola": "000201...", "boleto_url": null,
+  "boleto_linha_digitavel": null, "expira_em": "2026-10-09T17:00:00Z", "pago_em": null }
+```
+CPF is optional for PIX — only when the provider asks (409 `CPF_NECESSARIO`, the screen shows the field) — and
+required with the address for boleto (422 `DADOS_BOLETO`, 422 `CPF_INVALIDO`); they go straight to the provider
+and are **not stored**. Errors: 409 `COBRANCA_AUTOMATICA_INDISPONIVEL` (no active gateway or plan), 409
+`MES_FECHADO`, 409 `MENSALIDADE_SEM_VALOR`, 409 `PIX_INDISPONIVEL` / `BOLETO_INDISPONIVEL`, 409
+`VALOR_FORA_DO_LIMITE` (Stripe PIX: R$ 0,50 to R$ 3.000), 409 `GATEWAY_ERRO`, 404 `MES_SEM_MENSALIDADE`, 403
+while impersonating, 429 above 20/hour per IP. Audited as `mensalidade_cobranca` (month, method, provider,
+value).
+
+**`GET /api/v1/medium/mensalidades/{AAAA-MM}/cobranca?metodo=pix`** — latest automatic charge of the month
+(same shape; `copia_e_cola`/boleto only while `pendente`). The screen polls it every 5 s while the sheet is
+open and shows "Pagamento recebido!" when `status` or `mes_status` becomes `paga`. 404 `SEM_COBRANCA`.
 
 ### 6. Perfil — "Meus dados" (AM-13)
 

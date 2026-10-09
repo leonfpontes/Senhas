@@ -1477,11 +1477,12 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-27 Troca na escala e abono de justificativa | #106 | 086 | 2026-10-08 |
 | AM-21 Estudos e documentos | #107 | 087 | 2026-10-08 |
 | F-05 Ficha espiritual (painel) + AM-19 Minha caminhada | #109 | 088, 089 | 2026-10-08 |
+| AM-22 Mensalidade com baixa automática (F-02 — Stripe Connect; Mercado Pago no PR seguinte) | este PR | 091 | — |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-22 (depende do gateway, F-01).
+**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-22 em PR (F-01 decidido em 09/10: cada casa escolhe Stripe Connect ou Mercado Pago).
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 

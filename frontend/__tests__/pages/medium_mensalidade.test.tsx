@@ -441,3 +441,94 @@ describe('barra inferior', () => {
     );
   });
 });
+
+describe('baixa automática (F-02/AM-22)', () => {
+  const AUTO = { provedor: 'stripe', provedor_label: 'Stripe', pix: true, boleto: false };
+  const COBRANCA = {
+    mes: '2026-10',
+    valor: 50,
+    metodo: 'pix',
+    provedor: 'stripe',
+    provedor_label: 'Stripe',
+    status: 'pendente',
+    mes_status: 'pendente',
+    copia_e_cola: '00020101021226-PIX-AUTOMATICO',
+    boleto_url: null,
+    boleto_linha_digitavel: null,
+    expira_em: '2026-10-09T17:00:00Z',
+    pago_em: null,
+  };
+
+  const implementacaoOriginal = mockGet.getMockImplementation()!;
+  afterEach(() => {
+    jest.useRealTimers();
+    mockGet.mockImplementation(implementacaoOriginal);
+  });
+
+  it('"Pagar com PIX" gera a cobrança da casa e mostra "Pagamento recebido" quando a baixa entra', async () => {
+    jest.useFakeTimers({ advanceTimers: true });
+    mockPost.mockResolvedValue({ data: COBRANCA });
+    montar(lista([mes()], { cobranca_automatica: AUTO }));
+    // A consulta "já caiu?" devolve a cobrança paga (o mock de rotas trata `status` como erro).
+    const original = mockGet.getMockImplementation()!;
+    mockGet.mockImplementation((url: string) =>
+      url === '/api/v1/medium/mensalidades/2026-10/cobranca'
+        ? Promise.resolve({ data: { ...COBRANCA, status: 'paga', mes_status: 'paga' } })
+        : original(url),
+    );
+    const cartao = await screen.findByTestId('cartao-mensalidade');
+    expect(within(cartao).getByText(/paga sozinha, sem comprovante/)).toBeInTheDocument();
+    expect(screen.queryByText('Quer pagar todo mês sem lembrar?')).not.toBeInTheDocument();
+    fireEvent.click(within(cartao).getByRole('button', { name: 'Pagar com PIX' }));
+
+    const sheet = await screen.findByTestId('sheet-pagar-automatico');
+    expect(await within(sheet).findByTestId('pix-auto-copia-e-cola')).toHaveTextContent(
+      '00020101021226-PIX-AUTOMATICO',
+    );
+    expect(within(sheet).getByTestId('pix-auto-qr')).toBeInTheDocument();
+    expect(mockPost).toHaveBeenCalledWith('/api/v1/medium/mensalidades/2026-10/cobranca', {
+      metodo: 'pix',
+    });
+    // O PIX estático (chave da casa) não é chamado no modo automático.
+    expect(calledUrls()).not.toContain('/api/v1/medium/mensalidades/2026-10/pix');
+
+    await act(async () => {
+      jest.advanceTimersByTime(5100);
+    });
+    expect(await within(sheet).findByText('Pagamento recebido!')).toBeInTheDocument();
+    expect(mockGet).toHaveBeenCalledWith('/api/v1/medium/mensalidades/2026-10/cobranca', {
+      params: { metodo: 'pix' },
+    });
+  });
+
+  it('quando o provedor pede o CPF, o campo aparece e o PIX é gerado com ele', async () => {
+    mockPost
+      .mockRejectedValueOnce({
+        status: 409,
+        response: { status: 409, data: { details: { error_code: 'CPF_NECESSARIO' } } },
+      })
+      .mockResolvedValueOnce({ data: COBRANCA });
+    montar(lista([mes()], { cobranca_automatica: AUTO }));
+    const cartao = await screen.findByTestId('cartao-mensalidade');
+    fireEvent.click(within(cartao).getByRole('button', { name: 'Pagar com PIX' }));
+    const sheet = await screen.findByTestId('sheet-pagar-automatico');
+    fireEvent.change(await within(sheet).findByLabelText('CPF'), { target: { value: '12345678909' } });
+    await act(async () => {
+      fireEvent.click(within(sheet).getByRole('button', { name: /Gerar PIX/ }));
+    });
+    expect(mockPost).toHaveBeenLastCalledWith('/api/v1/medium/mensalidades/2026-10/cobranca', {
+      metodo: 'pix',
+      cpf: '123.456.789-09',
+    });
+    expect(await within(sheet).findByTestId('pix-auto-copia-e-cola')).toBeInTheDocument();
+  });
+
+  it('mês pago pelo PIX automático diz que o pagamento foi recebido sozinho', async () => {
+    montar(
+      lista([mes({ status: 'paga', data_pagamento: '2026-10-05T12:00:00Z', pago_automatico: true })], {
+        cobranca_automatica: AUTO,
+      }),
+    );
+    expect(await screen.findByText(/Recebemos seu pagamento automaticamente/)).toBeInTheDocument();
+  });
+});

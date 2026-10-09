@@ -138,6 +138,10 @@ services:
       # $-04: assinatura paga por fatura (boleto) — ver docs/deployment.md (Stripe)
       STRIPE_INVOICE_PAYMENT_METHODS: ${STRIPE_INVOICE_PAYMENT_METHODS:-boleto}
       STRIPE_INVOICE_DAYS_UNTIL_DUE: ${STRIPE_INVOICE_DAYS_UNTIL_DUE:-5}
+      # Mensalidade com baixa automática (F-02/AM-22): webhook das contas conectadas (Stripe Connect)
+      # e chave do segredo em repouso. Vazias = opção desligada.
+      STRIPE_CONNECT_WEBHOOK_SECRET: ${STRIPE_CONNECT_WEBHOOK_SECRET:-}
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:-}
 
       # Logging
       LOG_LEVEL: INFO

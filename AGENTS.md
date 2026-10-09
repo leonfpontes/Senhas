@@ -385,6 +385,24 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `frontend/src/lib/pixChave.ts`. BR Code estatico ("PIX copia e cola") so no servidor:
   `services/pix_brcode.build_static_brcode` (+ `txid_mensalidade`), testado contra os exemplos do
   Manual de Padroes para Iniciacao do Pix (BCB v2.10.0) — nunca montar o payload no front.
+- **Mensalidade com baixa automatica — gateway da casa (F-02/AM-22, decisao do dono de 2026-10-09: cada casa
+  escolhe Stripe Connect ou Mercado Pago)**: `admin/mensalidade_gateway.py` — `GET /admin/financeiro/gateway`
+  (FINANCEIRO view + `mensalidade_mediun`), `POST .../gateway/stripe/conectar` e `.../stripe/atualizar`
+  (FINANCEIRO edit + `mensalidade_automatica`), `POST .../gateway/desconectar` (FINANCEIRO edit +
+  `mensalidade_mediun`: quem perdeu o Pro ainda desliga) e `GET /admin/financeiro/mensalidades/cobrancas?mes=`
+  (view). Conectar decide para onde vai o dinheiro (= risco da troca da chave PIX), entao a protecao especifica
+  e a mesma do AM-10 com UMA diferenca: senha errada → **400 `SENHA_INCORRETA`** (nunca 401 — padrao novo, como o
+  "encerrar acesso" do AM-14), `require_not_impersonated`, 10/h por IP, auditoria `mensalidade_gateway` e e-mail
+  (`templates/mensalidade_gateway_alterado.py`, sem id de conta/token) a TODOS os admins ativos ao conectar (ou
+  retomar o cadastro) e ao desconectar. Na Area (`medium/mensalidades.py`): `POST/GET
+  /medium/mensalidades/{AAAA-MM}/cobranca` — so com `gateway_para_cobrar` (gateway ativo + PIX/boleto liberado +
+  plano `mensalidade_automatica` + provedor configurado na plataforma), so mes em aberto do proprio medium,
+  escrita recusada sob impersonacao, 20/h. Webhook `POST /api/v1/webhooks/stripe-connect` (publico no
+  `jwt_middleware`, segredo proprio `STRIPE_CONNECT_WEBHOOK_SECRET`): tenant SEMPRE pela nossa cobranca
+  (`external_id` unico por provedor) e a conta do evento tem de ser a gravada na cobranca; idempotente em
+  `stripe_events_processed`. As buscas raiz do webhook (`services/mensalidade_gateway.cobranca_por_external_id`,
+  `gateway_por_conta_stripe`) estao em `EXEMPT_SCOPED_QUERIES`. Segredo de terceiro em repouso so por
+  `core/secret_box.py` (Fernet, `SECRETS_ENCRYPTION_KEY`; sem chave nada e gravado — nunca texto puro).
 - **Mensalidade na Area (AM-11/AM-12, decisao D-25)**: `api/v1/medium/mensalidades.py` —
   `GET /medium/mensalidades`, `GET /medium/mensalidades/{AAAA-MM}/pix` e
   `POST /medium/mensalidades/{AAAA-MM}/comprovante`. Alem do `require_medium`, exigem o modulo
@@ -601,7 +619,10 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   por horario em config, marca do terreiro (`tema_personalizado`: so quando o PUT /tenant/config MUDA
   cor principal/de apoio/cor do texto, e no POST /tenant/logo; remover logo e os demais campos salvam
   em qualquer plano), exportacao CSV (`export_csv`: CSV da gira e da posicao de estoque) e ficha espiritual
-  (`ficha_espiritual`, router `admin/ficha_espiritual.py`; na Area, `require_ficha_na_area` com 403 neutro).
+  (`ficha_espiritual`, router `admin/ficha_espiritual.py`; na Area, `require_ficha_na_area` com 403 neutro) e
+  mensalidade com baixa automatica (`mensalidade_automatica`, Pro: conectar/atualizar o gateway em
+  `admin/mensalidade_gateway.py`; na Area, `gateway_para_cobrar` — sem o plano, `cobranca_automatica: null` e o
+  fluxo da chave estatica + comprovante segue igual).
   Area do Medium (`area_medium`, Basic+): checada pelo `require_medium` em todo `/api/v1/medium/*`
   e no calculo de `areas` (AM-02). Atividades da casa (`atividades_corrente`, Basic+): router
   `admin/atividades.py` e `admin/atividades_presenca.py`, junto com `area_medium` (AM-08/AM-17); na Area,
@@ -640,7 +661,9 @@ Recursos (plano minimo em `_FEATURE_MIN_TIER`):
   (planejador da faxina, escala de gira por funcao — AM-25/AM-18, decisao D-02; catalogo criado no AM-08; primeira
   rota no AM-18, `atividades_escala.py`; fora do quadro no piloto), `biblioteca_medium` (estudos e documentos da
   casa na Area — AM-21, decisao D-02; em `UNSOLD_FEATURES` no piloto), `ficha_espiritual` (ficha espiritual e caminhada
-  do medium — F-05/AM-19, decisao de 2026-10-08; no quadro, grupo "Pessoas"; na Area vale junto com `area_medium`).
+  do medium — F-05/AM-19, decisao de 2026-10-08; no quadro, grupo "Pessoas"; na Area vale junto com `area_medium`),
+  `mensalidade_automatica` (mensalidade com baixa automatica pelo Stripe Connect ou Mercado Pago — F-02/AM-22,
+  decisao de 2026-10-09; no quadro, grupo "Pessoas": "Mensalidade com baixa automatica (PIX/boleto)").
 - **So Premium**: `associados`, `mensalidade_associado`, `estoque_controle`, `contas_financeiras`
   (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`, `agendamento_por_horario`.
 - Fora do quadro (`UNSOLD_FEATURES`): `bulk_operations`, `export_csv`, `analytics_avancado` (Pro+ no
@@ -947,7 +970,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `090_assinatura_pix_mensal` (2026-10-09, $-04: tabela `assinatura_pix_pagamentos` — um registro por
+- Head atual: `091_mensalidade_gateway` (2026-10-09, F-02/AM-22: `mensalidade_gateways` — uma por terreiro,
+  `stripe_account_id` unico, colunas `mp_*_enc` cifradas —, `mensalidade_cobrancas` — `uq_..._provedor_external`,
+  unico parcial de pendente por medium + mes + metodo — e `mensalidade_pagamentos.origem`), apos `090_assinatura_pix_mensal` (2026-10-09, $-04: tabela `assinatura_pix_pagamentos` — um registro por
   PIX mensal do plano confirmado, `checkout_session_id` unico (idempotencia), `aplicado`, `period_start/_end`;
   nada muda em `subscriptions`: o mes PIX reaproveita `collection_method='pix_mensal'` + `current_period_end`),
   apos `089_ficha_espiritual` (2026-10-08, F-05/AM-19: `ficha_campos`, `ficha_valores`, `medium_marcos`,
@@ -1027,6 +1052,20 @@ Incluir obrigatoriamente:
   contas a receber; o arquivo do medium fica) e "Nao confirmar" (motivos rapidos + texto → `PATCH .../recusa`,
   FINANCEIRO edit). O medium ve o motivo e pode reenviar (o reenvio limpa a recusa). Desde o AM-15 o resumo
   diario aos admins (8 h, um por terreiro, so contagens) traz quantos comprovantes esperam conferencia.
+- **Baixa automatica (F-02/AM-22, migracao 091, plano `mensalidade_automatica` — Pro)**: a casa conecta a conta
+  dela em Financeiro → Configuracao → Mensalidade, card "Receber a mensalidade automaticamente"
+  (`components/financeiro/MensalidadeGatewayCard.tsx`, abaixo da chave PIX). **Stripe**: conta conectada com painel
+  Express e controlador "casa paga as taxas (`fees.payer=account`), Stripe cobre perdas (`losses.payments=stripe`),
+  Stripe coleta o cadastro" — CPF ou CNPJ, o GiraHub pede `pix_payments`/`boleto_payments` e guarda so o
+  `acct_...` (`services/stripe_connect.py`). Cobranca **direta** na conta da casa (`stripe_account`), sem
+  `application_fee` (o GiraHub nao cobra comissao), PIX 24 h / boleto 3 dias, reaproveitada enquanto vale.
+  `payment_intent.succeeded` → `services/mensalidade_gateway.registrar_pagamento_gateway`: mes PAGO com
+  `origem = 'gateway'` (o mesmo registro da confirmacao do AM-12), espelho em contas a receber (`criado_por` NULL)
+  e auditoria `mensalidade_gateway_baixa`; se a direcao ja tinha resolvido o mes, o registro dela fica e a
+  duplicidade vai para a auditoria. Painel: nos pagos, "Paga pelo PIX (automatico)" × "Confirmada pela direcao"
+  (`CobrancaMensal` prop `mostrarOrigem`; o POST de registro grava `origem = 'direcao'`) e o card "Cobrancas
+  automaticas do mes" (`CobrancasAutomaticasDoMes`). Sem gateway (ou sem o plano) nada muda. Mercado Pago (OAuth)
+  entra no PR seguinte.
 - **Relatorio**: email HTML gerado por `render_mensalidade_report()` com KPI cards + tabela inadimplentes.
 - **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns / Associados / Historico; KPIs com o dia de vencimento de cada grupo, "Inadimplentes" so apos o vencimento) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`). `/admin/associados` carrega todas as paginas da API (limit 200) para a busca local.
 - **Migration 027**: ENUM `mensalidade_status`, tabelas `mensalidade_configs` + `mensalidade_pagamentos`, coluna `mediuns.mensalidade_isento BOOLEAN DEFAULT false`.
@@ -1376,6 +1415,12 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   (`/medium/mensalidade?pagar=1` abre o sheet) só quando `mensalidade.pix_disponivel` (AM-29: a casa tem chave
   PIX; só o sim/não sai no `/medium/inicio`) — sem chave, "Ver mensalidade"; "não confirmado" vira pendência ("Ver o motivo"); em conferência
   fica em "Acompanhando". Backend e regras em §3.3 e §11.10.
+  **AM-22 (baixa automatica)**: com `cobranca_automatica` no `GET /medium/mensalidades`, "Pagar com PIX" abre o
+  `PagarAutomaticoSheet` (cobranca dinamica na conta da casa: QR + copia-e-cola + validade; consulta
+  `GET .../cobranca` a cada 5 s e mostra "Pagamento recebido!" quando a baixa entra; CPF so se o provedor pedir),
+  "Pagar com boleto" quando a casa tem (CPF + endereco, que vao direto ao provedor e nao sao gravados), e o
+  comprovante vira "Ja paguei de outro jeito"; mes pago assim diz "Recebemos seu pagamento automaticamente"
+  (`pago_automatico`). O "Quer pagar todo mes sem lembrar?" (Pix Agendado na chave) some no modo automatico.
 - **Avisos (AM-09; "Avisos" na tela, D-16 — tabelas e API admin `comunicados`)**: migrações 070 (ENUM) e 071
   (tabelas + acesso total no grupo padrão). Painel `/admin/comunicados` (menu Corrente → "Avisos", só com
   `can('area_medium')` e `canGroup('comunicados','view')`; sem a feature → aviso neutro, sem PlanLocked): lista com
@@ -1804,6 +1849,11 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   estiver ligado, a marca e uma so para os dois canais, e o push sai depois do commit
   (`services/web_push.enviar`, `asyncio.to_thread` + timeout 10 s, TTL 12 h; 404/410 apagam a inscricao). Sem as
   variaveis VAPID, nada de push (so e-mail). Ligar em producao: `docs/deployment.md` (chaves VAPID).
+- **Mensalidade com baixa automatica (F-02/AM-22)**: `STRIPE_CONNECT_WEBHOOK_SECRET` (segredo do endpoint de
+  webhook de **contas conectadas** `/api/v1/webhooks/stripe-connect`, diferente do `STRIPE_WEBHOOK_SECRET`; vazio = a
+  opcao "Stripe" nao aparece) e `SECRETS_ENCRYPTION_KEY` (chave Fernet do `core/secret_box.py`; vazia = nada com
+  segredo e gravado; virgula = rotacao, a primeira cifra). Em `config.py`, `.env*.example` e nos dois
+  `docker-compose`. Passos do dono (Connect no Dashboard, webhook, `.env` da VPS) em `docs/deployment.md`.
 - Regra para agendador que envia algo: usar `backend/src/services/scheduler_guard.py` — `advisory_lock(KEY)` envolvendo a rodada (só um worker processa) e `claim_once(tenant_id, namespace, item, scope)` gravado **antes** do envio (marca em `tenant_configs.custom_settings[namespace]` sob `SELECT ... FOR UPDATE`; `scope` diferente reinicia as marcas). Chaves de lock listadas no docstring do módulo; nova chave = novo número.
 - PIX mês a mês do plano ($-04, desde 2026-10-09): `services/assinatura_pix.processar_pix_mensal`, chamada pelo
   `trial_scheduler` na rodada das 09:00 BRT logo depois dos trials, com lock próprio

@@ -113,6 +113,8 @@ class MensalidadeRepository:
                 pag_stmt.c.comprovante_enviado_em.label("comprovante_enviado_em"),
                 pag_stmt.c.recusado_em.label("recusado_em"),
                 pag_stmt.c.recusa_motivo.label("recusa_motivo"),
+                # Quem deu a baixa: gateway (PIX automático) ou direção (F-02/AM-22).
+                pag_stmt.c.origem.label("origem"),
             )
             .select_from(
                 outerjoin(

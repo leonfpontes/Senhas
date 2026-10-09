@@ -21,6 +21,34 @@ export interface MesMensalidade {
   recusa_motivo?: string | null;
   recusado_em?: string | null;
   atual: boolean;
+  /** Paga pela cobrança automática (PIX/boleto na conta da casa — F-02/AM-22). */
+  pago_automatico?: boolean;
+}
+
+/** A casa recebe com baixa automática (Stripe ou Mercado Pago). */
+export interface CobrancaAutomaticaInfo {
+  provedor: string;
+  provedor_label: string;
+  pix: boolean;
+  boleto: boolean;
+}
+
+export type MetodoCobranca = 'pix' | 'boleto';
+
+/** `POST/GET /api/v1/medium/mensalidades/{mes}/cobranca`. */
+export interface CobrancaDoMes {
+  mes: string;
+  valor: number;
+  metodo: MetodoCobranca;
+  provedor: string;
+  provedor_label: string;
+  status: 'pendente' | 'paga' | 'expirada' | 'cancelada' | 'estornada';
+  mes_status: StatusMes;
+  copia_e_cola?: string | null;
+  boleto_url?: string | null;
+  boleto_linha_digitavel?: string | null;
+  expira_em?: string | null;
+  pago_em?: string | null;
 }
 
 export interface PixDaCasa {
@@ -36,6 +64,8 @@ export interface MensalidadesResponse {
   valor_mensal?: number | null;
   dia_vencimento?: number | null;
   pix: PixDaCasa | null;
+  /** null = sem baixa automática (chave estática + comprovante). */
+  cobranca_automatica?: CobrancaAutomaticaInfo | null;
   meses: MesMensalidade[];
 }
 

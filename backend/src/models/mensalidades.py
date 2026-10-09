@@ -100,6 +100,10 @@ class MensalidadePagamento(TimestampedModel):
         Index("ix_mensalidade_pagamentos_tenant_mes", "tenant_id", "mes_referencia"),
         Index("ix_mensalidade_pagamentos_mediun_id", "mediun_id"),
         # Fila "Comprovantes para conferir" do painel (AM-12, migração 072).
+        CheckConstraint(
+            "origem IS NULL OR origem IN ('direcao', 'gateway')",
+            name="ck_mensalidade_pagamentos_origem",
+        ),
         Index(
             "ix_mensalidade_pagamentos_conferir",
             "tenant_id",
@@ -162,6 +166,10 @@ class MensalidadePagamento(TimestampedModel):
     # (o reenvio limpa os dois campos).
     recusa_motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     recusado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Quem deu a baixa (migração 091, F-02/AM-22): `gateway` = pago pela cobrança dinâmica (PIX/
+    # boleto na conta da casa, webhook do provedor); `direcao` = registrado/confirmado no painel.
+    # NULL em registros antigos (antes da 091) — a tela trata como "pela direção".
+    origem: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
     mediun = relationship("Medium", backref="mensalidade_pagamentos")
 

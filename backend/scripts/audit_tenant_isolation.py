@@ -239,6 +239,15 @@ EXEMPT_SCOPED_QUERIES: dict[tuple[str, str], str] = {
         "agendador da presença (AM-17): varre as chamadas abertas de todos os tenants; cada "
         "encerramento depois roda com o tenant da atividade (ctx_da_atividade/encerrar_chamada)"
     ),
+    # ── webhooks de pagamento: busca raiz pelo id do provedor (F-02/AM-22) ──
+    ("services/mensalidade_gateway.py", "cobranca_por_external_id"): (
+        "webhook do gateway (assinatura conferida): acha a NOSSA cobrança pelo id do provedor (único "
+        "por provedor); o tenant passa a ser o da cobrança e a conta do evento precisa bater com ela"
+    ),
+    ("services/mensalidade_gateway.py", "gateway_por_conta_stripe"): (
+        "webhook account.updated do Stripe Connect (assinatura conferida): acha o gateway pelo id da "
+        "conta conectada (único); só atualiza status/capacidades daquela conta"
+    ),
     # ── sites públicos: busca raiz por slug, sem tenant do chamador ──
     ("repositories/site_repo.py", "SiteRepository.get_published_by_slug"): (
         "site público publicado é endereçado por slug único global (rota public/sites.py); "

@@ -33,6 +33,7 @@ from .support_chat import router as support_chat_router
 from .area_medium_config import router as area_medium_config_router
 from .mensalidade_pix import router as mensalidade_pix_router
 from .mensalidade_comprovantes import router as mensalidade_comprovantes_router
+from .mensalidade_gateway import router as mensalidade_gateway_router
 from .comunicados import router as comunicados_router
 from .corrente_grupos import router as corrente_grupos_router
 from .materiais import router as materiais_router
@@ -79,6 +80,7 @@ admin_router.include_router(support_chat_router)
 admin_router.include_router(area_medium_config_router)
 admin_router.include_router(mensalidade_pix_router)
 admin_router.include_router(mensalidade_comprovantes_router)
+admin_router.include_router(mensalidade_gateway_router)
 admin_router.include_router(comunicados_router)
 admin_router.include_router(corrente_grupos_router)
 admin_router.include_router(materiais_router)
