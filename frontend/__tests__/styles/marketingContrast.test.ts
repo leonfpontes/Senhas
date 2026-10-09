@@ -54,11 +54,10 @@ describe('paleta de marketing', () => {
 });
 
 /**
- * Área do Médium (AM-06, `.medium-terra`): paleta terra com a cor do terreiro nos detalhes,
- * SEMPRE CLARA no tom da landing (out/2026 — antes seguia o escuro do sistema e o dono achou
- * "muito escura"). Trava os pares de texto da casca e das telas (faixa de abertura, cartões,
- * caixas, etiquetas de status) e o `text-brand` calculado por applyTerraBrandText para qualquer
- * cor de terreiro.
+ * Área do Médium (AM-06, `.medium-terra`): visual de aplicativo neutro e SEMPRE CLARO, com a cor do
+ * terreiro como destaque (redesenho de out/2026 — antes era a paleta areia da landing). Trava os
+ * pares de texto da casca e das telas (cartões, caixas, etiquetas de status) e o `text-brand`
+ * calculado por applyTerraBrandText para qualquer cor de terreiro.
  */
 function cssVars(selector: string): Record<string, string> {
   const start = css.indexOf(`${selector} {`);
@@ -88,17 +87,17 @@ const surfaces = [resolve(terra.background), resolve(terra.card), resolve(terra.
 // Cores de terreiro difíceis: amarelo, índigo padrão, verde da casa, quase preto, branco, vermelho, ouro.
 const BRANDS = ['#f5d90a', '#4f46e5', '#2f6b4f', '#111111', '#ffffff', '#d32f2f', '#e9b04a', '#6366f1'];
 
-describe('Área do Médium — paleta terra clara com a marca do terreiro', () => {
+describe('Área do Médium — paleta neutra clara com a marca do terreiro', () => {
   it('não redefine a cor do terreiro (vem do applyBrand) e usa o texto da marca calculado para a paleta', () => {
     expect(terra.primary).toBeUndefined();
     expect(terra['primary-foreground']).toBeUndefined();
-    expect(terra['primary-text']).toBe('var(--terra-brand-text-light, var(--color-barro-700))');
+    expect(terra['primary-text']).toBe('var(--terra-brand-text-light, var(--color-tinta))');
   });
 
-  it('é sempre clara: fundo areia-50, cartão branco, caixa areia-100 e sem variante escura', () => {
-    expect(resolve(terra.background)).toBe(color('areia-50'));
+  it('é sempre clara: fundo cinza-claro, cartão branco, caixa cinza e sem variante escura', () => {
+    expect(resolve(terra.background)).toBe('#f4f5f7');
     expect(resolve(terra.card)).toBe('#ffffff');
-    expect(resolve(terra.muted)).toBe(color('areia-100'));
+    expect(resolve(terra.muted)).toBe('#eef0f3');
     expect(css).not.toMatch(/\.dark\s*\.medium-terra|\.dark\.medium-terra/);
   });
 
@@ -129,21 +128,19 @@ describe('Área do Médium — paleta terra clara com a marca do terreiro', () =
     });
   });
 
-  // Faixa de abertura (MediumFaixa: Início, Perfil, escolha de área): areia-100 com véu de até 8%
-  // da cor do terreiro (travado a 10% para sobrar margem da mistura em oklab). Título em tinta,
-  // apoio em tinta-suave e rótulo em text-brand.
-  it.each(BRANDS)('faixa de abertura com o véu do terreiro %s: título, apoio e rótulo legíveis', (brand) => {
-    const faixa = mixHex(brand, resolve(terra.muted), 0.1);
-    expect(contrastRatio(resolve(terra.foreground), faixa)).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(resolve(terra['muted-foreground']), faixa)).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(brandTextColorOn(brand, 'light', TERRA_SURFACES.light), faixa)).toBeGreaterThanOrEqual(4.5);
+  // Cartão da próxima gira (Início): tudo em primary-foreground direto sobre a cor do terreiro —
+  // o rodapé "O que levar" é separado só por um fio, sem escurecer/clarear o fundo (com um véu, a
+  // marca índigo #6366f1, que pede texto escuro, cairia abaixo de 4,5:1).
+  it('o cartão da próxima gira não põe véu sobre a cor do terreiro', () => {
+    const inicio = fs.readFileSync(path.join(__dirname, '../../src/pages/medium/index.tsx'), 'utf8');
+    const cartao = inicio.slice(inicio.indexOf('function ProximaGira'), inicio.indexOf('function Acompanhando'));
+    expect(cartao).toMatch(/bg-primary text-primary-foreground/);
+    expect(cartao).not.toMatch(/bg-(black|white)\/\d+|bg-primary-foreground\/\d+ px-5/);
   });
 
-  it('o véu da faixa de abertura não passa de 8% da cor do terreiro', () => {
+  it('a faixa de abertura não usa mais véu nem gradiente da cor do terreiro', () => {
     const faixa = fs.readFileSync(path.join(__dirname, '../../src/components/medium/MediumFaixa.tsx'), 'utf8');
-    const veus = [...faixa.matchAll(/var\(--primary\)_(\d+)%/g)].map((m) => Number(m[1]));
-    expect(veus.length).toBeGreaterThan(0);
-    veus.forEach((v) => expect(v).toBeLessThanOrEqual(8));
+    expect(faixa).not.toMatch(/var\(--primary\)_\d+%|bg-gradient|linear-gradient/);
   });
 
   it.each(BRANDS)('botão, aba e data na cor do terreiro %s têm texto legível (primary-foreground)', (brand) => {
@@ -153,7 +150,7 @@ describe('Área do Médium — paleta terra clara com a marca do terreiro', () =
   it('applyTerraBrandText escreve a cor do texto da marca no elemento', () => {
     const el = document.createElement('div');
     applyTerraBrandText(el, '#f5d90a');
-    expect(contrastRatio(el.style.getPropertyValue('--terra-brand-text-light'), '#fcf8f2')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(el.style.getPropertyValue('--terra-brand-text-light'), '#f4f5f7')).toBeGreaterThanOrEqual(4.5);
   });
 
   // Botão de trocar a foto e "Pular para o conteúdo": café-950 sobre ouro-300.

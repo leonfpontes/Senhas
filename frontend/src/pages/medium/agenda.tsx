@@ -9,10 +9,17 @@
  * o que já passou fica neutro e a atividade cancelada aparece riscada. Só chama `/api/v1/medium/*`.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { CalendarDays, ChevronRight, TriangleAlert } from 'lucide-react';
+import { CalendarDays, TriangleAlert } from 'lucide-react';
 import { MediumLayout } from '@/components/medium/MediumLayout';
 import { DataChip } from '@/components/medium/DataChip';
+import {
+  MediumList,
+  MediumListItem,
+  MediumPage,
+  MediumPageHeader,
+  MediumSection,
+  StatusBadge,
+} from '@/components/medium/ui';
 import { TipoChip } from '@/components/atividades/TipoChip';
 import {
   agruparPorMes,
@@ -49,45 +56,32 @@ function Item({ item }: { item: AgendaItem }) {
   const selo = item.cancelada ? null : seloDaAgenda(item.minha_participacao);
   const semana = quandoBr(item.inicio).split(',')[0];
   return (
-    <li>
-      <Link
-        href={detalheHref(item)}
-        className="flex min-h-[4.5rem] items-center gap-3 rounded-2xl border border-border bg-card p-3 text-card-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-      >
-        <DataChip iso={item.inicio} passado={passou || Boolean(item.cancelada)} />
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <strong className={cn('font-display text-lg leading-tight font-semibold', item.cancelada && 'line-through')}>
-            {item.titulo}
-          </strong>
-          <span className="text-base text-muted-foreground first-letter:uppercase">
-            {semana} · {horaBr(item.inicio)}
-            {item.local ? ` · ${item.local}` : ''}
-          </span>
-          <span className="flex flex-wrap gap-1.5">
-            <TipoChip tipo={item.tipo} />
-            {selo && (
-              <span
-                className={cn('rounded-full px-2.5 py-0.5 text-sm font-semibold', CLASSE_TOM[selo.tom])}
-                data-testid="selo-escala"
-              >
-                {selo.texto}
-              </span>
-            )}
-            {item.cancelada && (
-              <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-sm font-semibold text-destructive-strong">
-                Cancelada
-              </span>
-            )}
-            {passou && !item.cancelada && !selo && (
-              <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-semibold text-muted-foreground">
-                Já aconteceu
-              </span>
-            )}
-          </span>
+    <MediumListItem
+      href={detalheHref(item)}
+      media={<DataChip iso={item.inicio} passado={passou || Boolean(item.cancelada)} />}
+      title={<span className={cn(item.cancelada && 'line-through')}>{item.titulo}</span>}
+      description={
+        <span className="first-letter:uppercase">
+          {semana} · {horaBr(item.inicio)}
+          {item.local ? ` · ${item.local}` : ''}
         </span>
-        <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-      </Link>
-    </li>
+      }
+      meta={
+        <>
+          <TipoChip tipo={item.tipo} />
+          {selo && (
+            <span
+              className={cn('rounded-full px-2.5 py-0.5 text-sm font-semibold', CLASSE_TOM[selo.tom])}
+              data-testid="selo-escala"
+            >
+              {selo.texto}
+            </span>
+          )}
+          {item.cancelada && <StatusBadge tom="perigo">Cancelada</StatusBadge>}
+          {passou && !item.cancelada && !selo && <StatusBadge>Já aconteceu</StatusBadge>}
+        </>
+      }
+    />
   );
 }
 
@@ -95,8 +89,7 @@ function Esqueleto() {
   return (
     <div className="flex flex-col gap-3" role="status" aria-label="Carregando a agenda">
       <Skeleton className="h-5 w-40" />
-      <Skeleton className="h-20 w-full rounded-2xl" />
-      <Skeleton className="h-20 w-full rounded-2xl" />
+      <Skeleton className="h-48 w-full rounded-xl" />
     </div>
   );
 }
@@ -149,8 +142,8 @@ function Agenda() {
   ];
 
   return (
-    <div className="flex flex-col gap-5 px-4 pt-6 pb-8">
-      <h1 className="font-display text-[1.75rem] leading-tight font-bold tracking-tight">Agenda</h1>
+    <MediumPage>
+      <MediumPageHeader title="Agenda" description="Giras e atividades da casa." />
 
       {erro === 'indisponivel' ? (
         <EmptyState
@@ -173,7 +166,11 @@ function Agenda() {
         <Esqueleto />
       ) : (
         <>
-          <div role="group" aria-label="Filtrar agenda" className="flex flex-wrap gap-2">
+          <div
+            role="group"
+            aria-label="Filtrar agenda"
+            className="grid auto-cols-fr grid-flow-col gap-1 rounded-xl bg-muted p-1"
+          >
             {filtros.map((f) => (
               <button
                 key={f.valor}
@@ -181,10 +178,10 @@ function Agenda() {
                 aria-pressed={filtro === f.valor}
                 onClick={() => setFiltro(f.valor)}
                 className={cn(
-                  'min-h-12 rounded-full border px-5 text-base font-bold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                  'min-h-11 rounded-lg px-3 text-base font-semibold transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
                   filtro === f.valor
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-card text-foreground',
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground',
                 )}
               >
                 {f.rotulo}
@@ -202,19 +199,17 @@ function Agenda() {
             />
           ) : (
             meses.map((mes) => (
-              <section key={mes.chave} className="flex flex-col gap-2.5" aria-labelledby={`mes-${mes.chave}`}>
-                <h2
-                  id={`mes-${mes.chave}`}
-                  className="text-xs font-extrabold tracking-[0.16em] text-brand uppercase"
-                >
-                  {mes.rotulo}
-                </h2>
-                <ul className="flex flex-col gap-2.5">
+              <MediumSection
+                key={mes.chave}
+                id={`mes-${mes.chave}`}
+                title={<span className="first-letter:uppercase">{mes.rotulo}</span>}
+              >
+                <MediumList>
                   {mes.itens.map((item) => (
                     <Item key={`${item.origem}-${item.id}`} item={item} />
                   ))}
-                </ul>
-              </section>
+                </MediumList>
+              </MediumSection>
             ))
           )}
 
@@ -222,7 +217,7 @@ function Agenda() {
             type="button"
             variant="outline"
             size="touch"
-            className="w-full font-bold"
+            className="w-full bg-card font-semibold"
             onClick={() => void verMais()}
             disabled={carregandoMais}
           >
@@ -236,6 +231,6 @@ function Agenda() {
           )}
         </>
       )}
-    </div>
+    </MediumPage>
   );
 }

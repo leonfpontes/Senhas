@@ -72,12 +72,12 @@ export function AvisosPorEmail({ somenteLeitura = false }: { somenteLeitura?: bo
   return (
     <section className="flex flex-col gap-2" data-testid="perfil-avisos-email" aria-label="Avisos por e-mail">
       <div className="flex items-center gap-2 px-1">
-        <h2 className="flex items-center gap-2 font-display text-xl font-bold">
+        <h2 className="flex items-center gap-2 text-base font-semibold">
           <Mail className="size-4 text-muted-foreground" aria-hidden />
           Avisos por e-mail
         </h2>
       </div>
-      <div className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xs">
         <ul>
           {tipos.map((tipo) => {
             const texto = AVISO_EMAIL_TEXTO[tipo];
@@ -87,7 +87,7 @@ export function AvisosPorEmail({ somenteLeitura = false }: { somenteLeitura?: bo
               <li key={tipo} className="border-b border-border last:border-b-0">
                 <div className="flex min-h-16 items-center gap-3 px-4 py-3">
                   <label htmlFor={id} className="flex min-w-0 flex-1 flex-col">
-                    <strong className="text-base leading-snug">{texto.titulo}</strong>
+                    <strong className="text-base leading-snug font-semibold">{texto.titulo}</strong>
                     <span className="text-sm text-muted-foreground">{texto.descricao}</span>
                   </label>
                   {somenteLeitura ? (

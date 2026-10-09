@@ -3,15 +3,17 @@
  * Cartão: Checkout da Stripe, renovação automática. Fatura: todo mês a Stripe manda a fatura
  * por e-mail (e o painel mostra o link) para pagar com boleto — e PIX, quando a conta Stripe
  * oferecer (o rótulo vem de `invoice_payment_methods` do backend, nunca fixo).
+ * PIX mês a mês: um PIX avulso por mês (Checkout da Stripe); cada pagamento libera 30 dias do
+ * plano, sem renovação automática (a conta Stripe BR não tem Pix recorrente).
  */
 import React from 'react';
-import { CreditCard, Receipt } from 'lucide-react';
+import { CreditCard, QrCode, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
-export type PaymentMethodChoice = 'card' | 'invoice';
+export type PaymentMethodChoice = 'card' | 'invoice' | 'pix';
 
 /** "PIX ou boleto" só quando a fatura realmente aceita PIX; senão "Boleto bancário". */
 export function invoiceMethodLabel(methods: string[] | undefined): string {
@@ -52,6 +54,12 @@ export function PaymentMethodPicker({
       text: `Todo mês a fatura chega por e-mail e aparece aqui no painel. Você tem ${daysUntilDue} dias para pagar.`,
       icon: <Receipt className="size-5" aria-hidden />,
     },
+    {
+      key: 'pix',
+      title: 'PIX — pague mês a mês',
+      text: 'Você paga um PIX por mês. Cada pagamento libera 30 dias do plano; avisamos antes de vencer. Sem renovação automática.',
+      icon: <QrCode className="size-5" aria-hidden />,
+    },
   ];
 
   return (
@@ -65,7 +73,7 @@ export function PaymentMethodPicker({
           value={value}
           onValueChange={(v) => onChange(v as PaymentMethodChoice)}
           disabled={disabled}
-          className="grid gap-3 sm:grid-cols-2"
+          className="grid gap-3 md:grid-cols-3"
         >
           {options.map((opt) => (
             <Label

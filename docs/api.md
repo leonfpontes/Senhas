@@ -1420,7 +1420,7 @@ another function there keeps it (`em_outra_funcao_nomes`). Response = this scale
 
 Notifications ("Você é Cambone na gira de sábado") are AM-15's job — nothing is sent here.
 
-### 20. Billing — plano e assinatura na Stripe (cartão ou boleto, $-04)
+### 20. Billing — plano e assinatura na Stripe (cartão, boleto ou PIX mês a mês, $-04)
 
 `/api/v1/admin/billing*` — account screen: `ADMIN`/`SUPER_ADMIN` only (`_require_admin`), no group
 feature (exempt in `scripts/audit_permission_guards.py`).
@@ -1428,8 +1428,9 @@ feature (exempt in `scripts/audit_permission_guards.py`).
 | Method | Path | What it does |
 |---|---|---|
 | GET | `/admin/billing` | Plan, status, Stripe ids, period, trial and the $-04 fields below |
-| POST | `/admin/billing/checkout` `{ "plan" }` | **Card**: Stripe Checkout (`mode=subscription`, `payment_method_types=["card"]`), automatic renewal → `{ "checkout_url" }`. Keeps the remaining local trial days. 409 while a boleto order is pending |
+| POST | `/admin/billing/checkout` `{ "plan" }` | **Card**: Stripe Checkout (`mode=subscription`, `payment_method_types=["card"]`), automatic renewal → `{ "checkout_url" }`. Keeps the remaining local trial days. 409 while a boleto order is pending or a PIX month is still running |
 | POST | `/admin/billing/subscribe-invoice` `{ "plan" }` | **Boleto**: creates the Stripe subscription with `collection_method=send_invoice`, `days_until_due=STRIPE_INVOICE_DAYS_UNTIL_DUE` (5) and `payment_settings.payment_method_types=STRIPE_INVOICE_PAYMENT_METHODS` ("boleto"). No Checkout: Stripe e-mails one invoice per period with the hosted payment page |
+| POST | `/admin/billing/pix-checkout` `{ "plan" }` | **PIX mês a mês**: Stripe Checkout `mode=payment`, `payment_method_types=["pix"]`, one line item with `price_data` in BRL at the plan price from `PLAN_LIMITS` (no Stripe Price), `metadata {tenant_id, plan, tipo: "pix_mensal"}` (also on the PaymentIntent), customer = the tenant's Stripe customer (persisted before returning), QR valid 1 day (`payment_method_options.pix.expires_after_seconds=86400`), success URL `?status=pix_success` → `{ "checkout_url" }`. Nothing is granted here — the webhook grants 30 days |
 | POST | `/admin/billing/change-plan` `{ "plan" }` | Up/downgrade of the linked subscription (keeps its payment method; with boleto the proration invoice is e-mailed) |
 | POST | `/admin/billing/cancel` | Cancel at period end. With a **pending boleto order** (first invoice never paid): cancels it at Stripe right away and voids the open invoice |
 | POST | `/admin/billing/reactivate` | Undo a scheduled cancellation |
@@ -1448,22 +1449,50 @@ feature (exempt in `scripts/audit_permission_guards.py`).
   pending; **400 "O pagamento por boleto ainda não está liberado…"** when the Stripe account doesn't have
   the method enabled (the card keeps working); 403 operator.
 
-New `GET /admin/billing` fields: `collection_method` (`charge_automatically` | `send_invoice` | null =
-card/legacy), `awaiting_first_payment`, `pending_invoice_url`, `pending_invoice_due_at`,
+**PIX mês a mês** (owner decision 2026-10-09). Brazilian Stripe accounts accept Pix only as a one-time
+payment (no Pix Automático, no Pix in Subscriptions/Invoicing), so it is **not** a Stripe subscription:
+each paid Checkout grants 30 days of the plan (`services/assinatura_pix.py`). State: `collection_method =
+"pix_mensal"`, `stripe_subscription_id` NULL, `current_period_end` = paid until; every confirmed payment is a
+row in `assinatura_pix_pagamentos` (unique `checkout_session_id`).
+- Period: 30 days from **max(now, paid until, end of the local trial)** — paying early extends without
+  losing days; paying mid-trial keeps the free days (as card/boleto do).
+- `pix-checkout` errors: 400 invalid plan / bonus tenant / PIX not enabled on the Stripe account; **409**
+  when a card or boleto subscription exists (active or pending — switching goes through support) and
+  **409** when a PIX month of **another plan** is still running (the plan changes from the next paid month;
+  same plan = pay early); 403 operator.
+- `checkout` / `subscribe-invoice` answer **409** while a PIX month is running ("pago por PIX até DD/MM");
+  after the paid-until date (including the grace days) they work as usual, and the card/boleto webhook
+  clears `collection_method="pix_mensal"`.
+- Reminders: e-mail to every active admin of the terreiro **5 days and 1 day** before the end (once each).
+- Expiry: **3 days of grace** with the plan still on; after that the access gate already blocks paid
+  features (402 "O mês pago por PIX venceu…", FREE limits) and the daily round (09:00 BRT) moves the tenant
+  to FREE like an unrenewed subscription (`reset_to_free`, status CANCELLED, "sua conta agora é gratuita"
+  e-mail). Paying a new PIX turns the plan back on at once. No suspension: SUSPENDED would take away even the
+  free features, and there is no open charge to "regularize".
+- MRR: a paid PIX month still running is **paying** (`billing_metrics`); an expired one (even in grace) is
+  "sem cobrança".
+
+New `GET /admin/billing` fields: `collection_method` (`charge_automatically` | `send_invoice` |
+`pix_mensal` | null = card/legacy), `awaiting_first_payment`, `pending_invoice_url`, `pending_invoice_due_at`,
 `invoice_payment_methods` (the screen writes "Boleto bancário", or "PIX ou boleto" only when `pix` is in
-the list) and `invoice_days_until_due`.
+the list) and `invoice_days_until_due`. PIX mês a mês: `pix_paid_until`, `pix_active` (month still
+running), `pix_grace_until` (paid until + 3 days) and `pix_payments` (last 6: `plan`, `paid_at`, `period_end`,
+`amount`, `applied`). `GET /admin/subscription` also returns `collection_method` and `pix_grace_until` (panel
+banner "Seu plano está pago até DD/MM (PIX)" when ≤ 7 days left); `GET /platform/billing/subscriptions`
+returns `collection_method` (badge "PIX mensal").
 
 **Stripe webhook** (`POST /api/v1/webhooks/stripe`, signed, deduplicated by `event_id`):
 
 | Event | Effect |
 |---|---|
-| `checkout.session.completed` | Links the subscription and grants the plan — **except** `payment_status=unpaid` (async method), which does nothing |
-| `checkout.session.async_payment_succeeded` / `_failed` | Same as completed / nothing (no plan was granted) |
+| `checkout.session.completed` | Links the subscription and grants the plan — **except** `payment_status=unpaid` (async method), which does nothing. PIX mês a mês session (`mode=payment` + `metadata.tipo=pix_mensal`) paid → grants 30 days (below) |
+| `checkout.session.async_payment_succeeded` / `_failed` | Same as completed / nothing (no plan was granted; an expired PIX QR simply grants nothing) |
 | `customer.subscription.created/updated` | Syncs plan, period, trial and status of the **linked** subscription. A boleto subscription not yet paid (or any `incomplete` one) that isn't the linked one is ignored |
 | `customer.subscription.deleted` | Linked one → back to FREE (as before). Pending boleto order → only clears the order (no downgrade, no e-mail) |
 | `invoice.finalized` (boleto) | Stores the open invoice link (`pending_invoice_*`) for "Pagar agora" |
 | `invoice.paid` (boleto) | Retrieves the subscription, checks `active`/`trialing`, links it and grants the plan; clears the pending invoice; reactivates `SUSPENDED`. Card invoices are ignored here |
 | `invoice.payment_failed` | Card: as before (trial → FREE, otherwise SUSPENDED). **Boleto: no effect** — an expired voucher is not a default; the invoice stays open until the due date |
+| PIX mês a mês paid (`completed` with `payment_status=paid` or `async_payment_succeeded`) | Tenant from `metadata.tenant_id`, accepted only if the session `customer` is the Stripe customer stored for that tenant; amount ≥ plan price in BRL. Inserts the payment (unique by session — redelivery or completed+async never grants twice) and sets plan/limits, ACTIVE, `collection_method=pix_mensal`, `current_period_end` = new paid-until. Paid while a card/boleto subscription exists, bonus, or amount too low → recorded with `applied=false`, plan untouched, error log for support to refund |
 | `invoice.overdue` (boleto) | Linked subscription → `SUSPENDED` (paying later reactivates via `invoice.paid`). Pending order → no effect |
 ### 21. Troca na escala e abono da justificativa (AM-27)
 

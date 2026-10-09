@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 from src.services.medium_area import area_medium_liberada
 from src.services.plan_features import PlanFeatures, _get_plan_features, get_effective_plan_features
+from src.services.assinatura_pix import pix_pago_ate, tolerancia_ate
 
 
 async def _count_active_users(db: AsyncSession, tenant_id) -> int:
@@ -56,6 +57,10 @@ class SubscriptionInfoResponse(BaseModel):
     # cartão já cadastrado — o webhook mantém is_trial=True) e de cortesia.
     has_stripe_subscription: bool = False
     is_bonus: bool = False
+    # $-04 — "charge_automatically" | "send_invoice" | "pix_mensal" | None. No PIX mês a mês,
+    # `current_period_end` é o "pago até" e `pix_grace_until` o fim da tolerância (banner do painel).
+    collection_method: Optional[str] = None
+    pix_grace_until: Optional[str] = None
     features: PlanFeatures
 
 
@@ -134,6 +139,10 @@ async def get_tenant_subscription(
         current_period_end=sub.current_period_end.isoformat() if sub.current_period_end else None,
         has_stripe_subscription=bool(sub.stripe_subscription_id) if isinstance(sub.stripe_subscription_id, str) else False,
         is_bonus=sub.is_bonus is True,
+        collection_method=sub.collection_method if isinstance(sub.collection_method, str) else None,
+        pix_grace_until=(
+            tolerancia_ate(pix_pago_ate(sub)).isoformat() if pix_pago_ate(sub) else None
+        ),
         # Mesma semântica do require_plan_feature (P-05): a UI esconde o que o backend nega.
         features=await _features_do_terreiro(db, sub),
     )

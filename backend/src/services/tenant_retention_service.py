@@ -57,6 +57,9 @@ async def get_at_risk_tenants(db: AsyncSession) -> list[dict]:
             Subscription.is_trial,
             Subscription.is_bonus,
             Subscription.stripe_subscription_id,
+            # PIX mês a mês ($-04): billing_category precisa dos dois para contar o mês pago.
+            Subscription.collection_method,
+            Subscription.current_period_end,
             ticket_stats.c.last_ticket_at,
             func.coalesce(ticket_stats.c.tickets_30d, 0).label("tickets_30d"),
             func.coalesce(ticket_stats.c.tickets_prev_30d, 0).label("tickets_prev_30d"),

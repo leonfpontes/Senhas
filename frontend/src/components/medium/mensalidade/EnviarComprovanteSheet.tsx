@@ -136,7 +136,7 @@ export function EnviarComprovanteSheet({
 
       {arquivo ? (
         <div
-          className="flex items-center gap-3 rounded-2xl border border-border p-3"
+          className="flex items-center gap-3 rounded-xl border border-border p-3"
           data-testid="comprovante-previa"
         >
           {previa ? (
@@ -158,7 +158,7 @@ export function EnviarComprovanteSheet({
           <Button
             type="button"
             variant="ghost"
-            className="min-h-12 font-bold text-brand"
+            className="min-h-12 font-semibold text-brand"
             onClick={() => arquivoRef.current?.click()}
             disabled={ocupado}
           >
@@ -171,7 +171,7 @@ export function EnviarComprovanteSheet({
             type="button"
             variant="outline"
             size="touch"
-            className="w-full font-bold"
+            className="w-full font-semibold"
             onClick={() => cameraRef.current?.click()}
             disabled={ocupado}
           >
@@ -181,7 +181,7 @@ export function EnviarComprovanteSheet({
             type="button"
             variant="outline"
             size="touch"
-            className="w-full font-bold"
+            className="w-full font-semibold"
             onClick={() => arquivoRef.current?.click()}
             disabled={ocupado}
           >
@@ -213,7 +213,7 @@ export function EnviarComprovanteSheet({
       <Button
         type="button"
         size="touch"
-        className="w-full font-bold"
+        className="w-full font-semibold"
         disabled={!arquivo || ocupado}
         onClick={() => void enviar()}
       >

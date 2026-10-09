@@ -46,14 +46,14 @@ export function AniversarioOptIn({
 
   return (
     <section className="flex flex-col gap-2" data-testid="perfil-aniversario" aria-label="Aniversário">
-      <h2 className="flex items-center gap-2 px-1 font-display text-xl font-bold">
+      <h2 className="flex items-center gap-2 px-1 text-base font-semibold">
         <Cake className="size-4 text-muted-foreground" aria-hidden />
         Aniversário
       </h2>
-      <div className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xs">
         <div className="flex min-h-16 items-center gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <label htmlFor="perfil-aniversario-switch" className="text-base font-bold">
+            <label htmlFor="perfil-aniversario-switch" className="text-base font-semibold">
               Mostrar meu aniversário para a corrente
             </label>
             <p className="text-sm text-muted-foreground" id="perfil-aniversario-ajuda">

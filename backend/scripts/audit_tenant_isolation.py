@@ -231,6 +231,10 @@ EXEMPT_SCOPED_QUERIES: dict[tuple[str, str], str] = {
     ("services/trial_scheduler.py", "TrialScheduler._process_trials_locked"): (
         "scheduler de trials: varre assinaturas de todos os tenants para expirar/avisar"
     ),
+    ("services/assinatura_pix.py", "_processar_pix_mensal_locked"): (
+        "rodada diária do PIX mês a mês ($-04): varre as assinaturas pagas por PIX de todos os "
+        "tenants para avisar/expirar; cada ação depois roda com o tenant da assinatura"
+    ),
     ("services/presenca.py", "candidatos_ao_encerramento"): (
         "agendador da presença (AM-17): varre as chamadas abertas de todos os tenants; cada "
         "encerramento depois roda com o tenant da atividade (ctx_da_atividade/encerrar_chamada)"

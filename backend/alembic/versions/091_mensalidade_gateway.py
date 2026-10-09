@@ -23,7 +23,7 @@ Downgrade: apaga as duas tabelas e a coluna (as cobranças se perdem; os meses p
 PAGO em `mensalidade_pagamentos`).
 
 Revision ID: 091_mensalidade_gateway
-Revises: 089_ficha_espiritual
+Revises: 090_assinatura_pix_mensal
 Create Date: 2026-10-09
 """
 
@@ -33,7 +33,7 @@ from sqlalchemy.dialects import postgresql
 
 revision: str = "091_mensalidade_gateway"
 # Criada em paralelo com a 090 (outro card): o orquestrador re-encadeia no merge.
-down_revision: str = "089_ficha_espiritual"
+down_revision: str = "090_assinatura_pix_mensal"
 branch_labels = None
 depends_on = None
 

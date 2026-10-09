@@ -62,4 +62,23 @@ describe('SubscriptionWarningBanner', () => {
     const { container } = render(<SubscriptionWarningBanner />);
     expect(container).toBeEmptyDOMElement();
   });
+  it('PIX mês a mês: faltando até 7 dias, "pago até DD/MM (PIX)" e o link para pagar o próximo mês', () => {
+    const paidUntil = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    const short = new Date(paidUntil).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    mockSubscription.current = sub({
+      plan: 'pro', is_trial: false, trial_ends_at: null, collection_method: 'pix_mensal', current_period_end: paidUntil,
+    });
+    render(<SubscriptionWarningBanner />);
+    expect(screen.getByText(/Seu plano está pago até/)).toHaveTextContent(`Seu plano está pago até ${short} (PIX).`);
+    expect(screen.getByRole('link', { name: 'Pagar o próximo mês' })).toHaveAttribute('href', '/admin/billing');
+  });
+
+  it('PIX mês a mês com mais de 7 dias pela frente: sem aviso', () => {
+    mockSubscription.current = sub({
+      plan: 'pro', is_trial: false, trial_ends_at: null, collection_method: 'pix_mensal',
+      current_period_end: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    const { container } = render(<SubscriptionWarningBanner />);
+    expect(container).toBeEmptyDOMElement();
+  });
 });

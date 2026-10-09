@@ -16,8 +16,8 @@ import Link from 'next/link';
 import { ArrowLeft, Flag, Loader2, MessageSquarePlus, ScrollText, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { EmptyState } from '@/components/EmptyState';
-import { fraunces } from '@/components/landing/fonts';
 import { MediumLayout } from '@/components/medium/MediumLayout';
+import { MediumPage, MediumPageHeader, MediumSection } from '@/components/medium/ui';
 import { useMedium } from '@/components/medium/MediumProvider';
 import { MediumSheet } from '@/components/medium/mensalidade/MediumSheet';
 import { erroDaApi } from '@/components/medium/perfil/perfil';
@@ -44,7 +44,6 @@ import { isoToBrDate } from '@/lib/dateIso';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/services/api_client';
 
-const SECTION_TITLE = 'text-xs font-extrabold tracking-[0.16em] text-brand uppercase';
 const VALOR_MAX = 500;
 
 interface MeuCampo {
@@ -142,7 +141,7 @@ function SugerirSheet({
               onClick={() => setValor(o.value)}
               className={cn(
                 'min-h-12 rounded-xl border px-4 text-left text-base outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                valor === o.value ? 'border-primary bg-primary/10 font-bold text-brand' : 'border-border bg-card',
+                valor === o.value ? 'border-primary bg-primary/10 font-semibold text-brand' : 'border-border bg-card',
               )}
             >
               {o.label}
@@ -151,14 +150,14 @@ function SugerirSheet({
         </div>
       ) : campo.tipo === 'data' ? (
         <div className="flex flex-col gap-2">
-          <Label htmlFor="sugestao-data" className="text-base font-bold">
+          <Label htmlFor="sugestao-data" className="text-base font-semibold">
             Data
           </Label>
           <Input id="sugestao-data" type="date" value={valor} onChange={(e) => setValor(e.target.value)} className="h-12 text-base" />
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          <Label htmlFor="sugestao-texto" className="text-base font-bold">
+          <Label htmlFor="sugestao-texto" className="text-base font-semibold">
             Sua sugestão
           </Label>
           <Textarea
@@ -177,11 +176,11 @@ function SugerirSheet({
         </p>
       )}
       <div className="flex flex-col gap-2.5">
-        <Button type="button" size="touch" className="w-full font-bold" disabled={enviando || !valor.trim()} onClick={() => void enviar()}>
+        <Button type="button" size="touch" className="w-full font-semibold" disabled={enviando || !valor.trim()} onClick={() => void enviar()}>
           {enviando && <Loader2 className="animate-spin" aria-hidden />}
           Enviar para a casa
         </Button>
-        <Button type="button" variant="outline" size="touch" className="w-full font-bold" onClick={() => onOpenChange(false)}>
+        <Button type="button" variant="outline" size="touch" className="w-full font-semibold" onClick={() => onOpenChange(false)}>
           Cancelar
         </Button>
       </div>
@@ -215,10 +214,10 @@ function Autorizar({ revogadoEm, somenteLeitura, onAutorizado }: { revogadoEm?: 
 
   return (
     <article
-      className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm"
+      className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-card-foreground shadow-xs"
       data-testid="caminhada-autorizar"
     >
-      <h2 className="flex items-center gap-2 font-display text-xl font-bold">
+      <h2 className="flex items-center gap-2 text-lg font-semibold">
         <ShieldCheck className="size-5 text-brand" aria-hidden />
         Sua ficha espiritual
       </h2>
@@ -251,7 +250,7 @@ function Autorizar({ revogadoEm, somenteLeitura, onAutorizado }: { revogadoEm?: 
               {erro}
             </p>
           )}
-          <Button type="button" size="touch" className="w-full font-bold" disabled={!aceito || enviando} onClick={() => void autorizar()}>
+          <Button type="button" size="touch" className="w-full font-semibold" disabled={!aceito || enviando} onClick={() => void autorizar()}>
             {enviando && <Loader2 className="animate-spin" aria-hidden />}
             Autorizar
           </Button>
@@ -305,17 +304,14 @@ function Caminhada() {
   const consentido = data?.consentimento.dado ?? false;
 
   return (
-    <div className="flex flex-col gap-5 px-4 pt-4 pb-8">
+    <MediumPage>
       <Link
         href="/medium/perfil"
-        className="inline-flex min-h-12 items-center gap-1.5 self-start font-bold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="-my-2 inline-flex min-h-12 items-center gap-1.5 self-start text-sm font-semibold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
-        <ArrowLeft className="size-5" aria-hidden /> Voltar para o perfil
+        <ArrowLeft className="size-4" aria-hidden /> Voltar para o perfil
       </Link>
-      <div>
-        <h1 className="font-display text-[1.75rem] leading-tight font-bold tracking-tight">Minha caminhada</h1>
-        <p className="text-base text-muted-foreground">Sua ficha espiritual e os marcos da sua história na casa</p>
-      </div>
+      <MediumPageHeader title="Minha caminhada" description="Sua ficha espiritual e os marcos da sua história na casa" />
 
       {erro === 'indisponivel' ? (
         <EmptyState
@@ -329,15 +325,15 @@ function Caminhada() {
           title="Não conseguimos carregar sua caminhada"
           description="Confira a internet e tente de novo."
           action={
-            <Button type="button" size="touch" className="font-bold" onClick={recarregar}>
+            <Button type="button" size="touch" className="font-semibold" onClick={recarregar}>
               Tentar de novo
             </Button>
           }
         />
       ) : !data ? (
         <div className="flex flex-col gap-3" role="status" aria-label="Carregando sua caminhada">
-          <Skeleton className="h-24 w-full rounded-2xl" />
-          <Skeleton className="h-20 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-20 w-full rounded-xl" />
         </div>
       ) : !consentido ? (
         <Autorizar
@@ -350,14 +346,11 @@ function Caminhada() {
         />
       ) : (
         <>
-          <section className="flex flex-col gap-2.5" aria-labelledby="titulo-ficha">
-            <h2 id="titulo-ficha" className={SECTION_TITLE}>
-              Minha ficha
-            </h2>
+          <MediumSection id="titulo-ficha" title="Minha ficha">
             {data.campos.length === 0 ? (
               <p className="text-base text-muted-foreground">A casa ainda não liberou nenhum campo da ficha para você.</p>
             ) : (
-              <ul className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm">
+              <ul className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xs">
                 {data.campos.map((c) => (
                   <li key={c.id} className="flex flex-col gap-1 border-b border-border px-4 py-3 last:border-b-0" data-testid="caminhada-campo">
                     <span className="text-sm text-muted-foreground">{c.rotulo}</span>
@@ -373,7 +366,7 @@ function Caminhada() {
                       <button
                         type="button"
                         onClick={() => setSugerir(c)}
-                        className="inline-flex min-h-12 items-center gap-1.5 self-start font-bold text-brand underline underline-offset-4 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        className="inline-flex min-h-12 items-center gap-1.5 self-start text-sm font-semibold text-brand underline underline-offset-4 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                       >
                         <MessageSquarePlus className="size-4" aria-hidden />
                         {c.sugestao_pendente ? 'Mudar a sugestão' : 'Sugerir'}
@@ -383,12 +376,9 @@ function Caminhada() {
                 ))}
               </ul>
             )}
-          </section>
+          </MediumSection>
 
-          <section className="flex flex-col gap-2.5" aria-labelledby="titulo-marcos">
-            <h2 id="titulo-marcos" className={SECTION_TITLE}>
-              Minha caminhada
-            </h2>
+          <MediumSection id="titulo-marcos" title="Minha caminhada">
             {data.marcos.length === 0 ? (
               <p className="text-base text-muted-foreground">Quando a casa registrar os marcos da sua caminhada, eles aparecem aqui.</p>
             ) : (
@@ -396,9 +386,9 @@ function Caminhada() {
                 {data.marcos.map((m) => (
                   <li key={m.id} className="relative" data-testid="caminhada-marco">
                     <span aria-hidden className="absolute top-2 -left-[27px] size-3 rounded-full bg-primary ring-4 ring-background" />
-                    <article className="flex flex-col gap-0.5 rounded-2xl border border-border bg-card p-3 text-card-foreground shadow-sm">
+                    <article className="flex flex-col gap-0.5 rounded-xl border border-border bg-card p-3 text-card-foreground shadow-xs">
                       <span className="text-sm text-muted-foreground tabular-nums">{isoToBrDate(m.data)}</span>
-                      <span className="font-display text-lg leading-tight font-semibold">{m.titulo}</span>
+                      <span className="text-base leading-snug font-semibold">{m.titulo}</span>
                       <span className="flex items-center gap-1 text-sm text-muted-foreground">
                         <Flag className="size-3.5" aria-hidden />
                         {rotuloTipoMarco(m.tipo)}
@@ -409,13 +399,13 @@ function Caminhada() {
                 ))}
               </ol>
             )}
-          </section>
+          </MediumSection>
 
           <p className="text-sm text-muted-foreground">
             Só você e a direção da casa veem estes dados. Os outros médiuns não veem nada seu.
           </p>
           {!somenteLeitura && (
-            <Button type="button" variant="outline" size="touch" className="w-full font-bold" onClick={() => setRetirar(true)}>
+            <Button type="button" variant="outline" size="touch" className="w-full font-semibold" onClick={() => setRetirar(true)}>
               Retirar autorização
             </Button>
           )}
@@ -439,8 +429,8 @@ function Caminhada() {
         loading={retirando}
         onConfirm={() => void retirarAutorizacao()}
         onCancel={() => setRetirar(false)}
-        className={cn(fraunces.variable, 'medium-terra')}
+        className="medium-terra"
       />
-    </div>
+    </MediumPage>
   );
 }

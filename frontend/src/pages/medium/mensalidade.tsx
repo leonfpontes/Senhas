@@ -46,12 +46,18 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BR_TIME_ZONE, monthLabelLong } from '@/lib/dateBr';
 import { cn } from '@/lib/utils';
+import {
+  MediumList,
+  MediumListItem,
+  MediumPage,
+  MediumPageHeader,
+  MediumSection,
+} from '@/components/medium/ui';
 import { apiClient } from '@/services/api_client';
 
-const SECTION_TITLE = 'text-xs font-extrabold tracking-[0.16em] text-brand uppercase';
 const CARD =
-  'flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm';
-const STATUS_BOX = 'flex items-start gap-2.5 rounded-xl p-3 text-base';
+  'flex flex-col gap-3 rounded-xl border border-border bg-card p-5 text-card-foreground shadow-xs';
+const STATUS_BOX = 'flex items-start gap-2.5 rounded-lg p-3 text-base';
 
 type Estado = 'carregando' | 'ok' | 'erro' | 'indisponivel';
 
@@ -83,7 +89,7 @@ function quandoEnviado(iso: string): string {
 function Pill({ mes }: { mes: MesMensalidade }) {
   const p = PILL[mes.status];
   return (
-    <span className={cn('shrink-0 rounded-full px-2.5 py-0.5 text-sm font-bold', p.className)}>
+    <span className={cn('shrink-0 rounded-full px-2.5 py-0.5 text-sm font-semibold', p.className)}>
       {p.label}
     </span>
   );
@@ -225,8 +231,8 @@ function Mensalidade() {
 
   return (
     <>
-      <div className="flex flex-col gap-6 px-4 pt-5 pb-8">
-        <h1 className="font-display text-[1.9rem] leading-tight font-bold">Mensalidade</h1>
+      <MediumPage>
+        <MediumPageHeader title="Mensalidade" description="Pague pelo PIX e envie o comprovante para a casa." />
 
         {!cartao ? (
           <EmptyState
@@ -248,47 +254,30 @@ function Mensalidade() {
         )}
 
         {emAberto.length > 0 && (
-          <section className="flex flex-col gap-2.5" aria-labelledby="titulo-em-aberto">
-            <h2 id="titulo-em-aberto" className={SECTION_TITLE}>
-              Meses em aberto
-            </h2>
-            <ul className="flex flex-col gap-2">
+          <MediumSection id="titulo-em-aberto" title="Meses em aberto">
+            <MediumList>
               {emAberto.map((m) => (
-                <li key={m.mes}>
-                  <button
-                    type="button"
-                    onClick={() => abrirMes(m)}
-                    className={cn(
-                      CARD,
-                      'min-h-16 w-full flex-row items-center text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                    )}
-                  >
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <strong className="text-base first-letter:uppercase">
-                        {monthLabelLong(m.mes)}
-                      </strong>
-                      <span className="text-sm text-muted-foreground">
-                        {valorBr(m.valor)}
-                        {linhaVencimento(m) ? ` · ${linhaVencimento(m)}` : ''}
-                      </span>
-                    </span>
-                    <Pill mes={m} />
-                    <span className="text-sm font-bold text-brand">Abrir</span>
-                  </button>
-                </li>
+                <MediumListItem
+                  key={m.mes}
+                  onClick={() => abrirMes(m)}
+                  title={<span className="first-letter:uppercase">{monthLabelLong(m.mes)}</span>}
+                  description={`${valorBr(m.valor)}${linhaVencimento(m) ? ` · ${linhaVencimento(m)}` : ''}`}
+                  meta={<Pill mes={m} />}
+                  trailing={<span className="sr-only">Abrir</span>}
+                />
               ))}
-            </ul>
-          </section>
+            </MediumList>
+          </MediumSection>
         )}
 
         {temPix && !auto && !data.isento && data.pix && (
           <Accordion
             type="single"
             collapsible
-            className="rounded-2xl border border-border bg-card px-4"
+            className="rounded-xl border border-border bg-card px-4 shadow-xs"
           >
             <AccordionItem value="recorrente">
-              <AccordionTrigger className="min-h-12 items-center text-base font-bold">
+              <AccordionTrigger className="min-h-14 items-center text-base font-semibold">
                 Quer pagar todo mês sem lembrar?
               </AccordionTrigger>
               <AccordionContent className="flex flex-col gap-3 text-base">
@@ -335,31 +324,23 @@ function Mensalidade() {
         )}
 
         {anteriores.length > 0 && (
-          <section className="flex flex-col gap-2.5" aria-labelledby="titulo-anteriores">
-            <h2 id="titulo-anteriores" className={SECTION_TITLE}>
-              Meses anteriores
-            </h2>
-            <ul className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-card">
+          <MediumSection id="titulo-anteriores" title="Meses anteriores">
+            <MediumList>
               {anteriores.map((m) => (
-                <li key={m.mes} className="flex min-h-14 items-center gap-3 px-4 py-2.5">
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <strong className="text-base first-letter:uppercase">
-                      {monthLabelLong(m.mes)}
-                    </strong>
-                    <span className="text-sm text-muted-foreground">
-                      {m.status === 'isento' ? 'Isento' : valorBr(m.valor)}
-                      {m.status === 'paga' && m.data_pagamento
-                        ? ` · paga em ${diaMesCurto(m.data_pagamento)}`
-                        : ''}
-                    </span>
-                  </span>
-                  <Pill mes={m} />
-                </li>
+                <MediumListItem
+                  key={m.mes}
+                  className="min-h-14 py-3"
+                  title={<span className="first-letter:uppercase">{monthLabelLong(m.mes)}</span>}
+                  description={`${m.status === 'isento' ? 'Isento' : valorBr(m.valor)}${
+                    m.status === 'paga' && m.data_pagamento ? ` · paga em ${diaMesCurto(m.data_pagamento)}` : ''
+                  }`}
+                  meta={<Pill mes={m} />}
+                />
               ))}
-            </ul>
-          </section>
+            </MediumList>
+          </MediumSection>
         )}
-      </div>
+      </MediumPage>
 
       <PagarPixSheet
         open={sheet === 'pagar'}
@@ -410,7 +391,7 @@ function CartaoDoMes({
   onComprovante: () => void;
 }) {
   const falar = whatsapp ? (
-    <Button asChild variant="outline" size="touch" className="w-full font-bold">
+    <Button asChild variant="outline" size="touch" className="w-full font-semibold">
       <a href={whatsapp} target="_blank" rel="noopener noreferrer">
         <MessageCircle aria-hidden /> Falar com a casa
       </a>
@@ -440,13 +421,14 @@ function CartaoDoMes({
   return (
     <article className={CARD} data-testid="cartao-mensalidade">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-bold tracking-wide text-brand uppercase">
-          {monthLabelLong(mes.mes)}
+        <span className="flex items-center gap-2 text-sm font-medium first-letter:uppercase">
+          <Wallet className="size-4 text-brand" aria-hidden />
+          <span className="first-letter:uppercase">{monthLabelLong(mes.mes)}</span>
         </span>
         <Pill mes={mes} />
       </div>
       <span
-        className="font-display text-[2.6rem] leading-none font-bold tabular-nums"
+        className="text-4xl leading-none font-semibold tracking-tight tabular-nums"
         data-testid="valor-mes"
       >
         {valorBr(mes.valor)}
@@ -487,14 +469,14 @@ function CartaoDoMes({
           </>
         ) : temPix ? (
           <>
-            <Button type="button" size="touch" className="w-full font-bold" onClick={onPagar}>
+            <Button type="button" size="touch" className="w-full font-semibold" onClick={onPagar}>
               Pagar com PIX
             </Button>
             <Button
               type="button"
               variant="outline"
               size="touch"
-              className="w-full font-bold"
+              className="w-full font-semibold"
               onClick={onComprovante}
             >
               <Upload aria-hidden /> Já paguei: enviar comprovante
@@ -510,7 +492,7 @@ function CartaoDoMes({
               </span>
             </div>
             {whatsapp && (
-              <Button asChild size="touch" className="w-full font-bold">
+              <Button asChild size="touch" className="w-full font-semibold">
                 <a href={whatsapp} target="_blank" rel="noopener noreferrer">
                   <MessageCircle aria-hidden /> Falar com a casa
                 </a>
@@ -520,7 +502,7 @@ function CartaoDoMes({
               type="button"
               variant={whatsapp ? 'outline' : 'default'}
               size="touch"
-              className="w-full font-bold"
+              className="w-full font-semibold"
               onClick={onComprovante}
             >
               <Upload aria-hidden /> Já paguei: enviar comprovante
@@ -544,7 +526,7 @@ function CartaoDoMes({
           <Button
             type="button"
             variant="ghost"
-            className="min-h-12 self-start font-bold text-brand"
+            className="min-h-12 self-start font-semibold text-brand"
             onClick={onComprovante}
           >
             Enviar outro comprovante
@@ -562,7 +544,7 @@ function CartaoDoMes({
               Motivo: {mes.recusa_motivo || 'a casa não informou.'}
             </span>
           </div>
-          <Button type="button" size="touch" className="w-full font-bold" onClick={onComprovante}>
+          <Button type="button" size="touch" className="w-full font-semibold" onClick={onComprovante}>
             <Upload aria-hidden /> Enviar outro comprovante
           </Button>
           {(temPix || auto?.pix) && (
@@ -570,7 +552,7 @@ function CartaoDoMes({
               type="button"
               variant="outline"
               size="touch"
-              className="w-full font-bold"
+              className="w-full font-semibold"
               onClick={onPagar}
             >
               Pagar com PIX
@@ -615,8 +597,8 @@ function Esqueleto() {
       aria-label="Carregando a mensalidade"
     >
       <Skeleton className="h-9 w-48" />
-      <Skeleton className="h-56 w-full rounded-2xl" />
-      <Skeleton className="h-20 w-full rounded-2xl" />
+      <Skeleton className="h-56 w-full rounded-xl" />
+      <Skeleton className="h-20 w-full rounded-xl" />
     </div>
   );
 }

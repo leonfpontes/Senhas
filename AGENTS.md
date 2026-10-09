@@ -980,8 +980,10 @@ Incluir obrigatoriamente:
 ### 11.8 Cadeia de Migracoes Alembic
 - Head atual: `091_mensalidade_gateway` (2026-10-09, F-02/AM-22: `mensalidade_gateways` — uma por terreiro,
   `stripe_account_id` unico, colunas `mp_*_enc` cifradas —, `mensalidade_cobrancas` — `uq_..._provedor_external`,
-  unico parcial de pendente por medium + mes + metodo — e `mensalidade_pagamentos.origem`; criada em paralelo com
-  a 090 de outro card, sobre a 089 — re-encadear no merge), apos `089_ficha_espiritual` (2026-10-08, F-05/AM-19: `ficha_campos`, `ficha_valores`, `medium_marcos`,
+  unico parcial de pendente por medium + mes + metodo — e `mensalidade_pagamentos.origem`), apos `090_assinatura_pix_mensal` (2026-10-09, $-04: tabela `assinatura_pix_pagamentos` — um registro por
+  PIX mensal do plano confirmado, `checkout_session_id` unico (idempotencia), `aplicado`, `period_start/_end`;
+  nada muda em `subscriptions`: o mes PIX reaproveita `collection_method='pix_mensal'` + `current_period_end`),
+  apos `089_ficha_espiritual` (2026-10-08, F-05/AM-19: `ficha_campos`, `ficha_valores`, `medium_marcos`,
   `ficha_sugestoes` (indice unico parcial de pendente por medium + campo) e `mediuns.consentimento_dado_religioso_em/
   _por/_versao/_revogado_em`; SEM acesso nos grupos padrao — excecao consciente, §3.3), apos `088_permissao_ficha_enum`
   (`ALTER TYPE permission_feature ADD VALUE 'ficha_espiritual'` num `autocommit_block()`), apos `087_materiais_corrente` (2026-10-08, AM-21: `materiais_corrente` + `material_grupos` — estudos e
@@ -1124,7 +1126,8 @@ Incluir obrigatoriamente:
 
 ### 11.17 MRR e categorias de cobrança da plataforma (2026-10-06)
 - Regra única em `backend/src/services/billing_metrics.py`: **pagante** = assinatura ACTIVE, com
-  `stripe_subscription_id`, sem trial, sem bônus, fora do FREE e com terreiro não excluído. Só pagante
+  `stripe_subscription_id` (ou mês PIX mensal pago e ainda valendo — $-04, `collection_method='pix_mensal'` com
+  `current_period_end` no futuro), sem trial, sem bônus, fora do FREE e com terreiro não excluído. Só pagante
   gera MRR. As outras categorias são em_teste (mostra o MRR potencial), bonificado (pilotos e
   testadores), gratuito, suspensa, cancelada, sem_cobranca (plano pago sem Stripe) e excluido.
 - Quem usa: `/billing/statistics/summary`, `/billing/subscriptions` (com `category`, `mrr`,
@@ -1164,6 +1167,25 @@ Incluir obrigatoriamente:
   Automático indisponível no BR — docs.stripe.com/payments/pix). O rótulo "PIX ou boleto" só aparece se
   `pix` entrar em `STRIPE_INVOICE_PAYMENT_METHODS`; nunca escrever "PIX" fixo na tela. O que ligar no
   Dashboard da Stripe está em docs/deployment.md (Stripe).
+- **PIX mês a mês ($-04, 2026-10-09, migração 090)**: terceira opção em `/admin/billing` ("PIX — pague mês a
+  mês"). Não é assinatura da Stripe (Pix só avulso na conta BR): `POST /billing/pix-checkout` abre Checkout
+  `mode=payment` + `payment_method_types=["pix"]` com `price_data` no preço de `PLAN_LIMITS` e `metadata.tipo=
+  pix_mensal`; o webhook (`completed` pago ou `async_payment_succeeded`) chama
+  `services/assinatura_pix.registrar_pagamento_pix`, que libera **30 dias a partir de max(agora, pago até, fim do
+  teste local)**. Estado: `collection_method='pix_mensal'`, `stripe_subscription_id` NULL, `current_period_end` =
+  pago até; cada pagamento em `assinatura_pix_pagamentos` (sessão única = idempotência). Regras: (1) tenant do
+  `metadata` só vale se o `customer` da sessão for o cliente Stripe gravado para ele; valor >= preço; (2) com
+  assinatura cartão/boleto (ou boleto pendente) o PIX é 409, e com mês PIX valendo o cartão/boleto é 409 até o
+  "pago até" — trocar antes é com o suporte; com mês valendo, o PIX só renova o MESMO plano (troca de plano no mês
+  seguinte); (3) PIX pago em estado conflitante (cartão, cortesia, valor menor) fica `aplicado=false` + log de
+  erro para o suporte devolver; (4) lembretes 5 d e 1 d antes a todos os admins (`claim_once`, namespace
+  `pix_mensal_lembretes`, escopo = pago até); (5) 3 dias de tolerância com o plano ligado; depois
+  `subscription_block_reason` = `pix_expired` (402, limites do FREE) e a rodada diária faz `reset_to_free`
+  (CANCELLED + e-mail "agora é gratuita", preservando um pedido de boleto aberto). Não suspende: SUSPENDED tira até
+  o gratuito e não há cobrança aberta para regularizar; (6) MRR: mês PIX valendo é pagante (`billing_category`/
+  `paying_clause`), vencido não; (7) card checkout que liga assinatura limpa o `pix_mensal`. Painel: aviso "Seu
+  plano está pago até DD/MM (PIX). Pagar o próximo mês" com ≤ 7 dias (`SubscriptionWarningBanner`), histórico
+  "PIX — mês pago até DD/MM" e badge "PIX mensal" na plataforma (Terreiros).
 - **Rótulos de plano**: fonte única `constants/plans.ts` ("Gratuito"); `useSubscription().planLabel`
   e `platform/planMeta.ts` (rótulo, preço e limites) derivam dela; a tabela de planos da plataforma
   usa `BASE_FEATURES` + `FEATURE_CATALOG`.
@@ -1390,7 +1412,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `pages/convite/[token].tsx` (`AuthShell`): logo e nome da casa, "Crie sua senha de acesso" (ou a senha
   do painel), consentimento + "Ler o termo"; no aceite já entra e vai para `/medium`. Backend em §3.3.
 - **Mensalidade (AM-11/AM-12)**: `/medium/mensalidade` (`components/medium/mensalidade/*`): cartão do mês
-  (valor em Fraunces, etiqueta, vencimento) com uma ação principal por situação — em aberto/atrasada → "Pagar com
+  (valor em destaque, etiqueta, vencimento) com uma ação principal por situação — em aberto/atrasada → "Pagar com
   PIX" (+ "Já paguei: enviar comprovante"); "Aguardando a casa confirmar"; não confirmado → motivo + "Enviar outro
   comprovante" + "Falar com a casa" (WhatsApp da casa do `/medium/me`); paga; "Você é isento de mensalidade"; sem
   chave PIX → "Combine o pagamento com a casa". Depois: meses em aberto (tocar troca o cartão), "Quer pagar todo mês
@@ -1721,22 +1743,26 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   que o `deploy.yml` repassa ao build — trocar o número = mudar a variável e redeployar.
   Página nova de primeiro nível → `backend/src/core/reserved_slugs.py` (teste quebra se faltar) e
   `STATIC_ROUTES` do `pages/sitemap.xml.tsx`.
-- **Área do Médium (AM-06; clara desde out/2026)**: identidade do site novo (paleta terra + Fraunces), CLARA no tom
-  da landing, com a COR E O LOGO DO TERREIRO nos detalhes. Escopo `.medium-terra` (globals.css; `MediumLayout`,
+- **Área do Médium (AM-06; visual de aplicativo desde out/2026)**: neutra e sempre clara, com a COR E O LOGO DO
+  TERREIRO como único destaque — o dono achou a versão anterior (paleta terra da landing, Fraunces, rótulos em
+  caixa-alta, faixas com véu) "com cara de IA" e pediu algo perto dos apps de terreiro (Kanzuá: listas agrupadas,
+  cartão da próxima gira na cor da casa). Escopo `.medium-terra` (nome histórico; globals.css — `MediumLayout`,
   `/escolher-area` e os overlays que eles abrem — Sheet, DropdownMenu e `ConfirmDialog`/`CrudDrawer` (prop
-  `className`, AM-29) recebem a classe e `fraunces.variable`, porque são portados para o `<body>`): fundo areia-50,
-  cartões/cabeçalho/barra inferior brancos, caixas areia-100, texto tinta, apoio tinta-suave; `--primary`/
-  `--primary-foreground` continuam do `applyBrand` (botão principal, aba ativa, data da gira, linha do cabeçalho) e
-  `text-brand` lê `--terra-brand-text-light`, calculada por `applyTerraBrandText` (`lib/brand.brandTextColorOn`
-  contra `TERRA_SURFACES`). **Sem modo escuro**: o dono achou a Área "muito escura" (ela seguia o escuro do celular
-  e abria as telas com faixa café) — o `MediumLayout` e o `/escolher-area` chamam `useAreaClara` (tira a classe
-  `dark` de `<html>` enquanto a Área está aberta e devolve ao sair) e não existe `.dark .medium-terra`. Faixa de
-  abertura (Início "Olá", Perfil, escolha de área) = `components/medium/MediumFaixa` (areia-100 com véu de até 8%
-  da cor do terreiro, rótulo `MediumFaixaRotulo` em `text-brand`, título tinta, fio `from-primary to-ouro-400`).
-  `__tests__/styles/colorUsage.test.ts` barra `bg-cafe-*`, `text-areia-*`, `text-white` e `dark:` nas telas da
-  Área (exceção: a câmera do "Cheguei"); pares travados em `__tests__/styles/marketingContrast.test.ts` (8 cores
-  de terreiro difíceis, inclusive no véu da faixa). Manifesto da Área e `<meta name="theme-color">` das rotas
-  `/medium/*` e `/escolher-area`: `#ffffff` (fundo `#fcf8f2`). Só na Área; nunca no painel.
+  `className`, AM-29) recebem a classe, porque são portados para o `<body>`): fundo `#f4f5f7`, cartões/cabeçalho/
+  barra inferior brancos, caixas `#eef0f3`, texto `#111827`, apoio `#4b5563`, sem serifa (não usar `font-display`
+  na Área). `--primary`/`--primary-foreground` continuam do `applyBrand` (botão principal, pílula da aba ativa,
+  cartão "Próxima gira" — sem véu por cima da cor, só fio) e `text-brand` lê `--terra-brand-text-light`, calculada
+  por `applyTerraBrandText` (`lib/brand.brandTextColorOn` contra `TERRA_SURFACES`). **Peças de tela** em
+  `components/medium/ui.tsx` (toda tela nova da Área usa): `MediumPage`/`MediumPageHeader` (título da tela),
+  `MediumSection` (+ `MediumSectionLink`), `MediumList`/`MediumListItem` (lista agrupada sobre o `Item` do
+  shadcn, `components/ui/item.tsx`: ícone em caixinha + título + descrição + seta), `IconTile`, `StatusBadge`.
+  **Sem modo escuro**: o `MediumLayout` e o `/escolher-area` chamam `useAreaClara` (tira a classe `dark` de
+  `<html>` enquanto a Área está aberta e devolve ao sair) e não existe `.dark .medium-terra`. `MediumFaixa` ficou
+  só na escolha de área (cartão branco com fio, sem gradiente). `__tests__/styles/colorUsage.test.ts` barra
+  `bg-cafe-*`, `text-areia-*`, `text-white` e `dark:` nas telas da Área (exceção: a câmera do "Cheguei"); pares
+  travados em `__tests__/styles/marketingContrast.test.ts` (8 cores de terreiro difíceis). Manifesto da Área e
+  `<meta name="theme-color">` das rotas `/medium/*` e `/escolher-area`: `#ffffff` (fundo `#f4f5f7`). Só na Área;
+  nunca no painel.
 - **Claro/escuro**: classe `dark` em `<html>` (não no layout — Radix porta overlays para o `<body>`), aplicada por
   `AdminThemeProvider`/`PlatformThemeProvider` (chaves `admin_theme_mode`/`platform_theme_mode`); páginas públicas e
   a Área do Médium sempre claras (a Área tira a classe com `useAreaClara`).
@@ -1841,6 +1867,11 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   `.env*.example` e nos dois `docker-compose`. Passos do dono (Stripe Connect e aplicacao do Mercado Pago, webhooks,
   `.env` da VPS) em `docs/deployment.md`.
 - Regra para agendador que envia algo: usar `backend/src/services/scheduler_guard.py` — `advisory_lock(KEY)` envolvendo a rodada (só um worker processa) e `claim_once(tenant_id, namespace, item, scope)` gravado **antes** do envio (marca em `tenant_configs.custom_settings[namespace]` sob `SELECT ... FOR UPDATE`; `scope` diferente reinicia as marcas). Chaves de lock listadas no docstring do módulo; nova chave = novo número.
+- PIX mês a mês do plano ($-04, desde 2026-10-09): `services/assinatura_pix.processar_pix_mensal`, chamada pelo
+  `trial_scheduler` na rodada das 09:00 BRT logo depois dos trials, com lock próprio
+  `advisory_lock(PIX_MENSAL_LOCK_KEY = 0x6769726168756207)`. Lembretes 5 d/1 d antes do "pago até" (por faixa: se
+  uma rodada falhar, sai na seguinte) com `claim_once(..., "pix_mensal_lembretes", "5"|"1", scope=pago_ate)`;
+  vencimento (pago até + 3 dias) → gratuito, rechecado sob `FOR UPDATE`.
 - Trial: marcas em `custom_settings.trial_reminders` (escopo = `trial_ends_at`); dias restantes arredondados para cima e expiração só depois de `trial_ends_at` (antes podia expirar ~1 dia cedo). Aniversário: `custom_settings.birthday_digest` (escopo = data BRT).
 
 **Rate limiter distribuído via Redis (desde 2026-06-27):**

@@ -119,6 +119,14 @@ class TrialScheduler:
                 await self._process_trials()
             except Exception:
                 logger.exception("Trial scheduler: unexpected error in _process_trials")
+            # PIX mês a mês do plano ($-04): lembretes 5d/1d e vencimento, na mesma hora,
+            # com advisory lock próprio (PIX_MENSAL_LOCK_KEY) — ver services/assinatura_pix.py.
+            try:
+                from src.services.assinatura_pix import processar_pix_mensal
+
+                await processar_pix_mensal()
+            except Exception:
+                logger.exception("Trial scheduler: unexpected error in processar_pix_mensal")
 
     async def _process_trials(self) -> None:
         """Expire past-due local trials and send reminder e-mails (um worker por rodada)."""

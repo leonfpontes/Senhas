@@ -11,7 +11,6 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { ChevronRight, LayoutDashboard, Loader2, UserRound, type LucideIcon } from 'lucide-react';
-import { fraunces } from '@/components/landing/fonts';
 import { applyMediumBrand, type MediumMe } from '@/components/medium/MediumProvider';
 import { MediumFaixa } from '@/components/medium/MediumFaixa';
 import { useAreaClara } from '@/components/medium/MediumLayout';
@@ -27,7 +26,6 @@ import {
   routeAfterLogin,
   type AreaChoice,
 } from '@/lib/areas';
-import { cn } from '@/lib/utils';
 import { apiClient } from '@/services/api_client';
 
 function AreaCard({
@@ -45,13 +43,13 @@ function AreaCard({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-24 w-full items-center gap-4 rounded-[1.25rem] border border-border bg-card px-4 py-4 text-left text-card-foreground shadow-sm outline-none hover:border-primary focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      className="flex min-h-24 w-full items-center gap-4 rounded-xl border border-border bg-card px-4 py-4 text-left text-card-foreground shadow-xs outline-none hover:border-primary focus-visible:ring-[3px] focus-visible:ring-ring/50"
     >
-      <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-brand">
-        <Icon className="size-7" aria-hidden />
+      <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-brand">
+        <Icon className="size-6" aria-hidden />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <strong className="font-display text-xl leading-tight font-semibold">{title}</strong>
+        <strong className="text-lg leading-tight font-semibold">{title}</strong>
         <span className="text-base text-muted-foreground">{description}</span>
       </span>
       <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
@@ -106,10 +104,7 @@ export default function EscolherAreaPage() {
 
   return (
     <div
-      className={cn(
-        fraunces.variable,
-        'medium-terra flex min-h-dvh flex-col bg-background text-foreground',
-      )}
+      className="medium-terra flex min-h-dvh flex-col bg-background text-foreground antialiased"
     >
       <Head>
         <title>Para onde você quer ir? · GiraHub</title>
@@ -127,11 +122,11 @@ export default function EscolherAreaPage() {
         <>
           <MediumFaixa className="pt-8 pb-8">
             <div className="mx-auto flex max-w-xl flex-col gap-4">
-              <p className="flex items-center gap-2.5 text-base font-bold text-muted-foreground">
+              <p className="flex items-center gap-2.5 text-base font-semibold text-muted-foreground">
                 <TerreiroEmblem nome={terreiro} logoUrl={me?.marca.logo_url} className="size-9" />
                 <span className="truncate">{terreiro}</span>
               </p>
-              <h1 className="font-display text-[1.9rem] leading-[1.1] font-bold tracking-tight">
+              <h1 className="text-2xl leading-tight font-semibold tracking-tight">
                 {nome ? `Olá, ${nome}. Para onde você quer ir?` : 'Para onde você quer ir?'}
               </h1>
             </div>
