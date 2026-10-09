@@ -68,7 +68,7 @@ from ..models.medium_lembretes import (
     TIPO_TROCA_RESPOSTA,
     TIPO_VESPERA,
 )
-from ..models.mensalidades import MensalidadeStatus
+from ..models.mensalidades import COMPROVANTE_EM_CONFERENCIA, MensalidadeComprovante
 from .medium_inicio import STATUS_ATRASADA, STATUS_PENDENTE, situacao_mensalidade, vencimento_do_mes
 
 # ── Janelas (horário de Brasília, [início, fim) em horas) ───────────────────
@@ -392,12 +392,18 @@ async def mensalidades_a_lembrar(
             )
         ).scalars().all()
     }
+    # Pagamento parcial (092): comprovantes de cada mês e cobranças pagas → o lembrete fala da falta.
+    from .mensalidade_parcial import RESUMO_VAZIO, comprovantes_por_pagamento, gateway_pago_por_mes
+
+    resumos = await comprovantes_por_pagamento(db, tenant_id, [p.id for p in pagamentos.values()])
+    gateway = await gateway_pago_por_mes(db, tenant_id, [m for m, _ in meses], list(dest))
     out: list[MensalidadeALembrar] = []
     for medium_id, d in dest.items():
         if d.isento:
             continue
         for mes, tipo in meses:
             p = pagamentos.get((medium_id, mes))
+            resumo = resumos.get(p.id, RESUMO_VAZIO) if p else RESUMO_VAZIO
             situacao = situacao_mensalidade(
                 hoje=hoje,
                 mes=mes,
@@ -409,9 +415,8 @@ async def mensalidades_a_lembrar(
                 pagamento_valor_vigente=p.valor_vigente if p else None,
                 pagamento_valor_pago=p.valor_pago if p else None,
                 pagamento_data=p.data_pagamento if p else None,
-                comprovante_enviado_em=p.comprovante_enviado_em if p else None,
-                comprovante_presente=bool(p and p.comprovante_filename),
-                recusado_em=p.recusado_em if p else None,
+                valor_recebido=resumo.recebido + gateway.get((medium_id, mes), 0),
+                **resumo.para_situacao(),
             )
             if situacao is None or not mensalidade_pede_lembrete(situacao.status):
                 continue
@@ -753,19 +758,14 @@ async def resumo_admin(
     desde = agora - timedelta(hours=24)
     comprovantes = 0
     if com_mensalidade:
+        # Comprovantes em conferência (092: um por linha de `mensalidade_comprovantes`).
         comprovantes = (
             await db.execute(
-                select(func.count(MensalidadePagamento.id))
-                .join(Medium, and_(Medium.id == MensalidadePagamento.mediun_id, Medium.tenant_id == tenant_id))
+                select(func.count(MensalidadeComprovante.id))
+                .join(Medium, and_(Medium.id == MensalidadeComprovante.mediun_id, Medium.tenant_id == tenant_id))
                 .where(
-                    MensalidadePagamento.tenant_id == tenant_id,
-                    MensalidadePagamento.status == MensalidadeStatus.PENDENTE,
-                    MensalidadePagamento.comprovante_enviado_em.is_not(None),
-                    MensalidadePagamento.comprovante_filename.is_not(None),
-                    or_(
-                        MensalidadePagamento.recusado_em.is_(None),
-                        MensalidadePagamento.recusado_em < MensalidadePagamento.comprovante_enviado_em,
-                    ),
+                    MensalidadeComprovante.tenant_id == tenant_id,
+                    MensalidadeComprovante.status == COMPROVANTE_EM_CONFERENCIA,
                     Medium.deleted_at.is_(None),
                 )
             )

@@ -1064,6 +1064,16 @@ WhatsApp", AxéCloud).
 - [ ] Admin com FINANCEIRO:insert confirma e o mês vira pago, com espelho em contas a receber
 - [ ] Recusa com motivo aparece para o médium, que pode reenviar
 - [ ] Médium não consegue marcar pago nem mexer em mês de outro médium (teste)
+
+**Pagamento parcial (decisão do dono de 09/10, migração 092).** O slot único de comprovante virou a tabela
+`mensalidade_comprovantes` (vários por mês; os antigos foram migrados): cada envio do médium é um comprovante novo
+(com o valor que ele diz ter pago, opcional), nada é substituído. A casa **confere quanto entrou** em cada
+comprovante (`PATCH .../comprovantes/{id}/conferir`, FINANCEIRO edit — "recebi só uma parte" é o mesmo gesto com um
+valor menor) ou não confirma com motivo (`.../nao-confirmar`); o histórico de todos fica na conferência. O mês vira
+pago sozinho quando o recebido (conferidos + cobranças automáticas pagas) alcança o valor do mês; pago a mais só
+aparece para a direção. Na Área o mês mostra "Falta pagar R$ X", o PIX (estático ou automático) e a pendência do
+Início são do valor que falta, e a lista "Comprovantes que você enviou" mostra Em conferência / Conferido R$ 30 /
+Não confirmado: motivo. O registro manual no painel continua sendo a palavra final. Detalhes em AGENTS.md §11.10.
 - [ ] Arquivo acima de 2 MB ou tipo inválido recusado com mensagem clara
 
 **Riscos.** Crescimento do banco (BYTEA, limite de 8 GB): compressão no navegador, limite de 2 MB e
@@ -1478,7 +1488,8 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-21 Estudos e documentos | #107 | 087 | 2026-10-08 |
 | F-05 Ficha espiritual (painel) + AM-19 Minha caminhada | #109 | 088, 089 | 2026-10-08 |
 | AM-22 Mensalidade com baixa automática (F-02 — Stripe Connect) | #114 | 091 | — |
-| AM-22 Mensalidade com baixa automática — Mercado Pago (OAuth) | este PR | — (usa as colunas `mp_*` da 091) | — |
+| AM-22 Mensalidade com baixa automática — Mercado Pago (OAuth) | #115 | — (usa as colunas `mp_*` da 091) | — |
+| Pagamento parcial da mensalidade | este PR | 092 | — |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).

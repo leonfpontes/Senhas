@@ -24,6 +24,12 @@ def _fmt_brl(value: float) -> str:
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _em_aberto(item: Dict[str, Any], valor_padrao: float) -> float:
+    """Valor em aberto da linha: a falta (pagamento parcial, migração 092) ou o valor do mês."""
+    falta = item.get("falta")
+    return float(falta) if falta is not None else valor_padrao
+
+
 def render_mensalidade_report(
     inadimplentes: List[Dict[str, Any]],
     config_resumo: Dict[str, Any],
@@ -46,7 +52,7 @@ def render_mensalidade_report(
     valor_mensal: float = float(config_resumo.get("valor_mensal", 0.0))
 
     count = len(inadimplentes)
-    total_em_aberto = valor_mensal * count
+    total_em_aberto = sum(_em_aberto(item, valor_mensal) for item in inadimplentes)
     plural = "inadimplente" if count == 1 else "inadimplentes"
 
     # Build table rows
@@ -57,7 +63,7 @@ def render_mensalidade_report(
             rows_html += f"""
         <tr>
           <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333;">{nome}</td>
-          <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#555;text-align:right;">{_fmt_brl(valor_mensal)}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#555;text-align:right;">{_fmt_brl(_em_aberto(item, valor_mensal))}</td>
         </tr>"""
     else:
         rows_html = """
@@ -310,7 +316,7 @@ def render_mensalidade_report_duplo(
 
     def _build_table(rows: List[Dict[str, Any]], nome_key: str, valor: float, label_plural: str) -> str:
         count = len(rows)
-        total = valor * count
+        total = sum(_em_aberto(item, valor) for item in rows)
         plural = "inadimplente" if count == 1 else "inadimplentes"
 
         rows_html = ""
@@ -320,7 +326,7 @@ def render_mensalidade_report_duplo(
                 rows_html += f"""
         <tr>
           <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#333;">{nome}</td>
-          <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#555;text-align:right;">{_fmt_brl(valor)}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;color:#555;text-align:right;">{_fmt_brl(_em_aberto(item, valor))}</td>
         </tr>"""
         else:
             rows_html = f"""

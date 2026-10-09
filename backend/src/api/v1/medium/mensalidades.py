@@ -11,12 +11,16 @@ o único parâmetro). Gate além do `require_medium` do router: módulo "mensali
 (`medium_area.area_medium_modulos` — a casa ligou o módulo E o plano efetivo tem
 `mensalidade_mediun`), senão 403 neutro (`MEDIUM_MODULO_INDISPONIVEL`).
 
-- O médium **nunca** marca o mês como pago: o comprovante deixa o registro PENDENTE, "em
-  conferência", até a casa confirmar no painel (POST de registro, FINANCEIRO:insert) ou não
-  confirmar com motivo (`PATCH .../recusa`, FINANCEIRO:edit — `admin/mensalidade_comprovantes.py`).
+- O médium **nunca** marca o mês como pago: cada comprovante é uma linha nova de
+  `mensalidade_comprovantes` (pagamento parcial, migração 092 — nada é substituído), "em
+  conferência" até a casa conferir QUANTO entrou ou não confirmar com motivo
+  (`admin/mensalidade_comprovantes.py`, FINANCEIRO:edit). O mês vira pago quando o recebido
+  (conferidos + cobranças automáticas pagas) alcança o valor do mês; até lá o mês mostra o que
+  FALTA (`valor`) e o PIX/cobrança é do valor que falta. O médium pode dizer quanto pagou
+  (`valor_informado`, opcional) e vê a lista dos comprovantes enviados com o status.
 - Status por mês: `services/medium_inicio.situacao_mensalidade` (a mesma regra do Início);
   quais meses aparecem: `services/medium_mensalidade.meses_da_area`.
-- O BR Code é montado no servidor (`services/pix_brcode`), com o valor do mês e o txid
+- O BR Code é montado no servidor (`services/pix_brcode`), com o valor que falta no mês e o txid
   `MENS` + AAAAMM + 10 hex do id do médium (identifica médium e mês no extrato da casa).
 - Envio do comprovante: JPEG/PNG/WebP/PDF até 2 MB, conferido pelos bytes; recusado sob
   impersonação (o suporte vê, não envia em nome do médium); 20 envios/hora por IP; auditoria
@@ -40,7 +44,7 @@ from typing import List, Optional
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -51,8 +55,9 @@ from src.core.database import get_db
 from src.core.errors import APIException, ConflictError, ForbiddenError, ValidationError
 from src.core.limiter import limiter
 from src.core.tz import APP_TZ, today_local, utc_now
-from src.models import MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
+from src.models import MensalidadeComprovante, MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
 from src.models.mensalidade_gateway import MensalidadeCobranca
+from src.services import mensalidade_parcial as parcial
 from src.services import mensalidade_gateway as gateway_service
 from src.services.pix_chave import ChavePixInvalida, normalizar_chave
 from src.services.audit_service import AuditService
@@ -105,11 +110,26 @@ class PixDaCasa(BaseModel):
     chave_alterada_em: Optional[datetime] = None
 
 
+class ComprovanteEnviado(BaseModel):
+    """Um comprovante que o médium enviou (sem o arquivo, sem ids)."""
+
+    enviado_em: datetime
+    valor_informado: Optional[float] = None
+    # em_conferencia | conferido | nao_confirmado
+    status: str
+    valor_conferido: Optional[float] = None
+    motivo: Optional[str] = None
+
+
 class MesMensalidade(BaseModel):
     mes: str
     # pendente | atrasada | em_conferencia | nao_confirmada | paga | isento
     status: str
+    # Mês em aberto: o que FALTA pagar (pagamento parcial); pago: o total recebido.
     valor: Optional[float] = None
+    # Valor do mês e o que a casa já recebeu (comprovantes conferidos + cobranças pagas).
+    valor_mensalidade: Optional[float] = None
+    valor_recebido: float = 0.0
     vencimento: Optional[date] = None
     data_pagamento: Optional[datetime] = None
     comprovante_enviado_em: Optional[datetime] = None
@@ -118,6 +138,8 @@ class MesMensalidade(BaseModel):
     atual: bool = False
     # Paga pela cobrança automática (PIX/boleto na conta da casa, baixa pelo webhook).
     pago_automatico: bool = False
+    # Comprovantes enviados pela Área neste mês, do mais antigo para o mais novo.
+    comprovantes: List[ComprovanteEnviado] = []
 
 
 class CobrancaAutomaticaInfo(BaseModel):
@@ -165,19 +187,17 @@ async def _config(db: AsyncSession, ctx: MediumContext) -> Optional[MensalidadeC
 
 
 async def _registros(db: AsyncSession, ctx: MediumContext) -> dict[date, dict]:
-    """Registros do médium por mês — sem o BYTEA do comprovante, sem campos internos."""
+    """Registros do médium por mês — sem arquivo, sem campos internos — com os comprovantes
+    (`resumo`, migração 092) e o que entrou por cobrança automática (`recebido_gateway`)."""
     rows = (
         await db.execute(
             select(
+                MensalidadePagamento.id,
                 MensalidadePagamento.mes_referencia,
                 MensalidadePagamento.status,
                 MensalidadePagamento.valor_vigente,
                 MensalidadePagamento.valor_pago,
                 MensalidadePagamento.data_pagamento,
-                MensalidadePagamento.comprovante_enviado_em,
-                MensalidadePagamento.comprovante_filename,
-                MensalidadePagamento.recusado_em,
-                MensalidadePagamento.recusa_motivo,
                 MensalidadePagamento.origem,
             ).where(
                 MensalidadePagamento.tenant_id == ctx.tenant_id,
@@ -185,7 +205,15 @@ async def _registros(db: AsyncSession, ctx: MediumContext) -> dict[date, dict]:
             )
         )
     ).mappings().all()
-    return {r["mes_referencia"]: dict(r) for r in rows}
+    resumos = await parcial.comprovantes_do_medium(db, ctx.tenant_id, ctx.medium.id)
+    gateway = await parcial.gateway_pago_por_mes(db, ctx.tenant_id, [r["mes_referencia"] for r in rows], [ctx.medium.id])
+    regs: dict[date, dict] = {}
+    for r in rows:
+        reg = dict(r)
+        reg["resumo"] = resumos.get(r["id"], parcial.RESUMO_VAZIO)
+        reg["recebido_gateway"] = gateway.get((ctx.medium.id, r["mes_referencia"]), parcial.ZERO)
+        regs[r["mes_referencia"]] = reg
+    return regs
 
 
 def _cobranca_ativa(config: Optional[MensalidadeConfig]) -> bool:
@@ -207,10 +235,8 @@ def _situacao(
         pagamento_valor_vigente=reg["valor_vigente"] if reg else None,
         pagamento_valor_pago=reg["valor_pago"] if reg else None,
         pagamento_data=reg["data_pagamento"] if reg else None,
-        comprovante_enviado_em=reg["comprovante_enviado_em"] if reg else None,
-        comprovante_presente=bool(reg and reg["comprovante_filename"]),
-        recusado_em=reg["recusado_em"] if reg else None,
-        recusa_motivo=reg["recusa_motivo"] if reg else None,
+        valor_recebido=(reg["resumo"].recebido + reg["recebido_gateway"]) if reg else None,
+        **(reg["resumo"] if reg else parcial.RESUMO_VAZIO).para_situacao(),
     )
 
 
@@ -228,11 +254,29 @@ def _meses(ctx: MediumContext, config: Optional[MensalidadeConfig], hoje: date, 
     )
 
 
+def _comprovantes_enviados(reg: Optional[dict]) -> list[ComprovanteEnviado]:
+    if not reg:
+        return []
+    return [
+        ComprovanteEnviado(
+            enviado_em=c.enviado_em,
+            valor_informado=float(c.valor_informado) if c.valor_informado is not None else None,
+            status=c.status,
+            valor_conferido=float(c.valor_conferido) if c.valor_conferido is not None else None,
+            motivo=c.motivo if c.status == "nao_confirmado" else None,
+        )
+        for c in reg["resumo"].comprovantes
+        if c.origem == "medium"
+    ]
+
+
 def _item(sit: MensalidadeDoMes, hoje: date, reg: Optional[dict] = None) -> MesMensalidade:
     return MesMensalidade(
         mes=sit.mes,
         status=sit.status,
         valor=sit.valor,
+        valor_mensalidade=sit.valor_mensalidade,
+        valor_recebido=sit.valor_recebido or 0.0,
         vencimento=sit.vencimento,
         data_pagamento=sit.data_pagamento,
         comprovante_enviado_em=sit.comprovante_enviado_em,
@@ -242,6 +286,7 @@ def _item(sit: MensalidadeDoMes, hoje: date, reg: Optional[dict] = None) -> MesM
         pago_automatico=bool(
             reg and sit.status == STATUS_PAGA and reg.get("origem") == gateway_service.ORIGEM_GATEWAY
         ),
+        comprovantes=_comprovantes_enviados(reg),
     )
 
 
@@ -265,7 +310,7 @@ def _parse_mes(texto: str) -> date:
 
 async def _mes_da_area(
     db: AsyncSession, ctx: MediumContext, mes: date
-) -> tuple[Optional[MensalidadeConfig], MensalidadeDoMes]:
+) -> tuple[Optional[MensalidadeConfig], MensalidadeDoMes, Optional[dict]]:
     """Situação de um mês que a tela mostra ao médium (404 se o mês não é dele)."""
     hoje = today_local()
     config = await _config(db, ctx)
@@ -278,7 +323,21 @@ async def _mes_da_area(
             error_code="NOT_FOUND",
             details={"error_code": "MES_SEM_MENSALIDADE"},
         )
-    return config, sit
+    return config, sit, regs.get(mes)
+
+
+def _exigir_valor_em_aberto(sit: MensalidadeDoMes) -> None:
+    """O PIX/cobrança é do valor que FALTA: sem falta, não há o que pagar."""
+    if (not sit.valor or sit.valor <= 0) and (sit.valor_recebido or 0) > 0:
+        raise ConflictError(
+            "A casa já recebeu o valor deste mês. Se tiver dúvida, fale com a casa.",
+            details={"error_code": "SEM_VALOR_EM_ABERTO"},
+        )
+    if not sit.valor or sit.valor <= 0:
+        raise ConflictError(
+            "A casa ainda não definiu o valor da mensalidade. Fale com a casa.",
+            details={"error_code": "MENSALIDADE_SEM_VALOR"},
+        )
 
 
 _MOTIVO_MES_FECHADO = {
@@ -329,9 +388,9 @@ async def pix_do_mes(
     ctx: MediumContext = Depends(require_modulo_mensalidade),
     db: AsyncSession = Depends(get_db),
 ) -> PixDoMes:
-    """PIX copia e cola (e o texto do QR) do mês em aberto, com o valor e o txid do mês."""
+    """PIX copia e cola (e o texto do QR) do mês em aberto, com o valor que FALTA e o txid do mês."""
     mes_date = _parse_mes(mes)
-    config, sit = await _mes_da_area(db, ctx, mes_date)
+    config, sit, _ = await _mes_da_area(db, ctx, mes_date)
     if sit.status not in STATUS_EM_ABERTO:
         raise ConflictError(
             _MOTIVO_MES_FECHADO.get(sit.status, "Este mês não está em aberto."),
@@ -342,11 +401,7 @@ async def pix_do_mes(
             "A casa ainda não cadastrou a chave PIX. Combine o pagamento com a casa.",
             details={"error_code": "PIX_NAO_CONFIGURADO"},
         )
-    if not sit.valor or sit.valor <= 0:
-        raise ConflictError(
-            "A casa ainda não definiu o valor da mensalidade. Fale com a casa.",
-            details={"error_code": "MENSALIDADE_SEM_VALOR"},
-        )
+    _exigir_valor_em_aberto(sit)
     txid = txid_mensalidade(mes_date, ctx.medium.id)
     try:
         copia_e_cola = build_static_brcode(
@@ -376,6 +431,25 @@ async def pix_do_mes(
     )
 
 
+def _valor_informado(texto: Optional[str]) -> Optional[Decimal]:
+    """"30", "30.5", "30,50" → Decimal; vazio → None; inválido, zero ou absurdo → 422."""
+    if texto is None or not texto.strip():
+        return None
+    bruto = texto.strip().replace("R$", "").replace(" ", "")
+    if "," in bruto:
+        bruto = bruto.replace(".", "").replace(",", ".")
+    try:
+        valor: Optional[Decimal] = Decimal(bruto).quantize(Decimal("0.01"))
+    except (ArithmeticError, ValueError):
+        valor = None
+    if valor is None or not valor.is_finite() or valor <= 0 or valor > Decimal("99999999.99"):
+        raise ValidationError(
+            "Confira o valor que você pagou (ou deixe em branco).",
+            details={"error_code": "VALOR_INVALIDO", "field": "valor_informado"},
+        )
+    return valor
+
+
 @router.post(
     "/mensalidades/{mes}/comprovante",
     response_model=MesMensalidade,
@@ -386,23 +460,26 @@ async def enviar_comprovante(
     request: Request,
     mes: str,
     arquivo: UploadFile = File(...),
+    valor_informado: Optional[str] = Form(None),
     ctx: MediumContext = Depends(require_modulo_mensalidade),
     db: AsyncSession = Depends(get_db),
 ) -> MesMensalidade:
-    """Grava o comprovante do mês SEM marcar como pago: o mês fica "em conferência".
+    """Acrescenta um comprovante ao mês SEM marcar como pago: ele fica "em conferência".
 
     Cria o registro do mês (PENDENTE, com o valor vigente da configuração, como o 1º registro
-    do painel) ou atualiza o existente; reenvio troca o arquivo e limpa a recusa anterior.
-    Mês pago ou isento → 409.
+    do painel) se ainda não existe. Cada envio é um comprovante novo (pagamento parcial, 092):
+    os anteriores — conferidos, não confirmados ou em conferência — ficam no histórico.
+    `valor_informado` (opcional): quanto o médium diz ter pago. Mês pago ou isento → 409.
     """
     mes_date = _parse_mes(mes)
+    valor = _valor_informado(valor_informado)
     data = await arquivo.read(MAX_COMPROVANTE_MEDIUM_BYTES + 1)
     try:
         comp = validar_comprovante(arquivo.content_type, data, arquivo.filename)
     except ComprovanteInvalido as exc:
         raise ValidationError(str(exc), details={"error_code": exc.code})
 
-    config, sit = await _mes_da_area(db, ctx, mes_date)
+    config, sit, _ = await _mes_da_area(db, ctx, mes_date)
     if sit.status in (STATUS_PAGA, STATUS_ISENTO):
         raise ConflictError(_MOTIVO_MES_FECHADO[sit.status], details={"error_code": "MES_FECHADO", "status": sit.status})
 
@@ -431,14 +508,6 @@ async def enviar_comprovante(
     elif pagamento.status != MensalidadeStatus.PENDENTE:
         # A casa confirmou (ou isentou) entre a leitura e o lock.
         raise ConflictError("Esta mensalidade já foi resolvida pela casa.", details={"error_code": "MES_FECHADO"})
-
-    pagamento.comprovante_data = data
-    pagamento.comprovante_filename = comp.filename
-    pagamento.comprovante_mime = comp.mime
-    pagamento.comprovante_enviado_em = agora
-    pagamento.comprovante_enviado_por = ctx.user.id
-    pagamento.recusa_motivo = None
-    pagamento.recusado_em = None
     pagamento.updated_at = agora
     try:
         await db.flush()
@@ -446,24 +515,43 @@ async def enviar_comprovante(
         await db.rollback()
         raise ConflictError("Outro envio deste mês chegou junto. Tente de novo.", details={"error_code": "ENVIO_SIMULTANEO"})
 
-    # Auditoria sem o arquivo (§6.8): só o mês, o tipo e o tamanho.
+    comprovante = MensalidadeComprovante(
+        id=uuid.uuid4(),
+        tenant_id=ctx.tenant_id,
+        pagamento_id=pagamento.id,
+        mediun_id=ctx.medium.id,
+        origem="medium",
+        enviado_por=ctx.user.id,
+        enviado_em=agora,
+        arquivo_data=data,
+        arquivo_filename=comp.filename,
+        arquivo_mime=comp.mime,
+        arquivo_tamanho=len(data),
+        valor_informado=valor,
+    )
+    db.add(comprovante)
+    await db.flush()
+
+    # Auditoria sem o arquivo (§6.8): só ids, o mês, o tipo, o tamanho e o valor informado.
     await AuditService(db).log_update(
         tenant_id=ctx.tenant_id,
         user_id=ctx.user.id,
         resource_type="mensalidade_comprovante_medium",
-        resource_id=pagamento.id,
+        resource_id=comprovante.id,
         previous_state={"status": sit.status},
         new_state={
             "mes": sit.mes,
+            "pagamento_id": str(pagamento.id),
             "acao": "reenviado" if sit.status in (STATUS_EM_CONFERENCIA, STATUS_NAO_CONFIRMADA) else "enviado",
             "mime": comp.mime,
             "tamanho_bytes": len(data),
+            "valor_informado": str(valor) if valor is not None else None,
         },
     )
     await db.commit()
 
-    _, depois = await _mes_da_area(db, ctx, mes_date)
-    return _item(depois, today_local())
+    _, depois, reg = await _mes_da_area(db, ctx, mes_date)
+    return _item(depois, today_local(), reg)
 
 
 # ── Cobrança automática (F-02/AM-22) ──────────────────────────────────────────
@@ -564,17 +652,14 @@ async def criar_cobranca(
             "A casa não recebe a mensalidade automaticamente. Use a chave PIX e envie o comprovante.",
             details={"error_code": "COBRANCA_AUTOMATICA_INDISPONIVEL"},
         )
-    _, sit = await _mes_da_area(db, ctx, mes_date)
+    _, sit, _ = await _mes_da_area(db, ctx, mes_date)
     if sit.status not in STATUS_EM_ABERTO:
         raise ConflictError(
             _MOTIVO_MES_FECHADO.get(sit.status, "Este mês não está em aberto."),
             details={"error_code": "MES_FECHADO", "status": sit.status},
         )
-    if not sit.valor or sit.valor <= 0:
-        raise ConflictError(
-            "A casa ainda não definiu o valor da mensalidade. Fale com a casa.",
-            details={"error_code": "MENSALIDADE_SEM_VALOR"},
-        )
+    # Cobrança do valor que FALTA (pagamento parcial): a pendente de outro valor não é reaproveitada.
+    _exigir_valor_em_aberto(sit)
     cpf = _cpf_ou_cnpj(body.cpf)
     endereco = _endereco_boleto(body.endereco)
     if body.metodo == "boleto" and (not cpf or endereco is None):
@@ -627,7 +712,7 @@ async def ver_cobranca(
 ) -> CobrancaDoMes:
     """A cobrança automática mais recente do mês (a tela consulta para mostrar "Paga" sozinha)."""
     mes_date = _parse_mes(mes)
-    _, sit = await _mes_da_area(db, ctx, mes_date)
+    _, sit, _ = await _mes_da_area(db, ctx, mes_date)
     cob = (
         await db.execute(
             select(MensalidadeCobranca)

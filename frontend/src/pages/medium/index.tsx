@@ -83,7 +83,10 @@ export interface InicioGira {
 export interface InicioMensalidade {
   mes: string;
   status: 'pendente' | 'atrasada' | 'em_conferencia' | 'nao_confirmada' | 'paga' | 'isento';
+  /** Em aberto: o que FALTA pagar (pagamento parcial, migração 092). */
   valor?: number | null;
+  /** O que a casa já recebeu no mês (> 0 = pagou parte). */
+  valor_recebido?: number;
   vencimento?: string | null;
   data_pagamento?: string | null;
   /** AM-29: a casa cadastrou a chave PIX (só o sim/não; a chave nunca vem no Início). */
@@ -98,7 +101,9 @@ export type InicioPendencia =
       tipo: 'mensalidade';
       situacao: 'pendente' | 'atrasada' | 'nao_confirmada';
       mes: string;
+      /** O que FALTA pagar (pagamento parcial, migração 092). */
       valor?: number | null;
+      valor_recebido?: number;
       vencimento?: string | null;
       dias_para_vencer?: number | null;
     };
@@ -185,6 +190,9 @@ function MensalidadeCard({ p, pixDisponivel }: { p: Extract<InicioPendencia, { t
         <CardDescription className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Wallet className="size-4 text-brand" aria-hidden /> Mensalidade de {nomeDoMes(p.mes)}
         </CardDescription>
+        {(p.valor_recebido ?? 0) > 0 && (
+          <span className="text-sm font-semibold text-warning-strong">Falta pagar</span>
+        )}
         <CardTitle className="text-3xl font-semibold tracking-tight tabular-nums">{valorBr(p.valor)}</CardTitle>
         {venc && (
           <CardAction>
@@ -295,7 +303,7 @@ function Acompanhando({ mensalidade }: { mensalidade: InicioMensalidade }) {
         conferencia
           ? 'Comprovante enviado · aguardando a casa confirmar'
           : aVencer
-            ? `${mensalidade.valor != null ? `${valorBr(mensalidade.valor)} · ` : ''}vence em ${mensalidade.vencimento ? diaMesCurto(mensalidade.vencimento) : 'breve'}`
+            ? `${mensalidade.valor != null ? `${(mensalidade.valor_recebido ?? 0) > 0 ? 'Falta ' : ''}${valorBr(mensalidade.valor)} · ` : ''}vence em ${mensalidade.vencimento ? diaMesCurto(mensalidade.vencimento) : 'breve'}`
             : isento
               ? 'Você está isento de mensalidade'
               : 'Paga · confirmada pela casa'

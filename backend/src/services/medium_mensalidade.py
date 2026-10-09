@@ -159,23 +159,3 @@ def chave_alterada_recente(alterado_em: Optional[datetime], agora: datetime) -> 
     if alterado_em is None:
         return None
     return alterado_em if agora - alterado_em <= timedelta(days=DIAS_AVISO_CHAVE_ALTERADA) else None
-
-
-def comprovante_para_conferir(
-    status: Optional[str],
-    comprovante_enviado_em: Optional[datetime],
-    comprovante_presente: bool,
-    recusado_em: Optional[datetime],
-) -> bool:
-    """O registro está na fila "Comprovantes para conferir" do painel (AM-12).
-
-    PENDENTE, com comprovante enviado pela Área ainda guardado e sem recusa depois do envio —
-    a mesma condição do "em conferência" que o médium vê (`situacao_mensalidade`).
-    """
-    pendente = (getattr(status, "value", status) or "PENDENTE") == "PENDENTE"
-    return (
-        pendente
-        and comprovante_enviado_em is not None
-        and comprovante_presente
-        and (recusado_em is None or recusado_em < comprovante_enviado_em)
-    )

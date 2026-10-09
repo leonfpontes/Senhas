@@ -12,6 +12,11 @@
  * conta da casa, "Paga" sozinha pelo webhook) e o boleto aparece se a casa tiver; o comprovante
  * fica só como "Já paguei de outro jeito". Sem gateway, nada muda.
  *
+ * Pagamento parcial (migração 092): quando a casa já recebeu parte, o cartão diz "Falta pagar
+ * R$ X" (o `valor` do mês em aberto já é o que falta), o PIX/cobrança é desse valor e cada
+ * comprovante enviado fica na lista "Comprovantes que você enviou" (Em conferência / Conferido
+ * R$ 30 / Não confirmado: motivo) — enviar outro acrescenta, não substitui.
+ *
  * Só chama `/api/v1/medium/mensalidades*` (e o `/medium/me` do MediumProvider). `?pagar=1`
  * (botão do Início) abre direto o "Pagar com PIX" do mês. 403 (módulo desligado pela casa ou
  * fora do plano) → aviso neutro, sem oferta de plano.
@@ -27,8 +32,13 @@ import { PagarAutomaticoSheet } from '@/components/medium/mensalidade/PagarAutom
 import { EnviarComprovanteSheet } from '@/components/medium/mensalidade/EnviarComprovanteSheet';
 import { Passo } from '@/components/medium/mensalidade/MediumSheet';
 import {
+  ComprovantesEnviados,
+  quandoEnviado,
+} from '@/components/medium/mensalidade/ComprovantesEnviados';
+import {
   EM_ABERTO,
   PILL,
+  pagamentoParcial,
   whatsappDaCasa,
   type CobrancaAutomaticaInfo,
   type MensalidadesResponse,
@@ -67,23 +77,6 @@ function vencimentoBr(isoDate: string): string {
     .format(new Date(`${isoDate.slice(0, 10)}T12:00:00-03:00`))
     .replace('-feira', '');
   return `${semana}, ${diaMesCurto(isoDate)}`;
-}
-
-/** "às 14h05 de 12/10". */
-function quandoEnviado(iso: string): string {
-  const d = new Date(iso);
-  const hora = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: BR_TIME_ZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(d);
-  const dia = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: BR_TIME_ZONE,
-    day: '2-digit',
-    month: '2-digit',
-  }).format(d);
-  return `${dia} às ${hora.replace(':', 'h')}`;
 }
 
 function Pill({ mes }: { mes: MesMensalidade }) {
@@ -232,7 +225,10 @@ function Mensalidade() {
   return (
     <>
       <MediumPage>
-        <MediumPageHeader title="Mensalidade" description="Pague pelo PIX e envie o comprovante para a casa." />
+        <MediumPageHeader
+          title="Mensalidade"
+          description="Pague pelo PIX e envie o comprovante para a casa."
+        />
 
         {!cartao ? (
           <EmptyState
@@ -261,7 +257,9 @@ function Mensalidade() {
                   key={m.mes}
                   onClick={() => abrirMes(m)}
                   title={<span className="first-letter:uppercase">{monthLabelLong(m.mes)}</span>}
-                  description={`${valorBr(m.valor)}${linhaVencimento(m) ? ` · ${linhaVencimento(m)}` : ''}`}
+                  description={`${pagamentoParcial(m) ? 'Falta ' : ''}${valorBr(m.valor)}${
+                    linhaVencimento(m) ? ` · ${linhaVencimento(m)}` : ''
+                  }`}
                   meta={<Pill mes={m} />}
                   trailing={<span className="sr-only">Abrir</span>}
                 />
@@ -332,7 +330,9 @@ function Mensalidade() {
                   className="min-h-14 py-3"
                   title={<span className="first-letter:uppercase">{monthLabelLong(m.mes)}</span>}
                   description={`${m.status === 'isento' ? 'Isento' : valorBr(m.valor)}${
-                    m.status === 'paga' && m.data_pagamento ? ` · paga em ${diaMesCurto(m.data_pagamento)}` : ''
+                    m.status === 'paga' && m.data_pagamento
+                      ? ` · paga em ${diaMesCurto(m.data_pagamento)}`
+                      : ''
                   }`}
                   meta={<Pill mes={m} />}
                 />
@@ -427,12 +427,20 @@ function CartaoDoMes({
         </span>
         <Pill mes={mes} />
       </div>
+      {pagamentoParcial(mes) && (
+        <span className="text-base font-semibold text-warning-strong">Falta pagar</span>
+      )}
       <span
         className="text-4xl leading-none font-semibold tracking-tight tabular-nums"
         data-testid="valor-mes"
       >
         {valorBr(mes.valor)}
       </span>
+      {pagamentoParcial(mes) && (
+        <p className="text-base text-muted-foreground" data-testid="resumo-parcial">
+          A casa já recebeu {valorBr(mes.valor_recebido)} de {valorBr(mes.valor_mensalidade)}.
+        </p>
+      )}
       {venc && <p className="text-base text-muted-foreground">{venc}</p>}
 
       {EM_ABERTO.has(mes.status) &&
@@ -544,7 +552,12 @@ function CartaoDoMes({
               Motivo: {mes.recusa_motivo || 'a casa não informou.'}
             </span>
           </div>
-          <Button type="button" size="touch" className="w-full font-semibold" onClick={onComprovante}>
+          <Button
+            type="button"
+            size="touch"
+            className="w-full font-semibold"
+            onClick={onComprovante}
+          >
             <Upload aria-hidden /> Enviar outro comprovante
           </Button>
           {(temPix || auto?.pix) && (
@@ -585,6 +598,8 @@ function CartaoDoMes({
           <span>Você está isento neste mês.</span>
         </div>
       )}
+
+      <ComprovantesEnviados comprovantes={mes.comprovantes} />
     </article>
   );
 }

@@ -3,18 +3,20 @@
  * um PDF; prévia; "Enviar para a casa". A foto é reduzida no navegador antes de subir
  * (`prepararComprovante`, limite de 2 MB igual ao do servidor) e erros dizem o que fazer.
  *
- * `POST /api/v1/medium/mensalidades/{mes}/comprovante` (multipart `arquivo`): o mês fica
- * "Aguardando a casa confirmar" — o médium nunca marca como pago.
+ * `POST /api/v1/medium/mensalidades/{mes}/comprovante` (multipart `arquivo` + `valor_informado`
+ * opcional): o mês fica "Aguardando a casa confirmar" — o médium nunca marca como pago. Cada envio
+ * é um comprovante NOVO (pagamento parcial, migração 092): os anteriores ficam no histórico.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Camera, FileText, ImageUp, Loader2, TriangleAlert } from 'lucide-react';
+import { MoneyInput } from '@/components/fields';
 import { Button } from '@/components/ui/button';
 import { useSnackbar } from '@/contexts/SnackbarContext';
 import { apiClient, extractApiErrorMessage } from '@/services/api_client';
 import { nomeDoMes, valorBr } from '../format';
 import { MediumSheet } from './MediumSheet';
 import { ArquivoInvalido, prepararComprovante, tamanhoLegivel } from './arquivos';
-import type { MesMensalidade } from './tipos';
+import { pagamentoParcial, type MesMensalidade } from './tipos';
 
 export interface EnviarComprovanteSheetProps {
   open: boolean;
@@ -37,11 +39,13 @@ export function EnviarComprovanteSheet({
   const [preparando, setPreparando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [valorPago, setValorPago] = useState(0);
 
   useEffect(() => {
     if (!open) {
       setArquivo(null);
       setErro(null);
+      setValorPago(0);
     }
   }, [open]);
 
@@ -86,6 +90,7 @@ export function EnviarComprovanteSheet({
     try {
       const form = new FormData();
       form.append('arquivo', arquivo, arquivo.name);
+      if (valorPago > 0) form.append('valor_informado', valorPago.toFixed(2));
       const res = await apiClient.post<MesMensalidade>(
         `/api/v1/medium/mensalidades/${mes.mes}/comprovante`,
         form,
@@ -114,7 +119,11 @@ export function EnviarComprovanteSheet({
       onOpenChange={onOpenChange}
       data-testid="sheet-comprovante"
       title="Enviar comprovante"
-      description={mes ? `Mensalidade de ${nomeDoMes(mes.mes)} · ${valorBr(mes.valor)}` : undefined}
+      description={
+        mes
+          ? `Mensalidade de ${nomeDoMes(mes.mes)} · ${pagamentoParcial(mes) ? 'falta ' : ''}${valorBr(mes.valor)}`
+          : undefined
+      }
     >
       <input
         ref={cameraRef}
@@ -194,6 +203,15 @@ export function EnviarComprovanteSheet({
         Foto, print ou PDF do comprovante do banco. Se a foto for grande, a gente reduz antes de
         enviar.
       </p>
+
+      <MoneyInput
+        label="Quanto você pagou? (opcional)"
+        value={valorPago}
+        onChange={setValorPago}
+        disabled={ocupado}
+        helperText="Pagou só uma parte? Diga o valor: a casa confere e você vê quanto falta."
+        inputClassName="h-12 text-base"
+      />
 
       {preparando && (
         <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">

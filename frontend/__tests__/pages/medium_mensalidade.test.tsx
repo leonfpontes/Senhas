@@ -428,6 +428,105 @@ describe('Enviar comprovante', () => {
   });
 });
 
+describe('pagamento parcial (migração 092)', () => {
+  const parcial = (over: Record<string, unknown> = {}) =>
+    mes({
+      valor: 20,
+      valor_mensalidade: 50,
+      valor_recebido: 30,
+      comprovantes: [
+        {
+          enviado_em: '2026-10-05T13:00:00Z',
+          valor_informado: 30,
+          status: 'conferido',
+          valor_conferido: 30,
+          motivo: null,
+        },
+        {
+          enviado_em: '2026-10-06T13:00:00Z',
+          valor_informado: null,
+          status: 'nao_confirmado',
+          valor_conferido: null,
+          motivo: 'Não dá para ler o comprovante.',
+        },
+      ],
+      ...over,
+    });
+
+  it('mês pago em parte: "Falta pagar", quanto a casa já recebeu e a lista dos comprovantes', async () => {
+    montar(
+      lista([
+        parcial(),
+        mes({ mes: '2026-09', status: 'atrasada', valor: 15, valor_recebido: 35, atual: false }),
+      ]),
+    );
+    const cartao = await screen.findByTestId('cartao-mensalidade');
+    expect(within(cartao).getByText('Falta pagar')).toBeInTheDocument();
+    expect(within(cartao).getByTestId('valor-mes')).toHaveTextContent(/20,00/);
+    expect(within(cartao).getByTestId('resumo-parcial')).toHaveTextContent(
+      /A casa já recebeu R\$\s?30,00 de R\$\s?50,00\./,
+    );
+    const enviados = within(cartao).getByTestId('comprovantes-enviados');
+    const itens = within(enviados).getAllByRole('listitem');
+    expect(itens).toHaveLength(2);
+    expect(itens[0]).toHaveTextContent(/Conferido R\$\s?30,00/);
+    expect(itens[0]).toHaveTextContent(/Você informou R\$\s?30,00/);
+    expect(itens[1]).toHaveTextContent('Não confirmado');
+    expect(itens[1]).toHaveTextContent('Motivo: Não dá para ler o comprovante.');
+    // Meses em aberto: "Falta R$ 15,00".
+    expect(screen.getByText(/Falta R\$\s?15,00/)).toBeInTheDocument();
+    expect(calledUrls().every((u) => !u.includes('/api/v1/admin/'))).toBe(true);
+  });
+
+  it('"Pagar com PIX" mostra o valor que falta (vem do servidor)', async () => {
+    montar(lista([parcial({ comprovantes: [] })]), {
+      '/api/v1/medium/mensalidades/2026-10/pix': { ...PIX_MES, valor: 20 },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Pagar com PIX' }));
+    const sheet = await screen.findByTestId('sheet-pagar');
+    await waitFor(() => expect(sheet).toHaveTextContent(/R\$\s?20,00/));
+    expect(calledUrls()).toContain('/api/v1/medium/mensalidades/2026-10/pix');
+  });
+
+  it('enviar outro comprovante com o valor que pagou (opcional)', async () => {
+    mockPost.mockResolvedValue({ data: parcial({ status: 'em_conferencia' }) });
+    montar(lista([parcial({ comprovantes: [] })]));
+    fireEvent.click(await screen.findByRole('button', { name: /Já paguei: enviar comprovante/ }));
+    const sheet = await screen.findByTestId('sheet-comprovante');
+    expect(sheet).toHaveTextContent(/falta R\$\s?20,00/);
+    await act(async () => {
+      fireEvent.change(within(sheet).getByTestId('comprovante-arquivo'), {
+        target: { files: [new File(['%PDF-1.4'], 'extrato.pdf', { type: 'application/pdf' })] },
+      });
+    });
+    fireEvent.change(within(sheet).getByLabelText(/Quanto você pagou/), {
+      target: { value: '2000' },
+    });
+    await act(async () => {
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Enviar para a casa' }));
+    });
+    const form = mockPost.mock.calls[0][1] as FormData;
+    expect((form.get('arquivo') as File).name).toBe('extrato.pdf');
+    expect(form.get('valor_informado')).toBe('20.00');
+  });
+
+  it('sem valor informado, o campo não vai no envio', async () => {
+    mockPost.mockResolvedValue({ data: mes({ status: 'em_conferencia' }) });
+    montar(lista([mes()]));
+    fireEvent.click(await screen.findByRole('button', { name: /Já paguei: enviar comprovante/ }));
+    const sheet = await screen.findByTestId('sheet-comprovante');
+    await act(async () => {
+      fireEvent.change(within(sheet).getByTestId('comprovante-arquivo'), {
+        target: { files: [new File(['%PDF-1.4'], 'extrato.pdf', { type: 'application/pdf' })] },
+      });
+    });
+    await act(async () => {
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Enviar para a casa' }));
+    });
+    expect((mockPost.mock.calls[0][1] as FormData).has('valor_informado')).toBe(false);
+  });
+});
+
 describe('barra inferior', () => {
   it('a aba "Mensalidade" some quando o módulo está desligado', async () => {
     montar(lista([mes()]), {}, { ...ME, modulos: ['agenda', 'avisos'] });

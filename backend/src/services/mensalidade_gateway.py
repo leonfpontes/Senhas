@@ -9,10 +9,12 @@ provedor:
   `mensalidade_automatica` + gateway ativo + PIX liberado no provedor);
 - criar ou reaproveitar a cobrança do mês (`mensalidade_cobrancas`), uma pendente por médium +
   mês + método, reaproveitada enquanto vale;
-- **dar baixa**: cobrança paga → o mês vira PAGO no MESMO registro que a confirmação da direção
+- **dar baixa**: cobrança paga → entra no recebido do mês (pagamento parcial, 092); quando o
+  recebido alcança o valor do mês, o mês vira PAGO no MESMO registro que a confirmação da direção
   usa (`mensalidade_pagamentos`, AM-12), com `origem = 'gateway'`, espelho em contas a receber e
   auditoria. Idempotente: aviso repetido não paga duas vezes nem sobrescreve o que a direção já
-  registrou;
+  registrou. A cobrança é sempre do valor que FALTA: pendente de outro valor (o recebido mudou)
+  não é reaproveitada (`_reaproveitavel` compara o valor);
 - processar os eventos do webhook do Connect: o tenant vem SEMPRE da nossa cobrança (pelo id do
   PaymentIntent) e a conta do evento precisa ser a conta gravada na cobrança — nunca de campo do
   corpo (metadata) sozinho.
@@ -41,6 +43,7 @@ from src.models.tenants import Tenant
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.core import secret_box
 from src.services import mercadopago, stripe_connect
+from src.services import mensalidade_parcial as parcial
 from src.services.audit_service import AuditService
 from src.services.plan_features import get_effective_plan_features
 
@@ -413,11 +416,14 @@ async def registrar_pagamento_gateway(
     valor_pago: Optional[Decimal],
     evento: Optional[str] = None,
 ) -> bool:
-    """Marca a cobrança paga e o mês do médium PAGO (origem gateway). Idempotente.
+    """Marca a cobrança paga e, se o mês completou, o mês do médium PAGO (origem gateway). Idempotente.
 
-    Devolve True quando a baixa aconteceu agora; False se a cobrança já estava paga. Se a direção
-    já tinha registrado o mês (PAGO ou ISENTO), o registro dela fica como está — a cobrança é
-    marcada paga e a duplicidade vai para a auditoria (a casa devolve, se for o caso).
+    Devolve True quando a baixa aconteceu agora; False se a cobrança já estava paga. Pagamento
+    parcial (092): a cobrança paga entra no recebido do mês (com os comprovantes conferidos); o
+    mês só vira PAGO quando o recebido alcança o valor do mês (`mensalidade_parcial.
+    fechar_se_quitado`, `valor_pago` = recebido). Se a direção já tinha registrado o mês (PAGO
+    ou ISENTO), o registro dela fica como está — a cobrança é marcada paga e a duplicidade vai
+    para a auditoria (a casa devolve, se for o caso).
     """
     if cobranca.tenant_id != tenant_id:  # defesa extra: nunca dá baixa fora do tenant
         raise ValueError("cobrança de outro tenant")
@@ -456,43 +462,21 @@ async def registrar_pagamento_gateway(
             valor_vigente=config.valor_mensal if config is not None else cobranca.valor,
         )
         db.add(pagamento)
-    if not duplicidade:
-        pagamento.status = MensalidadeStatus.PAGO
-        pagamento.data_pagamento = pago_em
-        pagamento.valor_pago = valor_pago if valor_pago is not None else cobranca.valor
-        pagamento.origem = ORIGEM_GATEWAY
-        pagamento.registrado_por = None
-        pagamento.recusa_motivo = None
-        pagamento.recusado_em = None
-        pagamento.updated_at = utc_now()
     await db.flush()
 
+    fechou = False
+    saldo = None
     if not duplicidade:
-        from src.services.mensalidade_contas_service import sync_pagamento
-
-        nome = (
-            await db.execute(
-                select(Medium.nome).where(Medium.tenant_id == tenant_id, Medium.id == cobranca.mediun_id)
-            )
-        ).scalar_one_or_none() or ""
-        try:
-            async with db.begin_nested():
-                await sync_pagamento(
-                    db=db,
-                    tenant_id=tenant_id,
-                    tipo_pessoa="mediun",
-                    pessoa_id=cobranca.mediun_id,
-                    pessoa_nome=nome,
-                    mes_date=cobranca.mes_referencia,
-                    status_mensalidade="PAGO",
-                    valor=pagamento.valor_vigente,
-                    valor_pago=pagamento.valor_pago,
-                    data_pagamento=pago_em.astimezone(APP_TZ),
-                    dia_vencimento=config.dia_vencimento if config else 10,
-                    criado_por=None,
-                )
-        except Exception:
-            logger.exception("Falha ao espelhar a baixa automática em contas a receber (médium %s)", cobranca.mediun_id)
+        saldo, fechou = await parcial.fechar_se_quitado(
+            db,
+            tenant_id=tenant_id,
+            pagamento=pagamento,
+            origem=ORIGEM_GATEWAY,
+            user_id=None,
+            data_pagamento=pago_em,
+            valor_config=config.valor_mensal if config is not None else cobranca.valor,
+            dia_vencimento=config.dia_vencimento if config else 10,
+        )
 
     await AuditService(db).log_update(
         tenant_id=tenant_id,
@@ -507,6 +491,8 @@ async def registrar_pagamento_gateway(
             "metodo": cobranca.metodo,
             "valor_pago": str(valor_pago) if valor_pago is not None else None,
             "mes_ja_resolvido_pela_direcao": duplicidade,
+            "mes_fechado": fechou,
+            "falta": str(saldo.falta) if saldo is not None and not fechou else None,
         },
     )
     return True

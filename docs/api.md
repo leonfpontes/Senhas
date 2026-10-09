@@ -771,30 +771,65 @@ refused while impersonating — 403, rate limit 10/hour per IP):
   mensalidade alterada") goes to every active admin of the tenant through the e-mail queue,
   with the masked old/new key.
 
-### 12. Receipts sent by médiuns (AM-12)
+### 12. Receipts sent by médiuns (AM-12) — partial payment (migration 092)
 
-Both with plan `mensalidade_mediun`.
+All with plan `mensalidade_mediun`. Since migration 092 a month can have **several receipts**
+(`mensalidade_comprovantes`, one row per upload — nothing is replaced). Month math
+(`services/mensalidade_parcial.py`): **due** = `valor_vigente` of the month record (else the configured
+value); **received** = sum of `valor_conferido` of `conferido` receipts + paid automatic charges
+(F-02/AM-22); **falta** = max(0, due − received); **pago_a_mais** = max(0, received − due) (informational
+only, no credit). When received ≥ due, a PENDENTE month becomes **PAGO automatically** (`valor_pago` =
+received, account receivable mirror, audit) — the same effects as before. Until then the mirror stays
+pending with the month value (partial amounts reach "contas a receber" and the "arrecadado" summary when
+the month closes).
 
-`GET /api/v1/admin/financeiro/mensalidades/comprovantes-para-conferir` (FINANCEIRO `view`) —
-receipts sent through the Área and not yet checked, every month, oldest first:
+`GET /api/v1/admin/financeiro/mensalidades/comprovantes-para-conferir` (FINANCEIRO `view`) — every
+receipt `em_conferencia`, every month, oldest first:
 ```json
-[{ "pagamento_id": "uuid", "mediun_id": "uuid", "mediun_nome": "Elaine Souza", "mes": "2026-10",
-   "valor": 50.0, "comprovante_enviado_em": "2026-10-08T17:05:00Z",
+[{ "comprovante_id": "uuid", "pagamento_id": "uuid", "mediun_id": "uuid", "mediun_nome": "Elaine Souza",
+   "mes": "2026-10", "valor": 50.0, "valor_recebido": 30.0, "falta": 20.0, "valor_informado": 20.0,
+   "mes_status": "PENDENTE", "comprovante_enviado_em": "2026-10-08T17:05:00Z",
    "comprovante_filename": "comprovante.jpg", "comprovante_mime": "image/jpeg" }]
 ```
-The file is the existing `GET .../mensalidades/{mediun_id}/{mes}/comprovante`.
-`GET /api/v1/admin/financeiro/mensalidades?mes=` items also carry `comprovante_enviado_em`,
-`comprovante_para_conferir`, `recusa_motivo` and `recusado_em`.
+`GET /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}/comprovantes` (FINANCEIRO `view`) — the
+month's balance and full history (no file bytes):
+```json
+{ "mediun_id": "uuid", "mediun_nome": "Elaine Souza", "mes": "2026-10", "pagamento_id": "uuid",
+  "status": "PENDENTE", "valor_mensalidade": 50.0, "valor_recebido": 30.0, "recebido_automatico": 0.0,
+  "falta": 20.0, "pago_a_mais": 0.0, "valor_pago": null,
+  "comprovantes": [{ "id": "uuid", "origem": "medium", "enviado_em": "…", "arquivo_filename": "a.jpg",
+    "arquivo_mime": "image/jpeg", "arquivo_tamanho": 51200, "valor_informado": 30.0, "status": "conferido",
+    "valor_conferido": 30.0, "conferido_em": "…", "motivo": null }] }
+```
+`origem`: `medium` (Área) or `painel` (file attached in the manual registration — `conferido` without
+value). 404 for a médium of another tenant. `GET .../mensalidades/comprovantes/{comprovante_id}/arquivo`
+(FINANCEIRO `view`) downloads one receipt (404 for another tenant). The old
+`GET .../mensalidades/{mediun_id}/{mes}/comprovante` returns the **most recent** receipt of the month
+(falls back to the legacy single slot only when the month has none in the new table).
 
-- **Confirm** = the existing `POST /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}` with
-  `status=PAGO` (FINANCEIRO `insert`): the month becomes paid, the médium's file is kept and the
-  account receivable mirror is updated as usual.
-- **Do not confirm**: `PATCH /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}/recusa`
-  (FINANCEIRO `edit`), body `{"motivo": "até 500 caracteres"}` → `{mediun_id, mes, recusa_motivo,
-  recusado_em}`. The médium sees the reason and can send another receipt. 404 when there is no record
-  (or the médium belongs to another tenant), 409 `COMPROVANTE_NAO_PENDENTE` when nothing is waiting
-  (already confirmed, refused or removed), 422 for an empty reason. Audited as
-  `mensalidade_comprovante_medium`.
+`GET /api/v1/admin/financeiro/mensalidades?mes=` items also carry `comprovante_enviado_em`,
+`comprovante_para_conferir` (some receipt `em_conferencia`), `recusa_motivo`/`recusado_em` (latest receipt
+not confirmed), and since 092 `valor_recebido`, `falta`, `pago_a_mais`, `comprovantes_em_conferencia`,
+`comprovantes_total`; `comprovante_filename` is the latest receipt's.
+
+- **Check** (`conferir`): `PATCH /api/v1/admin/financeiro/mensalidades/comprovantes/{comprovante_id}/conferir`
+  (FINANCEIRO `edit`), body `{"valor": 30.00}` (> 0, 2 decimals) — how much actually reached the house's
+  account. "Recebi só uma parte" is the same call with a smaller value. Closes the month when complete;
+  on a month already PAGO the value is added to `valor_pago` (pago a mais). Response: the month history
+  above. 409 `COMPROVANTE_NAO_PENDENTE` when the receipt is not `em_conferencia`, 404 for another tenant,
+  422 for an invalid value.
+- **Do not confirm**: `PATCH .../mensalidades/comprovantes/{comprovante_id}/nao-confirmar` (FINANCEIRO
+  `edit`), body `{"motivo": "até 500 caracteres"}` (wrong/illegible receipt) → the month history. The
+  médium sees the reason; history is kept and a new receipt can be sent. Same 409/404/422 rules.
+- **Legacy** `PATCH /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}/recusa` (FINANCEIRO `edit`)
+  still works: marks **every** receipt `em_conferencia` of the month as not confirmed → `{mediun_id, mes,
+  recusa_motivo, recusado_em, nao_confirmados}`. 404 without receipts, 409 `COMPROVANTE_NAO_PENDENTE`.
+- **Manual registration** (`POST .../mensalidades/{mediun_id}/{mes}`, FINANCEIRO `insert`) is still the
+  final word: `status=PAGO` with `valor_pago` closes the month as always and marks pending receipts as
+  `conferido` (without value); an attached file becomes a receipt `origem = "painel"`. The legacy single
+  slot columns are no longer written. `DELETE .../mensalidades/{pagamento_id}/comprovante` removes the
+  panel attachment(s) only — receipts sent by the médium are history.
+- Audited as `mensalidade_comprovante_medium` with ids and amounts only (never the reason or the file).
 
 ### 13. Avisos da casa (comunicados, AM-09)
 
@@ -1703,7 +1738,8 @@ active admin. `desconectar` deletes the tokens.
 `MERCADOPAGO_WEBHOOK_SECRET`, message `id:<data.id lowercased>;request-id:<x-request-id>;ts:<ts>;` → invalid 400. The
 body is never trusted: finds **our** charge by the payment id, fetches `GET /v1/payments/{id}` with that house's
 token (refreshed when < 7 days to expire) and requires `external_reference == our charge id` and `collector_id ==`
-the house's MP user. `approved` → month PAID (`origem = gateway`); `cancelled`/`rejected` → charge `expirada`;
+the house's MP user. `approved` → the charge counts toward the month's received amount and the month becomes
+PAID (`origem = gateway`) when complete (partial payment, 092); `cancelled`/`rejected` → charge `expirada`;
 `refunded`/`charged_back` → `estornada` (the month is not reopened automatically; audited as
 `mensalidade_gateway_estorno`). Idempotent by state (row lock on the charge). MP unreachable → 503 (MP retries).
 
@@ -1721,8 +1757,9 @@ automatic charges of the month, newest first:
 
 **Webhook — `POST /api/v1/webhooks/stripe-connect`** (no JWT; public path). Separate endpoint from
 `/api/v1/webhooks/stripe` (the GiraHub subscription), with its own signing secret
-`STRIPE_CONNECT_WEBHOOK_SECRET`. Events: `payment_intent.succeeded` (month → PAGO, `origem = gateway`,
-account receivable mirror, audit `mensalidade_gateway_baixa`), `payment_intent.payment_failed` (charge →
+`STRIPE_CONNECT_WEBHOOK_SECRET`. Events: `payment_intent.succeeded` (charge paid → counts toward the month's
+received amount; month → PAGO when complete, `origem = gateway`, account receivable mirror, audit
+`mensalidade_gateway_baixa` with `mes_fechado`/`falta`), `payment_intent.payment_failed` (charge →
 `expirada`), `payment_intent.canceled` (→ `cancelada`), `account.updated` (status/capabilities). Invalid
 signature or empty secret → 400. Idempotent: the event id is claimed in `stripe_events_processed` in the same
 transaction as the effect (repeated delivery → `{"duplicate": true}`); a second event for an already paid charge
@@ -1840,7 +1877,9 @@ médium come from the session; a `medium_id` in the query string is ignored).
   `isento` (permanent exemption or ISENTO record), `em_conferencia` (receipt sent through the Área,
   waiting for the house — AM-12), `nao_confirmada` (the house did not confirm it), `pendente`
   (until the due day, inclusive) or `atrasada` (after it). `valor` is the amount captured on the
-  month's first record, else the configured monthly value. Same rule as the Mensalidade screen
+  month's first record, else the configured monthly value — in open months minus what the house
+  already received (partial payment, 092: `valor` = missing; `valor_mensalidade` and
+  `valor_recebido` also come; the mensalidade pendência carries `valor_recebido`). Same rule as the Mensalidade screen
   (`services/medium_inicio.situacao_mensalidade`). `pix_disponivel` (AM-29): whether the house
   registered the mensalidade PIX key (AM-10) — only the yes/no, the key never appears here; the
   screen shows "Pagar com PIX" only when true, else "Ver mensalidade".
@@ -1976,9 +2015,12 @@ Besides `require_medium`, these routes need the **mensalidade module visible** i
   "dia_vencimento": 10,
   "pix": { "tipo": "cpf", "chave": "12345678909", "nome_recebedor": "Casa de Oxala", "chave_alterada_em": null },
   "meses": [
-    { "mes": "2026-10", "status": "pendente", "valor": 50.0, "vencimento": "2026-10-10",
+    { "mes": "2026-10", "status": "pendente", "valor": 20.0, "valor_mensalidade": 50.0,
+      "valor_recebido": 30.0, "vencimento": "2026-10-10",
       "data_pagamento": null, "comprovante_enviado_em": null, "recusa_motivo": null,
-      "recusado_em": null, "atual": true },
+      "recusado_em": null, "atual": true,
+      "comprovantes": [{ "enviado_em": "2026-10-05T13:00:00Z", "valor_informado": 30.0,
+        "status": "conferido", "valor_conferido": 30.0, "motivo": null }] },
     { "mes": "2026-09", "status": "nao_confirmada", "valor": 50.0, "vencimento": "2026-09-10",
       "comprovante_enviado_em": "2026-09-12T17:05:00Z",
       "recusa_motivo": "O valor é diferente da mensalidade.", "recusado_em": "2026-09-13T10:00:00Z",
@@ -1995,6 +2037,11 @@ Besides `require_medium`, these routes need the **mensalidade module visible** i
   `paga`, `isento`).
 - `pix`: `null` when the house has no PIX key ("Combine o pagamento com a casa").
   `chave_alterada_em` is filled only for 30 days after the key changed (§7.3).
+- Partial payment (092): in open months `valor` is **what is missing** (`valor_mensalidade` −
+  `valor_recebido`); in paid months, the total received. `comprovantes`: receipts sent through the Área
+  (oldest first, no ids/files) with `status` `em_conferencia` | `conferido` (`valor_conferido`) |
+  `nao_confirmado` (`motivo`). A month is `em_conferencia` while some receipt waits; `nao_confirmada`
+  when the latest receipt was not confirmed.
 - Never returned: `observacao`, `registrado_por`, the receipt file.
 
 **`GET /api/v1/medium/mensalidades/{AAAA-MM}/pix`** — "PIX copia e cola" of an open month
@@ -2008,20 +2055,21 @@ Besides `require_medium`, these routes need the **mensalidade module visible** i
   "instrucoes": null, "chave_alterada_em": null
 }
 ```
-The BR Code is built on the server (`services/pix_brcode.build_static_brcode`) with the month's
-value, txid `MENS` + AAAAMM + 10 hex of the médium id (`txid_mensalidade`) and the description
+The BR Code is built on the server (`services/pix_brcode.build_static_brcode`) with the **missing**
+value of the month (partial payment, 092), txid `MENS` + AAAAMM + 10 hex of the médium id (`txid_mensalidade`) and the description
 "Mensalidade MM/AAAA"; the same text is the QR payload. Errors: 404 `MES_SEM_MENSALIDADE` (month
 outside the list), 409 `MES_FECHADO` (`paga`, `isento` or `em_conferencia` — `details.status`), 409
-`PIX_NAO_CONFIGURADO`, 409 `MENSALIDADE_SEM_VALOR`, 422 `MES_INVALIDO`.
+`PIX_NAO_CONFIGURADO`, 409 `MENSALIDADE_SEM_VALOR`, 409 `SEM_VALOR_EM_ABERTO` (nothing missing although the
+month record is still pending), 422 `MES_INVALIDO`.
 
-**`POST /api/v1/medium/mensalidades/{AAAA-MM}/comprovante`** (multipart, field `arquivo`) —
-JPEG, PNG, WebP or PDF up to **2 MB**, type checked by the file's first bytes. Creates the month's
-record (PENDENTE, `valor_vigente` = configured value, like the first record in the panel) or updates
-it, stores the file, sets `comprovante_enviado_em/_por` and clears a previous refusal. The month
-becomes `em_conferencia`; the response is the month item. Errors: 422 `COMPROVANTE_GRANDE` /
-`COMPROVANTE_TIPO` / `COMPROVANTE_VAZIO`, 404 `MES_SEM_MENSALIDADE`, 409 `MES_FECHADO` (paid or
-exempt), 403 while impersonating, 429 above 20 uploads/hour per IP. Audited as
-`mensalidade_comprovante_medium` with month, type and size only (never the file).
+**`POST /api/v1/medium/mensalidades/{AAAA-MM}/comprovante`** (multipart, field `arquivo`, optional
+`valor_informado` — "30", "30.50" or "30,50") — JPEG, PNG, WebP or PDF up to **2 MB**, type checked by
+the file's first bytes. Creates the month's record if needed (PENDENTE, `valor_vigente` = configured
+value, like the first record in the panel) and **adds a new receipt** (`em_conferencia`; previous ones
+stay in the history). The response is the month item. Errors: 422 `COMPROVANTE_GRANDE` /
+`COMPROVANTE_TIPO` / `COMPROVANTE_VAZIO` / `VALOR_INVALIDO`, 404 `MES_SEM_MENSALIDADE`, 409 `MES_FECHADO`
+(paid or exempt), 403 while impersonating, 429 above 20 uploads/hour per IP. Audited as
+`mensalidade_comprovante_medium` with ids, month, type, size and declared value only (never the file).
 
 **Automatic payment (F-02/AM-22).** When the house connected a gateway (Stripe or Mercado Pago) and the
 plan has `mensalidade_automatica`, `GET /api/v1/medium/mensalidades` returns
@@ -2031,7 +2079,9 @@ plan has `mensalidade_automatica`, `GET /api/v1/medium/mensalidades` returns
 
 **`POST /api/v1/medium/mensalidades/{AAAA-MM}/cobranca`** — body `{"metodo": "pix"}` (default) or
 `{"metodo": "boleto", "cpf": "123.456.789-09", "endereco": {"logradouro": "Rua A, 10", "cidade": "São Paulo",
-"uf": "SP", "cep": "01310-000"}}`. Creates a **direct charge on the house's account** (Stripe PaymentIntent with
+"uf": "SP", "cep": "01310-000"}}`. The charge is for the **missing value** of the month (partial payment,
+092): a pending charge of another value is not reused (it is cancelled and a new one is created); a paid
+charge counts toward the month's received amount and closes the month when complete. Creates a **direct charge on the house's account** (Stripe PaymentIntent with
 `stripe_account`, no platform fee, PIX valid 24 h, boleto 3 days — or a Mercado Pago PIX payment with the house's
 OAuth token, `external_reference` = our charge id, valid 24 h; no boleto on Mercado Pago yet) for an open month of
 the logged médium, or reuses
@@ -2240,6 +2290,8 @@ the Área. The screen builds the JSON file and a readable PDF from it on the dev
   "mensalidades": [{ "mes": "2026-09", "situacao": "PAGO", "valor": 50.0, "valor_pago": 50.0,
     "pago_em": "2026-09-10T12:00:00+00:00",
     "comprovante": { "arquivo": "comprovante.jpg", "tipo": "image/jpeg", "enviado_pela_area_em": "2026-09-09T20:00:00+00:00" },
+    "comprovantes": [{ "arquivo": "comprovante.jpg", "tipo": "image/jpeg", "enviado_em": "2026-09-09T20:00:00+00:00",
+      "valor_informado": 50.0, "situacao": "conferido", "valor_conferido": 50.0, "motivo_nao_confirmado": null }],
     "motivo_nao_confirmado": null, "nao_confirmado_em": null }],
   "avisos_lidos": [{ "aviso": "Gira de sábado", "lido_em": "2026-10-05T21:00:00+00:00" }],
   "participacoes": [{ "atividade": "Faxina · G2", "tipo": "Faxina", "quando": "2026-10-03T12:00:00+00:00",

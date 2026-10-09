@@ -43,6 +43,7 @@ from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.medium_aniversarios import aniversariantes_da_semana, faz_aniversario_hoje, mensagem_aniversario
 from src.services.medium_area import get_area_medium_config
 from src.services.medium_inicio import MensalidadeDoMes, montar_pendencias, situacao_mensalidade
+from src.services.mensalidade_parcial import RESUMO_VAZIO, comprovantes_por_pagamento, gateway_pago_por_mes
 from src.services.plan_features import get_effective_plan_features
 from src.services.presenca import SITUACAO_DISPENSADO, SITUACAO_SUBSTITUIDO
 
@@ -75,6 +76,9 @@ class MensalidadeInicio(BaseModel):
     valor: Optional[float] = None
     vencimento: Optional[date] = None
     data_pagamento: Optional[datetime] = None
+    # Pagamento parcial (092): `valor` é o que falta; aqui o valor do mês e o já recebido.
+    valor_mensalidade: Optional[float] = None
+    valor_recebido: Optional[float] = None
     # A casa cadastrou a chave PIX da mensalidade (AM-10)? Só o sim/não — a chave nunca sai
     # aqui. Sem chave, o Início mostra "Ver mensalidade" no lugar de "Pagar com PIX" (AM-29).
     pix_disponivel: bool = False
@@ -170,6 +174,14 @@ async def _mensalidade(
             )
         )
     ).scalar_one_or_none()
+    # Comprovantes do mês (092) e o que já entrou: "em conferência" sai das pendências,
+    # "não confirmado" volta para elas e o valor da pendência é o que FALTA pagar.
+    resumo = RESUMO_VAZIO
+    recebido = None
+    if pagamento is not None:
+        resumo = (await comprovantes_por_pagamento(db, ctx.tenant_id, [pagamento.id])).get(pagamento.id, RESUMO_VAZIO)
+        gateway = await gateway_pago_por_mes(db, ctx.tenant_id, [pagamento.mes_referencia], [ctx.medium.id])
+        recebido = resumo.recebido + gateway.get((ctx.medium.id, pagamento.mes_referencia), 0)
     situacao = situacao_mensalidade(
         hoje=hoje,
         data_entrada=ctx.medium.data_entrada,
@@ -180,11 +192,8 @@ async def _mensalidade(
         pagamento_valor_vigente=pagamento.valor_vigente if pagamento else None,
         pagamento_valor_pago=pagamento.valor_pago if pagamento else None,
         pagamento_data=pagamento.data_pagamento if pagamento else None,
-        # Comprovante enviado pela Área (AM-12): "em conferência" sai das pendências e
-        # "não confirmado" volta para elas.
-        comprovante_enviado_em=pagamento.comprovante_enviado_em if pagamento else None,
-        comprovante_presente=bool(pagamento and pagamento.comprovante_filename),
-        recusado_em=pagamento.recusado_em if pagamento else None,
+        valor_recebido=recebido,
+        **resumo.para_situacao(),
     )
     return situacao, bool((config.pix_chave or "").strip())
 

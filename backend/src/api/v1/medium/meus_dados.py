@@ -60,6 +60,7 @@ from src.services.audit_service import AuditService
 from src.services.medium_convite import tirar_acesso
 from src.services.medium_lembretes import emails_dos_admins, preferencias_payload
 from src.services.medium_perfil import tipo_do_medium
+from src.services.mensalidade_parcial import RESUMO_VAZIO, comprovantes_do_medium
 
 router = APIRouter()
 
@@ -126,16 +127,12 @@ async def _mensalidades(db: AsyncSession, ctx: MediumContext) -> list[dict]:
     # Colunas explícitas: o arquivo do comprovante (bytes) nunca é lido aqui.
     rows = await db.execute(
         select(
+            MensalidadePagamento.id,
             MensalidadePagamento.mes_referencia,
             MensalidadePagamento.status,
             MensalidadePagamento.valor_vigente,
             MensalidadePagamento.valor_pago,
             MensalidadePagamento.data_pagamento,
-            MensalidadePagamento.comprovante_filename,
-            MensalidadePagamento.comprovante_mime,
-            MensalidadePagamento.comprovante_enviado_em,
-            MensalidadePagamento.recusa_motivo,
-            MensalidadePagamento.recusado_em,
         )
         .where(
             MensalidadePagamento.tenant_id == ctx.tenant_id,
@@ -143,21 +140,40 @@ async def _mensalidades(db: AsyncSession, ctx: MediumContext) -> list[dict]:
         )
         .order_by(MensalidadePagamento.mes_referencia.desc())
     )
+    # Comprovantes enviados pela Área (pagamento parcial, migração 092: vários por mês).
+    resumos = await comprovantes_do_medium(db, ctx.tenant_id, ctx.medium.id)
     saida = []
-    for r in rows.all():
-        status_ = r[1].value if hasattr(r[1], "value") else r[1]
+    for pid, mes, status_, valor, valor_pago, pago_em in rows.all():
+        enviados = [c for c in resumos.get(pid, RESUMO_VAZIO).comprovantes if c.origem == "medium"]
+        ultimo = enviados[-1] if enviados else None
+        nao_confirmado = ultimo is not None and ultimo.status == "nao_confirmado"
         saida.append(
             {
-                "mes": r[0].strftime("%Y-%m"),
-                "situacao": status_,
-                "valor": _num(r[2]),
-                "valor_pago": _num(r[3]),
-                "pago_em": _iso(r[4]),
+                "mes": mes.strftime("%Y-%m"),
+                "situacao": status_.value if hasattr(status_, "value") else status_,
+                "valor": _num(valor),
+                "valor_pago": _num(valor_pago),
+                "pago_em": _iso(pago_em),
+                # O mais recente (compatível com o formato 1) e a lista completa.
                 "comprovante": (
-                    {"arquivo": r[5], "tipo": r[6], "enviado_pela_area_em": _iso(r[7])} if r[5] else None
+                    {"arquivo": ultimo.arquivo_filename, "tipo": ultimo.arquivo_mime, "enviado_pela_area_em": _iso(ultimo.enviado_em)}
+                    if ultimo
+                    else None
                 ),
-                "motivo_nao_confirmado": r[8],
-                "nao_confirmado_em": _iso(r[9]),
+                "comprovantes": [
+                    {
+                        "arquivo": c.arquivo_filename,
+                        "tipo": c.arquivo_mime,
+                        "enviado_em": _iso(c.enviado_em),
+                        "valor_informado": _num(c.valor_informado),
+                        "situacao": c.status,
+                        "valor_conferido": _num(c.valor_conferido),
+                        "motivo_nao_confirmado": c.motivo if c.status == "nao_confirmado" else None,
+                    }
+                    for c in enviados
+                ],
+                "motivo_nao_confirmado": ultimo.motivo if nao_confirmado else None,
+                "nao_confirmado_em": _iso(ultimo.conferido_em) if nao_confirmado else None,
             }
         )
     return saida

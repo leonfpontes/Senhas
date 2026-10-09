@@ -5,8 +5,8 @@ Routes:
   PUT  /api/v1/admin/financeiro/config         — Update config
   GET  /api/v1/admin/financeiro/mensalidades   — List month
   POST /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}  — Register payment
-  GET  /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}/comprovante  — Download
-  DELETE /api/v1/admin/financeiro/mensalidades/{pagamento_id}/comprovante   — Remove
+  GET  /api/v1/admin/financeiro/mensalidades/{mediun_id}/{mes}/comprovante  — Download (o mais recente)
+  DELETE /api/v1/admin/financeiro/mensalidades/{pagamento_id}/comprovante   — Remove o anexo do painel
   GET  /api/v1/admin/financeiro/resumo         — Chart data
   POST /api/v1/admin/financeiro/relatorio/enviar  — Send email to admins
   GET  /api/v1/admin/financeiro/relatorio/download  — Return HTML
@@ -15,6 +15,15 @@ Acesso: só `require_group_permission(FINANCEIRO, ...)` + gate de plano. Admin
 faz bypass dos grupos; operador com a permissão do grupo pode tudo que ela
 libera (não há mais checagem extra de perfil ADMIN — ela contradizia o grupo).
 Registrar/editar pagamento é POST (upsert) → ação "insert" nos dois lados.
+
+Pagamento parcial (migração 092): comprovantes ficam em `mensalidade_comprovantes` (vários por
+mês; conferência em `mensalidade_comprovantes.py`). A lista do mês traz o recebido, a falta, o
+pago a mais e quantos comprovantes esperam conferência (`services/mensalidade_parcial.py`). O
+registro manual continua sendo a palavra final: PAGO grava o `valor_pago` informado como total do
+mês e dá por conferidos (sem valor) os comprovantes que estavam em conferência; o arquivo anexado
+pelo painel vira um comprovante `origem = 'painel'` (conferido, sem valor). O slot único antigo
+(`comprovante_data`...) não recebe mais escrita — só é lido no download de registro sem
+comprovante na tabela nova.
 """
 
 from __future__ import annotations
@@ -29,20 +38,26 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Path, Query, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, require_group_permission, require_plan_feature
 from src.core.database import get_db
 from src.core.errors import InsufficientPermissionsError, NotFoundError
 from src.models import User, PermissionFeature
-from src.models.mensalidades import MensalidadeStatus
+from src.models.mensalidades import (
+    COMPROVANTE_CONFERIDO,
+    COMPROVANTE_EM_CONFERENCIA,
+    MensalidadeComprovante,
+    MensalidadeStatus,
+)
 from src.repositories.mensalidade_repo import MensalidadeRepository
 from src.repositories.associado_mensalidade_repo import AssociadoMensalidadeRepository
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.repositories.config_repo import TenantConfigRepository
 from src.services.plan_features import get_effective_plan_features
 from src.services.audit_service import AuditService
-from src.services.medium_mensalidade import comprovante_para_conferir
+from src.services import mensalidade_parcial as parcial
 
 router = APIRouter(prefix="/api/v1/admin/financeiro", tags=["admin-financeiro"])
 logger = logging.getLogger(__name__)
@@ -168,6 +183,14 @@ class MensalidadeItemResponse(BaseModel):
     # Quem deu a baixa (F-02/AM-22): "gateway" = pago pelo PIX/boleto automático (webhook);
     # "direcao" = registrado/confirmado no painel; None = registro antigo (tratado como direção).
     origem: Optional[str] = None
+    # Pagamento parcial (092): o que já entrou (comprovantes conferidos + cobranças pagas; no mês
+    # PAGO, o valor pago), o que falta, o pago a mais (só informativo) e quantos comprovantes
+    # esperam conferência.
+    valor_recebido: float = 0.0
+    falta: Optional[float] = None
+    pago_a_mais: float = 0.0
+    comprovantes_em_conferencia: int = 0
+    comprovantes_total: int = 0
 
 
 class AssociadoMensalidadeItemResponse(BaseModel):
@@ -187,6 +210,44 @@ class ResumoResponse(BaseModel):
     historico: List[Dict[str, Any]]
     projecao: List[Dict[str, Any]]
     config: Dict[str, Any]
+
+
+# ── Pagamento parcial (092) ───────────────────────────────────────────────────
+
+
+async def _enriquecer_mediuns(
+    db: AsyncSession, tenant_id: UUID, mes_date: date, rows: List[Dict[str, Any]], valor_config: Optional[Decimal]
+) -> List[Dict[str, Any]]:
+    """Acrescenta a cada linha do mês o saldo (recebido/falta/pago a mais) e os comprovantes."""
+    resumos = await parcial.comprovantes_por_pagamento(db, tenant_id, [r.get("pagamento_id") for r in rows])
+    gateway = await parcial.gateway_pago_por_mes(db, tenant_id, [mes_date], [r["mediun_id"] for r in rows])
+    for r in rows:
+        resumo = resumos.get(r.get("pagamento_id"), parcial.RESUMO_VAZIO)
+        devido = r.get("valor_vigente") if r.get("valor_vigente") is not None else valor_config
+        saldo = parcial.saldo_do_mes(
+            devido, [c.valor_conferido for c in resumo.conferidos], [gateway.get((r["mediun_id"], mes_date))]
+        )
+        raw_status = r.get("status")
+        st = raw_status.value if hasattr(raw_status, "value") else raw_status
+        if st == MensalidadeStatus.PAGO.value and r.get("valor_pago") is not None:
+            saldo = parcial.SaldoMes(devido=saldo.devido, recebido=parcial._dec(r.get("valor_pago")))
+        fechado = st in (MensalidadeStatus.PAGO.value, MensalidadeStatus.ISENTO.value) or (
+            st is None and r.get("mensalidade_isento")
+        )
+        situacao = resumo.para_situacao()
+        ultimo = resumo.ultimo
+        r["valor_recebido"] = float(saldo.recebido)
+        r["falta"] = 0.0 if fechado else (float(saldo.falta) if devido is not None else None)
+        r["pago_a_mais"] = float(saldo.pago_a_mais)
+        r["comprovantes_em_conferencia"] = len(resumo.em_conferencia)
+        r["comprovantes_total"] = len(resumo.comprovantes)
+        r["comprovante_para_conferir"] = bool(resumo.em_conferencia)
+        r["comprovante_enviado_em"] = situacao["comprovante_enviado_em"]
+        r["recusa_motivo"] = situacao["recusa_motivo"]
+        r["recusado_em"] = situacao["recusado_em"]
+        # O mais recente da tabela nova (o slot antigo só se o mês não tem nenhum).
+        r["comprovante_filename"] = ultimo.arquivo_filename if ultimo else r.get("comprovante_filename")
+    return rows
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -328,7 +389,11 @@ async def list_mensalidades(
     """List all active médiuns with their payment status for the specified month."""
     mes_date = _parse_mes(mes)
     repo = MensalidadeRepository(db)
-    rows = await repo.list_mes(current_user.tenant_id, mes_date)
+    config = await repo.get_config(current_user.tenant_id)
+    rows = await _enriquecer_mediuns(
+        db, current_user.tenant_id, mes_date, await repo.list_mes(current_user.tenant_id, mes_date),
+        config.valor_mensal if config else None,
+    )
 
     result = []
     for r in rows:
@@ -355,15 +420,15 @@ async def list_mensalidades(
                 comprovante_filename=r.get("comprovante_filename"),
                 observacao=r.get("observacao"),
                 comprovante_enviado_em=r.get("comprovante_enviado_em"),
-                comprovante_para_conferir=comprovante_para_conferir(
-                    effective_status,
-                    r.get("comprovante_enviado_em"),
-                    bool(r.get("comprovante_filename")),
-                    r.get("recusado_em"),
-                ),
+                comprovante_para_conferir=bool(r.get("comprovante_para_conferir")),
                 recusa_motivo=r.get("recusa_motivo"),
                 recusado_em=r.get("recusado_em"),
                 origem=r.get("origem"),
+                valor_recebido=r["valor_recebido"],
+                falta=r["falta"],
+                pago_a_mais=r["pago_a_mais"],
+                comprovantes_em_conferencia=r["comprovantes_em_conferencia"],
+                comprovantes_total=r["comprovantes_total"],
             )
         )
     return result
@@ -458,19 +523,62 @@ async def registrar_pagamento(
         valor_vigente=valor_vigente,
         valor_pago=Decimal(str(valor_pago)) if valor_pago is not None else None,
         data_pagamento=parsed_data_pag,
-        comprovante_data=comp_data,
-        comprovante_filename=comp_filename,
-        comprovante_mime=comp_mime,
         **(await _observacao_kwargs(request, observacao)),
     )
     # Baixa pela direção (F-02/AM-22): distingue do "Paga pelo PIX (automático)" do gateway.
     pag.origem = "direcao" if parsed_status == MensalidadeStatus.PAGO else None
+    agora = datetime.now(timezone.utc)
+    # Pagamento parcial (092): o arquivo do painel vira um comprovante (conferido, sem valor — o
+    # `valor_pago` informado é o total do mês) e o registro PAGO dá por conferidos os que esperavam.
+    if comp_data is not None:
+        db.add(
+            MensalidadeComprovante(
+                id=uuid.uuid4(),
+                tenant_id=current_user.tenant_id,
+                pagamento_id=pag.id,
+                mediun_id=mediun_id,
+                origem="painel",
+                enviado_por=current_user.id,
+                enviado_em=agora,
+                arquivo_data=comp_data,
+                arquivo_filename=(comp_filename or "comprovante")[:255],
+                arquivo_mime=comp_mime or "application/octet-stream",
+                arquivo_tamanho=len(comp_data),
+                status=COMPROVANTE_CONFERIDO,
+                conferido_por=current_user.id,
+                conferido_em=agora,
+            )
+        )
+    conferidos_no_registro = 0
+    if parsed_status == MensalidadeStatus.PAGO:
+        pendentes = (
+            await db.execute(
+                select(MensalidadeComprovante).where(
+                    MensalidadeComprovante.tenant_id == current_user.tenant_id,
+                    MensalidadeComprovante.pagamento_id == pag.id,
+                    MensalidadeComprovante.status == COMPROVANTE_EM_CONFERENCIA,
+                )
+            )
+        ).scalars().all()
+        for c in pendentes:
+            c.status = COMPROVANTE_CONFERIDO
+            c.conferido_por = current_user.id
+            c.conferido_em = agora
+            c.updated_at = agora
+        conferidos_no_registro = len(pendentes)
+    await db.flush()
     await audit.log_update(
         tenant_id=current_user.tenant_id,
         user_id=current_user.id,
         resource_type="mensalidade",
         resource_id=pag.id,
-        new_state={"mediun_id": str(mediun_id), "mes": mes, "status": parsed_status.value},
+        new_state={
+            "mediun_id": str(mediun_id),
+            "mes": mes,
+            "status": parsed_status.value,
+            "valor_pago": str(pag.valor_pago) if pag.valor_pago is not None else None,
+            "comprovantes_conferidos_no_registro": conferidos_no_registro,
+        },
     )
 
     # Sync to contas_financeiras
@@ -506,18 +614,41 @@ async def download_comprovante(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Download comprovante binary for a specific payment."""
+    """O comprovante MAIS RECENTE do mês (cada um tem o seu em `.../comprovantes/{id}/arquivo`).
+
+    Pagamento parcial (092): lê `mensalidade_comprovantes`; o slot antigo só para registro sem
+    nenhum comprovante na tabela nova.
+    """
     mes_date = _parse_mes(mes)
     repo = MensalidadeRepository(db)
     pag = await repo.get_pagamento(current_user.tenant_id, mediun_id, mes_date)
-    if not pag or not pag.comprovante_data:
+    if not pag:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comprovante não encontrado.")
+    ultimo = (
+        await db.execute(
+            select(
+                MensalidadeComprovante.arquivo_data,
+                MensalidadeComprovante.arquivo_mime,
+                MensalidadeComprovante.arquivo_filename,
+            )
+            .where(
+                MensalidadeComprovante.tenant_id == current_user.tenant_id,
+                MensalidadeComprovante.pagamento_id == pag.id,
+            )
+            .order_by(MensalidadeComprovante.enviado_em.desc(), MensalidadeComprovante.created_at.desc())
+            .limit(1)
+        )
+    ).first()
+    if ultimo is not None:
+        data, mime, filename = ultimo
+    elif pag.comprovante_data:
+        data, mime, filename = pag.comprovante_data, pag.comprovante_mime, pag.comprovante_filename
+    else:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comprovante não encontrado.")
     return Response(
-        content=pag.comprovante_data,
-        media_type=pag.comprovante_mime or "application/octet-stream",
-        headers={
-            "Content-Disposition": f'attachment; filename="{pag.comprovante_filename or "comprovante"}"'
-        },
+        content=data,
+        media_type=mime or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename or "comprovante"}"'},
     )
 
 
@@ -531,12 +662,23 @@ async def delete_comprovante(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove comprovante binary from a payment record."""
+    """Remove o anexo do painel do mês (slot antigo + comprovantes `origem = 'painel'`).
+
+    Comprovantes enviados pelo médium ficam: são o histórico do mês (pagamento parcial, 092) — a
+    casa não confirma com motivo, não apaga.
+    """
     repo = MensalidadeRepository(db)
     audit = AuditService(db)
     pag = await repo.delete_comprovante(current_user.tenant_id, pagamento_id)
     if not pag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pagamento não encontrado.")
+    await db.execute(
+        sa_delete(MensalidadeComprovante).where(
+            MensalidadeComprovante.tenant_id == current_user.tenant_id,
+            MensalidadeComprovante.pagamento_id == pag.id,
+            MensalidadeComprovante.origem == "painel",
+        )
+    )
     await audit.log_delete(
         tenant_id=current_user.tenant_id,
         user_id=current_user.id,
@@ -615,7 +757,10 @@ async def enviar_relatorio(
 
     if features.mensalidade_mediun:
         from src.services.email.templates.mensalidade_report import render_mensalidade_report
-        rows_m = await repo.list_mes(current_user.tenant_id, mes_date)
+        rows_m = await _enriquecer_mediuns(
+            db, current_user.tenant_id, mes_date, await repo.list_mes(current_user.tenant_id, mes_date),
+            cfg.valor_mensal if cfg else None,
+        )
         inadimplentes_m = [
             r for r in rows_m
             if not r.get("mensalidade_isento")
@@ -738,7 +883,10 @@ async def download_relatorio(
     html: str
     if features.mensalidade_mediun:
         from src.services.email.templates.mensalidade_report import render_mensalidade_report
-        rows_m = await repo.list_mes(current_user.tenant_id, mes_date)
+        rows_m = await _enriquecer_mediuns(
+            db, current_user.tenant_id, mes_date, await repo.list_mes(current_user.tenant_id, mes_date),
+            cfg.valor_mensal if cfg else None,
+        )
         inadimplentes_m = [
             r for r in rows_m
             if not r.get("mensalidade_isento")

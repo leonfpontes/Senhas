@@ -171,11 +171,35 @@ confirmada" = `recusado_em >= comprovante_enviado_em`. Reenvio limpa a recusa. C
 preenche `comprovante_enviado_em`. Índice parcial `ix_mensalidade_pagamentos_conferir` em
 `(tenant_id, comprovante_enviado_em) WHERE comprovante_enviado_em IS NOT NULL AND status = 'PENDENTE'` (fila
 "Comprovantes para conferir" sem varrer o BYTEA). O arquivo continua em `comprovante_data` (BYTEA): pela Área o
-limite é 2 MB (o navegador reduz a foto antes); pelo painel, 5 MB.
+limite é 2 MB (o navegador reduz a foto antes); pelo painel, 5 MB. **Desde a 092 essas colunas (slot único:
+`comprovante_data/_filename/_mime`, `comprovante_enviado_em/_por`, `recusa_motivo`, `recusado_em`) não recebem
+mais escrita** — os comprovantes ficam em `mensalidade_comprovantes` (abaixo); o código só lê o slot no download
+de registro antigo sem comprovante na tabela nova. Saem num PR futuro, depois de um ciclo em produção.
 
 **Quem deu a baixa (migração 091, F-02/AM-22):** `mensalidade_pagamentos.origem` (`String(20)`, CHECK
 `ck_mensalidade_pagamentos_origem`: `direcao | gateway`, NULL nos registros anteriores à 091). `gateway` = pago pela
 cobrança automática (webhook do provedor); `direcao` = registrado/confirmado no painel.
+
+### `mensalidade_comprovantes` (pagamento parcial, migração 092)
+
+Vários comprovantes por mês (decisão do dono de 09/10) — model `MensalidadeComprovante(Base)` em
+`src/models/mensalidades.py`. Colunas "enum" são texto com CHECK. `tenant_id` (CASCADE), `pagamento_id` (FK →
+`mensalidade_pagamentos.id` CASCADE), `mediun_id` (CASCADE), `origem` (`medium | painel`, CHECK
+`ck_mensalidade_comprovantes_origem`), `enviado_por` (FK `users` SET NULL — a conta do médium ou quem anexou no
+painel), `enviado_em`, `arquivo_data` (BYTEA, NOT NULL), `arquivo_filename` (`String(255)`), `arquivo_mime`
+(`String(50)`), `arquivo_tamanho` (int), `valor_informado` (`Numeric(10,2)`, opcional, > 0 — quanto o médium diz
+ter pago), `status` (`em_conferencia | conferido | nao_confirmado`, padrão `em_conferencia`), `valor_conferido`
+(`Numeric(10,2)`, > 0 — o que a casa confirmou que entrou; NULL no anexo do painel e nos conferidos pelo registro
+manual), `conferido_por` (FK `users` SET NULL), `conferido_em`, `motivo` (`Text`, quando não confirmado — o médium
+vê), timestamps. Índices `ix_mensalidade_comprovantes_pagamento`, `ix_mensalidade_comprovantes_tenant_mediun` e o
+parcial `ix_mensalidade_comprovantes_conferir` (`tenant_id, enviado_em`) `WHERE status = 'em_conferencia'` (fila).
+
+Contas do mês (`services/mensalidade_parcial.py`): devido = `valor_vigente`; recebido = soma de `valor_conferido`
+dos conferidos + cobranças automáticas pagas; falta = max(0, devido − recebido). Recebido ≥ devido → o mês vira
+`PAGO` (`valor_pago` = recebido) com espelho em contas a receber; pago a mais fica só informado. Migração de dados
+da 092: cada registro com arquivo no slot único virou um comprovante (Área → `medium`, senão `painel`; mês PAGO →
+`conferido` sem valor; recusado depois do envio → `nao_confirmado` com o motivo; enviado pela Área num mês PENDENTE
+→ `em_conferencia`). Downgrade devolve o mais recente de cada mês ao slot único.
 
 ### `mensalidade_gateways` e `mensalidade_cobrancas` (F-02/AM-22, migração 091)
 
@@ -200,8 +224,9 @@ médium), `raw` (JSONB mínimo: status externo e último evento — **sem CPF, e
 UNIQUE `uq_mensalidade_cobrancas_provedor_external` (`provedor`, `external_id`); UNIQUE parcial
 `uq_mensalidade_cobrancas_pendente` (`mediun_id`, `mes_referencia`, `metodo`) `WHERE status = 'pendente'` (uma em
 aberto por médium/mês/método, reaproveitada enquanto vale); índices `ix_mensalidade_cobrancas_tenant_mes` e
-`ix_mensalidade_cobrancas_mediun_mes`. Paga → o mês vira `PAGO` em `mensalidade_pagamentos` com `origem = 'gateway'`
-(mesmo registro da confirmação do AM-12) e espelha em contas a receber. Idempotência do webhook do Connect:
+`ix_mensalidade_cobrancas_mediun_mes`. Paga → entra no recebido do mês (092) e, quando completa, o mês vira `PAGO`
+em `mensalidade_pagamentos` com `origem = 'gateway'` (mesmo registro da confirmação do AM-12) e espelha em contas a
+receber. A cobrança é sempre do valor que falta: pendente de outro valor não é reaproveitada. Idempotência do webhook do Connect:
 `stripe_events_processed` (ids `evt_...` são únicos no Stripe).
 
 ### `comunicados` e `comunicado_leituras` (AM-09, migrações 070/071)
@@ -1140,8 +1165,8 @@ Ao criar um novo enum em Alembic + model Python:
 | 18 | `018_estoque` | `017_default_brand_colors` | Cria `estoque_grupos`, `estoque_itens`, `estoque_movimentacoes`; enum `estoque_movimentacao_tipo`; `tenant_configs.enable_estoque_log` |
 | 19 | `019_fix_movimentacoes_fk` | `018_estoque` | `estoque_movimentacoes.item_id` FK: `CASCADE` → `RESTRICT` (protege integridade do ledger) |
 
-A tabela acima vai até a 019. A cadeia completa e a head atual (`091_mensalidade_gateway`, F-02/AM-22) estão em
-AGENTS.md §11.8.
+A tabela acima vai até a 019. A cadeia completa e a head atual (`092_mensalidade_comprovantes`, pagamento parcial)
+estão em AGENTS.md §11.8.
 
 ### Comandos Alembic
 

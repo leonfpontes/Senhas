@@ -15,7 +15,7 @@ from .feature_flags import FeatureFlag
 from .associados import Associado
 from .estoque import EstoqueGrupo, EstoqueItem, EstoqueMovimentacao, EstoqueMovimentacaoTipo
 from .mediuns import Medium
-from .mensalidades import MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
+from .mensalidades import MensalidadeComprovante, MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
 from .associado_mensalidade import AssociadoMensalidadePagamento
 from .site import TenantSite, TenantSiteSection, SiteImage, SiteVersion, SiteStatus, SiteSectionType
 from .cursos_presenciais import CursoPresencial, CursoParticipante, CursoParticipantePagamento
@@ -102,6 +102,7 @@ __all__ = [
     "ParticipacaoTroca",
     "MensalidadeConfig",
     "MensalidadePagamento",
+    "MensalidadeComprovante",
     "MensalidadeStatus",
     "AssociadoMensalidadePagamento",
     "TenantSite",

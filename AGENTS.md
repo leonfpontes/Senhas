@@ -422,9 +422,18 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   validar_comprovante`) e auditado sem o arquivo (`mensalidade_comprovante_medium`). Status por mes
   = `services/medium_inicio.situacao_mensalidade` (a MESMA regra do Inicio); meses exibidos =
   `medium_mensalidade.meses_da_area`. Lado do painel (`admin/mensalidade_comprovantes.py`,
-  FINANCEIRO + `mensalidade_mediun`): fila `GET .../mensalidades/comprovantes-para-conferir` (view),
-  "Confirmar pagamento" = o POST de registro de sempre com PAGO (insert; espelha em contas a
-  receber) e "Nao confirmar" = `PATCH .../mensalidades/{mediun_id}/{mes}/recusa` com motivo (edit).
+  FINANCEIRO + `mensalidade_mediun`): fila `GET .../mensalidades/comprovantes-para-conferir` (view, um
+  item por comprovante), historico do mes `GET .../mensalidades/{mediun_id}/{mes}/comprovantes` (view),
+  arquivo `GET .../mensalidades/comprovantes/{id}/arquivo` (view), "Conferir" =
+  `PATCH .../comprovantes/{id}/conferir` `{valor}` e "Nao confirmar" = `PATCH .../comprovantes/{id}/
+  nao-confirmar` `{motivo}` (os dois edit). O legado `PATCH .../{mediun_id}/{mes}/recusa` (edit) nao
+  confirma todos os em conferencia do mes. **Pagamento parcial (migracao 092)**: cada envio do medium e um
+  comprovante novo em `mensalidade_comprovantes` (com `valor_informado` opcional — "30,50" vira Decimal;
+  invalido → 422 `VALOR_INVALIDO`); recebido = conferidos + cobrancas automaticas pagas; o mes vira PAGO
+  sozinho quando completa (`services/mensalidade_parcial.fechar_se_quitado`); a Area ve so os comprovantes
+  dele (filtro `ctx.medium.id`), sem ids nem arquivo; PIX/cobranca/Inicio usam a falta; sem falta e mes
+  ainda pendente → 409 `SEM_VALOR_EM_ABERTO`. Auditoria `mensalidade_comprovante_medium` so com ids e
+  valores (nunca o motivo nem o arquivo).
 - **Perfil do medium (AM-13)**: `api/v1/medium/perfil.py` — `GET/PATCH /medium/perfil`, `POST|DELETE /medium/perfil/foto`
   (DELETE = tirar a foto, AM-29: `auth/profile.clear_profile_photo`, sem foto → 200 sem auditoria),
   `POST /medium/perfil/senha`, `POST|DELETE /medium/perfil/email`; regras puras em `services/medium_perfil.py`. O medium
@@ -978,7 +987,11 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `091_mensalidade_gateway` (2026-10-09, F-02/AM-22: `mensalidade_gateways` — uma por terreiro,
+- Head atual: `092_mensalidade_comprovantes` (2026-10-09, pagamento parcial: tabela `mensalidade_comprovantes` —
+  varios comprovantes por mes, `origem` medium|painel, `valor_informado`, `status` em_conferencia|conferido|
+  nao_confirmado, `valor_conferido`, `motivo`, indice parcial da fila; migracao de dados do slot unico de
+  `mensalidade_pagamentos` (colunas antigas ficam, sem escrita nova); downgrade devolve o mais recente ao slot),
+  apos `091_mensalidade_gateway` (2026-10-09, F-02/AM-22: `mensalidade_gateways` — uma por terreiro,
   `stripe_account_id` unico, colunas `mp_*_enc` cifradas —, `mensalidade_cobrancas` — `uq_..._provedor_external`,
   unico parcial de pendente por medium + mes + metodo — e `mensalidade_pagamentos.origem`), apos `090_assinatura_pix_mensal` (2026-10-09, $-04: tabela `assinatura_pix_pagamentos` — um registro por
   PIX mensal do plano confirmado, `checkout_session_id` unico (idempotencia), `aplicado`, `period_start/_end`;
@@ -1050,16 +1063,33 @@ Incluir obrigatoriamente:
 - **Chave PIX (AM-10)**: `mensalidade_configs.pix_*` (067) — tipo, chave (formato do DICT), nome do recebedor (≤ 25), cidade (≤ 15), instrucoes e `pix_alterado_em`. Endpoint proprio `PUT /financeiro/config/pix` com senha + e-mail aos admins + auditoria mascarada (detalhes em §3.3, Area do Medium); o PUT `/financeiro/config` nao toca nesses campos. Tela: card "Chave PIX da mensalidade" (`components/financeiro/PixConfigCard.tsx`) na aba Mensalidade de `/admin/financeiro/config`, com previa do QR (`qrcode.react`) do BR Code gerado no servidor e copia-e-cola.
 - **Comprovante**: BYTEA no banco, limite 5MB pelo painel (2 MB pela Area do Medium), tipos aceitos: jpeg/png/webp/pdf.
 - **Comprovante enviado pelo medium (AM-11/AM-12, migracao 072)**: o medium envia pela Area e o registro do mes
-  fica PENDENTE com `comprovante_enviado_em/_por` (sem valor novo no ENUM; `valor_vigente` capturado no 1o
-  registro, como no painel). "Em conferencia" = pendente + enviado + arquivo guardado + sem recusa depois do
-  envio (`medium_mensalidade.comprovante_para_conferir`; a lista do mes devolve `comprovante_para_conferir`).
+  fica PENDENTE (sem valor novo no ENUM; `valor_vigente` capturado no 1o registro, como no painel). Desde a 092
+  cada comprovante e uma linha de `mensalidade_comprovantes`: "em conferencia" = algum comprovante
+  `em_conferencia`; "nao confirmada" = o mais recente `nao_confirmado` (`services/mensalidade_parcial.
+  ResumoComprovantes.para_situacao`; a lista do mes devolve `comprovante_para_conferir`).
   Na tela, so com `can('area_medium')` (sem a Area ela fica como antes): KPI e fila "Comprovantes para conferir"
   (`components/financeiro/ComprovantesParaConferir`, todos os meses), selo/filtro "Comprovante enviado" e botao
-  "Conferir" no `CobrancaMensal` (prop `onConferir`), sheet de conferencia com o comprovante (rota de download
-  existente): "Confirmar pagamento" (POST de registro com PAGO, valor esperado e a data do envio — espelha em
-  contas a receber; o arquivo do medium fica) e "Nao confirmar" (motivos rapidos + texto → `PATCH .../recusa`,
-  FINANCEIRO edit). O medium ve o motivo e pode reenviar (o reenvio limpa a recusa). Desde o AM-15 o resumo
+  "Conferir" no `CobrancaMensal` (prop `onConferir`), sheet de conferencia com o comprovante. Desde a 092
+  (pagamento parcial, bullet abaixo) a conferencia e POR COMPROVANTE ("Conferir R$ X" com o valor que entrou /
+  "Nao confirmar" com motivo, FINANCEIRO edit) e o reenvio acrescenta um comprovante novo (o historico fica). Desde o AM-15 o resumo
   diario aos admins (8 h, um por terreiro, so contagens) traz quantos comprovantes esperam conferencia.
+- **Pagamento parcial (migracao 092, decisao do dono de 2026-10-09)**: `mensalidade_comprovantes` substitui o slot
+  unico (as colunas `comprovante_*`/`recusa_*` de `mensalidade_pagamentos` ficam so para leitura de dado antigo —
+  sem escrita nova; saem num PR futuro). Contas em `services/mensalidade_parcial.py`: devido = `valor_vigente`;
+  recebido = soma do `valor_conferido` dos conferidos + cobrancas automaticas pagas (`valor_pago`, senao `valor`;
+  estornada nao conta); falta = max(0, devido − recebido); pago a mais = so informativo (sem credito). Recebido ≥
+  devido → mes PENDENTE vira PAGO sozinho (`valor_pago` = recebido, `origem` direcao na conferencia / gateway na
+  baixa automatica, espelho em contas a receber). Conferido num mes ja PAGO soma ao `valor_pago`. O registro manual
+  (POST) e a palavra final: PAGO com o `valor_pago` informado fecha o mes e da por conferidos (sem valor) os que
+  esperavam; arquivo anexado pelo painel vira comprovante `origem = 'painel'` (conferido sem valor); o DELETE do
+  comprovante tira so os anexos do painel. Enquanto o mes nao fecha, o espelho em contas a receber continua
+  pendente com o valor do mes e o "arrecadado" do resumo nao conta o parcial; o relatorio de inadimplentes (e-mail/
+  HTML) mostra a falta de quem pagou parte. Lista do mes (`GET .../mensalidades`) traz `valor_recebido`, `falta`,
+  `pago_a_mais`, `comprovantes_em_conferencia`, `comprovantes_total`. Tela: fila com "Pagamento parcial"/"falta R$
+  X", sheet de conferencia com saldo (mensalidade, recebido, falta ou pago a mais), historico de todos os
+  comprovantes, "Quanto entrou na conta da casa" (vem o valor informado ou o que falta) + atalho "Valor total",
+  "Conferir R$ X" e "Nao confirmar" (FINANCEIRO edit; sem ele, botoes ocultos); `CobrancaMensal` mostra "falta R$ X"
+  e "pago a mais R$ X" na coluna Valor pago.
 - **Baixa automatica (F-02/AM-22, migracao 091, plano `mensalidade_automatica` — Pro)**: a casa conecta a conta
   dela em Financeiro → Configuracao → Mensalidade, card "Receber a mensalidade automaticamente"
   (`components/financeiro/MensalidadeGatewayCard.tsx`, abaixo da chave PIX). **Stripe**: conta conectada com painel
@@ -1067,7 +1097,8 @@ Incluir obrigatoriamente:
   Stripe coleta o cadastro" — CPF ou CNPJ, o GiraHub pede `pix_payments`/`boleto_payments` e guarda so o
   `acct_...` (`services/stripe_connect.py`). Cobranca **direta** na conta da casa (`stripe_account`), sem
   `application_fee` (o GiraHub nao cobra comissao), PIX 24 h / boleto 3 dias, reaproveitada enquanto vale.
-  `payment_intent.succeeded` → `services/mensalidade_gateway.registrar_pagamento_gateway`: mes PAGO com
+  `payment_intent.succeeded` → `services/mensalidade_gateway.registrar_pagamento_gateway`: a cobranca paga entra no
+  recebido do mes (092) e, quando completa, mes PAGO com
   `origem = 'gateway'` (o mesmo registro da confirmacao do AM-12), espelho em contas a receber (`criado_por` NULL)
   e auditoria `mensalidade_gateway_baixa`; se a direcao ja tinha resolvido o mes, o registro dela fica e a
   duplicidade vai para a auditoria. Painel: nos pagos, "Paga pelo PIX (automatico)" × "Confirmada pela direcao"
@@ -1430,6 +1461,11 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   "Pagar com boleto" quando a casa tem (CPF + endereco, que vao direto ao provedor e nao sao gravados), e o
   comprovante vira "Ja paguei de outro jeito"; mes pago assim diz "Recebemos seu pagamento automaticamente"
   (`pago_automatico`). O "Quer pagar todo mes sem lembrar?" (Pix Agendado na chave) some no modo automatico.
+  **Pagamento parcial (092)**: com parte recebida, o cartao diz "Falta pagar" + valor (o `valor` do mes em aberto ja
+  e a falta) e "A casa ja recebeu R$ X de R$ Y"; os meses em aberto dizem "Falta R$ X"; o PIX (estatico ou
+  automatico) e do valor que falta; `ComprovantesEnviados` lista os envios (Em conferencia / Conferido R$ 30 / Nao
+  confirmado + motivo); `EnviarComprovanteSheet` tem "Quanto voce pagou? (opcional)" (`valor_informado`) e cada
+  envio acrescenta. Inicio: pendencia e "Acompanhando" com "Falta pagar"/"Falta R$ X" quando `valor_recebido` > 0.
 - **Avisos (AM-09; "Avisos" na tela, D-16 — tabelas e API admin `comunicados`)**: migrações 070 (ENUM) e 071
   (tabelas + acesso total no grupo padrão). Painel `/admin/comunicados` (menu Corrente → "Avisos", só com
   `can('area_medium')` e `canGroup('comunicados','view')`; sem a feature → aviso neutro, sem PlanLocked): lista com

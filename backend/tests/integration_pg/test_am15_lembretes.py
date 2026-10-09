@@ -36,6 +36,7 @@ from src.models import (
     Medium,
     MediumLembreteEnviado,
     MediumPreferencia,
+    MensalidadeComprovante,
     MensalidadeConfig,
     MensalidadePagamento,
     TenantConfig,
@@ -172,6 +173,27 @@ async def _marcas(tenant_id, tipo=None) -> int:
 # ── Mensalidade (D-29) ──────────────────────────────────────────────────────
 
 
+async def _comprovante_em_conferencia(db, tenant, medium, mes, enviado_em):
+    """Mês PENDENTE com um comprovante esperando conferência (desde a 092, linha própria)."""
+    pag = MensalidadePagamento(
+        id=uuid.uuid4(), tenant_id=tenant.id, mediun_id=medium.id, mes_referencia=mes, status=MensalidadeStatus.PENDENTE
+    )
+    db.add(pag)
+    await db.flush()
+    db.add(
+        MensalidadeComprovante(
+            tenant_id=tenant.id,
+            pagamento_id=pag.id,
+            mediun_id=medium.id,
+            enviado_em=enviado_em,
+            arquivo_data=b"%PDF-1.4 teste",
+            arquivo_filename="c.pdf",
+            arquivo_mime="application/pdf",
+        )
+    )
+    await db.flush()
+
+
 async def test_mensalidade_3_dias_antes_e_depois_so_para_quem_esta_em_aberto(db):
     tenant, _ = await _terreiro(db, plan=PlanType.BASIC)
     await _mensalidade(db, tenant, dia_vencimento=10)
@@ -182,17 +204,10 @@ async def test_mensalidade_3_dias_antes_e_depois_so_para_quem_esta_em_aberto(db)
     eva, eva_m = await _medium(db, tenant, "Eva Melo")
     await _medium(db, tenant, "Sem Acesso", com_area=False)
     mes = date(2026, 11, 1)
+    # Bia mandou comprovante (em conferência) → não recebe.
+    await _comprovante_em_conferencia(db, tenant, bia_m, mes, datetime.now(timezone.utc))
     db.add_all(
         [
-            # Bia mandou comprovante (em conferência) → não recebe.
-            MensalidadePagamento(
-                tenant_id=tenant.id,
-                mediun_id=bia_m.id,
-                mes_referencia=mes,
-                status=MensalidadeStatus.PENDENTE,
-                comprovante_enviado_em=datetime.now(timezone.utc),
-                comprovante_filename="c.pdf",
-            ),
             # Duda pagou → não recebe.
             MensalidadePagamento(tenant_id=tenant.id, mediun_id=duda_m.id, mes_referencia=mes, status=MensalidadeStatus.PAGO),
             MediumPreferencia(tenant_id=tenant.id, medium_id=eva_m.id, token_descadastro="tok-eva", email_mensalidade=False),
@@ -555,16 +570,7 @@ async def test_resumo_do_admin_um_por_terreiro_por_dia(db):
     await _mensalidade(db, tenant, dia_vencimento=25)
     _, ana_m = await _medium(db, tenant, "Ana Paula")
     _, bia_m = await _medium(db, tenant, "Bia Souza")
-    db.add(
-        MensalidadePagamento(
-            tenant_id=tenant.id,
-            mediun_id=ana_m.id,
-            mes_referencia=hoje.replace(day=1),
-            status=MensalidadeStatus.PENDENTE,
-            comprovante_enviado_em=agora - timedelta(hours=5),
-            comprovante_filename="c.jpg",
-        )
-    )
+    await _comprovante_em_conferencia(db, tenant, ana_m, hoje.replace(day=1), agora - timedelta(hours=5))
     reuniao = await _atividade(db, tenant, "Reunião", "Reunião geral", _brt(hoje + timedelta(days=4), 19))
     passada = await _atividade(db, tenant, "Reunião", "Reunião antiga", _brt(hoje - timedelta(days=2), 19))
     await _participa(db, tenant, reuniao.id, ana_m, resposta="nao_vou", respondido_em=agora - timedelta(hours=3))

@@ -33,6 +33,7 @@ from src.models import (
     CorrenteGrupo,
     CorrenteGrupoMembro,
     Medium,
+    MensalidadeComprovante,
     MensalidadePagamento,
     MensalidadeStatus,
 )
@@ -172,20 +173,32 @@ async def _semear_dados(db, tenant, medium, marca: str):
     await ensure_default_atividade_tipos(db, tenant.id)
     tipo = (await db.execute(select(AtividadeTipo).where(AtividadeTipo.tenant_id == tenant.id).limit(1))).scalar_one()
     agora = datetime.now(timezone.utc)
+    pagamento = MensalidadePagamento(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        mediun_id=medium.id,
+        mes_referencia=date(2026, 9, 1),
+        status=MensalidadeStatus.PAGO,
+        valor_vigente=Decimal("50.00"),
+        valor_pago=Decimal("50.00"),
+        data_pagamento=agora - timedelta(days=20),
+        observacao=f"nota interna da tesouraria {marca}",
+    )
+    db.add(pagamento)
+    await db.flush()
+    # Comprovante enviado pela Área (desde a 092, uma linha por comprovante).
     db.add(
-        MensalidadePagamento(
+        MensalidadeComprovante(
             tenant_id=tenant.id,
+            pagamento_id=pagamento.id,
             mediun_id=medium.id,
-            mes_referencia=date(2026, 9, 1),
-            status=MensalidadeStatus.PAGO,
-            valor_vigente=Decimal("50.00"),
-            valor_pago=Decimal("50.00"),
-            data_pagamento=agora - timedelta(days=20),
-            comprovante_data=b"BYTES-DO-COMPROVANTE-" + marca.encode(),
-            comprovante_filename=f"comprovante-{marca}.jpg",
-            comprovante_mime="image/jpeg",
-            comprovante_enviado_em=agora - timedelta(days=21),
-            observacao=f"nota interna da tesouraria {marca}",
+            origem="medium",
+            enviado_em=agora - timedelta(days=21),
+            arquivo_data=b"BYTES-DO-COMPROVANTE-" + marca.encode(),
+            arquivo_filename=f"comprovante-{marca}.jpg",
+            arquivo_mime="image/jpeg",
+            status="conferido",
+            valor_conferido=Decimal("50.00"),
         )
     )
     aviso = Comunicado(tenant_id=tenant.id, titulo=f"Aviso {marca}", corpo="corpo", publicar_em=agora - timedelta(days=3))
