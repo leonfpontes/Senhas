@@ -10,7 +10,8 @@
  *   casa altera estes dados").
  * - "Conta de acesso": e-mail de login (troca com confirmação no endereço novo; aviso do pedido
  *   pendente) e "Trocar senha" (derruba as sessões → login).
- * - Itens de sempre: Ícone na tela inicial, Trocar de área (só com as duas áreas) e Sair.
+ * - Itens de sempre: Ícone na tela inicial, Trocar de área (só com as duas áreas), Trocar de
+ *   terreiro (só com conta do mesmo e-mail em outro terreiro) e Sair.
  * Impersonando, a Área é só leitura (§6.9): as ações de alterar somem.
  * - "Minhas presenças" (AM-17, D-27): leva a `/medium/presencas` (percentual, próximas escalas e
  *   histórico; só a própria presença).
@@ -31,6 +32,7 @@ import {
   ArrowLeftRight,
   AtSign,
   BookOpen,
+  Building2,
   CalendarCheck,
   Camera,
   KeyRound,
@@ -156,7 +158,7 @@ function Secao({
 function Perfil() {
   const router = useRouter();
   const { me, refresh } = useMedium();
-  const { openInstall, goToPainel, sair } = useMediumShell();
+  const { openInstall, goToPainel, trocarTerreiro, sair } = useMediumShell();
   const { showSuccess } = useSnackbar();
   const [perfil, setPerfil] = useState<MediumPerfil | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -492,6 +494,15 @@ function Perfil() {
               description="Ir para o painel do terreiro"
               onClick={goToPainel}
               testId="perfil-trocar-area"
+            />
+          )}
+          {trocarTerreiro && (
+            <Item
+              icon={Building2}
+              title="Trocar de terreiro"
+              description="Entrar na sua conta de outro terreiro"
+              onClick={trocarTerreiro}
+              testId="perfil-trocar-terreiro"
             />
           )}
           <Item icon={LogOut} title="Sair" onClick={sair} testId="perfil-sair" />

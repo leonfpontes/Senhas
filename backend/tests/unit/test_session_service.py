@@ -40,6 +40,62 @@ class TestStartSession:
         assert row.expires_at > datetime.now(timezone.utc) + timedelta(days=13)
 
 
+class TestVerifiedAccounts:
+    """Trocar de terreiro (093): contas com senha conferida ficam na linha da sessão."""
+
+    async def test_sem_mapa_so_a_propria_conta(self, admin_user, mock_db_session):
+        await session_service.start_session(mock_db_session, admin_user)
+        row = mock_db_session.add.call_args[0][0]
+        verified = session_service.verified_map(row)
+        assert list(verified) == [admin_user.id]
+
+    async def test_mapa_do_login_e_gravado_e_lido_de_volta(self, admin_user, mock_db_session):
+        outra = uuid.uuid4()
+        quando = datetime(2026, 10, 9, 12, 0, tzinfo=timezone.utc)
+        await session_service.start_session(
+            mock_db_session, admin_user, verified_accounts={admin_user.id: quando, outra: quando}
+        )
+        row = mock_db_session.add.call_args[0][0]
+        assert row.verified_accounts == {str(admin_user.id): quando.isoformat(), str(outra): quando.isoformat()}
+        assert session_service.verified_map(row) == {admin_user.id: quando, outra: quando}
+
+    def test_mapa_malformado_ou_ausente_vale_como_nada_conferido(self):
+        assert session_service.verified_map(None) == {}
+        row = _make_session_row(uuid.uuid4())
+        assert session_service.verified_map(row) == {}
+        row.verified_accounts = {"nao-e-uuid": "2026-10-09T12:00:00+00:00", str(uuid.uuid4()): "lixo"}
+        assert session_service.verified_map(row) == {}
+        row.verified_accounts = ["lista"]
+        assert session_service.verified_map(row) == {}
+
+
+class TestGetActiveSession:
+    def _db(self, mock_db_session, row):
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = row
+        mock_db_session.execute.return_value = result_mock
+
+    async def test_jti_atual_ou_anterior_vale(self, mock_db_session):
+        atual, anterior = uuid.uuid4(), uuid.uuid4()
+        row = _make_session_row(atual, previous_jti=anterior)
+        self._db(mock_db_session, row)
+        assert await session_service.get_active_session(mock_db_session, USER_ID, row.id, atual) is row
+        assert await session_service.get_active_session(mock_db_session, USER_ID, row.id, anterior) is row
+        mock_db_session.delete.assert_not_called()
+
+    async def test_jti_desconhecido_ausente_ou_sessao_vencida_nao_vale(self, mock_db_session):
+        atual = uuid.uuid4()
+        row = _make_session_row(atual)
+        self._db(mock_db_session, row)
+        assert await session_service.get_active_session(mock_db_session, USER_ID, row.id, uuid.uuid4()) is None
+        assert await session_service.get_active_session(mock_db_session, USER_ID, row.id, None) is None
+        vencida = _make_session_row(atual, expires_in_days=-1)
+        self._db(mock_db_session, vencida)
+        assert await session_service.get_active_session(mock_db_session, USER_ID, vencida.id, atual) is None
+        self._db(mock_db_session, None)
+        assert await session_service.get_active_session(mock_db_session, USER_ID, row.id, atual) is None
+
+
 class TestRotateSession:
     async def test_matching_jti_rotates_and_sets_grace_window(self, mock_db_session):
         current_jti = uuid.uuid4()

@@ -21,6 +21,32 @@ export function areasHint(areas: AccountOption['areas']): string {
   return 'Entrar neste terreiro';
 }
 
+/**
+ * Miolo do cartão de terreiro (logo ou inicial, nome e lembrete das áreas). Usado pelo login e
+ * pelo "Trocar de terreiro" dos menus (`TrocarTerreiroDialog`), que só muda a casca e as cores.
+ */
+export function AccountCardBody({
+  nome,
+  logoUrl,
+  hint,
+  hintClassName = 'text-tinta-suave',
+}: {
+  nome: string;
+  logoUrl?: string | null;
+  hint: string;
+  hintClassName?: string;
+}) {
+  return (
+    <>
+      <TerreiroEmblem nome={nome} logoUrl={logoUrl} className="size-11" />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <strong className="truncate font-display text-lg leading-tight font-semibold">{nome}</strong>
+        <span className={cn('text-sm', hintClassName)}>{hint}</span>
+      </span>
+    </>
+  );
+}
+
 export interface AccountChoiceListProps {
   options: ReadonlyArray<AccountOption>;
   onSelect: (userId: string) => void;
@@ -50,11 +76,7 @@ export function AccountChoiceList({ options, onSelect, selectingId }: AccountCho
                 entrando && 'border-barro-600 bg-barro-600/10 disabled:opacity-100',
               )}
             >
-              <TerreiroEmblem nome={o.terreiro_nome} logoUrl={o.logo_url} className="size-11" />
-              <span className="flex min-w-0 flex-1 flex-col">
-                <strong className="truncate font-display text-lg leading-tight font-semibold">{o.terreiro_nome}</strong>
-                <span className="text-sm text-tinta-suave">{hint}</span>
-              </span>
+              <AccountCardBody nome={o.terreiro_nome} logoUrl={o.logo_url} hint={hint} />
               {entrando ? (
                 <Loader2 className="size-5 shrink-0 animate-spin text-barro-700" aria-hidden />
               ) : (

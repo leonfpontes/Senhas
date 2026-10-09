@@ -1,15 +1,20 @@
 /**
  * AdminTopbar — barra superior do admin: gatilho da sidebar, breadcrumb, nome do terreiro,
  * seletor da gira de hoje (quando há várias), busca de ações (⌘K), guia da tela, modo
- * claro/escuro e menu do usuário (Perfil, versão, primeiros passos, Trocar de área, Sair).
- * "Trocar de área" (AM-04) só aparece para quem também tem a Área do Médium (`areas.medium`).
+ * claro/escuro e menu do usuário (Perfil, versão, primeiros passos, Trocar de área, Trocar de
+ * terreiro, Sair). "Trocar de área" (AM-04) só aparece para quem também tem a Área do Médium
+ * (`areas.medium`); "Trocar de terreiro" só para quem tem conta com o mesmo e-mail em outro
+ * terreiro (`useMinhasContas`, nunca impersonando).
  */
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useTour } from '@reactour/tour';
-import { ArrowLeftRight, BookOpen, CircleHelp, LogOut, MessageCircle, Moon, Search, Sparkles, Sun, User } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Building2, CircleHelp, LogOut, MessageCircle, Moon, Search, Sparkles, Sun, User } from 'lucide-react';
 import { logout } from '@/services/authSession';
-import { switchArea } from '@/lib/areas';
+import { hasAdminArea, hasMediumArea, switchArea } from '@/lib/areas';
+import { useMinhasContas } from '@/hooks/useMinhasContas';
+import { areasHint } from '@/components/auth/AccountChoiceList';
+import { TrocarTerreiroDialog } from '@/components/auth/TrocarTerreiroDialog';
 import { useTenant } from '@/providers/ThemeProvider';
 import { useProfile } from '@/hooks/useProfile';
 import { useAdminTheme } from '@/providers/AdminThemeProvider';
@@ -58,7 +63,7 @@ export interface AdminTopbarProps {
 
 export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }) => {
   const router = useRouter();
-  const { tenantName } = useTenant();
+  const { tenantName, logoUrl } = useTenant();
   const { profile } = useProfile();
   const { isDark, toggleMode } = useAdminTheme();
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -67,6 +72,8 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
   // Impersonação: o superadmin entra e sai de vários terreiros — o modal de novidades não abre sozinho.
   const impersonating = typeof window !== 'undefined' && Boolean(safeSessionItem('impersonating'));
   const [notesOpen, setNotesOpen] = useReleaseNotesAutoOpen(profile?.id, Boolean(profile?.id) && !impersonating);
+  const outrasContas = useMinhasContas(profile?.id, Boolean(profile?.tenant_id) && !impersonating);
+  const [trocaOpen, setTrocaOpen] = useState(false);
 
   const usesGiraContext = GIRA_CONTEXT_ROUTES.includes(router.pathname);
   const showGiraSelector = TOPBAR_GIRA_SELECTOR_ROUTES.includes(router.pathname);
@@ -271,6 +278,11 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
               <span className="ml-auto text-xs text-muted-foreground">Área do Médium</span>
             </DropdownMenuItem>
           )}
+          {outrasContas.length > 0 && (
+            <DropdownMenuItem onSelect={() => setTrocaOpen(true)} data-testid="menu-trocar-terreiro">
+              <Building2 aria-hidden /> Trocar de terreiro
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => void handleLogout()} variant="destructive">
             <LogOut aria-hidden /> Sair
@@ -287,6 +299,18 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
         onUnreadChange={setSupportUnread}
       />
       <ReleaseNotesDialog open={notesOpen} onOpenChange={setNotesOpen} userId={profile?.id} />
+      {outrasContas.length > 0 && (
+        <TrocarTerreiroDialog
+          open={trocaOpen}
+          onOpenChange={setTrocaOpen}
+          contas={outrasContas}
+          atual={{
+            nome: tenantName || 'Este terreiro',
+            logoUrl,
+            hint: areasHint({ admin: hasAdminArea(profile), medium: hasMediumArea(profile) }),
+          }}
+        />
+      )}
     </header>
   );
 };

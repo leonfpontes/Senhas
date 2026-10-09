@@ -191,6 +191,18 @@ No front, o `/login` mostra "Em qual terreiro você quer entrar?" (`components/a
 e chama `services/authSession.selectAccount` (com `skipAutoLogout`: o 401 aqui é "escolha
 expirada", não sessão vencida); a rota depois segue `completeLogin` pelas `areas`.
 
+### Trocar de terreiro sem sair (2026-10-09)
+
+`GET /api/v1/auth/minhas-contas` e `POST /api/v1/auth/trocar-terreiro {conta_id, senha?}` (autenticadas;
+código em `api/v1/auth/trocar_terreiro.py`). A troca nunca abre conta cuja senha não foi conferida:
+as contas cuja senha conferiu no login ficam em `user_sessions.verified_accounts` (migração 093,
+`{user_id: ISO UTC}`), na linha da sessão achada pelo refresh token do cookie — nada vem do cliente.
+Conta conferida (e sem troca de senha depois) → direto; as outras pedem a senha delas (400
+`SENHA_OBRIGATORIA`/`SENHA_INCORRETA`, nunca 401). Sucesso: a sessão atual é apagada (o refresh velho
+morre), `issue_session` abre a do destino com o mesmo "Lembrar-me" e herda o mapa. Impersonação →
+lista vazia / 403; conta da plataforma fora. Rate limit igual ao do login (slowapi 10/min +
+`location = /api/v1/auth/trocar-terreiro` na `login_limit`). Detalhes em `docs/api.md` (Auth 1d).
+
 ### POST /api/v1/auth/forgot-password (várias contas)
 
 Resposta sempre genérica. Com uma conta ativa, o e-mail de sempre. Com mais de uma (AM-05), **um**
@@ -388,7 +400,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
 | Controle | Descrição |
 |----------|-----------|
-| Rate limiting login | Nginx (`nginx/conf.d/senhas.conf`): zona `login_limit` = 10 req/min por IP com `burst=5 nodelay`, em `= /api/v1/auth/login` e `= /api/v1/auth/login/select` (AM-29); App: slowapi 10/min por IP nas duas rotas, com **Redis** (distribuído entre workers) |
+| Rate limiting login | Nginx (`nginx/conf.d/senhas.conf`): zona `login_limit` = 10 req/min por IP com `burst=5 nodelay`, em `= /api/v1/auth/login`, `= /api/v1/auth/login/select` (AM-29) e `= /api/v1/auth/trocar-terreiro`; App: slowapi 10/min por IP nas três rotas, com **Redis** (distribuído entre workers) |
 | access_token | Cookie `HttpOnly; Secure; SameSite=Strict` — protegido contra XSS |
 | auth_state | Cookie não-HttpOnly `auth_state=1` — permite JS detectar login sem expor token |
 | refresh_token | Cookie `HttpOnly; Secure; SameSite=Strict`; payload com `type: refresh` |

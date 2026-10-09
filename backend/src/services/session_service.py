@@ -49,12 +49,45 @@ class RotationResult:
         return self.new_jti is not None
 
 
+def serialize_verified(verified: dict[uuid.UUID, datetime]) -> dict[str, str]:
+    """Mapa de contas conferidas → JSON da coluna `verified_accounts` (ISO UTC)."""
+    out: dict[str, str] = {}
+    for account_id, at in verified.items():
+        at_utc = at if at.tzinfo else at.replace(tzinfo=timezone.utc)
+        out[str(account_id)] = at_utc.astimezone(timezone.utc).isoformat()
+    return out
+
+
+def verified_map(row: Optional[UserSession]) -> dict[uuid.UUID, datetime]:
+    """Contas do mesmo e-mail cuja senha foi conferida no login desta sessão, e quando.
+
+    Lido só do servidor (linha da sessão), nunca do cliente. Entrada malformada é
+    ignorada (vale como "não conferida": a troca pede a senha)."""
+    raw = getattr(row, "verified_accounts", None) if row is not None else None
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[uuid.UUID, datetime] = {}
+    for key, value in raw.items():
+        try:
+            at = datetime.fromisoformat(str(value))
+            out[uuid.UUID(str(key))] = at if at.tzinfo else at.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 async def start_session(
     db: AsyncSession,
     user: User,
     user_agent: Optional[str] = None,
+    verified_accounts: Optional[dict[uuid.UUID, datetime]] = None,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     """Create a new UserSession row for a fresh login.
+
+    `verified_accounts` (trocar de terreiro): contas do mesmo e-mail cuja senha foi
+    conferida neste login e quando — o login com várias contas passa as que a senha
+    abriu; a troca passa o mapa herdado da sessão anterior. A própria conta sempre
+    entra (conferida agora, se não vier no mapa).
 
     Returns (session_id, jti) to embed in the refresh token that's about to
     be issued. Does not commit — caller controls the transaction boundary.
@@ -62,6 +95,8 @@ async def start_session(
     now = datetime.now(timezone.utc)
     session_id = uuid.uuid4()
     jti = uuid.uuid4()
+    verified = dict(verified_accounts or {})
+    verified.setdefault(user.id, now)
 
     row = UserSession(
         id=session_id,
@@ -74,9 +109,34 @@ async def start_session(
         expires_at=now + timedelta(days=settings.MAX_SESSION_DAYS),
         last_used_at=now,
         user_agent=(user_agent or "")[:255] or None,
+        verified_accounts=serialize_verified(verified),
     )
     db.add(row)
     return session_id, jti
+
+
+async def get_active_session(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    session_id: uuid.UUID,
+    presented_jti: Optional[uuid.UUID],
+) -> Optional[UserSession]:
+    """Sessão do refresh token apresentado, se ainda vale (trocar de terreiro).
+
+    Mesmo escopo do rotate_session (id + user_id do JWT de refresh validado), sem
+    rotacionar: a linha precisa existir, não ter passado do teto absoluto e o jti
+    ser o atual ou o anterior (refresh concorrente). Não commita nem apaga nada.
+    """
+    stmt = select(UserSession).where(
+        (UserSession.id == session_id) & (UserSession.user_id == user_id)
+    )
+    row = (await db.execute(stmt)).scalar_one_or_none()
+    if row is None or datetime.now(timezone.utc) >= row.expires_at:
+        return None
+    presented = str(presented_jti) if presented_jti is not None else None
+    if presented is None or presented not in {row.current_jti, row.previous_jti}:
+        return None
+    return row
 
 
 async def rotate_session(

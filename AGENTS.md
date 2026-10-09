@@ -122,6 +122,24 @@ tenant redundante (barato) a uma excecao.
   um link por terreiro (um `reset_token_hash` por conta; `render_password_reset_multi_email`). Front: passo "Em qual
   terreiro voce quer entrar?" no `/login` (`components/auth/AccountChoiceList`, `authSession.selectAccount` com
   `skipAutoLogout`) e depois o mesmo `completeLogin` por `areas`.
+- **Trocar de terreiro sem sair (pedido do dono, 2026-10-09)**: `GET /auth/minhas-contas` (outras contas ativas do
+  e-mail logado, mesma `active_login_accounts_stmt`; nunca outro e-mail; `{conta_id, terreiro, logo_url, area:
+  painel|medium|ambas, precisa_senha}`) e `POST /auth/trocar-terreiro {conta_id, senha?}` (`api/v1/auth/trocar_terreiro.py`).
+  Contas de terreiros diferentes podem ter senhas diferentes: as contas cuja senha conferiu NESTE login ficam na
+  linha da sessao (`user_sessions.verified_accounts` JSONB, migracao 093, `{user_id: ISO}` — login direto grava so a
+  conta; `/login/select` grava as do token com o `iat`), achada pelo refresh token do cookie (mesmo `sub` do access,
+  jti atual/anterior — `session_service.get_active_session`); nada vem do cliente. Conta conferida e sem
+  `sessions_revoked_at` posterior → troca direta; senao pede a senha dela (bcrypt; sem senha, DUMMY) → 400
+  `SENHA_OBRIGATORIA`/`SENHA_INCORRETA` (nunca 401) sem mexer na sessao. Sucesso: `end_session` da sessao atual (o
+  refresh velho morre) + `issue_session` do destino (mesmo "Lembrar-me"), herdando o mapa (+ a conta de onde saiu,
+  com o `orig_iat` da sessao, + o destino quando digitou a senha), resposta = login. Destino fora da lista → 404.
+  Impersonacao → lista vazia e troca 403. Conta da plataforma (super admin) fora nos dois sentidos (entra so pelo
+  login). Rate limit: slowapi 10/min + `location = /api/v1/auth/trocar-terreiro` na zona `login_limit`. Evento
+  `switch_tenant` so com ids. Front: "Trocar de terreiro" (`Building2`) no menu do `AdminTopbar` e no menu/Perfil da
+  Area (`MediumLayout`, `useMediumShell().trocarTerreiro`) so com `useMinhasContas` >= 1 (busca uma vez por pagina,
+  nunca impersonando); `components/auth/TrocarTerreiroDialog` reusa o miolo do cartao do login
+  (`AccountCardBody`), "Voce esta aqui" no atual, campo "Esta conta tem outra senha"; sucesso → `completeSwitch`
+  (limpa `girahub:gira-selecionada`, troca `localStorage['user']`, `window.location.assign(routeAfterLogin)`).
 - **Casa nova com e-mail que ja tem conta (decisao do dono, 2026-10-08)**: `POST /public/onboarding` com e-mail
   que tem conta ATIVA (mesma `active_login_accounts_stmt`, inclusive `medium`) exige `conta_existente: true` +
   a senha dessa conta (sem a regra de senha nova; `matching_accounts`, ate 5 bcrypt). Sem a marca → 409
@@ -1545,7 +1563,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   (primeiro nome + dd/mm ou "Hoje", "(você)"; some vazio). Painel: campo "Mensagem de aniversário" em Configurações →
   Área do Médium (`AreaMediumConfigSection`, ≤ 200, `{nome}`).
 - **Login multi-terreiro (AM-05)**: mesmo e-mail em mais de um terreiro escolhe o terreiro no `/login` antes da
-  escolha de área (regras em §3.2).
+  escolha de área (regras em §3.2). Depois de logado, "Trocar de terreiro" nos menus troca sem sair (migração 093,
+  `user_sessions.verified_accounts`; regras em §3.2).
 - **Atividades da casa (AM-08)**: migracoes `077_permissao_escalas_enum` + `078_atividades` (§11.8; tabelas em
   `docs/database.md`), API `/api/v1/admin/atividades*` (ESCALAS + `area_medium` + `atividades_corrente`; regras em
   §3.3 e `docs/api.md` §15), planos `atividades_corrente` (Basic) e `escalas` (Pro, sem rota ainda) no catalogo e

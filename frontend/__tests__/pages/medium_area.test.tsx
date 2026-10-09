@@ -57,6 +57,7 @@ import { SubscriptionProvider } from '@/hooks/useSubscription';
 import { PermissionsProvider } from '@/hooks/usePermissions';
 import { BirthdayProvider } from '@/providers/BirthdayProvider';
 import { INSTALL_AREA_SEEN_KEY } from '@/components/medium/InstallAreaSheet';
+import { resetMinhasContasCache } from '@/hooks/useMinhasContas';
 
 const MEDIUM_AREAS = { admin: false, medium: { medium_id: 'm1', nome: 'Ana Paula Ribeiro' } };
 const AMBAS = { admin: true, medium: { medium_id: 'm1', nome: 'Ana Paula Ribeiro' } };
@@ -150,6 +151,7 @@ const calledUrls = () => mockGet.mock.calls.map((c) => String(c[0]));
 
 beforeEach(() => {
   jest.clearAllMocks();
+  resetMinhasContasCache();
   localStorage.clear();
   sessionStorage.clear();
   localStorage.setItem(INSTALL_AREA_SEEN_KEY, '1');
@@ -414,6 +416,45 @@ describe('gate do MediumLayout', () => {
     expect(mockPost).toHaveBeenCalledWith('/api/v1/auth/logout');
     expect(localStorage.getItem('user')).toBeNull();
     expect(mockRouter.push).toHaveBeenCalledWith('/login');
+  });
+});
+
+describe('Trocar de terreiro na Área', () => {
+  it('com conta do mesmo e-mail em outro terreiro, Perfil e menu oferecem a troca (só /auth, nunca /admin)', async () => {
+    const profile = profileOf('medium', MEDIUM_AREAS);
+    signIn(profile);
+    api(
+      {
+        '/api/v1/medium/me': ME,
+        '/api/v1/auth/minhas-contas': [
+          { conta_id: 'u2', terreiro: 'Casa Vizinha', logo_url: null, area: 'painel', precisa_senha: true },
+        ],
+      },
+      profile,
+    );
+    mockRouter.pathname = '/medium/perfil';
+    const Page = require('@/pages/medium/perfil').default;
+    renderApp(<Page />);
+    fireEvent.click(await screen.findByTestId('perfil-trocar-terreiro'));
+    const dialogo = await screen.findByTestId('trocar-terreiro-dialog');
+    expect(dialogo).toHaveClass('medium-terra');
+    expect(within(dialogo).getByText('Você está aqui')).toBeInTheDocument();
+    expect(within(dialogo).getByText('Tenda Luz da Mata')).toBeInTheDocument();
+    expect(within(dialogo).getByRole('button', { name: 'Casa Vizinha — Painel do terreiro' })).toBeInTheDocument();
+    expect(calledUrls()).toContain('/api/v1/auth/minhas-contas');
+    expect(calledUrls().filter((u) => u.startsWith('/api/v1/admin'))).toEqual([]);
+  });
+
+  it('sem outra conta, nem o Perfil nem o menu mostram a troca', async () => {
+    const profile = profileOf('medium', MEDIUM_AREAS);
+    signIn(profile);
+    api({ '/api/v1/medium/me': ME, '/api/v1/auth/minhas-contas': [] }, profile);
+    mockRouter.pathname = '/medium/perfil';
+    const Page = require('@/pages/medium/perfil').default;
+    renderApp(<Page />);
+    expect(await screen.findByTestId('perfil-sair')).toBeInTheDocument();
+    await waitFor(() => expect(calledUrls()).toContain('/api/v1/auth/minhas-contas'));
+    expect(screen.queryByTestId('perfil-trocar-terreiro')).not.toBeInTheDocument();
   });
 });
 
