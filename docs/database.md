@@ -212,6 +212,39 @@ Model `Comunicado(SoftDeleteModel)` e `ComunicadoLeitura(Base)` (`src/models/com
 cria as tabelas e dá acesso total à feature nos grupos padrão "Acesso total" (grupos criados pelo admin ficam
 sem a feature até ele marcar).
 
+
+### `materiais_corrente` e `material_grupos` (AM-21, migração 087)
+
+Estudos e documentos da casa para a corrente — na tela é **"Estudos e documentos"** (painel) e
+**"Estudos"** (Área). Models `MaterialCorrente(Base)` e `MaterialGrupo(Base)` (`src/models/materiais.py`).
+**Sem upload de arquivo** (banco limitado a 8 GB): PDF entra como link do Drive; upload espera
+armazenamento de objetos.
+
+`materiais_corrente`:
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `titulo` | `String(120)` | texto simples |
+| `tipo` | `String(20)` | CHECK `ck_materiais_corrente_tipo` em `link/texto/ponto` |
+| `url` | `String(500)` NULL | só http(s) — CHECK `ck_materiais_corrente_url` (`url ~* '^https?://'`); obrigatória no `link` (`ck_materiais_corrente_link_url`) |
+| `texto` | `Text` NULL | texto simples (até 15 000 caracteres na API); obrigatório em `texto`/`ponto` (`ck_materiais_corrente_texto`) |
+| `categoria` | `String(60)`, padrão `Estudos` | texto livre |
+| `publico` | `String(20)`, padrão `todos` | CHECK `ck_materiais_corrente_publico` em `todos/atendimento/cambones/grupos` (como os avisos) |
+| `ordem` | `Integer`, padrão 0 | ordem da casa |
+| `publicado` | `Boolean`, padrão true | false = rascunho (não aparece na Área) |
+| `created_by` | UUID FK → `users.id` SET NULL | |
+| `created_at`, `updated_at` | timestamptz | |
+| `arquivado_em` | timestamptz NULL | excluir no painel = arquivar |
+
+**Indexes:** `ix_materiais_corrente_tenant_id`, `ix_materiais_corrente_tenant_ordem` (`tenant_id, ordem`).
+Limite de 300 materiais ativos por terreiro (API) — no pior caso ~4,5 MB de texto por casa.
+
+`material_grupos` (público `grupos`): PK (`material_id` → `materiais_corrente.id` CASCADE, `grupo_id` →
+`corrente_grupos.id` CASCADE), `tenant_id` → `tenants.id` CASCADE. **Indexes:**
+`ix_material_grupos_tenant_id`, `ix_material_grupos_grupo_id`.
+
 ### `corrente_grupos`, `corrente_grupo_membros` e `comunicado_grupos` (AM-23, migração 075)
 
 Grupos da corrente (G1, G2, "Ogãs", "Desenvolvimento"): um conceito só para o público dos avisos e, nos

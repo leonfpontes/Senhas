@@ -39,6 +39,6 @@ export const FEATURE_LABELS: Record<PermissionFeature, FeatureMeta> = {
   analytics: { label: 'Indicadores', group: 'Relatórios' },
   relatorio_gira: { label: 'Relatório de Gira', group: 'Relatórios' },
   contas_financeiras: { label: 'Contas a Pagar / Receber', group: 'Financeiro' },
-  comunicados: { label: 'Avisos da Área', group: 'Corrente' },
+  comunicados: { label: 'Avisos e estudos da Área', group: 'Corrente' },
   escalas: { label: 'Atividades e escalas', group: 'Corrente' },
 };

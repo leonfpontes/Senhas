@@ -42,6 +42,7 @@ from .atividades import (
 from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
 from .parceiro_interesse import ParceiroInteresse
 from .push_inscricoes import PushInscricao
+from .materiais import MaterialCorrente, MaterialGrupo, MaterialTipo
 
 __all__ = [
     "Base",
@@ -75,6 +76,9 @@ __all__ = [
     "MediumLembreteEnviado",
     "MediumPreferencia",
     "PushInscricao",
+    "MaterialCorrente",
+    "MaterialGrupo",
+    "MaterialTipo",
     "Comunicado",
     "ComunicadoLeitura",
     "ComunicadoPublico",

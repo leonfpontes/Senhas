@@ -114,6 +114,8 @@ export const FEATURE_MIN_PLAN: Record<PlanFeatureKey, PlanKey> = {
   // Atividades da casa (AM-08, D-10): no Basic a casa marca quem veio; escalas (D-02) no Pro.
   atividades_corrente: 'basic',
   escalas: 'pro',
+  // Estudos e documentos da casa (AM-21, D-02): Pro, como as escalas.
+  biblioteca_medium: 'pro',
   email_transacional: 'pro',
   tema_personalizado: 'pro',
   analytics_basico: 'pro',
@@ -144,8 +146,8 @@ export interface FeatureCatalogItem {
  * - `analytics_avancado` e `suporte_prioritario`: nada implementado por trás;
  * - `area_medium` (Área do Médium, Basic+): fora do quadro do painel; no comparativo público
  *   (`PlanComparisonTable`) entra só com a chave de divulgação `AREA_MEDIUM_DIVULGADA` (AM-24);
- * - `atividades_corrente` (Basic+) e `escalas` (Pro+), da Área do Médium (AM-08/AM-25): fora do
- *   quadro enquanto a Área está em piloto.
+ * - `atividades_corrente` (Basic+), `escalas` e `biblioteca_medium` (Pro+), da Área do Médium
+ *   (AM-08/AM-25/AM-21): fora do quadro enquanto a Área está em piloto.
  * Os campos continuam no backend (catálogo de `PlanFeatures`).
  */
 export const UNSOLD_FEATURES: readonly PlanFeatureKey[] = [
@@ -156,6 +158,7 @@ export const UNSOLD_FEATURES: readonly PlanFeatureKey[] = [
   'area_medium',
   'atividades_corrente',
   'escalas',
+  'biblioteca_medium',
 ];
 
 /** Ordem e rótulos (sem jargão) do comparativo e dos cards. */

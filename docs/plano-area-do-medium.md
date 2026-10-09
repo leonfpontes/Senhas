@@ -1276,9 +1276,19 @@ na Minha Gira, "Diário & Entidades" na Quartinha).
 - Ideia relacionada: mostrar na Área os cursos presenciais abertos da casa (já existem) com o link de inscrição.
 
 **Aceite**
-- [ ] Admin publica material por público e categoria
-- [ ] Médium lista, busca e abre os materiais liberados
-- [ ] Limite de tamanho definido e medido
+- [x] Admin publica material por público e categoria
+- [x] Médium lista, busca e abre os materiais liberados
+- [x] Limite de tamanho definido e medido — sem upload nesta versão (banco de 8 GB, imagens já em BYTEA): só
+  links (Drive, YouTube, site; PDF = link do Drive) e texto. Limites testados: texto até 15 000 caracteres,
+  link até 500, 300 materiais ativos por casa (~4,5 MB de texto no pior caso). Upload de PDF espera
+  armazenamento de objetos.
+
+**Entregue (AM-21, migração 087)**: tabelas `materiais_corrente` + `material_grupos`; plano `biblioteca_medium`
+(Pro, D-02, fora do quadro no piloto); grupo `COMUNICADOS` (sem feature nova); tipos link/texto/ponto cantado;
+categoria livre com sugestões; público como nos avisos; rascunho; ordem pelas setas; YouTube toca na Área
+(`youtube-nocookie`, o `frame-src` já liberava); "Cursos da casa" com os cursos presenciais abertos e o link de
+inscrição (só com `site_builder`). Entrada "Estudos e documentos" no menu do cabeçalho e no Perfil (a barra
+inferior já tem 5 abas).
 
 ### AM-22 — Mensalidade com baixa automática na Área
 - **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** F-01, F-02, AM-11
@@ -1465,11 +1475,12 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-14 Meus dados (exportar JSON/PDF, encerrar o acesso com a senha, "Quem vê o quê", Política 2.3) | #102 | 083 | 2026-10-08 |
 | AM-20 Aniversariantes (opt-in no Perfil, cartão da semana no Início, mensagem da casa no dia) | #102 | 083 | 2026-10-08 |
 | AM-27 Troca na escala e abono de justificativa | #106 | 086 | 2026-10-08 |
+| AM-21 Estudos e documentos | #107 | 087 | 2026-10-08 |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-19, AM-21, AM-22.
+**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-19, AM-22.
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 

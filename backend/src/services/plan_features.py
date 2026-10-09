@@ -77,6 +77,8 @@ class PlanFeatures(BaseModel):
     atividades_corrente: bool = False
     # Escalas (AM-25/AM-18): planejador da faxina, escala de gira por função, rodízio.
     escalas: bool = False
+    # Estudos e documentos da casa (AM-21): biblioteca da corrente na Área do Médium.
+    biblioteca_medium: bool = False
 
 
 # Nomes válidos para require_plan_feature(feature) — erro na importação se houver typo.
@@ -130,6 +132,8 @@ _FEATURE_MIN_TIER: dict[str, int] = {
     # (atividades internas, presença); no Pro ela planeja quem vem (escalas).
     "atividades_corrente": _BASIC,
     "escalas": _PRO,
+    # Estudos e documentos da casa (AM-21, D-02): degrau do Pro, como as escalas.
+    "biblioteca_medium": _PRO,
 }
 
 # Toda feature do catálogo precisa de nível — erro na importação se faltar.
