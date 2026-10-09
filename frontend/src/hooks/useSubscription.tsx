@@ -56,6 +56,10 @@ export interface SubscriptionInfo {
   has_stripe_subscription?: boolean;
   /** Cortesia concedida pela plataforma (sem cobrança). */
   is_bonus?: boolean;
+  /** $-04: "charge_automatically" (cartão) | "send_invoice" (boleto) | "pix_mensal" | null. */
+  collection_method?: string | null;
+  /** PIX mês a mês: até quando o plano segue liberado sem novo PIX (pago até + tolerância). */
+  pix_grace_until?: string | null;
   features: PlanFeatures;
 }
 

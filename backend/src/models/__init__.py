@@ -23,6 +23,7 @@ from .permission_groups import PermissionGroup, GroupPermission, UserGroupMember
 from .contas_financeiras import ContaFinanceira, CategoriaFinanceira, ContaBancaria, TipoContaFinanceira, StatusContaFinanceira, RecorrenciaConta
 from .user_sessions import UserSession
 from .stripe_events import StripeEventProcessed
+from .assinatura_pix import AssinaturaPixPagamento
 from .trial_grants import TrialGrant
 from .legal_acceptances import LegalAcceptance
 from .support_chat import SupportConversation, SupportMessage, SupportConversationStatus
@@ -123,6 +124,7 @@ __all__ = [
     "RecorrenciaConta",
     "UserSession",
     "StripeEventProcessed",
+    "AssinaturaPixPagamento",
     "TrialGrant",
     "LegalAcceptance",
     "SupportConversation",

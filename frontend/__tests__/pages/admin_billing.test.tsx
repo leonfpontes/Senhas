@@ -256,4 +256,86 @@ describe('/admin/billing', () => {
     expect(screen.getByRole('link', { name: /Pagar agora/ })).toHaveAttribute('href', 'https://invoice.stripe.com/i/renov');
     expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).not.toBeInTheDocument();
   });
+  // ─── $-04: PIX mês a mês ───────────────────────────────────────────────────
+
+  it('plano gratuito: escolher "PIX — pague mês a mês" abre o Checkout de PIX do plano', async () => {
+    mockRouter.query = { plan: 'premium' };
+    mockApi({ ...TRIAL_BILLING, is_trial: false, trial_ends_at: null, plan: 'free', invoice_payment_methods: ['boleto'] });
+    apiClient.post.mockResolvedValue({ data: { checkout_url: 'https://checkout.stripe.com/c/pix' } });
+    render(<Billing />);
+
+    const tab = await screen.findByRole('tab', { name: 'Comparar planos' });
+    await waitFor(() => expect(tab).toHaveAttribute('data-state', 'active'));
+    const panel = screen.getByRole('tabpanel');
+    const pix = within(panel).getByRole('radio', { name: /PIX — pague mês a mês/ });
+    expect(within(panel).getByText(/Cada pagamento libera 30 dias do plano; avisamos antes de vencer\. Sem renovação automática\./)).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(pix);
+    });
+    const assinar = within(panel).getAllByRole('button', { name: 'Assinar agora' });
+    await act(async () => {
+      fireEvent.click(assinar[assinar.length - 1]); // o último card é o Premium
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/billing/pix-checkout', { plan: 'premium' });
+    expect(apiClient.post).not.toHaveBeenCalledWith('/api/v1/admin/billing/checkout', expect.anything());
+    await waitFor(() => expect(window.location.href).toBe('https://checkout.stripe.com/c/pix'));
+  });
+
+  it('mês PIX valendo: "Pago até", histórico, "Pagar o próximo mês" e troca de plano só depois', async () => {
+    const paidUntil = new Date(Date.now() + 4 * 24 * 3600 * 1000).toISOString();
+    const shortDate = new Date(paidUntil).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    mockApi({
+      ...TRIAL_BILLING,
+      plan: 'pro',
+      is_trial: false,
+      trial_ends_at: null,
+      monthly_price: 79,
+      collection_method: 'pix_mensal',
+      current_period_end: paidUntil,
+      pix_paid_until: paidUntil,
+      pix_active: true,
+      pix_grace_until: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+      pix_payments: [
+        { plan: 'pro', paid_at: new Date().toISOString(), period_end: paidUntil, amount: 79, applied: true },
+      ],
+    });
+    apiClient.post.mockResolvedValue({ data: { checkout_url: 'https://checkout.stripe.com/c/pix2' } });
+    render(<Billing />);
+
+    expect(await screen.findByText('Pago até')).toBeInTheDocument();
+    expect(screen.getByText('PIX mensal')).toBeInTheDocument();
+    expect(screen.getByText('PIX mês a mês (sem renovação automática)')).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`PIX — mês pago até ${shortDate}`))).toBeInTheDocument();
+    // cartão/boleto esperam o fim do mês pago: sem escolha de forma de pagamento
+    expect(screen.queryByText('Como você quer pagar?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Cancelar assinatura/ })).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Pagar o próximo mês/ }));
+    });
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/billing/pix-checkout', { plan: 'pro' });
+    await waitFor(() => expect(window.location.href).toBe('https://checkout.stripe.com/c/pix2'));
+  });
+
+  it('mês PIX vencido (tolerância): avisa até quando pagar', async () => {
+    const paidUntil = new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString();
+    mockApi({
+      ...TRIAL_BILLING,
+      plan: 'pro',
+      is_trial: false,
+      trial_ends_at: null,
+      monthly_price: 79,
+      collection_method: 'pix_mensal',
+      current_period_end: paidUntil,
+      pix_paid_until: paidUntil,
+      pix_active: false,
+      pix_grace_until: new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString(),
+      pix_payments: [],
+    });
+    render(<Billing />);
+    expect(await screen.findByText(/O mês pago por PIX venceu em/)).toBeInTheDocument();
+    expect(screen.getByText(/para não voltar ao plano gratuito/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Pagar o próximo mês/ })).toBeInTheDocument();
+  });
 });
