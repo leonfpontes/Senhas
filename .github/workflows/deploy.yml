@@ -125,6 +125,9 @@ jobs:
             if [ -z "${NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA:-}" ]; then unset NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA; fi
             if [ -z "${NEXT_PUBLIC_PARCEIROS_PUBLICADO:-}" ]; then unset NEXT_PUBLIC_PARCEIROS_PUBLICADO; fi
             docker compose -f docker-compose.prod.yml build frontend backend
+            # Cache de build do Docker cresce ~2 GB por deploy e já chegou a 77 GB (disco em 81%, 09/10):
+            # depois do build, apaga o cache sem uso com mais de 6 h (o build seguinte continua rápido).
+            docker builder prune -af --filter until=6h >/dev/null 2>&1 || true
 
             echo "==> [4/6] Migrations"
             # Roda migration em container temporário enquanto prod ainda está up

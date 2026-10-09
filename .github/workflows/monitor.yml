@@ -1,0 +1,58 @@
+name: Monitor → produção
+
+# Monitor sem serviço externo: se um passo falhar, o GitHub manda e-mail sobre a falha do
+# workflow (notificações de Actions da conta). Não altera nada em produção.
+#  - a cada 15 min: site e API respondendo;
+#  - todo dia 06:10 UTC (depois do backup das 03:15): backup concluído e no bucket, disco e
+#    containers (devops/monitor/check-vps.sh via SSH, só leitura).
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+    - cron: '10 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monitor-${{ github.event.schedule || 'manual' }}
+  cancel-in-progress: false
+
+jobs:
+  disponibilidade:
+    name: Site e API no ar
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Conferir site e API (3 tentativas)
+        run: |
+          set -u
+          checar() {
+            local url=$1 codigo
+            for t in 1 2 3; do
+              codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$url" || echo 000)
+              [ "$codigo" = "200" ] && { echo "ok $url"; return 0; }
+              echo "tentativa $t: $url → $codigo"; sleep 20
+            done
+            echo "::error::$url não respondeu 200"; return 1
+          }
+          falhou=0
+          checar https://girahub.com.br/health || falhou=1
+          checar https://girahub.com.br/login || falhou=1
+          exit $falhou
+
+  vps:
+    name: Backup, disco e containers
+    if: github.event.schedule == '10 6 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verificação diária na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 5m
+          script: bash /opt/senhas/devops/monitor/check-vps.sh

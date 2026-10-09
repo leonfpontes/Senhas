@@ -592,3 +592,19 @@ docker compose -f docker-compose.prod.yml exec backend alembic downgrade -1
 | "Notificações no celular" não aparece na Área | Conferir `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_SUBJECT` no `.env` e recriar o backend (seção 3) |
 | Migration falha | Verificar logs: `docker compose logs backend` |
 | Permissão negada | `sudo chown -R $USER:$USER /opt/senhas` |
+
+---
+
+## Monitoramento (09/10/2026)
+
+Sem serviço externo: o workflow `.github/workflows/monitor.yml` roda no GitHub Actions e, se falhar, o GitHub
+manda e-mail sobre a falha (Settings da conta → Notifications → Actions: deixe ligado "Failed workflows only").
+
+- **A cada 15 min** — `https://girahub.com.br/health` e `/login` respondendo 200 (3 tentativas por URL).
+- **Todo dia às 06:10 UTC** (depois do backup das 03:15) — `devops/monitor/check-vps.sh` via SSH, só leitura:
+  último "backup concluído" no `/var/log/senhas-backup.log` há menos de 26 h, arquivo mais novo no bucket
+  (`daily/` ou `monthly/`) há menos de 26 h, disco abaixo de 85% e os containers `senhas-postgres`,
+  `senhas-backend`, `senhas-frontend` e `senhas-nginx` saudáveis. Rodar na mão: Actions → Monitor → Run workflow.
+- **Disco:** o cache de build do Docker crescia ~2 GB por deploy (77 GB, disco em 81% em 09/10). O `deploy.yml`
+  agora roda `docker builder prune -af --filter until=6h` depois do build. Limpeza manual se precisar:
+  `docker builder prune -af --filter until=6h` (não toca imagens em uso, volumes nem o banco).
