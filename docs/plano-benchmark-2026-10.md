@@ -69,7 +69,7 @@ Caminhos abreviados: **B/** = `backend/src/`, **F/** = `frontend/src/`. A próxi
 | 27 | N-05 Retornos | P1 | 3 | M | Backlog |
 | 28 | P-02 Decisão WhatsApp | P1 | 4 | P | Decisões |
 | 29 | F-01 Decisão gateway da mensalidade | P1 | 4 | P | Decidido (09/10: misto Stripe Connect + Mercado Pago) |
-| 30 | F-02 PIX na mensalidade | P1 | 4 | G | Em PR (Stripe; Mercado Pago no PR seguinte) |
+| 30 | F-02 PIX na mensalidade | P1 | 4 | G | Em PR (Stripe Connect + Mercado Pago, dois PRs) |
 | 31 | C-02 Páginas por recurso | P2 | 4 | M | Backlog |
 | 32 | C-01 Blog | P2 | 4 | M | Backlog |
 | 33 | C-03 Glossário | P2 | 4 | P | Backlog |

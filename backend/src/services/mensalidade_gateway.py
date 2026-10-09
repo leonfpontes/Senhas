@@ -39,7 +39,8 @@ from src.models import Medium, MensalidadeConfig, MensalidadePagamento, Mensalid
 from src.models.mensalidade_gateway import MensalidadeCobranca, MensalidadeGateway
 from src.models.tenants import Tenant
 from src.repositories.subscription_repo import SubscriptionRepository
-from src.services import stripe_connect
+from src.core import secret_box
+from src.services import mercadopago, stripe_connect
 from src.services.audit_service import AuditService
 from src.services.plan_features import get_effective_plan_features
 
@@ -60,6 +61,8 @@ def provedores_disponiveis() -> list[str]:
     disponiveis = []
     if stripe_connect.disponivel():
         disponiveis.append("stripe")
+    if mercadopago.disponivel():
+        disponiveis.append("mercadopago")
     return disponiveis
 
 
@@ -247,7 +250,13 @@ async def criar_ou_reusar_cobranca(
         raise CobrancaRecusada("O PIX automático ainda não está liberado para a casa.", "PIX_INDISPONIVEL")
     if metodo == "boleto" and not gw.boleto_disponivel:
         raise CobrancaRecusada("O boleto não está liberado para a casa.", "BOLETO_INDISPONIVEL")
-    if metodo == "pix" and not (stripe_connect.PIX_MIN <= Decimal(valor) <= stripe_connect.PIX_MAX):
+    if gw.provedor == "mercadopago" and metodo != "pix":
+        raise CobrancaRecusada("O boleto não está liberado para a casa.", "BOLETO_INDISPONIVEL")
+    if (
+        gw.provedor == "stripe"
+        and metodo == "pix"
+        and not (stripe_connect.PIX_MIN <= Decimal(valor) <= stripe_connect.PIX_MAX)
+    ):
         raise CobrancaRecusada("O valor desta mensalidade não pode ser pago por PIX automático.", "VALOR_FORA_DO_LIMITE")
     conta = _conta_do_gateway(gw)
     if not conta:
@@ -265,32 +274,14 @@ async def criar_ou_reusar_cobranca(
         await db.flush()
 
     cobranca_id = uuid.uuid4()
-    if gw.provedor != "stripe":  # o Mercado Pago entra no PR seguinte
+    if gw.provedor == "mercadopago":
+        criada = await _criar_pix_mercadopago(db, tenant_id, gw, cobranca_id, mes, valor, pagador)
+    elif gw.provedor == "stripe":
+        criada = await _criar_cobranca_stripe(conta, cobranca_id, tenant_id, medium, mes, valor, metodo, pagador)
+    else:
         raise CobrancaRecusada("Provedor indisponível.", "GATEWAY_INDISPONIVEL")
-    try:
-        criada = await stripe_connect.criar_cobranca(
-            account_id=conta,
-            metodo=metodo,
-            valor=Decimal(valor),
-            descricao=descricao_cobranca(mes),
-            metadata={
-                "tenant_id": str(tenant_id),
-                "mediun_id": str(medium.id),
-                "mes": mes.strftime("%Y-%m"),
-                "cobranca_id": str(cobranca_id),
-            },
-            idempotency_key=f"girahub-mensalidade-{cobranca_id}",
-            nome=pagador.nome,
-            email=pagador.email,
-            cpf=pagador.cpf,
-            endereco=pagador.endereco,
-        )
-    except stripe_connect.StripeConnectErro as exc:
-        if exc.param and "tax_id" in exc.param:
-            raise CobrancaRecusada("Informe o seu CPF para gerar a cobrança.", "CPF_NECESSARIO") from exc
-        raise CobrancaRecusada(str(exc), "GATEWAY_ERRO") from exc
     if metodo == "pix" and not criada.copia_e_cola:
-        logger.warning("PaymentIntent PIX sem QR (status %s)", criada.status_externo)
+        logger.warning("Cobrança PIX sem QR (status %s)", criada.status_externo)
         raise CobrancaRecusada("Não conseguimos gerar o PIX agora. Tente de novo.", "GATEWAY_ERRO")
 
     cob = MensalidadeCobranca(
@@ -314,6 +305,100 @@ async def criar_ou_reusar_cobranca(
     db.add(cob)
     await db.flush()
     return cob, True
+
+
+async def _criar_cobranca_stripe(
+    conta: str,
+    cobranca_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+    medium: Medium,
+    mes: date,
+    valor: Decimal,
+    metodo: str,
+    pagador: DadosPagador,
+) -> stripe_connect.CobrancaCriada:
+    try:
+        return await stripe_connect.criar_cobranca(
+            account_id=conta,
+            metodo=metodo,
+            valor=Decimal(valor),
+            descricao=descricao_cobranca(mes),
+            metadata={
+                "tenant_id": str(tenant_id),
+                "mediun_id": str(medium.id),
+                "mes": mes.strftime("%Y-%m"),
+                "cobranca_id": str(cobranca_id),
+            },
+            idempotency_key=f"girahub-mensalidade-{cobranca_id}",
+            nome=pagador.nome,
+            email=pagador.email,
+            cpf=pagador.cpf,
+            endereco=pagador.endereco,
+        )
+    except stripe_connect.StripeConnectErro as exc:
+        if exc.param and "tax_id" in exc.param:
+            raise CobrancaRecusada("Informe o seu CPF para gerar a cobrança.", "CPF_NECESSARIO") from exc
+        raise CobrancaRecusada(str(exc), "GATEWAY_ERRO") from exc
+
+
+# ── Mercado Pago: token do vendedor (cifrado) e PIX ──────────────────────────
+
+
+def gravar_tokens_mp(gw: MensalidadeGateway, tokens: "mercadopago.TokensMP") -> None:
+    """Grava os tokens da casa SÓ cifrados (`secret_box`; sem chave → SecretBoxIndisponivel)."""
+    gw.mp_access_token_enc = secret_box.encrypt(tokens.access_token)
+    if tokens.refresh_token:
+        gw.mp_refresh_token_enc = secret_box.encrypt(tokens.refresh_token)
+    gw.mp_user_id = tokens.user_id
+    gw.mp_token_expira_em = tokens.expira_em
+    gw.updated_at = utc_now()
+
+
+async def token_mp_valido(db: AsyncSession, tenant_id: uuid.UUID, gw: MensalidadeGateway) -> str:
+    """Access token da casa, renovado (refresh) quando falta menos de 7 dias para vencer."""
+    if gw.tenant_id != tenant_id or not gw.mp_access_token_enc:
+        raise CobrancaRecusada("A conta do Mercado Pago não está conectada.", "GATEWAY_INDISPONIVEL")
+    try:
+        token = secret_box.decrypt(gw.mp_access_token_enc)
+        vence = gw.mp_token_expira_em
+        if vence is not None and vence <= utc_now() + mercadopago.RENOVAR_ANTES and gw.mp_refresh_token_enc:
+            novos = await mercadopago.renovar(secret_box.decrypt(gw.mp_refresh_token_enc))
+            gravar_tokens_mp(gw, novos)
+            await db.flush()
+            token = novos.access_token
+    except (secret_box.SecretBoxIndisponivel, secret_box.SegredoInvalido) as exc:
+        logger.error("Token do Mercado Pago ilegível (tenant %s): %s", tenant_id, type(exc).__name__)
+        raise CobrancaRecusada("A conta do Mercado Pago precisa ser conectada de novo.", "GATEWAY_INDISPONIVEL") from exc
+    except mercadopago.MercadoPagoErro as exc:
+        raise CobrancaRecusada(str(exc), "GATEWAY_ERRO") from exc
+    return token
+
+
+async def _criar_pix_mercadopago(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    gw: MensalidadeGateway,
+    cobranca_id: uuid.UUID,
+    mes: date,
+    valor: Decimal,
+    pagador: DadosPagador,
+) -> stripe_connect.CobrancaCriada:
+    token = await token_mp_valido(db, tenant_id, gw)
+    if not pagador.email:
+        raise CobrancaRecusada("Cadastre um e-mail no seu perfil para gerar o PIX.", "EMAIL_NECESSARIO")
+    try:
+        return await mercadopago.criar_pix(
+            access_token=token,
+            valor=Decimal(valor),
+            descricao=descricao_cobranca(mes),
+            external_reference=str(cobranca_id),
+            idempotency_key=f"girahub-mensalidade-{cobranca_id}",
+            email=pagador.email,
+            nome=pagador.nome,
+            cpf=pagador.cpf,
+        )
+    except mercadopago.MercadoPagoErro as exc:
+        raise CobrancaRecusada(str(exc), "GATEWAY_ERRO") from exc
 
 
 # ── Baixa ────────────────────────────────────────────────────────────────────
@@ -511,3 +596,84 @@ async def processar_evento_stripe_connect(db: AsyncSession, evento: dict) -> str
             cob.updated_at = utc_now()
         return "cancelada"
     return "ignorado"
+
+
+# ── Webhook do Mercado Pago ──────────────────────────────────────────────────
+
+# status do pagamento no Mercado Pago → status da nossa cobrança
+_STATUS_MP = {
+    "approved": "paga",
+    "cancelled": "expirada",  # PIX vencido vira `cancelled` no Mercado Pago
+    "rejected": "expirada",
+    "refunded": "estornada",
+    "charged_back": "estornada",
+}
+
+
+def _valor_mp(pagamento: dict) -> Optional[Decimal]:
+    bruto = (pagamento.get("transaction_details") or {}).get("total_paid_amount") or pagamento.get("transaction_amount")
+    try:
+        return Decimal(str(bruto)).quantize(Decimal("0.01")) if bruto is not None else None
+    except ArithmeticError:
+        return None
+
+
+async def processar_notificacao_mercadopago(db: AsyncSession, payment_id: str) -> str:
+    """Notificação de pagamento (assinatura já conferida). Nunca confia no corpo: busca o pagamento
+    no Mercado Pago com o token DA CASA da cobrança e confere `external_reference` e `collector_id`.
+
+    Não faz commit. Idempotente pelo estado (cobrança paga não paga de novo; lock na cobrança).
+    """
+    cob = await cobranca_por_external_id(db, "mercadopago", str(payment_id))
+    if cob is None:
+        return "cobranca_desconhecida"
+    gw = await get_gateway(db, cob.tenant_id, for_update=True)
+    if gw is None or gw.provedor != "mercadopago" or gw.mp_user_id != cob.conta_externa or not gw.mp_access_token_enc:
+        # Casa desconectou (tokens apagados) ou trocou de conta: não há como conferir no MP.
+        return "sem_token"
+    try:
+        token = await token_mp_valido(db, cob.tenant_id, gw)
+        pagamento = await mercadopago.buscar_pagamento(token, str(payment_id))
+    except (CobrancaRecusada, mercadopago.MercadoPagoErro) as exc:
+        logger.warning("Notificação do Mercado Pago não conferida (cobrança %s): %s", cob.id, exc)
+        raise
+    if str(pagamento.get("external_reference") or "") != str(cob.id):
+        logger.warning("Pagamento %s não é da cobrança %s — ignorado", payment_id, cob.id)
+        return "referencia_divergente"
+    coletor = pagamento.get("collector_id")
+    if coletor is not None and str(coletor) != cob.conta_externa:
+        return "conta_divergente"
+
+    novo = _STATUS_MP.get(str(pagamento.get("status") or ""))
+    if novo == "paga":
+        pago_em = mercadopago._data(pagamento.get("date_approved")) or utc_now()
+        feito = await registrar_pagamento_gateway(
+            db,
+            tenant_id=cob.tenant_id,
+            cobranca=cob,
+            pago_em=pago_em,
+            valor_pago=_valor_mp(pagamento),
+            evento=f"mp:{payment_id}",
+        )
+        return "paga" if feito else "ja_paga"
+    if novo == "estornada":
+        if cob.status != "estornada":
+            cob.status = "estornada"
+            cob.raw = {**(cob.raw or {}), "status_externo": pagamento.get("status")}
+            cob.updated_at = utc_now()
+        # O mês não volta a "em aberto" sozinho: a direção decide (o estorno fica na auditoria).
+        await AuditService(db).log_update(
+            tenant_id=cob.tenant_id,
+            user_id=None,
+            resource_type="mensalidade_gateway_estorno",
+            resource_id=cob.id,
+            new_state={"provedor": "mercadopago", "status_externo": pagamento.get("status")},
+        )
+        return "estornada"
+    if novo == "expirada":
+        if cob.status == "pendente":
+            cob.status = "expirada"
+            cob.raw = {**(cob.raw or {}), "status_externo": pagamento.get("status")}
+            cob.updated_at = utc_now()
+        return "expirada"
+    return "pendente"

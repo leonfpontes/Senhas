@@ -1,6 +1,7 @@
 """Webhooks da mensalidade com baixa automática (F-02/AM-22) — sem JWT, assinatura conferida aqui.
 
     POST /api/v1/webhooks/stripe-connect   eventos das contas conectadas (casas) no Stripe Connect
+    POST /api/v1/webhooks/mercadopago      notificações de pagamento do Mercado Pago (casas via OAuth)
 
 É um endpoint SEPARADO do webhook da assinatura do GiraHub (`webhooks.py`, `/webhooks/stripe`):
 no Dashboard do Stripe, o destino de eventos "contas conectadas" tem o próprio segredo
@@ -15,6 +16,13 @@ no Dashboard do Stripe, o destino de eventos "contas conectadas" tem o próprio 
 - O tenant vem da NOSSA cobrança (id do PaymentIntent) e a conta do evento (`event.account`)
   precisa ser a gravada na cobrança — `services/mensalidade_gateway.processar_evento_stripe_connect`.
 - Evento de conta/cobrança que não conhecemos → 200 (o Stripe não deve reenviar).
+
+Mercado Pago: a URL é a mesma para todas as casas (`notification_url` de cada pagamento). Confere o
+`x-signature` (HMAC-SHA256 com `MERCADOPAGO_WEBHOOK_SECRET` sobre `id:<data.id>;request-id:<x-request-id>;
+ts:<ts>;`) — inválido → 400. Depois **nunca confia no corpo**: acha a NOSSA cobrança pelo id do
+pagamento e busca o pagamento no Mercado Pago com o token da casa daquela cobrança
+(`services/mensalidade_gateway.processar_notificacao_mercadopago`). Idempotente pelo estado (lock na
+cobrança; paga não paga de novo). Falha ao consultar o Mercado Pago → 503 (ele reenvia).
 """
 from __future__ import annotations
 
@@ -26,8 +34,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.models import StripeEventProcessed
-from src.services import stripe_connect
-from src.services.mensalidade_gateway import processar_evento_stripe_connect
+from src.services import mercadopago, stripe_connect
+from src.services.mensalidade_gateway import (
+    CobrancaRecusada,
+    processar_evento_stripe_connect,
+    processar_notificacao_mercadopago,
+)
 
 logger = logging.getLogger("senhas")
 
@@ -71,4 +83,32 @@ async def stripe_connect_webhook(request: Request, db: AsyncSession = Depends(ge
     resultado = await processar_evento_stripe_connect(db, evento)
     await db.commit()
     logger.info("Stripe Connect %s → %s", tipo, resultado)
+    return {"received": True, "result": resultado}
+
+
+@router.post("/mercadopago")
+async def mercadopago_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    params = request.query_params
+    corpo: dict = {}
+    try:
+        lido = await request.json()
+        corpo = lido if isinstance(lido, dict) else {}
+    except Exception:
+        corpo = {}
+    data_id = params.get("data.id") or str(((corpo.get("data") or {}).get("id")) or "") or None
+    tipo = params.get("type") or params.get("topic") or corpo.get("type") or ""
+    if not mercadopago.assinatura_valida(
+        request.headers.get("x-signature"), request.headers.get("x-request-id"), data_id
+    ):
+        logger.warning("Webhook do Mercado Pago recusado: assinatura inválida")
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    if tipo != "payment" or not data_id:
+        return {"received": True, "ignored": True}
+    try:
+        resultado = await processar_notificacao_mercadopago(db, data_id)
+    except (CobrancaRecusada, mercadopago.MercadoPagoErro):
+        await db.rollback()
+        raise HTTPException(status_code=503, detail="Retry later")
+    await db.commit()
+    logger.info("Mercado Pago payment → %s", resultado)
     return {"received": True, "result": resultado}

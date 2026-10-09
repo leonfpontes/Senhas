@@ -100,6 +100,28 @@ describe('MensalidadeGatewayCard', () => {
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://connect.stripe.com/setup/e/acct_x/abc'));
   });
 
+  it('Mercado Pago: conectar pede a senha e vai para a autorização (sem gateway até a volta)', async () => {
+    mockGet.mockResolvedValue({
+      data: { provedores_disponiveis: ['stripe', 'mercadopago'], plano_inclui: true, gateway: null },
+    });
+    mockPost.mockResolvedValueOnce({ data: { url: 'https://auth.mercadopago.com/authorization?client_id=1&state=s' } });
+    render(<MensalidadeGatewayCard canEdit />);
+    expect(await screen.findByRole('button', { name: 'Conectar Stripe' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Conectar Mercado Pago' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Você vai para o Mercado Pago');
+    fireEvent.change(within(dialog).getByLabelText('Sua senha'), { target: { value: 'certa' } });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Continuar no Mercado Pago' }));
+    });
+    expect(mockPost).toHaveBeenCalledWith(
+      '/api/v1/admin/financeiro/gateway/mercadopago/conectar',
+      { senha: 'certa' },
+      { skipAutoLogout: true },
+    );
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://auth.mercadopago.com/authorization?client_id=1&state=s'));
+  });
+
   it('conectada: mostra o PIX ligado; sem permissão de editar não há botões', async () => {
     mockGet.mockResolvedValue({ data: { provedores_disponiveis: ['stripe'], plano_inclui: true, gateway: ATIVO } });
     render(<MensalidadeGatewayCard canEdit={false} />);

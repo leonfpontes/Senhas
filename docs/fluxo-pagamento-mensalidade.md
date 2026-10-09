@@ -120,8 +120,11 @@ taxa do GiraHub. Quem não conecta segue com a chave estática + comprovante.
   ou jurídica (CNPJ); e, com `fees.payer=account` + `losses.payments=stripe`, o GiraHub não paga taxa nem responde
   por saldo negativo da casa. Cobrança **direta** (a casa é a vendedora), sem `application_fee`. Webhook separado
   (`/api/v1/webhooks/stripe-connect`, segredo próprio). Passos do dono em `docs/deployment.md`.
-- **Mercado Pago (PR 2)**: OAuth com `state` assinado, tokens cifrados com o `secret_box`, PIX pela API de
-  pagamentos com o token da casa, webhook com `x-signature` e consulta do pagamento no Mercado Pago.
+- **Mercado Pago (PR 2)**: OAuth com `state` assinado (tenant + usuário, 10 min) e volta numa página logada do
+  painel (`/admin/financeiro/mercadopago-retorno`), tokens cifrados com o `secret_box` e renovados antes de vencer
+  (180 dias), PIX pela API de pagamentos com o token da casa (`external_reference` = nossa cobrança,
+  `notification_url` única, 24 h), webhook com `x-signature` (HMAC-SHA256) e **consulta do pagamento no Mercado
+  Pago** antes de dar baixa. Boleto pelo Mercado Pago fica para depois. Passos do dono em `docs/deployment.md`.
 
 ## Fontes (acessadas em 08/10/2026)
 
