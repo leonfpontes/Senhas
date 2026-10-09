@@ -82,6 +82,8 @@ class SubscriptionListItem(BaseModel):
     current_period_end: Optional[str]
     trial_ends_at: Optional[str]
     stripe_customer_id: Optional[str]
+    # $-04: "charge_automatically" (cartão) | "send_invoice" (boleto) | "pix_mensal" | None.
+    collection_method: Optional[str] = None
 
 
 @router.get("/{tenant_id}/invoices", response_model=List[InvoiceResponse])
@@ -276,6 +278,7 @@ async def list_billing_subscriptions(
                 current_period_end=sub.current_period_end.isoformat() if sub.current_period_end else None,
                 trial_ends_at=sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
                 stripe_customer_id=sub.stripe_customer_id,
+                collection_method=sub.collection_method if isinstance(sub.collection_method, str) else None,
             )
             for sub, name, slug, deleted_at, users in rows
             for cat in (billing_category(sub, deleted_at is not None),)

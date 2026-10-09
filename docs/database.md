@@ -836,6 +836,32 @@ Plano de assinatura do tenant. Relação 1:1 com `tenants`.
 
 **Indexes:** `ix_subscriptions_tenant_id`, `ix_subscriptions_plan`, `ix_subscriptions_status`
 
+$-04 (migração 085): `collection_method` (`charge_automatically` | `send_invoice` | `pix_mensal` | NULL),
+`pending_stripe_subscription_id`, `pending_invoice_id/_url/_due_at`. No PIX mês a mês (migração 090) a linha usa
+`collection_method = 'pix_mensal'`, `stripe_subscription_id` NULL e `current_period_end` = pago até.
+
+---
+
+### `assinatura_pix_pagamentos` ($-04, migração 090)
+
+Um registro por PIX mensal do plano confirmado pela Stripe (Checkout `mode=payment`). Ver
+`services/assinatura_pix.py`.
+
+| Coluna | Tipo SA | Nullable | Default | Notas |
+|---|---|---|---|---|
+| `id` | `UUID` | Não | `uuid4` | PK |
+| `tenant_id` | `UUID` | Não | — | FK → `tenants.id CASCADE`; indexed |
+| `checkout_session_id` | `String(255)` | Não | — | `UNIQUE` — idempotência (o mesmo pagamento nunca libera dois meses) |
+| `payment_intent_id` | `String(255)` | Sim | — | referência para o suporte |
+| `plan` | `String(20)` | Não | — | `basic` / `pro` / `premium` |
+| `amount_cents` | `Integer` | Não | — | valor pago (centavos de BRL) |
+| `aplicado` | `Boolean` | Não | `true` | `false` = pago mas não virou mês de plano (cartão ligado, cortesia, valor menor) — suporte devolve |
+| `period_start` / `period_end` | `DateTime(tz)` | Sim | — | mês liberado (NULL quando `aplicado = false`) |
+| `paid_at` | `DateTime(tz)` | Não | `now()` | — |
+| `created_at` | `DateTime(tz)` | Não | `now()` | — |
+
+**Indexes:** `ix_assinatura_pix_pagamentos_tenant_id`, `uq_assinatura_pix_pagamentos_checkout_session_id`
+
 ---
 
 ### `invoices`
@@ -1083,7 +1109,7 @@ Ao criar um novo enum em Alembic + model Python:
 | 18 | `018_estoque` | `017_default_brand_colors` | Cria `estoque_grupos`, `estoque_itens`, `estoque_movimentacoes`; enum `estoque_movimentacao_tipo`; `tenant_configs.enable_estoque_log` |
 | 19 | `019_fix_movimentacoes_fk` | `018_estoque` | `estoque_movimentacoes.item_id` FK: `CASCADE` → `RESTRICT` (protege integridade do ledger) |
 
-A tabela acima vai até a 019. A cadeia completa e a head atual (`089_ficha_espiritual`, F-05/AM-19) estão em
+A tabela acima vai até a 019. A cadeia completa e a head atual (`090_assinatura_pix_mensal`, $-04) estão em
 AGENTS.md §11.8.
 
 ### Comandos Alembic

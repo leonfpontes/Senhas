@@ -97,6 +97,8 @@ interface SubscriptionItem {
   current_period_end: string | null;
   trial_ends_at: string | null;
   stripe_customer_id: string | null;
+  /** $-04: "charge_automatically" | "send_invoice" | "pix_mensal" | null. */
+  collection_method?: string | null;
 }
 
 interface BillingStats {
@@ -594,6 +596,7 @@ const TenantsPage: React.FC = () => {
           <span className="flex items-center gap-1">
             {fmtDate(row.original.current_period_end)}
             {row.original.cancel_at_period_end && <ToneBadge tone="destructive">Cancela</ToneBadge>}
+            {row.original.collection_method === 'pix_mensal' && <ToneBadge tone="info">PIX mensal</ToneBadge>}
           </span>
         ),
       },

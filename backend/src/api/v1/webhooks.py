@@ -208,7 +208,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     try:
         if event_type == "checkout.session.completed":
-            # Forma de pagamento assíncrona (ex.: boleto no Checkout): o formulário foi
+            # Forma de pagamento assíncrona (ex.: boleto no Checkout, PIX): o formulário foi
             # enviado, mas nada foi pago ainda — não libera o plano. Quem libera é o
             # checkout.session.async_payment_succeeded. ($-04)
             if data.get("payment_status") == "unpaid":
@@ -216,16 +216,25 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                     "checkout.session.completed sem pagamento (payment_status=unpaid) — aguardando "
                     "async_payment_succeeded para a sessão %s", data.get("id"),
                 )
+            elif _is_pix_mensal_session(data):
+                await _handle_pix_mensal_paid(data, db)
             else:
                 await _handle_checkout_completed(data, db)
 
         elif event_type == "checkout.session.async_payment_succeeded":
-            await _handle_checkout_completed(data, db)
+            if _is_pix_mensal_session(data):
+                await _handle_pix_mensal_paid(data, db)
+            else:
+                await _handle_checkout_completed(data, db)
 
         elif event_type == "checkout.session.async_payment_failed":
-            # Boleto do Checkout vencido sem pagamento: o plano nunca foi liberado, então
-            # não há o que desfazer (a assinatura incompleta expira sozinha na Stripe).
-            logger.info("checkout.session.async_payment_failed para a sessão %s — nada liberado", data.get("id"))
+            # Boleto do Checkout vencido sem pagamento, ou PIX mensal expirado sem pagamento:
+            # o plano nunca foi liberado, então não há o que desfazer (a assinatura incompleta
+            # expira sozinha na Stripe; o mês PIX simplesmente não é concedido).
+            logger.info(
+                "checkout.session.async_payment_failed para a sessão %s (pix_mensal=%s) — nada liberado",
+                data.get("id"), _is_pix_mensal_session(data),
+            )
 
         elif event_type == "invoice.paid":
             await _handle_invoice_paid(data, db)
@@ -269,6 +278,30 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 # ---------------------------------------------------------------------------
 # Event handlers
 # ---------------------------------------------------------------------------
+
+def _is_pix_mensal_session(session: dict) -> bool:
+    """Checkout avulso do "PIX mês a mês" ($-04), criado por /admin/billing/pix-checkout."""
+    meta = session.get("metadata") or {}
+    return session.get("mode") == "payment" and meta.get("tipo") == stripe_service.PIX_MENSAL_TIPO
+
+
+async def _handle_pix_mensal_paid(session: dict, db: AsyncSession) -> None:
+    """PIX mensal pago (checkout.session.completed com payment_status=paid, ou
+    async_payment_succeeded): libera 30 dias do plano. O tenant vem do metadata que o GiraHub
+    gravou e só vale se o `customer` da sessão for o cliente Stripe desse tenant
+    (assinatura_pix.registrar_pagamento_pix). Idempotente pela sessão."""
+    from uuid import UUID
+
+    from src.services.assinatura_pix import registrar_pagamento_pix
+
+    try:
+        tenant_id = UUID(str((session.get("metadata") or {}).get("tenant_id")))
+    except ValueError:
+        logger.warning("PIX mensal: sessão %s sem tenant_id válido no metadata — ignorada", session.get("id"))
+        return
+    await registrar_pagamento_pix(db, tenant_id, session)
+    await db.commit()
+
 
 async def _handle_checkout_completed(session: dict, db: AsyncSession) -> None:
     """checkout.session.completed — link Stripe subscription to tenant."""
@@ -318,6 +351,10 @@ async def _handle_checkout_completed(session: dict, db: AsyncSession) -> None:
     sub.monthly_price = limits["monthly_price"]
     sub.status = SubscriptionStatus.ACTIVE
     sub.cancel_at_period_end = False
+    # $-04: vinha pagando por PIX mês a mês (o mês já tinha vencido — com o mês valendo o
+    # /checkout recusa) — agora é cartão; o agendador do PIX não pode mais rebaixar.
+    if sub.collection_method == stripe_service.COLLECTION_PIX_MENSAL:
+        sub.collection_method = None
     # Conversão mid-trial: se veio com trial_period_days, a subscription do
     # Stripe está "trialing" (ainda não cobrou) — mantém is_trial=True e
     # sincroniza trial_ends_at com a data real da Stripe (fonte de verdade
