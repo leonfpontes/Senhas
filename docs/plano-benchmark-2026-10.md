@@ -8,8 +8,12 @@ Complementa o [plano-execucao.md](plano-execucao.md) (Fase 5). As restrições d
 **Este arquivo é a fonte da verdade do board "GiraHub" no Trello.** Cada `###` vira um card. Para mudar um card, edite
 aqui e rode o sync de novo, em vez de editar só no Trello.
 
-Caminhos abreviados: **B/** = `backend/src/`, **F/** = `frontend/src/`. A próxima migração Alembic é a **060**
-(head atual: `059_planos_limites_out_2026`). Confira `alembic heads` antes de criar.
+> **Revisão de 2026-10-09 (R-02):** a coluna "Status" do ranking foi conferida contra o código do master (não é
+> cópia do board). Os cards criados direto no Trello a partir de 08/10 (Área do Médium, correções) não estão neste
+> arquivo; a Área do Médium tem o próprio plano em [plano-area-do-medium.md](plano-area-do-medium.md) §11.
+
+Caminhos abreviados: **B/** = `backend/src/`, **F/** = `frontend/src/`. A próxima migração Alembic é a **094**
+(head atual: `093_sessao_contas_verificadas`). Confira `alembic heads` antes de criar.
 
 ---
 
@@ -38,54 +42,54 @@ Caminhos abreviados: **B/** = `backend/src/`, **F/** = `frontend/src/`. A próxi
 
 ## Ranking global
 
-| # | Card | Prio | Onda | Esf. | Lista no Trello |
+| # | Card | Prio | Onda | Esf. | Status (09/10) |
 |---|---|---|---|---|---|
-| 1 | I-02 Backup fora da VPS | P0 | 1 | M | To Do |
-| 2 | X-01 Transição dos clientes Pro | P0 | 1 | P | Decisões |
-| 3 | $-01 Resposta ao "tudo incluso" | P0 | 1 | P | Decisões |
-| 4 | V-01 Coletar depoimentos | P0 | 1 | M | To Do |
-| 5 | V-06 WhatsApp de vendas | P0 | 1 | P | To Do |
-| 6 | T-01 Slugs reservados no backend | P0 | 1 | P | To Do |
-| 7 | V-04 FAQ | P0 | 1 | P | To Do |
-| 8 | V-02 Números reais de uso | P0 | 1 | P | To Do |
-| 9 | V-03 Seção de depoimentos | P0 | 1 | P | To Do |
-| 10 | V-07 Antes × depois | P0 | 1 | P | To Do |
-| 11 | V-05 Carrossel de telas reais | P0 | 1 | M | To Do |
-| 12 | T-03 Sitemap dinâmico | P0 | 1 | P | To Do |
-| 13 | $-03 Página /planos | P0 | 1 | M | To Do |
-| 14 | T-04 TV sem dados pessoais | P1 | 2 | P | Backlog |
-| 15 | T-05 Porteiro sem acesso a Médiuns | P1 | 2 | P | Backlog |
-| 16 | T-06 Permissão do Meu Site | P1 | 2 | P | Backlog |
+| 1 | I-02 Backup fora da VPS | P0 | 1 | M | Feito (#57; instalado na VPS com R2, #67) |
+| 2 | X-01 Transição dos clientes Pro | P0 | 1 | P | Decisão a registrar pelo dono (reaberto no Trello) |
+| 3 | $-01 Resposta ao "tudo incluso" | P0 | 1 | P | Decidido (08/10: opção a) |
+| 4 | V-01 Coletar depoimentos | P0 | 1 | M | Em andamento (3 depoimentos reais na landing) |
+| 5 | V-06 WhatsApp de vendas | P0 | 1 | P | Feito (#57; número no build, #68) |
+| 6 | T-01 Slugs reservados no backend | P0 | 1 | P | Feito (#57) |
+| 7 | V-04 FAQ | P0 | 1 | P | Feito (#57) |
+| 8 | V-02 Números reais de uso | P0 | 1 | P | Feito (#57) |
+| 9 | V-03 Seção de depoimentos | P0 | 1 | P | Feito (#57) |
+| 10 | V-07 Antes × depois | P0 | 1 | P | Feito (#57) |
+| 11 | V-05 Carrossel de telas reais | P0 | 1 | M | Feito (#57) |
+| 12 | T-03 Sitemap dinâmico | P0 | 1 | P | Feito (#57) |
+| 13 | $-03 Página /planos | P0 | 1 | M | Feito (#57) |
+| 14 | T-04 TV sem dados pessoais | P1 | 2 | P | Feito (#66) |
+| 15 | T-05 Porteiro sem acesso a Médiuns | P1 | 2 | P | Feito (#66) |
+| 16 | T-06 Permissão do Meu Site | P1 | 2 | P | Feito (#66) |
 | 17 | $-02 Plano anual | P1 | 2 | M | Backlog |
 | 18 | $-05 Cupons | P1 | 2 | P | Backlog |
 | 19 | F-08 Story da agenda do mês | P1 | 2 | P | Backlog |
-| 20 | V-08 Identidade visual da landing | P1 | 2 | G | Decisões |
-| 21 | $-04 PIX/boleto na assinatura | P1 | 2 | M | Em revisão (boleto feito; PIX mês a mês: PR #112) |
+| 20 | V-08 Identidade visual da landing | P1 | 2 | G | Feito (#57, landing nova no ar) |
+| 21 | $-04 PIX/boleto na assinatura | P1 | 2 | M | Feito (boleto #105; PIX mês a mês #112) |
 | 22 | N-04 Tela de consulentes | P1 | 3 | M | Backlog |
 | 23 | N-06 Check-in por QR | P1 | 3 | M | Backlog |
 | 24 | N-01 Modo TV com conteúdo | P1 | 3 | M | Backlog |
 | 25 | N-02 Ficha impressa térmica | P1 | 3 | M | Backlog |
 | 26 | N-03 Senha por médium/entidade | P1 | 3 | G | Backlog |
 | 27 | N-05 Retornos | P1 | 3 | M | Backlog |
-| 28 | P-02 Decisão WhatsApp | P1 | 4 | P | Decisões |
+| 28 | P-02 Decisão WhatsApp | P1 | 4 | P | Aguardando o dono |
 | 29 | F-01 Decisão gateway da mensalidade | P1 | 4 | P | Decidido (09/10: misto Stripe Connect + Mercado Pago) |
-| 30 | F-02 PIX na mensalidade | P1 | 4 | G | Em PR (Stripe Connect + Mercado Pago, dois PRs) |
+| 30 | F-02 PIX na mensalidade | P1 | 4 | G | Código entregue (#114, #115, #116); aguarda teste com casa piloto |
 | 31 | C-02 Páginas por recurso | P2 | 4 | M | Backlog |
 | 32 | C-01 Blog | P2 | 4 | M | Backlog |
 | 33 | C-03 Glossário | P2 | 4 | P | Backlog |
 | 34 | C-04 GiraHub × caderno | P2 | 4 | P | Backlog |
 | 35 | C-08 Tutoriais em vídeo | P2 | 4 | M | Backlog |
-| 36 | T-02 Token de acesso tipado | P0 | 4 | P | Feito (ramo legado removido em 09/10) |
+| 36 | T-02 Token de acesso tipado | P0 | 4 | P | Feito (#69; ramo legado removido em 09/10, #119) |
 | 37 | F-03 WhatsApp automático | P2 | 4 | G | Backlog |
-| 38 | F-04 Portal do médium | P2 | 4 | G | Backlog |
-| 39 | F-05 Ficha espiritual | P2 | 4 | M | Backlog |
-| 40 | F-06 Presença dos médiuns | P2 | 4 | M | Backlog |
+| 38 | F-04 Portal do médium | P2 | 4 | G | Substituído pela Área do Médium (AM-02 a AM-13) |
+| 39 | F-05 Ficha espiritual | P2 | 4 | M | Feito (com o AM-19, #109) |
+| 40 | F-06 Presença dos médiuns | P2 | 4 | M | Substituído (AM-17 e AM-26) |
 | 41 | F-09 Importar médiuns | P2 | 4 | M | Backlog |
-| 42 | F-07 Escalas de zeladoria | P2 | 4 | M | Backlog |
+| 42 | F-07 Escalas de zeladoria | P2 | 4 | M | Substituído (AM-25, AM-18 e AM-15) |
 | 43 | F-10 2FA para admins | P2 | 4 | M | Backlog |
 | 44 | C-05 Diretório de terreiros | P3 | 5 | G | Backlog |
 | 45 | N-07 Fila em tempo real | P3 | 5 | M | Backlog |
-| 46 | C-06 Afiliados | P3 | 5 | M | Decisões |
+| 46 | C-06 Afiliados | P3 | 5 | M | Página publicada (09/10); cupom/display/relatório pendentes |
 | 47 | C-07 Federações | P3 | 5 | P | Decisões |
 
 **Trilha paralela de conteúdo** (não depende de dev): V-01, C-03, C-04, C-08 e os textos de C-01/C-02 podem andar a
@@ -132,6 +136,8 @@ esse único bucket, só com escrita.
 ### X-01 — Decidir a transição dos clientes Pro que perderam módulos
 - **Ranking:** 2 · **Prioridade:** P0 · **Onda:** 1 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Planos & Assinatura · **Épico:** Planos
 - **Depende de:** — · **Destrava:** $-01, comunicação com clientes
+- **Status (2026-10-09):** **decisão a registrar pelo dono** (card reaberto no Trello). Nenhuma das opções abaixo
+  está registrada em doc até agora; o AGENTS.md §3.4 segue descrevendo o corte sem grandfathering.
 
 **Por quê.** A reestruturação de planos (migração 059, 2026-10-06) moveu estoque, associados, financeiro, fila de
 espera, horário marcado e mensalidade de médiuns do Pro para o Premium, **sem grandfathering**. Um terreiro Pro
@@ -706,6 +712,7 @@ brasileira (docs.stripe.com, consultado em 08/10):
   "Pagar agora" no painel); plano liberado só no `invoice.paid`; boleto em aberto não suspende nem rebaixa;
   fatura vencida suspende e o pagamento reativa. Migração `085_assinatura_boleto`. Detalhes em AGENTS.md
   §11.18 e docs/api.md §20; passos do Dashboard em docs/deployment.md (Stripe).
+- **Status (09/10/2026): feito** — boleto no PR #105 e PIX mês a mês no PR #112, ambos no master.
 - **PIX mês a mês: PR #112 (09/10/2026, decisão do dono "Quero pix na assinatura").** Sem Pix recorrente na
   Stripe BR, cada mês é um Checkout avulso de Pix (`POST /admin/billing/pix-checkout`) que libera 30 dias do plano
   a partir de max(agora, pago até, fim do teste); lembretes 5 d/1 d; 3 dias de tolerância e volta ao gratuito;
@@ -717,7 +724,7 @@ brasileira (docs.stripe.com, consultado em 08/10):
 **Aceite**
 - [x] Decisão documentada, com as taxas reais (boleto R$ 3,45 por pagamento; Pix indisponível em assinatura)
 - [x] PIX mês a mês (Checkout avulso, 30 dias por pagamento, lembretes e vencimento) — PR #112
-- [ ] Assinar com boleto funcionando ponta a ponta em modo de teste (depende de ativar Boleto no Dashboard)
+- [ ] Assinar com boleto funcionando ponta a ponta em modo de teste (Boleto ativado no Dashboard em 09/10; falta o teste)
 - [x] Boleto pendente não suspende nem rebaixa antes do vencimento (teste)
 
 ---
@@ -974,8 +981,9 @@ em memória e perde envios num restart.
 ### P-02 — Decidir o caminho do WhatsApp
 - **Ranking:** 28 · **Prioridade:** P1 · **Onda:** 4 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Comunicação · **Épico:** Funcionalidade
 - **Depende de:** — · **Destrava:** F-03
-- **Status (2026-10-08):** o dono quer a API oficial da Meta; custos e caminho em `docs/custos-whatsapp-meta.md` (falta: CNPJ + verificação do negócio na Meta, número dedicado, modelo de cobrança).
-- **Status (2026-10-09):** aguardando (dono decide depois; pré-requisito continua o CNPJ + verificação na Meta).
+- **Status (2026-10-08):** o dono quer a API oficial da Meta; custos e caminho em `docs/custos-whatsapp-meta.md` (falta: verificação do negócio na Meta com o CNPJ, número dedicado, modelo de cobrança).
+- **Status (2026-10-09):** aguardando (dono decide depois). O CNPJ já existe e está nos Termos
+  (`F/constants/legal.ts`); o pré-requisito que falta é a verificação do negócio na Meta + número dedicado.
 
 **Por quê.** Item herdado do `plano-execucao.md` (Fase 3). O público é mobile-first e não lê e-mail. O AxéCloud usa a
 API oficial da Meta; o ORI vende WhatsApp como add-on por volume (R$ 24,90 a R$ 149,90).
@@ -1029,8 +1037,11 @@ manual com comprovante.
   casa). PR 2 — Mercado Pago (OAuth). O que mudou em relação ao desenho abaixo: idempotência reaproveita
   `stripe_events_processed`; a cobrança nasce na Área (AM-22, `POST /api/v1/medium/mensalidades/{mes}/cobranca`),
   não no painel; link público, e-mail de cobrança e associados ficam para depois.
+- **Status (2026-10-09, fim do dia):** **código entregue** — Stripe Connect (#114), Mercado Pago (#115) e pagamento
+  parcial com vários comprovantes (#116), migrações 091/092, todos no master. Falta ação do dono (Stripe Connect na
+  conta da plataforma) e o teste com uma casa piloto; credenciais do Mercado Pago configuradas em 09/10.
 
-**Estado atual.** Mensalidade é registro manual (`B/models/mensalidades.py`, `associado_mensalidade.py`; endpoints em
+**Estado anterior (antes do F-02).** Mensalidade era registro manual (`B/models/mensalidades.py`, `associado_mensalidade.py`; endpoints em
 `B/api/v1/admin/mensalidades.py`, gates `mensalidade_mediun`/`mensalidade_associado` (Premium), grupo FINANCEIRO). O
 espelho em contas a receber é `B/services/mensalidade_contas_service.py` (`external_ref =
 "mensalidade:{tipo}:{pessoa_id}:{YYYY-MM}"`).
@@ -1153,6 +1164,9 @@ primeira gira. O Tupam promete tutoriais e mostra "em breve"; nós entregamos.
 > 2026-10-07: subiu de P2 para P0. É dependência dura da Área do Médium e, sem tela, corre junto com o estudo
 > de experiência (AM-00). Ver `docs/plano-area-do-medium.md` §11.
 
+- **Status (2026-10-09):** feito — access token com `type: "access"` e `decode_token` em allowlist no PR #69; a
+  janela de compatibilidade para tokens antigos sem `type` acabou e o ramo legado saiu no PR #119.
+
 **Por quê.** O access token não tem `type`. O `decode_token` (`B/security/jwt.py:170`) só rejeita `type=="refresh"`,
 ou seja, funciona como lista de bloqueio. O F-10 (token `mfa_pending`) e o F-04 (token de convite) criariam tokens que
 passariam como acesso.
@@ -1199,6 +1213,8 @@ refresh intactos.
 ### F-04 — Portal do médium
 - **Ranking:** 38 · **Prioridade:** P2 · **Onda:** 4 · **Esforço:** G · **Tipo:** dev · **Módulo:** Médiuns & Corrente · **Épico:** Funcionalidade
 - **Depende de:** T-01, T-02 · **Destrava:** link "Recebi um convite" na landing
+- **Status (2026-10-09):** **substituído** pela Área do Médium (AM-02 a AM-13, no ar em piloto); ver
+  `docs/plano-area-do-medium.md` §5 e §11.0. O texto abaixo fica como histórico.
 
 **Por quê.** AxéCloud (portal do filho de santo), Kanzuá ("App dos Médiuns") e ORI ("entrar como membro") têm. **A
 "área do associado" não existe de fato**: `F/pages/public/[tenant]/associado.tsx` só redireciona para a emissão de
@@ -1293,6 +1309,8 @@ por cima dos grupos (`permission_service.py:85`): documentar.
 ### F-06 — Presença dos médiuns na gira
 - **Ranking:** 40 · **Prioridade:** P2 · **Onda:** 4 · **Esforço:** M · **Tipo:** dev · **Módulo:** Médiuns & Corrente · **Épico:** Funcionalidade
 - **Depende de:** — · **Destrava:** —
+- **Status (2026-10-09):** **substituído** pelo AM-17 (presença) e pelo AM-26 (assiduidade) da Área do Médium;
+  ver `docs/plano-area-do-medium.md` §5. O texto abaixo fica como histórico.
 
 **Por quê.** AxéCloud (frequência e check-in), Minha Gira (presença nas giras) e Meu Axé (presença com relatório de
 ausentes). Hoje não existe.
@@ -1335,6 +1353,8 @@ ausentes). Hoje não existe.
 ### F-07 — Escalas de zeladoria
 - **Ranking:** 42 · **Prioridade:** P2 · **Onda:** 4 · **Esforço:** M · **Tipo:** dev · **Módulo:** Médiuns & Corrente · **Épico:** Funcionalidade
 - **Depende de:** — · **Destrava:** —
+- **Status (2026-10-09):** **substituído** pelo AM-25 (faxina), AM-18 (escala de gira) e AM-15 (lembretes) da
+  Área do Médium; ver `docs/plano-area-do-medium.md` §5. O texto abaixo fica como histórico.
 
 **Por quê.** É o destaque da Minha Gira ("É a vez de quem limpar o terreiro?"): limpeza, cozinha e portaria por gira.
 
@@ -1466,8 +1486,9 @@ gravados em `parceiro_interesses` (migração 084) e listados em `/platform/parc
 com aviso por e-mail ao `ALERT_EMAIL`. Regras, economia por plano e decisões pendentes em `docs/programa-parceiros.md`.
 
 **Aceite**
-- [ ] Regras de comissão decididas (proposta em `docs/programa-parceiros.md`, aguardando o dono)
-- [x] Página pública com convite, regulamento e formulário de interesse + lista na plataforma (atrás da chave)
+- [ ] Regras de comissão decididas — números aprovados em 09/10; ainda em aberto comissão sobre bruto × líquido e
+  recibo/RPA para pessoa física (`docs/programa-parceiros.md`, "Decisões do dono")
+- [x] Página pública com convite, regulamento e formulário de interesse + lista na plataforma (publicada em 09/10)
 - [ ] Cupom por loja no cadastro/checkout ($-05), display A4 e relatório de indicações e conversões
 
 ### C-07 — Oferta para federações

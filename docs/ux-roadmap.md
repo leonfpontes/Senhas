@@ -4,6 +4,23 @@
 > 2026-10-05 (artefato "Redesenho GiraHub") e pela migração M-01 para shadcn/ui (`docs/plano-execucao.md`).
 > Os padrões de UI vigentes estão em `CLAUDE.md` e `frontend/src/components/README.md`; as regras abaixo que
 > citam `sx`, `Snackbar` ou componentes do MUI não valem mais.
+>
+> **Situação das 12 melhorias em 2026-10-09** (conferida no código): 11 entregues, 1 parcial — nada aqui é backlog.
+>
+> | # | Melhoria | Situação |
+> |---|---|---|
+> | 1 | Busca por número de ticket | Entregue — busca no servidor por número, nome ou e-mail (`pages/admin/tickets/index.tsx`) |
+> | 2 | E-mail e telefone no celular | Parcial — contato com WhatsApp/ligar no detalhe da senha (`TicketDetailSheet`); a Porta não mostra |
+> | 3 | Som na Porta | Entregue — som com opção de mudo (`pages/admin/porta.tsx`) |
+> | 4 | Pagamento em lote na mensalidade | Entregue — seleção em lote "Marcar como pago" (`components/financeiro/CobrancaMensal.tsx`) |
+> | 5 | "Lembrar-me" no login | Entregue (`pages/login.tsx`) |
+> | 6 | Máscaras de entrada | Entregue — `components/fields/MaskedInput.tsx`, `MoneyInput.tsx` |
+> | 7 | Modo escuro persistente | Entregue — `providers/AdminThemeProvider.tsx` (localStorage) |
+> | 8 | Breadcrumb na topbar | Entregue — `components/admin/layout/AdminTopbar.tsx` |
+> | 9 | Filtros na mensalidade | Entregue — busca + filtro de status (`CobrancaMensal`) |
+> | 10 | Modo TV na Porta | Entregue — `pages/admin/porta/kiosk.tsx` (sem dados pessoais desde o T-04) |
+> | 11 | Exportar gráficos do dashboard | Entregue — `html2canvas` em `pages/admin/dashboard.tsx` |
+> | 12 | Toast global | Entregue — Sonner / `useSnackbar()` (`contexts/SnackbarContext.tsx`) |
 
 Auditoria realizada em: 2026-06-27  
 Nota geral: **7,8 / 10**

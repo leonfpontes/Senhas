@@ -1,6 +1,6 @@
 """
-T035: Resend Email Fallback Provider - Secondary email service
-Implements EmailService interface using Resend API for failover scenarios
+T035: Resend Email Provider - PRIMARY email service (the filename is historical)
+Implements EmailService interface using the Resend API; Brevo is the fallback (see email_queue.py)
 """
 
 import httpx
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class ResendEmailService(EmailService):
-    """Resend email provider - used as fallback if Brevo fails
+    """Resend email provider - primary; email_queue falls back to Brevo on 429/failure
 
     Features:
     - Resend official API (https://resend.com)

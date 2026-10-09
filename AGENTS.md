@@ -1,8 +1,8 @@
 # AGENTS.md - Guia Operacional para Agentes de IA
 
-Last Updated: 2026-08-26 (correcao de docs divergentes do codigo: Porta usa polling e nao
-WebSocket; pilha Prometheus/Grafana removida (I-03); cadeia de migracoes atualizada ate a 054.
-Plano de execucao vigente: docs/plano-execucao.md)
+Last Updated: 2026-10-09 (varredura R-02: head `093_sessao_contas_verificadas`, plano `escalas` com rotas
+desde o AM-18; estado atual em §11, Area do Medium em §11.23. Planos vigentes: docs/plano-execucao.md,
+docs/plano-benchmark-2026-10.md e docs/plano-area-do-medium.md)
 Project: Senhas / GiraHub - Multi-Tenant SaaS para emissão de tickets
 Repository: leonfpontes/Senhas
 Default Branch: master
@@ -818,8 +818,9 @@ Backend:
   A suite apaga o schema do banco apontado: so roda com `INTEGRATION_PG=1` e recusa banco cujo nome nao
   termine em `_test`. Sem a flag, os arquivos nem sao coletados. Ler sempre numa sessao nova
   (`AsyncSessionLocal()`), nunca reler objetos expirados da sessao do teste (MissingGreenlet).
-  Testes `xfail` estritos marcam furos conhecidos (Q-05): quando o item for feito, o teste passa,
-  o build quebra e o marcador deve ser removido.
+  Furo conhecido ainda sem correção entra como `xfail(strict=True)`: quando o item for feito, o teste
+  passa, o build quebra e o marcador deve ser removido. Hoje (2026-10-09) não há nenhum xfail (os do Q-04 e
+  do Q-05 já saíram). Mapa das suítes em `docs/testing.md`.
 
 Frontend:
 - Testes de componentes/paginas afetadas.
@@ -892,7 +893,7 @@ Incluir obrigatoriamente:
 - docs/email.md
 - docs/testing.md
 - docs/deployment.md
-- RELEASE.md
+- `frontend/src/constants/releaseNotes.ts` — notas de cada versão (o RELEASE.md da raiz virou ponteiro)
 
 ---
 
@@ -1009,7 +1010,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `092_mensalidade_comprovantes` (2026-10-09, pagamento parcial: tabela `mensalidade_comprovantes` —
+- Head atual: `093_sessao_contas_verificadas` (2026-10-09, trocar de terreiro sem sair: `user_sessions.verified_accounts`
+  JSONB nula — contas do mesmo e-mail com senha conferida neste login; downgrade so remove a coluna), apos
+  `092_mensalidade_comprovantes` (2026-10-09, pagamento parcial: tabela `mensalidade_comprovantes` —
   varios comprovantes por mes, `origem` medium|painel, `valor_informado`, `status` em_conferencia|conferido|
   nao_confirmado, `valor_conferido`, `motivo`, indice parcial da fila; migracao de dados do slot unico de
   `mensalidade_pagamentos` (colunas antigas ficam, sem escrita nova); downgrade devolve o mais recente ao slot),
@@ -1567,7 +1570,9 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `user_sessions.verified_accounts`; regras em §3.2).
 - **Atividades da casa (AM-08)**: migracoes `077_permissao_escalas_enum` + `078_atividades` (§11.8; tabelas em
   `docs/database.md`), API `/api/v1/admin/atividades*` (ESCALAS + `area_medium` + `atividades_corrente`; regras em
-  §3.3 e `docs/api.md` §15), planos `atividades_corrente` (Basic) e `escalas` (Pro, sem rota ainda) no catalogo e
+  §3.3 e `docs/api.md` §15), planos `atividades_corrente` (Basic) e `escalas` (Pro; rotas desde o AM-18/AM-25/AM-27:
+  `atividades_escala.py`, `escala_planos.py`, `atividades_trocas.py`, `medium/trocas.py` e o agrupamento por grupo da
+  assiduidade) no catalogo e
   em `constants/plans.ts` (ambos em `UNSOLD_FEATURES` no piloto). Icone = chave de lista fechada
   (`constants/atividades.ts` + desenho em `lib/icons.ts` → `ICONES_DE_ATIVIDADE`, CHECK no banco); cor = paleta
   dos grupos ou `null` (cor do terreiro). Painel: `/admin/atividades` (menu Corrente → "Atividades e escalas",

@@ -1,6 +1,6 @@
 # Plano da Área do Médium (outubro/2026)
 
-Criado: 2026-10-07 · Status: **em produção em piloto** (entrega 2.3.0 completa e parte da 2.4.0 — ver §11.0) · Prefixo dos cards: **AM-**
+Criado: 2026-10-07 · Status: **em produção em piloto** (cards AM-00 a AM-29 com código no master desde 2026-10-09; falta ação do dono e o teste da mensalidade automática com uma casa — ver §11.0) · Prefixo dos cards: **AM-**
 
 Histórico:
 - 2026-10-07 (v1): plano inicial, cards AM-01 a AM-24.
@@ -1452,7 +1452,7 @@ com a presença. Conversa com o N-06 (check-in do consulente por QR).
 
 ## 11. Ordem de execução
 
-### 11.0 Status de implementação (atualizado em 2026-10-08)
+### 11.0 Status de implementação (atualizado em 2026-10-09)
 
 Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a plataforma ligou a chave do piloto
 (`tenants.area_medium_liberada`, Tenant 360) e com plano Basic ou superior (D-30).
@@ -1487,14 +1487,16 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-27 Troca na escala e abono de justificativa | #106 | 086 | 2026-10-08 |
 | AM-21 Estudos e documentos | #107 | 087 | 2026-10-08 |
 | F-05 Ficha espiritual (painel) + AM-19 Minha caminhada | #109 | 088, 089 | 2026-10-08 |
-| AM-22 Mensalidade com baixa automática (F-02 — Stripe Connect) | #114 | 091 | — |
-| AM-22 Mensalidade com baixa automática — Mercado Pago (OAuth) | #115 | — (usa as colunas `mp_*` da 091) | — |
-| Pagamento parcial da mensalidade | este PR | 092 | — |
+| AM-22 Mensalidade com baixa automática (F-02 — Stripe Connect) | #114 | 091 | 2026-10-09 (aguarda Stripe Connect na conta da plataforma e teste com casa piloto) |
+| AM-22 Mensalidade com baixa automática — Mercado Pago (OAuth) | #115 | — (usa as colunas `mp_*` da 091) | 2026-10-09 (credenciais configuradas em 09/10; aguarda teste com casa piloto) |
+| Pagamento parcial da mensalidade (vários comprovantes, QR do valor que falta) | #116 | 092 | 2026-10-09 |
+| Visual de aplicativo da Área (componentes do shadcn) | #113 | — | 2026-10-09 |
+| Trocar de terreiro sem sair da conta (complemento do AM-05) | #118 | 093 | 2026-10-09 |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-22 em PR (F-01 decidido em 09/10: cada casa escolhe Stripe Connect ou Mercado Pago).
+**Falta:** nada de código do plano. Ação do dono: ligar a chave da divulgação (AM-24) quando a Área sair do piloto; AM-22 — ativar o Stripe Connect na conta da plataforma e testar a cobrança com uma casa piloto (F-01 decidido em 09/10: cada casa escolhe Stripe Connect ou Mercado Pago).
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 
