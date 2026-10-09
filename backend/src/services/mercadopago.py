@@ -33,8 +33,10 @@ https://www.mercadopago.com.br/developers/pt/docs/your-integrations/notification
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
+import json
 import logging
 import secrets
 import uuid
@@ -45,7 +47,6 @@ from typing import Any, Optional
 from urllib.parse import urlencode
 
 import httpx
-import jwt
 
 from src.core import secret_box
 from src.core.config import settings
@@ -96,28 +97,53 @@ class EstadoOAuth:
     user_id: uuid.UUID
 
 
+def _chave_state() -> bytes:
+    # Chave própria do state (derivada da SECRET_KEY): o state nunca é um JWT, então não passa pelo
+    # decode do login (T-02 — só `core/security_jwt.py` assina tokens).
+    return hashlib.sha256(b"girahub:mp-oauth-state:" + settings.SECRET_KEY.encode()).digest()
+
+
+def _b64(dados: bytes) -> str:
+    return base64.urlsafe_b64encode(dados).rstrip(b"=").decode()
+
+
+def _unb64(texto: str) -> bytes:
+    return base64.urlsafe_b64decode(texto + "=" * (-len(texto) % 4))
+
+
 def criar_state(tenant_id: uuid.UUID, user_id: uuid.UUID) -> str:
     agora = datetime.now(timezone.utc)
-    return jwt.encode(
-        {
-            "type": STATE_TYPE,
-            "tid": str(tenant_id),
-            "uid": str(user_id),
-            "n": secrets.token_urlsafe(12),
-            "iat": agora,
-            "exp": agora + STATE_TTL,
-        },
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM,
+    corpo = _b64(
+        json.dumps(
+            {
+                "type": STATE_TYPE,
+                "tid": str(tenant_id),
+                "uid": str(user_id),
+                "n": secrets.token_urlsafe(12),
+                "exp": int((agora + STATE_TTL).timestamp()),
+            },
+            separators=(",", ":"),
+        ).encode()
     )
+    assinatura = _b64(hmac.new(_chave_state(), corpo.encode(), hashlib.sha256).digest())
+    return f"{corpo}.{assinatura}"
 
 
 def ler_state(state: str) -> Optional[EstadoOAuth]:
-    """Valida assinatura, validade e tipo. Inválido → None."""
+    """Valida assinatura (HMAC), validade e tipo. Inválido → None."""
     try:
-        payload = jwt.decode(state, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        corpo, assinatura = state.split(".", 1)
+        esperado = _b64(hmac.new(_chave_state(), corpo.encode(), hashlib.sha256).digest())
+        if not hmac.compare_digest(assinatura, esperado):
+            return None
+        payload = json.loads(_unb64(corpo))
         if payload.get("type") != STATE_TYPE:
             return None
+        if int(payload["exp"]) < int(datetime.now(timezone.utc).timestamp()):
+            return None
+        return EstadoOAuth(tenant_id=uuid.UUID(payload["tid"]), user_id=uuid.UUID(payload["uid"]))
+    except (KeyError, ValueError, TypeError, AttributeError):
+        return None
         return EstadoOAuth(tenant_id=uuid.UUID(payload["tid"]), user_id=uuid.UUID(payload["uid"]))
     except (jwt.PyJWTError, KeyError, ValueError, TypeError):
         return None
