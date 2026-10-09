@@ -64,14 +64,14 @@ export function ColegasDeEscala({ somenteLeitura = false }: { somenteLeitura?: b
   const id = 'mostrar-nome-colegas';
   return (
     <section className="flex flex-col gap-2" data-testid="perfil-colegas-escala" aria-label="Colegas de escala">
-      <h2 className="flex items-center gap-2 px-1 font-display text-xl font-bold">
+      <h2 className="flex items-center gap-2 px-1 text-base font-semibold">
         <Users className="size-4 text-muted-foreground" aria-hidden />
         Colegas de escala
       </h2>
-      <div className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xs">
         <div className="flex min-h-16 items-center gap-3 px-4 py-3">
           <label htmlFor={id} className="flex min-w-0 flex-1 flex-col">
-            <strong className="text-base leading-snug">Mostrar meu primeiro nome para os colegas de escala</strong>
+            <strong className="text-base leading-snug font-semibold">Mostrar meu primeiro nome para os colegas de escala</strong>
             <span className="text-sm text-muted-foreground">
               Assim um colega que precisa trocar a escala pode pedir para você ir no lugar dele.
             </span>

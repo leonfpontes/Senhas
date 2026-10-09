@@ -50,7 +50,7 @@ export interface CrudDrawerProps {
   error?: string | null;
   /**
    * Classes extras no painel e na confirmação de descarte (os dois vão para o <body> por portal).
-   * A Área do Médium passa a paleta `.medium-terra` + a fonte Fraunces.
+   * A Área do Médium passa a paleta `.medium-terra`.
    */
   className?: string;
 }

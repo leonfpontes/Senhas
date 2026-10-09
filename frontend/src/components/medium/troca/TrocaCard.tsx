@@ -19,7 +19,7 @@ import { estaImpersonando, mensagemDoErro } from '@/components/medium/presenca/p
 import { acaoTroca } from './trocaApi';
 
 const CARD =
-  'flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm';
+  'flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-card-foreground shadow-xs';
 
 const TOM: Record<ReturnType<typeof tomDaTroca>, string> = {
   brand: 'bg-primary/15 text-brand',
@@ -66,14 +66,14 @@ export function TrocaCard({ troca, comAtividade = false, onAtualizado }: TrocaCa
   const href = `/medium/agenda/${t.atividade.origem}/${encodeURIComponent(t.atividade.id)}`;
   return (
     <article className={CARD} data-testid="troca-card">
-      <p className="flex items-center gap-1.5 text-sm font-bold text-brand">
+      <p className="flex items-center gap-1.5 text-sm font-semibold text-brand">
         <ArrowRightLeft className="size-4" aria-hidden />
         {t.papel === 'para_mim' ? 'Pedido de troca' : 'Sua troca na escala'}
       </p>
       {comAtividade && (
         <div className="min-w-0">
-          <h3 className="font-display text-xl leading-tight font-semibold">{t.atividade.titulo}</h3>
-          <p className="text-base text-muted-foreground first-letter:uppercase">{quandoBr(t.atividade.inicio)}</p>
+          <h3 className="text-lg leading-snug font-semibold">{t.atividade.titulo}</h3>
+          <p className="text-sm text-muted-foreground first-letter:uppercase">{quandoBr(t.atividade.inicio)}</p>
         </div>
       )}
       {(t.funcao || t.grupo) && (
@@ -86,7 +86,7 @@ export function TrocaCard({ troca, comAtividade = false, onAtualizado }: TrocaCa
       </p>
       {t.papel === 'para_mim' && t.recado && t.pode_aceitar && (
         <p className="text-base">
-          <span className="font-bold">Recado:</span> {t.recado}
+          <span className="font-semibold">Recado:</span> {t.recado}
         </p>
       )}
       {!leitura && t.pode_aceitar && (
@@ -94,7 +94,7 @@ export function TrocaCard({ troca, comAtividade = false, onAtualizado }: TrocaCa
           <Button
             type="button"
             size="touch"
-            className="font-bold"
+            className="font-semibold"
             disabled={enviando !== null}
             onClick={() => void agir('aceitar')}
           >
@@ -105,7 +105,7 @@ export function TrocaCard({ troca, comAtividade = false, onAtualizado }: TrocaCa
             type="button"
             size="touch"
             variant="outline"
-            className="font-bold"
+            className="font-semibold"
             disabled={enviando !== null}
             onClick={() => void agir('recusar')}
           >
@@ -119,7 +119,7 @@ export function TrocaCard({ troca, comAtividade = false, onAtualizado }: TrocaCa
           type="button"
           size="touch"
           variant="outline"
-          className="w-full font-bold"
+          className="w-full font-semibold"
           disabled={enviando !== null}
           onClick={() => void agir('cancelar')}
         >
@@ -130,7 +130,7 @@ export function TrocaCard({ troca, comAtividade = false, onAtualizado }: TrocaCa
       {comAtividade && (
         <Link
           href={href}
-          className="inline-flex min-h-12 items-center gap-1.5 self-start font-bold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="inline-flex min-h-12 items-center gap-1.5 self-start font-semibold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
           Ver detalhes <ArrowRight className="size-4" aria-hidden />
         </Link>

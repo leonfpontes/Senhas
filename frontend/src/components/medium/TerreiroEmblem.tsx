@@ -18,7 +18,7 @@ export function TerreiroEmblem({ nome, logoUrl, className }: TerreiroEmblemProps
   useEffect(() => setFailed(false), [logoUrl]);
   const initial = (nome || 'T').trim().charAt(0).toUpperCase();
   return (
-    <Avatar className={cn('size-10 shrink-0 bg-card ring-2 ring-primary/40', className)}>
+    <Avatar className={cn('size-10 shrink-0 bg-card ring-1 ring-border', className)}>
       {logoUrl && !failed && (
         <AvatarImage
           src={logoUrl}
@@ -28,7 +28,7 @@ export function TerreiroEmblem({ nome, logoUrl, className }: TerreiroEmblemProps
         />
       )}
       <AvatarFallback
-        className="bg-primary font-display text-lg font-bold text-primary-foreground"
+        className="bg-primary text-base font-semibold text-primary-foreground"
         aria-hidden
       >
         {initial}

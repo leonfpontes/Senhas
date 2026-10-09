@@ -92,9 +92,9 @@ describe('manifest-medium.webmanifest', () => {
     for (const s of medium.shortcuts ?? []) expect(s.url.startsWith('/medium/')).toBe(true);
   });
 
-  it('tem as cores claras da Área (cabeçalho branco, fundo areia-50), também na barra do navegador', () => {
+  it('tem as cores claras da Área (cabeçalho branco, fundo cinza-claro), também na barra do navegador', () => {
     expect(medium.theme_color).toBe('#ffffff');
-    expect(medium.background_color).toBe('#fcf8f2');
+    expect(medium.background_color).toBe('#f4f5f7');
     const doc = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'pages', '_document.tsx'), 'utf8');
     expect(doc).toContain(`content={barraClara ? '${medium.theme_color}' : '${manifest.theme_color}'}`);
   });

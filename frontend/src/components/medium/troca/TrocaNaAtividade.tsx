@@ -62,7 +62,7 @@ export function TrocaNaAtividade({ origem, id, onMudou }: TrocaNaAtividadeProps)
             type="button"
             variant="outline"
             size="touch"
-            className="w-full font-bold"
+            className="w-full font-semibold"
             onClick={() => setAberto(true)}
           >
             <ArrowRightLeft aria-hidden />

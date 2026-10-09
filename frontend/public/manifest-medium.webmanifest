@@ -10,7 +10,7 @@
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#ffffff",
-  "background_color": "#fcf8f2",
+  "background_color": "#f4f5f7",
   "categories": ["lifestyle", "social"],
   "prefer_related_applications": false,
   "icons": [

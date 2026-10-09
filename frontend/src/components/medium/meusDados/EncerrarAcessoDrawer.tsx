@@ -10,9 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { DoorOpen } from 'lucide-react';
 import CrudDrawer from '@/components/CrudDrawer';
 import { PasswordField } from '@/components/fields';
-import { fraunces } from '@/components/landing/fonts';
 import { apiClient, type ApiRequestConfig } from '@/services/api_client';
-import { cn } from '@/lib/utils';
 import { erroDaApi } from '@/components/medium/perfil/perfil';
 import { ENCERRAR_URL, type EncerrarResposta } from './meusDados';
 
@@ -78,7 +76,7 @@ export function EncerrarAcessoDrawer({ open, casa, temPainel, onClose, onDone }:
       saving={saving}
       isDirty={Boolean(senha)}
       error={error}
-      className={cn(fraunces.variable, 'medium-terra')}
+      className="medium-terra"
     >
       <ul className="flex list-disc flex-col gap-2 pl-5 text-base" data-testid="encerrar-itens">
         {encerrarItens(casa, temPainel).map((t) => (

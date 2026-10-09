@@ -2,10 +2,10 @@
  * MediumLayout — casca da Área do Médium (AM-06). Toda página em `src/pages/medium/` usa este
  * layout (scripts/audit-permission-guards.js exige).
  *
- * Identidade: a do site novo, CLARA como a landing (paleta "terra": fundo areia, cartões
- * brancos, texto tinta, ouro nos detalhes e títulos em Fraunces — classe `.medium-terra` em
- * globals.css) com a cor e o logo do terreiro nos detalhes: logo no cabeçalho, linha da marca
- * embaixo dele, botão principal, aba ativa e datas (`applyBrand`, via MediumProvider). Sempre
+ * Identidade (out/2026): visual de aplicativo, neutro e claro — fundo cinza bem claro, cartões
+ * brancos, sem serifa (classe `.medium-terra` em globals.css; peças de tela em `./ui`) — com a cor
+ * e o logo do terreiro como destaque: logo no cabeçalho, botão principal, aba ativa (pílula atrás
+ * do ícone), cartão da próxima gira e datas (`applyBrand`, via MediumProvider). Sempre
  * clara (out/2026, o dono achou a Área "muito escura" no celular em modo escuro): não segue o
  * escuro do sistema e tira a classe `dark` de <html> enquanto está na Área (`useAreaClara`).
  * Celular primeiro: uma coluna, alvos de 48px+, barra inferior Início · Agenda · Avisos ·
@@ -38,7 +38,6 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
-import { fraunces } from '@/components/landing/fonts';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -156,7 +155,7 @@ function TabBar({
     <nav
       aria-label="Menu da Área do Médium"
       data-testid="medium-tab-bar"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_8px_rgb(43_29_20/0.06)] backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
     >
       <ul className={cn('mx-auto grid max-w-xl', GRID_COLS[tabs.length] ?? 'grid-cols-5')}>
         {tabs.map(({ href, label, icon: Icon }) => {
@@ -171,24 +170,23 @@ function TabBar({
                 href={href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'relative flex min-h-[62px] flex-col items-center justify-center gap-1 px-0.5 text-xs leading-tight outline-none',
+                  'relative flex min-h-16 flex-col items-center justify-center gap-1 px-0.5 text-xs leading-tight outline-none',
                   'focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                  active ? 'font-bold text-brand' : 'font-medium text-muted-foreground',
+                  active ? 'font-semibold text-brand' : 'font-medium text-muted-foreground',
                 )}
               >
-                {active && (
-                  <span
-                    aria-hidden
-                    className="absolute inset-x-[24%] top-0 h-[3px] rounded-b-sm bg-primary"
-                  />
-                )}
-                <span className="relative">
-                  <Icon className="size-6" aria-hidden />
+                <span
+                  className={cn(
+                    'relative flex h-8 w-14 items-center justify-center rounded-full transition-colors',
+                    active && 'bg-primary/10',
+                  )}
+                >
+                  <Icon className="size-[22px]" strokeWidth={active ? 2.25 : 1.75} aria-hidden />
                   {badge > 0 && (
                     <span
                       aria-hidden
                       data-testid="medium-tab-badge"
-                      className="absolute -top-1.5 -right-2.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] leading-none font-bold text-primary-foreground ring-2 ring-card"
+                      className="absolute -top-1 right-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1 text-[11px] leading-none font-bold text-destructive-foreground ring-2 ring-card"
                     >
                       {badge > 9 ? '9+' : badge}
                     </span>
@@ -225,10 +223,7 @@ function Shell({
   return (
     <div
       data-slot="medium-layout"
-      className={cn(
-        fraunces.variable,
-        'medium-terra flex min-h-dvh flex-col bg-background text-foreground',
-      )}
+      className="medium-terra flex min-h-dvh flex-col bg-background text-foreground antialiased"
     >
       <Head>
         <title>{`${title} · Área do Médium`}</title>
@@ -240,14 +235,14 @@ function Shell({
       >
         Pular para o conteúdo
       </a>
-      <header className="sticky top-0 z-30 border-b-[3px] border-primary bg-card/95 shadow-[0_1px_8px_rgb(43_29_20/0.06)] backdrop-blur">
-        <div className="mx-auto flex min-h-16 max-w-xl items-center gap-3 px-4 py-2.5">
-          <TerreiroEmblem nome={terreiro} logoUrl={logoUrl} />
+      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-xl items-center gap-3 px-4">
+          <TerreiroEmblem nome={terreiro} logoUrl={logoUrl} className="size-9" />
           <div className="min-w-0 flex-1">
-            <p className="truncate font-display text-[1.06rem] leading-tight font-semibold">
+            <p className="truncate text-base leading-tight font-semibold">
               {terreiro || 'Área do Médium'}
             </p>
-            <p className="truncate text-sm text-muted-foreground">{title}</p>
+            {terreiro && <p className="truncate text-xs text-muted-foreground">Área do Médium</p>}
           </div>
           {menu}
         </div>
@@ -322,16 +317,16 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="touch"
-          className="shrink-0 gap-2 px-3 font-bold"
+          className="-mr-2 shrink-0 gap-2 px-3 font-semibold"
           data-testid="medium-menu"
         >
           <Menu aria-hidden />
           Menu
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={cn(fraunces.variable, 'medium-terra min-w-60')}>
+      <DropdownMenuContent align="end" className="medium-terra min-w-60">
         {temPainel && (
           <>
             <DropdownMenuItem

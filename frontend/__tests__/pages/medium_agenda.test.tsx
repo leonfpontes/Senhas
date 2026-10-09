@@ -436,15 +436,15 @@ describe('Módulo da agenda', () => {
     const { unmount } = renderApp(<Page />);
     const card = await screen.findByTestId('proxima-gira');
     expect(within(card).getByText('Roupa branca e guias.')).toBeInTheDocument();
-    expect(within(card).getByRole('link', { name: /Ver detalhes da gira/ })).toHaveAttribute(
-      'href',
-      '/medium/agenda/gira/g1',
-    );
+    // O cartão inteiro é o link (visual de app, out/2026).
+    expect(screen.getByRole('link', { name: /Ver detalhes da gira/ })).toBe(card);
+    expect(card).toHaveAttribute('href', '/medium/agenda/gira/g1');
     unmount();
 
     api({ '/api/v1/medium/me': { ...ME, modulos: ['avisos'] }, '/api/v1/medium/inicio': inicio });
     renderApp(<Page />);
     const card2 = await screen.findByTestId('proxima-gira');
-    await waitFor(() => expect(within(card2).queryByRole('link')).not.toBeInTheDocument());
+    await waitFor(() => expect(card2.tagName).toBe('ARTICLE'));
+    expect(screen.queryByRole('link', { name: /Ver detalhes da gira/ })).not.toBeInTheDocument();
   });
 });

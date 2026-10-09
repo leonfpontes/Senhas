@@ -7,9 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { AtSign } from 'lucide-react';
 import CrudDrawer from '@/components/CrudDrawer';
 import { PasswordField, TextField } from '@/components/fields';
-import { fraunces } from '@/components/landing/fonts';
 import { apiClient, type ApiRequestConfig } from '@/services/api_client';
-import { cn } from '@/lib/utils';
 import { PERFIL_URL, erroDaApi } from './perfil';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -84,7 +82,7 @@ export function TrocarEmailDrawer({ open, emailAtual, onClose, onSent }: TrocarE
       saving={saving}
       isDirty={Boolean(email || senha)}
       error={error}
-      className={cn(fraunces.variable, 'medium-terra')}
+      className="medium-terra"
     >
       <p className="text-sm text-muted-foreground">
         E-mail de acesso agora: <strong className="text-foreground">{emailAtual}</strong>

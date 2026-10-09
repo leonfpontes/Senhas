@@ -9,11 +9,9 @@ import { Loader2, Search, UserRound } from 'lucide-react';
 import CrudDrawer from '@/components/CrudDrawer';
 import { DateField, MaskedInput, TextField, maskTelefone, unmask } from '@/components/fields';
 import { Button } from '@/components/ui/button';
-import { fraunces } from '@/components/landing/fonts';
 import { apiClient } from '@/services/api_client';
 import { buscarCep, CepInvalido, maskCep } from '@/lib/cep';
 import { toIsoDate } from '@/lib/dateIso';
-import { cn } from '@/lib/utils';
 import { PERFIL_URL, erroDaApi, type MediumPerfil } from './perfil';
 
 interface Form {
@@ -132,7 +130,7 @@ export function MeusDadosDrawer({ open, perfil, onClose, onSaved }: MeusDadosDra
       saveDisabled={!isDirty}
       isDirty={isDirty}
       error={error}
-      className={cn(fraunces.variable, 'medium-terra')}
+      className="medium-terra"
     >
       <MaskedInput
         mask="telefone"

@@ -171,31 +171,32 @@
   --ring: var(--color-barro-600);
 }
 
-/* Área do Médium (/medium/*, /escolher-area — `components/medium/MediumLayout`, AM-06): mesma
- * paleta "terra" do site, CLARA como a landing (fundo areia-50, cartões brancos, caixas e faixa
- * de abertura areia-100, texto tinta, ouro nos detalhes, Fraunces), com a COR DO TERREIRO nos
- * detalhes. Diferente do `.auth-terra`, NÃO redefine `--primary`/`--primary-foreground`: elas vêm
- * do applyBrand() (botão principal, aba ativa, data da gira, linha do cabeçalho). O texto na cor
- * da marca (`text-brand`) usa `--terra-brand-text-light`, calculada por applyTerraBrandText()
- * (lib/brand.ts) contra as superfícies terra; sem ela, barro-700. Sempre clara (out/2026 — o dono
- * achou a Área "muito escura" seguindo o modo escuro do celular): não há variante `.dark`, e o
- * MediumLayout tira a classe `dark` de <html> enquanto a Área está aberta (`useAreaClara`).
- * Pares em __tests__/styles/marketingContrast.test.ts. Só na Área: nunca no painel. */
+/* Área do Médium (/medium/*, /escolher-area — `components/medium/MediumLayout`, AM-06): visual de
+ * aplicativo, NEUTRO e claro (out/2026 — o dono achou a paleta areia + Fraunces "com cara de IA" e
+ * pediu algo mais perto dos apps de terreiro da concorrência): fundo cinza bem claro, cartões
+ * brancos, caixas cinza, texto quase preto, sem serifa, com a COR DO TERREIRO como única cor de
+ * destaque. O nome da classe é histórico (era a paleta "terra" da landing). NÃO redefine
+ * `--primary`/`--primary-foreground`: vêm do applyBrand() (botão principal, aba ativa, cartão da
+ * próxima gira, datas). O texto na cor da marca (`text-brand`) usa `--terra-brand-text-light`,
+ * calculada por applyTerraBrandText() (lib/brand.ts) contra estas superfícies; sem ela, tinta (quase preto).
+ * Sempre clara: não há variante `.dark`, e o MediumLayout tira a classe `dark` de <html> enquanto
+ * a Área está aberta (`useAreaClara`). Pares em __tests__/styles/marketingContrast.test.ts
+ * (superfícies espelhadas em TERRA_SURFACES). Só na Área: nunca no painel. */
 .medium-terra {
-  --background: var(--color-areia-50);
-  --foreground: var(--color-tinta);
+  --background: #f4f5f7;
+  --foreground: #111827;
   --card: #ffffff;
-  --card-foreground: var(--color-tinta);
+  --card-foreground: #111827;
   --popover: #ffffff;
-  --popover-foreground: var(--color-tinta);
-  --border: var(--color-areia-200);
-  --input: color-mix(in srgb, var(--color-tinta-suave) 65%, #ffffff);
+  --popover-foreground: #111827;
+  --border: #e4e7ec;
+  --input: color-mix(in srgb, #4b5563 65%, #ffffff);
   --input-bg: #ffffff;
-  --muted: var(--color-areia-100);
-  --muted-foreground: var(--color-tinta-suave);
-  --accent: var(--color-areia-100);
-  --accent-foreground: var(--color-tinta);
-  --primary-text: var(--terra-brand-text-light, var(--color-barro-700));
+  --muted: #eef0f3;
+  --muted-foreground: #4b5563;
+  --accent: #eef0f3;
+  --accent-foreground: #111827;
+  --primary-text: var(--terra-brand-text-light, var(--color-tinta));
   --ring: var(--primary);
 }
 

@@ -1,7 +1,7 @@
 /**
- * DataChip — caixinha de data da Agenda (dia grande + mês curto), na cor do terreiro
- * (`bg-primary`/`text-primary-foreground`, contraste calculado pelo `applyBrand`). Item que já
- * aconteceu fica neutro (`bg-muted`), sem opacidade (não perde contraste).
+ * DataChip — caixinha de data da Agenda (dia grande + mês curto), no tom suave da cor do terreiro
+ * (`bg-primary/10 text-brand`, par travado nos testes de contraste). Item que já aconteceu fica
+ * neutro (`bg-muted`), sem opacidade (não perde contraste).
  */
 import React from 'react';
 import { cn } from '@/lib/utils';
@@ -13,13 +13,13 @@ export function DataChip({ iso, passado = false, className }: { iso: string; pas
     <span
       aria-hidden
       className={cn(
-        'flex w-14 shrink-0 flex-col items-center rounded-2xl py-1.5',
-        passado ? 'bg-muted text-foreground' : 'bg-primary text-primary-foreground',
+        'flex w-12 shrink-0 flex-col items-center justify-center self-start rounded-xl py-1.5',
+        passado ? 'bg-muted text-foreground' : 'bg-primary/10 text-brand',
         className,
       )}
     >
-      <b className="font-display text-2xl leading-none">{dia}</b>
-      <small className="text-xs font-extrabold tracking-wider uppercase">{mes}</small>
+      <b className="text-xl leading-none font-semibold tabular-nums">{dia}</b>
+      <small className="mt-0.5 text-xs font-medium">{mes}</small>
     </span>
   );
 }

@@ -9,10 +9,8 @@ import { KeyRound } from 'lucide-react';
 import CrudDrawer from '@/components/CrudDrawer';
 import { PasswordField } from '@/components/fields';
 import { PasswordRules } from '@/components/auth';
-import { fraunces } from '@/components/landing/fonts';
 import { apiClient, type ApiRequestConfig } from '@/services/api_client';
 import { passwordError } from '@/constants/passwordPolicy';
-import { cn } from '@/lib/utils';
 import { PERFIL_URL, erroDaApi } from './perfil';
 
 export interface TrocarSenhaDrawerProps {
@@ -80,7 +78,7 @@ export function TrocarSenhaDrawer({ open, onClose, onDone }: TrocarSenhaDrawerPr
       saving={saving}
       isDirty={Boolean(atual || nova || confirma)}
       error={error}
-      className={cn(fraunces.variable, 'medium-terra')}
+      className="medium-terra"
     >
       <PasswordField
         label="Senha atual"

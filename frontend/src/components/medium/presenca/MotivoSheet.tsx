@@ -70,7 +70,7 @@ export function MotivoSheet({
       data-testid="motivo-sheet"
     >
       <div className="flex flex-col gap-2">
-        <Label htmlFor="presenca-motivo" className="text-base font-bold">
+        <Label htmlFor="presenca-motivo" className="text-base font-semibold">
           Conte o motivo{obrigatorio ? '' : ' (se quiser)'}
         </Label>
         <Textarea
@@ -101,7 +101,7 @@ export function MotivoSheet({
         <Button
           type="button"
           size="touch"
-          className="w-full font-bold"
+          className="w-full font-semibold"
           disabled={enviando || (obrigatorio && vazio)}
           onClick={() => void enviar()}
         >
@@ -112,7 +112,7 @@ export function MotivoSheet({
           type="button"
           variant="outline"
           size="touch"
-          className="w-full font-bold"
+          className="w-full font-semibold"
           onClick={() => onOpenChange(false)}
         >
           Cancelar

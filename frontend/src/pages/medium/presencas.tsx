@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { ArrowLeft, CalendarCheck, MessageSquareText, TriangleAlert } from 'lucide-react';
 import { MediumLayout } from '@/components/medium/MediumLayout';
 import { DataChip } from '@/components/medium/DataChip';
+import { MediumPage, MediumPageHeader, MediumSection } from '@/components/medium/ui';
 import { detalheHref } from '@/components/medium/agenda';
 import { quandoBr } from '@/components/medium/format';
 import { EscalaCard } from '@/components/medium/presenca/EscalaCard';
@@ -35,8 +36,6 @@ import {
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/services/api_client';
 
-const SECTION_TITLE = 'text-xs font-extrabold tracking-[0.16em] text-brand uppercase';
-
 export default function MediumPresencasPage() {
   return (
     <MediumLayout title="Minhas presenças">
@@ -56,12 +55,12 @@ function Historico({
   if (!p) return null;
   const prazo = prazoTexto(p);
   return (
-    <li className="flex items-start gap-3 rounded-2xl border border-border bg-card p-3 text-card-foreground shadow-sm">
+    <li className="flex items-start gap-3 border-b border-border px-4 py-3.5 last:border-b-0">
       <DataChip iso={item.inicio} passado />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <Link
           href={detalheHref(item)}
-          className="font-display text-lg leading-tight font-semibold underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="text-base leading-snug font-semibold underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
           {item.titulo}
         </Link>
@@ -90,7 +89,7 @@ function Historico({
           <button
             type="button"
             onClick={() => onJustificar(item)}
-            className="inline-flex min-h-12 items-center gap-1.5 self-start font-bold text-brand underline underline-offset-4 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            className="inline-flex min-h-12 items-center gap-1.5 self-start text-sm font-semibold text-brand underline underline-offset-4 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
           >
             <MessageSquareText className="size-4" aria-hidden />
             {p.justificativa ? 'Mudar o motivo' : 'Conte o motivo'}
@@ -127,19 +126,14 @@ function Presencas() {
 
   const resumo = data?.resumo;
   return (
-    <div className="flex flex-col gap-5 px-4 pt-4 pb-8">
+    <MediumPage>
       <Link
         href="/medium/perfil"
-        className="inline-flex min-h-12 items-center gap-1.5 self-start font-bold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="-my-2 inline-flex min-h-12 items-center gap-1.5 self-start text-sm font-semibold text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
-        <ArrowLeft className="size-5" aria-hidden /> Voltar para o perfil
+        <ArrowLeft className="size-4" aria-hidden /> Voltar para o perfil
       </Link>
-      <div>
-        <h1 className="font-display text-[1.75rem] leading-tight font-bold tracking-tight">
-          Minhas presenças
-        </h1>
-        <p className="text-base text-muted-foreground">Últimos 3 meses</p>
-      </div>
+      <MediumPageHeader title="Minhas presenças" description="Últimos 3 meses" />
 
       {erro === 'indisponivel' ? (
         <EmptyState
@@ -155,23 +149,23 @@ function Presencas() {
           title="Não conseguimos carregar suas presenças"
           description="Confira a internet e tente de novo."
           action={
-            <Button type="button" size="touch" className="font-bold" onClick={recarregar}>
+            <Button type="button" size="touch" className="font-semibold" onClick={recarregar}>
               Tentar de novo
             </Button>
           }
         />
       ) : !data || !resumo ? (
         <div className="flex flex-col gap-3" role="status" aria-label="Carregando suas presenças">
-          <Skeleton className="h-24 w-full rounded-2xl" />
-          <Skeleton className="h-20 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-20 w-full rounded-xl" />
         </div>
       ) : (
         <>
           <article
-            className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm"
+            className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 text-card-foreground shadow-xs"
             data-testid="resumo-presencas"
           >
-            <span className="font-display text-5xl font-bold text-brand tabular-nums">
+            <span className="text-4xl font-semibold tracking-tight text-brand tabular-nums">
               {resumo.percentual != null ? `${resumo.percentual}%` : '—'}
             </span>
             <p className="text-base">
@@ -190,10 +184,7 @@ function Presencas() {
           </article>
 
           {data.proximas.length > 0 && (
-            <section className="flex flex-col gap-2.5" aria-labelledby="titulo-proximas">
-              <h2 id="titulo-proximas" className={SECTION_TITLE}>
-                Próximas escalas
-              </h2>
+            <MediumSection id="titulo-proximas" title="Próximas escalas">
               {data.proximas.map((item) => (
                 <EscalaCard
                   key={`${item.origem}-${item.id}-${item.minha_participacao?.resposta}`}
@@ -202,17 +193,14 @@ function Presencas() {
                   onAtualizado={recarregar}
                 />
               ))}
-            </section>
+            </MediumSection>
           )}
 
-          <section className="flex flex-col gap-2.5" aria-labelledby="titulo-historico">
-            <h2 id="titulo-historico" className={SECTION_TITLE}>
-              Histórico
-            </h2>
+          <MediumSection id="titulo-historico" title="Histórico">
             {data.historico.length === 0 ? (
               <p className="text-base text-muted-foreground">Nada por aqui ainda.</p>
             ) : (
-              <ul className="flex flex-col gap-2.5">
+              <ul className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xs">
                 {data.historico.map((item) => (
                   <Historico
                     key={`${item.origem}-${item.id}`}
@@ -222,7 +210,7 @@ function Presencas() {
                 ))}
               </ul>
             )}
-          </section>
+          </MediumSection>
 
           <p className="text-sm text-muted-foreground">
             Só você e a direção da casa veem suas presenças. Você tem{' '}
@@ -246,6 +234,6 @@ function Presencas() {
           recarregar();
         }}
       />
-    </div>
+    </MediumPage>
   );
 }

@@ -106,7 +106,7 @@ export function AvisoLeitura({ titulo, corpo, fixado, assinatura, tituloAs = 'h1
   return (
     <article className={cn('flex flex-col gap-3.5', className)}>
       {fixado && <FixadoBadge />}
-      <Titulo className="font-display text-[1.6rem] leading-tight font-bold tracking-tight">{titulo}</Titulo>
+      <Titulo className="text-2xl leading-tight font-semibold tracking-tight">{titulo}</Titulo>
       <p className="text-sm text-muted-foreground">{assinatura}</p>
       <AvisoTexto texto={corpo} className="text-[1.0625rem] leading-relaxed" />
     </article>
