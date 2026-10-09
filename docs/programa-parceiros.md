@@ -51,12 +51,13 @@ Leitura: o custo só existe quando o terreiro paga (é custo de aquisição por 
 o terreiro indicado paga preço cheio e não há comissão — em 24 meses o custo cai para 12% da receita de
 tabela. Com o mínimo de R$ 30 para o PIX, um parceiro com um único terreiro Basic recebe a cada ~4 meses.
 
-## Decisões pendentes do dono
+## Decisões do dono
 
-- Aprovar os números (20% desconto × 3 meses; 20% comissão × 12 meses; mínimo R$ 30; dia 10).
-- Comissão sobre o valor bruto pago (como está) ou líquido da taxa do Stripe.
-- Como registrar o pagamento a pessoa física (recibo/RPA) — conferir com a contabilidade.
-- Ligar a chave: `gh variable set NEXT_PUBLIC_PARCEIROS_PUBLICADO --env Hostinger --body true` e redeployar.
+- **2026-10-09: números aprovados** (20% de desconto × 3 meses para o terreiro; 20% de comissão × 12 meses para o
+  parceiro; mínimo R$ 30; pagamento até o dia 10) e **página publicada**: `NEXT_PUBLIC_PARCEIROS_PUBLICADO=true` no
+  ambiente `Hostinger` do GitHub.
+- Ainda em aberto: comissão sobre o valor bruto pago (como está) ou líquido da taxa do Stripe; como registrar o
+  pagamento a pessoa física (recibo/RPA) — conferir com a contabilidade. Cupom continua manual no Stripe até o $-05.
 
 ## Operação (até o $-05)
 

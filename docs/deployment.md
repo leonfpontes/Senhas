@@ -190,6 +190,9 @@ O push (Web Push com VAPID, sem serviço pago) fica **desligado** enquanto as tr
 4. **Validar num celular de verdade**: Perfil da Área → "Notificações no celular" → ligar → "Mandar uma notificação
    de teste" (Android/Chrome e iPhone com a Área na tela inicial, iOS 16.4+).
 
+**Estado:** ligado em produção em 2026-10-09 (par gerado direto na VPS e gravado no `.env`, `chmod 600`; backup
+`.env.bak-vapid-*`).
+
 Cuidados: a chave privada é segredo (só no `.env` da VPS, `chmod 600`). **Não troque o par depois de ligado** —
 as inscrições ficam presas à chave pública e param de receber (o médium precisa ligar de novo). Para desligar o
 push, esvazie as três variáveis e recrie o backend.
