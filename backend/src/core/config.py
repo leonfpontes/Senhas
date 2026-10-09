@@ -83,6 +83,16 @@ class Settings(BaseSettings):
     # Gerar: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     SECRETS_ENCRYPTION_KEY: str = ""
 
+    # Mensalidade com baixa automática pelo Mercado Pago (F-02/AM-22) — aplicação do GiraHub no
+    # painel de Developers do Mercado Pago (OAuth: a casa autoriza e o GiraHub cobra na conta dela).
+    # Sem as quatro (ou sem SECRETS_ENCRYPTION_KEY, que cifra os tokens), a opção não aparece.
+    # REDIRECT_URI = a página do painel que recebe o código (…/admin/financeiro/mercadopago-retorno),
+    # exatamente como cadastrada na aplicação. WEBHOOK_SECRET = "assinatura secreta" dos webhooks.
+    MERCADOPAGO_CLIENT_ID: str = ""
+    MERCADOPAGO_CLIENT_SECRET: str = ""
+    MERCADOPAGO_REDIRECT_URI: str = ""
+    MERCADOPAGO_WEBHOOK_SECRET: str = ""
+
     # Email — Resend (primary)
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = "noreply@girahub.com.br"

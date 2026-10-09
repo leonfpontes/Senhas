@@ -1639,7 +1639,7 @@ Rules:
 ### 24. Mensalidade com baixa automática — conta da casa no gateway (F-02/AM-22)
 
 Each house chooses where it receives (owner decision of 2026-10-09): **Stripe** (Stripe Connect, this
-section) or Mercado Pago (next PR). Screen: Financeiro → Configuração → Mensalidade, card "Receber a
+section) or Mercado Pago (OAuth, below). Screen: Financeiro → Configuração → Mensalidade, card "Receber a
 mensalidade automaticamente" (below the PIX key). Connecting decides where the médiuns' money goes — same
 protection as the PIX key (AM-10): password of who does it (wrong → **400** `SENHA_INCORRETA`, never 401),
 403 while impersonating, 10 attempts/hour per IP, audit `mensalidade_gateway` and an e-mail to **every active
@@ -1683,6 +1683,29 @@ same automatically.
 lost Pro can still disconnect), body `{"senha": "..."}` → same shape as the GET. Stops charging through the
 account (the Área goes back to the static PIX key + receipt); the Stripe account stays the house's. Charges
 already created and paid later still mark the month paid. 409 `SEM_GATEWAY` when nothing is connected.
+
+`POST /api/v1/admin/financeiro/gateway/mercadopago/conectar` (FINANCEIRO `edit` + `mensalidade_automatica`),
+body `{"senha": "..."}` → `{"url": "https://auth.mercadopago.com/authorization?client_id=…&response_type=code&platform_id=mp&state=…&redirect_uri=…"}`.
+`state` is a 10-minute JWT (`type = mp_oauth_state`, tenant + user + nonce) signed with the GiraHub `SECRET_KEY`.
+Errors: 400 `SENHA_INCORRETA`, 409 `PROVEDOR_INDISPONIVEL` (app credentials or `SECRETS_ENCRYPTION_KEY` missing),
+409 `OUTRO_PROVEDOR_CONECTADO`.
+
+`POST /api/v1/admin/financeiro/gateway/mercadopago/callback` (FINANCEIRO `edit` + `mensalidade_automatica`, no
+impersonation) — called by the panel page `/admin/financeiro/mercadopago-retorno` (= `MERCADOPAGO_REDIRECT_URI`) with
+`{"code": "...", "state": "..."}`. The state must belong to the **same tenant and user** (else 400 `STATE_INVALIDO`);
+the code is exchanged at `POST https://api.mercadopago.com/oauth/token` and the house's `access_token` /
+`refresh_token` are stored **only encrypted** (`core/secret_box`). Returns the `gateway` object (`provedor:
+"mercadopago"`, `status: "ativo"`, PIX on, boleto off for now); audit `mensalidade_gateway` and e-mail to every
+active admin. `desconectar` deletes the tokens.
+
+**Webhook — `POST /api/v1/webhooks/mercadopago?data.id=…&type=payment`** (no JWT; same URL for every house, sent as
+`notification_url` on each payment). Checks `x-signature` (`ts=…,v1=…`): `v1` = HMAC-SHA256 hex, key
+`MERCADOPAGO_WEBHOOK_SECRET`, message `id:<data.id lowercased>;request-id:<x-request-id>;ts:<ts>;` → invalid 400. The
+body is never trusted: finds **our** charge by the payment id, fetches `GET /v1/payments/{id}` with that house's
+token (refreshed when < 7 days to expire) and requires `external_reference == our charge id` and `collector_id ==`
+the house's MP user. `approved` → month PAID (`origem = gateway`); `cancelled`/`rejected` → charge `expirada`;
+`refunded`/`charged_back` → `estornada` (the month is not reopened automatically; audited as
+`mensalidade_gateway_estorno`). Idempotent by state (row lock on the charge). MP unreachable → 503 (MP retries).
 
 `GET /api/v1/admin/financeiro/mensalidades/cobrancas?mes=AAAA-MM` (FINANCEIRO `view` + `mensalidade_mediun`) —
 automatic charges of the month, newest first:
@@ -2000,7 +2023,7 @@ becomes `em_conferencia`; the response is the month item. Errors: 422 `COMPROVAN
 exempt), 403 while impersonating, 429 above 20 uploads/hour per IP. Audited as
 `mensalidade_comprovante_medium` with month, type and size only (never the file).
 
-**Automatic payment (F-02/AM-22).** When the house connected a gateway (Stripe today, Mercado Pago next) and the
+**Automatic payment (F-02/AM-22).** When the house connected a gateway (Stripe or Mercado Pago) and the
 plan has `mensalidade_automatica`, `GET /api/v1/medium/mensalidades` returns
 `"cobranca_automatica": {"provedor": "stripe", "provedor_label": "Stripe", "pix": true, "boleto": false}`
 (otherwise `null` — the static key + receipt flow above is untouched) and each month item carries
@@ -2009,7 +2032,9 @@ plan has `mensalidade_automatica`, `GET /api/v1/medium/mensalidades` returns
 **`POST /api/v1/medium/mensalidades/{AAAA-MM}/cobranca`** — body `{"metodo": "pix"}` (default) or
 `{"metodo": "boleto", "cpf": "123.456.789-09", "endereco": {"logradouro": "Rua A, 10", "cidade": "São Paulo",
 "uf": "SP", "cep": "01310-000"}}`. Creates a **direct charge on the house's account** (Stripe PaymentIntent with
-`stripe_account`, no platform fee, PIX valid 24 h, boleto 3 days) for an open month of the logged médium, or reuses
+`stripe_account`, no platform fee, PIX valid 24 h, boleto 3 days — or a Mercado Pago PIX payment with the house's
+OAuth token, `external_reference` = our charge id, valid 24 h; no boleto on Mercado Pago yet) for an open month of
+the logged médium, or reuses
 the pending one while it is valid (same provider/account/value, more than 10 min left). Response:
 ```json
 { "mes": "2026-10", "valor": 50.0, "metodo": "pix", "provedor": "stripe", "provedor_label": "Stripe",

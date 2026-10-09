@@ -4,6 +4,10 @@
     POST /api/v1/admin/financeiro/gateway/stripe/conectar    FINANCEIRO:edit + `mensalidade_automatica`
                                                              + senha + sem impersonação
     POST /api/v1/admin/financeiro/gateway/stripe/atualizar   FINANCEIRO:edit + `mensalidade_automatica`
+    POST /api/v1/admin/financeiro/gateway/mercadopago/conectar   FINANCEIRO:edit + `mensalidade_automatica`
+                                                                 + senha + sem impersonação
+    POST /api/v1/admin/financeiro/gateway/mercadopago/callback   FINANCEIRO:edit + `mensalidade_automatica`
+                                                                 + sem impersonação
     POST /api/v1/admin/financeiro/gateway/desconectar        FINANCEIRO:edit + `mensalidade_mediun`
                                                              + senha + sem impersonação
     GET  /api/v1/admin/financeiro/mensalidades/cobrancas     FINANCEIRO:view + `mensalidade_mediun`
@@ -23,6 +27,13 @@ reaproveita a que já existe) e devolve o link de uso único do cadastro hospeda
 e a tela chama "atualizar" (lê a conta no Stripe); o link vencido cai em `...&stripe=renovar`.
 Desconectar não apaga a conta da casa no Stripe (o dinheiro e o painel continuam dela): o GiraHub
 só para de criar cobranças lá. Cobrança já criada e paga depois ainda dá baixa (webhook).
+
+Mercado Pago (`services/mercadopago.py`, OAuth): "conectar" (com senha) devolve a URL de autorização
+com um `state` assinado (tenant + usuário + nonce, 10 min). O Mercado Pago volta para
+`MERCADOPAGO_REDIRECT_URI` — a página `/admin/financeiro/mercadopago-retorno` do painel, que chama
+"callback" logado: o `state` precisa ser do MESMO tenant e do MESMO usuário que pediu; o código é
+trocado pelos tokens da casa, gravados só cifrados (`core/secret_box`); aí o gateway fica ativo (PIX),
+auditado e os admins recebem o e-mail. Desconectar apaga os tokens.
 
 Desconectar e ver o status ficam no gate `mensalidade_mediun` (a casa que perdeu o plano Pro
 ainda consegue ver e desligar); conectar exige `mensalidade_automatica` (Pro).
@@ -54,7 +65,8 @@ from src.models import Medium, PermissionFeature, User
 from src.models.mensalidade_gateway import MensalidadeCobranca, MensalidadeGateway
 from src.models.tenants import Tenant
 from src.security.password import verify_password
-from src.services import stripe_connect
+from src.core import secret_box
+from src.services import mercadopago, stripe_connect
 from src.services import mensalidade_gateway as gateway_service
 from src.services.audit_service import AuditService
 from src.services.medium_mensalidade import parse_mes
@@ -98,6 +110,15 @@ class ConectarResponse(BaseModel):
     # Link de uso único do cadastro no provedor (None quando a conta já está completa).
     url: Optional[str] = None
     gateway: GatewayInfo
+
+
+class UrlResponse(BaseModel):
+    url: str
+
+
+class CallbackMercadoPago(BaseModel):
+    code: str = Field(..., min_length=1, max_length=512)
+    state: str = Field(..., min_length=1, max_length=2048)
 
 
 class CobrancaItem(BaseModel):
@@ -326,6 +347,109 @@ async def desconectar_gateway(
         plano_inclui=await gateway_service.plano_inclui(db, tenant_id),
         gateway=await _info(db, tenant_id, gw),
     )
+
+
+# ── Mercado Pago (OAuth) ─────────────────────────────────────────────────────
+
+
+def _outro_provedor_ativo(gw: Optional[MensalidadeGateway], provedor: str) -> None:
+    if gw is not None and gw.provedor != provedor and gw.status != "desconectado":
+        raise ConflictError(
+            f"A casa já recebe pelo {gateway_service.PROVEDOR_LABEL.get(gw.provedor, gw.provedor)}. "
+            f"Desconecte essa conta antes de conectar o {gateway_service.PROVEDOR_LABEL.get(provedor, provedor)}.",
+            details={"error_code": "OUTRO_PROVEDOR_CONECTADO"},
+        )
+
+
+@router.post(
+    "/gateway/mercadopago/conectar",
+    response_model=UrlResponse,
+    dependencies=[
+        _GATE_AUTO,
+        Depends(require_group_permission(PermissionFeature.FINANCEIRO, "edit")),
+        Depends(require_not_impersonated),
+    ],
+)
+@limiter.limit("10/hour")
+async def conectar_mercadopago(
+    request: Request,
+    body: SenhaBody,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UrlResponse:
+    """URL de autorização do Mercado Pago (OAuth) com `state` assinado deste tenant + usuário."""
+    _conferir_senha(current_user, body.senha)
+    if not mercadopago.disponivel():
+        raise ConflictError("O Mercado Pago não está disponível agora.", details={"error_code": "PROVEDOR_INDISPONIVEL"})
+    _outro_provedor_ativo(await gateway_service.get_gateway(db, current_user.tenant_id), "mercadopago")
+    state = mercadopago.criar_state(current_user.tenant_id, current_user.id)
+    return UrlResponse(url=mercadopago.url_autorizacao(state))
+
+
+@router.post(
+    "/gateway/mercadopago/callback",
+    response_model=GatewayInfo,
+    dependencies=[
+        _GATE_AUTO,
+        Depends(require_group_permission(PermissionFeature.FINANCEIRO, "edit")),
+        Depends(require_not_impersonated),
+    ],
+)
+@limiter.limit("10/hour")
+async def callback_mercadopago(
+    request: Request,
+    body: CallbackMercadoPago,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GatewayInfo:
+    """Troca o código da volta do Mercado Pago pelos tokens da casa (gravados cifrados)."""
+    estado = mercadopago.ler_state(body.state)
+    if estado is None or estado.tenant_id != current_user.tenant_id or estado.user_id != current_user.id:
+        raise APIException(
+            "O pedido de conexão venceu ou não é seu. Comece de novo em Configuração → Mensalidade.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            error_code="STATE_INVALIDO",
+        )
+    if not mercadopago.disponivel():
+        raise ConflictError("O Mercado Pago não está disponível agora.", details={"error_code": "PROVEDOR_INDISPONIVEL"})
+    tenant_id = current_user.tenant_id
+    gw = await gateway_service.get_gateway(db, tenant_id, for_update=True)
+    _outro_provedor_ativo(gw, "mercadopago")
+    try:
+        tokens = await mercadopago.trocar_codigo(body.code)
+    except mercadopago.MercadoPagoErro as exc:
+        raise ConflictError(str(exc), details={"error_code": "MERCADOPAGO_ERRO"})
+    antes = {"provedor": gw.provedor, "status": gw.status} if gw is not None else {}
+    if gw is None:
+        gw = MensalidadeGateway(id=uuid.uuid4(), tenant_id=tenant_id, provedor="mercadopago", status="ativo")
+        db.add(gw)
+    try:
+        gateway_service.gravar_tokens_mp(gw, tokens)
+    except secret_box.SecretBoxIndisponivel:
+        raise ConflictError("O Mercado Pago não está disponível agora.", details={"error_code": "PROVEDOR_INDISPONIVEL"})
+    gw.provedor = "mercadopago"
+    gw.status = "ativo"
+    # PIX pela API de pagamentos do Mercado Pago; o boleto fica para depois (pede endereço completo).
+    gw.pix_disponivel = True
+    gw.boleto_disponivel = False
+    gw.cadastro_completo = True
+    gw.recebimentos_ativos = True
+    gw.conectado_por = current_user.id
+    gw.conectado_em = utc_now()
+    gw.desconectado_em = None
+    await db.flush()
+    await AuditService(db).log_update(
+        tenant_id=tenant_id,
+        user_id=current_user.id,
+        resource_type="mensalidade_gateway",
+        resource_id=gw.id,
+        previous_state=antes,
+        new_state={"provedor": "mercadopago", "status": "ativo", "acao": "conectar"},
+    )
+    await db.commit()
+    await db.refresh(gw)
+    await _avisar(db, tenant_id, current_user, "mercadopago", "conectado")
+    return await _info(db, tenant_id, gw)
 
 
 @router.get(

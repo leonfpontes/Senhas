@@ -3,7 +3,8 @@
  * Configuração → Mensalidade, logo abaixo da chave PIX (AM-10).
  *
  * A casa escolhe onde recebe (decisão do dono de 09/10): **Stripe** (Stripe Connect — cadastro da
- * casa no próprio Stripe, com CPF ou CNPJ) ou Mercado Pago (no PR seguinte). Conectada e com o PIX
+ * casa no próprio Stripe, com CPF ou CNPJ) ou **Mercado Pago** (OAuth: a casa entra na conta dela e
+ * autoriza; a volta cai em `/admin/financeiro/mercadopago-retorno`). Conectada e com o PIX
  * liberado, o "Pagar com PIX" da Área vira cobrança dinâmica na conta da casa e o mês fica pago
  * sozinho. Sem conexão, tudo segue com a chave PIX + comprovante.
  *
@@ -54,13 +55,19 @@ export interface GatewayStatus {
   gateway: GatewayInfo | null;
 }
 
-type Acao = { tipo: 'conectar'; provedor: 'stripe' } | { tipo: 'desconectar' };
+type Provedor = 'stripe' | 'mercadopago';
+type Acao = { tipo: 'conectar'; provedor: Provedor } | { tipo: 'desconectar' };
 
 const PROVEDORES: Record<string, { label: string; descricao: string }> = {
   stripe: {
     label: 'Stripe',
     descricao:
       'A casa abre a conta dela no Stripe (CPF ou CNPJ e a conta do banco para o repasse). Taxa do Stripe por PIX pago, descontada da casa; o GiraHub não cobra nada.',
+  },
+  mercadopago: {
+    label: 'Mercado Pago',
+    descricao:
+      'A casa entra na conta Mercado Pago dela (CPF ou CNPJ) e autoriza o GiraHub a gerar as cobranças. O PIX cai na conta da casa; a taxa do Mercado Pago é descontada da casa e o GiraHub não cobra nada.',
   },
 };
 
@@ -130,12 +137,13 @@ export function MensalidadeGatewayCard({ canEdit }: { canEdit: boolean }) {
     setSenhaError(null);
     try {
       if (acao.tipo === 'conectar') {
-        const res = await apiClient.post<{ url: string | null; gateway: GatewayInfo }>(
+        const res = await apiClient.post<{ url: string | null; gateway?: GatewayInfo }>(
           `${GATEWAY_URL}/${acao.provedor}/conectar`,
           { senha },
           semAutoLogout(),
         );
-        setStatus((s) => (s ? { ...s, gateway: res.data.gateway } : s));
+        // Mercado Pago só devolve a URL da autorização; o gateway nasce na volta (callback).
+        if (res.data.gateway) setStatus((s) => (s ? { ...s, gateway: res.data.gateway ?? null } : s));
         setAcao(null);
         if (res.data.url) {
           window.location.assign(res.data.url);
@@ -233,7 +241,7 @@ export function MensalidadeGatewayCard({ canEdit }: { canEdit: boolean }) {
               <p className={gw.pix_disponivel ? 'text-success-strong' : 'text-warning-strong'}>
                 {gw.pix_disponivel
                   ? `PIX automático ligado${gw.boleto_disponivel ? ' (e boleto)' : ''}.`
-                  : 'A conta está ativa, mas o PIX ainda não foi liberado pelo Stripe. Enquanto isso, a Área segue com a chave PIX.'}
+                  : `A conta está ativa, mas o PIX ainda não foi liberado pelo ${gw.provedor_label}. Enquanto isso, a Área segue com a chave PIX.`}
               </p>
             )}
             {gw.status === 'ativo' && gw.pix_disponivel && !gw.cobrando && (
@@ -270,7 +278,7 @@ export function MensalidadeGatewayCard({ canEdit }: { canEdit: boolean }) {
                     <strong>{PROVEDORES[p].label}</strong>
                     <span className="text-muted-foreground">{PROVEDORES[p].descricao}</span>
                   </div>
-                  <Button type="button" onClick={() => abrir({ tipo: 'conectar', provedor: p as 'stripe' })}>
+                  <Button type="button" onClick={() => abrir({ tipo: 'conectar', provedor: p as Provedor })}>
                     Conectar {PROVEDORES[p].label}
                   </Button>
                 </div>
@@ -285,7 +293,9 @@ export function MensalidadeGatewayCard({ canEdit }: { canEdit: boolean }) {
       <ConfirmDialog
         open={acao !== null}
         title="Confirme com a sua senha"
-        confirmText={acao?.tipo === 'desconectar' ? 'Desconectar' : 'Continuar no Stripe'}
+        confirmText={
+          acao?.tipo === 'desconectar' ? 'Desconectar' : `Continuar no ${PROVEDORES[acao?.provedor ?? 'stripe'].label}`
+        }
         destructive={acao?.tipo === 'desconectar'}
         loading={enviando}
         onCancel={() => setAcao(null)}
@@ -295,7 +305,9 @@ export function MensalidadeGatewayCard({ canEdit }: { canEdit: boolean }) {
             <p>
               {acao?.tipo === 'desconectar'
                 ? 'A casa deixa de receber pela conta conectada e os médiuns voltam a pagar pela chave PIX, com comprovante. A conta continua sendo da casa.'
-                : 'Você vai para o site do Stripe para cadastrar a conta da casa. É ela que recebe o dinheiro dos médiuns.'}{' '}
+                : acao?.provedor === 'mercadopago'
+                  ? 'Você vai para o Mercado Pago entrar na conta da casa e autorizar o GiraHub. É ela que recebe o dinheiro dos médiuns.'
+                  : 'Você vai para o site do Stripe para cadastrar a conta da casa. É ela que recebe o dinheiro dos médiuns.'}{' '}
               Todos os administradores recebem um e-mail avisando.
             </p>
             <PasswordField

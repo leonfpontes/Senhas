@@ -1477,7 +1477,8 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-27 Troca na escala e abono de justificativa | #106 | 086 | 2026-10-08 |
 | AM-21 Estudos e documentos | #107 | 087 | 2026-10-08 |
 | F-05 Ficha espiritual (painel) + AM-19 Minha caminhada | #109 | 088, 089 | 2026-10-08 |
-| AM-22 Mensalidade com baixa automática (F-02 — Stripe Connect; Mercado Pago no PR seguinte) | este PR | 091 | — |
+| AM-22 Mensalidade com baixa automática (F-02 — Stripe Connect) | #114 | 091 | — |
+| AM-22 Mensalidade com baixa automática — Mercado Pago (OAuth) | este PR | — (usa as colunas `mp_*` da 091) | — |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).

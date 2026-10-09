@@ -236,6 +236,46 @@ O GiraHub não cobra comissão (sem `application_fee`): a taxa do Stripe é desc
    com PIX" mostra o QR da cobrança; pago, o mês vira "Paga" sozinho (Dashboard → Developers → Webhooks → o
    endpoint do Connect mostra as entregas).
 
+### Mensalidade com baixa automática pelo Mercado Pago (F-02/AM-22)
+
+A opção "Mercado Pago" **só aparece** com as quatro variáveis abaixo **e** `SECRETS_ENCRYPTION_KEY` (os tokens de
+cada casa são gravados cifrados). A casa entra na conta Mercado Pago dela e autoriza o GiraHub (OAuth); o GiraHub
+cria o PIX na conta da casa, sem comissão.
+
+1. **Criar a aplicação do GiraHub** em https://www.mercadopago.com.br/developers → **Suas integrações** → **Criar
+   aplicação** (com a conta Mercado Pago do GiraHub): solução de **pagamentos online / Checkout API (Transparente)**,
+   informando que a integração é para **terceiros (plataforma/marketplace)** — é o que libera o OAuth.
+2. **Redirect URL**: Suas integrações → a aplicação → **Detalhes da aplicação** → **Editar dados** →
+   **Configurações avançadas** → **URLs de redirecionamento**: `https://girahub.com.br/admin/financeiro/mercadopago-retorno`
+   (idêntica ao `MERCADOPAGO_REDIRECT_URI`; URL estática, sem parâmetros). Se a opção de **PKCE** estiver ligada na
+   aplicação, deixe-a desligada (o GiraHub usa `state` assinado).
+3. **Webhook**: Suas integrações → a aplicação → **Webhooks** → **Configurar notificações** → modo **produção**:
+   URL `https://girahub.com.br/api/v1/webhooks/mercadopago`, evento **Pagamentos** (`payment`). Copie a
+   **assinatura secreta** gerada ali (é o `MERCADOPAGO_WEBHOOK_SECRET`). Cada PIX também é criado com essa
+   `notification_url`, então a casa não precisa configurar nada.
+4. **Credenciais**: Suas integrações → a aplicação → **Credenciais de produção** → **Client ID** (= número da
+   aplicação) e **Client Secret**.
+5. **Gravar no `/opt/senhas/.env` da VPS** e recriar o backend:
+   ```bash
+   ssh root@<vps>
+   cd /opt/senhas && nano .env
+   MERCADOPAGO_CLIENT_ID=...          # passo 4
+   MERCADOPAGO_CLIENT_SECRET=...      # passo 4 (segredo)
+   MERCADOPAGO_REDIRECT_URI=https://girahub.com.br/admin/financeiro/mercadopago-retorno
+   MERCADOPAGO_WEBHOOK_SECRET=...     # passo 3 (segredo)
+   # SECRETS_ENCRYPTION_KEY já deve estar lá (passo do Stripe acima)
+   chmod 600 .env
+   docker compose -f docker-compose.prod.yml up -d --no-deps backend
+   ```
+6. **Validar com uma casa piloto no Pro** (o OAuth só gera credenciais de produção): Financeiro → Configuração →
+   Mensalidade → "Conectar Mercado Pago" (senha) → login no Mercado Pago da casa → autorizar → volta "conectado"
+   (os admins recebem e-mail). Na Área, "Pagar com PIX" de valor baixo; pago, o mês vira "Paga" sozinho
+   (Suas integrações → Webhooks mostra as entregas).
+
+Desconectar no GiraHub apaga os tokens da casa. A casa também pode revogar a autorização no Mercado Pago (Seu
+perfil → Segurança → Aplicativos conectados); aí o "Pagar com PIX" volta a dar erro até desconectar/reconectar.
+O token dura 180 dias e é renovado sozinho quando falta menos de 7 dias.
+
 `SECRETS_ENCRYPTION_KEY` é segredo (só no `.env`, `chmod 600`) e **não pode ser perdida nem trocada sem rotação**:
 os tokens do Mercado Pago gravados com ela ficam ilegíveis (as casas teriam de reconectar). Rotação: ponha a
 chave nova na frente, separada por vírgula (`nova,antiga`), recifre e depois tire a antiga.

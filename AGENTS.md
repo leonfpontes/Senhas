@@ -403,6 +403,14 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `stripe_events_processed`. As buscas raiz do webhook (`services/mensalidade_gateway.cobranca_por_external_id`,
   `gateway_por_conta_stripe`) estao em `EXEMPT_SCOPED_QUERIES`. Segredo de terceiro em repouso so por
   `core/secret_box.py` (Fernet, `SECRETS_ENCRYPTION_KEY`; sem chave nada e gravado — nunca texto puro).
+  **Mercado Pago (OAuth)**: `POST .../gateway/mercadopago/conectar` (senha → URL de autorizacao com `state` JWT de
+  10 min, `type = mp_oauth_state`, tenant + usuario + nonce) e `POST .../gateway/mercadopago/callback` (chamado
+  logado pela pagina `/admin/financeiro/mercadopago-retorno` = `MERCADOPAGO_REDIRECT_URI`; `state` tem de ser do
+  MESMO tenant e usuario, senao 400 `STATE_INVALIDO`); tokens da casa so cifrados (`gravar_tokens_mp`), renovados
+  quando faltam < 7 dias (`token_mp_valido`), apagados ao desconectar. Webhook `POST /api/v1/webhooks/mercadopago`
+  (publico): `x-signature` conferido (HMAC-SHA256 com `MERCADOPAGO_WEBHOOK_SECRET` sobre
+  `id:<data.id minusculo>;request-id:<x-request-id>;ts:<ts>;`) e NUNCA confia no corpo — busca o pagamento no MP com
+  o token da casa da nossa cobranca e confere `external_reference` (= id da cobranca) e `collector_id`.
 - **Mensalidade na Area (AM-11/AM-12, decisao D-25)**: `api/v1/medium/mensalidades.py` —
   `GET /medium/mensalidades`, `GET /medium/mensalidades/{AAAA-MM}/pix` e
   `POST /medium/mensalidades/{AAAA-MM}/comprovante`. Alem do `require_medium`, exigem o modulo
@@ -1064,8 +1072,9 @@ Incluir obrigatoriamente:
   e auditoria `mensalidade_gateway_baixa`; se a direcao ja tinha resolvido o mes, o registro dela fica e a
   duplicidade vai para a auditoria. Painel: nos pagos, "Paga pelo PIX (automatico)" × "Confirmada pela direcao"
   (`CobrancaMensal` prop `mostrarOrigem`; o POST de registro grava `origem = 'direcao'`) e o card "Cobrancas
-  automaticas do mes" (`CobrancasAutomaticasDoMes`). Sem gateway (ou sem o plano) nada muda. Mercado Pago (OAuth)
-  entra no PR seguinte.
+  automaticas do mes" (`CobrancasAutomaticasDoMes`). Sem gateway (ou sem o plano) nada muda. **Mercado Pago**
+  (`services/mercadopago.py`, OAuth): a casa autoriza a aplicacao do GiraHub; PIX por `POST /v1/payments` com o token
+  da casa (sem `marketplace_fee`), `notification_url` unica, 24 h; boleto pelo MP ainda nao (pede endereco completo).
 - **Relatorio**: email HTML gerado por `render_mensalidade_report()` com KPI cards + tabela inadimplentes.
 - **Frontend**: `/admin/financeiro/mensalidades` (tabs Mediuns / Associados / Historico; KPIs com o dia de vencimento de cada grupo, "Inadimplentes" so apos o vencimento) e `/admin/financeiro/config`; sidebar com grupo Financeiro (gate `can('mensalidade_mediun')`). `/admin/associados` carrega todas as paginas da API (limit 200) para a busca local.
 - **Migration 027**: ENUM `mensalidade_status`, tabelas `mensalidade_configs` + `mensalidade_pagamentos`, coluna `mediuns.mensalidade_isento BOOLEAN DEFAULT false`.
@@ -1852,8 +1861,11 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
 - **Mensalidade com baixa automatica (F-02/AM-22)**: `STRIPE_CONNECT_WEBHOOK_SECRET` (segredo do endpoint de
   webhook de **contas conectadas** `/api/v1/webhooks/stripe-connect`, diferente do `STRIPE_WEBHOOK_SECRET`; vazio = a
   opcao "Stripe" nao aparece) e `SECRETS_ENCRYPTION_KEY` (chave Fernet do `core/secret_box.py`; vazia = nada com
-  segredo e gravado; virgula = rotacao, a primeira cifra). Em `config.py`, `.env*.example` e nos dois
-  `docker-compose`. Passos do dono (Connect no Dashboard, webhook, `.env` da VPS) em `docs/deployment.md`.
+  segredo e gravado; virgula = rotacao, a primeira cifra), `MERCADOPAGO_CLIENT_ID`, `MERCADOPAGO_CLIENT_SECRET`,
+  `MERCADOPAGO_REDIRECT_URI` (= `https://girahub.com.br/admin/financeiro/mercadopago-retorno`) e
+  `MERCADOPAGO_WEBHOOK_SECRET` (as quatro + a chave de cifra, ou a opcao "Mercado Pago" some). Em `config.py`,
+  `.env*.example` e nos dois `docker-compose`. Passos do dono (Stripe Connect e aplicacao do Mercado Pago, webhooks,
+  `.env` da VPS) em `docs/deployment.md`.
 - Regra para agendador que envia algo: usar `backend/src/services/scheduler_guard.py` — `advisory_lock(KEY)` envolvendo a rodada (só um worker processa) e `claim_once(tenant_id, namespace, item, scope)` gravado **antes** do envio (marca em `tenant_configs.custom_settings[namespace]` sob `SELECT ... FOR UPDATE`; `scope` diferente reinicia as marcas). Chaves de lock listadas no docstring do módulo; nova chave = novo número.
 - PIX mês a mês do plano ($-04, desde 2026-10-09): `services/assinatura_pix.processar_pix_mensal`, chamada pelo
   `trial_scheduler` na rodada das 09:00 BRT logo depois dos trials, com lock próprio
