@@ -15,6 +15,7 @@ from sqlalchemy import (
     Enum as SAEnum,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -25,7 +26,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID, BYTEA
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .base import TimestampedModel
+from .base import Base, TimestampedModel
+from ..core.tz import utc_now
 
 
 class MensalidadeStatus(str, enum.Enum):
@@ -178,3 +180,90 @@ class MensalidadePagamento(TimestampedModel):
             f"<MensalidadePagamento(mediun_id={self.mediun_id}, "
             f"mes={self.mes_referencia}, status={self.status})>"
         )
+
+
+# Pagamento parcial (migração 092): cada comprovante de um mês vira uma linha. Os campos de
+# comprovante único de `mensalidade_pagamentos` ficaram só para leitura de dados antigos.
+COMPROVANTE_ORIGENS = ("medium", "painel")
+COMPROVANTE_EM_CONFERENCIA = "em_conferencia"
+COMPROVANTE_CONFERIDO = "conferido"
+COMPROVANTE_NAO_CONFIRMADO = "nao_confirmado"
+COMPROVANTE_STATUS = (COMPROVANTE_EM_CONFERENCIA, COMPROVANTE_CONFERIDO, COMPROVANTE_NAO_CONFIRMADO)
+
+
+def _in(coluna: str, valores) -> str:
+    return f"{coluna} IN (" + ", ".join(f"'{v}'" for v in valores) + ")"
+
+
+class MensalidadeComprovante(Base):
+    """Um comprovante de mensalidade (pagamento parcial, migração 092).
+
+    - `origem`: `medium` (enviado pela Área) ou `painel` (anexado no registro manual).
+    - `valor_informado`: quanto o médium disse ter pago (opcional).
+    - `status`: `em_conferencia` → a casa confere (`conferido` + `valor_conferido`, o que entrou
+      de fato) ou não confirma (`nao_confirmado` + `motivo`, que o médium vê).
+    - Recebido no mês = soma de `valor_conferido` dos conferidos + cobranças automáticas pagas
+      (`services/mensalidade_parcial.py`). Anexo do painel fica `conferido` SEM valor: no
+      registro manual o `valor_pago` do mês é o total.
+    """
+
+    __tablename__ = "mensalidade_comprovantes"
+    __table_args__ = (
+        CheckConstraint(_in("origem", COMPROVANTE_ORIGENS), name="ck_mensalidade_comprovantes_origem"),
+        CheckConstraint(_in("status", COMPROVANTE_STATUS), name="ck_mensalidade_comprovantes_status"),
+        CheckConstraint(
+            "valor_informado IS NULL OR valor_informado > 0", name="ck_mensalidade_comprovantes_valor_informado"
+        ),
+        CheckConstraint(
+            "valor_conferido IS NULL OR valor_conferido > 0", name="ck_mensalidade_comprovantes_valor_conferido"
+        ),
+        Index("ix_mensalidade_comprovantes_pagamento", "pagamento_id"),
+        Index("ix_mensalidade_comprovantes_tenant_mediun", "tenant_id", "mediun_id"),
+        Index(
+            "ix_mensalidade_comprovantes_conferir",
+            "tenant_id",
+            "enviado_em",
+            postgresql_where=text("status = 'em_conferencia'"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    pagamento_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("mensalidade_pagamentos.id", ondelete="CASCADE"), nullable=False
+    )
+    mediun_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("mediuns.id", ondelete="CASCADE"), nullable=False
+    )
+    origem: Mapped[str] = mapped_column(String(10), nullable=False, default="medium", server_default="medium")
+    enviado_por: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_mensalidade_comprovantes_enviado_por"),
+        nullable=True,
+    )
+    enviado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    arquivo_data: Mapped[bytes] = mapped_column(BYTEA, nullable=False)
+    arquivo_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    arquivo_mime: Mapped[str] = mapped_column(String(50), nullable=False)
+    arquivo_tamanho: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    valor_informado: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=COMPROVANTE_EM_CONFERENCIA, server_default=COMPROVANTE_EM_CONFERENCIA
+    )
+    valor_conferido: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    conferido_por: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_mensalidade_comprovantes_conferido_por"),
+        nullable=True,
+    )
+    conferido_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    def __repr__(self) -> str:
+        return f"<MensalidadeComprovante(pagamento_id={self.pagamento_id}, status={self.status})>"

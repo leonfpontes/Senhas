@@ -67,6 +67,12 @@ export interface CobrancaItem {
    * registro antigo) = registrado/confirmado no painel.
    */
   origem?: 'gateway' | 'direcao' | null;
+  /**
+   * Pagamento parcial (migração 092, só médiuns): o que já entrou no mês (comprovantes
+   * conferidos + cobranças automáticas pagas) e o pago a mais (só informativo).
+   */
+  valorRecebido?: number | null;
+  pagoAMais?: number | null;
 }
 
 export interface CobrancaPagamento {
@@ -194,6 +200,37 @@ const STATUS_CLASS: Record<CobrancaStatusEfetivo, string> = {
 /** Selo "Comprovante enviado" (médium mandou pela Área, falta a casa conferir — AM-12). */
 export function ComprovanteEnviadoBadge() {
   return <Badge className="border-transparent bg-info/15 text-[0.65rem] text-info-strong">Comprovante enviado</Badge>;
+}
+
+/**
+ * Coluna "Valor pago": no mês pago, o total (e o "pago a mais", só informativo); no mês em aberto
+ * com parte já recebida (pagamento parcial, migração 092), o recebido e o que falta.
+ */
+export function ValorPago({ item }: { item: CobrancaItem }) {
+  if (item.status === 'PAGO') {
+    return (
+      <span className="inline-flex flex-col items-end">
+        <span>{formatBRL(item.valor_pago)}</span>
+        {(item.pagoAMais ?? 0) > 0 && (
+          <span className="text-xs font-medium text-info-strong" data-testid="pago-a-mais">
+            pago a mais {formatBRL(item.pagoAMais)}
+          </span>
+        )}
+      </span>
+    );
+  }
+  const recebido = item.valorRecebido ?? 0;
+  if (recebido > 0 && item.status !== 'ISENTO') {
+    const esperado = item.valor_vigente ?? null;
+    const falta = esperado !== null ? Math.max(0, esperado - recebido) : null;
+    return (
+      <span className="inline-flex flex-col items-end" data-testid="pagamento-parcial">
+        <span>{formatBRL(recebido)}</span>
+        {falta !== null && <span className="text-xs text-warning-strong">falta {formatBRL(falta)}</span>}
+      </span>
+    );
+  }
+  return <>—</>;
 }
 
 /** "Paga pelo PIX (automático)" × "Confirmada pela direção" (F-02/AM-22). */
@@ -413,7 +450,7 @@ export function CobrancaMensal({
         accessorKey: 'valor_pago',
         header: 'Valor pago',
         meta: { align: 'right', mobile: true },
-        cell: ({ row }) => (row.original.status === 'PAGO' ? formatBRL(row.original.valor_pago) : '—'),
+        cell: ({ row }) => <ValorPago item={row.original} />,
       },
       {
         id: 'comprovante',
@@ -514,7 +551,9 @@ export function CobrancaMensal({
           <dt className="text-muted-foreground">Pagamento</dt>
           <dd className="text-right">{formatDateBr(item.data_pagamento)}</dd>
           <dt className="text-muted-foreground">Valor pago</dt>
-          <dd className="text-right">{item.status === 'PAGO' ? formatBRL(item.valor_pago) : '—'}</dd>
+          <dd className="text-right">
+            <ValorPago item={item} />
+          </dd>
         </dl>
         {(canEdit || item.comprovante_filename || (onConferir && item.comprovanteParaConferir)) && (
           <div className="flex justify-end gap-2">

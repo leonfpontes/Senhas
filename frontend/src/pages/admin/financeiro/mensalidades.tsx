@@ -58,6 +58,11 @@ interface MensalidadeItem {
   comprovante_enviado_em?: string | null;
   /** F-02/AM-22: quem deu a baixa (gateway = PIX automático; direcao/null = painel). */
   origem?: 'gateway' | 'direcao' | null;
+  /** Pagamento parcial (092): recebido no mês, falta, pago a mais e comprovantes na fila. */
+  valor_recebido?: number;
+  falta?: number | null;
+  pago_a_mais?: number;
+  comprovantes_em_conferencia?: number;
 }
 
 interface AssociadoMensalidadeItem {
@@ -101,6 +106,8 @@ const toCobranca = (i: MensalidadeItem): CobrancaItem => ({
   comprovanteParaConferir: i.comprovante_para_conferir,
   comprovanteEnviadoEm: i.comprovante_enviado_em,
   origem: i.origem ?? null,
+  valorRecebido: i.valor_recebido ?? 0,
+  pagoAMais: i.pago_a_mais ?? 0,
 });
 
 const assocToCobranca = (i: AssociadoMensalidadeItem): CobrancaItem => ({
@@ -379,8 +386,6 @@ function MensalidadesContent() {
                         mediun_nome: i.nome,
                         mes,
                         valor: i.valor_vigente ?? config?.valor_mensal,
-                        comprovante_enviado_em: i.comprovanteEnviadoEm,
-                        comprovante_filename: i.comprovante_filename,
                       })
                   : undefined
               }
@@ -457,9 +462,7 @@ function MensalidadesContent() {
       <ConferirComprovanteSheet
         alvo={alvo}
         onClose={() => setAlvo(null)}
-        canInsert={canRegistrar}
         canEdit={canGroup('financeiro', 'edit')}
-        valorPadrao={config?.valor_mensal}
         onDone={aposMudarMedium}
       />
     </div>

@@ -22,7 +22,7 @@ from sqlalchemy import select
 
 from src.api.v1.medium import inicio as inicio_mod
 from src.api.v1.medium import mensalidades as mens_mod
-from src.models import Medium, MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
+from src.models import Medium, MensalidadeComprovante, MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
 from src.models.audit_logs import AuditLog
 from src.models.contas_financeiras import ContaFinanceira
 from src.models.permission_groups import PermissionFeature
@@ -224,9 +224,15 @@ async def test_comprovante_fica_em_conferencia_e_a_casa_confirma(client, db, hoj
     pag = (
         await db.execute(select(MensalidadePagamento).where(MensalidadePagamento.mediun_id == medium.id))
     ).scalar_one()
-    assert pag.status == MensalidadeStatus.PENDENTE
-    assert pag.comprovante_enviado_por == actor.user.id and pag.registrado_por is None
-    assert pag.valor_vigente == Decimal("50.00") and pag.comprovante_mime == "image/jpeg"
+    assert pag.status == MensalidadeStatus.PENDENTE and pag.registrado_por is None
+    assert pag.valor_vigente == Decimal("50.00")
+    # Desde a 092 o comprovante é uma linha própria (o slot antigo não recebe escrita).
+    assert pag.comprovante_data is None
+    comp = (
+        await db.execute(select(MensalidadeComprovante).where(MensalidadeComprovante.pagamento_id == pag.id))
+    ).scalar_one()
+    assert comp.enviado_por == actor.user.id and comp.origem == "medium" and comp.status == "em_conferencia"
+    assert comp.arquivo_mime == "image/jpeg" and comp.arquivo_tamanho == len(JPEG)
 
     # Auditoria sem o arquivo.
     logs = (

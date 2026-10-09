@@ -9,7 +9,8 @@ Postgres:
   enviado pelo médium e ainda não conferido → "em_conferencia"; comprovante que a casa não
   confirmou → "nao_confirmada" (com o motivo; AM-12); sem nada disso, "pendente" até o dia do
   vencimento e "atrasada" depois dele (no fuso de Brasília). O valor é o vigente gravado no 1º
-  registro do mês ou, sem registro, o valor da configuração. Médium que só entrou depois do mês
+  registro do mês ou, sem registro, o valor da configuração — nos meses em aberto, menos o que a
+  casa já recebeu (pagamento parcial, migração 092: `valor` = falta). Médium que só entrou depois do mês
   não tem mensalidade nele. Serve ao Início (mês corrente) e à tela Mensalidade (AM-11, qualquer
   mês — `services/medium_mensalidade.py`).
 - **Pendências** (`montar_pendencias`, decisão D-24): o que o médium precisa resolver vem
@@ -66,6 +67,10 @@ class MensalidadeDoMes:
     comprovante_enviado_em: Optional[datetime] = None
     recusa_motivo: Optional[str] = None
     recusado_em: Optional[datetime] = None
+    # Pagamento parcial (migração 092): `valor` é o que FALTA nos meses em aberto; aqui ficam o
+    # valor do mês e o que a casa já recebeu (comprovantes conferidos + cobranças pagas).
+    valor_mensalidade: Optional[float] = None
+    valor_recebido: Optional[float] = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -74,6 +79,8 @@ class MensalidadeDoMes:
             "valor": self.valor,
             "vencimento": self.vencimento.isoformat() if self.vencimento else None,
             "data_pagamento": self.data_pagamento.isoformat() if self.data_pagamento else None,
+            "valor_mensalidade": self.valor_mensalidade,
+            "valor_recebido": self.valor_recebido,
         }
 
 
@@ -93,12 +100,15 @@ def situacao_mensalidade(
     comprovante_presente: bool = False,
     recusado_em: Optional[datetime] = None,
     recusa_motivo: Optional[str] = None,
+    valor_recebido: Optional[Decimal] = None,
 ) -> Optional[MensalidadeDoMes]:
     """Mensalidade do médium no mês (o corrente, se `mes` não vier), ou None quando não há o que mostrar.
 
     None: médium que entrou depois do mês, ou casa sem valor configurado e sem registro no mês.
-    `comprovante_presente`: o registro ainda guarda o arquivo (o painel pode removê-lo); sem
-    ele, o comprovante enviado não deixa o mês "em conferência".
+    `comprovante_presente`: há comprovante esperando conferência (desde a 092, os campos de
+    comprovante vêm de `services/mensalidade_parcial.ResumoComprovantes.para_situacao`).
+    `valor_recebido` (pagamento parcial): nos meses em aberto, `valor` vira a falta
+    (valor do mês − recebido, nunca negativa).
     """
     inicio = (mes or hoje).replace(day=1)
     mes_txt = inicio.strftime("%Y-%m")
@@ -118,6 +128,8 @@ def situacao_mensalidade(
             vencimento=vencimento,
             data_pagamento=pagamento_data,
             comprovante_enviado_em=comprovante_enviado_em,
+            valor_mensalidade=float(pagamento_valor_vigente) if pagamento_valor_vigente is not None else None,
+            valor_recebido=float(valor) if valor is not None else None,
         )
 
     if isento_permanente or pagamento_status == MensalidadeStatus.ISENTO:
@@ -135,12 +147,16 @@ def situacao_mensalidade(
         status = STATUS_EM_CONFERENCIA
     else:
         status = STATUS_ATRASADA if hoje > vencimento else STATUS_PENDENTE
+    recebido = Decimal(str(valor_recebido)) if valor_recebido else Decimal("0")
+    falta = max(Decimal("0"), Decimal(str(valor)) - recebido) if valor is not None else None
     return MensalidadeDoMes(
         mes=mes_txt,
         status=status,
-        valor=float(valor) if valor is not None else None,
+        valor=float(falta) if falta is not None else None,
         vencimento=vencimento,
         data_pagamento=None,
+        valor_mensalidade=float(valor) if valor is not None else None,
+        valor_recebido=float(recebido),
         comprovante_enviado_em=(
             comprovante_enviado_em if status in (STATUS_EM_CONFERENCIA, STATUS_NAO_CONFIRMADA) else None
         ),
@@ -174,6 +190,8 @@ def montar_pendencias(
                 "situacao": mensalidade.status,
                 "mes": mensalidade.mes,
                 "valor": mensalidade.valor,
+                # Pagamento parcial: > 0 quando a casa já recebeu parte (`valor` é o que falta).
+                "valor_recebido": mensalidade.valor_recebido or 0,
                 "vencimento": mensalidade.vencimento.isoformat() if mensalidade.vencimento else None,
                 "dias_para_vencer": dias,
             }

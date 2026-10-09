@@ -17,7 +17,6 @@ from src.services.medium_mensalidade import (
     MAX_COMPROVANTE_MEDIUM_BYTES,
     ComprovanteInvalido,
     chave_alterada_recente,
-    comprovante_para_conferir,
     descricao_pix,
     meses_da_area,
     parse_mes,
@@ -236,18 +235,6 @@ def test_nome_do_arquivo_sem_caminho_nem_caracteres_estranhos():
     v = validar_comprovante("application/pdf", PDF, "../../etc/<script>passwd.pdf")
     assert v.filename == "scriptpasswd.pdf"
     assert validar_comprovante("image/jpeg", JPEG, None).filename == "comprovante.jpg"
-
-
-def test_comprovante_para_conferir():
-    assert comprovante_para_conferir("PENDENTE", T0, True, None)
-    assert comprovante_para_conferir(MensalidadeStatus.PENDENTE, T0, True, T0 - timedelta(days=1))
-    assert not comprovante_para_conferir("PAGO", T0, True, None)
-    assert not comprovante_para_conferir("PENDENTE", None, True, None)  # anexado pelo painel
-    assert not comprovante_para_conferir("PENDENTE", T0, False, None)  # removido
-    assert not comprovante_para_conferir("PENDENTE", T0, True, T0)  # já recusado
-
-
-# ── PIX do mês ────────────────────────────────────────────────────────────────
 
 
 def test_txid_identifica_mes_e_medium_e_cabe_no_br_code():

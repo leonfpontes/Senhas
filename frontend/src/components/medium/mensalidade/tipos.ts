@@ -11,10 +11,23 @@ export type StatusMes =
   | 'paga'
   | 'isento';
 
+/** Um comprovante que o médium enviou (pagamento parcial, migração 092 — vários por mês). */
+export interface ComprovanteEnviado {
+  enviado_em: string;
+  valor_informado?: number | null;
+  status: 'em_conferencia' | 'conferido' | 'nao_confirmado';
+  valor_conferido?: number | null;
+  motivo?: string | null;
+}
+
 export interface MesMensalidade {
   mes: string; // "AAAA-MM"
   status: StatusMes;
+  /** Mês em aberto: o que FALTA pagar; mês pago: o total recebido. */
   valor?: number | null;
+  /** Valor do mês e o que a casa já recebeu (comprovantes conferidos + PIX automático). */
+  valor_mensalidade?: number | null;
+  valor_recebido?: number;
   vencimento?: string | null;
   data_pagamento?: string | null;
   comprovante_enviado_em?: string | null;
@@ -23,6 +36,13 @@ export interface MesMensalidade {
   atual: boolean;
   /** Paga pela cobrança automática (PIX/boleto na conta da casa — F-02/AM-22). */
   pago_automatico?: boolean;
+  /** Comprovantes enviados neste mês, do mais antigo para o mais novo. */
+  comprovantes?: ComprovanteEnviado[];
+}
+
+/** Pagou parte (a casa já recebeu algo) e ainda falta: a tela diz "Falta pagar". */
+export function pagamentoParcial(mes: MesMensalidade): boolean {
+  return (mes.valor_recebido ?? 0) > 0 && mes.status !== 'paga' && mes.status !== 'isento';
 }
 
 /** A casa recebe com baixa automática (Stripe ou Mercado Pago). */
