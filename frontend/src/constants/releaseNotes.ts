@@ -22,6 +22,21 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.6.0',
+    date: '2026-10-08',
+    title: 'Ficha espiritual, estudos e troca na escala',
+    highlights: [
+      'Ficha espiritual do médium no painel: campos por tradição (modelos de Umbanda e de Candomblé), linha do tempo da caminhada e autorização do próprio médium antes de guardar qualquer dado. Só quem a casa liberar vê a ficha. Plano Pro.',
+      'Abrindo uma casa nova com um e-mail que já tem conta no GiraHub? Agora dá: é só usar a mesma senha, e no login você escolhe em qual terreiro entrar.',
+      'A Área do Médium ficou clara, no tom do site, com a cor e a logo da casa nos detalhes.',
+      'Nas casas do teste da Área: troca na escala entre médiuns (o colega aceita e a direção aprova) e a direção pode aceitar ou recusar o motivo de uma falta.',
+      'Também nas casas do teste: estudos e documentos da casa (links, textos e pontos cantados para cada público, e os cursos abertos), "Minha caminhada" para o médium, aniversariantes da semana para quem quiser aparecer e "Meus dados", para baixar os próprios dados ou encerrar o acesso.',
+    ],
+    fixes: [
+      'Política de Privacidade atualizada (versão 2.3) com a ficha espiritual e o "Meus dados" da Área.',
+    ],
+  },
+  {
     version: '2.5.0',
     date: '2026-10-08',
     title: 'Escalas, presença e lembretes',
