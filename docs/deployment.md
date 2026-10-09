@@ -296,7 +296,7 @@ docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
 docker compose -f docker-compose.prod.yml exec backend python seed_superadmin.py
 ```
 
-### Stripe — assinatura do plano (cartão e boleto)
+### Stripe — assinatura do plano (cartão, boleto e PIX mês a mês)
 
 Variáveis (`.env` de produção): `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_BASIC/PRO/PREMIUM`
 e, desde o $-04, `STRIPE_INVOICE_PAYMENT_METHODS` (padrão `boleto`) e `STRIPE_INVOICE_DAYS_UNTIL_DUE`
@@ -321,10 +321,18 @@ O que ligar no Dashboard da Stripe (uma vez, pelo dono da conta):
    `invoice.payment_failed`), assinar `invoice.paid`, `invoice.finalized`, `invoice.overdue`,
    `checkout.session.async_payment_succeeded` e `checkout.session.async_payment_failed`.
 
-**Pix**: conta Stripe do Brasil aceita Pix só em pagamento avulso (sob convite) e o Pix Automático (Pix
-recorrente) não está disponível no Brasil — então Pix não entra na assinatura por enquanto. Se a Stripe
-liberar Pix em faturas para a conta, basta `STRIPE_INVOICE_PAYMENT_METHODS=boleto,pix` (e ativar o Pix nos
-passos 1–2): o painel passa a escrever "PIX ou boleto" sozinho.
+**Pix**: conta Stripe do Brasil aceita Pix só em pagamento avulso e o Pix Automático (Pix recorrente) não
+está disponível no Brasil — então Pix não entra na assinatura/fatura. Por isso existe o **"PIX — pague mês a
+mês"** (desde 09/10/2026): cada mês é um Checkout avulso de Pix (`POST /admin/billing/pix-checkout`) que libera
+30 dias do plano; o GiraHub manda os lembretes (5 dias e 1 dia antes) e volta o terreiro ao gratuito 3 dias
+depois do vencimento sem pagamento. **Pix e Boleto foram ativados no Dashboard em 09/10/2026 e não há mais
+nada a configurar**: sem variável nova, sem Price na Stripe (o valor sai de `PLAN_LIMITS`) e o webhook já
+assina `checkout.session.completed`, `checkout.session.async_payment_succeeded` e
+`checkout.session.async_payment_failed` (passo 5). Se a Stripe um dia liberar Pix em faturas para a conta,
+basta `STRIPE_INVOICE_PAYMENT_METHODS=boleto,pix` (e ativar nos passos 1–2): o boleto passa a mostrar "PIX ou
+boleto" sozinho. PIX pago que não pôde virar mês de plano (ex.: o terreiro assinou com cartão entre abrir o PIX
+e pagar) fica registrado em `assinatura_pix_pagamentos` com `aplicado=false` e um log de erro (Sentry) — devolver
+pelo Dashboard da Stripe.
 
 ---
 

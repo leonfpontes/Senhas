@@ -972,8 +972,10 @@ Incluir obrigatoriamente:
 ### 11.8 Cadeia de Migracoes Alembic
 - Head atual: `091_mensalidade_gateway` (2026-10-09, F-02/AM-22: `mensalidade_gateways` — uma por terreiro,
   `stripe_account_id` unico, colunas `mp_*_enc` cifradas —, `mensalidade_cobrancas` — `uq_..._provedor_external`,
-  unico parcial de pendente por medium + mes + metodo — e `mensalidade_pagamentos.origem`; criada em paralelo com
-  a 090 de outro card, sobre a 089 — re-encadear no merge), apos `089_ficha_espiritual` (2026-10-08, F-05/AM-19: `ficha_campos`, `ficha_valores`, `medium_marcos`,
+  unico parcial de pendente por medium + mes + metodo — e `mensalidade_pagamentos.origem`), apos `090_assinatura_pix_mensal` (2026-10-09, $-04: tabela `assinatura_pix_pagamentos` — um registro por
+  PIX mensal do plano confirmado, `checkout_session_id` unico (idempotencia), `aplicado`, `period_start/_end`;
+  nada muda em `subscriptions`: o mes PIX reaproveita `collection_method='pix_mensal'` + `current_period_end`),
+  apos `089_ficha_espiritual` (2026-10-08, F-05/AM-19: `ficha_campos`, `ficha_valores`, `medium_marcos`,
   `ficha_sugestoes` (indice unico parcial de pendente por medium + campo) e `mediuns.consentimento_dado_religioso_em/
   _por/_versao/_revogado_em`; SEM acesso nos grupos padrao — excecao consciente, §3.3), apos `088_permissao_ficha_enum`
   (`ALTER TYPE permission_feature ADD VALUE 'ficha_espiritual'` num `autocommit_block()`), apos `087_materiais_corrente` (2026-10-08, AM-21: `materiais_corrente` + `material_grupos` — estudos e
@@ -1115,7 +1117,8 @@ Incluir obrigatoriamente:
 
 ### 11.17 MRR e categorias de cobrança da plataforma (2026-10-06)
 - Regra única em `backend/src/services/billing_metrics.py`: **pagante** = assinatura ACTIVE, com
-  `stripe_subscription_id`, sem trial, sem bônus, fora do FREE e com terreiro não excluído. Só pagante
+  `stripe_subscription_id` (ou mês PIX mensal pago e ainda valendo — $-04, `collection_method='pix_mensal'` com
+  `current_period_end` no futuro), sem trial, sem bônus, fora do FREE e com terreiro não excluído. Só pagante
   gera MRR. As outras categorias são em_teste (mostra o MRR potencial), bonificado (pilotos e
   testadores), gratuito, suspensa, cancelada, sem_cobranca (plano pago sem Stripe) e excluido.
 - Quem usa: `/billing/statistics/summary`, `/billing/subscriptions` (com `category`, `mrr`,
@@ -1155,6 +1158,25 @@ Incluir obrigatoriamente:
   Automático indisponível no BR — docs.stripe.com/payments/pix). O rótulo "PIX ou boleto" só aparece se
   `pix` entrar em `STRIPE_INVOICE_PAYMENT_METHODS`; nunca escrever "PIX" fixo na tela. O que ligar no
   Dashboard da Stripe está em docs/deployment.md (Stripe).
+- **PIX mês a mês ($-04, 2026-10-09, migração 090)**: terceira opção em `/admin/billing` ("PIX — pague mês a
+  mês"). Não é assinatura da Stripe (Pix só avulso na conta BR): `POST /billing/pix-checkout` abre Checkout
+  `mode=payment` + `payment_method_types=["pix"]` com `price_data` no preço de `PLAN_LIMITS` e `metadata.tipo=
+  pix_mensal`; o webhook (`completed` pago ou `async_payment_succeeded`) chama
+  `services/assinatura_pix.registrar_pagamento_pix`, que libera **30 dias a partir de max(agora, pago até, fim do
+  teste local)**. Estado: `collection_method='pix_mensal'`, `stripe_subscription_id` NULL, `current_period_end` =
+  pago até; cada pagamento em `assinatura_pix_pagamentos` (sessão única = idempotência). Regras: (1) tenant do
+  `metadata` só vale se o `customer` da sessão for o cliente Stripe gravado para ele; valor >= preço; (2) com
+  assinatura cartão/boleto (ou boleto pendente) o PIX é 409, e com mês PIX valendo o cartão/boleto é 409 até o
+  "pago até" — trocar antes é com o suporte; com mês valendo, o PIX só renova o MESMO plano (troca de plano no mês
+  seguinte); (3) PIX pago em estado conflitante (cartão, cortesia, valor menor) fica `aplicado=false` + log de
+  erro para o suporte devolver; (4) lembretes 5 d e 1 d antes a todos os admins (`claim_once`, namespace
+  `pix_mensal_lembretes`, escopo = pago até); (5) 3 dias de tolerância com o plano ligado; depois
+  `subscription_block_reason` = `pix_expired` (402, limites do FREE) e a rodada diária faz `reset_to_free`
+  (CANCELLED + e-mail "agora é gratuita", preservando um pedido de boleto aberto). Não suspende: SUSPENDED tira até
+  o gratuito e não há cobrança aberta para regularizar; (6) MRR: mês PIX valendo é pagante (`billing_category`/
+  `paying_clause`), vencido não; (7) card checkout que liga assinatura limpa o `pix_mensal`. Painel: aviso "Seu
+  plano está pago até DD/MM (PIX). Pagar o próximo mês" com ≤ 7 dias (`SubscriptionWarningBanner`), histórico
+  "PIX — mês pago até DD/MM" e badge "PIX mensal" na plataforma (Terreiros).
 - **Rótulos de plano**: fonte única `constants/plans.ts` ("Gratuito"); `useSubscription().planLabel`
   e `platform/planMeta.ts` (rótulo, preço e limites) derivam dela; a tabela de planos da plataforma
   usa `BASE_FEATURES` + `FEATURE_CATALOG`.
@@ -1829,6 +1851,11 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   segredo e gravado; virgula = rotacao, a primeira cifra). Em `config.py`, `.env*.example` e nos dois
   `docker-compose`. Passos do dono (Connect no Dashboard, webhook, `.env` da VPS) em `docs/deployment.md`.
 - Regra para agendador que envia algo: usar `backend/src/services/scheduler_guard.py` — `advisory_lock(KEY)` envolvendo a rodada (só um worker processa) e `claim_once(tenant_id, namespace, item, scope)` gravado **antes** do envio (marca em `tenant_configs.custom_settings[namespace]` sob `SELECT ... FOR UPDATE`; `scope` diferente reinicia as marcas). Chaves de lock listadas no docstring do módulo; nova chave = novo número.
+- PIX mês a mês do plano ($-04, desde 2026-10-09): `services/assinatura_pix.processar_pix_mensal`, chamada pelo
+  `trial_scheduler` na rodada das 09:00 BRT logo depois dos trials, com lock próprio
+  `advisory_lock(PIX_MENSAL_LOCK_KEY = 0x6769726168756207)`. Lembretes 5 d/1 d antes do "pago até" (por faixa: se
+  uma rodada falhar, sai na seguinte) com `claim_once(..., "pix_mensal_lembretes", "5"|"1", scope=pago_ate)`;
+  vencimento (pago até + 3 dias) → gratuito, rechecado sob `FOR UPDATE`.
 - Trial: marcas em `custom_settings.trial_reminders` (escopo = `trial_ends_at`); dias restantes arredondados para cima e expiração só depois de `trial_ends_at` (antes podia expirar ~1 dia cedo). Aniversário: `custom_settings.birthday_digest` (escopo = data BRT).
 
 **Rate limiter distribuído via Redis (desde 2026-06-27):**

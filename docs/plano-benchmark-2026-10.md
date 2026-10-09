@@ -60,7 +60,7 @@ Caminhos abreviados: **B/** = `backend/src/`, **F/** = `frontend/src/`. A próxi
 | 18 | $-05 Cupons | P1 | 2 | P | Backlog |
 | 19 | F-08 Story da agenda do mês | P1 | 2 | P | Backlog |
 | 20 | V-08 Identidade visual da landing | P1 | 2 | G | Decisões |
-| 21 | $-04 PIX/boleto na assinatura | P1 | 2 | M | Em revisão (decidido 08/10; boleto feito, Pix bloqueado pela Stripe BR) |
+| 21 | $-04 PIX/boleto na assinatura | P1 | 2 | M | Em revisão (boleto feito; PIX mês a mês: PR #112) |
 | 22 | N-04 Tela de consulentes | P1 | 3 | M | Backlog |
 | 23 | N-06 Check-in por QR | P1 | 3 | M | Backlog |
 | 24 | N-01 Modo TV com conteúdo | P1 | 3 | M | Backlog |
@@ -706,12 +706,17 @@ brasileira (docs.stripe.com, consultado em 08/10):
   "Pagar agora" no painel); plano liberado só no `invoice.paid`; boleto em aberto não suspende nem rebaixa;
   fatura vencida suspende e o pagamento reativa. Migração `085_assinatura_boleto`. Detalhes em AGENTS.md
   §11.18 e docs/api.md §20; passos do Dashboard em docs/deployment.md (Stripe).
-- **Pix depois**: se a Stripe liberar Pix em faturas para a conta, é só `STRIPE_INVOICE_PAYMENT_METHODS=
-  boleto,pix` — o painel passa a mostrar "PIX ou boleto" sem mudar código. Alternativa para ter Pix já:
-  outro provedor (Asaas/Mercado Pago), fora deste card.
+- **PIX mês a mês: PR #112 (09/10/2026, decisão do dono "Quero pix na assinatura").** Sem Pix recorrente na
+  Stripe BR, cada mês é um Checkout avulso de Pix (`POST /admin/billing/pix-checkout`) que libera 30 dias do plano
+  a partir de max(agora, pago até, fim do teste); lembretes 5 d/1 d; 3 dias de tolerância e volta ao gratuito;
+  conta como pagante no MRR enquanto o mês vale. Migração `090_assinatura_pix_mensal`. Detalhes em AGENTS.md
+  §11.18, docs/api.md §20 e docs/deployment.md (Stripe). Pix e Boleto ativados no Dashboard em 09/10.
+- **Pix na fatura**: se a Stripe um dia liberar Pix em faturas para a conta, é só `STRIPE_INVOICE_PAYMENT_METHODS=
+  boleto,pix` — o boleto passa a mostrar "PIX ou boleto" sem mudar código.
 
 **Aceite**
 - [x] Decisão documentada, com as taxas reais (boleto R$ 3,45 por pagamento; Pix indisponível em assinatura)
+- [x] PIX mês a mês (Checkout avulso, 30 dias por pagamento, lembretes e vencimento) — PR #112
 - [ ] Assinar com boleto funcionando ponta a ponta em modo de teste (depende de ativar Boleto no Dashboard)
 - [x] Boleto pendente não suspende nem rebaixa antes do vencimento (teste)
 

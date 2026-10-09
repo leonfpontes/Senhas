@@ -26,6 +26,7 @@ from ..services.plan_features import (
     BLOCK_MESSAGES,
     BLOCK_SUSPENDED,
     BLOCK_TRIAL_ENDED,
+    BLOCK_PIX_EXPIRED,
     PLAN_FEATURE_NAMES,
     _get_plan_features,
     feature_min_plan,
@@ -439,7 +440,7 @@ def effective_limit(sub, field: str) -> int:
     """Limite numérico vigente respeitando o status da assinatura.
 
     - SUSPENDED → 402 (criação bloqueada, como sempre foi).
-    - CANCELLED/EXPIRED de plano pago ou trial local vencido → limites do FREE
+    - CANCELLED/EXPIRED de plano pago, trial local vencido ou mês PIX vencido → limites do FREE
       (o tenant volta ao gratuito, mesmo antes de o webhook/scheduler gravar isso).
     - Caso contrário → o limite gravado na assinatura (-1 = ilimitado).
     """
@@ -452,7 +453,7 @@ def effective_limit(sub, field: str) -> int:
                 f"Regularize sua assinatura para {_LIMIT_BLOCK_ACTIONS.get(field, 'continuar')}."
             ),
         )
-    if reason in (BLOCK_INACTIVE, BLOCK_TRIAL_ENDED):
+    if reason in (BLOCK_INACTIVE, BLOCK_TRIAL_ENDED, BLOCK_PIX_EXPIRED):
         return PLAN_LIMITS[PlanType.FREE][field]
     return getattr(sub, field)
 
