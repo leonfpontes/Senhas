@@ -18,6 +18,7 @@ from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMI
 from src.repositories.audit_log_repo import AuditLogRepository
 from src.models.audit_logs import AuditAction
 from src.services import stripe_service
+from src.services import assinatura_pix
 from src.core.errors import NotFoundError
 from src.services.email.base import EmailMessage
 from src.services.email.resend_fallback import ResendEmailService
@@ -89,6 +90,26 @@ class BillingInfoResponse(BaseModel):
     # "Boleto" ou "PIX ou boleto" conforme o que a conta Stripe realmente aceita.
     invoice_payment_methods: list[str] = []
     invoice_days_until_due: int = 5
+    # $-04 — PIX mês a mês (sem assinatura Stripe; cada PIX libera 30 dias).
+    # `pix_paid_until`: "pago até" quando o plano é cobrado por PIX (inclusive já vencido, na
+    # tolerância); `pix_active`: mês pago ainda valendo; `pix_grace_until`: até quando o plano
+    # continua liberado sem novo PIX (depois volta ao gratuito).
+    pix_paid_until: Optional[str] = None
+    pix_active: bool = False
+    pix_grace_until: Optional[str] = None
+    pix_payments: list["PixPaymentItem"] = []
+
+
+class PixPaymentItem(BaseModel):
+    """Linha do histórico "PIX — mês pago até DD/MM"."""
+    plan: str
+    paid_at: str
+    period_end: Optional[str] = None
+    amount: float
+    applied: bool
+
+
+BillingInfoResponse.model_rebuild()
 
 
 class CreateCheckoutRequest(BaseModel):
@@ -189,6 +210,24 @@ async def _lock_subscription_or_404(tenant_id, db: AsyncSession) -> Subscription
     return sub
 
 
+def _refuse_card_or_invoice_during_pix(sub: Subscription) -> None:
+    """$-04: com um mês PIX pago e valendo, cartão/boleto esperam o fim do mês.
+
+    Assinar agora cobraria de novo um período já pago (e a Stripe não sabe do mês PIX). Depois
+    do "pago até" (inclusive na tolerância de 3 dias) a assinatura por cartão/boleto é liberada
+    normalmente; trocar antes disso é com o suporte.
+    """
+    if assinatura_pix.pix_mes_ativo(sub):
+        ate = assinatura_pix.pix_pago_ate(sub)
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Seu plano está pago por PIX até {ate.strftime('%d/%m/%Y')}. Para passar para cartão ou "
+                "boleto, assine a partir dessa data — ou fale com o suporte."
+            ),
+        )
+
+
 def _remaining_trial_days(sub: Subscription) -> Optional[int]:
     """Dias de teste local que faltam (preservados na assinatura da Stripe)."""
     if sub.is_trial and sub.trial_ends_at and not sub.stripe_subscription_id:
@@ -226,6 +265,13 @@ async def get_billing_info(
 ):
     """Return current billing / subscription info for the tenant."""
     sub = await _get_subscription_or_404(current_user.tenant_id, db)
+    pix_paid_until = assinatura_pix.pix_pago_ate(sub)
+    # Histórico do PIX mês a mês só para quem não tem assinatura por cartão/boleto ligada.
+    pix_payments = (
+        []
+        if isinstance(sub.stripe_subscription_id, str)
+        else await assinatura_pix.listar_pagamentos(db, current_user.tenant_id)
+    )
     return BillingInfoResponse(
         plan=sub.plan.value,
         status=sub.status.value,
@@ -246,6 +292,19 @@ async def get_billing_info(
         ),
         invoice_payment_methods=stripe_service.invoice_payment_method_types(),
         invoice_days_until_due=settings.STRIPE_INVOICE_DAYS_UNTIL_DUE,
+        pix_paid_until=pix_paid_until.isoformat() if pix_paid_until else None,
+        pix_active=assinatura_pix.pix_mes_ativo(sub),
+        pix_grace_until=assinatura_pix.tolerancia_ate(pix_paid_until).isoformat() if pix_paid_until else None,
+        pix_payments=[
+            PixPaymentItem(
+                plan=p.plan,
+                paid_at=p.paid_at.isoformat(),
+                period_end=p.period_end.isoformat() if p.period_end else None,
+                amount=p.amount_cents / 100,
+                applied=p.aplicado,
+            )
+            for p in pix_payments
+        ],
     )
 
 
@@ -272,6 +331,8 @@ async def create_checkout_session(
             status_code=409,
             detail="Há uma assinatura por boleto aguardando pagamento. Pague o boleto ou cancele o pedido para escolher o cartão.",
         )
+
+    _refuse_card_or_invoice_during_pix(sub)
 
     # Prevent double-checkout: if an active subscription already exists, the
     # tenant must use /change-plan instead of creating a duplicate session.
@@ -357,6 +418,8 @@ async def subscribe_with_invoice(
             ),
         )
 
+    _refuse_card_or_invoice_during_pix(sub)
+
     tenant = await _get_tenant_or_404(current_user.tenant_id, db)
     trial_period_days = _remaining_trial_days(sub)
 
@@ -432,6 +495,88 @@ async def subscribe_with_invoice(
     )
     await db.commit()
     return response
+
+
+@router.post("/pix-checkout", response_model=CheckoutResponse)
+async def create_pix_checkout(
+    body: CreateCheckoutRequest,
+    current_user: User = Depends(_require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """$-04 — PIX mês a mês: abre um Checkout avulso de PIX que paga 30 dias do plano.
+
+    A conta Stripe BR só aceita Pix como pagamento único (Checkout `mode=payment`); não há
+    assinatura nem renovação automática. O plano é liberado pelo webhook quando o PIX é
+    confirmado (services/assinatura_pix.py): 30 dias a partir de max(agora, pago até, fim do
+    teste local). O valor sai de PLAN_LIMITS (fonte única de preço).
+
+    Recusas (409): terreiro com assinatura por cartão/boleto (ativa ou boleto pendente) — trocar a
+    forma é com o suporte; mês PIX ainda valendo de OUTRO plano — trocar de plano no meio do mês
+    exigiria proporcionalidade, então a troca fica para depois do "pago até" (ou suporte).
+    """
+    limits = _plan_limits_for(body.plan)
+    plan = PlanType(body.plan)
+
+    sub = await _lock_subscription_or_404(current_user.tenant_id, db)
+
+    if sub.is_bonus:
+        raise HTTPException(status_code=400, detail="Tenant bonificado não precisa pagar")
+    if sub.stripe_subscription_id or sub.pending_stripe_subscription_id:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Este terreiro já tem assinatura por cartão ou boleto. Para passar a pagar por PIX, "
+                "fale com o suporte."
+            ),
+        )
+    if assinatura_pix.pix_mes_ativo(sub) and sub.plan != plan:
+        ate = assinatura_pix.pix_pago_ate(sub)
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Seu mês pago por PIX é do plano {PLAN_LABELS.get(sub.plan, sub.plan.value)} até "
+                f"{ate.strftime('%d/%m/%Y')}. Para trocar de plano, pague o próximo mês a partir dessa "
+                "data — ou fale com o suporte."
+            ),
+        )
+
+    tenant = await _get_tenant_or_404(current_user.tenant_id, db)
+    try:
+        customer_id = await stripe_service.get_or_create_customer(
+            tenant_id=str(current_user.tenant_id),
+            email=current_user.email,
+            name=tenant.name,
+        )
+        checkout_url = await stripe_service.create_pix_checkout_session(
+            customer_id=customer_id,
+            plan=plan.value,
+            plan_label=PLAN_LABELS.get(plan, plan.value),
+            amount_brl=limits["price"],
+            tenant_id=str(current_user.tenant_id),
+        )
+    except (stripe_sdk.error.StripeError, ValueError) as exc:
+        await db.rollback()
+        if _is_payment_method_not_enabled(exc):
+            logger.error("PIX não ativado na conta Stripe: %s", exc)
+            raise HTTPException(
+                status_code=400,
+                detail="O pagamento por PIX ainda não está liberado. Por enquanto, use cartão ou boleto — ou fale com o suporte.",
+            )
+        _reraise_stripe_error(exc)
+
+    # O webhook confere a sessão contra este cliente — grava antes de devolver o link.
+    sub.stripe_customer_id = customer_id
+    audit = AuditLogRepository(db)
+    await audit.create(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        action=AuditAction.CREATE,
+        resource_type="assinatura_pix",
+        resource_id=str(sub.id),
+        details={"action": "pix_checkout", "plan": plan.value},
+    )
+    await db.commit()
+    return CheckoutResponse(checkout_url=checkout_url)
 
 
 @router.post("/change-plan")

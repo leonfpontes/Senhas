@@ -16,6 +16,15 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 # $-04: formas de cobrança da assinatura do plano.
 COLLECTION_CARD = "charge_automatically"   # cartão, renovação automática (Checkout)
 COLLECTION_INVOICE = "send_invoice"         # fatura por e-mail todo mês (boleto)
+# PIX mês a mês: NÃO é assinatura da Stripe (conta BR só aceita Pix avulso — Checkout
+# `mode=payment`). Cada pagamento libera 30 dias do plano; ver services/assinatura_pix.py.
+COLLECTION_PIX_MENSAL = "pix_mensal"
+# Metadado `tipo` da Checkout Session do PIX mensal — o webhook só trata como mês de plano
+# a sessão que tem esse marcador E foi criada para o cliente Stripe do terreiro.
+PIX_MENSAL_TIPO = "pix_mensal"
+# Validade do QR/copia-e-cola do Pix depois de confirmar o Checkout (Stripe: 60 s a 14 dias,
+# padrão 4 h). 1 dia: dá tempo de pagar pelo app do banco sem deixar código velho valendo.
+PIX_EXPIRES_AFTER_SECONDS = 86400
 
 
 def invoice_payment_method_types() -> list[str]:
@@ -90,6 +99,47 @@ async def create_checkout_session(
         cancel_url=f"{settings.FRONTEND_URL}/admin/billing?status=cancelled",
         metadata={"tenant_id": tenant_id},
         subscription_data=subscription_data,
+    )
+    return session.url
+
+
+async def create_pix_checkout_session(
+    customer_id: str,
+    plan: str,
+    plan_label: str,
+    amount_brl: float,
+    tenant_id: str,
+) -> str:
+    """Checkout de pagamento avulso por PIX que paga 30 dias do plano ("PIX mês a mês").
+
+    `mode=payment` com `payment_method_types=["pix"]`: a Stripe BR não aceita Pix em
+    assinaturas (Pix Automático não existe na conta BR). O valor vem de `amount_brl`, que o
+    chamador lê de PLAN_LIMITS — não há Price da Stripe para isto. Quem libera o plano é o
+    webhook (`checkout.session.completed` pago ou `checkout.session.async_payment_succeeded`),
+    que confere `metadata.tipo`/`tenant_id` e o cliente Stripe do terreiro.
+    """
+    unit_amount = int(round(amount_brl * 100))
+    if unit_amount <= 0:
+        raise ValueError(f"Plano sem preço para PIX: {plan}")
+    metadata = {"tenant_id": tenant_id, "plan": plan, "tipo": PIX_MENSAL_TIPO}
+    session = await asyncio.to_thread(
+        stripe.checkout.Session.create,
+        customer=customer_id,
+        mode="payment",
+        payment_method_types=["pix"],
+        payment_method_options={"pix": {"expires_after_seconds": PIX_EXPIRES_AFTER_SECONDS}},
+        line_items=[{
+            "price_data": {
+                "currency": "brl",
+                "unit_amount": unit_amount,
+                "product_data": {"name": f"GiraHub — plano {plan_label} (30 dias)"},
+            },
+            "quantity": 1,
+        }],
+        success_url=f"{settings.FRONTEND_URL}/admin/billing?session_id={{CHECKOUT_SESSION_ID}}&status=pix_success",
+        cancel_url=f"{settings.FRONTEND_URL}/admin/billing?status=cancelled",
+        metadata=metadata,
+        payment_intent_data={"metadata": metadata},
     )
     return session.url
 

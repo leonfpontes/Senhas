@@ -7,6 +7,10 @@ mostrava R$ 475 de MRR na aba Assinaturas e R$ 376 no painel Hoje, com receita r
 Regra: **pagante** = assinatura ACTIVE, com assinatura no Stripe, que não está em teste, não é
 bônus, não é do plano gratuito e cujo terreiro não foi excluído. Só pagante gera MRR. Todo o
 resto ganha uma categoria visível para o operador decidir o que fazer.
+
+PIX mês a mês ($-04): não há assinatura no Stripe — o mês PIX pago e ainda valendo
+(`collection_method="pix_mensal"` com `current_period_end` no futuro) conta como pagante; vencido
+(inclusive nos 3 dias de tolerância), cai em "sem cobrança" até pagar ou voltar ao gratuito.
 """
 
 from __future__ import annotations
@@ -14,7 +18,7 @@ from __future__ import annotations
 import enum
 from typing import Any
 
-from sqlalchemy import and_
+from sqlalchemy import and_, func, or_
 
 from src.models.subscriptions import PlanType, Subscription, SubscriptionStatus
 from src.models.tenants import Tenant
@@ -49,6 +53,10 @@ def billing_category(sub: Any, tenant_deleted: bool) -> BillingCategory:
         return BillingCategory.GRATUITO
     if sub.stripe_subscription_id:
         return BillingCategory.PAGANTE
+    from .assinatura_pix import pix_mes_ativo  # import tardio: assinatura_pix importa repositórios
+
+    if pix_mes_ativo(sub):
+        return BillingCategory.PAGANTE
     return BillingCategory.SEM_COBRANCA
 
 
@@ -79,6 +87,13 @@ def paying_clause():
         Subscription.is_trial.is_(False),
         Subscription.is_bonus.is_(False),
         Subscription.plan != PlanType.FREE,
-        Subscription.stripe_subscription_id.isnot(None),
+        or_(
+            Subscription.stripe_subscription_id.isnot(None),
+            # PIX mês a mês ($-04): mês pago e ainda valendo.
+            and_(
+                Subscription.collection_method == "pix_mensal",
+                Subscription.current_period_end > func.now(),
+            ),
+        ),
         Tenant.deleted_at.is_(None),
     )

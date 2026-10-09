@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Info,
   MessageCircle,
+  QrCode,
   Receipt,
   RefreshCw,
   Star,
@@ -73,6 +74,19 @@ interface BillingInfo {
   pending_invoice_due_at?: string | null;
   invoice_payment_methods?: string[];
   invoice_days_until_due?: number;
+  // $-04 — PIX mês a mês (sem assinatura na Stripe; cada PIX libera 30 dias)
+  pix_paid_until?: string | null;
+  pix_active?: boolean;
+  pix_grace_until?: string | null;
+  pix_payments?: PixPayment[];
+}
+
+interface PixPayment {
+  plan: string;
+  paid_at: string;
+  period_end: string | null;
+  amount: number;
+  applied: boolean;
 }
 
 interface SubscribeInvoiceResult {
@@ -93,6 +107,19 @@ function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
+
+function formatShort(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+/** Dias que faltam (para cima) até `iso`; negativo depois da data. */
+function daysUntil(iso: string): number {
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+}
+
+/** O painel destaca o "pagar o próximo mês" nesta janela (mesma do banner do painel). */
+const PIX_AVISO_DIAS = 7;
 
 // Classes estáticas: o Tailwind não enxerga nomes montados em tempo de execução.
 function statusToneClass(status: string): string {
@@ -171,8 +198,12 @@ function BillingContent() {
   // Volta da Stripe
   useEffect(() => {
     const { status } = router.query;
-    if (status === 'success') {
-      setSuccess('Assinatura confirmada! Seu plano é atualizado em instantes.');
+    if (status === 'success' || status === 'pix_success') {
+      setSuccess(
+        status === 'pix_success'
+          ? 'PIX recebido! O plano é liberado assim que o pagamento for confirmado — normalmente em poucos segundos.'
+          : 'Assinatura confirmada! Seu plano é atualizado em instantes.',
+      );
       // O webhook da Stripe chega em paralelo ao redirect: tenta algumas vezes.
       [2000, 4000, 8000].forEach((delay) => {
         setTimeout(() => {
@@ -200,8 +231,21 @@ function BillingContent() {
   const awaitingFirstPayment = !!billing?.awaiting_first_payment;
   const invoiceLabel = invoiceMethodLabel(billing?.invoice_payment_methods);
   const paysByInvoice = billing?.collection_method === 'send_invoice';
-  // Escolha de forma de pagamento só faz sentido antes de existir assinatura na Stripe.
-  const showPaymentPicker = isFreePlan && !billing?.is_bonus && !awaitingFirstPayment;
+  // $-04 — PIX mês a mês: plano pago com um PIX por mês, sem assinatura na Stripe.
+  const paysByPix = billing?.collection_method === 'pix_mensal' && !!billing?.pix_paid_until;
+  const pixActive = !!billing?.pix_active;
+  const pixPaidUntil = billing?.pix_paid_until ?? null;
+  const pixDaysLeft = pixPaidUntil ? daysUntil(pixPaidUntil) : null;
+  const pixPayments = billing?.pix_payments ?? [];
+  // Escolha de forma de pagamento só faz sentido antes de existir assinatura na Stripe — e, no
+  // PIX, depois do fim do mês pago (cartão/boleto esperam o "pago até"; o próximo PIX é o botão
+  // "Pagar o próximo mês").
+  const showPaymentPicker = isFreePlan && !billing?.is_bonus && !awaitingFirstPayment && !pixActive;
+
+  // Quem paga por PIX já chega com o PIX escolhido.
+  useEffect(() => {
+    if (billing?.collection_method === 'pix_mensal') setPayMethod('pix');
+  }, [billing?.collection_method]);
 
   // Resumo do painel só importa no teste (senhas emitidas); se falhar, omite.
   useEffect(() => {
@@ -253,9 +297,26 @@ function BillingContent() {
     }
   };
 
+  /** $-04: PIX mês a mês — abre o Checkout de PIX da Stripe (30 dias do plano). */
+  const handlePixCheckout = async (plan: PlanKey, loadingKey: string = plan) => {
+    setActionLoading(loadingKey);
+    setError(null);
+    try {
+      const res = await apiClient.post('/api/v1/admin/billing/pix-checkout', { plan });
+      window.location.href = res.data.checkout_url;
+    } catch (err) {
+      setError(extractApiErrorMessage(err, 'Não foi possível abrir o pagamento por PIX.'));
+      setActionLoading(null);
+    }
+  };
+
   const handleCheckout = async (plan: PlanKey) => {
     if (payMethod === 'invoice') {
       await handleSubscribeInvoice(plan);
+      return;
+    }
+    if (payMethod === 'pix') {
+      await handlePixCheckout(plan);
       return;
     }
     setActionLoading(plan);
@@ -342,6 +403,8 @@ function BillingContent() {
     }
     if (isCurrent) return { label: 'Plano atual', disabled: true, variant: 'outline' as const };
     if (awaitingFirstPayment) return { label: 'Aguardando pagamento', disabled: true, variant: 'outline' as const };
+    // Mês PIX valendo: troca de plano só depois do "pago até" (sem proporcionalidade no PIX).
+    if (pixActive) return { label: `Troca após ${formatShort(pixPaidUntil)}`, disabled: true, variant: 'outline' as const };
     if (isFreePlan) {
       return {
         label: isTrialPlan ? 'Continuar neste plano' : 'Assinar agora',
@@ -487,6 +550,7 @@ function BillingContent() {
                         </Badge>
                         {inLocalTrial && <Badge variant="outline">{trialEndShort ? `Teste grátis até ${trialEndShort}` : 'Teste grátis'}</Badge>}
                         {billing.is_bonus && <Badge variant="outline">Cortesia</Badge>}
+                        {paysByPix && <Badge variant="outline">PIX mensal</Badge>}
                         {billing.cancel_at_period_end && <Badge variant="destructive">Cancelamento agendado</Badge>}
                       </div>
                     </div>
@@ -540,6 +604,72 @@ function BillingContent() {
                         </AlertDescription>
                       </Alert>
                     )}
+                  </div>
+                )}
+
+                {paysByPix && pixPaidUntil && (
+                  <div className="grid gap-4 border-t pt-4 sm:grid-cols-3" data-tour="billing-pix-mensal">
+                    <div>
+                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Valor mensal</p>
+                      <p className="mt-0.5 text-sm font-bold">R$ {billing.monthly_price.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Pago até</p>
+                      <p className="mt-0.5 text-sm font-bold">{formatDate(pixPaidUntil)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Forma de pagamento</p>
+                      <p className="mt-0.5 text-sm font-bold">PIX mês a mês (sem renovação automática)</p>
+                    </div>
+                    <Alert
+                      variant={pixActive && pixDaysLeft !== null && pixDaysLeft > PIX_AVISO_DIAS ? 'info' : 'warning'}
+                      className="sm:col-span-3"
+                      role="status"
+                    >
+                      <QrCode aria-hidden />
+                      <AlertDescription className="flex flex-col gap-3">
+                        <span>
+                          {pixActive ? (
+                            <>
+                              Seu plano está pago até <strong>{formatShort(pixPaidUntil)}</strong> (PIX). Cada PIX libera mais
+                              30 dias a partir dessa data — pagar antes não perde nenhum dia. Avisamos por e-mail 5 dias e 1
+                              dia antes de vencer.
+                            </>
+                          ) : (
+                            <>
+                              O mês pago por PIX venceu em <strong>{formatShort(pixPaidUntil)}</strong>. Pague até{' '}
+                              <strong>{formatShort(billing.pix_grace_until)}</strong> para não voltar ao plano gratuito.
+                            </>
+                          )}
+                        </span>
+                        <span>
+                          <Button
+                            size="sm"
+                            disabled={!!actionLoading}
+                            onClick={() => handlePixCheckout(currentPlanKey, 'pix-next')}
+                          >
+                            <QrCode aria-hidden /> {actionLoading === 'pix-next' ? 'Abrindo…' : 'Pagar o próximo mês'}
+                          </Button>
+                        </span>
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+
+                {pixPayments.length > 0 && (
+                  <div className="border-t pt-4" data-tour="billing-pix-historico">
+                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                      Pagamentos por PIX
+                    </p>
+                    <ul className="mt-2 flex flex-col gap-1 text-sm">
+                      {pixPayments.map((p) => (
+                        <li key={p.paid_at}>
+                          {p.applied && p.period_end
+                            ? `PIX — mês pago até ${formatShort(p.period_end)} (plano ${planLabel(p.plan)}, pago em ${formatShort(p.paid_at)})`
+                            : `PIX recebido em ${formatShort(p.paid_at)} — não aplicado ao plano; fale com o suporte`}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
 
@@ -611,8 +741,9 @@ function BillingContent() {
                 <CardContent className="flex flex-col gap-3 p-5">
                   <p className="text-base font-bold">Quer mais ou menos?</p>
                   <p className="text-sm text-muted-foreground">
-                    Veja lado a lado o que cada plano libera e troque quando quiser. A diferença é cobrada ou devolvida de
-                    forma proporcional na próxima fatura.
+                    {paysByPix
+                      ? 'Veja lado a lado o que cada plano libera. No PIX mês a mês, a troca de plano vale a partir do próximo mês pago.'
+                      : 'Veja lado a lado o que cada plano libera e troque quando quiser. A diferença é cobrada ou devolvida de forma proporcional na próxima fatura.'}
                   </p>
                   <Button variant="outline" className="w-fit" onClick={() => setTab('planos')}>
                     Comparar planos

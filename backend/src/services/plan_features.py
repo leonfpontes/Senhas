@@ -25,6 +25,9 @@ Semântica de status (P-05, 2026-10-05):
 - `is_bonus` (cortesia concedida pela plataforma, sem cobrança): vale o plano
   concedido e o status normalmente (bônus suspenso perde acesso); não sofre o
   corte de fim de trial, porque o bônus é concessão deliberada e não tem prazo.
+- PIX mês a mês ($-04, `collection_method="pix_mensal"` sem assinatura Stripe): vale até
+  `current_period_end` + 3 dias de tolerância; depois bloqueia features pagas (402) mesmo antes
+  de a rodada diária (services/assinatura_pix.py) rebaixar para FREE — como o trial local.
 - `cancel_at_period_end`: o status continua ACTIVE até a Stripe mandar
   `customer.subscription.deleted` no fim do período pago; até lá o acesso continua.
   `current_period_end` não é checado localmente (a Stripe é a fonte de verdade).
@@ -172,6 +175,7 @@ def _get_plan_features(plan: PlanType, suspended: bool = False) -> PlanFeatures:
 BLOCK_SUSPENDED = "suspended"
 BLOCK_INACTIVE = "inactive"
 BLOCK_TRIAL_ENDED = "trial_ended"
+BLOCK_PIX_EXPIRED = "pix_expired"
 
 BLOCK_MESSAGES = {
     BLOCK_SUSPENDED: (
@@ -180,13 +184,14 @@ BLOCK_MESSAGES = {
     ),
     BLOCK_INACTIVE: "Assinatura cancelada ou expirada. Assine novamente para usar este recurso.",
     BLOCK_TRIAL_ENDED: "Período de avaliação encerrado. Assine um plano para continuar usando este recurso.",
+    BLOCK_PIX_EXPIRED: "O mês pago por PIX venceu. Pague o próximo mês para continuar usando este recurso.",
 }
 
 
 def subscription_block_reason(sub, now: Optional[datetime] = None) -> Optional[str]:
     """Motivo pelo qual o status da assinatura bloqueia o uso pago, ou None.
 
-    Retorna BLOCK_SUSPENDED, BLOCK_INACTIVE ou BLOCK_TRIAL_ENDED. Tenant sem linha
+    Retorna BLOCK_SUSPENDED, BLOCK_INACTIVE, BLOCK_TRIAL_ENDED ou BLOCK_PIX_EXPIRED. Tenant sem linha
     de assinatura é tratado como FREE ativo (None). Ver docstring do módulo.
     """
     if sub is None:
@@ -207,6 +212,10 @@ def subscription_block_reason(sub, now: Optional[datetime] = None) -> Optional[s
             trial_ends_at = trial_ends_at.replace(tzinfo=timezone.utc)
         if trial_ends_at <= (now or datetime.now(timezone.utc)):
             return BLOCK_TRIAL_ENDED
+    from .assinatura_pix import pix_expirado  # import tardio: assinatura_pix importa repositórios
+
+    if pix_expirado(sub, now):
+        return BLOCK_PIX_EXPIRED
     return None
 
 

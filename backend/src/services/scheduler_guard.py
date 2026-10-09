@@ -20,6 +20,8 @@ Chaves de lock em uso (bigint, prefixo "girahub"):
   0x6769726168756204 presenca_scheduler (encerramento automático da chamada, AM-17)
   0x6769726168756205 (reservada para um futuro retorno_scheduler)
   0x6769726168756206 medium_lembrete_scheduler (lembretes e avisos por e-mail da Área, AM-15)
+  0x6769726168756207 PIX mês a mês do plano (lembretes 5d/1d e vencimento; services/assinatura_pix.py,
+                     rodada diária disparada pelo trial_scheduler às 09:00 BRT — $-04)
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ TRIAL_LOCK_KEY = 0x6769726168756202
 BIRTHDAY_LOCK_KEY = 0x6769726168756203
 PRESENCA_LOCK_KEY = 0x6769726168756204
 MEDIUM_LEMBRETE_LOCK_KEY = 0x6769726168756206
+PIX_MENSAL_LOCK_KEY = 0x6769726168756207
 
 
 @asynccontextmanager
