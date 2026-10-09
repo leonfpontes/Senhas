@@ -1,6 +1,6 @@
 # Mensalidade com baixa automática — como funciona o fluxo de pagamento (F-01)
 
-Criado: 2026-10-08 · Status: **explicação para a decisão do dono** (F-01 continua em aberto) · Destrava: F-02 e AM-22
+Criado: 2026-10-08 · Status: **explicação para a decisão do dono** (F-01 em estudo; Stripe Connect acrescentado em 09/10) · Destrava: F-02 e AM-22
 
 ## 1. Hoje (no ar desde a 2.4.0)
 
@@ -63,6 +63,36 @@ abaixo de ~R$ 200, o percentual do Mercado Pago sai mais barato que o fixo do As
 botão (sem colar chave), pode desconectar quando quiser, o PIX fica disponível na hora e, para mensalidades comuns, a
 taxa percentual sai mais barata que a fixa. Antes de começar: abrir a conta de integrador, conferir a taxa real do PIX
 online e fazer uma cobrança real de valor baixo (o OAuth só gera credenciais de produção).
+
+## 5a. E pelo Stripe? (pergunta do dono, 09/10)
+
+Dá, com o **Stripe Connect** — o mesmo Stripe que já cobra a assinatura do GiraHub:
+
+1. Cada casa abre (ou conecta) uma conta Stripe dela pelo fluxo do Connect, dentro do GiraHub (cadastro com CPF ou
+   CNPJ, conta bancária para o repasse). O GiraHub guarda **só o id da conta conectada** — nenhuma chave nem token
+   (melhor que as outras opções: não precisa do utilitário de criptografia).
+2. "Pagar com PIX" cria um **pagamento avulso por PIX na conta da casa** (cobrança direta, a casa é a vendedora), com
+   QR e copia-e-cola; boleto também funciona. O aviso de pago chega pelo mesmo webhook que já existe.
+3. O dinheiro cai na conta Stripe da casa e é repassado para o banco dela no cronograma padrão.
+
+Pontos de atenção (documentação do Stripe, acessada em 09/10/2026):
+- No Brasil o Stripe aceita **PIX só como pagamento avulso** (o PIX recorrente, Pix Automático, não existe no
+  Brasil) — para mensalidade isso basta, porque cada mês é uma cobrança.
+- PIX no Brasil aparece como **"por convite"** na tabela do Stripe. A conta do GiraHub já tem PIX ligado, mas **cada
+  casa conectada também precisa ter o PIX liberado** (a capacidade `pix_payments` da conta conectada). Isso precisa
+  ser testado com uma casa piloto antes de prometer.
+- Taxas (para a casa): PIX avulso **1,19%**; boleto **R$ 3,45** por boleto pago. O PIX sai mais caro que o percentual
+  divulgado pelo Mercado Pago, mas tudo fica num fornecedor só.
+- O nome que aparece no extrato do médium é o do parceiro de PIX do Stripe (Ebanx), com o nome da casa no
+  identificador.
+
+**Comparação rápida:** Stripe Connect = mais seguro e simples para nós (sem segredo guardado, um fornecedor só) e mais
+caro no PIX; Mercado Pago = mais barato e mais conhecido pelos terreiros, mas exige guardar o token de cada casa com
+criptografia. **Próximo passo sugerido:** testar o Connect com uma casa piloto (abrir a conta conectada e ver se o PIX
+é liberado); se for, seguir com o Stripe.
+
+Fontes: https://docs.stripe.com/payments/pix · https://docs.stripe.com/payments/payment-methods/payment-method-support
+· https://docs.stripe.com/connect/direct-charges
 
 ## 6. O que o dono decide
 

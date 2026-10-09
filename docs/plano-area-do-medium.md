@@ -1471,7 +1471,7 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-15 Lembretes e avisos por e-mail (mensalidade D-3/D+3, véspera, D-2, escala nova, falta, aviso, cancelamento, PIX, resumo do admin) | #96 | 081 | 2026-10-08 |
 | AM-18 Escala de gira por função (grupos inteiros, copiar da anterior, rodízio) | #97 | — (usa as colunas da 079) | 2026-10-08 |
 | AM-24 Divulgação (atrás da chave NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA, desligada) | #98 | — | 2026-10-08 |
-| AM-16 Notificação push (desligada até gerar as chaves VAPID) | #100 | 082 | 2026-10-08 |
+| AM-16 Notificação push (chaves VAPID na VPS em 2026-10-09: ligada) | #100 | 082 | 2026-10-08 |
 | AM-14 Meus dados (exportar JSON/PDF, encerrar o acesso com a senha, "Quem vê o quê", Política 2.3) | #102 | 083 | 2026-10-08 |
 | AM-20 Aniversariantes (opt-in no Perfil, cartão da semana no Início, mensagem da casa no dia) | #102 | 083 | 2026-10-08 |
 | AM-27 Troca na escala e abono de justificativa | #106 | 086 | 2026-10-08 |

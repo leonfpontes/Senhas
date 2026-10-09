@@ -970,6 +970,7 @@ em memória e perde envios num restart.
 - **Ranking:** 28 · **Prioridade:** P1 · **Onda:** 4 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Comunicação · **Épico:** Funcionalidade
 - **Depende de:** — · **Destrava:** F-03
 - **Status (2026-10-08):** o dono quer a API oficial da Meta; custos e caminho em `docs/custos-whatsapp-meta.md` (falta: CNPJ + verificação do negócio na Meta, número dedicado, modelo de cobrança).
+- **Status (2026-10-09):** aguardando (dono decide depois; pré-requisito continua o CNPJ + verificação na Meta).
 
 **Por quê.** Item herdado do `plano-execucao.md` (Fase 3). O público é mobile-first e não lê e-mail. O AxéCloud usa a
 API oficial da Meta; o ORI vende WhatsApp como add-on por volume (R$ 24,90 a R$ 149,90).
@@ -993,6 +994,7 @@ custo.
 - **Ranking:** 29 · **Prioridade:** P1 · **Onda:** 4 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Financeiro · **Épico:** Funcionalidade
 - **Depende de:** — · **Destrava:** F-02
 - **Status (2026-10-08):** explicação do fluxo e comparativo em `docs/fluxo-pagamento-mensalidade.md`; recomendação Mercado Pago com OAuth; decisão do dono pendente.
+- **Status (2026-10-09):** dono estudando; acrescentada a opção **Stripe Connect** (PIX avulso na conta da casa, sem guardar token) em `docs/fluxo-pagamento-mensalidade.md` §5a — testar com uma casa piloto se o PIX é liberado na conta conectada.
 
 **Por quê.** PIX integrado na mensalidade é o gap mais repetido entre os concorrentes fortes: AxéCloud (PIX no portal
 do filho), ORI (Mercado Pago, add-on de R$ 9,90), Minha Gira (Asaas), Quartinha (banco parceiro). O nosso é baixa
@@ -1437,6 +1439,8 @@ a loja, com saque por PIX. As lojas de artigos religiosos falam com todos os ter
 - Relatório na plataforma (`B/api/v1/platform/`, `require_super_admin`).
 - Display A4 em PDF com QR para `/cadastro?cupom=X`.
 - Pagamento da comissão é manual, fora do Stripe.
+
+**Status (2026-10-09).** Números aprovados pelo dono e página publicada (`NEXT_PUBLIC_PARCEIROS_PUBLICADO=true`).
 
 **Status (2026-10-08).** Página e formulário prontos atrás da chave `NEXT_PUBLIC_PARCEIROS_PUBLICADO`
 (desligada; `/parceiros` em 404); cupom manual no Stripe até o $-05. Proposta de regras na página: terreiro com 20%
