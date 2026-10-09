@@ -45,6 +45,8 @@ jobs:
   vps:
     name: Backup, disco e containers
     if: github.event.schedule == '10 6 * * *' || github.event_name == 'workflow_dispatch'
+    # Os segredos da VPS (VPS_HOST/VPS_USER/VPS_SSH_KEY) são do ambiente Hostinger, como no deploy.
+    environment: Hostinger
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

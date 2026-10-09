@@ -55,7 +55,9 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:15-alpine
+        # Espelho oficial no ECR Public (mesma imagem do Docker Hub, sem o limite de pulls anônimos que
+        # derrubou o CI em 09/10: "toomanyrequests").
+        image: public.ecr.aws/docker/library/postgres:15-alpine
         env:
           POSTGRES_USER: senhas_test
           POSTGRES_PASSWORD: senhas_test
