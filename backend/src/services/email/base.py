@@ -1,6 +1,6 @@
 """
 T033: EmailService - Base interface for email delivery
-Defines contract for sending async emails (Brevo primary, Resend fallback)
+Defines contract for sending async emails (Resend primary, Brevo fallback — see email_queue.py)
 """
 
 from abc import ABC, abstractmethod

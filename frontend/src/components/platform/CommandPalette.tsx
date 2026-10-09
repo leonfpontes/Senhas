@@ -4,7 +4,8 @@
  * Pula para qualquer terreiro por nome/slug e oferece ações sobre o melhor resultado:
  * "Entrar como admin de X", "Abrir conversa de X", "Dar bônus a X". Os terreiros são carregados
  * na primeira abertura (`GET /api/v1/platform/tenants?limit=1000`) e filtrados no cliente — o
- * endpoint `/tenants/search` existe no backend, mas fica à sombra de `/tenants/{tenant_id}`.
+ * endpoint `/tenants/search` existe no backend (registrado antes de `/tenants/{tenant_id}` desde o
+ * PR #47), mas só devolve id, slug, nome e ativo, sem o plano que a paleta mostra.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';

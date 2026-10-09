@@ -1,235 +1,89 @@
 # Arquitetura do Sistema
 
-**GiraHub (Senhas)** — Sistema SaaS multi-tenant para gestão de senhas de Terreiros de Umbanda.
+Last Updated: 2026-10-09 (reescrito na varredura R-02: o texto anterior era da v1 — Material-UI, Next 14, Brevo
+primário, `BaseRepository` com filtro automático)
+
+**GiraHub (Senhas)** — SaaS multi-tenant para terreiros: senhas e porta da gira, médiuns e corrente, Área do Médium,
+financeiro, estoque, cursos e site. Este arquivo é a visão geral; o detalhe vigente fica no
+[AGENTS.md](../AGENTS.md) (regras e estado atual, §11), em [api.md](api.md) (rotas) e em [database.md](database.md)
+(tabelas).
 
 ---
 
-## Visão Geral
+## Visão geral
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        INTERNET                              │
-└─────────────┬──────────────────────┬────────────────────────┘
-              │                      │
-       ┌──────▼──────┐       ┌──────▼──────┐
-       │   Nginx     │       │  Certbot    │
-       │  (SSL/TLS)  │       │ (Let's      │
-       │  port 80/443│       │  Encrypt)   │
-       └──────┬──────┘       └─────────────┘
-              │
-    ┌─────────┼─────────┐
-    │         │         │
-┌───▼───┐ ┌──▼──┐ ┌───▼────┐
-│Next.js│ │ API │ │ Static │
-│:3000  │ │:8000│ │ Files  │
-└───────┘ └──┬──┘ └────────┘
-             │
-    ┌────────┼────────┐
-    │        │        │
-┌───▼──┐ ┌──▼───┐ ┌──▼───┐ ┌────────┐
-│Postgr│ │Redis │ │Email │ │Sentry  │
-│SQL 15│ │ 7    │ │Brevo │ │(erros) │
-│:5432 │ │:6379 │ │Resend│ │externo │
-└──────┘ └──────┘ └──────┘ └────────┘
+Internet ──► Nginx (TLS Let's Encrypt, :80/:443)
+               ├── /        ──► frontend  Next.js (:3000)
+               └── /api/*   ──► backend   FastAPI + Uvicorn (:8000)
+                                   ├── PostgreSQL 15 (dados; migrações Alembic)
+                                   ├── Redis 7 (rate limit distribuído do slowapi)
+                                   ├── E-mail: Resend (primário) → Brevo (reserva)
+                                   ├── Stripe (assinatura do terreiro) · Stripe Connect / Mercado Pago (mensalidade da casa)
+                                   ├── Web Push (VAPID) para a Área do Médium
+                                   └── Sentry (erros e traces; front e back)
 ```
+
+Tudo roda em Docker Compose numa VPS (Hostinger): `postgres`, `redis`, `backend`, `frontend` e `nginx`
+(`docker-compose.prod.yml`). Push na `master` = deploy (`.github/workflows/deploy.yml`, depois dos testes). Backup
+diário criptografado fora da VPS (Cloudflare R2). Passo a passo em [deployment.md](deployment.md).
 
 ---
 
-## Camadas da Aplicação
+## Frontend
 
-### 1. Presentation Layer (Frontend)
+- **Next.js 15 (Pages Router)**, React 18, TypeScript.
+- **Tailwind v4 + shadcn/ui** (Radix) — o MUI saiu na v2.0.0. Kit em `frontend/src/components/` (`CrudDrawer`,
+  `DataTable` com TanStack Table, `fields/*` com react-hook-form + zod, `gates/*`, Sonner). Regras em AGENTS.md §11.16.
+- Recharts 2, axios com `withCredentials: true` (cookie HttpOnly), `@sentry/nextjs`, PWA (Porta e Área do Médium).
 
-**Next.js 14** com TypeScript, renderização server-side e client-side.
+| Área | Rotas de tela | Quem usa |
+|---|---|---|
+| Público | `/`, `/planos`, `/[tenantSlug]/*`, `/public/*` | Consulentes e visitantes (emissão de senha, site, agenda) |
+| Painel | `/admin/*` | Admin e operador do terreiro (gates de plano + grupo de permissão) |
+| Área do Médium | `/medium/*` | Médium da corrente (`<MediumLayout>`; só chama `/api/v1/medium/*`) |
+| Plataforma | `/platform/*` | Super-admin |
 
-| Área | Responsabilidade |
-|------|-----------------|
-| **Public pages** | Emissão de senhas, consulta de giras |
-| **Admin dashboard** | CRUD de giras, tickets, analytics, audit |
-| **Platform** | Gestão multi-tenant (SUPER_ADMIN) |
+## Backend
 
-**Libs**: Material-UI v5, Recharts, Axios (withCredentials: true), Zustand, @sentry/nextjs.
+- **FastAPI 0.142 / Starlette 1.x**, Python 3.11, SQLAlchemy 2 async, Pydantic v2, Alembic, PyJWT, bcrypt (12 rounds),
+  slowapi + Redis, `stripe`, `pywebpush`, `httpx`.
+- **Middlewares** (de fora para dentro): CORS → TrustedHost → `tenant_context` → `jwt_middleware` (header Bearer na
+  impersonação, senão cookie `access_token`) → `audit_logging` → `error_rate` → rota.
+- **Agendadores** no processo (lifespan): aniversários, fim de teste, e-mails de onboarding, presença e lembretes da
+  Área do Médium, com trava por linha (`services/scheduler_guard.py`). E-mails saem por uma fila em memória
+  (`services/email/email_queue.py`).
+- Fluxo padrão: `models/` → `repositories/` ou `services/` → endpoint em `api/v1/...` → migração em `alembic/versions/`.
 
-### 2. API Layer (Backend)
+| Prefixo | Autenticação | Guardas |
+|---|---|---|
+| `/api/v1/auth/*` | — / cookie | Login, refresh, logout, escolha e troca de terreiro |
+| `/api/v1/admin/*` | Usuário do terreiro | `require_backoffice` no router; `require_group_permission` por rota; `require_plan_feature` quando há plano |
+| `/api/v1/medium/*` | Médium ativo | `require_medium` no router (vínculo `mediuns.user_id` + plano `area_medium` + Área ligada no terreiro) |
+| `/api/v1/platform/*` | Super-admin | `require_super_admin` por rota |
+| `/api/v1/public/*` | — | Rate limit nas rotas sensíveis; tenant resolvido pelo slug/gira/token |
+| `/api/v1/webhooks/*` | Assinatura do provedor | `stripe`, `stripe-connect`, `mercadopago`; idempotentes |
 
-**FastAPI 0.142** (Starlette 1.x) com Python async, OpenAPI automático.
+## Isolamento e permissões
 
-```
-Request → Nginx → FastAPI
-                    ├── Middleware Stack
-                    │   ├── CORS
-                    │   ├── Tenant Context (extract tenant_id)
-                    │   ├── JWT Auth (decode + validate)
-                    │   └── Audit Logging
-                    │
-                    ├── Router → Endpoint Handler
-                    │   ├── Pydantic validation (request body)
-                    │   ├── Business logic
-                    │   └── Pydantic serialization (response)
-                    │
-                    └── Repository → Database
-```
+- **Tenant**: toda query sobre modelo com `tenant_id` filtra explicitamente; o auditor AST
+  `scripts/audit_tenant_isolation.py` é bloqueante no CI. Detalhe em [multi-tenancy.md](multi-tenancy.md).
+- **Permissões**: papéis `super_admin`, `admin`, `operator` e `medium`; o operador acessa só o que os grupos de
+  permissão liberam (OR entre grupos, fail-closed desde o Q-05; grupo padrão "Acesso total"). Admin faz bypass dos
+  grupos. Regras em AGENTS.md §3.3 e no CLAUDE.md.
+- **Plano**: `require_plan_feature("<feature>")` (402/403) com o mínimo em `_FEATURE_MIN_TIER`
+  (`services/plan_features.py`), espelhado em `frontend/src/constants/plans.ts` (AGENTS.md §3.4).
+- **Sessão**: access token 24 h e refresh 30 d em cookies HttpOnly; access token tipado (`type: "access"`, T-02).
+  Detalhe em [authentication.md](authentication.md).
 
-**Organização dos endpoints**:
+## Emissão de senha (núcleo)
 
-| Prefixo | Auth | Descrição |
-|---------|------|-----------|
-| `/api/v1/public/` | Nenhuma | Emissão pública de senhas |
-| `/api/v1/auth/` | Nenhuma | Login, refresh, logout |
-| `/api/v1/admin/` | JWT (ADMIN/OPERATOR) | Painel administrativo |
-| `/api/v1/platform/` | JWT (SUPER_ADMIN) | Gestão da plataforma |
+`POST /api/v1/public/emit-ticket` valida o terreiro pelo slug e a gira, trava o contador da gira
+(`senha_controls`, `SELECT ... FOR UPDATE`; primeira emissão com `INSERT ... ON CONFLICT DO NOTHING`), grava o ticket
+com o próximo número, confirma e enfileira o e-mail. Duplicidade por pessoa e gira é barrada também por constraint
+no banco (Q-03). A Porta acompanha a fila por polling (não WebSocket).
 
-### 3. Service Layer
+## Testes e qualidade
 
-Lógica de negócio desacoplada dos endpoints:
-
-| Serviço | Responsabilidade |
-|---------|-----------------|
-| `EmailService` | Envio dual-provider (Brevo → Resend fallback) |
-| `AuditService` | Registro imutável de ações |
-| `SubscriptionService` | Gestão de planos e assinaturas |
-| `TenantService` | Criação e gestão de tenants |
-
-### 4. Repository Layer
-
-Padrão `BaseRepository<T>` com filtragem automática por `tenant_id`:
-
-```python
-class BaseRepository(Generic[T]):
-    """Todas as queries incluem WHERE tenant_id = :tenant_id automaticamente."""
-
-    async def get_by_id(self, id: UUID) -> T | None: ...
-    async def list(self, offset=0, limit=50) -> list[T]: ...
-    async def create(self, **kwargs) -> T: ...
-    async def update(self, id: UUID, **kwargs) -> T: ...
-    async def soft_delete(self, id: UUID) -> None: ...
-```
-
-**15 repositórios** estendem `BaseRepository`:
-- `TenantRepo`, `UserRepo`, `GiraRepo`, `ConsulentRepo`, `TicketRepo`
-- `SenhaControlRepo`, `AuditLogRepo`, `ConfigRepo`
-- `SubscriptionRepo`, `BillingRepo`, `FeatureFlagsRepo`
-- `TicketAnalyticsRepo`, `ConsolidatedAuditRepo`, `PlatformUserRepo`
-
-### 5. Data Layer
-
-**PostgreSQL 15** com SQLAlchemy 2.0 async + Alembic migrations.
-
-- 12 modelos ORM
-- UUIDs como chaves primárias
-- Soft delete via `deleted_at`
-- Timestamps automáticos (`created_at`, `updated_at`)
-- JSONB para details em AuditLog
-
----
-
-## Middleware Stack
-
-A cada request, o stack de middleware executa em sequência:
-
-```
-1. CORSMiddleware        → Valida origem da requisição
-2. TenantContextMiddleware → Extrai tenant_id do JWT ou path
-3. JWTMiddleware          → Decodifica e valida token
-4. AuditLoggingMiddleware → Registra a operação no audit trail
-```
-
----
-
-## Fluxo: Emissão de Senha (Core MVP)
-
-```
-Consulente (browser)
-    │
-    ▼
-GET /public/{tenant_id}/next-gira
-    → Retorna gira ativa com vagas
-    │
-    ▼
-POST /public/{tenant_id}/emit-ticket
-    → Valida dados (Pydantic)
-    → BEGIN TRANSACTION
-    → SELECT FOR UPDATE senha_controls WHERE (tenant_id, gira_id)
-    → IF proximo_numero >= max_tickets → ROLLBACK → 409 Conflict
-    → INSERT ticket (numero = proximo_numero)
-    → UPDATE senha_controls SET proximo_numero += 1
-    → COMMIT
-    → Envia e-mail async (Brevo → Resend fallback)
-    → Retorna ticket emitido (201)
-```
-
-Características do fluxo:
-- **Atômico**: `SELECT FOR UPDATE` impede race conditions
-- **Idempotente**: Mesmo e-mail por gira retorna 409 (sem duplicatas)
-- **Resiliente**: Se Brevo falha, tenta Resend automaticamente
-
----
-
-## Multi-Tenant Isolation
-
-3 camadas de isolamento garantem que nenhum tenant acessa dados de outro:
-
-| Camada | Mecanismo | Onde |
-|--------|-----------|------|
-| **1. Token** | `tenant_id` no payload JWT | `security/jwt.py` |
-| **2. Middleware** | Verifica e injeta `tenant_id` no request state | `middleware/tenant_context.py` |
-| **3. Query** | Todas as queries filtram por `tenant_id` | `repositories/base.py` |
-
----
-
-## Grupos de Permissão (Fine-Grained RBAC)
-
-O sistema conta com um controle de acesso baseado em grupos (Group-Based RBAC) que refina as permissões atribuídas a usuários com a role `OPERATOR`:
-
-1. **Estrutura**: Admins do tenant definem grupos de usuários (ex: "Operadores da Porta", "Financeiro") e mapeiam permissões (Visualizar, Inserir, Editar, Deletar) para cada funcionalidade (giras, tickets, porta, estoque, financeiro, etc.).
-2. **Consolidação**: Usuários podem pertencer a múltiplos grupos. Suas permissões finais são consolidadas via **lógica OR permissiva** (se pelo menos um grupo do usuário concede a permissão, o acesso é liberado).
-3. **Bypass**: Usuários com a role `ADMIN` ou `SUPER_ADMIN` (e sessões de impersonação ativa) bypassam todas as verificações de grupo, mantendo acesso total.
-4. **Fail-closed (desde 2026-10-05, Q-05)**: operador sem nenhum grupo não acessa nenhum módulo. Todo tenant tem o grupo padrão "Acesso total" (`permission_groups.is_default`), criado com o tenant, que recebe automaticamente operadores novos e admins rebaixados a operador. Ele pode ser editado, mas não excluído.
-5. **Resiliência e Performance**:
-   - As permissões no backend são validadas a cada requisição via injeção de dependência `require_group_permission(feature, action)`.
-   - Para evitar N+1 queries no request pipeline, a consolidação OR é computada diretamente no banco de dados usando cláusulas SQL `MAX()` agrupadas.
-   - O cache HTTP (`Cache-Control: private, max-age=300`) é utilizado no endpoint de permissões do usuário para aliviar as requisições recorrentes.
-
----
-
-## Segurança
-
-| Controle | Implementação |
-|----------|---------------|
-| Autenticação | JWT HS256 (PyJWT), 24h access + 30d refresh |
-| Autorização | RBAC (SUPER_ADMIN, ADMIN, OPERATOR) |
-| Senhas | bcrypt 12 rounds |
-| Transport | HTTPS TLS 1.3 (Let's Encrypt) |
-| Injection | ORM parameterizado (SQLAlchemy) |
-| XSS | React escaping + CSP headers |
-| CSRF | SameSite cookies + CORS |
-| Rate Limit | Configurável por endpoint |
-| Auditoria | Trail imutável, LGPD compliant |
-
----
-
-## Infraestrutura de Produção
-
-```yaml
-Services:
-  postgres:   PostgreSQL 15-alpine, volume persistente, healthcheck
-  redis:      Redis 7-alpine, cache + sessões
-  backend:    FastAPI + Uvicorn (multi-worker)
-  frontend:   Next.js (production build)
-  nginx:      Reverse proxy, SSL termination
-```
-
----
-
-## Decisões Técnicas
-
-| Decisão | Justificativa |
-|---------|---------------|
-| **FastAPI** (não Django) | Async nativo, performance, OpenAPI automático |
-| **SQLAlchemy 2.0 async** | ORM maduro + async/await |
-| **Next.js 14** (não SPA) | SSR para SEO das páginas públicas |
-| **Material-UI** | Design system robusto, acessibilidade WCAG AA |
-| **Brevo + Resend** | Redundância de providers (99.5%+ delivery) |
-| **UUID PKs** | Segurança (não sequencial), multi-tenant safe |
-| **Soft delete** | LGPD compliance, auditoria |
-| **SELECT FOR UPDATE** | Emissão atômica sem race conditions |
-| **Monorepo** | Shared types/UI, deploy coordenado |
+Unitários, integração com Postgres real (`tests/integration_pg`), auditores de tenant e de permissão, e o gate do
+front (lint, tipos, Jest, auditor de permissões, build) — todos bloqueantes no CI. Ver [testing.md](testing.md).

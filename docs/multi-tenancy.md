@@ -1,232 +1,58 @@
 # Multi-Tenancy
 
-Isolamento completo entre organizações (terreiros) através de 3 camadas de proteção.
+Last Updated: 2026-10-09 (reescrito na varredura R-02: o texto anterior descrevia um `BaseRepository` que filtrava
+sozinho pelo `tenant_id` do construtor, o que nunca foi o código)
+
+Cada **tenant** é um terreiro. Os dados de negócio têm coluna `tenant_id` e nenhum terreiro pode ler ou alterar dados
+de outro. As regras obrigatórias estão no [AGENTS.md](../AGENTS.md) §3.1 (tenant) e §3.3 (permissões); este arquivo
+explica onde o isolamento acontece.
 
 ---
 
-## Conceito
+## De onde vem o `tenant_id`
 
-Cada **tenant** representa um terreiro independente no sistema. Todos os dados são isolados por `tenant_id`, garantindo que nenhum tenant consiga acessar dados de outro.
+| Rota | Origem do tenant | Quem chama |
+|---|---|---|
+| `/api/v1/admin/*` | Token do usuário logado (`current_user.tenant_id`), nunca o corpo da requisição | Admin e operador do terreiro (`require_backoffice` barra o papel `medium`) |
+| `/api/v1/medium/*` (Área do Médium) | `require_medium` → `ctx.tenant_id` e `ctx.medium`; a rota nunca recebe `medium_id` | Médium ativo ligado ao usuário por `mediuns.user_id` |
+| `/api/v1/public/*` | O próprio endpoint resolve pelo `tenant_slug` (ou pela gira/token do link) e filtra tudo por esse tenant | Qualquer pessoa, sem login |
+| `/api/v1/platform/*` | Parâmetro explícito (cross-tenant por design) | Só `super_admin` |
 
----
+- **Token**: o access token (`security/jwt.py`) é assinado pelo servidor e carrega `sub`, `tenant_id` (nulo só para
+  super-admin), `role` e `type: "access"`; o `decode_token` é allowlist por `type` (T-02). Um `tenant_id` mandado no
+  corpo ou no header não substitui o do token.
+- **Middleware**: `middleware/jwt_middleware.py` lê o token (header `Authorization` na impersonação, senão o cookie
+  HttpOnly) e põe usuário e tenant em `request.state`. `middleware/tenant_context.py` só deixa passar rotas públicas e
+  de auth e valida o formato de um `?tenant_id=` quando ele existe.
+- **Mesmo e-mail em vários terreiros** (AM-05): cada conta é um usuário por terreiro; escolher ou trocar de terreiro
+  emite um token novo para aquela conta (AGENTS.md §3.2). Nada mistura dois tenants no mesmo token.
 
-## Arquitetura de Isolamento (3 Camadas)
+## Onde o filtro acontece
 
-```
-┌─────────────────────────────────────────────┐
-│              Request HTTP                    │
-└─────────────────┬───────────────────────────┘
-                  │
-         ┌────────▼─────────┐
-         │  CAMADA 1: JWT   │
-         │                  │
-         │ Token contém:    │
-         │  tenant_id: uuid │
-         │  user_id: uuid   │
-         │  role: ADMIN     │
-         └────────┬─────────┘
-                  │
-         ┌────────▼─────────┐
-         │  CAMADA 2:       │
-         │  MIDDLEWARE       │
-         │                  │
-         │ Extrai tenant_id │
-         │ do JWT e injeta  │
-         │ em request.state │
-         └────────┬─────────┘
-                  │
-         ┌────────▼─────────┐
-         │  CAMADA 3:       │
-         │  REPOSITORY      │
-         │                  │
-         │ Toda query SQL:  │
-         │ WHERE tenant_id  │
-         │   = :tenant_id   │
-         └──────────────────┘
-```
+Não há filtro automático. **Toda query sobre modelo com `tenant_id` filtra explicitamente**:
 
----
+- nos endpoints admin, com `Modelo.tenant_id == current_user.tenant_id`;
+- nos repositórios e serviços, o método **recebe** `tenant_id` como parâmetro e filtra por ele. O
+  `repositories/base.py` (`BaseRepository(db, model)`) segue essa convenção: `get_by_id(id, tenant_id)`,
+  `list(tenant_id, ...)` etc.;
+- na Área do Médium, por `ctx.tenant_id` e, em modelo com FK para `mediuns`, também por `ctx.medium.id`;
+- FKs recebidas no corpo ou no caminho (gira, médium, grupo...) são conferidas dentro do tenant antes de gravar.
 
-## Camada 1: JWT Payload
+Quem garante isso é o **auditor AST** `backend/scripts/audit_tenant_isolation.py` (Q-02), bloqueante no CI: ele cobre
+endpoints admin, repositórios/serviços, rotas públicas, Área do Médium e FKs do corpo/caminho. Acesso cross-tenant
+intencional (schedulers, visão de plataforma) entra numa lista de exceções do script com justificativa de uma linha —
+nunca para "fazer passar" (CLAUDE.md, checklist de PR).
 
-Quando um usuário faz login, o `tenant_id` é incluído no token JWT:
+## Testes
 
-```json
-{
-  "sub": "user-uuid",
-  "tenant_id": "terreiro-abc-uuid",
-  "role": "admin",
-  "iat": 1709740800,
-  "exp": 1709827200,
-  "type": "access"
-}
-```
+- `backend/tests/integration_pg/test_tenant_isolation.py` e `test_fk_cross_tenant.py`: app inteiro contra Postgres real,
+  tentando ler/alterar dados de outro terreiro por HTTP, com conferência no banco e controle positivo.
+- `backend/tests/integration_pg/test_area_medium.py` e os `test_am*.py`: o médium só vê o próprio terreiro e os
+  próprios dados.
+- Mais em [testing.md](testing.md).
 
-O `tenant_id` é definido no momento do login e **não pode ser alterado** pelo client.
+## Criação de terreiro
 
----
-
-## Camada 2: Tenant Context Middleware
-
-O middleware `TenantContextMiddleware` executa em toda requisição:
-
-```python
-class TenantContextMiddleware:
-    async def __call__(self, request, call_next):
-        # Para endpoints autenticados: extrai do JWT
-        if hasattr(request.state, "tenant_id"):
-            tenant_id = request.state.tenant_id
-        # Para endpoints públicos: extrai da URL
-        else:
-            tenant_id = extract_tenant_from_path(request.url.path)
-
-        if tenant_id:
-            request.state.tenant_id = tenant_id
-
-        return await call_next(request)
-```
-
-**Resultado**: `request.state.tenant_id` disponível em todo o ciclo da request.
-
----
-
-## Camada 3: BaseRepository
-
-Todos os repositórios herdam de `BaseRepository<T>`, que filtra automaticamente:
-
-```python
-class BaseRepository(Generic[T]):
-    def __init__(self, db: AsyncSession, tenant_id: UUID):
-        self.db = db
-        self.tenant_id = tenant_id
-
-    async def list(self, offset=0, limit=50):
-        query = (
-            select(self.model)
-            .where(self.model.tenant_id == self.tenant_id)  # ← SEMPRE filtrado
-            .offset(offset)
-            .limit(limit)
-        )
-        result = await self.db.execute(query)
-        return result.scalars().all()
-
-    async def get_by_id(self, id: UUID):
-        query = (
-            select(self.model)
-            .where(
-                self.model.id == id,
-                self.model.tenant_id == self.tenant_id  # ← SEMPRE filtrado
-            )
-        )
-        result = await self.db.execute(query)
-        return result.scalar_one_or_none()
-
-    async def create(self, **kwargs):
-        obj = self.model(tenant_id=self.tenant_id, **kwargs)  # ← SEMPRE associado
-        self.db.add(obj)
-        await self.db.flush()
-        return obj
-```
-
-**Garantias**:
-- `SELECT` sempre inclui `WHERE tenant_id =`
-- `INSERT` sempre preenche `tenant_id`
-- `UPDATE`/`DELETE` sempre verifica `tenant_id`
-- Nenhum repositório permite bypass do filtro
-
----
-
-## Endpoints Públicos
-
-Os 3 endpoints públicos recebem `tenant_id` na URL:
-
-```
-GET  /api/v1/public/{tenant_id}/next-gira
-POST /api/v1/public/{tenant_id}/emit-ticket
-POST /api/v1/public/{tenant_id}/resend-email
-```
-
-O middleware valida que o `tenant_id` existe e está ativo antes de processar a request.
-
----
-
-## Endpoints Admin vs Platform
-
-| Tipo | Fonte do tenant_id | Acesso |
-|------|-------------------|--------|
-| **Admin** | JWT payload (`current_user.tenant_id`) | Dados do próprio tenant |
-| **Platform** | Parâmetro da query/body | Cross-tenant (SUPER_ADMIN only) |
-
-SUPER_ADMINs podem acessar dados de qualquer tenant através dos endpoints `/api/v1/platform/`.
-
----
-
-## Prevenção de Ataques
-
-### 1. Tenant ID Spoofing
-
-O `tenant_id` vem do JWT (assinado pelo servidor), não do client. Tentar enviar um `tenant_id` diferente no header/body é ignorado.
-
-### 2. Cross-Tenant Data Access
-
-Mesmo com acesso à API, queries sempre filtram por `tenant_id`, impossibilitando enumeração de dados de outros tenants.
-
-### 3. Privilege Escalation
-
-O `role` no JWT é verificado em cada endpoint. Um OPERATOR não pode executar ações de ADMIN, e um ADMIN não pode acessar endpoints SUPER_ADMIN.
-
-### 4. SQL Injection
-
-SQLAlchemy usa queries parametrizadas, prevenindo injection de `tenant_id` malicioso.
-
----
-
-## Fluxo Completo (Exemplo)
-
-```
-1. Admin do Terreiro ABC faz login
-   → JWT: { tenant_id: "abc-uuid", role: "ADMIN" }
-
-2. Admin lista giras
-   GET /api/v1/admin/giras
-   → Middleware: request.state.tenant_id = "abc-uuid"
-   → Repository: SELECT * FROM giras WHERE tenant_id = 'abc-uuid'
-   → Retorna APENAS giras do Terreiro ABC
-
-3. Admin tenta acessar dados do Terreiro XYZ
-   → Não existe endpoint para isso
-   → Mesmo manipulando request, Repository filtra por "abc-uuid"
-   → ZERO dados do Terreiro XYZ acessíveis
-```
-
----
-
-## Criação de Novo Tenant
-
-Apenas SUPER_ADMIN pode criar tenants via:
-
-```
-POST /api/v1/platform/tenants
-{
-  "name": "Terreiro Novo",
-  "slug": "terreiro-novo"
-}
-```
-
-Isso cria:
-1. Registro na tabela `tenants`
-2. `TenantConfig` com configurações padrão
-3. Subscription com plano inicial
-
----
-
-## Testes de Isolamento
-
-A suite de testes verifica:
-
-- ✅ Repositório filtra por `tenant_id` em todas as operações
-- ✅ Endpoint admin não retorna dados de outro tenant
-- ✅ JWT inválido/expirado é rejeitado (401)
-- ✅ Role insuficiente é bloqueado (403)
-- ✅ Tenant inexistente retorna 404
-- ✅ Tenant suspenso retorna 403
+- Pelo cadastro público (`POST /api/v1/public/onboarding`), que cria tenant, primeiro admin, assinatura e grupo padrão
+  de permissões.
+- Pela plataforma (`POST /api/v1/platform/tenants`, só super-admin).

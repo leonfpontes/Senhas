@@ -1,5 +1,5 @@
 """
-T034: Brevo Email Provider - Primary email delivery service
+T034: Brevo Email Provider - fallback provider (Resend is primary; see email_queue.py)
 Implements EmailService interface using Brevo (formerly Sendinblue) API v3
 """
 

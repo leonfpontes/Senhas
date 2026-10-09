@@ -200,7 +200,8 @@ push, esvazie as três variáveis e recrie o backend.
 ### Mensalidade com baixa automática pelo Stripe Connect (F-02/AM-22)
 
 Cada casa escolhe onde recebe a mensalidade (decisão de 09/10): **Stripe** (este passo) ou Mercado Pago (passo
-abaixo, quando o PR do Mercado Pago entrar). Enquanto `STRIPE_CONNECT_WEBHOOK_SECRET` estiver vazio, a opção
+abaixo). **Estado (2026-10-09):** código no master (PR #114); os passos 1 a 3 e o `STRIPE_CONNECT_WEBHOOK_SECRET`
+do passo 4 dependem do dono (Connect na conta Stripe do GiraHub) e estão pendentes. Enquanto `STRIPE_CONNECT_WEBHOOK_SECRET` estiver vazio, a opção
 "Stripe" **não aparece** em Financeiro → Configuração → Mensalidade e a Área segue com a chave PIX + comprovante.
 O GiraHub não cobra comissão (sem `application_fee`): a taxa do Stripe é descontada da casa.
 
@@ -239,7 +240,8 @@ O GiraHub não cobra comissão (sem `application_fee`): a taxa do Stripe é desc
 ### Mensalidade com baixa automática pelo Mercado Pago (F-02/AM-22)
 
 A opção "Mercado Pago" **só aparece** com as quatro variáveis abaixo **e** `SECRETS_ENCRYPTION_KEY` (os tokens de
-cada casa são gravados cifrados). A casa entra na conta Mercado Pago dela e autoriza o GiraHub (OAuth); o GiraHub
+cada casa são gravados cifrados). **Estado (2026-10-09):** código no master (PR #115); credenciais configuradas na
+VPS em 09/10; falta a validação com uma casa piloto (passo 6). A casa entra na conta Mercado Pago dela e autoriza o GiraHub (OAuth); o GiraHub
 cria o PIX na conta da casa, sem comissão.
 
 1. **Criar a aplicação do GiraHub** em https://www.mercadopago.com.br/developers → **Suas integrações** → **Criar
@@ -293,12 +295,13 @@ NUNCA usar `up --build` diretamente — isso causa 503 enquanto o build ocorre.
 ```bash
 cd /opt/senhas
 
-# 1. Backup do banco ANTES de qualquer mudança
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-docker exec senhas_postgres pg_dump -U senhas_user senhas_prod \
-  > /opt/senhas/backups/senhas_prod_${TIMESTAMP}.sql
-# Manter apenas 10 mais recentes:
-ls -t /opt/senhas/backups/senhas_prod_*.sql | tail -n +11 | xargs -r rm
+# 1. Backup do banco ANTES de qualquer mudança (mesmo formato do deploy.yml)
+DB_USER=$(grep -E '^DB_USER=' .env | cut -d= -f2)
+DB_NAME=$(grep -E '^DB_NAME=' .env | cut -d= -f2)
+docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U "$DB_USER" "$DB_NAME" \
+  | gzip > /opt/senhas/backups/pre-deploy-$(date +%Y%m%d-%H%M%S).sql.gz
+# Manter apenas os 30 mais recentes (igual ao deploy.yml):
+ls -t /opt/senhas/backups/pre-deploy-*.sql.gz | tail -n +31 | xargs -r rm --
 
 # 2. Atualizar código
 git pull origin master
