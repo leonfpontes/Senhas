@@ -64,12 +64,11 @@ POST /api/v1/auth/login
 `refresh`, `account_select` (AM-05) e qualquer outro tipo (os futuros `mfa_pending`, convite...)
 dão 401. Tipo novo de JWT deve ter `type` próprio e decoder próprio, nunca passar por `decode_token`.
 
-**Janela de compatibilidade:** access tokens emitidos antes do T-02 não têm `type`. Um token
-**sem** `type` só é aceito se `iat < LEGACY_UNTYPED_ACCESS_CUTOFF` (**2026-10-08T00:00Z**) **e**
-agora `< iat + ACCESS_TOKEN_EXPIRE_HOURS` — os tokens legados morrem pelo TTL normal e, a partir
-de corte + TTL (2026-10-09T00:00Z com o TTL padrão de 24h), o decode é allowlist pura. Token sem
-`type` recusado vira 401 e o front renova sozinho via `/auth/refresh` (sem deslogar). O ramo
-legado (`_legacy_untyped_access_allowed`) pode ser removido a partir de 2026-10-10 (TODO no código).
+Token **sem** `type` também dá 401 ("tipo de token ausente"). Os access tokens emitidos antes do
+T-02 não tinham `type` e passaram por uma janela de compatibilidade (emitidos antes de
+2026-10-08T00:00Z, válidos até o TTL de 24h), que terminou em 2026-10-09T00:00Z; o ramo legado foi
+removido do código em 2026-10-09 e o decode é allowlist pura. Um 401 desses no navegador é
+renovado sozinho via `/auth/refresh` (sem deslogar), já que o refresh token tem `type: refresh`.
 
 ### Refresh Token
 
@@ -404,7 +403,7 @@ def verify_password(password: str, hashed: str) -> bool:
 | access_token | Cookie `HttpOnly; Secure; SameSite=Strict` — protegido contra XSS |
 | auth_state | Cookie não-HttpOnly `auth_state=1` — permite JS detectar login sem expor token |
 | refresh_token | Cookie `HttpOnly; Secure; SameSite=Strict`; payload com `type: refresh` |
-| Separação de tipos | `decode_token` é allowlist: só `type: access` (tokens sem `type` só na janela de compatibilidade do T-02); `decode_refresh_token` exige `type: refresh` |
+| Separação de tipos | `decode_token` é allowlist: só `type: access` (token sem `type` é recusado); `decode_refresh_token` exige `type: refresh` |
 | CSRF | Mitigado por `SameSite=Strict` — não requer CSRF token separado |
 | CORS | Origins configuráveis via `.env` |
 | Role hierarchy | `MEDIUM=-1 < OPERATOR=0 < ADMIN=1 < SUPER_ADMIN=2` — hierarquia explícita em `dependencies.py`; `medium` fica fora do back-office (`require_backoffice` no `admin_router`) |

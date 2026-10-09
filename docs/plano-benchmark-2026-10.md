@@ -75,7 +75,7 @@ Caminhos abreviados: **B/** = `backend/src/`, **F/** = `frontend/src/`. A próxi
 | 33 | C-03 Glossário | P2 | 4 | P | Backlog |
 | 34 | C-04 GiraHub × caderno | P2 | 4 | P | Backlog |
 | 35 | C-08 Tutoriais em vídeo | P2 | 4 | M | Backlog |
-| 36 | T-02 Token de acesso tipado | P0 | 4 | P | Backlog |
+| 36 | T-02 Token de acesso tipado | P0 | 4 | P | Feito (ramo legado removido em 09/10) |
 | 37 | F-03 WhatsApp automático | P2 | 4 | G | Backlog |
 | 38 | F-04 Portal do médium | P2 | 4 | G | Backlog |
 | 39 | F-05 Ficha espiritual | P2 | 4 | M | Backlog |
@@ -1166,9 +1166,12 @@ passariam como acesso.
 refresh intactos.
 
 **Aceite**
-- [ ] Todo access token emitido com `type: "access"`
-- [ ] `decode_token` em modo allowlist (depois da janela de compatibilidade)
-- [ ] Testes cobrindo refresh, impersonação e um token de tipo desconhecido
+- [x] Todo access token emitido com `type: "access"`
+- [x] `decode_token` em modo allowlist (depois da janela de compatibilidade)
+- [x] Testes cobrindo refresh, impersonação e um token de tipo desconhecido
+
+> 2026-10-09: janela de compatibilidade encerrada (corte 08/10 + 24h de TTL); `LEGACY_UNTYPED_ACCESS_CUTOFF`
+> e o ramo legado saíram do código — token sem `type` é recusado.
 
 ### F-03 — WhatsApp automático
 - **Ranking:** 37 · **Prioridade:** P2 · **Onda:** 4 · **Esforço:** G · **Tipo:** dev · **Módulo:** Comunicação · **Épico:** Funcionalidade
