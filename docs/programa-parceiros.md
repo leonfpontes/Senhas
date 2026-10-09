@@ -1,10 +1,10 @@
 # Programa de Parceiros GiraHub (C-06)
 
-Last Updated: 2026-10-08
+Last Updated: 2026-10-09
 
 Página pública `/parceiros` (convite + formulário de interesse) e lista dos pedidos na plataforma
-(`/platform/parceiros`). **Tudo atrás da chave `NEXT_PUBLIC_PARCEIROS_PUBLICADO`, desligada por padrão**
-— os números abaixo precisam da aprovação do dono antes de ligar.
+(`/platform/parceiros`). **Tudo atrás da chave `NEXT_PUBLIC_PARCEIROS_PUBLICADO`**, desligada por padrão no
+código e **ligada em produção desde 2026-10-09**, quando o dono aprovou os números abaixo (ver "Decisões do dono").
 
 ## Regras (o que a página promete)
 

@@ -1187,7 +1187,7 @@ Ao criar um novo enum em Alembic + model Python:
 | 18 | `018_estoque` | `017_default_brand_colors` | Cria `estoque_grupos`, `estoque_itens`, `estoque_movimentacoes`; enum `estoque_movimentacao_tipo`; `tenant_configs.enable_estoque_log` |
 | 19 | `019_fix_movimentacoes_fk` | `018_estoque` | `estoque_movimentacoes.item_id` FK: `CASCADE` → `RESTRICT` (protege integridade do ledger) |
 
-A tabela acima vai até a 019. A cadeia completa e a head atual (`092_mensalidade_comprovantes`, pagamento parcial)
+A tabela acima vai até a 019. A cadeia completa e a head atual (`093_sessao_contas_verificadas`, trocar de terreiro)
 estão em AGENTS.md §11.8.
 
 ### Comandos Alembic

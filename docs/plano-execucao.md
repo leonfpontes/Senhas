@@ -183,6 +183,8 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   schema pelas migrações. Grupos: 1) emissão concorrente (7); 2) isolamento de tenant em 13 módulos/rotas
   com conferência no banco e controle positivo (42); 3) RBAC por HTTP (9 + xfail Q-05); 4) webhook Stripe
   com assinatura real (4 + xfail não estrito Q-04); 5) migrações em banco zerado (5).
+  (Números da entrega de 2026-10-05. Os dois xfail saíram com o Q-04 e o Q-05; em 2026-10-09 a suíte tem mais de
+  500 testes, um arquivo por card/jornada, e nenhum xfail.)
   `tests/integration/` morta e `tests/fix_quotes.py`/`fix_escaped.py` apagados.
 - **Bugs reais achados e corrigidos na mesma entrega**: (a) primeiras emissões simultâneas numa gira
   sem contador (senha de associado, 11 giras antigas em produção) davam 500 por UniqueViolation no
@@ -488,6 +490,8 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Esforço**: M. **Custo**: R$ 0.
 
 ### P-02 — WhatsApp como canal de senha — `pendente` (decisão antes de código)
+- **Status (2026-10-09)**: o dono quer a API oficial da Meta e decide depois (aguardando). Custos e caminho em
+  `docs/custos-whatsapp-meta.md`; card P-02 do [plano-benchmark-2026-10.md](plano-benchmark-2026-10.md).
 - **Racional**: público-alvo é mobile-first e nem sempre lê e-mail; todo o investimento em
   template de e-mail atende o canal errado pra parte da audiência. Provável maior alavanca de
   produto do plano.
@@ -568,7 +572,8 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
   data) passaram do Pro para o Premium. Catálogo em `_FEATURE_MIN_TIER` (`plan_features.py`), migração de dados
   `059_planos_limites_out_2026`, router de associados ganhou `require_plan_feature("associados")`,
   toggles com gate só checam o plano ao ligar. Sem grandfathering: tenant Pro existente perde os
-  módulos (dados preservados, tela `PlanLocked`) — decisão sobre transição pendente com o dono.
+  módulos (dados preservados, tela `PlanLocked`) — decisão sobre transição pendente com o dono
+  (card X-01 do [plano-benchmark-2026-10.md](plano-benchmark-2026-10.md); em 2026-10-09 ainda a registrar).
   Testes: `tests/unit/test_planos_out_2026.py`, `tests/integration_pg/test_planos_out_2026.py`.
 - **Nota (2026-10-07) — ajuste de planos**: decisões do dono. (1) Mensalidade de médiuns a partir do
   **Basic** (gatilho de upgrade: com 15 médiuns no Basic, controlar a mensalidade de todos leva ao Pro/
@@ -667,7 +672,9 @@ Os três foram confirmados em código durante a auditoria, corrigidos e deployad
 - **Pendências registradas**: a busca de terreiros da plataforma é feita no navegador; a rota
   `/platform/tenants/search` estava sombreada por `/tenants/{tenant_id}` (corrigido no PR #47) e, para a tela
   usá-la, precisa devolver plano, status e fim do trial; "Nova conversa" no suporte da plataforma depende de endpoint
-  de criação; isenção de mensalidade em médiuns depende de campo no backend; páginas públicas ficaram mais
+  de criação; ~~isenção de mensalidade em médiuns depende de campo no backend~~ — `feito`: o campo
+  `mediuns.mensalidade_isento` existe desde a migração 027 e a tela de Médiuns voltou a editá-lo nas jornadas 2.2
+  (PR #54, 2026-10-06); páginas públicas ficaram mais
   pesadas que antes (ver `docs/bundle-baseline.md`) e merecem uma rodada de corte (import de ícones, zod/RHF só
   onde há formulário).
 

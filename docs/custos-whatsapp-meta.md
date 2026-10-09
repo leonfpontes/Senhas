@@ -43,7 +43,7 @@ marketing é caro e deve ser pago à parte.
 ## 4. O que é preciso para começar (além do dinheiro)
 
 1. **Verificação do negócio na Meta** (Business Manager) com os documentos da empresa — **precisa do CNPJ** da empresa
-   responsável pelo GiraHub (o mesmo que ainda falta nos Termos).
+   responsável pelo GiraHub (o mesmo que já aparece nos Termos, `frontend/src/constants/legal.ts`).
 2. **Um número dedicado** (chip novo ou fixo) que não esteja em uso no app WhatsApp.
 3. Nome de exibição aprovado ("GiraHub") e **modelos aprovados** um a um (texto fixo com campos: "Olá, {{1}}! Sua senha
    na {{2}} é {{3}}.").
@@ -57,7 +57,7 @@ marketing é caro e deve ser pago à parte.
   corrente como **adicional pago** (ex.: "WhatsApp da casa", R$ 14,90/mês com até 300 mensagens; acima disso, R$ 0,06
   cada), ou incluído no Premium com o mesmo limite.
 - **Marketing** (convite para lista de consulentes) só como pacote pago separado, se houver procura.
-- Antes de tudo: CNPJ e verificação do negócio na Meta — sem isso a API não sai do modo de teste.
+- Antes de tudo: verificação do negócio na Meta com o CNPJ — sem isso a API não sai do modo de teste.
 
 ## 6. O que o dono decide
 

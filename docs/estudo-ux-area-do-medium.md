@@ -309,10 +309,16 @@ Se uma jornada não bater a meta, ela muda no protótipo e é testada de novo an
 
 ## 11. Perguntas em aberto para o dono
 
-1. **Incentivo**: dar 1 mês grátis às casas participantes?
+Situação em 2026-10-09:
+
+1. **Incentivo**: dar 1 mês grátis às casas participantes? — **sem decisão registrada**; segue com o dono.
 2. **Vocabulário por casa**: se o teste mostrar que as casas falam diferente ("gira" × "toque", "mensalidade" ×
-   "contribuição"), vale deixar a casa escolher o termo em Configurações? Isso aumenta o escopo do AM-10.
-3. **Casas participantes**: quais 3 ou 4 casas convidar?
+   "contribuição"), vale deixar a casa escolher o termo em Configurações? Isso aumenta o escopo do AM-10. —
+   **Resolvida**: D-21 do plano (§12), termos **fixos no MVP**, reavaliar com pedidos reais; o AM-10 saiu sem
+   dicionário.
+3. **Casas participantes**: quais 3 ou 4 casas convidar? — **Resolvida**: as casas do piloto foram escolhidas e a
+   Área está ligada só nelas pela chave do piloto (`tenants.area_medium_liberada`, Tenant 360 da plataforma; plano
+   §11.0). A lista fica na plataforma, não neste documento.
 
 ---
 

@@ -5,8 +5,8 @@
  * banner de impersonação, aviso de assinatura, barra inferior no celular, busca de ações (⌘K)
  * e o contexto da "gira de hoje" compartilhado por Dashboard/Giras/Senhas/Porta.
  *
- * `AdminThemeProvider` continua aqui porque as telas ainda não migradas dependem do tema MUI
- * (e é ele quem alterna a classe `dark` em <html>).
+ * `AdminThemeProvider` fica aqui porque é ele quem guarda o modo claro/escuro do painel e alterna a
+ * classe `dark` em <html> (o MUI saiu na v2.0.0; tudo é shadcn/Tailwind).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import Head from 'next/head';
