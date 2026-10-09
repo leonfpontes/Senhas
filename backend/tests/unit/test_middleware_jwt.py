@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 import jwt as pyjwt
 import pytest
 
-import src.security.jwt as jwt_module
 from src.core.config import settings
 from src.middleware.jwt_middleware import jwt_middleware
 from src.core.errors import InvalidTokenError
@@ -192,10 +191,9 @@ class TestJwtMiddlewareTokenType:
         call_next.assert_not_called()
 
     @patch("src.middleware.jwt_middleware.log_security_event")
-    async def test_sem_type_fora_da_janela_recebe_401(self, mock_log):
-        with patch.object(jwt_module, "_utcnow", return_value=datetime(2030, 1, 1, tzinfo=timezone.utc)):
-            request = _make_request(auth_header=f"Bearer {_token(None)}")
-            call_next = _make_call_next()
-            response = await jwt_middleware(request, call_next)
+    async def test_sem_type_recebe_401(self, mock_log):
+        request = _make_request(auth_header=f"Bearer {_token(None)}")
+        call_next = _make_call_next()
+        response = await jwt_middleware(request, call_next)
         assert response.status_code == 401
         call_next.assert_not_called()

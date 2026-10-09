@@ -79,7 +79,7 @@ Caminhos abreviados: **B/** = `backend/src/`, **F/** = `frontend/src/`. A próxi
 | 33 | C-03 Glossário | P2 | 4 | P | Backlog |
 | 34 | C-04 GiraHub × caderno | P2 | 4 | P | Backlog |
 | 35 | C-08 Tutoriais em vídeo | P2 | 4 | M | Backlog |
-| 36 | T-02 Token de acesso tipado | P0 | 4 | P | Feito (#69); remoção do ramo legado sem `type` à parte |
+| 36 | T-02 Token de acesso tipado | P0 | 4 | P | Feito (#69; ramo legado removido em 09/10, #119) |
 | 37 | F-03 WhatsApp automático | P2 | 4 | G | Backlog |
 | 38 | F-04 Portal do médium | P2 | 4 | G | Substituído pela Área do Médium (AM-02 a AM-13) |
 | 39 | F-05 Ficha espiritual | P2 | 4 | M | Feito (com o AM-19, #109) |
@@ -1164,9 +1164,8 @@ primeira gira. O Tupam promete tutoriais e mostra "em breve"; nós entregamos.
 > 2026-10-07: subiu de P2 para P0. É dependência dura da Área do Médium e, sem tela, corre junto com o estudo
 > de experiência (AM-00). Ver `docs/plano-area-do-medium.md` §11.
 
-- **Status (2026-10-09):** feito no PR #69 — access token com `type: "access"` e `decode_token` em allowlist, com a
-  janela de compatibilidade para tokens antigos sem `type`; a remoção desse ramo legado (`TODO(T-02)` em
-  `B/security/jwt.py`) vai em PR à parte.
+- **Status (2026-10-09):** feito — access token com `type: "access"` e `decode_token` em allowlist no PR #69; a
+  janela de compatibilidade para tokens antigos sem `type` acabou e o ramo legado saiu no PR #119.
 
 **Por quê.** O access token não tem `type`. O `decode_token` (`B/security/jwt.py:170`) só rejeita `type=="refresh"`,
 ou seja, funciona como lista de bloqueio. O F-10 (token `mfa_pending`) e o F-04 (token de convite) criariam tokens que
@@ -1181,9 +1180,12 @@ passariam como acesso.
 refresh intactos.
 
 **Aceite**
-- [ ] Todo access token emitido com `type: "access"`
-- [ ] `decode_token` em modo allowlist (depois da janela de compatibilidade)
-- [ ] Testes cobrindo refresh, impersonação e um token de tipo desconhecido
+- [x] Todo access token emitido com `type: "access"`
+- [x] `decode_token` em modo allowlist (depois da janela de compatibilidade)
+- [x] Testes cobrindo refresh, impersonação e um token de tipo desconhecido
+
+> 2026-10-09: janela de compatibilidade encerrada (corte 08/10 + 24h de TTL); `LEGACY_UNTYPED_ACCESS_CUTOFF`
+> e o ramo legado saíram do código — token sem `type` é recusado.
 
 ### F-03 — WhatsApp automático
 - **Ranking:** 37 · **Prioridade:** P2 · **Onda:** 4 · **Esforço:** G · **Tipo:** dev · **Módulo:** Comunicação · **Épico:** Funcionalidade

@@ -173,7 +173,7 @@ export const FEATURE_CATALOG: readonly FeatureCatalogItem[] = [
   { key: 'mediuns', label: 'Cadastro de médiuns e cambones', group: 'Pessoas' },
   { key: 'mensalidade_mediun', label: 'Mensalidade dos médiuns', group: 'Pessoas' },
   { key: 'ficha_espiritual', label: 'Ficha espiritual e caminhada dos médiuns', group: 'Pessoas' },
-  { key: 'mensalidade_automatica', label: 'Mensalidade com baixa automática (PIX/boleto)', group: 'Pessoas' },
+  { key: 'mensalidade_automatica', label: 'Mensalidade no PIX com baixa automática (conecte o Mercado Pago da casa)', group: 'Pessoas' },
   { key: 'associados', label: 'Associados', group: 'Pessoas' },
   { key: 'mensalidade_associado', label: 'Mensalidade dos associados', group: 'Pessoas' },
   { key: 'contas_financeiras', label: 'Contas a pagar e a receber, fluxo de caixa e contas bancárias', group: 'Financeiro e estoque' },

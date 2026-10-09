@@ -99,9 +99,8 @@ tenant redundante (barato) a uma excecao.
   (login, refresh, impersonacao, reativacao, cadastro). `decode_token` (usado pelo `jwt_middleware`)
   e ALLOWLIST: so `type=access`; `refresh`, `account_select` (AM-05) e tipos desconhecidos (`mfa_pending`,
   convite...) dao 401. Tipo novo de JWT = `type` proprio + decoder proprio, nunca `decode_token`.
-  Janela de compatibilidade: token SEM `type` so passa se `iat < LEGACY_UNTYPED_ACCESS_CUTOFF`
-  (2026-10-08T00:00Z) e ainda dentro de `ACCESS_TOKEN_EXPIRE_HOURS` do `iat`; ramo legado
-  removivel a partir de 2026-10-10 (detalhes em `docs/authentication.md`).
+  Token SEM `type` tambem da 401 (a janela de compatibilidade dos tokens antigos acabou em
+  2026-10-09 e o ramo legado foi removido em 2026-10-09; detalhes em `docs/authentication.md`).
 - `jwt_middleware` extrai token do header `Authorization: Bearer` primeiro (impersonacao via sessionStorage), depois fallback para cookie `access_token`.
 - `jwt_middleware` public_paths inclui `/auth/login`, `/auth/login/select`, `/auth/refresh`, `/auth/logout`,
   `/auth/forgot-password`, `/auth/reset-password`, `/auth/reactivate-account`.
@@ -698,7 +697,8 @@ Recursos (plano minimo em `_FEATURE_MIN_TIER`):
   casa na Area — AM-21, decisao D-02; em `UNSOLD_FEATURES` no piloto), `ficha_espiritual` (ficha espiritual e caminhada
   do medium — F-05/AM-19, decisao de 2026-10-08; no quadro, grupo "Pessoas"; na Area vale junto com `area_medium`),
   `mensalidade_automatica` (mensalidade com baixa automatica pelo Stripe Connect ou Mercado Pago — F-02/AM-22,
-  decisao de 2026-10-09; no quadro, grupo "Pessoas": "Mensalidade com baixa automatica (PIX/boleto)").
+  decisao de 2026-10-09; no quadro, grupo "Pessoas": "Mensalidade no PIX com baixa automática (conecte o Mercado Pago da casa)" —
+  boleto sai do texto enquanto o Stripe Connect não estiver ativo em produção).
 - **So Premium**: `associados`, `mensalidade_associado`, `estoque_controle`, `contas_financeiras`
   (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`, `agendamento_por_horario`.
 - Fora do quadro (`UNSOLD_FEATURES`): `bulk_operations`, `export_csv`, `analytics_avancado` (Pro+ no
