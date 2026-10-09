@@ -22,6 +22,24 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.7.0',
+    date: '2026-10-09',
+    title: 'PIX na assinatura, mensalidade automática e troca de terreiro',
+    highlights: [
+      'Assinatura do plano no PIX, mês a mês: cada PIX pago libera 30 dias, e o GiraHub avisa antes de vencer. Prefere boleto? Também dá, com a fatura chegando todo mês.',
+      'Casas que conectam a conta do Mercado Pago: a mensalidade que o médium paga pelo PIX na Área do Médium aparece como "Paga" sozinha, sem ninguém precisar conferir comprovante. Plano Pro, nas casas do teste da Área.',
+      'Pagamento parcial da mensalidade: a direção confere quanto chegou, o médium vê "Falta pagar R$ X" e o PIX já sai no valor que falta. Dá para mandar vários comprovantes no mesmo mês, sem um apagar o outro.',
+      'Tem acesso a mais de um terreiro? Agora dá para trocar de casa pelo menu do perfil, sem sair da conta.',
+      'Programa de Parceiros do GiraHub: quem indica casas pode conhecer o programa em girahub.com.br/parceiros.',
+      'Nas casas do teste da Área do Médium: os lembretes (véspera da gira, mensalidade, escala nova, avisos da casa) também podem chegar como notificação no celular. Cada médium liga ou desliga no próprio aparelho.',
+    ],
+    fixes: [
+      'As caixas de texto grandes dos formulários (por exemplo, na inscrição em curso) não acusam mais "campo obrigatório" quando já estão preenchidas.',
+      'O relatório da gira não fica mais em branco quando a casa não marca os atendimentos como concluídos.',
+      'O seletor de gira não aparece mais repetido no topo das telas da Porta e de Senhas.',
+    ],
+  },
+  {
     version: '2.6.0',
     date: '2026-10-08',
     title: 'Ficha espiritual, estudos e troca na escala',

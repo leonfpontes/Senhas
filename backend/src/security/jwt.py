@@ -1,6 +1,6 @@
 """JWT token creation and validation (T019)."""
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Any
+from typing import Optional
 import uuid
 import jwt  # PyJWT — substitui python-jose (que arrastava ecdsa/pyasn1 vulneráveis)
 from pydantic import BaseModel, Field
@@ -18,18 +18,6 @@ REFRESH_TOKEN_TYPE = "refresh"
 # POST /auth/login/select aceita (decode_account_select_token).
 ACCOUNT_SELECT_TOKEN_TYPE = "account_select"
 ACCOUNT_SELECT_TOKEN_TTL = timedelta(minutes=5)
-
-# Janela de compatibilidade (T-02, out/2026). Antes do T-02 o access token
-# não tinha `type`. Um token SEM `type` só é aceito se foi emitido antes deste
-# corte E ainda está dentro do maior TTL de access contado do próprio `iat`
-# (ACCESS_TOKEN_EXPIRE_HOURS) — ou seja, os tokens legados morrem
-# naturalmente e, passado CUTOFF + TTL, o ramo legado não aceita mais nada.
-# O corte precisa ser >= o momento do deploy do T-02: token sem `type`
-# emitido depois dele (pelo código antigo, se o deploy atrasar) toma 401 e o
-# front renova sozinho via /auth/refresh (api_client.ts), sem deslogar.
-# TODO(T-02): remover o ramo legado (e esta constante) a partir de
-# 2026-10-10 — CUTOFF + 24h de TTL + folga; a partir daí ele é código morto.
-LEGACY_UNTYPED_ACCESS_CUTOFF = datetime(2026, 10, 8, 0, 0, tzinfo=timezone.utc)
 
 
 class TokenPayload(BaseModel):
@@ -172,35 +160,11 @@ def create_refresh_token(
     return encoded
 
 
-def _utcnow() -> datetime:
-    """Relógio da janela legada (isolado para os testes congelarem o tempo)."""
-    return datetime.now(timezone.utc)
-
-
-def _legacy_untyped_access_allowed(payload: dict[str, Any]) -> bool:
-    """Janela de compatibilidade do T-02 para access tokens sem `type`.
-
-    Aceita só se `iat` < LEGACY_UNTYPED_ACCESS_CUTOFF e agora < iat + TTL
-    máximo de access. Como iat < corte, isso nunca passa de CUTOFF + TTL:
-    depois disso o decode é allowlist pura (`type == "access"`).
-    TODO(T-02): remover a partir de 2026-10-10 (ver LEGACY_UNTYPED_ACCESS_CUTOFF).
-    """
-    iat_raw = payload.get("iat")
-    if not isinstance(iat_raw, (int, float)) or isinstance(iat_raw, bool):
-        return False
-    iat = datetime.fromtimestamp(iat_raw, tz=timezone.utc)
-    if iat >= LEGACY_UNTYPED_ACCESS_CUTOFF:
-        return False
-    max_ttl = timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
-    return _utcnow() < iat + max_ttl
-
-
 def decode_token(token: str) -> TokenPayload:
     """Decode and validate an ACCESS token (o que o jwt_middleware usa).
 
-    Allowlist: só `type == "access"`. Refresh e qualquer outro tipo são
-    recusados; token sem `type` só dentro da janela de compatibilidade
-    (`_legacy_untyped_access_allowed`).
+    Allowlist pura: só `type == "access"`. Refresh, token sem `type` e
+    qualquer outro tipo são recusados.
 
     Args:
         token: JWT token string
@@ -224,9 +188,8 @@ def decode_token(token: str) -> TokenPayload:
                 "Token inválido: refresh token não pode ser usado como access token"
             )
         if token_type is None:
-            if not _legacy_untyped_access_allowed(payload):
-                raise InvalidTokenError("Token inválido: tipo de token ausente")
-        elif token_type != ACCESS_TOKEN_TYPE:
+            raise InvalidTokenError("Token inválido: tipo de token ausente")
+        if token_type != ACCESS_TOKEN_TYPE:
             raise InvalidTokenError(
                 "Token inválido: tipo de token não aceito como access token"
             )

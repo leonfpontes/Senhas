@@ -95,6 +95,12 @@ describe('plans — espelho do backend', () => {
     expect(FEATURE_CATALOG.find((f) => f.key === 'tema_personalizado')?.label).toBe('Personalização da plataforma');
     expect(FEATURE_CATALOG.some((f) => /analytics|csv export|feature/i.test(f.label))).toBe(false);
   });
+
+  it('baixa automática anuncia só o que está no ar: PIX pelo Mercado Pago da casa, sem boleto', () => {
+    const label = FEATURE_CATALOG.find((f) => f.key === 'mensalidade_automatica')?.label;
+    expect(label).toBe('Mensalidade no PIX com baixa automática (conecte o Mercado Pago da casa)');
+    expect(label).not.toMatch(/boleto/i);
+  });
 });
 
 describe('plans — helpers', () => {

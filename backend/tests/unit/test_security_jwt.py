@@ -3,14 +3,12 @@ import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 import pytest
 import jwt  # PyJWT
 
 import src.security.jwt as jwt_module
 from src.security.jwt import (
-    LEGACY_UNTYPED_ACCESS_CUTOFF,
     create_access_token,
     create_refresh_token,
     decode_token,
@@ -335,8 +333,28 @@ class TestAccessTokenType:
         with pytest.raises(InvalidTokenError, match="não é um refresh token"):
             decode_refresh_token(create_access_token(uuid.uuid4(), uuid.uuid4(), "admin"))
 
-    def test_corte_legado_e_fixo_em_utc(self):
-        assert LEGACY_UNTYPED_ACCESS_CUTOFF == datetime(2026, 10, 8, tzinfo=timezone.utc)
+    def test_sem_type_e_recusado(self):
+        """Allowlist pura: token sem `type` nunca autentica, mesmo válido e
+        assinado (a janela de compatibilidade do T-02 acabou em 2026-10-09)."""
+        with pytest.raises(InvalidTokenError, match="tipo de token ausente"):
+            decode_token(_assinar(_payload_access()))
+
+    def test_sem_type_antigo_com_exp_distante_e_recusado(self):
+        token = _assinar({
+            "sub": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4()), "role": "admin",
+            "exp": datetime(2099, 1, 1, tzinfo=timezone.utc),
+            "iat": datetime(2026, 9, 1, tzinfo=timezone.utc),
+        })
+        with pytest.raises(InvalidTokenError, match="tipo de token ausente"):
+            decode_token(token)
+
+    def test_sem_type_de_impersonacao_e_recusado(self):
+        with pytest.raises(InvalidTokenError, match="tipo de token ausente"):
+            decode_token(_assinar(_payload_access(impersonated_by=str(uuid.uuid4()))))
+
+    def test_janela_legada_nao_existe_mais(self):
+        assert not hasattr(jwt_module, "LEGACY_UNTYPED_ACCESS_CUTOFF")
+        assert not hasattr(jwt_module, "_legacy_untyped_access_allowed")
 
     def test_so_security_jwt_assina_tokens(self):
         """Todo access token sai de create_access_token (que grava type=access):
@@ -348,82 +366,6 @@ class TestAccessTokenType:
             if p.name != "jwt.py" and re.search(r"\bjwt\.encode\(", p.read_text(encoding="utf-8"))
         ]
         assert culpados == []
-
-
-class TestLegacyUntypedAccessWindow:
-    """Janela de compatibilidade: token sem `type` emitido antes do corte vale
-    até iat + TTL de access; depois disso (ou emitido após o corte) é recusado."""
-
-    CORTE = datetime(2026, 9, 1, tzinfo=timezone.utc)
-
-    @pytest.fixture(autouse=True)
-    def corte_no_passado(self):
-        # Corte no passado real: assim o `iat` dos tokens também fica no
-        # passado e o PyJWT não recusa por iat no futuro (falso positivo).
-        with patch.object(jwt_module, "LEGACY_UNTYPED_ACCESS_CUTOFF", self.CORTE):
-            yield
-
-    def _legado(self, iat: datetime) -> str:
-        return _assinar({
-            "sub": str(uuid.uuid4()),
-            "tenant_id": str(uuid.uuid4()),
-            "role": "admin",
-            "exp": datetime(2099, 1, 1, tzinfo=timezone.utc),
-            "iat": iat,
-        })
-
-    def _agora(self, quando: datetime):
-        return patch.object(jwt_module, "_utcnow", return_value=quando)
-
-    def test_aceito_dentro_da_janela(self):
-        iat = self.CORTE - timedelta(hours=2)
-        with self._agora(iat + timedelta(hours=1)):
-            assert decode_token(self._legado(iat)).role == "admin"
-
-    def test_impersonacao_legada_aceita_dentro_da_janela(self):
-        iat = self.CORTE - timedelta(minutes=10)
-        token = _assinar({
-            "sub": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4()), "role": "admin",
-            "exp": datetime(2099, 1, 1, tzinfo=timezone.utc), "iat": iat,
-            "impersonated_by": str(uuid.uuid4()),
-        })
-        with self._agora(iat + timedelta(minutes=30)):
-            assert decode_token(token).impersonated_by is not None
-
-    def test_recusado_depois_do_ttl_do_proprio_iat(self):
-        iat = self.CORTE - timedelta(hours=2)
-        ttl = timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
-        with self._agora(iat + ttl + timedelta(seconds=1)):
-            with pytest.raises(InvalidTokenError, match="tipo de token ausente"):
-                decode_token(self._legado(iat))
-
-    def test_recusado_depois_de_corte_mais_ttl(self):
-        """Passado CUTOFF + TTL nenhum token sem type passa: allowlist pura."""
-        iat = self.CORTE - timedelta(seconds=1)
-        ttl = timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
-        with self._agora(self.CORTE + ttl):
-            with pytest.raises(InvalidTokenError, match="tipo de token ausente"):
-                decode_token(self._legado(iat))
-
-    def test_sem_type_emitido_depois_do_corte_e_recusado(self):
-        iat = self.CORTE + timedelta(seconds=1)
-        with self._agora(iat + timedelta(minutes=1)):
-            with pytest.raises(InvalidTokenError, match="tipo de token ausente"):
-                decode_token(self._legado(iat))
-
-    def test_sem_type_e_sem_iat_e_recusado(self):
-        token = _assinar({
-            "sub": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4()), "role": "admin",
-            "exp": datetime(2099, 1, 1, tzinfo=timezone.utc),
-        })
-        with self._agora(self.CORTE - timedelta(hours=1)):
-            with pytest.raises(InvalidTokenError, match="tipo de token ausente"):
-                decode_token(token)
-
-    def test_access_tipado_nao_depende_da_janela(self):
-        token = create_access_token(uuid.uuid4(), uuid.uuid4(), "admin")
-        with self._agora(datetime(2030, 1, 1, tzinfo=timezone.utc)):
-            assert decode_token(token).role == "admin"
 
 
 class TestTokenPayloadModel:
