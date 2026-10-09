@@ -46,7 +46,9 @@ from src.models import (
     CorrenteGrupoMembro,
     FuncaoCorrente,
     Gira,
+    ParticipacaoTroca,
 )
+from src.models.atividades import STATUS_TROCA_ABERTOS
 from src.repositories.subscription_repo import SubscriptionRepository
 from src.services.atividades import elegiveis_fixos_do_medium, grupos_dos_tipos, tipo_da_gira, tipo_resumo
 from src.services.audit_service import AuditService
@@ -68,6 +70,7 @@ from src.services.presenca import (
     ctx_de,
     dentro_da_janela,
     dentro_do_prazo,
+    gravar_justificativa,
     upsert_participacao,
     grupos_ativos_do_medium,
     janela_checkin,
@@ -123,6 +126,7 @@ class MinhaParticipacao(BaseModel):
     presenca: str
     presenca_em: Optional[datetime] = None
     justificativa: Optional[str] = None
+    justificativa_avaliacao: Optional[str] = None
     grupo: Optional[str] = None
     funcao: Optional[str] = None
     pede_confirmacao: bool
@@ -174,7 +178,7 @@ def atividade_visivel_ao_medium(ctx: MediumContext):
     Não excluída, não âncora de gira, e: (`visibilidade = 'corrente'` e o tipo alcança o médium —
     todos · só atendimento · só cambones · grupos ATIVOS dele) OU o médium tem participação nela
     (AM-17: "só quem estiver na escala" aparece para quem está na escala; quem a casa convocou à
-    mão também vê). Quem usa junta `Atividade.tenant_id == ctx.tenant_id` e
+    mão também vê) OU o médium é o colega chamado de um pedido de troca aberto (AM-27). Quem usa junta `Atividade.tenant_id == ctx.tenant_id` e
     `AtividadeTipo.tenant_id == ctx.tenant_id` na mesma query (o auditor confere ali).
     """
     nos_meus_grupos = exists(
@@ -197,6 +201,15 @@ def atividade_visivel_ao_medium(ctx: MediumContext):
             AtividadeParticipacao.atividade_id == Atividade.id,
         )
     )
+    # AM-27: o colega chamado para uma troca vê a atividade enquanto o pedido está aberto.
+    chamado_para_troca = exists(
+        select(ParticipacaoTroca.id).where(
+            ParticipacaoTroca.tenant_id == ctx.tenant_id,
+            ParticipacaoTroca.substituto_id == ctx.medium.id,
+            ParticipacaoTroca.atividade_id == Atividade.id,
+            ParticipacaoTroca.status.in_(STATUS_TROCA_ABERTOS),
+        )
+    )
     return and_(
         Atividade.deleted_at.is_(None),
         Atividade.gira_id.is_(None),
@@ -209,6 +222,7 @@ def atividade_visivel_ao_medium(ctx: MediumContext):
                 ),
             ),
             tenho_participacao,
+            chamado_para_troca,
         ),
     )
 
@@ -478,11 +492,9 @@ async def responder(
         raise ConflictError("Já passou da hora de responder: a atividade começou.")
     if body.resposta == RESPOSTA_NAO_VOU:
         texto = limpar_justificativa(body.justificativa, obrigatoria=bool(item.tipo.exige_justificativa))
-        linha.justificativa = texto
-        linha.justificativa_em = agora if texto else None
+        gravar_justificativa(linha, texto, agora)
     else:
-        linha.justificativa = None
-        linha.justificativa_em = None
+        gravar_justificativa(linha, None, agora)
     linha.resposta = body.resposta
     linha.respondido_em = agora
     linha.updated_at = agora
@@ -567,8 +579,7 @@ async def contar_o_motivo(
     prazo = prazo_justificativa(item.fim_efetivo, prazo_dias)
     if not dentro_do_prazo(agora.astimezone(APP_TZ).date(), prazo):
         raise ConflictError(f"O prazo para contar o motivo terminou em {prazo:%d/%m}.")
-    linha.justificativa = limpar_justificativa(body.justificativa, obrigatoria=True)
-    linha.justificativa_em = agora
+    gravar_justificativa(linha, limpar_justificativa(body.justificativa, obrigatoria=True), agora)
     linha.updated_at = agora
     await _auditar(db, ctx, linha, "contou o motivo de uma ausência")
     await db.commit()

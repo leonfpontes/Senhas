@@ -95,6 +95,14 @@ class TenantConfig(TimestampedModel):
     area_medium_lembrete_mensalidade: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    # Mensagem da casa no Início do aniversariante (AM-20, migração 083). Vazio = texto padrão
+    # ("A <terreiro> deseja um feliz aniversário, <primeiro nome>! Axé!").
+    area_medium_aniversario_mensagem: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Troca de escala (AM-27, migração 086): troca combinada entre médiuns precisa da aprovação
+    # da direção (padrão sim). Desligado, o aceite do colega já vale.
+    escala_troca_exige_aprovacao: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
 
     # Custom metadata
     custom_settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)

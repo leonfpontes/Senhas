@@ -31,6 +31,8 @@ export interface PlanFeatures {
   atividades_corrente: boolean;
   /** Escalas (faxina por grupos, escala de gira por função). Pro+. */
   escalas: boolean;
+  /** Estudos e documentos da casa (AM-21): biblioteca da corrente. Pro+. */
+  biblioteca_medium: boolean;
   /** Ficha espiritual do médium (F-05/AM-19, Pro). */
   ficha_espiritual: boolean;
 }
@@ -94,6 +96,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   area_medium: false,
   atividades_corrente: false,
   escalas: false,
+  biblioteca_medium: false,
   ficha_espiritual: false,
 };
 

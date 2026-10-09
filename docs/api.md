@@ -14,10 +14,11 @@
 1. [Authentication](#authentication)
 2. [Public Endpoints](#public-endpoints)
 3. [Admin Endpoints](#admin-endpoints)
-4. [Webhook Endpoints](#webhook-endpoints)
-5. [Error Handling](#error-handling)
-6. [Rate Limiting](#rate-limiting)
-7. [Examples](#examples)
+4. [Platform Endpoints (super-admin)](#platform-endpoints-super-admin)
+5. [Webhook Endpoints](#webhook-endpoints)
+6. [Error Handling](#error-handling)
+7. [Rate Limiting](#rate-limiting)
+8. [Examples](#examples)
 
 ---
 
@@ -219,9 +220,12 @@ Terreiro sem a Área (plano sem `area_medium`, assinatura bloqueada ou chave do 
   "email_mascarado": "an•••••••@gmail.com",
   "conta_existente": false,
   "expira_em": "2026-10-14T12:00:00Z",
-  "consentimento_versao": "1"
+  "consentimento_versao": "2"
 }
 ```
+`consentimento_versao`: versão do termo da Área (`CONSENTIMENTO_AREA_VERSAO`; "2" desde o AM-14/AM-20 — o
+médium encerra o acesso e baixa os dados sozinho, e os outros médiuns só veem o aniversário de quem escolher
+mostrar). Quem aceitou a "1" segue com a "1" gravada; nada pede novo aceite.
 `conta_existente` = já existe conta do painel (admin/operador, não excluída) com o e-mail do
 convite no terreiro: o aceite pede a senha dessa conta.
 
@@ -272,6 +276,64 @@ toque em "Desligar" (leitor de link não muda nada).
 - Token = `medium_preferencias.token_descadastro` (busca raiz); inexistente → 404
   `{"detail": {"error_code": "LINK_INVALIDO", "message": "Este link não vale mais. Você pode mudar os avisos por e-mail no Perfil da Área."}}`.
   Ligar de novo só pela Área (Perfil → Avisos por e-mail).
+
+### 8. Cadastro de terreiro (onboarding)
+
+**`POST /api/v1/public/onboarding`** (10/min por IP no slowapi e zona `login_limit` no nginx —
+`location = /api/v1/public/onboarding`, a mesma do login). Cria o terreiro, o admin, a assinatura
+(Premium de 30 dias se o CPF/CNPJ e o e-mail nunca ganharam o mês grátis — `trial_grants`; senão
+Free), o aceite dos termos (`legal_acceptances`) e abre a sessão (`issue_session`: os 3 cookies do login).
+```json
+{
+  "terreiro_nome": "Tenda Luz da Mata", "responsavel_nome": "Ana", "email": "ana@example.com",
+  "whatsapp": "11999998888", "documento": "52998224725", "conta_existente": false,
+  "password": "...", "como_conheceu": "indicacao", "principal_dor": "mediuns", "aceite_termos": true
+}
+```
+- E-mail novo: `password` segue a regra de senha (`validate_password_policy`, 422 no campo).
+- **E-mail que já tem conta ATIVA em outro terreiro** (decisão do dono, 2026-10-08; "ativa" = a mesma
+  noção do login AM-05, `active_login_accounts_stmt` — inclusive conta `medium`):
+  - sem `conta_existente` → **409** `{"detail": {"error_code": "EMAIL_JA_TEM_CONTA", "message": "Você já tem conta no GiraHub com este e-mail. Digite a senha dessa conta para criar a casa nova."}}`;
+  - com `conta_existente: true`, `password` é a senha dessa conta (sem a regra de senha nova — só o
+    teto de 72 bytes do bcrypt), conferida em todas as contas ativas do e-mail (no máximo 5, como no
+    login; basta uma conferir). Errada → **400** `SENHA_CONTA_INCORRETA` (nunca 401) e nada é criado;
+  - certa, mas o e-mail já tem **5** contas ativas (`MAX_LOGIN_ACCOUNTS`) → **409**
+    `LIMITE_CONTAS_EMAIL` (só depois da senha certa);
+  - certa → o admin novo nasce com o **mesmo hash de senha** da conta conferida (uma senha só); o login
+    passa a responder `choose_account` com os terreiros.
+- Sem conta ativa, mas com conta inativa ou de terreiro desativado pelo dono → **409**
+  `{"detail": "Este email já está cadastrado"}` (como antes; o login oferece reativar). Só conta
+  excluída não barra. `conta_existente: true` com e-mail sem conta ativa vira cadastro comum (regra de senha).
+- Não existe consulta de "este e-mail tem conta?" antes do envio (seria um oráculo): só a resposta acima,
+  depois do formulário inteiro válido.
+### 9. Programa de Parceiros — pedido de interesse (C-06)
+
+**`POST /api/v1/public/parceiros/interesse`** (sem login; 5/hora por IP) — formulário da página `/parceiros`
+(a página fica atrás de `NEXT_PUBLIC_PARCEIROS_PUBLICADO`; o endpoint aceita sempre).
+
+```json
+{
+  "nome": "Maria das Ervas",
+  "tipo": "loja",
+  "nome_negocio": "Casa de Artigos Pai Joaquim",
+  "cidade": "Niterói",
+  "uf": "RJ",
+  "whatsapp": "(21) 99876-5432",
+  "email": "maria@exemplo.com",
+  "como_divulgar": "Display no balcão e grupo de WhatsApp dos clientes",
+  "aceite_regulamento": true,
+  "website": ""
+}
+```
+
+- `tipo` = `loja|dirigente_medium|criador_conteudo|federacao|outro`; `uf` = sigla (qualquer caixa);
+  `whatsapp` com DDD (10–13 dígitos, gravado só com dígitos); `nome_negocio` opcional; `como_divulgar` 3–500.
+  Campo inválido ou ausente → 422.
+- `aceite_regulamento: false` → 422 `{"detail": "Para enviar, aceite o regulamento do Programa de Parceiros."}`.
+- `website` é campo isca (escondido na página): preenchido → 201 com a mesma mensagem, nada gravado nem enviado.
+- **201** `{"message": "Recebemos o seu pedido! A equipe GiraHub responde em até 2 dias úteis, …"}`. Grava em
+  `parceiro_interesses` (status `novo`, `ip_hash` = HMAC do IP, nunca o IP) e avisa a equipe no `ALERT_EMAIL`
+  (reply-to = e-mail do interessado; link `/platform/parceiros?pedido=<id>`).
 
 ---
 
@@ -646,7 +708,8 @@ e chave do piloto `tenants.area_medium_liberada`; sem a chave → 403). Médium 
   "mensalidade_no_plano": true,
   "presenca": { "modo_padrao": "confianca", "prazo_justificativa_dias": 7 },
   "presenca_no_plano": true,
-  "lembretes": { "mensalidade": true }
+  "lembretes": { "mensalidade": true },
+  "aniversario_mensagem": null
 }
 ```
 **PUT body** (partial — only sent fields change): `ativa` (bool), `boas_vindas` (≤ 500, empty
@@ -658,6 +721,10 @@ absence). Changing the mode applies to the next roll calls; presence already rec
 `presenca_no_plano` = plan with `atividades_corrente` (the screen only shows the section with it).
 `lembretes` (AM-15): `{mensalidade?: bool}` — the house turns the mensalidade e-mail reminders off (D-29: 3 days
 before and 3 days after the due date, only for months open without a receipt; default on).
+`aniversario_mensagem` (AM-20): the house's message on the médium's Início on his birthday — plain text (HTML and
+control characters are stripped), ≤ 200 after cleaning (else 422), `{nome}` becomes the first name; empty/`null`
+clears it and the default applies ("A <terreiro> deseja um feliz aniversário, <primeiro nome>! Axé!"). The response
+brings it too (`null` = default).
 Audited as `TenantConfig` / `config_type: "area_medium"`.
 
 ### 11. PIX key for the mensalidade (AM-10)
@@ -733,7 +800,7 @@ The file is the existing `GET .../mensalidades/{mediun_id}/{mes}/comprovante`.
 
 On screen it is **"Avisos"** (decision D-16); the API keeps `comunicados`. Every route requires the
 plan feature `area_medium` (Basic+ **and** the pilot switch `tenants.area_medium_liberada`, otherwise
-403) and the permission group `COMUNICADOS` ("Avisos da Área"):
+403) and the permission group `COMUNICADOS` ("Avisos e estudos da Área"):
 
 | Method | Path | Group action |
 |---|---|---|
@@ -992,7 +1059,9 @@ with `type: "account_select"`, valid for 5 minutes, carrying the allowed `user_i
 "remember me" flag; it is rejected as an access or refresh token. Cost: one bcrypt verification per
 active account (max 5); an unknown e-mail runs one dummy verification (same as a wrong password on
 a single account). No active account → single-account rule (`TENANT_DEACTIVATED` for a
-self-deactivated terreiro, after the password is checked).
+self-deactivated terreiro, after the password is checked). A new terreiro can be signed up with an
+e-mail that already has an active account (`conta_existente` in `POST /public/onboarding`, Public
+Endpoints §8): the new admin reuses that account's password hash, so the same password lists both.
 
 **Error Responses**:
 - `401 Unauthorized`: Invalid credentials (or `detail.error_code = "TENANT_DEACTIVATED"`)
@@ -1351,7 +1420,153 @@ another function there keeps it (`em_outra_funcao_nomes`). Response = this scale
 
 Notifications ("Você é Cambone na gira de sábado") are AM-15's job — nothing is sent here.
 
-### 20. Ficha espiritual do médium (F-05)
+### 20. Billing — plano e assinatura na Stripe (cartão ou boleto, $-04)
+
+`/api/v1/admin/billing*` — account screen: `ADMIN`/`SUPER_ADMIN` only (`_require_admin`), no group
+feature (exempt in `scripts/audit_permission_guards.py`).
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/admin/billing` | Plan, status, Stripe ids, period, trial and the $-04 fields below |
+| POST | `/admin/billing/checkout` `{ "plan" }` | **Card**: Stripe Checkout (`mode=subscription`, `payment_method_types=["card"]`), automatic renewal → `{ "checkout_url" }`. Keeps the remaining local trial days. 409 while a boleto order is pending |
+| POST | `/admin/billing/subscribe-invoice` `{ "plan" }` | **Boleto**: creates the Stripe subscription with `collection_method=send_invoice`, `days_until_due=STRIPE_INVOICE_DAYS_UNTIL_DUE` (5) and `payment_settings.payment_method_types=STRIPE_INVOICE_PAYMENT_METHODS` ("boleto"). No Checkout: Stripe e-mails one invoice per period with the hosted payment page |
+| POST | `/admin/billing/change-plan` `{ "plan" }` | Up/downgrade of the linked subscription (keeps its payment method; with boleto the proration invoice is e-mailed) |
+| POST | `/admin/billing/cancel` | Cancel at period end. With a **pending boleto order** (first invoice never paid): cancels it at Stripe right away and voids the open invoice |
+| POST | `/admin/billing/reactivate` | Undo a scheduled cancellation |
+
+`subscribe-invoice` response: `{ "status": "pending" | "trialing", "hosted_invoice_url", "due_at",
+"trial_ends_at", "detail" }`.
+- `pending` (no local trial left): the plan is **not** granted. The Stripe subscription goes to
+  `subscriptions.pending_stripe_subscription_id` (never to `stripe_subscription_id`, so access rules,
+  MRR and the trial scheduler are untouched) and the first invoice to `pending_invoice_*`. The plan is
+  granted by the `invoice.paid` webhook.
+- `trialing` (local trial with days left): the days become a Stripe trial; the subscription is linked
+  and the chosen plan applies at once, as with the card checkout mid-trial. The first invoice is e-mailed
+  when the trial ends.
+- Errors: 400 invalid plan / bonus tenant / a Stripe subscription is already linked (even suspended — no
+  second subscription; switching method goes through support); 409 boleto order already
+  pending; **400 "O pagamento por boleto ainda não está liberado…"** when the Stripe account doesn't have
+  the method enabled (the card keeps working); 403 operator.
+
+New `GET /admin/billing` fields: `collection_method` (`charge_automatically` | `send_invoice` | null =
+card/legacy), `awaiting_first_payment`, `pending_invoice_url`, `pending_invoice_due_at`,
+`invoice_payment_methods` (the screen writes "Boleto bancário", or "PIX ou boleto" only when `pix` is in
+the list) and `invoice_days_until_due`.
+
+**Stripe webhook** (`POST /api/v1/webhooks/stripe`, signed, deduplicated by `event_id`):
+
+| Event | Effect |
+|---|---|
+| `checkout.session.completed` | Links the subscription and grants the plan — **except** `payment_status=unpaid` (async method), which does nothing |
+| `checkout.session.async_payment_succeeded` / `_failed` | Same as completed / nothing (no plan was granted) |
+| `customer.subscription.created/updated` | Syncs plan, period, trial and status of the **linked** subscription. A boleto subscription not yet paid (or any `incomplete` one) that isn't the linked one is ignored |
+| `customer.subscription.deleted` | Linked one → back to FREE (as before). Pending boleto order → only clears the order (no downgrade, no e-mail) |
+| `invoice.finalized` (boleto) | Stores the open invoice link (`pending_invoice_*`) for "Pagar agora" |
+| `invoice.paid` (boleto) | Retrieves the subscription, checks `active`/`trialing`, links it and grants the plan; clears the pending invoice; reactivates `SUSPENDED`. Card invoices are ignored here |
+| `invoice.payment_failed` | Card: as before (trial → FREE, otherwise SUSPENDED). **Boleto: no effect** — an expired voucher is not a default; the invoice stays open until the due date |
+| `invoice.overdue` (boleto) | Linked subscription → `SUSPENDED` (paying later reactivates via `invoice.paid`). Pending order → no effect |
+### 21. Troca na escala e abono da justificativa (AM-27)
+
+Same prefix as §15; plan gates `area_medium` + `atividades_corrente` + **`escalas`** (Pro — trocas only
+exist in the scales of AM-18/AM-25; outside the plan → 403). File `src/api/v1/admin/atividades_trocas.py`
+(router registered before `atividades.py`); rules in `src/services/trocas_escala.py`.
+
+| Method | Path | Group action |
+|---|---|---|
+| GET | `/api/v1/admin/atividades/trocas?abertas=true&atividade_id=` | `ESCALAS:view` |
+| GET | `/api/v1/admin/atividades/trocas/{id}/substitutos` → `[{ "id", "nome" }]` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/trocas/{id}/aprovar` `{ "substituto_id"? }` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/trocas/{id}/recusar` | `ESCALAS:edit` |
+| POST | `/api/v1/admin/atividades/trocas/{id}/cancelar` | `ESCALAS:edit` |
+
+**List** → `{ "trocas": [...], "aguardando_direcao": 1, "exige_aprovacao": true }`; each troca:
+`{ "id", "status": "pedido"|"aceito"|"aprovado"|"recusado"|"cancelado", "aguardando": "colega"|"direcao"|null,
+"vigente", "atividade": { "origem", "id", "atividade_id", "titulo", "inicio", "tipo", "cancelada" }, "funcao",
+"grupo", "solicitante": { "id", "nome" }, "substituto": { "id", "nome" } | null, "indicado_pela_direcao",
+"recado", "criada_em", "respondido_em", "fechada_em", "fechada_por": "solicitante"|"substituto"|"direcao" }`.
+`abertas=false` = also the closed ones of the last 60 days. `vigente = false`: the request no longer applies
+(activity started/cancelled, roll call closed, the requester left the scale) — only "cancelar" makes sense.
+
+- **aprovar**: status `aceito` (the colleague accepted) → approves; `pedido` WITHOUT colleague ("a direção
+  escolhe") → `substituto_id` required (active médium of the tenant that the type reaches and not yet in this
+  scale — else 422, nothing stored; `GET …/substitutos` lists them); `pedido` with a colleague who did not
+  answer yet → 409 (`AGUARDANDO_COLEGA`). Approval re-checks everything (409 `TROCA_VENCIDA`): the original
+  row gets `substituida_por_id` (situation `substituido`, out of the attendance percentage, counted as
+  `substituidos`) and the substitute's row is created or reused with `origem = troca`, the same `funcao_id`/
+  `grupo_id` and `resposta = vou`.
+- **recusar**: only when waiting for the direction (`aceito`, or `pedido` without colleague) → else 409.
+- **cancelar**: any open request (`pedido`/`aceito`).
+- Audited as `atividade_troca` (ids only). E-mails go through the AM-15 scheduler (Área §11).
+
+**Abono** (router of §16, plans `area_medium` + `atividades_corrente`, no `escalas` needed):
+`PUT /api/v1/admin/atividades/{id}/justificativas/{medium_id}` `{ "avaliacao": "aceita"|"recusada"|null }`
+(`ESCALAS:edit`) → the §16 list. No reason stored → 409; other tenant → 404. `recusada` makes the absence
+count as **without** justification in the roll-call situation and in the attendance report (§18); `null`
+undoes (not evaluated = justified, D-13). A new reason written by the médium resets the evaluation. Audited
+as `atividade_justificativa` (ids and the decision — never the text). The §16 rows now carry
+`justificativa_avaliacao`, `substituido_por` and `no_lugar_de` (names, painel only); §18 rows carry
+`substituidos` and the detail items `justificativa_avaliacao` + `medium_origem`.
+
+Manual "Pôr na escala" (§16 `convocar`) of a médium one by one also clears `substituida_por_id` (the house
+puts back who had swapped). In the cleaning planner (§17), when the group of a day changes, the substitute
+of a troca (`origem = troca`) leaves together with the old group.
+
+---
+
+### 22. Estudos e documentos da casa (materiais, AM-21)
+
+On screen it is **"Estudos e documentos"**; the API is `materiais`. Every route requires the plan
+features `area_medium` (Basic+ **and** the pilot switch) and `biblioteca_medium` (**Pro**+, decision
+D-02; otherwise 403 "Estudos e documentos da casa disponível a partir do plano Pro.") and the permission
+group `COMUNICADOS` (the same as the avisos — no new feature):
+
+| Method | Path | Group action |
+|---|---|---|
+| GET | `/api/v1/admin/materiais` | `view` |
+| GET | `/api/v1/admin/materiais/{id}` | `view` |
+| POST | `/api/v1/admin/materiais` (201) | `insert` |
+| PUT | `/api/v1/admin/materiais/ordem` | `edit` |
+| PUT | `/api/v1/admin/materiais/{id}` | `edit` |
+| DELETE | `/api/v1/admin/materiais/{id}` (204, archives) | `delete` |
+
+**List** → `{ "itens": [Item], "categorias": ["Estudos", "Pontos cantados", "Fundamentos", "Rezas",
+"Avisos gerais", ...the ones in use], "limite": 300 }`, ordered by `ordem` (drafts included).
+
+**Item**:
+```json
+{
+  "id": "uuid",
+  "titulo": "Ponto de Ogum",
+  "tipo": "ponto",
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "texto": "Ogum ê\nPatacori",
+  "fonte": "youtube",
+  "youtube_id": "dQw4w9WgXcQ",
+  "categoria": "Pontos cantados",
+  "publico": "todos",
+  "grupos": [],
+  "ordem": 0,
+  "publicado": true,
+  "created_at": "...",
+  "updated_at": "..."
+}
+```
+- **Body** (POST; PUT is partial): `titulo` (≤ 120), `tipo` (`link` | `texto` | `ponto`), `url` (≤ 500;
+  required for `link`, optional for `ponto`/`texto`), `texto` (≤ 15 000 characters; required for `texto`
+  and `ponto` — the lyrics; optional description for `link`), `categoria` (free text ≤ 60; empty →
+  `Estudos`), `publico` + `grupo_ids` (same rules as the avisos: `grupos` needs at least one active group
+  of the tenant — another tenant's group → 422), `publicado` (default `true`; `false` = draft, never shown
+  in the Área). **No file upload** (the database is capped at 8 GB): PDFs go in as a Drive link.
+- **Links**: only `http://`/`https://` with a domain, no spaces/quotes/`<>`, no `user:password@` →
+  else 422 (`javascript:`, `data:`, `file:`, `ftp:` refused; the DB has CHECK `ck_materiais_corrente_url`
+  too). `fonte` = `youtube` | `drive` | `link`; `youtube_id` = the 11-character video id (watch, youtu.be,
+  embed, shorts, live) or `null`.
+- **Text**: plain text, same cleaning as the avisos (HTML and control characters stripped, line breaks kept).
+- `PUT /ordem` body `{ "ids": [...] }` = **all** active materials of the tenant in the new order (missing,
+  repeated or foreign ids → 422 "A lista mudou..."); answers like the list.
+- Up to 300 active materials per tenant (→ 422). Another tenant's id → 404. Audited as
+  `material_corrente` (title, type, link, category, audience, groups, published — not the text).
+### 23. Ficha espiritual do médium (F-05)
 
 Prefix `/api/v1/admin/mediuns`; plan gate **`ficha_espiritual`** (Pro — outside the plan → 403) on the router;
 group feature **`FICHA_ESPIRITUAL`** — separate from `MEDIUNS` and **not** granted to the default "Acesso total"
@@ -1426,7 +1641,8 @@ path or body. Writes made while impersonating are refused (403, `require_not_imp
   "boas_vindas": "Que bom ter você na corrente!",
   "whatsapp_casa": "5511987654321",
   "avisos_nao_lidos": 2,
-  "grupos": [{ "id": "grupo-uuid", "nome": "G2", "cor": "petroleo" }]
+  "grupos": [{ "id": "grupo-uuid", "nome": "G2", "cor": "petroleo" }],
+  "estudos": true
 }
 ```
 `marca` is the same public subset served by the branding endpoint. `modulos` lists the modules
@@ -1435,6 +1651,8 @@ in the plan. `boas_vindas` and `whatsapp_casa` (digits with country code, for "F
 come from the Área configuration and may be `null`. `avisos_nao_lidos` feeds the badge on the
 "Avisos" tab (AM-09; `0` when the module is off). `grupos` (AM-23) lists the active groups of the
 corrente the médium is in, by name — only name and color, never the other members (D-07).
+`estudos` (AM-21) is `true` when the plan has `biblioteca_medium` (Pro): the Área shows "Estudos e
+documentos" in the header menu and in Perfil.
 Internal médium fields (`observacoes`, contacts, payments) are never returned.
 
 If the terreiro turns the Área off (`PUT /api/v1/admin/config/area-medium` with `"ativa": false`),
@@ -1504,6 +1722,13 @@ médium come from the session; a `medium_id` in the query string is ignored).
   screen shows "Pagar com PIX" only when true, else "Ver mensalidade".
 - `avisos` (AM-09): `{nao_lidos, ultimos}` — unread count and the 3 newest unread
   (`{id, titulo, fixado, publicado_em}`); `{0, []}` when the house turned the "avisos" module off.
+- `aniversariantes` (AM-20): `[{ "primeiro_nome": "Bia", "dia": 12, "mes": 10, "hoje": false, "sou_eu": false }]`
+  — active médiuns of the SAME terreiro, linked to an account (with the Área), who turned on "Mostrar meu
+  aniversário para a corrente", with the birthday in the current week (Monday to Sunday, Brasília; 29/02 counts
+  as 01/03 outside leap years), ordered by date. Never the year, the surname or an id. `[]` → the card is hidden.
+- `meu_aniversario` (AM-20): `{ "mensagem": "A Tenda Luz deseja um feliz aniversário, Ana! Axé!" }` only on the
+  médium's own birthday (no opt-in needed — only he sees it); the house text from
+  `/admin/config/area-medium` → `aniversario_mensagem` when set. `null` on other days.
 
 ### 3. Avisos (AM-09)
 
@@ -1691,7 +1916,8 @@ never the values (phone, address, e-mail).
   "foto_url": "https://.../api/v1/public/user/{user_id}/photo",
   "email": "ana@example.com",
   "email_pendente": null,
-  "email_pendente_expira_em": null
+  "email_pendente_expira_em": null,
+  "mostrar_aniversario": false
 }
 ```
 - `casa` is read-only for the médium (only the house edits name, entry date, type and exemption).
@@ -1734,6 +1960,13 @@ terreiro — deleted ones included — already uses it; other terreiros may use 
 
 **`DELETE /api/v1/medium/perfil/email`** → 204: gives up the pending change (the link stops
 working).
+
+**`PUT /api/v1/medium/perfil/aniversario`** (30/hour; AM-20) — `{"mostrar": true|false}` (any other field → 422).
+Opt-in "Mostrar meu aniversário para a corrente": only first name + day/month appear to the corrente
+(`/inicio` → `aniversariantes`). Turning it on without `data_nascimento` → **422** ("preencha a data de nascimento
+em Meus dados"). Returns the profile, which carries `"mostrar_aniversario": bool` (default `false`). Audited as
+`medium_perfil` ("médium passou a mostrar / deixou de mostrar o aniversário para a corrente"); no change → no
+audit entry. Refused while impersonating (403).
 
 ### 7. Presença — Vou / Não vou, Cheguei, Conte o motivo (AM-17/AM-28)
 
@@ -1797,7 +2030,156 @@ Schedule reminders by function/rotation/planned cleaning need the `escalas` plan
 `atividades_corrente`. Nothing is sent without the pilot switch, the plan `area_medium` and the Área
 turned on by the house.
 
-### 9. Minha ficha e minha caminhada (AM-19)
+### 9. Notificação no celular — Web Push (AM-16)
+
+Push with VAPID, no paid service (`services/web_push.py`). **Off without the server keys**
+(`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`; see `docs/deployment.md`): `disponivel: false`,
+writes that need it answer **409** `PUSH_INDISPONIVEL`, and the scheduler sends e-mail only.
+
+- **`GET /api/v1/medium/push`** → `{ "disponivel": true, "chave_publica": "<VAPID public key, base64url>",
+  "aparelhos": 1, "preferencias": { "mensalidade": true, "escalas": true, "confirmacao": true, "faltas": true,
+  "avisos": true }, "disponiveis": ["mensalidade", …] }` — `aparelhos` = this médium's subscribed devices
+  (own user only); `preferencias` are the phone toggles (`medium_preferencias.push_*`, independent from the
+  e-mail ones); `disponiveis` is the same list as §8.
+- **`POST /api/v1/medium/push/inscricao`** (60/h per IP) — body = the browser's `PushSubscription.toJSON()`:
+  `{ "endpoint": "https://fcm.googleapis.com/fcm/send/…", "keys": { "p256dh": "…", "auth": "…" } }`
+  (extra fields ignored). Idempotent: the same endpoint renews the keys; an endpoint subscribed by another
+  account becomes this one's (the device owns it). The endpoint must be `https` on a known push service
+  (FCM, Mozilla, Windows WNS, Apple) → else **422** `PUSH_ENDPOINT_INVALIDO` (the server POSTs to it).
+  Returns the same body as the GET. A new device is audited as `medium_perfil` (`{acao}` only).
+- **`DELETE /api/v1/medium/push/inscricao`** `{ "endpoint" }` (60/h) → **204**. Removes only the caller's own
+  subscription (tenant + médium + user); someone else's endpoint is a no-op.
+- **`PUT /api/v1/medium/push/preferencias`** `{ "avisos"?: bool, … }` (30/h) — same fields as §8, changes only
+  the phone toggles; unknown field → 422. Audited as `medium_perfil` (`campos` only).
+- **`POST /api/v1/medium/push/teste`** (10/h) → `{ "enviadas": 1 }` — a test notification to the caller's
+  devices; no device → **409** `PUSH_SEM_APARELHO`.
+
+All writes are refused while impersonating (**403**). Sending: the AM-15 scheduler (`services/
+medium_lembrete_scheduler.py`) plans each reminder when e-mail **or** phone is on for that type, reserves the
+same mark (once per reminder for both channels) and, after the commit, sends one push per device of the
+médium's current user. Payload (encrypted, TTL 12 h): `{ "title": "<terreiro>", "body": "A mensalidade de
+outubro vence em 3 dias.", "url": "/medium/mensalidade?pagar=1", "tag": "mensalidade" }` — never the activity
+or aviso title, amounts, the PIX key, the cancellation or absence reason (`services/medium_push.py`). A
+404/410 from the push service deletes the subscription; other failures add to `failures` (5 in a row delete).
+### 10. Meus dados e privacidade — exportar e encerrar o acesso (AM-14)
+
+Both routes are the médium's own (LGPD art. 18): refused while impersonating (**403**); tenant and médium come
+from the session only.
+
+**`GET /api/v1/medium/meus-dados/exportar`** (20/hour per IP) — everything the house keeps about the médium in
+the Área. The screen builds the JSON file and a readable PDF from it on the device.
+```json
+{
+  "formato": 1,
+  "gerado_em": "2026-10-08T15:00:00+00:00",
+  "terreiro": "Tenda Luz",
+  "sobre": "Estes são os dados que Tenda Luz guarda sobre você no GiraHub. …",
+  "cadastro": { "nome": "Ana Paula Ribeiro", "na_corrente": "cambone", "data_entrada": "2019-03-10",
+    "telefone": "11987654321", "email_do_cadastro": "ana@example.com", "data_nascimento": "1985-04-20",
+    "endereco": { "cep": "01310100", "logradouro": "Avenida Paulista", "numero": "1000", "bairro": "Bela Vista", "cidade": "São Paulo" },
+    "isento_de_mensalidade": false, "mostrar_aniversario_para_a_corrente": false },
+  "conta": { "email_de_acesso": "ana@example.com", "nome": "Ana Paula Ribeiro", "tem_foto": false,
+    "tambem_acessa_o_painel": false, "criada_em": "2026-10-07T12:00:00+00:00" },
+  "consentimento": { "aceito_em": "2026-10-07T12:00:00+00:00", "versao_aceita": "1", "revogado_em": null, "versao_revogada": null },
+  "grupos": [{ "nome": "G2", "desde": "2026-10-08T10:00:00+00:00" }],
+  "avisos_por_email": { "mensalidade": true, "escalas": true, "confirmacao": true, "faltas": true, "avisos": true },
+  "mensalidades": [{ "mes": "2026-09", "situacao": "PAGO", "valor": 50.0, "valor_pago": 50.0,
+    "pago_em": "2026-09-10T12:00:00+00:00",
+    "comprovante": { "arquivo": "comprovante.jpg", "tipo": "image/jpeg", "enviado_pela_area_em": "2026-09-09T20:00:00+00:00" },
+    "motivo_nao_confirmado": null, "nao_confirmado_em": null }],
+  "avisos_lidos": [{ "aviso": "Gira de sábado", "lido_em": "2026-10-05T21:00:00+00:00" }],
+  "participacoes": [{ "atividade": "Faxina · G2", "tipo": "Faxina", "quando": "2026-10-03T12:00:00+00:00",
+    "cancelada": false, "na_escala": true, "funcao": null, "resposta": "nao_vou", "respondido_em": "…",
+    "motivo_contado": "Viagem a trabalho", "motivo_contado_em": "…", "presenca": "ausente",
+    "presenca_registrada_em": null, "saiu_da_escala_em": null }]
+}
+```
+Never: the house's internal fields (`observacoes`, `data_saida`, `registrado_por`, the payment `observacao`), the
+receipt file bytes, or anything of another médium/terreiro. `motivo_contado` is the text the médium HIMSELF wrote
+(it still never goes to e-mail, push, audit or the house's reports).
+
+**`POST /api/v1/medium/meus-dados/encerrar`** (5/hour per IP) — `{"senha": "..."}` (the current password). Wrong
+password → **400** `SENHA_INCORRETA` (never 401) and nothing changes. On success:
+- records the revocation of the Área consent (`mediuns.area_consentimento_revogado_em` + `_versao` = the accepted
+  version; the acceptance stays as history), turns `aniversario_visivel` off, revokes any open invite and unlinks
+  `mediuns.user_id`;
+- account with role `medium` → deactivated, every session revoked (`sessions_revoked_at`, `user_sessions`) and the
+  3 auth cookies cleared in this response; operator/admin who is also a médium → only loses the Área (panel and
+  session untouched);
+- the médium record and the house's data stay with the terreiro (controller);
+- e-mail to every ACTIVE admin of the terreiro ("<primeiro nome> encerrou o acesso à Área do Médium");
+- audit `resource_type = "Medium"` with `{acesso_area: "encerrado_pelo_medium", consentimento_revogado_versao,
+  conta_desativada}` (no name or e-mail).
+```json
+{ "message": "Seu acesso à Área do Médium foi encerrado.", "conta_desativada": true, "redirect": "/login?acesso_encerrado=1" }
+```
+(operator/admin: `"conta_desativada": false, "redirect": "/admin/dashboard"`). The house can invite the person
+again (AM-03): accepting reactivates the same `medium` account with a new password and records a new consent.
+## Platform Endpoints (super-admin)
+
+Rotas `/api/v1/platform/*` exigem `require_super_admin` (403 para qualquer outro papel, 401 sem login).
+
+### 11. Troca na escala (AM-27)
+
+Plans `atividades_corrente` + `escalas` (else 403); writes refused while impersonating (403). File
+`src/api/v1/medium/trocas.py`. Only the médium's own participation; the only other médium id that enters is
+`colega_id`, accepted only if it is one of the colleagues the server listed.
+
+- **`GET /api/v1/medium/atividades/{origem}/{id}/troca`** → `{ "pode_pedir", "motivo", "exige_aprovacao",
+  "colegas": [{ "id", "nome" }], "pedido": Troca | null, "para_mim": [Troca] }`. `colegas` = eligible
+  colleagues (active, reached by the type, not in this scale) who turned on "Mostrar meu primeiro nome para
+  os colegas de escala" — FIRST name only (D-07). `motivo` explains why not (not in the scale, gira without a
+  function, cancelled, started, roll call closed). `para_mim` = open requests where I am the colleague, and
+  approved ones where I went in someone's place.
+- **`POST /api/v1/medium/atividades/{origem}/{id}/troca`** `{ "colega_id"?, "recado"? (≤ 200, plain text) }` →
+  same shape. No `colega_id` = "a direção escolhe". Only the scales that have a troca: gira with a function
+  (AM-18), cleaning (AM-25), "só escalados" activity → else 409 (`SEM_TROCA`); one open request per
+  participation (409 `TROCA_ABERTA`); a colleague not in the list → 422, nothing stored.
+- **`GET /api/v1/medium/trocas`** → `{ "para_responder": [Troca], "minhas": [Troca], "exige_aprovacao" }`.
+- **`POST /api/v1/medium/trocas/{id}/aceitar` · `/recusar`** — only the called colleague (else 404). Accept:
+  house requiring approval → `aceito`; otherwise → `aprovado` at once (the scale changes). Resolved → 409.
+- **`POST /api/v1/medium/trocas/{id}/cancelar`** — only the requester, while open.
+
+Troca (médium view): `{ "id", "papel": "pedi"|"para_mim", "status", "aguardando", "vigente", "atividade":
+{ "origem", "id", "titulo", "inicio", "tipo", "cancelada" }, "funcao", "grupo", "colega", "direcao_escolhe",
+"recado", "criada_em", "fechada_em", "fechada_por", "pode_aceitar", "pode_recusar", "pode_cancelar" }`.
+`colega` = first name of the other side: the called colleague always sees the requester's first name; the
+requester sees the substitute's name only if he was picked from the list or (chosen by the direction) has the
+opt-in on — else null ("um colega da corrente"). Audited as `medium_troca` (ids only).
+
+Also: `GET /medium/inicio` gains `trocas` (null without the plans) and the pending item `{ "tipo": "troca",
+"quantidade" }` (right after `escala`); `minha_participacao` gains `justificativa_avaliacao`; an activity
+visible only to the scale is also visible to the colleague called for an open troca;
+`GET /medium/preferencias` gains `mostrar_nome_colegas` + `colegas_disponivel`, and
+**`PUT /api/v1/medium/preferencias/colegas`** `{ "mostrar_nome": bool }` (30/h, refused while impersonating,
+audited as `medium_perfil`) turns the D-07 opt-in on/off (default off).
+
+E-mails (preference `escalas`, 7–22 h): `troca_pedida` → the called colleague; `troca_resposta` → the
+requester (accepted waiting for the direction, refused by the colleague or the direction, cancelled by the
+direction); `troca_aprovada` → both.
+
+---
+
+### 12. Estudos (AM-21)
+
+Both routes require the plan feature `biblioteca_medium` (Pro; otherwise 403 — the Área shows a neutral
+notice, never an upgrade offer).
+
+- `GET /api/v1/medium/materiais` → `{ "itens": [{ "id", "titulo", "tipo", "categoria", "resumo", "url",
+  "fonte", "youtube_id" }], "categorias": [...in the house order], "cursos": [Curso] }` — published, not
+  archived, for the médium's audience (same rule as the avisos: `todos` plus `atendimento`/`cambones` by
+  `mediuns.is_atendimento`, plus `grupos` when the médium is in one of the material's active groups);
+  ordered by `ordem`. The list carries only a summary of the text.
+- `GET /api/v1/medium/materiais/{id}` → the item plus `texto`. Draft, archived, other audience or other
+  tenant → 404.
+- `cursos` ("Cursos da casa"): only when the plan has `site_builder` (the courses module) — active courses
+  of the tenant that have not ended (`data_fim` in the future, or no end date and starting from yesterday
+  on), up to 20: `{ "id", "titulo", "resumo", "data_inicio", "data_fim", "local", "vagas_restantes"
+  (null = no limit), "inscricao_path": "/public/cursos/{id}/inscricao" }`. No participant data.
+
+---
+
+### 13. Minha ficha e minha caminhada (AM-19)
 
 Besides `require_medium`, the house plan must include **`ficha_espiritual`** (else 403 neutral
 `MEDIUM_MODULO_INDISPONIVEL`, no upgrade offer); `GET /medium/me` returns `ficha: bool` so the Perfil only shows
@@ -1821,6 +2203,25 @@ All writes: refused while impersonating (403); audited as `medium_ficha` with th
 
 ---
 
+### Programa de Parceiros — pedidos (C-06)
+
+- **`GET /api/v1/platform/parceiros`** — query `status` (`novo|em_contato|aprovado|recusado`; outro → 422),
+  `q` (busca em nome, loja, cidade, e-mail e cupom), `limit` (1–200, padrão 50), `offset`. Mais recentes primeiro.
+  ```json
+  {
+    "items": [{ "id": "…", "nome": "Maria das Ervas", "tipo": "loja", "nome_negocio": "Casa de Artigos Pai Joaquim",
+                "cidade": "Niterói", "uf": "RJ", "whatsapp": "21998765432", "email": "maria@exemplo.com",
+                "como_divulgar": "…", "aceite_regulamento_em": "2026-10-08T15:00:00Z", "status": "novo",
+                "cupom": null, "observacoes": null, "created_at": "…", "updated_at": "…" }],
+    "total": 1,
+    "counts": { "novo": 1, "em_contato": 0, "aprovado": 0, "recusado": 0 }
+  }
+  ```
+  `counts` é a contagem geral por status (ignora os filtros). `ip_hash` nunca sai na API.
+- **`GET /api/v1/platform/parceiros/{id}`** — um pedido (404 se não existe).
+- **`PATCH /api/v1/platform/parceiros/{id}`** — `{"status"?, "cupom"?, "observacoes"?}` (só os campos enviados).
+  `cupom` é normalizado em maiúsculas e precisa casar `^[A-Z0-9_-]{3,40}$` (422); `""` limpa. `observacoes` até
+  2000 caracteres; vazio limpa. Devolve o pedido atualizado.
 ## Error Handling
 
 ### Standard Error Response
@@ -1863,6 +2264,8 @@ All writes: refused while impersonating (403); audited as `medium_ficha` with th
 | `/auth/forgot-password` | 5 | 1 hour per IP |
 | `/public/convite/{token}` | 30 | 1 minute per IP |
 | `/public/convite/{token}/aceitar` | 10 | 1 minute per IP |
+| `/public/parceiros/interesse` | 5 | 1 hour per IP |
+| `/public/onboarding` | 10 | 1 minute per IP (nginx: `login_limit`) |
 | `/public/*/emit-ticket` | 5 | 1 hour per email |
 | `/admin/*` | 100 | 1 minute |
 | `/admin/audit-logs` | 50 | 1 minute |

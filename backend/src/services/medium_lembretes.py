@@ -63,6 +63,9 @@ from ..models.medium_lembretes import (
     TIPO_MENSALIDADE_DEPOIS,
     TIPO_PIX_ALTERADO,
     TIPO_RESUMO_ADMIN,
+    TIPO_TROCA_APROVADA,
+    TIPO_TROCA_PEDIDA,
+    TIPO_TROCA_RESPOSTA,
     TIPO_VESPERA,
 )
 from ..models.mensalidades import MensalidadeStatus
@@ -84,6 +87,9 @@ JANELAS: dict[str, tuple[int, int]] = {
     TIPO_CANCELADA: (7, 22),
     TIPO_PIX_ALTERADO: (7, 22),
     TIPO_ESCALA_NOVA: (7, 22),
+    TIPO_TROCA_PEDIDA: (7, 22),
+    TIPO_TROCA_RESPOSTA: (7, 22),
+    TIPO_TROCA_APROVADA: (7, 22),
 }
 
 DIAS_MENSALIDADE = 3  # D-29: 3 dias antes e 3 dias depois do vencimento
@@ -100,8 +106,8 @@ DIAS_MIN_ESCALA_NOVA = 2
 CONFIRMACAO_IDADE_MIN = timedelta(hours=24)
 HORIZONTE_FALTA = timedelta(days=31)
 
-# Origens da participação que vêm da escala (AM-18/AM-25) — exigem o plano `escalas`.
-ORIGENS_ESCALA = frozenset({"funcao", "rodizio"})
+# Origens da participação que vêm da escala (AM-18/AM-25; `troca` do AM-27) — exigem o plano `escalas`.
+ORIGENS_ESCALA = frozenset({"funcao", "rodizio", "troca"})
 ORIGEM_ATIVIDADE_ESCALA = "plano_escala"
 
 DIAS_DA_SEMANA = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
@@ -184,6 +190,13 @@ def preferencia_ligada(preferencia: Optional[MediumPreferencia], tipo: str) -> b
     if preferencia is None:
         return True
     return preferencia.ligado(PREFERENCIA_DO_TIPO[tipo])
+
+
+def preferencia_push_ligada(preferencia: Optional[MediumPreferencia], tipo: str) -> bool:
+    """Notificação no celular (AM-16): o mesmo padrão, com os `push_*` (separados do e-mail)."""
+    if preferencia is None:
+        return True
+    return preferencia.ligado_push(PREFERENCIA_DO_TIPO[tipo])
 
 
 def quando_legivel(inicio: datetime) -> str:
@@ -634,6 +647,35 @@ def para_cancelada(p: ParticipacaoLembrete, agora: datetime) -> bool:
     )
 
 
+# ── Trocas de escala (AM-27) ────────────────────────────────────────────────
+
+
+async def trocas_para_email(db: AsyncSession, tenant_id: uuid.UUID, agora: datetime) -> list:
+    """Trocas do terreiro que mudaram há pouco (`JANELA_EVENTO`) de atividades que ainda não
+    começaram — o agendador decide quem recebe o quê pelo status (`services/trocas_escala.visoes`)."""
+    from .trocas_escala import trocas_do_terreiro, visoes
+
+    trocas = await trocas_do_terreiro(db, tenant_id, abertas=False, desde=agora - JANELA_EVENTO)
+    return [v for v in await visoes(db, tenant_id, trocas, agora) if v.ctx.inicio > agora and not v.ctx.cancelada]
+
+
+def eventos_da_troca(status: str, fechada_por: Optional[str], tem_substituto: bool, vigente: bool) -> list[tuple[str, str, str]]:
+    """[(tipo, destino, sufixo da referência)] de uma troca (regra pura). `destino`: `substituto` ou
+    `solicitante`; a referência é `<id da troca>` + sufixo (um e-mail por mudança)."""
+    if status == "pedido":
+        return [(TIPO_TROCA_PEDIDA, "substituto", "")] if tem_substituto and vigente else []
+    if status == "aceito":
+        return [(TIPO_TROCA_RESPOSTA, "solicitante", ":aceito")]
+    if status == "recusado":
+        quem = "recusado_direcao" if fechada_por == "direcao" else "recusado_colega"
+        return [(TIPO_TROCA_RESPOSTA, "solicitante", f":{quem}")]
+    if status == "cancelado" and fechada_por == "direcao":
+        return [(TIPO_TROCA_RESPOSTA, "solicitante", ":cancelado_direcao")]
+    if status == "aprovado":
+        return [(TIPO_TROCA_APROVADA, "solicitante", ""), (TIPO_TROCA_APROVADA, "substituto", "")]
+    return []
+
+
 # ── Avisos com "Avisar por e-mail também" ───────────────────────────────────
 
 
@@ -756,3 +798,7 @@ async def resumo_admin(
 
 def preferencias_payload(preferencia: Optional[MediumPreferencia]) -> dict[str, bool]:
     return {p: (True if preferencia is None else preferencia.ligado(p)) for p in PREFERENCIAS}
+
+
+def preferencias_push_payload(preferencia: Optional[MediumPreferencia]) -> dict[str, bool]:
+    return {p: (True if preferencia is None else preferencia.ligado_push(p)) for p in PREFERENCIAS}

@@ -125,6 +125,10 @@ nullable) liga a conta ao cadastro do médium e é o que dá acesso à Área do 
 Índice único parcial `uq_mediuns_user_id_ativo` em `(user_id) WHERE user_id IS NOT NULL AND deleted_at IS NULL`
 (um usuário, no máximo um médium não excluído). `mediuns.area_consentimento_em` (`DateTime(tz)`) e
 `mediuns.area_consentimento_versao` (`String(20)`) guardam o aceite LGPD gravado no convite (AM-03).
+`mediuns.area_consentimento_revogado_em` (`DateTime(tz)`) e `mediuns.area_consentimento_revogado_versao`
+(`String(20)`) guardam a revogação feita pelo próprio médium em "Encerrar meu acesso" (AM-14, migração 083; o aceite
+fica como histórico e um convite aceito depois grava outro). `mediuns.aniversario_visivel` (`Boolean`, padrão
+`false`, migração 083) é o opt-in "Mostrar meu aniversário para a corrente" (AM-20: só primeiro nome, dia e mês).
 
 **Chave do piloto (migração 066):** `tenants.area_medium_liberada` (`Boolean`, padrão `false`). A plataforma liga por
 terreiro no Tenant 360; sem ela a Área do Médium não vale, mesmo com plano Basic+ (`check_plan_feature`).
@@ -207,6 +211,39 @@ Model `Comunicado(SoftDeleteModel)` e `ComunicadoLeitura(Base)` (`src/models/com
 **Permissão:** valor `comunicados` no ENUM `permission_feature` (070, `ADD VALUE` em `autocommit_block`); a 071
 cria as tabelas e dá acesso total à feature nos grupos padrão "Acesso total" (grupos criados pelo admin ficam
 sem a feature até ele marcar).
+
+
+### `materiais_corrente` e `material_grupos` (AM-21, migração 087)
+
+Estudos e documentos da casa para a corrente — na tela é **"Estudos e documentos"** (painel) e
+**"Estudos"** (Área). Models `MaterialCorrente(Base)` e `MaterialGrupo(Base)` (`src/models/materiais.py`).
+**Sem upload de arquivo** (banco limitado a 8 GB): PDF entra como link do Drive; upload espera
+armazenamento de objetos.
+
+`materiais_corrente`:
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `titulo` | `String(120)` | texto simples |
+| `tipo` | `String(20)` | CHECK `ck_materiais_corrente_tipo` em `link/texto/ponto` |
+| `url` | `String(500)` NULL | só http(s) — CHECK `ck_materiais_corrente_url` (`url ~* '^https?://'`); obrigatória no `link` (`ck_materiais_corrente_link_url`) |
+| `texto` | `Text` NULL | texto simples (até 15 000 caracteres na API); obrigatório em `texto`/`ponto` (`ck_materiais_corrente_texto`) |
+| `categoria` | `String(60)`, padrão `Estudos` | texto livre |
+| `publico` | `String(20)`, padrão `todos` | CHECK `ck_materiais_corrente_publico` em `todos/atendimento/cambones/grupos` (como os avisos) |
+| `ordem` | `Integer`, padrão 0 | ordem da casa |
+| `publicado` | `Boolean`, padrão true | false = rascunho (não aparece na Área) |
+| `created_by` | UUID FK → `users.id` SET NULL | |
+| `created_at`, `updated_at` | timestamptz | |
+| `arquivado_em` | timestamptz NULL | excluir no painel = arquivar |
+
+**Indexes:** `ix_materiais_corrente_tenant_id`, `ix_materiais_corrente_tenant_ordem` (`tenant_id, ordem`).
+Limite de 300 materiais ativos por terreiro (API) — no pior caso ~4,5 MB de texto por casa.
+
+`material_grupos` (público `grupos`): PK (`material_id` → `materiais_corrente.id` CASCADE, `grupo_id` →
+`corrente_grupos.id` CASCADE), `tenant_id` → `tenants.id` CASCADE. **Indexes:**
+`ix_material_grupos_tenant_id`, `ix_material_grupos_grupo_id`.
 
 ### `corrente_grupos`, `corrente_grupo_membros` e `comunicado_grupos` (AM-23, migração 075)
 
@@ -355,7 +392,9 @@ presente, ausente com/sem justificativa, dispensado, substituído) é **derivada
 | `presenca_origem` | `String(20)` NULL | CHECK `checkin_medium/chamada/encerramento/confianca` (`confianca` = "vou" que virou presente no encerramento) |
 | `presenca_registrada_em` / `presenca_registrada_por` | `DateTime(tz)` NULL / UUID FK → `users.id` SET NULL | quem marcou (correções do admin ficam registradas) |
 | `dispensado_em` | `DateTime(tz)` NULL | tirado da escala ou atividade cancelada (= `cancelada_em`; reativar devolve) |
-| `substituida_por_id` | UUID FK → `atividade_participacoes.id` SET NULL | troca de escala (fase 2, AM-27) |
+| `substituida_por_id` | UUID FK → `atividade_participacoes.id` SET NULL | troca de escala (AM-27): a linha do substituto — situação "Substituído" |
+| `justificativa_avaliacao` | VARCHAR(10) NULL | abono (AM-27, migração 086): `aceita` \| `recusada`; null = não avaliada (vale) |
+| `justificativa_avaliada_em` / `_por` | TIMESTAMPTZ / UUID FK → `users.id` SET NULL | quando e quem avaliou |
 | `lembrete_enviado_em` | `DateTime(tz)` NULL | avisos (AM-15) |
 | `created_at` / `updated_at` | `DateTime(tz)` | |
 
@@ -363,7 +402,39 @@ presente, ausente com/sem justificativa, dispensado, substituído) é **derivada
 o "Cheguei" e a chamada ao mesmo tempo nunca duplicam a linha (`services/presenca.upsert_participacao`:
 `INSERT … ON CONFLICT DO NOTHING` + `SELECT … FOR UPDATE`); `ix_atividade_participacoes_tenant_medium`
 (`tenant_id, medium_id`), `ix_atividade_participacoes_tenant_atividade` (`tenant_id, atividade_id`); CHECKs
-`ck_atividade_participacoes_origem/_resposta/_presenca/_presenca_origem`.
+`ck_atividade_participacoes_origem/_resposta/_presenca/_presenca_origem/_justificativa_avaliacao`. Origem
+`troca` (AM-27, migração 086): a linha do substituto de uma troca aprovada.
+
+### `participacao_trocas` (AM-27, migração 086)
+
+Troca de escala entre médiuns. Modelo em `src/models/atividades.py` (`ParticipacaoTroca`); regras em
+`src/services/trocas_escala.py`; API em `src/api/v1/medium/trocas.py` e `src/api/v1/admin/atividades_trocas.py`.
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `atividade_id` | UUID FK → `atividades.id` CASCADE | a atividade (ou âncora da gira) |
+| `participacao_id` | UUID FK → `atividade_participacoes.id` CASCADE | a linha de quem pede |
+| `solicitante_id` | UUID FK → `mediuns.id` CASCADE | quem pede |
+| `substituto_id` | UUID FK → `mediuns.id` CASCADE, NULL | o colega; null = "a direção escolhe" |
+| `indicado_pela_direcao` | BOOLEAN default false | a direção escolheu o substituto (o nome só aparece a quem pediu com o opt-in do D-07) |
+| `status` | VARCHAR(20) | `pedido` \| `aceito` \| `aprovado` \| `recusado` \| `cancelado` |
+| `recado` | VARCHAR(200) NULL | texto simples de quem pede |
+| `respondido_em` | TIMESTAMPTZ NULL | resposta do colega |
+| `fechada_em` / `fechada_por` | TIMESTAMPTZ / VARCHAR(20) NULL | `solicitante` \| `substituto` \| `direcao` |
+| `decidido_por` | UUID FK → `users.id` SET NULL | usuário do painel que aprovou, recusou ou cancelou |
+| `nova_participacao_id` | UUID FK → `atividade_participacoes.id` SET NULL | a linha do substituto, ao aprovar |
+| `created_at` / `updated_at` | TIMESTAMPTZ | |
+
+**Constraints/Indexes:** UNIQUE parcial `uq_participacao_trocas_aberta` (`participacao_id`) WHERE status IN
+(`pedido`, `aceito`) — uma troca aberta por participação; `ix_participacao_trocas_tenant_status`,
+`ix_participacao_trocas_tenant_atividade`, `ix_participacao_trocas_solicitante`, `ix_participacao_trocas_substituto`;
+CHECKs `ck_participacao_trocas_status/_fechada_por/_outro_medium` (substituto ≠ solicitante).
+
+Também na 082: `tenant_configs.escala_troca_exige_aprovacao` (BOOLEAN default true — troca combinada entre
+médiuns precisa da aprovação da direção), `medium_preferencias.mostrar_nome_colegas` (BOOLEAN default false — opt-in
+do D-07) e os tipos `troca_pedida`/`troca_resposta`/`troca_aprovada` em `medium_lembretes_enviados.tipo`.
 
 **Convocação virtual:** tipo "todos os elegíveis" não grava linha para quem só é esperado — ela nasce quando o
 médium responde, faz o "Cheguei", é escalado ou quando a chamada é encerrada (aí para todos os esperados).
@@ -458,6 +529,41 @@ recebe a linha (teste com duas sessões em `tests/integration_pg/test_am15_lembr
 tabelas, `tenant_configs.area_medium_lembrete_mensalidade` (`Boolean`, padrão `true`) e
 `comunicados.avisar_email`/`avisar_email_em`. Downgrade apaga tabelas e colunas.
 
+**Migração 083 (`083_meus_dados_aniversarios`, encadeada na `082_push_inscricoes`,
+AM-14/AM-20):** `mediuns.area_consentimento_revogado_em`/`_versao`, `mediuns.aniversario_visivel` (padrão `false`)
+e `tenant_configs.area_medium_aniversario_mensagem` (`String(200)`, mensagem da casa no Início do aniversariante;
+`NULL` = texto padrão). Downgrade apaga as quatro colunas.
+
+---
+
+### `push_inscricoes` (AM-16, migração 082 — encadeada depois da 081)
+
+Notificação no celular da Área do Médium (Web Push com VAPID). Uma linha por aparelho/navegador em que o médium
+ligou as notificações. Model em `src/models/push_inscricoes.py`; envio em `services/web_push.py`.
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `user_id` | UUID FK → `users.id` CASCADE | a conta que inscreveu; o envio exige `mediuns.user_id = user_id` |
+| `medium_id` | UUID FK → `mediuns.id` CASCADE | |
+| `endpoint` | `Text` | UNIQUE `uq_push_inscricoes_endpoint`; só serviço de push conhecido (FCM, Mozilla, WNS, Apple) |
+| `p256dh` / `auth` | `String(200)` | chaves da inscrição (cifram a mensagem) |
+| `user_agent` | `String(120)` NULL | curto, só para reconhecer o aparelho |
+| `created_at` | `DateTime(tz)` | `server_default now()` |
+| `last_success_at` | `DateTime(tz)` NULL | último envio aceito |
+| `failures` | `Integer`, padrão 0 | falhas seguidas (zera no sucesso; 5 apagam a linha; 404/410 apagam na hora) |
+
+**Indexes:** `ix_push_inscricoes_tenant_medium` (`tenant_id, medium_id`), `ix_push_inscricoes_user_id`.
+
+A migração também cria em `medium_preferencias` os liga/desliga do celular: `push_mensalidade`, `push_escalas`,
+`push_confirmacao`, `push_faltas`, `push_avisos` (`Boolean`, padrão `true`; separados dos `email_*`; o link do
+rodapé do e-mail não mexe neles). Sem tipo novo de lembrete: o push usa a mesma marca
+`medium_lembretes_enviados` do e-mail.
+
+**Migração 082 (`082_push_inscricoes`, encadeada na `081_lembretes`):** downgrade
+apaga a tabela e as 5 colunas (as inscrições se perdem; o médium liga de novo no Perfil).
+
 ---
 
 ### `ficha_campos`, `ficha_valores`, `medium_marcos` e `ficha_sugestoes` (F-05/AM-19, migrações 088/089)
@@ -528,6 +634,7 @@ Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`
 | `area_medium_agenda` / `area_medium_avisos` / `area_medium_mensalidade` | `Boolean` | Não | `true` | 067: módulos visíveis na Área (mensalidade também exige `mensalidade_mediun` no plano) |
 | `presenca_modo_padrao` | `String(20)` | Não | `confianca` | 079 (AM-28): CHECK `confianca/app/qr` — como a presença é marcada na casa; o tipo pode ajustar |
 | `presenca_prazo_justificativa_dias` | `Integer` | Não | `7` | 079 (AM-17): CHECK 1–30 — dias depois da atividade para o médium contar o motivo de uma falta |
+| `area_medium_aniversario_mensagem` | `String(200)` | Sim | — | 083 (AM-20): mensagem da casa no Início do médium no dia do aniversário (`{nome}` = primeiro nome); `NULL` = texto padrão |
 | `created_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `updated_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
 | `deleted_at` | `DateTime(tz)` | Sim | — | soft-delete |
@@ -780,6 +887,37 @@ Feature flags por tenant. Permite ativar/desativar capacidades específicas com 
 | `deleted_at` | `DateTime(tz)` | Sim | — | soft-delete |
 
 **Indexes:** `ix_feature_flags_tenant_id`, `ix_feature_flags_feature`
+
+---
+
+### `parceiro_interesses`
+
+Pedidos do Programa de Parceiros GiraHub (C-06), vindos do formulário público `/parceiros`. Tabela da
+**plataforma**, sem `tenant_id` (o interessado ainda não tem conta); só o super-admin lê e altera
+(`/api/v1/platform/parceiros`). Regras e economia do programa em `docs/programa-parceiros.md`.
+
+| Coluna | Tipo SA | Nullable | Default | Notas |
+|---|---|---|---|---|
+| `id` | `UUID` | Não | `uuid4` | PK |
+| `nome` | `String(120)` | Não | — | — |
+| `tipo` | `String(30)` | Não | — | CHECK `ck_parceiro_interesses_tipo`: `loja`, `dirigente_medium`, `criador_conteudo`, `federacao`, `outro` |
+| `nome_negocio` | `String(160)` | Sim | — | loja/casa/perfil (opcional) |
+| `cidade` | `String(100)` | Não | — | — |
+| `uf` | `String(2)` | Não | — | sigla maiúscula |
+| `whatsapp` | `String(20)` | Não | — | só dígitos |
+| `email` | `String(255)` | Não | — | minúsculo |
+| `como_divulgar` | `Text` | Não | — | até 500 caracteres na API |
+| `aceite_regulamento_em` | `DateTime(tz)` | Não | — | momento do aceite do regulamento |
+| `ip_hash` | `String(64)` | Sim | — | HMAC-SHA256 do IP (chave derivada do `SECRET_KEY`); o IP nunca é gravado |
+| `status` | `String(20)` | Não | `'novo'` | CHECK `ck_parceiro_interesses_status`: `novo`, `em_contato`, `aprovado`, `recusado` |
+| `cupom` | `String(40)` | Sim | — | preenchido pela plataforma (`^[A-Z0-9_-]{3,40}$`) |
+| `observacoes` | `Text` | Sim | — | notas da equipe |
+| `created_at` | `DateTime(tz)` | Não | `now()` | — |
+| `updated_at` | `DateTime(tz)` | Não | `now()` | `onupdate` |
+
+**Indexes:** `ix_parceiro_interesses_status_created` (`status, created_at`), `ix_parceiro_interesses_email`
+
+**Migração 084 (`084_parceiros`, encadeada na `083_meus_dados_aniversarios`).**
 
 ---
 

@@ -80,6 +80,15 @@ class Medium(SoftDeleteModel):
     # gravado no aceite do convite com a versão do texto aceito.
     area_consentimento_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     area_consentimento_versao: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Revogação pelo próprio médium em "Encerrar meu acesso" (AM-14, migração 083): data e versão
+    # do texto revogado. O aceite acima fica como histórico; um convite aceito depois grava outro.
+    area_consentimento_revogado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    area_consentimento_revogado_versao: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Opt-in "Mostrar meu aniversário para a corrente" (AM-20, migração 083): só dia e mês, nunca o
+    # ano; padrão desligado. Encerrar o acesso desliga.
+    aniversario_visivel: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
     # Ficha espiritual (F-05/AM-19, migração 089): consentimento explícito e separado para a casa
     # guardar dado religioso (orixá, obrigações...). Registrado pela direção no painel (com o texto
     # e a versão) ou pelo próprio médium na Área; nunca inferido. `_por` = quem registrou.

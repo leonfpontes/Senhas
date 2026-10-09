@@ -54,10 +54,11 @@ describe('paleta de marketing', () => {
 });
 
 /**
- * Área do Médium (AM-06, `.medium-terra`): paleta terra com a cor do terreiro nos detalhes, nos
- * modos claro e escuro (segue o sistema). Trava os pares de texto da casca e das telas (faixa café,
- * cartões, caixas, etiquetas de status) e o `text-brand` calculado por applyTerraBrandText para
- * qualquer cor de terreiro.
+ * Área do Médium (AM-06, `.medium-terra`): paleta terra com a cor do terreiro nos detalhes,
+ * SEMPRE CLARA no tom da landing (out/2026 — antes seguia o escuro do sistema e o dono achou
+ * "muito escura"). Trava os pares de texto da casca e das telas (faixa de abertura, cartões,
+ * caixas, etiquetas de status) e o `text-brand` calculado por applyTerraBrandText para qualquer
+ * cor de terreiro.
  */
 function cssVars(selector: string): Record<string, string> {
   const start = css.indexOf(`${selector} {`);
@@ -80,72 +81,83 @@ function mixHex(fg: string, bg: string, alpha: number): string {
   return `#${f.map((c, i) => Math.round(c * alpha + b[i] * (1 - alpha)).toString(16).padStart(2, '0')).join('')}`;
 }
 
-const terraLight = cssVars('.medium-terra');
-const terraDark = { ...terraLight, ...cssVars('.dark .medium-terra,\n.dark.medium-terra') };
-const semanticLight = cssVars(':root');
-const semanticDark = { ...semanticLight, ...cssVars('.dark') };
+const terra = cssVars('.medium-terra');
+const semantic = cssVars(':root');
+const surfaces = [resolve(terra.background), resolve(terra.card), resolve(terra.muted)];
 
 // Cores de terreiro difíceis: amarelo, índigo padrão, verde da casa, quase preto, branco, vermelho, ouro.
 const BRANDS = ['#f5d90a', '#4f46e5', '#2f6b4f', '#111111', '#ffffff', '#d32f2f', '#e9b04a', '#6366f1'];
 
-describe('Área do Médium — paleta terra com a marca do terreiro', () => {
+describe('Área do Médium — paleta terra clara com a marca do terreiro', () => {
   it('não redefine a cor do terreiro (vem do applyBrand) e usa o texto da marca calculado para a paleta', () => {
-    expect(terraLight.primary).toBeUndefined();
-    expect(terraLight['primary-foreground']).toBeUndefined();
-    expect(terraLight['primary-text']).toBe('var(--terra-brand-text-light, var(--color-barro-700))');
-    expect(terraDark['primary-text']).toBe('var(--terra-brand-text-dark, var(--color-ouro-300))');
+    expect(terra.primary).toBeUndefined();
+    expect(terra['primary-foreground']).toBeUndefined();
+    expect(terra['primary-text']).toBe('var(--terra-brand-text-light, var(--color-barro-700))');
+  });
+
+  it('é sempre clara: fundo areia-50, cartão branco, caixa areia-100 e sem variante escura', () => {
+    expect(resolve(terra.background)).toBe(color('areia-50'));
+    expect(resolve(terra.card)).toBe('#ffffff');
+    expect(resolve(terra.muted)).toBe(color('areia-100'));
+    expect(css).not.toMatch(/\.dark\s*\.medium-terra|\.dark\.medium-terra/);
   });
 
   it('TERRA_SURFACES espelha os fundos da classe (cartão, fundo e caixa)', () => {
-    expect([...TERRA_SURFACES.light]).toEqual([resolve(terraLight.card), resolve(terraLight.background), resolve(terraLight.muted)]);
-    expect([...TERRA_SURFACES.dark]).toEqual([resolve(terraDark.card), resolve(terraDark.background), resolve(terraDark.muted)]);
+    expect([...TERRA_SURFACES.light]).toEqual([resolve(terra.card), resolve(terra.background), resolve(terra.muted)]);
   });
 
-  describe.each([
-    ['claro', terraLight, semanticLight],
-    ['escuro', terraDark, semanticDark],
-  ])('modo %s', (_modo, t, sem) => {
-    const surfaces = [resolve(t.background), resolve(t.card), resolve(t.muted)];
+  it.each(['foreground', 'muted-foreground', 'card-foreground'])('%s lê no fundo, no cartão e na caixa', (k) => {
+    surfaces.forEach((bg) => expect(contrastRatio(resolve(terra[k]), bg)).toBeGreaterThanOrEqual(4.5));
+  });
 
-    it.each(['foreground', 'muted-foreground', 'card-foreground'])('%s lê no fundo, no cartão e na caixa', (k) => {
-      surfaces.forEach((bg) => expect(contrastRatio(resolve(t[k]), bg)).toBeGreaterThanOrEqual(4.5));
-    });
+  it('a cor padrão de text-brand (sem terreiro) lê nas superfícies', () => {
+    const fallback = color(terra['primary-text'].match(/--color-([\w-]+)\)\)$/)![1]);
+    surfaces.forEach((bg) => expect(contrastRatio(fallback, bg)).toBeGreaterThanOrEqual(4.5));
+  });
 
-    it('a cor padrão de text-brand (sem terreiro) lê nas superfícies', () => {
-      const fallback = color(t['primary-text'].match(/--color-([\w-]+)\)\)$/)![1]);
-      surfaces.forEach((bg) => expect(contrastRatio(fallback, bg)).toBeGreaterThanOrEqual(4.5));
-    });
+  it.each(['success', 'warning', 'info', 'destructive'])('text-%s-strong lê sobre bg-%s/15 no cartão da Área', (c) => {
+    expect(contrastRatio(semantic[`${c}-strong`], mixHex(semantic[c], resolve(terra.card), 0.15))).toBeGreaterThanOrEqual(4.5);
+  });
 
-    it.each(['success', 'warning', 'info', 'destructive'])('text-%s-strong lê sobre bg-%s/15 no cartão da Área', (c) => {
-      expect(contrastRatio(sem[`${c}-strong`], mixHex(sem[c], resolve(t.card), 0.15))).toBeGreaterThanOrEqual(4.5);
+  it.each(BRANDS)('text-brand do terreiro %s lê nas superfícies e no fundo suave da marca', (brand) => {
+    const text = brandTextColorOn(brand, 'light', TERRA_SURFACES.light);
+    TERRA_SURFACES.light.forEach((bg) => {
+      expect(contrastRatio(text, bg)).toBeGreaterThanOrEqual(4.5);
+      // bg-primary/10 e /15 (ícones, cartões de área, itens do perfil) sobre cada superfície.
+      expect(contrastRatio(text, mixHex(brand, bg, 0.15))).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(text, mixHex(brand, bg, 0.1))).toBeGreaterThanOrEqual(4.5);
     });
   });
 
-  it.each(BRANDS)('text-brand do terreiro %s lê nas superfícies e no fundo suave da marca, nos dois modos', (brand) => {
-    (['light', 'dark'] as const).forEach((mode) => {
-      const text = brandTextColorOn(brand, mode, TERRA_SURFACES[mode]);
-      TERRA_SURFACES[mode].forEach((bg) => {
-        expect(contrastRatio(text, bg)).toBeGreaterThanOrEqual(4.5);
-        // bg-primary/10 e /15 (ícones, cartões de área, itens do perfil) sobre cada superfície.
-        expect(contrastRatio(text, mixHex(brand, bg, 0.15))).toBeGreaterThanOrEqual(4.5);
-        expect(contrastRatio(text, mixHex(brand, bg, 0.1))).toBeGreaterThanOrEqual(4.5);
-      });
-    });
+  // Faixa de abertura (MediumFaixa: Início, Perfil, escolha de área): areia-100 com véu de até 8%
+  // da cor do terreiro (travado a 10% para sobrar margem da mistura em oklab). Título em tinta,
+  // apoio em tinta-suave e rótulo em text-brand.
+  it.each(BRANDS)('faixa de abertura com o véu do terreiro %s: título, apoio e rótulo legíveis', (brand) => {
+    const faixa = mixHex(brand, resolve(terra.muted), 0.1);
+    expect(contrastRatio(resolve(terra.foreground), faixa)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(resolve(terra['muted-foreground']), faixa)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(brandTextColorOn(brand, 'light', TERRA_SURFACES.light), faixa)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('o véu da faixa de abertura não passa de 8% da cor do terreiro', () => {
+    const faixa = fs.readFileSync(path.join(__dirname, '../../src/components/medium/MediumFaixa.tsx'), 'utf8');
+    const veus = [...faixa.matchAll(/var\(--primary\)_(\d+)%/g)].map((m) => Number(m[1]));
+    expect(veus.length).toBeGreaterThan(0);
+    veus.forEach((v) => expect(v).toBeLessThanOrEqual(8));
   });
 
   it.each(BRANDS)('botão, aba e data na cor do terreiro %s têm texto legível (primary-foreground)', (brand) => {
     expect(contrastRatio(pickForeground(brand, '#FFFFFF'), brand)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('applyTerraBrandText escreve as duas cores no elemento', () => {
+  it('applyTerraBrandText escreve a cor do texto da marca no elemento', () => {
     const el = document.createElement('div');
     applyTerraBrandText(el, '#f5d90a');
     expect(contrastRatio(el.style.getPropertyValue('--terra-brand-text-light'), '#fcf8f2')).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(el.style.getPropertyValue('--terra-brand-text-dark'), '#180e09')).toBeGreaterThanOrEqual(4.5);
   });
 
-  // Faixa café do Início, do Perfil e da escolha de área: eyebrow ouro, texto areia, título branco.
-  it.each(['ouro-300', 'areia-100', 'areia-200'])('%s sobre café-950 (faixa café da Área) passa de 4,5:1', (fg) => {
-    expect(contrastRatio(color(fg), color('cafe-950'))).toBeGreaterThanOrEqual(4.5);
+  // Botão de trocar a foto e "Pular para o conteúdo": café-950 sobre ouro-300.
+  it('café-950 sobre ouro-300 (detalhes em ouro da Área) passa de 4,5:1', () => {
+    expect(contrastRatio(color('cafe-950'), color('ouro-300'))).toBeGreaterThanOrEqual(4.5);
   });
 });

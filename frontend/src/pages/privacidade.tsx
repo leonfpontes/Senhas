@@ -36,7 +36,7 @@ Há dois papéis diferentes:
 
 **Médiuns e associados (cadastrados pela casa):** nome, contatos, data de nascimento e endereço dos médiuns; mensalidades, pagamentos e comprovantes enviados.
 
-**Médiuns com acesso à Área do Médium:** quando a casa convida, o médium cria uma conta com e-mail e senha (guardada só em formato criptografado) e registramos a data e a versão da autorização dada no convite. Na Área ficam a agenda da casa, os avisos e quem os leu, a mensalidade e os comprovantes enviados pelo próprio médium e, quando a casa usa, as escalas, as presenças e os motivos de ausência que ele informar.
+**Médiuns com acesso à Área do Médium:** quando a casa convida, o médium cria uma conta com e-mail e senha (guardada só em formato criptografado) e registramos a data e a versão da autorização dada no convite. Na Área ficam a agenda da casa, os avisos e quem os leu, a mensalidade e os comprovantes enviados pelo próprio médium e, quando a casa usa, as escalas, as presenças e os motivos de ausência que ele informar. Se o médium escolher, o primeiro nome e o dia e o mês do aniversário aparecem para os outros médiuns da casa (nunca o ano).
 
 **Ficha espiritual do médium (quando a casa usa):** campos que a casa define (por exemplo orixá de cabeça, guias, datas de batismo, iniciação e obrigações), os marcos da caminhada do médium na casa e as sugestões que ele enviar pela Área. Registramos quem deu a autorização, quando e a versão do texto aceito.
 
@@ -55,7 +55,7 @@ Há dois papéis diferentes:
 • **E-mails sobre a conta** (fim do teste, dicas para a primeira gira, novidades do sistema): legítimo interesse, sempre relacionados ao serviço que você usa.
 • **Estatísticas de uso do site e do painel** e **medição de anúncios**: consentimento (art. 7º, I), dado no aviso de cookies e revogável a qualquer momento.
 • **Dados sensíveis** (saúde em fichas de curso, prioridade de atendimento): consentimento específico ou proteção da vida e da saúde, conforme o caso (art. 11).
-• **Área do Médium:** o acesso só existe com a autorização que o médium dá ao aceitar o convite da casa (consentimento específico, art. 11, I). Ele pode revogá-la pedindo à casa o encerramento do acesso.
+• **Área do Médium:** o acesso só existe com a autorização que o médium dá ao aceitar o convite da casa (consentimento específico, art. 11, I). Ele pode revogá-la quando quiser: sozinho, em Perfil → Meus dados e privacidade → Encerrar meu acesso (confirmando com a senha), ou pedindo à casa. Ao encerrar, registramos a data e a versão da autorização retirada, a conta da Área é desativada (quem também usa o painel da casa só perde a Área) e a direção da casa é avisada. O cadastro do médium continua com a casa, que é a controladora desses dados; a casa pode convidá-lo de novo, e aí uma nova autorização é pedida.
 • **Ficha espiritual:** só é preenchida com uma autorização própria do médium, separada do acesso à Área (consentimento específico, art. 11, I), dada por ele na Área ou registrada pela direção da casa. Ele pode retirá-la na Área a qualquer momento: os dados deixam de aparecer e a casa é avisada para apagá-los.`,
   },
   {
@@ -65,7 +65,7 @@ Há dois papéis diferentes:
 • Os dados de cada casa ficam isolados e só são vistos por quem a casa autorizou.
 • Não usamos dados das casas para anúncios, perfis de comportamento ou qualquer finalidade nossa.
 • As ferramentas de estatística mascaram campos de formulário — nomes, e-mails, telefones e documentos não chegam a elas.
-• Na Área do Médium, cada médium vê só os próprios dados; os outros médiuns não veem nada dele. Os convites e avisos por e-mail não citam religião, entidade nem valores.
+• Na Área do Médium, cada médium vê só os próprios dados; os outros médiuns não veem nada dele — a não ser o primeiro nome e o dia e o mês do aniversário, e só se ele escolher mostrar. Os convites e avisos por e-mail não citam religião, entidade nem valores.
 • A ficha espiritual (orixás, guias, obrigações, caminhada) só é vista por quem a casa autorizar especificamente para isso no painel — nem todo usuário do painel a vê — e pelo próprio médium, no que a casa liberar. Ela não entra em exportações, relatórios, e-mails nem no registro de auditoria (que guarda só que houve uma alteração, sem o conteúdo).`,
   },
   {
@@ -125,7 +125,7 @@ Nenhum sistema é 100% invulnerável. Se acontecer um incidente de segurança co
 • Revisão de decisões tomadas só por meios automatizados.
 • Oposição a tratamentos feitos sem respeitar a lei.
 
-**Como pedir:** envie e-mail para ${PRIVACY_EMAIL}. Podemos pedir uma confirmação de identidade antes de atender. Respondemos em até 15 dias. Usuários do painel também podem corrigir o próprio cadastro e excluir o próprio acesso em Perfil. Se os dados foram cadastrados por um terreiro, encaminharemos o pedido à casa e a ajudaremos a atendê-lo.
+**Como pedir:** envie e-mail para ${PRIVACY_EMAIL}. Podemos pedir uma confirmação de identidade antes de atender. Respondemos em até 15 dias. Usuários do painel também podem corrigir o próprio cadastro e excluir o próprio acesso em Perfil. Médiuns com acesso à Área do Médium baixam uma cópia dos próprios dados (arquivo PDF ou JSON) e encerram o próprio acesso em Perfil → Meus dados e privacidade. Se os dados foram cadastrados por um terreiro, encaminharemos o pedido à casa e a ajudaremos a atendê-lo.
 
 Você também pode reclamar à Autoridade Nacional de Proteção de Dados (ANPD), em gov.br/anpd.`,
   },

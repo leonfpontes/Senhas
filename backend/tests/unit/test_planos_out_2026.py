@@ -45,6 +45,8 @@ MIN_PLAN = {
     # Atividades da casa (AM-08, D-10) no Basic; escalas (D-02) no Pro.
     "atividades_corrente": PlanType.BASIC,
     "escalas": PlanType.PRO,
+    # Estudos e documentos da casa (AM-21, D-02) no Pro.
+    "biblioteca_medium": PlanType.PRO,
     # Ficha espiritual do médium (F-05/AM-19): Pro.
     "ficha_espiritual": PlanType.PRO,
 }

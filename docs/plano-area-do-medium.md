@@ -871,6 +871,10 @@ médium em duas casas) nunca entraria na Área nova. Convidar médiuns aumenta m
 
 **Riscos.** Enumeração de terreiros pelo e-mail: só listar terreiros cuja senha conferiu.
 
+**Depois (D-36, 08/10).** O cadastro de terreiro aceita e-mail que já tem conta ativa, confirmando a senha
+dessa conta (`conta_existente` no `POST /public/onboarding`, mesmo rate limit do login); limite de 5 contas
+ativas por e-mail mantido.
+
 ### AM-06 — Casca da Área do Médium e tela Início
 - **Prioridade:** P0 · **Fase:** MVP (2.3.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-02, AM-04
 
@@ -879,7 +883,7 @@ celular.
 
 **Implementação**
 - `F/components/medium/MediumLayout.tsx` e `MediumProvider` (§6.10), marca do terreiro via `applyBrand`,
-  claro/escuro seguindo o sistema.
+  claro/escuro seguindo o sistema (out/2026: a Área passou a ser sempre clara, no tom da landing — AGENTS.md §11.16).
 - `GET /api/v1/medium/inicio`: próxima gira/evento, comunicados não lidos (contagem + 3 últimos), mensalidade do
   mês (status, valor, vencimento), aviso de aniversário do próprio médium, módulos ligados (AM-10).
 - `F/pages/medium/index.tsx`: cartões com ação direta ("Ver gira", "Ler aviso", "Pagar"), `EmptyState` amigável
@@ -1099,9 +1103,9 @@ privacidade como argumento ("ambiente isolado, com autenticação e acesso aos p
 - Texto "Quem vê o quê" na tela.
 
 **Aceite**
-- [ ] Médium baixa os próprios dados
-- [ ] Encerrar acesso desvincula e desativa a conta, com aviso aos admins
-- [ ] Política de privacidade descreve os dois fluxos
+- [x] Médium baixa os próprios dados
+- [x] Encerrar acesso desvincula e desativa a conta, com aviso aos admins
+- [x] Política de privacidade descreve os dois fluxos
 
 ### AM-15 — Lembretes e avisos por e-mail
 - **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-09, AM-11, AM-12, AM-17
@@ -1149,9 +1153,18 @@ O manifesto atual abre a Porta.
   mesmo agendador do AM-15, handler `push`/`notificationclick` no `sw.js` (sem cachear `/api/*`, regra mantida).
   iPhone só recebe com o app instalado (iOS 16.4+).
 
+**Feito (AM-16, migração 082).** Tabela `push_inscricoes` (+ `tenant_id`, `medium_id`, `user_agent` curto,
+`last_success_at`, `failures`) e liga/desliga por tipo próprio do celular (`medium_preferencias.push_*`); API
+`/api/v1/medium/push*` (chave pública, ligar/desligar o aparelho, tipos, teste); envio pelo agendador do AM-15 com a
+mesma marca (uma vez só nos dois canais), texto discreto sem nome de atividade/aviso; 404/410 apagam a inscrição.
+Sem as chaves VAPID no servidor fica desligado (só e-mail) — ligar: `docs/deployment.md`. Perfil → "Notificações no
+celular" (permissão só no toque; iPhone fora da tela inicial abre o passo de instalação). A caixa "Avisar por
+e-mail também" do aviso também dispara o push.
+
 **Aceite**
-- [ ] Push de comunicado e de mensalidade chega no Android e no iPhone instalado
-- [ ] Teste do SW continua garantindo que `/api/*` não é cacheado
+- [ ] Push de comunicado e de mensalidade chega no Android e no iPhone instalado (validar no aparelho, com as chaves
+  VAPID ligadas, pelo "Mandar uma notificação de teste" e por um aviso/lembrete real)
+- [x] Teste do SW continua garantindo que `/api/*` não é cacheado (`__tests__/pwa/sw.test.ts`, inclusive `/api/v1/medium/push*`)
 
 ### AM-17 — Presença: convocação, vou/não vou com justificativa, check-in e lista de chamada
 - **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** G · **Tipo:** dev · **Depende de:** AM-08, AM-06
@@ -1246,8 +1259,8 @@ na Minha Gira, "Diário & Entidades" na Quartinha).
   aniversariante (sem opt-in, é só para ele).
 
 **Aceite**
-- [ ] Só aparece quem aceitou, sem o ano
-- [ ] Aniversariante vê a mensagem da casa no dia
+- [x] Só aparece quem aceitou, sem o ano
+- [x] Aniversariante vê a mensagem da casa no dia
 
 ### AM-21 — Estudos e documentos da casa
 - **Prioridade:** P3 · **Fase:** Fase 3 · **Esforço:** G · **Tipo:** dev · **Depende de:** AM-09, AM-01 (D-02)
@@ -1263,9 +1276,19 @@ na Minha Gira, "Diário & Entidades" na Quartinha).
 - Ideia relacionada: mostrar na Área os cursos presenciais abertos da casa (já existem) com o link de inscrição.
 
 **Aceite**
-- [ ] Admin publica material por público e categoria
-- [ ] Médium lista, busca e abre os materiais liberados
-- [ ] Limite de tamanho definido e medido
+- [x] Admin publica material por público e categoria
+- [x] Médium lista, busca e abre os materiais liberados
+- [x] Limite de tamanho definido e medido — sem upload nesta versão (banco de 8 GB, imagens já em BYTEA): só
+  links (Drive, YouTube, site; PDF = link do Drive) e texto. Limites testados: texto até 15 000 caracteres,
+  link até 500, 300 materiais ativos por casa (~4,5 MB de texto no pior caso). Upload de PDF espera
+  armazenamento de objetos.
+
+**Entregue (AM-21, migração 087)**: tabelas `materiais_corrente` + `material_grupos`; plano `biblioteca_medium`
+(Pro, D-02, fora do quadro no piloto); grupo `COMUNICADOS` (sem feature nova); tipos link/texto/ponto cantado;
+categoria livre com sugestões; público como nos avisos; rascunho; ordem pelas setas; YouTube toca na Área
+(`youtube-nocookie`, o `frame-src` já liberava); "Cursos da casa" com os cursos presenciais abertos e o link de
+inscrição (só com `site_builder`). Entrada "Estudos e documentos" no menu do cabeçalho e no Perfil (a barra
+inferior já tem 5 abas).
 
 ### AM-22 — Mensalidade com baixa automática na Área
 - **Prioridade:** P2 · **Fase:** Fase 2 · **Esforço:** M · **Tipo:** dev · **Depende de:** F-01, F-02, AM-11
@@ -1390,10 +1413,10 @@ opt-in (D-07, fase 2).
 - Abonar justificativa (aceitar/recusar) entra aqui também.
 
 **Aceite**
-- [ ] Médium pede troca, colega aceita e admin aprova (ou aprovação automática configurada)
-- [ ] Situação "Substituído" aparece para os dois e no relatório
-- [ ] Admin pode aceitar ou recusar uma justificativa
-- [ ] Opt-in para mostrar o primeiro nome aos colegas de escala
+- [x] Médium pede troca, colega aceita e admin aprova (ou aprovação automática configurada)
+- [x] Situação "Substituído" aparece para os dois e no relatório
+- [x] Admin pode aceitar ou recusar uma justificativa
+- [x] Opt-in para mostrar o primeiro nome aos colegas de escala
 
 ### AM-28 — Modo de presença da casa e check-in com QR do dia
 - **Prioridade:** P1 · **Fase:** MVP (2.4.0) · **Esforço:** M · **Tipo:** dev · **Depende de:** AM-17
@@ -1448,12 +1471,17 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-15 Lembretes e avisos por e-mail (mensalidade D-3/D+3, véspera, D-2, escala nova, falta, aviso, cancelamento, PIX, resumo do admin) | #96 | 081 | 2026-10-08 |
 | AM-18 Escala de gira por função (grupos inteiros, copiar da anterior, rodízio) | #97 | — (usa as colunas da 079) | 2026-10-08 |
 | AM-24 Divulgação (atrás da chave NEXT_PUBLIC_AREA_MEDIUM_DIVULGADA, desligada) | #98 | — | 2026-10-08 |
-| F-05 Ficha espiritual (painel) + AM-19 Minha caminhada | este PR | 088, 089 | — |
+| AM-16 Notificação push (desligada até gerar as chaves VAPID) | #100 | 082 | 2026-10-08 |
+| AM-14 Meus dados (exportar JSON/PDF, encerrar o acesso com a senha, "Quem vê o quê", Política 2.3) | #102 | 083 | 2026-10-08 |
+| AM-20 Aniversariantes (opt-in no Perfil, cartão da semana no Início, mensagem da casa no dia) | #102 | 083 | 2026-10-08 |
+| AM-27 Troca na escala e abono de justificativa | #106 | 086 | 2026-10-08 |
+| AM-21 Estudos e documentos | #107 | 087 | 2026-10-08 |
+| F-05 Ficha espiritual (painel) + AM-19 Minha caminhada | #109 | 088, 089 | 2026-10-08 |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-14, AM-16 (push), AM-20, AM-21, AM-22, AM-27 (AM-19 com o F-05, acima).
+**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-22 (depende do gateway, F-01).
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 
@@ -1568,6 +1596,7 @@ descoberta e vocabulário do AM-00; ver [estudo-ux-area-do-medium.md](estudo-ux-
 | D-33 | WhatsApp do convite | Texto simpático com o vocabulário do terreiro ("A nossa casa, <nome>, agora tem a Área do Médium… Axé!"); o e-mail segue discreto |
 | D-34 | Textos legais | Termo do médium (v1) e Política de Privacidade 2.2 escritos pelo Claude a pedido do dono (ajustes depois, se ele quiser) |
 | D-35 | Convocação | Além de médium por médium, **grupos inteiros** podem ser convocados para uma atividade (AM-29) |
+| D-36 | Casa nova com e-mail que já tem conta (ex.: médium abrindo o próprio terreiro) | **Permitido com a senha da conta existente** (08/10): o cadastro pede a senha dessa conta e o admin novo usa a mesma senha; o login pergunta o terreiro (AM-05). **Limite de 5 contas ativas por e-mail mantido** (`MAX_LOGIN_ACCOUNTS`) |
 
 ## 13. Riscos gerais
 

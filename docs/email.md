@@ -74,6 +74,9 @@ chave do piloto (`tenants.area_medium_liberada`), o plano `area_medium` e a Áre
 | Falta | marcado ausente, sem motivo, dentro do prazo da casa (o texto do motivo nunca vai) | 9–21 h | `<terreiro>: sentimos sua falta` |
 | Aviso da casa | público do aviso com "Avisar por e-mail também" | 7–22 h, até 3 dias depois | `<terreiro>: novo aviso da casa` |
 | Cancelamento | quem estava na escala de uma atividade cancelada | 7–22 h, até 2 dias depois | `<terreiro>: uma atividade foi cancelada` |
+| Troca pedida (AM-27) | o colega chamado para ir no lugar (primeiro nome de quem pediu, recado) | 7–22 h, até 2 dias depois | `<terreiro>: pedido de troca na escala` |
+| Resposta da troca (AM-27) | quem pediu: o colega aceitou (falta a direção), não pode, a direção recusou ou cancelou | 7–22 h, até 2 dias depois | `<terreiro>: resposta ao seu pedido de troca` |
+| Troca aprovada (AM-27) | os dois (nome do substituto só com o opt-in do D-07 quando a direção escolheu) | 7–22 h, até 2 dias depois | `<terreiro>: troca na escala confirmada` |
 | Resumo do dia | administradores ativos (comprovantes para conferir, ausências avisadas, motivos novos — só contagens, só quando há algo) | 8–12 h, um por terreiro por dia | `Resumo do dia na Área do Médium — <terreiro>` |
 
 - **Discretos** (LGPD art. 11, §6.8 do plano): assunto e prévia (texto escondido do topo) só com o nome do
@@ -83,6 +86,11 @@ chave do piloto (`tenants.area_medium_liberada`), o plano `area_medium` e a Áre
 - **Descadastro**: rodapé com "Desligar estes avisos" e "Desligar todos os e-mails da Área"
   (`/descadastro/<token>?tipo=…`); o médium também muda no Perfil da Área. O cabeçalho `List-Unsubscribe` ainda
   não é enviado (o `EmailMessage` não tem cabeçalhos).
+- **No celular também (AM-16)**: cada um desses lembretes do médium também sai como notificação (Web Push) para
+  os aparelhos em que ele ligou as notificações, com liga/desliga próprio por tipo; e-mail e celular são
+  independentes e a marca é a mesma (uma vez só). Texto do push ainda mais curto (sem nome de atividade/aviso,
+  valor ou motivo) em `services/medium_push.py`. Sem as chaves VAPID, só e-mail. O descadastro do rodapé só
+  desliga e-mail. Push não tem custo por envio — reduz a pressão do R-08 conforme os médiuns ligam.
 
 ### Volume estimado (risco R-08 do plano)
 
@@ -120,6 +128,14 @@ SELECT tenant_id, tipo, count(*)
  WHERE enviado_em >= now() - interval '30 days'
  GROUP BY tenant_id, tipo ORDER BY tenant_id, tipo;
 ```
+
+### Médium encerrou o acesso (AM-14)
+
+Fora do agendador: `POST /api/v1/medium/meus-dados/encerrar` enfileira, depois do commit, um e-mail para cada
+administrador ATIVO do terreiro (`medium_lembretes.emails_dos_admins`), texto em
+`services/email/templates/medium_acesso_encerrado.py`. Assunto `<primeiro nome> encerrou o acesso à Área do
+Médium`; corpo só com o primeiro nome, o terreiro e a data, explicando que o cadastro continua com a casa e que dá
+para convidar de novo (Médiuns → Acesso à Área). Volume desprezível (um por encerramento).
 
 ---
 

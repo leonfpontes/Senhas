@@ -23,6 +23,7 @@ RESERVED_SLUGS: frozenset[str] = frozenset(
         "forgot-password",
         "login",
         "offline",
+        "parceiros",
         "platform",
         "privacidade",
         "public",

@@ -34,6 +34,16 @@ PLAN_LIMITS: dict = {
 }
 
 
+def clear_invoice_billing(subscription: Subscription, *, keep_collection_method: bool = False) -> None:
+    """Zera o estado da cobrança por fatura/boleto ($-04): assinatura pendente e fatura em aberto."""
+    if not keep_collection_method:
+        subscription.collection_method = None
+    subscription.pending_stripe_subscription_id = None
+    subscription.pending_invoice_id = None
+    subscription.pending_invoice_url = None
+    subscription.pending_invoice_due_at = None
+
+
 class SubscriptionRepository(BaseRepository[Subscription]):
     """Repository for Subscription management.
     
@@ -214,6 +224,8 @@ class SubscriptionRepository(BaseRepository[Subscription]):
         subscription.stripe_subscription_id = None
         subscription.stripe_price_id = None
         subscription.cancel_at_period_end = False
+        # $-04: sem assinatura, não há forma de cobrança nem fatura em aberto para mostrar.
+        clear_invoice_billing(subscription)
         subscription.max_users = free["max_users"]
         subscription.max_giras_per_month = free["max_giras_per_month"]
         subscription.max_mediuns = free["max_mediuns"]

@@ -8,7 +8,9 @@
  * listagem (`lib/pdf/assiduidadePdf`).
  *
  * Detalhe por médium (tocar na linha): `GET .../assiduidade/medium/{id}` num `Sheet` com cada
- * atividade, a situação e o motivo das faltas. O motivo pode ter dado de saúde (§6.8 do plano):
+ * atividade, a situação e o motivo das faltas, com o abono (AM-27: "Aceitar motivo" / "Recusar
+ * motivo" com `escalas:edit` — recusado conta como falta sem justificativa) e a troca na escala
+ * (substituição não é falta). O motivo pode ter dado de saúde (§6.8 do plano):
  * aparece SÓ aqui, para quem tem ESCALAS:view — o PDF recebe só contagens (`dadosDoPdf`).
  *
  * A página (`pages/admin/atividades.tsx`) já fecha a tela sem `area_medium`, sem
@@ -54,6 +56,7 @@ import { formatDateBr, formatDateTimeBr } from '@/lib/dateBr';
 import { gerarAssiduidadePdf } from '@/lib/pdf/assiduidadePdf';
 import { cn } from '@/lib/utils';
 import { useGruposDaCorrente } from './PorNaEscalaCampos';
+import { AbonoJustificativa } from '@/components/admin/presenca/AbonoJustificativa';
 import { API_ATIVIDADES } from './TiposEFuncoes';
 
 export const API_ASSIDUIDADE = `${API_ATIVIDADES}/assiduidade`;
@@ -88,6 +91,7 @@ function resumoNumeros(n: NumerosAssiduidade): string {
   if (n.ausencias_justificadas) partes.push(plural(n.ausencias_justificadas, 'falta com justificativa', 'faltas com justificativa'));
   if (n.ausencias_sem_justificativa) partes.push(plural(n.ausencias_sem_justificativa, 'falta sem justificativa', 'faltas sem justificativa'));
   if (n.sem_chamada) partes.push(`${n.sem_chamada} sem chamada`);
+  if (n.substituidos) partes.push(plural(n.substituidos, 'troca na escala', 'trocas na escala'));
   return partes.join(' · ');
 }
 
@@ -424,9 +428,13 @@ function DetalheAssiduidadeSheet({
 }) {
   const [detalhe, setDetalhe] = useState<DetalheAssiduidade | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const { can: canGroup } = usePermissions();
+  const podeAbonar = canGroup('escalas', 'edit');
 
   useEffect(() => {
-    setDetalhe(null);
+    // Recarregar depois de um abono mantém o detalhe na tela; trocar de médium limpa.
+    setDetalhe((d) => (d && linha && d.medium.id === linha.id ? d : null));
     setErro(null);
     if (!linha) return;
     let vivo = true;
@@ -440,7 +448,7 @@ function DetalheAssiduidadeSheet({
     return () => {
       vivo = false;
     };
-  }, [linha, params]);
+  }, [linha, params, nonce]);
 
   return (
     <Sheet open={linha !== null} onOpenChange={(o) => !o && onClose()}>
@@ -485,11 +493,24 @@ function DetalheAssiduidadeSheet({
                       {NOTA_CATEGORIA[i.categoria] && (
                         <span className="text-xs text-muted-foreground">{NOTA_CATEGORIA[i.categoria]}</span>
                       )}
+                      {i.medium_origem === 'troca' && (
+                        <span className="text-xs text-muted-foreground">Foi no lugar de um colega (troca na escala)</span>
+                      )}
                       {i.justificativa && (
                         <p className="rounded-lg bg-warning/15 px-3 py-2 text-sm text-warning-strong">
                           <span className="font-semibold">Motivo: </span>
                           {i.justificativa}
                         </p>
+                      )}
+                      {i.justificativa && !i.cancelada && (
+                        <AbonoJustificativa
+                          atividadeId={i.atividade_id}
+                          mediumId={detalhe.medium.id}
+                          nome={detalhe.medium.nome}
+                          avaliacao={i.justificativa_avaliacao}
+                          canEdit={podeAbonar}
+                          onAtualizado={() => setNonce((x) => x + 1)}
+                        />
                       )}
                     </li>
                   ))}

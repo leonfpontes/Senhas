@@ -61,9 +61,10 @@ describe('plans — espelho do backend', () => {
             : 'pro';
       expect([feature, plan]).toEqual([feature, expected]);
     });
-    expect(Object.keys(FEATURE_MIN_PLAN)).toHaveLength(22);
+    expect(Object.keys(FEATURE_MIN_PLAN)).toHaveLength(23);
     expect(FEATURE_MIN_PLAN.ficha_espiritual).toBe('pro');
     expect(FEATURE_MIN_PLAN.escalas).toBe('pro');
+    expect(FEATURE_MIN_PLAN.biblioteca_medium).toBe('pro');
   });
 
   it('todo recurso vendido tem rótulo no catálogo; o que é grátis ou não existe fica fora', () => {
@@ -79,6 +80,7 @@ describe('plans — espelho do backend', () => {
       'area_medium',
       'atividades_corrente',
       'escalas',
+      'biblioteca_medium',
     ]) {
       expect(FEATURE_CATALOG.some((f) => f.key === k)).toBe(false);
     }

@@ -14,7 +14,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import * as Sentry from '@sentry/nextjs';
-import { Building2, LayoutDashboard, LifeBuoy, Loader2, LogOut, Moon, ScrollText, Search, Settings, Sun } from 'lucide-react';
+import { Building2, Handshake, LayoutDashboard, LifeBuoy, Loader2, LogOut, Moon, ScrollText, Search, Settings, Sun } from 'lucide-react';
 import { apiClient } from '@/services/api_client';
 import { APP_VERSION } from '@/lib/version';
 import { cn } from '@/lib/utils';
@@ -60,6 +60,7 @@ export const PLATFORM_NAV = [
   { label: 'Hoje', href: '/platform', icon: LayoutDashboard, exact: true },
   { label: 'Terreiros', href: '/platform/tenants', icon: Building2, exact: false },
   { label: 'Suporte', href: '/platform/suporte', icon: LifeBuoy, exact: false },
+  { label: 'Parceiros', href: '/platform/parceiros', icon: Handshake, exact: false },
   { label: 'Auditoria', href: '/platform/audit_consolidated', icon: ScrollText, exact: false },
   { label: 'Configurações', href: '/platform/settings', icon: Settings, exact: false },
 ] as const;

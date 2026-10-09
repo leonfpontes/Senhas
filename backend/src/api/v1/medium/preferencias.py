@@ -9,6 +9,10 @@ uma ausência) e `avisos` (aviso da casa com "Avisar por e-mail também"). Sem l
 ligado. `disponiveis` diz quais fazem sentido para este médium agora (módulo da casa, plano,
 isenção) — a tela só mostra esses.
 
+D-07 (AM-27): `mostrar_nome_colegas` — "Mostrar meu primeiro nome para os colegas de escala" (padrão
+desligado), em `PUT /preferencias/colegas`; `colegas_disponivel` diz se a casa tem troca de escala
+(planos `atividades_corrente` + `escalas`) — a tela só mostra a opção com ele.
+
 Tudo é "meu" (`ctx.medium`, `ctx.tenant_id`); o PUT é recusado sob impersonação e vai para a
 auditoria do terreiro como `medium_perfil` (só os tipos, nunca o e-mail). O link do rodapé dos
 e-mails (`/descadastro/<token>`) desliga sem login: `api/v1/public/avisos_email.py`.
@@ -48,6 +52,15 @@ class PreferenciasEmail(BaseModel):
 class PreferenciasResponse(BaseModel):
     preferencias: PreferenciasEmail
     disponiveis: list[str]
+    # D-07 (AM-27): primeiro nome visível aos colegas de escala na hora de pedir troca.
+    mostrar_nome_colegas: bool = False
+    colegas_disponivel: bool = False
+
+
+class ColegasUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mostrar_nome: bool
 
 
 class PreferenciasUpdate(BaseModel):
@@ -85,9 +98,12 @@ async def _minha(db: AsyncSession, ctx: MediumContext) -> Optional[MediumPrefere
 
 
 async def _resposta(db: AsyncSession, ctx: MediumContext, pref: Optional[MediumPreferencia]) -> PreferenciasResponse:
+    features = get_effective_plan_features(await SubscriptionRepository(db).get_by_tenant(ctx.tenant_id))
     return PreferenciasResponse(
         preferencias=PreferenciasEmail(**preferencias_payload(pref)),
         disponiveis=await _disponiveis(db, ctx),
+        mostrar_nome_colegas=bool(pref is not None and pref.mostrar_nome_colegas),
+        colegas_disponivel=bool(features.escalas and features.atividades_corrente),
     )
 
 
@@ -128,6 +144,39 @@ async def atualizar_preferencias(
             resource_id=ctx.medium.id,
             previous_state={},
             new_state={"acao": "médium mudou os avisos por e-mail", "campos": sorted(mudou)},
+        )
+        await db.commit()
+        pref = await _minha(db, ctx)
+    return await _resposta(db, ctx, pref)
+
+
+@router.put(
+    "/preferencias/colegas",
+    response_model=PreferenciasResponse,
+    dependencies=[Depends(require_not_impersonated)],
+)
+@limiter.limit("30/hour")
+async def mostrar_nome_aos_colegas(
+    request: Request,
+    body: ColegasUpdate,
+    ctx: MediumContext = Depends(require_medium),
+    db: AsyncSession = Depends(get_db),
+) -> PreferenciasResponse:
+    """D-07: liga/desliga o primeiro nome visível aos colegas de escala (pedido de troca)."""
+    pref = await _minha(db, ctx)
+    atual = bool(pref is not None and pref.mostrar_nome_colegas)
+    if atual != body.mostrar_nome:
+        if pref is None:
+            pref = await garantir_preferencia(db, ctx.tenant_id, ctx.medium.id)
+        pref.mostrar_nome_colegas = body.mostrar_nome
+        pref.updated_at = utc_now()
+        await AuditService(db).log_update(
+            tenant_id=ctx.tenant_id,
+            user_id=ctx.user.id,
+            resource_type="medium_perfil",
+            resource_id=ctx.medium.id,
+            previous_state={"mostrar_nome_colegas": atual},
+            new_state={"acao": "médium mudou o nome visível aos colegas de escala", "mostrar_nome_colegas": body.mostrar_nome},
         )
         await db.commit()
         pref = await _minha(db, ctx)

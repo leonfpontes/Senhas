@@ -77,6 +77,8 @@ class PlanFeatures(BaseModel):
     atividades_corrente: bool = False
     # Escalas (AM-25/AM-18): planejador da faxina, escala de gira por função, rodízio.
     escalas: bool = False
+    # Estudos e documentos da casa (AM-21): biblioteca da corrente na Área do Médium.
+    biblioteca_medium: bool = False
     # Ficha espiritual do médium (F-05/AM-19): campos por tradição, consentimento, caminhada.
     ficha_espiritual: bool = False
 
@@ -132,6 +134,8 @@ _FEATURE_MIN_TIER: dict[str, int] = {
     # (atividades internas, presença); no Pro ela planeja quem vem (escalas).
     "atividades_corrente": _BASIC,
     "escalas": _PRO,
+    # Estudos e documentos da casa (AM-21, D-02): degrau do Pro, como as escalas.
+    "biblioteca_medium": _PRO,
     # Ficha espiritual (F-05, decisão de 2026-10-08): recurso de gestão mais profundo da corrente,
     # no Pro junto com as escalas. Na Área (AM-19) vale também o `area_medium`.
     "ficha_espiritual": _PRO,

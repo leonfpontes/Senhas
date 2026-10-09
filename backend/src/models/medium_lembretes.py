@@ -4,6 +4,8 @@
   (padrão: tudo ligado — a linha só nasce quando o médium mexe ou quando o primeiro e-mail sai) e o
   token do link "Não quero mais receber" do rodapé (`token_descadastro`). O token só desliga
   avisos por e-mail; por isso fica em claro (precisa ir em todo e-mail) e é único no banco.
+- (AM-16, 082) `push_<tipo>`: o mesmo liga/desliga para a notificação no celular. O link do rodapé
+  do e-mail só mexe nos `email_*`.
 - `medium_lembretes_enviados`: a marca "já mandei" de cada lembrete, por (terreiro, tipo,
   referência, médium). A marca é gravada ANTES do envio com `INSERT ... ON CONFLICT DO NOTHING
   RETURNING`: com 2 workers (ou duas rodadas ao mesmo tempo) só um insere a linha e só ele envia —
@@ -37,6 +39,10 @@ TIPO_FALTA = "falta"  # marcado ausente: convite para contar o motivo (sem o tex
 TIPO_AVISO = "aviso"  # aviso da casa com "Avisar por e-mail também"
 TIPO_CANCELADA = "cancelada"  # atividade cancelada: avisa quem estava na escala
 TIPO_RESUMO_ADMIN = "resumo_admin"  # resumo diário aos administradores (sem médium)
+# Troca de escala (AM-27): pedido ao colega, resposta a quem pediu e troca aprovada (os dois).
+TIPO_TROCA_PEDIDA = "troca_pedida"
+TIPO_TROCA_RESPOSTA = "troca_resposta"
+TIPO_TROCA_APROVADA = "troca_aprovada"
 
 TIPOS_LEMBRETE = (
     TIPO_MENSALIDADE_ANTES,
@@ -49,6 +55,9 @@ TIPOS_LEMBRETE = (
     TIPO_AVISO,
     TIPO_CANCELADA,
     TIPO_RESUMO_ADMIN,
+    TIPO_TROCA_PEDIDA,
+    TIPO_TROCA_RESPOSTA,
+    TIPO_TROCA_APROVADA,
 )
 
 # ── Preferências do médium (um liga/desliga por grupo de lembretes) ─────────
@@ -70,6 +79,9 @@ PREFERENCIA_DO_TIPO = {
     TIPO_CONFIRMACAO: PREF_CONFIRMACAO,
     TIPO_FALTA: PREF_FALTAS,
     TIPO_AVISO: PREF_AVISOS,
+    TIPO_TROCA_PEDIDA: PREF_ESCALAS,
+    TIPO_TROCA_RESPOSTA: PREF_ESCALAS,
+    TIPO_TROCA_APROVADA: PREF_ESCALAS,
 }
 
 REFERENCIA_MAX = 80
@@ -100,6 +112,18 @@ class MediumPreferencia(Base):
     email_confirmacao: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
     email_faltas: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
     email_avisos: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    # Notificação no celular (AM-16, migração 082): o mesmo liga/desliga por tipo, separado do e-mail.
+    # Só vale para quem ligou as notificações num aparelho (`push_inscricoes`).
+    push_mensalidade: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    push_escalas: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    push_confirmacao: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    push_faltas: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    push_avisos: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    # D-07 (AM-27, migração 086): mostrar o primeiro nome aos colegas de escala na hora de pedir
+    # troca. Padrão desligado — sem isso, ninguém vê o nome dele.
+    mostrar_nome_colegas: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     token_descadastro: Mapped[str] = mapped_column(String(TOKEN_MAX), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -108,6 +132,9 @@ class MediumPreferencia(Base):
 
     def ligado(self, preferencia: str) -> bool:
         return bool(getattr(self, f"email_{preferencia}"))
+
+    def ligado_push(self, preferencia: str) -> bool:
+        return bool(getattr(self, f"push_{preferencia}"))
 
     def __repr__(self) -> str:
         return f"<MediumPreferencia(medium_id={self.medium_id})>"

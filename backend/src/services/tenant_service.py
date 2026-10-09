@@ -244,6 +244,10 @@ class TenantService:
             "plan": tenant.subscription.plan.value if tenant.subscription else None,
             "stripe_customer_id": tenant.subscription.stripe_customer_id if tenant.subscription else None,
             "stripe_subscription_id": tenant.subscription.stripe_subscription_id if tenant.subscription else None,
+            # $-04: assinatura por boleto ainda sem a 1ª fatura paga.
+            "pending_stripe_subscription_id": (
+                tenant.subscription.pending_stripe_subscription_id if tenant.subscription else None
+            ),
         }
 
         # Count users for snapshot
@@ -265,6 +269,18 @@ class TenantService:
                 logger.warning(
                     "Failed to cancel Stripe subscription %s for tenant %s before deletion: %s",
                     stripe_sub_id,
+                    tenant_id,
+                    exc,
+                )
+        pending_sub_id = snapshot["pending_stripe_subscription_id"]
+        if isinstance(pending_sub_id, str):
+            try:
+                from ..services.stripe_service import cancel_pending_invoice_subscription
+                await cancel_pending_invoice_subscription(pending_sub_id)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to cancel pending Stripe subscription %s for tenant %s before deletion: %s",
+                    pending_sub_id,
                     tenant_id,
                     exc,
                 )

@@ -60,7 +60,7 @@ Caminhos abreviados: **B/** = `backend/src/`, **F/** = `frontend/src/`. A próxi
 | 18 | $-05 Cupons | P1 | 2 | P | Backlog |
 | 19 | F-08 Story da agenda do mês | P1 | 2 | P | Backlog |
 | 20 | V-08 Identidade visual da landing | P1 | 2 | G | Decisões |
-| 21 | $-04 PIX/boleto na assinatura | P1 | 2 | M | Decisões |
+| 21 | $-04 PIX/boleto na assinatura | P1 | 2 | M | Em revisão (decidido 08/10; boleto feito, Pix bloqueado pela Stripe BR) |
 | 22 | N-04 Tela de consulentes | P1 | 3 | M | Backlog |
 | 23 | N-06 Check-in por QR | P1 | 3 | M | Backlog |
 | 24 | N-01 Modo TV com conteúdo | P1 | 3 | M | Backlog |
@@ -692,10 +692,28 @@ Quartinha usam o Asaas (PIX e boleto).
 **Testes.** `integration_pg/test_stripe_webhook.py` (`invoice.paid` reativa; reentrega não reprocessa),
 `test_admin_billing_stripe.py`, `admin_billing.test.tsx` ("aguardando pagamento").
 
+**Status (08/10/2026) — decidido: aceitar PIX e boleto além do cartão.** O que a Stripe permite numa conta
+brasileira (docs.stripe.com, consultado em 08/10):
+- **Boleto**: aceito em assinatura (Checkout `mode=subscription`, Billing e Invoicing). Confirmação em até
+  1 dia útil, sem estorno/contestação, mínimo R$ 5. Taxa: **R$ 3,45 por boleto pago**
+  (stripe.com/br/pricing/local-payment-methods; o Pix avulso custa 1,19%). A taxa do Stripe Billing, se
+  houver no contrato, vale igual para cartão e boleto.
+- **Pix**: conta BR só aceita Pix **avulso** e **sob convite**; o **Pix Automático (recorrente) não está
+  disponível no Brasil**, e o Pix em faturas (Invoicing) não lista o Brasil entre os países. Ou seja, hoje
+  não há como cobrar a assinatura por Pix pela Stripe BR.
+- **Implementado (boleto)**: escolha "Cartão de crédito" × "Boleto bancário" em `/admin/billing`; boleto =
+  assinatura `collection_method=send_invoice` (fatura por e-mail todo mês, 5 dias para pagar, link
+  "Pagar agora" no painel); plano liberado só no `invoice.paid`; boleto em aberto não suspende nem rebaixa;
+  fatura vencida suspende e o pagamento reativa. Migração `085_assinatura_boleto`. Detalhes em AGENTS.md
+  §11.18 e docs/api.md §20; passos do Dashboard em docs/deployment.md (Stripe).
+- **Pix depois**: se a Stripe liberar Pix em faturas para a conta, é só `STRIPE_INVOICE_PAYMENT_METHODS=
+  boleto,pix` — o painel passa a mostrar "PIX ou boleto" sem mudar código. Alternativa para ter Pix já:
+  outro provedor (Asaas/Mercado Pago), fora deste card.
+
 **Aceite**
-- [ ] Decisão documentada, com as taxas reais
-- [ ] Assinar com boleto e/ou PIX funcionando ponta a ponta em modo de teste
-- [ ] Boleto pendente não suspende nem rebaixa antes do vencimento (teste)
+- [x] Decisão documentada, com as taxas reais (boleto R$ 3,45 por pagamento; Pix indisponível em assinatura)
+- [ ] Assinar com boleto funcionando ponta a ponta em modo de teste (depende de ativar Boleto no Dashboard)
+- [x] Boleto pendente não suspende nem rebaixa antes do vencimento (teste)
 
 ---
 
@@ -1420,9 +1438,16 @@ a loja, com saque por PIX. As lojas de artigos religiosos falam com todos os ter
 - Display A4 em PDF com QR para `/cadastro?cupom=X`.
 - Pagamento da comissão é manual, fora do Stripe.
 
+**Status (2026-10-08).** Página e formulário prontos atrás da chave `NEXT_PUBLIC_PARCEIROS_PUBLICADO`
+(desligada; `/parceiros` em 404); cupom manual no Stripe até o $-05. Proposta de regras na página: terreiro com 20%
+de desconto nos 3 primeiros meses; parceiro com 20% de comissão por 12 meses, PIX mensal a partir de R$ 30. Pedidos
+gravados em `parceiro_interesses` (migração 084) e listados em `/platform/parceiros` (status, cupom, observações),
+com aviso por e-mail ao `ALERT_EMAIL`. Regras, economia por plano e decisões pendentes em `docs/programa-parceiros.md`.
+
 **Aceite**
-- [ ] Regras de comissão decididas
-- [ ] Cupom por loja, display A4 e relatório de indicações e conversões
+- [ ] Regras de comissão decididas (proposta em `docs/programa-parceiros.md`, aguardando o dono)
+- [x] Página pública com convite, regulamento e formulário de interesse + lista na plataforma (atrás da chave)
+- [ ] Cupom por loja no cadastro/checkout ($-05), display A4 e relatório de indicações e conversões
 
 ### C-07 — Oferta para federações
 - **Ranking:** 47 · **Prioridade:** P3 · **Onda:** 5 · **Esforço:** P · **Tipo:** decisão · **Módulo:** Landing & Marketing · **Épico:** Crescimento

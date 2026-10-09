@@ -179,4 +179,81 @@ describe('/admin/billing', () => {
     expect(assinatura).toHaveAttribute('data-state', 'active');
     expect(screen.getByRole('tab', { name: 'Comparar planos' })).toHaveAttribute('data-state', 'inactive');
   });
+
+  // ─── $-04: pagar o plano por fatura (boleto) ───────────────────────────────
+
+  it('no teste local, escolher "Boleto bancário" assina pela fatura, sem ir para o Checkout', async () => {
+    mockApi({ ...TRIAL_BILLING, invoice_payment_methods: ['boleto'], invoice_days_until_due: 5 });
+    apiClient.post.mockResolvedValue({ data: { status: 'trialing', detail: 'ok' } });
+    render(<Billing />);
+
+    expect(await screen.findByText('Como você quer pagar?')).toBeInTheDocument();
+    expect(screen.getByText(/Você tem 5 dias para pagar/)).toBeInTheDocument();
+    // Sem PIX na conta Stripe, o painel não promete PIX.
+    expect(screen.queryByText('PIX ou boleto')).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('radio', { name: /Boleto bancário/ }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: 'Continuar neste plano' })[0]);
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/billing/subscribe-invoice', { plan: 'premium' });
+    expect(apiClient.post).not.toHaveBeenCalledWith('/api/v1/admin/billing/checkout', expect.anything());
+    expect(window.location.href).toBe('');
+    expect(await screen.findByText(/primeira fatura chega por e-mail no fim do teste/)).toBeInTheDocument();
+  });
+
+  it('rótulo vira "PIX ou boleto" quando a fatura aceita PIX', async () => {
+    mockApi({ ...TRIAL_BILLING, invoice_payment_methods: ['boleto', 'pix'] });
+    render(<Billing />);
+    expect(await screen.findByRole('radio', { name: /PIX ou boleto/ })).toBeInTheDocument();
+  });
+
+  it('pedido por boleto pendente: "Aguardando pagamento", "Pagar agora" e "Cancelar pedido"', async () => {
+    mockApi({
+      ...TRIAL_BILLING,
+      is_trial: false,
+      trial_ends_at: null,
+      plan: 'free',
+      awaiting_first_payment: true,
+      pending_invoice_url: 'https://invoice.stripe.com/i/abc',
+      pending_invoice_due_at: '2026-10-13T12:00:00Z',
+      invoice_payment_methods: ['boleto'],
+    });
+    apiClient.post.mockResolvedValue({ data: { detail: 'ok' } });
+    render(<Billing />);
+
+    expect(await screen.findByText(/Aguardando pagamento da fatura/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Pagar agora/ })).toHaveAttribute('href', 'https://invoice.stripe.com/i/abc');
+    // Sem escolher forma de pagamento de novo enquanto há pedido em aberto.
+    expect(screen.queryByText('Como você quer pagar?')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar pedido' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar pedido' }));
+    });
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/billing/cancel');
+  });
+
+  it('assinante por boleto vê a forma de pagamento e a fatura de renovação em aberto', async () => {
+    mockApi({
+      ...TRIAL_BILLING,
+      plan: 'pro',
+      is_trial: false,
+      trial_ends_at: null,
+      stripe_subscription_id: 'sub_bol',
+      monthly_price: 79,
+      current_period_end: '2026-11-06T00:00:00Z',
+      collection_method: 'send_invoice',
+      pending_invoice_url: 'https://invoice.stripe.com/i/renov',
+      invoice_payment_methods: ['boleto'],
+    });
+    render(<Billing />);
+    expect(await screen.findByText('Boleto bancário (fatura por e-mail)')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Pagar agora/ })).toHaveAttribute('href', 'https://invoice.stripe.com/i/renov');
+    expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).not.toBeInTheDocument();
+  });
 });

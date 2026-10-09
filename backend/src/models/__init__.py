@@ -37,8 +37,12 @@ from .atividades import (
     EscalaPlano,
     EscalaPlanoDia,
     FuncaoCorrente,
+    ParticipacaoTroca,
 )
 from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
+from .parceiro_interesse import ParceiroInteresse
+from .push_inscricoes import PushInscricao
+from .materiais import MaterialCorrente, MaterialGrupo, MaterialTipo
 from .ficha_espiritual import FichaCampo, FichaSugestao, FichaValor, MediumMarco
 
 __all__ = [
@@ -72,6 +76,10 @@ __all__ = [
     "MediumConvite",
     "MediumLembreteEnviado",
     "MediumPreferencia",
+    "PushInscricao",
+    "MaterialCorrente",
+    "MaterialGrupo",
+    "MaterialTipo",
     "FichaCampo",
     "FichaSugestao",
     "FichaValor",
@@ -89,6 +97,7 @@ __all__ = [
     "EscalaPlano",
     "EscalaPlanoDia",
     "FuncaoCorrente",
+    "ParticipacaoTroca",
     "MensalidadeConfig",
     "MensalidadePagamento",
     "MensalidadeStatus",
@@ -119,4 +128,5 @@ __all__ = [
     "SupportConversation",
     "SupportMessage",
     "SupportConversationStatus",
+    "ParceiroInteresse",
 ]

@@ -35,10 +35,12 @@ from .mensalidade_pix import router as mensalidade_pix_router
 from .mensalidade_comprovantes import router as mensalidade_comprovantes_router
 from .comunicados import router as comunicados_router
 from .corrente_grupos import router as corrente_grupos_router
+from .materiais import router as materiais_router
 from .atividades_assiduidade import router as atividades_assiduidade_router
 from .atividades import router as atividades_router
 from .atividades_presenca import router as atividades_presenca_router
 from .atividades_escala import router as atividades_escala_router
+from .atividades_trocas import router as atividades_trocas_router
 from .escala_planos import router as escala_planos_router
 
 # Combine all admin routers.
@@ -79,8 +81,11 @@ admin_router.include_router(mensalidade_pix_router)
 admin_router.include_router(mensalidade_comprovantes_router)
 admin_router.include_router(comunicados_router)
 admin_router.include_router(corrente_grupos_router)
+admin_router.include_router(materiais_router)
 # Antes do `atividades_router`: `/assiduidade` não pode cair no `GET /{atividade_id}` (AM-26).
 admin_router.include_router(atividades_assiduidade_router)
+# Idem `/trocas` (AM-27).
+admin_router.include_router(atividades_trocas_router)
 admin_router.include_router(atividades_router)
 admin_router.include_router(atividades_presenca_router)
 admin_router.include_router(atividades_escala_router)

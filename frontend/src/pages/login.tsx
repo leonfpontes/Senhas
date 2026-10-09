@@ -55,6 +55,12 @@ const QUERY_NOTICES: Record<string, Notice> = {
   // Perfil do médium (AM-13): trocar a senha derruba todas as sessões; o novo e-mail vale depois do link.
   senha_alterada: { key: 'senha_alterada', variant: 'success', text: 'Senha alterada. Entre com a nova senha.' },
   email_confirmado: { key: 'email_confirmado', variant: 'success', text: 'E-mail confirmado. Entre com o novo e-mail.' },
+  // Meus dados (AM-14): o médium encerrou o próprio acesso à Área.
+  acesso_encerrado: {
+    key: 'acesso_encerrado',
+    variant: 'info',
+    text: 'Seu acesso à Área do Médium foi encerrado. Se mudar de ideia, peça um novo convite à casa.',
+  },
 };
 
 export default function LoginPage() {

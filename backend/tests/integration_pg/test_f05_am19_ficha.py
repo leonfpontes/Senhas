@@ -486,7 +486,7 @@ async def test_migracao_089_sobe_e_desce(client, db):
 
     novas = {"ficha_campos", "ficha_valores", "medium_marcos", "ficha_sugestoes"}
     assert novas <= await _tabelas()
-    _alembic("downgrade", "081_lembretes")
+    _alembic("downgrade", "087_materiais_corrente")
     try:
         assert not (novas & await _tabelas())
         async with engine.connect() as conn:
