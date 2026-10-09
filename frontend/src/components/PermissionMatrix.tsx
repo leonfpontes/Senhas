@@ -5,7 +5,9 @@
  *   sem rolagem lateral (rótulo quebra linha, 4 colunas de checkbox estreitas).
  * - Marcar Criar/Editar/Excluir liga Ver; desligar Ver desliga o resto (o backend exige ver para
  *   fazer qualquer outra coisa).
- * - Atalhos: Nada, Só ver, Operação do dia, Tudo.
+ * - Atalhos: Nada, Só ver, Operação do dia, Tudo. Módulos sensíveis (`SENSITIVE_FEATURES`, hoje a
+ *   ficha espiritual — dado religioso, F-05) ficam de fora dos atalhos e do "Tudo" da área: só a
+ *   marcação à mão liga (os atalhos "Nada" e desmarcar a área desligam).
  *
  * Mesma API de antes: `value`, `onChange`, `disabled`.
  */
@@ -16,7 +18,13 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FEATURE_LABELS, type FeatureMeta, type PermissionFeature } from '@/constants/permissionFeatures';
+import {
+  FEATURE_LABELS,
+  SENSITIVE_FEATURES,
+  SENSITIVE_FEATURE_HINT,
+  type FeatureMeta,
+  type PermissionFeature,
+} from '@/constants/permissionFeatures';
 import type { GroupPermission } from '@/services/permissionGroupsService';
 
 export interface PermissionMatrixProps {
@@ -76,8 +84,12 @@ export function togglePermission(perm: GroupPermission, action: PermissionAction
   return next;
 }
 
+const isSensitive = (feature: PermissionFeature) => SENSITIVE_FEATURES.includes(feature);
+
 export function applyPreset(value: GroupPermission[], preset: PresetKey): GroupPermission[] {
   return normalizePermissions(value).map((p) => {
+    // Dado religioso (F-05): atalho nunca liga; "Nada" desliga.
+    if (isSensitive(p.feature) && preset !== 'nenhum') return p;
     switch (preset) {
       case 'nenhum':
         return emptyPermission(p.feature);
@@ -128,7 +140,7 @@ export default function PermissionMatrix({ value, onChange, disabled = false }: 
     const features = new Set(areas[area].map((f) => f.feature));
     onChange(
       permissions.map((p) =>
-        features.has(p.feature)
+        features.has(p.feature) && !(checked && isSensitive(p.feature))
           ? { feature: p.feature, can_view: checked, can_insert: checked, can_edit: checked, can_delete: checked }
           : p,
       ),
@@ -157,9 +169,11 @@ export default function PermissionMatrix({ value, onChange, disabled = false }: 
         const items = areas[area];
         if (!items?.length) return null;
         const withAccess = items.filter(({ feature }) => byFeature.get(feature)?.can_view).length;
-        const allChecked = items.every(({ feature }) =>
-          PERMISSION_ACTIONS.every((a) => byFeature.get(feature)?.[a]),
-        );
+        // O "Tudo" da área não liga módulo sensível — então ele também não conta para "tudo marcado".
+        const regulares = items.filter(({ feature }) => !isSensitive(feature));
+        const allChecked =
+          regulares.length > 0 &&
+          regulares.every(({ feature }) => PERMISSION_ACTIONS.every((a) => byFeature.get(feature)?.[a]));
         const someChecked = items.some(({ feature }) => PERMISSION_ACTIONS.some((a) => byFeature.get(feature)?.[a]));
 
         return (
@@ -212,7 +226,14 @@ export default function PermissionMatrix({ value, onChange, disabled = false }: 
                     const perm = byFeature.get(feature)!;
                     return (
                       <TableRow key={feature} data-state={perm.can_view ? 'selected' : undefined}>
-                        <TableCell className="pl-3 whitespace-normal font-medium">{meta.label}</TableCell>
+                        <TableCell className="pl-3 whitespace-normal font-medium">
+                          {meta.label}
+                          {isSensitive(feature) && (
+                            <span className="block text-xs font-normal text-muted-foreground">
+                              {SENSITIVE_FEATURE_HINT}
+                            </span>
+                          )}
+                        </TableCell>
                         {PERMISSION_ACTIONS.map((a) => (
                           <TableCell key={a} className="px-1 text-center">
                             <Checkbox

@@ -55,6 +55,7 @@ class PermissionService:
             PermissionFeature.SITE: "site_builder",  # Site do terreiro (T-06)
             PermissionFeature.COMUNICADOS: "area_medium",  # Avisos da Área do Médium (AM-09)
             PermissionFeature.ESCALAS: "atividades_corrente",  # Atividades e escalas (AM-08)
+            PermissionFeature.FICHA_ESPIRITUAL: "ficha_espiritual",  # Ficha espiritual (F-05)
         }
 
         flag_attr = mapping.get(feature)

@@ -43,6 +43,7 @@ from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
 from .parceiro_interesse import ParceiroInteresse
 from .push_inscricoes import PushInscricao
 from .materiais import MaterialCorrente, MaterialGrupo, MaterialTipo
+from .ficha_espiritual import FichaCampo, FichaSugestao, FichaValor, MediumMarco
 
 __all__ = [
     "Base",
@@ -79,6 +80,10 @@ __all__ = [
     "MaterialCorrente",
     "MaterialGrupo",
     "MaterialTipo",
+    "FichaCampo",
+    "FichaSugestao",
+    "FichaValor",
+    "MediumMarco",
     "Comunicado",
     "ComunicadoLeitura",
     "ComunicadoPublico",

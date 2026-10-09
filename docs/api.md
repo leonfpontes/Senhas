@@ -1566,6 +1566,46 @@ group `COMUNICADOS` (the same as the avisos — no new feature):
   repeated or foreign ids → 422 "A lista mudou..."); answers like the list.
 - Up to 300 active materials per tenant (→ 422). Another tenant's id → 404. Audited as
   `material_corrente` (title, type, link, category, audience, groups, published — not the text).
+### 23. Ficha espiritual do médium (F-05)
+
+Prefix `/api/v1/admin/mediuns`; plan gate **`ficha_espiritual`** (Pro — outside the plan → 403) on the router;
+group feature **`FICHA_ESPIRITUAL`** — separate from `MEDIUNS` and **not** granted to the default "Acesso total"
+group (religious data, LGPD art. 11 — a conscious exception). File `src/api/v1/admin/ficha_espiritual.py`; rules
+in `src/services/ficha_espiritual.py`.
+
+| Method | Path | Group action |
+|---|---|---|
+| GET | `/ficha-campos?incluir_arquivados=` → `[{ id, chave, rotulo, tipo, tradicao, opcoes, ordem, visivel_ao_medium, medium_pode_sugerir, arquivado_em }]` | view |
+| GET | `/ficha-campos/modelos` → `[{ tradicao, nome, campos: [{ chave, rotulo, tipo, visivel_ao_medium }] }]` | view |
+| POST | `/ficha-campos/modelos/{umbanda\|candomble}` → only the fields created (existing `chave` is skipped) | insert |
+| POST | `/ficha-campos` `{ rotulo, tipo: texto\|data\|lista\|sim_nao, tradicao: umbanda\|candomble\|outra, opcoes?, visivel_ao_medium, medium_pode_sugerir }` | insert |
+| PUT | `/ficha-campos/{id}` (absent field unchanged; `arquivado: false` restores; `tipo` cannot change once filled → 409) | edit |
+| DELETE | `/ficha-campos/{id}` — archives (values kept) | delete |
+| GET | `/ficha-pendencias` → `{ sugestoes: [{ id, medium_id, medium_nome, campo_id, campo_rotulo, valor_sugerido, valor_atual, criado_em }], revogacoes: [{ medium_id, medium_nome, revogado_em, registros_guardados }] }` | view |
+| POST | `/ficha-sugestoes/{id}/aceitar` · `/ficha-sugestoes/{id}/recusar` (already answered → 404) | edit |
+| GET | `/{medium_id}/ficha` → `{ medium, consentimento: { dado, em, versao, versao_atual, revogado_em }, registros_guardados, campos: [campo + valor, atualizado_em], sugestoes }` | view |
+| PUT | `/{medium_id}/ficha` `{ valores: [{ campo_id, valor \| null }] }` (null/empty deletes) | edit |
+| DELETE | `/{medium_id}/ficha` → `{ apagados }` — deletes values, milestones and suggestions | delete |
+| POST | `/{medium_id}/ficha/consentimento` `{ confirmo: true, versao }` — the house records that the médium authorised | edit |
+| DELETE | `/{medium_id}/ficha/consentimento` — records that the médium withdrew it | edit |
+| GET | `/{medium_id}/marcos` → `{ consentimento, marcos: [{ id, tipo, titulo, data, observacao, visivel_ao_medium }] }` | view |
+| POST | `/{medium_id}/marcos` `{ tipo: entrada\|batismo\|obrigacao\|coroacao\|outro, titulo?, data, observacao?, visivel_ao_medium }` | insert |
+| PUT / DELETE | `/{medium_id}/marcos/{marco_id}` | edit / delete |
+
+Rules:
+- **Consent before writing**: values, milestones and accepting a suggestion need the médium's explicit consent
+  in force → else **409 `FICHA_SEM_CONSENTIMENTO`**. `versao` must equal `CONSENTIMENTO_FICHA_VERSAO` (else 422);
+  `confirmo: false` → 422.
+- Without consent in force (never given or withdrawn) values, milestones and suggestions are **not returned**
+  (`valor: null`, `marcos: []`); after a withdrawal `registros_guardados` tells how many records are still stored
+  until the house deletes them.
+- Text values are plain text ≤ 500; `data` is ISO `YYYY-MM-DD`; `lista` one of the field options (case-insensitive);
+  `sim_nao` `"sim"`/`"nao"`. `medium_pode_sugerir: true` forces `visivel_ao_medium: true`.
+- Ids from path/body are looked up in the caller's tenant (404 for médium/field/milestone/suggestion of another
+  terreiro; 422 for a `campo_id` of another terreiro in the body) before any write.
+- Audit (`ficha_campo`, `ficha_espiritual`, `ficha_consentimento`, `medium_marco`, `ficha_sugestao`) stores ids,
+  counts and field configuration only — never a value nor a milestone's content. Nothing from the ficha is in
+  `GET /mediuns` (`MediumResponse`), exports, CSV or e-mail.
 
 ---
 
@@ -2075,9 +2115,6 @@ password → **400** `SENHA_INCORRETA` (never 401) and nothing changes. On succe
 ```
 (operator/admin: `"conta_desativada": false, "redirect": "/admin/dashboard"`). The house can invite the person
 again (AM-03): accepting reactivates the same `medium` account with a new password and records a new consent.
-
----
-
 ## Platform Endpoints (super-admin)
 
 Rotas `/api/v1/platform/*` exigem `require_super_admin` (403 para qualquer outro papel, 401 sem login).
@@ -2139,6 +2176,30 @@ notice, never an upgrade offer).
   of the tenant that have not ended (`data_fim` in the future, or no end date and starting from yesterday
   on), up to 20: `{ "id", "titulo", "resumo", "data_inicio", "data_fim", "local", "vagas_restantes"
   (null = no limit), "inscricao_path": "/public/cursos/{id}/inscricao" }`. No participant data.
+
+---
+
+### 13. Minha ficha e minha caminhada (AM-19)
+
+Besides `require_medium`, the house plan must include **`ficha_espiritual`** (else 403 neutral
+`MEDIUM_MODULO_INDISPONIVEL`, no upgrade offer); `GET /medium/me` returns `ficha: bool` so the Perfil only shows
+"Minha caminhada" when available. File `src/api/v1/medium/ficha.py`.
+
+- **`GET /api/v1/medium/ficha`** → `{ "consentimento": { "dado", "em", "versao", "versao_atual", "revogado_em" },
+  "campos": [{ "id", "rotulo", "tipo", "opcoes", "valor", "pode_sugerir", "sugestao_pendente": { "valor",
+  "criado_em" } | null }], "marcos": [{ "id", "tipo", "titulo", "data", "observacao" }] }` — only fields with
+  `visivel_ao_medium` (not archived) with **his own** value, and his milestones with `visivel_ao_medium`. Without
+  consent in force: `campos: []`, `marcos: []`.
+- **`POST /api/v1/medium/ficha/consentimento`** `{ "confirmo": true, "versao": "1" }` (20/h per IP) — the médium
+  authorises the house to keep his religious data (`_por` = his own user). Same response as the GET.
+- **`DELETE /api/v1/medium/ficha/consentimento`** (20/h) — withdraws: data become inaccessible, every active admin
+  gets a discreet e-mail (no médium name, no ficha data) and the panel shows "Autorização retirada" until the house
+  deletes the data.
+- **`POST /api/v1/medium/ficha/sugestoes`** `{ "campo_id", "valor" }` (30/h, 201) — only fields visible with
+  `medium_pode_sugerir` (else 422; field of another terreiro → 404); no consent → 409. Creates/replaces his single
+  pending suggestion for that field; it only enters the ficha when the house accepts it.
+
+All writes: refused while impersonating (403); audited as `medium_ficha` with the action and ids only.
 
 ---
 

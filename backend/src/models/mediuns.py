@@ -89,6 +89,19 @@ class Medium(SoftDeleteModel):
     aniversario_visivel: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false"), nullable=False
     )
+    # Ficha espiritual (F-05/AM-19, migração 089): consentimento explícito e separado para a casa
+    # guardar dado religioso (orixá, obrigações...). Registrado pela direção no painel (com o texto
+    # e a versão) ou pelo próprio médium na Área; nunca inferido. `_por` = quem registrou.
+    # Revogado: `_em/_por/_versao` são limpos e `_revogado_em` marca o pedido — os valores ficam
+    # inacessíveis até a direção apagá-los. Estas colunas NUNCA entram em `MediumResponse`.
+    consentimento_dado_religioso_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    consentimento_dado_religioso_por: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    consentimento_dado_religioso_versao: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    consentimento_dado_religioso_revogado_em: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     tenant = relationship("Tenant", backref="mediuns")
 

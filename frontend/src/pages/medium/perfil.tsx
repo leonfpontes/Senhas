@@ -22,6 +22,8 @@
  * - "Meus dados e privacidade" (AM-14): leva a `/medium/meus-dados` (quem vê o quê, baixar meus
  *   dados, encerrar meu acesso).
  * - "Colegas de escala" (AM-27, D-07): opt-in do primeiro nome na troca de escala (`ColegasDeEscala`).
+ * - "Minha caminhada" (AM-19): leva a `/medium/caminhada` (ficha espiritual liberada pela casa e
+ *   linha do tempo), só quando o plano da casa tem a ficha (`me.ficha`).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
@@ -38,6 +40,7 @@ import {
   LogOut,
   MailCheck,
   Pencil,
+  ScrollText,
   ShieldCheck,
   Smartphone,
   Trash2,
@@ -471,6 +474,15 @@ function Perfil() {
             onClick={() => void router.push('/medium/presencas')}
             testId="perfil-presencas"
           />
+          {me?.ficha && (
+            <Item
+              icon={ScrollText}
+              title="Minha caminhada"
+              description="Sua ficha espiritual e os marcos na casa"
+              onClick={() => void router.push('/medium/caminhada')}
+              testId="perfil-caminhada"
+            />
+          )}
           {me?.estudos && (
             <Item
               icon={BookOpen}

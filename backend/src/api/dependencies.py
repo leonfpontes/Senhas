@@ -343,6 +343,7 @@ _PLAN_FEATURE_LABELS: dict[str, str] = {
     "atividades_corrente": "Atividades da casa",
     "escalas": "Escalas da corrente",
     "biblioteca_medium": "Estudos e documentos da casa",
+    "ficha_espiritual": "Ficha espiritual dos médiuns",
 }
 
 

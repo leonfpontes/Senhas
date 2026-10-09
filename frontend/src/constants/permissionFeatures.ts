@@ -15,7 +15,8 @@ export type PermissionFeature =
   | 'relatorio_gira'
   | 'contas_financeiras'
   | 'comunicados'
-  | 'escalas';
+  | 'escalas'
+  | 'ficha_espiritual';
 
 /** Rótulos dos módulos na tela de grupos (português, sem jargão). */
 export interface FeatureMeta {
@@ -41,4 +42,15 @@ export const FEATURE_LABELS: Record<PermissionFeature, FeatureMeta> = {
   contas_financeiras: { label: 'Contas a Pagar / Receber', group: 'Financeiro' },
   comunicados: { label: 'Avisos e estudos da Área', group: 'Corrente' },
   escalas: { label: 'Atividades e escalas', group: 'Corrente' },
+  ficha_espiritual: { label: 'Ficha espiritual', group: 'Corrente' },
 };
+
+/**
+ * Módulos com dado sensível (LGPD art. 11 — dado religioso). Ficam fora do grupo padrão "Acesso
+ * total" (F-05, exceção consciente) e os atalhos da matriz (Nada / Só ver / Operação do dia / Tudo)
+ * não mexem neles: a casa marca à mão, para quem cuida da ficha.
+ */
+export const SENSITIVE_FEATURES: readonly PermissionFeature[] = ['ficha_espiritual'];
+
+/** Aviso mostrado na linha do módulo sensível na matriz de permissões. */
+export const SENSITIVE_FEATURE_HINT = 'Dado religioso: marque só para quem cuida da ficha dos médiuns.';

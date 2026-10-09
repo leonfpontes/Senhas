@@ -26,6 +26,7 @@ from src.api.dependencies import require_medium
 
 from .agenda import router as agenda_router
 from .avisos import router as avisos_router
+from .ficha import router as ficha_router
 from .inicio import router as inicio_router
 from .materiais import router as materiais_router
 from .me import router as me_router
@@ -54,5 +55,6 @@ medium_router.include_router(push_router)
 medium_router.include_router(meus_dados_router)
 medium_router.include_router(trocas_router)
 medium_router.include_router(materiais_router)
+medium_router.include_router(ficha_router)
 
 __all__ = ["medium_router"]

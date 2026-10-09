@@ -337,7 +337,7 @@ Degraus (D-02, decidido):
 | `atividades_corrente` (nova, v2) | Basic | Tipos de atividade, atividades internas, grupos da corrente, convocação, vou/não vou com justificativa, check-in no app, lista de chamada, histórico do médium, relatório de assiduidade por médium |
 | `escalas` (nova) | **Pro** | Escala de faxina por grupos e dias do mês, escala de gira por função, rodízio, copiar mês, relatório por grupo, lembrete de escala, troca de escala (fase 2) |
 | `biblioteca_medium` (nova, fase 3) | **Pro** | Estudos e documentos (AM-21) |
-| ficha | segue o F-05 | AM-19 |
+| `ficha_espiritual` (F-05) | **Pro** | Ficha espiritual e caminhada no painel e "Minha caminhada" na Área (AM-19) |
 | baixa automática | segue F-01/F-02 | AM-22 (taxa paga pelo terreiro) |
 
 A mensalidade na Área exige também `mensalidade_mediun` (Basic) e a config de mensalidade ativa. Presença fica no
@@ -1244,9 +1244,9 @@ na Minha Gira, "Diário & Entidades" na Quartinha).
 - Respeita o consentimento e a feature `FICHA_ESPIRITUAL` do F-05 do lado admin.
 
 **Aceite**
-- [ ] Médium vê só os campos que a casa liberou e a própria linha do tempo
-- [ ] Sugestão do médium só entra depois de aprovada
-- [ ] Nada da ficha em exportação, log ou e-mail
+- [x] Médium vê só os campos que a casa liberou e a própria linha do tempo
+- [x] Sugestão do médium só entra depois de aprovada
+- [x] Nada da ficha em exportação, log ou e-mail
 
 ### AM-20 — Aniversariantes da corrente
 - **Prioridade:** P3 · **Fase:** Fase 2 · **Esforço:** P · **Tipo:** dev · **Depende de:** AM-13
@@ -1476,11 +1476,12 @@ Tudo vai para a produção **desligado**: a Área só vale no terreiro em que a 
 | AM-20 Aniversariantes (opt-in no Perfil, cartão da semana no Início, mensagem da casa no dia) | #102 | 083 | 2026-10-08 |
 | AM-27 Troca na escala e abono de justificativa | #106 | 086 | 2026-10-08 |
 | AM-21 Estudos e documentos | #107 | 087 | 2026-10-08 |
+| F-05 Ficha espiritual (painel) + AM-19 Minha caminhada | #109 | 088, 089 | 2026-10-08 |
 
 Os números de migração não seguem a ordem dos cards: cards correram em paralelo e as migrações foram renumeradas e
 re-encadeadas na hora do merge (a cadeia vale pelo `down_revision`; ver AGENTS.md §11.8).
 
-**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-19, AM-22.
+**Falta da 2.4.0 do plano:** nada de código — ligar a chave da divulgação (AM-24) quando a Área sair do piloto. **Fase 2/3:** AM-22 (depende do gateway, F-01).
 **Validação no piloto (dono):** adicionar à agenda no Android/iPhone/navegador do WhatsApp; QR do PIX em 3 bancos;
 QR de presença no Android e no iPhone.
 

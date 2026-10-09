@@ -246,6 +246,24 @@ Rotas existentes e suas features:
   `api/v1/medium/trocas.py` com `require_plan_feature("atividades_corrente")` + `("escalas")` e
   `require_not_impersonated` nas escritas; `PUT /medium/preferencias/colegas` (opt-in do D-07) tambem recusa
   impersonando
+- Ficha espiritual do medium (`ficha_espiritual.py`, F-05) → `PermissionFeature.FICHA_ESPIRITUAL` ("Ficha espiritual",
+  grupo "Corrente"; migracoes 088/089) + `require_plan_feature("ficha_espiritual")` (Pro) no router. Prefixo
+  `/api/v1/admin/mediuns`: campos (`/ficha-campos*`: listar/modelos = view, criar/aplicar modelo = insert, editar/
+  desarquivar = edit, arquivar = delete), pendencias (`GET /ficha-pendencias` = view; aceitar/recusar sugestao =
+  edit), ficha do medium (`GET/PUT/DELETE /{id}/ficha` = view/edit/delete; autorizacao `POST/DELETE
+  /{id}/ficha/consentimento` = edit) e caminhada (`/{id}/marcos*` = view/insert/edit/delete). Dado religioso (LGPD
+  art. 11): gravar valor, marco ou aceitar sugestao exige o consentimento do medium (409 `FICHA_SEM_CONSENTIMENTO`);
+  sem consentimento em vigor (nunca dado ou retirado) os valores e marcos NAO saem nem pelo painel. Auditoria so com
+  ids/contagens; nada da ficha em `MediumResponse`, exportacao, CSV ou e-mail. Ids do caminho/corpo conferidos no
+  tenant (`services/ficha_espiritual.medium_do_tenant`/`validar_campos_ativos_do_tenant`/`campo_do_tenant`). Admin e
+  impersonacao passam por cima do grupo como em todo o painel (`PermissionService.check_permission`)
+- **Excecao consciente ao roteiro "nova feature" (F-05)**: `FICHA_ESPIRITUAL` NAO entra no grupo padrao "Acesso
+  total" — nem pela migracao (a 089 nao da acesso; nao existe a "segunda migracao" de grant) nem pelo
+  `PermissionGroupRepository.ensure_default_group`, que pula `FEATURES_FORA_DO_GRUPO_PADRAO`
+  (`models/permission_groups.py`). Operador so ve a ficha num grupo marcado a mao; na matriz de permissoes
+  (`PermissionMatrix`) os atalhos (Só ver/Operação do dia/Tudo) e o "Tudo" da area nao ligam modulo de
+  `SENSITIVE_FEATURES` (`constants/permissionFeatures.ts`). Testes: `tests/integration_pg/test_rbac_grupo_padrao.py`
+  e `test_f05_am19_ficha.py`
 
 Nao empilhe `if not current_user.is_admin` sobre `require_group_permission`: o operador com o grupo
 leva 403 enquanto a UI (que usa `canGroup`) mostra o botao. Admin ja faz bypass dos grupos. Se a acao
@@ -461,6 +479,16 @@ Area do Medium (AM-02) — excecao ao guard de grupo, com guard proprio:
   `tenant_configs.area_medium_aniversario_mensagem` (≤ 200, texto simples, `{nome}` = primeiro nome; vazio = "A
   <terreiro> deseja um feliz aniversario, <primeiro nome>! Axe!") em `aniversario_mensagem` da config da Area
   (CONFIGURACOES edit).
+- **Minha caminhada (AM-19)**: `api/v1/medium/ficha.py` — `GET /medium/ficha` (so campos `visivel_ao_medium`
+  nao arquivados com o valor do PROPRIO medium, marcos `visivel_ao_medium` e o estado da autorizacao; sem
+  autorizacao em vigor devolve listas vazias), `POST|DELETE /medium/ficha/consentimento` (autoriza/retira; retirar
+  deixa os dados inacessiveis e manda e-mail discreto — sem nome do medium nem dado da ficha — a todos os admins
+  ativos; a direcao apaga em "Apagar dados") e `POST /medium/ficha/sugestoes` (so campo visivel com
+  `medium_pode_sugerir`; vira `ficha_sugestoes` pendente — uma por campo, sugerir de novo troca — e so entra na ficha
+  quando a direcao aceita). Alem do `require_medium`, `require_ficha_na_area` exige o plano `ficha_espiritual` (403
+  neutro `MEDIUM_MODULO_INDISPONIVEL`); `GET /medium/me` devolve `ficha` (bool) para o Perfil mostrar a entrada.
+  Escritas com `require_not_impersonated` e limite por IP; auditoria `medium_ficha` so com a acao e ids. Tela
+  `/medium/caminhada` (aberta pelo Perfil)
 - Consulta de "qualquer usuario do terreiro" exclui `role = medium`: contato principal
   (`trial_scheduler.get_tenant_primary_contact`, `webhooks._get_tenant_primary_contact`), contagem de
   usuarios (`subscription_info`, dashboard e billing da plataforma).
@@ -572,7 +600,8 @@ router = APIRouter(prefix=..., dependencies=[Depends(require_plan_feature("estoq
   router desde 2026-10-06 (antes so a tela checava o plano), toggles de fila de espera e agendamento
   por horario em config, marca do terreiro (`tema_personalizado`: so quando o PUT /tenant/config MUDA
   cor principal/de apoio/cor do texto, e no POST /tenant/logo; remover logo e os demais campos salvam
-  em qualquer plano) e exportacao CSV (`export_csv`: CSV da gira e da posicao de estoque).
+  em qualquer plano), exportacao CSV (`export_csv`: CSV da gira e da posicao de estoque) e ficha espiritual
+  (`ficha_espiritual`, router `admin/ficha_espiritual.py`; na Area, `require_ficha_na_area` com 403 neutro).
   Area do Medium (`area_medium`, Basic+): checada pelo `require_medium` em todo `/api/v1/medium/*`
   e no calculo de `areas` (AM-02). Atividades da casa (`atividades_corrente`, Basic+): router
   `admin/atividades.py` e `admin/atividades_presenca.py`, junto com `area_medium` (AM-08/AM-17); na Area,
@@ -610,7 +639,8 @@ Recursos (plano minimo em `_FEATURE_MIN_TIER`):
   `analytics_basico`, `export_csv` (fora do quadro), `auditoria`, `site_builder` (site e cursos), `escalas`
   (planejador da faxina, escala de gira por funcao — AM-25/AM-18, decisao D-02; catalogo criado no AM-08; primeira
   rota no AM-18, `atividades_escala.py`; fora do quadro no piloto), `biblioteca_medium` (estudos e documentos da
-  casa na Area — AM-21, decisao D-02; em `UNSOLD_FEATURES` no piloto).
+  casa na Area — AM-21, decisao D-02; em `UNSOLD_FEATURES` no piloto), `ficha_espiritual` (ficha espiritual e caminhada
+  do medium — F-05/AM-19, decisao de 2026-10-08; no quadro, grupo "Pessoas"; na Area vale junto com `area_medium`).
 - **So Premium**: `associados`, `mensalidade_associado`, `estoque_controle`, `contas_financeiras`
   (lancamentos, fluxo de caixa, categorias, contas bancarias), `fila_espera`, `agendamento_por_horario`.
 - Fora do quadro (`UNSOLD_FEATURES`): `bulk_operations`, `export_csv`, `analytics_avancado` (Pro+ no
@@ -917,7 +947,10 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `087_materiais_corrente` (2026-10-08, AM-21: `materiais_corrente` + `material_grupos` — estudos e
+- Head atual: `089_ficha_espiritual` (2026-10-08, F-05/AM-19: `ficha_campos`, `ficha_valores`, `medium_marcos`,
+  `ficha_sugestoes` (indice unico parcial de pendente por medium + campo) e `mediuns.consentimento_dado_religioso_em/
+  _por/_versao/_revogado_em`; SEM acesso nos grupos padrao — excecao consciente, §3.3), apos `088_permissao_ficha_enum`
+  (`ALTER TYPE permission_feature ADD VALUE 'ficha_espiritual'` num `autocommit_block()`), apos `087_materiais_corrente` (2026-10-08, AM-21: `materiais_corrente` + `material_grupos` — estudos e
   documentos da casa por publico, CHECK de link http(s)), apos `086_trocas_escala` (2026-10-08, AM-27: `participacao_trocas` — uma aberta por participacao,
   indice unico parcial —, `atividade_participacoes.justificativa_avaliacao/_avaliada_em/_avaliada_por` e origem
   `troca`, `tenant_configs.escala_troca_exige_aprovacao`, `medium_preferencias.mostrar_nome_colegas`, tipos
@@ -1242,7 +1275,7 @@ Incluir obrigatoriamente:
   `prefers-reduced-motion`, nada é interceptado nem anima. Promessas da transição tratadas (cancelamento
   não vira erro).
 
-### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, notificação no celular, Escala de gira, divulgação, Meus dados, aniversariantes, troca na escala e Estudos (AM-02/03/04/05/06/07/08/09/10/11/12/13/14/15/16/17/18/20/21/23/24/25/26/27/28/29, 2026-10-08)
+### 11.23 Área do Médium — identidade, convite, configuração, escolha de área, casca, Início, Avisos, Mensalidade, Agenda, Grupos da corrente, Perfil, Atividades da casa, Presença, assiduidade, ajustes do piloto, Escala de faxina, lembretes por e-mail, notificação no celular, Escala de gira, divulgação, Meus dados, aniversariantes, troca na escala, Estudos e Minha caminhada (AM-02/03/04/05/06/07/08/09/10/11/12/13/14/15/16/17/18/19/20/21/23/24/25/26/27/28/29 + F-05, 2026-10-08)
 Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançamento em piloto: tudo desligado sem a chave `area_medium_liberada` (§3.3).
 - **Identidade**: uma pessoa = um `User` por terreiro. O acesso à Área vem do vínculo
   `mediuns.user_id → users.id` (migração 065), não do papel. Papel `medium` (064) só para quem não
@@ -1581,6 +1614,23 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   status, cupom (`^[A-Z0-9_-]{3,40}$`, maiúsculo) e observações. API `GET /api/v1/platform/parceiros`
   (`status`, `q`, `limit`, `offset` → `{items, total, counts}`), `GET`/`PATCH /api/v1/platform/parceiros/{id}`, todas
   com `require_super_admin`. Cupom criado à mão no Stripe até o $-05 (o checkout ainda não aceita código promocional).
+- **Ficha espiritual (F-05) + Minha caminhada (AM-19)**: migracoes 088/089 (§11.8), plano `ficha_espiritual` (Pro,
+  vendido no quadro: "Ficha espiritual e caminhada dos mediuns" em `FEATURE_CATALOG`), grupo `FICHA_ESPIRITUAL` fora
+  do grupo padrao (§3.3). Regras em `services/ficha_espiritual.py`: campos por tradicao (texto, data ISO, lista com
+  1–30 opcoes, sim/nao) com chave unica no terreiro; modelos de Umbanda e Candomble (`MODELOS`, conservadores: so o
+  orixa de cabeca visivel ao medium; nenhum aceita sugestao; aplicar de novo nao duplica); "o medium pode sugerir"
+  liga "o medium ve". Consentimento (`CONSENTIMENTO_FICHA_VERSAO`, espelho em `constants/fichaEspiritual.ts`):
+  registrado pela direcao (caixa com o texto, `_por` = quem registrou) ou pelo medium na Area; **revogar = parar de
+  tratar**: `_em/_por/_versao` limpos + `_revogado_em`, valores/marcos/sugestoes ficam inacessiveis (painel e Area),
+  a direcao recebe e-mail discreto (`templates/ficha_autorizacao_retirada.py`) e o aviso "Autorizacao retirada" em
+  `/admin/mediuns/ficha` com "Apagar dados" (`DELETE /{id}/ficha`, FICHA delete). Nao apagamos sozinhos: a eliminacao
+  e ato consciente da direcao (controladora); um novo consentimento devolve o que nao foi apagado.
+  Painel: `/admin/mediuns/ficha` (campos em `CrudDrawer`, modelos, sugestoes e autorizacoes retiradas) e
+  `/admin/mediuns/[id]/ficha` (autorizacao, abas "Ficha" e "Caminhada" com linha do tempo e `CrudDrawer` de marco),
+  abertos pelo botao "Ficha espiritual" e pela acao da linha em `/admin/mediuns` (com `can('ficha_espiritual')` e
+  `ficha_espiritual:view`). Area: `/medium/caminhada` (Perfil → "Minha caminhada", so com `me.ficha`): termo e
+  "Autorizar", campos liberados, "Sugerir" (`MediumSheet`), linha do tempo e "Retirar autorizacao"
+  (`ConfirmDialog` com `medium-terra`); cores so por token. Politica de Privacidade 2.3 cita a ficha.
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela

@@ -1229,7 +1229,12 @@ senha. É preciso criar uma área autenticada.
 
 ### F-05 — Ficha espiritual do médium
 - **Ranking:** 39 · **Prioridade:** P2 · **Onda:** 4 · **Esforço:** M · **Tipo:** dev · **Módulo:** Médiuns & Corrente · **Épico:** Funcionalidade
-- **Depende de:** — · **Destrava:** F-04 (aba ficha)
+- **Depende de:** — · **Destrava:** F-04 (aba ficha), AM-19
+- **Status (2026-10-08):** **implementado** junto com o AM-19 (PR "ficha espiritual com consentimento e caminhada",
+  migrações 088/089). Decisões: plano `ficha_espiritual` no **Pro** (vendido no quadro); feature `FICHA_ESPIRITUAL`
+  fora do grupo padrão (sem migração de acesso; `ensure_default_group` pula); retirar o consentimento deixa os dados
+  inacessíveis e avisa a direção para apagar ("Apagar dados"); auditoria só com ids/contagens. Detalhes em
+  AGENTS.md §3.3/§11.23, `docs/api.md` §20 e `docs/database.md`.
 
 **Por quê.** Todos os concorrentes de gestão têm algo assim:
 - AxéCloud: caminhada mediúnica, camarinha, orixá de cabeça;
@@ -1261,10 +1266,10 @@ feature por padrão ao grupo "Acesso total"**, ao contrário do padrão da 057. 
 por cima dos grupos (`permission_service.py:85`): documentar.
 
 **Aceite**
-- [ ] Campos configuráveis por tradição, com um modelo inicial para Umbanda e outro para Candomblé
-- [ ] Consentimento explícito registrado antes de gravar
-- [ ] Visível só com FICHA_ESPIRITUAL; ausente de exportações e logs
-- [ ] Linha do tempo da caminhada do médium
+- [x] Campos configuráveis por tradição, com um modelo inicial para Umbanda e outro para Candomblé
+- [x] Consentimento explícito registrado antes de gravar
+- [x] Visível só com FICHA_ESPIRITUAL; ausente de exportações e logs
+- [x] Linha do tempo da caminhada do médium
 
 ### F-06 — Presença dos médiuns na gira
 - **Ranking:** 40 · **Prioridade:** P2 · **Onda:** 4 · **Esforço:** M · **Tipo:** dev · **Módulo:** Médiuns & Corrente · **Épico:** Funcionalidade

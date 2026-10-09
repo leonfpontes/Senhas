@@ -36,6 +36,8 @@ export interface MediumMe {
   grupos?: { id: string; nome: string; cor: string }[];
   /** Estudos e documentos da casa no plano (AM-21, `biblioteca_medium`): mostra "Estudos" no menu. */
   estudos?: boolean;
+  /** O plano da casa tem a ficha espiritual (AM-19): mostra "Minha caminhada" no Perfil. */
+  ficha?: boolean;
 }
 
 export type MediumStatus = 'idle' | 'loading' | 'ok' | 'indisponivel' | 'erro';

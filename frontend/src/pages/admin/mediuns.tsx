@@ -15,6 +15,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  ScrollText,
   Search,
   Sparkles,
   Trash2,
@@ -226,6 +227,8 @@ function MediunsContent() {
   const canDelete = planAllows && canGroup('mediuns', 'delete');
   // Área do Médium (AM-03): coluna e ações só com a feature (plano + chave do piloto) e MEDIUNS:edit.
   const canAcesso = can('area_medium') && canGroup('mediuns', 'edit');
+  // Ficha espiritual (F-05): dado religioso, grupo próprio (fora do "Acesso total") + plano Pro.
+  const canFicha = can('ficha_espiritual') && canGroup('ficha_espiritual', 'view');
   const [acessoTarget, setAcessoTarget] = useState<Medium | null>(null);
   // Grupos da corrente (AM-23): só com `area_medium`; ver = MEDIUNS:view, o campo do cadastro = edit.
   const canGrupos = can('area_medium') && canView;
@@ -502,7 +505,7 @@ function MediunsContent() {
     return `Em ${dias} dias`;
   };
 
-  const showActions = canEdit || canDelete;
+  const showActions = canEdit || canDelete || canFicha;
 
   const RowActions = ({ m }: { m: Medium }) => (
     <DropdownMenu>
@@ -516,6 +519,14 @@ function MediunsContent() {
           <DropdownMenuItem onSelect={() => openEdit(m)}>
             <Pencil />
             Editar
+          </DropdownMenuItem>
+        )}
+        {canFicha && (
+          <DropdownMenuItem asChild>
+            <Link href={`/admin/mediuns/${m.id}/ficha`}>
+              <ScrollText />
+              Ficha espiritual
+            </Link>
           </DropdownMenuItem>
         )}
         {canAcesso && (
@@ -610,7 +621,7 @@ function MediunsContent() {
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [birthdayMap, showActions, canEdit, canDelete, canAcesso, canGrupos, porMedium]);
+  }, [birthdayMap, showActions, canEdit, canDelete, canAcesso, canGrupos, canFicha, porMedium]);
 
   const renderCard = (m: Medium) => {
     const bday = birthdayLabel(m.id);
@@ -680,6 +691,14 @@ function MediunsContent() {
                   <Link href="/admin/mediuns/grupos">
                     <Users />
                     Grupos
+                  </Link>
+                </Button>
+              )}
+              {canFicha && (
+                <Button asChild variant="outline">
+                  <Link href="/admin/mediuns/ficha">
+                    <ScrollText />
+                    Ficha espiritual
                   </Link>
                 </Button>
               )}

@@ -47,6 +47,8 @@ MIN_PLAN = {
     "escalas": PlanType.PRO,
     # Estudos e documentos da casa (AM-21, D-02) no Pro.
     "biblioteca_medium": PlanType.PRO,
+    # Ficha espiritual do médium (F-05/AM-19): Pro.
+    "ficha_espiritual": PlanType.PRO,
 }
 ORDER = [PlanType.FREE, PlanType.BASIC, PlanType.PRO, PlanType.PREMIUM]
 

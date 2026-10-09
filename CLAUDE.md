@@ -62,6 +62,8 @@ Feature por módulo:
   também aceita `PORTA:edit` (e o QR da gira `PORTA:view`) — `require_any_group_permission(ESCALAS, PORTA)`
   + checagem interna de que é âncora de gira (AGENTS.md §3.3)
 - Site do terreiro (Meu Site, `sites.py`, inclusive imagens) → `SITE` (separado de Cursos desde o T-06)
+- Ficha espiritual do médium (`ficha_espiritual.py`, F-05) → `FICHA_ESPIRITUAL` — dado religioso: **fora do grupo
+  padrão "Acesso total"** (exceção consciente ao passo 2 abaixo; `FEATURES_FORA_DO_GRUPO_PADRAO`, AGENTS.md §3.3)
 - Avisos da Área do Médium (`comunicados.py`) → `COMUNICADOS` ("Avisos e estudos da Área", grupo "Corrente") + plano `area_medium`
 - Estudos e documentos da casa (`materiais.py`, AM-21) → `COMUNICADOS` (mesma feature dos avisos) + planos `area_medium`
   e `biblioteca_medium` (Pro)

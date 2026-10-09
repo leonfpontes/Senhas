@@ -566,6 +566,44 @@ apaga a tabela e as 5 colunas (as inscrições se perdem; o médium liga de novo
 
 ---
 
+### `ficha_campos`, `ficha_valores`, `medium_marcos` e `ficha_sugestoes` (F-05/AM-19, migrações 088/089)
+
+`src/models/ficha_espiritual.py`. Dado religioso (LGPD art. 11): feature de permissão própria
+`FICHA_ESPIRITUAL` (088 só cria o valor do ENUM; **nenhum grupo ganha acesso** — exceção consciente) e plano
+`ficha_espiritual` (Pro). Valores nunca vão para auditoria, exportação, CSV ou e-mail.
+
+`ficha_campos` — campos que a casa configura:
+
+| Coluna | Tipo | Observação |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → `tenants.id` CASCADE | |
+| `chave` | `String(60)` | derivada do rótulo (`orixa_de_cabeca`); modelos usam `umb_*`/`cdb_*`; UNIQUE (`tenant_id`, `chave`) |
+| `rotulo` | `String(80)` | |
+| `tipo` | `String(20)`, padrão `texto` | CHECK `ck_ficha_campos_tipo`: `texto/data/lista/sim_nao` |
+| `opcoes` | JSONB, nulo | só `lista` (1–30 opções) |
+| `tradicao` | `String(20)`, padrão `outra` | CHECK `ck_ficha_campos_tradicao`: `umbanda/candomble/outra` |
+| `ordem` | int | |
+| `visivel_ao_medium` / `medium_pode_sugerir` | bool, padrão false | sugerir implica visível |
+| `arquivado_em` | timestamptz, nulo | arquivado sai da ficha e da Área; valores ficam |
+
+`ficha_valores` — `tenant_id`, `medium_id` (FK `mediuns` CASCADE), `campo_id` (FK `ficha_campos` CASCADE), `valor`
+(Text; data em ISO, sim/não em `sim`/`nao`), `atualizado_por` (FK `users` SET NULL), timestamps. UNIQUE
+`uq_ficha_valores_medium_campo`; índices `ix_ficha_valores_tenant_id`, `ix_ficha_valores_campo_id`.
+
+`medium_marcos` — linha do tempo: `tenant_id`, `medium_id` (CASCADE), `tipo` (CHECK `ck_medium_marcos_tipo`:
+`entrada/batismo/obrigacao/coroacao/outro`), `titulo` (≤ 120), `data` (date), `observacao` (≤ 300),
+`visivel_ao_medium` (padrão true), `registrado_por` (FK `users` SET NULL), timestamps.
+
+`ficha_sugestoes` — sugestão do médium: `tenant_id`, `medium_id`, `campo_id` (CASCADE), `valor_sugerido`, `status`
+(CHECK `ck_ficha_sugestoes_status`: `pendente/aceita/recusada`), `decidido_em`, `decidido_por` (FK `users` SET NULL),
+timestamps. UNIQUE parcial `uq_ficha_sugestoes_pendente` (`medium_id`, `campo_id`) `WHERE status = 'pendente'`.
+
+Colunas em `mediuns` (089): `consentimento_dado_religioso_em` (timestamptz), `consentimento_dado_religioso_por` (FK
+`users` SET NULL — a direção que registrou ou o próprio médium), `consentimento_dado_religioso_versao`
+(`String(20)`, versão do texto) e `consentimento_dado_religioso_revogado_em` (o médium retirou: as três primeiras
+são limpas e os dados ficam inacessíveis até a direção apagá-los). Nenhuma delas sai em `MediumResponse`.
+
 ### `tenant_configs`
 
 Configurações, branding e feature flags do tenant. Relação 1:1 com `tenants`.
@@ -1045,7 +1083,7 @@ Ao criar um novo enum em Alembic + model Python:
 | 18 | `018_estoque` | `017_default_brand_colors` | Cria `estoque_grupos`, `estoque_itens`, `estoque_movimentacoes`; enum `estoque_movimentacao_tipo`; `tenant_configs.enable_estoque_log` |
 | 19 | `019_fix_movimentacoes_fk` | `018_estoque` | `estoque_movimentacoes.item_id` FK: `CASCADE` → `RESTRICT` (protege integridade do ledger) |
 
-A tabela acima vai até a 019. A cadeia completa e a head atual (`084_parceiros`, C-06) estão em
+A tabela acima vai até a 019. A cadeia completa e a head atual (`089_ficha_espiritual`, F-05/AM-19) estão em
 AGENTS.md §11.8.
 
 ### Comandos Alembic

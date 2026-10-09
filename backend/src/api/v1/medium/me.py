@@ -70,6 +70,9 @@ class MediumMeResponse(BaseModel):
     # Estudos e documentos da casa (AM-21): o plano tem `biblioteca_medium` (Pro). Sem ele o menu
     # da Área não mostra a entrada "Estudos".
     estudos: bool = False
+    # Ficha espiritual na Área (AM-19): o plano da casa tem `ficha_espiritual` (Pro). Sem ele o
+    # Perfil não mostra "Minha caminhada".
+    ficha: bool = False
 
 
 async def meus_grupos(db: AsyncSession, ctx: MediumContext) -> List[MeuGrupo]:
@@ -135,4 +138,5 @@ async def get_medium_me(
         avisos_nao_lidos=avisos_nao_lidos,
         grupos=await meus_grupos(db, ctx),
         estudos=features.biblioteca_medium,
+        ficha=features.ficha_espiritual,
     )

@@ -33,6 +33,8 @@ export interface PlanFeatures {
   escalas: boolean;
   /** Estudos e documentos da casa (AM-21): biblioteca da corrente. Pro+. */
   biblioteca_medium: boolean;
+  /** Ficha espiritual do médium (F-05/AM-19, Pro). */
+  ficha_espiritual: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -95,6 +97,7 @@ const DEFAULT_FEATURES: PlanFeatures = {
   atividades_corrente: false,
   escalas: false,
   biblioteca_medium: false,
+  ficha_espiritual: false,
 };
 
 const SubscriptionContext = createContext<SubscriptionContextValue>({
