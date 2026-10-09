@@ -362,7 +362,7 @@ async def test_outro_terreiro_nao_ve_nem_confere_e_o_medium_ve_so_os_dele(client
     # O médium vê só os comprovantes dele (e nada da colega nem da outra casa).
     meus = (await client.get(LISTA, headers=actor.headers)).json()
     assert [c["valor_informado"] for c in _mes(meus)["comprovantes"]] == [30.0]
-    assert "45" not in str(_mes(meus)["comprovantes"])
+    assert all(c["valor_informado"] != 45.0 for c in _mes(meus)["comprovantes"])  # nada da colega
     assert _mes((await client.get(LISTA, headers=actor_b.headers)).json())["comprovantes"] == []
 
 

@@ -68,7 +68,9 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(func
         multiline ? (
           <Textarea
             {...control}
-            ref={inputRef as React.Ref<HTMLTextAreaElement>}
+            // O `ref` vindo de fora (ex.: `{...register('campo')}` do react-hook-form) precisa chegar ao
+            // textarea — sem ele o formulário não lê o valor digitado e acusa "Required".
+            ref={(inputRef ?? ref) as React.Ref<HTMLTextAreaElement>}
             rows={rows}
             className={cn('bg-input-bg', inputClassName)}
             {...(inputProps as unknown as React.TextareaHTMLAttributes<HTMLTextAreaElement>)}
