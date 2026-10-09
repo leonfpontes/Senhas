@@ -1132,6 +1132,46 @@ account that owns the token.
 
 ---
 
+### 1d. Switch terreiro without logging out (2026-10-09)
+
+For people whose e-mail has an account in more than one terreiro. Both endpoints need a logged-in
+session (cookie); under impersonation (`impersonated_by` in the JWT) the list is empty and the switch
+is `403`. The platform account (super admin) is out of this in both directions.
+
+**`GET /auth/minhas-contas`** — the OTHER active accounts of the logged-in account's e-mail (same
+notion as the login, `active_login_accounts_stmt`: active user, terreiro not deactivated/deleted,
+max. 5, oldest first). Never another e-mail. Empty list when there is only one account.
+
+```json
+[
+  { "conta_id": "user-uuid", "terreiro": "Casa B", "logo_url": null, "area": "medium", "precisa_senha": false },
+  { "conta_id": "user-uuid", "terreiro": "Casa C", "logo_url": "https://...", "area": "painel", "precisa_senha": true }
+]
+```
+
+`area`: `painel` | `medium` | `ambas` (account with no area at all → `medium`, like the login).
+`precisa_senha=false` only for accounts whose password matched at THIS login (recorded server-side
+in `user_sessions.verified_accounts`, migration 093, found through the HttpOnly refresh cookie) and
+whose password did not change since (`users.sessions_revoked_at` earlier than that moment).
+
+**`POST /auth/trocar-terreiro`** (10/minute per IP in slowapi + nginx `login_limit` zone)
+
+```json
+{ "conta_id": "user-uuid", "senha": "only when precisa_senha" }
+```
+
+- Target not in `minhas-contas` (other e-mail, inactive/deleted account, deactivated terreiro,
+  platform account, the current account) → `404`.
+- Target needs the password: missing → `400` `SENHA_OBRIGATORIA`; wrong → `400` `SENHA_INCORRETA`
+  (never `401`: the frontend logs out on `401`). The current session is untouched.
+- Success → `200` with the login payload (`user`, `areas`, `access_token`) and the 3 cookies of the
+  target account (same "remember me" as the current session). The current session row is deleted
+  (its refresh token stops working); the new session inherits the verified set (plus the account
+  left and, when the password was typed, the target), so the person can switch back and forth.
+  Security log `switch_tenant` with ids only.
+
+---
+
 ### 2. Refresh Token
 
 **Endpoint**: `POST /auth/refresh`
@@ -2467,6 +2507,7 @@ All writes: refused while impersonating (403); audited as `medium_ficha` with th
 |----------|-------|--------|
 | `/auth/login` | 10 | 1 minute per IP |
 | `/auth/login/select` | 10 | 1 minute per IP |
+| `/auth/trocar-terreiro` | 10 | 1 minute per IP (nginx: `login_limit`) |
 | `/auth/forgot-password` | 5 | 1 hour per IP |
 | `/public/convite/{token}` | 30 | 1 minute per IP |
 | `/public/convite/{token}/aceitar` | 10 | 1 minute per IP |

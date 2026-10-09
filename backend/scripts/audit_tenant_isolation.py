@@ -267,6 +267,10 @@ EXEMPT_SCOPED_QUERIES: dict[tuple[str, str], str] = {
         "sessão de refresh token filtrada por id + user_id vindos do JWT de refresh validado; "
         "usuário pertence a um único tenant, filtro por usuário é mais restrito que por tenant"
     ),
+    ("services/session_service.py", "get_active_session"): (
+        "trocar de terreiro: lê a sessão por id + user_id do JWT de refresh validado (escopo do "
+        "próprio usuário logado, mais restrito que por tenant); não altera nada"
+    ),
     ("services/session_service.py", "end_session"): (
         "logout: apaga a sessão por id + user_id do JWT validado (escopo do próprio usuário)"
     ),

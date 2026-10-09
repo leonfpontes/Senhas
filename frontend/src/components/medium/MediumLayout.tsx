@@ -16,9 +16,13 @@
  * "Estudos" (AM-21) fica no menu do cabeçalho (e no Perfil), não na barra: só com `me.estudos`
  * (plano `biblioteca_medium`).
  *
+ * "Trocar de terreiro" (2026-10-09) fica no menu (e no Perfil) só para quem tem conta com o mesmo
+ * e-mail em outro terreiro (`useMinhasContas` → `GET /api/v1/auth/minhas-contas`, nunca
+ * impersonando); abre o `TrocarTerreiroDialog` com as cores claras da Área (`medium-terra`).
+ *
  * Gate (AM-04): sem sessão → /login; sem Área do Médium mas com painel → painel; sem nenhuma
  * área (ou 403/402 do /medium/me) → aviso neutro, sem oferta de upgrade. Só chama
- * `/api/v1/medium/*` (MediumProvider) — nunca `/api/v1/admin/*`.
+ * `/api/v1/medium/*` (MediumProvider) e `/api/v1/auth/*` — nunca `/api/v1/admin/*`.
  * Primeiro acesso no aparelho: abre o passo "Deixe a Área na tela inicial" (D-23).
  */
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
@@ -28,6 +32,7 @@ import { useRouter } from 'next/router';
 import {
   ArrowLeftRight,
   BookOpen,
+  Building2,
   CalendarDays,
   House,
   Loader2,
@@ -56,6 +61,9 @@ import {
   switchArea,
 } from '@/lib/areas';
 import { captureInstallPrompt } from '@/lib/pwa';
+import { useMinhasContas } from '@/hooks/useMinhasContas';
+import { areasHint } from '@/components/auth/AccountChoiceList';
+import { TrocarTerreiroDialog } from '@/components/auth/TrocarTerreiroDialog';
 import { cn } from '@/lib/utils';
 import { logout } from '@/services/authSession';
 import { useMedium } from './MediumProvider';
@@ -85,12 +93,15 @@ interface MediumShellValue {
   openInstall: () => void;
   /** Trocar para o painel (só quem tem as duas áreas). */
   goToPainel: (() => void) | null;
+  /** Trocar de terreiro (só quem tem conta com o mesmo e-mail em outro terreiro). */
+  trocarTerreiro: (() => void) | null;
   sair: () => void;
 }
 
 const MediumShellContext = createContext<MediumShellValue>({
   openInstall: () => {},
   goToPainel: null,
+  trocarTerreiro: null,
   sair: () => {},
 });
 
@@ -269,6 +280,7 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
   const { profile, loading: profileLoading } = useProfile();
   const { me, status } = useMedium();
   const [installOpen, setInstallOpen] = useState(false);
+  const [trocaOpen, setTrocaOpen] = useState(false);
   useAreaClara();
 
   const temArea = hasMediumArea(profile);
@@ -303,14 +315,27 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
   const goToPainel = useCallback(() => {
     void router.push(switchArea(profile?.id, 'admin'));
   }, [router, profile?.id]);
+  const outrasContas = useMinhasContas(profile?.id, Boolean(profile) && !isImpersonating());
+  const abrirTroca = useCallback(() => setTrocaOpen(true), []);
   const shell: MediumShellValue = {
     openInstall: () => setInstallOpen(true),
     goToPainel: temPainel ? goToPainel : null,
+    trocarTerreiro: outrasContas.length > 0 ? abrirTroca : null,
     sair,
   };
 
   const terreiro = me?.terreiro.nome ?? profile?.tenant_name ?? undefined;
   const logoUrl = me?.marca.logo_url ?? null;
+  const trocaDialog =
+    outrasContas.length > 0 ? (
+      <TrocarTerreiroDialog
+        open={trocaOpen}
+        onOpenChange={setTrocaOpen}
+        contas={outrasContas}
+        atual={{ nome: terreiro || 'Este terreiro', logoUrl, hint: areasHint({ admin: temPainel, medium: temArea }) }}
+        className="medium-terra"
+      />
+    ) : null;
 
   const menu = (
     <DropdownMenu>
@@ -336,6 +361,18 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
             >
               <ArrowLeftRight aria-hidden /> Trocar de área
               <span className="ml-auto text-xs text-muted-foreground">Painel</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {outrasContas.length > 0 && (
+          <>
+            <DropdownMenuItem
+              className="min-h-12 text-base"
+              onSelect={abrirTroca}
+              data-testid="medium-trocar-terreiro"
+            >
+              <Building2 aria-hidden /> Trocar de terreiro
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
@@ -399,6 +436,7 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
             }
           />
         </main>
+        {trocaDialog}
       </Shell>
     );
   }
@@ -428,6 +466,7 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
           terreiroNome={terreiro}
           logoUrl={logoUrl}
         />
+        {trocaDialog}
       </Shell>
     </MediumShellContext.Provider>
   );

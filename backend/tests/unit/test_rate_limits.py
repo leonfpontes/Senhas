@@ -98,6 +98,12 @@ class TestRateLimitRegistration:
 
         assert _registered_limits("src.api.v1.public.onboarding.onboarding") == ["10 per 1 minute"]
 
+    def test_trocar_terreiro_limited_like_login(self):
+        """Conta com outra senha pede a senha dela na troca de terreiro: mesmo limite do login."""
+        import src.api.v1.auth.trocar_terreiro  # noqa: F401
+
+        assert _registered_limits("src.api.v1.auth.trocar_terreiro.trocar_terreiro") == ["10 per 1 minute"]
+
 
 def test_nginx_puts_onboarding_in_the_login_zone():
     """O prefixo /api/v1/public/ está na public_limit (30/min); o cadastro tem bloco exato na login_limit."""
@@ -107,4 +113,15 @@ def test_nginx_puts_onboarding_in_the_login_zone():
     conf = (Path(__file__).resolve().parents[3] / "nginx" / "conf.d" / "senhas.conf").read_text(encoding="utf-8")
     bloco = re.search(r"location = /api/v1/public/onboarding \{(.*?)\}", conf, re.S)
     assert bloco, "falta o bloco `location = /api/v1/public/onboarding` no nginx"
+    assert "limit_req zone=login_limit" in bloco.group(1)
+
+
+def test_nginx_puts_trocar_terreiro_in_the_login_zone():
+    """A troca de terreiro confere senha de outra conta: bloco exato na login_limit, como /auth/login/select."""
+    import re
+    from pathlib import Path
+
+    conf = (Path(__file__).resolve().parents[3] / "nginx" / "conf.d" / "senhas.conf").read_text(encoding="utf-8")
+    bloco = re.search(r"location = /api/v1/auth/trocar-terreiro \{(.*?)\}", conf, re.S)
+    assert bloco, "falta o bloco `location = /api/v1/auth/trocar-terreiro` no nginx"
     assert "limit_req zone=login_limit" in bloco.group(1)

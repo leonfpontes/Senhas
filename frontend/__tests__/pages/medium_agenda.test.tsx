@@ -181,7 +181,7 @@ describe('Agenda (lista)', () => {
     // Aba Agenda ativa na barra inferior.
     const bar = screen.getByRole('navigation', { name: 'Menu da Área do Médium' });
     expect(within(bar).getByRole('link', { name: 'Agenda' })).toHaveAttribute('aria-current', 'page');
-    expect(calledUrls().filter((u) => !u.startsWith('/api/v1/medium') && u !== '/api/v1/auth/profile')).toEqual(
+    expect(calledUrls().filter((u) => !u.startsWith('/api/v1/medium') && !u.startsWith('/api/v1/auth/'))).toEqual(
       [],
     );
   });

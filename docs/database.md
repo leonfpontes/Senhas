@@ -133,6 +133,28 @@ fica como histórico e um convite aceito depois grava outro). `mediuns.aniversar
 **Chave do piloto (migração 066):** `tenants.area_medium_liberada` (`Boolean`, padrão `false`). A plataforma liga por
 terreiro no Tenant 360; sem ela a Área do Médium não vale, mesmo com plano Basic+ (`check_plan_feature`).
 
+### `user_sessions`
+
+Uma linha por login (dispositivo/grupo de abas) — rotação do refresh token com detecção de reuso,
+teto absoluto de sessão e "sair de todos" (`services/session_service.py`). Escopo por `user_id`.
+
+| Coluna | Tipo SA | Nullable | Default | Constraint |
+|---|---|---|---|---|
+| `id` | `UUID` | Não | `uuid4` | PK — `session_id` do refresh token |
+| `user_id` | `UUID` | Não | — | FK → `users.id CASCADE`; indexed |
+| `tenant_id` | `UUID` | Sim | — | FK → `tenants.id CASCADE`; indexed (NULL para SUPER_ADMIN) |
+| `current_jti` | `String(36)` | Não | — | único refresh token que resgata a sessão |
+| `previous_jti` | `String(36)` | Sim | — | jti anterior, aceito na janela de corrida entre abas |
+| `previous_jti_valid_until` | `DateTime(tz)` | Sim | — | fim da janela do `previous_jti` |
+| `orig_iat` | `DateTime(tz)` | Não | — | início da sessão (login ou troca de terreiro) |
+| `expires_at` | `DateTime(tz)` | Não | — | teto absoluto (`MAX_SESSION_DAYS`), nunca estendido; indexed |
+| `last_used_at` | `DateTime(tz)` | Não | — | último refresh |
+| `user_agent` | `String(255)` | Sim | — | — |
+| `verified_accounts` | `JSONB` | Sim | — | 093: `{"<user_id>": "<ISO UTC>"}` — contas do mesmo e-mail com senha conferida neste login (trocar de terreiro sem senha); herdado pela sessão aberta na troca; NULL = sessão anterior à 093 (toda troca pede senha) |
+| `created_at` / `updated_at` | `DateTime(tz)` | Não | `utcnow()` | from base |
+
+---
+
 ### `medium_convites` (AM-03, migração 067)
 
 Convite da casa para o médium entrar na Área do Médium. O vínculo `mediuns.user_id` só nasce no aceite

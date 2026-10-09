@@ -74,6 +74,54 @@ export function completeLogin(user: SessionUser): void {
   window.location.href = routeAfterLogin(user);
 }
 
+/** Outra conta ativa com o mesmo e-mail, em outro terreiro (`GET /auth/minhas-contas`). */
+export interface MinhaConta {
+  conta_id: string;
+  terreiro: string;
+  logo_url?: string | null;
+  area: 'painel' | 'medium' | 'ambas';
+  /** A senha desta conta não foi conferida no login desta sessão (outra senha). */
+  precisa_senha: boolean;
+}
+
+export const MINHAS_CONTAS_PATH = '/api/v1/auth/minhas-contas';
+export const TROCAR_TERREIRO_PATH = '/api/v1/auth/trocar-terreiro';
+
+/** Chave da gira selecionada no painel (GiraContext) — é do terreiro, some na troca. */
+const GIRA_SELECIONADA_KEY = 'girahub:gira-selecionada';
+
+/**
+ * Entra em outra conta do mesmo e-mail sem sair (`POST /auth/trocar-terreiro`). O backend
+ * encerra a sessão atual e seta os cookies da conta nova. `skipAutoLogout`: senha errada vem
+ * como 400 `SENHA_INCORRETA`, mas um 401 aqui nunca deve deslogar a sessão que continua valendo.
+ */
+export async function trocarTerreiro(contaId: string, senha?: string): Promise<SessionUser> {
+  const res = await apiClient.post(
+    TROCAR_TERREIRO_PATH,
+    senha ? { conta_id: contaId, senha } : { conta_id: contaId },
+    { skipAutoLogout: true } as ApiRequestConfig,
+  );
+  return { ...(res.data.user as SessionUser), areas: res.data.areas };
+}
+
+/**
+ * Depois da troca: limpa o que é do terreiro anterior neste navegador (gira selecionada; os
+ * caches de permissões/assinatura/perfil são dos providers e somem na recarga), grava o novo
+ * `user` e recarrega na área certa — mesma regra do login (`routeAfterLogin`: painel, Área do
+ * Médium ou /escolher-area quando a conta tem as duas sem escolha lembrada).
+ */
+export function completeSwitch(user: SessionUser): void {
+  try {
+    window.sessionStorage.removeItem(GIRA_SELECIONADA_KEY);
+  } catch {
+    /* storage bloqueado */
+  }
+  localStorage.setItem('user', JSON.stringify(user));
+  Sentry.setUser({ id: user.id, role: user.role });
+  if (user.tenant_id) Sentry.setTag('tenant_id', user.tenant_id);
+  window.location.assign(routeAfterLogin(user));
+}
+
 function safeSessionItem(key: string): string | null {
   try {
     return window.sessionStorage.getItem(key);

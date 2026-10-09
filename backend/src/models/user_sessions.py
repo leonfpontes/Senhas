@@ -1,7 +1,7 @@
 """Refresh-token session tracking — rotation, reuse detection, absolute session cap."""
 from sqlalchemy import Column, String, ForeignKey, Index, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from datetime import datetime
 import uuid
 
@@ -42,6 +42,10 @@ class UserSession(TimestampedModel):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Trocar de terreiro (093): contas do mesmo e-mail cuja senha foi conferida neste login,
+    # {"<user_id>": "<ISO UTC>"}. Nula = sessão antiga — toda troca pede a senha do destino.
+    # Ver session_service.verified_map / api/v1/auth/trocar_terreiro.py.
+    verified_accounts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     user = relationship("User")
 

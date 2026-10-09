@@ -233,6 +233,10 @@ O `access_token` é armazenado como **cookie HttpOnly** (não em `localStorage`)
 - **hasAuthToken()**: checa `sessionStorage.getItem('access_token')` (impersonação) OU `document.cookie.includes('auth_state=1')` OU `localStorage.getItem('user')`.
 - **Logout**: sempre chamar `POST /api/v1/auth/logout` para limpar cookies HttpOnly no servidor, depois remover `user` do localStorage.
 - **Apagar cookies no backend**: sempre `clear_auth_cookies(response)` (`src/core/auth_cookies.py` (junto com `set_auth_cookies`)) — os 3 cookies com os atributos do login.
+- **Trocar de terreiro** (`POST /api/v1/auth/trocar-terreiro`): encerra a sessão atual e abre a da outra conta do
+  mesmo e-mail (mesmos 3 cookies via `issue_session`). Sem senha só para contas conferidas no login desta sessão
+  (`user_sessions.verified_accounts`, servidor); senha errada = 400 `SENHA_INCORRETA`, nunca 401. Front grava o
+  novo `user` e recarrega (`completeSwitch`). Ver AGENTS.md §3.2.
 - **Impersonação × sessão**: os cookies do navegador são do super-admin. Endpoint que revoga sessão/apaga cookie recusa token com `impersonated_by` (403); no front, "Sair" impersonando = `endImpersonation()`, e nada grava o usuário impersonado em `localStorage['user']`.
 
 ---

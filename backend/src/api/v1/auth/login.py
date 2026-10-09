@@ -137,12 +137,20 @@ async def issue_session(
     request: Request | None,
     response: Response,
     persistent: bool = True,
+    verified_accounts: dict[uuid.UUID, datetime] | None = None,
 ) -> str:
     """Abre a sessão do usuário: UserSession (rotação/revogação do refresh),
-    tokens e os 3 cookies. Usado por login, cadastro e reativação. Faz commit.
-    Retorna o access_token (também devolvido no corpo, por compatibilidade)."""
+    tokens e os 3 cookies. Usado por login, cadastro, reativação e troca de
+    terreiro. Faz commit. Retorna o access_token (também devolvido no corpo,
+    por compatibilidade).
+
+    `verified_accounts`: contas do mesmo e-mail com senha conferida neste login
+    (gravadas na linha da sessão — ver session_service.start_session); sem ele,
+    só a própria conta."""
     user_agent = request.headers.get("user-agent") if request is not None else None
-    session_id, jti = await session_service.start_session(db, user, user_agent=user_agent)
+    session_id, jti = await session_service.start_session(
+        db, user, user_agent=user_agent, verified_accounts=verified_accounts
+    )
     access_token = create_access_token(user.id, user.tenant_id, user.role.value)
     refresh_token = create_refresh_token(
         user.id, user.tenant_id, user.role.value, session_id, jti, persistent=persistent
@@ -219,13 +227,16 @@ async def _open_login_session(
     response: Response,
     persistent: bool,
     via: str | None = None,
+    verified_accounts: dict[uuid.UUID, datetime] | None = None,
 ) -> LoginResponse:
     """Abre a sessão de UMA conta já autenticada (login direto ou após a escolha)."""
     # The refresh token is bound to a new UserSession row so it can be
     # rotated/revoked server-side (see src/services/session_service.py).
     # Access/refresh em cookies HttpOnly + auth_state legível pelo JS; com
     # "Lembrar-me" desmarcado viram cookies de sessão (src/core/auth_cookies.py).
-    access_token = await issue_session(db, user, request, response, persistent=persistent)
+    access_token = await issue_session(
+        db, user, request, response, persistent=persistent, verified_accounts=verified_accounts
+    )
     log_security_event(
         "login",
         user_id=user.id,
@@ -419,8 +430,11 @@ async def login_select(
         log_security_event("login", success=False, user_id=user.id, details={"reason": "selection_revoked"})
         raise _selection_invalid()
 
+    # Trocar de terreiro: as contas em que a senha conferiu neste login (as do token)
+    # ficam registradas na sessão — a troca entre elas não pede a senha de novo.
     return await _open_login_session(
-        db, user, request, response, persistent=selection.remember_me, via="account_select"
+        db, user, request, response, persistent=selection.remember_me, via="account_select",
+        verified_accounts={uid: selection.iat for uid in selection.user_ids},
     )
 
 
