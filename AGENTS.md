@@ -915,8 +915,9 @@ Incluir obrigatoriamente:
   unico do terreiro (`/giras/unified-links`, resolve a gira aberta mais antiga) fica em "Link e QR".
 - Criar gira sem `giras:edit` pula o passo "Senhas" (o PUT `/senhas` exige edit) e avisa.
 - "Gira de hoje": `GiraRepository.get_upcoming_giras` inclui gira que comecou ha ate 12h (mesma
-  janela do GiraCard e de `pickTodayGira`). O seletor do topo vale para Dashboard, Senhas e Porta
-  (`GIRA_CONTEXT_ROUTES`); a tela de Giras nao usa.
+  janela do GiraCard e de `pickTodayGira`). A gira compartilhada vale para Dashboard, Senhas e Porta
+  (`GIRA_CONTEXT_ROUTES`); o select no topo so aparece no Dashboard (`TOPBAR_GIRA_SELECTOR_ROUTES`) — Senhas e Porta
+  tem o proprio select ligado ao mesmo estado (2026-10-09: eram dois selects iguais). A tela de Giras nao usa.
 
 ### 11.4 Porta (Visao da Porta)
 - Gestao da fila de atendimento via **polling HTTP a cada 8s** (`POLLING_INTERVAL_MS`) — NAO ha
@@ -955,6 +956,9 @@ Incluir obrigatoriamente:
   de linha e de pagina automaticas. **Nunca tabela via html2canvas**: a "foto" do HTML cortava o
   texto das celulas com `-webkit-line-clamp` e exigia limite fixo de linhas por pagina (bug do
   Relatorio da gira, out/2026). html2canvas so para a pagina de resumo/graficos do relatorio.
+- Relatorio da gira (`pages/admin/relatorio-gira.tsx`): filtro padrao "Concluidos"; se a gira nao tem nenhum
+  atendimento concluido (casa que chama mas nao finaliza), mostra todas as senhas com o aviso "Nenhum atendimento foi
+  marcado como concluido nesta gira" (2026-10-09, caso de um terreiro piloto).
 - Cancelamento em lote cancela em cascata os acompanhantes do titular e devolve as vagas (igual a
   exclusao individual).
 

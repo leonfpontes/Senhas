@@ -1,251 +1,223 @@
-# Senhas - Sistema Multi-Tenant de Gestão de Senhas
+<div align="center">
 
-[![CI/CD](https://github.com/leonfpontes/Senhas/actions/workflows/deploy.yml/badge.svg)](https://github.com/leonfpontes/Senhas/actions)
-[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)]()
-[![License](https://img.shields.io/badge/license-Proprietary-blue)]()
+<img src="frontend/public/icons/icon-192.png" alt="GiraHub" width="96" height="96" />
 
-Sistema SaaS multi-tenant para emissão e gestão de senhas (tickets) para Terreiros de Umbanda e centros espíritas. Suporte completo a multi-tenancy, auditoria imutável e conformidade com LGPD.
+# GiraHub
+
+**A gira organizada, do primeiro consulente ao último atendimento.**
+
+Plataforma para terreiros de Umbanda e casas de axé: senha online para os consulentes, porta e chamada no dia da
+gira, corrente de médiuns, mensalidade por PIX e uma área própria para cada médium — tudo no celular.
+
+[![Testes](https://github.com/leonfpontes/Senhas/actions/workflows/tests.yml/badge.svg)](https://github.com/leonfpontes/Senhas/actions/workflows/tests.yml)
+[![Deploy](https://github.com/leonfpontes/Senhas/actions/workflows/deploy.yml/badge.svg)](https://github.com/leonfpontes/Senhas/actions/workflows/deploy.yml)
+![Versão](https://img.shields.io/badge/vers%C3%A3o-2.6-7c3aed)
+![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.142-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)
+
+[**girahub.com.br**](https://girahub.com.br) · [Planos](https://girahub.com.br/planos) · [Documentação](#documentação)
+
+</div>
 
 ---
 
-## Funcionalidades Principais
+<p align="center">
+  <img src="frontend/public/landing/telas/porta.webp" alt="Porta: a fila do dia com chamada da próxima senha" width="49%" />
+  <img src="frontend/public/landing/telas/senhas.webp" alt="Senhas da gira com filtros e ações" width="49%" />
+</p>
 
-- **Emissão pública de senhas** — Consulentes solicitam senha online, recebem confirmação por e-mail
-- **Controle atômico** — `SELECT FOR UPDATE` garante numeração sequencial sem race conditions
-- **Multi-tenant completo** — Isolamento em 3 camadas (JWT → Middleware → Repository)
-- **Painel administrativo** — CRUD de giras, tickets, consulentes, analytics e auditoria
-- **Plataforma Super Admin** — Gestão de tenants, assinaturas, billing, feature flags
-- **E-mail dual-provider** — Brevo (primário) + Resend (fallback)
-- **RBAC** — 3 papéis: `SUPER_ADMIN`, `ADMIN`, `OPERATOR`
-- **Auditoria LGPD** — Trail imutável de todas as operações
-- **Design responsivo** — Tailwind + shadcn/ui, mobile-first, WCAG AA
+## O que o GiraHub resolve
 
----
+Dia de gira tem fila na calçada, papelzinho com número, caderno de nomes e planilha de mensalidade. O GiraHub
+troca isso por um fluxo simples, pensado para quem cuida da casa — e não para quem entende de tecnologia:
 
-## Stack Tecnológica
+| Antes | Com o GiraHub |
+|---|---|
+| Consulente chega cedo para pegar senha | Pega a senha pelo celular, no link ou QR da casa |
+| Porteiro grita nomes de uma lista | Porta com fila, preferenciais, "chegou" e chamada na TV |
+| Ninguém sabe quantos foram atendidos | Relatório da gira em PDF, com médium e cambone |
+| Mensalidade anotada no caderno | PIX da casa, comprovante pela Área ou baixa automática |
+| Aviso para a corrente perdido no grupo | Avisos, agenda e escalas na Área do Médium |
+
+## Recursos
+
+### No dia da gira
+- **Senha online** — o consulente escolhe a gira, informa nome e contato e recebe a senha por e-mail; preferenciais
+  (idosos, gestantes, PcD/TEA) e associados entram na frente, com limite de vagas por gira.
+- **Porta** — fila em tempo real, "chegou", "não veio", sem senha (walk-in) e chamada da próxima com som.
+- **Modo TV** — a chamada aparece na tela do terreiro, sem expor dados pessoais.
+- **Relatório da gira** — atendimentos por médium e cambone, filtros e exportação em PDF.
+
+<p align="center">
+  <img src="frontend/public/landing/telas/emissao.webp" alt="Pedido de senha pelo celular" width="23%" />
+  <img src="frontend/public/landing/telas/bilhete.webp" alt="Senha emitida" width="23%" />
+  <img src="frontend/public/landing/telas/relatorio.webp" alt="Relatório da gira" width="50%" />
+</p>
+
+### A corrente
+- **Médiuns e grupos da corrente**, com atividades da casa (faxina, rituais, reuniões, desenvolvimento).
+- **Presença** com "Vou / Não vou", "Cheguei" pelo QR do dia e chamada; **relatório de assiduidade**.
+- **Escalas** — de gira por função (cambone, ogã, porteiro…) e de faxina por grupos; rodízio e **troca entre
+  médiuns** com aprovação da direção.
+- **Ficha espiritual** com autorização do médium e linha do tempo da caminhada (dado sensível, permissão própria).
+
+### Área do Médium
+Um app no celular de cada médium (PWA, sem loja), na identidade do site e com a cor e a logo da casa:
+Início, agenda, avisos, mensalidade com PIX, presença, escalas, estudos e documentos, "Minha caminhada",
+notificações no celular e "Meus dados" (LGPD).
+
+<p align="center">
+  <img src="docs/prototipos/cores-claras/depois-inicio-mobile.png" alt="Área do Médium: Início" width="23%" />
+  <img src="docs/prototipos/cores-claras/depois-agenda-mobile.png" alt="Área do Médium: Agenda" width="23%" />
+  <img src="docs/prototipos/cores-claras/depois-mensalidade-pix-mobile.png" alt="Área do Médium: PIX da mensalidade" width="23%" />
+  <img src="docs/prototipos/cores-claras/depois-presencas-mobile.png" alt="Área do Médium: presenças" width="23%" />
+</p>
+
+### A casa
+- **Financeiro** — mensalidades com PIX da casa, comprovante enviado pelo médium, **pagamento parcial** e **baixa
+  automática** pelo Mercado Pago ou Stripe (o dinheiro cai direto na conta do terreiro); contas a pagar e a receber.
+- **Estoque** de velas, ervas e materiais; **cursos presenciais** com inscrição online.
+- **Site do terreiro** com agenda pública, link e QR para a senha.
+- **Permissões por grupo** — cada operador vê e faz só o que a casa liberou.
+
+<p align="center">
+  <img src="frontend/public/landing/telas/mensalidades.webp" alt="Mensalidades da corrente" width="49%" />
+  <img src="frontend/public/landing/telas/site.webp" alt="Site do terreiro" width="49%" />
+</p>
+
+### Planos
+Gratuito para começar, e planos Basic, Pro e Premium conforme o tamanho da casa — assinatura por cartão, boleto ou
+PIX mês a mês. Detalhes e preços em [girahub.com.br/planos](https://girahub.com.br/planos).
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+  subgraph Clientes
+    C[Consulente<br/>celular]
+    M[Médium<br/>Área do Médium · PWA]
+    D[Direção e porteiro<br/>painel]
+  end
+  C & M & D --> N[Nginx<br/>TLS · limites]
+  N --> F[Next.js 15<br/>Pages Router]
+  N --> A[FastAPI<br/>API /api/v1]
+  A --> P[(PostgreSQL 15)]
+  A --> E[E-mail<br/>Resend · Brevo]
+  A --> S[Stripe<br/>assinatura · Connect]
+  A --> MP[Mercado Pago<br/>mensalidade · OAuth]
+  A --> W[Web Push<br/>VAPID]
+  A -.-> SE[Sentry]
+  P -.-> B[(Backup cifrado<br/>fora da VPS)]
+```
+
+- **Multi-tenant de verdade** — toda consulta filtra pelo terreiro; um auditor estático (`audit_tenant_isolation.py`)
+  roda no CI e bloqueia o PR que esquecer o filtro.
+- **Três áreas, três portas** — rotas públicas (`/public`), painel da casa (`/admin`, com grupo de permissão por
+  ação) e Área do Médium (`/medium`, só os dados do próprio médium); a plataforma (`/platform`) é do super admin.
+- **Sessão segura** — tokens em cookie HttpOnly, JWT tipado, sessões revogáveis e impersonação de suporte isolada.
+- **LGPD por padrão** — consentimentos versionados, dado religioso com autorização separada, exportação e
+  encerramento de acesso pelo próprio médium, auditoria só com ids.
+- **Dinheiro fora do caminho** — pagamentos vão direto para a conta do terreiro; credenciais de terceiros ficam
+  criptografadas.
+
+## Stack
 
 | Camada | Tecnologia |
-|--------|-----------|
-| **Backend** | FastAPI 0.142 (Starlette 1.x), Python 3.11+, SQLAlchemy 2.0 (async), Pydantic v2 |
-| **Frontend** | Next.js 15, TypeScript 5, Tailwind v4 + shadcn/ui, Recharts |
-| **Banco** | PostgreSQL 15, Alembic migrations |
-| **Auth** | JWT (24h access + 30d refresh), bcrypt |
-| **E-mail** | Brevo + Resend |
-| **Infra** | Docker Compose, Nginx, Let's Encrypt SSL |
-| **CI/CD** | GitHub Actions |
-| **Monitoring** | Sentry (erros + traces) |
+|---|---|
+| Frontend | Next.js 15 (Pages Router), React 18, TypeScript 5, Tailwind CSS v4, shadcn/ui, Recharts |
+| Backend | Python 3.11, FastAPI 0.142, SQLAlchemy 2 (async), Pydantic v2, Alembic |
+| Banco | PostgreSQL 15 |
+| Pagamentos | Stripe (assinatura, boleto, PIX avulso, Connect) e Mercado Pago (OAuth) |
+| Mensagens | Resend (principal) e Brevo (reserva), Web Push (VAPID) |
+| Infra | Docker Compose, Nginx, Let's Encrypt, VPS; backup cifrado (gpg) em Cloudflare R2 |
+| Qualidade | pytest (unitário e integração com Postgres real), Jest + Testing Library, ESLint, Sentry |
+| CI/CD | GitHub Actions — testes em todo PR; deploy automático a cada merge no `master` |
 
----
+## Qualidade
 
-## Estrutura do Monorepo
+Cada PR passa por testes unitários do backend, **integração com Postgres real** (migrações + app inteiro via HTTP),
+testes de frontend, lint sem avisos, checagem de tipos, auditoria de isolamento por terreiro e auditoria de
+permissões nas rotas e telas. O merge no `master` dispara o deploy: backup, build sem derrubar o site, migrações e
+verificação de saúde.
 
-```
-senhas/
-├── backend/                    # FastAPI API
-│   ├── src/
-│   │   ├── api/v1/            # Endpoints (public, admin, platform, auth)
-│   │   ├── models/            # 12 SQLAlchemy ORM models
-│   │   ├── repositories/      # 15 repositórios (BaseRepository pattern)
-│   │   ├── services/          # Email, audit, subscription, tenant
-│   │   ├── security/          # JWT, password hashing
-│   │   ├── middleware/        # Tenant context, JWT, audit logging
-│   │   ├── core/              # Config, database, errors, logging
-│   │   └── main.py            # App factory
-│   ├── alembic/               # 3 migrações de banco
-│   ├── tests/                 # 579 testes unitários (95% cobertura)
-│   ├── Dockerfile
-│   └── pyproject.toml
-│
-├── frontend/                   # Next.js 14
-│   ├── src/
-│   │   ├── pages/             # Public, Admin, Platform
-│   │   ├── components/        # Componentes reutilizáveis
-│   │   ├── services/          # Axios API client
-│   │   └── hooks/             # useCountdownTimer, etc.
-│   ├── __tests__/             # Jest + React Testing Library
-│   ├── Dockerfile
-│   └── package.json
-│
-├── packages/
-│   └── shared-types/          # Contratos TypeScript
-│
-├── devops/                    # VPS setup automation
-├── e2e/                       # Cypress E2E tests
-├── load_tests/                # Locust performance tests
-├── security/                  # Audit + penetration scenarios
-├── docs/                      # Documentação completa do projeto
-├── .github/workflows/         # CI/CD pipeline
-├── docker-compose.yml         # Dev orchestration
-├── docker-compose.prod.yml    # Production orchestration
-└── .env.example               # Template de variáveis de ambiente
-```
+## Rodando localmente
 
----
-
-## Quick Start
-
-### Pré-requisitos
-- Docker & Docker Compose
-- Node.js 18+ / Python 3.11+
-
-### 1. Configurar ambiente
+**Pré-requisitos:** Docker e Docker Compose (ou Python 3.11 + Node.js 20 para rodar sem containers).
 
 ```bash
 git clone https://github.com/leonfpontes/Senhas.git
 cd Senhas
-cp .env.example .env
-# Edite .env com seus valores (JWT_SECRET_KEY, BREVO_API_KEY, etc.)
+cp .env.example .env        # ajuste as variáveis (veja os comentários no arquivo)
+docker compose up
 ```
 
-### 2. Iniciar com Docker
+- Frontend: http://localhost:3000
+- API: http://localhost:8000 (documentação interativa em `/docs`)
+
+<details>
+<summary>Sem Docker</summary>
 
 ```bash
-docker-compose up
-```
-
-Serviços disponíveis:
-- **PostgreSQL**: `localhost:5432`
-- **Backend (FastAPI)**: `http://localhost:8000` — Docs em `/docs`
-- **Frontend (Next.js)**: `http://localhost:3000`
-
-### 3. Criar Super Admin (primeira vez)
-
-```bash
+# Backend
 cd backend
-python seed_superadmin.py
-```
-
-### Desenvolvimento local (sem Docker)
-
-**Backend:**
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 alembic upgrade head
 uvicorn src.main:app --reload --port 8000
-```
 
-**Frontend:**
-```bash
-cd frontend
+# Frontend (em outro terminal, na raiz do repositório)
 npm install
-npm run dev
+npm run dev --workspace frontend
 ```
+</details>
 
----
-
-## API Endpoints
-
-### Públicos (sem autenticação)
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `GET` | `/api/v1/public/{tenant_id}/next-gira` | Próxima gira disponível |
-| `POST` | `/api/v1/public/{tenant_id}/emit-ticket` | Emitir senha |
-| `POST` | `/api/v1/public/{tenant_id}/resend-email` | Reenviar e-mail |
-
-### Autenticação
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `POST` | `/api/v1/auth/login` | Login (retorna JWT) |
-| `POST` | `/api/v1/auth/refresh` | Renovar token |
-| `POST` | `/api/v1/auth/logout` | Logout |
-
-### Admin (requer JWT com role ADMIN)
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `CRUD` | `/api/v1/admin/giras` | Gestão de giras |
-| `GET` | `/api/v1/admin/giras/{id}/tickets` | Listar senhas da gira |
-| `POST` | `/api/v1/admin/giras/{id}/tickets/bulk-*` | Operações em lote |
-| `GET` | `/api/v1/admin/analytics` | Dashboard analytics |
-| `GET` | `/api/v1/admin/audit-logs` | Trail de auditoria |
-| `GET/PUT` | `/api/v1/admin/tenant/config` | Configuração do tenant |
-| `GET` | `/api/v1/admin/giras/{id}/export-csv` | Exportar CSV |
-
-### Platform (requer SUPER_ADMIN)
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `CRUD` | `/api/v1/platform/tenants` | Gestão de tenants |
-| `CRUD` | `/api/v1/platform/subscriptions` | Assinaturas |
-| `GET/POST` | `/api/v1/platform/billing/invoices` | Faturamento |
-| `CRUD` | `/api/v1/platform/feature-flags` | Feature flags |
-| `GET` | `/api/v1/platform/audit/consolidated` | Auditoria global |
-| `CRUD` | `/api/v1/platform/users` | Usuários globais |
-
-> Documentação completa da API: [`docs/api.md`](docs/api.md)
-
----
-
-## Testes
+<details>
+<summary>Testes</summary>
 
 ```bash
-# Backend — 579 testes, 95% cobertura
-cd backend
-pip install -e ".[dev]"
-python -m pytest tests/unit/ --cov=src --cov-report=term-missing
+# Backend — unitários
+cd backend && DEBUG=true python -m pytest tests/unit -q
 
-# Frontend — Jest + React Testing Library
-cd frontend
-npm test
+# Backend — integração com Postgres real (suba um Postgres de teste antes)
+INTEGRATION_PG=1 DEBUG=true DATABASE_URL=postgresql+asyncpg://user:senha@localhost:5432/teste \
+  python -m pytest tests/integration_pg -q
 
-# E2E — Cypress
-cd e2e
-npx cypress run
+# Auditorias que o CI exige
+python scripts/audit_tenant_isolation.py && python scripts/audit_permission_guards.py
 
-# Load — Locust
-locust -f load_tests/locust_scenarios.py --host=http://localhost:8000
+# Frontend
+cd frontend && npm run lint && npx tsc --noEmit -p . && npx jest && node scripts/audit-permission-guards.js
 ```
+</details>
 
----
+## Estrutura
 
-## Deploy em Produção
-
-Veja [`DEPLOYMENT.md`](DEPLOYMENT.md) para guia completo. Resumo:
-
-1. Provisionar VPS Ubuntu 22.04 LTS (2+ CPU, 4+ GB RAM)
-2. Executar `devops/vps_setup.sh`
-3. Configurar `.env` com valores de produção
-4. `docker-compose -f docker-compose.prod.yml up -d`
-5. `alembic upgrade head`
-6. Configurar Nginx + SSL (Let's Encrypt)
-
----
+```
+backend/            API FastAPI — src/api/v1/{public,admin,medium,platform,auth}, models, services, alembic, tests
+frontend/           Next.js — páginas públicas, painel (/admin), Área do Médium (/medium), plataforma
+packages/           tipos compartilhados
+nginx/              configuração do proxy (TLS, limites de requisição)
+devops/             provisionamento da VPS e backup
+docs/               arquitetura, API, banco, deploy, planos e estudos de produto
+.github/workflows/  testes e deploy
+```
 
 ## Documentação
 
-| Documento | Descrição |
-|-----------|-----------|
-| [`docs/architecture.md`](docs/architecture.md) | Arquitetura do sistema |
-| [`docs/api.md`](docs/api.md) | Referência completa da API |
-| [`docs/database.md`](docs/database.md) | Schema e modelos do banco |
-| [`docs/authentication.md`](docs/authentication.md) | JWT, RBAC e segurança |
-| [`docs/multi-tenancy.md`](docs/multi-tenancy.md) | Isolamento multi-tenant |
-| [`docs/email.md`](docs/email.md) | Sistema de e-mail dual-provider |
-| [`docs/testing.md`](docs/testing.md) | Estratégia e cobertura de testes |
-| [`docs/deployment.md`](docs/deployment.md) | Guia de deploy |
-| [`DEPLOYMENT.md`](DEPLOYMENT.md) | Deploy guide (legado) |
-| [`RELEASE.md`](RELEASE.md) | Release notes v1.0 |
-
----
-
-## Variáveis de Ambiente
-
-Veja [`.env.example`](.env.example) para todas as configurações:
-
-| Grupo | Variáveis |
-|-------|-----------|
-| **Database** | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` |
-| **JWT** | `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `JWT_ACCESS_TOKEN_EXPIRE_MINUTES`, `JWT_REFRESH_TOKEN_EXPIRE_DAYS` |
-| **E-mail** | `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `RESEND_API_KEY` |
-| **App** | `BACKEND_PORT`, `LOG_LEVEL`, `DEBUG`, `ENVIRONMENT` |
-| **Frontend** | `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_NAME` |
-| **LGPD** | `DEFAULT_DATA_RETENTION_DAYS`, `DEFAULT_TIMEZONE` |
-| **Rate Limit** | `RATE_LIMIT_PUBLIC_EMISSION`, `RATE_LIMIT_ADMIN` |
-| **Features** | `FEATURE_SUPER_ADMIN`, `FEATURE_ANALYTICS`, `FEATURE_PAYMENT` |
-
----
+| Documento | Conteúdo |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | Visão geral da arquitetura |
+| [`docs/api.md`](docs/api.md) | Referência da API |
+| [`docs/database.md`](docs/database.md) | Tabelas e migrações |
+| [`docs/authentication.md`](docs/authentication.md) | Sessão, papéis e segurança |
+| [`docs/multi-tenancy.md`](docs/multi-tenancy.md) | Isolamento por terreiro |
+| [`docs/email.md`](docs/email.md) | E-mails e provedores |
+| [`docs/testing.md`](docs/testing.md) | Estratégia de testes |
+| [`docs/deployment.md`](docs/deployment.md) | Deploy, backup e configuração de terceiros |
+| [`docs/plano-area-do-medium.md`](docs/plano-area-do-medium.md) | Plano e status da Área do Médium |
+| [`AGENTS.md`](AGENTS.md) | Regras do projeto e estado atual (referência para quem desenvolve) |
 
 ## Licença
 
-Proprietário — © 2026 Leon F. Pontes. Todos os direitos reservados.
+Software proprietário — © 2026 Leon F. Pontes. Todos os direitos reservados.

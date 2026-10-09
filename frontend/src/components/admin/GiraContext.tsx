@@ -1,6 +1,7 @@
 /**
- * GiraContext — a "gira de hoje" compartilhada por Dashboard, Senhas e Porta (o seletor do
- * topo troca a gira nessas três; a tela de Giras lista todas e não depende dele).
+ * GiraContext — a "gira de hoje" compartilhada por Dashboard, Senhas e Porta (o select do topo
+ * aparece só no Dashboard; Senhas e Porta têm o próprio select ligado a este mesmo estado; a tela
+ * de Giras lista todas e não depende dele).
  *
  * Antes cada tela tinha o próprio select de gira e começava vazia. Agora o layout admin
  * monta um `GiraProvider` que carrega a lista uma vez (quando alguma tela pede), escolhe a

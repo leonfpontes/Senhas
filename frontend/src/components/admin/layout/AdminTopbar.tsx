@@ -47,6 +47,9 @@ import { resetChecklistDismissed } from '@/components/admin/FirstGiraChecklist';
  * do topo. Giras lista a agenda inteira, então não mostra o seletor (não teria efeito).
  */
 export const GIRA_CONTEXT_ROUTES = ['/admin/dashboard', '/admin/tickets', '/admin/porta'];
+// Senhas e Porta têm o próprio seletor de gira (o mesmo estado do GiraContext): no topo ele
+// aparece só onde a tela não tem um — senão são dois selects iguais lado a lado.
+export const TOPBAR_GIRA_SELECTOR_ROUTES = ['/admin/dashboard'];
 
 export interface AdminTopbarProps {
   title: string;
@@ -65,8 +68,9 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
   const impersonating = typeof window !== 'undefined' && Boolean(safeSessionItem('impersonating'));
   const [notesOpen, setNotesOpen] = useReleaseNotesAutoOpen(profile?.id, Boolean(profile?.id) && !impersonating);
 
-  const showGiraSelector = GIRA_CONTEXT_ROUTES.includes(router.pathname);
-  const { giras, selectedGiraId, setSelectedGiraId, loaded } = useGiraContext({ load: showGiraSelector });
+  const usesGiraContext = GIRA_CONTEXT_ROUTES.includes(router.pathname);
+  const showGiraSelector = TOPBAR_GIRA_SELECTOR_ROUTES.includes(router.pathname);
+  const { giras, selectedGiraId, setSelectedGiraId, loaded } = useGiraContext({ load: usesGiraContext });
 
   const avatarText = (profile?.full_name || profile?.username || profile?.email || 'A').charAt(0).toUpperCase();
 

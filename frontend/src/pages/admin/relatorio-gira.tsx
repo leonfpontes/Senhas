@@ -159,6 +159,9 @@ function RelatorioGiraContent() {
   const [doorStats, setDoorStats] = useState<DoorStats | null>(null);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
+  // Gira sem nenhum atendimento concluído (a casa chama mas não finaliza): o filtro padrão
+  // "Concluídos" daria tela vazia — mostramos todas as senhas e avisamos o porquê.
+  const [semConcluidos, setSemConcluidos] = useState(false);
 
   // ── Filtros no cliente ────────────────────────────────────────────
   const [searchText, setSearchText] = useState('');
@@ -191,16 +194,29 @@ function RelatorioGiraContent() {
   const loadTickets = useCallback(async () => {
     if (!giraId || !canView) {
       setAllTickets([]);
+      setSemConcluidos(false);
       return;
     }
     setLoading(true);
     try {
-      let url = `/api/v1/admin/giras/${giraId}/tickets?skip=0&limit=500`;
-      if (statusFilter) url += `&status_filter=${statusFilter}`;
+      const base = `/api/v1/admin/giras/${giraId}/tickets?skip=0&limit=500`;
+      const url = statusFilter ? `${base}&status_filter=${statusFilter}` : base;
       const res = await apiClient.get(url);
-      setAllTickets(res.data.items ?? []);
+      let items: Ticket[] = res.data.items ?? [];
+      let fallback = false;
+      if (statusFilter === 'completed' && items.length === 0) {
+        const todas = await apiClient.get(base);
+        const todasItems: Ticket[] = todas.data.items ?? [];
+        if (todasItems.length > 0) {
+          items = todasItems;
+          fallback = true;
+        }
+      }
+      setAllTickets(items);
+      setSemConcluidos(fallback);
     } catch {
       setAllTickets([]);
+      setSemConcluidos(false);
       showError('Erro ao carregar os atendimentos da gira.');
     } finally {
       setLoading(false);
@@ -604,6 +620,14 @@ function RelatorioGiraContent() {
               )}
             </div>
           </div>
+
+          {semConcluidos && (
+            <Alert variant="info" data-testid="relatorio-sem-concluidos">
+              <AlertDescription>
+                Nenhum atendimento foi marcado como concluído nesta gira. Mostrando todas as senhas.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {allTickets.length >= 500 && (
             <Alert variant="warning">
