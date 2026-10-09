@@ -165,6 +165,9 @@ class MensalidadeItemResponse(BaseModel):
     comprovante_para_conferir: bool = False
     recusa_motivo: Optional[str] = None
     recusado_em: Optional[datetime] = None
+    # Quem deu a baixa (F-02/AM-22): "gateway" = pago pelo PIX/boleto automático (webhook);
+    # "direcao" = registrado/confirmado no painel; None = registro antigo (tratado como direção).
+    origem: Optional[str] = None
 
 
 class AssociadoMensalidadeItemResponse(BaseModel):
@@ -360,6 +363,7 @@ async def list_mensalidades(
                 ),
                 recusa_motivo=r.get("recusa_motivo"),
                 recusado_em=r.get("recusado_em"),
+                origem=r.get("origem"),
             )
         )
     return result
@@ -459,6 +463,8 @@ async def registrar_pagamento(
         comprovante_mime=comp_mime,
         **(await _observacao_kwargs(request, observacao)),
     )
+    # Baixa pela direção (F-02/AM-22): distingue do "Paga pelo PIX (automático)" do gateway.
+    pag.origem = "direcao" if parsed_status == MensalidadeStatus.PAGO else None
     await audit.log_update(
         tenant_id=current_user.tenant_id,
         user_id=current_user.id,

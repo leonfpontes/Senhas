@@ -1,6 +1,8 @@
 # Mensalidade com baixa automática — como funciona o fluxo de pagamento (F-01)
 
-Criado: 2026-10-08 · Status: **explicação para a decisão do dono** (F-01 em estudo; Stripe Connect acrescentado em 09/10) · Destrava: F-02 e AM-22
+Criado: 2026-10-08 · Status: **decidido em 09/10 — misto: cada casa escolhe Stripe (Stripe Connect) ou Mercado
+Pago (OAuth)**; plano Pro (`mensalidade_automatica`); o GiraHub não cobra comissão · Em implementação: PR 1 (base
+comum + Stripe Connect) e PR 2 (Mercado Pago) — ver §7
 
 ## 1. Hoje (no ar desde a 2.4.0)
 
@@ -100,6 +102,26 @@ Fontes: https://docs.stripe.com/payments/pix · https://docs.stripe.com/payments
 2. Plano: baixa automática em qual plano (sugestão: Pro, junto de "escalas").
 3. GiraHub cobra alguma comissão por pagamento? Recomendação: **não** (custo zero é argumento de venda; o Mercado Pago
    permitiria uma comissão do marketplace no futuro, se um dia fizer sentido).
+
+## 7. Decisão (09/10) e o que foi construído
+
+O dono decidiu pelo **modelo misto**: em Financeiro → Configuração → Mensalidade, card "Receber a mensalidade
+automaticamente", a casa escolhe **Stripe** ou **Mercado Pago**. Plano **Pro** (`mensalidade_automatica`); sem
+taxa do GiraHub. Quem não conecta segue com a chave estática + comprovante.
+
+- **Base comum (PR 1)**: `core/secret_box.py` (segredo em repouso, Fernet com `SECRETS_ENCRYPTION_KEY` — sem chave
+  nada é gravado), tabelas `mensalidade_gateways` e `mensalidade_cobrancas` (migração 091), coluna
+  `mensalidade_pagamentos.origem` (gateway × direção), conectar/desconectar com senha e e-mail a todos os admins,
+  "Pagar com PIX" da Área gerando a cobrança na conta da casa (AM-22), baixa idempotente pelo webhook.
+- **Stripe Connect (PR 1)**: conta conectada com painel **Express** e controlador "a casa paga as taxas do Stripe,
+  o Stripe responde por perdas, o Stripe coleta o cadastro". Por que Express e não Standard: no Express a
+  **plataforma pede** as capacidades `pix_payments` e `boleto_payments` (no Standard é o dono da conta que liga o
+  PIX no painel dele — docs.stripe.com/payments/pix, seção Connect); o cadastro hospedado aceita pessoa física (CPF)
+  ou jurídica (CNPJ); e, com `fees.payer=account` + `losses.payments=stripe`, o GiraHub não paga taxa nem responde
+  por saldo negativo da casa. Cobrança **direta** (a casa é a vendedora), sem `application_fee`. Webhook separado
+  (`/api/v1/webhooks/stripe-connect`, segredo próprio). Passos do dono em `docs/deployment.md`.
+- **Mercado Pago (PR 2)**: OAuth com `state` assinado, tokens cifrados com o `secret_box`, PIX pela API de
+  pagamentos com o token da casa, webhook com `x-signature` e consulta do pagamento no Mercado Pago.
 
 ## Fontes (acessadas em 08/10/2026)
 

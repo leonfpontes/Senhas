@@ -36,6 +36,7 @@ import {
   ConferirComprovanteSheet,
   type ComprovanteAlvo,
 } from '@/components/financeiro/ComprovantesParaConferir';
+import { CobrancasAutomaticasDoMes } from '@/components/financeiro/CobrancasAutomaticasDoMes';
 import { currentMonthBr, formatBRL, monthLabelShort } from '@/lib/dateBr';
 import { minPlanFor } from '@/constants/plans';
 
@@ -55,6 +56,8 @@ interface MensalidadeItem {
   /** AM-12: comprovante enviado pelo médium na Área, esperando conferência. */
   comprovante_para_conferir?: boolean;
   comprovante_enviado_em?: string | null;
+  /** F-02/AM-22: quem deu a baixa (gateway = PIX automático; direcao/null = painel). */
+  origem?: 'gateway' | 'direcao' | null;
 }
 
 interface AssociadoMensalidadeItem {
@@ -97,6 +100,7 @@ const toCobranca = (i: MensalidadeItem): CobrancaItem => ({
   observacao: i.observacao,
   comprovanteParaConferir: i.comprovante_para_conferir,
   comprovanteEnviadoEm: i.comprovante_enviado_em,
+  origem: i.origem ?? null,
 });
 
 const assocToCobranca = (i: AssociadoMensalidadeItem): CobrancaItem => ({
@@ -134,6 +138,8 @@ function MensalidadesContent() {
   const planAssoc = can('mensalidade_associado');
   // AM-12: comprovantes enviados pelos médiuns na Área — só com a Área no plano (piloto).
   const conferencia = can('area_medium') && planMediuns && canView;
+  // F-02/AM-22: baixa automática — origem da baixa nos pagos e lista de cobranças do mês.
+  const automatica = can('mensalidade_automatica') && planMediuns && canView;
   const [alvo, setAlvo] = useState<ComprovanteAlvo | null>(null);
   const [filaKey, setFilaKey] = useState(0);
 
@@ -242,7 +248,7 @@ function MensalidadesContent() {
   // Depois de registrar/conferir um médium: a lista do mês e (com a Área) a fila de comprovantes.
   const aposMudarMedium = () => {
     fetchItems();
-    if (conferencia) setFilaKey((k) => k + 1);
+    if (conferencia || automatica) setFilaKey((k) => k + 1);
   };
 
   // ── Ações ────────────────────────────────────────────────────────────
@@ -364,6 +370,7 @@ function MensalidadesContent() {
               onRegistrar={registrarMedium}
               onChanged={aposMudarMedium}
               onDownloadComprovante={baixarMedium}
+              mostrarOrigem={automatica}
               onConferir={
                 conferencia
                   ? (i) =>
@@ -378,6 +385,9 @@ function MensalidadesContent() {
                   : undefined
               }
             />
+            <div className="mt-4">
+              <CobrancasAutomaticasDoMes mes={mes} enabled={automatica} refreshKey={filaKey} />
+            </div>
           </TabsContent>
         )}
 

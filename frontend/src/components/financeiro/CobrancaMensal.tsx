@@ -62,6 +62,11 @@ export interface CobrancaItem {
   /** Comprovante enviado pelo médium na Área, esperando a casa conferir (AM-12). */
   comprovanteParaConferir?: boolean;
   comprovanteEnviadoEm?: string | null;
+  /**
+   * Quem deu a baixa (F-02/AM-22): `gateway` = PIX/boleto automático (webhook); `direcao` (ou null,
+   * registro antigo) = registrado/confirmado no painel.
+   */
+  origem?: 'gateway' | 'direcao' | null;
 }
 
 export interface CobrancaPagamento {
@@ -104,6 +109,11 @@ export interface CobrancaMensalProps {
    * selo "Comprovante enviado" e o botão "Conferir" nas linhas marcadas.
    */
   onConferir?: (item: CobrancaItem) => void;
+  /**
+   * Mostra, nos pagos, quem deu a baixa: "Paga pelo PIX (automático)" × "Confirmada pela direção"
+   * (casa com a mensalidade automática no plano, F-02/AM-22).
+   */
+  mostrarOrigem?: boolean;
   emptyMessage?: string;
   showSearch?: boolean;
   showFilter?: boolean;
@@ -186,6 +196,20 @@ export function ComprovanteEnviadoBadge() {
   return <Badge className="border-transparent bg-info/15 text-[0.65rem] text-info-strong">Comprovante enviado</Badge>;
 }
 
+/** "Paga pelo PIX (automático)" × "Confirmada pela direção" (F-02/AM-22). */
+export function OrigemBaixa({ item }: { item: CobrancaItem }) {
+  if (item.status !== 'PAGO') return null;
+  return item.origem === 'gateway' ? (
+    <span className="text-xs font-medium text-success-strong" data-testid="origem-gateway">
+      Paga pelo PIX (automático)
+    </span>
+  ) : (
+    <span className="text-xs text-muted-foreground" data-testid="origem-direcao">
+      Confirmada pela direção
+    </span>
+  );
+}
+
 export function CobrancaStatusBadge({ status }: { status: CobrancaStatusEfetivo }) {
   return <Badge className={STATUS_CLASS[status]}>{STATUS_LABEL[status]}</Badge>;
 }
@@ -221,6 +245,7 @@ export function CobrancaMensal({
   onChanged,
   onDownloadComprovante,
   onConferir,
+  mostrarOrigem = false,
   emptyMessage,
   showSearch = true,
   showFilter = true,
@@ -365,7 +390,12 @@ export function CobrancaMensal({
         header: 'Status',
         meta: { mobile: true },
         accessorFn: (i) => cobrancaStatusEfetivo(i, mes, diaVencimento, hoje),
-        cell: ({ getValue }) => <CobrancaStatusBadge status={getValue<CobrancaStatusEfetivo>()} />,
+        cell: ({ getValue, row }) => (
+          <div className="flex flex-col items-start gap-0.5">
+            <CobrancaStatusBadge status={getValue<CobrancaStatusEfetivo>()} />
+            {mostrarOrigem && <OrigemBaixa item={row.original} />}
+          </div>
+        ),
       },
       {
         id: 'vencimento',
@@ -445,7 +475,7 @@ export function CobrancaMensal({
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mes, diaVencimento, hoje, vencimentoLabel, canEdit, onDownloadComprovante, onConferir, valorPadrao]);
+  }, [mes, diaVencimento, hoje, vencimentoLabel, canEdit, onDownloadComprovante, onConferir, valorPadrao, mostrarOrigem]);
 
   const renderCard = (item: CobrancaItem, ctx: { selected: boolean; toggleSelected: () => void }) => {
     const efetivo = cobrancaStatusEfetivo(item, mes, diaVencimento, hoje);
@@ -473,7 +503,10 @@ export function CobrancaMensal({
             </span>
             {item.descricao && <span className="truncate text-xs text-muted-foreground">{item.descricao}</span>}
           </div>
-          <CobrancaStatusBadge status={efetivo} />
+          <div className="flex flex-col items-end gap-0.5">
+            <CobrancaStatusBadge status={efetivo} />
+            {mostrarOrigem && <OrigemBaixa item={item} />}
+          </div>
         </div>
         <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
           <dt className="text-muted-foreground">Vencimento</dt>

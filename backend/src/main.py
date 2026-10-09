@@ -26,6 +26,7 @@ from .api.v1.platform import platform_router
 from .api.v1.medium import medium_router
 from .api.v1.public import next_gira_router, emit_ticket_router, resend_email_router, images_router, onboarding_router, public_sites_router, curso_inscricao_router, waitlist_confirm_router, cancel_ticket_router, public_stats_router, public_sitemap_router, medium_convite_router, email_confirmacao_router, avisos_email_router, parceiros_router
 from .api.v1.webhooks import router as webhooks_router
+from .api.v1.webhooks_mensalidade import router as webhooks_mensalidade_router
 from .models import (
     Tenant,
     User,
@@ -308,6 +309,8 @@ def create_app() -> FastAPI:
 
     # Stripe webhooks (no JWT required — validated by Stripe signature)
     app.include_router(webhooks_router)
+    # Mensalidade com baixa automática (F-02/AM-22): webhook do Stripe Connect
+    app.include_router(webhooks_mensalidade_router)
     
     logger.info("FastAPI app created successfully")
     return app

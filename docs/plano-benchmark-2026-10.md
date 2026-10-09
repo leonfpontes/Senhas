@@ -68,8 +68,8 @@ Caminhos abreviados: **B/** = `backend/src/`, **F/** = `frontend/src/`. A próxi
 | 26 | N-03 Senha por médium/entidade | P1 | 3 | G | Backlog |
 | 27 | N-05 Retornos | P1 | 3 | M | Backlog |
 | 28 | P-02 Decisão WhatsApp | P1 | 4 | P | Decisões |
-| 29 | F-01 Decisão gateway da mensalidade | P1 | 4 | P | Decisões |
-| 30 | F-02 PIX na mensalidade | P1 | 4 | G | Backlog |
+| 29 | F-01 Decisão gateway da mensalidade | P1 | 4 | P | Decidido (09/10: misto Stripe Connect + Mercado Pago) |
+| 30 | F-02 PIX na mensalidade | P1 | 4 | G | Em PR (Stripe; Mercado Pago no PR seguinte) |
 | 31 | C-02 Páginas por recurso | P2 | 4 | M | Backlog |
 | 32 | C-01 Blog | P2 | 4 | M | Backlog |
 | 33 | C-03 Glossário | P2 | 4 | P | Backlog |
@@ -995,6 +995,9 @@ custo.
 - **Depende de:** — · **Destrava:** F-02
 - **Status (2026-10-08):** explicação do fluxo e comparativo em `docs/fluxo-pagamento-mensalidade.md`; recomendação Mercado Pago com OAuth; decisão do dono pendente.
 - **Status (2026-10-09):** dono estudando; acrescentada a opção **Stripe Connect** (PIX avulso na conta da casa, sem guardar token) em `docs/fluxo-pagamento-mensalidade.md` §5a — testar com uma casa piloto se o PIX é liberado na conta conectada.
+- **Decidido (2026-10-09):** **misto** — cada casa escolhe **Stripe Connect** ou **Mercado Pago (OAuth)**; plano Pro
+  (`mensalidade_automatica`); sem comissão do GiraHub. Registro em AGENTS.md §3.3/§11.10 e
+  `docs/fluxo-pagamento-mensalidade.md` §7.
 
 **Por quê.** PIX integrado na mensalidade é o gap mais repetido entre os concorrentes fortes: AxéCloud (PIX no portal
 do filho), ORI (Mercado Pago, add-on de R$ 9,90), Minha Gira (Asaas), Quartinha (banco parceiro). O nosso é baixa
@@ -1015,6 +1018,12 @@ manual com comprovante.
 ### F-02 — PIX na mensalidade com baixa automática
 - **Ranking:** 30 · **Prioridade:** P1 · **Onda:** 4 · **Esforço:** G · **Tipo:** dev · **Módulo:** Financeiro · **Épico:** Funcionalidade
 - **Depende de:** F-01, I-02 · **Destrava:** F-04 (mensalidade no portal)
+- **Status (2026-10-09):** PR 1 — base comum (`core/secret_box.py`, `mensalidade_gateways`/`mensalidade_cobrancas`,
+  migração 091, `mensalidade_pagamentos.origem`, conectar/desconectar com senha + e-mail aos admins, webhook
+  `/api/v1/webhooks/stripe-connect` idempotente) + **Stripe Connect** (conta Express, cobrança direta na conta da
+  casa). PR 2 — Mercado Pago (OAuth). O que mudou em relação ao desenho abaixo: idempotência reaproveita
+  `stripe_events_processed`; a cobrança nasce na Área (AM-22, `POST /api/v1/medium/mensalidades/{mes}/cobranca`),
+  não no painel; link público, e-mail de cobrança e associados ficam para depois.
 
 **Estado atual.** Mensalidade é registro manual (`B/models/mensalidades.py`, `associado_mensalidade.py`; endpoints em
 `B/api/v1/admin/mensalidades.py`, gates `mensalidade_mediun`/`mensalidade_associado` (Premium), grupo FINANCEIRO). O

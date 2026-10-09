@@ -3,6 +3,8 @@
     GET  /api/v1/medium/mensalidades                      meus meses (o corrente primeiro)
     GET  /api/v1/medium/mensalidades/{AAAA-MM}/pix        PIX copia e cola do mês em aberto
     POST /api/v1/medium/mensalidades/{AAAA-MM}/comprovante  envio do comprovante (multipart)
+    POST /api/v1/medium/mensalidades/{AAAA-MM}/cobranca     PIX/boleto automático (F-02/AM-22)
+    GET  /api/v1/medium/mensalidades/{AAAA-MM}/cobranca     situação da cobrança automática do mês
 
 Tudo é "meu": tenant de `ctx.tenant_id`, médium de `ctx.medium` (nunca da requisição; o mês é
 o único parâmetro). Gate além do `require_medium` do router: módulo "mensalidade" visível
@@ -19,6 +21,13 @@ o único parâmetro). Gate além do `require_medium` do router: módulo "mensali
 - Envio do comprovante: JPEG/PNG/WebP/PDF até 2 MB, conferido pelos bytes; recusado sob
   impersonação (o suporte vê, não envia em nome do médium); 20 envios/hora por IP; auditoria
   sem o conteúdo do arquivo.
+- **Baixa automática (AM-22)**: com o gateway da casa ativo (Stripe ou Mercado Pago, plano com
+  `mensalidade_automatica` — `services/mensalidade_gateway.gateway_para_cobrar`), "Pagar com PIX"
+  cria (ou reaproveita enquanto vale) uma cobrança dinâmica NA CONTA DA CASA e devolve o
+  copia-e-cola; o webhook do provedor dá a baixa e o mês vira "paga" sozinho (`pago_automatico`).
+  Sem gateway, tudo acima continua igual (chave estática + comprovante). Criar cobrança é escrita:
+  recusada sob impersonação, 20/hora por IP. CPF/endereço do boleto vão direto ao provedor e não
+  são gravados.
 - Nada interno sai daqui: `observacao`, `registrado_por` e o arquivo em si (o médium não baixa
   de volta o comprovante pela API).
 """
@@ -28,8 +37,11 @@ import uuid
 from datetime import date, datetime
 from typing import List, Optional
 
+from decimal import Decimal
+from typing import Literal
+
 from fastapi import APIRouter, Depends, File, Request, UploadFile, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +52,9 @@ from src.core.errors import APIException, ConflictError, ForbiddenError, Validat
 from src.core.limiter import limiter
 from src.core.tz import APP_TZ, today_local, utc_now
 from src.models import MensalidadeConfig, MensalidadePagamento, MensalidadeStatus
+from src.models.mensalidade_gateway import MensalidadeCobranca
+from src.services import mensalidade_gateway as gateway_service
+from src.services.pix_chave import ChavePixInvalida, normalizar_chave
 from src.services.audit_service import AuditService
 from src.services.medium_area import area_medium_modulos
 from src.services.medium_inicio import (
@@ -101,6 +116,17 @@ class MesMensalidade(BaseModel):
     recusa_motivo: Optional[str] = None
     recusado_em: Optional[datetime] = None
     atual: bool = False
+    # Paga pela cobrança automática (PIX/boleto na conta da casa, baixa pelo webhook).
+    pago_automatico: bool = False
+
+
+class CobrancaAutomaticaInfo(BaseModel):
+    """A casa recebe com baixa automática: "Pagar com PIX" gera a cobrança dinâmica."""
+
+    provedor: str
+    provedor_label: str
+    pix: bool
+    boleto: bool
 
 
 class MensalidadesResponse(BaseModel):
@@ -111,6 +137,8 @@ class MensalidadesResponse(BaseModel):
     dia_vencimento: Optional[int] = None
     # None = a casa ainda não cadastrou a chave PIX ("Combine o pagamento com a casa").
     pix: Optional[PixDaCasa] = None
+    # None = sem baixa automática (fluxo da chave estática + comprovante).
+    cobranca_automatica: Optional[CobrancaAutomaticaInfo] = None
     meses: List[MesMensalidade]
 
 
@@ -150,6 +178,7 @@ async def _registros(db: AsyncSession, ctx: MediumContext) -> dict[date, dict]:
                 MensalidadePagamento.comprovante_filename,
                 MensalidadePagamento.recusado_em,
                 MensalidadePagamento.recusa_motivo,
+                MensalidadePagamento.origem,
             ).where(
                 MensalidadePagamento.tenant_id == ctx.tenant_id,
                 MensalidadePagamento.mediun_id == ctx.medium.id,
@@ -199,7 +228,7 @@ def _meses(ctx: MediumContext, config: Optional[MensalidadeConfig], hoje: date, 
     )
 
 
-def _item(sit: MensalidadeDoMes, hoje: date) -> MesMensalidade:
+def _item(sit: MensalidadeDoMes, hoje: date, reg: Optional[dict] = None) -> MesMensalidade:
     return MesMensalidade(
         mes=sit.mes,
         status=sit.status,
@@ -210,6 +239,9 @@ def _item(sit: MensalidadeDoMes, hoje: date) -> MesMensalidade:
         recusa_motivo=sit.recusa_motivo,
         recusado_em=sit.recusado_em,
         atual=sit.mes == hoje.strftime("%Y-%m"),
+        pago_automatico=bool(
+            reg and sit.status == STATUS_PAGA and reg.get("origem") == gateway_service.ORIGEM_GATEWAY
+        ),
     )
 
 
@@ -268,14 +300,25 @@ async def listar_minhas_mensalidades(
     for mes in _meses(ctx, config, hoje, regs):
         sit = _situacao(ctx, config, hoje, mes, regs.get(mes))
         if sit is not None:
-            itens.append(_item(sit, hoje))
+            itens.append(_item(sit, hoje, regs.get(mes)))
     ativa = _cobranca_ativa(config)
+    gw = await gateway_service.gateway_para_cobrar(db, ctx.tenant_id)
     return MensalidadesResponse(
         hoje=hoje,
         isento=bool(ctx.medium.mensalidade_isento),
         valor_mensal=float(config.valor_mensal) if ativa and config.valor_mensal else None,
         dia_vencimento=config.dia_vencimento if ativa else None,
         pix=_pix_da_casa(config),
+        cobranca_automatica=(
+            CobrancaAutomaticaInfo(
+                provedor=gw.provedor,
+                provedor_label=gateway_service.PROVEDOR_LABEL.get(gw.provedor, gw.provedor),
+                pix=gw.pix_disponivel,
+                boleto=gw.boleto_disponivel,
+            )
+            if gw is not None
+            else None
+        ),
         meses=itens,
     )
 
@@ -421,3 +464,189 @@ async def enviar_comprovante(
 
     _, depois = await _mes_da_area(db, ctx, mes_date)
     return _item(depois, today_local())
+
+
+# ── Cobrança automática (F-02/AM-22) ──────────────────────────────────────────
+
+
+class EnderecoBoleto(BaseModel):
+    logradouro: str = Field(..., min_length=3, max_length=200)  # rua e número
+    cidade: str = Field(..., min_length=2, max_length=100)
+    uf: str = Field(..., min_length=2, max_length=2)
+    cep: str = Field(..., min_length=8, max_length=9)
+
+
+class CobrancaRequest(BaseModel):
+    metodo: Literal["pix", "boleto"] = "pix"
+    # Só quando o provedor pede (PIX) ou para o boleto (obrigatório). Não é gravado.
+    cpf: Optional[str] = Field(None, max_length=18)
+    endereco: Optional[EnderecoBoleto] = None
+
+
+class CobrancaDoMes(BaseModel):
+    mes: str
+    valor: float
+    metodo: str
+    provedor: str
+    provedor_label: str
+    # pendente | paga | expirada | cancelada | estornada (da cobrança)
+    status: str
+    # Situação do mês (paga quando a baixa já entrou)
+    mes_status: str
+    copia_e_cola: Optional[str] = None
+    boleto_url: Optional[str] = None
+    boleto_linha_digitavel: Optional[str] = None
+    expira_em: Optional[datetime] = None
+    pago_em: Optional[datetime] = None
+
+
+def _cobranca_do_mes(cob: MensalidadeCobranca, sit: MensalidadeDoMes) -> CobrancaDoMes:
+    aberta = cob.status == "pendente"
+    return CobrancaDoMes(
+        mes=cob.mes_referencia.strftime("%Y-%m"),
+        valor=float(cob.valor),
+        metodo=cob.metodo,
+        provedor=cob.provedor,
+        provedor_label=gateway_service.PROVEDOR_LABEL.get(cob.provedor, cob.provedor),
+        status=cob.status,
+        mes_status=sit.status,
+        copia_e_cola=cob.copia_e_cola if aberta else None,
+        boleto_url=cob.boleto_url if aberta else None,
+        boleto_linha_digitavel=cob.boleto_linha_digitavel if aberta else None,
+        expira_em=cob.expira_em,
+        pago_em=cob.pago_em,
+    )
+
+
+def _cpf_ou_cnpj(texto: Optional[str]) -> Optional[str]:
+    if not texto or not texto.strip():
+        return None
+    digitos = "".join(ch for ch in texto if ch.isdigit())
+    try:
+        return normalizar_chave("cnpj" if len(digitos) == 14 else "cpf", texto)
+    except ChavePixInvalida as exc:
+        raise ValidationError(str(exc), details={"error_code": "CPF_INVALIDO", "field": "cpf"})
+
+
+def _endereco_boleto(endereco: Optional[EnderecoBoleto]) -> Optional[dict[str, str]]:
+    if endereco is None:
+        return None
+    cep = "".join(ch for ch in endereco.cep if ch.isdigit())
+    uf = endereco.uf.strip().upper()
+    if len(cep) != 8 or not uf.isalpha():
+        raise ValidationError("Confira o CEP e a UF.", details={"error_code": "DADOS_BOLETO", "field": "endereco"})
+    return {
+        "line1": " ".join(endereco.logradouro.split()),
+        "city": " ".join(endereco.cidade.split()),
+        "state": uf,
+        "postal_code": cep,
+    }
+
+
+@router.post(
+    "/mensalidades/{mes}/cobranca",
+    response_model=CobrancaDoMes,
+    dependencies=[Depends(require_not_impersonated)],
+)
+@limiter.limit("20/hour")
+async def criar_cobranca(
+    request: Request,
+    mes: str,
+    body: CobrancaRequest,
+    ctx: MediumContext = Depends(require_modulo_mensalidade),
+    db: AsyncSession = Depends(get_db),
+) -> CobrancaDoMes:
+    """Cobrança automática do mês em aberto na conta da casa (reaproveita a pendente que ainda vale)."""
+    mes_date = _parse_mes(mes)
+    gw = await gateway_service.gateway_para_cobrar(db, ctx.tenant_id)
+    if gw is None:
+        raise ConflictError(
+            "A casa não recebe a mensalidade automaticamente. Use a chave PIX e envie o comprovante.",
+            details={"error_code": "COBRANCA_AUTOMATICA_INDISPONIVEL"},
+        )
+    _, sit = await _mes_da_area(db, ctx, mes_date)
+    if sit.status not in STATUS_EM_ABERTO:
+        raise ConflictError(
+            _MOTIVO_MES_FECHADO.get(sit.status, "Este mês não está em aberto."),
+            details={"error_code": "MES_FECHADO", "status": sit.status},
+        )
+    if not sit.valor or sit.valor <= 0:
+        raise ConflictError(
+            "A casa ainda não definiu o valor da mensalidade. Fale com a casa.",
+            details={"error_code": "MENSALIDADE_SEM_VALOR"},
+        )
+    cpf = _cpf_ou_cnpj(body.cpf)
+    endereco = _endereco_boleto(body.endereco)
+    if body.metodo == "boleto" and (not cpf or endereco is None):
+        raise ValidationError(
+            "Para o boleto, informe o CPF e o endereço de quem paga.",
+            details={"error_code": "DADOS_BOLETO", "field": "cpf" if not cpf else "endereco"},
+        )
+    try:
+        cob, criada = await gateway_service.criar_ou_reusar_cobranca(
+            db,
+            tenant_id=ctx.tenant_id,
+            gw=gw,
+            medium=ctx.medium,
+            user_id=ctx.user.id,
+            mes=mes_date,
+            valor=Decimal(str(sit.valor)),
+            metodo=body.metodo,
+            pagador=gateway_service.DadosPagador(
+                nome=ctx.medium.nome,
+                email=ctx.medium.email or ctx.user.email,
+                cpf=cpf,
+                endereco=endereco if body.metodo == "boleto" else None,
+            ),
+        )
+    except gateway_service.CobrancaRecusada as exc:
+        await db.rollback()
+        raise ConflictError(str(exc), details={"error_code": exc.codigo})
+    except IntegrityError:
+        await db.rollback()
+        raise ConflictError("Outro pedido deste mês chegou junto. Tente de novo.", details={"error_code": "ENVIO_SIMULTANEO"})
+    if criada:
+        await AuditService(db).log_create(
+            tenant_id=ctx.tenant_id,
+            user_id=ctx.user.id,
+            resource_type="mensalidade_cobranca",
+            resource_id=cob.id,
+            details={"mes": sit.mes, "metodo": cob.metodo, "provedor": cob.provedor, "valor": str(cob.valor)},
+        )
+    await db.commit()
+    await db.refresh(cob)
+    return _cobranca_do_mes(cob, sit)
+
+
+@router.get("/mensalidades/{mes}/cobranca", response_model=CobrancaDoMes)
+async def ver_cobranca(
+    mes: str,
+    metodo: Literal["pix", "boleto"] = "pix",
+    ctx: MediumContext = Depends(require_modulo_mensalidade),
+    db: AsyncSession = Depends(get_db),
+) -> CobrancaDoMes:
+    """A cobrança automática mais recente do mês (a tela consulta para mostrar "Paga" sozinha)."""
+    mes_date = _parse_mes(mes)
+    _, sit = await _mes_da_area(db, ctx, mes_date)
+    cob = (
+        await db.execute(
+            select(MensalidadeCobranca)
+            .where(
+                MensalidadeCobranca.tenant_id == ctx.tenant_id,
+                MensalidadeCobranca.mediun_id == ctx.medium.id,
+                MensalidadeCobranca.mes_referencia == mes_date,
+                MensalidadeCobranca.metodo == metodo,
+            )
+            .order_by(MensalidadeCobranca.created_at.desc())
+            .limit(1)
+        )
+    ).scalars().first()
+    if cob is None:
+        raise APIException(
+            "Nenhuma cobrança automática neste mês.",
+            status_code=status.HTTP_404_NOT_FOUND,
+            error_code="NOT_FOUND",
+            details={"error_code": "SEM_COBRANCA"},
+        )
+    return _cobranca_do_mes(cob, sit)
+

@@ -37,6 +37,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatBRL } from '@/lib/dateBr';
 import { minPlanFor, minPlanPhrase } from '@/constants/plans';
 import { PixConfigCard } from '@/components/financeiro/PixConfigCard';
+import { MensalidadeGatewayCard } from '@/components/financeiro/MensalidadeGatewayCard';
+import { useRouter } from 'next/router';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -725,6 +727,9 @@ function MensalidadeTab() {
       {/* Chave PIX (AM-10): salva à parte, com senha — fora da barra "Salvar configuração". */}
       {planMediuns && <PixConfigCard canEdit={canEdit} />}
 
+      {/* Baixa automática (F-02/AM-22): Stripe ou Mercado Pago, também salva à parte com senha. */}
+      {planMediuns && <MensalidadeGatewayCard canEdit={canEdit} />}
+
       {planAssoc && (
         <Card>
           <CardHeader>
@@ -797,8 +802,11 @@ function FinanceiroConfigContent() {
   const planMensalidade = can('mensalidade_mediun') || can('mensalidade_associado');
   const showContas = planContas && canGroup('contas_financeiras', 'view');
   const showMensalidade = planMensalidade && canGroup('financeiro', 'view');
+  const router = useRouter();
   const [tab, setTab] = useState<string | null>(null);
-  const activeTab = tab ?? (showContas ? 'categorias' : 'mensalidade');
+  // `?tab=mensalidade`: volta do cadastro do Stripe (F-02/AM-22) e links dos e-mails aos admins.
+  const tabDaUrl = router?.query?.tab === 'mensalidade' && showMensalidade ? 'mensalidade' : null;
+  const activeTab = tab ?? tabDaUrl ?? (showContas ? 'categorias' : 'mensalidade');
 
   if (!planContas && !planMensalidade) {
     return <PlanLocked feature="Configuração Financeira" minPlan={minPlanFor('mensalidade_mediun').label} />;

@@ -49,6 +49,8 @@ MIN_PLAN = {
     "biblioteca_medium": PlanType.PRO,
     # Ficha espiritual do médium (F-05/AM-19): Pro.
     "ficha_espiritual": PlanType.PRO,
+    # Mensalidade com baixa automática (F-02/AM-22, decisão de 09/10): Pro.
+    "mensalidade_automatica": PlanType.PRO,
 }
 ORDER = [PlanType.FREE, PlanType.BASIC, PlanType.PRO, PlanType.PREMIUM]
 

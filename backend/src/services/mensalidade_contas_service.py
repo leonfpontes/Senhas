@@ -134,7 +134,7 @@ async def sync_pagamento(
     valor: Optional[Decimal],    # valor vigente (esperado) do mês
     data_pagamento: Optional[datetime],
     dia_vencimento: int,
-    criado_por: UUID,
+    criado_por: Optional[UUID],  # None = baixa automática do gateway (F-02), sem usuário
     valor_pago: Optional[Decimal] = None,  # valor efetivamente pago (formulário)
 ) -> None:
     """Create or update the ContaFinanceira that mirrors a mensalidade event.

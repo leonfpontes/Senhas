@@ -173,6 +173,37 @@ preenche `comprovante_enviado_em`. Índice parcial `ix_mensalidade_pagamentos_co
 "Comprovantes para conferir" sem varrer o BYTEA). O arquivo continua em `comprovante_data` (BYTEA): pela Área o
 limite é 2 MB (o navegador reduz a foto antes); pelo painel, 5 MB.
 
+**Quem deu a baixa (migração 091, F-02/AM-22):** `mensalidade_pagamentos.origem` (`String(20)`, CHECK
+`ck_mensalidade_pagamentos_origem`: `direcao | gateway`, NULL nos registros anteriores à 091). `gateway` = pago pela
+cobrança automática (webhook do provedor); `direcao` = registrado/confirmado no painel.
+
+### `mensalidade_gateways` e `mensalidade_cobrancas` (F-02/AM-22, migração 091)
+
+Mensalidade com baixa automática: cada casa conecta a conta dela no **Stripe** (Stripe Connect) ou no **Mercado
+Pago** (OAuth) — decisão do dono de 09/10. Colunas "enum" são texto com CHECK.
+
+`mensalidade_gateways` — uma linha por terreiro: `tenant_id` (UNIQUE, CASCADE), `provedor` (`stripe | mercadopago`),
+`status` (`pendente | ativo | desconectado`, padrão `pendente`), `pix_disponivel`, `boleto_disponivel`,
+`cadastro_completo`, `recebimentos_ativos` (booleanos vindos do provedor — no Stripe: capacidades `pix_payments`/
+`boleto_payments` ativas, `details_submitted`, `charges_enabled`), `stripe_account_id` (`String(255)`, UNIQUE; id
+`acct_...` da conta conectada — não é segredo; fica guardado ao desconectar para reconectar a mesma conta),
+`mp_user_id`, `mp_access_token_enc`, `mp_refresh_token_enc` (`Text`, **só cifrados** com `core/secret_box.py` —
+Fernet com `SECRETS_ENCRYPTION_KEY`; apagados ao desconectar), `mp_token_expira_em`, `conectado_por` (FK `users`
+SET NULL), `conectado_em`, `desconectado_em`, timestamps.
+
+`mensalidade_cobrancas` — cobrança dinâmica (PIX/boleto) criada na conta da casa: `tenant_id`, `mediun_id`
+(CASCADE), `mes_referencia` (dia 1), `valor` (`Numeric(10,2)`), `provedor`, `conta_externa` (conta da casa no
+provedor no momento da cobrança — o webhook confere), `external_id` (PaymentIntent `pi_...` no Stripe), `metodo`
+(`pix | boleto`), `status` (`pendente | paga | expirada | cancelada | estornada`), `copia_e_cola`, `boleto_url`,
+`boleto_linha_digitavel`, `expira_em`, `pago_em`, `valor_pago`, `criado_por` (FK `users` SET NULL — a conta do
+médium), `raw` (JSONB mínimo: status externo e último evento — **sem CPF, endereço ou e-mail**), timestamps.
+UNIQUE `uq_mensalidade_cobrancas_provedor_external` (`provedor`, `external_id`); UNIQUE parcial
+`uq_mensalidade_cobrancas_pendente` (`mediun_id`, `mes_referencia`, `metodo`) `WHERE status = 'pendente'` (uma em
+aberto por médium/mês/método, reaproveitada enquanto vale); índices `ix_mensalidade_cobrancas_tenant_mes` e
+`ix_mensalidade_cobrancas_mediun_mes`. Paga → o mês vira `PAGO` em `mensalidade_pagamentos` com `origem = 'gateway'`
+(mesmo registro da confirmação do AM-12) e espelha em contas a receber. Idempotência do webhook do Connect:
+`stripe_events_processed` (ids `evt_...` são únicos no Stripe).
+
 ### `comunicados` e `comunicado_leituras` (AM-09, migrações 070/071)
 
 Avisos da casa para a corrente — na tela é **"Avisos"** (D-16); tabelas e API admin seguem `comunicados`.
@@ -1083,7 +1114,7 @@ Ao criar um novo enum em Alembic + model Python:
 | 18 | `018_estoque` | `017_default_brand_colors` | Cria `estoque_grupos`, `estoque_itens`, `estoque_movimentacoes`; enum `estoque_movimentacao_tipo`; `tenant_configs.enable_estoque_log` |
 | 19 | `019_fix_movimentacoes_fk` | `018_estoque` | `estoque_movimentacoes.item_id` FK: `CASCADE` → `RESTRICT` (protege integridade do ledger) |
 
-A tabela acima vai até a 019. A cadeia completa e a head atual (`089_ficha_espiritual`, F-05/AM-19) estão em
+A tabela acima vai até a 019. A cadeia completa e a head atual (`091_mensalidade_gateway`, F-02/AM-22) estão em
 AGENTS.md §11.8.
 
 ### Comandos Alembic

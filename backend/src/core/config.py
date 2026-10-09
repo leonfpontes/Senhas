@@ -72,6 +72,17 @@ class Settings(BaseSettings):
     STRIPE_INVOICE_PAYMENT_METHODS: str = "boleto"
     STRIPE_INVOICE_DAYS_UNTIL_DUE: int = 5
 
+    # Mensalidade com baixa automática pelo Stripe Connect (F-02/AM-22). Os eventos das
+    # contas conectadas (casas) chegam num webhook PRÓPRIO (POST /api/v1/webhooks/stripe-connect),
+    # com segredo de assinatura diferente do webhook da assinatura do GiraHub. Sem este
+    # segredo (ou sem STRIPE_SECRET_KEY), a opção "Stripe" nem aparece no painel.
+    STRIPE_CONNECT_WEBHOOK_SECRET: str = ""
+
+    # Segredo em repouso (core/secret_box.py): chave Fernet para cifrar credenciais de terceiros
+    # (token OAuth do Mercado Pago). Vazia = nada que precise de segredo é gravado.
+    # Gerar: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    SECRETS_ENCRYPTION_KEY: str = ""
+
     # Email — Resend (primary)
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = "noreply@girahub.com.br"

@@ -197,6 +197,49 @@ Cuidados: a chave privada é segredo (só no `.env` da VPS, `chmod 600`). **Não
 as inscrições ficam presas à chave pública e param de receber (o médium precisa ligar de novo). Para desligar o
 push, esvazie as três variáveis e recrie o backend.
 
+### Mensalidade com baixa automática pelo Stripe Connect (F-02/AM-22)
+
+Cada casa escolhe onde recebe a mensalidade (decisão de 09/10): **Stripe** (este passo) ou Mercado Pago (passo
+abaixo, quando o PR do Mercado Pago entrar). Enquanto `STRIPE_CONNECT_WEBHOOK_SECRET` estiver vazio, a opção
+"Stripe" **não aparece** em Financeiro → Configuração → Mensalidade e a Área segue com a chave PIX + comprovante.
+O GiraHub não cobra comissão (sem `application_fee`): a taxa do Stripe é descontada da casa.
+
+1. **Ligar o Connect na conta Stripe do GiraHub** (modo live): Dashboard → **Connect** → **Get started** /
+   "Começar" → modelo de plataforma ("Platform or marketplace"), país **Brasil**; preencher o **perfil da
+   plataforma** (Dashboard → Settings → Connect → **Platform profile**). Em Settings → Connect → **Onboarding
+   options/Branding**, pôr nome "GiraHub", ícone e cor (o cadastro da casa mostra isso). Em Settings → Connect →
+   **Express** confira que Brasil está liberado para contas conectadas.
+2. **PIX e boleto nas contas conectadas**: PIX no Brasil é "por convite" no Stripe — a conta do GiraHub já tem o
+   PIX ligado, e o GiraHub pede as capacidades `pix_payments` e `boleto_payments` para cada casa ao conectar. Em
+   Settings → Connect → **Payment methods** ("Formas de pagamento das contas conectadas"), deixe **Pix** e
+   **Boleto** ligados para as contas conectadas. Testar com uma casa piloto: o card mostra "PIX automático ligado"
+   só quando o Stripe ativa a capacidade.
+3. **Criar o webhook do Connect** (separado do webhook da assinatura): Dashboard → **Developers → Webhooks** →
+   **Add destination/endpoint** → em "Events from" escolha **Connected accounts** ("Contas conectadas") → URL
+   `https://girahub.com.br/api/v1/webhooks/stripe-connect` (o mesmo domínio do webhook `/api/v1/webhooks/stripe`
+   que já existe) → eventos `payment_intent.succeeded`, `payment_intent.payment_failed`,
+   `payment_intent.canceled`, `account.updated`. Copie o **Signing secret** (`whsec_...`) desse endpoint.
+4. **Gravar no `/opt/senhas/.env` da VPS** e gerar a chave do segredo em repouso (usada pelo Mercado Pago; gere
+   já para ficar pronta):
+   ```bash
+   ssh root@<vps>
+   cd /opt/senhas
+   python3 -c "import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())"   # chave Fernet
+   nano .env
+   STRIPE_CONNECT_WEBHOOK_SECRET=whsec_...      # do passo 3 (NÃO é o STRIPE_WEBHOOK_SECRET)
+   SECRETS_ENCRYPTION_KEY=...                   # a linha gerada acima; nunca troque sem rotação (core/secret_box.py)
+   chmod 600 .env
+   docker compose -f docker-compose.prod.yml up -d --no-deps backend
+   ```
+5. **Validar**: com uma casa de teste no Pro, Financeiro → Configuração → Mensalidade → "Conectar Stripe" (pede a
+   senha; os admins recebem e-mail) → cadastro no Stripe → volta para a tela, que confere a conta. Na Área, "Pagar
+   com PIX" mostra o QR da cobrança; pago, o mês vira "Paga" sozinho (Dashboard → Developers → Webhooks → o
+   endpoint do Connect mostra as entregas).
+
+`SECRETS_ENCRYPTION_KEY` é segredo (só no `.env`, `chmod 600`) e **não pode ser perdida nem trocada sem rotação**:
+os tokens do Mercado Pago gravados com ela ficam ilegíveis (as casas teriam de reconectar). Rotação: ponha a
+chave nova na frente, separada por vírgula (`nova,antiga`), recifre e depois tire a antiga.
+
 ---
 
 ## 4. Deploy com Docker Compose

@@ -60,6 +60,9 @@ dependencies = [
     # servico pago. Traz py-vapid, http-ece, requests e aiohttp (este so no
     # webpush_async, que nao usamos). Envio em services/web_push.py.
     "pywebpush==2.5.0",
+    # Segredo em repouso (core/secret_box.py, F-02): Fernet para o token OAuth do Mercado
+    # Pago de cada terreiro. Ja vinha transitiva pelo pywebpush; agora declarada.
+    "cryptography>=46.0.0",
 ]
 
 [project.optional-dependencies]
