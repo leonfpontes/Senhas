@@ -338,4 +338,62 @@ describe('/admin/billing', () => {
     expect(screen.getByText(/para não voltar ao plano gratuito/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Pagar o próximo mês/ })).toBeInTheDocument();
   });
+
+  describe('cartão recusado (tolerância)', () => {
+    const CARD = {
+      ...TRIAL_BILLING,
+      plan: 'pro',
+      is_trial: false,
+      trial_ends_at: null,
+      stripe_subscription_id: 'sub_card',
+      stripe_customer_id: 'cus_card',
+      collection_method: 'charge_automatically',
+      monthly_price: 79,
+      current_period_end: '2026-11-06T00:00:00Z',
+    };
+
+    it('pendente: aviso com a data, badge e "Atualizar cartão" que abre o portal da Stripe', async () => {
+      const desde = '2026-10-11T15:00:00Z';
+      mockApi({ ...CARD, payment_pending_since: desde, payment_grace_days: 10 });
+      apiClient.post.mockResolvedValue({ data: { portal_url: 'https://billing.stripe.com/p/session/y' } });
+      render(<Billing />);
+
+      const aviso = await screen.findByText(/Pagamento pendente desde/);
+      const short = new Date(desde).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      expect(aviso).toHaveTextContent(`Pagamento pendente desde ${short}.`);
+      expect(screen.getByText(/O plano continua ativo enquanto tentamos cobrar/)).toBeInTheDocument();
+      expect(screen.getByText('Pagamento pendente')).toBeInTheDocument(); // badge do status
+      // Só um botão de cartão (o do aviso) — o do cartão de status some para não duplicar.
+      const botoes = screen.getAllByRole('button', { name: /Atualizar cartão/ });
+      expect(botoes).toHaveLength(1);
+      await act(async () => {
+        fireEvent.click(botoes[0]);
+      });
+      expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/billing/portal');
+      expect(window.location.href).toBe('https://billing.stripe.com/p/session/y');
+    });
+
+    it('suspenso por falta de pagamento: aviso vermelho com "Atualizar cartão e reativar"', async () => {
+      mockApi({ ...CARD, status: 'suspended' });
+      render(<Billing />);
+      expect(await screen.findByText('Plano suspenso por falta de pagamento.')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Atualizar cartão e reativar/ })).toBeInTheDocument();
+      expect(screen.queryByText(/Pagamento pendente desde/)).not.toBeInTheDocument();
+    });
+
+    it('cartão em dia: só o botão "Atualizar cartão" discreto, sem aviso', async () => {
+      mockApi(CARD);
+      render(<Billing />);
+      expect(await screen.findByText('Plano Pro')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Atualizar cartão/ })).toBeInTheDocument();
+      expect(screen.queryByText(/Pagamento pendente/)).not.toBeInTheDocument();
+    });
+
+    it('boleto: sem botão de cartão', async () => {
+      mockApi({ ...CARD, collection_method: 'send_invoice' });
+      render(<Billing />);
+      expect(await screen.findByText('Plano Pro')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Atualizar cartão/ })).not.toBeInTheDocument();
+    });
+  });
 });

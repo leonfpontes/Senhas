@@ -1,7 +1,7 @@
 # AGENTS.md - Guia Operacional para Agentes de IA
 
-Last Updated: 2026-10-09 (varredura R-02: head `093_sessao_contas_verificadas`, plano `escalas` com rotas
-desde o AM-18; estado atual em §11, Area do Medium em §11.23. Planos vigentes: docs/plano-execucao.md,
+Last Updated: 2026-10-13 (tolerância do cartão do plano: head `094_cobranca_tolerancia_cartao`, §11.18/§11.9;
+antes, varredura R-02 de 09/10: plano `escalas` com rotas desde o AM-18; estado atual em §11, Area do Medium em §11.23. Planos vigentes: docs/plano-execucao.md,
 docs/plano-benchmark-2026-10.md e docs/plano-area-do-medium.md)
 Project: Senhas / GiraHub - Multi-Tenant SaaS para emissão de tickets
 Repository: leonfpontes/Senhas
@@ -1010,7 +1010,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `093_sessao_contas_verificadas` (2026-10-09, trocar de terreiro sem sair: `user_sessions.verified_accounts`
+- Head atual: `094_cobranca_tolerancia_cartao` (2026-10-13, tolerância do cartão do plano: `subscriptions.
+  pagamento_pendente_desde` (timestamptz nula — 1ª recusa) e `pagamento_pendente_invoice_id` (String 255 nula);
+  downgrade so remove as colunas), apos `093_sessao_contas_verificadas` (2026-10-09, trocar de terreiro sem sair: `user_sessions.verified_accounts`
   JSONB nula — contas do mesmo e-mail com senha conferida neste login; downgrade so remove a coluna), apos
   `092_mensalidade_comprovantes` (2026-10-09, pagamento parcial: tabela `mensalidade_comprovantes` —
   varios comprovantes por mes, `origem` medium|painel, `valor_informado`, `status` em_conferencia|conferido|
@@ -1242,6 +1244,26 @@ Incluir obrigatoriamente:
   `paying_clause`), vencido não; (7) card checkout que liga assinatura limpa o `pix_mensal`. Painel: aviso "Seu
   plano está pago até DD/MM (PIX). Pagar o próximo mês" com ≤ 7 dias (`SubscriptionWarningBanner`), histórico
   "PIX — mês pago até DD/MM" e badge "PIX mensal" na plataforma (Terreiros).
+- **Tolerância do cartão (dunning, 2026-10-13, migração 094)** — `services/cobranca_cartao.py`. Pedido do dono depois
+  que um cliente foi suspenso na 1ª recusa da renovação (saldo insuficiente; a Stripe tenta de novo e costuma passar).
+  Regras (só cartão: `collection_method` `charge_automatically` ou NULL): (1) `invoice.payment_failed` sem trial NÃO
+  suspende — grava `pagamento_pendente_desde` (1ª recusa, não anda nas novas tentativas) e a fatura, plano segue
+  ACTIVE; (2) assinatura `past_due` = só aviso; (3) `unpaid` (a Stripe desistiu) → SUSPENDED; (4) rede de segurança na
+  rodada das 09:00 BRT: pendente há ≥ 10 dias e ACTIVE → reconsulta a Stripe; sem `active`/`trialing` → SUSPENDED
+  (Stripe fora do ar = tenta amanhã; já `active` = limpa); (5) `active` / `invoice.paid` do cartão (só com pendente,
+  reconfere `active` na Stripe) / checkout novo → limpa e reativa; (6) e-mail a todos os admins ativos uma vez por
+  fatura (`claim_once`, namespace `cobranca_cartao_avisos`, itens `falha`/`suspenso`, escopo = fatura), disparado
+  depois do commit do webhook; (7) ficam como eram: conversão do trial (→ FREE; `past_due` de trial ainda suspende),
+  boleto (`past_due`/`invoice.overdue` suspendem) e PIX mensal (fatura de cartão ignorada); (8) `past_due`/`unpaid` de
+  assinatura NÃO ligada é ignorado (senão a assinatura antiga de um trial que voltou ao FREE religaria o plano).
+  Acesso: em tolerância o status é ACTIVE → gate libera; suspenso → 402. MRR: tolerância segue **pagante**
+  (`billing_category`/`paying_clause` inalterados: status ACTIVE + assinatura Stripe), suspenso sai. "Atualizar cartão":
+  `POST /admin/billing/portal` (Portal do Cliente da Stripe, `_require_admin`; sem portal salvo no Dashboard → 400
+  amigável). Painel: `SubscriptionWarningBanner` "Pagamento pendente desde DD/MM — o plano continua ativo enquanto
+  tentamos de novo. [Atualizar cartão]" e, suspenso no cartão, "Plano suspenso por falta de pagamento" com o mesmo botão
+  (`components/billing/UpdateCardButton`); /admin/billing mostra os mesmos avisos e um "Atualizar cartão" discreto
+  para cartão em dia; plataforma (Terreiros e Tenant 360) com badge "Pagamento pendente". O sync manual da plataforma
+  segue a mesma regra. Passos do dono na Stripe (retentativas, "mark as unpaid", Customer portal): docs/deployment.md.
 - **Rótulos de plano**: fonte única `constants/plans.ts` ("Gratuito"); `useSubscription().planLabel`
   e `platform/planMeta.ts` (rótulo, preço e limites) derivam dela; a tabela de planos da plataforma
   usa `BASE_FEATURES` + `FEATURE_CATALOG`.
@@ -1936,6 +1958,11 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   `advisory_lock(PIX_MENSAL_LOCK_KEY = 0x6769726168756207)`. Lembretes 5 d/1 d antes do "pago até" (por faixa: se
   uma rodada falhar, sai na seguinte) com `claim_once(..., "pix_mensal_lembretes", "5"|"1", scope=pago_ate)`;
   vencimento (pago até + 3 dias) → gratuito, rechecado sob `FOR UPDATE`.
+- Tolerância do cartão do plano (desde 2026-10-13, migração 094): `services/cobranca_cartao.processar_tolerancia_cartao`,
+  chamada pelo `trial_scheduler` na rodada das 09:00 BRT logo depois do PIX mensal, com lock próprio
+  `advisory_lock(COBRANCA_CARTAO_LOCK_KEY = 0x6769726168756208)`. Pendente há ≥ 10 dias → reconsulta a Stripe e,
+  sem pagamento, suspende (rechecado sob `FOR UPDATE`); e-mail com `claim_once(..., "cobranca_cartao_avisos",
+  "suspenso", scope=<fatura>)`. A `...205` continua reservada.
 - Trial: marcas em `custom_settings.trial_reminders` (escopo = `trial_ends_at`); dias restantes arredondados para cima e expiração só depois de `trial_ends_at` (antes podia expirar ~1 dia cedo). Aniversário: `custom_settings.birthday_digest` (escopo = data BRT).
 
 **Rate limiter distribuído via Redis (desde 2026-06-27):**

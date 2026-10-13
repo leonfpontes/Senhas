@@ -62,6 +62,8 @@ export interface SubscriptionInfo {
   collection_method?: string | null;
   /** PIX mês a mês: até quando o plano segue liberado sem novo PIX (pago até + tolerância). */
   pix_grace_until?: string | null;
+  /** Cartão recusado e plano ainda ativo enquanto a Stripe tenta de novo (tolerância, migração 094). */
+  payment_pending_since?: string | null;
   features: PlanFeatures;
 }
 

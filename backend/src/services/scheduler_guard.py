@@ -22,6 +22,9 @@ Chaves de lock em uso (bigint, prefixo "girahub"):
   0x6769726168756206 medium_lembrete_scheduler (lembretes e avisos por e-mail da Área, AM-15)
   0x6769726168756207 PIX mês a mês do plano (lembretes 5d/1d e vencimento; services/assinatura_pix.py,
                      rodada diária disparada pelo trial_scheduler às 09:00 BRT — $-04)
+  0x6769726168756208 tolerância do cartão do plano (rede de segurança: pendente há 10 dias e a Stripe
+                     ainda sem pagamento → suspende; services/cobranca_cartao.py, rodada diária
+                     disparada pelo trial_scheduler às 09:00 BRT — migração 094)
 """
 
 from __future__ import annotations
@@ -39,6 +42,7 @@ BIRTHDAY_LOCK_KEY = 0x6769726168756203
 PRESENCA_LOCK_KEY = 0x6769726168756204
 MEDIUM_LEMBRETE_LOCK_KEY = 0x6769726168756206
 PIX_MENSAL_LOCK_KEY = 0x6769726168756207
+COBRANCA_CARTAO_LOCK_KEY = 0x6769726168756208
 
 
 @asynccontextmanager

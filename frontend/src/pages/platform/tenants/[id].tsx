@@ -91,6 +91,8 @@ interface TenantInfo {
   self_deactivated_at?: string | null;
   /** Lançamento em piloto da Área do Médium: a plataforma libera por terreiro. */
   area_medium_liberada?: boolean;
+  /** Cartão recusado, plano ainda ativo enquanto a Stripe tenta de novo (tolerância, migração 094). */
+  payment_pending_since?: string | null;
 }
 
 interface TenantUser {
@@ -468,6 +470,9 @@ export default function TenantDetailPage() {
                 )}
                 <PlanBadge plan={tenant.plan} bonus={tenant.is_bonus} />
                 {tenant.subscription_status && <SubscriptionStatusBadge status={tenant.subscription_status} />}
+                {tenant.payment_pending_since && (
+                  <ToneBadge tone="warning">Pagamento pendente desde {fmtDate(tenant.payment_pending_since)}</ToneBadge>
+                )}
                 {trialDays !== null && (
                   <ToneBadge tone={trialDays < 0 ? 'destructive' : trialDays <= 7 ? 'warning' : 'info'}>
                     {trialDays < 0 ? `Trial venceu em ${fmtDate(subscription?.trial_ends_at)}` : `Trial: ${plural(trialDays, 'dia')} restantes`}

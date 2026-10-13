@@ -44,6 +44,12 @@ def clear_invoice_billing(subscription: Subscription, *, keep_collection_method:
     subscription.pending_invoice_due_at = None
 
 
+def clear_card_dunning(subscription: Subscription) -> None:
+    """Zera o "pagamento pendente" do cartão (tolerância da migração 094)."""
+    subscription.pagamento_pendente_desde = None
+    subscription.pagamento_pendente_invoice_id = None
+
+
 class SubscriptionRepository(BaseRepository[Subscription]):
     """Repository for Subscription management.
     
@@ -226,6 +232,7 @@ class SubscriptionRepository(BaseRepository[Subscription]):
         subscription.cancel_at_period_end = False
         # $-04: sem assinatura, não há forma de cobrança nem fatura em aberto para mostrar.
         clear_invoice_billing(subscription)
+        clear_card_dunning(subscription)
         subscription.max_users = free["max_users"]
         subscription.max_giras_per_month = free["max_giras_per_month"]
         subscription.max_mediuns = free["max_mediuns"]

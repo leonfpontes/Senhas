@@ -12,8 +12,10 @@ estas funções. O frontend espelha o catálogo em `frontend/src/hooks/useSubscr
 
 Semântica de status (P-05, 2026-10-05):
 - ACTIVE → libera o que o plano inclui.
-- SUSPENDED (pagamento falhou / suspensão manual) → bloqueia toda feature paga e
-  a criação de recursos com limite numérico (usuários, giras, médiuns) → HTTP 402.
+- SUSPENDED (a Stripe desistiu de cobrar / boleto vencido / suspensão manual) → bloqueia toda
+  feature paga e a criação de recursos com limite numérico (usuários, giras, médiuns) → HTTP 402.
+  Cartão recusado em tolerância (migração 094, `services/cobranca_cartao.py`) continua ACTIVE com
+  `pagamento_pendente_desde` preenchido — aqui não bloqueia nada (é só o aviso do painel).
 - CANCELLED / EXPIRED com plano pago → bloqueia features pagas (402). Com plano
   FREE é o estado normal depois de `reset_to_free()` (cancelamento/desativação):
   o tenant segue usando o FREE normalmente.

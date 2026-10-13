@@ -116,7 +116,9 @@ async def test_reentrega_do_mesmo_evento_nao_reprocessa(client, db):
     ) == 1
 
 
-async def test_falha_de_pagamento_suspende_e_audita_uma_vez(client, db):
+async def test_falha_de_pagamento_do_cartao_nao_suspende_e_audita_uma_vez(client, db):
+    """Tolerância do cartão (migração 094): a recusa só marca o pagamento pendente — o plano
+    continua; a reentrega do mesmo evento não reprocessa."""
     tenant = await _paying_tenant(db, "cus_fail")
     event = _event("invoice.payment_failed", {"id": "in_1", "object": "invoice", "customer": "cus_fail"})
 
@@ -124,7 +126,8 @@ async def test_falha_de_pagamento_suspende_e_audita_uma_vez(client, db):
     assert (await _post(client, event)).status_code == 200
 
     status = await _q(select(Subscription.status).where(Subscription.tenant_id == tenant.id))
-    assert status == SubscriptionStatus.SUSPENDED
+    assert status == SubscriptionStatus.ACTIVE
+    assert await _q(select(Subscription.pagamento_pendente_invoice_id).where(Subscription.tenant_id == tenant.id)) == "in_1"
     audits = await _q(
         select(func.count()).select_from(AuditLog).where(
             AuditLog.tenant_id == tenant.id, AuditLog.resource_type == "stripe_subscription"
@@ -384,9 +387,10 @@ async def test_cartao_checkout_pago_continua_ativando(client, db, stripe_pro):
     assert row.stripe_subscription_id == "sub_c2"
 
 
-async def test_cartao_invoice_paid_e_ignorado_e_falha_continua_suspendendo(client, db, stripe_pro):
-    """Regressão do cartão: invoice.paid não faz nada (segue pelo subscription.updated) e
-    invoice.payment_failed continua suspendendo."""
+async def test_cartao_invoice_paid_e_ignorado_e_falha_nao_suspende(client, db, stripe_pro):
+    """Cartão: invoice.paid sem pagamento pendente não faz nada (segue pelo subscription.updated)
+    e invoice.payment_failed não suspende mais (tolerância, migração 094 — ver
+    test_cobranca_cartao.py)."""
     tenant = await _tenant_with(
         db, "cus_c3", plan=PlanType.PRO, stripe_subscription_id="sub_c3", collection_method="charge_automatically",
     )
@@ -398,7 +402,10 @@ async def test_cartao_invoice_paid_e_ignorado_e_falha_continua_suspendendo(clien
 
     failed = {**card_invoice, "status": "open"}
     assert (await _post(client, _event("invoice.payment_failed", failed))).status_code == 200
-    assert (await _sub_row(tenant.id)).status == SubscriptionStatus.SUSPENDED
+    row = await _sub_row(tenant.id)
+    assert row.status == SubscriptionStatus.ACTIVE
+    assert row.pagamento_pendente_desde is not None
+    assert row.pagamento_pendente_invoice_id == "in_c3"
 
 
 async def test_cartao_subscription_updated_ativa_continua_sincronizando(client, db, stripe_pro):

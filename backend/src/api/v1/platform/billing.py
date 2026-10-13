@@ -15,6 +15,7 @@ from src.models.subscriptions import Subscription, PlanType, SubscriptionStatus
 from src.models.tenants import Tenant
 from src.models.users import User as UserModel, UserRole
 from src.repositories.billing_repo import BillingRepository
+from src.services import cobranca_cartao
 from src.services.billing_metrics import (
     BillingCategory,
     billing_category,
@@ -84,6 +85,8 @@ class SubscriptionListItem(BaseModel):
     stripe_customer_id: Optional[str]
     # $-04: "charge_automatically" (cartão) | "send_invoice" (boleto) | "pix_mensal" | None.
     collection_method: Optional[str] = None
+    # Tolerância do cartão (migração 094): cartão recusado, ainda pagante enquanto a Stripe tenta.
+    payment_pending_since: Optional[str] = None
 
 
 @router.get("/{tenant_id}/invoices", response_model=List[InvoiceResponse])
@@ -279,6 +282,9 @@ async def list_billing_subscriptions(
                 trial_ends_at=sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
                 stripe_customer_id=sub.stripe_customer_id,
                 collection_method=sub.collection_method if isinstance(sub.collection_method, str) else None,
+                payment_pending_since=(
+                    cobranca_cartao.pendente_desde(sub).isoformat() if cobranca_cartao.em_tolerancia(sub) else None
+                ),
             )
             for sub, name, slug, deleted_at, users in rows
             for cat in (billing_category(sub, deleted_at is not None),)

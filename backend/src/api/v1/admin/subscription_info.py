@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 from src.services.medium_area import area_medium_liberada
 from src.services.plan_features import PlanFeatures, _get_plan_features, get_effective_plan_features
 from src.services.assinatura_pix import pix_pago_ate, tolerancia_ate
+from src.services.cobranca_cartao import em_tolerancia, pendente_desde
 
 
 async def _count_active_users(db: AsyncSession, tenant_id) -> int:
@@ -61,6 +62,9 @@ class SubscriptionInfoResponse(BaseModel):
     # `current_period_end` é o "pago até" e `pix_grace_until` o fim da tolerância (banner do painel).
     collection_method: Optional[str] = None
     pix_grace_until: Optional[str] = None
+    # Tolerância do cartão (migração 094): renovação recusada e plano ainda ativo enquanto a
+    # Stripe tenta de novo — banner "Pagamento pendente desde DD/MM" + "Atualizar cartão".
+    payment_pending_since: Optional[str] = None
     features: PlanFeatures
 
 
@@ -142,6 +146,9 @@ async def get_tenant_subscription(
         collection_method=sub.collection_method if isinstance(sub.collection_method, str) else None,
         pix_grace_until=(
             tolerancia_ate(pix_pago_ate(sub)).isoformat() if pix_pago_ate(sub) else None
+        ),
+        payment_pending_since=(
+            pendente_desde(sub).isoformat() if em_tolerancia(sub) else None
         ),
         # Mesma semântica do require_plan_feature (P-05): a UI esconde o que o backend nega.
         features=await _features_do_terreiro(db, sub),

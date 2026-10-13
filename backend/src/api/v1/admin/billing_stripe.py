@@ -19,6 +19,7 @@ from src.repositories.audit_log_repo import AuditLogRepository
 from src.models.audit_logs import AuditAction
 from src.services import stripe_service
 from src.services import assinatura_pix
+from src.services import cobranca_cartao
 from src.core.errors import NotFoundError
 from src.services.email.base import EmailMessage
 from src.services.email.resend_fallback import ResendEmailService
@@ -98,6 +99,10 @@ class BillingInfoResponse(BaseModel):
     pix_active: bool = False
     pix_grace_until: Optional[str] = None
     pix_payments: list["PixPaymentItem"] = []
+    # Tolerância do cartão (migração 094): renovação recusada, plano ainda ativo enquanto a
+    # Stripe tenta de novo. Preenchido só nesse estado (suspenso aparece pelo `status`).
+    payment_pending_since: Optional[str] = None
+    payment_grace_days: int = cobranca_cartao.TOLERANCIA_DIAS
 
 
 class PixPaymentItem(BaseModel):
@@ -122,6 +127,10 @@ class CheckoutResponse(BaseModel):
 
 class ChangePlanRequest(BaseModel):
     plan: str  # "basic" | "pro" | "premium"
+
+
+class PortalResponse(BaseModel):
+    portal_url: str
 
 
 class SubscribeInvoiceResponse(BaseModel):
@@ -295,6 +304,9 @@ async def get_billing_info(
         pix_paid_until=pix_paid_until.isoformat() if pix_paid_until else None,
         pix_active=assinatura_pix.pix_mes_ativo(sub),
         pix_grace_until=assinatura_pix.tolerancia_ate(pix_paid_until).isoformat() if pix_paid_until else None,
+        payment_pending_since=(
+            cobranca_cartao.pendente_desde(sub).isoformat() if cobranca_cartao.em_tolerancia(sub) else None
+        ),
         pix_payments=[
             PixPaymentItem(
                 plan=p.plan,
@@ -577,6 +589,58 @@ async def create_pix_checkout(
     )
     await db.commit()
     return CheckoutResponse(checkout_url=checkout_url)
+
+
+_PORTAL_NOT_CONFIGURED = (
+    "A troca de cartão pelo painel ainda não está disponível. Fale com o suporte para atualizar o "
+    "cartão — o seu plano não muda por causa disso."
+)
+
+
+@router.post("/portal", response_model=PortalResponse)
+async def create_billing_portal(
+    current_user: User = Depends(_require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """"Atualizar cartão" — abre o Portal do Cliente da Stripe (tolerância da migração 094).
+
+    Para a assinatura no cartão: o cliente troca o cartão e paga a fatura em aberto; a Stripe usa o
+    cartão novo nas próximas tentativas e o webhook (`invoice.paid` / assinatura `active`) limpa o
+    "Pagamento pendente" ou reativa o plano suspenso. Volta para /admin/billing.
+
+    Erros: 400 sem assinatura no cartão (gratuito, PIX, boleto) ou cortesia; 400 com mensagem
+    amigável se o portal não estiver configurado no Dashboard da Stripe (passo do dono em
+    docs/deployment.md); 403 operador.
+    """
+    sub = await _get_subscription_or_404(current_user.tenant_id, db)
+    if sub.is_bonus:
+        raise HTTPException(status_code=400, detail="Tenant bonificado: sem cartão para atualizar")
+    if (
+        not isinstance(sub.stripe_customer_id, str)
+        or not isinstance(sub.stripe_subscription_id, str)
+        or not cobranca_cartao.cobra_no_cartao(sub.collection_method)
+    ):
+        raise HTTPException(status_code=400, detail="Este terreiro não tem assinatura no cartão para atualizar.")
+
+    try:
+        portal_url = await stripe_service.create_billing_portal_session(sub.stripe_customer_id)
+    except (stripe_sdk.error.StripeError, ValueError) as exc:
+        if stripe_service.is_portal_not_configured(exc):
+            logger.error("Portal do Cliente da Stripe não configurado (Settings → Billing → Customer portal): %s", exc)
+            raise HTTPException(status_code=400, detail=_PORTAL_NOT_CONFIGURED)
+        _reraise_stripe_error(exc)
+
+    audit = AuditLogRepository(db)
+    await audit.create(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        action=AuditAction.UPDATE,
+        resource_type="subscription",
+        resource_id=str(sub.id),
+        details={"action": "billing_portal", "pagamento_pendente": cobranca_cartao.em_tolerancia(sub)},
+    )
+    await db.commit()
+    return PortalResponse(portal_url=portal_url)
 
 
 @router.post("/change-plan")

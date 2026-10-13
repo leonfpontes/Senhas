@@ -13,6 +13,7 @@ from src.core.logging import log_security_event
 from src.api.dependencies import require_super_admin
 from src.models import User, PlanType
 from src.models.subscriptions import Subscription
+from src.services.cobranca_cartao import em_tolerancia, pendente_desde
 from src.services.tenant_service import TenantService
 from src.services import session_service
 from src.models.audit_logs import AuditAction
@@ -74,6 +75,13 @@ class TenantResponse(BaseModel):
     deleted_at: Optional[str] = None
     self_deactivated_at: Optional[str] = None
     area_medium_liberada: bool = False
+    # Tolerância do cartão (migração 094): cartão recusado, plano ainda ativo enquanto a Stripe
+    # tenta de novo — badge "Pagamento pendente" na lista e no Tenant 360.
+    payment_pending_since: Optional[str] = None
+
+
+def _payment_pending_since(sub) -> Optional[str]:
+    return pendente_desde(sub).isoformat() if sub is not None and em_tolerancia(sub) else None
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=dict)
@@ -171,6 +179,7 @@ async def get_tenant(
                 tenant.self_deactivated_at.isoformat() if tenant.self_deactivated_at else None
             ),
             area_medium_liberada=bool(tenant.area_medium_liberada),
+            payment_pending_since=_payment_pending_since(sub),
         )
     except HTTPException:
         raise
@@ -340,6 +349,7 @@ async def list_tenants(
                 plan=subs_map[t.id].plan.value.lower() if t.id in subs_map else None,
                 subscription_status=subs_map[t.id].status.value.lower() if t.id in subs_map else None,
                 is_bonus=subs_map[t.id].is_bonus if t.id in subs_map else None,
+                payment_pending_since=_payment_pending_since(subs_map.get(t.id)),
             )
             for t in tenants
         ]

@@ -93,6 +93,11 @@ class Subscription(TimestampedModel):
     pending_invoice_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pending_invoice_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     pending_invoice_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Tolerância do cartão (migração 094, services/cobranca_cartao.py): renovação recusada não
+    # suspende — o plano segue ACTIVE com o aviso "Pagamento pendente" até a Stripe cobrar de novo
+    # (limpa) ou desistir (`unpaid` → SUSPENDED). NULL = nada pendente.
+    pagamento_pendente_desde: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    pagamento_pendente_invoice_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Billing
     monthly_price: Mapped[float] = mapped_column(Float, nullable=False)
