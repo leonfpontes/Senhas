@@ -29,6 +29,7 @@ import {
   PlanCard,
   PlanComparison,
   TrialSummaryCard,
+  UpdateCardButton,
   UsageBar,
   invoiceMethodLabel,
   type PaymentMethodChoice,
@@ -79,6 +80,10 @@ interface BillingInfo {
   pix_active?: boolean;
   pix_grace_until?: string | null;
   pix_payments?: PixPayment[];
+  // Tolerância do cartão (migração 094): renovação recusada, plano ainda ativo enquanto a Stripe
+  // tenta de novo. Só vem preenchido nesse estado (suspenso aparece pelo `status`).
+  payment_pending_since?: string | null;
+  payment_grace_days?: number;
 }
 
 interface PixPayment {
@@ -231,6 +236,10 @@ function BillingContent() {
   const awaitingFirstPayment = !!billing?.awaiting_first_payment;
   const invoiceLabel = invoiceMethodLabel(billing?.invoice_payment_methods);
   const paysByInvoice = billing?.collection_method === 'send_invoice';
+  // Assinatura no cartão (Checkout): "Atualizar cartão" abre o Portal do Cliente da Stripe.
+  const paysByCard = !!billing?.stripe_subscription_id && !billing?.is_bonus && !paysByInvoice;
+  const paymentPendingSince = paysByCard ? billing?.payment_pending_since ?? null : null;
+  const suspendedByCard = paysByCard && billing?.status === 'suspended';
   // $-04 — PIX mês a mês: plano pago com um PIX por mês, sem assinatura na Stripe.
   const paysByPix = billing?.collection_method === 'pix_mensal' && !!billing?.pix_paid_until;
   const pixActive = !!billing?.pix_active;
@@ -486,6 +495,37 @@ function BillingContent() {
         </Alert>
       )}
 
+      {paymentPendingSince && (
+        <Alert variant="warning" role="status" data-tour="billing-pagamento-pendente">
+          <CreditCard aria-hidden />
+          <AlertDescription className="flex flex-col gap-3">
+            <span>
+              <strong>Pagamento pendente desde {formatShort(paymentPendingSince)}.</strong> O pagamento do plano no
+              cartão não passou — confira o saldo ou troque o cartão. O plano continua ativo enquanto tentamos cobrar
+              de novo nos próximos dias; se não der certo, ele fica suspenso até o pagamento.
+            </span>
+            <span>
+              <UpdateCardButton />
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {suspendedByCard && (
+        <Alert variant="destructive" role="alert" data-tour="billing-suspenso-cartao">
+          <CircleAlert aria-hidden />
+          <AlertDescription className="flex flex-col gap-3">
+            <span>
+              <strong>Plano suspenso por falta de pagamento.</strong> Não conseguimos cobrar no cartão, mesmo depois das
+              novas tentativas. Atualize o cartão para reativar — assim que o pagamento passar, tudo volta a funcionar.
+            </span>
+            <span>
+              <UpdateCardButton label="Atualizar cartão e reativar" />
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {(billing.pending_invoice_url || awaitingFirstPayment) && (
         <Alert variant="warning" role="status" data-tour="billing-aguardando-pagamento">
           <Receipt aria-hidden />
@@ -551,13 +591,21 @@ function BillingContent() {
                         {inLocalTrial && <Badge variant="outline">{trialEndShort ? `Teste grátis até ${trialEndShort}` : 'Teste grátis'}</Badge>}
                         {billing.is_bonus && <Badge variant="outline">Cortesia</Badge>}
                         {paysByPix && <Badge variant="outline">PIX mensal</Badge>}
+                        {paymentPendingSince && (
+                          <Badge variant="outline" className="border-warning/50 text-warning-strong">
+                            Pagamento pendente
+                          </Badge>
+                        )}
                         {billing.cancel_at_period_end && <Badge variant="destructive">Cancelamento agendado</Badge>}
                       </div>
                     </div>
                   </div>
 
                   {!billing.is_bonus && billing.stripe_subscription_id && (
-                    <div className="flex shrink-0 gap-2">
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {paysByCard && !paymentPendingSince && !suspendedByCard && (
+                        <UpdateCardButton variant="outline" />
+                      )}
                       {!billing.cancel_at_period_end ? (
                         <Button
                           size="sm"

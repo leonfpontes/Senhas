@@ -1509,6 +1509,7 @@ feature (exempt in `scripts/audit_permission_guards.py`).
 | POST | `/admin/billing/change-plan` `{ "plan" }` | Up/downgrade of the linked subscription (keeps its payment method; with boleto the proration invoice is e-mailed) |
 | POST | `/admin/billing/cancel` | Cancel at period end. With a **pending boleto order** (first invoice never paid): cancels it at Stripe right away and voids the open invoice |
 | POST | `/admin/billing/reactivate` | Undo a scheduled cancellation |
+| POST | `/admin/billing/portal` | **"Atualizar cartão"**: Stripe Billing Portal session for the tenant's customer (`return_url` = `/admin/billing`, `locale=pt-BR`) → `{ "portal_url" }`. Card subscriptions only (linked `stripe_subscription_id`, `collection_method` card/NULL): 400 for free/PIX/boleto/bonus; **400 "A troca de cartão pelo painel ainda não está disponível…"** when the Customer portal isn't saved in the Stripe Dashboard (owner step in docs/deployment.md); 403 operator. Audited (`billing_portal`) |
 
 `subscribe-invoice` response: `{ "status": "pending" | "trialing", "hosted_invoice_url", "due_at",
 "trial_ends_at", "detail" }`.
@@ -1547,6 +1548,31 @@ row in `assinatura_pix_pagamentos` (unique `checkout_session_id`).
 - MRR: a paid PIX month still running is **paying** (`billing_metrics`); an expired one (even in grace) is
   "sem cobrança".
 
+**Card dunning grace** (owner decision 2026-10-13, migration 094, `services/cobranca_cartao.py`). A declined
+card renewal no longer suspends on the first failure — Stripe retries and the retry usually succeeds.
+
+| When | Effect |
+|---|---|
+| `invoice.payment_failed`, card (`charge_automatically`/NULL), not trial | Plan **stays ACTIVE**. `subscriptions.pagamento_pendente_desde` (first failure, never moves on later retries) + `pagamento_pendente_invoice_id`; e-mail to every active admin **once per invoice** ("O pagamento do plano não passou — confira o saldo ou troque o cartão") |
+| `customer.subscription.updated` `past_due` (card, linked, not trial) | Same — warning only, no suspension |
+| `customer.subscription.updated` `unpaid` (card) | **SUSPENDED** + e-mail "plano suspenso por falta de pagamento — atualize o cartão para reativar" |
+| Daily round 09:00 BRT (`processar_tolerancia_cartao`, lock `0x6769726168756208`) | Pending for **≥ 10 days** and still ACTIVE: re-reads the subscription at Stripe; not `active`/`trialing` → SUSPENDED + e-mail; already `active` (webhook lost) → clears. Stripe down → tries again next day |
+| `customer.subscription.updated` `active` / card `invoice.paid` (only with a pending payment; re-checks `active` at Stripe) / new card checkout | Clears `pagamento_pendente_*`; ACTIVE (reactivates SUSPENDED) |
+| Trial conversion failure / boleto / PIX mensal | **Unchanged** (trial → FREE; boleto `past_due`/`invoice.overdue` suspend; PIX ignores card invoices) |
+
+E-mails: `claim_once(tenant, "cobranca_cartao_avisos", "falha"|"suspenso", scope=<invoice id>)` before
+sending — redelivery, `payment_failed` + `past_due` of the same invoice and repeated rounds never resend; a new
+invoice resets. `past_due`/`unpaid` of a subscription that is **not** the linked one (e.g. the old one after a
+failed trial conversion already went back to FREE) is ignored. Access: in grace the status is ACTIVE, so paid
+features keep working (no 402); suspended → 402 as always. MRR: in grace still **paying** (Stripe will charge
+again); suspended → "suspensa", out of MRR. Manual platform sync (`POST /platform/tenants/{id}/billing/sync-stripe`)
+follows the same rule (card `past_due` → ACTIVE + pending).
+Fields: `GET /admin/billing` → `payment_pending_since` (only while in grace) and `payment_grace_days` (10);
+`GET /admin/subscription` → `payment_pending_since` (panel banner "Pagamento pendente desde DD/MM — o plano continua
+ativo enquanto tentamos de novo. [Atualizar cartão]"; suspended card → "Plano suspenso por falta de pagamento"
+with the same button); `GET /platform/tenants`, `GET /platform/tenants/{id}` and `GET /platform/billing/subscriptions`
+→ `payment_pending_since` (badge "Pagamento pendente").
+
 New `GET /admin/billing` fields: `collection_method` (`charge_automatically` | `send_invoice` |
 `pix_mensal` | null = card/legacy), `awaiting_first_payment`, `pending_invoice_url`, `pending_invoice_due_at`,
 `invoice_payment_methods` (the screen writes "Boleto bancário", or "PIX ou boleto" only when `pix` is in
@@ -1562,11 +1588,12 @@ returns `collection_method` (badge "PIX mensal").
 |---|---|
 | `checkout.session.completed` | Links the subscription and grants the plan — **except** `payment_status=unpaid` (async method), which does nothing. PIX mês a mês session (`mode=payment` + `metadata.tipo=pix_mensal`) paid → grants 30 days (below) |
 | `checkout.session.async_payment_succeeded` / `_failed` | Same as completed / nothing (no plan was granted; an expired PIX QR simply grants nothing) |
-| `customer.subscription.created/updated` | Syncs plan, period, trial and status of the **linked** subscription. A boleto subscription not yet paid (or any `incomplete` one) that isn't the linked one is ignored |
+| `customer.subscription.created/updated` | Syncs plan, period, trial and status of the **linked** subscription. A boleto subscription not yet paid (or any `incomplete`/`past_due`/`unpaid` one) that isn't the linked one is ignored. Status: `active` → ACTIVE (clears a pending card payment); card `past_due` → stays ACTIVE with the pending warning; card `unpaid` → SUSPENDED + e-mail; boleto or trial `past_due`/`unpaid` → SUSPENDED (as before) |
 | `customer.subscription.deleted` | Linked one → back to FREE (as before). Pending boleto order → only clears the order (no downgrade, no e-mail) |
 | `invoice.finalized` (boleto) | Stores the open invoice link (`pending_invoice_*`) for "Pagar agora" |
-| `invoice.paid` (boleto) | Retrieves the subscription, checks `active`/`trialing`, links it and grants the plan; clears the pending invoice; reactivates `SUSPENDED`. Card invoices are ignored here |
-| `invoice.payment_failed` | Card: as before (trial → FREE, otherwise SUSPENDED). **Boleto: no effect** — an expired voucher is not a default; the invoice stays open until the due date |
+| `invoice.paid` (boleto) | Retrieves the subscription, checks `active`/`trialing`, links it and grants the plan; clears the pending invoice; reactivates `SUSPENDED` |
+| `invoice.paid` (card) | Only with a pending card payment on the linked subscription: retrieves it, and if `active`/`trialing` clears `pagamento_pendente_*` and reactivates `SUSPENDED`. Otherwise ignored (no Stripe call) |
+| `invoice.payment_failed` | Card: trial → FREE (as before); paid subscription → **stays ACTIVE** with the pending warning + e-mail once per invoice (grace above). Invoice of another subscription or of a PIX-mensal tenant → ignored. **Boleto: no effect** — an expired voucher is not a default; the invoice stays open until the due date |
 | PIX mês a mês paid (`completed` with `payment_status=paid` or `async_payment_succeeded`) | Tenant from `metadata.tenant_id`, accepted only if the session `customer` is the Stripe customer stored for that tenant; amount ≥ plan price in BRL. Inserts the payment (unique by session — redelivery or completed+async never grants twice) and sets plan/limits, ACTIVE, `collection_method=pix_mensal`, `current_period_end` = new paid-until. Paid while a card/boleto subscription exists, bonus, or amount too low → recorded with `applied=false`, plan untouched, error log for support to refund |
 | `invoice.overdue` (boleto) | Linked subscription → `SUSPENDED` (paying later reactivates via `invoice.paid`). Pending order → no effect |
 ### 21. Troca na escala e abono da justificativa (AM-27)

@@ -8,3 +8,5 @@ export { UsageBar } from './UsageBar';
 export type { UsageBarProps } from './UsageBar';
 export { PaymentMethodPicker, invoiceMethodLabel } from './PaymentMethodPicker';
 export type { PaymentMethodChoice, PaymentMethodPickerProps } from './PaymentMethodPicker';
+export { UpdateCardButton } from './UpdateCardButton';
+export type { UpdateCardButtonProps } from './UpdateCardButton';

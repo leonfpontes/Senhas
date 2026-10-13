@@ -164,4 +164,10 @@ describe('Platform — Tenant 360', () => {
     expect(await screen.findByText('Terreiro não encontrado')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Voltar para Terreiros/ })).toHaveAttribute('href', '/platform/tenants');
   });
+
+  it('cartão recusado (tolerância): badge "Pagamento pendente desde" no cabeçalho', async () => {
+    install(false, { ...TENANT, payment_pending_since: '2026-10-11T12:00:00Z' });
+    render(<TenantDetailPage />);
+    expect(await screen.findByText(/Pagamento pendente desde/)).toBeInTheDocument();
+  });
 });

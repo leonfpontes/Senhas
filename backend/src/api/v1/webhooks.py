@@ -12,7 +12,7 @@ from src.models import Subscription, PlanType, SubscriptionStatus, StripeEventPr
 from src.repositories.subscription_repo import SubscriptionRepository, PLAN_LIMITS, clear_invoice_billing
 from src.repositories.audit_log_repo import AuditLogRepository
 from src.models.audit_logs import AuditAction
-from src.services import stripe_service
+from src.services import cobranca_cartao, stripe_service
 from src.services.email.base import EmailMessage
 from src.services.email.resend_fallback import ResendEmailService
 from src.services.email.brevo_provider import BrevoEmailService
@@ -351,6 +351,8 @@ async def _handle_checkout_completed(session: dict, db: AsyncSession) -> None:
     sub.monthly_price = limits["monthly_price"]
     sub.status = SubscriptionStatus.ACTIVE
     sub.cancel_at_period_end = False
+    # Assinatura nova no cartão: nenhum pagamento pendente de uma assinatura anterior vale mais.
+    cobranca_cartao.limpar_pendente(sub)
     # $-04: vinha pagando por PIX mês a mês (o mês já tinha vencido — com o mês valendo o
     # /checkout recusa) — agora é cartão; o agendador do PIX não pode mais rebaixar.
     if sub.collection_method == stripe_service.COLLECTION_PIX_MENSAL:
@@ -388,15 +390,20 @@ async def _handle_subscription_updated(stripe_sub: dict, db: AsyncSession) -> No
         return
 
     stripe_sub_id = stripe_sub.get("id")
+    aviso = None  # e-mail da tolerância do cartão, disparado depois do commit
     linked = bool(stripe_sub_id) and stripe_sub_id == sub.stripe_subscription_id
     # $-04 — assinaturas que ainda NÃO estão ligadas ao terreiro não mexem em plano/status:
     # - por boleto (send_invoice): a Stripe já a cria `active` com a 1ª fatura em aberto;
     #   quem liga e libera o plano é o invoice.paid;
     # - incompleta (pagamento inicial pendente/expirado, ex. boleto no Checkout): quem liga
     #   é o checkout.session.completed/async_payment_succeeded.
+    # - inadimplente (`past_due`/`unpaid`) sem vínculo: ex. a conversão do trial falhou, o
+    #   invoice.payment_failed já devolveu o terreiro ao FREE e a Stripe segue tentando a
+    #   assinatura antiga — não pode religar o plano pago (com a tolerância do cartão, migração
+    #   094, `past_due` não suspende mais, então religaria o plano sem pagamento).
     if not linked and (
         _is_invoice_collection(stripe_sub)
-        or stripe_sub.get("status") in ("incomplete", "incomplete_expired")
+        or stripe_sub.get("status") in ("incomplete", "incomplete_expired", "past_due", "unpaid")
     ):
         logger.info(
             "customer.subscription.* da assinatura %s (%s, ainda não ligada ao tenant %s) — ignorado",
@@ -433,14 +440,42 @@ async def _handle_subscription_updated(stripe_sub: dict, db: AsyncSession) -> No
             from datetime import datetime, timezone
             sub.trial_ends_at = datetime.fromtimestamp(trial_end_ts, tz=timezone.utc)
     elif stripe_status == "active":
-        # Cobrança confirmada — trial (se havia) terminou com sucesso.
+        # Cobrança confirmada — trial (se havia) terminou com sucesso. Cartão que estava com
+        # pagamento pendente (tolerância, migração 094) pagou: limpa o aviso; reativa SUSPENDED.
         sub.status = SubscriptionStatus.ACTIVE
         sub.is_trial = False
         sub.trial_ends_at = None
+        cobranca_cartao.limpar_pendente(sub)
     elif stripe_status in ("past_due", "unpaid"):
-        sub.status = SubscriptionStatus.SUSPENDED
+        if (
+            _is_invoice_collection(stripe_sub)
+            or sub.collection_method == stripe_service.COLLECTION_INVOICE
+            or sub.is_trial is True
+        ):
+            # Como sempre: boleto ($-04 — a fatura venceu; o invoice.paid reativa) e conversão
+            # do trial que falhou (o invoice.payment_failed devolve ao FREE) suspendem.
+            sub.status = SubscriptionStatus.SUSPENDED
+        else:
+            # Cartão (tolerância, migração 094): `past_due` = a Stripe ainda vai tentar de novo —
+            # só aviso, o plano continua. `unpaid` = a Stripe desistiu — aí suspende.
+            ja_suspensa = sub.status == SubscriptionStatus.SUSPENDED
+            cobranca_cartao.marcar_pendente(sub, _stripe_id(stripe_sub.get("latest_invoice")))
+            if stripe_status == "unpaid":
+                if await cobranca_cartao.suspender(
+                    db, sub, "customer.subscription.unpaid", {"stripe_subscription": stripe_sub_id}
+                ):
+                    aviso = cobranca_cartao.AVISO_SUSPENSO
+            elif not ja_suspensa:
+                aviso = cobranca_cartao.AVISO_FALHA
+            if aviso:
+                aviso_args = (
+                    sub.tenant_id, aviso, cobranca_cartao.escopo_aviso(sub), sub.plan,
+                    cobranca_cartao.pendente_desde(sub),
+                )
 
     await db.commit()
+    if aviso:
+        cobranca_cartao.disparar_aviso(*aviso_args)
 
 
 async def _handle_subscription_deleted(stripe_sub: dict, db: AsyncSession) -> None:
@@ -485,9 +520,15 @@ async def _handle_subscription_deleted(stripe_sub: dict, db: AsyncSession) -> No
 
 
 async def _handle_payment_failed(invoice: dict, db: AsyncSession) -> None:
-    """invoice.payment_failed — suspend subscription, ou rebaixa pra FREE se a
-    cobrança que falhou era a primeira tentativa de um trial (sem tolerância:
-    decisão de produto foi rebaixar direto, não suspender)."""
+    """invoice.payment_failed.
+
+    - Trial (1ª cobrança da conversão) → rebaixa pra FREE, como sempre (decisão de produto: sem
+      tolerância na conversão do trial).
+    - Cartão, assinatura paga (tolerância, migração 094 — services/cobranca_cartao.py): o plano
+      CONTINUA ACTIVE. Grava `pagamento_pendente_desde`/fatura e avisa os admins uma vez por
+      fatura; a Stripe tenta de novo. Quem suspende é a assinatura `unpaid` (a Stripe desistiu)
+      ou a rede de segurança diária (10 dias sem pagar).
+    """
     # $-04: na fatura por e-mail (boleto) isto é o boleto que venceu ou um pagamento que não
     # concluiu — a fatura continua em aberto e o cliente gera outro boleto na mesma página
     # até o vencimento. Não é inadimplência: não suspende nem rebaixa o trial. O que suspende
@@ -504,13 +545,26 @@ async def _handle_payment_failed(invoice: dict, db: AsyncSession) -> None:
     if not sub:
         return
 
+    # PIX mês a mês: não há assinatura na Stripe — uma fatura recusada deste cliente não é do plano.
+    if sub.collection_method == stripe_service.COLLECTION_PIX_MENSAL and not sub.stripe_subscription_id:
+        logger.info("invoice.payment_failed %s de terreiro no PIX mensal (%s) — ignorado", invoice.get("id"), sub.tenant_id)
+        return
+    invoice_sub_id = _invoice_subscription_id(invoice)
+    if invoice_sub_id and sub.stripe_subscription_id and invoice_sub_id != sub.stripe_subscription_id:
+        logger.warning(
+            "invoice.payment_failed da assinatura %s, que não é a do tenant %s (%s) — ignorado",
+            invoice_sub_id, sub.tenant_id, sub.stripe_subscription_id,
+        )
+        return
+
     was_trial = sub.is_trial
     tenant_id = sub.tenant_id
+    ja_suspensa = sub.status == SubscriptionStatus.SUSPENDED
 
     if was_trial:
         await SubscriptionRepository(db).reset_to_free(tenant_id, status=SubscriptionStatus.ACTIVE)
     else:
-        sub.status = SubscriptionStatus.SUSPENDED
+        cobranca_cartao.marcar_pendente(sub, invoice.get("id"))
 
     audit = AuditLogRepository(db)
     await audit.create(
@@ -519,8 +573,21 @@ async def _handle_payment_failed(invoice: dict, db: AsyncSession) -> None:
         action=AuditAction.UPDATE,
         resource_type="stripe_subscription",
         resource_id=sub.id,
-        details={"event": "invoice.payment_failed", "was_trial": was_trial},
+        details={
+            "event": "invoice.payment_failed",
+            "was_trial": was_trial,
+            "invoice": invoice.get("id"),
+            "attempt_count": invoice.get("attempt_count"),
+            # Tolerância: o plano segue ativo enquanto a Stripe tenta de novo.
+            "tolerancia": not was_trial and not ja_suspensa,
+        },
     )
+    aviso_args = None
+    if not was_trial and not ja_suspensa:
+        aviso_args = (
+            tenant_id, cobranca_cartao.AVISO_FALHA, cobranca_cartao.escopo_aviso(sub), sub.plan,
+            cobranca_cartao.pendente_desde(sub),
+        )
     await db.commit()
     if was_trial:
         logger.warning("Payment failed at trial conversion — tenant %s reverted to FREE", tenant_id)
@@ -532,7 +599,12 @@ async def _handle_payment_failed(invoice: dict, db: AsyncSession) -> None:
                 )
             )
     else:
-        logger.warning("Payment failed — tenant %s suspended", tenant_id)
+        logger.warning(
+            "Cartão recusado — tenant %s com pagamento pendente desde %s (plano segue %s)",
+            tenant_id, cobranca_cartao.pendente_desde(sub), sub.status.value,
+        )
+        if aviso_args:
+            cobranca_cartao.disparar_aviso(*aviso_args)
 
 
 # ---------------------------------------------------------------------------
@@ -559,6 +631,7 @@ async def _handle_invoice_paid(invoice: dict, db: AsyncSession) -> None:
     Stripe recomenda, confirma o status da assinatura antes de liberar.
     """
     if not _is_invoice_collection(invoice):
+        await _handle_card_invoice_paid(invoice, db)
         return
     stripe_sub_id = _invoice_subscription_id(invoice)
     customer_id = invoice.get("customer")
@@ -645,6 +718,55 @@ async def _handle_invoice_paid(invoice: dict, db: AsyncSession) -> None:
         "Fatura por boleto paga — tenant %s no plano %s (primeira=%s, reativou=%s)",
         sub.tenant_id, limits["plan"].value, was_pending, was_suspended,
     )
+
+
+async def _handle_card_invoice_paid(invoice: dict, db: AsyncSession) -> None:
+    """invoice.paid do cartão — só importa com pagamento pendente (tolerância, migração 094).
+
+    Renovação normal: nada (plano/período seguem pelo customer.subscription.updated, como
+    sempre — nem consulta a Stripe). Com pendente: a nova tentativa (ou o cartão trocado no
+    portal) pagou → confere na Stripe que a assinatura voltou a `active`, limpa o aviso e
+    reativa se a falta de pagamento já tinha suspendido. Não depende da ordem dos eventos: o
+    `subscription.updated` (active) faz o mesmo.
+    """
+    stripe_sub_id = _invoice_subscription_id(invoice)
+    if not stripe_sub_id:
+        return  # fatura avulsa, não é do plano
+    sub = await _lock_subscription_by_customer(invoice.get("customer"), db)
+    if not sub or stripe_sub_id != sub.stripe_subscription_id:
+        return
+    if cobranca_cartao.pendente_desde(sub) is None:
+        return
+
+    import stripe
+
+    stripe_sub = (await asyncio.to_thread(stripe.Subscription.retrieve, stripe_sub_id)).to_dict()
+    stripe_status = stripe_sub.get("status")
+    if stripe_status not in ("active", "trialing"):
+        logger.info(
+            "invoice.paid %s com a assinatura %s ainda em %s — pendente mantido", invoice.get("id"), stripe_sub_id,
+            stripe_status,
+        )
+        return
+    was_suspended = sub.status == SubscriptionStatus.SUSPENDED
+    cobranca_cartao.limpar_pendente(sub)
+    sub.status = SubscriptionStatus.ACTIVE
+    await AuditLogRepository(db).create(
+        tenant_id=sub.tenant_id,
+        user_id=None,
+        action=AuditAction.UPDATE,
+        resource_type="stripe_subscription",
+        resource_id=sub.id,
+        details={
+            "event": "invoice.paid",
+            "cartao_pendente_pago": True,
+            "reactivated": was_suspended,
+            "invoice": invoice.get("id"),
+            "amount_paid": invoice.get("amount_paid"),
+        },
+    )
+    await db.commit()
+    logger.info("Cartão pago depois da recusa — tenant %s em dia (reativou=%s)", sub.tenant_id, was_suspended)
 
 
 async def _handle_invoice_finalized(invoice: dict, db: AsyncSession) -> None:

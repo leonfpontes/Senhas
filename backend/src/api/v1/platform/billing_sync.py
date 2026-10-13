@@ -16,6 +16,7 @@ from src.repositories.subscription_repo import SubscriptionRepository
 from src.repositories.audit_log_repo import AuditLogRepository
 from src.models.audit_logs import AuditAction
 from src.api.v1.webhooks import _get_price_plan_map
+from src.services import cobranca_cartao
 
 logger = logging.getLogger("senhas")
 
@@ -107,6 +108,13 @@ async def sync_stripe_subscription(
 
     if stripe_status == "active":
         sub.status = SubscriptionStatus.ACTIVE
+        cobranca_cartao.limpar_pendente(sub)
+    elif stripe_status == "past_due" and cobranca_cartao.cobra_no_cartao(stripe_sub.get("collection_method")):
+        # Tolerância do cartão (migração 094): a Stripe ainda vai tentar de novo — plano segue
+        # ativo com o aviso "Pagamento pendente" (desfaz uma suspensão pela regra antiga).
+        sub.status = SubscriptionStatus.ACTIVE
+        cobranca_cartao.marcar_pendente(sub, stripe_sub.get("latest_invoice") if isinstance(
+            stripe_sub.get("latest_invoice"), str) else None)
     elif stripe_status in ("past_due", "unpaid"):
         sub.status = SubscriptionStatus.SUSPENDED
     elif stripe_status == "canceled":

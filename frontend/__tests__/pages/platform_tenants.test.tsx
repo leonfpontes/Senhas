@@ -44,7 +44,10 @@ function tenant(i: number, over: Record<string, unknown> = {}) {
   };
 }
 
-const ALL = Array.from({ length: 25 }, (_, i) => tenant(i + 1));
+const ALL = Array.from({ length: 25 }, (_, i) =>
+  // Casa 2: cartão recusado, ainda em tolerância (migração 094).
+  tenant(i + 1, i + 1 === 2 ? { payment_pending_since: '2026-10-11T12:00:00Z' } : {}),
+);
 const SUBS = ALL.map((t) => {
   const price = t.plan === 'pro' ? 79 : 49;
   const category = t.id === 't3' ? 'em_teste' : t.id === 't4' ? 'bonificado' : t.id === 't5' ? 'excluido' : 'pagante';
@@ -172,5 +175,13 @@ describe('Platform — Terreiros', () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('Prov-Abc123xyz'));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Já anotei' }));
     await waitFor(() => expect(screen.queryByTestId('temp-password')).not.toBeInTheDocument());
+  });
+
+  it('terreiro com cartão recusado (tolerância) ganha o badge "Pagamento pendente"', async () => {
+    render(<TenantsPage />);
+    const row = (await screen.findByText('Casa 2')).closest('tr') as HTMLElement;
+    expect(within(row).getByText('Pagamento pendente')).toBeInTheDocument();
+    const outra = screen.getByText('Casa 1').closest('tr') as HTMLElement;
+    expect(within(outra).queryByText('Pagamento pendente')).not.toBeInTheDocument();
   });
 });

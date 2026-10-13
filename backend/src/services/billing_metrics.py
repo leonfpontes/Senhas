@@ -11,6 +11,10 @@ resto ganha uma categoria visível para o operador decidir o que fazer.
 PIX mês a mês ($-04): não há assinatura no Stripe — o mês PIX pago e ainda valendo
 (`collection_method="pix_mensal"` com `current_period_end` no futuro) conta como pagante; vencido
 (inclusive nos 3 dias de tolerância), cai em "sem cobrança" até pagar ou voltar ao gratuito.
+
+Cartão recusado em tolerância (migração 094, services/cobranca_cartao.py): o status segue ACTIVE com
+a assinatura no Stripe, então **continua pagante** — a Stripe ainda vai cobrar de novo e, na maioria
+das vezes, cobra. Quando a Stripe desiste (`unpaid`) ou passam 10 dias, vira SUSPENDED e sai do MRR.
 """
 
 from __future__ import annotations

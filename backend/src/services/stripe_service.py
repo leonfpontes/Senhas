@@ -241,6 +241,31 @@ async def reactivate_subscription(stripe_subscription_id: str) -> dict:
     return updated
 
 
+async def create_billing_portal_session(customer_id: str) -> str:
+    """Sessão do Portal do Cliente da Stripe ("Atualizar cartão", tolerância da migração 094).
+
+    No portal o cliente troca o cartão e paga a fatura em aberto; a Stripe usa o cartão novo
+    nas próximas tentativas. Volta para /admin/billing. Exige o portal salvo no Dashboard
+    (Settings → Billing → Customer portal) — sem isso a Stripe responde InvalidRequestError
+    ("No configuration provided…"), que o endpoint transforma em mensagem amigável.
+    """
+    session = await asyncio.to_thread(
+        stripe.billing_portal.Session.create,
+        customer=customer_id,
+        return_url=f"{settings.FRONTEND_URL}/admin/billing",
+        locale="pt-BR",
+    )
+    return session.url
+
+
+def is_portal_not_configured(exc: Exception) -> bool:
+    """A conta Stripe ainda não salvou a configuração do Portal do Cliente."""
+    if not isinstance(exc, stripe.error.InvalidRequestError):
+        return False
+    msg = str(exc).lower()
+    return "configuration" in msg and ("portal" in msg or "default" in msg)
+
+
 def construct_webhook_event(payload: bytes, sig_header: str) -> stripe.Event:
     """Construct and verify a Stripe webhook event."""
     return stripe.Webhook.construct_event(

@@ -355,11 +355,28 @@ O que ligar no Dashboard da Stripe (uma vez, pelo dono da conta):
 3. **E-mails** (Settings → Billing → Subscriptions and emails / Customer emails): ligar o envio das
    faturas finalizadas ao cliente, os lembretes de fatura vencida e, em Customer emails, as instruções de
    pagamento do Boleto. Em modo de teste a Stripe só manda e-mail para endereços do próprio time.
-4. **Pagamentos com falha / fatura vencida** (Settings → Billing → Subscriptions → Manage failed payments
-   e Manage invoices sent to customers): decidir o que acontece depois do vencimento (manter `past_due`
-   ou cancelar após N dias). O GiraHub suspende na fatura vencida e reativa quando ela é paga; se a
-   Stripe cancelar, a conta volta ao gratuito.
-5. **Webhook** (Developers → Webhooks → endpoint `https://<api>/api/v1/webhooks/stripe`): além dos eventos
+4. **Pagamentos com falha / fatura vencida** (Settings → Billing → Subscriptions and emails → **Manage
+   failed payments** e Manage invoices sent to customers). Desde 13/10/2026 (tolerância do cartão, migração
+   094) o GiraHub **não suspende na primeira recusa do cartão**: o plano segue ativo com o aviso "Pagamento
+   pendente" e quem decide o fim é a Stripe. Configurar (modo live), para assinaturas cobradas no cartão:
+   - **Retry schedule**: **Smart Retries** (recomendado) ou um agendamento personalizado de **3 tentativas
+     em até 7 dias** (ex.: 1, 3 e 7 dias depois da recusa);
+   - **"If all retries for a payment fail"**: **"Mark the subscription as unpaid"** — **não** "Cancel the
+     subscription". `unpaid` é o sinal para o GiraHub suspender (pagar depois reativa na hora); cancelar
+     devolveria o terreiro ao gratuito e obrigaria a assinar de novo;
+   - (opcional) em Customer emails, ligar o e-mail da Stripe de "pagamento recusado" com o link para
+     atualizar o cartão — o GiraHub já manda o próprio aviso aos administradores.
+   Rede de segurança: se a conta estiver configurada para nunca marcar `unpaid`, a rodada diária (09:00 BRT)
+   suspende quem está com o pagamento pendente há **10 dias** e continua sem pagamento na Stripe.
+   Boleto (fatura enviada) segue como antes: o GiraHub suspende na fatura vencida e reativa quando ela é paga;
+   se a Stripe cancelar, a conta volta ao gratuito.
+5. **Portal do Cliente** (Settings → Billing → **Customer portal**, modo live — e no modo de teste para
+   testar): ativar e **salvar** o portal com **"Customers can update payment methods"** ligado (e, de
+   preferência, **Invoice history**, para o cliente pagar a fatura em aberto ali mesmo). É o destino do botão
+   **"Atualizar cartão"** (`POST /api/v1/admin/billing/portal`). Sem o portal salvo, a Stripe recusa a sessão
+   e o painel mostra "A troca de cartão pelo painel ainda não está disponível. Fale com o suporte…" (log de
+   erro no Sentry). Não é preciso ligar cancelamento nem troca de plano no portal (o painel já faz isso).
+6. **Webhook** (Developers → Webhooks → endpoint `https://<api>/api/v1/webhooks/stripe`): além dos eventos
    que já estavam (`checkout.session.completed`, `customer.subscription.created/updated/deleted`,
    `invoice.payment_failed`), assinar `invoice.paid`, `invoice.finalized`, `invoice.overdue`,
    `checkout.session.async_payment_succeeded` e `checkout.session.async_payment_failed`.
@@ -371,7 +388,7 @@ mês"** (desde 09/10/2026): cada mês é um Checkout avulso de Pix (`POST /admin
 depois do vencimento sem pagamento. **Pix e Boleto foram ativados no Dashboard em 09/10/2026 e não há mais
 nada a configurar**: sem variável nova, sem Price na Stripe (o valor sai de `PLAN_LIMITS`) e o webhook já
 assina `checkout.session.completed`, `checkout.session.async_payment_succeeded` e
-`checkout.session.async_payment_failed` (passo 5). Se a Stripe um dia liberar Pix em faturas para a conta,
+`checkout.session.async_payment_failed` (passo 6). Se a Stripe um dia liberar Pix em faturas para a conta,
 basta `STRIPE_INVOICE_PAYMENT_METHODS=boleto,pix` (e ativar nos passos 1–2): o boleto passa a mostrar "PIX ou
 boleto" sozinho. PIX pago que não pôde virar mês de plano (ex.: o terreiro assinou com cartão entre abrir o PIX
 e pagar) fica registrado em `assinatura_pix_pagamentos` com `aplicado=false` e um log de erro (Sentry) — devolver

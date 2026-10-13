@@ -127,6 +127,14 @@ class TrialScheduler:
                 await processar_pix_mensal()
             except Exception:
                 logger.exception("Trial scheduler: unexpected error in processar_pix_mensal")
+            # Tolerância do cartão do plano (migração 094): rede de segurança — pendente há 10 dias
+            # e a Stripe ainda sem pagamento → suspende. Lock próprio (COBRANCA_CARTAO_LOCK_KEY).
+            try:
+                from src.services.cobranca_cartao import processar_tolerancia_cartao
+
+                await processar_tolerancia_cartao()
+            except Exception:
+                logger.exception("Trial scheduler: unexpected error in processar_tolerancia_cartao")
 
     async def _process_trials(self) -> None:
         """Expire past-due local trials and send reminder e-mails (um worker por rodada)."""

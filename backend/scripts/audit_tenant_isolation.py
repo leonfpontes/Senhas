@@ -235,6 +235,10 @@ EXEMPT_SCOPED_QUERIES: dict[tuple[str, str], str] = {
         "rodada diária do PIX mês a mês ($-04): varre as assinaturas pagas por PIX de todos os "
         "tenants para avisar/expirar; cada ação depois roda com o tenant da assinatura"
     ),
+    ("services/cobranca_cartao.py", "_processar_locked"): (
+        "rodada diária da tolerância do cartão (migração 094): varre as assinaturas com pagamento "
+        "pendente de todos os tenants; cada verificação depois roda com o tenant da assinatura"
+    ),
     ("services/presenca.py", "candidatos_ao_encerramento"): (
         "agendador da presença (AM-17): varre as chamadas abertas de todos os tenants; cada "
         "encerramento depois roda com o tenant da atividade (ctx_da_atividade/encerrar_chamada)"

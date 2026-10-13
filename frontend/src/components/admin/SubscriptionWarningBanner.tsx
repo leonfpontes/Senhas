@@ -3,8 +3,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { Clock, QrCode, TriangleAlert } from 'lucide-react';
+import { CircleAlert, Clock, CreditCard, QrCode, TriangleAlert } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { UpdateCardButton } from '@/components/billing/UpdateCardButton';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useProfile } from '@/hooks/useProfile';
 import { planLabel } from '@/constants/plans';
@@ -22,6 +23,11 @@ import { planLabel } from '@/constants/plans';
  * PIX mês a mês ($-04): faltando até 7 dias para o "pago até" (ou já vencido, na tolerância), avisa
  * "Seu plano está pago até DD/MM (PIX)" com o link para pagar o próximo mês. Depois da tolerância
  * o backend rebaixa para o gratuito e o aviso some (collection_method volta a null).
+ *
+ * Cartão recusado (tolerância, migração 094): com `payment_pending_since` o plano continua ativo
+ * enquanto a Stripe tenta cobrar de novo — "Pagamento pendente desde DD/MM" + "Atualizar cartão"
+ * (Portal do Cliente da Stripe). Se a Stripe desistir, o plano fica suspenso: "Plano suspenso por
+ * falta de pagamento" com o mesmo botão (pagar reativa na hora). Esses dois vêm antes dos outros.
  */
 const PIX_AVISO_DIAS = 7;
 
@@ -33,6 +39,50 @@ export function SubscriptionWarningBanner() {
   if (!subscription) return null;
   if (profile?.role !== 'admin' && profile?.role !== 'super_admin') return null;
   if (router.pathname.startsWith('/admin/billing')) return null; // já aparece lá
+
+  const paysByCard =
+    !!subscription.has_stripe_subscription &&
+    !subscription.is_bonus &&
+    subscription.collection_method !== 'send_invoice' &&
+    subscription.collection_method !== 'pix_mensal';
+
+  if (paysByCard && subscription.payment_pending_since && subscription.status === 'active') {
+    const desde = new Date(subscription.payment_pending_since).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+    });
+    return (
+      <div className="px-4 pt-4 sm:px-6">
+        <Alert variant="warning" role="status" data-testid="aviso-pagamento-pendente">
+          <CreditCard aria-hidden />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>
+              <strong>Pagamento pendente</strong> desde <strong>{desde}</strong> — o plano continua ativo enquanto
+              tentamos de novo.
+            </span>
+            <UpdateCardButton />
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (paysByCard && subscription.status === 'suspended') {
+    return (
+      <div className="px-4 pt-4 sm:px-6">
+        <Alert variant="destructive" role="alert" data-testid="aviso-plano-suspenso">
+          <CircleAlert aria-hidden />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>
+              <strong>Plano suspenso por falta de pagamento.</strong> Atualize o cartão para reativar — assim que o
+              pagamento passar, tudo volta a funcionar.
+            </span>
+            <UpdateCardButton label="Atualizar cartão e reativar" />
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   if (subscription.cancel_at_period_end) {
     const until = subscription.current_period_end

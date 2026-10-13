@@ -160,7 +160,13 @@ Barra fixa inferior (flutuante) + `AlertDialog` + toast. Mesma API e mesmas cham
 (`pb-20`) quando houver seleção, para a barra não cobrir a última linha.
 
 ### `SubscriptionWarningBanner` — `src/components/admin/SubscriptionWarningBanner.tsx`
-`Alert` `warning`/`info` com link para `/admin/billing`. Mesma API (sem props).
+`Alert` `warning`/`info` com link para `/admin/billing`. Mesma API (sem props). Cartão recusado
+(tolerância, migração 094): "Pagamento pendente desde DD/MM" e, suspenso, "Plano suspenso por falta de
+pagamento" — os dois com o `UpdateCardButton`.
+
+### `UpdateCardButton` — `src/components/billing/UpdateCardButton.tsx`
+"Atualizar cartão": `POST /api/v1/admin/billing/portal` e redireciona para o Portal do Cliente da Stripe
+(erro vira toast com a mensagem do backend). Só em tela/aviso de admin.
 
 ### Toasts — `src/contexts/SnackbarContext.tsx` + `src/components/ui/sonner.tsx`
 `useSnackbar()` continua: `showSuccess/showError/showInfo/showWarning` e `showSnackbar(msg, severity)`,

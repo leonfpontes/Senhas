@@ -73,6 +73,8 @@ interface Tenant {
   plan: string | null;
   subscription_status: string | null;
   is_bonus: boolean | null;
+  /** Cartão recusado, plano ainda ativo enquanto a Stripe tenta de novo (tolerância, migração 094). */
+  payment_pending_since?: string | null;
 }
 
 interface SubscriptionItem {
@@ -99,6 +101,8 @@ interface SubscriptionItem {
   stripe_customer_id: string | null;
   /** $-04: "charge_automatically" | "send_invoice" | "pix_mensal" | null. */
   collection_method?: string | null;
+  /** Tolerância do cartão (migração 094): recusado, ainda pagante enquanto a Stripe tenta. */
+  payment_pending_since?: string | null;
 }
 
 interface BillingStats {
@@ -449,6 +453,7 @@ const TenantsPage: React.FC = () => {
             {row.original.subscription_status && row.original.subscription_status !== 'active' && (
               <SubscriptionStatusBadge status={row.original.subscription_status} />
             )}
+            {row.original.payment_pending_since && <ToneBadge tone="warning">Pagamento pendente</ToneBadge>}
           </span>
         ),
       },
@@ -597,6 +602,7 @@ const TenantsPage: React.FC = () => {
             {fmtDate(row.original.current_period_end)}
             {row.original.cancel_at_period_end && <ToneBadge tone="destructive">Cancela</ToneBadge>}
             {row.original.collection_method === 'pix_mensal' && <ToneBadge tone="info">PIX mensal</ToneBadge>}
+            {row.original.payment_pending_since && <ToneBadge tone="warning">Pagamento pendente</ToneBadge>}
           </span>
         ),
       },
