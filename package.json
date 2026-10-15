@@ -25,6 +25,8 @@
     "pretty-format": "^29.7.0",
     "@testing-library/dom": {
       "pretty-format": "^29.7.0"
-    }
+    },
+    "postcss": "^8.5.30",
+    "dompurify": "^3.4.17"
   }
 }
