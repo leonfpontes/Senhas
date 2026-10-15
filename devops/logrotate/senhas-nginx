@@ -1,0 +1,22 @@
+# Rotação dos logs do container senhas-nginx (bind mount ./nginx/logs → /var/log/nginx).
+# Instalado em /etc/logrotate.d/senhas-nginx pelo deploy (.github/workflows/deploy.yml, passo 5c)
+# e pelo devops/setup_vps.sh. Sem isto os dois arquivos cresciam sem limite (>500 MB em out/2026).
+#
+# O formato do log não muda: o arquivo é renomeado e o nginx reabre os logs com USR1
+# (sem copytruncate, então nenhuma linha se perde entre a cópia e o truncamento).
+/opt/senhas/nginx/logs/*.log {
+    daily
+    maxsize 100M
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    dateext
+    dateformat -%Y%m%d-%s
+    create 0644 root root
+    sharedscripts
+    postrotate
+        docker kill --signal=USR1 senhas-nginx >/dev/null 2>&1 || true
+    endscript
+}

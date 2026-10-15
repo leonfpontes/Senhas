@@ -87,6 +87,8 @@ fi
 echo "[6/7] Creating directories..."
 mkdir -p "$APP_DIR/certs"
 mkdir -p "$APP_DIR/nginx/logs"
+# Rotação dos logs do nginx (o deploy também reinstala a cada push no master)
+install -m 0644 "$APP_DIR/devops/logrotate/senhas-nginx" /etc/logrotate.d/senhas-nginx
 
 # --------------------------------------------------
 # 7. Summary
