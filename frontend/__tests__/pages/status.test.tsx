@@ -10,17 +10,12 @@ import StatusPage from '@/pages/status';
 
 const { apiClient } = jest.requireMock('@/services/api_client');
 
-const history = [
-  { date: '2026-10-04', status: 'operational' },
-  { date: '2026-10-05', status: 'degraded' },
-];
-
 const data = {
   overall: 'operational',
   generated_at: '2026-10-06T10:00:00Z',
   components: [
-    { name: 'Emissão de Senhas', description: 'x', status: 'operational', latency_ms: 42, uptime_30d: 99.9, uptime_90d: 99.8, history },
-    { name: 'Banco de Dados', description: 'y', status: 'degraded', latency_ms: null, uptime_30d: 98.1, uptime_90d: 99, history },
+    { name: 'Emissão de Senhas', description: 'x', status: 'operational', latency_ms: 42 },
+    { name: 'Banco de Dados', description: 'y', status: 'degraded', latency_ms: null },
   ],
 };
 
@@ -36,7 +31,9 @@ describe('Página de status', () => {
     expect(screen.getByRole('heading', { name: /Emissão de senhas: funcionando/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Armazenamento de dados: com lentidão/ })).toBeInTheDocument();
     expect(screen.getByText('42 ms')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /05 de out: com lentidão/i }).length).toBeGreaterThan(0);
+    // Sem histórico de atividade nem "% no ar" (pentest L9).
+    expect(screen.queryByText(/90 dias/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no ar \(30 dias\)/)).not.toBeInTheDocument();
     expect(apiClient.get).toHaveBeenCalledWith('/api/v1/platform/status');
   });
 
