@@ -9,6 +9,23 @@
 import { z } from 'zod';
 
 export const PASSWORD_MIN_LENGTH = 12;
+/** Limite do bcrypt no backend, em bytes UTF-8 (acima disso o servidor recusa — pentest L3). */
+export const PASSWORD_MAX_BYTES = 72;
+export const PASSWORD_MAX_MESSAGE = `Use no máximo ${PASSWORD_MAX_BYTES} caracteres (letras com acento e emojis contam mais).`;
+
+/** Tamanho em bytes UTF-8 (sem TextEncoder, que falta no jsdom dos testes). */
+function utf8Bytes(text: string): number {
+  let n = 0;
+  for (const ch of text) {
+    const c = ch.codePointAt(0) ?? 0;
+    n += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
+  }
+  return n;
+}
+
+export function passwordTooLong(password: string): boolean {
+  return utf8Bytes(password) > PASSWORD_MAX_BYTES;
+}
 
 // Mesmo conjunto de símbolos aceito pelo backend.
 const SYMBOL_RE = /[!@#$%^&*()\-_=+[\]{};:'",.<>?/\\|]/;
@@ -36,13 +53,13 @@ export function unmetPasswordRules(password: string): PasswordRule[] {
 }
 
 export function isPasswordValid(password: string): boolean {
-  return unmetPasswordRules(password).length === 0;
+  return unmetPasswordRules(password).length === 0 && !passwordTooLong(password);
 }
 
 /** Mensagem curta para `error` de campo; `null` quando a senha é válida. */
 export function passwordError(password: string): string | null {
   const unmet = unmetPasswordRules(password);
-  if (unmet.length === 0) return null;
+  if (unmet.length === 0) return passwordTooLong(password) ? PASSWORD_MAX_MESSAGE : null;
   if (unmet.length === PASSWORD_RULES.length) return PASSWORD_RULE_TEXT;
   return `Falta: ${unmet.map((r) => r.label.toLowerCase()).join(', ')}.`;
 }

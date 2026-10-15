@@ -6,6 +6,13 @@ from ..core.errors import ValidationError
 
 
 BCRYPT_ROUNDS = 12
+# O bcrypt só considera 72 bytes (o 5.x levanta ValueError acima disso — virava HTTP 500,
+# pentest L3). Senha nova acima do limite é recusada com 422; na verificação, compara os
+# 72 primeiros bytes, como o bcrypt antigo fazia em silêncio (contas antigas seguem entrando).
+BCRYPT_MAX_BYTES = 72
+
+
+_MAX_BYTES_MSG = f"Máximo {BCRYPT_MAX_BYTES} caracteres (letras com acento e emojis contam mais)"
 
 
 def hash_password(password: str) -> str:
@@ -18,6 +25,11 @@ def hash_password(password: str) -> str:
         Hashed password
     """
     password_bytes = password.encode("utf-8")
+    if len(password_bytes) > BCRYPT_MAX_BYTES:
+        raise ValidationError(
+            "Senha não atende à política de segurança",
+            details={"errors": [_MAX_BYTES_MSG]},
+        )
     salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
     return bcrypt.hashpw(password_bytes, salt).decode("utf-8")
 
@@ -33,7 +45,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         True if password matches, False otherwise
     """
     return bcrypt.checkpw(
-        plain_password.encode("utf-8"),
+        plain_password.encode("utf-8")[:BCRYPT_MAX_BYTES],
         hashed_password.encode("utf-8"),
     )
 
@@ -59,6 +71,10 @@ def validate_password_policy(password: str) -> None:
     # Minimum length
     if len(password) < settings.PASSWORD_MIN_LENGTH:
         errors.append(f"Mínimo {settings.PASSWORD_MIN_LENGTH} caracteres")
+
+    # Limite do bcrypt (bytes, não caracteres: acento/emoji ocupam mais de 1)
+    if len(password.encode("utf-8")) > BCRYPT_MAX_BYTES:
+        errors.append(_MAX_BYTES_MSG)
     
     # Uppercase
     if settings.PASSWORD_REQUIRE_UPPERCASE and not re.search(r"[A-Z]", password):
