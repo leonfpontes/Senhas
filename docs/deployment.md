@@ -121,10 +121,12 @@ POSTGRES_PASSWORD=<senha-forte-gerada>
 DATABASE_URL=postgresql+asyncpg://senhas_user:<senha>@postgres:5432/senhas_prod
 
 # JWT (gerar com: openssl rand -hex 32)
-JWT_SECRET_KEY=<chave-secreta-32-chars-minimo>
-JWT_ALGORITHM=HS256
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
-JWT_REFRESH_TOKEN_EXPIRE_DAYS=30
+# Nomes lidos por backend/src/core/config.py (os antigos JWT_* não eram lidos).
+SECRET_KEY=<chave-secreta-32-chars-minimo>
+# Só HS256/HS384/HS512 — outro valor impede o backend de subir.
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_HOURS=24
+REFRESH_TOKEN_EXPIRE_DAYS=30
 
 # Email
 BREVO_API_KEY=xkeysib-...
