@@ -213,6 +213,8 @@ async def deactivate_account(
         tenant.soft_delete()
         tenant.is_active = False
         tenant.self_deactivated_at = datetime.now(timezone.utc)
+        # Só quem desativou reativa (pentest H1) — ver reactivate_account().
+        tenant.self_deactivated_by = current_user.id
         current_user.is_active = False
         current_user.sessions_revoked_at = datetime.now(timezone.utc)
 
@@ -263,7 +265,12 @@ async def reactivate_account(
     - e-mail desconhecido ou senha errada → 401 "Credenciais inválidas"
       (mesma mensagem e mesmo custo de bcrypt do login);
     - credenciais certas mas conta não desativada → 409 NOT_DEACTIVATED
-      (o login, com essas credenciais, simplesmente entraria).
+      (o login, com essas credenciais, simplesmente entraria);
+    - credenciais certas de quem não desativou o terreiro → 403
+      REACTIVATION_NOT_ALLOWED (pentest H1: a desativação só exige ser o único
+      usuário *ativo*, então colaboradores suspensos continuam no terreiro e
+      não podem religá-lo). Terreiros desativados antes da migração 095
+      (self_deactivated_by NULL) caem aqui também: reativação só pelo suporte.
 
     On success: subscription resets to FREE (never auto-restores a
     previous paid plan), tenant + user are reactivated AND the session is
@@ -293,9 +300,19 @@ async def reactivate_account(
             error_code="NOT_DEACTIVATED",
         )
 
+    if tenant.self_deactivated_by is None or user.id != tenant.self_deactivated_by:
+        log_security_event("reactivation", success=False, user_id=user.id, tenant_id=tenant.id,
+                           details={"reason": "not_deactivator" if tenant.self_deactivated_by else "legacy_no_deactivator"})
+        raise APIException(
+            "Só quem desativou o terreiro pode reativá-lo. Fale com o suporte do GiraHub.",
+            status_code=status.HTTP_403_FORBIDDEN,
+            error_code="REACTIVATION_NOT_ALLOWED",
+        )
+
     tenant.is_active = True
     tenant.deleted_at = None
     tenant.self_deactivated_at = None
+    tenant.self_deactivated_by = None
     user.is_active = True
 
     await SubscriptionRepository(db).reset_to_free(tenant.id, status=SubscriptionStatus.ACTIVE)

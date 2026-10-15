@@ -1,5 +1,5 @@
 """Tenant model - organization/terreiro (T011)."""
-from sqlalchemy import Column, String, Boolean, DateTime, Index, UniqueConstraint, text
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Index, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
@@ -33,6 +33,15 @@ class Tenant(SoftDeleteModel):
     # reactivate_account() key off this field exclusively to decide whether a
     # tenant is eligible for self-service reactivation.
     self_deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Quem desativou (pentest H1): só esse usuário pode reativar pelo
+    # /reactivate-account. NULL com self_deactivated_at preenchido = desativação
+    # anterior à coluna (migração 095) — reativação só pelo suporte.
+    # use_alter: FK circular com users.tenant_id.
+    self_deactivated_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL", use_alter=True, name="fk_tenants_self_deactivated_by_users"),
+        nullable=True,
+    )
     # CPF/CNPJ do responsável/terreiro (somente dígitos). Coletado no cadastro
     # a partir da introdução do trial gratuito de 1 mês — usado para checagem
     # de elegibilidade contra TrialGrant. Nullable pra não quebrar tenants
@@ -44,7 +53,7 @@ class Tenant(SoftDeleteModel):
     area_medium_liberada: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
 
     # Relationships
-    users = relationship("User", back_populates="tenant", cascade="all, delete-orphan")
+    users = relationship("User", back_populates="tenant", cascade="all, delete-orphan", foreign_keys="User.tenant_id")
     giras = relationship("Gira", back_populates="tenant", cascade="all, delete-orphan")
     consulentes = relationship("Consulente", back_populates="tenant", cascade="all, delete-orphan")
     tickets = relationship("Ticket", back_populates="tenant", cascade="all, delete-orphan")

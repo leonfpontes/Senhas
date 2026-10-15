@@ -88,7 +88,7 @@ class User(SoftDeleteModel):
     email_pendente_expira_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    tenant = relationship("Tenant", back_populates="users")
+    tenant = relationship("Tenant", back_populates="users", foreign_keys=[tenant_id])
     audit_logs = relationship("AuditLog", back_populates="user", foreign_keys="AuditLog.user_id")
     
     def __repr__(self) -> str:

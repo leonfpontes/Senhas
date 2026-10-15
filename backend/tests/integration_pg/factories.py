@@ -105,3 +105,18 @@ async def grant(db, actor: Actor, tenant: Tenant, feature: PermissionFeature, *a
     db.add(UserGroupMembership(group_id=group.id, user_id=actor.user.id, tenant_id=tenant.id))
     await db.commit()
     return group
+
+
+async def deactivate_tenant(db, tenant: Tenant, by: Optional[User]) -> None:
+    """Estado que o POST /auth/deactivate-account deixa: terreiro marcado e o autor em
+    `self_deactivated_by` — só ele reativa (pentest H1). `by=None` = desativação
+    anterior à migração 095 (sem autor)."""
+    from sqlalchemy import update
+
+    agora = datetime.now(timezone.utc)
+    await db.execute(
+        update(Tenant)
+        .where(Tenant.id == tenant.id)
+        .values(is_active=False, deleted_at=agora, self_deactivated_at=agora, self_deactivated_by=by.id if by else None)
+    )
+    await db.commit()
