@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { MarketingShell } from '@/components/landing/MarketingShell';
 import { supportWhatsappLink } from '@/lib/whatsapp';
 import { LEGAL_ENTITY } from '@/constants/legal';
+import { jsonLd } from '@/lib/jsonLd';
 
 const SITE_URL = 'https://girahub.com.br';
 
@@ -210,7 +211,7 @@ export function LegalPageLayout({
   const palavras = sections.reduce((n, s) => n + s.body.split(/\s+/).length, 0);
   const minutos = Math.max(1, Math.round(palavras / 200));
 
-  const jsonLd = JSON.stringify({
+  const dadosEstruturados = jsonLd({
     '@context': 'https://schema.org',
     '@graph': [
       {
@@ -256,7 +257,7 @@ export function LegalPageLayout({
         <meta property="og:image" content={`${SITE_URL}/landing/fotos/gira-velas.webp`} />
         <meta property="article:modified_time" content={updatedAtIso} />
         <meta name="twitter:card" content="summary_large_image" />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: dadosEstruturados }} />
       </Head>
 
       <MarketingShell>

@@ -419,7 +419,6 @@ REDIS_PASSWORD=$(openssl rand -base64 32)
 
 # API
 SECRET_KEY=$(openssl rand -base64 32)
-JWT_SECRET=$(openssl rand -base64 32)
 
 # Email
 BREVO_API_KEY=your_brevo_api_key

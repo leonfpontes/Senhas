@@ -28,13 +28,14 @@ import { ParceirosChamada } from '@/components/landing/ParceirosChamada';
 import { SectionHeading } from '@/components/landing/SectionHeading';
 import { faqJsonLd } from '@/constants/landingFaq';
 import { PLAN_LIST } from '@/constants/plans';
+import { jsonLd } from '@/lib/jsonLd';
 
 const TITLE = 'GiraHub — Senha pelo WhatsApp para a gira do seu terreiro';
 const DESCRIPTION =
   'Sistema para terreiros de Umbanda e Candomblé: o consulente pega a senha da gira pelo WhatsApp e a casa chama pela Porta, até na TV. Grátis para começar.';
 
 function softwareJsonLd(): string {
-  return JSON.stringify({
+  return jsonLd({
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
     name: 'GiraHub',

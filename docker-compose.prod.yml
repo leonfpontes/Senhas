@@ -102,8 +102,6 @@ services:
       
       # Security
       SECRET_KEY: ${SECRET_KEY}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION: 86400
       
       # CORS
       CORS_ORIGINS: ${CORS_ORIGINS:-https://girahub.com.br}
