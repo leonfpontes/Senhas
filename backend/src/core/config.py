@@ -1,7 +1,7 @@
 """Application Configuration"""
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import model_validator
-from typing import Optional
+from typing import Literal, Optional
 from datetime import timedelta
 import logging
 
@@ -29,7 +29,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str = _INSECURE_SECRET_KEY_DEFAULT
     ACCESS_TOKEN_EXPIRE_HOURS: int = 24
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
-    ALGORITHM: str = "HS256"
+    # Só HMAC (pentest L6): os tokens são assinados com SECRET_KEY. Qualquer outro
+    # valor no ambiente ("none", RS256 com chave simétrica…) derruba a subida.
+    ALGORITHM: Literal["HS256", "HS384", "HS512"] = "HS256"
     # Absolute session lifetime cap: even with continuous silent refresh, a
     # session forces a fresh login this many days after the *original* login
     # (tracked via UserSession.orig_iat / expires_at), independent of activity.
