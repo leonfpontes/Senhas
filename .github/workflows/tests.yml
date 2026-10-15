@@ -53,24 +53,35 @@ jobs:
     name: Backend Integration (Postgres)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    services:
-      postgres:
-        # Espelho oficial no ECR Public (mesma imagem do Docker Hub, sem o limite de pulls anônimos que
-        # derrubou o CI em 09/10: "toomanyrequests").
-        image: public.ecr.aws/docker/library/postgres:15-alpine
-        env:
-          POSTGRES_USER: senhas_test
-          POSTGRES_PASSWORD: senhas_test
-          POSTGRES_DB: senhas_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U senhas_test -d senhas_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+    # Postgres sobe num passo, não em `services:` — o service puxa de um registry só e, se ele
+    # recusar, o job (e o deploy, que chama este workflow) cai. Pull anônimo de runner do GitHub é
+    # limitado nos espelhos: Docker Hub em 09/10 ("toomanyrequests") e ECR Public em 15/10
+    # ("toomanyrequests: Data limit exceeded", 3 vezes). Tenta os três, na ordem, mesma imagem.
     steps:
       - uses: actions/checkout@v4.2.2
+
+      - name: Subir Postgres 15 (registry com fallback)
+        run: |
+          IMAGE=""
+          for img in mirror.gcr.io/library/postgres:15-alpine \
+                     public.ecr.aws/docker/library/postgres:15-alpine \
+                     docker.io/library/postgres:15-alpine; do
+            for tentativa in 1 2; do
+              if docker pull -q "$img"; then IMAGE="$img"; break 2; fi
+              sleep 5
+            done
+          done
+          [ -n "$IMAGE" ] || { echo "::error::Nenhum registry entregou postgres:15-alpine"; exit 1; }
+          echo "Imagem: $IMAGE"
+          docker run -d --name postgres -p 5432:5432 \
+            -e POSTGRES_USER=senhas_test -e POSTGRES_PASSWORD=senhas_test -e POSTGRES_DB=senhas_test \
+            "$IMAGE"
+          # Via TCP: durante o initdb o servidor temporário só escuta no socket local.
+          for i in $(seq 1 30); do
+            docker exec postgres pg_isready -h 127.0.0.1 -U senhas_test -d senhas_test && exit 0
+            sleep 2
+          done
+          docker logs postgres; exit 1
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5.3.0
