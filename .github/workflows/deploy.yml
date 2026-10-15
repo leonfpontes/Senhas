@@ -147,6 +147,12 @@ jobs:
             sleep 2
             docker compose -f docker-compose.prod.yml exec -T nginx nginx -t
 
+            echo "==> [5c] Rotação dos logs do nginx (logrotate do host)"
+            # ./nginx/logs é bind mount: sem isto access.log/error.log cresciam sem limite.
+            install -m 0644 devops/logrotate/senhas-nginx /etc/logrotate.d/senhas-nginx
+            logrotate -d /etc/logrotate.d/senhas-nginx >/dev/null 2>&1 \
+              || echo "AVISO: logrotate -d recusou /etc/logrotate.d/senhas-nginx — conferir na VPS"
+
             echo "==> [6/6] Health check pós-deploy"
             sleep 5
             for i in 1 2 3 4 5; do

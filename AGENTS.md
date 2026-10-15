@@ -1905,6 +1905,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
 - VPS: 76.13.231.19 (Hostinger), projeto em /opt/senhas.
 - Dominio: girahub.com.br com SSL (Let's Encrypt).
 - nginx: proxy reverso, terminacao SSL. (A location `/ws/` e legado sem efeito: nao existe WebSocket no backend — a Porta usa polling, ver §11.4.)
+- Logs do nginx: `./nginx/logs` (bind mount em `/var/log/nginx`) rotacionados pelo logrotate do host — `devops/logrotate/senhas-nginx` (diário ou 100 MB, 14 cópias gzip, reabre com `docker kill --signal=USR1 senhas-nginx`), instalado em `/etc/logrotate.d/` pelo passo 5c do deploy. Até 2026-10-15 não havia rotação (access+error >500 MB); ~88% do error.log era o aviso de `listen ... http2` obsoleto repetido a cada `nginx -t` do healthcheck (30 s) — por isso `http2 on;` e `access_log off` no `/nginx-health`. Aviso novo no `nginx -t` vira ~2.900 linhas/dia: corrigir, não ignorar.
 
 **Deploy automatizado via GitHub Actions (`.github/workflows/deploy.yml`):**
 1. Job `security-audit` (paralelo, nao-bloqueante): `pip-audit` + `npm audit --audit-level=high`.
