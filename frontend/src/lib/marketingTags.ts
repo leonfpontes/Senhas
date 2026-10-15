@@ -60,6 +60,18 @@ function injetarScript(src: string, id: string): void {
   document.head.appendChild(s);
 }
 
+/**
+ * Rotas com segredo na URL (token de redefinição, convite, confirmação, descadastro, impersonação).
+ * Nelas as tags NÃO carregam: o gtag/Pixel mandariam a URL inteira (page_location, Referer) para
+ * terceiros — pentest M5. Elas ligam na primeira navegação para uma rota comum.
+ */
+const ROTAS_COM_SEGREDO = ['/reset-password', '/admin/impersonate', '/convite/', '/confirmar-email/', '/descadastro/'];
+
+export function rotaComSegredo(caminho: string): boolean {
+  const semQuery = caminho.split(/[?#]/)[0];
+  return ROTAS_COM_SEGREDO.some((r) => (r.endsWith('/') ? semQuery.startsWith(r) : semQuery === r || semQuery.startsWith(`${r}/`)));
+}
+
 let googleIniciado = false;
 let metaIniciado = false;
 
@@ -137,7 +149,8 @@ export function revogarMeta(): void {
 }
 
 /** Navegação interna (SPA): o GA4 conta sozinho (medição otimizada); o Pixel precisa do aviso. */
-export function registrarPaginaVista(): void {
+export function registrarPaginaVista(url?: string): void {
+  if (url && rotaComSegredo(url)) return;
   if (metaIniciado) janela()?.fbq?.('track', 'PageView');
 }
 

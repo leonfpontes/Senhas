@@ -127,7 +127,7 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  access_token: string;
+  // Sem access_token: a sessão vai só nos cookies HttpOnly (pentest M4).
   token_type: string;
   user: User;
 }

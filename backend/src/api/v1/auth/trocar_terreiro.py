@@ -236,7 +236,7 @@ async def trocar_terreiro(
 
     if sessao.session_id is not None:
         await session_service.end_session(db, current_user.id, sessao.session_id)
-    access_token = await issue_session(
+    await issue_session(
         db, destino, request, response, persistent=sessao.persistent, verified_accounts=herdado
     )
 
@@ -249,7 +249,6 @@ async def trocar_terreiro(
         },
     )
     return LoginResponse(
-        access_token=access_token,
         user=login_user_payload(destino),
         areas=await compute_areas(db, destino),
     )

@@ -2018,6 +2018,10 @@ NUNCA usar `up --build` direto — causa 503 prolongado durante o build.
   (tudo `denied` por padrão, `consent update` na escolha, `ads_data_redaction`, `url_passthrough`); Meta Pixel só
   carrega com marketing aceito. IDs são **ARG de build**: `NEXT_PUBLIC_GA4_ID` (vazio = `G-BF9G0RFCDB`),
   `NEXT_PUBLIC_GOOGLE_ADS_ID`, `NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL`, `NEXT_PUBLIC_META_PIXEL_ID` (vazios = desligados).
+  **Rotas com segredo na URL** (`rotaComSegredo`: `/reset-password`, `/admin/impersonate`, `/convite/*`,
+  `/confirmar-email/*`, `/descadastro/*`) não ligam gtag/Pixel/Clarity — ligam na primeira navegação para uma rota
+  comum (pentest M5). Rota nova com token na URL → acrescente em `ROTAS_COM_SEGREDO`. O link do e-mail de redefinição
+  usa `#token=` (fragmento) e a página tira o token da URL ao ler.
 - **Conversões**: `trackEvent` (`services/analytics.ts`) repassa `signup_completed` → `sign_up` (GA4), conversão do Ads
   e `CompleteRegistration` (Meta); `whatsapp_click` → `generate_lead` e `Contact`.
 - **Clarity** (`components/shared/ClarityAnalytics.tsx`): só com `NEXT_PUBLIC_CLARITY_PROJECT_ID` no build **e**

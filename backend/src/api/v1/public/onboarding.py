@@ -253,7 +253,7 @@ class OnboardingTenantOut(BaseModel):
 
 
 class OnboardingResponse(BaseModel):
-    access_token: str
+    # Sem access_token no corpo (pentest M4): a sessão vai só nos cookies HttpOnly.
     token_type: str = "bearer"
     expires_in: int = 86400
     user: OnboardingUserOut
@@ -538,7 +538,7 @@ async def onboarding(
     # 8. Abre a sessão com os mesmos 3 cookies do login (access_token,
     # refresh_token e auth_state; secure=not DEBUG). Antes só o refresh_token
     # era setado — a primeira tela pós-cadastro rodava sem access_token.
-    access_token = await issue_session(db, user, request, response)
+    await issue_session(db, user, request, response)
     if conta_reaproveitada:
         log_security_event("onboarding_conta_existente", success=True, user_id=user.id, tenant_id=tenant.id)
 
@@ -554,7 +554,6 @@ async def onboarding(
         logger.warning("Welcome email fire-and-forget failed: %s", exc)
 
     return OnboardingResponse(
-        access_token=access_token,
         expires_in=86400,
         user=OnboardingUserOut(
             id=str(user.id),

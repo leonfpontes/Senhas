@@ -1,5 +1,9 @@
 /**
- * /reset-password?token=… — define a nova senha a partir do link do e-mail.
+ * /reset-password#token=… — define a nova senha a partir do link do e-mail.
+ *
+ * O token vem no fragmento (não vai ao servidor nem no Referer); `?token=` continua aceito para
+ * links já enviados. Lido uma vez, sai da URL na hora, e as tags de marketing não carregam nesta
+ * rota (pentest M5 — `rotaComSegredo` em lib/marketingTags.ts).
  * Regra de senha visível antes de digitar (`constants/passwordPolicy.ts`, igual ao backend).
  */
 import React, { useEffect, useState } from 'react';
@@ -14,6 +18,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { apiClient } from '@/services/api_client';
 import { passwordError } from '@/constants/passwordPolicy';
 
+/** Token do link: fragmento (`#token=`) primeiro; query (`?token=`) para links antigos. */
+export function lerTokenDoLink(hash: string, query: string | string[] | undefined): string | null {
+  const doHash = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash).get('token');
+  if (doHash) return doHash;
+  const q = Array.isArray(query) ? query[0] : query;
+  return q || null;
+}
+
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [newPassword, setNewPassword] = useState('');
@@ -24,14 +36,20 @@ export default function ResetPasswordPage() {
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Só lê a query depois da hidratação do router.
-  const token = router.isReady ? (router.query.token as string | undefined) : undefined;
+  // undefined = ainda não lido; null = link sem token.
+  const [token, setToken] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
-    if (router.isReady && !token) {
+    if (!router.isReady || token !== undefined) return;
+    const lido = lerTokenDoLink(window.location.hash, router.query.token);
+    setToken(lido);
+    if (!lido) {
       router.replace('/forgot-password');
+      return;
     }
-  }, [router.isReady, token, router]);
+    // Tira o token da barra de endereço e do histórico antes de qualquer outra coisa.
+    router.replace('/reset-password', undefined, { shallow: true });
+  }, [router.isReady, router.query.token, token, router]);
 
   const passwordMessage = passwordError(newPassword);
   const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
@@ -64,7 +82,7 @@ export default function ResetPasswordPage() {
     }
   };
 
-  if (!router.isReady) {
+  if (!router.isReady || !token) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-areia-50 px-4">
         <Skeleton className="h-72 w-full max-w-md" />

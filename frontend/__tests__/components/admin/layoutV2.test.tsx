@@ -278,12 +278,11 @@ describe('MobileTabBar', () => {
 describe('impersonate', () => {
   const b64 = (o: unknown) => btoa(JSON.stringify(o));
 
-  it('lê os parâmetros do fragmento, com a query string como alternativa', () => {
+  it('lê os parâmetros só do fragmento — query string não vale (pentest L1)', () => {
     const { readImpersonationParams } = require('@/pages/admin/impersonate');
-    expect(readImpersonationParams({}, '#token=abc&user=u&tenant=t')).toEqual({ token: 'abc', user: 'u', tenant: 't' });
-    expect(readImpersonationParams({ token: 'q', user: 'u', tenant: 't' }, '')).toEqual({ token: 'q', user: 'u', tenant: 't' });
-    expect(readImpersonationParams({ token: 'q', user: 'u', tenant: 't' }, '#token=h')).toEqual({ token: 'h', user: 'u', tenant: 't' });
-    expect(readImpersonationParams({}, '#token=abc')).toBeNull();
+    expect(readImpersonationParams('#token=abc&user=u&tenant=t')).toEqual({ token: 'abc', user: 'u', tenant: 't' });
+    expect(readImpersonationParams('')).toBeNull();
+    expect(readImpersonationParams('#token=abc')).toBeNull();
   });
 
   it('com #token= grava a sessão de impersonação e vai para o início', async () => {

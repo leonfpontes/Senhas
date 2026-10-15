@@ -218,8 +218,8 @@ e-mail listando cada terreiro com o link da própria conta — cada conta ganha 
 // Set-Cookie: access_token=eyJ...; HttpOnly; Secure; SameSite=Strict; Max-Age=86400
 // Set-Cookie: refresh_token=eyJ...; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000
 // Set-Cookie: auth_state=1; Secure; SameSite=Strict; Max-Age=86400
+// Corpo sem token (pentest M4): o access_token novo só existe no cookie HttpOnly.
 {
-  "access_token": "eyJhbGciOiJIUzI1NiI...",
   "token_type": "bearer",
   "expires_in": 86400
 }

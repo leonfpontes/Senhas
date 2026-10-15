@@ -12,6 +12,8 @@
  * - Só carrega com o consentimento de **estatísticas** (banner de cookies,
  *   lib/consent.ts); revogado depois, `clarity('consent', false)` apaga os
  *   cookies dele e para a gravação na hora.
+ * - Não carrega numa rota com segredo na URL (`rotaComSegredo`, pentest M5):
+ *   espera a primeira navegação para uma rota comum.
  */
 import { useEffect, useRef } from 'react';
 import Script from 'next/script';
@@ -19,6 +21,7 @@ import { useRouter } from 'next/router';
 import { useProfile } from '@/hooks/useProfile';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useConsentimento } from '@/hooks/useConsentimento';
+import { rotaComSegredo } from '@/lib/marketingTags';
 
 declare global {
   interface Window {
@@ -53,8 +56,11 @@ export default function ClarityAnalytics() {
   const { profile } = useProfile();
   const { subscription } = useSubscription();
   const { consentimento } = useConsentimento();
-  const liberado = Boolean(CLARITY_PROJECT_ID && consentimento?.estatisticas);
   const carregado = useRef(false);
+  // Depois de carregar numa rota comum, segue valendo (o script não descarrega).
+  const rotaLivre = useRef(false);
+  if (!rotaComSegredo(router.asPath)) rotaLivre.current = true;
+  const liberado = Boolean(CLARITY_PROJECT_ID && consentimento?.estatisticas && rotaLivre.current);
 
   // Consentimento dado (ou revogado) com a página aberta: avisa o Clarity.
   useEffect(() => {

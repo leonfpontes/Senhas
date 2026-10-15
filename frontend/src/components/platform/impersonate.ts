@@ -4,7 +4,7 @@
  * `POST /api/v1/platform/impersonate/{user_id}` devolve um JWT de 1h; a nova aba abre
  * `/admin/impersonate` que guarda o token em sessionStorage. O token vai SÓ no fragmento
  * (`#token=…&user=…&tenant=…`), que não sai do navegador (não vai em log de servidor nem no
- * Referer). A página de entrada ainda aceita a query string, só para links antigos.
+ * Referer). A página de entrada só aceita o fragmento (pentest L1).
  *
  * A aba é aberta de forma SÍNCRONA no clique (antes de qualquer `await`) e só depois recebe o
  * endereço: `window.open` depois de um `await` perde o gesto do usuário e o bloqueador de pop-up

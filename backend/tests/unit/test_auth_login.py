@@ -95,7 +95,7 @@ class TestLoginEndpoint:
         request_obj = _mock_request(headers={"user-agent": "pytest"})
 
         result = await login(request, response, request_obj, mock_db_session)
-        assert result.access_token == "access-jwt"
+        assert "access_token" not in result.model_dump()  # só no cookie HttpOnly (pentest M4)
         assert result.token_type == "bearer"
         assert result.user["email"] == "admin@test.com"
         assert result.areas == {"admin": True, "medium": None}
@@ -185,7 +185,7 @@ class TestRefreshEndpoint:
             result = await refresh_token(_mock_request(cookies={"refresh_token": "raw"}), response, mock_db_session)
 
         mock_rotate.assert_awaited_once_with(mock_db_session, admin_user.id, session_id, jti)
-        assert result.access_token == "new-access-jwt"
+        assert "access_token" not in result.model_dump()  # só no cookie HttpOnly (pentest M4)
         response.set_cookie.assert_any_call(
             key="access_token", value="new-access-jwt", httponly=True,
             secure=True, samesite="strict", max_age=24 * 3600,
@@ -290,7 +290,7 @@ class TestRefreshEndpoint:
             response = MagicMock()
             result = await refresh_token(_mock_request(cookies={"refresh_token": "raw"}), response, mock_db_session)
 
-        assert result.access_token == "new-access-jwt"
+        assert "access_token" not in result.model_dump()  # só no cookie HttpOnly (pentest M4)
         added_types = [type(call.args[0]) for call in mock_db_session.add.call_args_list]
         assert UserSession in added_types
 
