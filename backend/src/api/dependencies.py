@@ -16,7 +16,7 @@ from ..core.errors import (
     NotFoundError,
     GroupPermissionDeniedError,
 )
-from ..models import Medium, User, UserRole, PermissionFeature, PlanType
+from ..models import Medium, Tenant, User, UserRole, PermissionFeature, PlanType
 from ..middleware.tenant_context import get_tenant_id
 from ..repositories.subscription_repo import PLAN_LIMITS, SubscriptionRepository
 from ..services.permission_service import PermissionService
@@ -33,6 +33,17 @@ from ..services.plan_features import (
     subscription_block_reason,
 )
 from sqlalchemy import select
+
+
+async def tenant_is_active(db: AsyncSession, tenant_id: uuid.UUID | None) -> bool:
+    """Terreiro do usuário está ativo? Sem terreiro (super admin) conta como ativo.
+
+    `is_active=false` vem da suspensão pela plataforma (PUT /platform/tenants/{id})
+    ou da desativação pelo dono — nos dois casos a sessão não vale (pentest M1)."""
+    if tenant_id is None:
+        return True
+    tenant = await db.get(Tenant, tenant_id)
+    return bool(tenant and tenant.is_active and tenant.deleted_at is None)
 
 
 async def get_current_user(
@@ -64,6 +75,12 @@ async def get_current_user(
     # Conta excluída (soft delete) não autentica, mesmo com token ainda válido.
     if not user or not user.is_active or user.deleted_at is not None:
         raise UnauthorizedError("Usuário não encontrado ou inativo")
+
+    # Terreiro suspenso pela plataforma derruba as sessões abertas (pentest M1).
+    # Impersonação do super admin passa: o suporte precisa entrar no terreiro suspenso.
+    token_data = getattr(request.state, "token", None)
+    if not getattr(token_data, "impersonated_by", None) and not await tenant_is_active(db, user.tenant_id):
+        raise UnauthorizedError("Terreiro suspenso")
 
     # Password change / "logout all devices" invalidates every token issued
     # before that moment — even ones that haven't hit their own exp yet. Cheap

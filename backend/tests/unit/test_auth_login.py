@@ -175,6 +175,7 @@ class TestRefreshEndpoint:
         result_mock = MagicMock()
         result_mock.scalar_one_or_none.return_value = admin_user
         mock_db_session.execute.return_value = result_mock
+        mock_db_session.get.return_value = MagicMock(is_active=True, deleted_at=None)  # terreiro ativo (M1)
 
         new_jti = uuid.uuid4()
         rotation_result = MagicMock(ok=True, new_jti=new_jti)
@@ -285,6 +286,7 @@ class TestRefreshEndpoint:
         result_mock = MagicMock()
         result_mock.scalar_one_or_none.return_value = admin_user
         mock_db_session.execute.return_value = result_mock
+        mock_db_session.get.return_value = MagicMock(is_active=True, deleted_at=None)  # terreiro ativo (M1)
 
         with patch("src.security.jwt.decode_refresh_token", return_value=payload):
             response = MagicMock()

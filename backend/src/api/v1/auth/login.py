@@ -12,7 +12,7 @@ from src.core.database import get_db
 from src.core.errors import ValidationError, UnauthorizedError, NotFoundError, InsufficientPermissionsError, InvalidTokenError
 from src.core.config import DUMMY_BCRYPT_HASH, settings
 from src.models import User, Tenant, TenantConfig
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, tenant_is_active
 from src.security.jwt import create_account_select_token, decode_account_select_token
 from src.core.public_links import public_tenant_logo_url
 from src.security import (
@@ -56,6 +56,12 @@ def normalize_login_email(email: str) -> str:
     return email.strip().lower()
 
 
+# Terreiro utilizável no login: sem terreiro (super admin) ou terreiro ativo. Cobre a
+# suspensão pela plataforma (PUT /platform/tenants/{id} is_active=false — pentest M1)
+# e a desativação pelo dono, que também zera is_active.
+TENANT_USABLE = (User.tenant_id.is_(None)) | (Tenant.is_active.is_(True))
+
+
 def user_by_login_email_stmt(email: str):
     """SELECT de UMA conta pelo e-mail de login: ignora maiúsculas e, se o mesmo
     e-mail existir em mais de um terreiro, fica com a conta ativa (usuário ativo
@@ -70,7 +76,7 @@ def user_by_login_email_stmt(email: str):
     sempre a mais antiga: quem tinha desativado um terreiro de teste e depois
     virou médium/operador de outro com o mesmo e-mail caía no "Deseja
     reativá-la?" do terreiro velho — e reativava sem querer."""
-    conta_ativa = (User.is_active.is_(True)) & (Tenant.self_deactivated_at.is_(None))
+    conta_ativa = (User.is_active.is_(True)) & (Tenant.self_deactivated_at.is_(None)) & TENANT_USABLE
     return (
         select(User)
         .outerjoin(Tenant, Tenant.id == User.tenant_id)
@@ -92,8 +98,8 @@ def active_login_accounts_stmt(email: str, limit: int = MAX_LOGIN_ACCOUNTS):
     """SELECT das contas ATIVAS com o e-mail de login (AM-05), mais antigas primeiro.
 
     "Ativa" = a mesma noção do user_by_login_email_stmt: usuário ativo e não
-    excluído, num terreiro não desativado pelo próprio dono e não excluído
-    (super admin, sem terreiro, também conta). Usado pelo login (confere a
+    excluído, num terreiro ativo — não suspenso pela plataforma, não desativado
+    pelo próprio dono e não excluído (super admin, sem terreiro, também conta). Usado pelo login (confere a
     senha em cada uma) e pelo esqueci a senha (um link por conta)."""
     return (
         select(User)
@@ -104,6 +110,7 @@ def active_login_accounts_stmt(email: str, limit: int = MAX_LOGIN_ACCOUNTS):
             & (User.is_active.is_(True))
             & (Tenant.self_deactivated_at.is_(None))
             & (Tenant.deleted_at.is_(None))
+            & TENANT_USABLE
         )
         .order_by(User.created_at.asc(), User.id.asc())
         .limit(limit)
@@ -275,8 +282,14 @@ async def _reject_without_active_account(db: AsyncSession, credentials: "LoginRe
     # de conferir a senha real, para que quem não tem a senha não use este
     # endpoint como oráculo de "este terreiro está desativado".
     tenant_deactivated = False
+    tenant_suspended = False
     if user.tenant_id is not None:
         tenant = await db.get(Tenant, user.tenant_id)
+        # Suspensão pela plataforma (pentest M1): terreiro inativo sem a marca de
+        # desativação pelo dono. Como no caso abaixo, só é revelada com a senha certa.
+        tenant_suspended = bool(
+            tenant and not tenant.is_active and tenant.self_deactivated_at is None and user.is_active
+        )
         # Deliberately keyed off this dedicated column alone (not
         # is_active/deleted_at), which only the self-deactivation flow
         # ever sets — avoids sharing a signature with unrelated tenant
@@ -298,6 +311,19 @@ async def _reject_without_active_account(db: AsyncSession, credentials: "LoginRe
             detail={
                 "message": "Esta conta está desativada. Deseja reativá-la?",
                 "error_code": "TENANT_DEACTIVATED",
+            },
+        )
+
+    if tenant_suspended:
+        if not verify_password(credentials.password, user.password_hash):
+            log_security_event("login", success=False, user_id=user.id, details={"reason": "invalid_password"})
+            raise UnauthorizedError("Credenciais inválidas")
+        log_security_event("login", success=False, user_id=user.id, details={"reason": "tenant_suspended"})
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "message": "O acesso a este terreiro está suspenso. Fale com o suporte do GiraHub.",
+                "error_code": "TENANT_SUSPENDED",
             },
         )
 
@@ -424,6 +450,7 @@ async def login_select(
                 & (User.is_active.is_(True))
                 & (Tenant.self_deactivated_at.is_(None))
                 & (Tenant.deleted_at.is_(None))
+                & TENANT_USABLE
             )
         )
     ).scalar_one_or_none()
@@ -487,6 +514,9 @@ async def refresh_token(
     user = result.scalar_one_or_none()
     if not user or not user.is_active or user.deleted_at is not None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário inativo ou não encontrado")
+    # Terreiro suspenso pela plataforma não renova sessão (pentest M1).
+    if not await tenant_is_active(db, user.tenant_id):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Terreiro suspenso")
 
     # Troca de senha / "logout em todos os dispositivos" invalida qualquer token
     # emitido antes desse timestamp, mesmo que ainda esteja dentro da validade.
