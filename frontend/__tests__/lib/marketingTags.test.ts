@@ -73,4 +73,26 @@ describe('lib/marketingTags', () => {
       ]),
     );
   });
+
+  it('rotas com segredo na URL ficam fora das tags (pentest M5)', async () => {
+    const { rotaComSegredo } = await carregar();
+    for (const r of ['/reset-password', '/reset-password?token=x', '/reset-password#token=x', '/admin/impersonate',
+      '/convite/abc', '/confirmar-email/abc', '/descadastro/abc']) {
+      expect(rotaComSegredo(r)).toBe(true);
+    }
+    for (const r of ['/', '/login', '/forgot-password', '/admin/dashboard', '/convites', '/reset-passwordx']) {
+      expect(rotaComSegredo(r)).toBe(false);
+    }
+  });
+
+  it('PageView do Pixel não sai em rota com segredo', async () => {
+    const { aplicarConsentimento, registrarPaginaVista } = await carregar({ NEXT_PUBLIC_META_PIXEL_ID: '123' });
+    aplicarConsentimento({ estatisticas: true, marketing: true } as never);
+    const fbq = jest.fn();
+    (window as W).fbq = fbq;
+    registrarPaginaVista('/convite/segredo');
+    expect(fbq).not.toHaveBeenCalled();
+    registrarPaginaVista('/planos');
+    expect(fbq).toHaveBeenCalledWith('track', 'PageView');
+  });
 });

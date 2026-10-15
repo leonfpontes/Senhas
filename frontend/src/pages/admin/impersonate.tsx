@@ -1,9 +1,10 @@
 /**
  * Página de entrada da impersonação (superadmin → usuário do terreiro).
  *
- * Recebe `token`, `user` e `tenant` pela query string **ou pelo fragmento** (`#token=…&user=…&tenant=…`).
- * O fragmento nunca sai do navegador (não vai em logs de servidor nem no Referer), por isso é a
- * forma preferida; a query string continua aceita por compatibilidade com links já emitidos.
+ * Recebe `token`, `user` e `tenant` SÓ pelo fragmento (`#token=…&user=…&tenant=…`), que nunca
+ * sai do navegador (não vai em logs de servidor nem no Referer). A query string não é mais aceita
+ * (pentest L1): um link com o token em `?token=` vazaria em log/histórico — e os links da
+ * plataforma (`components/platform/impersonate.ts`) já usam só o fragmento.
  *
  * Os dados ficam no `sessionStorage` (isolados do `localStorage` do superadmin) e a página
  * recarrega inteira em /admin/dashboard para os providers remontarem com o token novo.
@@ -19,18 +20,10 @@ interface ImpersonationParams {
   tenant: string;
 }
 
-/** Lê os parâmetros do fragmento (`#token=…`) e, no que faltar, da query string. */
-export function readImpersonationParams(
-  query: Record<string, string | string[] | undefined>,
-  hash: string,
-): ImpersonationParams | null {
+/** Lê os parâmetros do fragmento (`#token=…`). Query string é ignorada (pentest L1). */
+export function readImpersonationParams(hash: string): ImpersonationParams | null {
   const fromHash = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
-  const pick = (key: keyof ImpersonationParams): string => {
-    const h = fromHash.get(key);
-    if (h) return h;
-    const q = query[key];
-    return (Array.isArray(q) ? q[0] : q) ?? '';
-  };
+  const pick = (key: keyof ImpersonationParams): string => fromHash.get(key) ?? '';
   const token = pick('token');
   const user = pick('user');
   const tenant = pick('tenant');
@@ -45,7 +38,7 @@ export default function ImpersonateLandingPage() {
   useEffect(() => {
     if (!router.isReady) return;
 
-    const params = readImpersonationParams(router.query, typeof window !== 'undefined' ? window.location.hash : '');
+    const params = readImpersonationParams(typeof window !== 'undefined' ? window.location.hash : '');
     if (!params) {
       setError('Parâmetros de impersonação inválidos');
       return;
@@ -66,7 +59,7 @@ export default function ImpersonateLandingPage() {
     } catch {
       setError('Erro ao processar dados de impersonação');
     }
-  }, [router.isReady, router.query]);
+  }, [router.isReady]);
 
   if (error) {
     return (

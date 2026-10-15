@@ -333,13 +333,12 @@ async def reactivate_account(
         _send_account_reactivated_email(user.email, user.full_name or user.username, login_url)
     )
 
-    access_token = await issue_session(db, user, request, response, persistent=payload.remember_me)
+    await issue_session(db, user, request, response, persistent=payload.remember_me)
     log_security_event("login", user_id=user.id, tenant_id=user.tenant_id, success=True,
                        details={"reason": "reactivation"})
 
     return {
         "message": "Conta e terreiro reativados. Bem-vindo(a) de volta!",
-        "access_token": access_token,
         "token_type": "bearer",
         "user": login_user_payload(user),
     }

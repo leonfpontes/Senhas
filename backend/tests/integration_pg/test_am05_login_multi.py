@@ -258,7 +258,7 @@ async def test_esqueci_a_senha_com_duas_contas_um_email_dois_links(client, db, m
     assert msg.to_email == "hel@example.com"
     assert "Casa da Ana" in msg.html_body and "Tenda Vizinha" in msg.html_body
     assert "Casa Inativa" not in msg.html_body
-    tokens = list(dict.fromkeys(re.findall(r"reset-password\?token=([A-Za-z0-9_\-]+)", msg.html_body)))
+    tokens = list(dict.fromkeys(re.findall(r"reset-password#token=([A-Za-z0-9_\-]+)", msg.html_body)))
     assert len(tokens) == 2
     assert (await _fresh_user(inativa.id)).reset_token_hash is None
 
@@ -289,7 +289,7 @@ async def test_esqueci_a_senha_com_uma_conta_continua_igual(client, db, monkeypa
 
     msg = enviado.await_args.args[-1]
     assert "mais de um terreiro" not in msg.html_body
-    assert len(set(re.findall(r"reset-password\?token=([A-Za-z0-9_\-]+)", msg.html_body))) == 1
+    assert len(set(re.findall(r"reset-password#token=([A-Za-z0-9_\-]+)", msg.html_body))) == 1
     assert (await _fresh_user(conta.id)).reset_token_hash is not None
 
 

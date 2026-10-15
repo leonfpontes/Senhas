@@ -95,7 +95,7 @@ class TestLoginEndpoint:
         request_obj = _mock_request(headers={"user-agent": "pytest"})
 
         result = await login(request, response, request_obj, mock_db_session)
-        assert result.access_token == "access-jwt"
+        assert "access_token" not in result.model_dump()  # só no cookie HttpOnly (pentest M4)
         assert result.token_type == "bearer"
         assert result.user["email"] == "admin@test.com"
         assert result.areas == {"admin": True, "medium": None}
@@ -186,7 +186,7 @@ class TestRefreshEndpoint:
             result = await refresh_token(_mock_request(cookies={"refresh_token": "raw"}), response, mock_db_session)
 
         mock_rotate.assert_awaited_once_with(mock_db_session, admin_user.id, session_id, jti)
-        assert result.access_token == "new-access-jwt"
+        assert "access_token" not in result.model_dump()  # só no cookie HttpOnly (pentest M4)
         response.set_cookie.assert_any_call(
             key="access_token", value="new-access-jwt", httponly=True,
             secure=True, samesite="strict", max_age=24 * 3600,
@@ -270,11 +270,10 @@ class TestRefreshEndpoint:
     @patch("src.api.v1.auth.login.log_security_event")
     @patch("src.api.v1.auth.login.create_refresh_token", return_value="new-refresh-jwt")
     @patch("src.api.v1.auth.login.create_access_token", return_value="new-access-jwt")
-    async def test_legacy_token_without_session_id_upgrades_transparently(
+    async def test_legacy_token_without_session_id_is_rejected(
         self, mock_access, mock_refresh, mock_log, admin_user, mock_db_session
     ):
-        """A refresh token issued before rotation tracking existed (no session_id/jti)
-        must still work — upgraded to a tracked session, not rejected outright."""
+        """Refresh token anterior à rotação (sem session_id/jti) é recusado com 401."""
         payload = MagicMock(
             sub=str(admin_user.id),
             iat=datetime.now(timezone.utc) - timedelta(hours=1),
@@ -288,13 +287,17 @@ class TestRefreshEndpoint:
         mock_db_session.execute.return_value = result_mock
         mock_db_session.get.return_value = MagicMock(is_active=True, deleted_at=None)  # terreiro ativo (M1)
 
+        from fastapi import HTTPException
+
         with patch("src.security.jwt.decode_refresh_token", return_value=payload):
             response = MagicMock()
-            result = await refresh_token(_mock_request(cookies={"refresh_token": "raw"}), response, mock_db_session)
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_token(_mock_request(cookies={"refresh_token": "raw"}), response, mock_db_session)
 
-        assert result.access_token == "new-access-jwt"
+        # Desde o pentest: refresh sem session_id/jti não abre sessão nova (passava por fora do reuso).
+        assert exc_info.value.status_code == 401
         added_types = [type(call.args[0]) for call in mock_db_session.add.call_args_list]
-        assert UserSession in added_types
+        assert UserSession not in added_types
 
 
 # ── Logout endpoint ──────────────────────────────────────────────────────────

@@ -30,9 +30,8 @@ class TokenPayload(BaseModel):
     iat: datetime  # issued at
     impersonated_by: Optional[str] = None  # SUPER_ADMIN user_id when impersonating
     # Refresh-token rotation/reuse-detection fields (only meaningful for refresh
-    # tokens). Optional so tokens issued before this field existed keep decoding —
-    # decode_refresh_token treats a missing session_id/jti as a legacy token to be
-    # transparently upgraded on its next use, instead of forcing a mass logout.
+    # tokens). Optional so tokens issued before this field existed still decode;
+    # the /auth/refresh endpoint rejects them with 401 (pentest, 2026-10-15).
     session_id: Optional[str] = None
     jti: Optional[str] = None
     orig_iat: Optional[datetime] = None
@@ -248,8 +247,7 @@ def decode_refresh_token(token: str) -> TokenPayload:
             exp=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
             iat=datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
             # Absent on refresh tokens issued before rotation/reuse-detection was
-            # added — decode succeeds regardless, caller treats missing session_id
-            # as a legacy token to transparently upgrade.
+            # added — decode succeeds, and /auth/refresh rejects them (401).
             session_id=payload.get("session_id"),
             jti=payload.get("jti"),
             persistent=payload.get("persist", True) is not False,

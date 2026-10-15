@@ -1043,11 +1043,11 @@ cancel reason).
 }
 ```
 
-**Response** (200 OK):
+**Response** (200 OK) — a sessão vai nos cookies HttpOnly (`access_token`, `refresh_token`) + `auth_state`; o corpo
+não traz token desde o pentest M4:
 ```json
 {
-  "access_token": "eyJhbGc...",
-  "token_type": "Bearer",
+  "token_type": "bearer",
   "expires_in": 86400,
   "user": {
     "id": "user-uuid",
@@ -1176,15 +1176,12 @@ whose password did not change since (`users.sessions_revoked_at` earlier than th
 
 **Endpoint**: `POST /auth/refresh`
 
-**Headers**:
-```
-Authorization: Bearer {refresh_token}
-```
+Sem corpo e sem header: lê o cookie HttpOnly `refresh_token`.
 
-**Response** (200 OK):
+**Response** (200 OK) — rotaciona os cookies; o corpo não traz token (pentest M4):
 ```json
 {
-  "access_token": "eyJhbGc...",
+  "token_type": "bearer",
   "expires_in": 86400
 }
 ```

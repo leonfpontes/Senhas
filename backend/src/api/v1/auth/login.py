@@ -148,8 +148,8 @@ async def issue_session(
 ) -> str:
     """Abre a sessão do usuário: UserSession (rotação/revogação do refresh),
     tokens e os 3 cookies. Usado por login, cadastro, reativação e troca de
-    terreiro. Faz commit. Retorna o access_token (também devolvido no corpo,
-    por compatibilidade).
+    terreiro. Faz commit. Retorna o access_token (só para quem precisa; desde o pentest M4 ele
+    não vai mais no corpo das respostas, apenas no cookie HttpOnly).
 
     `verified_accounts`: contas do mesmo e-mail com senha conferida neste login
     (gravadas na linha da sessão — ver session_service.start_session); sem ele,
@@ -168,9 +168,11 @@ async def issue_session(
 
 
 class LoginResponse(BaseModel):
-    """Login response payload."""
+    """Login response payload.
 
-    access_token: str
+    Sem access_token no corpo (pentest M4): a sessão vai só nos cookies HttpOnly,
+    para um XSS não conseguir ler o token. Só a impersonação devolve token (header)."""
+
     token_type: str = "bearer"
     expires_in: int = 86400  # 24 hours
     user: dict
@@ -241,7 +243,7 @@ async def _open_login_session(
     # rotated/revoked server-side (see src/services/session_service.py).
     # Access/refresh em cookies HttpOnly + auth_state legível pelo JS; com
     # "Lembrar-me" desmarcado viram cookies de sessão (src/core/auth_cookies.py).
-    access_token = await issue_session(
+    await issue_session(
         db, user, request, response, persistent=persistent, verified_accounts=verified_accounts
     )
     log_security_event(
@@ -252,7 +254,6 @@ async def _open_login_session(
         details={"via": via} if via else None,
     )
     return LoginResponse(
-        access_token=access_token,
         token_type="bearer",
         expires_in=24 * 60 * 60,  # 24 hours
         user=login_user_payload(user),
@@ -478,9 +479,8 @@ class RefreshRequest(BaseModel):
 
 
 class RefreshResponse(BaseModel):
-    """Refresh token response."""
-    
-    access_token: str
+    """Refresh token response — o access_token novo vai só no cookie HttpOnly (pentest M4)."""
+
     token_type: str = "bearer"
     expires_in: int = 86400
 
@@ -526,20 +526,20 @@ async def refresh_token(
         if token_iat < revoked_at:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão revogada")
 
-    if payload.session_id and payload.jti:
-        rotation = await session_service.rotate_session(
-            db, user.id, uuid.UUID(payload.session_id), uuid.UUID(payload.jti)
-        )
-        if not rotation.ok:
-            await db.commit()  # persist the revoke (delete) from rotate_session
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh_token inválido ou expirado")
-        session_id, new_jti = uuid.UUID(payload.session_id), rotation.new_jti
-    else:
-        # Legacy refresh token issued before rotation tracking existed — upgrade
-        # it transparently to a tracked session instead of forcing a re-login.
-        session_id, new_jti = await session_service.start_session(
-            db, user, user_agent=request_obj.headers.get("user-agent")
-        )
+    # Refresh sem session_id/jti (anterior à rotação de 2026-07-01) não vale mais: abria uma
+    # sessão nova por fora da detecção de reuso. Refresh dura 30 dias, então nenhum legítimo
+    # nesse formato existe mais (pentest, item informativo "ramo JWT legado").
+    if not (payload.session_id and payload.jti):
+        log_security_event("token_refresh", user_id=user.id, success=False, details={"reason": "legacy_refresh_token"})
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh_token inválido ou expirado")
+
+    rotation = await session_service.rotate_session(
+        db, user.id, uuid.UUID(payload.session_id), uuid.UUID(payload.jti)
+    )
+    if not rotation.ok:
+        await db.commit()  # persist the revoke (delete) from rotate_session
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh_token inválido ou expirado")
+    session_id, new_jti = uuid.UUID(payload.session_id), rotation.new_jti
 
     # Emite novos tokens — no mesmo modo ("Lembrar-me") do login original.
     persistent = getattr(payload, "persistent", True) is not False
@@ -553,7 +553,7 @@ async def refresh_token(
 
     log_security_event("token_refresh", user_id=user.id, tenant_id=user.tenant_id, success=True)
 
-    return RefreshResponse(access_token=new_access, token_type="bearer",
+    return RefreshResponse(token_type="bearer",
                            expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600)
 
 
@@ -698,7 +698,7 @@ async def forgot_password(
             raw_token = secrets.token_urlsafe(32)
             account.reset_token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
             account.reset_token_expires_at = expires_at
-            links.append((account, f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"))
+            links.append((account, f"{settings.FRONTEND_URL}/reset-password#token={raw_token}"))
         await db.commit()
 
         first = accounts[0]
