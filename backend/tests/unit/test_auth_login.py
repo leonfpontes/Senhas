@@ -269,11 +269,10 @@ class TestRefreshEndpoint:
     @patch("src.api.v1.auth.login.log_security_event")
     @patch("src.api.v1.auth.login.create_refresh_token", return_value="new-refresh-jwt")
     @patch("src.api.v1.auth.login.create_access_token", return_value="new-access-jwt")
-    async def test_legacy_token_without_session_id_upgrades_transparently(
+    async def test_legacy_token_without_session_id_is_rejected(
         self, mock_access, mock_refresh, mock_log, admin_user, mock_db_session
     ):
-        """A refresh token issued before rotation tracking existed (no session_id/jti)
-        must still work — upgraded to a tracked session, not rejected outright."""
+        """Refresh token anterior à rotação (sem session_id/jti) é recusado com 401."""
         payload = MagicMock(
             sub=str(admin_user.id),
             iat=datetime.now(timezone.utc) - timedelta(hours=1),
@@ -286,13 +285,17 @@ class TestRefreshEndpoint:
         result_mock.scalar_one_or_none.return_value = admin_user
         mock_db_session.execute.return_value = result_mock
 
+        from fastapi import HTTPException
+
         with patch("src.security.jwt.decode_refresh_token", return_value=payload):
             response = MagicMock()
-            result = await refresh_token(_mock_request(cookies={"refresh_token": "raw"}), response, mock_db_session)
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_token(_mock_request(cookies={"refresh_token": "raw"}), response, mock_db_session)
 
-        assert "access_token" not in result.model_dump()  # só no cookie HttpOnly (pentest M4)
+        # Desde o pentest: refresh sem session_id/jti não abre sessão nova (passava por fora do reuso).
+        assert exc_info.value.status_code == 401
         added_types = [type(call.args[0]) for call in mock_db_session.add.call_args_list]
-        assert UserSession in added_types
+        assert UserSession not in added_types
 
 
 # ── Logout endpoint ──────────────────────────────────────────────────────────

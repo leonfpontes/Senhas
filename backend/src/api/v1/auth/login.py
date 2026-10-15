@@ -491,20 +491,20 @@ async def refresh_token(
         if token_iat < revoked_at:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão revogada")
 
-    if payload.session_id and payload.jti:
-        rotation = await session_service.rotate_session(
-            db, user.id, uuid.UUID(payload.session_id), uuid.UUID(payload.jti)
-        )
-        if not rotation.ok:
-            await db.commit()  # persist the revoke (delete) from rotate_session
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh_token inválido ou expirado")
-        session_id, new_jti = uuid.UUID(payload.session_id), rotation.new_jti
-    else:
-        # Legacy refresh token issued before rotation tracking existed — upgrade
-        # it transparently to a tracked session instead of forcing a re-login.
-        session_id, new_jti = await session_service.start_session(
-            db, user, user_agent=request_obj.headers.get("user-agent")
-        )
+    # Refresh sem session_id/jti (anterior à rotação de 2026-07-01) não vale mais: abria uma
+    # sessão nova por fora da detecção de reuso. Refresh dura 30 dias, então nenhum legítimo
+    # nesse formato existe mais (pentest, item informativo "ramo JWT legado").
+    if not (payload.session_id and payload.jti):
+        log_security_event("token_refresh", user_id=user.id, success=False, details={"reason": "legacy_refresh_token"})
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh_token inválido ou expirado")
+
+    rotation = await session_service.rotate_session(
+        db, user.id, uuid.UUID(payload.session_id), uuid.UUID(payload.jti)
+    )
+    if not rotation.ok:
+        await db.commit()  # persist the revoke (delete) from rotate_session
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh_token inválido ou expirado")
+    session_id, new_jti = uuid.UUID(payload.session_id), rotation.new_jti
 
     # Emite novos tokens — no mesmo modo ("Lembrar-me") do login original.
     persistent = getattr(payload, "persistent", True) is not False
