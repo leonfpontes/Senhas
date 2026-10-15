@@ -28,14 +28,13 @@ from src.models.cursos_presenciais import CursoPresencial
 from src.models.gira_time_slots import GiraTimeSlot
 from src.models.legal_acceptances import LegalAcceptance
 from src.models.tenant_config import TenantConfig
-from src.models.tenants import Tenant
 from src.models.tickets import Ticket, TicketStatus
 from src.models.users import User, UserRole
 from src.security.password import hash_password
 
 from src.core.legal_versions import LEGAL_VERSIONS
 
-from .factories import create_gira, create_tenant
+from .factories import create_gira, create_tenant, deactivate_tenant
 
 SENHA = "Senha-forte-123"
 
@@ -340,14 +339,38 @@ async def test_cadastro_grava_o_aceite_dos_termos_e_da_privacidade(client, db, m
         assert a.accepted_at is not None
 
 
+async def test_usuario_suspenso_nao_reativa_terreiro_desativado_por_outro(client, db, monkeypatch):
+    """Pentest H1: a desativação só exige que o dono seja o único usuário *ativo*;
+    quem já estava suspenso continua no terreiro e não pode religá-lo."""
+    monkeypatch.setattr("src.api.v1.auth.deactivation._send_account_reactivated_email", AsyncMock())
+    tenant = await create_tenant(db)
+    dono = await _user(db, tenant, "dono@example.com", is_active=False)
+    await _user(db, tenant, "suspenso@example.com", is_active=False)
+    await deactivate_tenant(db, tenant, by=dono)
+
+    login = await client.post("/api/v1/auth/login", json={"email": "suspenso@example.com", "password": SENHA})
+    assert login.status_code == 401
+    assert "TENANT_DEACTIVATED" not in login.text  # nem oferece o "Deseja reativá-la?"
+
+    reativa = await client.post("/api/v1/auth/reactivate-account", json={"email": "suspenso@example.com", "password": SENHA})
+    assert reativa.status_code == 401
+    assert not _set_cookies(reativa)
+    await db.refresh(tenant)
+    assert tenant.self_deactivated_at is not None and tenant.is_active is False
+
+    # O dono continua podendo voltar.
+    dono_login = await client.post("/api/v1/auth/login", json={"email": "dono@example.com", "password": SENHA})
+    assert dono_login.status_code == 401 and "TENANT_DEACTIVATED" in dono_login.text
+    ok = await client.post("/api/v1/auth/reactivate-account", json={"email": "dono@example.com", "password": SENHA})
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["user"]["email"] == "dono@example.com"
+
+
 async def test_reativacao_abre_sessao_e_mostra_o_resultado_real(client, db, monkeypatch):
     monkeypatch.setattr("src.api.v1.auth.deactivation._send_account_reactivated_email", AsyncMock())
     tenant = await create_tenant(db)
-    await db.execute(
-        update(Tenant).where(Tenant.id == tenant.id).values(is_active=False, self_deactivated_at=datetime.now(timezone.utc))
-    )
-    await db.commit()
-    await _user(db, tenant, "voltei@example.com", is_active=False)
+    dono = await _user(db, tenant, "voltei@example.com", is_active=False)
+    await deactivate_tenant(db, tenant, by=dono)
 
     errada = await client.post("/api/v1/auth/reactivate-account", json={"email": "voltei@example.com", "password": "Outra-senha-999"})
     assert errada.status_code == 401
@@ -365,12 +388,9 @@ async def test_reativacao_abre_sessao_e_mostra_o_resultado_real(client, db, monk
 async def _terreiro_desativado_mais_antigo_e_conta_ativa_em_outro(db, email):
     """Terreiro de teste desativado (conta mais antiga) + conta ativa em outro terreiro."""
     velho, atual = await create_tenant(db, name="Terreiro de Teste"), await create_tenant(db, name="Terreiro Atual")
-    await db.execute(
-        update(Tenant).where(Tenant.id == velho.id).values(is_active=False, self_deactivated_at=datetime.now(timezone.utc))
-    )
-    await db.commit()
     agora = datetime.now(timezone.utc)
-    await _user(db, velho, email, created_at=agora - timedelta(days=90), is_active=False)
+    dono_velho = await _user(db, velho, email, created_at=agora - timedelta(days=90), is_active=False)
+    await deactivate_tenant(db, velho, by=dono_velho)
     ativa = await _user(db, atual, email, created_at=agora)
     return velho, atual, ativa
 

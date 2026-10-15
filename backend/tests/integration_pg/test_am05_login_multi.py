@@ -22,12 +22,11 @@ from unittest.mock import AsyncMock, patch
 from sqlalchemy import select, update
 
 from src.models import Medium
-from src.models.tenants import Tenant
 from src.models.users import User, UserRole
 from src.security.jwt import create_account_select_token
 from src.security.password import hash_password, verify_password
 
-from .factories import create_tenant
+from .factories import create_tenant, deactivate_tenant
 
 SENHA = "Senha-forte-123"
 OUTRA = "Outra-senha-456"
@@ -79,14 +78,6 @@ async def _conta(
     db.add(user)
     await db.commit()
     return user
-
-
-async def _desativa_terreiro(db, tenant):
-    agora = datetime.now(timezone.utc)
-    await db.execute(
-        update(Tenant).where(Tenant.id == tenant.id).values(is_active=False, deleted_at=agora, self_deactivated_at=agora)
-    )
-    await db.commit()
 
 
 async def _fresh_user(user_id) -> User:
@@ -228,8 +219,8 @@ async def test_contas_inativas_desativadas_e_excluidas_nunca_sao_oferecidas(clie
     ativa_1 = await _conta(db, await create_tenant(db, name="Ativa Um"), email, created_at=agora - timedelta(days=5))
     await _conta(db, await create_tenant(db, name="Usuario Inativo"), email, is_active=False)
     desativado = await create_tenant(db, name="Terreiro Desativado")
-    await _conta(db, desativado, email, is_active=False, created_at=agora - timedelta(days=90))
-    await _desativa_terreiro(db, desativado)
+    dono = await _conta(db, desativado, email, is_active=False, created_at=agora - timedelta(days=90))
+    await deactivate_tenant(db, desativado, by=dono)
     await _conta(db, await create_tenant(db, name="Conta Excluida"), email, deleted=True)
     ativa_2 = await _conta(db, await create_tenant(db, name="Ativa Dois"), email, created_at=agora)
 
@@ -324,9 +315,9 @@ async def test_regra_do_85_sem_conta_ativa_reativa_a_mais_antiga(client, db, mon
     agora = datetime.now(timezone.utc)
     velho, novo = await create_tenant(db, name="Desativado Velho"), await create_tenant(db, name="Desativado Novo")
     conta_velha = await _conta(db, velho, "ka@example.com", is_active=False, created_at=agora - timedelta(days=90))
-    await _conta(db, novo, "ka@example.com", is_active=False, created_at=agora)
-    await _desativa_terreiro(db, velho)
-    await _desativa_terreiro(db, novo)
+    conta_nova = await _conta(db, novo, "ka@example.com", is_active=False, created_at=agora)
+    await deactivate_tenant(db, velho, by=conta_velha)
+    await deactivate_tenant(db, novo, by=conta_nova)
 
     resp = await client.post(LOGIN, json={"email": "ka@example.com", "password": SENHA})
     assert resp.status_code == 401
@@ -342,8 +333,8 @@ async def test_regra_do_85_sem_conta_ativa_reativa_a_mais_antiga(client, db, mon
 async def test_regra_do_85_conta_ativa_ganha_de_terreiro_desativado(client, db):
     agora = datetime.now(timezone.utc)
     velho, atual = await create_tenant(db, name="Teste Antigo"), await create_tenant(db, name="Casa Atual")
-    await _conta(db, velho, "lu@example.com", is_active=False, created_at=agora - timedelta(days=90))
-    await _desativa_terreiro(db, velho)
+    dono = await _conta(db, velho, "lu@example.com", is_active=False, created_at=agora - timedelta(days=90))
+    await deactivate_tenant(db, velho, by=dono)
     ativa = await _conta(db, atual, "lu@example.com", created_at=agora)
 
     resp = await client.post(LOGIN, json={"email": "lu@example.com", "password": SENHA})

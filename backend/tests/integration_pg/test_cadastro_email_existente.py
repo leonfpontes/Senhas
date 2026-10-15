@@ -16,14 +16,14 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 
 from src.models import LegalAcceptance, Medium, Subscription, TrialGrant
 from src.models.tenants import Tenant
 from src.models.users import User, UserRole
 from src.security.password import hash_password
 
-from .factories import create_tenant
+from .factories import create_tenant, deactivate_tenant
 
 URL = "/api/v1/public/onboarding"
 LOGIN = "/api/v1/auth/login"
@@ -236,14 +236,8 @@ async def test_mes_gratis_nao_se_repete_para_o_mesmo_email(client, db):
 
 async def test_so_conta_inativa_ou_terreiro_desativado_mantem_o_409_de_sempre(client, db):
     desativado = await create_tenant(db, name="Casa Fechada")
-    await _conta(db, desativado, "fechada@example.com")
-    agora = datetime.now(timezone.utc)
-    await db.execute(
-        update(Tenant)
-        .where(Tenant.id == desativado.id)
-        .values(is_active=False, deleted_at=agora, self_deactivated_at=agora)
-    )
-    await db.commit()
+    dono = await _conta(db, desativado, "fechada@example.com")
+    await deactivate_tenant(db, desativado, by=dono)
     suspensa = await create_tenant(db, name="Casa Suspensa")
     await _conta(db, suspensa, "suspensa@example.com", is_active=False)
 

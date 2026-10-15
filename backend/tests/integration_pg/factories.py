@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from src.models.audit_logs import AuditAction, AuditLog
 from src.models.giras import Gira
 from src.models.permission_groups import GroupPermission, PermissionFeature, PermissionGroup, UserGroupMembership
 from src.models.subscriptions import PlanType, Subscription, SubscriptionStatus
@@ -105,3 +106,19 @@ async def grant(db, actor: Actor, tenant: Tenant, feature: PermissionFeature, *a
     db.add(UserGroupMembership(group_id=group.id, user_id=actor.user.id, tenant_id=tenant.id))
     await db.commit()
     return group
+
+
+async def deactivate_tenant(db, tenant: Tenant, by: User) -> None:
+    """Estado que o POST /auth/deactivate-account deixa: terreiro marcado e o
+    AuditLog TENANT_DEACTIVATED com o autor — só ele pode reativar (pentest H1)."""
+    from sqlalchemy import update
+
+    agora = datetime.now(timezone.utc)
+    await db.execute(
+        update(Tenant).where(Tenant.id == tenant.id).values(is_active=False, deleted_at=agora, self_deactivated_at=agora)
+    )
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=by.id, action=AuditAction.TENANT_DEACTIVATED,
+        resource_type="Tenant", resource_id=tenant.id, details={"reason": "self-service deactivation"},
+    ))
+    await db.commit()

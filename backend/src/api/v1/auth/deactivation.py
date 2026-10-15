@@ -103,6 +103,28 @@ async def _send_account_reactivated_email(email: str, user_name: str, login_url:
             logger.warning("Account-reactivated notification email failed for %s: %s", email, exc)
 
 
+async def is_tenant_deactivator(db: AsyncSession, tenant_id, user: User) -> bool:
+    """Só quem desativou o terreiro pode reativá-lo (pentest H1).
+
+    A desativação exige que o admin seja o único usuário *ativo*, mas os
+    usuários já suspensos continuam no terreiro — sem esta checagem, qualquer
+    um deles reativava o terreiro (e a própria conta) com a sua senha. O autor
+    vem do AuditLog TENANT_DEACTIVATED gravado na mesma transação da
+    desativação; sem registro, nega (fail closed)."""
+    if user.role != UserRole.ADMIN:
+        return False
+    deactivated_by = await db.scalar(
+        select(AuditLog.user_id)
+        .where(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.action == AuditAction.TENANT_DEACTIVATED,
+        )
+        .order_by(AuditLog.created_at.desc())
+        .limit(1)
+    )
+    return deactivated_by == user.id
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -263,7 +285,10 @@ async def reactivate_account(
     - e-mail desconhecido ou senha errada → 401 "Credenciais inválidas"
       (mesma mensagem e mesmo custo de bcrypt do login);
     - credenciais certas mas conta não desativada → 409 NOT_DEACTIVATED
-      (o login, com essas credenciais, simplesmente entraria).
+      (o login, com essas credenciais, simplesmente entraria);
+    - credenciais certas de um usuário que não foi quem desativou (ex.:
+      usuário suspenso do terreiro) → 401 "Credenciais inválidas", como o
+      login de um usuário suspenso.
 
     On success: subscription resets to FREE (never auto-restores a
     previous paid plan), tenant + user are reactivated AND the session is
@@ -292,6 +317,11 @@ async def reactivate_account(
             status_code=status.HTTP_409_CONFLICT,
             error_code="NOT_DEACTIVATED",
         )
+
+    if not await is_tenant_deactivator(db, tenant.id, user):
+        log_security_event("reactivation", success=False, user_id=user.id, tenant_id=tenant.id,
+                           details={"reason": "not_deactivator"})
+        raise UnauthorizedError("Credenciais inválidas")
 
     tenant.is_active = True
     tenant.deleted_at = None
