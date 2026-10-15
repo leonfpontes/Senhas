@@ -122,6 +122,10 @@ async def table_names(migrated_db):
 async def clean_db(table_names):
     """Cada teste começa com o banco vazio (schema preservado)."""
     yield
+    # Contagem de senhas erradas por e-mail (pentest L10) não passa de um teste a outro.
+    from src.services import login_lockout
+
+    login_lockout.reset_all()
     from sqlalchemy import text
 
     from src.core.database import engine

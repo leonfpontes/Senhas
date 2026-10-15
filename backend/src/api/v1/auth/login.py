@@ -1,5 +1,5 @@
 """Authentication API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 import logging
@@ -26,7 +26,7 @@ from src.security import (
 )
 from src.core.limiter import limiter
 from src.core.logging import log_security_event
-from src.services import session_service
+from src.services import login_lockout, session_service
 from src.core.auth_cookies import clear_auth_cookies, is_impersonated_request, set_auth_cookies
 from src.services.medium_area import compute_areas
 from sqlalchemy import case, func, select
@@ -330,18 +330,31 @@ async def login(
     Custo: uma verificação bcrypt por conta ativa (máx. 5) — "e-mail não
     existe" e "senha errada numa conta" custam o mesmo (1 verificação).
     """
+    # Bloqueio por e-mail depois de muitas senhas erradas (pentest L10) — antes do bcrypt.
+    email_key = normalize_login_email(credentials.email)
+    login_lockout.ensure_not_locked(email_key)
+
     candidates = list((await db.execute(active_login_accounts_stmt(credentials.email))).scalars().all())
     if not candidates:
-        await _reject_without_active_account(db, credentials)
+        try:
+            await _reject_without_active_account(db, credentials)
+        except UnauthorizedError:
+            # Credenciais erradas (ou conta inativa) contam; o aviso de terreiro
+            # desativado vem como HTTPException com a senha certa e não conta.
+            login_lockout.register_failure(email_key)
+            raise
 
     matched = matching_accounts(credentials.password, candidates)
 
     if not matched:
+        login_lockout.register_failure(email_key)
         log_security_event(
             "login", success=False, user_id=candidates[0].id if len(candidates) == 1 else None,
             details={"reason": "invalid_password", "accounts": len(candidates)},
         )
         raise UnauthorizedError("Credenciais inválidas")
+
+    login_lockout.clear_failures(email_key)
 
     if len(matched) == 1:
         return await _open_login_session(db, matched[0], request, response, persistent=credentials.remember_me)
@@ -632,6 +645,7 @@ class ResetPasswordRequest(BaseModel):
 async def forgot_password(
     request: Request,
     body: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     """POST /api/v1/auth/forgot-password — Request a password reset link.
@@ -640,9 +654,11 @@ async def forgot_password(
     Rate-limited per client IP (anti e-mail bombing / enumeration).
     E-mail com conta ativa em mais de um terreiro (AM-05): um e-mail só, com
     um link por terreiro (um token por conta).
+
+    O envio do e-mail roda em BackgroundTasks, depois da resposta (pentest L2):
+    antes, e-mail cadastrado esperava o Resend e respondia centenas de ms mais
+    devagar que e-mail desconhecido — dava para enumerar contas pelo tempo.
     """
-    from src.services.email.brevo_provider import BrevoEmailService
-    from src.services.email.resend_fallback import ResendEmailService
     from src.services.email.base import EmailMessage
     from src.services.email.templates.password_reset import (
         render_password_reset_email,
@@ -690,32 +706,40 @@ async def forgot_password(
             text_body=text_body,
         )
 
-        # Resend é o provedor primário do GiraHub; se falhar (chave inválida,
-        # domínio não verificado, indisponibilidade), cai para o Brevo antes de
-        # desistir — sem isso o usuário nunca recebe o link e a falha fica só
-        # no log. Mesmo padrão usado em profile.py (e-mail de exclusão de conta)
-        # e onboarding.py (e-mail de boas-vindas).
-        sent = False
-        try:
-            sent = await ResendEmailService().send_async(msg)
-        except Exception as exc:
-            logger.warning("Resend forgot-password email failed for user %s: %s", first.id, exc)
-
-        if not sent:
-            try:
-                sent = await BrevoEmailService().send_async(msg)
-            except Exception as exc:
-                logger.warning("Brevo forgot-password email failed for user %s: %s", first.id, exc)
-
-        for account in accounts:
-            log_security_event(
-                "forgot_password",
-                user_id=account.id,
-                success=sent,
-                details=None if sent else {"reason": "email_send_failed"},
-            )
+        background_tasks.add_task(_send_forgot_password_email, msg, first.id, [a.id for a in accounts])
 
     return {"message": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
+
+
+async def _send_forgot_password_email(msg, first_id, account_ids) -> None:
+    """Envia o e-mail de redefinição (BackgroundTasks — ver forgot_password)."""
+    from src.services.email.brevo_provider import BrevoEmailService
+    from src.services.email.resend_fallback import ResendEmailService
+
+    # Resend é o provedor primário do GiraHub; se falhar (chave inválida,
+    # domínio não verificado, indisponibilidade), cai para o Brevo antes de
+    # desistir — sem isso o usuário nunca recebe o link e a falha fica só
+    # no log. Mesmo padrão usado em profile.py (e-mail de exclusão de conta)
+    # e onboarding.py (e-mail de boas-vindas).
+    sent = False
+    try:
+        sent = await ResendEmailService().send_async(msg)
+    except Exception as exc:
+        logger.warning("Resend forgot-password email failed for user %s: %s", first_id, exc)
+
+    if not sent:
+        try:
+            sent = await BrevoEmailService().send_async(msg)
+        except Exception as exc:
+            logger.warning("Brevo forgot-password email failed for user %s: %s", first_id, exc)
+
+    for account_id in account_ids:
+        log_security_event(
+            "forgot_password",
+            user_id=account_id,
+            success=sent,
+            details=None if sent else {"reason": "email_send_failed"},
+        )
 
 
 @router.post("/reset-password", status_code=status.HTTP_200_OK)

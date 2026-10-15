@@ -104,6 +104,12 @@ tenant redundante (barato) a uma excecao.
 - `jwt_middleware` extrai token do header `Authorization: Bearer` primeiro (impersonacao via sessionStorage), depois fallback para cookie `access_token`.
 - `jwt_middleware` public_paths inclui `/auth/login`, `/auth/login/select`, `/auth/refresh`, `/auth/logout`,
   `/auth/forgot-password`, `/auth/reset-password`, `/auth/reactivate-account`.
+- **Endurecimento do login (pentest de 2026-10-15)**: (L10) `services/login_lockout.py` — 10 senhas erradas para o
+  mesmo e-mail em 15 min bloqueiam o `/auth/login` dele (429 `LOGIN_LOCKED`, checado antes do bcrypt; e-mail
+  inexistente conta igual; login certo zera; mesmo storage do slowapi). (L3) senha nova acima de 72 bytes (limite do
+  bcrypt) = 422 na politica e no `hash_password`; `verify_password` compara os 72 primeiros bytes (contas antigas).
+  (L2) o e-mail do `/forgot-password` sai em `BackgroundTasks`, depois da resposta. (L7) `rotate_session` le a
+  `user_sessions` com `FOR UPDATE`.
 - **Mesmo e-mail em mais de um terreiro (AM-05)**: usuario e unico por `(tenant_id, email)`. O login confere a
   senha em TODAS as contas ativas com o e-mail (`login.active_login_accounts_stmt`: usuario ativo e nao excluido,
   terreiro sem `self_deactivated_at`/`deleted_at`; max. `MAX_LOGIN_ACCOUNTS = 5`, mais antigas primeiro) — uma

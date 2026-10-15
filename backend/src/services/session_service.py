@@ -148,9 +148,16 @@ async def rotate_session(
     """Validate and rotate a refresh token's jti for an existing session.
 
     Does not commit — caller controls the transaction boundary.
+
+    A linha é lida com FOR UPDATE (pentest L7): dois refresh simultâneos com o
+    mesmo jti rodavam em paralelo, cada um gerava uma geração nova, e o próximo
+    refresh da aba "perdedora" caía como reuso e revogava a sessão. Com a trava,
+    o segundo espera o commit do primeiro e cai na janela de graça (mesmo jti).
     """
-    stmt = select(UserSession).where(
-        (UserSession.id == session_id) & (UserSession.user_id == user_id)
+    stmt = (
+        select(UserSession)
+        .where((UserSession.id == session_id) & (UserSession.user_id == user_id))
+        .with_for_update()
     )
     result = await db.execute(stmt)
     row = result.scalar_one_or_none()
