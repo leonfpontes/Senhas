@@ -15,6 +15,7 @@ import { FaqSection } from '@/components/landing/FaqSection';
 import { Reveal } from '@/components/landing/Reveal';
 import { PLAN_LIST } from '@/constants/plans';
 import { faqJsonLd } from '@/constants/landingFaq';
+import { jsonLd } from '@/lib/jsonLd';
 
 const TITLE = 'Planos e preços do GiraHub — sistema para terreiros';
 const DESCRIPTION =
@@ -27,7 +28,7 @@ const PROMISES = [
 ];
 
 export default function PlanosPage() {
-  const offers = JSON.stringify({
+  const offers = jsonLd({
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: 'GiraHub',

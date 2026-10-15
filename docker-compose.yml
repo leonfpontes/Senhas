@@ -11,7 +11,9 @@ services:
       POSTGRES_DB: ${DATABASE_NAME:-senhas_db}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
     ports:
-      - "${DATABASE_PORT:-5432}:5432"
+      # Só no próprio computador (pentest, informativo): banco com senha padrão e API em DEBUG
+      # não ficam abertos para a rede local. O frontend segue em todas as interfaces (teste no celular).
+      - "127.0.0.1:${DATABASE_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/alembic/versions:/docker-entrypoint-initdb.d:ro
@@ -51,7 +53,7 @@ services:
       MERCADOPAGO_WEBHOOK_SECRET: ${MERCADOPAGO_WEBHOOK_SECRET:-}
       EXTRA_ALLOWED_HOSTS: backend,senhas_backend
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy

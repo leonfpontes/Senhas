@@ -8,7 +8,9 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
       POSTGRES_DB: ${DB_NAME:-senhas_db}
     ports:
-      - "5432:5432"
+      # Só no próprio computador (pentest, informativo): banco com senha padrão e API em DEBUG
+      # não ficam abertos para a rede local. O frontend segue em todas as interfaces (teste no celular).
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -32,7 +34,7 @@ services:
       SECRET_KEY: dev-secret-key-change-in-production
       EXTRA_ALLOWED_HOSTS: backend,backend:8000
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy

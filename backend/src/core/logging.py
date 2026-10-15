@@ -1,6 +1,7 @@
 """Logging configuration and utilities."""
 import logging
 import json
+import re
 from typing import Any, Optional
 from .tz import utc_now
 
@@ -15,6 +16,39 @@ formatter = logging.Formatter(
 )
 handler.setFormatter(formatter)
 logger.addHandler(handler)
+
+
+# E-mail em log vira "a***@dominio.com" (pentest, item informativo "PII em log"). Aplicado na
+# CRIAÇÃO de todo LogRecord (qualquer logger, inclusive os que propagam para a raiz e o que
+# vai para o Sentry), em vez de mexer em cada chamada que loga um destinatário.
+_EMAIL_RE = re.compile(r"\b([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})\b")
+
+
+def mask_emails(text: str) -> str:
+    return _EMAIL_RE.sub(r"\1***@\2", text)
+
+
+def _install_email_masking() -> None:
+    base = logging.getLogRecordFactory()
+    if getattr(base, "_masks_emails", False):
+        return
+
+    def factory(*args, **kwargs):
+        record = base(*args, **kwargs)
+        try:
+            message = record.getMessage()
+        except Exception:
+            return record
+        masked = mask_emails(message)
+        if masked != message:
+            record.msg, record.args = masked, None
+        return record
+
+    factory._masks_emails = True  # type: ignore[attr-defined]
+    logging.setLogRecordFactory(factory)
+
+
+_install_email_masking()
 
 
 def log_audit_event(

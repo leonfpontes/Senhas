@@ -5,6 +5,7 @@
  */
 import { AREA_MEDIUM_DIVULGADA } from '@/constants/areaMedium';
 import { minPlanPhrase } from '@/constants/plans';
+import { jsonLd } from '@/lib/jsonLd';
 
 export interface FaqItem {
   q: string;
@@ -61,9 +62,9 @@ export function visibleFaq(divulgarArea: boolean = AREA_MEDIUM_DIVULGADA): reado
   return [...LANDING_FAQ.slice(0, 2), FAQ_AREA_MEDIUM, ...LANDING_FAQ.slice(2)];
 }
 
-/** JSON-LD FAQPage gerado da mesma lista (com `<` escapado para não fechar o <script>). */
+/** JSON-LD FAQPage gerado da mesma lista (`jsonLd` escapa `<` para não fechar o <script>). */
 export function faqJsonLd(items: readonly FaqItem[] = visibleFaq()): string {
-  return JSON.stringify({
+  return jsonLd({
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
     mainEntity: items.map((i) => ({
@@ -71,5 +72,5 @@ export function faqJsonLd(items: readonly FaqItem[] = visibleFaq()): string {
       name: i.q,
       acceptedAnswer: { '@type': 'Answer', text: i.a },
     })),
-  }).replace(/</g, '\\u003c');
+  });
 }
