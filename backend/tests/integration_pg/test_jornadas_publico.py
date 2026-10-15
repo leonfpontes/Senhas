@@ -30,6 +30,7 @@ from src.models.legal_acceptances import LegalAcceptance
 from src.models.tenant_config import TenantConfig
 from src.models.tickets import Ticket, TicketStatus
 from src.models.users import User, UserRole
+from src.security.jwt import create_access_token
 from src.security.password import hash_password
 
 from src.core.legal_versions import LEGAL_VERSIONS
@@ -353,7 +354,8 @@ async def test_usuario_suspenso_nao_reativa_terreiro_desativado_por_outro(client
     assert "TENANT_DEACTIVATED" not in login.text  # nem oferece o "Deseja reativá-la?"
 
     reativa = await client.post("/api/v1/auth/reactivate-account", json={"email": "suspenso@example.com", "password": SENHA})
-    assert reativa.status_code == 401
+    assert reativa.status_code == 403
+    assert reativa.json()["error_code"] == "REACTIVATION_NOT_ALLOWED"
     assert not _set_cookies(reativa)
     await db.refresh(tenant)
     assert tenant.self_deactivated_at is not None and tenant.is_active is False
@@ -364,6 +366,47 @@ async def test_usuario_suspenso_nao_reativa_terreiro_desativado_por_outro(client
     ok = await client.post("/api/v1/auth/reactivate-account", json={"email": "dono@example.com", "password": SENHA})
     assert ok.status_code == 200, ok.text
     assert ok.json()["user"]["email"] == "dono@example.com"
+
+
+async def test_quem_desativou_reativa_pelo_fluxo_real(client, db, monkeypatch):
+    """Pentest H1: o /deactivate-account grava o autor e só ele reativa."""
+    monkeypatch.setattr("src.api.v1.auth.deactivation._send_account_deactivated_email", AsyncMock())
+    monkeypatch.setattr("src.api.v1.auth.deactivation._send_account_reactivated_email", AsyncMock())
+    tenant = await create_tenant(db)
+    dono = await _user(db, tenant, "fechei@example.com")
+    token = create_access_token(dono.id, dono.tenant_id, dono.role.value)
+
+    desativa = await client.post(
+        "/api/v1/auth/deactivate-account", json={"password": SENHA}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert desativa.status_code == 200, desativa.text
+    await db.refresh(tenant)
+    assert tenant.self_deactivated_at is not None
+    assert tenant.self_deactivated_by == dono.id
+
+    ok = await client.post("/api/v1/auth/reactivate-account", json={"email": "fechei@example.com", "password": SENHA})
+    assert ok.status_code == 200, ok.text
+    await db.refresh(tenant)
+    assert tenant.self_deactivated_at is None and tenant.self_deactivated_by is None and tenant.is_active
+
+
+async def test_terreiro_desativado_antes_da_coluna_so_reativa_pelo_suporte(client, db, monkeypatch):
+    """Desativação anterior à migração 095 (autor NULL): o login ainda avisa, mas a
+    reativação self-service recusa — ninguém prova ser o dono."""
+    monkeypatch.setattr("src.api.v1.auth.deactivation._send_account_reactivated_email", AsyncMock())
+    tenant = await create_tenant(db)
+    await _user(db, tenant, "antigo@example.com", is_active=False)
+    await deactivate_tenant(db, tenant, by=None)
+
+    login = await client.post("/api/v1/auth/login", json={"email": "antigo@example.com", "password": SENHA})
+    assert login.status_code == 401 and "TENANT_DEACTIVATED" in login.text
+
+    reativa = await client.post("/api/v1/auth/reactivate-account", json={"email": "antigo@example.com", "password": SENHA})
+    assert reativa.status_code == 403
+    assert reativa.json()["error_code"] == "REACTIVATION_NOT_ALLOWED"
+    assert not _set_cookies(reativa)
+    await db.refresh(tenant)
+    assert tenant.self_deactivated_at is not None and tenant.is_active is False
 
 
 async def test_reativacao_abre_sessao_e_mostra_o_resultado_real(client, db, monkeypatch):

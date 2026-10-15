@@ -103,28 +103,6 @@ async def _send_account_reactivated_email(email: str, user_name: str, login_url:
             logger.warning("Account-reactivated notification email failed for %s: %s", email, exc)
 
 
-async def is_tenant_deactivator(db: AsyncSession, tenant_id, user: User) -> bool:
-    """Só quem desativou o terreiro pode reativá-lo (pentest H1).
-
-    A desativação exige que o admin seja o único usuário *ativo*, mas os
-    usuários já suspensos continuam no terreiro — sem esta checagem, qualquer
-    um deles reativava o terreiro (e a própria conta) com a sua senha. O autor
-    vem do AuditLog TENANT_DEACTIVATED gravado na mesma transação da
-    desativação; sem registro, nega (fail closed)."""
-    if user.role != UserRole.ADMIN:
-        return False
-    deactivated_by = await db.scalar(
-        select(AuditLog.user_id)
-        .where(
-            AuditLog.tenant_id == tenant_id,
-            AuditLog.action == AuditAction.TENANT_DEACTIVATED,
-        )
-        .order_by(AuditLog.created_at.desc())
-        .limit(1)
-    )
-    return deactivated_by == user.id
-
-
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -235,6 +213,8 @@ async def deactivate_account(
         tenant.soft_delete()
         tenant.is_active = False
         tenant.self_deactivated_at = datetime.now(timezone.utc)
+        # Só quem desativou reativa (pentest H1) — ver reactivate_account().
+        tenant.self_deactivated_by = current_user.id
         current_user.is_active = False
         current_user.sessions_revoked_at = datetime.now(timezone.utc)
 
@@ -286,9 +266,11 @@ async def reactivate_account(
       (mesma mensagem e mesmo custo de bcrypt do login);
     - credenciais certas mas conta não desativada → 409 NOT_DEACTIVATED
       (o login, com essas credenciais, simplesmente entraria);
-    - credenciais certas de um usuário que não foi quem desativou (ex.:
-      usuário suspenso do terreiro) → 401 "Credenciais inválidas", como o
-      login de um usuário suspenso.
+    - credenciais certas de quem não desativou o terreiro → 403
+      REACTIVATION_NOT_ALLOWED (pentest H1: a desativação só exige ser o único
+      usuário *ativo*, então colaboradores suspensos continuam no terreiro e
+      não podem religá-lo). Terreiros desativados antes da migração 095
+      (self_deactivated_by NULL) caem aqui também: reativação só pelo suporte.
 
     On success: subscription resets to FREE (never auto-restores a
     previous paid plan), tenant + user are reactivated AND the session is
@@ -318,14 +300,19 @@ async def reactivate_account(
             error_code="NOT_DEACTIVATED",
         )
 
-    if not await is_tenant_deactivator(db, tenant.id, user):
+    if tenant.self_deactivated_by is None or user.id != tenant.self_deactivated_by:
         log_security_event("reactivation", success=False, user_id=user.id, tenant_id=tenant.id,
-                           details={"reason": "not_deactivator"})
-        raise UnauthorizedError("Credenciais inválidas")
+                           details={"reason": "not_deactivator" if tenant.self_deactivated_by else "legacy_no_deactivator"})
+        raise APIException(
+            "Só quem desativou o terreiro pode reativá-lo. Fale com o suporte do GiraHub.",
+            status_code=status.HTTP_403_FORBIDDEN,
+            error_code="REACTIVATION_NOT_ALLOWED",
+        )
 
     tenant.is_active = True
     tenant.deleted_at = None
     tenant.self_deactivated_at = None
+    tenant.self_deactivated_by = None
     user.is_active = True
 
     await SubscriptionRepository(db).reset_to_free(tenant.id, status=SubscriptionStatus.ACTIVE)

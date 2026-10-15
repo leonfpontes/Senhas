@@ -282,11 +282,11 @@ async def _reject_without_active_account(db: AsyncSession, credentials: "LoginRe
         # ever sets — avoids sharing a signature with unrelated tenant
         # states (e.g. a future platform-side suspension/hold).
         tenant_deactivated = bool(tenant and tenant.self_deactivated_at is not None)
-        if tenant_deactivated:
-            # Só quem desativou ganha o "Deseja reativá-la?" — os demais
-            # usuários do terreiro estavam suspensos (pentest H1).
-            from src.api.v1.auth.deactivation import is_tenant_deactivator
-            tenant_deactivated = await is_tenant_deactivator(db, tenant.id, user)
+        # Só quem desativou ganha o "Deseja reativá-la?" — os demais usuários
+        # do terreiro estavam suspensos e a reativação os recusa (pentest H1).
+        # Desativação anterior à migração 095 (autor NULL) ainda mostra o aviso:
+        # a reativação responde 403 mandando falar com o suporte.
+        tenant_deactivated = tenant_deactivated and tenant.self_deactivated_by in (None, user.id)
 
     if tenant_deactivated:
         if not verify_password(credentials.password, user.password_hash):
