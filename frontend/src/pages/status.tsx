@@ -1,8 +1,9 @@
 /**
  * Página pública de status do sistema — girahub.com.br/status
  *
- * Mostra saúde em tempo real de cada componente e histórico de 90 dias, em linguagem
- * leiga ("Emissão de senhas: funcionando"). Quando a verificação falha, diz que não
+ * Mostra a saúde em tempo real de cada componente, em linguagem leiga ("Emissão de senhas:
+ * funcionando"). Sem histórico de 90 dias desde o pentest L9: ele era derivado de atividade
+ * (não de disponibilidade) e expunha o ritmo de uso da plataforma. Quando a verificação falha, diz que não
  * conseguiu verificar — nunca assume "tudo operacional". Não requer autenticação.
  */
 
@@ -18,7 +19,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // ---------------------------------------------------------------------------
 // Constantes
@@ -34,13 +34,6 @@ export const STATUS_LABEL: Record<StatusKey, string> = {
   degraded: 'com lentidão',
   outage: 'fora do ar',
   unknown: 'sem dados',
-};
-
-const STATUS_BAR_CLASS: Record<StatusKey, string> = {
-  operational: 'bg-success',
-  degraded: 'bg-warning',
-  outage: 'bg-destructive',
-  unknown: 'bg-muted-foreground/30',
 };
 
 const STATUS_BADGE_CLASS: Record<StatusKey, string> = {
@@ -65,19 +58,11 @@ function asStatus(s: string): StatusKey {
 // Tipos
 // ---------------------------------------------------------------------------
 
-interface HistoryEntry {
-  date: string;
-  status: string;
-}
-
 interface Component {
   name: string;
   description: string;
   status: string;
   latency_ms?: number | null;
-  uptime_30d: number;
-  uptime_90d: number;
-  history: HistoryEntry[];
 }
 
 interface StatusData {
@@ -106,35 +91,6 @@ function StatusBadge({ status }: { status: StatusKey }) {
   );
 }
 
-function formatDay(date: string): string {
-  const d = new Date(`${date}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return date;
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(d).replace('.', '');
-}
-
-/** Barra de um dia do histórico — Popover (funciona no toque) no lugar de tooltip. */
-function HistoryBar({ entry }: { entry: HistoryEntry }) {
-  const status = asStatus(entry.status);
-  const label = `${formatDay(entry.date)}: ${STATUS_LABEL[status]}`;
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          className={cn(
-            'h-7 min-w-[3px] flex-1 rounded-[2px] transition-opacity hover:opacity-75 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-            STATUS_BAR_CLASS[status],
-          )}
-        />
-      </PopoverTrigger>
-      <PopoverContent side="top" className="w-auto px-3 py-2 text-sm">
-        {label}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 function ComponentCard({ component }: { component: Component }) {
   const status = asStatus(component.status);
   const label = COMPONENT_LABEL[component.name] ?? { name: component.name, description: component.description };
@@ -156,18 +112,6 @@ function ComponentCard({ component }: { component: Component }) {
             </p>
           </div>
           <StatusBadge status={status} />
-        </div>
-
-        <div className="flex gap-[2px]" aria-label="Histórico dos últimos 90 dias">
-          {component.history.map((entry) => (
-            <HistoryBar key={entry.date} entry={entry} />
-          ))}
-        </div>
-
-        <div className="flex justify-between text-sm text-muted-foreground">
-          <span>90 dias atrás</span>
-          <span className="font-semibold">{component.uptime_30d}% no ar (30 dias)</span>
-          <span>Hoje</span>
         </div>
       </CardContent>
     </Card>
@@ -281,16 +225,6 @@ const StatusPage: React.FC = () => {
 
               {!verifyFailed && (
                 <>
-                  {/* Legenda de cores */}
-                  <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground" aria-label="Legenda">
-                    {(['operational', 'degraded', 'outage', 'unknown'] as const).map((s) => (
-                      <li key={s} className="flex items-center gap-1.5">
-                        <span aria-hidden className={cn('inline-block size-3 rounded-[2px]', STATUS_BAR_CLASS[s])} />
-                        {STATUS_LABEL[s]}
-                      </li>
-                    ))}
-                  </ul>
-
                   {/* Componentes */}
                   <div className="flex flex-col gap-3">
                     {(data?.components ?? []).map((component) => (
@@ -302,7 +236,7 @@ const StatusPage: React.FC = () => {
 
               <Separator />
 
-              <p className="text-center text-sm text-muted-foreground">GiraHub · Histórico dos últimos 90 dias</p>
+              <p className="text-center text-sm text-muted-foreground">GiraHub · Situação verificada agora, atualizada a cada minuto</p>
             </>
           )}
         </main>

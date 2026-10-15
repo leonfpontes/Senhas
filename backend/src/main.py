@@ -1,7 +1,6 @@
 """Main FastAPI application factory (T026)."""
 import os
 import sentry_sdk
-from pathlib import Path
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +8,6 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -276,10 +274,8 @@ def create_app() -> FastAPI:
     # Auth routes
     app.include_router(auth_router)
 
-    # Static uploads (profile photos and future tenant assets)
-    uploads_dir = Path("uploads")
-    uploads_dir.mkdir(parents=True, exist_ok=True)
-    app.mount("/uploads", StaticFiles(directory=str(uploads_dir), check_dir=False), name="uploads")
+    # Sem mount /uploads (pentest L8): servia arquivos sem autenticação, nada no código grava
+    # mais lá (foto de perfil vai no banco, profile_photo_data) e o nginx nem roteava o caminho.
     
     # Admin routes (tenant-scoped)
     app.include_router(admin_router)
