@@ -98,8 +98,16 @@ export default function ClarityAnalytics() {
 
   if (!liberado) return null;
 
+  // Nonce da CSP (pentest L3): o _document expõe o nonce desta resposta numa
+  // meta; o <Script> inline do Clarity precisa carregá-lo para não ser barrado
+  // pela CSP (que não tem mais 'unsafe-inline' em script-src).
+  const nonce =
+    typeof document !== 'undefined'
+      ? document.querySelector('meta[name="x-nonce"]')?.getAttribute('content') ?? undefined
+      : undefined;
+
   return (
-    <Script id="ms-clarity" strategy="afterInteractive">
+    <Script id="ms-clarity" strategy="afterInteractive" nonce={nonce}>
       {`
         (function(c,l,a,r,i,t,y){
           c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
