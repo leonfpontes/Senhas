@@ -63,6 +63,11 @@ dependencies = [
     # Segredo em repouso (core/secret_box.py, F-02): Fernet para o token OAuth do Mercado
     # Pago de cada terreiro. Ja vinha transitiva pelo pywebpush; agora declarada.
     "cryptography>=46.0.0",
+    # Pins de deps transitivas por advisory (pentest, out/2026), antes sem piso:
+    # urllib3 (transitiva de requests/sentry): GHSA-8988-9cw3-xx77 e correlatos → >=2.8.0.
+    # Mako (transitiva do alembic): GHSA-5639-2j2p-m4mx → >=1.4.3.
+    "urllib3>=2.8.0",
+    "Mako>=1.4.3",
 ]
 
 [project.optional-dependencies]
