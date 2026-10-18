@@ -32,17 +32,19 @@ Deploy do Senhas em servidor VPS com Ubuntu 22.04 LTS.
 ### Automatizado
 
 ```bash
-ssh ubuntu@seu-vps-ip
-curl -O https://raw.githubusercontent.com/leonfpontes/Senhas/main/devops/vps_setup.sh
-bash vps_setup.sh
+ssh root@seu-vps-ip
+curl -O https://raw.githubusercontent.com/leonfpontes/Senhas/master/devops/setup_vps.sh
+bash setup_vps.sh
 ```
 
-O script instala:
-- Docker & Docker Compose
-- PostgreSQL 15
-- Nginx
-- Certbot (Let's Encrypt SSL)
-- UFW (firewall)
+O script instala Docker + Compose, configura o UFW (22/80/443), clona o repositório em `/opt/senhas`
+e cria o `.env` a partir do `.env.prod.example`. **Postgres, Redis e nginx rodam em containers**
+(`docker-compose.prod.yml`) — nada disso é instalado no host.
+
+> ⚠️ **Nunca instale nginx no host** (`apt install nginx`). Ele disputa a porta 80 com o container
+> `senhas-nginx` no boot: em 17/10/2026, depois de um reboot, o do host ganhou, o container não subiu e o
+> site ficou ~27 h sem HTTPS. O deploy e o `setup_vps.sh` param e mascaram (`systemctl mask nginx`) um nginx
+> do host se encontrarem. O `certbot` (só ele, sem `python3-certbot-nginx`) fica no host para o certificado.
 
 ### Manual (se necessário)
 
@@ -57,12 +59,8 @@ sudo usermod -aG docker $USER
 # Docker Compose
 sudo apt install docker-compose-plugin -y
 
-# Nginx
-sudo apt install nginx -y
-sudo systemctl enable nginx
-
-# Certbot
-sudo apt install certbot python3-certbot-nginx -y
+# Certbot (certificado; o nginx é o container senhas-nginx — não instalar nginx no host)
+sudo apt install certbot -y
 
 # Firewall
 sudo ufw allow 22/tcp    # SSH
@@ -400,63 +398,23 @@ pelo Dashboard da Stripe.
 
 ## 5. Configurar Nginx + SSL
 
-### Nginx config
+O nginx é o container `senhas-nginx` (`docker-compose.prod.yml`), com a config versionada em
+`nginx/nginx.conf` e `nginx/conf.d/senhas.conf`. O certificado Let's Encrypt é emitido pelo `certbot` do host
+(modo `standalone`) e copiado para `/opt/senhas/certs/`, que o overlay `docker-compose.ssl.yml` monta no container.
 
-```nginx
-# /etc/nginx/sites-available/senhas
-server {
-    listen 80;
-    server_name senhas.seudominio.com api.senhas.seudominio.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name senhas.seudominio.com;
-
-    ssl_certificate /etc/letsencrypt/live/senhas.seudominio.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/senhas.seudominio.com/privkey.pem;
-
-    # Security headers
-    add_header X-Frame-Options DENY;
-    add_header X-Content-Type-Options nosniff;
-    add_header X-XSS-Protection "1; mode=block";
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains";
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-
-server {
-    listen 443 ssl http2;
-    server_name api.senhas.seudominio.com;
-
-    ssl_certificate /etc/letsencrypt/live/senhas.seudominio.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/senhas.seudominio.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-### Habilitar e obter SSL
+### Primeiro deploy (sem certificado ainda)
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/senhas /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo certbot --nginx -d senhas.seudominio.com -d api.senhas.seudominio.com
-sudo systemctl reload nginx
+cd /opt/senhas
+docker compose -f docker-compose.prod.yml -f docker-compose.init-ssl.yml up -d
+# standalone precisa da porta 80 livre: parar o nginx do container enquanto emite
+docker compose -f docker-compose.prod.yml stop nginx
+certbot certonly --standalone -d girahub.com.br -d www.girahub.com.br
+cp /etc/letsencrypt/live/girahub.com.br/fullchain.pem /etc/letsencrypt/live/girahub.com.br/privkey.pem ./certs/
+docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d
 ```
+
+Daí em diante o deploy recria o nginx sempre com o overlay de SSL (`deploy.yml`, passo 5b).
 
 ---
 
@@ -516,7 +474,8 @@ docker compose -f docker-compose.prod.yml exec postgres \
 
 > Diagnóstico de 2026-10-06 (I-02): até esta data **não havia backup diário nenhum** na VPS. O cron
 > descrito antes aqui (`/etc/cron.d/senhas-backup` com `senhas_postgres`) nunca foi instalado, e o do
-> `devops/vps_setup.sh` mira um Postgres do host, que não é usado (o banco roda no container `senhas-postgres`).
+> antigo `devops/vps_setup.sh` (removido em 18/10/2026) mirava um Postgres do host, que não é usado (o banco roda
+> no container `senhas-postgres`).
 
 ### Backup diário criptografado (I-02)
 
