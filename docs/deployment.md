@@ -416,6 +416,25 @@ docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d
 
 Daí em diante o deploy recria o nginx sempre com o overlay de SSL (`deploy.yml`, passo 5b).
 
+### Renovação automática
+
+O `certbot.timer` do host roda `certbot renew` duas vezes por dia e renova quando faltam 30 dias. No
+`/etc/letsencrypt/renewal/girahub.com.br.conf` ficam os hooks que liberam a porta 80 para o `standalone`:
+
+```ini
+pre_hook = docker stop senhas-nginx
+post_hook = docker start senhas-nginx
+```
+
+Entre os dois, o deploy hook `devops/certbot/senhas-copia-certs.sh` (instalado em
+`/etc/letsencrypt/renewal-hooks/deploy/` pelo `deploy.yml`, passo 5d) copia o certificado renovado para
+`/opt/senhas/certs/` — o nginx volta já com ele. O site fica fora só os segundos do desafio HTTP.
+O `check-vps.sh` (monitor diário) falha se o certificado **servido** vencer em menos de 20 dias.
+
+> Até 18/10/2026 não havia deploy hook: a cópia era um cron bimestral no root (removido; backup em
+> `/root/crontab.bak-20261018`). O certificado renovado em 17/10 ficou só em `/etc/letsencrypt` e o nginx
+> seguiu com o que vencia em 16/11.
+
 ---
 
 ## 6. Monitoramento
@@ -565,7 +584,7 @@ docker compose -f docker-compose.prod.yml exec backend alembic downgrade -1
 |----------|---------|
 | 502 Bad Gateway | Verificar se backend está rodando: `docker compose ps` |
 | Database connection refused | Verificar `DATABASE_URL` no `.env` e status do PostgreSQL |
-| SSL certificate error | Executar `sudo certbot renew` |
+| SSL certificate error | Comparar `openssl x509 -enddate -noout -in` em `/etc/letsencrypt/live/girahub.com.br/fullchain.pem` e `/opt/senhas/certs/fullchain.pem`. Se o de `live` for mais novo, rodar `/etc/letsencrypt/renewal-hooks/deploy/senhas-copia-certs.sh`; se os dois estiverem vencendo, `certbot renew` (para o nginx por alguns segundos) |
 | Email não enviado | Verificar `BREVO_API_KEY` e `RESEND_API_KEY` no `.env` |
 | "Notificações no celular" não aparece na Área | Conferir `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_SUBJECT` no `.env` e recriar o backend (seção 3) |
 | Migration falha | Verificar logs: `docker compose logs backend` |
