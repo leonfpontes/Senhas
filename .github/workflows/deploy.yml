@@ -138,6 +138,15 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d --no-deps --remove-orphans frontend backend
 
             echo "==> [5b] Recriar nginx (aplica mudanças de config)"
+            # O nginx de produção é o container senhas-nginx. Um nginx instalado no host
+            # (apt install nginx, guia antigo) disputa a porta 80 no boot: em 17/10/2026 ele
+            # ganhou depois de um reboot, o container não subiu e o site ficou 27 h sem HTTPS.
+            # 'mask' impede que ele volte a subir no próximo reboot.
+            if systemctl list-unit-files nginx.service --no-legend 2>/dev/null | grep -qv masked; then
+              echo "AVISO: nginx do host encontrado — parando e mascarando (conflita com o container)"
+              systemctl disable --now nginx || true
+              systemctl mask nginx
+            fi
             # 'nginx -s reload' NÃO basta: o bind mount de arquivo único fica preso ao
             # inode antigo depois de um 'git reset --hard' (que substitui o arquivo em vez
             # de editar em place), então o container continua servindo a config anterior

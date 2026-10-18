@@ -42,6 +42,14 @@ else
     echo "[3/7] Docker already installed: $(docker --version)"
 fi
 
+# O nginx roda no container senhas-nginx; um nginx do host disputa a porta 80 no boot
+# (derrubou o HTTPS em 17/10/2026). Se houver um, fica parado e mascarado.
+if systemctl list-unit-files nginx.service --no-legend 2>/dev/null | grep -qv masked; then
+    echo "  Host nginx found — disabling and masking (conflicts with the nginx container)"
+    systemctl disable --now nginx || true
+    systemctl mask nginx
+fi
+
 # Ensure docker compose plugin is available
 if ! docker compose version &> /dev/null; then
     echo "  Installing docker-compose-plugin..."
