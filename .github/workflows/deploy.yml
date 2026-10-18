@@ -162,6 +162,14 @@ jobs:
             logrotate -d /etc/logrotate.d/senhas-nginx >/dev/null 2>&1 \
               || echo "AVISO: logrotate -d recusou /etc/logrotate.d/senhas-nginx — conferir na VPS"
 
+            echo "==> [5d] Deploy hook do certbot (copia o certificado renovado para ./certs)"
+            # Sem isto o certificado renovado ficava só em /etc/letsencrypt e o nginx seguia com o antigo.
+            if [ -d /etc/letsencrypt/renewal-hooks/deploy ]; then
+              install -m 0755 devops/certbot/senhas-copia-certs.sh /etc/letsencrypt/renewal-hooks/deploy/senhas-copia-certs.sh
+            else
+              echo "AVISO: certbot não configurado no host — deploy hook não instalado"
+            fi
+
             echo "==> [6/6] Health check pós-deploy"
             sleep 5
             for i in 1 2 3 4 5; do

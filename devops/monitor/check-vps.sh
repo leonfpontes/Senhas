@@ -4,7 +4,8 @@
 #   1. backup do dia concluído (log do cron) há menos de 26 h;
 #   2. arquivo mais novo no bucket (daily/ ou monthly/) com menos de 26 h;
 #   3. disco abaixo de 85%;
-#   4. containers principais saudáveis.
+#   4. containers principais saudáveis;
+#   5. certificado servido pelo nginx (/opt/senhas/certs) com 20 dias ou mais de validade.
 # Não altera nada (só leitura). Nada de segredo vai para a saída.
 set -uo pipefail
 
@@ -54,6 +55,17 @@ for c in senhas-postgres senhas-backend senhas-frontend senhas-nginx; do
   st=$(docker inspect -f '{{.State.Health.Status}}' "$c" 2>/dev/null || echo "ausente")
   if [ "$st" = "healthy" ]; then ok "$c saudável"; else falha "$c: $st"; fi
 done
+
+# 5. Certificado servido pelo nginx (o renovado em /etc/letsencrypt só vale depois de copiado para certs/)
+CERT=/opt/senhas/certs/fullchain.pem
+CERT_MIN_DIAS=20
+if [ -f "$CERT" ]; then
+  fim=$(date -u -d "$(openssl x509 -in "$CERT" -noout -enddate | cut -d= -f2)" +%s)
+  dias=$(( (fim - agora) / 86400 ))
+  if [ "$dias" -lt "$CERT_MIN_DIAS" ]; then falha "certificado servido vence em ${dias} dias"; else ok "certificado servido vence em ${dias} dias"; fi
+else
+  falha "falta $CERT"
+fi
 
 if [ "$problemas" -gt 0 ]; then echo "== $problemas problema(s)"; exit 1; fi
 echo "== tudo certo"
