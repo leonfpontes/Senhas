@@ -2,7 +2,7 @@ name: Monitor → produção
 
 # Monitor sem serviço externo: se um passo falhar, o GitHub manda e-mail sobre a falha do
 # workflow (notificações de Actions da conta). Não altera nada em produção.
-#  - a cada 15 min: site e API respondendo;
+#  - a cada 15 min: site e API respondendo (4 tentativas em ~6 min, para não alarmar com oscilação de rede);
 #  - todo dia 06:10 UTC (depois do backup das 03:15): backup concluído e no bucket, disco e
 #    containers (devops/monitor/check-vps.sh via SSH, só leitura).
 
@@ -23,24 +23,35 @@ jobs:
   disponibilidade:
     name: Site e API no ar
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Conferir site e API (3 tentativas)
+      - name: Conferir site e API (4 tentativas em ~6 min)
+        # As tentativas cobrem ~6 min de propósito: em 18/10/2026 o runner do GitHub ficou ~4 min sem
+        # rota até a VPS (o Sentry Uptime via 200 no mesmo intervalo) e as 3 tentativas em 2 min davam
+        # alarme falso. Queda de verdade continua sendo pega na mesma execução.
         run: |
           set -u
-          checar() {
-            local url=$1 codigo
-            for t in 1 2 3; do
-              codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$url" || echo 000)
-              [ "$codigo" = "200" ] && { echo "ok $url"; return 0; }
-              echo "tentativa $t: $url → $codigo"; sleep 20
+          URLS="https://girahub.com.br/health https://girahub.com.br/login"
+          for t in 1 2 3 4; do
+            pendentes=""
+            for url in $URLS; do
+              # curl já escreve 000 em -w quando não conecta; o código de saída diz o motivo
+              # (6 = DNS, 7 = conexão recusada, 28 = timeout).
+              rc=0
+              codigo=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 20 "$url") || rc=$?
+              if [ "$codigo" = "200" ]; then
+                echo "ok $url"
+              else
+                echo "tentativa $t: $url → HTTP $codigo (curl $rc)"
+                pendentes="$pendentes $url"
+              fi
             done
-            echo "::error::$url não respondeu 200"; return 1
-          }
-          falhou=0
-          checar https://girahub.com.br/health || falhou=1
-          checar https://girahub.com.br/login || falhou=1
-          exit $falhou
+            [ -z "$pendentes" ] && exit 0
+            URLS=$pendentes
+            [ "$t" -lt 4 ] && sleep 60
+          done
+          for url in $URLS; do echo "::error::$url não respondeu 200 em 4 tentativas (~6 min)"; done
+          exit 1
 
   vps:
     name: Backup, disco e containers
