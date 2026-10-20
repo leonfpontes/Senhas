@@ -21,6 +21,9 @@ jest.mock('next/link', () => {
 });
 
 const FILA = '/api/v1/admin/financeiro/mensalidades/comprovantes-para-conferir';
+// A tabela (`cobranca-mediuns`) já existe enquanto a lista do mês carrega: o 1 s padrão do
+// findBy* não basta com a suíte inteira rodando e a lista ainda vazia → "Unable to find".
+const ESPERA = { timeout: 5000 };
 const mockGet = jest.fn();
 jest.mock('@/services/api_client', () => ({
   apiClient: { get: (...a: unknown[]) => mockGet(...a), post: jest.fn(), patch: jest.fn() },
@@ -78,7 +81,7 @@ beforeEach(() => {
 it('sem a Área do Médium no plano: tela como antes, sem fila nem "Conferir"', async () => {
   mockFeatures = { mensalidade_mediun: true };
   render(<MensalidadesPage />);
-  expect((await screen.findAllByText('Elaine Souza')).length).toBeGreaterThan(0);
+  expect((await screen.findAllByText('Elaine Souza', {}, ESPERA)).length).toBeGreaterThan(0);
   expect(mockGet.mock.calls.map((c) => c[0])).not.toContain(FILA);
   expect(screen.queryByText('Comprovantes para conferir')).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Conferir/ })).not.toBeInTheDocument();
@@ -87,11 +90,11 @@ it('sem a Área do Médium no plano: tela como antes, sem fila nem "Conferir"', 
 it('com a Área: KPI "Comprovantes para conferir" e selo na lista do mês', async () => {
   mockFeatures = { mensalidade_mediun: true, area_medium: true };
   render(<MensalidadesPage />);
-  const fila = await screen.findByTestId('comprovantes-conferir');
-  expect(await within(fila).findByText('Elaine Souza')).toBeInTheDocument();
+  const fila = await screen.findByTestId('comprovantes-conferir', {}, ESPERA);
+  expect(await within(fila).findByText('Elaine Souza', {}, ESPERA)).toBeInTheDocument();
   expect(within(fila).getByText('Comprovantes para conferir')).toBeInTheDocument();
   expect(mockGet).toHaveBeenCalledWith(FILA);
   const tabela = await screen.findByTestId('cobranca-mediuns');
-  expect((await within(tabela).findAllByText('Comprovante enviado')).length).toBeGreaterThan(0);
+  expect((await within(tabela).findAllByText('Comprovante enviado', {}, ESPERA)).length).toBeGreaterThan(0);
   expect(within(tabela).getAllByRole('button', { name: /Conferir/ }).length).toBeGreaterThan(0);
 });
