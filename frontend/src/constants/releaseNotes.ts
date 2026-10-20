@@ -22,6 +22,18 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.8.0',
+    date: '2026-10-20',
+    title: 'Duplas da noite na Porta',
+    highlights: [
+      'Na Porta, o porteiro monta as duplas da noite: marca quais médiuns estão trabalhando e escolhe o cambone de cada um. Na hora de chamar uma senha, é só tocar no médium: o cambone já vem preenchido.',
+      'Cada médium aparece com quantas senhas já atendeu na noite, para ajudar a distribuir os atendimentos.',
+      'Para montar mais rápido: "Copiar da última gira" e sugestões de cambone pelo histórico dos atendimentos. Um cambone fica com um médium por vez.',
+      'Nas casas do teste da Área do Médium, quem confirmou presença na gira já aparece no topo da lista.',
+      'Nova opção em Configurações: mostrar no Modo TV o nome do médium que vai atender a senha chamada (vem desligada).',
+    ],
+  },
+  {
     version: '2.7.0',
     date: '2026-10-09',
     title: 'PIX na assinatura, mensalidade automática e troca de terreiro',

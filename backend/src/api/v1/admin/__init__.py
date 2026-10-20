@@ -16,6 +16,7 @@ from .exports import router as exports_router
 from .validate_bulk import router as validate_router
 from .health import router as health_router
 from .door_control import router as door_control_router
+from .door_duplas import router as door_duplas_router
 from .associados import router as associados_router
 from .subscription_info import router as subscription_info_router
 from .billing_stripe import router as billing_stripe_router
@@ -63,6 +64,7 @@ admin_router.include_router(exports_router)
 admin_router.include_router(validate_router)
 admin_router.include_router(health_router)
 admin_router.include_router(door_control_router)
+admin_router.include_router(door_duplas_router)
 admin_router.include_router(associados_router)
 admin_router.include_router(subscription_info_router)
 admin_router.include_router(billing_stripe_router)

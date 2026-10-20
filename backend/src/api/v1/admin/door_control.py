@@ -77,6 +77,8 @@ class DoorTvSenha(BaseModel):
     numero_formatado: str
     nome: Optional[str] = None  # "Maria S." — nunca o nome completo
     chamado_em: Optional[datetime] = None
+    # Médium que atende a última chamada — só com `enable_tv_medium` ligado em Configurações.
+    medium: Optional[str] = None
 
 
 class DoorTvResponse(BaseModel):
@@ -520,6 +522,7 @@ async def get_door_tv(
         ultima_chamada=DoorTvSenha(
             numero_formatado=_numero_formatado(ultima),
             chamado_em=ultima.chamado_em,
+            medium=(ultima.medium_nome or None) if tenant_config and tenant_config.enable_tv_medium else None,
         ) if ultima else None,
     )
 

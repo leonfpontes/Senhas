@@ -149,7 +149,7 @@ const FIELD_LABELS: Record<string, string> = {
   data_fim: 'Data de fim', endereco: 'Endereço', primary_color: 'Cor primária',
   secondary_color: 'Cor secundária', font_color: 'Cor da fonte',
   max_giras_per_month: 'Máx. giras/mês', max_tickets_per_gira: 'Máx. senhas/gira',
-  enable_walk_in: 'Atendimento sem senha habilitado', enable_sponsors: 'Associados habilitados',
+  enable_walk_in: 'Atendimento sem senha habilitado', enable_tv_medium: 'Médium no Modo TV', enable_sponsors: 'Associados habilitados',
   validate_associado_on_emit: 'Validar associado na emissão',
   enable_estoque_log: 'Log de estoque ativado', walk_in_limit: 'Limite sem senha',
   slug: 'Slug', role: 'Papel', password_hash: 'Senha', status: 'Status',

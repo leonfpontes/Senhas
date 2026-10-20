@@ -77,6 +77,21 @@ describe('Modo TV da Porta', () => {
     expect(screen.getByText('Gira de Caboclos')).toBeInTheDocument();
   });
 
+  it('sem a opção ligada, a TV não mostra médium', async () => {
+    mockApi();
+    await renderKiosk();
+    expect(await screen.findByTestId('kiosk-ultima')).toBeInTheDocument();
+    expect(screen.queryByTestId('kiosk-medium')).not.toBeInTheDocument();
+  });
+
+  it('com o médium no payload, a última chamada diz com quem é o atendimento', async () => {
+    TV.ultima_chamada = { ...TV.ultima_chamada, medium: 'Mãe Rita' };
+    mockApi();
+    await renderKiosk();
+    expect(await screen.findByTestId('kiosk-medium')).toHaveTextContent('Mãe Rita');
+    expect(screen.getByTestId('kiosk-ultima')).toHaveTextContent('Última chamada: 0041 com Mãe Rita');
+  });
+
   it('só consome o endpoint enxuto da TV — nunca /door/queue', async () => {
     const api = mockApi();
     mockRouter.query = { gira: 'g2' };

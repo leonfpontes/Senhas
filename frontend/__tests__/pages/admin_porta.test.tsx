@@ -64,6 +64,7 @@ let QUEUE: any[] = [];
 let MEDIUNS: { id: string; nome: string }[] = [];
 let CAMBONES: { id: string; nome: string }[] = [];
 let MEDIUNS_FALHA = false;
+let DUPLAS: { medium_id: string; medium_nome: string; cambone_id: string | null; cambone_nome: string | null }[] = [];
 
 function mockApi() {
   const { apiClient } = require('@/services/api_client');
@@ -82,6 +83,9 @@ function mockApi() {
       });
     }
     if (url.endsWith('/door/queue')) return Promise.resolve({ data: { items: QUEUE } });
+    if (url.endsWith('/door/duplas')) {
+      return Promise.resolve({ data: { duplas: DUPLAS, pessoas: [], tem_confirmacoes: false, sugestoes: [], anterior: null } });
+    }
     return Promise.resolve({ data: {} });
   });
   apiClient.patch.mockResolvedValue({ data: {} });
@@ -107,6 +111,7 @@ describe('Porta — modo operação', () => {
     MEDIUNS = [];
     CAMBONES = [];
     MEDIUNS_FALHA = false;
+    DUPLAS = [];
     window.localStorage.clear();
     window.sessionStorage.clear();
     QUEUE = [
@@ -130,6 +135,58 @@ describe('Porta — modo operação', () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Atendido' }));
     });
     expect(api.patch).toHaveBeenCalledWith('/api/v1/admin/door/tickets/t2/attend', expect.objectContaining({ medium_nome: 'Mãe Joana' }));
+  });
+
+  it('com as duplas da noite, tocar no médium já preenche o cambone', async () => {
+    DUPLAS = [
+      { medium_id: 'm1', medium_nome: 'Mãe Rita', cambone_id: 'c1', cambone_nome: 'Ana' },
+      { medium_id: 'm2', medium_nome: 'Pai Carlos', cambone_id: 'c2', cambone_nome: 'Beto' },
+    ];
+    QUEUE = [...QUEUE.filter((t) => t.id !== 't4'), item('t4', 4, { status: 'completed', medium_nome: 'Pai Carlos', chamado_em: new Date().toISOString() })];
+    const api = mockApi();
+    await renderPorta();
+    expect(await screen.findByTestId('porta-duplas')).toHaveTextContent('Duplas da noite · 2 médiuns');
+    expect(screen.getByTestId('porta-duplas')).toHaveTextContent('Mãe Rita + Ana · Pai Carlos + Beto');
+
+    fireEvent.click(screen.getByRole('button', { name: /Chamar próximo · 0002/ }));
+    const dialog = await screen.findByTestId('attend-modal');
+    const cartoes = within(dialog).getAllByTestId('attend-dupla');
+    expect(cartoes).toHaveLength(2);
+    expect(cartoes[0]).toHaveTextContent('Ainda não atendeu');
+    expect(cartoes[1]).toHaveTextContent('1 atendimento');
+    // Sem escolha não confirma: nenhum médium vem marcado sozinho.
+    expect(within(dialog).getByRole('button', { name: 'Atendido' })).toBeDisabled();
+
+    fireEvent.click(within(dialog).getByRole('radio', { name: /Pai Carlos/ }));
+    expect(within(dialog).getByText('Da dupla da noite. Trocar aqui vale só para esta senha.')).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Atendido' }));
+    });
+    expect(api.patch).toHaveBeenCalledWith(
+      '/api/v1/admin/door/tickets/t2/attend',
+      expect.objectContaining({ medium_nome: 'Pai Carlos', cambone_nome: 'Beto' }),
+    );
+  });
+
+  it('"Outro médium…" volta para o campo de nome', async () => {
+    DUPLAS = [{ medium_id: 'm1', medium_nome: 'Mãe Rita', cambone_id: null, cambone_nome: null }];
+    const api = mockApi();
+    await renderPorta();
+    fireEvent.click(screen.getByRole('button', { name: /Chamar próximo · 0002/ }));
+    const dialog = await screen.findByTestId('attend-modal');
+    expect(within(dialog).queryByLabelText(/^Outro médium/)).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Outro médium…' }));
+    fireEvent.change(within(dialog).getByLabelText(/^Outro médium/), { target: { value: 'Vó Maria' } });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Atendido' }));
+    });
+    expect(api.patch).toHaveBeenCalledWith('/api/v1/admin/door/tickets/t2/attend', expect.objectContaining({ medium_nome: 'Vó Maria' }));
+  });
+
+  it('sem duplas, quem pode editar vê o convite para montar', async () => {
+    mockApi();
+    await renderPorta();
+    expect(await screen.findByRole('button', { name: 'Montar duplas' })).toBeInTheDocument();
   });
 
   it('porteiro só com Porta escolhe o médium da lista (endpoint da Porta, não o de Médiuns)', async () => {

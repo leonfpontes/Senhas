@@ -51,6 +51,9 @@ class TenantConfig(TimestampedModel):
     enable_bulk_operations: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     enable_analytics: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     enable_walk_in: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    # Modo TV da Porta: mostrar o nome do médium da última senha chamada (duplas da noite).
+    # Desligado por padrão: a TV fica na sala de espera e a casa decide se expõe o nome.
+    enable_tv_medium: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     
     # Sponsor ordering
     sponsor_priority_mode: Mapped[str] = mapped_column(String(20), default="first", server_default="first", nullable=False)

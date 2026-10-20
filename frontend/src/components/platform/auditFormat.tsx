@@ -89,6 +89,7 @@ export const FIELD_LABELS: Record<string, string> = {
   max_giras_per_month: 'Máx. giras/mês',
   max_tickets_per_gira: 'Máx. senhas/gira',
   enable_walk_in: 'Walk-in habilitado',
+  enable_tv_medium: 'Médium no Modo TV',
   enable_sponsors: 'Patrocinadores habilitados',
   validate_associado_on_emit: 'Validar associado na emissão',
   walk_in_limit: 'Limite walk-in',

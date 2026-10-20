@@ -9,6 +9,9 @@
  *   atendimento (`/attend`: aguardando → atendido). Não existe etapa "Em atendimento"; um
  *   `called` antigo vindo da API é tratado como aguardando (`normalizeLegacyStatus`).
  * - Fila compacta com menu por senha: Chegou · Chamar · Não veio · Editar.
+ * - Duplas da noite (`DuplasDaNoiteDrawer`): o porteiro marca quem trabalha e o cambone de cada
+ *   médium; no "Chamar", tocar no médium já preenche o cambone (cartões com quantas senhas cada
+ *   um atendeu, contadas da fila). Ler: `PORTA:view`; montar: `PORTA:edit`.
  * - Desfazer pelo toast logo depois de cada ação.
  * - Indicadores numa linha ("8 aguardando · 12 atendidos · 1 não veio") abrindo um Sheet com o
  *   resumo e os finalizados.
@@ -35,6 +38,7 @@ import {
   Undo2,
   UserPlus,
   UserX,
+  UsersRound,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -65,6 +69,8 @@ import { giraLabel, pickTodayGira, useGiraContext } from '@/components/admin/Gir
 import { PORTA_WALK_IN_EVENT } from '@/components/admin/MobileTabBar';
 import PortaOfflineNotice from '@/components/admin/PortaOfflineNotice';
 import InstallPortaHint from '@/components/admin/InstallPortaHint';
+import DuplasDaNoiteDrawer from '@/components/admin/porta/DuplasDaNoiteDrawer';
+import { atendimentosPorMedium, type Dupla, type DuplasPainel } from '@/components/admin/porta/duplas';
 import { normalizeLegacyStatus, numeroDaSenha, senhaStatusLabel } from '@/components/admin/senhaFormat';
 import { PRIORITY_CATEGORY_LABELS, PriorityCategoryType } from 'shared-types';
 
@@ -373,6 +379,8 @@ function PortaContent() {
   const [walkInCreateOpen, setWalkInCreateOpen] = useState(false);
   const [walkInEditTarget, setWalkInEditTarget] = useState<QueueItem | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [duplas, setDuplas] = useState<Dupla[]>([]);
+  const [duplasOpen, setDuplasOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   // Falhas seguidas da atualização da fila → aviso "Sem conexão" (PortaOfflineNotice).
@@ -389,6 +397,7 @@ function PortaContent() {
       setQueueLoaded(false);
       setQueue([]);
       setStats(null);
+      setDuplas([]);
       setCtxGiraId(id);
     },
     [setCtxGiraId],
@@ -435,6 +444,17 @@ function PortaContent() {
       toast.error('Não foi possível carregar a lista de médiuns. Dá para digitar o nome ao chamar.');
     }
   };
+
+  // Duplas da noite da gira escolhida (uma vez por gira e depois de salvar; não entra no polling).
+  const loadDuplas = useCallback(async () => {
+    if (!selectedGiraId) return;
+    try {
+      const res = await apiClient.get<DuplasPainel>(`/api/v1/admin/giras/${selectedGiraId}/door/duplas`);
+      setDuplas(Array.isArray(res?.data?.duplas) ? res.data.duplas : []);
+    } catch {
+      setDuplas([]);
+    }
+  }, [selectedGiraId]);
 
   const loadStats = useCallback(async () => {
     if (!selectedGiraId) return;
@@ -510,6 +530,11 @@ function PortaContent() {
   useEffect(() => {
     if (selectedGiraId) refreshAll();
   }, [selectedGiraId, refreshAll]);
+
+  useEffect(() => {
+    setDuplas([]);
+    void loadDuplas();
+  }, [loadDuplas]);
 
   useEffect(() => {
     if (!selectedGiraId) return;
@@ -643,6 +668,8 @@ function PortaContent() {
   const next = useMemo(() => nextToCall(queue), [queue]);
   const waiting = filtered.filter((t) => t.status === 'emitted');
   const done = queue.filter(isDone);
+
+  const atendimentos = useMemo(() => atendimentosPorMedium(queue), [queue]);
 
   const counts = {
     aguardando: queue.filter((t) => t.status === 'emitted').length,
@@ -820,6 +847,41 @@ function PortaContent() {
             </span>
           </button>
 
+          {/* ── Duplas da noite ── */}
+          {duplas.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => canEdit && setDuplasOpen(true)}
+              disabled={!canEdit}
+              className="flex min-h-12 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm enabled:hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+              aria-label={`Duplas da noite: ${duplas.length} ${duplas.length === 1 ? 'médium' : 'médiuns'} trabalhando${canEdit ? '. Editar' : ''}`}
+              data-testid="porta-duplas"
+            >
+              <UsersRound className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">
+                  Duplas da noite · {duplas.length} {duplas.length === 1 ? 'médium' : 'médiuns'}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {duplas.map((d) => (d.cambone_nome ? `${d.medium_nome} + ${d.cambone_nome}` : d.medium_nome)).join(' · ')}
+                </span>
+              </span>
+              {canEdit && <span className="shrink-0 text-xs text-brand">Editar</span>}
+            </button>
+          ) : (
+            canEdit && (
+              <div className="flex min-h-12 items-center gap-3 rounded-lg border border-dashed px-3 py-2 text-sm">
+                <UsersRound className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="min-w-0 flex-1 text-muted-foreground">
+                  Monte as duplas da noite (médium e cambone) para chamar com um toque.
+                </span>
+                <Button type="button" variant="outline" size="sm" onClick={() => setDuplasOpen(true)}>
+                  Montar duplas
+                </Button>
+              </div>
+            )
+          )}
+
           <TextField
             data-tour="porta-busca"
             aria-label="Buscar senha por nome ou número"
@@ -909,6 +971,8 @@ function PortaContent() {
         loading={actionLoading === attendTarget?.id}
         mediumOptions={mediumOptions}
         camboneOptions={camboneOptions}
+        duplas={duplas}
+        atendimentos={atendimentos}
       />
       <AttendModal
         open={!!editTarget}
@@ -920,12 +984,22 @@ function PortaContent() {
         editMode
         mediumOptions={mediumOptions}
         camboneOptions={camboneOptions}
+        duplas={duplas}
         initialValues={{
           medium_nome: editTarget?.medium_nome || '',
           cambone_nome: editTarget?.cambone_nome || '',
           atendimento_descricao: editTarget?.atendimento_descricao || '',
         }}
       />
+      {selectedGiraId && canEdit && (
+        <DuplasDaNoiteDrawer
+          open={duplasOpen}
+          onClose={() => setDuplasOpen(false)}
+          giraId={selectedGiraId}
+          giraNome={selectedGira?.nome ?? ''}
+          onSaved={setDuplas}
+        />
+      )}
       <WalkInModal
         open={walkInCreateOpen}
         onClose={() => setWalkInCreateOpen(false)}

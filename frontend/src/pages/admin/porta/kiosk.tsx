@@ -9,6 +9,8 @@
  * `GET /giras/{id}/door/tv`, que só traz número, nome reduzido no servidor ("Maria S."),
  * próximas senhas e a última chamada — nunca e-mail, telefone, nome completo ou ids. Não usar
  * `/door/queue` aqui.
+ * Médium da última chamada: só vem quando a casa liga "Mostrar o médium no Modo TV" em
+ * Configurações (`enable_tv_medium`, padrão desligado) — o servidor nem manda o nome sem isso.
  * Presença (AM-28): com o modo "Cheguei com QR" e a janela aberta, o QR do dia aparece no canto
  * (`QrPresenca` → `GET /admin/atividades/da-gira/{id}/qr`): só um link da Área com o código curto,
  * nenhum dado de médium. Precisa da Área liberada e da presença no plano.
@@ -23,6 +25,7 @@ import { PermissionDenied } from '@/components/gates';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSubscription } from '@/hooks/useSubscription';
 import { QrPresenca } from '@/components/admin/presenca/QrPresenca';
+import { cn } from '@/lib/utils';
 
 const POLLING_INTERVAL_MS = 8000;
 
@@ -37,6 +40,8 @@ interface TvSenha {
   numero_formatado: string;
   nome: string | null;
   chamado_em: string | null;
+  /** Médium que atende (só na última chamada e só com a opção ligada). */
+  medium?: string | null;
 }
 export interface DoorTv {
   gira_nome: string;
@@ -221,10 +226,19 @@ function KioskContent({ canView }: { canView: boolean }) {
 
             {ultima && (
               <p
-                className="absolute inset-x-0 bottom-0 px-6 py-5 text-center text-lg text-white/50 md:text-2xl"
+                className={cn(
+                  'absolute inset-x-0 bottom-0 px-6 py-5 text-center text-white/50',
+                  ultima.medium ? 'text-xl md:text-4xl' : 'text-lg md:text-2xl',
+                )}
                 data-testid="kiosk-ultima"
               >
                 Última chamada: <span className="font-mono font-bold tabular-nums">{ultima.numero_formatado}</span>
+                {ultima.medium && (
+                  <>
+                    {' '}
+                    com <span className="font-bold text-white" data-testid="kiosk-medium">{ultima.medium}</span>
+                  </>
+                )}
                 {horaCurta(ultima.chamado_em) && ` às ${horaCurta(ultima.chamado_em)}`}
               </p>
             )}
