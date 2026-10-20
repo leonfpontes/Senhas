@@ -4,7 +4,7 @@
  * /public/[tenant]/senha and /public/[tenant]/associado)
  */
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 
 const mockReplace = jest.fn();
 
@@ -109,8 +109,45 @@ describe('UnifiedGiraRedirect', () => {
       expect(screen.getByText('Erro ao carregar')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
     });
-    // Ponto de entrada público: a falha nao pode sumir sem rastro
-    expect(Sentry.captureException).toHaveBeenCalledWith(err, expect.anything());
+    // Ponto de entrada público: a falha nao pode sumir sem rastro — como Error com o status
+    // (o objeto cru virava "Object captured as exception" no Sentry).
+    expect(Sentry.captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Falha ao achar a próxima gira (status 500)' }),
+      expect.objectContaining({ extra: { erro: err } }),
+    );
+    expect(apiClient.get).toHaveBeenCalledTimes(1); // 500 não é passageiro: sem nova tentativa
+  });
+
+  it('falha passageira (deploy, 502): tenta de novo sozinha e segue para a gira', async () => {
+    jest.useFakeTimers();
+    try {
+      apiClient.get.mockRejectedValueOnce({ status: 502 }).mockResolvedValueOnce({ data: { id: 'gira-9' } });
+      render(<UnifiedGiraRedirect tipo="comum" />);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/public/gira/gira-9'));
+      expect(screen.queryByText('Erro ao carregar')).not.toBeInTheDocument();
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('sem rede nas duas tentativas: mostra o erro e reporta uma vez', async () => {
+    jest.useFakeTimers();
+    try {
+      apiClient.get.mockRejectedValue({ status: 0, message: 'Network Error' });
+      render(<UnifiedGiraRedirect tipo="comum" />);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      await waitFor(() => expect(screen.getByText('Erro ao carregar')).toBeInTheDocument());
+      expect(apiClient.get).toHaveBeenCalledTimes(2);
+      expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

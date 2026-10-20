@@ -31,6 +31,12 @@ interface UnifiedGiraRedirectProps {
 const TENANT_MISSING_RE = /not found/i;
 type ErrorKind = 'tenant-missing' | 'no-gira' | 'error';
 
+// Falha passageira (sem rede ou backend reiniciando num deploy: 502/503/504): tenta de novo uma
+// vez sozinha antes de mostrar "Erro ao carregar". Em 07/10/2026 um deploy deixou consulentes na
+// tela de erro (Sentry JAVASCRIPT-NEXTJS-1/2).
+const TRANSIENT_STATUSES = new Set([0, 502, 503, 504]);
+export const RETRY_DELAY_MS = 2000;
+
 /** "tenda-pai-joaquim" → "Tenda Pai Joaquim" — só para o texto de carregamento, antes de conhecer o nome real. */
 export function humanizeSlug(slug: string | undefined): string {
   if (!slug) return 'terreiro';
@@ -47,7 +53,7 @@ export default function UnifiedGiraRedirect({ tipo }: UnifiedGiraRedirectProps) 
 
   const [errorKind, setErrorKind] = useState<ErrorKind | null>(null);
 
-  const resolveNextGira = useCallback(async () => {
+  const resolveNextGira = useCallback(async (tentativa = 0): Promise<void> => {
     if (!tenantSlug) return;
     setErrorKind(null);
     try {
@@ -68,20 +74,25 @@ export default function UnifiedGiraRedirect({ tipo }: UnifiedGiraRedirectProps) 
         } else {
           setErrorKind('no-gira');
         }
+      } else if (tentativa === 0 && (status === undefined || TRANSIENT_STATUSES.has(status))) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        return resolveNextGira(1);
       } else {
         // 500 / timeout / rede: ponto de entrada público sem auth — registrar
-        // para o Sentry, senão a falha some sem rastro no cliente
+        // para o Sentry, senão a falha some sem rastro no cliente. O api_client rejeita com um
+        // objeto ({ status, message, ... }), não um Error: embrulhar para o Sentry mostrar o status.
         setErrorKind('error');
-        Sentry.captureException(err, {
-          tags: { area: 'public-emission', slug: tenantSlug, tipo },
-        });
+        Sentry.captureException(
+          new Error(`Falha ao achar a próxima gira (status ${status ?? 'sem resposta'})`),
+          { tags: { area: 'public-emission', slug: tenantSlug, tipo, status: String(status ?? 'sem-resposta') }, extra: { erro: err } },
+        );
         // eslint-disable-next-line no-console
         console.error('Erro ao resolver a próxima gira:', err);
       }
     }
   }, [tenantSlug, tipo, router]);
 
-  useEffect(() => { resolveNextGira(); }, [resolveNextGira]);
+  useEffect(() => { void resolveNextGira(); }, [resolveNextGira]);
 
   const nome = humanizeSlug(tenantSlug);
 
@@ -111,7 +122,7 @@ export default function UnifiedGiraRedirect({ tipo }: UnifiedGiraRedirectProps) 
               <Button asChild size="touch" className="w-full">
                 <Link href={`/${encodeURIComponent(tenantSlug)}`}>Ver agenda do terreiro</Link>
               </Button>
-              <Button type="button" variant="outline" size="touch" className="w-full" onClick={resolveNextGira}>
+              <Button type="button" variant="outline" size="touch" className="w-full" onClick={() => void resolveNextGira()}>
                 Atualizar
               </Button>
             </>
@@ -129,7 +140,7 @@ export default function UnifiedGiraRedirect({ tipo }: UnifiedGiraRedirectProps) 
           title="Erro ao carregar"
           description="Não foi possível carregar as informações. Verifique sua conexão e tente novamente."
           actions={
-            <Button type="button" size="touch" className="w-full" onClick={resolveNextGira}>
+            <Button type="button" size="touch" className="w-full" onClick={() => void resolveNextGira()}>
               Tentar novamente
             </Button>
           }
