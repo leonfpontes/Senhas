@@ -49,6 +49,7 @@ interface TenantConfig {
   endereco?: string | null;
   enable_analytics: boolean;
   enable_walk_in: boolean;
+  enable_tv_medium?: boolean;
   validate_associado_on_emit: boolean;
   sponsor_priority_mode?: string;
   enable_estoque_log?: boolean;
@@ -67,6 +68,7 @@ interface TimeSlotTemplateItem {
 type BoolField =
   | 'enable_analytics'
   | 'enable_walk_in'
+  | 'enable_tv_medium'
   | 'validate_associado_on_emit'
   | 'enable_estoque_log'
   | 'enable_waitlist'
@@ -84,6 +86,11 @@ const FEATURE_ITEMS: { field: BoolField; title: string; description: string; gat
     field: 'enable_walk_in',
     title: 'Senha na hora, na porta',
     description: 'Quem chegou sem senha recebe uma na Porta, sem passar pelo link.',
+  },
+  {
+    field: 'enable_tv_medium',
+    title: 'Mostrar o médium no Modo TV',
+    description: 'A TV da sala de espera mostra, junto da senha chamada, o nome do médium que vai atender.',
   },
   {
     field: 'enable_waitlist',
@@ -496,6 +503,7 @@ function AdminConfigContent() {
           : {}),
         enable_analytics: config.enable_analytics,
         enable_walk_in: config.enable_walk_in,
+        enable_tv_medium: !!config.enable_tv_medium,
         validate_associado_on_emit: config.validate_associado_on_emit,
         enable_estoque_log: config.enable_estoque_log,
         enable_waitlist: config.enable_waitlist,

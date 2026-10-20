@@ -134,6 +134,7 @@ class TenantConfigRepository:
             "enable_bulk_operations",
             "enable_analytics",
             "enable_walk_in",
+            "enable_tv_medium",
             "enable_estoque_log",
             "enable_mensalidade_associado",
             "enable_waitlist",

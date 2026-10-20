@@ -82,6 +82,7 @@ class TenantConfigResponse(BaseModel):
     enable_bulk_operations: bool
     enable_analytics: bool
     enable_walk_in: bool
+    enable_tv_medium: bool = False
     custom_settings: Optional[Dict[str, Any]]
     sponsor_priority_mode: str = "first"
     validate_associado_on_emit: bool = False
@@ -115,6 +116,7 @@ class TenantConfigUpdate(BaseModel):
     enable_bulk_operations: Optional[bool] = None
     enable_analytics: Optional[bool] = None
     enable_walk_in: Optional[bool] = None
+    enable_tv_medium: Optional[bool] = None
     custom_settings: Optional[Dict[str, Any]] = None
     sponsor_priority_mode: Optional[str] = None
     validate_associado_on_emit: Optional[bool] = None
@@ -289,6 +291,13 @@ async def update_tenant_config(
             tenant_id=current_user.tenant_id,
             feature_flag="enable_walk_in",
             enabled=config_update.enable_walk_in,
+        )
+
+    if config_update.enable_tv_medium is not None:
+        await repo.toggle_feature(
+            tenant_id=current_user.tenant_id,
+            feature_flag="enable_tv_medium",
+            enabled=config_update.enable_tv_medium,
         )
     
     # Update custom settings

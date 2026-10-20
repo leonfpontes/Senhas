@@ -40,6 +40,7 @@ from .atividades import (
     FuncaoCorrente,
     ParticipacaoTroca,
 )
+from .gira_duplas import GiraDupla
 from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
 from .parceiro_interesse import ParceiroInteresse
 from .push_inscricoes import PushInscricao
@@ -92,6 +93,7 @@ __all__ = [
     "ComunicadoGrupo",
     "CorrenteGrupo",
     "CorrenteGrupoMembro",
+    "GiraDupla",
     "Atividade",
     "AtividadeParticipacao",
     "AtividadeTipo",

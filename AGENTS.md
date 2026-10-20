@@ -958,12 +958,23 @@ Incluir obrigatoriamente:
   `?gira=` usa `pickTodayGira`. Privacidade (T-04): a TV e publica na sala de espera, entao le SO
   `GET /giras/{id}/door/tv` (PORTA:view, sem gate de plano; gira de outro tenant → 404) — numero
   formatado, nome reduzido NO SERVIDOR (`nome_para_tv`: "Maria S."), proximas 3 senhas e a ultima
-  chamada (`chamado_em`). Nunca e-mail, telefone, nome completo nem ids; nao usar `/door/queue` na TV.
+  chamada (`chamado_em`; e o medium dela so com `enable_tv_medium`). Nunca e-mail, telefone, nome completo nem ids; nao usar `/door/queue` na TV.
   A ordem e a mesma da fila da Porta (`_ordenar_fila` em `door_control.py`).
 - Sugestoes de medium/cambone no AttendModal (T-05): `GET /door/mediuns-options` (PORTA:view; so
   `id` + `nome` dos ativos do tenant; `only_atendimento=true` padrao = mediuns de atendimento,
   `false` = todos os ativos para cambone). O porteiro sem MEDIUNS nao cai mais no texto livre;
   erro real vira toast (sem catch silencioso). `/mediuns/options` segue so com MEDIUNS:view.
+- **Duplas da noite** (out/2026, migracao 096): o porteiro monta, por gira, quem trabalha e o cambone
+  de cada medium (`gira_duplas`; `door_duplas.py`: `GET /giras/{id}/door/duplas` PORTA:view, `PUT`
+  PORTA:edit, sem gate de plano; regras em `services/duplas_gira.py`). Um cambone por medium por gira
+  (indice unico parcial + validacao), medium da noite nao e cambone, so-cambone (`is_atendimento=false`)
+  nao e medium. O GET le (sem criar ancora) as respostas da Area (vou/nao vou/presente, nunca a
+  justificativa) e quem esta escalado na funcao "Cambone" (AM-18); traz sugestao de cambone pelo
+  historico das senhas (ultimas 10 giras, >= 2 juntos) e as duplas da ultima gira. Fica FORA de
+  `atividade_participacoes` de proposito (Porta e de todos os planos; escala/presenca nao). No front:
+  `DuplasDaNoiteDrawer` + cartoes no AttendModal (tocar no medium preenche o cambone); a senha segue
+  gravando `medium_nome`/`cambone_nome` em texto. Modo TV mostra o medium da ultima chamada so com
+  `tenant_configs.enable_tv_medium` (Configuracoes → Funcoes, padrao desligado).
 - Aviso sonoro: base = primeira fila carregada de cada gira (nao toca ao abrir nem ao trocar de gira).
 - Modais: AttendModal, WalkInModal. Editar "sem senha" com `priority_category: null` tira a prioridade
   (campo omitido mantem a atual).
