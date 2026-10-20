@@ -95,6 +95,11 @@ COPY --from=builder /app/frontend/.next/standalone ./
 COPY --from=builder /app/frontend/.next/static ./frontend/.next/static
 COPY --from=builder /app/frontend/public ./frontend/public
 
+# O otimizador de imagens (/_next/image) grava em .next/cache/images. O .next copiado acima é do
+# root; sem esta pasta do nextjs, cada imagem era refeita a cada visita (x-nextjs-cache: MISS) e o
+# Sentry recebia "EACCES: permission denied, mkdir" (JAVASCRIPT-NEXTJS-3, out/2026).
+RUN mkdir -p frontend/.next/cache && chown -R nextjs:nodejs frontend/.next/cache
+
 USER nextjs
 
 EXPOSE 3000

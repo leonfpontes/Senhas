@@ -2,7 +2,7 @@
 from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import delete, select, and_, or_, func
 from sqlalchemy.orm import selectinload
 
 from ..models import Tenant
@@ -206,9 +206,12 @@ class TenantRepository(BaseRepository[Tenant]):
     async def hard_delete(self, tenant_id: UUID, include_deleted: bool = False) -> Optional[Tenant]:
         """Permanently delete a tenant and all cascaded children.
 
-        Relies on SQLAlchemy ORM cascade ("all, delete-orphan") on the Tenant
-        model relationships.  The database FK constraints must already allow
-        the cascade (audit_logs → SET NULL, estoque_movimentacoes → CASCADE).
+        Um DELETE direto no banco: quem apaga os filhos são as FKs
+        (`ON DELETE CASCADE`; audit_logs → SET NULL). Antes era
+        `session.delete(tenant)`, e o ORM, pelos backrefs sem cascade
+        (`permission_groups`, `mediuns`, `associados`, `mensalidade_config`),
+        tentava pôr NULL em `tenant_id` NOT NULL — toda exclusão de terreiro
+        com uso real dava 500 (Sentry PYTHON-FASTAPI-X, 08/10/2026).
 
         Call flush() before commit in the caller so that the delete is sent
         inside the open transaction and can be rolled back on error.
@@ -230,6 +233,8 @@ class TenantRepository(BaseRepository[Tenant]):
         if not tenant:
             return None
 
-        await self.db.delete(tenant)
+        await self.db.execute(delete(Tenant).where(Tenant.id == tenant.id))
         await self.db.flush()
+        # Os objetos carregados na sessão (o terreiro e o que veio junto) já não existem no banco.
+        self.db.expunge_all()
         return tenant
