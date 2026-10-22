@@ -12,6 +12,8 @@ export { DateField } from './DateField';
 export type { DateFieldProps } from './DateField';
 export { DateTimeField } from './DateTimeField';
 export type { DateTimeFieldProps } from './DateTimeField';
+export { DurationField, durationRangeError } from './DurationField';
+export type { DurationFieldProps } from './DurationField';
 export { Combobox } from './Combobox';
 export type { ComboboxProps, ComboboxOption } from './Combobox';
 export { MultiCombobox } from './MultiCombobox';

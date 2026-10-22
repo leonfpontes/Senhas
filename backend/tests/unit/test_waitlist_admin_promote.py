@@ -31,7 +31,7 @@ def _make_gira(tenant_id):
     gira.id = uuid4()
     gira.tenant_id = tenant_id
     gira.nome = "Gira de Teste"
-    gira.waitlist_confirmation_hours = None
+    gira.waitlist_confirmation_minutes = None
     return gira
 
 

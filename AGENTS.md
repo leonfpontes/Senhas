@@ -939,6 +939,11 @@ Incluir obrigatoriamente:
 - Compartilhar no cartao/drawer da gira usa o `public_link` DA GIRA (`/public/gira/{id}`); o link
   unico do terreiro (`/giras/unified-links`, resolve a gira aberta mais antiga) fica em "Link e QR".
 - Criar gira sem `giras:edit` pula o passo "Senhas" (o PUT `/senhas` exige edit) e avisa.
+- **Prazo da fila de espera** (2026-10-22): `giras.waitlist_confirmation_minutes` (minutos; nulo = 24h,
+  `waitlist_service.DEFAULT_CONFIRMATION_MINUTES`). `PUT /giras/{id}/senhas` aceita `waitlist_confirmation_minutes`
+  de 5 a 59999 (999h59; fora disso 400) e só grava com a fila ligada no plano. Na tela, `DurationField` (hh:mm,
+  `components/fields`) no drawer de senhas; o e-mail de promoção mostra o prazo legível
+  (`waitlist_service.format_duration`: "1h30", "45 min", espelho de `formatDuration` em `lib/duration.ts`).
 - "Gira de hoje": `GiraRepository.get_upcoming_giras` inclui gira que comecou ha ate 12h (mesma
   janela do GiraCard e de `pickTodayGira`). A gira compartilhada vale para Dashboard, Senhas e Porta
   (`GIRA_CONTEXT_ROUTES`); o select no topo so aparece no Dashboard (`TOPBAR_GIRA_SELECTOR_ROUTES`) — Senhas e Porta
@@ -1027,7 +1032,9 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `097_platform_recibos` (2026-10-22, recibos da plataforma: tabela `platform_recibos` — sem
+- Head atual: `098_waitlist_confirmation_minutes` (2026-10-22, prazo da fila de espera com tempo quebrado:
+  `giras.waitlist_confirmation_hours` vira `waitlist_confirmation_minutes` (valores existentes × 60); downgrade volta
+  para horas arredondando para cima — §11.3), apos `097_platform_recibos` (2026-10-22, recibos da plataforma: tabela `platform_recibos` — sem
   isolamento por tenant, so super-admin; unico `(ano, numero)`, `tenant_id` SET NULL; downgrade remove a tabela —
   §11.25), apos `096_gira_duplas` (2026-10-20, `gira_duplas` medium + cambone por gira e `tenant_configs.
   enable_tv_medium`), apos `095_tenant_self_deactivated_by` (quem desativou o proprio terreiro), apos
@@ -1905,7 +1912,7 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   boas-vindas. **Ao subir a versão, acrescente a entrada no topo de `RELEASE_NOTES`** (um teste exige que a primeira seja
   `APP_VERSION`).
 - **Kit** (`frontend/src/components/README.md`): `components/ui/*`, `fields/*` (`TextField`, `PasswordField`, `MoneyInput`,
-  `MaskedInput` + `maskTelefone/maskCpf/unmask`, `DateField`, `DateTimeField`, `Combobox`), `CrudDrawer`, `ConfirmDialog`,
+  `MaskedInput` + `maskTelefone/maskCpf/unmask`, `DateField`, `DateTimeField`, `DurationField` (hh:mm → minutos), `Combobox`), `CrudDrawer`, `ConfirmDialog`,
   `DataTable` (TanStack v8, `renderCard` no celular), `EmptyState`, `PageHeader`, `KpiCard` (único), `Stepper`,
   `gates/{PermissionDenied,ReadOnlyNotice,PlanLocked}`, `charts/ChartCard` + `lib/chartTokens.ts`, `lib/icons.ts`,
   `lib/dateBr.ts` (datas no fuso de Brasília), `useSnackbar()` → Sonner. `TooltipProvider` não é global: quem usa `Tooltip`

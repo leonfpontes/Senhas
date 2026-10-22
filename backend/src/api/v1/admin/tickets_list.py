@@ -486,7 +486,7 @@ async def _send_waitlist_promotion_email(
 
     ticket_number_formatted = f"P{ticket.numero:03d}" if ticket.is_sponsor else f"{ticket.numero:04d}"
     gira_date_str = gira_obj.data_inicio.astimezone(APP_TZ).strftime("%d/%m/%Y às %H:%M") if gira_obj.data_inicio else ""
-    confirmation_hours = gira_obj.waitlist_confirmation_hours or waitlist_service.DEFAULT_CONFIRMATION_HOURS
+    confirmation_window = waitlist_service.format_duration(waitlist_service.confirmation_minutes(gira_obj))
     confirm_link = f"{settings.FRONTEND_URL.rstrip('/')}/public/waitlist/{ticket.id}/confirm"
 
     html_body = generate_waitlist_promotion_html(
@@ -496,7 +496,7 @@ async def _send_waitlist_promotion_email(
         gira_date=gira_date_str,
         gira_location=gira_obj.local or "",
         confirm_link=confirm_link,
-        confirmation_hours=confirmation_hours,
+        confirmation_window=confirmation_window,
         tenant_name=tenant_name,
         tenant_address=tenant_address,
         tenant_logo_url=tenant_logo_url,
@@ -510,7 +510,7 @@ async def _send_waitlist_promotion_email(
         gira_date=gira_date_str,
         gira_location=gira_obj.local or "",
         confirm_link=confirm_link,
-        confirmation_hours=confirmation_hours,
+        confirmation_window=confirmation_window,
         tenant_name=tenant_name,
         tenant_address=tenant_address,
     )

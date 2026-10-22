@@ -123,9 +123,9 @@ class SenhaConfigRequest(BaseModel):
     sponsor_max_tickets: Optional[int] = None
     sponsor_release_start_at: Optional[datetime] = None
     sponsor_release_end_at: Optional[datetime] = None
-    # Fila de espera: hours a promoted ticket has to confirm (Premium only; ignored
-    # server-side when the tenant doesn't have the feature enabled)
-    waitlist_confirmation_hours: Optional[int] = None
+    # Fila de espera: minutes a promoted ticket has to confirm (1h30 = 90; Premium only;
+    # ignored server-side when the tenant doesn't have the feature enabled)
+    waitlist_confirmation_minutes: Optional[int] = None
 
 
 class SenhaConfigResponse(BaseModel):
@@ -143,7 +143,7 @@ class SenhaConfigResponse(BaseModel):
     sponsor_release_end_at: Optional[datetime] = None
     sponsor_current_count: int = 0
     sponsor_public_link: str = ""
-    waitlist_confirmation_hours: Optional[int] = None
+    waitlist_confirmation_minutes: Optional[int] = None
 
 
 def _validate_acompanhantes_config(allow_acompanhantes: bool, max_acompanhantes: Optional[int]) -> None:
@@ -496,7 +496,7 @@ async def get_senha_config(
         sponsor_release_end_at=gira.sponsor_release_end_at,
         sponsor_current_count=sponsor_count,
         sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=associado" if gira.sponsor_max_tickets else "",
-        waitlist_confirmation_hours=gira.waitlist_confirmation_hours,
+        waitlist_confirmation_minutes=gira.waitlist_confirmation_minutes,
     )
 
 
@@ -515,8 +515,19 @@ async def update_senha_config(
         raise HTTPException(status_code=400, detail="max_tickets deve ser >= 1")
     if config.release_end_at <= config.release_start_at:
         raise HTTPException(status_code=400, detail="release_end_at deve ser posterior a release_start_at")
-    if config.waitlist_confirmation_hours is not None and config.waitlist_confirmation_hours < 1:
-        raise HTTPException(status_code=400, detail="waitlist_confirmation_hours deve ser >= 1")
+    from src.services import waitlist_service
+    if config.waitlist_confirmation_minutes is not None and not (
+        waitlist_service.MIN_CONFIRMATION_MINUTES
+        <= config.waitlist_confirmation_minutes
+        <= waitlist_service.MAX_CONFIRMATION_MINUTES
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"waitlist_confirmation_minutes deve estar entre {waitlist_service.MIN_CONFIRMATION_MINUTES} "
+                f"e {waitlist_service.MAX_CONFIRMATION_MINUTES}"
+            ),
+        )
     _validate_acompanhantes_config(config.allow_acompanhantes, config.max_acompanhantes)
 
     repo = GiraRepository(db)
@@ -524,13 +535,12 @@ async def update_senha_config(
     if not gira:
         raise NotFoundError("Gira não encontrada")
 
-    # waitlist_confirmation_hours only makes sense when the tenant actually has
+    # waitlist_confirmation_minutes only makes sense when the tenant actually has
     # the feature enabled; ignore it otherwise instead of silently persisting
     # a setting that will never take effect.
-    from src.services import waitlist_service
-    waitlist_confirmation_hours = config.waitlist_confirmation_hours
+    waitlist_confirmation_minutes = config.waitlist_confirmation_minutes
     if not await waitlist_service.waitlist_enabled_for_tenant(db, current_user.tenant_id):
-        waitlist_confirmation_hours = None
+        waitlist_confirmation_minutes = None
 
     await repo.update(
         gira_id,
@@ -543,7 +553,7 @@ async def update_senha_config(
         sponsor_max_tickets=config.sponsor_max_tickets,
         sponsor_release_start_at=config.sponsor_release_start_at,
         sponsor_release_end_at=config.sponsor_release_end_at,
-        waitlist_confirmation_hours=waitlist_confirmation_hours,
+        waitlist_confirmation_minutes=waitlist_confirmation_minutes,
     )
 
     # Ensure SenhaControl exists for regular tickets
@@ -603,7 +613,7 @@ async def update_senha_config(
         sponsor_release_end_at=config.sponsor_release_end_at,
         sponsor_current_count=sponsor_count,
         sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=associado" if config.sponsor_max_tickets else "",
-        waitlist_confirmation_hours=waitlist_confirmation_hours,
+        waitlist_confirmation_minutes=waitlist_confirmation_minutes,
     )
 
 
@@ -709,5 +719,5 @@ async def release_now(
         sponsor_public_link=f"{_BASE}/public/gira/{gira_id}?tipo=associado" if updated_gira.sponsor_max_tickets else "",
         # Config completa: sem isto o drawer recebia None e o próximo "Salvar"
         # apagava o prazo de confirmação da fila de espera.
-        waitlist_confirmation_hours=updated_gira.waitlist_confirmation_hours,
+        waitlist_confirmation_minutes=updated_gira.waitlist_confirmation_minutes,
     )

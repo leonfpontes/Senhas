@@ -50,9 +50,9 @@ class Gira(SoftDeleteModel):
     sponsor_release_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sponsor_release_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Waitlist: hours a promoted ticket has to confirm before the slot cascades
-    # to the next person in line. Only relevant when tenant_config.enable_waitlist.
-    waitlist_confirmation_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Waitlist: minutes a promoted ticket has to confirm before the slot cascades
+    # to the next person in line (1h30 = 90). Only relevant when tenant_config.enable_waitlist.
+    waitlist_confirmation_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Agendamento por horário: quando True, o consulente escolhe um GiraTimeSlot
     # ao emitir a senha em vez de disputar a capacidade geral da gira. Só tem
