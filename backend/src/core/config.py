@@ -126,11 +126,12 @@ class Settings(BaseSettings):
     ERROR_ALERT_COOLDOWN_MINUTES: int = 30
 
     # Emissor dos recibos da plataforma (/platform → Tenant 360 → Recibos). Cada recibo grava
-    # uma cópia desses dados ao ser emitido; mudar aqui só vale para os próximos.
+    # uma cópia desses dados ao ser emitido; mudar aqui só vale para os próximos. Razão social, CNPJ
+    # e cidade são os mesmos dos Termos e do rodapé (frontend/src/constants/legal.ts — mude nos dois).
     RECIBO_EMISSOR_NOME: str = "Leonardo Fonseca Pontes"
-    RECIBO_EMISSOR_EMPRESA: str = "GiraHub · LP Consultoria Informática Ltda."
-    RECIBO_EMISSOR_CNPJ: str = ""
-    RECIBO_EMISSOR_CIDADE: str = ""
+    RECIBO_EMISSOR_EMPRESA: str = "GiraHub · L. F. Pontes Consultoria em Informática"
+    RECIBO_EMISSOR_CNPJ: str = "30.958.973/0001-07"
+    RECIBO_EMISSOR_CIDADE: str = "Ribeirão Preto/SP"
     # PNG da assinatura (fundo transparente) que vai no PDF. Fica FORA do git (repo público): em produção
     # no volume backend_uploads (/app/uploads/platform/). Sem o arquivo, o recibo sai só com a linha.
     RECIBO_ASSINATURA_PATH: str = "uploads/platform/assinatura_recibo.png"
