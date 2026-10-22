@@ -206,13 +206,46 @@ async def test_release_now_devolve_prazo_da_fila_de_espera(client, db):
     tenant = await create_tenant(db)
     admin = await create_user(db, tenant, UserRole.ADMIN)
     gira = await create_gira(db, tenant, open_now=False)
-    gira.waitlist_confirmation_hours = 6
+    gira.waitlist_confirmation_minutes = 90
     await db.commit()
 
     resp = await client.post(f"/api/v1/admin/giras/{gira.id}/release-now", headers=admin.headers)
 
     assert resp.status_code == 200, resp.text
-    assert resp.json()["waitlist_confirmation_hours"] == 6
+    assert resp.json()["waitlist_confirmation_minutes"] == 90
+
+
+# ── 17b. Prazo da fila de espera com tempo quebrado (hh:mm) ──────────────────
+
+async def test_prazo_da_fila_de_espera_aceita_horas_e_minutos(client, db):
+    from src.models.tenant_config import TenantConfig
+
+    tenant = await create_tenant(db)
+    admin = await create_user(db, tenant, UserRole.ADMIN)
+    gira = await create_gira(db, tenant)
+    config = (await db.execute(select(TenantConfig).where(TenantConfig.tenant_id == tenant.id))).scalar_one()
+    config.enable_waitlist = True
+    await db.commit()
+    agora = datetime.now(timezone.utc)
+    body = {
+        "max_tickets": 10,
+        "release_start_at": agora.isoformat(),
+        "release_end_at": (agora + timedelta(days=1)).isoformat(),
+        "waitlist_confirmation_minutes": 90,
+    }
+    url = f"/api/v1/admin/giras/{gira.id}/senhas"
+
+    resp = await client.put(url, headers=admin.headers, json=body)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["waitlist_confirmation_minutes"] == 90
+    assert (await _fresh(Gira, gira.id)).waitlist_confirmation_minutes == 90
+    assert (await client.get(url, headers=admin.headers)).json()["waitlist_confirmation_minutes"] == 90
+    # Fora da faixa (menos de 5 min ou mais de 999:59) é recusado sem gravar.
+    for invalido in (4, 999 * 60 + 60):
+        resp = await client.put(url, headers=admin.headers, json={**body, "waitlist_confirmation_minutes": invalido})
+        assert resp.status_code == 400, resp.text
+    assert (await _fresh(Gira, gira.id)).waitlist_confirmation_minutes == 90
 
 
 # ── 18. Tirar a prioridade de quem chegou sem senha ──────────────────────────

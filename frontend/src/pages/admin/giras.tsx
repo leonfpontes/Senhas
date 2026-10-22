@@ -42,7 +42,7 @@ import { ShareLinkDialog } from '@/components/admin/ShareLinkDialog';
 import { PermissionDenied } from '@/components/gates';
 import { Stepper } from '@/components/Stepper';
 import CrudDrawer from '@/components/CrudDrawer';
-import { DateTimeField, TextField } from '@/components/fields';
+import { DateTimeField, DurationField, TextField, durationRangeError } from '@/components/fields';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -90,7 +90,7 @@ interface SenhaConfig {
   sponsor_release_end_at?: string | null;
   sponsor_current_count?: number;
   sponsor_public_link?: string;
-  waitlist_confirmation_hours?: number | null;
+  waitlist_confirmation_minutes?: number | null;
 }
 
 interface TimeSlotRow {
@@ -126,13 +126,17 @@ const EMPTY_SENHA_FORM = {
   sponsor_max_tickets: '',
   sponsor_release_start_at: '',
   sponsor_release_end_at: '',
-  waitlist_confirmation_hours: '',
+  waitlist_confirmation_minutes: '',
 };
 type SenhaForm = typeof EMPTY_SENHA_FORM;
 
 const CREATE_STEPS = [{ label: 'A gira' }, { label: 'Senhas' }, { label: 'Recados', optional: true }];
 // Sem `giras:edit` não dá para salvar as senhas (PUT /senhas exige edit): a criação pula o passo.
 const CREATE_STEPS_SEM_SENHAS = [{ label: 'A gira' }, { label: 'Recados', optional: true }];
+
+/** Prazo da fila de espera em minutos — mesmos limites do backend (`waitlist_service`). */
+const WAITLIST_MIN_MINUTES = 5;
+const WAITLIST_MAX_MINUTES = 999 * 60 + 59;
 
 /** Status que não ocupam vaga da gira (não contam em "X de Y senhas"). */
 const NAO_OCUPA_VAGA = new Set(['cancelled', 'waitlisted', 'waitlist_expired']);
@@ -158,7 +162,7 @@ function configToForm(config: Partial<SenhaConfig>): SenhaForm {
     sponsor_max_tickets: config.sponsor_max_tickets ? String(config.sponsor_max_tickets) : '',
     sponsor_release_start_at: isoToLocalDatetimeInput(config.sponsor_release_start_at),
     sponsor_release_end_at: isoToLocalDatetimeInput(config.sponsor_release_end_at),
-    waitlist_confirmation_hours: config.waitlist_confirmation_hours ? String(config.waitlist_confirmation_hours) : '',
+    waitlist_confirmation_minutes: config.waitlist_confirmation_minutes ? String(config.waitlist_confirmation_minutes) : '',
   };
 }
 
@@ -852,12 +856,18 @@ function AdminGirasContent() {
     (!senhaForm.max_acompanhantes || Number(senhaForm.max_acompanhantes) < 1)
       ? 'Informe o máximo de acompanhantes (mínimo 1)'
       : '';
+  const waitlistPrazoError = durationRangeError(
+    senhaForm.waitlist_confirmation_minutes ? Number(senhaForm.waitlist_confirmation_minutes) : null,
+    WAITLIST_MIN_MINUTES,
+    WAITLIST_MAX_MINUTES,
+  );
   const senhaSaveDisabled =
     !senhaForm.max_tickets ||
     Number(senhaForm.max_tickets) < 1 ||
     !senhaForm.release_start_at ||
     !senhaForm.release_end_at ||
     (senhaForm.allow_acompanhantes && (!senhaForm.max_acompanhantes || Number(senhaForm.max_acompanhantes) < 1)) ||
+    (can('fila_espera') && !!waitlistPrazoError) ||
     !timeSlotsValid;
 
   const senhaDirty = JSON.stringify(senhaForm) !== JSON.stringify(senhaInitial) || timeSlotsDirty;
@@ -884,8 +894,8 @@ function AdminGirasContent() {
           ? toUtcIso(senhaForm.sponsor_release_end_at)
           : payload.release_end_at;
       }
-      if (can('fila_espera') && senhaForm.waitlist_confirmation_hours) {
-        payload.waitlist_confirmation_hours = Number(senhaForm.waitlist_confirmation_hours);
+      if (can('fila_espera') && senhaForm.waitlist_confirmation_minutes) {
+        payload.waitlist_confirmation_minutes = Number(senhaForm.waitlist_confirmation_minutes);
       }
       const response = await apiClient.put(`/api/v1/admin/giras/${senhaTarget.id}/senhas`, payload);
       setSenhaConfig(response.data);
@@ -1486,13 +1496,13 @@ function AdminGirasContent() {
                 <AccordionItem value="fila">
                   <AccordionTrigger>Fila de espera</AccordionTrigger>
                   <AccordionContent>
-                    <TextField
-                      label="Prazo para confirmar a vaga (horas)"
-                      type="number"
-                      min={1}
-                      value={senhaForm.waitlist_confirmation_hours}
-                      onChange={(e) => handleSenhaChange('waitlist_confirmation_hours', e.target.value)}
-                      helperText="Quando abre uma vaga, quem está na fila tem esse prazo para confirmar antes de passar para o próximo. Padrão: 24h."
+                    <DurationField
+                      label="Prazo para confirmar a vaga (hh:mm)"
+                      min={WAITLIST_MIN_MINUTES}
+                      max={WAITLIST_MAX_MINUTES}
+                      value={senhaForm.waitlist_confirmation_minutes ? Number(senhaForm.waitlist_confirmation_minutes) : null}
+                      onChange={(m) => handleSenhaChange('waitlist_confirmation_minutes', m == null ? '' : String(m))}
+                      helperText="Quando abre uma vaga, quem está na fila tem esse prazo para confirmar antes de passar para o próximo. Aceita horas e minutos (ex.: 00:45, 01:30). Em branco: 24h."
                     />
                   </AccordionContent>
                 </AccordionItem>

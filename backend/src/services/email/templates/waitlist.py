@@ -140,7 +140,7 @@ def generate_waitlist_promotion_html(
     gira_date: str,
     gira_location: str,
     confirm_link: str,
-    confirmation_hours: int,
+    confirmation_window: str,
     tenant_name: str,
     tenant_address: str = "",
     tenant_logo_url: str = "",
@@ -173,7 +173,7 @@ def generate_waitlist_promotion_html(
       </a>
     </div>
     <p style="margin:0;font-size:13px;color:#c62828;text-align:center;font-weight:600;">
-      ⏰ Confirme em até {confirmation_hours}h ou a vaga passa para o próximo da fila.
+      ⏰ Confirme em até {_esc(confirmation_window)} ou a vaga passa para o próximo da fila.
     </p>
     """
     return _shell(
@@ -194,7 +194,7 @@ def generate_waitlist_promotion_text(
     gira_date: str,
     gira_location: str,
     confirm_link: str,
-    confirmation_hours: int,
+    confirmation_window: str,
     tenant_name: str,
     tenant_address: str = "",
 ) -> str:
@@ -208,7 +208,7 @@ Uma vaga abriu em {gira_name} ({gira_date}) e é a sua vez na fila de espera!
 NÚMERO DA SENHA: {ticket_number}
 Endereço: {address or 'Não informado'}
 
-Confirme sua senha em até {confirmation_hours}h ou a vaga passa para o próximo
+Confirme sua senha em até {confirmation_window} ou a vaga passa para o próximo
 da fila:
 {confirm_link}
 

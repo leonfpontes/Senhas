@@ -22,6 +22,15 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.8.1',
+    date: '2026-10-22',
+    title: 'Prazo da fila de espera em horas e minutos',
+    highlights: [
+      'O prazo para quem está na fila de espera confirmar a vaga agora aceita horas e minutos (ex.: 00:45, 01:30, 02:15), no formato hh:mm. Fica nas senhas da gira, em "Fila de espera".',
+      'O e-mail que avisa da vaga mostra o prazo do jeito certo: "Confirme em até 1h30" ou "em até 45 min".',
+    ],
+  },
+  {
     version: '2.8.0',
     date: '2026-10-20',
     title: 'Duplas da noite na Porta',

@@ -47,13 +47,34 @@ def _make_ticket(numero: int, priority_category=None, promoted_at=None, confirma
     return t
 
 
-def _make_gira(hours=None) -> Gira:
+def _make_gira(minutes=None) -> Gira:
     g = Gira()
     g.id = uuid4()
     g.tenant_id = uuid4()
     g.nome = "Gira de Teste"
-    g.waitlist_confirmation_hours = hours
+    g.waitlist_confirmation_minutes = minutes
     return g
+
+
+class TestFormatDuration:
+    def test_minutos_sozinhos(self):
+        assert waitlist_service.format_duration(45) == "45 min"
+
+    def test_horas_cheias(self):
+        assert waitlist_service.format_duration(120) == "2h"
+
+    def test_horas_e_minutos(self):
+        assert waitlist_service.format_duration(90) == "1h30"
+        assert waitlist_service.format_duration(135) == "2h15"
+        assert waitlist_service.format_duration(65) == "1h05"
+
+
+class TestConfirmationMinutes:
+    def test_padrao_24h_quando_nao_configurado(self):
+        assert waitlist_service.confirmation_minutes(_make_gira()) == 24 * 60
+
+    def test_usa_o_prazo_da_gira(self):
+        assert waitlist_service.confirmation_minutes(_make_gira(minutes=45)) == 45
 
 
 class TestPriorityRank:
@@ -93,15 +114,16 @@ class TestReconcileAndFill:
         assert promoted == [ticket_elderly]
         assert ticket_elderly.promoted_at is not None
         assert ticket_elderly.confirmation_expires_at is not None
-        # default confirmation window applied since gira.waitlist_confirmation_hours is None
-        expected_delta = timedelta(hours=waitlist_service.DEFAULT_CONFIRMATION_HOURS)
+        # default confirmation window applied since gira.waitlist_confirmation_minutes is None
+        expected_delta = timedelta(minutes=waitlist_service.DEFAULT_CONFIRMATION_MINUTES)
         assert abs((ticket_elderly.confirmation_expires_at - ticket_elderly.promoted_at) - expected_delta) < timedelta(seconds=5)
         # the ticket that lost out was left untouched
         assert ticket_no_priority.promoted_at is None
 
-    async def test_uses_gira_custom_confirmation_hours(self):
+    async def test_uses_gira_custom_confirmation_minutes(self):
+        """Prazo quebrado (1h30) vira exatamente 90 minutos de janela."""
         db = _mock_db()
-        gira = _make_gira(hours=2)
+        gira = _make_gira(minutes=90)
         candidate = _make_ticket(numero=10)
         db.execute.side_effect = [
             _mock_result_scalars([]),
@@ -112,7 +134,7 @@ class TestReconcileAndFill:
         )
         assert unfilled == 0
         delta = candidate.confirmation_expires_at - candidate.promoted_at
-        assert abs(delta - timedelta(hours=2)) < timedelta(seconds=5)
+        assert abs(delta - timedelta(minutes=90)) < timedelta(seconds=5)
 
     async def test_cascades_expired_reservations_to_new_candidates(self):
         """Two lapsed promotions must each free a slot and pull in a replacement,

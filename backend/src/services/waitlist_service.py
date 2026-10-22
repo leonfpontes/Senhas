@@ -28,7 +28,23 @@ from sqlalchemy.orm import selectinload
 from src.models.tickets import Ticket, TicketStatus, PRIORITY_ORDER
 from src.models.giras import Gira
 
-DEFAULT_CONFIRMATION_HOURS = 24
+DEFAULT_CONFIRMATION_MINUTES = 24 * 60
+# Limites do prazo de confirmação (validados no PUT /giras/{id}/senhas e no DurationField da tela).
+MIN_CONFIRMATION_MINUTES = 5
+MAX_CONFIRMATION_MINUTES = 999 * 60 + 59
+
+
+def confirmation_minutes(gira: Gira) -> int:
+    """Prazo de confirmação da gira em minutos (padrão 24h quando não configurado)."""
+    return gira.waitlist_confirmation_minutes or DEFAULT_CONFIRMATION_MINUTES
+
+
+def format_duration(minutes: int) -> str:
+    """Prazo legível: 45 → "45 min", 120 → "2h", 90 → "1h30"."""
+    hours, mins = divmod(minutes, 60)
+    if not hours:
+        return f"{mins} min"
+    return f"{hours}h{mins:02d}" if mins else f"{hours}h"
 
 
 def priority_rank(category: Optional[str]) -> int:
@@ -128,10 +144,9 @@ async def expire_pending_confirmations(
 
 def promote_ticket(ticket: Ticket, gira: Gira) -> None:
     """Mark a WAITLISTED ticket as promoted, starting its confirmation window."""
-    hours = gira.waitlist_confirmation_hours or DEFAULT_CONFIRMATION_HOURS
     now = datetime.now(timezone.utc)
     ticket.promoted_at = now
-    ticket.confirmation_expires_at = now + timedelta(hours=hours)
+    ticket.confirmation_expires_at = now + timedelta(minutes=confirmation_minutes(gira))
 
 
 # Backward-compatible alias for internal callers within this module.

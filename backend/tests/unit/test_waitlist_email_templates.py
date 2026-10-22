@@ -21,7 +21,7 @@ _PROMOTION_KWARGS = dict(
     gira_date="15/07/2026 às 19:00",
     gira_location="Rua Exemplo, 123",
     confirm_link="https://app.example.com/public/waitlist/abc-123/confirm",
-    confirmation_hours=24,
+    confirmation_window="1h30",
     tenant_name="Terreiro Central",
 )
 
@@ -51,12 +51,12 @@ class TestWaitlistPromotionTemplate:
         html = generate_waitlist_promotion_html(**_PROMOTION_KWARGS)
         assert "0053" in html
         assert _PROMOTION_KWARGS["confirm_link"] in html
-        assert "24h" in html
+        assert "Confirme em até 1h30" in html
 
     def test_text_includes_confirm_link_and_hours(self):
         text = generate_waitlist_promotion_text(**_PROMOTION_KWARGS)
         assert _PROMOTION_KWARGS["confirm_link"] in text
-        assert "24h" in text
+        assert "em até 1h30" in text
         assert "0053" in text
 
     def test_html_escapes_gira_name(self):

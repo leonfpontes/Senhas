@@ -145,6 +145,7 @@ Todos aceitam `label`, `helperText`, `error` (bool ou string), `required`, `disa
 <MaskedInput mask="telefone" label="WhatsApp" value={tel} onChange={setTel} />  // onChange recebe o texto mascarado; unmask() dá os dígitos
 <DateField label="Data" value={data} onChange={setData} min="2026-01-01" />     // ISO "YYYY-MM-DD"; digita dd/mm/aaaa ou abre o calendário
 <DateTimeField label="Início" value={inicio} onChange={setInicio} />            // ISO local "YYYY-MM-DDTHH:mm"
+<DurationField label="Prazo" value={min} onChange={setMin} min={5} max={600} /> // minutos; digita hh:mm (00:45, 01:30), mostra "1h30"; durationRangeError() p/ bloquear o salvar
 <Combobox label="Médium" options={opts} value={id} onChange={setId} clearable />// Popover + Command com busca
 <MultiCombobox label="Médiuns" options={opts} value={ids} onChange={setIds} />  // vários itens; etiquetas removíveis; `dot` = bolinha de cor
 ```
