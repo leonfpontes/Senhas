@@ -4,8 +4,9 @@
  * Cabeçalho com nome, plano/status, trial restante, MRR e ações (WhatsApp, Mensagem, Entrar como
  * admin, Assinatura, Excluir permanentemente). Abas: Visão geral, Usuários (redefinir senha,
  * impersonar), Giras (próximos 30 dias DESTE terreiro — `GET /tenant-observatory/tenants/{id}/giras`),
- * Suporte (conversas do terreiro), Auditoria (feed consolidado filtrado) e Assinatura
- * (plano/bônus/suspender). `?tab=` controla a aba; `?bonus=1` abre o drawer já em bônus.
+ * Suporte (conversas do terreiro), Auditoria (feed consolidado filtrado), Assinatura
+ * (plano/bônus/suspender) e Recibos (emitir/2ª via/cancelar — `components/platform/RecibosTab`).
+ * `?tab=` controla a aba; `?bonus=1` abre o drawer já em bônus.
  *
  * Terreiro excluído (soft delete — `deleted_at`, ex.: desativado pelo próprio terreiro) também
  * abre: aviso no topo, ações de operação desligadas e a exclusão definitiva (LGPD) disponível.
@@ -24,6 +25,7 @@ import {
   MessageCircle,
   MessageSquare,
   Pencil,
+  ReceiptText,
   ScrollText,
   Trash2,
   UserRound,
@@ -69,6 +71,7 @@ import {
 } from '@/components/platform';
 import { SubscriptionDrawer, type SubscriptionDetail } from '@/components/platform/SubscriptionDrawer';
 import { DeleteTenantDialog } from '@/components/platform/DeleteTenantDialog';
+import { RecibosTab } from '@/components/platform/RecibosTab';
 import { AuditFeedTable } from '@/components/platform/AuditFeedTable';
 import { ACTION_OPTIONS, actionLabel, type FeedEntry } from '@/components/platform/auditFormat';
 import { PASSWORD_RULE_HINT, isPasswordValid, passwordHelp } from '@/components/platform/passwordPolicy';
@@ -142,7 +145,7 @@ interface ConversationSummary {
   unread: boolean;
 }
 
-const TABS = ['visao', 'usuarios', 'giras', 'suporte', 'auditoria', 'assinatura'] as const;
+const TABS = ['visao', 'usuarios', 'giras', 'suporte', 'auditoria', 'assinatura', 'recibos'] as const;
 type TabKey = (typeof TABS)[number];
 
 function parseTab(v: unknown): TabKey {
@@ -541,6 +544,7 @@ export default function TenantDetailPage() {
           <TabsTrigger value="suporte"><LifeBuoy /> Suporte</TabsTrigger>
           <TabsTrigger value="auditoria"><ScrollText /> Auditoria</TabsTrigger>
           <TabsTrigger value="assinatura"><CreditCard /> Assinatura</TabsTrigger>
+          <TabsTrigger value="recibos"><ReceiptText /> Recibos</TabsTrigger>
         </TabsList>
 
         {/* Visão geral */}
@@ -781,6 +785,11 @@ export default function TenantDetailPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Recibos */}
+        <TabsContent value="recibos">
+          {id && <RecibosTab tenantId={id} tenantName={tenant?.name ?? ''} disabled={loading || !tenant} />}
         </TabsContent>
       </Tabs>
 

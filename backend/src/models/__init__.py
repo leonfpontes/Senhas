@@ -43,6 +43,7 @@ from .atividades import (
 from .gira_duplas import GiraDupla
 from .medium_lembretes import MediumLembreteEnviado, MediumPreferencia
 from .parceiro_interesse import ParceiroInteresse
+from .platform_recibo import PlatformRecibo
 from .push_inscricoes import PushInscricao
 from .materiais import MaterialCorrente, MaterialGrupo, MaterialTipo
 from .ficha_espiritual import FichaCampo, FichaSugestao, FichaValor, MediumMarco
@@ -135,6 +136,7 @@ __all__ = [
     "SupportMessage",
     "SupportConversationStatus",
     "ParceiroInteresse",
+    "PlatformRecibo",
     "MensalidadeGateway",
     "MensalidadeCobranca",
 ]
