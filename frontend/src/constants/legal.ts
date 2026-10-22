@@ -8,6 +8,8 @@
  *
  * As versões de termos/privacidade são gravadas no aceite do cadastro (tabela legal_acceptances)
  * a partir do espelho em backend/src/core/legal_versions.py — suba nos dois (um teste confere).
+ * Razão social, CNPJ e cidade também saem nos recibos da plataforma: espelho em `RECIBO_EMISSOR_*`
+ * (backend/src/core/config.py) — mude nos dois.
  */
 export const LEGAL_ENTITY = {
   razaoSocial: 'L. F. Pontes Consultoria em Informática',

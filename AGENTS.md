@@ -1827,7 +1827,8 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   (`recibo_emitido`/`recibo_cancelado`, aparece na auditoria do terreiro).
 - **Regras**: numeração sequencial por ano sob `pg_advisory_xact_lock`; cancelado não libera o número; recibo nunca é
   apagado. Emissor e nome do terreiro são **gravados no recibo** (2ª via idêntica). Emissor vem de
-  `RECIBO_EMISSOR_NOME/_EMPRESA/_CNPJ/_CIDADE` (`core/config.py`; CNPJ/cidade vazios = omitidos no PDF). `tenant_id` com
+  `RECIBO_EMISSOR_NOME/_EMPRESA/_CNPJ/_CIDADE` (`core/config.py`; padrão = razão social, CNPJ e cidade de
+  `frontend/src/constants/legal.ts` — mudar nos dois; CNPJ/cidade vazios = omitidos no PDF). `tenant_id` com
   SET NULL: o recibo sobrevive à exclusão definitiva do terreiro (registro financeiro).
 - **Assinatura**: PNG transparente lido de `RECIBO_ASSINATURA_PATH` (padrão `uploads/platform/assinatura_recibo.png`;
   em produção `/app/uploads/platform/` no volume `backend_uploads`), servido por `GET /recibos/assinatura`
