@@ -125,6 +125,16 @@ class Settings(BaseSettings):
     # Cooldown entre alertas do mesmo tipo (minutos) para evitar flood de emails
     ERROR_ALERT_COOLDOWN_MINUTES: int = 30
 
+    # Emissor dos recibos da plataforma (/platform → Tenant 360 → Recibos). Cada recibo grava
+    # uma cópia desses dados ao ser emitido; mudar aqui só vale para os próximos.
+    RECIBO_EMISSOR_NOME: str = "Leonardo Fonseca Pontes"
+    RECIBO_EMISSOR_EMPRESA: str = "GiraHub · LP Consultoria Informática Ltda."
+    RECIBO_EMISSOR_CNPJ: str = ""
+    RECIBO_EMISSOR_CIDADE: str = ""
+    # PNG da assinatura (fundo transparente) que vai no PDF. Fica FORA do git (repo público): em produção
+    # no volume backend_uploads (/app/uploads/platform/). Sem o arquivo, o recibo sai só com a linha.
+    RECIBO_ASSINATURA_PATH: str = "uploads/platform/assinatura_recibo.png"
+
     # Password policy
     PASSWORD_MIN_LENGTH: int = 12
     PASSWORD_REQUIRE_UPPERCASE: bool = True

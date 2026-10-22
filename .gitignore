@@ -114,3 +114,6 @@ specs/**/archive/
 .coverage
 frontend/next-env.d.ts
 .pnpm-store/
+
+# Assinatura do recibo da plataforma (dado pessoal; repo público) — só no servidor
+backend/uploads/platform/

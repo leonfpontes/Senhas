@@ -1027,7 +1027,11 @@ Incluir obrigatoriamente:
 - Meta tags com Head do Next.js.
 
 ### 11.8 Cadeia de Migracoes Alembic
-- Head atual: `094_cobranca_tolerancia_cartao` (2026-10-13, tolerância do cartão do plano: `subscriptions.
+- Head atual: `097_platform_recibos` (2026-10-22, recibos da plataforma: tabela `platform_recibos` — sem
+  isolamento por tenant, so super-admin; unico `(ano, numero)`, `tenant_id` SET NULL; downgrade remove a tabela —
+  §11.25), apos `096_gira_duplas` (2026-10-20, `gira_duplas` medium + cambone por gira e `tenant_configs.
+  enable_tv_medium`), apos `095_tenant_self_deactivated_by` (quem desativou o proprio terreiro), apos
+  `094_cobranca_tolerancia_cartao` (2026-10-13, tolerância do cartão do plano: `subscriptions.
   pagamento_pendente_desde` (timestamptz nula — 1ª recusa) e `pagamento_pendente_invoice_id` (String 255 nula);
   downgrade so remove as colunas), apos `093_sessao_contas_verificadas` (2026-10-09, trocar de terreiro sem sair: `user_sessions.verified_accounts`
   JSONB nula — contas do mesmo e-mail com senha conferida neste login; downgrade so remove a coluna), apos
@@ -1811,6 +1815,25 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   `ficha_espiritual:view`). Area: `/medium/caminhada` (Perfil → "Minha caminhada", so com `me.ficha`): termo e
   "Autorizar", campos liberados, "Sugerir" (`MediumSheet`), linha do tempo e "Retirar autorizacao"
   (`ConfirmDialog` com `medium-terra`); cores so por token. Politica de Privacidade 2.3 cita a ficha.
+
+### 11.25 Recibos da plataforma para terreiros (2026-10-22)
+- **Uso**: terreiro bonificado (ou qualquer um) que paga um valor avulso à GiraHub e precisa de recibo. Tenant 360
+  (`/platform/tenants/[id]?tab=recibos`, `components/platform/RecibosTab.tsx`): lista, "Emitir recibo" (`CrudDrawer`:
+  recebido de, CPF/CNPJ opcional, valor, referente a, forma de pagamento, data do pagamento ≤ hoje), PDF por linha e
+  "Cancelar" com motivo. O PDF sai no navegador (`lib/pdf/reciboPdf.ts`, jsPDF) a partir do registro salvo.
+- **API** `/api/v1/platform/recibos` (`require_super_admin`, `api/v1/platform/recibos.py`): `GET /emissor`, `GET ?tenant_id=`,
+  `POST` (201), `GET /{id}`, `POST /{id}/cancelar` (409 se já cancelado). Resposta traz `numero_formatado`
+  (`0001/2026`) e `valor_extenso` (`services/valor_extenso.py`). Emitir/cancelar grava `log_platform_action`
+  (`recibo_emitido`/`recibo_cancelado`, aparece na auditoria do terreiro).
+- **Regras**: numeração sequencial por ano sob `pg_advisory_xact_lock`; cancelado não libera o número; recibo nunca é
+  apagado. Emissor e nome do terreiro são **gravados no recibo** (2ª via idêntica). Emissor vem de
+  `RECIBO_EMISSOR_NOME/_EMPRESA/_CNPJ/_CIDADE` (`core/config.py`; CNPJ/cidade vazios = omitidos no PDF). `tenant_id` com
+  SET NULL: o recibo sobrevive à exclusão definitiva do terreiro (registro financeiro).
+- **Assinatura**: PNG transparente lido de `RECIBO_ASSINATURA_PATH` (padrão `uploads/platform/assinatura_recibo.png`;
+  em produção `/app/uploads/platform/` no volume `backend_uploads`), servido por `GET /recibos/assinatura`
+  (`no-store`, 404 sem arquivo → PDF só com a linha). **Nunca no git** (repo público; `backend/uploads/platform/` no
+  `.gitignore`). Trocar = substituir o arquivo no volume (`docker cp`). Testes:
+  `tests/integration_pg/test_platform_recibos.py`, `tests/unit/test_valor_extenso.py`.
 
 ### 11.16 Frontend — shadcn/ui + Tailwind (migração M-01 concluída em 2026-10-06, interface v2.0.0)
 - **Sem MUI.** `@mui/*`, `@emotion/*`, `stylis`, `dayjs`, `react-number-format` e `packages/shared-ui` saíram. Toda tela
