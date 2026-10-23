@@ -305,14 +305,14 @@ POST /auth/login
         ├─ super_admin                  → /platform
         ├─ só admin/operador            → /admin/dashboard
         ├─ só médium                    → /medium
-        ├─ as duas, escolha lembrada    → área lembrada
-        ├─ as duas, sem escolha         → /escolher-area
+        ├─ as duas                      → /escolher-area (a cada login)
         └─ nenhuma (médium sem plano)   → /medium com aviso neutro "A Área do Médium não está disponível agora.
                                             Fale com a direção da casa." (sem oferta de upgrade ao médium)
 ```
-- (D-04, decidido) "Lembrar minha escolha neste aparelho" (caixa marcada por padrão) grava `girahub:area:{userId}` no
-  localStorage. Os dois cabeçalhos têm "Trocar de área" (no menu do perfil do `AdminTopbar` e no menu da Área do
-  Médium), que também atualiza a escolha lembrada.
+- (D-04, revisto em 23/10/2026) Sem escolha lembrada: quem tem as duas áreas escolhe a cada login. A versão anterior
+  ("Lembrar minha escolha neste aparelho", marcada por padrão, em `girahub:area:{userId}`, regravada pelo "Trocar de
+  área") fazia operador/admin que passou pela Área cair nela em todo login, sem ver o painel. Os dois cabeçalhos têm
+  "Trocar de área" (no menu do perfil do `AdminTopbar` e no menu da Área do Médium).
 - A troca de área **não troca o token**: é a mesma sessão, só muda a rota. Logout é o mesmo (`/auth/logout`).
 - `/escolher-area` mostra dois cartões grandes ("Área do Médium: agenda, avisos e mensalidade" e "Painel do
   terreiro: giras, senhas e gestão"), com o nome e a marca do terreiro.
@@ -828,15 +828,15 @@ precisa do AM-05.
 **Por quê.** Pedido direto do dono. Quem tem as duas áreas escolhe; quem tem uma entra direto.
 
 **Implementação**
-- `F/services/authSession.ts::completeLogin` decide pelo `areas` (§6.4) e pela escolha lembrada.
-- `F/pages/escolher-area.tsx` (+ `escolher-area` em `RESERVED_SLUGS` e no teste); dois cartões, caixa "Lembrar
-  neste aparelho", marca do terreiro.
+- `F/services/authSession.ts::completeLogin` decide pelo `areas` (§6.4).
+- `F/pages/escolher-area.tsx` (+ `escolher-area` em `RESERVED_SLUGS` e no teste); dois cartões e marca do
+  terreiro (sem caixa "Lembrar", D-04 revisto).
 - "Trocar de área" no menu do perfil do `AdminTopbar` (só com `areas.medium`) e no `MediumLayout` (só com
   `areas.admin`).
 - `admin_layout.tsx` redireciona quem não tem `areas.admin` para `/medium`; `MediumLayout` faz o inverso.
 - `_app.tsx`: providers de admin só carregam com `areas.admin` em rota `/admin/*` (sem 403 em série no Sentry).
 - Link "Recebi um convite" no `/login` explicando que o acesso vem pelo link do terreiro.
-- Evento de analytics `area_escolhida {area, lembrada}`.
+- Evento de analytics `area_escolhida {area, origem}`.
 
 **Aceite**
 - [ ] Só admin/operador vai direto ao painel; só médium vai direto à Área
@@ -1561,7 +1561,7 @@ faxina fica, porque é o exemplo do dono.
 | D-01 | Plano da Área do Médium | **Basic** (`area_medium`), núcleo completo (§6.5) |
 | D-02 | Degraus das fases seguintes | **Escalas e estudos no Pro** (`escalas`, `biblioteca_medium`); baixa automática segue o gateway, com taxa paga pelo terreiro |
 | D-03 | Atividade interna | **Tabela própria** (`atividades`, §8), fora do limite de giras, do site, da agenda pública e do sitemap |
-| D-04 | Escolha de área | **Lembrar por aparelho** (caixa marcada por padrão) + "Trocar de área" nos dois menus |
+| D-04 | Escolha de área | **Escolher a cada login** (revisto em 23/10/2026; antes: lembrar por aparelho) + "Trocar de área" nos dois menus |
 | D-05 | Troca da chave PIX | **FINANCEIRO:edit + senha + e-mail a todos os admins + aviso ao médium**, sem `is_admin` |
 | D-06 | Impersonação de médium | **Só leitura** (escritas da Área recusam token impersonado) |
 | D-07 | O que o médium vê dos outros | **Nada no MVP**; aniversário e colegas de escala com opt-in na fase 2 |

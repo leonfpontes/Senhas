@@ -29,7 +29,6 @@ import {
 import { PERFIL_URL, erroDaApi, type MediumPerfil } from '@/components/medium/perfil/perfil';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { useProfile } from '@/hooks/useProfile';
 import { apiClient } from '@/services/api_client';
 
 export default function MediumMeusDadosPage() {
@@ -51,7 +50,6 @@ function impersonando(): boolean {
 function MeusDados() {
   const router = useRouter();
   const { me } = useMedium();
-  const { profile } = useProfile();
   const [somenteLeitura, setSomenteLeitura] = useState(false);
   const [aniversarioLigado, setAniversarioLigado] = useState(false);
   const [baixando, setBaixando] = useState<null | 'json' | 'pdf'>(null);
@@ -100,7 +98,7 @@ function MeusDados() {
   };
 
   const encerrado = (resp: EncerrarResposta) => {
-    const destino = aposEncerrar(resp, profile?.id);
+    const destino = aposEncerrar(resp);
     // Recarga completa: os providers remontam sem a Área (ou sem sessão).
     window.location.href = destino;
   };

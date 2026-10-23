@@ -271,7 +271,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, onOpenCommand }
           </DropdownMenuItem>
           {profile?.areas?.medium && (
             <DropdownMenuItem
-              onSelect={() => router.push(switchArea(profile.id, 'medium'))}
+              onSelect={() => router.push(switchArea('medium'))}
               data-testid="menu-trocar-area"
             >
               <ArrowLeftRight aria-hidden /> Trocar de área

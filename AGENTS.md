@@ -1468,13 +1468,13 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
 - **Plano**: `area_medium` Basic+ no catálogo e no espelho `constants/plans.ts` (fora do quadro do painel; no comparativo público só com a chave do AM-24).
 - **Escolha de área (AM-04)**: `services/authSession.completeLogin` guarda o `user` COM as `areas`
   e manda pela tabela do plano §6.4 (`lib/areas.routeAfterLogin`): super admin → `/platform`; só
-  painel → `/admin/dashboard`; só médium → `/medium`; as duas → escolha lembrada
-  (`girahub:area:{userId}` no localStorage, try/catch) ou `/escolher-area` (dois cartões, "Lembrar
-  minha escolha neste aparelho" marcado); nenhuma → `/medium`, que mostra o aviso neutro "A Área do
+  painel → `/admin/dashboard`; só médium → `/medium`; as duas → `/escolher-area` (dois cartões) a
+  cada login — sem escolha lembrada desde 23/10/2026 (D-04 revisto: a escolha gravada em
+  `girahub:area:{userId}`, regravada pelo "Trocar de área", fazia quem passou pela Área cair nela em
+  todo login sem ver o painel; a chave não é mais lida); nenhuma → `/medium`, que mostra o aviso neutro "A Área do
   Médium não está disponível agora. Fale com a direção da casa." (sem oferta de plano). "Trocar de
   área" no menu do perfil do `AdminTopbar` (só com `areas.medium`) e no menu/Perfil da Área (só com
-  `areas.admin`): mesma sessão, só muda a rota, atualiza a escolha lembrada se houver. Evento
-  `area_escolhida {area, lembrada, origem}`. `/login` tem "Recebi um convite da casa" (o primeiro
+  `areas.admin`): mesma sessão, só muda a rota. Evento `area_escolhida {area, origem}`. `/login` tem "Recebi um convite da casa" (o primeiro
   acesso é pelo link do convite). `escolher-area` está em `RESERVED_SLUGS`.
 - **Médium puro nunca chama `/api/v1/admin/*`**: `hooks/useAdminDataEnabled` faz
   `SubscriptionProvider`, `PermissionsProvider`, `BirthdayProvider` e o branding do
@@ -1605,9 +1605,9 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   os outros médiuns — nada; só o aniversário se ligou o AM-20 —, ninguém de fora da casa), "Baixar meus dados" em PDF
   (`lib/pdf/meusDadosPdf.ts`, base `pdfDoc` com logo/cor do terreiro, montado no aparelho a partir do JSON) e em JSON
   (`baixarJson`), e "Encerrar meu acesso" (`EncerrarAcessoDrawer`: `CrudDrawer` `.medium-terra` com o que acontece +
-  senha, `skipAutoLogout`). Depois (`aposEncerrar`): conta só da Área → tira o `user` e a escolha de área do
+  senha, `skipAutoLogout`). Depois (`aposEncerrar`): conta só da Área → tira o `user` do
   localStorage e recarrega em `/login?acesso_encerrado=1` (aviso no login); operador/admin → `areas.medium = null` no
-  `user`, escolha lembrada = painel, recarrega em `/admin/dashboard`. Impersonando, baixar/encerrar somem. Backend e
+  `user` e recarrega em `/admin/dashboard`. Impersonando, baixar/encerrar somem. Backend e
   regras em §3.3.
 - **Aniversariantes (AM-20)**: Perfil → seção "Aniversário" (`components/medium/perfil/AniversarioOptIn.tsx`: `Switch`
   "Mostrar meu aniversário para a corrente", muda na hora e volta se der erro; sem data de nascimento fica travado e

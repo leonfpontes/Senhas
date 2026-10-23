@@ -313,8 +313,8 @@ export function MediumLayout({ title, children }: MediumLayoutProps) {
     void antes.finally(() => logout((url) => router.push(url)));
   }, [router]);
   const goToPainel = useCallback(() => {
-    void router.push(switchArea(profile?.id, 'admin'));
-  }, [router, profile?.id]);
+    void router.push(switchArea('admin'));
+  }, [router]);
   const outrasContas = useMinhasContas(profile?.id, Boolean(profile) && !isImpersonating());
   const abrirTroca = useCallback(() => setTrocaOpen(true), []);
   const shell: MediumShellValue = {

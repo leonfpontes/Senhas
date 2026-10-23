@@ -1,18 +1,15 @@
 /**
- * AM-04 — para onde vai cada conta depois do login (plano §6.4), escolha lembrada neste aparelho
- * (D-04) e "Trocar de área" (mesma sessão; atualiza a escolha lembrada; evento de analytics).
+ * AM-04 — para onde vai cada conta depois do login (plano §6.4; quem tem as duas áreas escolhe a
+ * cada login — D-04 revisto) e "Trocar de área" (mesma sessão; evento de analytics).
  */
 const mockTrack = jest.fn();
 jest.mock('@/services/analytics', () => ({ trackEvent: (...a: unknown[]) => mockTrack(...a) }));
 jest.mock('@/providers/ThemeProvider', () => ({ dispatchTenantBrandingUpdated: jest.fn() }));
 
 import {
-  areaStorageKey,
   chooseArea,
   hasAdminArea,
   knownWithoutAdminArea,
-  readRememberedArea,
-  rememberArea,
   routeAfterLogin,
   switchArea,
 } from '@/lib/areas';
@@ -59,28 +56,12 @@ describe('routeAfterLogin (tabela do §6.4)', () => {
     expect(routeAfterLogin(user)).toBe(rota);
   });
 
-  it('as duas com escolha lembrada → a área lembrada', () => {
-    const user: SessionUser = { id: 'd', role: 'admin', areas: { admin: true, medium: MEDIUM } };
-    rememberArea('d', 'medium');
-    expect(routeAfterLogin(user)).toBe('/medium');
-    rememberArea('d', 'admin');
-    expect(routeAfterLogin(user)).toBe('/admin/dashboard');
-    // A escolha é por usuário: outra conta no mesmo aparelho continua escolhendo.
-    expect(routeAfterLogin({ ...user, id: 'outro' })).toBe('/escolher-area');
-  });
-
-  it('storage bloqueado não quebra: sem escolha lembrada', () => {
-    const spy = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
-      throw new Error('blocked');
-    });
-    try {
-      expect(readRememberedArea('d')).toBeNull();
-      expect(
-        routeAfterLogin({ id: 'd', role: 'admin', areas: { admin: true, medium: MEDIUM } }),
-      ).toBe('/escolher-area');
-    } finally {
-      spy.mockRestore();
-    }
+  it('as duas → escolher, mesmo com escolha antiga gravada no aparelho', () => {
+    // D-04 revisto (23/10/2026): a chave antiga `girahub:area:{id}` não é mais lida.
+    localStorage.setItem('girahub:area:d', 'medium');
+    expect(
+      routeAfterLogin({ id: 'd', role: 'admin', areas: { admin: true, medium: MEDIUM } }),
+    ).toBe('/escolher-area');
   });
 });
 
@@ -106,40 +87,16 @@ describe('escolha e troca de área', () => {
     mockTrack.mockClear();
   });
 
-  it('escolher com "lembrar" grava girahub:area:{userId} e registra area_escolhida', () => {
-    expect(chooseArea('u1', 'medium', { lembrar: true, origem: 'escolha' })).toBe('/medium');
-    expect(localStorage.getItem(areaStorageKey('u1'))).toBe('medium');
-    expect(localStorage.getItem('girahub:area:u1')).toBe('medium');
-    expect(mockTrack).toHaveBeenCalledWith('area_escolhida', {
-      area: 'medium',
-      lembrada: true,
-      origem: 'escolha',
-    });
+  it('escolher registra area_escolhida e não grava nada no aparelho', () => {
+    expect(chooseArea('medium', 'escolha')).toBe('/medium');
+    expect(localStorage.length).toBe(0);
+    expect(mockTrack).toHaveBeenCalledWith('area_escolhida', { area: 'medium', origem: 'escolha' });
   });
 
-  it('escolher sem "lembrar" esquece a escolha anterior', () => {
-    rememberArea('u1', 'admin');
-    expect(chooseArea('u1', 'medium', { lembrar: false, origem: 'escolha' })).toBe('/medium');
-    expect(localStorage.getItem('girahub:area:u1')).toBeNull();
-    expect(mockTrack).toHaveBeenCalledWith('area_escolhida', {
-      area: 'medium',
-      lembrada: false,
-      origem: 'escolha',
-    });
-  });
-
-  it('trocar de área atualiza a escolha lembrada (se houver) e não cria uma do nada', () => {
-    rememberArea('u1', 'admin');
-    expect(switchArea('u1', 'medium')).toBe('/medium');
-    expect(localStorage.getItem('girahub:area:u1')).toBe('medium');
-
-    expect(switchArea('u2', 'admin')).toBe('/admin/dashboard');
-    expect(localStorage.getItem('girahub:area:u2')).toBeNull();
-    expect(mockTrack).toHaveBeenLastCalledWith('area_escolhida', {
-      area: 'admin',
-      lembrada: false,
-      origem: 'troca',
-    });
+  it('trocar de área só muda a rota', () => {
+    expect(switchArea('admin')).toBe('/admin/dashboard');
+    expect(localStorage.length).toBe(0);
+    expect(mockTrack).toHaveBeenLastCalledWith('area_escolhida', { area: 'admin', origem: 'troca' });
   });
 });
 
@@ -176,9 +133,10 @@ describe('completeLogin', () => {
     completeLogin({ id: 'd', role: 'operator', areas: { admin: true, medium: MEDIUM } });
     expect(href).toBe('/escolher-area');
 
-    rememberArea('d', 'medium');
+    // Escolha antiga gravada não pula a pergunta: quem tem as duas escolhe a cada login.
+    localStorage.setItem('girahub:area:d', 'medium');
     completeLogin({ id: 'd', role: 'operator', areas: { admin: true, medium: MEDIUM } });
-    expect(href).toBe('/medium');
+    expect(href).toBe('/escolher-area');
 
     completeLogin({ id: 'a', role: 'admin', areas: { admin: true, medium: null } });
     expect(href).toBe('/admin/dashboard');
