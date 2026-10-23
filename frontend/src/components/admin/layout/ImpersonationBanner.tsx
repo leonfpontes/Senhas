@@ -46,11 +46,13 @@ export const ImpersonationBanner: React.FC<ImpersonationBannerProps> = ({ userLa
       </Button>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent size="sm">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Encerrar a sessão como {userLabel}?</AlertDialogTitle>
+            <AlertDialogTitle>Encerrar esta sessão?</AlertDialogTitle>
             <AlertDialogDescription>
-              Você volta para a sua própria conta. Nada do que foi feito aqui é desfeito.
+              Você está operando como{' '}
+              <strong className="break-all font-semibold text-foreground">{userLabel}</strong>. Ao
+              encerrar, volta para a sua própria conta. Nada do que foi feito aqui é desfeito.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
