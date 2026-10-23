@@ -10,7 +10,12 @@ const nextConfig = {
   // outputFileTracingRoot saiu de experimental para top-level no Next 15.
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../'),
-  transpilePackages: ['shared-types'],
+  // O Next não rebaixa a sintaxe de node_modules: pacote que publica ES2022+ vai cru para o
+  // navegador. O `@radix-ui/react-collection` (Select, menus, abas…) traz `static {}` em classe,
+  // que o WebKit < 16.4 não entende — o chunk inteiro falha e, no iPad preso no iOS 15, o painel
+  // ficava sem perfil nem permissões ("Sem permissão" em toda tela). Pacote novo com o mesmo
+  // problema entra aqui; `scripts/audit-legacy-syntax.js` (CI, depois do build) acusa.
+  transpilePackages: ['shared-types', '@radix-ui/react-collection'],
   generateBuildId: async () => {
     const { execSync } = require('child_process');
     try {
