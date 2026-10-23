@@ -1941,6 +1941,10 @@ Plano completo em `docs/plano-area-do-medium.md` (cards AM-00 a AM-28). Lançame
   a tag das imagens Docker vem de `APP_VERSION` no `.env` do servidor.
 - **Testes**: por papel/texto (nunca classes). `jest.setup.js` tem polyfills do Radix (`hasPointerCapture`,
   `scrollIntoView`, `ResizeObserver`, `matchMedia`). Bundle antes/depois em `docs/bundle-baseline.md`.
+- **Navegador mínimo: Safari/WebKit do iOS 15** (iPad de terreiro preso no 15.8; todo navegador de iOS usa o WebKit do
+  sistema). O Next não rebaixa a sintaxe de `node_modules`: pacote que publica ES2022+ (ex.: `static {}` do
+  `@radix-ui/react-collection`) entra em `transpilePackages` no `next.config.js`. O CI roda
+  `scripts/audit-legacy-syntax.js` depois do build (bloco estático de classe, regex com lookbehind ou flag `v`).
 
 ### 11.9 Infraestrutura e Deploy
 - Docker Compose com: postgres, redis, backend (FastAPI/Uvicorn), frontend (Next.js), nginx (reverse proxy + SSL).
