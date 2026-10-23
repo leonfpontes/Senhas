@@ -83,17 +83,14 @@ beforeEach(() => {
 });
 
 describe('AdminTopbar — Trocar de área', () => {
-  it('quem tem as duas áreas vê "Trocar de área", que leva à Área e atualiza a escolha lembrada', async () => {
+  it('quem tem as duas áreas vê "Trocar de área", que leva à Área', async () => {
     mockProfile = { id: 'u1', role: 'operator', email: 'ana@x.com', tenant_id: 't1', areas: AMBAS };
-    localStorage.setItem('girahub:area:u1', 'admin');
     renderLayout();
     await userEvent.click(screen.getByTestId('topbar-user-menu'));
     await userEvent.click(await screen.findByRole('menuitem', { name: /Trocar de área/ }));
     expect(mockRouter.push).toHaveBeenCalledWith('/medium');
-    expect(localStorage.getItem('girahub:area:u1')).toBe('medium');
     expect(mockTrack).toHaveBeenCalledWith('area_escolhida', {
       area: 'medium',
-      lembrada: true,
       origem: 'troca',
     });
   });

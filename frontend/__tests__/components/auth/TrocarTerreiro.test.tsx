@@ -198,7 +198,7 @@ describe('Menu do painel — Trocar de terreiro', () => {
 });
 
 describe('completeSwitch', () => {
-  it('conta com as duas áreas e sem escolha lembrada vai para /escolher-area', () => {
+  it('conta com as duas áreas vai para /escolher-area', () => {
     completeSwitch({ id: 'u-x', role: 'operator', areas: { admin: true, medium: { medium_id: 'm', nome: 'X' } } });
     expect(assign).toHaveBeenCalledWith('/escolher-area');
   });

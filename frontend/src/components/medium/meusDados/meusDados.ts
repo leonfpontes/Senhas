@@ -2,7 +2,6 @@
  * Meus dados e privacidade da Área do Médium (AM-14): tipos de `GET /api/v1/medium/meus-dados/exportar`,
  * textos de "Quem vê o quê", o arquivo JSON e o pós-encerramento no navegador.
  */
-import { forgetArea, rememberArea } from '@/lib/areas';
 
 export const EXPORTAR_URL = '/api/v1/medium/meus-dados/exportar';
 export const ENCERRAR_URL = '/api/v1/medium/meus-dados/encerrar';
@@ -138,13 +137,12 @@ export interface EncerrarResposta {
 
 /**
  * Depois de encerrar: conta só da Área → o servidor já apagou os cookies; limpa o `user` local e
- * a escolha de área e recarrega no login. Operador/admin → o `user` local perde a Área, a escolha
- * lembrada vira o painel e recarrega lá (os providers remontam sem a Área).
+ * recarrega no login. Operador/admin → o `user` local perde a Área e recarrega no painel (os
+ * providers remontam sem a Área).
  */
-export function aposEncerrar(resp: EncerrarResposta, userId: string | undefined | null): string {
+export function aposEncerrar(resp: EncerrarResposta): string {
   try {
     if (resp.conta_desativada) {
-      forgetArea(userId);
       localStorage.removeItem('user');
     } else {
       const bruto = localStorage.getItem('user');
@@ -155,7 +153,6 @@ export function aposEncerrar(resp: EncerrarResposta, userId: string | undefined 
           localStorage.setItem('user', JSON.stringify(user));
         }
       }
-      rememberArea(userId, 'admin');
     }
   } catch {
     /* armazenamento indisponível: o servidor já decidiu, a próxima tela se ajusta */

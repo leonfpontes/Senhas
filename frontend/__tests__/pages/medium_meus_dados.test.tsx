@@ -240,7 +240,6 @@ describe('Meus dados e privacidade (AM-14)', () => {
   });
 
   it('encerrar (conta só da Área) limpa o navegador e vai ao login com aviso', async () => {
-    localStorage.setItem('girahub:area:u1', 'medium');
     mockPost.mockResolvedValue({
       data: { message: 'ok', conta_desativada: true, redirect: '/login?acesso_encerrado=1' },
     });
@@ -253,15 +252,13 @@ describe('Meus dados e privacidade (AM-14)', () => {
     });
     await waitFor(() => expect(window.location.href).toBe('/login?acesso_encerrado=1'));
     expect(localStorage.getItem('user')).toBeNull();
-    expect(localStorage.getItem('girahub:area:u1')).toBeNull();
   });
 
-  it('operador que também é médium: só a Área sai do user guardado e a escolha vira o painel', () => {
+  it('operador que também é médium: só a Área sai do user guardado e vai ao painel', () => {
     localStorage.setItem('user', JSON.stringify({ ...PROFILE, role: 'operator', areas: { admin: true, medium: { medium_id: 'm1' } } }));
-    const destino = aposEncerrar({ message: 'ok', conta_desativada: false, redirect: '/admin/dashboard' }, 'u1');
+    const destino = aposEncerrar({ message: 'ok', conta_desativada: false, redirect: '/admin/dashboard' });
     expect(destino).toBe('/admin/dashboard');
     expect(JSON.parse(localStorage.getItem('user')!).areas).toEqual({ admin: true, medium: null });
-    expect(localStorage.getItem('girahub:area:u1')).toBe('admin');
   });
 
   it('impersonando, baixar e encerrar não aparecem', async () => {

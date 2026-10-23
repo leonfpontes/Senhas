@@ -3,9 +3,9 @@
  *
  * Dois cartões grandes ("Área do Médium" e "Painel do terreiro") com o nome e a marca do
  * terreiro (vindos de `GET /api/v1/medium/me`, que essa conta pode chamar), na identidade da
- * Área (paleta terra + cor do terreiro). "Lembrar minha escolha neste aparelho" vem marcado
- * (D-04) e grava `girahub:area:{userId}` no localStorage; os dois menus têm "Trocar de área".
- * Evento `area_escolhida {area, lembrada}`. Quem não tem as duas áreas é mandado para a sua.
+ * Área (paleta terra + cor do terreiro). Aparece a cada login dessa conta — a escolha não fica
+ * lembrada (D-04 revisto em 23/10/2026); os dois menus têm "Trocar de área".
+ * Evento `area_escolhida {area, origem}`. Quem não tem as duas áreas é mandado para a sua.
  */
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
@@ -16,8 +16,6 @@ import { MediumFaixa } from '@/components/medium/MediumFaixa';
 import { useAreaClara } from '@/components/medium/MediumLayout';
 import { TerreiroEmblem } from '@/components/medium/TerreiroEmblem';
 import { primeiroNome } from '@/components/medium/format';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { useProfile } from '@/hooks/useProfile';
 import {
   chooseArea,
@@ -61,7 +59,6 @@ export default function EscolherAreaPage() {
   const router = useRouter();
   const { profile, loading } = useProfile();
   const [me, setMe] = useState<MediumMe | null>(null);
-  const [lembrar, setLembrar] = useState(true);
   useAreaClara();
 
   const duas = hasAdminArea(profile) && hasMediumArea(profile);
@@ -96,7 +93,7 @@ export default function EscolherAreaPage() {
   }, [duas]);
 
   const escolher = (area: AreaChoice) => {
-    void router.push(chooseArea(profile?.id, area, { lembrar, origem: 'escolha' }));
+    void router.push(chooseArea(area, 'escolha'));
   };
 
   const terreiro = me?.terreiro.nome ?? profile?.tenant_name ?? '';
@@ -145,17 +142,6 @@ export default function EscolherAreaPage() {
                 description="Giras, senhas e gestão"
                 onClick={() => escolher('admin')}
               />
-            </div>
-            <div className="flex min-h-12 items-center gap-3">
-              <Checkbox
-                id="lembrar-area"
-                checked={lembrar}
-                onCheckedChange={(v) => setLembrar(v === true)}
-                className="size-6"
-              />
-              <Label htmlFor="lembrar-area" className="cursor-pointer text-base font-normal">
-                Lembrar minha escolha neste aparelho
-              </Label>
             </div>
             <p className="text-sm text-muted-foreground">
               Você pode trocar a qualquer hora pelo menu do perfil.

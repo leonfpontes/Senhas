@@ -62,7 +62,7 @@ export async function selectAccount(choice: AccountChoice, userId: string): Prom
 /**
  * Guarda o `user` (com as `areas`), avisa os providers e recarrega na área certa (AM-04,
  * plano §6.4): super admin → /platform; só painel → /admin/dashboard; só médium → /medium;
- * as duas → escolha lembrada neste aparelho ou /escolher-area; nenhuma → /medium (aviso neutro).
+ * as duas → /escolher-area (a cada login); nenhuma → /medium (aviso neutro).
  */
 export function completeLogin(user: SessionUser): void {
   // access_token chega como cookie HttpOnly — não armazenar em localStorage
@@ -108,7 +108,7 @@ export async function trocarTerreiro(contaId: string, senha?: string): Promise<S
  * Depois da troca: limpa o que é do terreiro anterior neste navegador (gira selecionada; os
  * caches de permissões/assinatura/perfil são dos providers e somem na recarga), grava o novo
  * `user` e recarrega na área certa — mesma regra do login (`routeAfterLogin`: painel, Área do
- * Médium ou /escolher-area quando a conta tem as duas sem escolha lembrada).
+ * Médium ou /escolher-area quando a conta tem as duas).
  */
 export function completeSwitch(user: SessionUser): void {
   try {

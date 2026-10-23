@@ -22,6 +22,14 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '2.8.2',
+    date: '2026-10-23',
+    title: 'Painel ou Área do Médium: você escolhe ao entrar',
+    highlights: [
+      'Quem cuida do painel do terreiro e também é médium da casa agora escolhe, a cada vez que entra, se vai para o Painel do terreiro ou para a Área do Médium. Antes, quem tinha passado pela Área uma vez continuava caindo direto nela.',
+    ],
+  },
+  {
     version: '2.8.1',
     date: '2026-10-22',
     title: 'Prazo da fila de espera em horas e minutos',

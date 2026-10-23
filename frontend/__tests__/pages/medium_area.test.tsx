@@ -376,10 +376,9 @@ describe('gate do MediumLayout', () => {
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/login'));
   });
 
-  it('com as duas áreas, o menu tem "Trocar de área", que vai ao painel e atualiza a escolha lembrada', async () => {
+  it('com as duas áreas, o menu tem "Trocar de área", que vai ao painel', async () => {
     const profile = profileOf('operator', AMBAS);
     signIn(profile);
-    localStorage.setItem('girahub:area:u1', 'medium');
     api(
       { '/api/v1/medium/me': { ...ME, areas: AMBAS }, '/api/v1/medium/inicio': INICIO_COMPLETO },
       profile,
@@ -390,10 +389,8 @@ describe('gate do MediumLayout', () => {
     const trocar = await screen.findByTestId('perfil-trocar-area');
     fireEvent.click(trocar);
     expect(mockRouter.push).toHaveBeenCalledWith('/admin/dashboard');
-    expect(localStorage.getItem('girahub:area:u1')).toBe('admin');
     expect(mockTrack).toHaveBeenCalledWith('area_escolhida', {
       area: 'admin',
-      lembrada: true,
       origem: 'troca',
     });
     // Na Área nada chama o admin, mesmo para quem tem o painel.
@@ -479,7 +476,7 @@ describe('providers do painel fora do /admin', () => {
 });
 
 describe('/escolher-area', () => {
-  it('mostra os dois cartões com o terreiro; "lembrar" vem marcado e grava a escolha', async () => {
+  it('mostra os dois cartões com o terreiro, sem guardar a escolha no aparelho', async () => {
     const profile = profileOf('operator', AMBAS);
     signIn(profile);
     api({ '/api/v1/medium/me': { ...ME, areas: AMBAS } }, profile);
@@ -490,35 +487,29 @@ describe('/escolher-area', () => {
       await screen.findByRole('heading', { name: 'Olá, Ana. Para onde você quer ir?' }),
     ).toBeInTheDocument();
     expect(await screen.findByText('Tenda Luz da Mata')).toBeInTheDocument();
-    const lembrar = screen.getByRole('checkbox', { name: 'Lembrar minha escolha neste aparelho' });
-    expect(lembrar).toBeChecked();
+    // Sem "Lembrar minha escolha": quem tem as duas áreas escolhe a cada login (D-04 revisto).
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Área do Médium/ }));
     expect(mockRouter.push).toHaveBeenCalledWith('/medium');
-    expect(localStorage.getItem('girahub:area:u1')).toBe('medium');
+    expect(localStorage.getItem('girahub:area:u1')).toBeNull();
     expect(mockTrack).toHaveBeenCalledWith('area_escolhida', {
       area: 'medium',
-      lembrada: true,
       origem: 'escolha',
     });
     expect(calledUrls().filter((u) => u.startsWith('/api/v1/admin'))).toEqual([]);
   });
 
-  it('desmarcar "lembrar" não grava a escolha', async () => {
+  it('escolher o painel leva ao dashboard', async () => {
     const profile = profileOf('admin', AMBAS);
     signIn(profile);
     api({ '/api/v1/medium/me': { ...ME, areas: AMBAS } }, profile);
     mockRouter.pathname = '/escolher-area';
     const Page = require('@/pages/escolher-area').default;
     renderApp(<Page />);
-    fireEvent.click(
-      await screen.findByRole('checkbox', { name: 'Lembrar minha escolha neste aparelho' }),
-    );
-    fireEvent.click(screen.getByRole('button', { name: /Painel do terreiro/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Painel do terreiro/ }));
     expect(mockRouter.push).toHaveBeenCalledWith('/admin/dashboard');
-    expect(localStorage.getItem('girahub:area:u1')).toBeNull();
     expect(mockTrack).toHaveBeenCalledWith('area_escolhida', {
       area: 'admin',
-      lembrada: false,
       origem: 'escolha',
     });
   });
